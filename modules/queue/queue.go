@@ -3,13 +3,13 @@ package queue
 import (
 	"errors"
 	log "github.com/cihub/seelog"
-	"github.com/golang/go/src/pkg/path"
-	"github.com/golang/go/src/pkg/strings"
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/global"
 	. "github.com/infinitbyte/framework/core/queue"
 	. "github.com/infinitbyte/framework/modules/queue/disk_queue"
 	"os"
+	"path"
+	"strings"
 	"sync"
 	"time"
 )
