@@ -70,8 +70,6 @@ func StartAPI() {
 	router = httprouter.New()
 	mux = http.NewServeMux()
 
-	mux.Handle("/", router)
-
 	//registered handlers
 	if registeredAPIHandler != nil {
 		for k, v := range registeredAPIHandler {
