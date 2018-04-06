@@ -23,9 +23,9 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/google/go-github/github"
 	"github.com/infinitbyte/framework/core/api"
+	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/infinitbyte/framework/modules/ui/public/auth"
-	"github.com/julienschmidt/httprouter"
 	"golang.org/x/oauth2"
 	"net/http"
 )

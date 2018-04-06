@@ -19,11 +19,11 @@ package api
 import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/jmoiron/jsonq"
-	"github.com/julienschmidt/httprouter"
 	"io/ioutil"
 	"net/http"
 	"strings"

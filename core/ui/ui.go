@@ -24,12 +24,12 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"github.com/infinitbyte/framework/core/api"
+	"github.com/infinitbyte/framework/core/api/router"
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/ui/websocket"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/infinitbyte/framework/static"
-	"github.com/julienschmidt/httprouter"
 	"net/http"
 	_ "net/http/pprof"
 	"path"
@@ -51,10 +51,9 @@ var faviconAction = func(w http.ResponseWriter, req *http.Request, ps httprouter
 func StartUI(cfg *Config) {
 
 	//start web ui
-	router = httprouter.New()
 	mux = http.NewServeMux()
 
-	mux.Handle("/", router)
+	router = httprouter.New(mux)
 
 	//Index
 	router.GET("/favicon.ico", faviconAction)
@@ -134,7 +133,7 @@ func StartUI(cfg *Config) {
 
 		srv := &http.Server{
 			Addr:         address,
-			Handler:      context.ClearHandler(mux),
+			Handler:      context.ClearHandler(router),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -148,7 +147,7 @@ func StartUI(cfg *Config) {
 
 	} else {
 		log.Info("http server listen at: http://", address)
-		err := http.ListenAndServe(address, context.ClearHandler(mux))
+		err := http.ListenAndServe(address, context.ClearHandler(router))
 		if err != nil {
 			log.Error(err)
 			panic(err)

@@ -2,12 +2,12 @@ package admin
 
 import (
 	"github.com/infinitbyte/framework/core/api"
+	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/modules/ui/admin/console"
 	"github.com/infinitbyte/framework/modules/ui/admin/dashboard"
 	"github.com/infinitbyte/framework/modules/ui/admin/setting"
 	"github.com/infinitbyte/framework/modules/ui/common"
-	"github.com/julienschmidt/httprouter"
 	"gopkg.in/yaml.v2"
 	"net/http"
 )

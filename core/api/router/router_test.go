@@ -46,7 +46,7 @@ func TestParams(t *testing.T) {
 }
 
 func TestRouter(t *testing.T) {
-	router := New()
+	router := New(http.NewServeMux())
 
 	routed := false
 	router.Handle("GET", "/user/:name", func(w http.ResponseWriter, r *http.Request, ps Params) {
@@ -68,11 +68,11 @@ func TestRouter(t *testing.T) {
 }
 
 type handlerStruct struct {
-	handeled *bool
+	handled *bool
 }
 
 func (h handlerStruct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	*h.handeled = true
+	*h.handled = true
 }
 
 func TestRouterAPI(t *testing.T) {
@@ -80,7 +80,7 @@ func TestRouterAPI(t *testing.T) {
 
 	httpHandler := handlerStruct{&handler}
 
-	router := New()
+	router := New(http.NewServeMux())
 	router.GET("/GET", func(w http.ResponseWriter, r *http.Request, _ Params) {
 		get = true
 	})
@@ -165,7 +165,7 @@ func TestRouterAPI(t *testing.T) {
 }
 
 func TestRouterRoot(t *testing.T) {
-	router := New()
+	router := New(http.NewServeMux())
 	recv := catchPanic(func() {
 		router.GET("noSlashRoot", nil)
 	})
@@ -175,8 +175,8 @@ func TestRouterRoot(t *testing.T) {
 }
 
 func TestRouterChaining(t *testing.T) {
-	router1 := New()
-	router2 := New()
+	router1 := New(http.NewServeMux())
+	router2 := New(http.NewServeMux())
 	router1.NotFound = router2
 
 	fooHit := false
@@ -219,7 +219,7 @@ func TestRouterChaining(t *testing.T) {
 func TestRouterOPTIONS(t *testing.T) {
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
-	router := New()
+	router := New(http.NewServeMux())
 	router.POST("/path", handlerFunc)
 
 	// test not allowed
@@ -309,7 +309,7 @@ func TestRouterOPTIONS(t *testing.T) {
 func TestRouterNotAllowed(t *testing.T) {
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
-	router := New()
+	router := New(http.NewServeMux())
 	router.POST("/path", handlerFunc)
 
 	// test not allowed
@@ -358,32 +358,32 @@ func TestRouterNotAllowed(t *testing.T) {
 func TestRouterNotFound(t *testing.T) {
 	handlerFunc := func(_ http.ResponseWriter, _ *http.Request, _ Params) {}
 
-	router := New()
+	router := New(http.NewServeMux())
 	router.GET("/path", handlerFunc)
 	router.GET("/dir/", handlerFunc)
 	router.GET("/", handlerFunc)
 
 	testRoutes := []struct {
-		route  string
-		code   int
-		header string
+		route    string
+		code     int
+		location string
 	}{
-		{"/path/", 301, "map[Location:[/path]]"},   // TSR -/
-		{"/dir", 301, "map[Location:[/dir/]]"},     // TSR +/
-		{"", 301, "map[Location:[/]]"},             // TSR +/
-		{"/PATH", 301, "map[Location:[/path]]"},    // Fixed Case
-		{"/DIR/", 301, "map[Location:[/dir/]]"},    // Fixed Case
-		{"/PATH/", 301, "map[Location:[/path]]"},   // Fixed Case -/
-		{"/DIR", 301, "map[Location:[/dir/]]"},     // Fixed Case +/
-		{"/../path", 301, "map[Location:[/path]]"}, // CleanPath
-		{"/nope", 404, ""},                         // NotFound
+		{"/path/", 301, "/path"},   // TSR -/
+		{"/dir", 301, "/dir/"},     // TSR +/
+		{"", 301, "/"},             // TSR +/
+		{"/PATH", 301, "/path"},    // Fixed Case
+		{"/DIR/", 301, "/dir/"},    // Fixed Case
+		{"/PATH/", 301, "/path"},   // Fixed Case -/
+		{"/DIR", 301, "/dir/"},     // Fixed Case +/
+		{"/../path", 301, "/path"}, // CleanPath
+		{"/nope", 404, ""},         // NotFound
 	}
 	for _, tr := range testRoutes {
 		r, _ := http.NewRequest("GET", tr.route, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, r)
-		if !(w.Code == tr.code && (w.Code == 404 || fmt.Sprint(w.Header()) == tr.header)) {
-			t.Errorf("NotFound handling route %s failed: Code=%d, Header=%v", tr.route, w.Code, w.Header())
+		if !(w.Code == tr.code && (w.Code == 404 || fmt.Sprint(w.Header().Get("Location")) == tr.location)) {
+			t.Errorf("NotFound handling route %s failed: Code=%d, Header=%v", tr.route, w.Code, w.Header().Get("Location"))
 		}
 	}
 
@@ -410,7 +410,7 @@ func TestRouterNotFound(t *testing.T) {
 	}
 
 	// Test special case where no node for the prefix "/" exists
-	router = New()
+	router = New(http.NewServeMux())
 	router.GET("/a", handlerFunc)
 	r, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()
@@ -421,7 +421,7 @@ func TestRouterNotFound(t *testing.T) {
 }
 
 func TestRouterPanicHandler(t *testing.T) {
-	router := New()
+	router := New(http.NewServeMux())
 	panicHandled := false
 
 	router.PanicHandler = func(rw http.ResponseWriter, r *http.Request, p interface{}) {
@@ -455,7 +455,7 @@ func TestRouterLookup(t *testing.T) {
 	}
 	wantParams := Params{Param{"name", "gopher"}}
 
-	router := New()
+	router := New(http.NewServeMux())
 
 	// try empty router first
 	handle, _, tsr := router.Lookup("GET", "/nope")
@@ -510,7 +510,7 @@ func (mfs *mockFileSystem) Open(name string) (http.File, error) {
 }
 
 func TestRouterServeFiles(t *testing.T) {
-	router := New()
+	router := New(http.NewServeMux())
 	mfs := &mockFileSystem{}
 
 	recv := catchPanic(func() {

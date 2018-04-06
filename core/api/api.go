@@ -5,9 +5,9 @@ import (
 	"errors"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
-	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -67,8 +67,8 @@ var mux *http.ServeMux
 // StartAPI will start listen and act as the API server
 func StartAPI() {
 
-	router = httprouter.New()
 	mux = http.NewServeMux()
+	router = httprouter.New(mux)
 
 	//registered handlers
 	if registeredAPIHandler != nil {
@@ -131,7 +131,7 @@ func StartAPI() {
 
 		srv := &http.Server{
 			Addr:         address,
-			Handler:      context.ClearHandler(mux),
+			Handler:      context.ClearHandler(router),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 		}
@@ -145,7 +145,7 @@ func StartAPI() {
 
 	} else {
 		log.Info("api server listen at: http://", address)
-		err := http.ListenAndServe(address, context.ClearHandler(mux))
+		err := http.ListenAndServe(address, context.ClearHandler(router))
 		if err != nil {
 			log.Error(err)
 			panic(err)

@@ -159,19 +159,22 @@ type Router struct {
 	// The handler can be used to keep your server from crashing because of
 	// unrecovered panics.
 	PanicHandler func(http.ResponseWriter, *http.Request, interface{})
+
+	mux *http.ServeMux
 }
 
 // Make sure the Router conforms with the http.Handler interface
-var _ http.Handler = New()
+var _ http.Handler = New(http.NewServeMux())
 
 // New returns a new initialized Router.
 // Path auto-correction, including trailing slashes, is enabled by default.
-func New() *Router {
+func New(mux *http.ServeMux) *Router {
 	return &Router{
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
+		mux:                    mux,
 	}
 }
 
@@ -234,16 +237,6 @@ func (r *Router) Handle(method, path string, handle Handle) {
 	}
 
 	root.addRoute(path, handle)
-}
-
-// Handler is an adapter which allows the usage of an http.Handler as a
-// request handle.
-func (r *Router) Handler(method, path string, handler http.Handler) {
-	r.Handle(method, path,
-		func(w http.ResponseWriter, req *http.Request, _ Params) {
-			handler.ServeHTTP(w, req)
-		},
-	)
 }
 
 // HandlerFunc is an adapter which allows the usage of an http.HandlerFunc as a
@@ -402,10 +395,5 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Handle 404
-	if r.NotFound != nil {
-		r.NotFound.ServeHTTP(w, req)
-	} else {
-		http.NotFound(w, req)
-	}
+	r.mux.ServeHTTP(w, req)
 }
