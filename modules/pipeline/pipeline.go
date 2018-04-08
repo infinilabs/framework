@@ -58,13 +58,13 @@ func (pipe *PipeRunner) Start(config pipeline.PipeConfig) {
 	pipe.signalChannels = make([]*chan bool, numGoRoutine)
 	//start fetcher
 	for i := 0; i < numGoRoutine; i++ {
-		log.Tracef("start pipeline, %s, shard:%v", config.Name, i)
+		log.Tracef("start pipeline, %s, instance:%v", config.Name, i)
 		signalC := make(chan bool, 1)
 		pipe.signalChannels[i] = &signalC
 		go pipe.runPipeline(&signalC, i)
 
 	}
-	log.Infof("pipeline: %s started with %v shards", config.Name, numGoRoutine)
+	log.Infof("pipeline: %s started with %v instances", config.Name, numGoRoutine)
 }
 
 func (pipe *PipeRunner) Update(config pipeline.PipeConfig) {
