@@ -242,7 +242,5 @@ func Sha1Hash(str string) string {
 
 //TrimSpaces will trim space and line break
 func TrimSpaces(str string) string {
-	str = TrimSpace(str)
-	str = Replace(str, "\n", "", -1)
-	return str
+	return TrimSpace(str)
 }
