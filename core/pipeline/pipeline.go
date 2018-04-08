@@ -206,6 +206,12 @@ func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	return s, ok
 }
 
+// NOTE TODO GetBytes doesn't work after marshall/unmarshall,
+func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
+	s, ok := para.Get(key).([]byte)
+	return s, ok
+}
+
 // GetStringArray will return a array which type of the items are string
 func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	v := para.Get(key)
@@ -218,6 +224,9 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	para.l.RLock()
 	s := string(key)
 	v := para.Data[s]
+	if global.Env().IsDebug {
+		log.Debugf("parameter: %s %v", s, v)
+	}
 	para.l.RUnlock()
 	return v
 }
@@ -259,7 +268,7 @@ func (para *Parameters) GetStringOrDefault(key ParaKey, val string) string {
 }
 
 func (para *Parameters) MustGetBytes(key ParaKey) []byte {
-	s, ok := para.Get(key).([]byte)
+	s, ok := para.GetBytes(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
 	}

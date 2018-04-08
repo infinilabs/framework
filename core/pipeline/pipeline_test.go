@@ -123,10 +123,22 @@ func TestContext(t *testing.T) {
 	assert.Equal(t, 0, v)
 }
 
+func TestContextGetBytes(t *testing.T) {
+	global.RegisterEnv(env.EmptyEnv())
+	context := &Context{}
+	v := []byte("hello")
+	context.Set(key1, v)
+	v1 := context.MustGetBytes(key1)
+	fmt.Println(v1)
+	assert.Equal(t, v, v1)
+}
+
 func TestContextMarshal(t *testing.T) {
+	global.RegisterEnv(env.EmptyEnv())
 	url := "http://google.com"
 	context := Context{IgnoreBroken: true}
 	context.Set("URL", url)
+	context.Set("B", []byte(url))
 
 	b := util.ToJSONBytes(context)
 
@@ -134,4 +146,7 @@ func TestContextMarshal(t *testing.T) {
 	c := Context{}
 	util.FromJSONBytes(b, &c)
 	assert.Equal(t, url, c.Get("URL"))
+
+	b2, _ := c.GetBytes("B")
+	assert.Equal(t, []byte(url), b2)
 }
