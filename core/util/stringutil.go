@@ -239,3 +239,10 @@ func Sha1Hash(str string) string {
 	io.WriteString(h, str)
 	return base64.URLEncoding.EncodeToString(h.Sum(nil))
 }
+
+//TrimSpaces will trim space and line break
+func TrimSpaces(str string) string {
+	str = TrimSpace(str)
+	str = Replace(str, "\n", "", -1)
+	return str
+}

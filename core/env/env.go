@@ -263,11 +263,11 @@ func getModuleName(c *config.Config) string {
 // EmptyEnv return a empty env instance
 func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) *Env {
 	return &Env{
-		name:           strings.TrimSpace(name),
-		uppercaseName:  strings.ToUpper(strings.TrimSpace(name)),
-		desc:           strings.TrimSpace(desc),
-		version:        strings.TrimSpace(ver),
-		commit:         strings.TrimSpace(commit),
+		name:           util.TrimSpaces(name),
+		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
+		desc:           util.TrimSpaces(desc),
+		version:        util.TrimSpaces(ver),
+		commit:         util.TrimSpaces(commit),
 		buildDate:      buildDate,
 		terminalHeader: terminalHeader,
 		terminalFooter: terminalFooter,
