@@ -125,6 +125,13 @@ type Request struct {
 	Body              []byte
 }
 
+func NewRequest(method, url string) *Request {
+	req := Request{}
+	req.Url = url
+	req.Method = method
+	return &req
+}
+
 // NewPostRequest issue a simple http post request
 func NewPostRequest(url string, body []byte) *Request {
 	req := Request{}

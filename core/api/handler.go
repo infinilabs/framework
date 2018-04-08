@@ -94,6 +94,15 @@ func (handler Handler) Get(req *http.Request, key string, defaultValue string) s
 	return defaultValue
 }
 
+// GetHeader return specify http header or return default value if not set
+func (handler Handler) GetHeader(req *http.Request, key string, defaultValue string) string {
+	v := req.Header.Get(key)
+	if strings.TrimSpace(v) == "" {
+		return defaultValue
+	}
+	return v
+}
+
 // EncodeJSON encode the object to json string
 func (handler Handler) EncodeJSON(v interface{}) (b []byte, err error) {
 
