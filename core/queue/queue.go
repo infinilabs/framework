@@ -18,7 +18,10 @@ package queue
 
 import (
 	"errors"
+	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/infinitbyte/framework/core/stats"
+	"sync"
 	"time"
 )
 
@@ -47,8 +50,18 @@ func Push(k string, v []byte) error {
 	panic(errors.New("channel is not registered"))
 }
 
+var pauseMsg = errors.New("queue was paused to read")
+
 func ReadChan(k string) chan []byte {
 	if handler != nil {
+		if pausedReadQueue.Contains(k) {
+			pauseLock.Lock()
+			pauseCount[k]++
+			pauseLock.Unlock()
+			log.Debugf("queue: %s was paused to read", k)
+			<-pauseChan[k]
+			log.Debugf("queue: %s was resumed to read", k)
+		}
 		return handler.ReadChan(k)
 	}
 	stats.Increment("queue."+k, "read_chan_error")
@@ -57,6 +70,10 @@ func ReadChan(k string) chan []byte {
 
 func Pop(k string) (error, []byte) {
 	if handler != nil {
+		if pausedReadQueue.Contains(k) {
+			return pauseMsg, nil
+		}
+
 		er, o := handler.Pop(k, -1)
 		if er == nil {
 			stats.Increment("queue."+k, "pop")
@@ -74,6 +91,11 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (error, []byte) {
 	}
 
 	if handler != nil {
+
+		if pausedReadQueue.Contains(k) {
+			return pauseMsg, nil
+		}
+
 		er, o := handler.Pop(k, timeoutInSeconds)
 		if er == nil {
 			stats.Increment("queue."+k, "pop")
@@ -110,6 +132,29 @@ func GetQueues() []string {
 		return o
 	}
 	panic(errors.New("channel is not registered"))
+}
+
+var pausedReadQueue = hashset.New()
+var pauseChan map[string]chan bool = map[string]chan bool{}
+var pauseCount = map[string]int{}
+var pauseLock sync.Mutex
+
+func PauseRead(k string) {
+	pauseLock.Lock()
+	defer pauseLock.Unlock()
+	pauseCount[k] = 0
+	pauseChan[k] = make(chan bool)
+	pausedReadQueue.Add(k)
+}
+func ResumeRead(k string) {
+	pauseLock.Lock()
+	defer pauseLock.Unlock()
+	pausedReadQueue.Remove(k)
+	size := pauseCount[k]
+	for i := 0; i < size; i++ {
+		pauseChan[k] <- true
+	}
+	log.Debugf("queue: %s was resumed, signal: %v", k, size)
 }
 
 func Register(h Queue) {
