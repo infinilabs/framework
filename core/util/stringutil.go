@@ -36,6 +36,15 @@ func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
 }
 
+func ContainsAnyInArray(s string, v []string) bool {
+	for _, k := range v {
+		if ContainStr(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
 func PrefixStr(s, substr string) bool {
 	return HasPrefix(s, substr)
 }

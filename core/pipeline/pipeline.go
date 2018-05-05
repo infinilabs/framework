@@ -212,11 +212,28 @@ func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 	return s, ok
 }
 
-// GetStringArray will return a array which type of the items are string
-func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
+func (para *Parameters) MustGetStringArray(key ParaKey) []string {
+	array := para.MustGetArray(key)
+	result := []string{}
+	for _, v := range array {
+		result = append(result, v.(string))
+	}
+	return result
+}
+
+// GetArray will return a array which type of the items are interface {}
+func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	v := para.Get(key)
-	s, ok := v.([]string)
+	s, ok := v.([]interface{})
 	return s, ok
+}
+
+func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
+	s, ok := para.GetArray(key)
+	if !ok {
+		panic(fmt.Errorf("%s not found in context", key))
+	}
+	return s
 }
 
 func (para *Parameters) Get(key ParaKey) interface{} {
@@ -225,7 +242,8 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	s := string(key)
 	v := para.Data[s]
 	if global.Env().IsDebug {
-		log.Debugf("parameter: %s %v", s, v)
+		t := reflect.TypeOf(v)
+		log.Debugf("parameter: %s %v %v", s, v, t)
 	}
 	para.l.RUnlock()
 	return v

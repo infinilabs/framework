@@ -187,6 +187,10 @@ func (module PipelineFrameworkModule) Start(cfg *Config) {
 
 	cfg.Unpack(&config)
 
+	if global.Env().IsDebug {
+		log.Debug("pipeline framework config: ", config)
+	}
+
 	runners = map[string]*PipeRunner{}
 	for i, v := range config.Runners {
 		if v.DefaultConfig == nil {
