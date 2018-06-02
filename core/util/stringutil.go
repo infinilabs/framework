@@ -154,6 +154,10 @@ func FormatTime(date time.Time) string {
 	return date.Format("2006-01-02 15:04:05")
 }
 
+func FormatTimeForFileName(date time.Time) string {
+	return date.Format("2006-01-02_150405")
+}
+
 func FormatUnixTimestamp(unix int64) string {
 	date := FromUnixTimestamp(unix)
 	return date.Format("2006-01-02 15:04:05")
