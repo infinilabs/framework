@@ -152,7 +152,10 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 					v = r.(string)
 				}
 
-				log.Error("module, pipeline:", pipe.config.Name, ", shard:", shard, ", instance:", p.GetID(), " ,joint:", p.GetCurrentJoint(), ", err: ", v, ", sequence:", context.SequenceID, ", ", util.ToJson(p.GetContext(), true))
+				log.Error("pipeline:", pipe.config.Name, ", shard:", shard, ", sequence:", context.SequenceID, ", err: ", v)
+				if p != nil {
+					log.Error("instance:", p.GetID(), " ,joint:", p.GetCurrentJoint(), "context", util.ToJson(p.GetContext(), true))
+				}
 			}
 		}
 	}()
