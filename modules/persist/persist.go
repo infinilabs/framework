@@ -24,10 +24,8 @@ import (
 	"github.com/infinitbyte/framework/core/pipeline"
 	"github.com/infinitbyte/framework/modules/persist/elastic"
 	"github.com/infinitbyte/framework/modules/persist/mysql"
-	"github.com/infinitbyte/framework/modules/persist/sqlite"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
 func (module DatabaseModule) Name() string {
@@ -36,8 +34,7 @@ func (module DatabaseModule) Name() string {
 
 var (
 	defaultConfig = PersistConfig{
-		Driver: "sqlite",
-		SQLite: &sqlite.SQLiteConfig{},
+		Driver: "elasticsearch",
 		MySQL:  &mysql.MySQLConfig{},
 		Elastic: &index.ElasticsearchConfig{
 			Endpoint:    "http://localhost:9200",
@@ -55,7 +52,6 @@ var db *gorm.DB
 type PersistConfig struct {
 	//Driver only `mysql` and `sqlite` are available
 	Driver  string                     `config:"driver"`
-	SQLite  *sqlite.SQLiteConfig       `config:"sqlite"`
 	MySQL   *mysql.MySQLConfig         `config:"mysql"`
 	Elastic *index.ElasticsearchConfig `config:"elasticsearch"`
 }
@@ -75,10 +71,7 @@ func (module DatabaseModule) Start(cfg *Config) {
 
 	//whether use lock, only sqlite need lock
 	userLock := false
-	if config.Driver == "sqlite" {
-		db = sqlite.GetInstance(config.SQLite)
-		userLock = true
-	} else if config.Driver == "mysql" {
+	if config.Driver == "mysql" {
 		db = mysql.GetInstance(config.MySQL)
 	} else {
 		panic(errors.Errorf("invalid driver, %s", config.Driver))
