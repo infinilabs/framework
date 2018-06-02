@@ -253,3 +253,8 @@ func Sha1Hash(str string) string {
 func TrimSpaces(str string) string {
 	return TrimSpace(str)
 }
+
+func RemoveSpaces(str string) string {
+	str = Replace(str, " ", "", -1)
+	return str
+}

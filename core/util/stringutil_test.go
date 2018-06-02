@@ -30,3 +30,31 @@ func TestMergeSpacke(t *testing.T) {
 	str = MergeSpace(str)
 	assert.Equal(t, "hello world !", str)
 }
+
+func TestTrimSpaces(t *testing.T) {
+	str := " left"
+	assert.Equal(t, "left", TrimSpaces(str))
+
+	str = "right "
+	assert.Equal(t, "right", TrimSpaces(str))
+
+	str = " side "
+	assert.Equal(t, "side", TrimSpaces(str))
+
+	str = "midd le"
+	assert.Equal(t, "middle", RemoveSpaces(str))
+}
+
+func TestRemoveSpaces(t *testing.T) {
+	str := " left"
+	assert.Equal(t, "left", RemoveSpaces(str))
+
+	str = "right "
+	assert.Equal(t, "right", RemoveSpaces(str))
+
+	str = " side "
+	assert.Equal(t, "side", RemoveSpaces(str))
+
+	str = "midd le"
+	assert.Equal(t, "middle", RemoveSpaces(str))
+}
