@@ -23,11 +23,20 @@ import (
 	"testing"
 )
 
-func TestJoinPath(t *testing.T) {
+func TestJoinPath1(t *testing.T) {
 	path1 := "wwww.baidu.com"
 	path2 := "/blog/"
 	path3 := "/comments/1.html"
 	str := path.Join(path1, path2, path3)
+	fmt.Println(str)
+	assert.Equal(t, "wwww.baidu.com/blog/comments/1.html", str)
+}
+
+func TestJoinPath2(t *testing.T) {
+	path1 := "wwww.baidu.com"
+	path2 := "/blog/"
+	path3 := "/comments/1.html"
+	str := JoinPath(path1, path2, path3)
 	fmt.Println(str)
 	assert.Equal(t, "wwww.baidu.com/blog/comments/1.html", str)
 }
