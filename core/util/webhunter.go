@@ -333,8 +333,7 @@ func HttpDelete(resource string) (*Result, error) {
 	return execute(req)
 }
 
-var timeout = 10 * time.Second
-var clientTimeout = 30 * time.Second
+var timeout = 30 * time.Second
 var t = &http.Transport{
 	Dial: func(netw, addr string) (net.Conn, error) {
 		deadline := time.Now().Add(10 * time.Second)
@@ -357,7 +356,7 @@ var t = &http.Transport{
 
 var client = &http.Client{
 	Transport:     t,
-	Timeout:       clientTimeout,
+	Timeout:       timeout,
 	CheckRedirect: noRedirect,
 	//CheckRedirect: nil,
 }
