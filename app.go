@@ -181,10 +181,10 @@ func (app *App) Start(customFunc func()) {
 	}
 
 	//check instance lock
-	util.CheckInstanceLock(app.environment.SystemConfig.GetWorkingDir())
+	util.CheckInstanceLock(app.environment.GetWorkingDir())
 
 	//set path to persist id
-	util.RestorePersistID(app.environment.SystemConfig.GetWorkingDir())
+	util.RestorePersistID(app.environment.GetWorkingDir())
 
 	if customFunc != nil {
 		log.Trace("start execute custom start func")

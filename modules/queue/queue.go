@@ -44,7 +44,7 @@ func initQueue(name string) error {
 		return nil
 	}
 
-	path := path.Join(global.Env().SystemConfig.GetWorkingDir(), "queue", strings.ToLower(name))
+	path := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(path, 0777)
 
 	readBuffSize := 0

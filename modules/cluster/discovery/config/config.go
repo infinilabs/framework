@@ -30,7 +30,7 @@ type ClusterState struct {
 }
 
 func (module *RaftConfig) Init() {
-	module.DataDir = path.Join(global.Env().SystemConfig.GetWorkingDir(), "raft")
+	module.DataDir = path.Join(global.Env().GetWorkingDir(), "raft")
 	module.EnableSingleNode = true
 
 	if len(global.Env().SystemConfig.ClusterBinding) > 0 {

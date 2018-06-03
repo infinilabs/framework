@@ -109,7 +109,7 @@ func (filter *BloomFilter) CheckThenAdd(bucket string, key []byte) (b bool, err 
 
 func initBloomFilter(key string) {
 	//f := impl.PersistFilter{FilterBucket: string(key)}
-	dir := path.Join(global.Env().SystemConfig.GetWorkingDir(), "filters")
+	dir := path.Join(global.Env().GetWorkingDir(), "filters")
 	os.MkdirAll(dir, 0777)
 	file := path.Join(dir, string(key))
 	f := BloomFilter{PersistFileName: file}

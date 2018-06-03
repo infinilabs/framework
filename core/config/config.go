@@ -4,23 +4,12 @@ package config
 import (
 	"errors"
 	"flag"
-	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/elastic/go-ucfg"
 	"github.com/elastic/go-ucfg/cfgutil"
 	cfgflag "github.com/elastic/go-ucfg/flag"
 	"github.com/elastic/go-ucfg/yaml"
-	"github.com/infinitbyte/framework/core/util/file"
-	"os"
-	"path/filepath"
-	"runtime"
 )
-
-// IsStrictPerms returns true if strict permission checking on config files is
-// enabled.
-func IsStrictPerms() bool {
-	return false
-}
 
 // Config object to store hierarchical configurations into.
 // See https://godoc.org/github.com/elastic/go-ucfg#Config
@@ -137,11 +126,6 @@ func NewFlagOverwrite(
 
 // LoadFile will load config from specify file
 func LoadFile(path string) (*Config, error) {
-	if IsStrictPerms() {
-		if err := ownerHasExclusiveWritePerms(path); err != nil {
-			return nil, err
-		}
-	}
 
 	c, err := yaml.NewConfigWithFile(path, configOpts...)
 	if err != nil {
@@ -350,41 +334,4 @@ func (ns *Namespace) Config() *Config {
 // IsSet returns true if a sub-configuration section has been set.
 func (ns *Namespace) IsSet() bool {
 	return len(ns.C) != 0
-}
-
-// ownerHasExclusiveWritePerms asserts that the current user or root is the
-// owner of the config file and that the config file is (at most) writable by
-// the owner or root (e.g. group and other cannot have write access).
-func ownerHasExclusiveWritePerms(name string) error {
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-
-	info, err := file.Stat(name)
-	if err != nil {
-		return err
-	}
-
-	euid := os.Geteuid()
-	fileUID, _ := info.UID()
-	perm := info.Mode().Perm()
-
-	if fileUID != 0 && euid != fileUID {
-		return fmt.Errorf(`config file ("%v") must be owned by the app user `+
-			`(uid=%v) or root`, name, euid)
-	}
-
-	// Test if group or other have write permissions.
-	if perm&0022 > 0 {
-		nameAbs, err := filepath.Abs(name)
-		if err != nil {
-			nameAbs = name
-		}
-		return fmt.Errorf(`config file ("%v") can only be writable by the `+
-			`owner but the permissions are "%v" (to fix the permissions use: `+
-			`'chmod go-w %v')`,
-			name, perm, nameAbs)
-	}
-
-	return nil
 }

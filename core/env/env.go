@@ -17,13 +17,16 @@ limitations under the License.
 package env
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/elastic/go-ucfg"
 	"github.com/elastic/go-ucfg/yaml"
 	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/util"
+	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -116,6 +119,9 @@ func (env *Env) Load(configFile string) *Env {
 	sysConfig := loadSystemConfig(configFile)
 	env.SystemConfig = &sysConfig
 
+	os.MkdirAll(env.GetWorkingDir(), 0777)
+	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0777)
+
 	var err error
 	env.RuntimeConfig, err = env.loadRuntimeConfig()
 	if err != nil {
@@ -175,9 +181,6 @@ func loadSystemConfig(cfgFile string) config.SystemConfig {
 			os.Exit(1)
 		}
 	}
-
-	os.MkdirAll(cfg.GetWorkingDir(), 0777)
-	os.MkdirAll(cfg.PathConfig.Log, 0777)
 	return cfg
 }
 
@@ -281,4 +284,57 @@ func EmptyEnv() *Env {
 
 func GetStartTime() time.Time {
 	return startTime
+}
+
+var workingDir = ""
+
+// GetWorkingDir returns root working dir of app instance
+func (env *Env) GetWorkingDir() string {
+	if workingDir != "" {
+		return workingDir
+	}
+
+	if !env.SystemConfig.AllowMultiInstance {
+		workingDir = path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
+		return workingDir
+	}
+
+	//auto select next nodes folder, eg: nodes/1 nodes/2
+	i := 0
+	if env.SystemConfig.MaxNumOfInstance < 1 {
+		env.SystemConfig.MaxNumOfInstance = 5
+	}
+	for j := 0; j < env.SystemConfig.MaxNumOfInstance; j++ {
+		p := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", util.IntToString(i))
+		lockFile := path.Join(p, ".lock")
+		if !util.FileExists(lockFile) {
+			workingDir = p
+			return workingDir
+		}
+
+		//check if pid is alive
+		b, err := ioutil.ReadFile(lockFile)
+		if err != nil {
+			panic(err)
+		}
+		pid, err := util.ToInt(string(b))
+		if err != nil {
+			panic(err)
+		}
+		if pid <= 0 {
+			panic(errors.New("invalid pid"))
+		}
+
+		procExists := util.CheckProcessExists(pid)
+		if !procExists {
+			util.FileDelete(lockFile)
+			log.Debug("dead process with broken lock file, removed: ", lockFile)
+			workingDir = p
+			return p
+		}
+
+		i++
+	}
+	panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
+
 }

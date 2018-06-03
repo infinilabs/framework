@@ -74,7 +74,7 @@ func (module StorageModule) Start(cfg *config.Config) {
 		persist.RegisterKVHandler(handler)
 	} else if config.Driver == "boltdb" {
 
-		folder := path.Join(global.Env().SystemConfig.GetWorkingDir(), "blob")
+		folder := path.Join(global.Env().GetWorkingDir(), "blob")
 		os.MkdirAll(folder, 0777)
 		impl = boltdb.BoltdbStore{FileName: path.Join(folder, "/bolt.db")}
 		err := impl.Open()
