@@ -1,4 +1,4 @@
-package persist
+package persist_db
 
 import (
 	"fmt"
@@ -15,6 +15,7 @@ type SQLORM struct {
 }
 
 var dbLock sync.RWMutex
+var db *gorm.DB
 
 func (handler SQLORM) RegisterSchema(t interface{}) error {
 	// Migrate the schema

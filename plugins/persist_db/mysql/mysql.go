@@ -6,7 +6,7 @@ import (
 
 // MySQLConfig defines mysql related config, currently only provide connection, eg: root:password@tcp(127.0.0.1:3306)/gopa?charset=utf8&parseTime=true&loc=Local
 type MySQLConfig struct {
-	Connection string `config:"connection"` //TODO, move to structured config
+	Connection string `config:"connection"`
 }
 
 // GetInstance return mysql instance for further usage
