@@ -336,8 +336,8 @@ func HttpDelete(resource string) (*Result, error) {
 var timeout = 30 * time.Second
 var t = &http.Transport{
 	Dial: func(netw, addr string) (net.Conn, error) {
-		deadline := time.Now().Add(timeout * time.Second)
-		c, err := net.DialTimeout(netw, addr, timeout*time.Second)
+		deadline := time.Now().Add(30 * time.Second)
+		c, err := net.DialTimeout(netw, addr, 10*time.Second)
 		if err != nil {
 			return nil, err
 		}
