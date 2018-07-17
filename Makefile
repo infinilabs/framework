@@ -88,6 +88,7 @@ fetch-depends:
 	$(GO) get github.com/ararog/timeago
 	$(GO) get github.com/google/go-github/github
 	$(GO) get golang.org/x/oauth2
+	$(GO) get github.com/rs/cors
 
 test:
 	go get -u github.com/kardianos/govendor

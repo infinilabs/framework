@@ -8,6 +8,7 @@ import (
 	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
+	"github.com/rs/cors"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -92,6 +93,11 @@ func StartAPI() {
 		}
 	}
 
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "DELETE", "PUT", "OPTIONS"},
+	})
+
 	address := util.AutoGetAddress(global.Env().SystemConfig.APIBinding)
 
 	if global.Env().SystemConfig.TLSEnabled {
@@ -131,7 +137,7 @@ func StartAPI() {
 
 		srv := &http.Server{
 			Addr:         address,
-			Handler:      context.ClearHandler(router),
+			Handler:      c.Handler(context.ClearHandler(router)),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 		}
@@ -145,7 +151,8 @@ func StartAPI() {
 
 	} else {
 		log.Info("api server listen at: http://", address)
-		err := http.ListenAndServe(address, context.ClearHandler(router))
+
+		err := http.ListenAndServe(address, c.Handler(context.ClearHandler(router)))
 		if err != nil {
 			log.Error(err)
 			panic(err)

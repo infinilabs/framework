@@ -43,6 +43,8 @@ const (
 	DELETE Method = "DELETE"
 	// HEAD is http head method
 	HEAD Method = "HEAD"
+
+	OPTIONS Method = "OPTIONS"
 )
 
 // String return http method as string
@@ -121,7 +123,6 @@ func (handler Handler) EncodeJSON(v interface{}) (b []byte, err error) {
 // WriteJSONHeader will write standard json header
 func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	handler.wroteHeader = true
 }
 
