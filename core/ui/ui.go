@@ -59,7 +59,7 @@ func StartUI(cfg *Config) {
 	router.GET("/favicon.ico", faviconAction)
 
 	//init common
-	mux.Handle("/static/", http.FileServer(static.FS(false)))
+	mux.Handle("/static/", http.FileServer(static.StaticFS{BaseFolder: ".", CheckLocalFirst: true}))
 
 	//registered handlers
 	if registeredUIHandler != nil {

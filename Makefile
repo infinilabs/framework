@@ -39,8 +39,8 @@ format:
 
 update-ui:
 	@echo "generate static files"
-	@$(GO) get github.com/infinitbyte/esc
-	@(cd static&& esc -ignore="static.go|build_static.sh|.DS_Store" -o static.go -pkg static ../static )
+	(cd cmd/static_fs && $(GOBUILD) -o ../../bin/static_fs)
+	@bin/static_fs -ignore="static.go|.DS_Store" -o=static/static.go -pkg=static static
 
 update-template-ui:
 	@echo "generate UI pages"

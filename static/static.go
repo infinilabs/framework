@@ -1,68 +1,36 @@
 package static
-
 import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"github.com/infinitbyte/framework/core/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"sync"
-	"time"
 )
 
-type _escLocalFS struct{}
+var once sync.Once
 
-var _escLocal _escLocalFS
-
-type _escStaticFS struct{}
-
-var _escStatic _escStaticFS
-
-type _escDirectory struct {
-	fs   http.FileSystem
-	name string
-}
-
-type _escFile struct {
-	compressed string
-	size       int64
-	modtime    int64
-	local      string
-	isDir      bool
-
-	once sync.Once
-	data []byte
-	name string
-}
-
-func (_escLocalFS) Open(name string) (http.File, error) {
-	f, present := _escData[path.Clean(name)]
-	if !present {
-		return nil, os.ErrNotExist
-	}
-	return os.Open(f.local)
-}
-
-func (_escStaticFS) prepare(name string) (*_escFile, error) {
-	f, present := _escData[path.Clean(name)]
+func (StaticFS) prepare(name string) (*fs.VFile, error) {
+	f, present := data[path.Clean(name)]
 	if !present {
 		return nil, os.ErrNotExist
 	}
 	var err error
-	f.once.Do(func() {
-		f.name = path.Base(name)
-		if f.size == 0 {
+	once.Do(func() {
+		f.FileName = path.Base(name)
+		if f.FileSize == 0 {
 			return
 		}
 		var gr *gzip.Reader
-		b64 := base64.NewDecoder(base64.StdEncoding, bytes.NewBufferString(f.compressed))
+		b64 := base64.NewDecoder(base64.StdEncoding, bytes.NewBufferString(f.Compressed))
 		gr, err = gzip.NewReader(b64)
 		if err != nil {
 			return
 		}
-		f.data, err = ioutil.ReadAll(gr)
+		f.Data, err = ioutil.ReadAll(gr)
 	})
 	if err != nil {
 		return nil, err
@@ -70,7 +38,16 @@ func (_escStaticFS) prepare(name string) (*_escFile, error) {
 	return f, nil
 }
 
-func (fs _escStaticFS) Open(name string) (http.File, error) {
+func (fs StaticFS) Open(name string) (http.File, error) {
+
+	if fs.CheckLocalFirst {
+		p := path.Join(fs.BaseFolder, ".", path.Clean(name))
+		f2, err := os.Open(p)
+		if err == nil {
+			return f2, err
+		}
+	}
+
 	f, err := fs.prepare(name)
 	if err != nil {
 		return nil, err
@@ -78,121 +55,18 @@ func (fs _escStaticFS) Open(name string) (http.File, error) {
 	return f.File()
 }
 
-func (dir _escDirectory) Open(name string) (http.File, error) {
-	return dir.fs.Open(dir.name + name)
+type StaticFS struct {
+	BaseFolder string
+	CheckLocalFirst bool
 }
 
-func (f *_escFile) File() (http.File, error) {
-	type httpFile struct {
-		*bytes.Reader
-		*_escFile
-	}
-	return &httpFile{
-		Reader:   bytes.NewReader(f.data),
-		_escFile: f,
-	}, nil
-}
-
-func (f *_escFile) Close() error {
-	return nil
-}
-
-func (f *_escFile) Readdir(count int) ([]os.FileInfo, error) {
-	return nil, nil
-}
-
-func (f *_escFile) Stat() (os.FileInfo, error) {
-	return f, nil
-}
-
-func (f *_escFile) Name() string {
-	return f.name
-}
-
-func (f *_escFile) Size() int64 {
-	return f.size
-}
-
-func (f *_escFile) Mode() os.FileMode {
-	return 0
-}
-
-func (f *_escFile) ModTime() time.Time {
-	return time.Unix(f.modtime, 0)
-}
-
-func (f *_escFile) IsDir() bool {
-	return f.isDir
-}
-
-func (f *_escFile) Sys() interface{} {
-	return f
-}
-
-// FS returns a http.Filesystem for the embedded assets. If useLocal is true,
-// the filesystem's contents are instead used.
-func FS(useLocal bool) http.FileSystem {
-	if useLocal {
-		return _escLocal
-	}
-	return _escStatic
-}
-
-// Dir returns a http.Filesystem for the embedded assets on a given prefix dir.
-// If useLocal is true, the filesystem's contents are instead used.
-func Dir(useLocal bool, name string) http.FileSystem {
-	if useLocal {
-		return _escDirectory{fs: _escLocal, name: name}
-	}
-	return _escDirectory{fs: _escStatic, name: name}
-}
-
-// FSByte returns the named file from the embedded assets. If useLocal is
-// true, the filesystem's contents are instead used.
-func FSByte(useLocal bool, name string) ([]byte, error) {
-	if useLocal {
-		f, err := _escLocal.Open(name)
-		if err != nil {
-			return nil, err
-		}
-		b, err := ioutil.ReadAll(f)
-		f.Close()
-		return b, err
-	}
-	f, err := _escStatic.prepare(name)
-	if err != nil {
-		return nil, err
-	}
-	return f.data, nil
-}
-
-// FSMustByte is the same as FSByte, but panics if name is not present.
-func FSMustByte(useLocal bool, name string) []byte {
-	b, err := FSByte(useLocal, name)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-// FSString is the string version of FSByte.
-func FSString(useLocal bool, name string) (string, error) {
-	b, err := FSByte(useLocal, name)
-	return string(b), err
-}
-
-// FSMustString is the string version of FSMustByte.
-func FSMustString(useLocal bool, name string) string {
-	return string(FSMustByte(useLocal, name))
-}
-
-var _escData = map[string]*_escFile{
+var data = map[string]*fs.VFile{
 
 	"/static/_index.html": {
-		local:   "../static/_index.html",
-		size:    22047,
-		modtime: 1522821657,
-		compressed: `
+		FileName:   "static/_index.html",
+		FileSize:    22047,
+		ModifyTime: 1532084744,
+		Compressed: `
 H4sIAAAAAAAA/+w8XY/kuHHv9yt4WthzBkat+diFc73dDaxn1ndr7O4tMnuBA8NYUFK1xBmKlEmqu2cP
 BzgfOBh+83sekqcYeUjgh3zhnH+TvXP+RUBS1Ee3Wt2amUt2gJuXISlWsVisKhaLxZ58eP7Z2eu/fPUU
 pSqjsw8m+h9aZZTJqZcqlY+DYLlcjpanIy6S4Pjjjz8OdBdPdwUczz5ACKGJIorC7Oc/nwS2ZFspYVdI
@@ -264,10 +138,10 @@ ZcjYIJtRnZdldcj47tcLSwrK6hAMikRXlbtuKkNOCyRrK8XrqmHQmYNTRfLq0GFqQy4Ucsqx21s+N5Xv
 	},
 
 	"/static/assets/ace/ace.js": {
-		local:   "../static/assets/ace/ace.js",
-		size:    354518,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ace.js",
+		FileSize:    354518,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/+S9fXPbOPIwWM+fV/clJDw5LTGCZMl5JwOrnMTZyW0ymSfO/HbmFG2OliAJGwnUglBs
 r8nvfoVXAiRlOzOzd1W/m6mKRbw2Go1Go9HojpZ7Nhc0YxG8sT87WcTgzbeUdygmCev1IjJls6JQf/BN
 CRHF8idM6DLq0uGCLCkjReF+Dnfp/Gu6IgsohhmnK8rSDbaZyP7AAjUq4O7INMrJv/aU61bN76pZ7jdr
@@ -1914,10 +1788,10 @@ Dn50+/SX7oBiK+X/BgAA//+QyFV81mgFAA==
 	},
 
 	"/static/assets/ace/ext-beautify.js": {
-		local:   "../static/assets/ace/ext-beautify.js",
-		size:    3813,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-beautify.js",
+		FileSize:    3813,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xX3W4iNxS+bp8CrMqyhTHkFuKNtCtVWnWlXnTVm2y6MjNnBm8G27U9EAS8e+Vh/kJI
 IG25wDP2d/4+n+MzTiFTGgiSCUzgKUwWIMugsu3ELu13VxbgEbtHDv4ulQPEEDxZ44JHDK1MWhZxKooG
 8wj6uwrgZDAOPbCs1ElQRhNggWm6Q6WHgQ9OJQHN19INnKitnohS/jVOfK7f54Fr2HxRGry434WthRny
@@ -1943,10 +1817,10 @@ rMbfRunUbHi9oeT+5XY/sEFfyzkzB0pOZv8JAAD//w9PAFHlDgAA
 	},
 
 	"/static/assets/ace/ext-chromevox.js": {
-		local:   "../static/assets/ace/ext-chromevox.js",
-		size:    6359,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-chromevox.js",
+		FileSize:    6359,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RZ/3fauLL//f0Vjk5PjvSY65B3t+/di6v20IS22ZLQG2i7e1k2x7EH0MbIrDyEsET/
 +zvyF8BAe3fzA7almdFoNPPRzCTGsdLIWRjhGT7RWTQ16Qwf0ycGQ2bw94UyyIDh0zw1lDFgszReJG4o
 54gVpab8iFI9VhM2gvFCR6RSzREItFhX396EuFgbpIXRHq3mmI696DF9OpFsoQtFYnZ66oaKX789V3bD
@@ -1995,10 +1869,10 @@ WfdXNunLfzTw4ZH/Q4zA2xVzbB0r+N7o/wcAAP///tc8ydcYAAA=
 	},
 
 	"/static/assets/ace/ext-elastic_tabstops_lite.js": {
-		local:   "../static/assets/ace/ext-elastic_tabstops_lite.js",
-		size:    3839,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-elastic_tabstops_lite.js",
+		FileSize:    3839,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RX0ZPbrhF+bv8KnybjgQpz0qsxd5NerzOZSS6dNDN9UDQZIq9sEgwuoPiujv73DpKw
 ZceXXPvTE4Jl+fZj9wOWUEsNKBEVXMOjvwYlnJfVZy++OG+27rOSHhJSJBb+3UgLCUngcWusdwlJNmbZ
 qNDVzV5Kb+zwUxldy1VSkrrRlZdGIyCeaLxPGgcT562sfMK+Czux/GiC934tHX3Vu+LQGXgeOonmRUks
@@ -2028,10 +1902,10 @@ eHii4jdv1JJMxi4vrdlidNb73wAAAP//mBSt8v8OAAA=
 	},
 
 	"/static/assets/ace/ext-emmet.js": {
-		local:   "../static/assets/ace/ext-emmet.js",
-		size:    21473,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-emmet.js",
+		FileSize:    21473,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6x8a5fjNrLY9/yKFjKHlxihKcm+yclShnXG4/bdyZ2Hz3R7d+9KGplNQhJsCmQAsB+W
 +N9z8CJBimrbm8yHaeJRhUKhqlBVAJSRLWUkBElKJoLRsiRSALQEnPyfinICECBPZcFVJTgUWZWrKtU5
 p/eToii9EnkgTG7IgUpJuFefJ2xnizxhO4cgYem+cP1+Jc/3RcKzyT4R+80+YVne4JDFr4TR3zo4s+Jg
@@ -2157,20 +2031,20 @@ kPMc55IsQMFADLo3JsHaWQ/FMoBKiMqwg200IvZAt0ZmdxxN61qn9pXc866GDPzcQYJJXGFS13D+3656
 	},
 
 	"/static/assets/ace/ext-error_marker.js": {
-		local:   "../static/assets/ace/ext-error_marker.js",
-		size:    143,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-error_marker.js",
+		FileSize:    143,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7LmUkADGmmlecklmfl5GpoK1RiyIFCemZeSX65XlFpYmlmUqhGtlJicqp9aUaKfWlSU
 XxSfm1iUnVqkFKujgGxSrSamVbWaGmiigAAAAP//aFuPs48AAAA=
 `,
 	},
 
 	"/static/assets/ace/ext-keybinding_menu.js": {
-		local:   "../static/assets/ace/ext-keybinding_menu.js",
-		size:    3631,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-keybinding_menu.js",
+		FileSize:    3631,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5xWbXPbuBH+3l+BQ9qEGEGQ5IvzQpr2JK5v2vHlejO5fui4rgciViJGIMACoCVW0X/v
 gKQoyZJzbpUYJBcvfPbZZ3cpYCY1RJhnMIKVHxWgqwdvjHIj8whW8fqh5HPA9A5b+HclLWCKYVUa6x2m
 uDCiUsEU9is5HQlT4Hs6q3TmpdERUE81WePKAXLeyszj5JFbZFOIMGMjxvpdhMoUv+IZPDjwXuq5C1go
@@ -2200,10 +2074,10 @@ hkp/HzI6+QN68ttphqD10Wz4LaUWZsm6HI/uni0E9xTtH3bqbRsSPbH+NwAA//+KZXQsLw4AAA==
 	},
 
 	"/static/assets/ace/ext-language_tools.js": {
-		local:   "../static/assets/ace/ext-language_tools.js",
-		size:    34443,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-language_tools.js",
+		FileSize:    34443,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7x9+5PbuNHg7/dXjBgXi7AgjuTdfJdQhlVe7zjr+/wqz2zyXSTZ4ZCQhJgCeCA4jx3x
 f7/CkyBFjb17X1224hFejQbQaHQ3usEcbwjFUZBm+LyipCyxqAK4DDj+PzXhOIABvisZl5nBnuV1IbNk
 5YJcnzNWeil8g6n4gvdECMy9/CKlW5PkKd1aACnNdszW+4rvr1nK8/NdWu2+7FKaFw6GYF8xJb91YOZs
@@ -2391,10 +2265,10 @@ P88WcvZwVKqDqJQJ0Mi80fKUXLyGZz6soc4aEPVy/28AAAD//5gCHnWLhgAA
 	},
 
 	"/static/assets/ace/ext-linking.js": {
-		local:   "../static/assets/ace/ext-linking.js",
-		size:    824,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-linking.js",
+		FileSize:    824,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3SST4vbMBDF7/0Urg6LBIO2vTqYsv0DhRbaQ2/LUlJlnA6xNa40TnYx+u5FtuP1Jq1O
 1vjNzE+8t8OaPGq1dXiLj3LbkD+Q3yu4VwH/9BRQgcLHjoNEBarlXd/k0qjfkXCYL459TXv1AHXvnRB7
 jSDgzXC+F6TRDMdtKKRCO/WCr9DuUe6cw+YLPmmzoVr7K1mYZB/Z9S16+c6RxhUGqBIbMUZiD7GirPrB
@@ -2406,10 +2280,10 @@ JLN5VVwcvYCYYrj6m8+J/I5Pdk6zvr+K+gMU6yH/2pKMvqj+DQAA//8qNJ2WOAMAAA==
 	},
 
 	"/static/assets/ace/ext-modelist.js": {
-		local:   "../static/assets/ace/ext-modelist.js",
-		size:    3728,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-modelist.js",
+		FileSize:    3728,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/2xXX3PbuBF/76fQoPdA1qycTq+dRq4mYyuOnZztOKIvTUemPBAIkpBAAgFAiYpX372z
 S0lOctUDsb/FAtj/EHJZqEZGjAt5KrtwWptcauUDS2bMya+tcpIlTHbWuOBZwmqTt1qyLCnaRgRlmkgm
 IWniZ9Z6OfDBKRHY2WFyoCIZP6+5G4QxHwbZhaQZy6G3WoXodPZ4+viYncZDa2wUnxXGRSiqxq/O1L/d
@@ -2448,10 +2322,10 @@ T9z/BQAA//+paeVakA4AAA==
 	},
 
 	"/static/assets/ace/ext-old_ie.js": {
-		local:   "../static/assets/ace/ext-old_ie.js",
-		size:    11909,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-old_ie.js",
+		FileSize:    11909,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8x6e1fbOLf3/++nMJo+qT0YJ6HQmcZ1u0ImtEAp0wBluL0sxd5x1DiWkRSSDOS7nyX5
 EttxeOicZ51zYBGs229ftfeWYg8GJAQdYRfqMBN1Dpi5wz6dIfMaMbifEAbIRDCLKBMcmWhMvUkgu+SK
 gPTrHh3nWgEO/VwTHiAUSXsE8z7FzKsPMR/eDXHoBcByc0cw5+jWHExCVxAa6mAKMzQe0YSDxgUjrkD2
@@ -2521,10 +2395,10 @@ nfa4Mip/ktCf8ntdzte3ppbHqCKyMPRS738FAAD//6x/a42FLgAA
 	},
 
 	"/static/assets/ace/ext-searchbox.js": {
-		local:   "../static/assets/ace/ext-searchbox.js",
-		size:    10004,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-searchbox.js",
+		FileSize:    10004,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8xaeVfbyJb/fz6Fou7HkyaybAgkHamVPsIxCRCSxmwN6ZycsnQtV1xWKVXlrcHffU5p
 c0mWeaTnnZkHB+HafnetuwhCGOIYDB0F0IaFaHNALBgN6EK3PusMvk8xA93SYZFQJrhu6RMaTomckicI
 HrRDOlFGBMWRMoQZxCIfj2E5oIiF7RHio68jFIcEmLJ3DEuuf7GG0zgQmMYGWMKKzXt9ykHjguFA6O4M
@@ -2581,10 +2455,10 @@ RF+2wlJBsn51/0urfSlNg3a/sSq/5jgO6dzO/0vN+NzwT2xfLE2FaaKzMo3a7P8EAAD//46sb58UJwAA
 	},
 
 	"/static/assets/ace/ext-settings_menu.js": {
-		local:   "../static/assets/ace/ext-settings_menu.js",
-		size:    12264,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-settings_menu.js",
+		FileSize:    12264,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7w6/XfbNpK/31/Boj0/8ozQdrbpNtLx5dmK87G1E9fyZnunyHogCYqwQIAFQH3U1P9+
 bwCK+nTj2313biPODAbAYDBfAJnSjAnqI5LQEzo3JwUV1chIyfUJ5bSgwozGVFBFjFQID5Civ1dMUYQR
 nZdSGY0wKmRacYqGOKtEYpgUPsUGi+ARVZp62iiWGNQVYdMjTBQlhn4ugTVq+5jgcUqUJ7CKUplUMHXD
@@ -2669,10 +2543,10 @@ PGr7FWSwXC6D7r95O3/rWi7wHvda4c/dWYeNEfiDJ+xkiL3NoQ7NtQz8Her/BAAA//8JKP4m6C8AAA==
 	},
 
 	"/static/assets/ace/ext-spellcheck.js": {
-		local:   "../static/assets/ace/ext-spellcheck.js",
-		size:    1439,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-spellcheck.js",
+		FileSize:    1439,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4xUz2vrOBCm1/0rHJ0kqqpOjwmihyWwhV26tAt7KD2o9tgVVUZ+0ihJCf7fH/6VpHkp
 PJ/k0ffND818U0JlETgzBdzCjm5jA84V71B8MPnCAvxINgCTDHaNDxSZZGtfJteZOoqzb7ewAaTxH0pL
 Pow/hcfK1uxVVgkLsh45SJIo9ixFyCIFWxBbbkzIggbOlDpxJ5akCo8EO/oHMP1lsHQQ9NGT2HdE0qDI
@@ -2688,10 +2562,10 @@ a2gxy9tWtGL5R3b2HcdQZPtfbrtva7H0WzWuS/5yaZ2+yuzUz6VAreBn1p8BAAD//2bfiIqfBQAA
 	},
 
 	"/static/assets/ace/ext-split.js": {
-		local:   "../static/assets/ace/ext-split.js",
-		size:    4188,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-split.js",
+		FileSize:    4188,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7RXUW/cOA5+v1/hGkEgNa6bvNZVD2iaoodrr0CTXh+CoNDYdEaoRvJKdCbZ1P99IVn2
 yPZMii2weQiG/EiKFCmSrqAWCkjKS3hpGykwza5TA3+0wkCapXDfaIM2zdKNrlrpWE5SitVLrZuIklzd
 RiTcgcLvsBGIYAIfKoF6IO6EwZbL7wZUBWYi892CtUKr9CarW1Wi0IpAhpmij2lrIbFoRIlpMYCJdDB9
@@ -2719,10 +2593,10 @@ WOML/ErDSbhM9HmQcR4w9xsVqzuaxd/WcI9/4/u6l/zF96/Kg7b/osyDEu1o8a9k9hcNvuRxgbq/rVCV
 	},
 
 	"/static/assets/ace/ext-static_highlight.js": {
-		local:   "../static/assets/ace/ext-static_highlight.js",
-		size:    2818,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-static_highlight.js",
+		FileSize:    2818,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4RWX2/bOBJ/v0/BEAubhCjG7gL3IIXtQ29xt0BTHNDs3YPXKGhqZHErkTqSqpPa/u4H
 UlLiJO2uXzyaP5w/nN8MK6i1AYKlgmu4D9c+yKDV50bvm1bvm4DZBjv436AdYIbhvrcueMxwZ6uhjaxk
 WOnw2YP32pqJ1coHcNcB7sPEUNbUej9L9e66sh3esnowKmhrCLDADD3iwQPywWkVcPlVOuQEEMz5cx+U
@@ -2750,10 +2624,10 @@ vqajq5b/YbWJ15XhKchHYm7emlfgg7MPhLKj8r7wY8TpaRUHStGzaR4Uw/nMDJ/eh6J+ovlj8KI+0/Jv
 	},
 
 	"/static/assets/ace/ext-statusbar.js": {
-		local:   "../static/assets/ace/ext-statusbar.js",
-		size:    1087,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-statusbar.js",
+		FileSize:    1087,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3xTQW/rNgy+71d4PAQSoqrdtYYPa9DrDt1uQTAoEptolSlPotsYqf/7g+ykcPuKp5PI
 j/zIj6IcPntCAcbiLZ74NrPhPu9NArWFhP/3PiEowFMXE2dQ0EbXh+IqGcHvb11sF1YwdICdeu7Jso8k
 ULEieYY+Y5U5ectQv5pUpeZS9EohlV+6Jh6pcrNkkmc++qwxYIvETdI2oWF8nG0Bzr+CVMsYbYPJ+S/T
@@ -2768,10 +2642,10 @@ tt/8952qljTf1Rml+OL9EQAA//8SwTcfPwQAAA==
 	},
 
 	"/static/assets/ace/ext-textarea.js": {
-		local:   "../static/assets/ace/ext-textarea.js",
-		size:    9107,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-textarea.js",
+		FileSize:    9107,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5w6aXPbtrbf369gTu6LyRFMLbazUGE6ies0aZMmN87SPk/GA5FHFCoS4AVALZX1398A
 ICVqSdK5cUfCcnBwNpxNTXHMOPpAE+zqCRbY1bjQBdUI5AYk/qdiEoEALkohtQIChUir3CyZIzkbdVNR
 wFcyrniimeA+Ek14sIJKoae0ZImGoQ6Z+pnKaXyvT3SYKHWZU6Vig+JUF+DWPuJCxyehW/PM921WaY3S
@@ -2837,10 +2711,10 @@ k5cfrNs+fG3El63Jvtk2le222tsUs9v/z8TVu8Ikq63HaJ1Qu6Yd09wUHzuVrM1WD4rYGnKnbrW9g4Nq
 	},
 
 	"/static/assets/ace/ext-themelist.js": {
-		local:   "../static/assets/ace/ext-themelist.js",
-		size:    1469,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-themelist.js",
+		FileSize:    1469,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4RU0W7qOBB936+w/ES0FnT3aQXKw5Z2u1VL1VXR6kpRFDnJACMcm44dwi3l36/ihAQK
 VzcP7fE5ZzxmZjQ5LFDDgMsMRrBzI7eCAhRax0XECd5LJOCCw25jyFkueGHyUtVUHaEwHS1wZ1Sekqks
 kOWxWJQ6c2j0AIQTOtjz0gKzjjBzfNKmuhIYTLaSGIVRxKcrMgXwWER8qkyZ2wYSFtZodp+jM+SpO1np
@@ -2856,10 +2730,10 @@ MtJxSIIOwSGY/Ma+fP2DA7a/UOuvQp2batiu00F0ZdvGgp1ecy3PIRh8YX8EAAD//7iZk7G9BQAA
 	},
 
 	"/static/assets/ace/ext-whitespace.js": {
-		local:   "../static/assets/ace/ext-whitespace.js",
-		size:    2571,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/ext-whitespace.js",
+		FileSize:    2571,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5xWW2/bxhJ+zvkVMuEQu+Gal3PykENqbBhoHwIkfaiTtgDFFDQ5lBYgl+peZLsi/3ux
 vMiypeShfOBSw9lvZr6d+cQSKy6QOHmBAT7q4GHDNaptXqDDUkfiX4ZLdJiDj9tWauUwp2lLU1uT3VLz
 +6DOxdrJWGVEoXkrCDLNBN07RuFCackL7SS7XC4kIHF8/3kPTbR/WaLGQn8UJQqd2/1wDET3869FQZDu
@@ -2884,10 +2758,10 @@ scQrxVthR2rCOhGDs1gnXmexTmf0BGye00HwZmKJsF8Op7ufgzArcgd5Owqp8N+Fe6mUQ4zvKOZBdA9O
 	},
 
 	"/static/assets/ace/keybinding-emacs.js": {
-		local:   "../static/assets/ace/keybinding-emacs.js",
-		size:    24445,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/keybinding-emacs.js",
+		FileSize:    24445,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8x8i3LcNhLgr4xQrikiwtAzvng3y1meypHtTSpW7LOcS21NdC6IxMxgxQF4AKhHRP77
 FR4kwddI2exWXWrXGrwaje5Go7vRYEq2lJEA4IS85ElSCIA2QJD/W1BBAALkPudCSYDAgadFpqt0z4xe
 v+Q8dyWB2a5ukQSLZO8KJKXqqyRSUs467V/3dLfP6G6vPIApP4ArtC1YoihnAUEKMfgICklmUgmaKLCu
@@ -3009,10 +2883,10 @@ lsdAFczSsA+oA6mq4P8LAAD//5efp9p9XwAA
 	},
 
 	"/static/assets/ace/keybinding-vim.js": {
-		local:   "../static/assets/ace/keybinding-vim.js",
-		size:    96914,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/keybinding-vim.js",
+		FileSize:    96914,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7z9aX/jNvIoCr9+voXE04chIoiWZp45Z/6UYd1ux5lk0tukO8nMqJU+tAhJGFOAAkBe
 IvHer35/WAlSlNtJ+v7f2CKWwlYoVBUKVQVeEoqTKF/gsxv8cM1yXpzdkk0EZxHHv+wIxxGM8P2WcSki
 GG1YsStVkqrAc7pyv0tyfYZvMZUf8YZIiXmQXrBN8MXYNvi6wQ+iDcJ+C5zzxTrI3AnM81W7wMc1Wa1L
@@ -3510,10 +3384,10 @@ KXIcOb0vSSl1tOQKbFLRfyKC7u+RZcOK/18AAAD///ar0yOSegEA
 	},
 
 	"/static/assets/ace/mode-yaml.js": {
-		local:   "../static/assets/ace/mode-yaml.js",
-		size:    3978,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/mode-yaml.js",
+		FileSize:    3978,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RXbY/buBH+K7uM4RVtmt7tfaocnpAUCVrgLgWSFEUr6gxaHtvEyqRDUudNLf33gnqx
 ZVu+3F2+rFejmWde+Yy4hJVUECCRwnSrlzD9KrbZfCPXm0yuN25u8gwsIjEy8CWXBhBB8LLTxllE0FYv
 88yLvHUmF1Otd81TheXgxV1hJWSVq9RJrQIgjih8QLmFO+uMTB2a/SrMnWEQIEqPkJjIStIPiOlneHF/
@@ -3543,10 +3417,10 @@ H3jA44Tb0cDTw3AYmDFTuGx5u2Gvm58y3n2je1a1M4vAq33jS8YDnSN0NLsAA7lkFyenOWXiYvH7rSdK
 	},
 
 	"/static/assets/ace/snippets/text.js": {
-		local:   "../static/assets/ace/snippets/text.js",
-		size:    127,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/snippets/text.js",
+		FileSize:    127,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/yzNQarCMBQF0K187qiFR7uAT3fhTBxIegsBfYl5NxAQ9y6oGzhn55GdE66Ja3iulYpV
 HIKd0fjouREGjlqaAoZ72fuNuNjRPSkXn2gyn5/owb9Qy0n41/LDThzaun+b3bREKpUbPsVrfgcAAP//
 NF99F38AAAA=
@@ -3554,10 +3428,10 @@ NF99F38AAAA=
 	},
 
 	"/static/assets/ace/snippets/yaml.js": {
-		local:   "../static/assets/ace/snippets/yaml.js",
-		size:    127,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/snippets/yaml.js",
+		FileSize:    127,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/yzNUarCMBAF0K087lcLQ7uAR3fhn/hRklsItJOYmYGKuHdB3cA5mVtRDlgTZ9PSGt3m
 x3rskCs671E6IeDZaneD4Kg5duImW2jyUnWguOj4RBj/zHtJjn+fftiFpy+h3yaLT5Zq44JP8RrfAQAA
 //8/8jZ4fwAAAA==
@@ -3565,10 +3439,10 @@ x3rskCs671E6IeDZaneD4Kg5duImW2jyUnWguOj4RBj/zHtJjn+fftiFpy+h3yaLT5Zq44JP8RrfAQAA
 	},
 
 	"/static/assets/ace/theme-tomorrow.js": {
-		local:   "../static/assets/ace/theme-tomorrow.js",
-		size:    2552,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/ace/theme-tomorrow.js",
+		FileSize:    2552,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RWbY/ithP/Kv5n34CUQNgFloB4kYXsX71Kbfeue9W1qionGYxFYqeTycIK7XevnHSX
 h5qHw1KYODO/+XlmPHYKC6mg5fAEurSEHLqkc42o1477h4PwdyURHNeBTaGRSsd1cp1WmZkyJpmMu6nO
 nT/dRaUSklq1wCVXtbfUkeWc42r6v55LnaQsZxkvy6mx8nYu6i+/woamTmf/CzNvf4mKCJBtY56sBOpK
@@ -3588,10 +3462,10 @@ fdyw9m5h7bf2PwEAAP//8tyXWPgJAAA=
 	},
 
 	"/static/assets/css/loadmore.css": {
-		local:   "../static/assets/css/loadmore.css",
-		size:    1721,
-		modtime: 1514271253,
-		compressed: `
+		FileName:   "static/assets/css/loadmore.css",
+		FileSize:    1721,
+		ModifyTime: 1514271253,
+		Compressed: `
 H4sIAAAAAAAA/5xUsW7bPBDe9RQH/AiQBD8VOY0cm1kK9ElokZIPpkiBYmIlhacuRZfuDVCkQIeOHYp2
 aR7HQfMWBU1JluU4dRsggny6j3f3Hb/v5Pg4IO3f8t3dr/v7h9tvy88fHu5+LH++X38jwfFJEIRSM55r
 I+B1AAAwR26nFAZRdHCxClhRWcIkZopCIpQV5iJYdHFhoZSo7C78RBsuDIXI/8yZyVBRGMRF1cQ4loVk
@@ -3607,10 +3481,10 @@ gHUkRSkpJJfGyf+Vm3CXzy6C3wEAAP//R/EYirkGAAA=
 	},
 
 	"/static/assets/css/m/search_style.css": {
-		local:   "../static/assets/css/m/search_style.css",
-		size:    3422,
-		modtime: 1514270523,
-		compressed: `
+		FileName:   "static/assets/css/m/search_style.css",
+		FileSize:    3422,
+		ModifyTime: 1514270523,
+		Compressed: `
 H4sIAAAAAAAA/+RW227jNhB991cMEAS7C4SGfMkGZV9aFOhvLChybBGhSIGkbGeL9NsLkpItyZLspC8F
 SiVIeJkZ8pyZQy5dfiK8dt6U8NcCQEhXKfZGQWolNZJcGf766wKgMk56aTQFi4p5ecAwepTCFxS+Z1l1
 Cv0C5b7wFLar1D8W0iNxFeNIQZujZVUYzs2JOPlT6j2F3FiBluQmGuyM9mEKKay2wcf7YtHZ448fwUWF
@@ -3630,10 +3504,10 @@ GeZpkqOQLv8EAAD//zt4y59eDQAA
 	},
 
 	"/static/assets/css/m/style.css": {
-		local:   "../static/assets/css/m/style.css",
-		size:    6705,
-		modtime: 1514282340,
-		compressed: `
+		FileName:   "static/assets/css/m/style.css",
+		FileSize:    6705,
+		ModifyTime: 1514282340,
+		Compressed: `
 H4sIAAAAAAAA/6RYX2/byBF/Fj/FnIXgWtXUX0uxSfSBlmVbOMVyJeWcXFEIK3IlbUNy2eXKViL4rX1L
 cejDoTgcWiAFWrRAr33oW65pvkwTJ0/9CsXukhJJUZegtRBE2p2Z3Zn5zW9nV+teXD4cwUorTKnP9Sny
 iPvUgL0e8jnxZ3NMYNje29/rB9iHIfLDvX2LEeTu750ThmbEp3IUzo739vceEJvRkE45PEbnmOztv/nX
@@ -3679,10 +3553,10 @@ KY09gZKEaqmilN+8fnX31R937OBW+28AAAD//whlhpgxGgAA
 	},
 
 	"/static/assets/css/search/index.css": {
-		local:   "../static/assets/css/search/index.css",
-		size:    209,
-		modtime: 1506164087,
-		compressed: `
+		FileName:   "static/assets/css/search/index.css",
+		FileSize:    209,
+		ModifyTime: 1506164087,
+		Compressed: `
 H4sIAAAAAAAA/0yNzQ6CMAyA73uKJsabJPMgieNpBi1bdSsESpQY3t0o+JOevu9L26g5HeoOZ3gYAIAb
 o0YHR2v31VtE4hDVwfkjsh8CiwO7Yu8RWcKXM0uxHSlPtr+vtvbNNQzdJOhg15avqcxizN9n5LFPfnbQ
 Jtq2fOIgBSvl0UFDojSs4TKNyu1cNJ0oif7iYp4BAAD//1s9SIXRAAAA
@@ -3690,20 +3564,20 @@ Jtq2fOIgBSvl0UFDojSs4TKNyu1cNJ0oif7iYp4BAAD//1s9SIXRAAAA
 	},
 
 	"/static/assets/css/search/search.css": {
-		local:   "../static/assets/css/search/search.css",
-		size:    86,
-		modtime: 1506166595,
-		compressed: `
+		FileName:   "static/assets/css/search/search.css",
+		FileSize:    86,
+		ModifyTime: 1506166595,
+		Compressed: `
 H4sIAAAAAAAA/xTGzQmAMAwG0Hun+AbIoeBNp6kmlmK0tT8giLtL3ukF5iqtEVbN23GP3IXAStiTKDfp
 tjiqELISCqHYh+J1MGeoMV0zPDym8sAv7nN/AAAA//+r5oC4VgAAAA==
 `,
 	},
 
 	"/static/assets/css/search_style.css": {
-		local:   "../static/assets/css/search_style.css",
-		size:    3460,
-		modtime: 1527928282,
-		compressed: `
+		FileName:   "static/assets/css/search_style.css",
+		FileSize:    3460,
+		ModifyTime: 1527928282,
+		Compressed: `
 H4sIAAAAAAAA/+RXbW/jNgz+nl9BoCjuDqgC56VXTPuyYcD+xkGWmFioLBmSnKY3dL99kGQljmO7afdl
 wJQWrV5Iig/JR8zSlUfCW+dNDX8tAIR0jWKvFKRWUiMpleHPvy4AGuOkl0ZTsKiYlwcMq7XU5EUKX9Ft
 UTTHuMSO3RJ8z2vdfFUU92FaodxXnsJ21W1X0iNxDeNIQZsXy5qwXJojcfKn1HsKpbECLSlNFNgZ7cMW
@@ -3723,10 +3597,10 @@ NpRzP6/tlGGeJjoK6fJPAAAA//8L3V9jhA0AAA==
 	},
 
 	"/static/assets/css/style.css": {
-		local:   "../static/assets/css/style.css",
-		size:    7061,
-		modtime: 1520233310,
-		compressed: `
+		FileName:   "static/assets/css/style.css",
+		FileSize:    7061,
+		ModifyTime: 1520233310,
+		Compressed: `
 H4sIAAAAAAAA/6RZT2/byBU/W4C+w8RCsK1rypJsyTaJHmhZtoVVLFdS1skWhTAih9I0JIclR5YSIbf2
 lmLRw6JYLFogBVq0QLc99JZtmi/TxMmpX6GYfxT/KTFaE0HimffezPvz+82bSbnUvbx6OAKrcmnLIT7V
 HOhh96kOtnvQp9ifzhAGw/b27nY/QD4YQj/a3jVDDN3d7Qscwin2CR8F5yfbu9sPsBWSiDgUPIYXCG/v
@@ -3773,10 +3647,10 @@ AA==
 	},
 
 	"/static/assets/css/tasks.css": {
-		local:   "../static/assets/css/tasks.css",
-		size:    143,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/css/tasks.css",
+		FileSize:    143,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/zTLUQrCMAzG8feeIheoB2gOI2kTRfphRjYpIru7uNWXkO8H/8tNHjC9brL2TyIiqtL6
 Pfz11EJvA3zw4c3hUShMOe1pkwqjWXioRW4OyLJa+T9nNzw01zDp5bhZAD51hCwTf5vT/g0AAP//ivV6
 Eo8AAAA=
@@ -3784,10 +3658,10 @@ Eo8AAAA=
 	},
 
 	"/static/assets/img/favicon.ico": {
-		local:   "../static/assets/img/favicon.ico",
-		size:    9662,
-		modtime: 1514805677,
-		compressed: `
+		FileName:   "static/assets/img/favicon.ico",
+		FileSize:    9662,
+		ModifyTime: 1514805677,
+		Compressed: `
 H4sIAAAAAAAA/7RaeWwc1RnfFDSevW9742N37bV314699vqMbeKkOCmhKmmbQlo1aUsgmF5QKFWgf0AS
 DrUUFRXlKIfSgloolWpjE8TREEhpUSsFSiAJOSDEIaTBAePYzikUfdXvm3nTmb28m01X+vRmd97M/H7f
 /d6syTTLNMvU0oIxbHq6zmQqNZlMcZPJ1GIyma41Kb/zp9aU9pEliVhKSkiWZTKbzWSzWslut5PT4SCX
@@ -3842,10 +3716,10 @@ js+s/KeuVcft6jiqjreoY0AdbQUB+D9/1L9JpYGT1PESdcykB5c6yup4qTqWiGtUjcxSNXLJCR7+GwAA
 	},
 
 	"/static/assets/img/grips/horizontal.png": {
-		local:   "../static/assets/img/grips/horizontal.png",
-		size:    104,
-		modtime: 1518269207,
-		compressed: `
+		FileName:   "static/assets/img/grips/horizontal.png",
+		FileSize:    104,
+		ModifyTime: 1518269207,
+		Compressed: `
 H4sIAAAAAAAA/+oM8HPn5ZLiYmBg4PX0cAliYGCQY2BgYGVkZmBgyHh/bicDAwNbgE+Iq3uBz5kzZz4x
 /V3DwMDAWBLkF8zg8OxGGgMDg4Cni2NIRVyyBTOLABOLQAzD/EqegweqlBMYGBgYPF39XNY5JTQBAgAA
 //9gmvT5aAAAAA==
@@ -3853,20 +3727,20 @@ H4sIAAAAAAAA/+oM8HPn5ZLiYmBg4PX0cAliYGCQY2BgYGVkZmBgyHh/bicDAwNbgE+Iq3uBz5kzZz4x
 	},
 
 	"/static/assets/img/grips/vertical.png": {
-		local:   "../static/assets/img/grips/vertical.png",
-		size:    91,
-		modtime: 1518269207,
-		compressed: `
+		FileName:   "static/assets/img/grips/vertical.png",
+		FileSize:    91,
+		ModifyTime: 1518269207,
+		Compressed: `
 H4sIAAAAAAAA/+oM8HPn5ZLiYmBg4PX0cAliYGBgZWBgkONgY2BgeFJ3ZS8DA4OSp4tjiEZwskXxszP1
 AmxMbBKzGVcrdDT3beTum2WZpRZnzFh34ua5zZMm7WNgYGDwdPVzWeeU0AQIAAD//4XoMspbAAAA
 `,
 	},
 
 	"/static/assets/img/logo-square.svg": {
-		local:   "../static/assets/img/logo-square.svg",
-		size:    15759,
-		modtime: 1514805352,
-		compressed: `
+		FileName:   "static/assets/img/logo-square.svg",
+		FileSize:    15759,
+		ModifyTime: 1514805352,
+		Compressed: `
 H4sIAAAAAAAA/7R7d4/rOJbv321gvoPXAzzsoiSaWWTPrV3IsZxzfHhoWLLKSc5yqk//QFJyVd++d9CD
 3ing+tKMJ/xOoHT87X/u2zB9DU7n1X73mkEAZtLBzt/PV7vFa+YSvdsi8z///bfUt/+w7XQ52AWnWbQ/
 /Zp253svSFfC8HKOdFcacQABtNK9YTldvB/2pyjdDi8Lu7JLA905NIf8muYAwnTusgrnafhf6bRt6/0L
@@ -3996,10 +3870,10 @@ WjN7vqr//38AAAD//x22xn+PPQAA
 	},
 
 	"/static/assets/img/logo.svg": {
-		local:   "../static/assets/img/logo.svg",
-		size:    2329,
-		modtime: 1520231552,
-		compressed: `
+		FileName:   "static/assets/img/logo.svg",
+		FileSize:    2329,
+		ModifyTime: 1520231552,
+		Compressed: `
 H4sIAAAAAAAA/6RVbWtbRxP9bIP/wz77QGlhd+687KtjJRA7JAW7DSR16Ufn+kYSkSUhKbLiX1/m3pvi
 QNoE8kU62p2dM3vm7Ojs2eFuYfbdZjtfLSeWAK3plu3qdr6cTuzH3Xtf7LOnJ8dn/7v4/fztX69fmO1+
 al7/8fzy13NjfdP8KedNc/H2wry5fmkIqGle/GaNne1269Omub+/h3uB1WbavNzcrGfzdtu8uX7ZaODF
@@ -4023,10 +3897,10 @@ DIw85HcCkV+NzONLOmum/Z/n8H2m/6ZPT47/DgAA//8VSnW1GQkAAA==
 	},
 
 	"/static/assets/img/shadow.png": {
-		local:   "../static/assets/img/shadow.png",
-		size:    3403,
-		modtime: 1221452502,
-		compressed: `
+		FileName:   "static/assets/img/shadow.png",
+		FileSize:    3403,
+		ModifyTime: 1221452502,
+		Compressed: `
 H4sIAAAAAAAA/+oM8HPn5ZLiYmBg4PX0cAliYGC2YWBgduVgYWBgELlkmMPAwKBd4hpR4lyUmliSmZ+n
 EJKZm8oQklGqYKrglpqkYGRgYKJgaGhlZGhlZKSga2BmYFCUZZPGwMDAXuLp68p+hYlVUFR+vU1pLgMD
 A2eBR2QxAwO3EAgzXrpb94eBgYEl3dHXkYFhYz/3n0RWBgaexZ4ujiEVt97eCsy67SDicPH5jRYnjpL/
@@ -4040,10 +3914,10 @@ a34E6K5lYGBg8HT1c1nnlNAECAAA//+FINJhSw0AAA==
 	},
 
 	"/static/assets/js/d3-4.0.min.js": {
-		local:   "../static/assets/js/d3-4.0.min.js",
-		size:    213968,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/js/d3-4.0.min.js",
+		FileSize:    213968,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7S9e3fbtvIo+v/5FLZutxZADmnJebSbMqybZ5u2dp7Nbqurw0VTkISaAlUQlKVE/u53
 4UESlGTH3ed3VlYsEI/BYDAABoPB4OTkaC7lsohOTiaP/irCXMyOPlNRsJwfPQ4fh6fh0Yt8uRFsNpdH
 p73+90cX7JoePc8LmafX4f9C05KnkuUcSeD4aye/+oumskOI3CxpPj2i62UuZNHtdko+oVPG6aRzXCUu
@@ -5267,10 +5141,10 @@ LsPX3uc/DGrzG9dUtph5tSxpvgTl+DLLszRLKDdCym4vvmpjvWu8KhpQZ7C+vALNNXNS6SS1ZxPsrxRK
 	},
 
 	"/static/assets/js/footer.js": {
-		local:   "../static/assets/js/footer.js",
-		size:    2572,
-		modtime: 1514271647,
-		compressed: `
+		FileName:   "static/assets/js/footer.js",
+		FileSize:    2572,
+		ModifyTime: 1514271647,
+		Compressed: `
 H4sIAAAAAAAA/5RV227bRhO+N+B3GDM/QtKRSMv+g7pUGUNWjCJF6qaxjRZwDWO1HEpbkbv07lKHxrov
 UPR9+kDtexRLUTwoqltTF9rDzPfNef3Dw/09OIShRKIxgtESvkF9LgnjCj5MsistZOoVIjcKZQDfYkST
 Yv+WaAygd9ztHXf/X5xcsxQD+POP3/76/dfToHdkDv39PfPz/a8ObodvB9eDW7NlMThWziOMGcfIgoMQ
@@ -5293,10 +5167,10 @@ jr2JemFoaSIVXIkEvUSMnencNZRp9uBpSejUHKxf+NKkvwMAAP//Wmg4PAwKAAA=
 	},
 
 	"/static/assets/js/ie_detect.js": {
-		local:   "../static/assets/js/ie_detect.js",
-		size:    2068,
-		modtime: 1511408001,
-		compressed: `
+		FileName:   "static/assets/js/ie_detect.js",
+		FileSize:    2068,
+		ModifyTime: 1511408001,
+		Compressed: `
 H4sIAAAAAAAA/6SU0W7bNhfH7/UUJwY+yEpsUrJjJ59luyg6rzW6NBfJkJsAAy0dyUQoUiMp2elQYE+z
 B9uTDFSk1GnSdsUMGBDJw/P/H54fSSm8USlCokqOKWRaFTPYWluaGaXGsuRO1agzoXYkUQX9vUJjuZKG
 jqLz0SSanFEuLWqJdoj7UiiNehhFwxQtJi7QoxTeooX1CpSGVZojbLTaGdRQozYuomaP37CAh53rVT+I
@@ -5318,10 +5192,10 @@ rxgx1cZYzWX+oHECk8ETK8QfNA6DYABR2Fr69Nm9fSDliwI6fg5r6CJfLiP6vnsnp+svlHQ960S+W6Gu
 	},
 
 	"/static/assets/js/jquery.autocomplete.js": {
-		local:   "../static/assets/js/jquery.autocomplete.js",
-		size:    11711,
-		modtime: 1437039722,
-		compressed: `
+		FileName:   "static/assets/js/jquery.autocomplete.js",
+		FileSize:    11711,
+		ModifyTime: 1437039722,
+		Compressed: `
 H4sIAAAAAAAA/6xae2/bOBL/P59i2g1WUqLISbt7d7XrLtq0xRXd3fb62MMhDRaMNLLZyqJCUna8ab77
 gaQokZKctIdLAMHmYzicx28e8uTgYO8A4OlncgVPa8lStqoKlAg54/D5XzXybQxr5IKyEk6Sk+ShWh6m
 ETw4PjmGD2xFBLymPCN7dxICKiDniMUWMiokpxe1JBcFQl1myEEuESTylQCWAynht1cfjoTcFggFTbEU
@@ -5383,10 +5257,10 @@ MT95uwnNz3ijaPbfAAAA//+nkdNFvy0AAA==
 	},
 
 	"/static/assets/js/jquery.hotkeys-0.7.9.min.js": {
-		local:   "../static/assets/js/jquery.hotkeys-0.7.9.min.js",
-		size:    4459,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/js/jquery.hotkeys-0.7.9.min.js",
+		FileSize:    4459,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RXaXPbyBH9zl/xPHEs0oLBQ/IhcplkbVdlE2/sTda1VSnZcYZAgxgRnEFmBuYikvLb
 Uz0Ab9ny8gsfgO7X5zQa/ccdPMbV3yuyNX4wfkG1w09FNVeaH7wyZW3VPPcYDYaDCH81ucY/yKk5P31d
 yQKFSkg7SlHplCx8TvjbX97DWPz5px/xC1mnjMZoLefiDoLNlzIolUYHnTLYxKzG+/9WtsZLafFPk+Sy
@@ -5421,10 +5295,10 @@ steb/D8AAP//Y2pR92sRAAA=
 	},
 
 	"/static/assets/js/jquery.min.js": {
-		local:   "../static/assets/js/jquery.min.js",
-		size:    83606,
-		modtime: 1505623362,
-		compressed: `
+		FileName:   "static/assets/js/jquery.min.js",
+		FileSize:    83606,
+		ModifyTime: 1505623362,
+		Compressed: `
 H4sIAAAAAAAA/8z9fZPbNrIoDv9/PsWQ68MQFsSRnOw+J1QwvI6dbLLHednY2WwORac4EjRiTAEyCM1o
 InI/+1NoACRIUU723vuruuXyiATxjkaju9Ev10+9q1//fqDi8er+WTSLPr6qr8IVuno2m/0ZXz2bzT+2
 n7/kB7bOZcEZvvqaraKr+urX9+pLxMXddVmsKKvof1xf/6+rih/Ein6T7/cFu/vxh1fE5NsVLNrl+/94
@@ -5921,10 +5795,10 @@ F9EL/kQ7Gj7CFKFX//L/AgAA//8ABk1XlkYBAA==
 	},
 
 	"/static/assets/js/jquery.sparkline.min.js": {
-		local:   "../static/assets/js/jquery.sparkline.min.js",
-		size:    43247,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/js/jquery.sparkline.min.js",
+		FileSize:    43247,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/9S9e3fbNrY4+v98CpkzoxDWliw5aWZCGdbKs82ryUxyf20Xy9MFkuBDpkiapGw5lr77
 XXiRIEXZbqdz7v1Nz4lFPDc2NvYLG8DJ8WB5uabFzaTMSXGRxCkdnE5mk9PBeBBVVW6dnGSrNM6ziqbV
 JKXVSbf4yeAvx8eDD7FH05L6g3Xq02JQRXTwI70evPjySmUNxoOS0gFxsys6KOOKDoKsGPi0InFSDo5P
@@ -6147,10 +6021,10 @@ Z2WDdVdRm3K7iuuUGWbsP9PPvDWzjeAjqSI0/38DAAD//50GxsbvqAAA
 	},
 
 	"/static/assets/js/jquery.timeago.js": {
-		local:   "../static/assets/js/jquery.timeago.js",
-		size:    7332,
-		modtime: 1501683404,
-		compressed: `
+		FileName:   "static/assets/js/jquery.timeago.js",
+		FileSize:    7332,
+		ModifyTime: 1501683404,
+		Compressed: `
 H4sIAAAAAAAA/5QYaXPbNva7fsUrR4lImyZpx/E0kpW0m2M3M3G627qzM2t7WoiEJCQkwACgZbV1f/sO
 DpLg4Tr9YlN4Jx7eHR8cTOAALkmB0YYBEYDg038qzPdQ5tWGUJBbJKFAn7EAIgEjsQfJQFRlybgEVElW
 IElSlOd7xakqMyQJ3cC6+u23PUhSYCFRUQrwcbSJwDuFgtBKYgFowzxgHDy0YpWEY8jQXh8G0QS0Wt9R
@@ -6196,10 +6070,10 @@ zs7v356BqNLPaKPSVZOKUo6RxDYR+R5arbi520MYdct7r8fO/wcAAP//oi8en6QcAAA=
 	},
 
 	"/static/assets/js/loadmore.js": {
-		local:   "../static/assets/js/loadmore.js",
-		size:    4070,
-		modtime: 1515918395,
-		compressed: `
+		FileName:   "static/assets/js/loadmore.js",
+		FileSize:    4070,
+		ModifyTime: 1515918395,
+		Compressed: `
 H4sIAAAAAAAA/6xWbW8TRxD+7l+xPUXNObHvHFX0xcZUKqCWqioUwqcoii6+dbxwvr3urfNSZCkBhdBA
 YvKBUBECMaWJBSgkFSWviD/jPZ//RbV3Z/vOZ7tu1f0A8e48z8zOPHM78tBQBAyB8wQqFKpgcg58D+k3
 REG6Ca7kjGsUk7zELa6bkCSBhhRszvHfFxQKk2Dki3ji8/jIl3xnFOVhElQP77OVe18lRxIRMCRHIrJs
@@ -6230,10 +6104,10 @@ AAD//xWU2BHmDwAA
 	},
 
 	"/static/assets/js/page/console.js": {
-		local:   "../static/assets/js/page/console.js",
-		size:    5350,
-		modtime: 1518269207,
-		compressed: `
+		FileName:   "static/assets/js/page/console.js",
+		FileSize:    5350,
+		ModifyTime: 1518269207,
+		Compressed: `
 H4sIAAAAAAAA/7RYX2/rthV/96fg5QJYmh0pfegenChDm5vuZsh6uyR361AUAS0dy0woUiEpO1ma7z6Q
 +kfRcuZeoHoIIvLwd8758fyTj4JVxVNNBUdBiF4nE4QQ2hCJUsH5afdWqBwl6CjAfypUjsN+g4l2gwl/
 I6fc2TRvrkBBnq9Fnnx7clor7ewgZQk8u4GnCpS+FnlQqNyYhppHwlONepbRDUoZUSqZylp8en5WSjjH
@@ -6265,10 +6139,10 @@ cTUc3OMYNYmmUILc5oudDwQ8R385qftvHL+5Vd4Reu1ytv9pr+0tUQ76koH59/uXqyzA3u99zWtUw92J
 	},
 
 	"/static/assets/js/page/index.js": {
-		local:   "../static/assets/js/page/index.js",
-		size:    1072,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/js/page/index.js",
+		FileSize:    1072,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4xTz2rbThC+71MM+v3AkmNWii8BG9NDC22vrSmFEsxaGsVrr1fO7qyTNBh6DvTYngpt
 XyDkbvI2jZvHKFrF/4gC0UGH+b6Z/Wbmm7jZZNCElwYFYQbDC5hiliooNLSTw6P4MD7iDJoxy51OSRYa
 rMjxNdIHoRyG8+iSAQDIPJz3ek5nmEuN2UO0/AySMxqSro8s2E5s3mULti2sCpG9EiTC6JJ5WhzD3dWv
@@ -6282,10 +6156,10 @@ C8ZITrEv0wkS9MAivdWEZi5UuD5DaLWTJCnZ28Pssn8BAAD//w3N87swBAAA
 	},
 
 	"/static/assets/js/page/tasks.js": {
-		local:   "../static/assets/js/page/tasks.js",
-		size:    532,
-		modtime: 1515907893,
-		compressed: `
+		FileName:   "static/assets/js/page/tasks.js",
+		FileSize:    532,
+		ModifyTime: 1515907893,
+		Compressed: `
 H4sIAAAAAAAA/2SRzWrjMBSF93qKQwhIcoJ/MjAb402GySyGQAvdtCELxZYTNbYVZCWt2+Tdi2U7LlSL
 D6F77tH9CTyPwMMfI4WVGXYNSpmlBXSFRRj9DqJFsAh9Ai8gJD9XqVW6glWlFHvNLvyTAIA1TXdpj5H2
 bCrg9fEsTeOPWqe4pcKmByb5j4RLFye3bx/l2pTCLhsra7ZrOc9kqkpR1Bydgcq7AJIEIR+8aIg2icZO
@@ -6296,10 +6170,10 @@ mCjr5z5lk2EzE37fEY/JjcfkKwAA//9Y+UgoFAIAAA==
 	},
 
 	"/static/assets/js/snapshot_footprint.js": {
-		local:   "../static/assets/js/snapshot_footprint.js",
-		size:    254,
-		modtime: 1509258526,
-		compressed: `
+		FileName:   "static/assets/js/snapshot_footprint.js",
+		FileSize:    254,
+		ModifyTime: 1509258526,
+		Compressed: `
 H4sIAAAAAAAA/1yNMUvEQBBG+/0VH6k2BHL2cREUCxsL0Uoslt1JMrCZkb2Jp8j9dwl3itxUA2/emwNL
 1kOvUjRmBIyrJGMV3+LbOQD4iBVR0qx1j4CsaV1IrJ/I7gtt6/726zlOj3Eh38SmHU7aqBV+cxkBVwMY
 17+ZvpBMNg/grtve4Dw8en8+eeW33ujT2vaP/iNzpREBza5S5krJdjdrLaFBB5KkmV6eHu50eVchMX8h
@@ -6308,10 +6182,10 @@ nopHd3TO/QQAAP//nDYkC/4AAAA=
 	},
 
 	"/static/assets/js/split.min.js": {
-		local:   "../static/assets/js/split.min.js",
-		size:    4716,
-		modtime: 1518269207,
-		compressed: `
+		FileName:   "static/assets/js/split.min.js",
+		FileSize:    4716,
+		ModifyTime: 1518269207,
+		Compressed: `
 H4sIAAAAAAAA/4xX3W/juBF/v7/CJlCBXNNau4c+VD6usR/J9iF7AZpbtIXhB1ka29zIpEuOkji2/veC
 lCjLH5vekzgfnBkOf5oZvn/X7z1sC4nxD9sb9p7G8a/x33rv3v/SX5YqQ6kVBY5sT/TiB2RIhMDdFvSy
 By9bbdBGESlVDkupICf9INzovCxgWn/iRlUgZQkJZo+W6t1RVH/jdJNP6yVFlkDso3N7K4praXkbF9uT
@@ -6347,10 +6221,10 @@ fwEAAP//6ajtnWwSAAA=
 	},
 
 	"/static/assets/js/vue.min.js": {
-		local:   "../static/assets/js/vue.min.js",
-		size:    86510,
-		modtime: 1514599252,
-		compressed: `
+		FileName:   "static/assets/js/vue.min.js",
+		FileSize:    86510,
+		ModifyTime: 1514599252,
+		Compressed: `
 H4sIAAAAAAAA/7z9a5fbttIoCH8/v6LF14sGttC02tn7OW8owxq7bSdOfIvtXBU9WmwK6kZMAQoIdbvT
 1Pnts6oAkCAlZ+9nZq35IpG4AywUqgp1efCP0f86+cfJTzuR/VGfXD/M/pWdfQUppKQnDydn/zx9ODn7
 3yfPrwt18qveQc57UYmiFquTnVoJc2KvxMnrlx9PXslSqFpk/+vkHw/+12i9U6WVWhHLBL1L9MUforQJ
@@ -6881,10 +6755,10 @@ dVzz21Xe/Du6Z4cY3umCjv9fAAAA///Hhwu97lEBAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/accordion.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/accordion.min.css",
-		size:    430,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/accordion.min.css",
+		FileSize:    430,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3yQz0rDQBCH7z7FWC9azF9alA14Lyi96MHjZjPNDtnsLJsJjaZ9d6FYpFC8DPxmPuYb
 JlvewsemI4EyLZ/SAg5gRYLKsv1+n7YoI3UkqeEeDnBvHqDMixV8brdisUc4wNvmHV7JoB8QltlNOnaJ
 NoZjQ+wTIXE49zq25BPhoPLqN9Qswr0q1mGqgm4a8q1ahwlOjVqbro08+kbdIWK1Yy/JQN+oiucwVY48
@@ -6894,10 +6768,10 @@ ONRR1Sz2OvainB4kMZZcM18+Kz/+BAAA//9hmVWPrgEAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/autocomplete.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/autocomplete.min.css",
-		size:    432,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/autocomplete.min.css",
+		FileSize:    432,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3yPP4vbQBBH+3yKCSaQGPTPiCRegXtDgpukuHK9O5IGrXaW1UjyIfu7HzLn4gpfOzx+
 7022/Qr/jx0J7NLdr7SAK7QiQWXZPM9pgzJSR5Ia7uEK380P2OVFCS+nk7TYI1zh7/Ef/CGDfkDYZl/S
 sUv0KGy4Dw4FF0tDcPpVkXfkMTk7Nl0VeCAh9iqi00ITVr2+JDNZaVWR59+qCaOQ0S7RjhqverLW4W0d
@@ -6907,10 +6781,10 @@ dV1XPMr6zxMhPI4taovxod7v95/jliZa+TNHizERDqoIFxjYkYWNtfb2FgAA///u0oANsAEAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/datepicker.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/datepicker.min.css",
-		size:    1279,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/datepicker.min.css",
+		FileSize:    1279,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4STQW+cPhDF7/9P4X+iSm1U77J0kzbm1EulSK1yaQ+VehnsMViAB5lhl4Tku1ebQNQs
 XuXqef7x5vG8vvhf/LqpHIt0lX5ebcSDKJlbtV7v9/tVgdy7yvFKUyMexHv9QaTJZit+395yiQ2KB/Hj
 5qf47jT6DsXF+r9VX0kDjK3TFYbxXjpvcFCb5DLJ9s5wqaBnyuQe88qxBO8aYEde9ZW0YFCs0k4gdCid
@@ -6924,10 +6798,10 @@ dhgBaa2z07Wdrh9OFwR1niTwBa/m69bax78BAAD//9YDnuz/BAAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/dotnav.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/dotnav.min.css",
-		size:    1240,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/dotnav.min.css",
+		FileSize:    1240,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3xTXW+bMBR936/wKlVqopiQqFk1I/W90qa+bA97NPYFrnBsZC6Bjuy/T85XIV8SIPvY
 55x7j/F8+pX9fiuR2DJavkQLtmUFUSXm87ZtoxyowRIpUm7NtuxJTdgyXjyzP+/vVMAa2Jb9fPvFfqAC
 WwObzr9ETcm1Iys3vca6MvJD8HXNMwNd6rrkhLWQlkg7/ATuJsfdvPWyEuGTDDcP4LPpWvocLTeQkeCL
@@ -6941,10 +6815,10 @@ bd5F26PF6/2PlF9uKt9IYMT+fp19N407AhvwhEqa06XiGj0oQmeFcqZZ2/H1vli9il5zOP33uwv9PwAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/form-advanced.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/form-advanced.min.css",
-		size:    1158,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/form-advanced.min.css",
+		FileSize:    1158,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RSzW7TQBC+8xRLK1SocOJEpVRrceCCVAnUCxwQ9DDeHdsjr3dW63Ht0vLuKHEcoKRJ
 ua3XM99+f/PT5+rLZU2ilrPl29lC3atKJOj5vO/7WYnSUU0yM9yoe/XSvFLLdHGmvl5dSYUNqnv16fKz
 +kgGfYvqdP5s1tVJwbFR5EMn3+Q24LsIlvj69a5fpkJT5zxc31lqg4NbTd6RxyR3bOqsQior0YuzMGQ9
@@ -6958,10 +6832,10 @@ AA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/form-file.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/form-file.min.css",
-		size:    295,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/form-file.min.css",
+		FileSize:    295,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/1TMzUrDQBAA4LtPMR4ELSTZFEWYxQcoKL3oQcRDujtphmx2ls2k6U/67uJF8Phdvmp1
 Cx+bnhXW5fq5rGGBTjVhVc3zXO5JJ+5ZSycDLHDvHmBt6kf43G61o4FggbfNO7yyozgSrKqbcuqLVvJQ
 tBzo4nlMoTkhx8CRil0Q19sDZWXXhKIJvI84sPeBbJKRlSViptAoH8jKgXIbZMaOvad4/VcDxzTpl54S
@@ -6971,10 +6845,10 @@ CQAA//85TKV6JwEAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/form-password.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/form-password.min.css",
-		size:    403,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/form-password.min.css",
+		FileSize:    403,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3SOT0szMRCH7++nSHkpaCH7p1qlCXgvKL3owWO6O90dNpsJyWw32va7S1tQsHideX4P
 Tz6biLdVhyzm2fwxK8VBtMxe5fk4jlkDPGCHnFXUi4O4qW7FvCjvxft6zS30IA7iZfUqnrECF0HM8n/Z
 0MkthV56E+NIod7XGL01HwqdRQdyY6nqtKeIjORUAGsYd6B7k+SINbeqLIrp8cojmZrGwrful8dsItmB
@@ -6984,10 +6858,10 @@ Q0XBnIMcObieP6HzA++9qWt0jbxELgqfJth7CmwcH78CAAD//xppwBWTAQAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/form-select.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/form-select.min.css",
-		size:    309,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/form-select.min.css",
+		FileSize:    309,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/1yNu04DMRAAe75iKZAgku8RISGtvyASKA0UlI69ya3O57V8ezGBy79TgCjoppmZdnML
 b7uRFbbN9qnpYYVBNWPb1lqbE+nCI2vjZYIV7v0DbLv+Ed73ex1oIljhZfcKz+wpzQSb9qZZRnOUMpmZ
 Inn9Cjzn6C7IKXIic4jiR3umouxdNC7yKeHEIUSyWWZWloSFolM+k5UzlWOUigOHQOn6Lw6/jz/RHWaJ
@@ -6997,10 +6871,10 @@ DgAA///vj3jQNQEAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/htmleditor.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/htmleditor.min.css",
-		size:    2008,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/htmleditor.min.css",
+		FileSize:    2008,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RVTU/rOBTdz6/wgJBmEGmTqjDCEd3MCmkQm3mLp/dYOPZ1Y9X1jZybNhD4709uk1La
 9OOJBa3u9TnH957jDq//ZN8eZ4bYaDD6Z5Cwd5YTFXw4XC6XgylQZWaGBhLn7J39Jf9mozgZs+/Pz5TD
 HNg7e3r8n/1nJLgS2PXwj0E1i3KaW1CG0EdOLDLhm0zI2dRj5RS/BICP3i4uNIG/6a9loNFDI9EROOIX
@@ -7017,10 +6891,10 @@ zRKTsMT+9f8KAAD//3HMUhXYBwAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/nestable.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/nestable.min.css",
-		size:    1399,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/nestable.min.css",
+		FileSize:    1399,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4RUzU/bShC/v79iHxyAPDZxeFDUtYrUSyWkVlzaQ9X2sN4d26Psl3bH+cDwv1eOCZA4
 Aflij+f3MTszOxn9y37czpDYxfjiejxlD6wmCmIyWSwW4wqowRnSWHnLHtipOmMX2fSS/by7oxossAf2
 7fY7+4oKXAI2mvwzbmbcQSJZGGiD1BpdJbLcYCKeaGVAOO/g8XUak+dbn2irli+gmCFx8o2quZLG+IaG
@@ -7035,10 +6909,10 @@ az6QfLCMjx+OdoZfOjDPV99VWOaFVLMq+sZpcVxedc/j3wAAAP//3/6vrncFAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/notify.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/notify.min.css",
-		size:    979,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/notify.min.css",
+		FileSize:    979,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4yRwW7bPBCE7/9T8EdQIAkqm5KlKCGBotcALXJpDz1S5FJaWCIJkorl2H73QlIMO4EO
 vZFDfMPZ2fX9/+T38xYjyVZZuUrJkTQxOrZe73a7VQ2xxy3GlbQdOZJbeUcymubkz8tLbKADciQ/n3+R
 HyjBBCD36/9W/TYxNqLeH5wNGNEapnEAxaN1LKVu4C3oOJ/eEjQKBpbSnPLKDknANzQ1q6xX4JPKDnyH
@@ -7052,10 +6926,10 @@ AA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/placeholder.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/placeholder.min.css",
-		size:    318,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/placeholder.min.css",
+		FileSize:    318,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3SOTUv0MBDH78+nmIdetNJXKkoK3heUvejBY5oZk9C0CemULmz73WVXRSjInObt9/8V
 6X94O/SWoc7rh7yCFQxzEEWxLEuuiWfbW86VH2CFG3ULdVk18H48sqGBYIWXwys8W0XjRJAW//K5z4KT
 iox3SPE8yKjtmHWe2Q+iug+nNkhEO+qvpvMRKYoqnADlZAghQcS2k6rX0c8jiuRDXqpV3vkokqZptvTu
@@ -7064,10 +6938,10 @@ jxj24Yrddvsn4eTEmTLW4U6p3N9mTkZN52/LK/Kx/NX++bvMts8AAAD//6yXHog+AQAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/progress.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/progress.min.css",
-		size:    1435,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/progress.min.css",
+		FileSize:    1435,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/9RUwW7bOhC8v6/gQ2AgSUOZUqwkIC+5BmiRS3vokaJW9MISKZDrSK3jfy+sWqgtx0VQ
 oIcebIAazezszlLz6//Zl6cVEsuS7D5J2StbErVyPu+6LrFAa1whJcY37JVdmiuWiXTBvj4/0xIaYK/s
 09Nn9hENuAjsev5fsl7xNngbIMZN4Xse8Ts6KwsfSgi88L1aAtolyUy0vWp0sOh44Yl8I9O87VWhzcoG
@@ -7081,10 +6955,10 @@ lOVhe29F27Pd35tp7Z5pQ/gCp7mNMWmHjR6uyOSNvUhkWWQ/B8PQVeiQQP0Jafs4llzBtyroBiI7w96I
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/search.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/search.min.css",
-		size:    2061,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/search.min.css",
+		FileSize:    2061,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RVzW7jNhC+9ym4GxTYLJYO7Tr1hgICFCgKLNBiL+2hQC8jcmQNTJEERdlOlL57QVmW
 7EROUvBik/PD72eom88f2F/fNhTZYrZYzebsiZUxenlzs9vtZmuMDW0ozpSr2BP7pK7ZQsyX7O/v32OJ
 FbIn9se3P9nvpNDWyD7f/DBrNrxGCKpsNdXewIMka8giz41Tm8y7miI5KwMaiLTFrIKwJivFv2OqzLFw
@@ -7103,10 +6977,10 @@ AAA=
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/slidenav.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/slidenav.min.css",
-		size:    1008,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/slidenav.min.css",
+		FileSize:    1008,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4xSwWrbQBC99yu2gUIULFl2rZqsTr0UAi25tIdCL6vVSBq82hG7I0uJnH8vskhiYxkC
 Eiy7896befOWd5/Fn4cdslhH6220EgdRMTdyuey6LiqBW9whR5pqcRC3OhDreLURfx8fuYIaxEH8evgt
 fqIG60HcLT9F7S70BnOwaj/k6BujniRagxbCzJDepRn1ocdntKXMyOXgwoz6tMOcK/ktbvq0Aiwrns5H
@@ -7119,10 +6993,10 @@ uw9e/gcAAP//d4lTlfADAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/slider.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/slider.min.css",
-		size:    766,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/slider.min.css",
+		FileSize:    766,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/2yRQW/bPgzF7/9Pof+tCSrHCQYMkLHeC2zoZTsMRQ+qxNhEaNGg6HiNk+8+pF1Tp8mR
 j4/v9wQt5v+bX/cbVLMqVl+LpdmbRrVzi8UwDEUN2uMGtQjcmr25CTOzKpdfzO+HB22gBbM3P+5/mu8Y
 IGUw88V/j9Grt/3GZsII8jRGFAiKnBypHBpt6TGifBOlJ1OcfHfziVGUDh+rseOMbzqQV9xCtbOYIvxx
@@ -7134,10 +7008,10 @@ haT5s8Wue6IcBCDdXlXvCMcGsG7ULcty2xz+BgAA//+VAfHS/gIAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/slideshow.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/slideshow.min.css",
-		size:    2103,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/slideshow.min.css",
+		FileSize:    2103,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8RVzW6dPBTcf0/hb1HlRzEXkqaVbCn7SK2yaRdV1YWBc+EIYyP7AE1J3r0y+WsIcNlF
 d3ORxzNzxgPenf7Pvl9XSOw8Ov8cJeyOlUSN2O36vo8KoBYrpCizNbtjx9kJO4+Tj+zHzQ2VUAO7Y1+v
 v7EvmIHxwE53/0Vtxb3GHHxp+6GxHgmtEQ60IuxA/uFocvgtYtljTqVI4viDrJUr0IhYNirP0RQilho9
@@ -7151,10 +7025,10 @@ Q+LoSC5dVaklsvXLnTW6E/HzNZrIoF4425pcuCJVx/FZ+EWfTuT6t3nTC7KYw98AAAD//90Hu0g3CAAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/sortable.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/sortable.min.css",
-		size:    563,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/sortable.min.css",
+		FileSize:    563,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4SRT2/bMAzF7/sU3G0zItvJNgxQgNwDbMhlO/Qoy6xFWBINmbaTOv3uRf8ArZMCOZL8
 PTzysci+wv99SwKbfPM7X8MZnEini2KaprxBGaglyS0HOMM3+x025fon3B0O4jAgnOHv/h/8IYuxR8iK
 L/nQqp6TmMrj3HFPQhx1Qm+ERnz8ON5ls/BgnTL2BYoclwCY1aKk0MxqwqolUa9Ka7znQa6lO+1NL8o6
@@ -7165,10 +7039,10 @@ tMLQyWkOFJVDapzoH2V3XCLOxNrjjVzeKO14xDTbIfWcdOCLeFXgkWKz+qQH2S0V0H0y4fmD12c/BQAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/sticky.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/sticky.min.css",
-		size:    361,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/sticky.min.css",
+		FileSize:    361,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5zNy0orQRDG8f15ijo7HaieZBDUGXyAgJKNLiRk0ZcyU3SmW7prLknGdxcFES8rdx//
 xe8ri//wsPIsUKnqUi1hhlbkuS7LcRzVjqRnz6Js7GCGM3sO1WJ5AY/rtbTUEcxwt7qHW7YUMkFR/ts4
 LRp7j1nY+sNW9R61FR7odEQOjqb6+mrRmDhh5iOHXW1icpTQxKnBkYxnQaOtf9KWcODMhvcsh7pl5yi8
@@ -7177,10 +7051,10 @@ fPc3dq9zLm7ebgJ3WjgG3J4+pM/m+vQ+alXl5vf8A1df1EQDpUx/tF8DAAD//9DrMoBpAQAA
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/tooltip.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/tooltip.min.css",
-		size:    1382,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/tooltip.min.css",
+		FileSize:    1382,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6ySUWvbPhTF3/+fQv+OQVsqx3YWWqRPUNjoy/awR9lSbBFbV8g3xG2y7z4kOZ3WOCmD
 PgSCr3TP+Z2jxe3/5MfjRiMps/I+K8iBtIiWLRa73S5rFG71RmNWQ08O5Lq+IWVefCE/n56wVb0iB/Lt
 8Tv5qmtlBkVuF/9l2w1FgA613Us92E48MwNGcQuDRg2GiWqAbouKv1BtpBpZkS9zXsFIB/2iTcMqcFI5
@@ -7194,10 +7068,10 @@ AAA=
 	},
 
 	"/static/assets/uikit-2.27.1/css/components/upload.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/components/upload.min.css",
-		size:    134,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/components/upload.min.css",
+		FileSize:    134,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/zTDzaqCQBQH8P19iv/dqeSZ4xQEvoFQuKlFSz8OOoiN6LERsndv1eJnkn/ci8EpLNkz
 ZdjRq065MSEE6kRXNzilxo/YETUxLGcnPMpSexkFO67FDRfXyHMRJOaP1iFt56rzL5nftd/Spa9aH3IG
 w/K0Ye7qKsqYDz90jD/fAAAA//99+iPGhgAAAA==
@@ -7205,10 +7079,10 @@ w/K0Ye7qKsqYDz90jD/fAAAA//99+iPGhgAAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/css/uikit.min.css": {
-		local:   "../static/assets/uikit-2.27.1/css/uikit.min.css",
-		size:    104995,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/css/uikit.min.css",
+		FileSize:    104995,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/+S975PjOLIg9v3+Cr2ZmNiubrGWpH5LsRV74XsOX4Tt+2JH7HmuP4AkJGGKIrgkWKUa
 vfrfHQQIEkgkSFV3PdsvHL1bIwKZCSCRSCQSCeCvX/9l9n/+12cmZvFjvHmMZv82OwtR7v/619fX18cT
 FQ17ZuIx5ZfZv82+pA+zOIyWs//+3/6bONMLnf3b7H/7r//H7H9lKS1qOvv61/90Fpf8duSF2C/DcBYt
@@ -7531,10 +7405,10 @@ ye6umPf/9H8HAAD//+6zAP8jmgEA
 	},
 
 	"/static/assets/uikit-2.27.1/fonts/FontAwesome.otf": {
-		local:   "../static/assets/uikit-2.27.1/fonts/FontAwesome.otf",
-		size:    124988,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/fonts/FontAwesome.otf",
+		FileSize:    124988,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5y7eXxTRRcwPLdJ7k1nsnRJkDa5CSCgLErTLG0BlVVQVjEi+yVt0yY0TUJyu9LSvUBT
 Cm1TSimlZRGRfRMVUfu4IrhT18fdx317VHSSTorf7ybgo+/7/fH9PkLuOTN35pwzZ85256aLrNZFAIJq
 IAIjZt5994jPv9x7BgBwFFBv3zp78fQlQAPGA+rtAQBA2qL7J6VvTi9fDqh3xACAtTmFNu/0zTUfAeqd
@@ -9269,10 +9143,10 @@ kofiqcgb3PyXv/8vAAD//8tD38c86AEA
 	},
 
 	"/static/assets/uikit-2.27.1/fonts/fontawesome-webfont.ttf": {
-		local:   "../static/assets/uikit-2.27.1/fonts/fontawesome-webfont.ttf",
-		size:    152796,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/fonts/fontawesome-webfont.ttf",
+		FileSize:    152796,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8z9CZwbxZU4jtervnS1pFa3WhqNRqOzNeMxGltqSWN7RiOPb8/YGGww2GYYGwzGXAZs
 DF6OBhwOQzgMOA4JyQCB4GwONgn5JiRmlWwCmwNyeUlCstkhCSEbjthOlm+wRz3/T1VLGs3YhmT3+9/P
 DzzddXa9qnpV9d6r954QIITcyEAMGlm8eM2KrW/MzSCE3kIIhZcsXLQY/wSxCIENIRQ9fXV39s7srgRC
@@ -10801,10 +10675,10 @@ cXTNtQsL/xcAAP//tf3NX9xUAgA=
 	},
 
 	"/static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff": {
-		local:   "../static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff",
-		size:    90412,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff",
+		FileSize:    90412,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/2yTc2wljhPtb23btt3e2na33Nq2bWNrc2vbtm3bdrd4+f7y8v56k3xyMplkZnKS464o
 IQEAAQAAIIb0AEQAAACqtvW//v9TEhJq8gAAiBgAAMD/D6tTIKOkmLgEAABiAAAAiAAAADHoAgBcUZWJ
 FQAACQAAAAIAAMAggtOLzNjW0AEAAOkDAED8AAAw0BwmlyVzQ2cHAABMCAAAQP/Hzw8AzNzG0wwAAJMC
@@ -12315,10 +12189,10 @@ xzNsXflrfglmpWuErW6s4YUJO/a73fmo/xsefH5GL3jZ5IyG9sJAoL4ZDe3/CwAA//8sa3EjLGEBAA==
 	},
 
 	"/static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff2": {
-		local:   "../static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff2",
-		size:    71896,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/fonts/fontawesome-webfont.woff2",
+		FileSize:    71896,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/wASQO2/d09GMgABAAAAARjYAA4AAAACVMgAARh5AAQBiQAAAAAAAAAAAAAAAAAAAAAA
 AAAAP0ZGVE0cGiAGYACGAhEICoi7UIbpSwE2AiQDlQALlRgABCAFhnwHskw/d2ViZgZbOOCRANZtO690
 BenN+tPV5+gAYzbC1psVlvA+vFOtOK57HIAZXT/7////Pz1pjKElgeYAUNXartqt+//PZjg1Sogwqrl1
@@ -13522,10 +13396,10 @@ CtIzf/uvX/zHALL5lB9fKP9XAAAA///Il+nI2BgBAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/accordion.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/accordion.min.js",
-		size:    2852,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/accordion.min.js",
+		FileSize:    2852,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RWTY/bNhO+v79CSwQOGXC53rwFCkhx9tAcGqBFLsmhCPbAlcbWwDKpkCO7C1v/vaCo
 z91Nk15sajjfM88Mb95cJV8+7pGSt+rtr+o2uSQlUZ3e3JxOJ7UDanCPpHJ7SC4Jz0Xydn37S/LXp09U
 wgGSS/Lnx8/JH5iD8ZC8ufnf1bYxOaE1nMT5qF2C2QlNYU+qs7JacdwQ785CSDZws82GHmuw26SALRpY
@@ -13549,10 +13423,10 @@ rby6DbiRs83diuyfAAAA//+GXWW1JAsAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/autocomplete.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/autocomplete.min.js",
-		size:    4262,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/autocomplete.min.js",
+		FileSize:    4262,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RXwZLjuA295ytk1pSanKZpe2arNpFb7sNuDluZ1FxmDymXD2wJsjiWSa1I2d1lKd+e
 IinJktuTZE+2AIIEQLwHcPFxFvz+20GY4BP79DNbBU2QG1NGi8X5fGZ7MLU4CMMSdQyaACck+LRc/RT8
 6+tXk8MRgib452/fgi8iAakh+Lj4yyyrZWKEktiQy4lXAazPQqbqzNwpYYghNtj9J4SifjWKY/NWgsqC
@@ -13585,10 +13459,10 @@ I22fv+6pGAlsHzI94f6w2n9URt2jbjKajXE1gACOpXnDNzQ8AKzfvH8iPt+VTkrB7EjkJsBpY7iizk2z
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/datepicker.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/datepicker.min.js",
-		size:    37684,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/datepicker.min.js",
+		FileSize:    37684,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7y9a3PbONIo/P38Chk10QAmREl2Yk+oQKzsKLfZeJJZO+tJZK2LFiGJEwnUklAcx9R/
 f6txIUFdnMx7nvOUqyxcGo3GrdHdaIDtw4PGhzefE9k48o9O/W6jaMykXAbt9u3trT/lcpV8TqQ/TheN
 ooHHpHHU6T5ufHz3Ts74gjeKxtmbi8bbZMxFzhuH7f9zMFmJsUxSgSW5/xJlDd67TUSc3vqqlmYTcyax
@@ -13810,10 +13684,10 @@ SAeBZR7rYBajAKDKReYJPU/X1beVCZX+B5nMc+OqyoRx5dGfIF+T3v8XAAD//6XHF5g0kwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/form-password.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/form-password.min.js",
-		size:    1055,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/form-password.min.js",
+		FileSize:    1055,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3SSX2vbMBDA3/cp1KOkUlGVtQwGDqYve1hho4OtDyPkwbUv8RFbMva57oj93Yf8J4lH
 9iKbu9Pd7ydpeXslXp72xOLBPHw296IVKXMRLJdN05gdck17YhO7XLRCxko8fLz/JH4/P3OKOYpWfH/6
 Jb5RjLZCcbv8cLWtbczkrGR1eItKQauGbOIa009ZLCSFLPt/pTRM1RCG/KdAtxUJbsniYjF8TZQn07+E
@@ -13827,10 +13701,10 @@ N5PlzQbUZfp53wsPpi8YJGdvpFOrvwEAAP//430vgB8EAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/form-select.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/form-select.min.js",
-		size:    1201,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/form-select.min.js",
+		FileSize:    1201,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4ySy27bPBCF9/9TMIMfBhnIdBIUKCBDzaKrAC2yaLMoDC8YahQRlkiDHNkJJL17oZsj
 pwbajc3LmfkOR2d1fcWeHnaG2J28+yxvWcNyon28Wh2PR/mCVJmdIaldyRrGtWB3N7ef2K/HR8qxRNaw
 7w8/2Tej0QZk16v/rrLKajLOchL1QXmG66OxqTvKnrJYcEyI92shIpjUkCT0tkeXsRQzY3GxGP6lKtNp
@@ -13845,10 +13719,10 @@ Edl2iqXlouUiypyuwnmYRq9Taw79p9RVANFGz0XlL8pn+POK0lUB0RJerjvD5O6A/lRUoDrgP8Gmunb8
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/grid-parallax.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/grid-parallax.min.js",
-		size:    2048,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/grid-parallax.min.js",
+		FileSize:    2048,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RUQW/jNhO9f79CJvYTyIimrbSLFtLSRi9FA3SRS/ZQGD4w0sgiIpEqOYqztf3fC8q2
 YnsXC/RiD4dDzZv3Hjm7m0RfHl40Rvfi/heRRvuoRuyy2Wy73YoNYK9fNIrCttE+ogWL7ufpz9Ffj49Y
 QwvRPvr88BT9qQswHqK72f8mVW8K1NZQZLtX5SKTb7Up7VYMXeKYGol0iBnj5FxNpMSvHdgqKqHSBuL4
@@ -13870,10 +13744,10 @@ KumckwQS0r3xaM5IuJaB1vzfAAAA///HrmFoAAgAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/grid.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/grid.min.js",
-		size:    6461,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/grid.min.js",
+		FileSize:    6461,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xYbY/bNrb+fn+FTOQ6ZEwz8rTABeQwg7a3xRZoGmCTIi0MYyFLRxZ3ZFJLUZ5xbf33
 BUm9ejy7LdAvMyJ5zuF5Pw/99s0s+OXHB2GCO3b3f2wVXILcmDJ6+/bx8ZHtwdTiQRiWqENwCXBCgrtw
 9XXw28ePJocDBJfgw4+fg59EArKC4M3b/5lltUyMUBIbcj7GOhDrRyFT9cjcLfM5Ftxg900IRR014tyc
@@ -13922,10 +13796,10 @@ GQAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/htmleditor.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/htmleditor.min.js",
-		size:    13457,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/htmleditor.min.js",
+		FileSize:    13457,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7Rb75IiN5L/fk9BK+ZoaRAF+Oy4CKDosMd7YcfN7Gx4Zs63wbAXoioBXRcSqxLdPQv4
 2S/0r0pVQPc4zvuJkpSpTKWkzJ9SYvD6pvPp53uuO98k3/x7MuocOxutd+PB4PHxMVmD3vN7rpNMbjvH
 Ds5I55vh6NvOX9+/1xvYQufYeffzx85bnoEoofN68C83q73INJcCa3J4YKoDk0cucvmYWCndLoZUY/tN
@@ -14001,10 +13875,10 @@ WxSgB3cjFv5e0LjPb18WnmjOy2vUrYx1KxTU//74/fe+dUzQzz+vr/QMs/HM4CBptr0wOkhajVaKN2et
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/lightbox.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/lightbox.min.js",
-		size:    9052,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/lightbox.min.js",
+		FileSize:    9052,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7RZb4/juHl/30+hYbc2OaZlzdwh6cmrmRdJ2i5wQYr0DkXhcQFaemxxRyIFkR7PrK3v
 HpAiZcnW7O0myBtbIh89//h7/kmL25vg10/PXAf34f3vw7vgFORaV/FicTgcwh3oPX/mOkxlGZwCnJLg
 Prr7Mfi/v/xF51BCcAr+/OmX4GeeglAQ3C7+5Wa7F6nmUmBOji+sDvTywEUmD6GVMplgnXBsrwmhyFOj
@@ -14062,10 +13936,10 @@ dx8T9KN/Vjex6TAIlUnvC2JfSEOBHtvvn6IhpGl6djVk+bcAAAD//1rXvFhcIwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/nestable.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/nestable.min.js",
-		size:    9501,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/nestable.min.js",
+		FileSize:    9501,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6w6a4vjuJbf91ck4mKkG5XbaXZZcEoVentq2YGZ7WF7LlQIoXHFSqwpRTKSUo+t5L8v
 etiWHae7ueyn2Oetc6TzkPPh79PJP359YmbyMf347+l8cppUxtT5hw8vLy/pnpoje2Im3crD5DSBWzT5
 mM3/dbL68sVU9EAnp8nvv/45+Y1tqdB08vcP/zLdHcXWMCmgQe/PhZroxQsTpXxJnZYkgZoY6J4RwqCh
@@ -14122,10 +13996,10 @@ fe4eZhPWWjv+pXfQio0TPSP8GM8JYZ68v7h2uuytBzzrbIPO5zPuK+g1lpropfsY2W+K+1+Yu/+IJIle
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/notify.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/notify.min.js",
-		size:    2654,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/notify.min.js",
+		FileSize:    2654,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RWTW/jNhO+v79CIRY2uUvT8b4tCshRgmIvDdDFXrKHwvBBkcY2G4kUxJHdwOZ/L0hR
 lmS72AK9OBTn65l5ZoaZf7yLvj+/SYw+i8+/iEV0inaIVTyfHw4HsQVs5JtEkekyOkU0Y9Hn+8VP0R/f
 vuEOSohO0dfnl+h3mYEyEH2c/+9u06gMpVYU2XGf1hEsD1Ll+iB8lMmEQoLUnxnjpNMmSYLvFehNlMNG
@@ -14148,10 +14022,10 @@ LAOFUBMe+me42qzlGPokMedj9zYmqr/yXfVrUSSaG8uWfwcAAP//1SUeNl4KAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/pagination.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/pagination.min.js",
-		size:    2565,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/pagination.min.js",
+		FileSize:    2565,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5xVX4/iNhB/76fIuhXYF2PIqtJJCYGXe1mp112pvYdqtTr5kgEsghPFw/4R5LtXtgMk
 G3qV9gWcmfnN35/H0083wbe7rcLgVtx+FlFwDDaIVTydvry8iDXgXm0ViqzcBceAZiy4nUW/B//c3+MG
 dhAcg693fwd/qAy0geDT9Jeb1V5nqEpNkR2eZR1A8qJ0Xr4IF2U0opAidWfGODlZkzTFtwrKVZDDSmkY
@@ -14173,10 +14047,10 @@ fRo6l79hyb8BAAD///F4FdQFCgAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/parallax.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/parallax.min.js",
-		size:    5986,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/parallax.min.js",
+		FileSize:    5986,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xY+47jttX//3sKDb+sStq0LHl2k0ZejpEGCbpAF1tgc2ngUQNaOrbZkUmVosczsfXu
 BamLJY83GxTFjGHyx3Pj4bmQno5uvB/fPQjjzYLZV0HknbytMUU8nR4Oh2ADZi8ehAlStfNOHk6JNwuj
 194vHz6YLezAO3nv3/3g/U2kIEvwRtP/u1nvZWqEkhjI8ZFrz8wPQmbqEDgtvo8NA+zGhFDUUiPGzHMB
@@ -14221,10 +14095,10 @@ pcgfQcdLK6z7JPSwFabR3HPqM+S5OpxhJ8FVsoJrkCa+/GmgvUOcHygVmf8nAAD//1/ZKahiFwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/search.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/search.min.js",
-		size:    2794,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/search.min.js",
+		FileSize:    2794,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xVTW/jNhO+v7+CYQJHXMjUu0GBArblPfTSBbq76MceimwKcKVxzJoiBXJkN5DV316I
 lBTJziHeVheRQ/KZmWe+kjdX5PP7nURyx+++52/JkWwRy0WSHA4H/ghYyZ1EnpmCHEmUMXL3/7ffkd8/
 fcItFECO5MP738hPMgPtgLxJ/ne1qXSG0ugIWL0XlrjlQercHLjXMptFLoXIrxmLaX+bpik+lWA2JIeN
@@ -14245,10 +14119,10 @@ lv8EAAD//x4AwczqCgAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/slider.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/slider.min.js",
-		size:    7097,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/slider.min.js",
+		FileSize:    7097,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7RYe4vrNhb/fz9FIoqRbmTdeHaXgjOawHa77IWWW/qAlmFYNPZxLMaRUkuZmbuJv/si
 ye9J2rvQ/pPI0pHO+6dz9P7dcvHThydpFzfs5kuWLM6L0tpD+v79y8sL24E9yidpWab3i/MCZ2Rxs07+
 tvjl40dbwh4W58W3H35cfCMzUAYW797/ZVkcVWalVtiS07OoF7B5kSrXL8xziSIM3GI/JoSijhpxbj8d
@@ -14294,10 +14168,10 @@ p13ckCaAqI+K4O6GbP4XAAD//8kfVzC5GwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/slideset.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/slideset.min.js",
-		size:    7120,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/slideset.min.js",
+		FileSize:    7120,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RZb2/kttF//3yKXSKPjrzlypLbIoDWtNEmLXpAgkPbpEAhCAG9mvUy1pKKSK3tWPru
 BUn93V3nctcXd5YocmY485uZH7lX75eLHz88CrO4Dq+/DuNFs9gbUyZXV09PT+EDmFo8ChNu1WHRLPCW
 LK6j+I+L/3z8aPZwgEWz+P7DD4vvxBakhsX7q/9b7mq5NUJJbMjrkVcLsXkSMldPodMSBFgwg90zIRT1
@@ -14344,10 +14218,10 @@ e1WJX5U0n2lP1V2aX/hU2NPn59lDpbVIb3nxBThwy9b14OeWjnduY4nTTLZk898AAAD//yJYA6vQGwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/slideshow-fx.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/slideshow-fx.min.js",
-		size:    5733,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/slideshow-fx.min.js",
+		FileSize:    5733,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/7SYXW+rOtbH759PwbZ6cuxgCMkze0aCOr2Zm0pTnZsz0swgLhwwwVPeZJskbZPvPrIJ
 BFKyT9Xu05s6sLy8sNf/x1os5t+sfz4+c2Wt3NXf3KV1tDKlan+x2O/37paphj9z5cZVYR0tGCNr5S3/
 Yv37t99UxgpmHa2nx9+tf/CYlZJZ88X/fUubMla8KiFHbzsqLBXseZlUe9esMptBRTg0Y4Qw6KwBIeql
@@ -14382,10 +14256,10 @@ ZIR5KCPCQ6VHKiKsLyH4qR9Nfh49oeB/AQAA//8bSTXdZRYAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/slideshow.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/slideshow.min.js",
-		size:    9991,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/slideshow.min.js",
+		FileSize:    9991,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/+Q6/Y/bNrK/v7/CS+RpySytlfMa9EGOsuhr2tfcJU3RTxwM48CVxha7EqkjKW9ytv73
 A0lJlvyRbNIWd4f7ZZcihzPD4XzT148vJj+9vONm8iR88nk4m+wmuTFVfH19f38frsHU/I6bMJXlZDfB
 KZk8iWafTf7y5o3JoYTJbvL65Y+TVzwFoWHy+Pq/Lla1SA2XAnOy3TA1MfN7LjJ5HzoqQYBNwrEbE0JR
@@ -14441,10 +14315,10 @@ dar790d9/IufQQNcE9LQixlpyPwfAQAA//9+R3qQBycAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/sortable.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/sortable.min.js",
-		size:    9210,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/sortable.min.js",
+		FileSize:    9210,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xaW4/bNvZ//38KmxgoZIdW7PxbLFYOY2CT7LZA0xbodLGB4Qfaoi02MimQ1ExmLX33
 BS+6Wk7y0JexRB4eUuf6O4fz8rv57I+fPnEzexW/+lu8mlWzzJgiefny6ekpPjFT8k/cxAd5nlUzeECz
 V8vV97OPv/5qMnZms2r24aeH2c/8wIRms+9e/t/8WIqD4VJAgy6PVM3Y+omLVD7FbpcogowY6J4RwqCh
@@ -14503,10 +14377,10 @@ jzt4g1G4AWoyXI3W/wsAAP//Nuj04/ojAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/sticky.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/sticky.min.js",
-		size:    5056,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/sticky.min.js",
+		FileSize:    5056,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4xYQW/juhG+91dIxEKPXFOMvChQQA7jQ4GiC/RhL/v6UKQpQEuUxUYmBZKKN7X13wuS
 kizZzraXhOIMZ0bD75sZ+eFzHP329VXY6Av58ieyjs5RbW2bPzwcj0ey57YTr8KSQh2icwQLFH3J1n+M
 /vHtm635gUfn6Nev36O/iYJLw6PPD3+Iq04WVigJLTq9MR2JzVHIUh2J95IkUFAL/RohDEZtQKl9b7mq
@@ -14544,10 +14418,10 @@ fxzo/YdEONejzX8DAAD///AU1yTAEwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/timepicker.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/timepicker.min.js",
-		size:    2669,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/timepicker.min.js",
+		FileSize:    2669,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xWW4+bOBR+31/BWFViN44DzGhXIjFRtU+VOm2lbR9WUR48cDKxAhjBYaIqsL99ZTPJ
 wNz2ZZ/ic/F3vnPDWXy88n5+Pmj0QhH+IQKv9faIZbRYHI9HcQ/Y6INGkZjcaz2aMC/0gxvv72/fcA85
 eK13+/mH90UnUNTgfVz8drVrigS1KSiy04OqPFgedZGao3BRJhMKEqk7M8bJ2ZtIib9KMDsvhZ0uYDLp
@@ -14572,10 +14446,10 @@ AQAA//8ZRWsobQoAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/tooltip.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/tooltip.min.js",
-		size:    3714,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/tooltip.min.js",
+		FileSize:    3714,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xXW2/juBV+76+QiYGHXFP0pbsoII9itEWBDrDFvMyiKII8KBQVnUYmBfHITmDpvxck
 pVj2ejYzQJ8kkefy8Ts8Fy1/mkW/fX4GjDZi8xexjrqoRKyT5fJ4PIonhS08Awpp9lEXUcmizWr9c/Sf
 L1+wVHsVddG/Pn+NfgWptFXRT8s/zYpWSwSjKbLTIWsi2B5B5+YovJf5nEKK1L8zxskoTdIUX2tliihX
@@ -14605,10 +14479,10 @@ bf8XAAD//+R7L02CDgAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/components/upload.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/components/upload.min.js",
-		size:    3540,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/components/upload.min.js",
+		FileSize:    3540,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5xWe4/buBH/v59CIgKBXPNoOziggAVdEDQpLkXuNrjdoC1sH8CzxjYvNKmS4/UGXn33
 gtTD8trJov3HFufJGf7mMb5Jk88fvihMXovXfxXT5CnZIlaz8fhwOIgN4F59UShWdpc8JXTFkteT6Y/J
 v29vcQs7SJ6SXz7cJx/VCoyH5Gb8l3S9NytU1lBgxwfpEswPypT2IKKXLKNYAI3fjHHSSZOiwK8V2HVS
@@ -14638,10 +14512,10 @@ tQBHjjXL/xsAAP//azXk4dQNAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/alert.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/alert.min.js",
-		size:    868,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/alert.min.js",
+		FileSize:    868,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/2xTzYrbMBC+9ykUsSzSoky8oVBwCL30stCyl+6hlB4Ue2IPsSUjjZMWJ+9ebMdpTPdi
 NPI3389IWj0txNvLgVisYf0JnsVZlMxNulqdTicokFs6EEPma3EWKtNinTx/FD9eX7nEGsVZfHv5Lr5S
 hi6ieFp9WOxblzF5p1h3so0oIgfKWG4GksY7dKykrTCwNF2Oe9tWHNNub3NMF4nJ22D7/nSdJIYDFQWG
@@ -14654,10 +14528,10 @@ ZsR/0sTIxuY5uWLJvpH39c4z+3rYqm0oyN0Q1/IGuMxnPN1bQzolNZyXGh6W3vwNAAD//6r9WfBkAwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/button.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/button.min.js",
-		size:    2463,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/button.min.js",
+		FileSize:    2463,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/+yWXWvbPBTH759PoeopqdQpyloGg4RcdTeFjcK2XozSC8U+sQ9xpCAdt4M0330ojh17
 eVk2NtjFbkJs6bz+f/+QweUZu7+dIbFrff1WX7EXlhMthoPB8/OzzoBKnCHpxM3ZCxOJZNevr96wL3d3
 lMMc2Av7cPuZvccEbAB2OfjvbFrahNBZQXLJywAskMeE+GidZOEsWBJ8UhI5+9Gk6LhapjA1ZUFhuDQJ
@@ -14674,10 +14548,10 @@ WYq9nwkAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/core.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/core.min.js",
-		size:    11350,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/core.min.js",
+		FileSize:    11350,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6w6/W8bN5a/318x4gZjMqJpKXe7B4zCGEWSYnuXNLkmvb1Cnhb0zJPEekRqSY5tVZr9
 2w/kfOrD7i5QBIg5j+89ko9837p6OYp+/O5OuugVe/WfbBrto5Vzm+Tq6uHhgS3BlfJOOpbpdbSPcEai
 V5Ppf0Q/ffrkVrCGaB99/O5r9EFmoCxEL6/+bbQoVeakVtiRnVxg1H4jzt12A3oR5bCQCuK4/svEOm/H
@@ -14753,10 +14627,10 @@ s2ROmCU4wjbCBK9WEiriWDClHTbH26hIm6voisz+PwAA///HlRiDViwAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/cover.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/cover.min.js",
-		size:    1466,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/cover.min.js",
+		FileSize:    1466,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3xUX4/iNhB/76cwoxNnr7wGVpUqhaY8n9S9fem1qk73YJyBzJHYKJ6QXtl89yrhzwYW
 +oLCzPz++DeJJw8j8eXThlg8madfzEy8ipx5m0wmTdOYNXJNG2LjQilehXRKPE1nP4u/X144xxLFq3j+
 9If4nRz6iOJh8tNoVXvHFLxktYc6oohckWOY9yTb4NGzBBd2WIHeZ7iydcEx2duaQ1kzJqNpq5chcHJm
@@ -14773,10 +14647,10 @@ rxzZX9dq/l8AAAD//5jXlEm6BQAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/dropdown.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/dropdown.min.js",
-		size:    8813,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/dropdown.min.js",
+		FileSize:    8813,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6Q6W2/juNXv36+w+Q005IZmlKBFC3mVoN196ABbTIHOoigCPygSFbGRSUGk4hiW/ntB
 UhdSljMe9MWRyMNz47krtz+tV79/eWVqdU/u/0TuVu2qUKqKbm8PhwN5oaphr0yRVOxX7QqmaHUf3v1h
 9e+vX1VB93TVrv7+5dvqN5ZSLunqp9v/W+cNTxUTHCp0Ao2kK6lqliqwHTZWAgpMMcMcnVgORazIJygQ
@@ -14824,10 +14698,10 @@ Lkms7+ziDM9F7zdnbrc7YTifQvkM+hKFXTfzEe0D08jRP+s233DGjNuBjT34ZYZRh6e53WUOg4DpFHrd
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/grid.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/grid.min.js",
-		size:    1620,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/grid.min.js",
+		FileSize:    1620,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RV34vjNhB+71+hiCNIi6IkS0vBIe1b6UGXfek9lOMeFHliD7GlII3XXDf+34v8Y9fe
 baHtEQhoJH3z6ftmxtu7Ffv08YLE7vX9j3rPbqwkumbbbdu2ugBq8IKkra/ZjQkr2f1u/z374/GRSqiB
 3djDx9/Zb2jBRWB32+9W58ZZQu8EyWfeRGCRAlrihycTGB4/fzn0aFfvwJHgRcD8wZAtfwUsSuLqOYez
@@ -14844,10 +14718,10 @@ zwDwj6OHdG/ciLrol4UxXSc70X9I5OGvAAAA///yGLF3VAYAAA==
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/modal.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/modal.min.js",
-		size:    6744,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/modal.min.js",
+		FileSize:    6744,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/8xZa28budX+/v6KERHIZEzRkt8GC4w8Fopsiw3QhbdIgqIwjAU1cyQxGpEDkrLjSvPf
 C5Jzlxxni6DoF2dEHp7rcy5krt6Oos8ftsJG1+z6JzaLjtHG2iK+unp6emJrsHuxFZalahcdI5yS6Ho6
 +1P0z7s7u4EdRMfo1w+for+JFKSB6O3V/41We5laoSS25ID2BiJjtUgtmtcbkcCCAjlosHstI1hgpJZf
@@ -14889,10 +14763,10 @@ KZ0GXqmSDJsyGypb9+czDTngJjncbWN0t0U0oDJG4V9Ultj/VweZ/zsAAP//xavnh1gaAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/nav.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/nav.min.js",
-		size:    2117,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/nav.min.js",
+		FileSize:    2117,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/3xWQW/jNhO9f79Cnm/hcBY0410UKCCtk0N76AItcukeisAHRhpbA9OkQFJKA1v/vaBk
 O/auvZdA5IRv3rw3Q/r+4yT79nXDMfusPv+qPmX7rI6xye/vX19f1ZpiyxuOqnTbbJ+JErPP80+/ZP88
 PcWatpTts7++/p39ySXZQNnH+/9NVq0tIzsrIu6gDZSF6LmMUBwDGQvGXad9FhZRfRCMkhag2+ig4JUI
@@ -14913,10 +14787,10 @@ ACn3ddb6Z5T78eoWwy8HLP4LAAD//zV3LaBFCAAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/offcanvas.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/offcanvas.min.js",
-		size:    2959,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/offcanvas.min.js",
+		FileSize:    2959,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/4xWbWvjuhL+fn+FM7u4mlRRk3JhIcH0w94Lt7CXHg5dzi6lHFRbjkUcyUiTpsHxfz/I
 zouTpnvOp7Qja16e55kZ3QwH0ff7haboVtx+EZNoGxVE1fTmZr1ei7milV5oEqldRtuIpRjdjif/jn4+
 PFChliraRv+/f4y+6VQZr6Lhzb8G+cqkpK1hEmtYeRV5cjolmL1KF1FSv03X2mR2LXzqbFn+4JtTw8+G
@@ -14942,10 +14816,10 @@ AtPBhJ88D/uOd2u912v9zOU7+LkWYRiGYdY52E0dfjCEspqwBA5oJLph7RscZ38FAAD//xkD6d6PCwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/scrollspy.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/scrollspy.min.js",
-		size:    2989,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/scrollspy.min.js",
+		FileSize:    2989,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6SWUW/bNhDH3/cpZLVwyZpm7GLDALtaUBQYUGBDH9oOGAwPYKSTfQtNquTJRhbpuw+U
 LEVO7KLZnmyJx+Pxz//9qKvXo+jLh1uk6I1887OcR1W0JSoWV1eHw0FugEq8RZKp3UVVxFIevZnNf4z+
 /PiRtrCDqIp+//A5+g1TMB6i11c/jPLSpITWMOL3cekh8uQwpXi5Vy7yCcmXBzTChj+ZTQUmq7WApJ/F
@@ -14969,10 +14843,10 @@ AmXas09evYgn+dFWmMV8EjdWGOTorwHF+SJkOE36nQkHWUTa3+Tfuikadqxyode8rpcnDhgiYTym4/On
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/smooth-scroll.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/smooth-scroll.min.js",
-		size:    944,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/smooth-scroll.min.js",
+		FileSize:    944,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/2yTQWvbTBCG79+vWC8m7NjrceyvULBRc2mggYYcmhxK6UGRx9ZgaUdoR3GKrP9eZMeJ
 U3IR7Ix25n3m3ZmOBubhZstq5jj/jDOzN7lqtZhOd7sdbkgb3rJiJqXZG5eBmV/OPpmfd3eaU0lmb25v
 7s13zihEMqPpf4N1EzJlCU6htU0kE7XmTO3ylDDixDO0nCgOkZ6Vwsq1q6ZO++xiRv97rdMQ+XC0lEa6
@@ -14987,10 +14861,10 @@ zB107rCksPwbAAD//xruMWWwAwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/switcher.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/switcher.min.js",
-		size:    4184,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/switcher.min.js",
+		FileSize:    4184,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6xYQW/ruBG+91fIxINBvtCMFBQoIEMvh77LA7a7QHf3UBg+MNLYmlomtSQdJ7X13wuK
 kmU5dtINegkkkfNx5puPMxPff51Ev//YoIsexMPfRBIdo9K5Or2/3+/3Yg1uhxt0Itfb6BjRnEUPcfLX
 6F+//OJK2EJ0jP7x47foJ8xBWYi+3v9lstqp3KFW1LED2VmIrDOYOzLvFyKkyBUHdniWJrJcZk58Ed9h
@@ -15020,10 +14894,10 @@ gtNw4V3l+/Rno22NLwCNHzA+jRisLyBLbfA/Wrk/xWGHdNPt/weHNpfVJ5Tcms12J6U0fBjqhzZgM9XQ
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/tab.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/tab.min.js",
-		size:    3002,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/tab.min.js",
+		FileSize:    3002,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RWzW7jOBK+71PIxCIhOwzjBAssYFvew85hGuhGz6H7MAhyoKWyVQhNasiS3Rnb7z6g
 /iwnSjBzSEyRrKqv/r7i3adJ8uPzM1LyoB7+q+6TY1IQlbO7u/1+rzZAFT4jqcxtk2PCM5E8TO//k/z+
 7RsVsIXkmHz9/D35ghnYAMmnu39N1pXNCJ3lJA6sCpAE8pgRm9dKSmfBEmekV0wecljrylCYHUj7DdCM
@@ -15048,10 +14922,10 @@ UyPmb0Uf39E2LCEm2gD9jw1Khs1YZ4U9XdiJj0NeP9fF/K8AAAD//1vA95C6CwAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/toggle.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/toggle.min.js",
-		size:    1648,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/toggle.min.js",
+		FileSize:    1648,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5xVTW/jNhC991fQbKElNzRtGQUK2BCCoukhQItckkMh6MBKY2tgWRTEUdLA0X8vKNmy
 5DiXvQj0fL03w8fx4vuMvTzukdhKr37TIftgOVG1Xize3t70DqjBPZJO7YF9MJFKtlqGv7J/np4ohwOw
 D/b34zP7C1MoHbDvi59m26ZMCW0pSB5544A5qjElvnk1NcMoTjZdtcqWUJLgZHe7Arg6ZrA1TUFufSRT
@@ -15068,10 +14942,10 @@ IOGf1+Egu9NWG4VzdXEOihwvFj/5Vrai+5ORm/8DAAD//3ZcHl1wBgAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/touch.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/touch.min.js",
-		size:    2452,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/touch.min.js",
+		FileSize:    2452,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/6RWUW/bNhB+36+Q+UCQLc0ozooCzmg/tMEWoE6y1gYaBEHBSGeZq0wKEmVNsPTfB0qW
 LXtx9rAXgzweT3ff9x3PF+8G3uL2p7LeiI8+8kuv8lbWJuOLi6IoeAQ2Vz+V5YFZe5VHAuqN/Mtfvcf7
 e7uCNXiVN7ude19UADoD793FL4NlrgOrjCZAt93aswSYZZoZuk3B5qn2ZtKuuHzJCAwtnYj9Vg8NncLQ
@@ -15094,10 +14968,10 @@ pnVN65r89WcOaUmv/wkAAP//VnTDGZQJAAA=
 	},
 
 	"/static/assets/uikit-2.27.1/js/core/utility.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/core/utility.min.js",
-		size:    3816,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/core/utility.min.js",
+		FileSize:    3816,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/5RXbY/buBH+3l8hEwuHTGjuetGigHy6oEgP6BWX5oDkWhSGC9DS2BqsTAok7d2cpP9e
 kJJsvWxSFAvYS3LIeXlmnhnfv11Ev/38hC56FI9/FuuojnLnyvj+/vn5WRzBnfEJnUj1KaojmrLo8WH9
 x+jfnz65HE4Q1dHHn79Ev2AKykL09v4Pi8NZpQ61oo5V5Gwhss5g6sjmIk2EyXa3Ca+VWoFylFgn06eP
@@ -15128,10 +15002,10 @@ Ta3n5ovGLHpoumkZ+g4aDFeMY9PQ8OOWbf4bAAD//9njIKjoDgAA
 	},
 
 	"/static/assets/uikit-2.27.1/js/uikit.min.js": {
-		local:   "../static/assets/uikit-2.27.1/js/uikit.min.js",
-		size:    56221,
-		modtime: 1496674736,
-		compressed: `
+		FileName:   "static/assets/uikit-2.27.1/js/uikit.min.js",
+		FileSize:    56221,
+		ModifyTime: 1496674736,
+		Compressed: `
 H4sIAAAAAAAA/+y965IbN5Yg/H+egkQrshIimEWqP898kRSK0Wu7d7xrWV5Lnh4HxXZkkSALVhJgZ4J1
 aTLn2TdwTSAvLJbaMzE/NhwuMXHHwcHBueHg+vVw8PN3n6kYvEne/EsyHZwGd0Ls0+vrh4eHZEvEgX6m
 Ilnx3eA0iFdw8GYy/f8Gv7x/L+7IjgxOg3fffRx8T1eElWTw+vqfhpsDWwnKWSzgkW5iYL8BxuJpT/hm
@@ -15391,97 +15265,97 @@ BxHFDKaxwARRr4xfvwkhb9kFciFofUI7+78BAAD//2jW7Hmd2wAA
 	},
 
 	"/": {
-		isDir: true,
-		local: "/",
+		IsFolder: true,
+		FileName: "/",
 	},
 
 	"/static": {
-		isDir: true,
-		local: "/static",
+		IsFolder: true,
+		FileName: "/static",
 	},
 
 	"/static/assets": {
-		isDir: true,
-		local: "/static/assets",
+		IsFolder: true,
+		FileName: "/static/assets",
 	},
 
 	"/static/assets/ace": {
-		isDir: true,
-		local: "/static/assets/ace",
+		IsFolder: true,
+		FileName: "/static/assets/ace",
 	},
 
 	"/static/assets/ace/snippets": {
-		isDir: true,
-		local: "/static/assets/ace/snippets",
+		IsFolder: true,
+		FileName: "/static/assets/ace/snippets",
 	},
 
 	"/static/assets/css": {
-		isDir: true,
-		local: "/static/assets/css",
+		IsFolder: true,
+		FileName: "/static/assets/css",
 	},
 
 	"/static/assets/css/m": {
-		isDir: true,
-		local: "/static/assets/css/m",
+		IsFolder: true,
+		FileName: "/static/assets/css/m",
 	},
 
 	"/static/assets/css/search": {
-		isDir: true,
-		local: "/static/assets/css/search",
+		IsFolder: true,
+		FileName: "/static/assets/css/search",
 	},
 
 	"/static/assets/img": {
-		isDir: true,
-		local: "/static/assets/img",
+		IsFolder: true,
+		FileName: "/static/assets/img",
 	},
 
 	"/static/assets/img/grips": {
-		isDir: true,
-		local: "/static/assets/img/grips",
+		IsFolder: true,
+		FileName: "/static/assets/img/grips",
 	},
 
 	"/static/assets/js": {
-		isDir: true,
-		local: "/static/assets/js",
+		IsFolder: true,
+		FileName: "/static/assets/js",
 	},
 
 	"/static/assets/js/page": {
-		isDir: true,
-		local: "/static/assets/js/page",
+		IsFolder: true,
+		FileName: "/static/assets/js/page",
 	},
 
 	"/static/assets/uikit-2.27.1": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1",
 	},
 
 	"/static/assets/uikit-2.27.1/css": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/css",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/css",
 	},
 
 	"/static/assets/uikit-2.27.1/css/components": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/css/components",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/css/components",
 	},
 
 	"/static/assets/uikit-2.27.1/fonts": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/fonts",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/fonts",
 	},
 
 	"/static/assets/uikit-2.27.1/js": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/js",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/js",
 	},
 
 	"/static/assets/uikit-2.27.1/js/components": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/js/components",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/js/components",
 	},
 
 	"/static/assets/uikit-2.27.1/js/core": {
-		isDir: true,
-		local: "/static/assets/uikit-2.27.1/js/core",
+		IsFolder: true,
+		FileName: "/static/assets/uikit-2.27.1/js/core",
 	},
 }
