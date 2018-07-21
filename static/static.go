@@ -3,24 +3,25 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
-	"github.com/infinitbyte/framework/core/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"sync"
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/fs"
 )
 
-var once sync.Once
-
-func (StaticFS) prepare(name string) (*fs.VFile, error) {
-	f, present := data[path.Clean(name)]
+func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
+	name=path.Clean(name)
+	f, present := data[name]
 	if !present {
 		return nil, os.ErrNotExist
 	}
 	var err error
-	once.Do(func() {
+	fs.once.Do(func() {
 		f.FileName = path.Base(name)
+
 		if f.FileSize == 0 {
 			return
 		}
@@ -28,11 +29,14 @@ func (StaticFS) prepare(name string) (*fs.VFile, error) {
 		b64 := base64.NewDecoder(base64.StdEncoding, bytes.NewBufferString(f.Compressed))
 		gr, err = gzip.NewReader(b64)
 		if err != nil {
+			log.Error(err)
 			return
 		}
 		f.Data, err = ioutil.ReadAll(gr)
+
 	})
 	if err != nil {
+		log.Error(err)
 		return nil, err
 	}
 	return f, nil
@@ -40,8 +44,10 @@ func (StaticFS) prepare(name string) (*fs.VFile, error) {
 
 func (fs StaticFS) Open(name string) (http.File, error) {
 
+	name=path.Clean(name)
+
 	if fs.CheckLocalFirst {
-		p := path.Join(fs.BaseFolder, ".", path.Clean(name))
+		p := path.Join(fs.BaseFolder, ".", )
 		f2, err := os.Open(p)
 		if err == nil {
 			return f2, err
@@ -50,13 +56,15 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 
 	f, err := fs.prepare(name)
 	if err != nil {
+		log.Error(err)
 		return nil, err
 	}
 	return f.File()
 }
 
 type StaticFS struct {
-	BaseFolder string
+	once sync.Once
+	BaseFolder      string
 	CheckLocalFirst bool
 }
 
@@ -15262,11 +15270,6 @@ b2W2p3gaqb/etRMXu7j3AdIer6/KRSoyLxDg40MaVLR+dndhsiW5VVdMAhN8LoqGWo3dX8S9QuUGkDx0
 raYt3tWb8ZM9250t09HfXVd/rrwhmnIr4eZAr5staSsHojY2hd6mDoQsSL1zF2Wu6z7esnksvACA7HWd
 BxHFDKaxwARRr4xfvwkhb9kFciFofUI7+78BAAD//2jW7Hmd2wAA
 `,
-	},
-
-	"/": {
-		IsFolder: true,
-		FileName: "/",
 	},
 
 	"/static": {
