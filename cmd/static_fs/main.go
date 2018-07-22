@@ -141,7 +141,7 @@ func main() {
 		fmt.Fprintf(w, `
 	%q: {
 		FileName:   %q,
-		FileSize:    %v,
+		FileSize:   %v,
 		ModifyTime: %v,
 		Compressed: %s,
 	},%s`, fname, f.local, len(f.data), t, segment(&buf), "\n")
@@ -204,22 +204,23 @@ func header(packageName string, enableExports bool) ([]byte, error) {
 
 const (
 	headerTemplate = `package {{.PackageName}}
+
 import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/fs"
+	"github.com/infinitbyte/framework/core/util"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"sync"
-	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/fs"
-    "github.com/infinitbyte/framework/core/util"
 )
 
 func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
-	name=path.Clean(name)
+	name = path.Clean(name)
 	f, present := data[name]
 	if !present {
 		return nil, os.ErrNotExist
@@ -250,24 +251,24 @@ func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
 
 func (fs StaticFS) Open(name string) (http.File, error) {
 
-	name=path.Clean(name)
+	name = path.Clean(name)
 
-	if fs.CheckLocalFirst{
-		
-		name=util.TrimLeftStr(name,fs.TrimLeftPath)
-		
-		localFile:= path.Join(fs.StaticFolder, name)
-		
-		log.Trace("check local file, ",localFile)
-		
-		if util.FileExists(localFile){
+	if fs.CheckLocalFirst {
+
+		name = util.TrimLeftStr(name, fs.TrimLeftPath)
+
+		localFile := path.Join(fs.StaticFolder, name)
+
+		log.Trace("check local file, ", localFile)
+
+		if util.FileExists(localFile) {
 
 			f2, err := os.Open(localFile)
 			if err == nil {
 				return f2, err
 			}
 		}
-		
+
 		log.Debug("local file not found,", localFile)
 	}
 
@@ -279,9 +280,9 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 }
 
 type StaticFS struct {
-	once sync.Once
-	StaticFolder      string
-	TrimLeftPath string
+	once            sync.Once
+	StaticFolder    string
+	TrimLeftPath    string
 	CheckLocalFirst bool
 }
 

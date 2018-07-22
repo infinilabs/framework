@@ -86,7 +86,7 @@ var data = map[string]*fs.VFile{
 	"/static/_index.html": {
 		FileName:   "static/_index.html",
 		FileSize:   22047,
-		ModifyTime: 1532084744,
+		ModifyTime: 1532239528,
 		Compressed: `
 H4sIAAAAAAAA/+w8XY/kuHHv9yt4WthzBkat+diFc73dDaxn1ndr7O4tMnuBA8NYUFK1xBmKlEmqu2cP
 BzgfOBh+83sekqcYeUjgh3zhnH+TvXP+RUBS1Ee3Wt2amUt2gJuXISlWsVisKhaLxZ58eP7Z2eu/fPUU
