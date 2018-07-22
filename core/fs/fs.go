@@ -33,7 +33,7 @@ var lock sync.Mutex
 
 func RegisterFS(fs http.FileSystem) {
 	lock.Lock()
-	vfs = append(vfs, fs)
+	vfs = append([]http.FileSystem{fs}, vfs...)
 	lock.Unlock()
 }
 
