@@ -155,7 +155,7 @@ func main() {
 		if len(local) == 0 {
 			local = "."
 		}
-		if dir=="/" {
+		if dir == "/" {
 			continue
 		}
 
@@ -215,6 +215,7 @@ import (
 	"sync"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/fs"
+    "github.com/infinitbyte/framework/core/util"
 )
 
 func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
@@ -251,17 +252,27 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 
 	name=path.Clean(name)
 
-	if fs.CheckLocalFirst {
-		p := path.Join(fs.BaseFolder, ".", )
-		f2, err := os.Open(p)
-		if err == nil {
-			return f2, err
+	if fs.CheckLocalFirst{
+		
+		name=util.TrimLeftStr(name,fs.TrimLeftPath)
+		
+		localFile:= path.Join(fs.StaticFolder, name)
+		
+		log.Trace("check local file, ",localFile)
+		
+		if util.FileExists(localFile){
+
+			f2, err := os.Open(localFile)
+			if err == nil {
+				return f2, err
+			}
 		}
+		
+		log.Debug("local file not found,", localFile)
 	}
 
 	f, err := fs.prepare(name)
 	if err != nil {
-		log.Error(err)
 		return nil, err
 	}
 	return f.File()
@@ -269,7 +280,8 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 
 type StaticFS struct {
 	once sync.Once
-	BaseFolder      string
+	StaticFolder      string
+	TrimLeftPath string
 	CheckLocalFirst bool
 }
 

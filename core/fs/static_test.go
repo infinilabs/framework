@@ -24,7 +24,7 @@ import (
 
 func TestFiles(t *testing.T) {
 
-	RegisterFS(StaticFS{BaseFolder: "/", CheckLocalFirst: true})
+	RegisterFS(StaticFS{StaticFolder: "/", CheckLocalFirst: true})
 
 	fs := FS()
 

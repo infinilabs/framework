@@ -39,7 +39,7 @@ format:
 
 update-ui:
 	@echo "generate static files"
-	(cd cmd/static_fs && $(GOBUILD) -o ../../bin/static_fs)
+	@(cd cmd/static_fs && $(GOBUILD) -o ../../bin/static_fs)
 	@bin/static_fs -ignore="static.go|.DS_Store" -o=static/static.go -pkg=static static
 
 update-template-ui:

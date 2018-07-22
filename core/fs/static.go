@@ -15,20 +15,22 @@ limitations under the License.
 */
 
 package fs
+
 import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/util"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"sync"
-	log "github.com/cihub/seelog"
 )
 
 func (fs StaticFS) prepare(name string) (*VFile, error) {
-	name=path.Clean(name)
+	name = path.Clean(name)
 	f, present := data[name]
 	if !present {
 		return nil, os.ErrNotExist
@@ -59,34 +61,39 @@ func (fs StaticFS) prepare(name string) (*VFile, error) {
 
 func (fs StaticFS) Open(name string) (http.File, error) {
 
-	name=path.Clean(name)
+	name = path.Clean(name)
 
 	if fs.CheckLocalFirst {
-		p := path.Join(fs.BaseFolder, ".", )
-		f2, err := os.Open(p)
-		if err == nil {
-			return f2, err
+
+		name = util.TrimLeftStr(name, fs.TrimLeftPath)
+
+		localFile := path.Join(fs.StaticFolder, name)
+
+		log.Trace("check local file, ", localFile)
+
+		if util.FileExists(localFile) {
+
+			f2, err := os.Open(localFile)
+			if err == nil {
+				return f2, err
+			}
 		}
+
+		log.Debug("local file not found,", localFile)
 	}
 
 	f, err := fs.prepare(name)
 	if err != nil {
-		log.Error(err)
 		return nil, err
 	}
 	return f.File()
 }
 
 type StaticFS struct {
-	once sync.Once
-	BaseFolder      string
+	once            sync.Once
+	StaticFolder    string
+	TrimLeftPath    string
 	CheckLocalFirst bool
 }
 
-var data = map[string]*VFile{
-
-	"/": {
-		IsFolder: true,
-		FileName: "/",
-	},
-}
+var data = map[string]*VFile{}

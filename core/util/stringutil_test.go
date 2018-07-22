@@ -58,3 +58,13 @@ func TestRemoveSpaces(t *testing.T) {
 	str = "midd le"
 	assert.Equal(t, "middle", RemoveSpaces(str))
 }
+
+func TestTrimLeft(t *testing.T) {
+	str := "static://off"
+	new := TrimLeftStr(str, "static:")
+	assert.Equal(t, "//off", new)
+
+	str = "/static/static://off"
+	new = TrimLeftStr(str, "/static")
+	assert.Equal(t, "/static://off", new)
+}

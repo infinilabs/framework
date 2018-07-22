@@ -36,18 +36,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"github.com/infinitbyte/framework/core/fs"
-	"github.com/infinitbyte/framework/static"
 )
 
 var router *httprouter.Router
 var mux *http.ServeMux
 var l sync.Mutex
-
-//var faviconAction = func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-//	w.Header().Set("Location", "/static/assets/img/favicon.ico")
-//	w.WriteHeader(301)
-//}
 
 func StartUI(cfg *Config) {
 
@@ -55,14 +48,6 @@ func StartUI(cfg *Config) {
 	mux = http.NewServeMux()
 
 	router = httprouter.New(mux)
-
-	//Index
-	//router.GET("/favicon.ico", faviconAction)
-
-	fs.RegisterFS(static.StaticFS{})
-
-	//init common
-	mux.Handle("/static/", http.FileServer(fs.FS()))
 
 	//registered handlers
 	if registeredUIHandler != nil {

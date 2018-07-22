@@ -20,12 +20,14 @@ import (
 	log "github.com/cihub/seelog"
 	uis "github.com/infinitbyte/framework/core/api"
 	. "github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/fs"
 	"github.com/infinitbyte/framework/core/logger"
 	"github.com/infinitbyte/framework/core/ui"
 	"github.com/infinitbyte/framework/core/ui/websocket"
 	"github.com/infinitbyte/framework/modules/ui/admin"
 	"github.com/infinitbyte/framework/modules/ui/common"
 	"github.com/infinitbyte/framework/modules/ui/public"
+	"github.com/infinitbyte/framework/static"
 	_ "net/http/pprof"
 )
 
@@ -57,6 +59,7 @@ func (module UIModule) Start(cfg *Config) {
 	//register websocket logger
 	logger.RegisterWebsocketHandler(LoggerReceiver)
 
+	fs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
 	go func() {
 		ui.StartUI(cfg)
 	}()

@@ -262,3 +262,7 @@ func RemoveSpaces(str string) string {
 	str = Replace(str, " ", "", -1)
 	return str
 }
+
+func TrimLeftStr(str string, left string) string {
+	return TrimPrefix(str, left)
+}
