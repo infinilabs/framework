@@ -178,7 +178,6 @@ func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string,
 
 	items, ok := result.Aggregations.Terms(selectField)
 	if ok {
-		log.Error(selectField)
 		for _, item := range items.Buckets {
 			k := fmt.Sprintf("%v", item.Key)
 			finalResult[k] = item.DocCount
@@ -186,6 +185,5 @@ func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string,
 		}
 	}
 
-	//panic(errors.New("not implemented yet"))
 	return nil, finalResult
 }
