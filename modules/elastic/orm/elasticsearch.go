@@ -3,7 +3,7 @@ package orm
 import (
 	"context"
 	log "github.com/cihub/seelog"
-	"github.com/golang/go/src/pkg/fmt"
+	"fmt"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/index"
 	api "github.com/infinitbyte/framework/core/persist"
