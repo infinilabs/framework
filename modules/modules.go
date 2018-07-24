@@ -20,9 +20,9 @@ import (
 	"github.com/infinitbyte/framework/core/module"
 	"github.com/infinitbyte/framework/modules/api"
 	"github.com/infinitbyte/framework/modules/cluster"
+	"github.com/infinitbyte/framework/modules/elastic"
+	"github.com/infinitbyte/framework/modules/elastic/index"
 	"github.com/infinitbyte/framework/modules/filter"
-	"github.com/infinitbyte/framework/modules/index"
-	"github.com/infinitbyte/framework/modules/persist"
 	"github.com/infinitbyte/framework/modules/pipeline"
 	"github.com/infinitbyte/framework/modules/queue"
 	"github.com/infinitbyte/framework/modules/stats"
@@ -32,7 +32,7 @@ import (
 
 // Register is where modules are registered
 func Register() {
-	module.Register(module.Database, persist.ElasticModule{})
+	module.Register(module.Database, elastic.ElasticModule{})
 	module.Register(module.Storage, storage.StorageModule{})
 	module.Register(module.Filter, filter.FilterModule{})
 	module.Register(module.Stats, stats.SimpleStatsModule{})

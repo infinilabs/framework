@@ -1,10 +1,14 @@
-package elastic
+package orm
 
 import (
+	"context"
+	log "github.com/cihub/seelog"
+	"github.com/golang/go/src/pkg/fmt"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/index"
 	api "github.com/infinitbyte/framework/core/persist"
 	"github.com/infinitbyte/framework/core/util"
+	"github.com/olivere/elastic"
 )
 
 type ElasticORM struct {
@@ -138,7 +142,7 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 		return err, result
 	}
 
-	array := []interface{}{}
+	var array []interface{}
 
 	for _, doc := range searchResponse.Hits.Hits {
 		array = append(array, doc.Source)
@@ -150,8 +154,38 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 	return err, result
 }
 
-func (handler ElasticORM) GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
-	panic(errors.New("not implemented yet"))
-	result := map[string]interface{}{}
-	return nil, result
+func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
+
+	agg := elastic.NewTermsAggregation().Field(selectField).Size(10)
+
+	// Create an Elasticsearch client
+	client, err := elastic.NewClient(elastic.SetURL(handler.Client.Config.Endpoint), elastic.SetSniff(true))
+	if err != nil {
+		log.Error(err)
+	}
+
+	indexName := getIndex(t)
+	if handler.Client.Config.IndexPrefix != "" {
+		indexName = handler.Client.Config.IndexPrefix + indexName
+	}
+
+	result, err := client.Search(indexName).Aggregation(selectField, agg).Do(context.TODO())
+	if err != nil {
+		log.Error(err)
+	}
+
+	finalResult := map[string]interface{}{}
+
+	items, ok := result.Aggregations.Terms(selectField)
+	if ok {
+		log.Error(selectField)
+		for _, item := range items.Buckets {
+			k := fmt.Sprintf("%v", item.Key)
+			finalResult[k] = item.DocCount
+			log.Trace(item.Key, ":", item.DocCount)
+		}
+	}
+
+	//panic(errors.New("not implemented yet"))
+	return nil, finalResult
 }

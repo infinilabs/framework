@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package persist
+package elastic
 
 import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/index"
 	"github.com/infinitbyte/framework/core/persist"
-	"github.com/infinitbyte/framework/modules/persist/elastic"
+	"github.com/infinitbyte/framework/modules/elastic/orm"
 )
 
 func (module ElasticModule) Name() string {
@@ -55,7 +55,7 @@ func (module ElasticModule) Start(cfg *Config) {
 
 	if config.Driver == "elasticsearch" {
 		client := index.ElasticsearchClient{Config: config.Elastic}
-		handler := elastic.ElasticORM{Client: &client}
+		handler := orm.ElasticORM{Client: &client}
 		persist.Register(handler)
 		return
 	}

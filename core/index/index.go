@@ -20,7 +20,7 @@ type Bucket struct {
 	DocCount int    `json:"doc_count,omitempty"`
 }
 
-type Aggregation struct {
+type AggregationResponse struct {
 	Buckets []Bucket `json:"buckets,omitempty"`
 }
 
@@ -79,7 +79,7 @@ type SearchResponse struct {
 		MaxScore float32         `json:"max_score"`
 		Hits     []IndexDocument `json:"hits,omitempty"`
 	} `json:"hits"`
-	Aggregations map[string]Aggregation `json:"aggregations,omitempty"`
+	Aggregations map[string]AggregationResponse `json:"aggregations,omitempty"`
 }
 
 // RangeQuery is used to find value in range
@@ -165,6 +165,13 @@ type SearchRequest struct {
 	From  int            `json:"from"`
 	Size  int            `json:"size"`
 	Sort  *[]interface{} `json:"sort,omitempty"`
+}
+
+type AggregationRequest struct {
+	Aggregations map[string]Aggregation `json:"aggregations,omitempty"`
+}
+
+type Aggregation struct {
 }
 
 // AddSort add sort conditions to SearchRequest

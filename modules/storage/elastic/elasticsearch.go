@@ -30,6 +30,9 @@ type ElasticsearchStore struct {
 }
 
 func (store ElasticsearchStore) Open() error {
+
+	//store.Client.GetTemplate()
+
 	//TODO check index and mapping
 	return nil
 }
