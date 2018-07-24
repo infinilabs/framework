@@ -3,9 +3,9 @@ package queue
 import (
 	"errors"
 	log "github.com/cihub/seelog"
-	. "github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/global"
-	. "github.com/infinitbyte/framework/core/queue"
+	"github.com/infinitbyte/framework/core/queue"
 	. "github.com/infinitbyte/framework/modules/queue/disk_queue"
 	"os"
 	"path"
@@ -25,7 +25,6 @@ func (module DiskQueue) Name() string {
 
 var initLocker sync.Mutex
 
-//func initQueue(name string,channel string,syncEvery int64,syncTimeoutInSeconds time.Duration)error  {
 func initQueue(name string) error {
 
 	channel := "default"
@@ -37,42 +36,30 @@ func initQueue(name string) error {
 	initLocker.Lock()
 	defer initLocker.Unlock()
 
-	log.Debugf("init queue,%s", name)
-
 	//double check after lock in
 	if queues[name] != nil {
 		return nil
 	}
 
-	path := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
-	os.MkdirAll(path, 0777)
+	log.Debugf("init queue,%s", name)
+
+	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
+	os.MkdirAll(dataPath, 0777)
 
 	readBuffSize := 0
 	syncTimeout := 5 * time.Second
 	var syncEvery int64 = 2500
 
 	//TODO parameter
-	q := NewDiskQueue(strings.ToLower(channel), path, 100*1024*1024, 1, 1<<25, syncEvery, syncTimeout, readBuffSize)
+	q := NewDiskQueue(strings.ToLower(channel), dataPath, 100*1024*1024, 1, 1<<25, syncEvery, syncTimeout, readBuffSize)
 	queues[name] = &q
 
 	return nil
 }
 
-func (module DiskQueue) Start(cfg *Config) {
+func (module DiskQueue) Start(cfg *config.Config) {
 	queues = make(map[string]*BackendQueue)
-
-	//TODO clean up
-	//pendingUpdateDiskQueue := NewDiskQueue("pending_update", path, 100*1024*1024, 1, 1<<20, syncEvery, syncTimeout, readBuffSize)
-	//pendingCheckDiskQueue := NewDiskQueue("pending_check", path, 100*1024*1024, 1, 1<<20, syncEvery, syncTimeout, readBuffSize)
-	//pendingDispatchDiskQueue := NewDiskQueue("pending_dispatch", path, 100*1024*1024, 1, 1<<20, syncEvery, syncTimeout, readBuffSize)
-	//pendingIndexDiskQueue := NewDiskQueue("pending_index", path, 100*1024*1024, 1, 1<<25, syncEvery, syncTimeout, readBuffSize)
-	//queues[config.FetchChannel] = &pendingFetchDiskQueue
-	//queues[config.UpdateChannel] = &pendingUpdateDiskQueue
-	//queues[config.CheckChannel] = &pendingCheckDiskQueue
-	//queues[config.DispatcherChannel] = &pendingDispatchDiskQueue
-	//queues[config.IndexChannel] = &pendingIndexDiskQueue
-	//TODO configurable
-	Register(module)
+	queue.Register(module)
 }
 
 func (module DiskQueue) Push(k string, v []byte) error {
