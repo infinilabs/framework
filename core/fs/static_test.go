@@ -18,21 +18,27 @@ package fs
 
 import (
 	"fmt"
+	"github.com/infinitbyte/framework/core/util"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
 )
 
 func TestFiles(t *testing.T) {
 
+	util.FilePutContent("/tmp/test_gopa.txt", "hello")
+
 	RegisterFS(StaticFS{StaticFolder: "/", CheckLocalFirst: true})
 
 	fs := FS()
 
-	f, e := fs.Open("/tmp/abc.txt")
+	f, e := fs.Open("/tmp/test_gopa.txt")
 
 	b, e := ioutil.ReadAll(f)
 
 	fmt.Println(e)
 
 	fmt.Println(string(b))
+
+	assert.Equal(t, "hello", string(b))
 }
