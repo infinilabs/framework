@@ -17,318 +17,22 @@ limitations under the License.
 package pipeline
 
 import (
-	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/stats"
 	"github.com/infinitbyte/framework/core/util"
-	"reflect"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 )
 
-type ParaKey string
-
-type Context struct {
-	Parameters
-
-	SequenceID   int64       `json:"sequence"`
-	Simulate     bool        `json:"simulate"`
-	IgnoreBroken bool        `json:"ignore_broken"`
-	Payload      interface{} `json:"-"`
-
-	//private parameters
-	breakFlag  bool
-	exitFlag   bool
-	PipelineID string
-}
-
-// End break all pipelines, but the end phrase not included
-func (context *Context) End(msg interface{}) {
-	log.Trace("break,", context, ",", msg)
-	if context == nil {
-		panic(errors.New("context is nil"))
-	}
-	context.breakFlag = true
-	context.Payload = msg
-}
-
-// IsEnd indicates whether the pipe process is end, end means no more processes will be execute
-func (context *Context) IsEnd() bool {
-	return context.breakFlag
-}
-
-// IsExit means all pipelines will be broke and jump to outside, even the end phrase will not be executed as well
-func (context *Context) IsExit() bool {
-	return context.exitFlag
-}
-
-// Exit tells pipeline to exit
-func (context *Context) Exit(msg interface{}) {
-	context.exitFlag = true
-	context.Payload = msg
-}
-
-type Parameters struct {
-	Data   map[string]interface{} `json:"data,omitempty"`
-	l      *sync.RWMutex
-	inited bool
-}
-
-func (para *Parameters) init() {
-	if para.inited {
-		return
-	}
-	if para.l == nil {
-		para.l = &sync.RWMutex{}
-	}
-	para.l.Lock()
-	if para.Data == nil {
-		para.Data = map[string]interface{}{}
-	}
-	para.inited = true
-	para.l.Unlock()
-}
-
-func (para *Parameters) MustGetTime(key ParaKey) time.Time {
-	v, ok := para.GetTime(key)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return v
-}
-
-func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
-	v := para.Get(key)
-	s, ok := v.(time.Time)
-	if ok {
-		return s, ok
-	}
-	return s, ok
-}
-
-func (para *Parameters) GetString(key ParaKey) (string, bool) {
-	v := para.Get(key)
-	s, ok := v.(string)
-	if ok {
-		return s, ok
-	}
-	return s, ok
-}
-
-func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
-	v := para.Get(key)
-	s, ok := v.(bool)
-	if ok {
-		return s
-	}
-	return defaultV
-}
-
-func (para *Parameters) Has(key ParaKey) bool {
-	para.init()
-	_, ok := para.Data[string(key)]
-	return ok
-}
-
-func (para *Parameters) GetIntOrDefault(key ParaKey, defaultV int) int {
-	v, ok := para.GetInt(key, defaultV)
-	if ok {
-		return v
-	}
-	return defaultV
-}
-
-func (para *Parameters) GetInt(key ParaKey, defaultV int) (int, bool) {
-	v, ok := para.GetInt64(key, 0)
-	if ok {
-		return int(v), ok
-	}
-	return defaultV, ok
-}
-
-func (para *Parameters) GetInt64OrDefault(key ParaKey, defaultV int64) int64 {
-	v, ok := para.GetInt64(key, defaultV)
-	if ok {
-		return v
-	}
-	return defaultV
-}
-
-func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
-	v := para.Get(key)
-
-	s, ok := v.(int64)
-	if ok {
-		return s, ok
-	}
-
-	s1, ok := v.(uint64)
-	if ok {
-		return int64(s1), ok
-	}
-
-	s2, ok := v.(int)
-	if ok {
-		return int64(s2), ok
-	}
-
-	s3, ok := v.(uint)
-	if ok {
-		return int64(s3), ok
-	}
-
-	return defaultV, ok
-}
-
-func (para *Parameters) MustGet(key ParaKey) interface{} {
-	para.init()
-
-	s := string(key)
-
-	para.l.RLock()
-	v, ok := para.Data[s]
-	para.l.RUnlock()
-
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-
-	return v
-}
-
-func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
-	v := para.Get(key)
-	s, ok := v.(map[string]interface{})
-	return s, ok
-}
-
-// NOTE TODO GetBytes doesn't work after marshall/unmarshall,
-func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
-	s, ok := para.Get(key).([]byte)
-	return s, ok
-}
-
-func (para *Parameters) MustGetStringArray(key ParaKey) []string {
-	array := para.MustGetArray(key)
-	result := []string{}
-	for _, v := range array {
-		result = append(result, v.(string))
-	}
-	return result
-}
-
-// GetArray will return a array which type of the items are interface {}
-func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
-	v := para.Get(key)
-	s, ok := v.([]interface{})
-	return s, ok
-}
-
-func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
-	s, ok := para.GetArray(key)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return s
-}
-
-func (para *Parameters) Get(key ParaKey) interface{} {
-	para.init()
-	para.l.RLock()
-	s := string(key)
-	v := para.Data[s]
-	if global.Env().IsDebug {
-		t := reflect.TypeOf(v)
-		log.Debugf("parameter: %s %v %v", s, v, t)
-	}
-	para.l.RUnlock()
-	return v
-}
-
-func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
-	para.init()
-	para.l.RLock()
-	s := string(key)
-	v := para.Data[s]
-	para.l.RUnlock()
-	if v == nil {
-		return val
-	}
-	return v
-}
-
-func (para *Parameters) Set(key ParaKey, value interface{}) {
-	para.init()
-	para.l.Lock()
-	s := string(key)
-	para.Data[s] = value
-	para.l.Unlock()
-}
-
-func (para *Parameters) MustGetString(key ParaKey) string {
-	s, ok := para.GetString(key)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return s
-}
-
-func (para *Parameters) GetStringOrDefault(key ParaKey, val string) string {
-	s, ok := para.GetString(key)
-	if (!ok) || len(s) == 0 {
-		return val
-	}
-	return s
-}
-
-func (para *Parameters) MustGetBytes(key ParaKey) []byte {
-	s, ok := para.GetBytes(key)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return s
-}
-
-// MustGetInt return 0 if not key was found
-func (para *Parameters) MustGetInt(key ParaKey) int {
-	v, ok := para.GetInt(key, 0)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return v
-}
-
-func (para *Parameters) MustGetInt64(key ParaKey) int64 {
-	s, ok := para.GetInt64(key, 0)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return s
-}
-
-func (para *Parameters) MustGetMap(key ParaKey) map[string]interface{} {
-	s, ok := para.GetMap(key)
-	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
-	}
-	return s
-}
-
-type Joint interface {
-	Name() string
-	Process(s *Context) error
-}
-
 type Pipeline struct {
-	id       string
-	name     string
-	joints   []Joint
-	context  *Context
-	endJoint Joint
+	id         string
+	name       string
+	startJoint Joint
+	joints     []Joint
+	context    *Context
+	endJoint   Joint
 
 	currentJointName string
 }
@@ -360,7 +64,8 @@ func (pipe *Pipeline) GetContext() *Context {
 }
 
 func (pipe *Pipeline) Start(s Joint) *Pipeline {
-	pipe.joints = []Joint{s}
+	pipe.startJoint = s
+	pipe.joints = []Joint{}
 	return pipe
 }
 
@@ -378,8 +83,17 @@ func (pipe *Pipeline) End(s Joint) *Pipeline {
 func (context *Pipeline) setCurrentJoint(name string) {
 	context.currentJointName = name
 }
+
 func (pipe *Pipeline) GetCurrentJoint() string {
 	return pipe.currentJointName
+}
+
+func (pipe *Pipeline) Pause() *Context {
+	return pipe.context
+}
+
+func (pipe *Pipeline) Resume() *Context {
+	return pipe.context
 }
 
 func (pipe *Pipeline) Run() *Context {
@@ -505,38 +219,4 @@ func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context
 	}
 
 	return pipe
-}
-
-var typeRegistry = make(map[string]interface{})
-
-func GetAllRegisteredJoints() map[string]interface{} {
-	return typeRegistry
-}
-
-func GetJointInstance(cfg *JointConfig) Joint {
-	log.Tracef("get joint instances, %v", cfg.JointName)
-	if typeRegistry[cfg.JointName] != nil {
-		t := reflect.ValueOf(typeRegistry[cfg.JointName]).Type()
-		v := reflect.New(t).Elem()
-
-		f := v.FieldByName("Data")
-		if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
-			f.Set(reflect.ValueOf(cfg.Parameters))
-		}
-		v1 := v.Interface().(Joint)
-		return v1
-	}
-	panic(errors.New(cfg.JointName + " not found"))
-}
-
-func RegisterPipeJoint(joint Joint) {
-	k := string(joint.Name())
-	RegisterPipeJointWithName(k, joint)
-}
-
-func RegisterPipeJointWithName(jointName string, joint Joint) {
-	if typeRegistry[jointName] != nil {
-		panic(errors.Errorf("joint with same name already registered, %s", jointName))
-	}
-	typeRegistry[jointName] = joint
 }

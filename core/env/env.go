@@ -32,6 +32,8 @@ import (
 	"time"
 )
 
+//TODO storage adaptor should config in env
+
 // Env is environment object of app
 type Env struct {
 	name          string
@@ -87,6 +89,7 @@ func (env *Env) GetAppName() string {
 func (env *Env) GetAppCapitalName() string {
 	return env.uppercaseName
 }
+
 func (env *Env) GetAppDesc() string {
 	return env.desc
 }

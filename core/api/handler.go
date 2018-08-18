@@ -159,6 +159,27 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 	return nil
 }
 
+func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool) error {
+	if !handler.wroteHeader {
+		handler.WriteJSONHeader(w)
+		w.WriteHeader(200)
+	}
+
+	v := map[string]bool{}
+	v["ok"] = ack
+
+	b, err := handler.EncodeJSON(v)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // GetParameter return query parameter with argument name
 func (handler Handler) GetParameter(r *http.Request, key string) string {
 	return r.URL.Query().Get(key)

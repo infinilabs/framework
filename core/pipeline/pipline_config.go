@@ -43,25 +43,6 @@ type PipelineConfig struct {
 	Tags          []string       `gorm:"-" json:"tags,omitempty" config:"tags"`
 }
 
-// PipeConfig defines crawler related configs
-type PipeConfig struct {
-	Name string `json:"name,omitempty" config:"name"`
-
-	Enabled bool `json:"enabled,omitempty" config:"enabled"`
-
-	MaxGoRoutine int `config:"max_go_routine"`
-
-	//Speed Control
-	ThresholdInMs int `config:"threshold_in_ms"`
-
-	//Timeout Control
-	TimeoutInMs int `config:"timeout_in_ms"`
-
-	DefaultConfig *PipelineConfig `config:"default_config"`
-
-	InputQueue string `config:"input_queue"`
-}
-
 const PipelineConfigBucket = "PipelineConfig"
 
 func GetPipelineConfig(id string) (*PipelineConfig, error) {
@@ -93,10 +74,10 @@ func GetPipelineList(from, size int) (int, []PipelineConfig, error) {
 }
 
 func CreatePipelineConfig(cfg *PipelineConfig) error {
-	time := time.Now().UTC()
+	t := time.Now().UTC()
 	cfg.ID = util.GetUUID()
-	cfg.Created = time
-	cfg.Updated = time
+	cfg.Created = t
+	cfg.Updated = t
 	b, err := json.Marshal(cfg)
 	if err != nil {
 		return err
@@ -109,9 +90,9 @@ func CreatePipelineConfig(cfg *PipelineConfig) error {
 }
 
 func UpdatePipelineConfig(id string, cfg *PipelineConfig) error {
-	time := time.Now().UTC()
+	t := time.Now().UTC()
 	cfg.ID = id
-	cfg.Updated = time
+	cfg.Updated = t
 	b, err := json.Marshal(cfg)
 	if err != nil {
 		return err

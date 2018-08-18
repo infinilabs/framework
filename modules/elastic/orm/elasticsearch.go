@@ -2,8 +2,8 @@ package orm
 
 import (
 	"context"
-	log "github.com/cihub/seelog"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/index"
 	api "github.com/infinitbyte/framework/core/persist"
