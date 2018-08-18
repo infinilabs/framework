@@ -46,8 +46,6 @@ type BoltdbStore struct {
 
 var db *storm.DB
 
-const REGISTER_BOLTDB global.RegisterKey = "REGISTER_BOLTDB"
-
 var buckets hashset.Set
 var initLocker sync.Mutex
 
@@ -84,24 +82,17 @@ func (store BoltdbStore) Open() error {
 	}
 
 	var err error
-	v := global.Lookup(REGISTER_BOLTDB)
-	if v != nil {
-		boltDb := v.(*bolt.DB)
-		db, err = storm.Open(store.FileName, storm.UseDB(boltDb), storm.Codec(protobuf.Codec))
-	} else {
-		db, err = storm.Open(store.FileName, storm.BoltOptions(0600, &bolt.Options{Timeout: 5 * time.Second}), storm.Codec(protobuf.Codec))
-	}
+	db, err = storm.Open(store.FileName, storm.BoltOptions(0600, &bolt.Options{Timeout: 5 * time.Second}), storm.Codec(protobuf.Codec))
+
 	if err != nil {
 		log.Errorf("error open boltdb: %s, %s", store.FileName, err)
 		return err
 	}
 
-	global.Register(REGISTER_BOLTDB, db)
-
 	log.Debug("boltdb successfully started:", store.FileName)
 
 	if global.Env().IsDebug {
-		core.HandleUIFunc("/admin/boltdb/", boltDBStatusAction)
+		core.HandleUIFunc("/admin/boltdb/", store.boltDBStatusAction)
 
 		common.RegisterNav("BoltDB", "BoltDB", "/admin/boltdb/")
 	}
@@ -184,8 +175,7 @@ func (store BoltdbStore) DeleteBucket(bucket string) error {
 	return nil
 }
 
-func boltDBStatusAction(w http.ResponseWriter, r *http.Request) {
-	db := global.Lookup(REGISTER_BOLTDB).(*storm.DB)
+func (store BoltdbStore) boltDBStatusAction(w http.ResponseWriter, r *http.Request) {
 	err := db.Bolt.View(func(tx *bolt.Tx) error {
 		showUsage := (r.FormValue("usage") == "true")
 		// Use the direct page id, if available.
