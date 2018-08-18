@@ -42,7 +42,7 @@ func NewPipeline(name string) *Pipeline {
 	pipe.id = util.GetUUID()
 	pipe.name = strings.TrimSpace(name)
 	pipe.context = &Context{}
-	pipe.context.Parameters.init()
+	pipe.context.init()
 	return pipe
 }
 

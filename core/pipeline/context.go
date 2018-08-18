@@ -19,6 +19,7 @@ package pipeline
 import (
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
+	"github.com/infinitbyte/framework/core/util"
 )
 
 type ParaKey string
@@ -61,4 +62,14 @@ func (context *Context) IsExit() bool {
 func (context *Context) Exit(msg interface{}) {
 	context.exitFlag = true
 	context.Payload = msg
+}
+
+func (context *Context) Marshall() []byte {
+	return util.ToJSONBytes(context)
+}
+
+func UnMarshall(b []byte) Context {
+	c := Context{}
+	util.FromJSONBytes(b, &c)
+	return c
 }

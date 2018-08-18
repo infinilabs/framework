@@ -101,12 +101,12 @@ func TestPipeline(t *testing.T) {
 		Join(publishJoint{}).
 		Run()
 
-	fmt.Println(context.Parameters.Data)
 	fmt.Println(context.Data)
-	assert.Equal(t, "true", context.Parameters.Data["published"])
-	assert.Equal(t, "true", context.Parameters.Data["saved"])
-	assert.Equal(t, true, context.Parameters.Data["status"])
-	assert.Equal(t, "http://gogo.com", context.Parameters.Data["host"])
+	fmt.Println(context.Data)
+	assert.Equal(t, "true", context.Data["published"])
+	assert.Equal(t, "true", context.Data["saved"])
+	assert.Equal(t, true, context.Data["status"])
+	assert.Equal(t, "http://gogo.com", context.Data["host"])
 }
 
 const key1 ParaKey = "DEPTH"
@@ -115,7 +115,7 @@ const key2 ParaKey = "DEPTH2"
 func TestContext(t *testing.T) {
 	global.RegisterEnv(env.EmptyEnv())
 	context := &Context{}
-	context.Parameters.Set(key1, 23)
+	context.Set(key1, 23)
 	fmt.Println(util.ToJson(context, true))
 	v := context.MustGetInt(key1)
 	assert.Equal(t, 23, v)
@@ -138,15 +138,35 @@ func TestContextMarshal(t *testing.T) {
 	url := "http://google.com"
 	context := Context{IgnoreBroken: true}
 	context.Set("URL", url)
-	context.Set("B", []byte(url))
+	arr := []byte(url)
+	fmt.Println(arr)
+	context.Set("B", arr)
+	fmt.Println("before:", context)
 
-	b := util.ToJSONBytes(context)
+	c1 := util.ToJSONBytes(context)
 
-	fmt.Println(string(b))
+	fmt.Println(string(c1))
+
+	c2 := context.Marshall()
+	fmt.Println(c2)
+
+	assert.Equal(t, c1, c2)
+
 	c := Context{}
-	util.FromJSONBytes(b, &c)
+	util.FromJSONBytes(c1, &c)
+	fmt.Println("after:", c)
 	assert.Equal(t, url, c.Get("URL"))
 
 	b2, _ := c.GetBytes("B")
+	fmt.Println("new B:", string(b2))
 	assert.Equal(t, []byte(url), b2)
+
+	c = UnMarshall(c1)
+	fmt.Println("after:", c)
+	assert.Equal(t, url, c.Get("URL"))
+
+	b2, _ = c.GetBytes("B")
+	fmt.Println("new B:", string(b2))
+	assert.Equal(t, []byte(url), b2)
+
 }

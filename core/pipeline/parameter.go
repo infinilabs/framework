@@ -17,6 +17,7 @@ limitations under the License.
 package pipeline
 
 import (
+	"encoding/base64"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/global"
@@ -159,10 +160,17 @@ func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	return s, ok
 }
 
-// NOTE TODO GetBytes doesn't work after marshall/unmarshall,
 func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
-	s, ok := para.Get(key).([]byte)
-	return s, ok
+	v := para.Get(key)
+	if reflect.TypeOf(v).Kind() == reflect.String {
+		str := v.(string)
+		s, err := base64.StdEncoding.DecodeString(str)
+		ok := err != nil
+		return s, ok
+	} else {
+		s, ok := v.([]byte)
+		return s, ok
+	}
 }
 
 func (para *Parameters) MustGetStringArray(key ParaKey) []string {
