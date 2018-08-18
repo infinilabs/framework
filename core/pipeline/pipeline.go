@@ -133,6 +133,9 @@ func (pipe *Pipeline) Run() *Context {
 	}()
 
 	var err error
+
+	pipe.startPipeline()
+
 	for _, v := range pipe.joints {
 		log.Trace("pipe, ", pipe.name, ", start joint,", v.Name())
 		if pipe.context.IsEnd() {
@@ -170,6 +173,16 @@ func (pipe *Pipeline) Run() *Context {
 	}
 
 	return pipe.context
+}
+
+func (pipe *Pipeline) startPipeline() {
+
+	log.Trace("start pipeline: ", pipe.name)
+	if pipe.startJoint != nil {
+		pipe.setCurrentJoint(pipe.startJoint.Name())
+		pipe.startJoint.Process(pipe.context)
+	}
+	log.Trace("pipeline: ", pipe.name, ", started")
 }
 
 func (pipe *Pipeline) endPipeline() {
