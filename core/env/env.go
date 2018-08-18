@@ -149,7 +149,10 @@ var (
 			Name: "APP",
 		},
 		NetworkConfig: config.NetworkConfig{
-			Host: "127.0.0.1",
+			Host:           "127.0.0.1",
+			APIBinding:     "127.0.0.1:8001",
+			HTTPBinding:    "127.0.0.1:9001",
+			ClusterBinding: "127.0.0.1:13001",
 		},
 		NodeConfig: config.NodeConfig{
 			Name: util.PickRandomName(),
@@ -160,9 +163,6 @@ var (
 			Cert: "cert",
 		},
 
-		APIBinding:         "127.0.0.1:8001",
-		HTTPBinding:        "127.0.0.1:9001",
-		ClusterBinding:     "127.0.0.1:13001",
 		AllowMultiInstance: true,
 		MaxNumOfInstance:   5,
 		TLSEnabled:         false,

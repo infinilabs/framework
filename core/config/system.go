@@ -9,6 +9,10 @@ type ClusterConfig struct {
 // NetworkConfig stores network settings
 type NetworkConfig struct {
 	Host string `config:"host"`
+
+	APIBinding     string `config:"api_bind"`
+	HTTPBinding    string `config:"http_bind"`
+	ClusterBinding string `config:"cluster_bind"`
 }
 
 // NodeConfig stores node settings
@@ -35,10 +39,7 @@ type SystemConfig struct {
 
 	PathConfig PathConfig `config:"path"`
 
-	APIBinding     string `config:"api_bind"`
-	HTTPBinding    string `config:"http_bind"`
-	CookieSecret   string `config:"cookie_secret"`
-	ClusterBinding string `config:"cluster_bind"`
+	CookieSecret string `config:"cookie_secret"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
 	MaxNumOfInstance   int  `config:"max_num_of_instances"`

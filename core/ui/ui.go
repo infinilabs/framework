@@ -82,7 +82,7 @@ func StartUI(cfg *Config) {
 		}
 	}
 
-	address := util.AutoGetAddress(global.Env().SystemConfig.HTTPBinding)
+	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.HTTPBinding)
 
 	if global.Env().SystemConfig.TLSEnabled {
 		log.Debug("start ssl endpoint")

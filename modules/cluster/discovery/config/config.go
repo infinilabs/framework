@@ -33,8 +33,8 @@ func (module *RaftConfig) Init() {
 	module.DataDir = path.Join(global.Env().GetWorkingDir(), "raft")
 	module.EnableSingleNode = true
 
-	if len(global.Env().SystemConfig.ClusterBinding) > 0 {
-		module.Bind = global.Env().SystemConfig.ClusterBinding
+	if len(global.Env().SystemConfig.NetworkConfig.ClusterBinding) > 0 {
+		module.Bind = global.Env().SystemConfig.NetworkConfig.ClusterBinding
 	} else {
 		module.Bind = "127.0.0.1:13001"
 	}

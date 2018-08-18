@@ -98,7 +98,7 @@ func StartAPI() {
 		AllowedMethods: []string{"GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
-	address := util.AutoGetAddress(global.Env().SystemConfig.APIBinding)
+	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.APIBinding)
 
 	if global.Env().SystemConfig.TLSEnabled {
 		log.Debug("start ssl endpoint")
