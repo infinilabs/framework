@@ -17,12 +17,12 @@ limitations under the License.
 package pipeline
 
 import (
-	"github.com/infinitbyte/framework/core/pipeline"
 	"net/http"
 
 	"encoding/json"
 	"github.com/infinitbyte/framework/core/api"
 	"github.com/infinitbyte/framework/core/api/router"
+	"github.com/infinitbyte/framework/core/pipeline"
 	"strconv"
 )
 
@@ -62,7 +62,7 @@ func (handler API) getPipelineConfigs(w http.ResponseWriter, req *http.Request, 
 		size = 10
 	}
 
-	total, configs, err := pipeline.GetPipelineList(from, size)
+	total, configs, err := GetPipelineList(from, size)
 	if err != nil {
 		handler.Error(w, err)
 	} else {
@@ -85,7 +85,7 @@ func (handler API) createPipelineConfig(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	err = pipeline.CreatePipelineConfig(&config)
+	err = CreatePipelineConfig(&config)
 	if err != nil {
 		handler.Error(w, err)
 		return
@@ -97,7 +97,7 @@ func (handler API) createPipelineConfig(w http.ResponseWriter, req *http.Request
 func (handler API) getPipelineConfig(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	id := ps.ByName("id")
-	cfg, err := pipeline.GetPipelineConfig(id)
+	cfg, err := GetPipelineConfig(id)
 	if err != nil {
 		handler.Error(w, err)
 	} else {
@@ -121,7 +121,7 @@ func (handler API) updatePipelineConfig(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	err = pipeline.UpdatePipelineConfig(id, &config)
+	err = UpdatePipelineConfig(id, &config)
 	if err != nil {
 		handler.Error(w, err)
 		return
@@ -133,7 +133,7 @@ func (handler API) updatePipelineConfig(w http.ResponseWriter, req *http.Request
 func (handler API) deletePipelineConfig(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
-	err := pipeline.DeletePipelineConfig(id)
+	err := DeletePipelineConfig(id)
 	if err != nil {
 		handler.Error(w, err)
 		return

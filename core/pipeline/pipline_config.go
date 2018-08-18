@@ -17,10 +17,6 @@ limitations under the License.
 package pipeline
 
 import (
-	"encoding/json"
-	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/persist"
-	"github.com/infinitbyte/framework/core/util"
 	"time"
 )
 
@@ -41,90 +37,4 @@ type PipelineConfig struct {
 	Created       time.Time      `json:"created,omitempty"`
 	Updated       time.Time      `json:"updated,omitempty"`
 	Tags          []string       `gorm:"-" json:"tags,omitempty" config:"tags"`
-}
-
-const PipelineConfigBucket = "PipelineConfig"
-
-func GetPipelineConfig(id string) (*PipelineConfig, error) {
-	if id == "" {
-		return nil, errors.New("empty id")
-	}
-	b, err := persist.GetValue(PipelineConfigBucket, []byte(id))
-	if err != nil {
-		return nil, err
-	}
-	if len(b) > 0 {
-		v := PipelineConfig{}
-		err = json.Unmarshal(b, &v)
-		return &v, err
-	}
-	return nil, errors.Errorf("not found, %s", id)
-}
-
-func GetPipelineList(from, size int) (int, []PipelineConfig, error) {
-	var configs []PipelineConfig
-
-	query := persist.Query{From: from, Size: size}
-
-	err, r := persist.Search(PipelineConfig{}, &configs, &query)
-	if r.Result != nil && configs == nil || len(configs) == 0 {
-		convertPipeline(r, &configs)
-	}
-	return r.Total, configs, err
-}
-
-func CreatePipelineConfig(cfg *PipelineConfig) error {
-	t := time.Now().UTC()
-	cfg.ID = util.GetUUID()
-	cfg.Created = t
-	cfg.Updated = t
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	err = persist.AddValue(PipelineConfigBucket, []byte(cfg.ID), b)
-	if err != nil {
-		return err
-	}
-	return persist.Save(cfg)
-}
-
-func UpdatePipelineConfig(id string, cfg *PipelineConfig) error {
-	t := time.Now().UTC()
-	cfg.ID = id
-	cfg.Updated = t
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return err
-	}
-	err = persist.AddValue(PipelineConfigBucket, []byte(cfg.ID), b)
-	if err != nil {
-		return err
-	}
-	return persist.Update(cfg)
-}
-
-func DeletePipelineConfig(id string) error {
-	err := persist.DeleteKey(PipelineConfigBucket, []byte(id))
-	if err != nil {
-		return err
-	}
-	o := PipelineConfig{ID: id}
-	return persist.Delete(&o)
-}
-
-func convertPipeline(result persist.Result, pipelines *[]PipelineConfig) {
-	if result.Result == nil {
-		return
-	}
-
-	t, ok := result.Result.([]interface{})
-	if ok {
-		for _, i := range t {
-			js := util.ToJson(i, false)
-			t := PipelineConfig{}
-			util.FromJson(js, &t)
-			*pipelines = append(*pipelines, t)
-		}
-	}
 }
