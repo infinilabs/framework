@@ -19,18 +19,25 @@ func getIndex(any interface{}) string {
 	return util.GetTypeName(any, true)
 }
 
-func getID(any interface{}) string {
-	return util.GetFieldValueByTagName(any, "index", "id")
+// getIndexID extract the field value and will be used as document ID
+//elastic_meta:"_id"
+func getIndexID(any interface{}) string {
+	return util.GetFieldValueByTagName(any, "elastic_meta", "_id")
+}
+
+func getIndexMapping(any interface{}) []util.Annotation {
+	return util.GetTagsByTagName(any, "elastic_mapping")
 }
 
 func (handler ElasticORM) RegisterSchema(t interface{}) error {
+
 	// TODO create index and generate mapping
 	return nil
 }
 
 func (handler ElasticORM) Get(o interface{}) error {
 
-	response, err := handler.Client.Get(getIndex(o), getID(o))
+	response, err := handler.Client.Get(getIndex(o), getIndexID(o))
 	if err != nil {
 		return err
 	}
@@ -48,7 +55,7 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}, 
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
-	_, err := handler.Client.Index(getIndex(o), getID(o), o)
+	_, err := handler.Client.Index(getIndex(o), getIndexID(o), o)
 	return err
 }
 
@@ -57,7 +64,7 @@ func (handler ElasticORM) Update(o interface{}) error {
 }
 
 func (handler ElasticORM) Delete(o interface{}) error {
-	_, err := handler.Client.Delete(getIndex(o), getID(o))
+	_, err := handler.Client.Delete(getIndex(o), getIndexID(o))
 	return err
 }
 

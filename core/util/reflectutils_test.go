@@ -75,3 +75,67 @@ func TestGetTag(t *testing.T) {
 	assert.Equal(t, GetTypeName(vs, false), "S")
 
 }
+
+func TestGetTags(t *testing.T) {
+	type N struct {
+		S  string `index:"in"`
+		S1 string `index:"in2"`
+	}
+
+	type S struct {
+		F  string   `index:"out"`
+		N1 N        `index:"out-1"`
+		S1 []string `index:"out[]"`
+		N2 []N      `index:"out-2"`
+	}
+
+	ts := S{F: "out", N1: N{}}
+
+	v1 := GetTagsByTagName(ts, "index")
+	fmt.Println(ToJson(v1, true))
+
+	assert.Equal(t, "out", v1[0].Tag)
+	assert.Equal(t, "out-1", v1[1].Tag)
+	assert.Equal(t, "in", v1[1].Annotation[0].Tag)
+	assert.Equal(t, "in2", v1[1].Annotation[1].Tag)
+	assert.Equal(t, "out[]", v1[2].Tag)
+	assert.Equal(t, "out-2", v1[3].Tag)
+	assert.Equal(t, "in", v1[3].Annotation[0].Tag)
+	assert.Equal(t, "in2", v1[3].Annotation[1].Tag)
+
+}
+
+func TestCopy(t *testing.T) {
+	type X struct {
+		Z string
+	}
+
+	type N struct {
+		S  string `index:"in"`
+		S1 string `index:"in2"`
+		X  X
+	}
+
+	type S struct {
+		F  string   `index:"out"`
+		N1 N        `index:"out-1"`
+		S1 []string `index:"out[]"`
+		N2 []N      `index:"out-2"`
+	}
+
+	x := S{F: "out", N1: N{"1", "2", X{"11"}}, N2: []N{{"2", "3", X{"12"}}, {"4", "5", X{"13"}}}}
+	y := S{}
+
+	Copy(x, &y)
+
+	assert.Equal(t, "out", y.F)
+	assert.Equal(t, "1", y.N1.S)
+	assert.Equal(t, "2", y.N1.S1)
+	assert.Equal(t, "2", y.N2[0].S)
+	assert.Equal(t, "3", y.N2[0].S1)
+	assert.Equal(t, "4", y.N2[1].S)
+	assert.Equal(t, "5", y.N2[1].S1)
+	assert.Equal(t, "13", y.N2[1].X.Z)
+
+	fmt.Println(y)
+}

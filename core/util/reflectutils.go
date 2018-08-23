@@ -31,32 +31,107 @@ func Invoke(any interface{}, name string, args ...interface{}) {
 	reflect.ValueOf(any).MethodByName(name).Call(inputs)
 }
 
+type Annotation struct {
+	Field      string       `json:"field,omitempty"`
+	Type       string       `json:"type,omitempty"`
+	Tag        string       `json:"tag,omitempty"`
+	Annotation []Annotation `json:"annotation,omitempty"`
+}
+
+// source should be a struct, target should be a pointer to the struct
+func Copy(sourceStruct interface{}, pointToTarget interface{}) (err error) {
+	dst := reflect.ValueOf(pointToTarget)
+	if dst.Kind() != reflect.Ptr {
+		err = errors.New("target is not a pointer")
+		return
+	}
+
+	element := dst.Elem()
+	if element.Kind() != reflect.Struct {
+		err = errors.New("target doesn't point to struct")
+		return
+	}
+
+	srcValue := reflect.ValueOf(sourceStruct)
+	srcType := reflect.TypeOf(sourceStruct)
+	if srcType.Kind() != reflect.Struct {
+		err = errors.New("source is not a struct")
+		return
+	}
+
+	for i := 0; i < srcType.NumField(); i++ {
+		sf := srcType.Field(i)
+		sv := srcValue.FieldByName(sf.Name)
+		if dv := element.FieldByName(sf.Name); dv.IsValid() && dv.CanSet() {
+			dv.Set(sv)
+		}
+	}
+	return
+}
+
+func GetTagsByTagName(any interface{}, tagName string) []Annotation {
+
+	t := reflect.TypeOf(any)
+
+	var result []Annotation
+
+	//check if it is as point
+	if PrefixStr(t.String(), "*") {
+		t = reflect.TypeOf(any).Elem()
+	}
+
+	//fmt.Println("")
+	//fmt.Println("o: ",any,", ",tagName)
+	//fmt.Println("t: ",t,", ",tagName)
+
+	if t.Kind() == reflect.Struct {
+
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			v := TrimSpaces(field.Tag.Get(tagName))
+			a := Annotation{Field: field.Name, Type: field.Type.Name(), Tag: v}
+
+			//fmt.Println(field.Name)
+			//fmt.Println(field.Type)
+			//fmt.Println(field.Type.Kind())
+			//fmt.Println(field.Tag)
+
+			if field.Type.Kind() == reflect.Slice {
+				v1 := reflect.New(field.Type.Elem())
+				a.Annotation = GetTagsByTagName(v1.Interface(), tagName)
+			}
+
+			if field.Type.Kind() == reflect.Struct {
+				v1 := reflect.New(field.Type)
+				a.Annotation = GetTagsByTagName(v1.Interface(), tagName)
+			}
+
+			if len(a.Annotation) > 0 || a.Tag != "" {
+				result = append(result, a)
+			}
+		}
+
+	}
+
+	return result
+}
+
 // GetFieldValueByTagName return the field value which field was tagged with this tagName, only support string field
 func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) string {
 
 	t := reflect.TypeOf(any)
 	if PrefixStr(t.String(), "*") {
-		se := reflect.TypeOf(any).Elem()
-
-		for i := 0; i < se.NumField(); i++ {
-			v := se.Field(i).Tag.Get(tagName)
-			if v != "" {
-				if v == tagValue {
-					return reflect.Indirect(reflect.ValueOf(any)).FieldByName(se.Field(i).Name).String()
-				}
-			}
-
-		}
+		t = reflect.TypeOf(any).Elem()
 	}
 
 	for i := 0; i < t.NumField(); i++ {
-		v := t.Field(i).Tag.Get(tagName)
+		field := t.Field(i)
+		v := field.Tag.Get(tagName)
 		if v != "" {
 			if v == tagValue {
-				return reflect.Indirect(reflect.ValueOf(any)).FieldByName(t.Field(i).Name).String()
+				return reflect.Indirect(reflect.ValueOf(any)).FieldByName(field.Name).String()
 			}
 		}
-
 	}
 
 	panic(errors.New("tag was not found"))
