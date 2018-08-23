@@ -19,7 +19,7 @@ package persist_db
 import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/orm"
 	"github.com/infinitbyte/framework/core/pipeline"
 	"github.com/infinitbyte/framework/plugins/persist_db/mysql"
 	"github.com/infinitbyte/framework/plugins/persist_db/sqlite"
@@ -72,7 +72,7 @@ func (module DatabaseModule) Start(cfg *Config) {
 
 	handler := SQLORM{conn: db, useLock: userLock}
 
-	persist.Register(handler)
+	orm.Register("db", handler)
 }
 
 func (module DatabaseModule) Stop() error {

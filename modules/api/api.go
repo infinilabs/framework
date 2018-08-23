@@ -17,7 +17,7 @@ limitations under the License.
 package api
 
 import (
-	apis "github.com/infinitbyte/framework/core/api"
+	"github.com/infinitbyte/framework/core/api"
 	"github.com/infinitbyte/framework/core/config"
 )
 
@@ -27,13 +27,16 @@ func (module APIModule) Name() string {
 }
 
 // Start api server
-func (module APIModule) Start(cfg *config.Config) {
+func (module APIModule) Setup(cfg *config.Config) {
 
+}
+func (module APIModule) Start() error {
 	//API server
 	go func() {
-		apis.StartAPI()
+		api.StartAPI()
 	}()
 
+	return nil
 }
 
 // Stop api server

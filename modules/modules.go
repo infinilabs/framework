@@ -19,27 +19,27 @@ package modules
 import (
 	"github.com/infinitbyte/framework/core/module"
 	"github.com/infinitbyte/framework/modules/api"
+	"github.com/infinitbyte/framework/modules/boltdb"
 	"github.com/infinitbyte/framework/modules/cluster"
 	"github.com/infinitbyte/framework/modules/elastic"
-	"github.com/infinitbyte/framework/modules/elastic/index"
 	"github.com/infinitbyte/framework/modules/filter"
 	"github.com/infinitbyte/framework/modules/pipeline"
 	"github.com/infinitbyte/framework/modules/queue"
 	"github.com/infinitbyte/framework/modules/stats"
-	"github.com/infinitbyte/framework/modules/storage"
 	"github.com/infinitbyte/framework/modules/ui"
+	"github.com/infinitbyte/framework/plugins/index"
 )
 
-// Register is where modules are registered
+// RegisterSystemModule is where modules are registered
 func Register() {
-	module.Register(module.Database, elastic.ElasticModule{})
-	module.Register(module.Storage, storage.StorageModule{})
-	module.Register(module.Filter, filter.FilterModule{})
-	module.Register(module.Stats, stats.SimpleStatsModule{})
-	module.Register(module.Queue, queue.DiskQueue{})
-	module.Register(module.Index, index.IndexModule{})
-	module.Register(module.System, pipeline.PipeModule{})
-	module.Register(module.System, cluster.ClusterModule{})
-	module.Register(module.API, api.APIModule{})
-	module.Register(module.UI, ui.UIModule{})
+	module.RegisterSystemModule(elastic.ElasticModule{})
+	module.RegisterSystemModule(boltdb.StorageModule{})
+	module.RegisterSystemModule(filter.FilterModule{})
+	module.RegisterSystemModule(stats.SimpleStatsModule{})
+	module.RegisterSystemModule(queue.DiskQueue{})
+	module.RegisterSystemModule(cluster.ClusterModule{})
+	module.RegisterUserPlugin(api.APIModule{})
+	module.RegisterUserPlugin(ui.UIModule{})
+	module.RegisterUserPlugin(pipeline.PipeModule{})
+	module.RegisterUserPlugin(index.IndexModule{})
 }

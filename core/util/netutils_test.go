@@ -41,10 +41,19 @@ func TestGetAvailablePort(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	ln, _ := net.Listen("tcp", ":"+strconv.Itoa(port))
+	ln.Close()
 
 	p1 := GetAvailablePort("", port)
 	assert.Equal(t, 42124, p1)
-	ln.Close()
+}
+
+func TestGetAvailablePort2(t *testing.T) {
+	port := 42123
+
+	for i := 0; i < 1000000; i++ {
+		p1 := GetAvailablePort("", port)
+		assert.Equal(t, 42123, p1)
+	}
 }
 
 func TestAutoGetAddress(t *testing.T) {

@@ -1,7 +1,7 @@
 package kv
 
 import (
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/kv"
 	"sync"
 )
 
@@ -20,16 +20,16 @@ func (filter KVFilter) Close() error {
 }
 
 func (filter KVFilter) Exists(bucket string, key []byte) bool {
-	b, _ := persist.GetValue(bucket, key)
+	b, _ := kv.GetValue(bucket, key)
 	return b != nil
 }
 
 func (filter KVFilter) Add(bucket string, key []byte) error {
-	return persist.AddValue(bucket, key, v)
+	return kv.AddValue(bucket, key, v)
 }
 
 func (filter KVFilter) Delete(bucket string, key []byte) error {
-	return persist.DeleteKey(bucket, key)
+	return kv.DeleteKey(bucket, key)
 }
 
 func (filter KVFilter) CheckThenAdd(bucket string, key []byte) (b bool, err error) {

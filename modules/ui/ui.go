@@ -42,8 +42,7 @@ func LoggerReceiver(message string, level log.LogLevel, context log.LogContextIn
 func (module UIModule) Name() string {
 	return "Web"
 }
-
-func (module UIModule) Start(cfg *Config) {
+func (module UIModule) Setup(cfg *Config) {
 
 	adminConfig := common.UIConfig{}
 	cfg.Unpack(&adminConfig)
@@ -60,12 +59,15 @@ func (module UIModule) Start(cfg *Config) {
 	logger.RegisterWebsocketHandler(LoggerReceiver)
 
 	fs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
-	go func() {
-		ui.StartUI(cfg)
-	}()
 
 }
 
+func (module UIModule) Start() error {
+	go func() {
+		ui.StartUI()
+	}()
+	return nil
+}
 func (module UIModule) Stop() error {
 
 	return nil

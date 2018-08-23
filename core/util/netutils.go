@@ -12,12 +12,14 @@ import (
 func TestPort(port int) bool {
 	host := ":" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", host)
+	if ln != nil {
+		ln.Close()
+	}
 
 	if err != nil {
 		log.Debugf("can't listen on port %s, %s", host, err)
 		return false
 	}
-	ln.Close()
 	return true
 }
 
@@ -27,12 +29,14 @@ func TestListenPort(ip string, port int) bool {
 	log.Tracef("testing port %s:%d", ip, port)
 	host := ip + ":" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", host)
+	if ln != nil {
+		ln.Close()
+	}
 
 	if err != nil {
 		log.Debugf("can't listen on port %s, %s", host, err)
 		return false
 	}
-	ln.Close()
 	return true
 }
 

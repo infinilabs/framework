@@ -33,21 +33,16 @@ func (module PipeModule) Name() string {
 	return "Pipeline"
 }
 
-func (module PipeModule) Start(cfg *Config) {
+var config = struct {
+	APIEnabled bool               `config:"api_enabled"`
+	Runners    []PipeRunnerConfig `config:"runners"`
+}{
+	APIEnabled: true,
+	//TODO load default pipe config
+	//GetDefaultPipeConfig(),
+}
 
-	if started {
-		log.Error("pipeline framework already started, please stop it first.")
-		return
-	}
-
-	var config = struct {
-		APIEnabled bool               `config:"api_enabled"`
-		Runners    []PipeRunnerConfig `config:"runners"`
-	}{
-		APIEnabled: true,
-		//TODO load default pipe config
-		//GetDefaultPipeConfig(),
-	}
+func (module PipeModule) Setup(cfg *Config) {
 
 	cfg.Unpack(&config)
 
@@ -62,11 +57,19 @@ func (module PipeModule) Start(cfg *Config) {
 		handler.Init()
 	}
 
+}
+
+func (module PipeModule) Start() error {
+	if started {
+		return errors.New("pipeline framework already started, please stop it first.")
+	}
+
 	runners = map[string]*PipeRunner{}
 	for i, v := range config.Runners {
 		if v.DefaultConfig == nil {
 			panic(errors.Errorf("default pipeline config can't be null, %v, %v", i, v))
 		}
+
 		if (v.InputQueue) == "" {
 			panic(errors.Errorf("input queue can't be null, %v, %v", i, v))
 		}
@@ -81,6 +84,7 @@ func (module PipeModule) Start(cfg *Config) {
 	}
 
 	started = true
+	return nil
 }
 
 func (module PipeModule) Stop() error {

@@ -17,9 +17,9 @@ limitations under the License.
 package queue
 
 import (
-	"errors"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/stats"
 	"sync"
 	"time"
@@ -47,7 +47,7 @@ func Push(k string, v []byte) error {
 		stats.Increment("queue."+k, "push_error")
 		return err
 	}
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 var pauseMsg = errors.New("queue was paused to read")
@@ -65,7 +65,7 @@ func ReadChan(k string) chan []byte {
 		return handler.ReadChan(k)
 	}
 	stats.Increment("queue."+k, "read_chan_error")
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 func Pop(k string) (error, []byte) {
@@ -82,7 +82,7 @@ func Pop(k string) (error, []byte) {
 		stats.Increment("queue."+k, "pop_error")
 		return er, o
 	}
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 func PopTimeout(k string, timeoutInSeconds time.Duration) (error, []byte) {
@@ -103,7 +103,7 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (error, []byte) {
 		stats.Increment("queue."+k, "pop_error")
 		return er, o
 	}
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 func Close(k string) error {
@@ -113,7 +113,7 @@ func Close(k string) error {
 		return o
 	}
 	stats.Increment("queue."+k, "close_error")
-	panic(errors.New("channel is not closed"))
+	panic(errors.New("handler is not closed"))
 }
 
 func Depth(k string) int64 {
@@ -122,7 +122,7 @@ func Depth(k string) int64 {
 		stats.Increment("queue."+k, "call_depth")
 		return o
 	}
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 func GetQueues() []string {
@@ -131,7 +131,7 @@ func GetQueues() []string {
 		stats.Increment("queue.", "get_queues")
 		return o
 	}
-	panic(errors.New("channel is not registered"))
+	panic(errors.New("handler is not registered"))
 }
 
 var pausedReadQueue = hashset.New()
@@ -157,6 +157,21 @@ func ResumeRead(k string) {
 	log.Debugf("queue: %s was resumed, signal: %v", k, size)
 }
 
-func Register(h Queue) {
+var adapters map[string]Queue
+
+func Register(name string, h Queue) {
+	if adapters == nil {
+		adapters = map[string]Queue{}
+	}
+	_, ok := adapters[name]
+	if ok {
+		panic(errors.Errorf("queue handler with same name: %v already exists", name))
+	}
+
+	adapters[name] = h
+
 	handler = h
+
+	log.Debug("register queue handler: ", name)
+
 }

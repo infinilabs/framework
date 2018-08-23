@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package storage
+package boltdb
 
 import (
 	"fmt"
 	. "github.com/infinitbyte/framework/core/env"
 	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/kv"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -52,10 +52,10 @@ func run(seed int, t *testing.T) {
 		//fmt.Println(i)
 		k := fmt.Sprintf("key-%v-%v", seed, i)
 		v := []byte("A")
-		b, _ := persist.GetValue(KVBucketKey, []byte(k))
+		b, _ := kv.GetValue(KVBucketKey, []byte(k))
 		assert.Equal(t, false, b != nil)
-		persist.AddValue(KVBucketKey, []byte(k), v)
-		b, _ = persist.GetValue(KVBucketKey, []byte(k))
+		kv.AddValue(KVBucketKey, []byte(k), v)
+		b, _ = kv.GetValue(KVBucketKey, []byte(k))
 		assert.Equal(t, true, b != nil)
 		if b == nil {
 			fmt.Print("not exists")

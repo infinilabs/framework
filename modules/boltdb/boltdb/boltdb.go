@@ -27,10 +27,10 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/infinitbyte/framework/core/api"
 	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/orm"
 	core "github.com/infinitbyte/framework/core/ui"
 	"github.com/infinitbyte/framework/core/util"
-	"github.com/infinitbyte/framework/modules/storage/boltdb/ui"
+	"github.com/infinitbyte/framework/modules/boltdb/boltdb/ui"
 	"github.com/infinitbyte/framework/modules/ui/common"
 	"net/http"
 	"strconv"
@@ -232,8 +232,8 @@ func (store BoltdbStore) Count(o interface{}) (int, error) {
 	return db.Count(o)
 }
 
-func (s BoltdbStore) Search(t1, t2 interface{}, q1 *persist.Query) (error, persist.Result) {
-	result := persist.Result{}
+func (s BoltdbStore) Search(t1, t2 interface{}, q1 *orm.Query) (error, orm.Result) {
+	result := orm.Result{}
 	total, err := s.Count(t1)
 	if err != nil {
 		log.Debug(err)

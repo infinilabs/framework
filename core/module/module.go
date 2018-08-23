@@ -21,24 +21,9 @@ import (
 	"github.com/infinitbyte/framework/core/env"
 )
 
-const System = "system"
-const Service = "service"
-const Tools = "tools"
-const PipelineJoint = "joint"
-const Stats = "stats"
-const Filter = "filter"
-const Database = "database"
-const KVStore = "kv"
-const Queue = "queue"
-const Storage = "storage"
-const Index = "index"
-const Logger = "logger"
-const UI = "ui"
-const API = "api"
-
 type Modules struct {
-	modules []Module
-	plugins []Module
+	system  []Module
+	user    []Module
 	configs map[string]interface{}
 }
 
@@ -49,34 +34,34 @@ func New() {
 	m = &mod
 }
 
-func Register(moduleType string, mod Module) {
-	m.modules = append(m.modules, mod)
+func RegisterSystemModule(mod Module) {
+	m.system = append(m.system, mod)
 }
 
-func RegisterPlugin(moduleType string, mod Module) {
-	m.plugins = append(m.plugins, mod)
+func RegisterUserPlugin(mod Module) {
+	m.user = append(m.user, mod)
 }
 
 func Start() {
 
-	log.Trace("start to load plugins")
-	for _, v := range m.plugins {
+	log.Trace("start to setup system modules")
+	for _, v := range m.system {
 
-		cfg := env.GetPluginConfig(v.Name())
+		cfg := env.GetModuleConfig(v.Name())
 
-		log.Trace("plugin: ", v.Name(), ", enabled: ", cfg.Enabled(true))
+		log.Trace("module: ", v.Name(), ", enabled: ", cfg.Enabled(true))
 
 		if cfg.Enabled(true) {
-			log.Trace("starting plugin: ", v.Name())
-			v.Start(cfg)
-			log.Debug("started plugin: ", v.Name())
+			log.Trace("start to setup module: ", v.Name())
+			v.Setup(cfg)
+			log.Debug("setup module: ", v.Name())
 		}
 
 	}
-	log.Debug("all plugins loaded")
+	log.Debug("all system modules finished setup")
 
-	log.Trace("start to start modules")
-	for _, v := range m.modules {
+	log.Trace("start to start system modules")
+	for _, v := range m.system {
 
 		cfg := env.GetModuleConfig(v.Name())
 
@@ -84,30 +69,52 @@ func Start() {
 
 		if cfg.Enabled(true) {
 			log.Trace("starting module: ", v.Name())
-			v.Start(cfg)
+			v.Start()
 			log.Debug("started module: ", v.Name())
 		}
 
 	}
-	log.Debug("all modules started")
+	log.Debug("all system modules started")
+
+	log.Trace("start to setup user plugins")
+	for _, v := range m.user {
+
+		cfg := env.GetPluginConfig(v.Name())
+
+		log.Trace("plugin: ", v.Name(), ", enabled: ", cfg.Enabled(true))
+
+		if cfg.Enabled(true) {
+			log.Trace("start to setup plugin: ", v.Name())
+			v.Setup(cfg)
+			log.Debug("setup plugin: ", v.Name())
+		}
+
+	}
+	log.Debug("all user plugins finished setup")
+
+	log.Trace("start to start user plugins")
+	for _, v := range m.user {
+
+		cfg := env.GetPluginConfig(v.Name())
+
+		log.Trace("plugin: ", v.Name(), ", enabled: ", cfg.Enabled(true))
+
+		if cfg.Enabled(true) {
+			log.Trace("starting plugin: ", v.Name())
+			v.Start()
+			log.Debug("started plugin: ", v.Name())
+		}
+
+	}
+	log.Debug("all user plugins started")
+
 }
 
 func Stop() {
-	log.Trace("start to stop modules")
-	for i := len(m.modules) - 1; i >= 0; i-- {
-		v := m.modules[i]
-		cfg := env.GetModuleConfig(v.Name())
-		if cfg.Enabled(true) {
-			log.Trace("stopping module: ", v.Name())
-			v.Stop()
-			log.Debug("stopped module: ", v.Name())
-		}
-	}
-	log.Debug("all modules stopped")
 
-	log.Trace("start to unload plugins")
-	for i := len(m.plugins) - 1; i >= 0; i-- {
-		v := m.plugins[i]
+	log.Trace("start to unload user")
+	for i := len(m.user) - 1; i >= 0; i-- {
+		v := m.user[i]
 		cfg := env.GetPluginConfig(v.Name())
 		if cfg.Enabled(true) {
 			log.Trace("stopping plugin: ", v.Name())
@@ -115,5 +122,18 @@ func Stop() {
 			log.Debug("stopped plugin: ", v.Name())
 		}
 	}
-	log.Debug("all plugins unloaded")
+	log.Debug("all user unloaded")
+
+	log.Trace("start to stop system")
+	for i := len(m.system) - 1; i >= 0; i-- {
+		v := m.system[i]
+		cfg := env.GetModuleConfig(v.Name())
+		if cfg.Enabled(true) {
+			log.Trace("stopping module: ", v.Name())
+			v.Stop()
+			log.Debug("stopped module: ", v.Name())
+		}
+	}
+	log.Debug("all system stopped")
+
 }

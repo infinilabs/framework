@@ -22,7 +22,8 @@ import (
 
 // Module defines system level module structure
 type Module interface {
-	Start(config *config.Config)
+	Setup(config *config.Config)
+	Start() error
 	Stop() error
 	Name() string
 }

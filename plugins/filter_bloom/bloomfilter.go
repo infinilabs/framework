@@ -18,7 +18,6 @@ package impl
 
 import (
 	log "github.com/cihub/seelog"
-	core "github.com/infinitbyte/framework/core/filter"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	. "github.com/zeebo/sbloom"
@@ -35,7 +34,7 @@ type BloomFilter struct {
 	ProbItems       int
 }
 
-var filters map[string]core.Filter
+var filters map[string]BloomFilter
 
 func (filter *BloomFilter) Open() error {
 

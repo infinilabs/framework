@@ -16,6 +16,11 @@ limitations under the License.
 
 package filter
 
+import (
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/errors"
+)
+
 // Filter is used to check if the object is in the filter or not
 type Filter interface {
 	Exists(bucket string, key []byte) bool
@@ -31,27 +36,48 @@ type Filter interface {
 
 var handler Filter
 
+func getHandler() Filter {
+	if handler == nil {
+		panic(errors.New("filter handler is not registered"))
+	}
+	return handler
+}
+
 // Exists checks if the key are already in filter bucket
 func Exists(bucket string, key []byte) bool {
-	return handler.Exists(bucket, key)
+	return getHandler().Exists(bucket, key)
 }
 
 // Add will add key to filter bucket
 func Add(bucket string, key []byte) error {
-	return handler.Add(bucket, key)
+	return getHandler().Add(bucket, key)
 }
 
 // Remove will remove key from bucket
 func Remove(bucket string, key []byte) error {
-	return handler.Delete(bucket, key)
+	return getHandler().Delete(bucket, key)
 }
 
 // CheckThenAdd will check first and if the key is not in the filter bucket, then it will add it and return false, if the key is already in the bucket, it will just return true
 func CheckThenAdd(bucket string, key []byte) (bool, error) {
-	return handler.CheckThenAdd(bucket, key)
+	return getHandler().CheckThenAdd(bucket, key)
 }
 
-// Register used to register filter handler to dealing with filter operations
-func Register(h Filter) {
+var filters map[string]Filter
+
+func Register(name string, h Filter) {
+	if filters == nil {
+		filters = map[string]Filter{}
+	}
+	_, ok := filters[name]
+	if ok {
+		panic(errors.Errorf("filter with same name: %v already exists", name))
+	}
+
+	filters[name] = h
+
 	handler = h
+
+	log.Debug("register filter: ", name)
+
 }

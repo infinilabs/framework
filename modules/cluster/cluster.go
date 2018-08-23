@@ -13,7 +13,7 @@ func (module ClusterModule) Name() string {
 	return "Cluster"
 }
 
-func (module ClusterModule) Start(cfg *Config) {
+func (module ClusterModule) Setup(cfg *Config) {
 
 	s := raft.New()
 	if err := s.Open(); err != nil {
@@ -22,8 +22,10 @@ func (module ClusterModule) Start(cfg *Config) {
 	}
 }
 
-func (module ClusterModule) Stop() error {
-
+func (module ClusterModule) Start() error {
 	return nil
+}
 
+func (module ClusterModule) Stop() error {
+	return nil
 }

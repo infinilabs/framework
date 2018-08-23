@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
 	. "github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/stats"
+	"github.com/infinitbyte/framework/core/util"
+	"os"
+	"path"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -14,25 +18,28 @@ func (module SimpleStatsModule) Name() string {
 	return "Stats"
 }
 
-const id = "stats"
-
 var data *Stats
+var dataPath string
 
-const KVBucketKey string = "kv"
+func (module SimpleStatsModule) Setup(cfg *Config) {
 
-func (module SimpleStatsModule) Start(cfg *Config) {
+	dataPath = path.Join(global.Env().GetWorkingDir(), "stats")
+	os.MkdirAll(dataPath, 0777)
 
 	data = &Stats{}
-	data.initStats()
+	data.initStats("simple")
 	stats.Register(data)
+}
+
+func (module SimpleStatsModule) Start() error {
+	return nil
 }
 
 func (module SimpleStatsModule) Stop() error {
 	data.l.Lock()
 	defer data.l.Unlock()
 	v, _ := json.Marshal(data.Data)
-	data.ID = id
-	err := persist.AddValue(string(KVBucketKey), []byte(data.ID), v)
+	_, err := util.FilePutContentWithByte(path.Join(dataPath, strings.ToLower(data.ID)), v)
 	if err != nil {
 		log.Error(err)
 	}
@@ -111,12 +118,13 @@ func (s *Stats) StatsAll() *[]byte {
 	return &b
 }
 
-func (s *Stats) initStats() {
+func (s *Stats) initStats(id string) {
 	s.l.Lock()
 	defer s.l.Unlock()
 
 	s.ID = id
-	v, err := persist.GetValue(string(KVBucketKey), []byte(s.ID))
+
+	v, err := util.FileGetContent(path.Join(dataPath, strings.ToLower(data.ID)))
 
 	if err == nil && v != nil {
 		d := map[string]map[string]int64{}

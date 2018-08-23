@@ -14,9 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package persist
+package orm
 
-import "errors"
+import (
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/errors"
+)
 
 type ORM interface {
 	RegisterSchema(t interface{}) error
@@ -207,6 +210,21 @@ func getHandler() ORM {
 	return handler
 }
 
-func Register(h ORM) {
+var adapters map[string]ORM
+
+func Register(name string, h ORM) {
+	if adapters == nil {
+		adapters = map[string]ORM{}
+	}
+	_, ok := adapters[name]
+	if ok {
+		panic(errors.Errorf("ORM handler with same name: %v already exists", name))
+	}
+
+	adapters[name] = h
+
 	handler = h
+
+	log.Debug("register orm handler: ", name)
+
 }

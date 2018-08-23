@@ -22,7 +22,7 @@ import (
 	"github.com/infinitbyte/framework/core/filter"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
-	"github.com/infinitbyte/framework/modules/storage"
+	"github.com/infinitbyte/framework/modules/boltdb"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
@@ -38,7 +38,7 @@ func Test(t *testing.T) {
 	env1.IsDebug = true
 	global.RegisterEnv(env1)
 
-	storage := storage.StorageModule{}
+	storage := boltdb.StorageModule{}
 	storage.Start(GetModuleConfig(storage.Name()))
 
 	m := FilterModule{}

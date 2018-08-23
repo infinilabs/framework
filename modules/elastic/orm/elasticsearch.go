@@ -6,7 +6,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/index"
-	api "github.com/infinitbyte/framework/core/persist"
+	api "github.com/infinitbyte/framework/core/orm"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/olivere/elastic"
 )

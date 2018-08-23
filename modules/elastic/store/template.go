@@ -14,10 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package elastic
+package store
+
+import "github.com/golang/go/src/pkg/fmt"
 
 func getTemplate() {
-
+	template := `
+{
+"index_patterns": "gopa-*",
+"settings": {
+    "number_of_shards": 1,
+    "index.max_result_window":10000000
+  },
+  "mappings": {
+    "doc": {
+      "dynamic_templates": [
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+`
+	fmt.Println(template)
 }
 
 func saveTemplate() {

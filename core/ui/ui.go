@@ -25,7 +25,6 @@ import (
 	"github.com/gorilla/context"
 	"github.com/infinitbyte/framework/core/api"
 	"github.com/infinitbyte/framework/core/api/router"
-	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/ui/websocket"
 	"github.com/infinitbyte/framework/core/util"
@@ -42,7 +41,7 @@ var router *httprouter.Router
 var mux *http.ServeMux
 var l sync.Mutex
 
-func StartUI(cfg *Config) {
+func StartUI() {
 
 	//start web ui
 	mux = http.NewServeMux()

@@ -19,8 +19,10 @@ package elastic
 import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/index"
-	"github.com/infinitbyte/framework/core/persist"
-	"github.com/infinitbyte/framework/modules/elastic/orm"
+	"github.com/infinitbyte/framework/core/kv"
+	"github.com/infinitbyte/framework/core/orm"
+	o "github.com/infinitbyte/framework/modules/elastic/orm"
+	"github.com/infinitbyte/framework/modules/elastic/store"
 )
 
 func (module ElasticModule) Name() string {
@@ -28,8 +30,7 @@ func (module ElasticModule) Name() string {
 }
 
 var (
-	defaultConfig = PersistConfig{
-		Driver: "elasticsearch",
+	defaultConfig = ElasticConfig{
 		Elastic: &index.ElasticsearchConfig{
 			Endpoint:    "http://localhost:9200",
 			IndexPrefix: "app-",
@@ -37,31 +38,42 @@ var (
 	}
 )
 
-func getDefaultConfig() PersistConfig {
+func getDefaultConfig() ElasticConfig {
 	return defaultConfig
 }
 
-type PersistConfig struct {
-	//Driver only `mysql` and `sqlite` are available
-	Driver  string                     `config:"driver"`
-	Elastic *index.ElasticsearchConfig `config:"elasticsearch"`
+type ElasticConfig struct {
+	KVEnabled    bool                       `config:"kv_enabled"`
+	ORMEnabled   bool                       `config:"orm_enabled"`
+	IndexEnabled bool                       `config:"index_enabled"`
+	Elastic      *index.ElasticsearchConfig `config:"elasticsearch"`
 }
 
-func (module ElasticModule) Start(cfg *Config) {
+func (module ElasticModule) Setup(cfg *Config) {
 
 	//init config
 	config := getDefaultConfig()
 	cfg.Unpack(&config)
 
-	if config.Driver == "elasticsearch" {
-		client := index.ElasticsearchClient{Config: config.Elastic}
-		handler := orm.ElasticORM{Client: &client}
-		persist.Register(handler)
-		return
+	client := index.ElasticsearchClient{Config: config.Elastic}
+	if config.ORMEnabled {
+		handler := o.ElasticORM{Client: &client}
+		orm.Register("elastic", handler)
 	}
+
+	if config.KVEnabled {
+		storeHandler := store.ElasticsearchStore{Client: &client}
+		kv.Register("elastic", storeHandler)
+	}
+
 }
 
 func (module ElasticModule) Stop() error {
+	return nil
+
+}
+
+func (module ElasticModule) Start() error {
 	return nil
 
 }

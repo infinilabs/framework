@@ -3,7 +3,7 @@ package persist_db
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	api "github.com/infinitbyte/framework/core/persist"
+	api "github.com/infinitbyte/framework/core/orm"
 	"github.com/jinzhu/gorm"
 	"sync"
 	"time"

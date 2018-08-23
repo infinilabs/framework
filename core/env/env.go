@@ -150,9 +150,9 @@ var (
 		},
 		NetworkConfig: config.NetworkConfig{
 			Host:           "127.0.0.1",
-			APIBinding:     "127.0.0.1:8001",
-			HTTPBinding:    "127.0.0.1:9001",
-			ClusterBinding: "127.0.0.1:13001",
+			APIBinding:     "127.0.0.1:8000",
+			HTTPBinding:    "127.0.0.1:9000",
+			ClusterBinding: "127.0.0.1:10000",
 		},
 		NodeConfig: config.NodeConfig{
 			Name: util.PickRandomName(),
@@ -173,12 +173,12 @@ func loadSystemConfig(cfgFile string) config.SystemConfig {
 	cfg := defaultSystemConfig
 	cfg.ConfigFile = cfgFile
 	if util.IsExist(cfgFile) {
-		config, err := yaml.NewConfigWithFile(cfgFile, ucfg.PathSep("."))
+		c, err := yaml.NewConfigWithFile(cfgFile, ucfg.PathSep("."))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		err = config.Unpack(&cfg)
+		err = c.Unpack(&cfg)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

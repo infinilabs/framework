@@ -150,7 +150,7 @@ func (app *App) Init(customFunc func()) {
 	}
 }
 
-func (app *App) Start(customFunc func()) {
+func (app *App) Start(setup func(), start func()) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	fmt.Println(app.environment.GetWelcomeMessage())
@@ -186,9 +186,15 @@ func (app *App) Start(customFunc func()) {
 	//set path to persist id
 	util.RestorePersistID(app.environment.GetWorkingDir())
 
-	if customFunc != nil {
+	if setup != nil {
+		log.Trace("start execute custom setup func")
+		setup()
+		log.Trace("end execute custom setup func")
+	}
+
+	if start != nil {
 		log.Trace("start execute custom start func")
-		customFunc()
+		start()
 		log.Trace("end execute custom start func")
 	}
 
@@ -246,7 +252,6 @@ func (app *App) Shutdown() {
 	if app.environment.IsDebug {
 		fmt.Println(string(*stats.StatsAll()))
 	}
-
 	//print goodbye message
 	fmt.Println(app.environment.GetGoodbyeMessage())
 }

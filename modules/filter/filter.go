@@ -3,7 +3,6 @@ package filter
 import (
 	log "github.com/cihub/seelog"
 	. "github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/filter"
 	"github.com/infinitbyte/framework/modules/filter/kv"
 )
@@ -12,22 +11,14 @@ type FilterModule struct {
 }
 
 type FilterConfig struct {
-	Driver string `config:"driver"`
-	Bloom  *BloomFilterConfig
-	Cuckoo *CuckooFilterConfig
-	KV     *KVFilterConfig
+	KV *KVFilterConfig
 }
 
-type BloomFilterConfig struct{}
-type CuckooFilterConfig struct{}
 type KVFilterConfig struct{}
 
 var (
 	defaultConfig = FilterConfig{
-		Driver: "kv",
-		Bloom:  &BloomFilterConfig{},
-		Cuckoo: &CuckooFilterConfig{},
-		KV:     &KVFilterConfig{},
+		KV: &KVFilterConfig{},
 	}
 )
 
@@ -37,23 +28,17 @@ func (module FilterModule) Name() string {
 
 var handler filter.Filter
 
-func (module FilterModule) Start(cfg *Config) {
+func (module FilterModule) Setup(cfg *Config) {
 
 	//init config
 	cfg.Unpack(&defaultConfig)
 
-	if defaultConfig.Driver == "kv" {
-		handler = kv.KVFilter{}
-		filter.Register(handler)
-		return
+	handler = kv.KVFilter{}
+	filter.Register("kv", handler)
+}
 
-	} else if defaultConfig.Driver == "bloom" {
-		//TODO
-	} else if defaultConfig.Driver == "cuckoo" {
-		//TODO
-	} else {
-		panic(errors.Errorf("invalid driver, %s", defaultConfig.Driver))
-	}
+func (module FilterModule) Start() error {
+	return nil
 }
 
 func (module FilterModule) Stop() error {

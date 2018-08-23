@@ -204,9 +204,7 @@ func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context
 		log.Debugf("pipeline config: %v", util.ToJson(config, true))
 	}
 
-	pipe := &Pipeline{}
-	pipe.id = util.GetUUID()
-	pipe.name = strings.TrimSpace(name)
+	pipe := NewPipeline(name)
 
 	pipe.Context(context)
 

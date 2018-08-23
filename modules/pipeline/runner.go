@@ -17,7 +17,6 @@ limitations under the License.
 package pipeline
 
 import (
-	"encoding/json"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/pipeline"
@@ -89,12 +88,7 @@ func (pipe *PipeRunner) Stop() {
 }
 
 func (pipe *PipeRunner) decodeContext(context []byte) pipeline.Context {
-	v := pipeline.Context{}
-	err := json.Unmarshal(context, &v)
-	if err != nil {
-		panic(err)
-	}
-	return v
+	return pipeline.UnMarshall(context)
 }
 
 func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {

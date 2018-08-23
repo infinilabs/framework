@@ -14,9 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package persist
+package kv
 
-import "errors"
+import (
+	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/errors"
+)
 
 type KVStore interface {
 	Open() error
@@ -36,14 +39,14 @@ type KVStore interface {
 	DeleteBucket(bucket string) error
 }
 
-var kvHandler KVStore
+var handler KVStore
 
 func getKVHandler() KVStore {
 
-	if kvHandler == nil {
+	if handler == nil {
 		panic(errors.New("kv store handler is not registered"))
 	}
-	return kvHandler
+	return handler
 }
 
 func GetValue(bucket string, key []byte) ([]byte, error) {
@@ -70,6 +73,20 @@ func DeleteBucket(bucket string) error {
 	return getKVHandler().DeleteBucket(bucket)
 }
 
-func RegisterKVHandler(h KVStore) {
-	kvHandler = h
+var stores map[string]KVStore
+
+func Register(name string, h KVStore) {
+	if stores == nil {
+		stores = map[string]KVStore{}
+	}
+	_, ok := stores[name]
+	if ok {
+		panic(errors.Errorf("KV handler with same name: %v already exists", name))
+	}
+
+	stores[name] = h
+
+	handler = h
+
+	log.Debug("register kv store: ", name)
 }

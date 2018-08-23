@@ -57,9 +57,9 @@ func initQueue(name string) error {
 	return nil
 }
 
-func (module DiskQueue) Start(cfg *config.Config) {
+func (module DiskQueue) Setup(cfg *config.Config) {
 	queues = make(map[string]*BackendQueue)
-	queue.Register(module)
+	queue.Register("disk", module)
 }
 
 func (module DiskQueue) Push(k string, v []byte) error {
@@ -111,6 +111,9 @@ func (module DiskQueue) GetQueues() []string {
 	return result
 }
 
+func (module DiskQueue) Start() error {
+	return nil
+}
 func (module DiskQueue) Stop() error {
 	for _, v := range queues {
 		err := (*v).Close()

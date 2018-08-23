@@ -19,7 +19,8 @@ package pipeline
 import (
 	"encoding/json"
 	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/persist"
+	"github.com/infinitbyte/framework/core/kv"
+	"github.com/infinitbyte/framework/core/orm"
 	"github.com/infinitbyte/framework/core/pipeline"
 	"github.com/infinitbyte/framework/core/util"
 	"time"
@@ -31,7 +32,7 @@ func GetPipelineConfig(id string) (*pipeline.PipelineConfig, error) {
 	if id == "" {
 		return nil, errors.New("empty id")
 	}
-	b, err := persist.GetValue(configBucket, []byte(id))
+	b, err := kv.GetValue(configBucket, []byte(id))
 	if err != nil {
 		return nil, err
 	}
@@ -46,9 +47,9 @@ func GetPipelineConfig(id string) (*pipeline.PipelineConfig, error) {
 func GetPipelineList(from, size int) (int, []pipeline.PipelineConfig, error) {
 	var configs []pipeline.PipelineConfig
 
-	query := persist.Query{From: from, Size: size}
+	query := orm.Query{From: from, Size: size}
 
-	err, r := persist.Search(pipeline.PipelineConfig{}, &configs, &query)
+	err, r := orm.Search(pipeline.PipelineConfig{}, &configs, &query)
 	if r.Result != nil && configs == nil || len(configs) == 0 {
 		convertPipeline(r, &configs)
 	}
@@ -64,11 +65,11 @@ func CreatePipelineConfig(cfg *pipeline.PipelineConfig) error {
 	if err != nil {
 		return err
 	}
-	err = persist.AddValue(configBucket, []byte(cfg.ID), b)
+	err = kv.AddValue(configBucket, []byte(cfg.ID), b)
 	if err != nil {
 		return err
 	}
-	return persist.Save(cfg)
+	return orm.Save(cfg)
 }
 
 func UpdatePipelineConfig(id string, cfg *pipeline.PipelineConfig) error {
@@ -79,23 +80,23 @@ func UpdatePipelineConfig(id string, cfg *pipeline.PipelineConfig) error {
 	if err != nil {
 		return err
 	}
-	err = persist.AddValue(configBucket, []byte(cfg.ID), b)
+	err = kv.AddValue(configBucket, []byte(cfg.ID), b)
 	if err != nil {
 		return err
 	}
-	return persist.Update(cfg)
+	return orm.Update(cfg)
 }
 
 func DeletePipelineConfig(id string) error {
-	err := persist.DeleteKey(configBucket, []byte(id))
+	err := kv.DeleteKey(configBucket, []byte(id))
 	if err != nil {
 		return err
 	}
 	o := pipeline.PipelineConfig{ID: id}
-	return persist.Delete(&o)
+	return orm.Delete(&o)
 }
 
-func convertPipeline(result persist.Result, pipelines *[]pipeline.PipelineConfig) {
+func convertPipeline(result orm.Result, pipelines *[]pipeline.PipelineConfig) {
 	if result.Result == nil {
 		return
 	}

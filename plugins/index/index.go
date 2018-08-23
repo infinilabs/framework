@@ -34,15 +34,19 @@ var (
 		},
 	}
 )
+var config *Config
 
-func (module IndexModule) Start(cfg *Config) {
+func (module IndexModule) Setup(cfg *Config) {
+	config = cfg
 
+}
+
+func (module IndexModule) Start() error {
 	indexConfig := defaultConfig
-	cfg.Unpack(&indexConfig)
+	config.Unpack(&indexConfig)
 
 	signalChannel = make(chan bool, 1)
 	client := index.ElasticsearchClient{Config: defaultConfig.Elasticsearch}
-
 	go func() {
 		defer func() {
 
@@ -91,6 +95,7 @@ func (module IndexModule) Start(cfg *Config) {
 
 		}
 	}()
+	return nil
 }
 
 func (module IndexModule) Stop() error {
