@@ -254,4 +254,5 @@ func (app *App) Shutdown() {
 	}
 	//print goodbye message
 	fmt.Println(app.environment.GetGoodbyeMessage())
+	os.Exit(0)
 }

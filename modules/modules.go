@@ -38,8 +38,8 @@ func Register() {
 	module.RegisterSystemModule(stats.SimpleStatsModule{})
 	module.RegisterSystemModule(queue.DiskQueue{})
 	module.RegisterSystemModule(cluster.ClusterModule{})
-	module.RegisterUserPlugin(api.APIModule{})
-	module.RegisterUserPlugin(ui.UIModule{})
-	module.RegisterUserPlugin(pipeline.PipeModule{})
-	module.RegisterUserPlugin(index.IndexModule{})
+	module.RegisterSystemModule(api.APIModule{})
+	module.RegisterSystemModule(ui.UIModule{})
+	module.RegisterSystemModule(pipeline.PipeModule{})
+	module.RegisterSystemModule(index.IndexModule{})
 }

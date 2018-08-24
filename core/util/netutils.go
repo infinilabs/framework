@@ -13,7 +13,10 @@ func TestPort(port int) bool {
 	host := ":" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", host)
 	if ln != nil {
-		ln.Close()
+		err := ln.Close()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if err != nil {
@@ -30,7 +33,10 @@ func TestListenPort(ip string, port int) bool {
 	host := ip + ":" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", host)
 	if ln != nil {
-		ln.Close()
+		err := ln.Close()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if err != nil {

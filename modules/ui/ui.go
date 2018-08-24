@@ -58,14 +58,16 @@ func (module UIModule) Setup(cfg *Config) {
 	//register websocket logger
 	logger.RegisterWebsocketHandler(LoggerReceiver)
 
+	go func() {
+		ui.StartUI()
+	}()
+
 	fs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
 
 }
 
 func (module UIModule) Start() error {
-	go func() {
-		ui.StartUI()
-	}()
+
 	return nil
 }
 func (module UIModule) Stop() error {

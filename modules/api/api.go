@@ -28,13 +28,13 @@ func (module APIModule) Name() string {
 
 // Start api server
 func (module APIModule) Setup(cfg *config.Config) {
-
-}
-func (module APIModule) Start() error {
 	//API server
 	go func() {
 		api.StartAPI()
 	}()
+
+}
+func (module APIModule) Start() error {
 
 	return nil
 }
