@@ -105,6 +105,24 @@ func TestGetTags(t *testing.T) {
 
 }
 
+func TestGetStructPointerTags(t *testing.T) {
+	type N struct {
+		S string `index:"in"`
+	}
+
+	type S struct {
+		N3 *N `index:"out"`
+	}
+
+	ts := S{}
+
+	v1 := GetTagsByTagName(ts, "index")
+	fmt.Println(ToJson(v1, true))
+
+	assert.Equal(t, "out", v1[0].Tag)
+	assert.Equal(t, "in", v1[0].Annotation[0].Tag)
+}
+
 func TestCopy(t *testing.T) {
 	type X struct {
 		Z string

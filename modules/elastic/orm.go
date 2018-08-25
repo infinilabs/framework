@@ -1,4 +1,4 @@
-package orm
+package elastic
 
 import (
 	"context"
@@ -12,32 +12,13 @@ import (
 )
 
 type ElasticORM struct {
-	Client *index.ElasticsearchClient
-}
-
-func getIndex(any interface{}) string {
-	return util.GetTypeName(any, true)
-}
-
-// getIndexID extract the field value and will be used as document ID
-//elastic_meta:"_id"
-func getIndexID(any interface{}) string {
-	return util.GetFieldValueByTagName(any, "elastic_meta", "_id")
-}
-
-func getIndexMapping(any interface{}) []util.Annotation {
-	return util.GetTagsByTagName(any, "elastic_mapping")
-}
-
-func (handler ElasticORM) RegisterSchema(t interface{}) error {
-
-	// TODO create index and generate mapping
-	return nil
+	Client    *index.ElasticsearchClient
+	NewClient *elastic.Client
 }
 
 func (handler ElasticORM) Get(o interface{}) error {
 
-	response, err := handler.Client.Get(getIndex(o), getIndexID(o))
+	response, err := handler.Client.Get(getIndexName(o), getIndexID(o))
 	if err != nil {
 		return err
 	}
@@ -55,7 +36,7 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}, 
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
-	_, err := handler.Client.Index(getIndex(o), getIndexID(o), o)
+	_, err := handler.Client.Index(getIndexName(o), getIndexID(o), o)
 	return err
 }
 
@@ -64,12 +45,12 @@ func (handler ElasticORM) Update(o interface{}) error {
 }
 
 func (handler ElasticORM) Delete(o interface{}) error {
-	_, err := handler.Client.Delete(getIndex(o), getIndexID(o))
+	_, err := handler.Client.Delete(getIndexName(o), getIndexID(o))
 	return err
 }
 
 func (handler ElasticORM) Count(o interface{}) (int, error) {
-	countResponse, err := handler.Client.Count(getIndex(o))
+	countResponse, err := handler.Client.Count(getIndexName(o))
 	if err != nil {
 		return 0, err
 	}
@@ -144,7 +125,7 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 	}
 
 	result := api.Result{}
-	searchResponse, err := handler.Client.Search(getIndex(t), &request)
+	searchResponse, err := handler.Client.Search(getIndexName(t), &request)
 	if err != nil {
 		return err, result
 	}
@@ -165,18 +146,12 @@ func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string,
 
 	agg := elastic.NewTermsAggregation().Field(selectField).Size(10)
 
-	// Create an Elasticsearch client
-	client, err := elastic.NewClient(elastic.SetURL(handler.Client.Config.Endpoint), elastic.SetSniff(true))
-	if err != nil {
-		log.Error(err)
-	}
-
-	indexName := getIndex(t)
+	indexName := getIndexName(t)
 	if handler.Client.Config.IndexPrefix != "" {
 		indexName = handler.Client.Config.IndexPrefix + indexName
 	}
 
-	result, err := client.Search(indexName).Aggregation(selectField, agg).Do(context.TODO())
+	result, err := handler.NewClient.Search(indexName).Aggregation(selectField, agg).Do(context.TODO())
 	if err != nil {
 		log.Error(err)
 	}

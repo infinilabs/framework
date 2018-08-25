@@ -95,8 +95,9 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 			//fmt.Println(field.Type)
 			//fmt.Println(field.Type.Kind())
 			//fmt.Println(field.Tag)
+			//fmt.Println(field.Type.Elem())
 
-			if field.Type.Kind() == reflect.Slice {
+			if field.Type.Kind() == reflect.Slice || field.Type.Kind() == reflect.Ptr {
 				v1 := reflect.New(field.Type.Elem())
 				a.Annotation = GetTagsByTagName(v1.Interface(), tagName)
 			}

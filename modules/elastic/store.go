@@ -14,34 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package store
+package elastic
 
 import (
 	"encoding/base64"
 	"fmt"
-	lz4 "github.com/bkaradzic/go-lz4"
+	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/index"
+	"github.com/infinitbyte/framework/core/orm"
 )
 
-type ElasticsearchStore struct {
+type ElasticStore struct {
 	Client *index.ElasticsearchClient
 }
 
-func (store ElasticsearchStore) Open() error {
-
-	//store.Client.GetTemplate()
-
-	//TODO check index and mapping
+func (store ElasticStore) Open() error {
+	orm.RegisterSchema(&Blob{})
 	return nil
 }
 
-func (store ElasticsearchStore) Close() error {
+func (store ElasticStore) Close() error {
 	return nil
 }
 
-func (store ElasticsearchStore) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
+func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
 
 	data, err := store.GetValue(bucket, key)
 	if err != nil {
@@ -55,7 +53,7 @@ func (store ElasticsearchStore) GetCompressedValue(bucket string, key []byte) ([
 	return data, nil
 }
 
-func (store ElasticsearchStore) GetValue(bucket string, key []byte) ([]byte, error) {
+func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	response, err := store.Client.Get(indexName, getKey(bucket, string(key)))
 	if err != nil {
 		return nil, err
@@ -76,11 +74,7 @@ func (store ElasticsearchStore) GetValue(bucket string, key []byte) ([]byte, err
 
 var indexName = "blob"
 
-type Blob struct {
-	Content string `json:"content,omitempty"`
-}
-
-func (store ElasticsearchStore) AddValueCompress(bucket string, key []byte, value []byte) error {
+func (store ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -93,18 +87,18 @@ func getKey(bucket, key string) string {
 	return fmt.Sprintf("%s_%s", bucket, key)
 }
 
-func (store ElasticsearchStore) AddValue(bucket string, key []byte, value []byte) error {
+func (store ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
 	_, err := store.Client.Index(indexName, getKey(bucket, string(key)), file)
 	return err
 }
 
-func (store ElasticsearchStore) DeleteKey(bucket string, key []byte) error {
+func (store ElasticStore) DeleteKey(bucket string, key []byte) error {
 	_, err := store.Client.Delete(indexName, getKey(bucket, string(key)))
 	return err
 }
 
-func (store ElasticsearchStore) DeleteBucket(bucket string) error {
+func (store ElasticStore) DeleteBucket(bucket string) error {
 	panic(errors.New("not implemented yet"))
 }

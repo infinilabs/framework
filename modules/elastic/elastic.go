@@ -17,12 +17,11 @@ limitations under the License.
 package elastic
 
 import (
-	. "github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/index"
 	"github.com/infinitbyte/framework/core/kv"
 	"github.com/infinitbyte/framework/core/orm"
-	o "github.com/infinitbyte/framework/modules/elastic/orm"
-	"github.com/infinitbyte/framework/modules/elastic/store"
+	"github.com/olivere/elastic"
 )
 
 func (module ElasticModule) Name() string {
@@ -30,7 +29,7 @@ func (module ElasticModule) Name() string {
 }
 
 var (
-	defaultConfig = ElasticConfig{
+	defaultConfig = ModuleConfig{
 		Elastic: &index.ElasticsearchConfig{
 			Endpoint:    "http://localhost:9200",
 			IndexPrefix: "app-",
@@ -38,31 +37,39 @@ var (
 	}
 )
 
-func getDefaultConfig() ElasticConfig {
+func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
 
-type ElasticConfig struct {
+type ModuleConfig struct {
 	KVEnabled    bool                       `config:"kv_enabled"`
 	ORMEnabled   bool                       `config:"orm_enabled"`
 	IndexEnabled bool                       `config:"index_enabled"`
 	Elastic      *index.ElasticsearchConfig `config:"elasticsearch"`
 }
 
-func (module ElasticModule) Setup(cfg *Config) {
+func (module ElasticModule) Setup(cfg *config.Config) {
 
 	//init config
 	config := getDefaultConfig()
 	cfg.Unpack(&config)
 
 	client := index.ElasticsearchClient{Config: config.Elastic}
+
+	// Create an Elasticsearch client
+	newClient, err := elastic.NewClient(elastic.SetURL(config.Elastic.Endpoint), elastic.SetSniff(true))
+	if err != nil {
+		panic(err)
+	}
+
 	if config.ORMEnabled {
-		handler := o.ElasticORM{Client: &client}
+		handler := ElasticORM{Client: &client, NewClient: newClient}
+		handler.InitTemplate()
 		orm.Register("elastic", handler)
 	}
 
 	if config.KVEnabled {
-		storeHandler := store.ElasticsearchStore{Client: &client}
+		storeHandler := ElasticStore{Client: &client}
 		kv.Register("elastic", storeHandler)
 	}
 
