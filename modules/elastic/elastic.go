@@ -42,7 +42,7 @@ func getDefaultConfig() ModuleConfig {
 }
 
 type ModuleConfig struct {
-	KVEnabled    bool                       `config:"kv_enabled"`
+	StoreEnabled bool                       `config:"store_enabled"`
 	ORMEnabled   bool                       `config:"orm_enabled"`
 	IndexEnabled bool                       `config:"index_enabled"`
 	Elastic      *index.ElasticsearchConfig `config:"elasticsearch"`
@@ -68,7 +68,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		orm.Register("elastic", handler)
 	}
 
-	if config.KVEnabled {
+	if config.StoreEnabled {
 		storeHandler := ElasticStore{Client: &client}
 		kv.Register("elastic", storeHandler)
 	}
