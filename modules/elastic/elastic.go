@@ -57,7 +57,11 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	client := index.ElasticsearchClient{Config: config.Elastic}
 
 	// Create an Elasticsearch client
-	newClient, err := elastic.NewClient(elastic.SetURL(config.Elastic.Endpoint), elastic.SetSniff(true))
+	newClient, err := elastic.NewClient(
+		elastic.SetURL(config.Elastic.Endpoint),
+		elastic.SetSniff(false),
+		elastic.SetBasicAuth(config.Elastic.Username, config.Elastic.Password),
+		elastic.SetHealthcheck(false))
 	if err != nil {
 		panic(err)
 	}
