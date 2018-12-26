@@ -72,7 +72,7 @@ func (module DiskQueue) ReadChan(k string) chan []byte {
 	return (*queues[k]).ReadChan()
 }
 
-func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) (error, []byte) {
+func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) ([]byte, error) {
 	initQueue(k)
 	if timeoutInSeconds > 0 {
 		timeout := make(chan bool, 1)
@@ -82,13 +82,13 @@ func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) (error, []
 		}()
 		select {
 		case b := <-(*queues[k]).ReadChan():
-			return nil, b
+			return b, nil
 		case <-timeout:
-			return errors.New("time out"), nil
+			return nil, errors.New("time out")
 		}
 	} else {
 		b := <-(*queues[k]).ReadChan()
-		return nil, b
+		return b, nil
 	}
 }
 
@@ -114,6 +114,7 @@ func (module DiskQueue) GetQueues() []string {
 func (module DiskQueue) Start() error {
 	return nil
 }
+
 func (module DiskQueue) Stop() error {
 	for _, v := range queues {
 		err := (*v).Close()

@@ -77,7 +77,7 @@ func (module IndexModule) Start() error {
 				return
 			default:
 				log.Trace("waiting index signal")
-				er, v := queue.Pop(IndexChannel)
+				v, er := queue.Pop(IndexChannel)
 				log.Trace("got index signal, ", string(v))
 				if er != nil {
 					log.Error(er)
