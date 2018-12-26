@@ -1,6 +1,6 @@
 // copied from: https://godoc.org/github.com/mjibson/esc
 
-package fs
+package vfs
 
 import (
 	"bytes"

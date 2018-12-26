@@ -14,36 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fs
+package vfs
 
 import (
-	"net/http"
-	"os"
-	"sync"
+	"fmt"
+	"github.com/infinitbyte/framework/core/util"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"testing"
 )
 
-func FS() http.FileSystem {
-	return VirtualFS{}
-}
+func TestFiles(t *testing.T) {
 
-type VirtualFS struct{}
+	util.FilePutContent("/tmp/test_gopa.txt", "hello")
 
-var vfs []http.FileSystem
-var lock sync.Mutex
+	RegisterFS(StaticFS{StaticFolder: "/", CheckLocalFirst: true})
 
-func RegisterFS(fs http.FileSystem) {
-	lock.Lock()
-	vfs = append([]http.FileSystem{fs}, vfs...)
-	lock.Unlock()
-}
+	fs := VFS()
 
-func (VirtualFS) Open(name string) (http.File, error) {
+	f, e := fs.Open("/tmp/test_gopa.txt")
 
-	for _, v := range vfs {
-		f1, err := v.Open(name)
-		if err == nil {
-			return f1, err
-		}
-	}
-	return nil, os.ErrNotExist
+	b, e := ioutil.ReadAll(f)
+
+	fmt.Println(e)
+
+	fmt.Println(string(b))
+
+	assert.Equal(t, "hello", string(b))
 }

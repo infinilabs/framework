@@ -20,10 +20,10 @@ import (
 	log "github.com/cihub/seelog"
 	uis "github.com/infinitbyte/framework/core/api"
 	. "github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/fs"
 	"github.com/infinitbyte/framework/core/logger"
 	"github.com/infinitbyte/framework/core/ui"
 	"github.com/infinitbyte/framework/core/ui/websocket"
+	"github.com/infinitbyte/framework/core/vfs"
 	"github.com/infinitbyte/framework/modules/ui/admin"
 	"github.com/infinitbyte/framework/modules/ui/common"
 	"github.com/infinitbyte/framework/modules/ui/public"
@@ -62,7 +62,7 @@ func (module UIModule) Setup(cfg *Config) {
 		ui.StartUI()
 	}()
 
-	fs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
+	vfs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
 
 }
 

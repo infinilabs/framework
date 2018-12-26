@@ -210,7 +210,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/fs"
+	"github.com/infinitbyte/framework/core/vfs"
 	"github.com/infinitbyte/framework/core/util"
 	"io/ioutil"
 	"net/http"
@@ -219,14 +219,14 @@ import (
 	"sync"
 )
 
-func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
+func (vfs StaticFS) prepare(name string) (*vfs.VFile, error) {
 	name = path.Clean(name)
 	f, present := data[name]
 	if !present {
 		return nil, os.ErrNotExist
 	}
 	var err error
-	fs.once.Do(func() {
+	vfs.once.Do(func() {
 		f.FileName = path.Base(name)
 
 		if f.FileSize == 0 {
@@ -249,15 +249,15 @@ func (fs StaticFS) prepare(name string) (*fs.VFile, error) {
 	return f, nil
 }
 
-func (fs StaticFS) Open(name string) (http.File, error) {
+func (vfs StaticFS) Open(name string) (http.File, error) {
 
 	name = path.Clean(name)
 
-	if fs.CheckLocalFirst {
+	if vfs.CheckLocalFirst {
 
-		name = util.TrimLeftStr(name, fs.TrimLeftPath)
+		name = util.TrimLeftStr(name, vfs.TrimLeftPath)
 
-		localFile := path.Join(fs.StaticFolder, name)
+		localFile := path.Join(vfs.StaticFolder, name)
 
 		log.Trace("check local file, ", localFile)
 
@@ -272,7 +272,7 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 		log.Debug("local file not found,", localFile)
 	}
 
-	f, err := fs.prepare(name)
+	f, err := vfs.prepare(name)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ type StaticFS struct {
 	CheckLocalFirst bool
 }
 
-var data = map[string]*fs.VFile{
+var data = map[string]*vfs.VFile{
 `
 	footer = `}
 `
