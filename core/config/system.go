@@ -29,8 +29,6 @@ type PathConfig struct {
 
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply
 type SystemConfig struct {
-	ConfigFile string
-
 	ClusterConfig ClusterConfig `config:"cluster"`
 
 	NetworkConfig NetworkConfig `config:"network"`
@@ -44,4 +42,8 @@ type SystemConfig struct {
 	AllowMultiInstance bool `config:"allow_multi_instance"`
 	MaxNumOfInstance   int  `config:"max_num_of_instances"`
 	TLSEnabled         bool `config:"tls_enabled"`
+
+	Modules []*Config `config:"modules"`
+
+	Plugins []*Config `config:"plugins"`
 }

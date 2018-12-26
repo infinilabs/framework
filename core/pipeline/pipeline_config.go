@@ -17,6 +17,7 @@ limitations under the License.
 package pipeline
 
 import (
+	"github.com/infinitbyte/framework/core/env"
 	"time"
 )
 
@@ -37,4 +38,16 @@ type PipelineConfig struct {
 	Created       time.Time      `json:"created,omitempty"`
 	Updated       time.Time      `json:"updated,omitempty"`
 	Tags          []string       `gorm:"-" json:"tags,omitempty" config:"tags"`
+}
+
+func GetStaticPipelineConfig() []PipelineConfig {
+
+	var pipelines []PipelineConfig
+
+	err := env.GetConfig("pipelines", &pipelines)
+
+	if err != nil {
+		panic(err)
+	}
+	return pipelines
 }

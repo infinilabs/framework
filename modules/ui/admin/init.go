@@ -35,12 +35,10 @@ func InitUI() {
 	adminUI := AdminUI{}
 
 	ui.HandleUIMethod(api.GET, "/admin/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
-	ui.HandleUIMethod(api.POST, "/admin/setting/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.UpdateSettingAction))
 	ui.HandleUIMethod(api.GET, "/admin/dashboard/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
 	ui.HandleUIMethod(api.GET, "/admin/console/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.ConsolePageAction))
 
 	ui.HandleUIFunc("/admin/explore/", adminUI.ExplorePageAction)
-	ui.HandleUIFunc("/admin/setting/", adminUI.SettingPageAction)
 
 	//Ajax
 	ajax := ajax.Ajax{}

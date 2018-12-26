@@ -97,7 +97,9 @@ func (app *App) Init(customFunc func()) {
 
 	app.environment.IsDebug = app.isDebug
 
-	app.environment.Load(app.configFile)
+	app.environment.SetConfigFile(app.configFile)
+
+	app.environment.Init()
 
 	//put env into global registrar
 	global.RegisterEnv(app.environment)

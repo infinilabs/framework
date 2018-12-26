@@ -78,6 +78,7 @@ func Lookup(k RegisterKey) interface{} {
 // RegisterEnv is used to register env to this register hub
 func RegisterEnv(e1 *env.Env) {
 	e = e1
+	e1.Init()
 }
 
 // Env returns registered env, should be available globally

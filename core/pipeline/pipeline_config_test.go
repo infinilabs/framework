@@ -18,10 +18,13 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/elastic/go-ucfg"
+	"github.com/elastic/go-ucfg/yaml"
 	"github.com/infinitbyte/framework/core/env"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -162,4 +165,44 @@ func TestPipelineConfigReflection(t3 *testing.T) {
 
 	}
 
+}
+
+func TestNewPipelineFromConfig(t *testing.T) {
+	path := "config_test.yml"
+	config, err := yaml.NewConfigWithFile(path, ucfg.PathSep("."))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	pipeConfigs := struct {
+		Pipelines []PipelineConfig `config:"pipelines"`
+	}{}
+
+	err = config.Unpack(&pipeConfigs)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	assert.Equal(t, 1, len(pipeConfigs.Pipelines))
+	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].Name)
+	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].StartJoint.JointName)
+	assert.Equal(t, true, pipeConfigs.Pipelines[0].StartJoint.Enabled)
+	assert.Equal(t, "http://localhost:9200", pipeConfigs.Pipelines[0].StartJoint.Parameters["endpoint"])
+	assert.Equal(t, "elastic", pipeConfigs.Pipelines[0].StartJoint.Parameters["username"])
+	assert.Equal(t, "changeme", pipeConfigs.Pipelines[0].StartJoint.Parameters["password"])
+	assert.Equal(t, "twitter", pipeConfigs.Pipelines[0].StartJoint.Parameters["index"])
+
+	fmt.Println(pipeConfigs)
+
+}
+
+func TestGetStaticPipelineConfig(t *testing.T) {
+	util.RestorePersistID("/tmp")
+
+	global.RegisterEnv(env.EmptyEnv().SetConfigFile("config_test.yml"))
+
+	pipelines := GetStaticPipelineConfig()
+	fmt.Println(pipelines)
 }

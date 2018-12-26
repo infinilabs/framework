@@ -19,8 +19,8 @@ package elastic
 import (
 	"bytes"
 	"context"
-	log "github.com/cihub/seelog"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/util"
 	"strings"
 	"unicode"

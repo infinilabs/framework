@@ -1,0 +1,14 @@
+pipelines:
+- name: es_scroll
+  start:
+    joint: es_scroll
+    enabled: true
+    parameters:
+      endpoint: http://localhost:9200
+      username: elastic
+      password: changeme
+      index: twitter
+  process: []
+  error:
+    joint: on_error
+    enabled: true

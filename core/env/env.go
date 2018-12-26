@@ -17,12 +17,10 @@ limitations under the License.
 package env
 
 import (
-	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/elastic/go-ucfg"
-	"github.com/elastic/go-ucfg/yaml"
 	"github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/util"
 	"io/ioutil"
 	"os"
@@ -43,19 +41,20 @@ type Env struct {
 	commit        string
 	buildDate     string
 
+	configFile string
+
 	terminalHeader string
 	terminalFooter string
 
 	// static configs
 	SystemConfig *config.SystemConfig
 
-	// dynamic configs
-	RuntimeConfig *config.RuntimeConfig
-
 	IsDebug      bool
 	IsDaemonMode bool
 
 	LoggingLevel string
+
+	init bool
 }
 
 // GetLastCommitLog returns last commit information of source code
@@ -118,24 +117,23 @@ func (env *Env) GetGoodbyeMessage() string {
 }
 
 // Environment create a new env instance from a config
-func (env *Env) Load(configFile string) *Env {
-	sysConfig := loadSystemConfig(configFile)
-	env.SystemConfig = &sysConfig
+func (env *Env) Init() *Env {
+	if env.init {
+		return env
+	}
 
-	os.MkdirAll(env.GetWorkingDir(), 0777)
-	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0777)
-
-	var err error
-	env.RuntimeConfig, err = env.loadRuntimeConfig()
+	err := env.loadConfig()
 	if err != nil {
-		log.Error(err)
 		panic(err)
 	}
+	os.MkdirAll(env.GetWorkingDir(), 0777)
+	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0777)
 
 	if env.IsDebug {
 		log.Debug(util.ToJson(env, true))
 	}
 
+	env.init = true
 	return env
 }
 
@@ -146,7 +144,7 @@ var startTime = time.Now().UTC()
 var (
 	defaultSystemConfig = config.SystemConfig{
 		ClusterConfig: config.ClusterConfig{
-			Name: "APP",
+			Name: "app",
 		},
 		NetworkConfig: config.NetworkConfig{
 			Host:           "127.0.0.1",
@@ -169,62 +167,47 @@ var (
 	}
 )
 
-func loadSystemConfig(cfgFile string) config.SystemConfig {
-	cfg := defaultSystemConfig
-	cfg.ConfigFile = cfgFile
-	if util.IsExist(cfgFile) {
-		c, err := yaml.NewConfigWithFile(cfgFile, ucfg.PathSep("."))
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		err = c.Unpack(&cfg)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	}
-	return cfg
-}
+var configObject *config.Config
 
-var (
-	defaultRuntimeConfig = config.RuntimeConfig{}
-)
+func (env *Env) loadConfig() error {
 
-func (env *Env) loadRuntimeConfig() (*config.RuntimeConfig, error) {
-
-	var configFile = "./app.yml"
-	if env.SystemConfig != nil && len(env.SystemConfig.ConfigFile) > 0 {
-		configFile = env.SystemConfig.ConfigFile
+	var ignoreFileMissing bool
+	if env.configFile == "" {
+		env.configFile = "./app.yml"
+		ignoreFileMissing = true
 	}
 
-	filename, _ := filepath.Abs(configFile)
-	var cfg config.RuntimeConfig
+	filename, _ := filepath.Abs(env.configFile)
 
 	if util.FileExists(filename) {
-		log.Debug("load configFile:", filename)
-		cfg, err := config.LoadFile(filename)
+		env.SystemConfig = &defaultSystemConfig
+
+		log.Debug("load file:", filename)
+		var err error
+		configObject, err = config.LoadFile(filename)
 		if err != nil {
-			log.Error(err)
-			return nil, err
-		}
-		config := defaultRuntimeConfig
-
-		if err := cfg.Unpack(&config); err != nil {
-			log.Error(err)
-			return nil, err
+			return err
 		}
 
-		pluginConfig = parseModuleConfig(config.Plugins)
-		moduleConfig = parseModuleConfig(config.Modules)
+		if err := configObject.Unpack(env.SystemConfig); err != nil {
+			return err
+		}
+
+		pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
+		moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 
 	} else {
-		log.Debug("no config file was found")
-
-		cfg = defaultRuntimeConfig
+		if !ignoreFileMissing {
+			return errors.Errorf("no config was found: %s", filename)
+		}
 	}
 
-	return &cfg, nil
+	return nil
+}
+
+func (env *Env) SetConfigFile(configFile string) *Env {
+	env.configFile = configFile
+	return env
 }
 
 func parseModuleConfig(cfgs []*config.Config) map[string]*config.Config {
@@ -249,6 +232,26 @@ func GetModuleConfig(name string) *config.Config {
 func GetPluginConfig(name string) *config.Config {
 	cfg := pluginConfig[strings.ToLower(name)]
 	return cfg
+}
+
+func GetConfig(configKey string, configInstance interface{}) error {
+
+	if configObject != nil {
+		childConfig, err := configObject.Child(configKey, -1)
+		if err != nil {
+			return err
+		}
+
+		err = childConfig.Unpack(configInstance)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	} else {
+		log.Errorf("config is nil")
+	}
+	return errors.Errorf("invalid config: %s", configKey)
 }
 
 func getModuleName(c *config.Config) string {
@@ -282,7 +285,7 @@ func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter s
 
 func EmptyEnv() *Env {
 	system := defaultSystemConfig
-	return &Env{SystemConfig: &system, RuntimeConfig: &config.RuntimeConfig{}}
+	return &Env{SystemConfig: &system}
 }
 
 func GetStartTime() time.Time {
