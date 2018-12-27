@@ -167,7 +167,6 @@ func (app *App) Start(setup func(), start func()) {
 				context.PidFileName = app.pidFile
 				context.PidFilePerm = 0644
 			}
-
 			child, _ := context.Reborn()
 
 			if child != nil {
@@ -254,7 +253,11 @@ func (app *App) Shutdown() {
 	if app.environment.IsDebug {
 		fmt.Println(string(*stats.StatsAll()))
 	}
-	//print goodbye message
-	fmt.Println(app.environment.GetGoodbyeMessage())
+
+	if !app.isDaemonMode {
+		//print goodbye message
+		fmt.Println(app.environment.GetGoodbyeMessage())
+	}
+
 	os.Exit(0)
 }
