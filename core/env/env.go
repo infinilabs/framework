@@ -234,7 +234,7 @@ func GetPluginConfig(name string) *config.Config {
 	return cfg
 }
 
-func GetConfig(configKey string, configInstance interface{}) error {
+func ParseConfig(configKey string, configInstance interface{}) error {
 
 	if configObject != nil {
 		childConfig, err := configObject.Child(configKey, -1)

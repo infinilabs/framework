@@ -41,3 +41,15 @@ func printStr(str []byte) {
 		fmt.Println(i, "-", s, "-", string(s))
 	}
 }
+
+func TestUInt32ToBytes(t *testing.T) {
+	var v uint32 = 4294967294
+	bytes := make([]byte, 4)
+	Uint32toBytes(bytes, v)
+	fmt.Println(bytes)
+	eBytes := []byte{255, 255, 255, 254}
+	assert.Equal(t, eBytes, bytes)
+	x := BytesToUint32(bytes)
+	fmt.Println(x)
+	assert.Equal(t, v, x)
+}

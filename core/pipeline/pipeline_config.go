@@ -44,7 +44,7 @@ func GetStaticPipelineConfig() []PipelineConfig {
 
 	var pipelines []PipelineConfig
 
-	err := env.GetConfig("pipelines", &pipelines)
+	err := env.ParseConfig("pipelines", &pipelines)
 
 	if err != nil {
 		panic(err)
