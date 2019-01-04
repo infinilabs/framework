@@ -234,24 +234,28 @@ func GetPluginConfig(name string) *config.Config {
 	return cfg
 }
 
-func ParseConfig(configKey string, configInstance interface{}) error {
-
+func ParseConfig(configKey string, configInstance interface{}) (exist bool, err error) {
 	if configObject != nil {
 		childConfig, err := configObject.Child(configKey, -1)
 		if err != nil {
-			return err
+			return exist, err
 		}
+
+		log.Tracef("found config: %s ", configKey)
+
+		exist = true
 
 		err = childConfig.Unpack(configInstance)
+		log.Tracef("parsed config: %s, %v", configKey, configInstance)
 		if err != nil {
-			return err
+			return exist, err
 		}
 
-		return nil
+		return exist, nil
 	} else {
-		log.Errorf("config is nil")
+		log.Debugf("config: %s not found", configKey)
 	}
-	return errors.Errorf("invalid config: %s", configKey)
+	return exist, errors.Errorf("invalid config: %s", configKey)
 }
 
 func getModuleName(c *config.Config) string {

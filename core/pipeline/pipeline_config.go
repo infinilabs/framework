@@ -32,21 +32,21 @@ type JointConfig struct {
 type PipelineConfig struct {
 	ID            string         `json:"id,omitempty" index:"id"`
 	Name          string         `json:"name,omitempty" config:"name"`
-	StartJoint    *JointConfig   `gorm:"-" json:"start,omitempty" config:"start"`
-	ProcessJoints []*JointConfig `gorm:"-" json:"process,omitempty" config:"process"`
-	EndJoint      *JointConfig   `gorm:"-" json:"end,omitempty" config:"end"`
+	StartJoint    *JointConfig   `json:"start,omitempty" config:"start"`
+	ProcessJoints []*JointConfig `json:"process,omitempty" config:"process"`
+	EndJoint      *JointConfig   `json:"end,omitempty" config:"end"`
 	Created       time.Time      `json:"created,omitempty"`
 	Updated       time.Time      `json:"updated,omitempty"`
-	Tags          []string       `gorm:"-" json:"tags,omitempty" config:"tags"`
+	Tags          []string       `json:"tags,omitempty" config:"tags"`
 }
 
 func GetStaticPipelineConfig() []PipelineConfig {
 
 	var pipelines []PipelineConfig
 
-	err := env.ParseConfig("pipelines", &pipelines)
+	exist, err := env.ParseConfig("pipelines", &pipelines)
 
-	if err != nil {
+	if exist && err != nil {
 		panic(err)
 	}
 	return pipelines
