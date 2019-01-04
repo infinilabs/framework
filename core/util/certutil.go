@@ -44,7 +44,7 @@ func GetRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCer
 	return rootCert, rootKey, rootCertPEM
 }
 
-func GetClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Certificate {
+func GetClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) (clientTLSCert tls.Certificate, clientCertPEM, clientKeyPEM []byte) {
 	log.Trace("generate client cert")
 
 	// create a key-pair for the client
@@ -62,21 +62,27 @@ func GetClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Cert
 	clientCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 
 	// the root cert signs the cert by again providing its private key
-	_, clientCertPEM, err := CreateCert(clientCertTmpl, rootCert, &clientKey.PublicKey, rootKey)
+	_, clientCertPEM, err = CreateCert(clientCertTmpl, rootCert, &clientKey.PublicKey, rootKey)
 	if err != nil {
 		log.Errorf("error creating cert: %v", err)
 	}
 
 	// encode and load the cert and private key for the client
-	clientKeyPEM := pem.EncodeToMemory(&pem.Block{
+	clientKeyPEM = pem.EncodeToMemory(&pem.Block{
 		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey),
 	})
-	clientTLSCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
+
+	//fmt.Printf("client_cert\n")
+	//fmt.Printf("%s\n", clientCertPEM)
+	//fmt.Printf("client_key\n")
+	//fmt.Printf("%s\n", clientKeyPEM)
+
+	clientTLSCert, err = tls.X509KeyPair(clientCertPEM, clientKeyPEM)
 	if err != nil {
 		log.Errorf("invalid key pair: %v", err)
 	}
 
-	return clientTLSCert
+	return clientTLSCert, clientCertPEM, clientKeyPEM
 }
 
 // helper function to create a cert template with a serial number and other required fields

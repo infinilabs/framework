@@ -71,7 +71,7 @@ func TestGetCert(t *testing.T) {
 	certPool := x509.NewCertPool()
 	certPool.AppendCertsFromPEM(rootCertPEM)
 
-	clientTLSCert := GetClientCert(rootCert, rootKey)
+	clientTLSCert, _, _ := GetClientCert(rootCert, rootKey)
 
 	authedClient := &http.Client{
 		Transport: &http.Transport{
