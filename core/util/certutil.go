@@ -11,11 +11,12 @@ import (
 	"errors"
 	log "github.com/cihub/seelog"
 	"math/big"
-	"net"
 	"time"
 )
 
-func getRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCertPEM []byte) {
+func GetRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCertPEM []byte) {
+	log.Trace("generate root cert")
+
 	var err error
 	// generate a new key-pair
 	rootKey, err = rsa.GenerateKey(rand.Reader, 2048)
@@ -23,7 +24,7 @@ func getRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCer
 		log.Errorf("generating random key: %v", err)
 	}
 
-	rootCertTmpl, err := CertTemplate()
+	rootCertTmpl, err := GetCertTemplate()
 	if err != nil {
 		log.Errorf("creating cert template: %v", err)
 	}
@@ -31,7 +32,7 @@ func getRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCer
 	rootCertTmpl.IsCA = true
 	rootCertTmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
 	rootCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
-	rootCertTmpl.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
+	//rootCertTmpl.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
 
 	rootCert, rootCertPEM, err = CreateCert(rootCertTmpl, rootCertTmpl, &rootKey.PublicKey, rootKey)
 	if err != nil {
@@ -43,7 +44,8 @@ func getRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCer
 	return rootCert, rootKey, rootCertPEM
 }
 
-func getClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Certificate {
+func GetClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Certificate {
+	log.Trace("generate client cert")
 
 	// create a key-pair for the client
 	clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -52,7 +54,7 @@ func getClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Cert
 	}
 
 	// create a template for the client
-	clientCertTmpl, err := CertTemplate()
+	clientCertTmpl, err := GetCertTemplate()
 	if err != nil {
 		log.Errorf("creating cert template: %v", err)
 	}
@@ -78,7 +80,9 @@ func getClientCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey) tls.Cert
 }
 
 // helper function to create a cert template with a serial number and other required fields
-func CertTemplate() (*x509.Certificate, error) {
+func GetCertTemplate() (*x509.Certificate, error) {
+	log.Trace("generate cert template")
+
 	// generate a random serial number (a real cert authority would have some logic behind this)
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -99,6 +103,8 @@ func CertTemplate() (*x509.Certificate, error) {
 
 func CreateCert(template, parent *x509.Certificate, pub interface{}, parentPriv interface{}) (
 	cert *x509.Certificate, certPEM []byte, err error) {
+
+	log.Trace("create cert")
 
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, parentPriv)
 	if err != nil {

@@ -33,7 +33,7 @@ import (
 )
 
 func TestGetCert(t *testing.T) {
-	rootCert, rootKey, rootCertPEM := getRootCert()
+	rootCert, rootKey, rootCertPEM := GetRootCert()
 
 	ok := func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("HI!")) }
 
@@ -44,7 +44,7 @@ func TestGetCert(t *testing.T) {
 	}
 
 	// create a template for the server
-	servCertTmpl, err := CertTemplate()
+	servCertTmpl, err := GetCertTemplate()
 	if err != nil {
 		log.Errorf("creating cert template: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestGetCert(t *testing.T) {
 	certPool := x509.NewCertPool()
 	certPool.AppendCertsFromPEM(rootCertPEM)
 
-	clientTLSCert := getClientCert(rootCert, rootKey)
+	clientTLSCert := GetClientCert(rootCert, rootKey)
 
 	authedClient := &http.Client{
 		Transport: &http.Transport{
@@ -88,7 +88,9 @@ func TestGetCert(t *testing.T) {
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    certPool,
 	}
+
 	s.StartTLS()
+
 	resp, err := authedClient.Get(s.URL)
 	s.Close()
 	assert.Equal(t, nil, err)
@@ -101,4 +103,24 @@ func TestGetCert(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Equal(t, 3, int(resp.ContentLength))
 
+	//// Load the certificates from disk
+	//certificate, err := tls.LoadX509KeyPair(crt, key)
+	//if err != nil {
+	//	log.Errorf("could not load server key pair: %s", err)
+	//	panic(err)
+	//}
+	//
+	//// Create a certificate pool from the certificate authority
+	//certPool := x509.NewCertPool()
+	//ca, err := ioutil.ReadFile(ca)
+	//if err != nil {
+	//	log.Errorf("could not read ca certificate: %s", err)
+	//	panic(err)
+	//}
+	//
+	//// Append the client certificates from the CA
+	//if ok := certPool.AppendCertsFromPEM(ca); !ok {
+	//	log.Errorf("failed to append client certs")
+	//	panic(err)
+	//}
 }
