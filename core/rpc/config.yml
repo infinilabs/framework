@@ -1,0 +1,7 @@
+rpc:
+- binding_addr: "localhost:10000"
+  tls_ca_file: "test/cert/ca.pem"
+  tls_cert_file: "test/cert/server.crt"
+  tls_key_file: "test/cert/server.key"
+  tls_enabled: true
+  tls_skip_insecure_verify: false
