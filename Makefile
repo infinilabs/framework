@@ -28,11 +28,21 @@ MAC       := "Darwin"
 GO_FILES=$(find . -iname '*.go' | grep -v /vendor/)
 PKGS=$(go list ./... | grep -v /vendor/)
 
+FRAMEWORK_VENDOR_FOLDER := $(CURDIR)/vendor/
+FRAMEWORK_VENDOR_BRANCH := master
+
+
 .PHONY: all build update test
 
 default: build
 
 build: config
+
+init:
+	@echo building FRAMEWORK $(FRAMEWORK_VERSION)
+	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(git clone  -b $(FRAMEWORK_VENDOR_BRANCH) https://github.com/infinitbyte/framework-vendor.git vendor) fi
+	(cd vendor && git pull origin $(FRAMEWORK_VENDOR_BRANCH))
+
 
 format:
 	gofmt -l -s -w .

@@ -1,4 +1,10 @@
 # Framework
 
 ## How to use
-- Move `_vendor` folder to your own application's root folder, and rename it to `vendor`.
+- Clone framework's `vendor` to your own application's root folder.
+```
+git clone  -b master https://github.com/infinitbyte/framework-vendor.git vendor
+```
+
+Example Project
+- https://github.com/infinitbyte/gopa
