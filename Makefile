@@ -137,3 +137,6 @@ cyclo:
 benchmarks:
 	go test github.com/infinitbyte/gopa/core/util -benchtime=1s -bench ^Benchmark -run ^$
 	go test github.com/infinitbyte/gopa//modules/crawler/pipe -benchtime=1s -bench  ^Benchmark -run ^$
+
+update_proto:
+	(cd core/cluster/pb && protoc --go_out=plugins=grpc:. *.proto)
