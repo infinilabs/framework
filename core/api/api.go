@@ -9,6 +9,8 @@ import (
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/rs/cors"
+	"golang.org/x/net/http2"
+	"net"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -16,15 +18,16 @@ import (
 )
 
 // RegisteredAPIHandler is a hub for registered api
-var registeredAPIHandler map[string]http.Handler
+var registeredAPIHandler = make(map[string]http.Handler)
 
 // RegisteredAPIFuncHandler is a hub for registered api
-var registeredAPIFuncHandler map[string]func(http.ResponseWriter, *http.Request)
+var registeredAPIFuncHandler = make(map[string]func(http.ResponseWriter, *http.Request))
 
 // RegisteredAPIMethodHandler is a hub for registered api
-var registeredAPIMethodHandler map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)
+var registeredAPIMethodHandler = make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params))
 
 var l sync.Mutex
+var started bool
 
 // HandleAPIFunc register api handler to specify pattern
 func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
@@ -33,6 +36,10 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 		registeredAPIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
 	}
 	registeredAPIFuncHandler[pattern] = handler
+
+	log.Debugf("register custom http handler: %v", pattern)
+	mux.HandleFunc(pattern, handler)
+
 	l.Unlock()
 }
 
@@ -44,6 +51,10 @@ func HandleAPI(pattern string, handler http.Handler) {
 		registeredAPIHandler = map[string]http.Handler{}
 	}
 	registeredAPIHandler[pattern] = handler
+	log.Debugf("register custom http handler: %v", pattern)
+
+	mux.Handle(pattern, handler)
+
 	l.Unlock()
 }
 
@@ -54,44 +65,23 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 		registeredAPIMethodHandler = map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
 
-	m := registeredAPIMethodHandler[string(method)]
-	if m == nil {
-		registeredAPIMethodHandler[string(method)] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
+	m := string(method)
+	m1 := registeredAPIMethodHandler[m]
+	if m1 == nil {
+		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
-	registeredAPIMethodHandler[string(method)][pattern] = handler
+	registeredAPIMethodHandler[m][pattern] = handler
+	log.Debugf("register custom http handler: %v %v", m, pattern)
+
+	router.Handle(m, pattern, handler)
 	l.Unlock()
 }
 
-var router *httprouter.Router
-var mux *http.ServeMux
+var router *httprouter.Router = httprouter.New(mux)
+var mux *http.ServeMux = http.NewServeMux()
 
 // StartAPI will start listen and act as the API server
 func StartAPI() {
-
-	mux = http.NewServeMux()
-	router = httprouter.New(mux)
-
-	//registered handlers
-	if registeredAPIHandler != nil {
-		for k, v := range registeredAPIHandler {
-			log.Debugf("register custom http handler: %v", k)
-			mux.Handle(k, v)
-		}
-	}
-	if registeredAPIFuncHandler != nil {
-		for k, v := range registeredAPIFuncHandler {
-			log.Debugf("register custom http handler: %v", k)
-			mux.HandleFunc(k, v)
-		}
-	}
-	if registeredAPIMethodHandler != nil {
-		for k, v := range registeredAPIMethodHandler {
-			for m, n := range v {
-				log.Debugf("register custom http handler: %v %v", k, m)
-				router.Handle(k, m, n)
-			}
-		}
-	}
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
@@ -99,6 +89,13 @@ func StartAPI() {
 	})
 
 	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.APIBinding)
+	global.Env().SystemConfig.NetworkConfig.APIBinding = address
+
+	l, err := net.Listen("tcp", address)
+
+	if err != nil {
+		panic(err)
+	}
 
 	if global.Env().SystemConfig.TLSEnabled {
 		log.Debug("start ssl endpoint")
@@ -142,8 +139,10 @@ func StartAPI() {
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 		}
 
+		http2.ConfigureServer(srv, &http2.Server{})
+
 		log.Info("api server listen at: https://", address)
-		err = srv.ListenAndServeTLS(certFile, keyFile)
+		err = srv.ServeTLS(l, certFile, keyFile)
 		if err != nil {
 			log.Error(err)
 			panic(err)
@@ -152,7 +151,7 @@ func StartAPI() {
 	} else {
 		log.Info("api server listen at: http://", address)
 
-		err := http.ListenAndServe(address, c.Handler(context.ClearHandler(router)))
+		err := http.Serve(l, c.Handler(context.ClearHandler(router)))
 		if err != nil {
 			log.Error(err)
 			panic(err)
