@@ -227,22 +227,26 @@ func (app *App) Shutdown() {
 	//cleanup
 	util.ClearInstanceLock()
 
-	if !global.Env().IsDebug {
-		if r := recover(); r != nil {
-			if r == nil {
-				return
-			}
-			var v string
-			switch r.(type) {
-			case error:
-				v = r.(error).Error()
-			case runtime.Error:
-				v = r.(runtime.Error).Error()
-			case string:
-				v = r.(string)
-			}
-			log.Error("shutdown: ", v)
+	if r := recover(); r != nil {
+		if r == nil {
+			return
 		}
+		var v string
+		switch r.(type) {
+		case error:
+			v = r.(error).Error()
+		case runtime.Error:
+			v = r.(runtime.Error).Error()
+		case string:
+			v = r.(string)
+		}
+
+		log.Error("shutdown: ", v)
+
+		buf := make([]byte, 1<<20)
+		runtime.Stack(buf, true)
+		fmt.Printf("\n%s", buf)
+
 	}
 
 	util.SnapshotPersistID()
