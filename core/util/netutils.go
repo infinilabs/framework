@@ -86,3 +86,11 @@ func GetValidAddress(addr string) string {
 	}
 	return addr
 }
+
+func GetAddress(adr string) *net.TCPAddr {
+	addr, err := net.ResolveTCPAddr("tcp", adr)
+	if err != nil {
+		panic(err)
+	}
+	return addr
+}
