@@ -36,7 +36,7 @@ func (module ClusterModule) Start() error {
 
 	go rpc.StartRPCServer()
 
-	module.s.Broadcast()
+	go module.s.Broadcast()
 
 	return nil
 }
