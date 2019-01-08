@@ -14,11 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rpc
+package discovery
 
-type RPCConfig struct {
-	TLSEnabled            bool   `config:"tls_enabled"`
-	TLSCertFile           string `config:"tls_cert_file"`
-	TLSKeyFile            string `config:"tls_key_file"`
-	TLSInsecureSkipVerify bool   `config:"tls_skip_insecure_verify"`
+import (
+	"context"
+	pb "github.com/infinitbyte/framework/core/cluster/pb"
+)
+
+type Discovery struct {
+}
+
+func (c *Discovery) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
+	out := new(pb.JoinResponse)
+
+	return out, nil
+}
+
+func (c *Discovery) Ping(ctx context.Context, in *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
+	out := new(pb.HealthCheckResponse)
+	out.Success = true
+	return out, nil
 }

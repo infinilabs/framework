@@ -14,11 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rpc
+package leader
 
-type RPCConfig struct {
-	TLSEnabled            bool   `config:"tls_enabled"`
-	TLSCertFile           string `config:"tls_cert_file"`
-	TLSKeyFile            string `config:"tls_key_file"`
-	TLSInsecureSkipVerify bool   `config:"tls_skip_insecure_verify"`
-}
+//import (
+//	"github.com/infinitbyte/framework/core/rpc"
+//	."github.com/infinitbyte/framework/core/cluster/pb"
+//	"context"
+//	log "github.com/cihub/seelog"
+//)
+//
+//type HealthCheck struct {
+//
+//}
+//
+//func (c *HealthCheck) Ping(ctx context.Context, in *HealthCheckRequest) (*HealthCheckResponse, error) {
+//
+//	log.Info(in.NodeIp,",",in.NodeName,",",in.NodePort)
+//
+//	return &HealthCheckResponse{Success:true}, nil
+//}
+//
+//func Init() {
+//	mys := &HealthCheck{}
+//	RegisterHealthCheckServer(rpc.GetRPCServer(), mys)
+//
+//}

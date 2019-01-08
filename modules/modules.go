@@ -37,9 +37,9 @@ func Register() {
 	module.RegisterSystemModule(filter.FilterModule{})
 	module.RegisterSystemModule(stats.SimpleStatsModule{})
 	module.RegisterSystemModule(queue.DiskQueue{})
-	module.RegisterSystemModule(cluster.ClusterModule{})
 	module.RegisterSystemModule(api.APIModule{})
 	module.RegisterSystemModule(ui.UIModule{})
 	module.RegisterSystemModule(pipeline.PipeModule{})
 	module.RegisterSystemModule(index.IndexModule{})
+	module.RegisterSystemModule(cluster.ClusterModule{})
 }

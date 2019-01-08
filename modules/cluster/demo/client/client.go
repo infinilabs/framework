@@ -27,7 +27,7 @@ import (
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/rpc"
 	"github.com/infinitbyte/framework/core/util"
-	pb "github.com/infinitbyte/framework/modules/rpc/demo/helloworld"
+	pb "github.com/infinitbyte/framework/modules/cluster/demo/helloworld"
 )
 
 const (

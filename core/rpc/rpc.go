@@ -22,10 +22,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/env"
+	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -41,10 +41,14 @@ func GetRPCServer() *grpc.Server {
 
 //only select local connection
 func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
-	return ObtainConnection(c.BindingAddr)
+	return ObtainConnection(global.Env().SystemConfig.NetworkConfig.RPCBinding)
 }
 
-var addr = flag.String("rpc.bind", "localhost:10000", "the rpc address to bind to")
+//func ObtainLeaderConnection() (conn *grpc.ClientConn, err error) {
+////	return ObtainConnection(leaderAddr)
+////}
+
+//var addr = flag.String("rpc.bind", "localhost:20000", "the rpc address to bind to")
 
 //auto select connection
 func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
@@ -57,7 +61,7 @@ func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
 		cert := c.TLSCertFile
 		key := c.TLSKeyFile
 		if cert != "" && key != "" {
-			log.Debug("use pre-defined cert")
+			log.Trace("use pre-defined cert")
 
 			// Create tls based credential.
 			creds, err = credentials.NewClientTLSFromFile(cert, key)
@@ -126,7 +130,7 @@ func Setup() {
 	s = grpc.NewServer()
 
 	//get config
-	c = &RPCConfig{BindingAddr: *addr}
+	c = &RPCConfig{}
 
 	exist, err := env.ParseConfig("rpc", c)
 
@@ -226,15 +230,15 @@ func Setup() {
 
 func StartRPCServer() {
 
-	c.BindingAddr = util.AutoGetAddress(c.BindingAddr)
-	lis, err := net.Listen("tcp", c.BindingAddr)
+	global.Env().SystemConfig.NetworkConfig.RPCBinding = util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
+	lis, err := net.Listen("tcp", global.Env().SystemConfig.NetworkConfig.RPCBinding)
 	if err != nil {
 		log.Errorf("failed to listen: %v", err)
 	}
 
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
-	log.Infof("rpc server listen at: %s", c.BindingAddr)
+	log.Infof("rpc server listen at: %s", global.Env().SystemConfig.NetworkConfig.RPCBinding)
 
 	if err := s.Serve(lis); err != nil {
 		log.Errorf("failed to serve: %v", err)

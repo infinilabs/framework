@@ -14,26 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package server
+package multicast
 
-import (
-	"context"
-	"github.com/infinitbyte/framework/core/rpc"
-	pb "github.com/infinitbyte/framework/modules/rpc/demo/helloworld"
-	"log"
-)
-
-// server is used to implement helloworld.GreeterServer.
-type Server struct{}
-
-// SayHello implements helloworld.GreeterServer
-func (s *Server) SayHello(c context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
-	log.Printf("Received: %v", in.Name)
-	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
-}
-
-func Init() {
-	mys := &Server{}
-	pb.RegisterGreeterServer(rpc.GetRPCServer(), mys)
-
-}
+//
+//import (
+//	"encoding/hex"
+//	"github.com/infinitbyte/framework/core/cluster"
+//	"github.com/infinitbyte/framework/core/env"
+//	"github.com/infinitbyte/framework/core/util"
+//	"log"
+//	"net"
+//	"time"
+//)
+//
+//
+//
+//func main() {
+//
+//	go ServeMulticastDiscovery(multicastCallback)
+//
+//	req := cluster.Request{}
+//	req.Node = cluster.Node{IP: "localhost", Port: 1235}
+//
+//	for i := 1; i < 1000; i++ {
+//		Broadcast(&req)
+//	}
+//
+//	time.Sleep(1 * time.Minute)
+//}

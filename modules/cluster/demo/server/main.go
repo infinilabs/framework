@@ -14,11 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rpc
+package server
 
-type RPCConfig struct {
-	TLSEnabled            bool   `config:"tls_enabled"`
-	TLSCertFile           string `config:"tls_cert_file"`
-	TLSKeyFile            string `config:"tls_key_file"`
-	TLSInsecureSkipVerify bool   `config:"tls_skip_insecure_verify"`
+import (
+	"context"
+	"github.com/infinitbyte/framework/core/rpc"
+	pb "github.com/infinitbyte/framework/modules/cluster/demo/helloworld"
+	"log"
+)
+
+// server is used to implement helloworld.GreeterServer.
+type Server struct{}
+
+// SayHello implements helloworld.GreeterServer
+func (s *Server) SayHello(c context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	log.Printf("Received: %v", in.Name)
+	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
+}
+
+func Init() {
+	mys := &Server{}
+	pb.RegisterGreeterServer(rpc.GetRPCServer(), mys)
+
 }

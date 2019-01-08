@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rpc
+package multicast
 
-type RPCConfig struct {
-	TLSEnabled            bool   `config:"tls_enabled"`
-	TLSCertFile           string `config:"tls_cert_file"`
-	TLSKeyFile            string `config:"tls_key_file"`
-	TLSInsecureSkipVerify bool   `config:"tls_skip_insecure_verify"`
-}
+//
+//import "testing"
+//
+//func TestMulticast(t *testing.T) {
+//	main()
+//}

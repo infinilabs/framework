@@ -1,28 +1,43 @@
 package cluster
 
 import (
-	log "github.com/cihub/seelog"
-	. "github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/modules/cluster/discovery/raft"
+	"github.com/infinitbyte/framework/core/cluster"
+	pb "github.com/infinitbyte/framework/core/cluster/pb"
+	"github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/rpc"
+	"github.com/infinitbyte/framework/modules/cluster/demo/server"
+	"github.com/infinitbyte/framework/modules/cluster/discovery"
 )
 
 type ClusterModule struct {
+	s *cluster.RaftModule
 }
 
 func (module ClusterModule) Name() string {
-	return "Cluster"
+	return "ClusterName"
 }
 
-func (module ClusterModule) Setup(cfg *Config) {
+func (module ClusterModule) Setup(cfg *config.Config) {
 
-	s := raft.New()
-	if err := s.Open(); err != nil {
-		log.Errorf("failed to open raft: %s", err.Error())
+	rpc.Setup()
+	module.s = cluster.New()
+
+	if err := module.s.Open(); err != nil {
 		panic(err)
 	}
 }
 
 func (module ClusterModule) Start() error {
+
+	server.Init()
+
+	mys := &discovery.Discovery{}
+	pb.RegisterDiscoveryServer(rpc.GetRPCServer(), mys)
+
+	go rpc.StartRPCServer()
+
+	module.s.Broadcast()
+
 	return nil
 }
 
