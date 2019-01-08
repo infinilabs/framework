@@ -24,8 +24,14 @@ import (
 type Discovery struct {
 }
 
-func (c *Discovery) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
-	out := new(pb.JoinResponse)
+func (c *Discovery) Join(ctx context.Context, in *pb.NodeRequest) (*pb.AckResponse, error) {
+	out := new(pb.AckResponse)
+
+	return out, nil
+}
+
+func (c *Discovery) Leave(ctx context.Context, in *pb.NodeRequest) (*pb.AckResponse, error) {
+	out := new(pb.AckResponse)
 
 	return out, nil
 }

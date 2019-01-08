@@ -11,7 +11,8 @@ service Metadata {
 }
 
 service Discovery {
-    rpc	Join (JoinRequest) returns (JoinResponse){}
+    rpc	Join (NodeRequest) returns (AckResponse){}
+    rpc	Leave (NodeRequest) returns (AckResponse){}
     rpc Ping (HealthCheckRequest) returns (HealthCheckResponse) {}
 }
 
@@ -25,13 +26,15 @@ message MetadataResponse {
     string message = 1;
 }
 
-message JoinRequest {
+message NodeRequest {
     string node_name = 1;
     string node_ip = 2;
     uint32 node_port = 3;
 }
 
-message JoinResponse {}
+message AckResponse {
+    bool success = 1;
+}
 
 message HealthCheckRequest {
     string node_name = 1;
