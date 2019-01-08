@@ -2,17 +2,20 @@ package config
 
 // ClusterConfig stores cluster settings
 type ClusterConfig struct {
-	Name  string   `config:"name"`
-	Seeds []string `config:"seeds"`
+	Name         string   `config:"name"`
+	MinimumNodes int      `config:"minimum_nodes"`
+	Seeds        []string `config:"seeds"`
 }
 
 // NetworkConfig stores network settings
 type NetworkConfig struct {
 	Host string `config:"host"`
 
-	APIBinding     string `config:"api_bind"`
-	HTTPBinding    string `config:"http_bind"`
-	ClusterBinding string `config:"cluster_bind"`
+	APIBinding       string `config:"api_bind"`
+	HTTPBinding      string `config:"http_bind"`
+	RaftBinding      string `config:"raft_bind"`
+	RPCBinding       string `config:"rpc_bind"`
+	BoradcastBinding string `config:"broadcast_bind"`
 }
 
 // NodeConfig stores node settings
