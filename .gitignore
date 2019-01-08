@@ -45,3 +45,4 @@ bin/
 /bin-run/
 /leveldb
 /dist
+vendor/
