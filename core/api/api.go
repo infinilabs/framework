@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // RegisteredAPIHandler is a hub for registered api
@@ -98,7 +99,7 @@ func StartAPI() {
 	}
 
 	if global.Env().SystemConfig.TLSEnabled {
-		log.Debug("start ssl endpoint")
+		log.Debug("tls enabled")
 
 		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
 		match, err := filepath.Glob(certFile)
@@ -141,21 +142,28 @@ func StartAPI() {
 
 		http2.ConfigureServer(srv, &http2.Server{})
 
-		log.Info("api server listen at: https://", address)
-		err = srv.ServeTLS(l, certFile, keyFile)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
+		go func() {
+			err = srv.ServeTLS(l, certFile, keyFile)
+			if err != nil {
+				log.Error(err)
+				panic(err)
+			}
+		}()
 
 	} else {
-		log.Info("api server listen at: http://", address)
 
-		err := http.Serve(l, c.Handler(context.ClearHandler(router)))
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
+		go func() {
+			err := http.Serve(l, c.Handler(context.ClearHandler(router)))
+			if err != nil {
+				log.Error(err)
+				panic(err)
+			}
+		}()
 	}
 
+	err = util.WaitServerUp(address, 30*time.Second)
+	if err != nil {
+		panic(err)
+	}
+	log.Info("api server listen at: ", address)
 }

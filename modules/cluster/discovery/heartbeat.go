@@ -18,6 +18,7 @@ package discovery
 
 import (
 	"context"
+	log "github.com/cihub/seelog"
 	pb "github.com/infinitbyte/framework/core/cluster/pb"
 )
 
@@ -39,5 +40,6 @@ func (c *Discovery) Leave(ctx context.Context, in *pb.NodeRequest) (*pb.AckRespo
 func (c *Discovery) Ping(ctx context.Context, in *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
 	out := new(pb.HealthCheckResponse)
 	out.Success = true
+	log.Debug("received ping from: ", in.NodeIp, ",", in.NodePort)
 	return out, nil
 }

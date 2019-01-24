@@ -44,11 +44,11 @@ func TestFlatten(t *testing.T) {
 		fmt.Println(i, v)
 	}
 
-	fmt.Println(Flatten(o))
-	for i, v := range Flatten(o) {
+	fmt.Println(Flatten(o, false))
+	for i, v := range Flatten(o, false) {
 		fmt.Println(i, v)
 	}
-	assert.Equal(t, "val1", Flatten(o)["key.key2.key2"])
+	assert.Equal(t, "val1", Flatten(o, false)["key.key2.key2"])
 
 	js := struct {
 		Name     string `json:"name"`
@@ -63,7 +63,7 @@ func TestFlatten(t *testing.T) {
 		Lon string
 	}{Lat: "123", Lon: "123123"}}
 
-	x := FlattenPrefixed(js, "my")
+	x := FlattenPrefixed(js, "my", false)
 	for i, v := range x {
 		fmt.Println(i, v)
 	}
@@ -85,7 +85,7 @@ func TestFlatten(t *testing.T) {
 		  "outer1": "myvalue"
 		}`
 
-	flat, _ := FlattenJSON(json, "")
+	flat, _ := FlattenJSONString(json, "", false)
 	fmt.Println(flat)
 
 }

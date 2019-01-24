@@ -35,6 +35,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var router *httprouter.Router
@@ -84,7 +85,7 @@ func StartUI() {
 	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.HTTPBinding)
 
 	if global.Env().SystemConfig.TLSEnabled {
-		log.Debug("start ssl endpoint")
+		log.Debug("tls enabled")
 
 		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
 		match, err := filepath.Glob(certFile)
@@ -125,21 +126,30 @@ func StartUI() {
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 
-		log.Info("https server listen at: https://", address)
-		err = srv.ListenAndServeTLS(certFile, keyFile)
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
+		go func() {
+			err = srv.ListenAndServeTLS(certFile, keyFile)
+			if err != nil {
+				log.Error(err)
+				panic(err)
+			}
+		}()
 
 	} else {
-		log.Info("http server listen at: http://", address)
-		err := http.ListenAndServe(address, context.ClearHandler(router))
-		if err != nil {
-			log.Error(err)
-			panic(err)
-		}
+		go func() {
+			err := http.ListenAndServe(address, context.ClearHandler(router))
+			if err != nil {
+				log.Error(err)
+				panic(err)
+			}
+		}()
+
 	}
+
+	err := util.WaitServerUp(address, 30*time.Second)
+	if err != nil {
+		panic(err)
+	}
+	log.Info("ui server listen at: ", address)
 
 }
 

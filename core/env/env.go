@@ -147,11 +147,12 @@ var (
 			Name: "app",
 		},
 		NetworkConfig: config.NetworkConfig{
-			Host:        "127.0.0.1",
-			APIBinding:  "127.0.0.1:8000",
-			HTTPBinding: "127.0.0.1:9000",
-			RPCBinding:  "127.0.0.1:10000",
-			RaftBinding: "127.0.0.1:20000",
+			Host:             "127.0.0.1",
+			APIBinding:       "127.0.0.1:8000",
+			HTTPBinding:      "127.0.0.1:9000",
+			RPCBinding:       "127.0.0.1:10000",
+			RaftBinding:      "127.0.0.1:20000",
+			BoradcastBinding: "224.3.2.2:9876",
 		},
 		NodeConfig: config.NodeConfig{
 			Name: util.PickRandomName(),

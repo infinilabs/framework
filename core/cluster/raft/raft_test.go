@@ -1199,6 +1199,18 @@ func TestRaft_AddKnownPeer(t *testing.T) {
 	}
 }
 
+func TestRaft_OnePeer(t *testing.T) {
+	// Make a cluster
+	c := MakeCluster(2, t, nil)
+	defer c.Close()
+
+	// Get the leader
+	leader := c.Leader()
+	fmt.Println(c.Leader().leader)
+	fmt.Println(leader.peers)
+
+}
+
 func TestRaft_RemoveUnknownPeer(t *testing.T) {
 	// Make a cluster
 	c := MakeCluster(3, t, nil)

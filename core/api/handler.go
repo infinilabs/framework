@@ -226,6 +226,20 @@ func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 	return jq, nil
 }
 
+func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
+
+	content, err := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		return err
+	}
+	if len(content) == 0 {
+		return errors.NewWithCode(err, errors.JSONIsEmpty, r.URL.String())
+	}
+
+	return json.Unmarshal(content, o)
+}
+
 // GetRawBody return raw http request body
 func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 

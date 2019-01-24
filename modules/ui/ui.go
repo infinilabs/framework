@@ -58,9 +58,7 @@ func (module UIModule) Setup(cfg *Config) {
 	//register websocket logger
 	logger.RegisterWebsocketHandler(LoggerReceiver)
 
-	go func() {
-		ui.StartUI()
-	}()
+	ui.StartUI()
 
 	vfs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
 

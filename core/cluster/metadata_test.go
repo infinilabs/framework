@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Medcl (m AT medcl.net)
+Copyright Medcl (m AT medcl.net)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,33 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package api
+package cluster
 
 import (
-	"github.com/infinitbyte/framework/core/api"
-	"github.com/infinitbyte/framework/core/config"
+	"fmt"
+	"github.com/infinitbyte/framework/core/util"
+	"testing"
 )
 
-// Name return API
-func (module APIModule) Name() string {
-	return "API"
-}
+func TestMetadata(t *testing.T) {
 
-// Start api server
-func (module APIModule) Setup(cfg *config.Config) {
-	//API server
-	api.StartAPI()
-}
-func (module APIModule) Start() error {
+	m := Metadata{
+		KnownNodesRPCEndpoint: make(map[string]*Node)}
 
-	return nil
-}
+	n := Node{}
+	n.Active = false
+	m.KnownNodesRPCEndpoint["192.168.1.121:10000"] = &n
+	n = Node{}
+	n.Active = true
+	m.KnownNodesRPCEndpoint["192.168.1.120:10000"] = &n
 
-// Stop api server
-func (module APIModule) Stop() error {
-	return nil
-}
-
-// APIModule is used to start API server
-type APIModule struct {
+	flat := util.FlattenJSON(m, true)
+	fmt.Println(util.ToJson(flat, true))
 }

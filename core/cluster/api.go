@@ -21,25 +21,34 @@ import (
 	"github.com/infinitbyte/framework/core/util"
 
 	"encoding/json"
+	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/api"
 	"net/http"
 )
 
+type ClusterAPI struct {
+	api.Handler
+}
+
 func InitAPI() {
-	api.HandleAPIFunc("/_cluster/health", clusterInfo)
-	//apihandler.HandleAPIFunc("/_cluster/node/_join", s.handleJoin)
+
+	cluster := ClusterAPI{}
+
+	api.HandleAPIFunc("/_cluster/health", cluster.clusterInfo)
+	api.HandleAPIFunc("/_cluster/node/_leave", cluster.handleLeave)
 	//apihandler.HandleAPIFunc("/_cluster/node/_leave", s.handleLeave)
 	//
 	//apihandler.HandleAPIFunc("/cache", s.handleKeyRequest)
 	//apihandler.HandleAPIFunc("/cache/", s.handleKeyRequest)
 }
 
-func clusterInfo(w http.ResponseWriter, r *http.Request) {
+func (handler ClusterAPI) clusterInfo(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{}
 	stats["cluster_name"] = global.Env().SystemConfig.ClusterConfig.Name
 	stats["status"] = GetRaftStatus()
-	stats["number_of_nodes"] = GetActivePeersCount()
-	stats["nodes"] = GetActivePeers()
+	stats["number_of_nodes"] = GetLocalActivePeersCount()
+	stats["local_meta"] = GetLocalPeers()
+	stats["cluster_meta"] = GetClusterReadonlyMetadata()
 	stats["number_of_minimum_nodes"] = global.Env().SystemConfig.ClusterConfig.MinimumNodes
 	stats["timed_out"] = false
 	stats["raft"] = util.MapStr{
@@ -50,4 +59,17 @@ func clusterInfo(w http.ResponseWriter, r *http.Request) {
 
 	b, _ := json.MarshalIndent(stats, "", "  ")
 	w.Write(b)
+}
+
+func (handler ClusterAPI) handleLeave(w http.ResponseWriter, r *http.Request) {
+	node := Node{}
+	err := handler.DecodeJSON(r, &node)
+	if err != nil {
+		handler.Error(w, err)
+	}
+
+	log.Error("receive node leave request, ", node)
+
+	getRaft().Leave(node.RaftEndpoint, node.RPCEndpoint)
+
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Medcl (m AT medcl.net)
+Copyright Medcl (m AT medcl.net)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,33 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package api
+package cluster
 
-import (
-	"github.com/infinitbyte/framework/core/api"
-	"github.com/infinitbyte/framework/core/config"
-)
-
-// Name return API
-func (module APIModule) Name() string {
-	return "API"
-}
-
-// Start api server
-func (module APIModule) Setup(cfg *config.Config) {
-	//API server
-	api.StartAPI()
-}
-func (module APIModule) Start() error {
-
-	return nil
-}
-
-// Stop api server
-func (module APIModule) Stop() error {
-	return nil
-}
-
-// APIModule is used to start API server
-type APIModule struct {
+type Metadata struct {
+	KnownNodesRPCEndpoint map[string]*Node `json:"known_nodes"`
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"github.com/golang/go/src/pkg/fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"
@@ -41,7 +42,7 @@ func TestGetAvailablePort(t *testing.T) {
 	assert.Equal(t, true, res)
 
 	ln, _ := net.Listen("tcp", ":"+strconv.Itoa(port))
-	ln.Close()
+	defer ln.Close()
 
 	p1 := GetAvailablePort("", port)
 	assert.Equal(t, 42124, p1)
@@ -50,7 +51,7 @@ func TestGetAvailablePort(t *testing.T) {
 func TestGetAvailablePort2(t *testing.T) {
 	port := 42123
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 1000; i++ {
 		p1 := GetAvailablePort("", port)
 		assert.Equal(t, 42123, p1)
 	}
@@ -81,4 +82,9 @@ func TestGetValidAddress(t *testing.T) {
 	addr := ":8001"
 	addr = GetValidAddress(addr)
 	assert.Equal(t, "127.0.0.1:8001", addr)
+}
+
+func TestGetIntranetIP(t *testing.T) {
+	ip, _ := GetIntranetIP()
+	fmt.Println(ip)
 }

@@ -45,7 +45,7 @@ init:
 
 
 format:
-	gofmt -l -s -w .
+	go fmt $$(go list ./... | grep -v /vendor/)
 
 update-ui:
 	@echo "generate static files"
@@ -63,42 +63,44 @@ config: update-ui update-template-ui
 
 fetch-depends:
 	@echo "fetch dependencies"
-	$(GO) get github.com/cihub/seelog
-	$(GO) get github.com/PuerkitoBio/purell
-	$(GO) get github.com/clarkduvall/hyperloglog
-	$(GO) get github.com/PuerkitoBio/goquery
-	$(GO) get github.com/jmoiron/jsonq
-	$(GO) get github.com/gorilla/websocket
-	$(GO) get github.com/boltdb/bolt/...
-	$(GO) get github.com/alash3al/goemitter
-	$(GO) get github.com/bkaradzic/go-lz4
-	$(GO) get github.com/elgs/gojq
-	$(GO) get github.com/kardianos/osext
-	$(GO) get github.com/zeebo/sbloom
-	$(GO) get github.com/asdine/storm
-	$(GO) get github.com/rs/xid
-	$(GO) get github.com/seiflotfy/cuckoofilter
-	$(GO) get github.com/hashicorp/raft
-	$(GO) get github.com/hashicorp/raft-boltdb
-	$(GO) get github.com/jaytaylor/html2text
-	$(GO) get github.com/asdine/storm/codec/protobuf
-	$(GO) get github.com/ryanuber/go-glob
-	$(GO) get github.com/gorilla/sessions
-	$(GO) get github.com/mattn/go-sqlite3
-	$(GO) get github.com/jinzhu/gorm
-	$(GO) get github.com/stretchr/testify/assert
-	$(GO) get github.com/spf13/viper
-	$(GO) get -t github.com/RoaringBitmap/roaring
-	$(GO) get github.com/elastic/go-ucfg
-	$(GO) get github.com/jasonlvhit/gocron
-	$(GO) get github.com/quipo/statsd
-	$(GO) get github.com/go-sql-driver/mysql
-	$(GO) get github.com/jbowles/cld2_nlpt
-	$(GO) get github.com/mafredri/cdp
-	$(GO) get github.com/ararog/timeago
-	$(GO) get github.com/google/go-github/github
-	$(GO) get golang.org/x/oauth2
-	$(GO) get github.com/rs/cors
+	$(GO) get -u github.com/cihub/seelog
+	$(GO) get -u github.com/PuerkitoBio/purell
+	$(GO) get -u github.com/clarkduvall/hyperloglog
+	$(GO) get -u github.com/PuerkitoBio/goquery
+	$(GO) get -u github.com/jmoiron/jsonq
+	$(GO) get -u github.com/gorilla/websocket
+	$(GO) get -u github.com/boltdb/bolt/...
+	$(GO) get -u github.com/alash3al/goemitter
+	$(GO) get -u github.com/bkaradzic/go-lz4
+	$(GO) get -u github.com/elgs/gojq
+	$(GO) get -u github.com/kardianos/osext
+	$(GO) get -u github.com/zeebo/sbloom
+	$(GO) get -u github.com/asdine/storm
+	$(GO) get -u github.com/rs/xid
+	$(GO) get -u github.com/seiflotfy/cuckoofilter
+	$(GO) get -u github.com/hashicorp/raft
+	$(GO) get -u github.com/hashicorp/raft-boltdb
+	$(GO) get -u github.com/jaytaylor/html2text
+	$(GO) get -u github.com/asdine/storm/codec/protobuf
+	$(GO) get -u github.com/ryanuber/go-glob
+	$(GO) get -u github.com/gorilla/sessions
+	$(GO) get -u github.com/mattn/go-sqlite3
+	$(GO) get -u github.com/jinzhu/gorm
+	$(GO) get -u github.com/stretchr/testify/assert
+	$(GO) get -u github.com/spf13/viper
+	$(GO) get -u github.com/RoaringBitmap/roaring
+	$(GO) get -u github.com/elastic/go-ucfg
+	$(GO) get -u github.com/jasonlvhit/gocron
+	$(GO) get -u github.com/quipo/statsd
+	$(GO) get -u github.com/go-sql-driver/mysql
+	$(GO) get -u github.com/jbowles/cld2_nlpt
+	$(GO) get -u github.com/mafredri/cdp
+	$(GO) get -u github.com/ararog/timeago
+	$(GO) get -u github.com/google/go-github/github
+	$(GO) get -u golang.org/x/oauth2
+	$(GO) get -u github.com/rs/cors
+	$(GO) get -u google.golang.org/grpc
+	$(GO) get -u golang.org/x/net/http2
 
 test:
 	go get -u github.com/kardianos/govendor

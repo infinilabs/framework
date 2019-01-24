@@ -10,7 +10,6 @@ import (
 )
 
 type ClusterModule struct {
-	s *cluster.RaftModule
 }
 
 func (module ClusterModule) Name() string {
@@ -20,11 +19,7 @@ func (module ClusterModule) Name() string {
 func (module ClusterModule) Setup(cfg *config.Config) {
 
 	rpc.Setup()
-	module.s = cluster.New()
-
-	if err := module.s.Open(); err != nil {
-		panic(err)
-	}
+	cluster.New()
 }
 
 func (module ClusterModule) Start() error {
@@ -34,9 +29,11 @@ func (module ClusterModule) Start() error {
 	mys := &discovery.Discovery{}
 	pb.RegisterDiscoveryServer(rpc.GetRPCServer(), mys)
 
-	go rpc.StartRPCServer()
+	rpc.StartRPCServer()
 
-	go module.s.Broadcast()
+	if err := cluster.Open(); err != nil {
+		panic(err)
+	}
 
 	return nil
 }

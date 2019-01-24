@@ -24,6 +24,7 @@ import (
 type Request struct {
 	NodeType string `json:"type,omitempty"`
 	Node     Node   `json:"node,omitempty"`
+	FromNode Node   `json:"local_node,omitempty"`
 }
 
 type Node struct {
@@ -37,7 +38,9 @@ type Node struct {
 	APIEndpoint  string `json:"api_endpoint,omitempty"`
 	RPCEndpoint  string `json:"rpc_endpoint,omitempty"`
 
-	Active bool `json:"active,omitempty"`
+	Active bool `json:"active"`
+
+	StartTime int64 `json:"start_time,omitempty"`
 
 	raftAddr *net.TCPAddr
 	rpcAddr  *net.TCPAddr

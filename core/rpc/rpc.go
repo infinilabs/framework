@@ -52,7 +52,7 @@ func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
 
 //auto select connection
 func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
-	log.Trace("obtain client connection")
+	log.Trace("obtain client connection: ", addr)
 
 	if c.TLSEnabled {
 		var creds credentials.TransportCredentials
@@ -231,16 +231,25 @@ func Setup() {
 func StartRPCServer() {
 
 	global.Env().SystemConfig.NetworkConfig.RPCBinding = util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
-	lis, err := net.Listen("tcp", global.Env().SystemConfig.NetworkConfig.RPCBinding)
+	address := global.Env().SystemConfig.NetworkConfig.RPCBinding
+
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Errorf("failed to listen: %v", err)
 	}
 
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
-	log.Infof("rpc server listen at: %s", global.Env().SystemConfig.NetworkConfig.RPCBinding)
 
-	if err := s.Serve(lis); err != nil {
-		log.Errorf("failed to serve: %v", err)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			log.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	err = util.WaitServerUp(address, 30*time.Second)
+	if err != nil {
+		panic(err)
 	}
+	log.Info("rpc server listen at: ", address)
 }
