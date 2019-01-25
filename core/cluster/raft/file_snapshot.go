@@ -96,9 +96,9 @@ func NewFileSnapshotStoreWithLogger(base string, retain int, logger *log.Logger)
 	}
 
 	// Do a permissions test
-	if err := store.testPermissions(); err != nil {
-		return nil, fmt.Errorf("permissions test failed: %v", err)
-	}
+	//if err := store.testPermissions(); err != nil {
+	//	return nil, fmt.Errorf("permissions test failed: %v", err)
+	//}
 	return store, nil
 }
 

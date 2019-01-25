@@ -1,7 +1,9 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
@@ -13,11 +15,13 @@ import (
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/rpc"
 	"github.com/infinitbyte/framework/core/util"
+	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -114,9 +118,9 @@ func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 func Open() (err error) {
 
 	// Setup Raft communication.
-	global.Env().SystemConfig.NetworkConfig.RaftBinding = util.AutoGetAddress(util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RaftBinding))
+	//global.Env().SystemConfig.NetworkConfig.RaftBinding = util.AutoGetAddress(util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RaftBinding))
 
-	getRaft().addr = global.Env().SystemConfig.NetworkConfig.RaftBinding
+	getRaft().addr = util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
 
 	getRaft().tcpAddr, err = net.ResolveTCPAddr("tcp", getRaft().addr)
 	if err != nil {
@@ -128,13 +132,24 @@ func Open() (err error) {
 	go ServeMulticastDiscovery(getRaft().multicastCallback, signal)
 	<-signal
 
-	err = getRaft().restart()
+	var seeds []string
+	if len(global.Env().SystemConfig.ClusterConfig.Seeds) > 0 {
+		log.Tracef("use config seeds")
+		seeds = global.Env().SystemConfig.ClusterConfig.Seeds
+	}
+
+	if GetLocalActivePeersCount() > 1 && GetLocalActivePeersCount() >= global.Env().SystemConfig.ClusterConfig.MinimumNodes {
+		seeds, _ = GetActivePeers()
+		log.Tracef("prefer use local active peers as seeds, %v", len(seeds))
+	}
+
+	err = getRaft().restart(seeds)
 	if err != nil {
 		log.Error(err)
 		panic(err)
 	}
 
-	log.Info("raft server listen at: ", getRaft().addr)
+	//log.Info("raft server listen at: ", getRaft().addr)
 
 	//Hello world, I am up, where is the cluster?
 	broadcast()
@@ -161,7 +176,7 @@ func broadcast() {
 		Node{
 			APIEndpoint:  util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.APIBinding),
 			RPCEndpoint:  util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding),
-			RaftEndpoint: util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RaftBinding),
+			RaftEndpoint: util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding),
 			ClusterName:  global.Env().SystemConfig.ClusterConfig.Name,
 			StartTime:    env.GetStartTime().Unix(),
 			Name:         global.Env().SystemConfig.NodeConfig.Name}
@@ -192,10 +207,10 @@ func health() {
 			//try nomination
 			if s.raft.Leader() == "" {
 				//log.Trace("let's find the leader")
-				if GetLocalActivePeersCount() > 0{
+				if GetLocalActivePeersCount() > 0 {
 					//try nominate
 					nominate()
-				}else{
+				} else {
 					//where is cluster
 					broadcast()
 				}
@@ -209,7 +224,7 @@ func health() {
 			for i, v := range localKnowPeers {
 				log.Trace("heartbeat:", i, ",", v, ",", v.RPCEndpoint, " vs ", localRpc)
 
-				previousState:=v.Active
+				previousState := v.Active
 
 				////ignore local node
 				if v.RPCEndpoint == localRpc {
@@ -244,9 +259,8 @@ func health() {
 					NodePort: uint32(s.tcpAddr.Port),
 				})
 
-
-				if r==nil||(err != nil && previousState==true) {
-					log.Error(err)
+				if r == nil || (err != nil && previousState == true) {
+					log.Error(v.RPCEndpoint, ",", err)
 					v.Active = false
 					getRaft().Down(v.RaftEndpoint, v.RPCEndpoint)
 					continue
@@ -270,33 +284,31 @@ func health() {
 	}()
 }
 
-func (s *RaftModule) restart() (err error) {
+func (s *RaftModule) restart(seeds []string) (err error) {
 
-	if s.transport != nil && !s.transport.IsShutdown() {
-		err = s.transport.Close()
+	if time.Now().Sub(electedTime).Seconds() < 30 {
+		log.Debug("skip election, already in progress")
+		return
+	}
+
+	log.Trace("restart with seeds,", seeds)
+
+	//if s.transport != nil && !s.transport.IsShutdown() {
+	//err = s.transport.Close()
+	//if err != nil {
+	//	log.Error(err)
+	//	return err
+	//}
+
+	if s.raft != nil && s.raft.State() != raft.Shutdown {
+		err = s.raft.Shutdown().Error()
 		if err != nil {
 			log.Error(err)
 			return err
 		}
 
-		if s.raft != nil && s.raft.State() != raft.Shutdown {
-			err = s.raft.Shutdown().Error()
-			if err != nil {
-				log.Error(err)
-			}
-		}
 	}
-
-	var seeds []string
-	if len(global.Env().SystemConfig.ClusterConfig.Seeds) > 0 {
-		log.Tracef("use config seeds")
-		seeds = global.Env().SystemConfig.ClusterConfig.Seeds
-	}
-
-	if GetLocalActivePeersCount() > 1 && GetLocalActivePeersCount() >= global.Env().SystemConfig.ClusterConfig.MinimumNodes {
-		seeds, _ = GetActivePeers()
-		log.Tracef("prefer use local active peers as seeds, %v", len(seeds))
-	}
+	//}
 
 	if global.Env().SystemConfig.ClusterConfig.MinimumNodes == 1 && len(seeds) == 0 {
 		log.Warnf("minimum raft number is 1 and got zero seeds, will start as leader")
@@ -309,7 +321,7 @@ func (s *RaftModule) restart() (err error) {
 		return err
 	}
 
-	s.transport, err = raft.NewTCPTransport(s.addr, addr, 3, 10*time.Second, os.Stderr)
+	s.transport, err = raft.NewTCPTransport(s.addr, addr, 3, 10*time.Second, os.Stderr, rpc.GetListener())
 	if err != nil {
 		log.Error(err)
 		return err
@@ -337,7 +349,7 @@ func (s *RaftModule) restart() (err error) {
 	}
 
 	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(s.cfg, s.fsm, logStore, logStore, snapshots, peerStore, s.transport)
+	ra, err := raft.NewRaft(s.cfg, s.fsm, logStore, logStore, snapshots, peerStore, s.addr, s.transport)
 	if err != nil {
 		return fmt.Errorf("new raft: %s", err)
 	}
@@ -345,6 +357,8 @@ func (s *RaftModule) restart() (err error) {
 
 	log.Trace("raft initialized")
 
+	//started = true
+	electedTime = time.Now()
 	return nil
 }
 
@@ -354,6 +368,9 @@ var ticketsBox = hashset.New()
 const onlineNodeType = "ONLINE"
 const nominateNodeType = "NOMINATE"
 const leaderNodeType = "LEADER"
+
+var electedTime time.Time
+//var started bool
 
 func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
@@ -394,6 +411,16 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 	}
 
 	if v.NodeType == nominateNodeType {
+
+		l.Lock()
+		defer l.Unlock()
+
+		log.Tracef("check nominate message, %v vs %v ", raftAddr, s.addr)
+
+		if v.FromNode.RaftEndpoint == s.addr && getRaft().raft.Leader() != "" {
+			registerNode(v.FromNode.RaftEndpoint, &v.FromNode)
+		}
+
 		//if the nominate is for self, tickets +1
 		if raftAddr == s.addr && getRaft().raft.Leader() == "" {
 			ticketsBox.Add(v.FromNode.RaftEndpoint)
@@ -405,10 +432,12 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 				ticketsBox.Size() >= ((GetLocalActivePeersCount()+1)/2) &&
 				GetLocalActivePeersCount() > 0 &&
 				GetLocalActivePeersCount() >= global.Env().SystemConfig.ClusterConfig.MinimumNodes {
+
 				log.Debug("got enough tickets, restart as leader now")
 				//s.raft.Shutdown()
 				//s.cfg.StartAsLeader = true
-				err := s.restart()
+				seeds, _ := GetActivePeers()
+				err := s.restart(seeds)
 				if err != nil {
 					panic(err)
 					log.Error(err)
@@ -418,13 +447,15 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 			//get ticket, add to known list
 			getRaft().raft.AddPeer(raftAddr)
 		}
+
 	}
 
 	//process message from leader
 	if v.NodeType == leaderNodeType {
 		if v.Node.RaftEndpoint == getRaft().addr {
 			registerNode(raftAddr, &v.FromNode)
-			err := getRaft().restart()
+			seeds, _ := GetActivePeers()
+			err := getRaft().restart(seeds)
 			if err != nil {
 				panic(err)
 			}
@@ -433,6 +464,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 	}
 
 	registerNode(raftAddr, &v.Node)
+
 }
 
 //register local node status
@@ -459,7 +491,11 @@ func registerNode(raftAddr string, node *Node) {
 	}
 }
 
+var lastNomiateTime time.Time
+var lastNomiateNode string
+
 func nominate() {
+
 	if getRaft().raft.Leader() == "" && GetLocalActivePeersCount() > 0 && GetLocalActivePeersCount() >= global.Env().SystemConfig.ClusterConfig.MinimumNodes {
 		log.Debugf("met enough raft nodes(%v), start nomination", global.Env().SystemConfig.ClusterConfig.MinimumNodes)
 
@@ -473,12 +509,24 @@ func nominate() {
 		req.Node = *localKnowPeers[plist[0]]
 		req.FromNode = *getRaft().localNode
 
+		log.Trace("time:", time.Now().Sub(lastNomiateTime).Seconds(), "node:", lastNomiateNode, " vs ", req.Node.RaftEndpoint)
+		if lastNomiateNode == req.Node.RaftEndpoint && time.Now().Sub(lastNomiateTime).Seconds() < 30 {
+			log.Debugf("skip to nominate the same node within 30s")
+			return
+		}
+
 		log.Trace("I nominate: ", req.Node.RaftEndpoint)
 
 		//add leader to my local peer
-		getRaft().raft.AddPeer(req.Node.RaftEndpoint)
+		//getRaft().raft.AddPeer(req.Node.RaftEndpoint)
 
 		Broadcast(&req)
+
+		lastNomiateNode = req.Node.RaftEndpoint
+		lastNomiateTime = time.Now()
+
+		seeds, _ := GetActivePeers()
+		getRaft().restart(seeds)
 		return
 	}
 }
@@ -487,7 +535,8 @@ func nominate() {
 // respond to Raft communications at that address.
 func (s *RaftModule) Up(node *Node) error {
 
-	if v, ok := localKnowPeers[node.RaftEndpoint]; !ok &&v.Active {
+	if v, ok := localKnowPeers[node.RaftEndpoint]; !ok && v.Active {
+		log.Tracef("ignore while local exists")
 		return nil
 	}
 
@@ -554,4 +603,51 @@ func (s *RaftModule) ExecuteCommand(c *Command) error {
 	//log.Tracef("apply command successful")
 	//return f.Error()
 	return nil
+}
+
+var l sync.Mutex
+
+// SnapshotPersistID will make a snapshot and persist id stats to disk
+func SnapshotClusterState() {
+	l.Lock()
+	defer l.Unlock()
+
+	persistedPath := path.Join(global.Env().GetWorkingDir(), "_cluster")
+	if !util.FileExists(persistedPath) {
+		//return
+	}
+
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(getRaft().localNode)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile(persistedPath, buf.Bytes(), 0600)
+	if err != nil {
+		log.Error(persistedPath)
+		panic(err)
+	}
+}
+
+// RestorePersistID will take the snapshot and restore to id seeds
+func RestoreClusterState() {
+	l.Lock()
+	defer l.Unlock()
+
+	persistedPath := path.Join(global.Env().GetWorkingDir(), "_cluster")
+
+	if !util.FileExists(persistedPath) {
+		return
+	}
+
+	n, err := ioutil.ReadFile(persistedPath)
+	if err != nil {
+		panic(err)
+	}
+
+	buf := bytes.NewReader(n)
+	err = gob.NewDecoder(buf).Decode(&getRaft().localNode)
+	if err != nil {
+		panic(err)
+	}
 }

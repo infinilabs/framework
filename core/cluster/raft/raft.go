@@ -159,7 +159,7 @@ type Raft struct {
 // such as snapshots, logs, peers, etc, all those will be restored when creating the
 // Raft node.
 func NewRaft(conf *Config, fsm FSM, logs LogStore, stable StableStore, snaps SnapshotStore,
-	peerStore PeerStore, trans Transport) (*Raft, error) {
+	peerStore PeerStore, localAddr string, trans Transport) (*Raft, error) {
 	// Validate the configuration
 	if err := ValidateConfig(conf); err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func NewRaft(conf *Config, fsm FSM, logs LogStore, stable StableStore, snaps Sna
 	}
 
 	// Construct the list of peers that excludes us
-	localAddr := trans.LocalAddr()
+	//localAddr := trans.LocalAddr()
 	peers, err := peerStore.Peers()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list of peers: %v", err)
@@ -251,7 +251,8 @@ func NewRaft(conf *Config, fsm FSM, logs LogStore, stable StableStore, snaps Sna
 	// Setup a heartbeat fast-path to avoid head-of-line
 	// blocking where possible. It MUST be safe for this
 	// to be called concurrently with a blocking RPC.
-	trans.SetHeartbeatHandler(r.processHeartbeat)
+	//TODO
+	//trans.SetHeartbeatHandler(r.processHeartbeat)
 
 	// Start the background work
 	r.goFunc(r.run)
@@ -857,7 +858,7 @@ func (r *Raft) runLeader() {
 	noop := &logFuture{
 		log: Log{
 			Type: LogAddPeer,
-			Data: encodePeers(peerSet, r.trans),
+			Data: encodePeers(peerSet),
 		},
 	}
 	r.dispatchLogs([]*logFuture{noop})
@@ -1125,7 +1126,7 @@ func (r *Raft) preparePeerChange(l *logFuture) bool {
 	}
 
 	// Setup the log
-	l.log.Data = encodePeers(peerSet, r.trans)
+	l.log.Data = encodePeers(peerSet)
 	return true
 }
 
@@ -1224,7 +1225,7 @@ func (r *Raft) processLog(l *Log, future *logFuture, precommit bool) (stepDown b
 	case LogAddPeer:
 		fallthrough
 	case LogRemovePeer:
-		peers := decodePeers(l.Data, r.trans)
+		peers := decodePeers(l.Data)
 		r.logger.Printf("[DEBUG] raft: Node %v updated peer set (%v): %v", r.localAddr, l.Type, peers)
 
 		// If the peer set does not include us, remove all other peers
@@ -1367,7 +1368,7 @@ func (r *Raft) appendEntries(rpc RPC, a *AppendEntriesRequest) {
 	}
 
 	// Save the current leader
-	r.setLeader(r.trans.DecodePeer(a.Leader))
+	r.setLeader(DecodePeer(a.Leader))
 
 	// Verify the last log entry
 	if a.PrevLogEntry > 0 {
@@ -1446,7 +1447,7 @@ func (r *Raft) requestVote(rpc RPC, req *RequestVoteRequest) {
 	// Setup a response
 	resp := &RequestVoteResponse{
 		Term:    r.getCurrentTerm(),
-		Peers:   encodePeers(r.peers, r.trans),
+		Peers:   encodePeers(r.peers),
 		Granted: false,
 	}
 	var rpcErr error
@@ -1455,7 +1456,7 @@ func (r *Raft) requestVote(rpc RPC, req *RequestVoteRequest) {
 	}()
 
 	// Check if we have an existing leader [who's not the candidate]
-	candidate := r.trans.DecodePeer(req.Candidate)
+	candidate := DecodePeer(req.Candidate)
 	if leader := r.Leader(); leader != "" && leader != candidate {
 		r.logger.Printf("[WARN] raft: Rejecting vote request from %v since we have a leader: %v",
 			candidate, leader)
@@ -1551,7 +1552,7 @@ func (r *Raft) installSnapshot(rpc RPC, req *InstallSnapshotRequest) {
 	}
 
 	// Save the current leader
-	r.setLeader(r.trans.DecodePeer(req.Leader))
+	r.setLeader(DecodePeer(req.Leader))
 
 	// Create a new snapshot
 	sink, err := r.snapshots.Create(req.LastLogIndex, req.LastLogTerm, req.Peers)
@@ -1610,7 +1611,7 @@ func (r *Raft) installSnapshot(rpc RPC, req *InstallSnapshotRequest) {
 	r.setLastSnapshot(req.LastLogIndex, req.LastLogTerm)
 
 	// Restore the peer set
-	peers := decodePeers(req.Peers, r.trans)
+	peers := decodePeers(req.Peers)
 	r.peers = ExcludePeer(peers, r.localAddr)
 	r.peerStore.SetPeers(peers)
 
@@ -1652,7 +1653,7 @@ func (r *Raft) electSelf() <-chan *voteResult {
 	lastIdx, lastTerm := r.getLastEntry()
 	req := &RequestVoteRequest{
 		Term:         r.getCurrentTerm(),
-		Candidate:    r.trans.EncodePeer(r.localAddr),
+		Candidate:    EncodePeer(r.localAddr),
 		LastLogIndex: lastIdx,
 		LastLogTerm:  lastTerm,
 	}
@@ -1673,7 +1674,7 @@ func (r *Raft) electSelf() <-chan *voteResult {
 			// to receive the log message. OR it could mean an improperly configured
 			// cluster. Either way, we should warn
 			if err == nil {
-				peerSet := decodePeers(resp.Peers, r.trans)
+				peerSet := decodePeers(resp.Peers)
 				if !PeerContained(peerSet, r.localAddr) {
 					r.logger.Printf("[WARN] raft: Remote peer %v does not have local node %v as a peer",
 						peer, r.localAddr)
@@ -1787,6 +1788,15 @@ func (r *Raft) shouldSnapshot() bool {
 	return delta >= r.conf.SnapshotThreshold
 }
 
+func EncodePeer(p string) []byte {
+	return []byte(p)
+}
+
+// DecodePeer implements the Transport interface.
+func DecodePeer(buf []byte) string {
+	return string(buf)
+}
+
 // takeSnapshot is used to take a new snapshot.
 func (r *Raft) takeSnapshot() error {
 	defer metrics.MeasureSince([]string{"raft", "snapshot", "takeSnapshot"}, time.Now())
@@ -1814,7 +1824,7 @@ func (r *Raft) takeSnapshot() error {
 	r.logger.Printf("[INFO] raft: Starting snapshot up to %d", req.index)
 
 	// Encode the peerset
-	peerSet := encodePeers(req.peers, r.trans)
+	peerSet := encodePeers(req.peers)
 
 	// Create a new snapshot
 	start := time.Now()

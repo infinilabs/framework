@@ -26,8 +26,9 @@ func (module ClusterModule) Start() error {
 
 	server.Init()
 
-	mys := &discovery.Discovery{}
-	pb.RegisterDiscoveryServer(rpc.GetRPCServer(), mys)
+	pb.RegisterDiscoveryServer(rpc.GetRPCServer(), &discovery.Discovery{})
+
+	pb.RegisterRaftServer(rpc.GetRPCServer(), &discovery.RaftServer{})
 
 	rpc.StartRPCServer()
 
@@ -39,5 +40,6 @@ func (module ClusterModule) Start() error {
 }
 
 func (module ClusterModule) Stop() error {
+	cluster.SnapshotClusterState()
 	return nil
 }

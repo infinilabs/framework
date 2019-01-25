@@ -228,12 +228,19 @@ func Setup() {
 
 }
 
+var listener net.Listener
+
+func GetListener() net.Listener {
+	return listener
+}
+
 func StartRPCServer() {
 
 	global.Env().SystemConfig.NetworkConfig.RPCBinding = util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
 	address := global.Env().SystemConfig.NetworkConfig.RPCBinding
 
-	lis, err := net.Listen("tcp", address)
+	var err error
+	listener, err = net.Listen("tcp", address)
 	if err != nil {
 		log.Errorf("failed to listen: %v", err)
 	}
@@ -242,7 +249,7 @@ func StartRPCServer() {
 	reflection.Register(s)
 
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := s.Serve(listener); err != nil {
 			log.Errorf("failed to serve: %v", err)
 		}
 	}()

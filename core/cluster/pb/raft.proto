@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.infinitbyte.framework.cluster";
+option java_outer_classname = "RaftProto";
+
+package cluster;
+
+service Raft {
+    rpc	AppendEntries (AppendEntriesRequest) returns (AppendEntriesResponse){}
+    rpc	RequestVote (RequestVoteRequest) returns (RequestVoteResponse){}
+    rpc	InstallSnapshot (InstallSnapshotRequest) returns (InstallSnapshotResponse){}
+}
+
+// Log entries are replicated to all members of the Raft cluster
+// and form the heart of the replicated state machine.
+message Log  {
+// Index holds the index of the log entry.
+uint64 Index=1;
+
+// Term holds the election term of the log entry.
+uint64 Term=2;
+
+// Type holds the type of the log entry.
+uint32 Type =3;
+
+// Data holds the log entry's type-specific data.
+bytes Data =4;
+
+// peer is not exported since it is not transmitted, only used
+// internally to construct the Data field.
+string peer =5;
+}
+
+// AppendEntriesRequest is the command used to append entries to the
+// replicated log.
+message AppendEntriesRequest  {
+// Provide the current term and leader
+uint64 Term =1;
+bytes Leader =2;
+
+// Provide the previous entries for integrity checking
+uint64 PrevLogEntry =3;
+uint64 PrevLogTerm=4  ;
+
+// New entries to commit
+repeated Log Entries =5;
+
+// Commit index on the leader
+uint64 LeaderCommitIndex=6;
+}
+
+// AppendEntriesResponse is the response returned from an
+// AppendEntriesRequest.
+message AppendEntriesResponse  {
+// Newer term if leader is out of date
+uint64 Term =1;
+
+// Last Log is a hint to help accelerate rebuilding slow nodes
+uint64 LastLog =2;
+
+// We may not succeed if we have a conflicting entry
+bool Success =3;
+
+// There are scenarios where this request didn't succeed
+// but there's no need to wait/back-off the next attempt.
+bool NoRetryBackoff=4;
+}
+
+// RequestVoteRequest is the command used by a candidate to ask a Raft peer
+// for a vote in an election.
+message RequestVoteRequest  {
+// Provide the term and our id
+uint64 Term =1;
+bytes Candidate=2;
+
+// Used to ensure safety
+uint64 LastLogIndex=3;
+uint64 LastLogTerm=4;
+}
+
+// RequestVoteResponse is the response returned from a RequestVoteRequest.
+message RequestVoteResponse  {
+// Newer term if leader is out of date
+uint64 Term =1;
+
+// Return the peers, so that a node can shutdown on removal
+bytes Peers=2;
+
+// Is the vote granted
+bool Granted=3;
+}
+
+// InstallSnapshotRequest is the command sent to a Raft peer to bootstrap its
+// log (and state machine) from a snapshot on another peer.
+message InstallSnapshotRequest  {
+    uint64 Term=1;
+    bytes Leader=2;
+
+// These are the last index/term included in the snapshot
+uint64 LastLogIndex=3;
+uint64 LastLogTerm=4;
+
+// Peer Set in the snapshot
+bytes Peers =5;
+
+// Size of the snapshot
+int64 Size=6;
+}
+
+// InstallSnapshotResponse is the response returned from an
+// InstallSnapshotRequest.
+message InstallSnapshotResponse  {
+uint64 Term  =1;
+bool Success =2;
+}

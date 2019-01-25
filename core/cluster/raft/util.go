@@ -116,11 +116,11 @@ func AddUniquePeer(peers []string, peer string) []string {
 }
 
 // encodePeers is used to serialize a list of peers.
-func encodePeers(peers []string, trans Transport) []byte {
+func encodePeers(peers []string) []byte {
 	// Encode each peer
 	var encPeers [][]byte
 	for _, p := range peers {
-		encPeers = append(encPeers, trans.EncodePeer(p))
+		encPeers = append(encPeers, EncodePeer(p))
 	}
 
 	// Encode the entire array
@@ -133,7 +133,7 @@ func encodePeers(peers []string, trans Transport) []byte {
 }
 
 // decodePeers is used to deserialize a list of peers.
-func decodePeers(buf []byte, trans Transport) []string {
+func decodePeers(buf []byte) []string {
 	// Decode the buffer first
 	var encPeers [][]byte
 	if err := decodeMsgPack(buf, &encPeers); err != nil {
@@ -143,7 +143,7 @@ func decodePeers(buf []byte, trans Transport) []string {
 	// Deserialize each peer
 	var peers []string
 	for _, enc := range encPeers {
-		peers = append(peers, trans.DecodePeer(enc))
+		peers = append(peers, DecodePeer(enc))
 	}
 
 	return peers

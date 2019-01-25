@@ -118,9 +118,9 @@ func (s *shutdownFuture) Error() error {
 		return nil
 	}
 	s.raft.waitShutdown()
-	if closeable, ok := s.raft.trans.(WithClose); ok {
-		closeable.Close()
-	}
+	//if closeable, ok := s.raft.trans.(WithClose); ok {
+	//	closeable.Close()
+	//}
 	return nil
 }
 
