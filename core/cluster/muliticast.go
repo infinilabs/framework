@@ -35,6 +35,9 @@ func Broadcast(req *Request) {
 		log.Fatal(err)
 	}
 	c, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	payload := util.ToJSONBytes(req)
 
@@ -50,6 +53,10 @@ func ServeMulticastDiscovery(h func(*net.UDPAddr, int, []byte), signal chan bool
 	}
 
 	l, err := net.ListenMulticastUDP("udp", nil, addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	l.SetReadBuffer(maxDataSize)
 
 	signal <- true

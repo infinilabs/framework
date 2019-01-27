@@ -34,24 +34,16 @@ type Node struct {
 	ClusterName string `json:"cluster,omitempty"`
 	Token       string `json:"token,omitempty"`
 
-	RaftEndpoint string `json:"raft_endpoint,omitempty"`
-	APIEndpoint  string `json:"api_endpoint,omitempty"`
-	RPCEndpoint  string `json:"rpc_endpoint,omitempty"`
+	//RaftEndpoint string `json:"raft_endpoint,omitempty"`
+	APIEndpoint string `json:"api_endpoint,omitempty"`
+	RPCEndpoint string `json:"rpc_endpoint,omitempty"`
 
 	Active bool `json:"active"`
 
 	StartTime int64 `json:"start_time,omitempty"`
 
-	raftAddr *net.TCPAddr
-	rpcAddr  *net.TCPAddr
-	apiAddr  *net.TCPAddr
-}
-
-func (v *Node) GetRaftAddr() *net.TCPAddr {
-	if v.raftAddr == nil {
-		v.raftAddr = util.GetAddress(v.RaftEndpoint)
-	}
-	return v.raftAddr
+	rpcAddr *net.TCPAddr
+	apiAddr *net.TCPAddr
 }
 
 func (v *Node) GetRPCAddr() *net.TCPAddr {

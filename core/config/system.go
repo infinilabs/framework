@@ -13,7 +13,6 @@ type NetworkConfig struct {
 
 	APIBinding       string `config:"api_bind"`
 	HTTPBinding      string `config:"http_bind"`
-	RaftBinding      string `config:"raft_bind"`
 	RPCBinding       string `config:"rpc_bind"`
 	BoradcastBinding string `config:"broadcast_bind"`
 }

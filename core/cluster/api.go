@@ -70,6 +70,6 @@ func (handler ClusterAPI) handleLeave(w http.ResponseWriter, r *http.Request) {
 
 	log.Error("receive node leave request, ", node)
 
-	getRaft().Leave(node.RaftEndpoint, node.RPCEndpoint)
+	getRaft().Leave(node.RPCEndpoint, node.RPCEndpoint)
 
 }
