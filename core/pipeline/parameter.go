@@ -21,7 +21,9 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/global"
+	"github.com/infinitbyte/framework/core/util"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
@@ -154,6 +156,36 @@ func (para *Parameters) MustGet(key ParaKey) interface{} {
 	return v
 }
 
+func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok bool) {
+
+	m, ok := para.GetMap(key)
+	if ok {
+		result = map[string]string{}
+		for k, v := range m {
+			result[k] = v.(string)
+		}
+		return result, ok
+	}
+
+	//try map string string
+	f := para.Get(key)
+	result, ok = f.(map[string]string)
+	if ok {
+		return result, ok
+	}
+
+	//try string array with map rule: key=>value
+	array, ok := para.GetStringArray(key)
+	if ok {
+		result = map[string]string{}
+		for _, v := range array {
+			o := strings.Split(v, "->")
+			result[util.TrimSpaces(o[0])] = util.TrimSpaces(o[1])
+		}
+	}
+	return result, ok
+}
+
 func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.(map[string]interface{})
@@ -174,12 +206,23 @@ func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 }
 
 func (para *Parameters) MustGetStringArray(key ParaKey) []string {
-	array := para.MustGetArray(key)
-	result := []string{}
-	for _, v := range array {
-		result = append(result, v.(string))
+	result, ok := para.GetStringArray(key)
+	if !ok {
+		panic(fmt.Errorf("%s not found in context", key))
 	}
 	return result
+}
+
+func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
+	array, ok := para.GetArray(key)
+	var result []string
+	if ok {
+		result = []string{}
+		for _, v := range array {
+			result = append(result, v.(string))
+		}
+	}
+	return result, ok
 }
 
 // GetArray will return a array which type of the items are interface {}
