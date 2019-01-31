@@ -81,7 +81,7 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) Init(customFunc func()) {
 	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
-	flag.StringVar(&app.configFile, "config", app.environment.GetAppName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
+	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
 	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
 	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")

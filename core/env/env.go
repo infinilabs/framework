@@ -36,6 +36,7 @@ import (
 type Env struct {
 	name          string
 	uppercaseName string
+	lowercaseName string
 	desc          string
 	version       string
 	commit        string
@@ -87,6 +88,10 @@ func (env *Env) GetAppName() string {
 
 func (env *Env) GetAppCapitalName() string {
 	return env.uppercaseName
+}
+
+func (env *Env) GetAppLowercaseName() string {
+	return env.lowercaseName
 }
 
 func (env *Env) GetAppDesc() string {
@@ -280,6 +285,7 @@ func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter s
 	return &Env{
 		name:           util.TrimSpaces(name),
 		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
+		lowercaseName:  strings.ToLower(util.TrimSpaces(name)),
 		desc:           util.TrimSpaces(desc),
 		version:        util.TrimSpaces(ver),
 		commit:         util.TrimSpaces(commit),
