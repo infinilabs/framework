@@ -36,13 +36,28 @@ func TestPort(port int) bool {
 }
 
 func WaitServerUp(addr string, duration time.Duration) error {
+	start := time.Now()
 	d := net.Dialer{Timeout: duration}
+check:
 	conn, err := d.Dial("tcp", addr)
-	if err != nil {
-		log.Error(err)
-		return err
+	if conn != nil {
+		conn.Close()
 	}
-	conn.Close()
+	if err != nil {
+		log.Trace("still not there")
+		goto wait
+	}
+	return nil
+
+wait:
+	if time.Now().Sub(start) > duration {
+		log.Trace("retry enough, forget about it")
+		return errors.New("timeout")
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	goto check
+
 	return nil
 }
 
