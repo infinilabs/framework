@@ -149,6 +149,7 @@ func StartUI() {
 	if err != nil {
 		panic(err)
 	}
+
 	log.Info("ui server listen at: ", address)
 
 }

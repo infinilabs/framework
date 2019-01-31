@@ -135,10 +135,10 @@ func Setup() {
 	exist, err := env.ParseConfig("rpc", c)
 
 	if exist && err != nil {
+		if err != nil {
+			log.Errorf("error to process config: %v", err)
+		}
 		panic(err)
-	}
-	if err != nil {
-		log.Errorf("error to process config: %v", err)
 	}
 
 	if c.TLSEnabled {

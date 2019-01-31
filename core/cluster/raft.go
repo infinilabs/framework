@@ -438,7 +438,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 		}
 
 		//if the nominate is for self, tickets +1
-		if v.Node.RPCEndpoint!=getRaft().addr&&v.Node.RPCEndpoint == s.addr && getRaft().raft.Leader() == "" {
+		if v.Node.RPCEndpoint != getRaft().addr && v.Node.RPCEndpoint == s.addr && getRaft().raft.Leader() == "" {
 			ticketsBox.Add(v.FromNode.RPCEndpoint)
 			log.Debugf("i am nominated as leader, got ticket: %v ,from:%s", ticketsBox.Size(), src.String())
 
@@ -491,7 +491,7 @@ func registerNode(node *Node) {
 		if getRaft().raft.State() == raft.Leader {
 			//auto join new nodes
 			getRaft().Up(node)
-			log.Error("node join")
+			log.Debug("add new node to cluster,", node.RPCEndpoint)
 		}
 	} else {
 		add.Active = true
@@ -590,10 +590,10 @@ func (s *RaftModule) Leave(raftAddr, rpcAddr string) error {
 
 func (s *RaftModule) ExecuteCommand(c *Command) error {
 
-	log.Infof("execute command: %v", c)
+	log.Tracef("execute command: %v", c)
 
 	if getRaft().raft.State() != raft.Leader {
-		log.Errorf("I am not leader, skip")
+		log.Tracef("I am not leader, skip")
 		return fmt.Errorf("not leader")
 	}
 
