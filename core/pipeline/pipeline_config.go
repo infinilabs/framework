@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	"github.com/infinitbyte/framework/core/env"
+	"github.com/infinitbyte/framework/core/errors"
 	"time"
 )
 
@@ -40,14 +41,32 @@ type PipelineConfig struct {
 	Tags          []string       `json:"tags,omitempty" config:"tags"`
 }
 
-func GetStaticPipelineConfig() []PipelineConfig {
+var m map[string]PipelineConfig
 
-	var pipelines []PipelineConfig
+func GetStaticPipelineConfig(pipelineID string) PipelineConfig {
 
-	exist, err := env.ParseConfig("pipelines", &pipelines)
-
-	if exist && err != nil {
-		panic(err)
+	if m == nil {
+		m = map[string]PipelineConfig{}
+		var pipelines []PipelineConfig
+		exist, err := env.ParseConfig("pipelines", &pipelines)
+		if err != nil {
+			panic(err)
+		}
+		if exist {
+			for _, v := range pipelines {
+				if v.ID == "" {
+					if v.Name == "" {
+						panic(errors.Errorf("invalid pipeline config, %v", v))
+					}
+					v.ID = v.Name
+				}
+				m[v.ID] = v
+			}
+		}
 	}
-	return pipelines
+	v, ok := m[pipelineID]
+	if !ok {
+		panic("pipeline config not found")
+	}
+	return v
 }

@@ -108,8 +108,6 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 				log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
 			}
 
-			pipelineConfig := pipe.config.DefaultConfig
-
 			//TODO dynamic load pipeline config
 			//url := context.GetStringOrDefault(pipeline.CONTEXT_TASK_URL, "")
 			//pipelineConfigID := context.GetStringOrDefault(pipeline.CONTEXT_TASK_PipelineConfigID, "")
@@ -122,7 +120,7 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 			//	}
 			//}
 
-			pipe.execute(shard, context, pipelineConfig)
+			pipe.execute(shard, context, &pipe.config.pipelineConfig)
 			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 		}
 	}

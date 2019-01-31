@@ -21,6 +21,7 @@ import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
+	"github.com/infinitbyte/framework/core/pipeline"
 )
 
 var started bool
@@ -66,13 +67,15 @@ func (module PipeModule) Start() error {
 
 	runners = map[string]*PipeRunner{}
 	for i, v := range config.Runners {
-		if v.DefaultConfig == nil {
-			panic(errors.Errorf("default pipeline config can't be null, %v, %v", i, v))
+		if v.PipelineID == "" {
+			panic(errors.Errorf("pipeline config can't be null, %v, %v", i, v))
 		}
 
 		if (v.InputQueue) == "" {
 			panic(errors.Errorf("input queue can't be null, %v, %v", i, v))
 		}
+
+		v.pipelineConfig = pipeline.GetStaticPipelineConfig(v.PipelineID)
 
 		p := &PipeRunner{config: v}
 		runners[v.Name] = p

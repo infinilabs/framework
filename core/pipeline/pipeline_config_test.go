@@ -203,15 +203,12 @@ func TestGetStaticPipelineConfig(t *testing.T) {
 
 	global.RegisterEnv(env.EmptyEnv().SetConfigFile("config_test.yml"))
 
-	pipelines := GetStaticPipelineConfig()
-	fmt.Println(pipelines)
-	assert.Equal(t, 1, len(pipelines))
-	assert.Equal(t, "es_scroll", pipelines[0].Name)
-	assert.Equal(t, "es_scroll", pipelines[0].StartJoint.JointName)
-	assert.Equal(t, true, pipelines[0].StartJoint.Enabled)
-	assert.Equal(t, "http://localhost:9200", pipelines[0].StartJoint.Parameters["endpoint"])
-	assert.Equal(t, "elastic", pipelines[0].StartJoint.Parameters["username"])
-	assert.Equal(t, "changeme", pipelines[0].StartJoint.Parameters["password"])
-	assert.Equal(t, "twitter", pipelines[0].StartJoint.Parameters["index"])
+	p := GetStaticPipelineConfig("es_scroll")
+	assert.Equal(t, "es_scroll", p.StartJoint.JointName)
+	assert.Equal(t, true, p.StartJoint.Enabled)
+	assert.Equal(t, "http://localhost:9200", p.StartJoint.Parameters["endpoint"])
+	assert.Equal(t, "elastic", p.StartJoint.Parameters["username"])
+	assert.Equal(t, "changeme", p.StartJoint.Parameters["password"])
+	assert.Equal(t, "twitter", p.StartJoint.Parameters["index"])
 
 }

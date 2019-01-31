@@ -32,7 +32,9 @@ type PipeRunnerConfig struct {
 	//Timeout Control
 	TimeoutInMs int `config:"timeout_in_ms"`
 
-	DefaultConfig *pipeline.PipelineConfig `config:"default_config"`
+	PipelineID string `config:"pipeline_id"`
+
+	pipelineConfig pipeline.PipelineConfig
 
 	InputQueue string `config:"input_queue"`
 }
