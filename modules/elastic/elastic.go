@@ -32,7 +32,7 @@ var (
 	defaultConfig = ModuleConfig{
 		Elastic: &index.ElasticsearchConfig{
 			Endpoint:    "http://localhost:9200",
-			IndexPrefix: "app-",
+			IndexPrefix: "",
 		},
 	}
 )

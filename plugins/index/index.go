@@ -30,7 +30,7 @@ var (
 	defaultConfig = IndexConfig{
 		Elasticsearch: &index.ElasticsearchConfig{
 			Endpoint:    "http://localhost:9200",
-			IndexPrefix: "app-",
+			IndexPrefix: "",
 		},
 	}
 )
