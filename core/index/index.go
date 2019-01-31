@@ -2,6 +2,7 @@ package index
 
 import (
 	"encoding/json"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/util"
@@ -10,7 +11,7 @@ import (
 // IndexDocument used to construct indexing document
 type IndexDocument struct {
 	Index     string                   `json:"_index,omitempty"`
-	ID        string                   `json:"_id,omitempty"`
+	ID        interface{}              `json:"_id,omitempty"`
 	Source    map[string]interface{}   `json:"_source,omitempty"`
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }
@@ -188,11 +189,11 @@ func (request *SearchRequest) AddSort(field string, order string) {
 }
 
 // IndexDoc index a document into elasticsearch
-func (c *ElasticsearchClient) Index(indexName, id string, data interface{}) (*InsertResponse, error) {
+func (c *ElasticsearchClient) Index(indexName string, id interface{}, data interface{}) (*InsertResponse, error) {
 	if c.Config.IndexPrefix != "" {
 		indexName = c.Config.IndexPrefix + indexName
 	}
-	url := c.Config.Endpoint + "/" + indexName + "/doc/" + id
+	url := fmt.Sprintf("%s/%s/doc/%s", c.Config.Endpoint, indexName, id)
 
 	js, err := json.Marshal(data)
 
