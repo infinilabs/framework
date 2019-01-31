@@ -273,13 +273,13 @@ func (n *NetworkTransport) AppendEntriesPipeline(target string) (AppendPipeline,
 
 // AppendEntries implements the Transport interface.
 func (n *NetworkTransport) AppendEntries(target string, args *AppendEntriesRequest, resp *AppendEntriesResponse) error {
-	fmt.Println("append:", target, ",term:", args.Term)
+	//fmt.Println("append:", target, ",term:", args.Term)
 	return n.genericRPC(target, rpcAppendEntries, args, resp)
 }
 
 // RequestVote implements the Transport interface.
 func (n *NetworkTransport) RequestVote(target string, args *RequestVoteRequest, resp *RequestVoteResponse) error {
-	fmt.Println("request vote:", target, ",term:", args.Term)
+	//fmt.Println("request vote:", target, ",term:", args.Term)
 	return n.genericRPC(target, rpcRequestVote, args, resp)
 }
 
