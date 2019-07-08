@@ -31,6 +31,10 @@ PKGS=$(go list ./... | grep -v /vendor/)
 FRAMEWORK_VENDOR_FOLDER := $(CURDIR)/vendor/
 FRAMEWORK_VENDOR_BRANCH := master
 
+FRAMEWORK_OFFLINE_BUILD := ""
+ifneq "$(OFFLINE_BUILD)" ""
+   FRAMEWORK_OFFLINE_BUILD := $(OFFLINE_BUILD)
+endif
 
 .PHONY: all build update test
 
@@ -41,7 +45,7 @@ build: config
 init:
 	@echo building FRAMEWORK $(FRAMEWORK_VERSION)
 	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(git clone  -b $(FRAMEWORK_VENDOR_BRANCH) https://github.com/infinitbyte/framework-vendor.git vendor) fi
-	(cd vendor && git pull origin $(FRAMEWORK_VENDOR_BRANCH))
+	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd vendor && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
 
 
 format:
