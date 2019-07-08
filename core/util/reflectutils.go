@@ -145,3 +145,38 @@ func GetTypeName(any interface{}, lowercase bool) string {
 	}
 	return name
 }
+
+func TypeIsMap(any interface{}) bool {
+	vt := reflect.TypeOf(any)
+	if vt.String() == "map[string]interface {}" {
+		return true
+	}
+	return false
+}
+
+func GetIntValue(any interface{}) int {
+
+	vt := reflect.TypeOf(any)
+	if vt.String() == "float64" {
+		v := any.(float64)
+		var y = int(v)
+		return y
+	} else if vt.String() == "float32" {
+		v := any.(float32)
+		var y = int(v)
+		return y
+	} else if vt.String() == "int64" {
+		v := any.(int64)
+		var y = int(v)
+		return y
+	} else if vt.String() == "uint64" {
+		v := any.(uint64)
+		var y = int(v)
+		return y
+	} else if vt.String() == "uint" {
+		v := any.(uint)
+		var y = int(v)
+		return y
+	}
+	return -1
+}
