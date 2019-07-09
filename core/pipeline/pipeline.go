@@ -27,12 +27,13 @@ import (
 )
 
 type Pipeline struct {
-	id         string
-	name       string
-	startJoint Joint
-	joints     []Joint
-	context    *Context
-	endJoint   Joint
+	id           string
+	name         string
+	onStartJoint Joint
+	joints       []Joint
+	context      *Context
+	onEndJoint   Joint
+	onErrorJoint Joint
 
 	currentJointName string
 }
@@ -64,7 +65,7 @@ func (pipe *Pipeline) GetContext() *Context {
 }
 
 func (pipe *Pipeline) Start(s Joint) *Pipeline {
-	pipe.startJoint = s
+	pipe.onStartJoint = s
 	pipe.joints = []Joint{}
 	return pipe
 }
@@ -74,8 +75,13 @@ func (pipe *Pipeline) Join(s Joint) *Pipeline {
 	return pipe
 }
 
+func (pipe *Pipeline) Error(s Joint) *Pipeline {
+	pipe.onErrorJoint = s
+	return pipe
+}
+
 func (pipe *Pipeline) End(s Joint) *Pipeline {
-	pipe.endJoint = s
+	pipe.onEndJoint = s
 	return pipe
 }
 
@@ -164,9 +170,8 @@ func (pipe *Pipeline) Run() *Context {
 		if err != nil {
 			stats.Increment(pipe.name+".pipeline", "error")
 			log.Debugf("%s-%s: %v", pipe.name, v.Name(), err)
-
-			//TODO catch error
 			pipe.context.Payload = err.Error()
+			pipe.handlePipelineError()
 			return pipe.context
 		}
 		log.Trace(pipe.name, ", end joint,", v.Name())
@@ -178,9 +183,9 @@ func (pipe *Pipeline) Run() *Context {
 func (pipe *Pipeline) startPipeline() {
 
 	log.Trace("start pipeline: ", pipe.name)
-	if pipe.startJoint != nil {
-		pipe.setCurrentJoint(pipe.startJoint.Name())
-		pipe.startJoint.Process(pipe.context)
+	if pipe.onStartJoint != nil {
+		pipe.setCurrentJoint(pipe.onStartJoint.Name())
+		pipe.onStartJoint.Process(pipe.context)
 	}
 	log.Trace("pipeline: ", pipe.name, ", started")
 }
@@ -192,11 +197,21 @@ func (pipe *Pipeline) endPipeline() {
 	}
 
 	log.Trace("start finish pipeline, ", pipe.name)
-	if pipe.endJoint != nil {
-		pipe.setCurrentJoint(pipe.endJoint.Name())
-		pipe.endJoint.Process(pipe.context)
+	if pipe.onEndJoint != nil {
+		pipe.setCurrentJoint(pipe.onEndJoint.Name())
+		pipe.onEndJoint.Process(pipe.context)
 	}
 	log.Trace("end finish pipeline, ", pipe.name)
+}
+
+func (pipe *Pipeline) handlePipelineError() {
+
+	if pipe.onErrorJoint != nil {
+		log.Trace("start handle pipeline error, ", pipe.name)
+		pipe.setCurrentJoint(pipe.onErrorJoint.Name())
+		pipe.onErrorJoint.Process(pipe.context)
+		log.Trace("end handle pipeline error, ", pipe.name)
+	}
 }
 
 func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context) *Pipeline {
@@ -211,6 +226,11 @@ func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context
 	if config.StartJoint != nil && config.StartJoint.Enabled {
 		input := GetJointInstance(config.StartJoint)
 		pipe.Start(input)
+	}
+
+	if config.ErrorJoint != nil && config.ErrorJoint.Enabled {
+		input := GetJointInstance(config.ErrorJoint)
+		pipe.Error(input)
 	}
 
 	for _, cfg := range config.ProcessJoints {

@@ -36,6 +36,7 @@ type PipelineConfig struct {
 	StartJoint    *JointConfig   `json:"start,omitempty" config:"start"`
 	ProcessJoints []*JointConfig `json:"process,omitempty" config:"process"`
 	EndJoint      *JointConfig   `json:"end,omitempty" config:"end"`
+	ErrorJoint    *JointConfig   `json:"error,omitempty" config:"error"`
 	Created       time.Time      `json:"created,omitempty"`
 	Updated       time.Time      `json:"updated,omitempty"`
 	Tags          []string       `json:"tags,omitempty" config:"tags"`
