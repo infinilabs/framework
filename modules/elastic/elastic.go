@@ -17,11 +17,16 @@ limitations under the License.
 package elastic
 
 import (
+	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/index"
+	"github.com/infinitbyte/framework/core/elastic"
+	"github.com/infinitbyte/framework/core/env"
+	"github.com/infinitbyte/framework/core/errors"
+	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/kv"
 	"github.com/infinitbyte/framework/core/orm"
-	"github.com/olivere/elastic"
+	"github.com/infinitbyte/framework/modules/elastic/adapter"
+	"strings"
 )
 
 func (module ElasticModule) Name() string {
@@ -30,10 +35,7 @@ func (module ElasticModule) Name() string {
 
 var (
 	defaultConfig = ModuleConfig{
-		Elastic: &index.ElasticsearchConfig{
-			Endpoint:    "http://localhost:9200",
-			IndexPrefix: "",
-		},
+		Elasticsearch: "default",
 	}
 )
 
@@ -42,52 +44,117 @@ func getDefaultConfig() ModuleConfig {
 }
 
 type ModuleConfig struct {
-	StoreEnabled bool                       `config:"store_enabled"`
-	ORMEnabled   bool                       `config:"orm_enabled"`
-	IndexEnabled bool                       `config:"index_enabled"`
-	Elastic      *index.ElasticsearchConfig `config:"elasticsearch"`
+	IndexerEnabled bool   `config:"indexer_enabled"`
+	StoreEnabled   bool   `config:"store_enabled"`
+	ORMEnabled     bool   `config:"orm_enabled"`
+	Elasticsearch  string `config:"elasticsearch"`
+}
+
+var m = map[string]elastic.ElasticsearchConfig{}
+
+func loadElasticConfig() {
+
+	var configs []elastic.ElasticsearchConfig
+	exist, err := env.ParseConfig("elasticsearch", &configs)
+	if err != nil {
+		panic(err)
+	}
+	if exist {
+		for _, v := range configs {
+			if v.ID == "" {
+				if v.Name == "" {
+					panic(errors.Errorf("invalid elasticsearch config, %v", v))
+				}
+				v.ID = v.Name
+			}
+			m[v.ID] = v
+
+		}
+	}
+}
+
+func initElasticInstances() {
+
+	for k, esConfig := range m {
+
+		var client elastic.API
+
+		esVersion, err := adapter.ClusterVersion(&esConfig)
+		if err != nil {
+			panic(err)
+			return
+		}
+		if global.Env().IsDebug {
+			log.Debug("elasticsearch version: ", esVersion.Version.Number)
+		}
+
+		if strings.HasPrefix(esVersion.Version.Number, "7.") {
+			api := new(adapter.ESAPIV7)
+			api.Config = &esConfig
+			client = api
+		} else if strings.HasPrefix(esVersion.Version.Number, "6.") {
+			api := new(adapter.ESAPIV6)
+			api.Config = &esConfig
+			client = api
+		} else if strings.HasPrefix(esVersion.Version.Number, "5.") {
+			api := new(adapter.ESAPIV5)
+			api.Config = &esConfig
+			client = api
+		} else {
+			api := new(adapter.ESAPIV0)
+			api.Config = &esConfig
+			client = api
+		}
+		elastic.RegisterInstance(k, client)
+	}
+
 }
 
 func (module ElasticModule) Setup(cfg *config.Config) {
 
-	//init config
-	config := getDefaultConfig()
-	cfg.Unpack(&config)
+	loadElasticConfig()
 
-	client := index.ElasticsearchClient{Config: config.Elastic}
+	initElasticInstances()
 
-	// Create an Elasticsearch client
-	newClient, err := elastic.NewClient(
-		elastic.SetURL(config.Elastic.Endpoint),
-		elastic.SetSniff(false),
-		elastic.SetBasicAuth(config.Elastic.Username, config.Elastic.Password),
-		elastic.SetHealthcheck(false))
-	if err != nil {
-		panic(err)
-	}
+	moduleConfig := getDefaultConfig()
+	cfg.Unpack(&moduleConfig)
 
-	if config.ORMEnabled {
-		handler := ElasticORM{Client: &client, NewClient: newClient}
-		handler.InitTemplate()
+	client := elastic.GetClient(moduleConfig.Elasticsearch)
+
+	if moduleConfig.ORMEnabled {
+		handler := ElasticORM{Client: client}
+		handler.Client.Init()
 		orm.Register("elastic", handler)
 	}
 
-	if config.StoreEnabled {
-		storeHandler := ElasticStore{Client: &client}
-		kv.Register("elastic", storeHandler)
+	if moduleConfig.StoreEnabled {
+		handler := ElasticStore{Client: client}
+		kv.Register("elastic", handler)
+	}
+
+	if moduleConfig.IndexerEnabled {
+		module.indexer = &ElasticIndexer{client: client, indexChannel: "index"}
 	}
 
 }
 
 func (module ElasticModule) Stop() error {
+	if module.indexer != nil {
+		module.indexer.Stop()
+	}
 	return nil
 
 }
 
 func (module ElasticModule) Start() error {
+
+	if module.indexer != nil {
+		module.indexer.Start()
+	}
 	return nil
 
 }
 
 type ElasticModule struct {
+	indexer *ElasticIndexer
 }

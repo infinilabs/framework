@@ -27,11 +27,10 @@ type Modules struct {
 	configs map[string]interface{}
 }
 
-var m *Modules
+var m = &Modules{}
 
 func New() {
-	mod := Modules{}
-	m = &mod
+
 }
 
 func RegisterSystemModule(mod Module) {

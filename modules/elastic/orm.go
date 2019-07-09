@@ -1,19 +1,14 @@
 package elastic
 
 import (
-	"context"
-	"fmt"
-	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/elastic"
 	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/index"
 	api "github.com/infinitbyte/framework/core/orm"
 	"github.com/infinitbyte/framework/core/util"
-	"github.com/olivere/elastic"
 )
 
 type ElasticORM struct {
-	Client    *index.ElasticsearchClient
-	NewClient *elastic.Client
+	Client elastic.API
 }
 
 func (handler ElasticORM) Get(o interface{}) error {
@@ -61,23 +56,23 @@ func getQuery(c1 *api.Cond) interface{} {
 
 	switch c1.QueryType {
 	case api.Match:
-		q := index.MatchQuery{}
+		q := elastic.MatchQuery{}
 		q.Set(c1.Field, c1.Value)
 		return q
 	case api.RangeGt:
-		q := index.RangeQuery{}
+		q := elastic.RangeQuery{}
 		q.Gt(c1.Field, c1.Value)
 		return q
 	case api.RangeGte:
-		q := index.RangeQuery{}
+		q := elastic.RangeQuery{}
 		q.Gte(c1.Field, c1.Value)
 		return q
 	case api.RangeLt:
-		q := index.RangeQuery{}
+		q := elastic.RangeQuery{}
 		q.Lt(c1.Field, c1.Value)
 		return q
 	case api.RangeLte:
-		q := index.RangeQuery{}
+		q := elastic.RangeQuery{}
 		q.Lte(c1.Field, c1.Value)
 		return q
 	}
@@ -88,15 +83,15 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 
 	var err error
 
-	request := index.SearchRequest{}
+	request := elastic.SearchRequest{}
 
 	request.From = q.From
 	request.Size = q.Size
 
 	if q.Conds != nil && len(q.Conds) > 0 {
-		request.Query = &index.Query{}
+		request.Query = &elastic.Query{}
 
-		boolQuery := index.BoolQuery{}
+		boolQuery := elastic.BoolQuery{}
 
 		for _, c1 := range q.Conds {
 			q := getQuery(c1)
@@ -137,35 +132,33 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 	}
 
 	result.Result = array
-	result.Total = searchResponse.Hits.Total
+	result.Total = searchResponse.GetTotal()
 
 	return err, result
 }
 
 func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 
-	agg := elastic.NewTermsAggregation().Field(selectField).Size(10)
-
-	indexName := getIndexName(t)
-	if handler.Client.Config.IndexPrefix != "" {
-		indexName = handler.Client.Config.IndexPrefix + indexName
-	}
-
-	result, err := handler.NewClient.Search(indexName).Aggregation(selectField, agg).Do(context.TODO())
-	if err != nil {
-		log.Error(err)
-	}
-
-	finalResult := map[string]interface{}{}
-
-	items, ok := result.Aggregations.Terms(selectField)
-	if ok {
-		for _, item := range items.Buckets {
-			k := fmt.Sprintf("%v", item.Key)
-			finalResult[k] = item.DocCount
-			log.Trace(item.Key, ":", item.DocCount)
-		}
-	}
-
-	return nil, finalResult
+	//agg := elastic.NewTermsAggregation().Field(selectField).Size(10)
+	//
+	//indexName := getIndexName(t)
+	//
+	//result, err := handler.Client.Search(indexName, selectField, agg)
+	//if err != nil {
+	//	log.Error(err)
+	//}
+	//
+	//finalResult := map[string]interface{}{}
+	//
+	//ok,items:= result.Aggregations[]
+	//if ok {
+	//	for _, item := range items {
+	//		k := fmt.Sprintf("%v", item.Key)
+	//		finalResult[k] = item.DocCount
+	//		log.Trace(item.Key, ":", item.DocCount)
+	//	}
+	//}
+	//
+	//return nil, finalResult
+	return nil, nil
 }

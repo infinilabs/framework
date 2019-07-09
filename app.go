@@ -51,8 +51,8 @@ type App struct {
 	logDir       string
 }
 
-func NewApp(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) App {
-	return App{environment: env.NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter)}
+func NewApp(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) *App {
+	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter)}
 }
 
 // report expvar and all metrics
@@ -146,9 +146,7 @@ func (app *App) Init(customFunc func()) {
 	}
 
 	if customFunc != nil {
-		log.Trace("start execute custom init func")
 		customFunc()
-		log.Trace("end execute custom init func")
 	}
 }
 
@@ -188,15 +186,11 @@ func (app *App) Start(setup func(), start func()) {
 	util.RestorePersistID(app.environment.GetWorkingDir())
 
 	if setup != nil {
-		log.Trace("start execute custom setup func")
 		setup()
-		log.Trace("end execute custom setup func")
 	}
 
 	if start != nil {
-		log.Trace("start execute custom start func")
 		start()
-		log.Trace("end execute custom start func")
 	}
 
 	app.quitSignal = make(chan bool)

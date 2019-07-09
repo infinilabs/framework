@@ -23,7 +23,7 @@ import (
 )
 
 func TestGet(t *testing.T) {
-	data, err := get("http://es-guide-preview.elasticsearch.cn", "", "")
+	data, err := HttpGet("http://es-guide-preview.elasticsearch.cn")
 	fmt.Println(data)
 	fmt.Println(err)
 	//data1, _ := json.Marshal(data.Body)
@@ -77,7 +77,7 @@ func TestGetHost(t *testing.T) {
 func BenchmarkGet(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
-		get("http://es-guide-preview.elasticsearch.cn", "", "")
+		HttpGet("http://es-guide-preview.elasticsearch.cn")
 	}
 
 }

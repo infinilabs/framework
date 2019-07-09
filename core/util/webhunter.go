@@ -31,6 +31,16 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/errors"
 	"golang.org/x/net/proxy"
+	"io"
+	"runtime"
+)
+
+const (
+	Verb_GET    string = "GET"
+	Verb_PUT    string = "PUT"
+	Verb_POST   string = "POST"
+	Verb_DELETE string = "DELETE"
+	Verb_HEAD   string = "HEAD"
 )
 
 // GetHost return the host from a url
@@ -104,10 +114,6 @@ func getUrlPathFolderWithoutFile(url []byte) []byte {
 	return []byte(src)
 }
 
-func noRedirect(*http.Request, []*http.Request) error {
-	return errors.New("catch http redirect!")
-}
-
 func getUrl(url string) (string, error) {
 	if !strings.HasPrefix(url, "http") {
 		return url, errors.New("invalid url, " + url)
@@ -116,13 +122,16 @@ func getUrl(url string) (string, error) {
 }
 
 type Request struct {
-	Method            string
-	Url               string
+	Agent       string
+	Method      string
+	Url         string
+	Cookie      string
+	Proxy       string
+	Body        []byte
+	ContentType string
+
 	basicAuthUsername string
 	basicAuthPassword string
-	Cookie            string
-	Proxy             string
-	Body              []byte
 }
 
 func NewRequest(method, url string) *Request {
@@ -136,8 +145,10 @@ func NewRequest(method, url string) *Request {
 func NewPostRequest(url string, body []byte) *Request {
 	req := Request{}
 	req.Url = url
-	req.Method = "POST"
-	req.Body = body
+	req.Method = Verb_POST
+	if body != nil {
+		req.Body = body
+	}
 	return &req
 }
 
@@ -145,31 +156,55 @@ func NewPostRequest(url string, body []byte) *Request {
 func NewPutRequest(url string, body []byte) *Request {
 	req := Request{}
 	req.Url = url
-	req.Method = "PUT"
-	req.Body = body
+	req.Method = Verb_PUT
+	if body != nil {
+		req.Body = body
+	}
 	return &req
 }
 
 // NewGetRequest issue a simple http get request
-func NewGetRequest(url string) *Request {
+func NewGetRequest(url string, body []byte) *Request {
 	req := Request{}
 	req.Url = url
-	req.Method = "GET"
+	if body != nil {
+		req.Body = body
+	}
+	req.Method = Verb_GET
 	return &req
 }
 
 // NewDeleteRequest issue a simple http delete request
-func NewDeleteRequest(url string) *Request {
+func NewDeleteRequest(url string, body []byte) *Request {
 	req := Request{}
 	req.Url = url
-	req.Method = "DELETE"
+	if body != nil {
+		req.Body = body
+	}
+	req.Method = Verb_DELETE
 	return &req
 }
 
 // SetBasicAuth set user and password for request
-func (r *Request) SetBasicAuth(username, password string) {
+func (r *Request) SetBasicAuth(username, password string) *Request {
 	r.basicAuthUsername = username
 	r.basicAuthPassword = password
+	return r
+}
+
+func (r *Request) SetContentType(contentType string) *Request {
+	r.ContentType = contentType
+	return r
+}
+
+func (r *Request) SetAgent(agent string) *Request {
+	r.Agent = agent
+	return r
+}
+
+func (r *Request) SetProxy(proxy string) *Request {
+	r.Proxy = proxy
+	return r
 }
 
 // Result is the http request result
@@ -182,100 +217,60 @@ type Result struct {
 	Size       uint64
 }
 
-//TODO align app version
 const userAgent = "Mozilla/5.0 (compatible; infinitbyte/1.0; +http://github.com/infinitbyte/framework)"
 
-/**
-proxyStr, eg: "socks5://127.0.0.1:9150"
-*/
-func get(url string, cookie string, proxyStr string) (*Result, error) {
-
-	var err error
-	url, err = getUrl(url)
-	if err != nil {
-		return nil, errors.New("invalid url: " + url)
-	}
-
-	if proxyStr != "" {
-
-		// Create a transport that uses Tor Browser's SocksPort.  If
-		// talking to a system tor, this may be an AF_UNIX socket, or
-		// 127.0.0.1:9050 instead.
-		tbProxyURL, err := uri.Parse(proxyStr)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to parse proxy URL: %v", err)
-		}
-
-		// Get a proxy Dialer that will create the connection on our
-		// behalf via the SOCKS5 proxy.  Specify the authentication
-		// and re-create the dialer/transport/client if tor's
-		// IsolateSOCKSAuth is needed.
-		tbDialer, err := proxy.FromURL(tbProxyURL, proxy.Direct)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to obtain proxy dialer: %v", err)
-		}
-
-		// Make a http.Transport that uses the proxy dialer, and a
-		// http.Client that uses the transport.
-		tbTransport := &http.Transport{Dial: tbDialer.Dial}
-		//http.DefaultClient.Transport = &http.Transport{Dial: tbDialer.Dial}
-
-		client.Transport = tbTransport
-
-	}
-
-	reqest, _ := http.NewRequest("GET", url, nil)
-
-	//req.SetBasicAuth("user", "password")
-
-	reqest.Header.Set("User-Agent", userAgent)
-	reqest.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	reqest.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
-	reqest.Header.Set("Accept-Encoding", "gzip,deflate,sdch")
-	reqest.Header.Set("Accept-Language", "zh-CN,zh;q=0.8")
-	reqest.Header.Set("Cache-Control", "max-age=0")
-	reqest.Header.Set("Connection", "keep-alive")
-	reqest.Header.Set("Referer", url)
-
-	if len(cookie) > 0 {
-		log.Debug("dealing with cookie:" + cookie)
-		array := strings.Split(cookie, ";")
-		for item := range array {
-			array2 := strings.Split(array[item], "=")
-			if len(array2) == 2 {
-				cookieObj := http.Cookie{}
-				cookieObj.Name = array2[0]
-				cookieObj.Value = array2[1]
-				reqest.AddCookie(&cookieObj)
-			} else {
-				log.Info("error,index out of range:" + array[item])
-			}
-		}
-	}
-
-	return execute(reqest)
-}
+const ContentTypeJson = "application/json;charset=utf-8"
+const ContentTypeXml = "application/xml;charset=utf-8"
+const ContentTypeForm = "application/x-www-form-urlencoded;charset=UTF-8"
 
 // ExecuteRequest issue a request
-func ExecuteRequest(req *Request) (*Result, error) {
+func ExecuteRequest(req *Request) (result *Result, err error) {
+
+	defer func() {
+		if r := recover(); r != nil {
+
+			if r == nil {
+				return
+			}
+			var v string
+			switch r.(type) {
+			case error:
+				v = r.(error).Error()
+			case runtime.Error:
+				v = r.(runtime.Error).Error()
+			case string:
+				v = r.(string)
+			}
+
+			log.Error("error in webhunter", v)
+
+		}
+
+	}()
 
 	log.Debug("let's: " + req.Method + ", " + req.Url)
 
 	var request *http.Request
-	if len(req.Body) > 0 {
+	if req.Body != nil && len(req.Body) > 0 {
 		postBytesReader := bytes.NewReader(req.Body)
-		request, _ = http.NewRequest(string(req.Method), req.Url, postBytesReader)
+		request, err = http.NewRequest(string(req.Method), req.Url, postBytesReader)
 	} else {
-		request, _ = http.NewRequest(string(req.Method), req.Url, nil)
+		request, err = http.NewRequest(string(req.Method), req.Url, nil)
+	}
+
+	if err != nil {
+		panic(err)
 	}
 
 	request.Header.Set("User-Agent", userAgent)
 	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	request.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
 	request.Header.Set("Accept-Encoding", "gzip,deflate,sdch")
-	//	reqest.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	//reqest.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	request.Header.Add("Content-Type", "application/json;charset=utf-8")
+
+	if req.ContentType != "" {
+		request.Header.Add("Content-Type", req.ContentType)
+	}
+
 	request.Header.Set("Accept-Language", "zh-CN,zh;q=0.8")
 	request.Header.Set("Cache-Control", "max-age=0")
 	request.Header.Set("Connection", "keep-alive")
@@ -301,47 +296,70 @@ func ExecuteRequest(req *Request) (*Result, error) {
 		request.SetBasicAuth(req.basicAuthUsername, req.basicAuthPassword)
 	}
 
+	if req.Proxy != "" {
+		// Create a transport that uses Tor Browser's SocksPort.  If
+		// talking to a system tor, this may be an AF_UNIX socket, or
+		// 127.0.0.1:9050 instead.
+		tbProxyURL, err := uri.Parse(req.Proxy)
+		if err != nil {
+			panic(err)
+			return nil, fmt.Errorf("Failed to parse proxy URL: %v", err)
+		}
+
+		// Get a proxy Dialer that will create the connection on our
+		// behalf via the SOCKS5 proxy.  Specify the authentication
+		// and re-create the dialer/transport/client if tor's
+		// IsolateSOCKSAuth is needed.
+		tbDialer, err := proxy.FromURL(tbProxyURL, proxy.Direct)
+		if err != nil {
+			panic(err)
+			return nil, fmt.Errorf("Failed to obtain proxy dialer: %v", err)
+		}
+
+		// Make a http.Transport that uses the proxy dialer, and a
+		// http.Client that uses the transport.
+		tbTransport := &http.Transport{Dial: tbDialer.Dial}
+		//http.DefaultClient.Transport = &http.Transport{Dial: tbDialer.Dial}
+
+		client.Transport = tbTransport
+	}
+
 	return execute(request)
 }
 
 // HttpGetWithCookie issue http request with cookie
 func HttpGetWithCookie(resource string, cookie string, proxy string) (*Result, error) {
-	out, err := get(resource, cookie, proxy)
-	return out, err
+	req := NewGetRequest(resource, nil)
+	if cookie != "" {
+		req.Cookie = cookie
+	}
+	if proxy != "" {
+		req.Proxy = proxy
+	}
+	return ExecuteRequest(req)
 }
 
 // HttpGet issue a simple http get request
 func HttpGet(resource string) (*Result, error) {
-
-	req, err := http.NewRequest("GET", resource, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return execute(req)
+	req := NewGetRequest(resource, nil)
+	return ExecuteRequest(req)
 }
 
 // HttpDelete issue a simple http delete request
 func HttpDelete(resource string) (*Result, error) {
-
-	req, err := http.NewRequest("DELETE", resource, nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return execute(req)
+	req := NewDeleteRequest(resource, nil)
+	return ExecuteRequest(req)
 }
 
 var timeout = 30 * time.Second
 var t = &http.Transport{
+
 	Dial: func(netw, addr string) (net.Conn, error) {
 		deadline := time.Now().Add(30 * time.Second)
 		c, err := net.DialTimeout(netw, addr, 10*time.Second)
 		if err != nil {
 			return nil, err
 		}
-
 		c.SetDeadline(deadline)
 		return c, nil
 	},
@@ -357,8 +375,7 @@ var t = &http.Transport{
 var client = &http.Client{
 	Transport:     t,
 	Timeout:       timeout,
-	CheckRedirect: noRedirect,
-	//CheckRedirect: nil,
+	CheckRedirect: nil,
 }
 
 func execute(req *http.Request) (*Result, error) {
@@ -371,11 +388,17 @@ func execute(req *http.Request) (*Result, error) {
 	//defer t.CloseIdleConnections()
 
 	resp, err := client.Do(req)
+	if err != nil {
+		//panic(err)
+		return result, err
+	}
 
 	if resp != nil {
 		statusCode := resp.StatusCode
 		result.StatusCode = statusCode
+
 		if statusCode == 301 || statusCode == 302 {
+
 			log.Debug("got redirect: ", req.URL, " => ", resp.Header.Get("Location"))
 			location := resp.Header.Get("Location")
 			if len(location) > 0 && location != req.URL.String() {
@@ -384,15 +407,12 @@ func execute(req *http.Request) (*Result, error) {
 		}
 	}
 
-	if err != nil {
-		return result, err
-	}
-
 	// update host, redirects may change the host
 	result.Host = resp.Request.Host
 	result.Url = resp.Request.URL.String()
 
 	if resp.Header != nil {
+
 		result.Headers = map[string][]string{}
 		for k, v := range resp.Header {
 			result.Headers[strings.ToLower(k)] = v
@@ -401,21 +421,34 @@ func execute(req *http.Request) (*Result, error) {
 
 	reader := resp.Body
 	defer reader.Close()
+
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		reader, err = gzip.NewReader(resp.Body)
+
 		if err != nil {
+			//panic(err)
 			return result, err
 		}
 	}
 
 	if reader != nil {
 		body, err := ioutil.ReadAll(reader)
+
 		if err != nil {
+			//panic(err)
 			return result, err
 		}
+
 		result.Body = body
 		result.Size = uint64(len(body))
+
 		return result, nil
+	}
+
+	//cleanup
+	if resp != nil && resp.Body != nil {
+		io.Copy(ioutil.Discard, resp.Body)
+		defer resp.Body.Close()
 	}
 
 	return nil, http.ErrNotSupported

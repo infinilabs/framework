@@ -18,61 +18,12 @@ package elastic
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/util"
 	"strings"
 	"unicode"
 )
-
-func getTemplate(indexPrefix string, shards int) string {
-	template := `
-{
-"index_patterns": "%s*",
-"settings": {
-    "number_of_shards": %v,
-    "index.max_result_window":10000000
-  },
-  "mappings": {
-    "doc": {
-      "dynamic_templates": [
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword",
-              "ignore_above": 256
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-`
-	return fmt.Sprintf(template, indexPrefix, shards)
-}
-
-func (handler ElasticORM) InitTemplate() {
-	log.Trace("init elasticsearch template")
-	templateName := "gopa"
-	exist, err := handler.NewClient.IndexTemplateExists(templateName).Do(context.TODO())
-	if err != nil {
-		panic(err)
-	}
-	if !exist {
-		template := getTemplate(handler.Client.Config.IndexPrefix, 1)
-		log.Trace("template: ", template)
-		res, err := handler.NewClient.IndexPutTemplate(templateName).BodyString(template).Do(context.TODO())
-		if err != nil {
-			panic(err)
-		}
-		log.Trace("put template response, %v", res)
-	}
-	log.Debugf("elasticsearch template successful initialized")
-
-}
 
 func getIndexName(any interface{}) string {
 	return util.GetTypeName(any, true)
@@ -119,14 +70,18 @@ func parseAnnotation(mapping []util.Annotation) string {
 //elastic_mapping:"content: { type: binary, doc_values:false }"
 func (handler ElasticORM) RegisterSchema(t interface{}) error {
 
-	indexName := handler.Client.Config.IndexPrefix + getIndexName(t)
+	indexName := getIndexName(t)
+
 	log.Trace("indexName: ", indexName)
-	exist, err := handler.NewClient.IndexExists(indexName).Do(context.TODO())
+	exist, err := handler.Client.IndexExists(indexName)
 	if err != nil {
 		panic(err)
 	}
 	if !exist {
-		handler.NewClient.CreateIndex(indexName).Do(context.TODO())
+		err = handler.Client.CreateIndex(indexName, nil)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	jsonFormat := `{ %s }`
@@ -138,12 +93,10 @@ func (handler ElasticORM) RegisterSchema(t interface{}) error {
 
 	log.Trace("mapping: ", json)
 
-	response, err := handler.NewClient.PutMapping().Index(indexName).Type("doc").BodyString(json).Do(context.TODO())
+	_, err = handler.Client.UpdateMapping(indexName, []byte(json))
 	if err != nil {
 		panic(err)
 	}
-
-	log.Trace(response.Acknowledged)
 
 	log.Debugf("schema %v successful initialized", indexName)
 

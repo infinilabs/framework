@@ -1,52 +1,27 @@
-package index
+package elastic
 
 import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
-	. "github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/elastic"
 	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/index"
 	"github.com/infinitbyte/framework/core/queue"
 	"runtime"
 )
 
-type IndexModule struct {
-}
-
-//TODO naming
-const IndexChannel string = "index"
-
-func (this IndexModule) Name() string {
-	return "Index"
+type ElasticIndexer struct {
+	client       elastic.API
+	indexChannel string
 }
 
 var signalChannel chan bool
 
-type IndexConfig struct {
-	Elasticsearch *index.ElasticsearchConfig `config:"elasticsearch"`
-}
+func (this ElasticIndexer) Start() error {
 
-var (
-	defaultConfig = IndexConfig{
-		Elasticsearch: &index.ElasticsearchConfig{
-			Endpoint:    "http://localhost:9200",
-			IndexPrefix: "",
-		},
-	}
-)
-var config *Config
-
-func (module IndexModule) Setup(cfg *Config) {
-	config = cfg
-
-}
-
-func (module IndexModule) Start() error {
-	indexConfig := defaultConfig
-	config.Unpack(&indexConfig)
+	log.Trace("starting ElasticIndexer")
 
 	signalChannel = make(chan bool, 1)
-	client := index.ElasticsearchClient{Config: defaultConfig.Elasticsearch}
+
 	go func() {
 		defer func() {
 
@@ -77,28 +52,32 @@ func (module IndexModule) Start() error {
 				return
 			default:
 				log.Trace("waiting index signal")
-				v, er := queue.Pop(IndexChannel)
+				v, er := queue.Pop(this.indexChannel)
 				log.Trace("got index signal, ", string(v))
 				if er != nil {
 					log.Error(er)
 					continue
 				}
-				//indexing to es or blevesearch
-				doc := index.IndexDocument{}
+				doc := elastic.IndexDocument{}
 				err := json.Unmarshal(v, &doc)
 				if err != nil {
 					panic(err)
 				}
 
-				client.Index(doc.Index, doc.ID, doc.Source)
+				this.client.Index(doc.Index, doc.ID, doc.Source)
 			}
 
 		}
 	}()
+
+	log.Trace("started ElasticIndexer")
+
 	return nil
 }
 
-func (module IndexModule) Stop() error {
+func (this ElasticIndexer) Stop() error {
+	log.Trace("stopping ElasticIndexer")
 	signalChannel <- true
+	log.Trace("stopped ElasticIndexer")
 	return nil
 }

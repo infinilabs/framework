@@ -27,7 +27,6 @@ import (
 	"github.com/infinitbyte/framework/modules/queue"
 	"github.com/infinitbyte/framework/modules/stats"
 	"github.com/infinitbyte/framework/modules/ui"
-	"github.com/infinitbyte/framework/plugins/index"
 )
 
 // RegisterSystemModule is where modules are registered
@@ -40,6 +39,5 @@ func Register() {
 	module.RegisterSystemModule(api.APIModule{})
 	module.RegisterSystemModule(ui.UIModule{})
 	module.RegisterSystemModule(pipeline.PipeModule{})
-	module.RegisterSystemModule(index.IndexModule{})
 	module.RegisterSystemModule(cluster.ClusterModule{})
 }

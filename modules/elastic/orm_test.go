@@ -64,13 +64,6 @@ func TestCheckPoint(t *testing.T) {
 	assert.Equal(t, mapping1, mapping2)
 }
 
-//func TestRegisterSchema(t *testing.T) {
-//	newClient, _ := elastic.NewClient(elastic.SetURL("http://localhost:9200"), elastic.SetSniff(true))
-//
-//	orm:=ElasticORM{NewClient:newClient}
-//	orm.RegisterSchema(host)
-//}
-
 func TestExtractIndexMappingMetadata(t *testing.T) {
 	mapping := getIndexMapping(host)
 	fmt.Println(util.ToJson(mapping, true))

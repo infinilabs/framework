@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/elastic"
 	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/index"
 	"github.com/infinitbyte/framework/core/orm"
 )
 
 type ElasticStore struct {
-	Client *index.ElasticsearchClient
+	Client elastic.API
 }
 
 func (store ElasticStore) Open() error {
@@ -54,7 +54,7 @@ func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte,
 }
 
 func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
-	response, err := store.Client.Get(indexName, getKey(bucket, string(key)))
+	response, err := store.Client.Get(blogIndexName, getKey(bucket, string(key)))
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	return nil, errors.New("not found")
 }
 
-var indexName = "blob"
+var blogIndexName = "blob"
 
 func (store ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
@@ -90,12 +90,12 @@ func getKey(bucket, key string) string {
 func (store ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
-	_, err := store.Client.Index(indexName, getKey(bucket, string(key)), file)
+	_, err := store.Client.Index(blogIndexName, getKey(bucket, string(key)), file)
 	return err
 }
 
 func (store ElasticStore) DeleteKey(bucket string, key []byte) error {
-	_, err := store.Client.Delete(indexName, getKey(bucket, string(key)))
+	_, err := store.Client.Delete(blogIndexName, getKey(bucket, string(key)))
 	return err
 }
 

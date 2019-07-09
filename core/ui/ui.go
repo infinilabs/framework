@@ -83,7 +83,6 @@ func StartUI() {
 	}
 
 	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.HTTPBinding)
-
 	if global.Env().SystemConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
