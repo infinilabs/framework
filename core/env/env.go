@@ -111,13 +111,13 @@ func (env *Env) GetWelcomeMessage() string {
 }
 
 func (env *Env) GetGoodbyeMessage() string {
-	s :=fmt.Sprintf("[%s] %s, uptime: %s\n\n", env.GetAppCapitalName(), env.GetVersion(), time.Since(GetStartTime()))
+	s := fmt.Sprintf("[%s] %s, uptime: %s\n\n", env.GetAppCapitalName(), env.GetVersion(), time.Since(GetStartTime()))
 
 	if env.IsDaemonMode {
 		return s
 	}
 
-	s +=  env.terminalFooter
+	s += env.terminalFooter
 	return s
 }
 
@@ -152,10 +152,10 @@ var (
 			Name: "app",
 		},
 		NetworkConfig: config.NetworkConfig{
-			Host:        "127.0.0.1",
-			APIBinding:  "127.0.0.1:8000",
-			HTTPBinding: "127.0.0.1:9000",
-			RPCBinding:  "127.0.0.1:10000",
+			Host:             "127.0.0.1",
+			APIBinding:       "127.0.0.1:8000",
+			HTTPBinding:      "127.0.0.1:9000",
+			RPCBinding:       "127.0.0.1:10000",
 			BoradcastBinding: "224.3.2.2:9876",
 		},
 		NodeConfig: config.NodeConfig{
