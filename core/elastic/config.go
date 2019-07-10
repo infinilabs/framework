@@ -16,7 +16,7 @@ limitations under the License.
 
 package elastic
 
-import "github.com/golang/go/src/pkg/fmt"
+import "fmt"
 
 var c = map[string]API{}
 
