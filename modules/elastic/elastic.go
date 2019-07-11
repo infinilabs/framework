@@ -62,6 +62,10 @@ func loadElasticConfig() {
 	}
 	if exist {
 		for _, v := range configs {
+			if !v.Enabled {
+				log.Debug("elasticsearch ", v.Name, " is not enabled")
+				continue
+			}
 			if v.ID == "" {
 				if v.Name == "" {
 					panic(errors.Errorf("invalid elasticsearch config, %v", v))
@@ -79,7 +83,10 @@ func initElasticInstances() {
 	for k, esConfig := range m {
 
 		var client elastic.API
-
+		if !esConfig.Enabled {
+			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
+			continue
+		}
 		esVersion, err := adapter.ClusterVersion(&esConfig)
 		if err != nil {
 			panic(err)

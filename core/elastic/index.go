@@ -63,9 +63,9 @@ type AggregationResponse struct {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-	ID   string `json:"id,omitempty" index:"id"`
-	Name string `json:"name,omitempty" config:"name"`
-
+	ID           string `json:"id,omitempty" index:"id"`
+	Name         string `json:"name,omitempty" config:"name"`
+	Enabled      bool   `json:"enabled,omitempty" config:"enabled"`
 	HttpProxy    string `config:"http_proxy"`
 	Endpoint     string `config:"endpoint"`
 	TemplateName string `config:"template_name"`
