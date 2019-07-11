@@ -51,6 +51,7 @@ type ModuleConfig struct {
 }
 
 var m = map[string]elastic.ElasticsearchConfig{}
+var indexer *ElasticIndexer
 
 func loadElasticConfig() {
 
@@ -133,28 +134,26 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	}
 
 	if moduleConfig.IndexerEnabled {
-		module.indexer = &ElasticIndexer{client: client, indexChannel: "index"}
+		indexer = &ElasticIndexer{client: client, indexChannel: "index"}
 	}
 
 }
 
 func (module ElasticModule) Stop() error {
-	if module.indexer != nil {
-		module.indexer.Stop()
+	if indexer != nil {
+		indexer.Stop()
 	}
 	return nil
 
 }
 
 func (module ElasticModule) Start() error {
-
-	if module.indexer != nil {
-		module.indexer.Start()
+	if indexer != nil {
+		indexer.Start()
 	}
 	return nil
 
 }
 
 type ElasticModule struct {
-	indexer *ElasticIndexer
 }

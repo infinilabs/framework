@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/elastic"
+	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/queue"
 	"runtime"
@@ -16,7 +17,7 @@ type ElasticIndexer struct {
 
 var signalChannel chan bool
 
-func (this ElasticIndexer) Start() error {
+func (this *ElasticIndexer) Start() error {
 
 	log.Trace("starting ElasticIndexer")
 
@@ -64,7 +65,10 @@ func (this ElasticIndexer) Start() error {
 					panic(err)
 				}
 
-				this.client.Index(doc.Index, doc.ID, doc.Source)
+				resp, err := this.client.Index(doc.Index, doc.ID, doc.Source)
+				if err != nil {
+					panic(errors.New(resp.Result))
+				}
 			}
 
 		}
@@ -75,7 +79,7 @@ func (this ElasticIndexer) Start() error {
 	return nil
 }
 
-func (this ElasticIndexer) Stop() error {
+func (this *ElasticIndexer) Stop() error {
 	log.Trace("stopping ElasticIndexer")
 	signalChannel <- true
 	log.Trace("stopped ElasticIndexer")
