@@ -15,5 +15,6 @@
 1. Add elasticsearch adaptors for major versions 
 2. Refactor webhunter, add utils
 3. Unify elasticsearch configuration, reference by id
+4. Support custom header in webhunter
 
 ##### bugfix

@@ -128,6 +128,7 @@ type Request struct {
 	Cookie      string
 	Proxy       string
 	Body        []byte
+	headers     map[string]string
 	ContentType string
 
 	basicAuthUsername string
@@ -194,6 +195,14 @@ func (r *Request) SetBasicAuth(username, password string) *Request {
 
 func (r *Request) SetContentType(contentType string) *Request {
 	r.ContentType = contentType
+	return r
+}
+
+func (r *Request) AddHeader(key, v string) *Request {
+	if r.headers == nil {
+		r.headers = map[string]string{}
+	}
+	r.headers[key] = v
 	return r
 }
 
@@ -271,10 +280,15 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 		request.Header.Add("Content-Type", req.ContentType)
 	}
 
-	request.Header.Set("Accept-Language", "zh-CN,zh;q=0.8")
 	request.Header.Set("Cache-Control", "max-age=0")
 	request.Header.Set("Connection", "keep-alive")
 	request.Header.Set("Referer", req.Url)
+
+	if req.headers != nil {
+		for k, v := range req.headers {
+			request.Header.Set(k, v)
+		}
+	}
 
 	if req.Cookie != "" {
 		log.Debug("dealing with cookie:" + req.Cookie)
