@@ -18,8 +18,10 @@ package util
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -265,4 +267,9 @@ func RemoveSpaces(str string) string {
 
 func TrimLeftStr(str string, left string) string {
 	return TrimPrefix(str, left)
+}
+
+func MD5digest(str string) string {
+	sum := md5.Sum([]byte(str))
+	return hex.EncodeToString(sum[:])
 }
