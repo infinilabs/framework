@@ -35,7 +35,8 @@ type Config struct {
 }
 
 type StorageConfig struct {
-	Boltdb *Config `config:"boltdb"`
+	Boltdb  *Config `config:"boltdb"`
+	Enabled bool    `config:"enabled"`
 }
 
 var (
@@ -48,20 +49,24 @@ func getDefaultConfig() StorageConfig {
 	return defaultConfig
 }
 
+var c StorageConfig
+
 func (module StorageModule) Setup(cfg *config.Config) {
 
 	//init config
-	c := getDefaultConfig()
+	c = getDefaultConfig()
 	cfg.Unpack(&c)
 
-	folder := path.Join(global.Env().GetWorkingDir(), "blob")
-	os.MkdirAll(folder, 0777)
-	impl = boltdb.BoltdbStore{FileName: path.Join(folder, "/bolt.db")}
-	err := impl.Open()
-	if err != nil {
-		panic(err)
+	if c.Enabled {
+		folder := path.Join(global.Env().GetWorkingDir(), "blob")
+		os.MkdirAll(folder, 0777)
+		impl = boltdb.BoltdbStore{FileName: path.Join(folder, "/bolt.db")}
+		err := impl.Open()
+		if err != nil {
+			panic(err)
+		}
+		kv.Register("boltdb", impl)
 	}
-	kv.Register("boltdb", impl)
 
 }
 
@@ -70,7 +75,10 @@ func (module StorageModule) Start() error {
 }
 
 func (module StorageModule) Stop() error {
-	return impl.Close()
+	if c.Enabled {
+		return impl.Close()
+	}
+	return nil
 }
 
 type StorageModule struct {

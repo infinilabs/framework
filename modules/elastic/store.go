@@ -24,6 +24,7 @@ import (
 	"github.com/infinitbyte/framework/core/elastic"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/orm"
+	"github.com/infinitbyte/framework/core/util"
 )
 
 type ElasticStore struct {
@@ -84,7 +85,7 @@ func (store ElasticStore) AddValueCompress(bucket string, key []byte, value []by
 }
 
 func getKey(bucket, key string) string {
-	return fmt.Sprintf("%s_%s", bucket, key)
+	return util.MD5digest(fmt.Sprintf("%s_%s", bucket, key))
 }
 
 func (store ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
