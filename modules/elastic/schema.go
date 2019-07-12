@@ -82,23 +82,24 @@ func (handler ElasticORM) RegisterSchema(t interface{}) error {
 		if err != nil {
 			panic(err)
 		}
+
+		jsonFormat := `{ %s }`
+		mapping := getIndexMapping(t)
+
+		js := parseAnnotation(mapping)
+
+		json := fmt.Sprintf(jsonFormat, quoteJson(js))
+
+		log.Trace("mapping: ", json)
+
+		_, err = handler.Client.UpdateMapping(indexName, []byte(json))
+		if err != nil {
+			panic(err)
+		}
+
+		log.Debugf("schema %v successful initialized", indexName)
+
 	}
-
-	jsonFormat := `{ %s }`
-	mapping := getIndexMapping(t)
-
-	js := parseAnnotation(mapping)
-
-	json := fmt.Sprintf(jsonFormat, quoteJson(js))
-
-	log.Trace("mapping: ", json)
-
-	_, err = handler.Client.UpdateMapping(indexName, []byte(json))
-	if err != nil {
-		panic(err)
-	}
-
-	log.Debugf("schema %v successful initialized", indexName)
 
 	return nil
 }
