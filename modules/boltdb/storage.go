@@ -28,7 +28,7 @@ import (
 var impl boltdb.BoltdbStore
 
 func (this StorageModule) Name() string {
-	return "Storage"
+	return "Boltdb Storage"
 }
 
 type Config struct {

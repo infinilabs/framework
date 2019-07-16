@@ -18,17 +18,45 @@ package elastic
 
 import "fmt"
 
-var c = map[string]API{}
+var apis = map[string]API{}
+var cfgs = map[string]ElasticsearchConfig{}
 
-func RegisterInstance(elastic string, handler API) {
-	if c == nil {
-		c = map[string]API{}
+func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
+	if apis == nil {
+		apis = map[string]API{}
 	}
-	c[elastic] = handler
+	if cfgs == nil {
+		cfgs = map[string]ElasticsearchConfig{}
+	}
+	apis[elastic] = handler
+	cfgs[elastic] = cfg
+}
+
+// ElasticsearchConfig contains common settings for elasticsearch
+type ElasticsearchConfig struct {
+	ID           string `json:"id,omitempty" index:"id"`
+	Name         string `json:"name,omitempty" config:"name"`
+	Enabled      bool   `json:"enabled,omitempty" config:"enabled"`
+	HttpProxy    string `config:"http_proxy"`
+	Endpoint     string `config:"endpoint"`
+	TemplateName string `config:"template_name"`
+	IndexPrefix  string `config:"index_prefix"`
+	BasicAuth    *struct {
+		Username string `config:"username"`
+		Password string `config:"password"`
+	} `config:"basic_auth"`
+}
+
+func GetConfig(k string) ElasticsearchConfig {
+	v, ok := cfgs[k]
+	if !ok {
+		panic(fmt.Sprintf("elasticsearch config %v was not found", k))
+	}
+	return v
 }
 
 func GetClient(k string) API {
-	v, ok := c[k]
+	v, ok := apis[k]
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch client %v was not found", k))
 	}

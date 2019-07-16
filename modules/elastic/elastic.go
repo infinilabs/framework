@@ -113,7 +113,7 @@ func initElasticInstances() {
 			api.Config = &esConfig
 			client = api
 		}
-		elastic.RegisterInstance(k, client)
+		elastic.RegisterInstance(k, esConfig, client)
 	}
 
 }

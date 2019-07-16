@@ -205,7 +205,7 @@ var handler ORM
 
 func getHandler() ORM {
 	if handler == nil {
-		panic(errors.New("store handler is not registered"))
+		panic(errors.New("ORM handler is not registered"))
 	}
 	return handler
 }
@@ -225,6 +225,6 @@ func Register(name string, h ORM) {
 
 	handler = h
 
-	log.Debug("register orm handler: ", name)
+	log.Debug("register ORM handler: ", name)
 
 }
