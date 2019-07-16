@@ -59,22 +59,6 @@ func Start() {
 	}
 	log.Debug("all system modules finished setup")
 
-	log.Trace("start to start system modules")
-	for _, v := range m.system {
-
-		cfg := env.GetModuleConfig(v.Name())
-
-		log.Trace("module: ", v.Name(), ", enabled: ", cfg.Enabled(true))
-
-		if cfg.Enabled(true) {
-			log.Trace("starting module: ", v.Name())
-			v.Start()
-			log.Debug("started module: ", v.Name())
-		}
-
-	}
-	log.Debug("all system modules started")
-
 	log.Trace("start to setup user plugins")
 	for _, v := range m.user {
 
@@ -90,6 +74,22 @@ func Start() {
 
 	}
 	log.Debug("all user plugins finished setup")
+
+	log.Trace("start to start system modules")
+	for _, v := range m.system {
+
+		cfg := env.GetModuleConfig(v.Name())
+
+		log.Trace("module: ", v.Name(), ", enabled: ", cfg.Enabled(true))
+
+		if cfg.Enabled(true) {
+			log.Trace("starting module: ", v.Name())
+			v.Start()
+			log.Debug("started module: ", v.Name())
+		}
+
+	}
+	log.Debug("all system modules started")
 
 	log.Trace("start to start user plugins")
 	for _, v := range m.user {
