@@ -148,9 +148,7 @@ var startTime = time.Now().UTC()
 
 var (
 	defaultSystemConfig = config.SystemConfig{
-		ClusterConfig: config.ClusterConfig{
-			Name: "app",
-		},
+		ClusterConfig: config.ClusterConfig{},
 		NetworkConfig: config.NetworkConfig{
 			Host:             "127.0.0.1",
 			APIBinding:       "127.0.0.1:8000",
@@ -179,7 +177,7 @@ func (env *Env) loadConfig() error {
 
 	var ignoreFileMissing bool
 	if env.configFile == "" {
-		env.configFile = "./app.yml"
+		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
 	}
 
@@ -187,6 +185,10 @@ func (env *Env) loadConfig() error {
 
 	if util.FileExists(filename) {
 		env.SystemConfig = &defaultSystemConfig
+
+		if env.SystemConfig.ClusterConfig.Name == "" {
+			env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
+		}
 
 		log.Debug("load file:", filename)
 		var err error
@@ -296,6 +298,7 @@ func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter s
 
 func EmptyEnv() *Env {
 	system := defaultSystemConfig
+	system.ClusterConfig.Name = "app"
 	return &Env{SystemConfig: &system}
 }
 
