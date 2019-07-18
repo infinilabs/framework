@@ -123,15 +123,24 @@ func StartAPI(cfg *config.Config) {
 	if apiConfig.TLSConfig.TLSEnabled {
 
 		cfg := &tls.Config{
-			MinVersion:               tls.VersionTLS12,
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-			PreferServerCipherSuites: true,
-			CipherSuites: []uint16{
-				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			MinVersion: tls.VersionTLS12,
+			CurvePreferences: []tls.CurveID{
+				tls.CurveP256,
+				tls.X25519, // Go 1.8 only
 			},
+			PreferServerCipherSuites: true,
+			InsecureSkipVerify:       true,
+			SessionTicketsDisabled:   false,
+			ClientSessionCache:       tls.NewLRUClientSessionCache(128),
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, // Go 1.8 only
+				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,   // Go 1.8 only
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			},
+			NextProtos: []string{"spdy/3"},
 		}
 
 		var cert, key string
@@ -185,13 +194,28 @@ func StartAPI(cfg *config.Config) {
 		}
 
 		srv := &http.Server{
-			Addr:         listenAddress,
-			Handler:      c.Handler(context.ClearHandler(router)),
-			TLSConfig:    cfg,
-			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+			ReadTimeout:       5 * time.Second,
+			WriteTimeout:      10 * time.Second,
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       10 * time.Second,
+			Addr:              listenAddress,
+			Handler:           c.Handler(context.ClearHandler(router)),
+			TLSConfig:         cfg,
+			//TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
+				"spdy/3": func(s *http.Server, conn *tls.Conn, h http.Handler) {
+					buf := make([]byte, 1)
+					if n, err := conn.Read(buf); err != nil {
+						log.Error("%v|%v\n", n, err)
+					}
+				},
+			},
 		}
 
-		http2.ConfigureServer(srv, &http2.Server{})
+		http2.ConfigureServer(srv, &http2.Server{
+			MaxHandlers:          1000,
+			MaxConcurrentStreams: 1000,
+		})
 
 		go func() {
 			err = srv.ServeTLS(l, cert, key)
