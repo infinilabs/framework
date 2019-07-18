@@ -29,6 +29,7 @@ import (
 	"github.com/infinitbyte/framework/core/module"
 	"github.com/infinitbyte/framework/core/stats"
 	"github.com/infinitbyte/framework/core/util"
+	defaultLog "log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -92,6 +93,8 @@ func (app *App) Init(customFunc func()) {
 	flag.StringVar(&app.logDir, "log_path", "log", "the log path")
 
 	flag.Parse()
+
+	defaultLog.SetOutput(logger.EmptyLogger{})
 
 	logger.SetLogging(env.EmptyEnv(), app.logLevel, app.logDir)
 
