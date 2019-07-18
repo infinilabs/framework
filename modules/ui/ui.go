@@ -25,7 +25,6 @@ import (
 	"github.com/infinitbyte/framework/core/ui/websocket"
 	"github.com/infinitbyte/framework/core/vfs"
 	"github.com/infinitbyte/framework/modules/ui/admin"
-	"github.com/infinitbyte/framework/modules/ui/common"
 	"github.com/infinitbyte/framework/modules/ui/public"
 	"github.com/infinitbyte/framework/static"
 	_ "net/http/pprof"
@@ -44,23 +43,26 @@ func (module UIModule) Name() string {
 }
 func (module UIModule) Setup(cfg *Config) {
 
-	adminConfig := common.UIConfig{}
-	cfg.Unpack(&adminConfig)
+	uiConfig := ui.UIConfig{}
+	cfg.Unpack(&uiConfig)
 
-	uis.EnableAuth(adminConfig.AuthConfig.Enabled)
+	if uiConfig.Enabled {
 
-	//init admin ui
-	admin.InitUI()
+		uis.EnableAuth(uiConfig.AuthConfig.Enabled)
 
-	//init public ui
-	public.InitUI(adminConfig.AuthConfig)
+		//init admin ui
+		admin.InitUI()
 
-	//register websocket logger
-	logger.RegisterWebsocketHandler(LoggerReceiver)
+		//init public ui
+		public.InitUI(uiConfig.AuthConfig)
 
-	ui.StartUI()
+		//register websocket logger
+		logger.RegisterWebsocketHandler(LoggerReceiver)
 
-	vfs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
+		ui.StartUI(&uiConfig)
+
+		vfs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
+	}
 
 }
 

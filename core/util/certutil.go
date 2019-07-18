@@ -98,10 +98,10 @@ func GetCertTemplate() (*x509.Certificate, error) {
 
 	tmpl := x509.Certificate{
 		SerialNumber:          serialNumber,
-		Subject:               pkix.Name{Organization: []string{"Infinitbyte.com"}},
+		Subject:               pkix.Name{Organization: []string{"INFINITBYTE.COM"}},
 		SignatureAlgorithm:    x509.SHA256WithRSA,
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour), // valid for an hour
+		NotAfter:              time.Now().AddDate(1, 0, 0), // valid for an year
 		BasicConstraintsValid: true,
 	}
 	return &tmpl, nil

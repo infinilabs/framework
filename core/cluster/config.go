@@ -53,13 +53,6 @@ func (v *Node) GetRPCAddr() *net.TCPAddr {
 	return v.rpcAddr
 }
 
-func (v *Node) GetAPIAddr() *net.TCPAddr {
-	if v.apiAddr == nil {
-		v.apiAddr = util.GetAddress(v.APIEndpoint)
-	}
-	return v.apiAddr
-}
-
 type Command struct {
 	Op    string `json:"op,omitempty,omitempty"`
 	Key   string `json:"key,omitempty,omitempty"`

@@ -10,6 +10,7 @@ import (
 	pb "github.com/infinitbyte/framework/core/cluster/pb"
 	"github.com/infinitbyte/framework/core/cluster/raft"
 	"github.com/infinitbyte/framework/core/cluster/raft-boltdb"
+	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/env"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
@@ -42,7 +43,11 @@ type RaftModule struct {
 
 var raftModule *RaftModule
 
-func New() *RaftModule {
+var clusterConfig *config.ClusterConfig
+
+func New(config *config.ClusterConfig) *RaftModule {
+
+	clusterConfig = config
 	cfg := raft.DefaultConfig()
 	raftModule = &RaftModule{
 		cfg: cfg,
@@ -117,7 +122,7 @@ func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 
 func Open() (err error) {
 
-	getRaft().addr = util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
+	getRaft().addr = rpc.GetRPCAddress()
 
 	getRaft().tcpAddr, err = net.ResolveTCPAddr("tcp", getRaft().addr)
 	if err != nil {
@@ -126,7 +131,7 @@ func Open() (err error) {
 
 	//wait to get enough peers
 	signal := make(chan bool)
-	go ServeMulticastDiscovery(getRaft().multicastCallback, signal)
+	go ServeMulticastDiscovery(clusterConfig.BoradcastConfig, getRaft().multicastCallback, signal)
 	<-signal
 
 	var seeds []string
@@ -163,8 +168,8 @@ func discoveryCluster() {
 
 	node :=
 		Node{
-			APIEndpoint: util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.APIBinding),
-			RPCEndpoint: util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding),
+			//APIEndpoint: util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.APIBinding),
+			RPCEndpoint: util.GetSafetyInternalAddress(rpc.GetRPCAddress()),
 			ClusterName: global.Env().SystemConfig.ClusterConfig.Name,
 			StartTime:   env.GetStartTime().Unix(),
 			Name:        global.Env().SystemConfig.NodeConfig.Name}
@@ -172,7 +177,7 @@ func discoveryCluster() {
 	req.Node = node
 	req.NodeType = EVENT_LEADER_DISCOVERY
 	getRaft().localNode = &node
-	Broadcast(&req)
+	Broadcast(clusterConfig.BoradcastConfig, &req)
 
 }
 
@@ -218,7 +223,7 @@ func runTasks() {
 func runCheck() {
 
 	log.Tracef("start heartbeat check, %v hosts", len(localKnowPeers))
-	localRpc := util.GetSafetyInternalAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
+	localRpc := util.GetSafetyInternalAddress(rpc.GetRPCAddress())
 
 	for i, v := range localKnowPeers {
 		log.Trace("heartbeat:", i, ",", v, ",", v.RPCEndpoint, " vs ", localRpc)
@@ -386,7 +391,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 			req.FromNode = *getRaft().localNode
 			req.NodeType = EVENT_LEADER_ECHO
 
-			Broadcast(&req)
+			Broadcast(clusterConfig.BoradcastConfig, &req)
 
 			getRaft().raft.AddPeer(v.Node.RPCEndpoint)
 		}
@@ -433,7 +438,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 			req.FromNode = *getRaft().localNode
 			req.NodeType = EVENT_LEADER_ECHO
 
-			Broadcast(&req)
+			Broadcast(clusterConfig.BoradcastConfig, &req)
 			return
 		}
 
@@ -465,7 +470,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 				req := Request{}
 				req.Node = *getRaft().localNode
 				req.NodeType = EVENT_LEADER_READY
-				Broadcast(&req)
+				Broadcast(clusterConfig.BoradcastConfig, &req)
 
 			}
 		}
@@ -527,7 +532,7 @@ func nominate() {
 
 		log.Trace("I nominate: ", req.Node.RPCEndpoint)
 
-		Broadcast(&req)
+		Broadcast(clusterConfig.BoradcastConfig, &req)
 
 		lastNomiateNode = req.Node.RPCEndpoint
 		lastNomiateTime = time.Now()

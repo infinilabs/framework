@@ -148,13 +148,13 @@ var startTime = time.Now().UTC()
 
 var (
 	defaultSystemConfig = config.SystemConfig{
-		ClusterConfig: config.ClusterConfig{},
-		NetworkConfig: config.NetworkConfig{
-			Host:             "127.0.0.1",
-			APIBinding:       "127.0.0.1:8000",
-			HTTPBinding:      "127.0.0.1:9000",
-			RPCBinding:       "127.0.0.1:10000",
-			BoradcastBinding: "224.3.2.2:9876",
+		ClusterConfig: config.ClusterConfig{
+			Seeds: []string{"127.0.0.1:10000"},
+			RPCConfig: config.RPCConfig{
+				NetworkConfig: config.NetworkConfig{
+					Binding: "0.0.0.0:10000",
+				},
+			},
 		},
 		NodeConfig: config.NodeConfig{
 			Name: util.PickRandomName(),
@@ -162,12 +162,10 @@ var (
 		PathConfig: config.PathConfig{
 			Data: "data",
 			Log:  "log",
-			Cert: "cert",
 		},
 
 		AllowMultiInstance: true,
 		MaxNumOfInstance:   5,
-		TLSEnabled:         false,
 	}
 )
 

@@ -1,19 +1,24 @@
 package api
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
-	"errors"
+	"crypto/x509"
+	"encoding/pem"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"github.com/infinitbyte/framework/core/api/router"
+	"github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/env"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
 	"net"
 	"net/http"
+	"os"
 	"path"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -81,45 +86,41 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 var router *httprouter.Router = httprouter.New(mux)
 var mux *http.ServeMux = http.NewServeMux()
 
+var connected bool
+var lastContact *time.Time
+var certPool *x509.CertPool
+var rootCert *x509.Certificate
+var rootKey *rsa.PrivateKey
+var rootCertPEM []byte
+
+var apiConfig *APIConfig
+
+var listenAddress string
+
 // StartAPI will start listen and act as the API server
-func StartAPI() {
+func StartAPI(cfg *config.Config) {
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "DELETE", "PUT", "OPTIONS"},
+		AllowedMethods: []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
-	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.APIBinding)
-	global.Env().SystemConfig.NetworkConfig.APIBinding = address
+	apiConfig = &APIConfig{}
 
-	l, err := net.Listen("tcp", address)
+	env.ParseConfig("api", apiConfig)
+
+	if !apiConfig.Enabled {
+		return
+	}
+
+	listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())
+	l, err := net.Listen("tcp", listenAddress)
 
 	if err != nil {
 		panic(err)
 	}
 
-	if global.Env().SystemConfig.TLSEnabled {
-		log.Debug("tls enabled")
-
-		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
-		match, err := filepath.Glob(certFile)
-		if err != nil {
-			panic(err)
-		}
-		if len(match) <= 0 {
-			panic(errors.New("no cert file found, the file name must end with .crt"))
-		}
-		certFile = match[0]
-
-		keyFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*key*")
-		match, err = filepath.Glob(keyFile)
-		if err != nil {
-			panic(err)
-		}
-		if len(match) <= 0 {
-			panic(errors.New("no key file found, the file name must end with .key"))
-		}
-		keyFile = match[0]
+	if apiConfig.TLSConfig.TLSEnabled {
 
 		cfg := &tls.Config{
 			MinVersion:               tls.VersionTLS12,
@@ -133,8 +134,58 @@ func StartAPI() {
 			},
 		}
 
+		var cert, key string
+		log.Trace("using tls connection")
+
+		//var creds credentials.TransportCredentials
+		if cert != "" && key != "" {
+			log.Debug("using pre-defined cert files")
+
+		} else {
+			log.Info("auto generate server cert")
+			rootCert, rootKey, rootCertPEM = util.GetRootCert()
+
+			certPool = x509.NewCertPool()
+			certPool.AppendCertsFromPEM(rootCertPEM)
+
+			// create a key-pair for the server
+			servKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			if err != nil {
+				panic(err)
+			}
+
+			// create a template for the server
+			servCertTmpl, err := util.GetCertTemplate()
+			if err != nil {
+				panic(err)
+			}
+
+			servCertTmpl.KeyUsage = x509.KeyUsageDigitalSignature
+			servCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+
+			// create a certificate which wraps the server's public key, sign it with the root private key
+			_, servCertPEM, err := util.CreateCert(servCertTmpl, rootCert, &servKey.PublicKey, rootKey)
+			if err != nil {
+				panic(err)
+			}
+
+			// provide the private key and the cert
+			servKeyPEM := pem.EncodeToMemory(&pem.Block{
+				Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(servKey),
+			})
+
+			os.MkdirAll(path.Join(global.Env().GetWorkingDir(), "certs"), 0775)
+			rootCert := path.Join(global.Env().GetWorkingDir(), "certs", "root.cert")
+			cert = path.Join(global.Env().GetWorkingDir(), "certs", "auto.cert")
+			key = path.Join(global.Env().GetWorkingDir(), "certs", "auto.key")
+
+			util.FileAppendContentWithByte(rootCert, rootCertPEM)
+			util.FileAppendContentWithByte(cert, servCertPEM)
+			util.FileAppendContentWithByte(key, servKeyPEM)
+		}
+
 		srv := &http.Server{
-			Addr:         address,
+			Addr:         listenAddress,
 			Handler:      c.Handler(context.ClearHandler(router)),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
@@ -143,7 +194,7 @@ func StartAPI() {
 		http2.ConfigureServer(srv, &http2.Server{})
 
 		go func() {
-			err = srv.ServeTLS(l, certFile, keyFile)
+			err = srv.ServeTLS(l, cert, key)
 			if err != nil {
 				log.Error(err)
 				panic(err)
@@ -151,7 +202,7 @@ func StartAPI() {
 		}()
 
 	} else {
-
+		log.Trace("starting insecure API server")
 		go func() {
 			err := http.Serve(l, c.Handler(context.ClearHandler(router)))
 			if err != nil {
@@ -161,9 +212,9 @@ func StartAPI() {
 		}()
 	}
 
-	err = util.WaitServerUp(address, 30*time.Second)
+	err = util.WaitServerUp(listenAddress, 30*time.Second)
 	if err != nil {
 		panic(err)
 	}
-	log.Info("api server listen at: ", address)
+	log.Info("api server listen at: ", listenAddress)
 }

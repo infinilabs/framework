@@ -1,20 +1,40 @@
 package config
 
+import (
+	"fmt"
+	"github.com/infinitbyte/framework/core/errors"
+)
+
 // ClusterConfig stores cluster settings
 type ClusterConfig struct {
-	Name         string   `config:"name"`
-	MinimumNodes int      `config:"minimum_nodes"`
-	Seeds        []string `config:"seeds"`
+	Enabled         bool          `config:"enabled"`
+	Name            string        `config:"name"`
+	MinimumNodes    int           `config:"minimum_nodes"`
+	Seeds           []string      `config:"seeds"`
+	RPCConfig       RPCConfig     `config:"rpc"`
+	BoradcastConfig NetworkConfig `config:"broadcast"`
+}
+
+type RPCConfig struct {
+	TLSConfig     TLSConfig     `config:"tls"`
+	NetworkConfig NetworkConfig `config:"network"`
 }
 
 // NetworkConfig stores network settings
 type NetworkConfig struct {
-	Host string `config:"host"`
+	Host    string `config:"host"`
+	Port    string `config:"port"`
+	Binding string `config:"binding"`
+}
 
-	APIBinding       string `config:"api_bind"`
-	HTTPBinding      string `config:"http_bind"`
-	RPCBinding       string `config:"rpc_bind"`
-	BoradcastBinding string `config:"broadcast_bind"`
+func (cfg NetworkConfig) GetBindingAddr() string {
+	if cfg.Binding != "" {
+		return cfg.Binding
+	}
+	if cfg.Host != "" && cfg.Port != "" {
+		return fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
+	}
+	panic(errors.Errorf("invalid network config, %v", cfg))
 }
 
 // NodeConfig stores node settings
@@ -33,8 +53,6 @@ type PathConfig struct {
 type SystemConfig struct {
 	ClusterConfig ClusterConfig `config:"cluster"`
 
-	NetworkConfig NetworkConfig `config:"network"`
-
 	NodeConfig NodeConfig `config:"node"`
 
 	PathConfig PathConfig `config:"path"`
@@ -42,10 +60,17 @@ type SystemConfig struct {
 	CookieSecret string `config:"cookie_secret"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
-	MaxNumOfInstance   int  `config:"max_num_of_instances"`
-	TLSEnabled         bool `config:"tls_enabled"`
+
+	MaxNumOfInstance int `config:"max_num_of_instances"`
 
 	Modules []*Config `config:"modules"`
 
 	Plugins []*Config `config:"plugins"`
+}
+
+type TLSConfig struct {
+	TLSEnabled            bool   `config:"enabled"`
+	TLSCertFile           string `config:"cert_file"`
+	TLSKeyFile            string `config:"key_file"`
+	TLSInsecureSkipVerify bool   `config:"skip_insecure_verify"`
 }

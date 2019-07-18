@@ -29,7 +29,7 @@ func (module APIModule) Name() string {
 // Start api server
 func (module APIModule) Setup(cfg *config.Config) {
 	//API server
-	api.StartAPI()
+	api.StartAPI(cfg)
 }
 func (module APIModule) Start() error {
 

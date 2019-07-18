@@ -17,7 +17,7 @@ limitations under the License.
 package cluster
 
 import (
-	"github.com/infinitbyte/framework/core/global"
+	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/util"
 	"log"
 	"net"
@@ -28,9 +28,9 @@ const (
 )
 
 //send a Broadcast message to network to discovery the cluster
-func Broadcast(req *Request) {
+func Broadcast(config config.NetworkConfig, req *Request) {
 
-	addr, err := net.ResolveUDPAddr("udp", global.Env().SystemConfig.NetworkConfig.BoradcastBinding)
+	addr, err := net.ResolveUDPAddr("udp", config.GetBindingAddr())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,9 +45,9 @@ func Broadcast(req *Request) {
 
 }
 
-func ServeMulticastDiscovery(h func(*net.UDPAddr, int, []byte), signal chan bool) {
+func ServeMulticastDiscovery(config config.NetworkConfig, h func(*net.UDPAddr, int, []byte), signal chan bool) {
 
-	addr, err := net.ResolveUDPAddr("udp", global.Env().SystemConfig.NetworkConfig.BoradcastBinding)
+	addr, err := net.ResolveUDPAddr("udp", config.GetBindingAddr())
 	if err != nil {
 		log.Fatal(err)
 	}

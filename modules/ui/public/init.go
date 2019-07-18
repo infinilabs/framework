@@ -18,9 +18,8 @@ package public
 
 import (
 	"github.com/emirpasic/gods/sets/hashset"
-	api "github.com/infinitbyte/framework/core/api"
-	ui "github.com/infinitbyte/framework/core/ui"
-	"github.com/infinitbyte/framework/modules/ui/common"
+	"github.com/infinitbyte/framework/core/api"
+	"github.com/infinitbyte/framework/core/ui"
 	"golang.org/x/oauth2"
 )
 
@@ -37,7 +36,7 @@ var (
 	scopes = []string{"repo"}
 )
 
-func InitUI(cfg common.AuthConfig) {
+func InitUI(cfg ui.AuthConfig) {
 
 	public := PublicUI{}
 	ui.HandleUIMethod(api.GET, "/redirect/", public.RedirectHandler)

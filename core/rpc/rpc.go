@@ -22,10 +22,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/env"
-	"github.com/infinitbyte/framework/core/global"
+	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -41,7 +39,7 @@ func GetRPCServer() *grpc.Server {
 
 //only select local connection
 func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
-	return ObtainConnection(global.Env().SystemConfig.NetworkConfig.RPCBinding)
+	return ObtainConnection(listenAddress)
 }
 
 //func ObtainLeaderConnection() (conn *grpc.ClientConn, err error) {
@@ -54,12 +52,12 @@ func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
 func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
 	log.Trace("obtain client connection: ", addr)
 
-	if c.TLSEnabled {
+	if rpcConfig.TLSConfig.TLSEnabled {
 		var creds credentials.TransportCredentials
 		log.Trace("using tls connection")
 
-		cert := c.TLSCertFile
-		key := c.TLSKeyFile
+		cert := rpcConfig.TLSConfig.TLSCertFile
+		key := rpcConfig.TLSConfig.TLSKeyFile
 		if cert != "" && key != "" {
 			log.Trace("use pre-defined cert")
 
@@ -117,7 +115,7 @@ func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
 }
 
 var s *grpc.Server
-var c *RPCConfig
+var rpcConfig *config.RPCConfig
 var connected bool
 var lastContact *time.Time
 var certPool *x509.CertPool
@@ -125,25 +123,13 @@ var rootCert *x509.Certificate
 var rootKey *rsa.PrivateKey
 var rootCertPEM []byte
 
-func Setup() {
-
+func Setup(cfg *config.RPCConfig) {
+	rpcConfig = cfg
+	var err error
 	s = grpc.NewServer()
-
-	//get config
-	c = &RPCConfig{}
-
-	exist, err := env.ParseConfig("rpc", c)
-
-	if exist && err != nil {
-		if err != nil {
-			log.Errorf("error to process config: %v", err)
-		}
-		panic(err)
-	}
-
-	if c.TLSEnabled {
-		cert := c.TLSCertFile
-		key := c.TLSKeyFile
+	if rpcConfig.TLSConfig.TLSEnabled {
+		cert := rpcConfig.TLSConfig.TLSCertFile
+		key := rpcConfig.TLSConfig.TLSKeyFile
 		log.Trace("using tls connection")
 
 		var creds credentials.TransportCredentials
@@ -161,8 +147,8 @@ func Setup() {
 			certPool = x509.NewCertPool()
 			certPool.AppendCertsFromPEM(rootCertPEM)
 
-			fmt.Printf("ca\n")
-			fmt.Printf("%s\n", rootCertPEM)
+			//fmt.Printf("ca\n")
+			//fmt.Printf("%s\n", rootCertPEM)
 
 			// create a key-pair for the server
 			servKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -208,7 +194,7 @@ func Setup() {
 				InsecureSkipVerify: false,
 			})
 
-			if c.TLSInsecureSkipVerify {
+			if rpcConfig.TLSConfig.TLSInsecureSkipVerify {
 
 				// Create the TLS credentials
 				creds = credentials.NewTLS(&tls.Config{
@@ -229,18 +215,22 @@ func Setup() {
 }
 
 var listener net.Listener
+var listenAddress string
 
 func GetListener() net.Listener {
 	return listener
 }
 
+func GetRPCAddress() string {
+	return listenAddress
+}
+
 func StartRPCServer() {
 
-	global.Env().SystemConfig.NetworkConfig.RPCBinding = util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.RPCBinding)
-	address := global.Env().SystemConfig.NetworkConfig.RPCBinding
+	listenAddress = util.AutoGetAddress(rpcConfig.NetworkConfig.GetBindingAddr())
 
 	var err error
-	listener, err = net.Listen("tcp", address)
+	listener, err = net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Errorf("failed to listen: %v", err)
 	}
@@ -254,9 +244,9 @@ func StartRPCServer() {
 		}
 	}()
 
-	err = util.WaitServerUp(address, 30*time.Second)
+	err = util.WaitServerUp(listenAddress, 30*time.Second)
 	if err != nil {
 		panic(err)
 	}
-	log.Info("rpc server listen at: ", address)
+	log.Info("rpc server listen at: ", listenAddress)
 }

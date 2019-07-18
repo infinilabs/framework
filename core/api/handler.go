@@ -21,7 +21,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
 	"github.com/jmoiron/jsonq"
 	"io/ioutil"
@@ -77,7 +76,7 @@ type Handler struct {
 // WriteHeader write status code to http header
 func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
 
-	if len(global.Env().SystemConfig.PathConfig.Cert) > 0 {
+	if apiConfig.TLSConfig.TLSEnabled {
 		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 	}
 

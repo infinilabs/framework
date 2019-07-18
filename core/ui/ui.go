@@ -41,9 +41,20 @@ import (
 var router *httprouter.Router
 var mux *http.ServeMux
 var l sync.Mutex
+var uiConfig *UIConfig
 
-func StartUI() {
+func GetUIConfig() UIConfig {
+	return *uiConfig
+}
 
+var bindAddress string
+
+func GetBindAddress() string {
+	return bindAddress
+}
+
+func StartUI(cfg *UIConfig) {
+	uiConfig = cfg
 	//start web ui
 	mux = http.NewServeMux()
 
@@ -82,8 +93,8 @@ func StartUI() {
 		}
 	}
 
-	address := util.AutoGetAddress(global.Env().SystemConfig.NetworkConfig.HTTPBinding)
-	if global.Env().SystemConfig.TLSEnabled {
+	bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
+	if uiConfig.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
 		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
@@ -119,7 +130,7 @@ func StartUI() {
 		}
 
 		srv := &http.Server{
-			Addr:         address,
+			Addr:         bindAddress,
 			Handler:      context.ClearHandler(router),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
@@ -135,7 +146,7 @@ func StartUI() {
 
 	} else {
 		go func() {
-			err := http.ListenAndServe(address, context.ClearHandler(router))
+			err := http.ListenAndServe(bindAddress, context.ClearHandler(router))
 			if err != nil {
 				log.Error(err)
 				panic(err)
@@ -144,12 +155,12 @@ func StartUI() {
 
 	}
 
-	err := util.WaitServerUp(address, 30*time.Second)
+	err := util.WaitServerUp(bindAddress, 30*time.Second)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Info("ui server listen at: ", address)
+	log.Info("ui server listen at: ", bindAddress)
 
 }
 

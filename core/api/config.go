@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Medcl (m AT medcl.net)
+Copyright Medcl (m AT medcl.net)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,4 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package api
+
+import "github.com/infinitbyte/framework/core/config"
+
+type APIConfig struct {
+	Enabled       bool                 `config:"enabled"`
+	TLSConfig     config.TLSConfig     `config:"tls"`
+	NetworkConfig config.NetworkConfig `config:"network"`
+}

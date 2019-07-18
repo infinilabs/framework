@@ -15,10 +15,3 @@ limitations under the License.
 */
 
 package rpc
-
-type RPCConfig struct {
-	TLSEnabled            bool   `config:"tls_enabled"`
-	TLSCertFile           string `config:"tls_cert_file"`
-	TLSKeyFile            string `config:"tls_key_file"`
-	TLSInsecureSkipVerify bool   `config:"tls_skip_insecure_verify"`
-}
