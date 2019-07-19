@@ -31,7 +31,7 @@ type JointConfig struct {
 
 // PipelineConfig config for each pipeline, a pipeline may have more than one joints
 type PipelineConfig struct {
-	ID            string         `json:"id,omitempty" index:"id"`
+	ID            string         `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
 	Name          string         `json:"name,omitempty" config:"name"`
 	StartJoint    *JointConfig   `json:"start,omitempty" config:"start"`
 	ProcessJoints []*JointConfig `json:"process,omitempty" config:"process"`

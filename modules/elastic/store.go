@@ -32,7 +32,7 @@ type ElasticStore struct {
 }
 
 func (store ElasticStore) Open() error {
-	orm.RegisterSchema(&Blob{})
+	orm.RegisterSchema(Blob{})
 	return nil
 }
 

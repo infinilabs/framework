@@ -21,6 +21,7 @@ import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/global"
+	"github.com/infinitbyte/framework/core/orm"
 	"github.com/infinitbyte/framework/core/pipeline"
 )
 
@@ -64,6 +65,8 @@ func (module PipeModule) Start() error {
 	if started {
 		return errors.New("pipeline framework already started, please stop it first.")
 	}
+
+	orm.RegisterSchema(pipeline.PipelineConfig{})
 
 	runners = map[string]*PipeRunner{}
 	for i, v := range config.Runners {

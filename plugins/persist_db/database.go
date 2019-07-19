@@ -20,7 +20,6 @@ import (
 	. "github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/errors"
 	"github.com/infinitbyte/framework/core/orm"
-	"github.com/infinitbyte/framework/core/pipeline"
 	"github.com/infinitbyte/framework/plugins/persist_db/mysql"
 	"github.com/infinitbyte/framework/plugins/persist_db/sqlite"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
@@ -39,10 +38,6 @@ var (
 	}
 )
 
-func getDefaultConfig() PersistConfig {
-	return defaultConfig
-}
-
 type PersistConfig struct {
 	//Driver only `mysql` and `sqlite` are available
 	Driver string               `config:"driver"`
@@ -50,29 +45,29 @@ type PersistConfig struct {
 	MySQL  *mysql.MySQLConfig   `config:"mysql"`
 }
 
-func (module DatabaseModule) Start(cfg *Config) {
-
+func (module DatabaseModule) Setup(cfg *Config) {
 	//init config
-	config := getDefaultConfig()
-	cfg.Unpack(&config)
+	cfg.Unpack(&defaultConfig)
+}
+
+func (module DatabaseModule) Start() error {
 
 	//whether use lock, only sqlite need lock
 	userLock := false
-	if config.Driver == "sqlite" {
-		db = sqlite.GetInstance(config.SQLite)
+	if defaultConfig.Driver == "sqlite" {
+		db = sqlite.GetInstance(defaultConfig.SQLite)
 		userLock = true
-	} else if config.Driver == "mysql" {
-		db = mysql.GetInstance(config.MySQL)
+	} else if defaultConfig.Driver == "mysql" {
+		db = mysql.GetInstance(defaultConfig.MySQL)
 	} else {
-		panic(errors.Errorf("invalid driver, %s", config.Driver))
+		panic(errors.Errorf("invalid driver, %s", defaultConfig.Driver))
 	}
-
-	//register builtin domain
-	db.AutoMigrate(&pipeline.PipelineConfig{})
 
 	handler := SQLORM{conn: db, useLock: userLock}
 
 	orm.Register("db", handler)
+
+	return nil
 }
 
 func (module DatabaseModule) Stop() error {
