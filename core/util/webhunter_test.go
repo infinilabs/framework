@@ -81,3 +81,15 @@ func BenchmarkGet(b *testing.B) {
 	}
 
 }
+
+//func TestTimeWait(t *testing.T) {
+//	var i int64
+//	for {
+//		_, err := HttpGet("http://localhost:9200/index/_search/?q=company:A")
+//		if err != nil {
+//			t.Error(err)
+//		}
+//		i++
+//		//fmt.Printf("%8d\r", i)
+//	}
+//}

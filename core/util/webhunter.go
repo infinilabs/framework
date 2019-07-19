@@ -32,7 +32,6 @@ import (
 	"github.com/infinitbyte/framework/core/errors"
 	"golang.org/x/net/proxy"
 	"io"
-	"runtime"
 )
 
 const (
@@ -211,6 +210,11 @@ func (r *Request) SetAgent(agent string) *Request {
 	return r
 }
 
+func (r *Request) AcceptGzip() *Request {
+	r.AddHeader("Accept-Encoding", "gzip")
+	return r
+}
+
 func (r *Request) SetProxy(proxy string) *Request {
 	r.Proxy = proxy
 	return r
@@ -235,29 +239,7 @@ const ContentTypeForm = "application/x-www-form-urlencoded;charset=UTF-8"
 // ExecuteRequest issue a request
 func ExecuteRequest(req *Request) (result *Result, err error) {
 
-	defer func() {
-		if r := recover(); r != nil {
-
-			if r == nil {
-				return
-			}
-			var v string
-			switch r.(type) {
-			case error:
-				v = r.(error).Error()
-			case runtime.Error:
-				v = r.(runtime.Error).Error()
-			case string:
-				v = r.(string)
-			}
-
-			log.Error("error in webhunter", v)
-
-		}
-
-	}()
-
-	log.Debug("let's: " + req.Method + ", " + req.Url)
+	//log.Trace("let's: " + req.Method + ", " + req.Url)
 
 	var request *http.Request
 	if req.Body != nil && len(req.Body) > 0 {
@@ -271,17 +253,22 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 		panic(err)
 	}
 
-	request.Header.Set("User-Agent", userAgent)
-	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	request.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
-	request.Header.Set("Accept-Encoding", "gzip,deflate,sdch")
+	if req.Agent != "" {
+		request.Header.Set("User-Agent", req.Agent)
+	} else {
+		request.Header.Set("User-Agent", userAgent)
+	}
+
+	//request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	//request.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
+	//request.Header.Set("Accept-Encoding", "gzip,deflate,sdch")
 
 	if req.ContentType != "" {
 		request.Header.Add("Content-Type", req.ContentType)
 	}
 
-	request.Header.Set("Cache-Control", "max-age=0")
-	request.Header.Set("Connection", "keep-alive")
+	//request.Header.Set("Cache-Control", "max-age=0")
+	//request.Header.Set("Connection", "keep-alive")
 	request.Header.Set("Referer", req.Url)
 
 	if req.headers != nil {
@@ -332,9 +319,14 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 
 		// Make a http.Transport that uses the proxy dialer, and a
 		// http.Client that uses the transport.
-		tbTransport := &http.Transport{Dial: tbDialer.Dial}
-		//http.DefaultClient.Transport = &http.Transport{Dial: tbDialer.Dial}
-
+		tbTransport := &http.Transport{
+			Dial: tbDialer.Dial,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+		}
 		client.Transport = tbTransport
 	}
 
@@ -367,7 +359,6 @@ func HttpDelete(resource string) (*Result, error) {
 
 var timeout = 30 * time.Second
 var t = &http.Transport{
-
 	Dial: func(netw, addr string) (net.Conn, error) {
 		deadline := time.Now().Add(30 * time.Second)
 		c, err := net.DialTimeout(netw, addr, 10*time.Second)
@@ -377,12 +368,21 @@ var t = &http.Transport{
 		c.SetDeadline(deadline)
 		return c, nil
 	},
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		DualStack: true,
+	}).DialContext,
 	ResponseHeaderTimeout: timeout,
 	IdleConnTimeout:       timeout,
 	TLSHandshakeTimeout:   timeout,
 	ExpectContinueTimeout: timeout,
-	DisableKeepAlives:     true,
-	MaxIdleConnsPerHost:   10,
+	DisableCompression:    true,
+	DisableKeepAlives:     false,
+	MaxIdleConns:          20000,
+	MaxIdleConnsPerHost:   20000,
+	MaxConnsPerHost:       20000,
 	TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 }
 
@@ -394,17 +394,16 @@ var client = &http.Client{
 
 func execute(req *http.Request) (*Result, error) {
 	result := &Result{}
-
-	//support gzip
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	//defer t.CloseIdleConnections()
-
 	resp, err := client.Do(req)
+
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
 	if err != nil {
-		//panic(err)
-		return result, err
+		panic(err)
+		//return result, err
 	}
 
 	if resp != nil {
@@ -419,11 +418,11 @@ func execute(req *http.Request) (*Result, error) {
 				return result, errors.NewWithPayload(err, errors.URLRedirected, location, fmt.Sprint("got redirect: ", req.URL, " => ", location))
 			}
 		}
-	}
 
-	// update host, redirects may change the host
-	result.Host = resp.Request.Host
-	result.Url = resp.Request.URL.String()
+		// update host, redirects may change the host
+		result.Host = resp.Request.Host
+		result.Url = resp.Request.URL.String()
+	}
 
 	if resp.Header != nil {
 
@@ -434,35 +433,26 @@ func execute(req *http.Request) (*Result, error) {
 	}
 
 	reader := resp.Body
-	defer reader.Close()
 
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		reader, err = gzip.NewReader(resp.Body)
 
 		if err != nil {
-			//panic(err)
-			return result, err
+			panic(err)
 		}
 	}
 
 	if reader != nil {
 		body, err := ioutil.ReadAll(reader)
-
+		io.Copy(ioutil.Discard, reader)
+		reader.Close()
 		if err != nil {
-			//panic(err)
-			return result, err
+			panic(err)
 		}
 
 		result.Body = body
 		result.Size = uint64(len(body))
-
 		return result, nil
-	}
-
-	//cleanup
-	if resp != nil && resp.Body != nil {
-		io.Copy(ioutil.Discard, resp.Body)
-		defer resp.Body.Close()
 	}
 
 	return nil, http.ErrNotSupported
