@@ -397,8 +397,10 @@ func execute(req *http.Request) (*Result, error) {
 	resp, err := client.Do(req)
 
 	defer func() {
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
+		if resp != nil && resp.Body != nil {
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+		}
 	}()
 
 	if err != nil {
