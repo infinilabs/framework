@@ -2,30 +2,94 @@ package elastic
 
 import (
 	"github.com/infinitbyte/framework/core/util"
+	"strings"
 )
 
 type Indexes map[string]interface{}
 
+type ScrollResponseAPI interface {
+	GetScrollId() string
+	SetScrollId(id string)
+	GetHitsTotal() int
+	GetShardResponse() ShardResponse
+	GetDocs() []interface{}
+}
+
+type ShardResponse struct {
+	Total      int `json:"total,omitempty"`
+	Successful int `json:"successful,omitempty"`
+	Skipped    int `json:"skipped,omitempty"`
+	Failed     int `json:"failed,omitempty"`
+	Failures   []struct {
+		Shard  int         `json:"shard,omitempty"`
+		Index  string      `json:"index,omitempty"`
+		Status int         `json:"status,omitempty"`
+		Reason interface{} `json:"reason,omitempty"`
+	} `json:"failures,omitempty"`
+}
+
 type ScrollResponse struct {
-	Took     int    `json:"took"`
-	ScrollId string `json:"_scroll_id"`
-	TimedOut bool   `json:"timed_out"`
+	Took     int    `json:"took,omitempty"`
+	ScrollId string `json:"_scroll_id,omitempty"`
+	TimedOut bool   `json:"timed_out,omitempty"`
 	Hits     struct {
-		MaxScore float32       `json:"max_score"`
-		Total    int           `json:"total"`
-		Docs     []interface{} `json:"hits"`
+		MaxScore float32       `json:"max_score,omitempty"`
+		Total    int           `json:"total,omitempty"`
+		Docs     []interface{} `json:"hits,omitempty"`
 	} `json:"hits"`
-	Shards struct {
-		Total      int `json:"total"`
-		Successful int `json:"successful"`
-		Failed     int `json:"failed"`
-		Failures   []struct {
-			Shard  int         `json:"shard"`
-			Index  string      `json:"index"`
-			Status int         `json:"status"`
-			Reason interface{} `json:"reason"`
-		} `json:"failures"`
-	} `json:"_shards"`
+	Shards ShardResponse `json:"_shards,omitempty"`
+}
+
+type ScrollResponseV7 struct {
+	ScrollResponse
+	Hits struct {
+		MaxScore float32 `json:"max_score,omitempty"`
+		Total    struct {
+			Value    int    `json:"value,omitempty"`
+			Relation string `json:"relation,omitempty"`
+		} `json:"total,omitempty"`
+		Docs []interface{} `json:"hits,omitempty"`
+	} `json:"hits"`
+}
+
+func (scroll *ScrollResponse) GetHitsTotal() int {
+	return scroll.Hits.Total
+}
+
+func (scroll *ScrollResponse) GetScrollId() string {
+	return scroll.ScrollId
+}
+
+func (scroll *ScrollResponse) SetScrollId(id string) {
+	scroll.ScrollId = id
+}
+
+func (scroll *ScrollResponse) GetDocs() []interface{} {
+	return scroll.Hits.Docs
+}
+
+func (scroll *ScrollResponse) GetShardResponse() ShardResponse {
+	return scroll.Shards
+}
+
+func (scroll *ScrollResponseV7) GetHitsTotal() int {
+	return scroll.Hits.Total.Value
+}
+
+func (scroll *ScrollResponseV7) GetScrollId() string {
+	return scroll.ScrollId
+}
+
+func (scroll *ScrollResponseV7) SetScrollId(id string) {
+	scroll.ScrollId = id
+}
+
+func (scroll *ScrollResponseV7) GetDocs() []interface{} {
+	return scroll.Hits.Docs
+}
+
+func (scroll *ScrollResponseV7) GetShardResponse() ShardResponse {
+	return scroll.Shards
 }
 
 type ClusterVersion struct {
@@ -35,6 +99,15 @@ type ClusterVersion struct {
 		Number        string `json:"number"`
 		LuceneVersion string `json:"lucene_version"`
 	} `json:"version"`
+}
+
+func (c *ClusterVersion) GetMajorVersion() int {
+	vs := strings.Split(c.Version.Number, ".")
+	n, err := util.ToInt(vs[0])
+	if err != nil {
+		panic(err)
+	}
+	return n
 }
 
 type ClusterHealth struct {

@@ -17,6 +17,7 @@ limitations under the License.
 package adapter
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/infinitbyte/framework/core/elastic"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/util"
+	"strings"
 )
 
 type ESAPIV7 struct {
@@ -197,4 +199,91 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 	}
 
 	return resp.Body, err
+}
+
+func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
+	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.Config.Endpoint, indexNames, scrollTime, docBufferCount)
+
+	var jsonBody []byte
+	if len(query) > 0 || maxSlicedCount > 0 || len(fields) > 0 {
+		queryBody := map[string]interface{}{}
+
+		if len(fields) > 0 {
+			if !strings.Contains(fields, ",") {
+				log.Error("The fields shoud be seraprated by ,")
+				return nil, errors.New("")
+			} else {
+				queryBody["_source"] = strings.Split(fields, ",")
+			}
+		}
+
+		if len(query) > 0 {
+			queryBody["query"] = map[string]interface{}{}
+			queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
+			queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
+		}
+
+		if maxSlicedCount > 1 {
+			log.Tracef("sliced scroll, %d of %d", slicedId, maxSlicedCount)
+			queryBody["slice"] = map[string]interface{}{}
+			queryBody["slice"].(map[string]interface{})["id"] = slicedId
+			queryBody["slice"].(map[string]interface{})["max"] = maxSlicedCount
+		}
+
+		jsonArray, err := json.Marshal(queryBody)
+		if err != nil {
+			log.Error(err)
+
+		} else {
+			jsonBody = jsonArray
+		}
+	}
+
+	if jsonBody == nil {
+		panic("scroll request is nil")
+	}
+
+	resp, err := c.Request(util.Verb_POST, url, jsonBody)
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	scroll = &elastic.ScrollResponseV7{}
+	err = json.Unmarshal(resp.Body, scroll)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	return scroll, err
+}
+
+func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
+	id := bytes.NewBufferString(scrollId)
+	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, id)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	scroll := &elastic.ScrollResponseV7{}
+	err = json.Unmarshal(resp.Body, &scroll)
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+
+	return scroll, nil
 }

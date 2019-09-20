@@ -50,8 +50,9 @@ type ModuleConfig struct {
 	Elasticsearch  string `config:"elasticsearch"`
 }
 
-var m = map[string]elastic.ElasticsearchConfig{}
 var indexer *ElasticIndexer
+
+var m = map[string]elastic.ElasticsearchConfig{}
 
 func loadElasticConfig() {
 
@@ -99,18 +100,22 @@ func initElasticInstances() {
 		if strings.HasPrefix(esVersion.Version.Number, "7.") {
 			api := new(adapter.ESAPIV7)
 			api.Config = &esConfig
+			api.Version = esVersion
 			client = api
 		} else if strings.HasPrefix(esVersion.Version.Number, "6.") {
 			api := new(adapter.ESAPIV6)
 			api.Config = &esConfig
+			api.Version = esVersion
 			client = api
 		} else if strings.HasPrefix(esVersion.Version.Number, "5.") {
 			api := new(adapter.ESAPIV5)
 			api.Config = &esConfig
+			api.Version = esVersion
 			client = api
 		} else {
 			api := new(adapter.ESAPIV0)
 			api.Config = &esConfig
+			api.Version = esVersion
 			client = api
 		}
 		elastic.RegisterInstance(k, esConfig, client)
@@ -118,11 +123,17 @@ func initElasticInstances() {
 
 }
 
-func (module ElasticModule) Setup(cfg *config.Config) {
+func (module ElasticModule) Init() {
 
 	loadElasticConfig()
 
 	initElasticInstances()
+
+}
+
+func (module ElasticModule) Setup(cfg *config.Config) {
+
+	module.Init()
 
 	moduleConfig := getDefaultConfig()
 	cfg.Unpack(&moduleConfig)

@@ -19,9 +19,15 @@ package elastic
 import "bytes"
 
 type API interface {
+	ScrollAPI
+	MappingAPI
+	TemplateAPI
+
 	Init()
 
 	ClusterHealth() *ClusterHealth
+
+	ClusterVersion() *ClusterVersion
 
 	CreateIndex(name string, settings map[string]interface{}) error
 
@@ -41,15 +47,20 @@ type API interface {
 	IndexExists(indexName string) (bool, error)
 	DeleteIndex(name string) error
 
-	GetMapping(copyAllIndexes bool, indexNames string) (string, int, *Indexes, error)
+	Refresh(name string) (err error)
+}
 
-	UpdateMapping(indexName string, mappings []byte) ([]byte, error)
-
-	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (*ScrollResponse, error)
-	NextScroll(scrollTime string, scrollId string) (*ScrollResponse, error)
-
+type TemplateAPI interface {
 	TemplateExists(templateName string) (bool, error)
 	PutTemplate(templateName string, template []byte) ([]byte, error)
+}
 
-	Refresh(name string) (err error)
+type MappingAPI interface {
+	GetMapping(copyAllIndexes bool, indexNames string) (string, int, *Indexes, error)
+	UpdateMapping(indexName string, mappings []byte) ([]byte, error)
+}
+
+type ScrollAPI interface {
+	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (interface{}, error)
+	NextScroll(scrollTime string, scrollId string) (interface{}, error)
 }

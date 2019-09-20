@@ -30,7 +30,8 @@ import (
 )
 
 type ESAPIV0 struct {
-	Config *elastic.ElasticsearchConfig
+	Version *elastic.ClusterVersion
+	Config  *elastic.ElasticsearchConfig
 }
 
 const TypeName6 = "doc"
@@ -363,6 +364,10 @@ func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
 	return false, nil
 }
 
+func (c *ESAPIV0) ClusterVersion() *elastic.ClusterVersion {
+	return c.Version
+}
+
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 
 	url := fmt.Sprintf("%s/_cluster/health", c.Config.Endpoint)
@@ -655,7 +660,7 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll *elastic.ScrollResponse, err error) {
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
@@ -719,7 +724,7 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return scroll, err
 }
 
-func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (*elastic.ScrollResponse, error) {
+func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
 	//  curl -XGET 'http://es-0.9:9200/_search/scroll?scroll=5m'
 	id := bytes.NewBufferString(scrollId)
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, id)

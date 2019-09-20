@@ -70,7 +70,7 @@ func (s *ESAPIV5) Refresh(name string) (err error) {
 	return s.ESAPIV0.Refresh(name)
 }
 
-func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll *elastic.ScrollResponse, err error) {
+func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
@@ -132,7 +132,7 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return scroll, err
 }
 
-func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (*elastic.ScrollResponse, error) {
+func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
 	id := bytes.NewBufferString(scrollId)
 
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, id)
@@ -147,7 +147,6 @@ func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (*elastic.Scrol
 		return nil, errors.New(string(resp.Body))
 	}
 
-	// decode elasticsearch scroll response
 	scroll := &elastic.ScrollResponse{}
 	err = json.Unmarshal(resp.Body, &scroll)
 	if err != nil {
