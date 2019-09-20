@@ -24,7 +24,7 @@ import (
 	"sync"
 )
 
-const sessionName string = "infinitbyte-session"
+const sessionName string = "INFINITBYTE-SESSION"
 
 func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 	return getStore().Get(r, key)

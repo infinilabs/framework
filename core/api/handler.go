@@ -304,6 +304,7 @@ func NeedPermission(permission string, h httprouter.Handle) httprouter.Handle {
 			// Delegate request to the given handle
 			h(w, r, ps)
 		} else {
+			//TODO redirect url configurable
 			http.Redirect(w, r, "/auth/login/?redirect_url="+util.UrlEncode(r.URL.String()), 302)
 		}
 	}

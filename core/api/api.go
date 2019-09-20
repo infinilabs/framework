@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	"github.com/infinitbyte/framework/core/api/filter"
 	"github.com/infinitbyte/framework/core/api/router"
 	"github.com/infinitbyte/framework/core/config"
 	"github.com/infinitbyte/framework/core/env"
@@ -23,9 +24,6 @@ import (
 	"time"
 )
 
-// RegisteredAPIHandler is a hub for registered api
-var registeredAPIHandler = make(map[string]http.Handler)
-
 // RegisteredAPIFuncHandler is a hub for registered api
 var registeredAPIFuncHandler = make(map[string]func(http.ResponseWriter, *http.Request))
 
@@ -33,7 +31,8 @@ var registeredAPIFuncHandler = make(map[string]func(http.ResponseWriter, *http.R
 var registeredAPIMethodHandler = make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params))
 
 var l sync.Mutex
-var started bool
+
+var filters []filter.Filter
 
 // HandleAPIFunc register api handler to specify pattern
 func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
@@ -41,25 +40,15 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 	if registeredAPIFuncHandler == nil {
 		registeredAPIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
 	}
+
+	for _, f := range filters {
+		handler = f.FilterHttpHandlerFunc(pattern, handler)
+	}
+
 	registeredAPIFuncHandler[pattern] = handler
 
 	log.Debugf("register custom http handler: %v", pattern)
 	mux.HandleFunc(pattern, handler)
-
-	l.Unlock()
-}
-
-// HandleAPI register api handler
-func HandleAPI(pattern string, handler http.Handler) {
-
-	l.Lock()
-	if registeredAPIHandler == nil {
-		registeredAPIHandler = map[string]http.Handler{}
-	}
-	registeredAPIHandler[pattern] = handler
-	log.Debugf("register custom http handler: %v", pattern)
-
-	mux.Handle(pattern, handler)
 
 	l.Unlock()
 }
@@ -76,6 +65,12 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	if m1 == nil {
 		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
+
+	//Apply handler filters
+	for _, f := range filters {
+		handler = f.FilterHttpRouter(pattern, handler)
+	}
+
 	registeredAPIMethodHandler[m][pattern] = handler
 	log.Debugf("register custom http handler: %v %v", m, pattern)
 
@@ -83,11 +78,9 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	l.Unlock()
 }
 
-var router *httprouter.Router = httprouter.New(mux)
-var mux *http.ServeMux = http.NewServeMux()
+var router = httprouter.New(mux)
+var mux = http.NewServeMux()
 
-var connected bool
-var lastContact *time.Time
 var certPool *x509.CertPool
 var rootCert *x509.Certificate
 var rootKey *rsa.PrivateKey
@@ -120,8 +113,9 @@ func StartAPI(cfg *config.Config) {
 		panic(err)
 	}
 
+	schema := "http://"
 	if apiConfig.TLSConfig.TLSEnabled {
-
+		schema = "https://"
 		cfg := &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			CurvePreferences: []tls.CurveID{
@@ -201,7 +195,6 @@ func StartAPI(cfg *config.Config) {
 			Addr:              listenAddress,
 			Handler:           c.Handler(context.ClearHandler(router)),
 			TLSConfig:         cfg,
-			//TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
 				"spdy/3": func(s *http.Server, conn *tls.Conn, h http.Handler) {
 					buf := make([]byte, 1)
@@ -240,5 +233,5 @@ func StartAPI(cfg *config.Config) {
 	if err != nil {
 		panic(err)
 	}
-	log.Info("api server listen at: ", listenAddress)
+	log.Info("api server listen at: ", schema, listenAddress)
 }
