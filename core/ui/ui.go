@@ -93,9 +93,13 @@ func StartUI(cfg *UIConfig) {
 		}
 	}
 
+	schema := "http://"
+
 	bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
 	if uiConfig.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
+
+		schema = "https://"
 
 		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
 		match, err := filepath.Glob(certFile)
@@ -160,7 +164,7 @@ func StartUI(cfg *UIConfig) {
 		panic(err)
 	}
 
-	log.Info("ui server listen at: ", bindAddress)
+	log.Info("ui server listen at: ", schema, bindAddress)
 
 }
 

@@ -24,8 +24,6 @@ import (
 
 type ParaKey string
 
-const CONTEXT_MESSAGE ParaKey = "CONTEXT_MESSAGE"
-
 type Context struct {
 	Parameters
 

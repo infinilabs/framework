@@ -1,5 +1,8 @@
 # Framework
 
+## Requirements
+- Golang v1.11+
+
 ## How to use
 - Clone framework's `vendor` to your own application's root folder.
 ```
