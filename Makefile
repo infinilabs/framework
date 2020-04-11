@@ -22,6 +22,8 @@ GO        := GO15VENDOREXPERIMENT="1" go
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
+GO111MODULE=off
+
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
 MAC       := "Darwin"
