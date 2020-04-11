@@ -65,7 +65,7 @@ func (c *ESAPIV6) initTemplate(indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
-	templateName := "infinitbyte"
+	templateName := global.Env().GetAppLowercaseName()
 
 	if c.Config.TemplateName != "" {
 		templateName = c.Config.TemplateName

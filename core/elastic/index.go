@@ -118,9 +118,9 @@ type ClusterHealth struct {
 // IndexDocument used to construct indexing document
 type IndexDocument struct {
 	Index     string                   `json:"_index,omitempty"`
-	Type      string                   `json:"_type"`
+	Type      string                   `json:"_type,omitempty"`
 	ID        interface{}              `json:"_id,omitempty"`
-	Routing   string                   `json:"_routing"`
+	Routing   string                   `json:"_routing,omitempty"`
 	Source    map[string]interface{}   `json:"_source,omitempty"`
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }

@@ -30,8 +30,8 @@ import (
 )
 
 type ESAPIV0 struct {
-	Version *elastic.ClusterVersion
-	Config  *elastic.ElasticsearchConfig
+	Version elastic.ClusterVersion
+	Config  elastic.ElasticsearchConfig
 }
 
 const TypeName6 = "doc"
@@ -118,7 +118,7 @@ func (c *ESAPIV0) initTemplate(indexPrefix string) {
 		log.Trace("init elasticsearch template")
 	}
 
-	templateName := "infinitbyte"
+	templateName := global.Env().GetAppLowercaseName()
 
 	if c.Config.TemplateName != "" {
 		templateName = c.Config.TemplateName
@@ -365,7 +365,7 @@ func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
 }
 
 func (c *ESAPIV0) ClusterVersion() *elastic.ClusterVersion {
-	return c.Version
+	return &c.Version
 }
 
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {

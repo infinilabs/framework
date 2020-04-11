@@ -16,7 +16,9 @@ limitations under the License.
 
 package elastic
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var apis = map[string]API{}
 var cfgs = map[string]ElasticsearchConfig{}

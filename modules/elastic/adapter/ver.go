@@ -23,7 +23,7 @@ import (
 	"github.com/infinitbyte/framework/core/util"
 )
 
-func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterVersion, error) {
+func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterVersion, error) {
 
 	req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
 
@@ -41,8 +41,8 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterVersio
 		panic(err)
 	}
 
-	version := &elastic.ClusterVersion{}
-	err = json.Unmarshal(response.Body, version)
+	version := elastic.ClusterVersion{}
+	err = json.Unmarshal(response.Body, &version)
 
 	if err != nil {
 		panic(err)

@@ -66,7 +66,7 @@ func (c *ESAPIV7) initTemplate(indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
-	templateName := "infinitbyte"
+	templateName := global.Env().GetAppLowercaseName()
 
 	if c.Config.TemplateName != "" {
 		templateName = c.Config.TemplateName
@@ -203,7 +203,6 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 
 func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.Config.Endpoint, indexNames, scrollTime, docBufferCount)
-
 	var jsonBody []byte
 	if len(query) > 0 || maxSlicedCount > 0 || len(fields) > 0 {
 		queryBody := map[string]interface{}{}
@@ -257,6 +256,7 @@ func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount
 	scroll = &elastic.ScrollResponseV7{}
 	err = json.Unmarshal(resp.Body, scroll)
 	if err != nil {
+		log.Error(string(resp.Body))
 		log.Error(err)
 		return nil, err
 	}
