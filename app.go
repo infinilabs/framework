@@ -241,7 +241,8 @@ func (app *App) Shutdown() {
 		log.Error("shutdown: ", v)
 
 		buf := make([]byte, 1<<20)
-		runtime.Stack(buf, true)
+
+		runtime.Stack(buf, app.environment.IsDebug)
 		fmt.Printf("\n%s", buf)
 
 	}
