@@ -3,7 +3,9 @@ package stats
 import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
+	"github.com/infinitbyte/framework/core/api"
 	. "github.com/infinitbyte/framework/core/config"
+	"github.com/infinitbyte/framework/core/env"
 	"github.com/infinitbyte/framework/core/global"
 	"github.com/infinitbyte/framework/core/stats"
 	"github.com/infinitbyte/framework/core/util"
@@ -20,34 +22,54 @@ func (module SimpleStatsModule) Name() string {
 
 var data *Stats
 var dataPath string
+var config *SimpleStatsConfig
+
+type SimpleStatsConfig struct {
+	Persist bool `config:"persist"`
+}
 
 func (module SimpleStatsModule) Setup(cfg *Config) {
 
-	dataPath = path.Join(global.Env().GetWorkingDir(), "stats")
-	os.MkdirAll(dataPath, 0777)
+	config = &SimpleStatsConfig{}
+	env.ParseConfig("stats", config)
+
+	if config.Persist {
+		dataPath = path.Join(global.Env().GetWorkingDir(), "stats")
+		os.MkdirAll(dataPath, 0777)
+	}
 
 	data = &Stats{}
 	data.initStats("simple")
 	stats.Register(data)
+
+	//register api
+	api.HandleAPIFunc("/stats", module.StatsAction)
 }
 
 func (module SimpleStatsModule) Start() error {
+
 	return nil
 }
 
 func (module SimpleStatsModule) Stop() error {
-	data.l.Lock()
-	defer data.l.Unlock()
-	v, _ := json.Marshal(data.Data)
-	_, err := util.FilePutContentWithByte(path.Join(dataPath, strings.ToLower(data.ID)), v)
-	if err != nil {
-		log.Error(err)
+
+	if config.Persist {
+		data.l.Lock()
+		defer data.l.Unlock()
+		v, _ := json.Marshal(data.Data)
+		_, err := util.FilePutContentWithByte(path.Join(dataPath, strings.ToLower(data.ID)), v)
+		if err != nil {
+			log.Error(err)
+		}
+		log.Trace("save stats db,", data.ID)
 	}
-	log.Trace("save stats db,", data.ID)
+
 	return nil
 }
 
 type SimpleStatsModule struct {
+	config *SimpleStatsConfig
+	api.Handler
 }
 
 type Stats struct {
@@ -124,15 +146,17 @@ func (s *Stats) initStats(id string) {
 
 	s.ID = id
 
-	v, err := util.FileGetContent(path.Join(dataPath, strings.ToLower(data.ID)))
+	if config.Persist {
+		v, err := util.FileGetContent(path.Join(dataPath, strings.ToLower(data.ID)))
 
-	if err == nil && v != nil {
-		d := map[string]map[string]int64{}
-		err = json.Unmarshal(v, &d)
-		if err != nil {
-			log.Error(err)
+		if err == nil && v != nil {
+			d := map[string]map[string]int64{}
+			err = json.Unmarshal(v, &d)
+			if err != nil {
+				log.Error(err)
+			}
+			s.Data = &d
 		}
-		s.Data = &d
 	}
 
 	if s.Data == nil {
