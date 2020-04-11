@@ -17,7 +17,9 @@ limitations under the License.
 package util
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -234,4 +236,18 @@ func FromJSONBytes(b []byte, v interface{}) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func EncodeToBytes(key interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(key)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func GetBytes(key interface{}) []byte {
+	return []byte(fmt.Sprintf("%v", key.(interface{})))
 }
