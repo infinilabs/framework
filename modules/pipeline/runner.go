@@ -93,35 +93,47 @@ func (pipe *PipeRunner) decodeContext(context []byte) pipeline.Context {
 
 func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 
-	var inputMessage []byte
-	for {
-		select {
-		case <-*signal:
-			log.Trace("pipeline:", pipe.config.Name, " exit, shard:", shard)
-			return
-		case inputMessage = <-queue.ReadChan(pipe.config.InputQueue):
-			stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
+	if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
+		log.Info("use schedule in pipeline runner")
+		context := pipeline.Context{}
+		pipe.execute(shard, context, &pipe.config.pipelineConfig)
+	} else {
+		log.Info("no schedule was defined")
+		var inputMessage []byte
+		for {
+			select {
+			case <-*signal:
+				log.Trace("pipeline:", pipe.config.Name, " exit, shard:", shard)
+				return
+			default:
 
-			context := pipe.decodeContext(inputMessage)
+				context := pipeline.Context{}
+				if pipe.config.InputQueue != "" {
+					inputMessage = <-queue.ReadChan(pipe.config.InputQueue)
+					stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
 
-			if global.Env().IsDebug {
-				log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
+					context = pipe.decodeContext(inputMessage)
+
+					if global.Env().IsDebug {
+						log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
+					}
+				}
+
+				//TODO dynamic load pipeline config
+				//url := context.GetStringOrDefault(pipeline.CONTEXT_TASK_URL, "")
+				//pipelineConfigID := context.GetStringOrDefault(pipeline.CONTEXT_TASK_PipelineConfigID, "")
+				//if pipelineConfigID != "" {
+				//	var err error
+				//	pipelineConfig, err = pipeline.GetPipelineConfig(pipelineConfigID)
+				//	log.Debug("get pipeline config,", pipelineConfig.Name, ",", url, ",", pipelineConfigID)
+				//	if err != nil {
+				//		panic(err)
+				//	}
+				//}
+
+				pipe.execute(shard, context, &pipe.config.pipelineConfig)
+				log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 			}
-
-			//TODO dynamic load pipeline config
-			//url := context.GetStringOrDefault(pipeline.CONTEXT_TASK_URL, "")
-			//pipelineConfigID := context.GetStringOrDefault(pipeline.CONTEXT_TASK_PipelineConfigID, "")
-			//if pipelineConfigID != "" {
-			//	var err error
-			//	pipelineConfig, err = pipeline.GetPipelineConfig(pipelineConfigID)
-			//	log.Debug("get pipeline config,", pipelineConfig.Name, ",", url, ",", pipelineConfigID)
-			//	if err != nil {
-			//		panic(err)
-			//	}
-			//}
-
-			pipe.execute(shard, context, &pipe.config.pipelineConfig)
-			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 		}
 	}
 }
@@ -146,7 +158,7 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 
 				log.Error("pipeline:", pipe.config.Name, ", shard:", shard, ", sequence:", context.SequenceID, ", err: ", v)
 				if p != nil {
-					log.Error("instance:", p.GetID(), " ,joint:", p.GetCurrentJoint(), "context", util.ToJson(p.GetContext(), true))
+					log.Error("instance:", p.GetID(), " ,joint:", p.CurrentProcessor(), "context", util.ToJson(p.GetContext(), true))
 				}
 			}
 		}

@@ -22,24 +22,24 @@ import (
 	"time"
 )
 
-// JointConfig configs for each joint
-type JointConfig struct {
-	JointName  string                 `json:"joint" config:"joint"`                     //the joint name
+// ProcessorConfig configs for each joint
+type ProcessorConfig struct {
+	Name       string                 `json:"joint" config:"joint"`                     //the joint name
 	Parameters map[string]interface{} `json:"parameters,omitempty" config:"parameters"` //kv parameters for this joint
 	Enabled    bool                   `json:"enabled" config:"enabled"`
 }
 
-// PipelineConfig config for each pipeline, a pipeline may have more than one joints
+// PipelineConfig config for each pipeline, a pipeline may have more than one processors
 type PipelineConfig struct {
-	ID            string         `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
-	Name          string         `json:"name,omitempty" config:"name"`
-	StartJoint    *JointConfig   `json:"start,omitempty" config:"start"`
-	ProcessJoints []*JointConfig `json:"process,omitempty" config:"process"`
-	EndJoint      *JointConfig   `json:"end,omitempty" config:"end"`
-	ErrorJoint    *JointConfig   `json:"error,omitempty" config:"error"`
-	Created       time.Time      `json:"created,omitempty"`
-	Updated       time.Time      `json:"updated,omitempty"`
-	Tags          []string       `json:"tags,omitempty" config:"tags"`
+	ID             string             `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
+	Name           string             `json:"name,omitempty" config:"name"`
+	StartProcessor *ProcessorConfig   `json:"start,omitempty" config:"start"`
+	Processors     []*ProcessorConfig `json:"process,omitempty" config:"process"`
+	EndProcessor   *ProcessorConfig   `json:"end,omitempty" config:"end"`
+	ErrorProcessor *ProcessorConfig   `json:"error,omitempty" config:"error"`
+	Created        time.Time          `json:"created,omitempty"`
+	Updated        time.Time          `json:"updated,omitempty"`
+	Tags           []string           `json:"tags,omitempty" config:"tags"`
 }
 
 var m map[string]PipelineConfig

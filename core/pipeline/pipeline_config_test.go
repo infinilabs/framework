@@ -48,13 +48,13 @@ func TestPipelineConfig(t *testing.T) {
 	RegisterPipeJoint(saveJoint{})
 	RegisterPipeJoint(publishJoint{})
 
-	config.StartJoint = &JointConfig{Enabled: true, JointName: "crawler", Parameters: map[string]interface{}{"url": "http://baidu12.com"}}
-	joints := []*JointConfig{}
-	joints = append(joints, &JointConfig{Enabled: true, JointName: "parser", Parameters: map[string]interface{}{}})
-	joints = append(joints, &JointConfig{Enabled: true, JointName: "save", Parameters: map[string]interface{}{}})
-	joints = append(joints, &JointConfig{Enabled: true, JointName: "publish", Parameters: map[string]interface{}{}})
+	config.StartProcessor = &ProcessorConfig{Enabled: true, Name: "crawler", Parameters: map[string]interface{}{"url": "http://baidu12.com"}}
+	joints := []*ProcessorConfig{}
+	joints = append(joints, &ProcessorConfig{Enabled: true, Name: "parser", Parameters: map[string]interface{}{}})
+	joints = append(joints, &ProcessorConfig{Enabled: true, Name: "save", Parameters: map[string]interface{}{}})
+	joints = append(joints, &ProcessorConfig{Enabled: true, Name: "publish", Parameters: map[string]interface{}{}})
 
-	config.ProcessJoints = joints
+	config.Processors = joints
 
 	pipe := NewPipelineFromConfig("test", &config, context)
 	context = pipe.Run()
@@ -187,12 +187,12 @@ func TestNewPipelineFromConfig(t *testing.T) {
 
 	assert.Equal(t, 1, len(pipeConfigs.Pipelines))
 	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].Name)
-	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].StartJoint.JointName)
-	assert.Equal(t, true, pipeConfigs.Pipelines[0].StartJoint.Enabled)
-	assert.Equal(t, "http://localhost:9200", pipeConfigs.Pipelines[0].StartJoint.Parameters["endpoint"])
-	assert.Equal(t, "elastic", pipeConfigs.Pipelines[0].StartJoint.Parameters["username"])
-	assert.Equal(t, "changeme", pipeConfigs.Pipelines[0].StartJoint.Parameters["password"])
-	assert.Equal(t, "twitter", pipeConfigs.Pipelines[0].StartJoint.Parameters["index"])
+	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].StartProcessor.Name)
+	assert.Equal(t, true, pipeConfigs.Pipelines[0].StartProcessor.Enabled)
+	assert.Equal(t, "http://localhost:9200", pipeConfigs.Pipelines[0].StartProcessor.Parameters["endpoint"])
+	assert.Equal(t, "elastic", pipeConfigs.Pipelines[0].StartProcessor.Parameters["username"])
+	assert.Equal(t, "changeme", pipeConfigs.Pipelines[0].StartProcessor.Parameters["password"])
+	assert.Equal(t, "twitter", pipeConfigs.Pipelines[0].StartProcessor.Parameters["index"])
 
 	fmt.Println(pipeConfigs)
 
@@ -204,11 +204,11 @@ func TestGetStaticPipelineConfig(t *testing.T) {
 	global.RegisterEnv(env.EmptyEnv().SetConfigFile("config_test.yml"))
 
 	p := GetStaticPipelineConfig("es_scroll")
-	assert.Equal(t, "es_scroll", p.StartJoint.JointName)
-	assert.Equal(t, true, p.StartJoint.Enabled)
-	assert.Equal(t, "http://localhost:9200", p.StartJoint.Parameters["endpoint"])
-	assert.Equal(t, "elastic", p.StartJoint.Parameters["username"])
-	assert.Equal(t, "changeme", p.StartJoint.Parameters["password"])
-	assert.Equal(t, "twitter", p.StartJoint.Parameters["index"])
+	assert.Equal(t, "es_scroll", p.StartProcessor.Name)
+	assert.Equal(t, true, p.StartProcessor.Enabled)
+	assert.Equal(t, "http://localhost:9200", p.StartProcessor.Parameters["endpoint"])
+	assert.Equal(t, "elastic", p.StartProcessor.Parameters["username"])
+	assert.Equal(t, "changeme", p.StartProcessor.Parameters["password"])
+	assert.Equal(t, "twitter", p.StartProcessor.Parameters["index"])
 
 }

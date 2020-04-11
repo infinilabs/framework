@@ -28,28 +28,28 @@ func GetAllRegisteredJoints() map[string]interface{} {
 	return typeRegistry
 }
 
-func GetJointInstance(cfg *JointConfig) Joint {
-	log.Tracef("get joint instances, %v", cfg.JointName)
-	if typeRegistry[cfg.JointName] != nil {
-		t := reflect.ValueOf(typeRegistry[cfg.JointName]).Type()
+func GetJointInstance(cfg *ProcessorConfig) Processor {
+	log.Tracef("get joint instances, %v", cfg.Name)
+	if typeRegistry[cfg.Name] != nil {
+		t := reflect.ValueOf(typeRegistry[cfg.Name]).Type()
 		v := reflect.New(t).Elem()
 
 		f := v.FieldByName("Data")
 		if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
 			f.Set(reflect.ValueOf(cfg.Parameters))
 		}
-		v1 := v.Interface().(Joint)
+		v1 := v.Interface().(Processor)
 		return v1
 	}
-	panic(errors.New(cfg.JointName + " not found"))
+	panic(errors.New(cfg.Name + " not found"))
 }
 
-func RegisterPipeJoint(joint Joint) {
+func RegisterPipeJoint(joint Processor) {
 	k := string(joint.Name())
 	RegisterPipeJointWithName(k, joint)
 }
 
-func RegisterPipeJointWithName(jointName string, joint Joint) {
+func RegisterPipeJointWithName(jointName string, joint Processor) {
 	if typeRegistry[jointName] != nil {
 		panic(errors.Errorf("joint with same name already registered, %s", jointName))
 	}

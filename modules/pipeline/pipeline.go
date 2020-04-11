@@ -74,9 +74,9 @@ func (module PipeModule) Start() error {
 			panic(errors.Errorf("pipeline config can't be null, %v, %v", i, v))
 		}
 
-		if (v.InputQueue) == "" {
-			panic(errors.Errorf("input queue can't be null, %v, %v", i, v))
-		}
+		//if (v.InputQueue) == "" {
+		//	panic(errors.Errorf("input queue can't be null, %v, %v", i, v))
+		//}
 
 		v.pipelineConfig = pipeline.GetStaticPipelineConfig(v.PipelineID)
 

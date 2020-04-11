@@ -16,7 +16,7 @@ limitations under the License.
 
 package pipeline
 
-type Joint interface {
+type Processor interface {
 	Name() string
 	Process(s *Context) error
 }

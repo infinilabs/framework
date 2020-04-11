@@ -37,4 +37,6 @@ type PipeRunnerConfig struct {
 	pipelineConfig pipeline.PipelineConfig
 
 	InputQueue string `config:"input_queue"`
+
+	Schedule string `config:"schedule"`
 }

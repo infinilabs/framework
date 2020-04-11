@@ -27,15 +27,21 @@ import (
 )
 
 type Pipeline struct {
-	id           string
-	name         string
-	onStartJoint Joint
-	joints       []Joint
-	context      *Context
-	onEndJoint   Joint
-	onErrorJoint Joint
+	id string
 
-	currentJointName string
+	name string
+
+	startProcessor Processor
+
+	processors []Processor
+
+	context *Context
+
+	endProcessor Processor
+
+	errorProcessor Processor
+
+	currentProcessor string
 }
 
 func NewPipeline(name string) *Pipeline {
@@ -64,34 +70,34 @@ func (pipe *Pipeline) GetContext() *Context {
 	return pipe.context
 }
 
-func (pipe *Pipeline) Start(s Joint) *Pipeline {
-	pipe.onStartJoint = s
-	pipe.joints = []Joint{}
+func (pipe *Pipeline) Start(s Processor) *Pipeline {
+	pipe.startProcessor = s
+	pipe.processors = []Processor{}
 	return pipe
 }
 
-func (pipe *Pipeline) Join(s Joint) *Pipeline {
-	pipe.joints = append(pipe.joints, s)
+func (pipe *Pipeline) Join(s Processor) *Pipeline {
+	pipe.processors = append(pipe.processors, s)
 	return pipe
 }
 
-func (pipe *Pipeline) Error(s Joint) *Pipeline {
-	pipe.onErrorJoint = s
+func (pipe *Pipeline) Error(s Processor) *Pipeline {
+	pipe.errorProcessor = s
 	return pipe
 }
 
-func (pipe *Pipeline) End(s Joint) *Pipeline {
-	pipe.onEndJoint = s
+func (pipe *Pipeline) End(s Processor) *Pipeline {
+	pipe.endProcessor = s
 	return pipe
 }
 
-// setCurrentJoint set current joint's name, used for debugging
-func (context *Pipeline) setCurrentJoint(name string) {
-	context.currentJointName = name
+// setCurrentProcessor set current joint's name, used for debugging
+func (context *Pipeline) setCurrentProcessor(name string) {
+	context.currentProcessor = name
 }
 
-func (pipe *Pipeline) GetCurrentJoint() string {
-	return pipe.currentJointName
+func (pipe *Pipeline) CurrentProcessor() string {
+	return pipe.currentProcessor
 }
 
 func (pipe *Pipeline) Pause() *Context {
@@ -126,7 +132,7 @@ func (pipe *Pipeline) Run() *Context {
 				//pipe.context.Set(CONTEXT_TASK_Status, TaskInterrupted)
 				//pipe.context.Set(CONTEXT_TASK_Message, util.ToJson(v, false))
 
-				log.Error("error in pipeline, ", pipe.name, ", ", pipe.id, ", ", pipe.currentJointName, ", ", v)
+				log.Error("error in pipeline, ", pipe.name, ", ", pipe.id, ", ", pipe.currentProcessor, ", ", v)
 				stats.Increment(pipe.name+".pipeline", "error")
 			}
 		}
@@ -142,7 +148,7 @@ func (pipe *Pipeline) Run() *Context {
 
 	pipe.startPipeline()
 
-	for _, v := range pipe.joints {
+	for _, v := range pipe.processors {
 		log.Trace("pipe, ", pipe.name, ", start joint,", v.Name())
 		if pipe.context.IsEnd() {
 			log.Trace("break joint,", v.Name())
@@ -161,7 +167,7 @@ func (pipe *Pipeline) Run() *Context {
 			return pipe.context
 		}
 
-		pipe.setCurrentJoint(v.Name())
+		pipe.setCurrentProcessor(v.Name())
 		startTime := time.Now().UTC()
 		err = v.Process(pipe.context)
 
@@ -183,9 +189,9 @@ func (pipe *Pipeline) Run() *Context {
 func (pipe *Pipeline) startPipeline() {
 
 	log.Trace("start pipeline: ", pipe.name)
-	if pipe.onStartJoint != nil {
-		pipe.setCurrentJoint(pipe.onStartJoint.Name())
-		pipe.onStartJoint.Process(pipe.context)
+	if pipe.startProcessor != nil {
+		pipe.setCurrentProcessor(pipe.startProcessor.Name())
+		pipe.startProcessor.Process(pipe.context)
 	}
 	log.Trace("pipeline: ", pipe.name, ", started")
 }
@@ -197,19 +203,19 @@ func (pipe *Pipeline) endPipeline() {
 	}
 
 	log.Trace("start finish pipeline, ", pipe.name)
-	if pipe.onEndJoint != nil {
-		pipe.setCurrentJoint(pipe.onEndJoint.Name())
-		pipe.onEndJoint.Process(pipe.context)
+	if pipe.endProcessor != nil {
+		pipe.setCurrentProcessor(pipe.endProcessor.Name())
+		pipe.endProcessor.Process(pipe.context)
 	}
 	log.Trace("end finish pipeline, ", pipe.name)
 }
 
 func (pipe *Pipeline) handlePipelineError() {
 
-	if pipe.onErrorJoint != nil {
+	if pipe.errorProcessor != nil {
 		log.Trace("start handle pipeline error, ", pipe.name)
-		pipe.setCurrentJoint(pipe.onErrorJoint.Name())
-		pipe.onErrorJoint.Process(pipe.context)
+		pipe.setCurrentProcessor(pipe.errorProcessor.Name())
+		pipe.errorProcessor.Process(pipe.context)
 		log.Trace("end handle pipeline error, ", pipe.name)
 	}
 }
@@ -223,25 +229,25 @@ func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context
 
 	pipe.Context(context)
 
-	if config.StartJoint != nil && config.StartJoint.Enabled {
-		input := GetJointInstance(config.StartJoint)
+	if config.StartProcessor != nil && config.StartProcessor.Enabled {
+		input := GetJointInstance(config.StartProcessor)
 		pipe.Start(input)
 	}
 
-	if config.ErrorJoint != nil && config.ErrorJoint.Enabled {
-		input := GetJointInstance(config.ErrorJoint)
+	if config.ErrorProcessor != nil && config.ErrorProcessor.Enabled {
+		input := GetJointInstance(config.ErrorProcessor)
 		pipe.Error(input)
 	}
 
-	for _, cfg := range config.ProcessJoints {
+	for _, cfg := range config.Processors {
 		if cfg.Enabled {
 			j := GetJointInstance(cfg)
 			pipe.Join(j)
 		}
 	}
 
-	if config.EndJoint != nil && config.EndJoint.Enabled {
-		output := GetJointInstance(config.EndJoint)
+	if config.EndProcessor != nil && config.EndProcessor.Enabled {
+		output := GetJointInstance(config.EndProcessor)
 		pipe.End(output)
 	}
 
