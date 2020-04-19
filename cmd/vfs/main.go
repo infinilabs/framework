@@ -210,8 +210,8 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/util"
-	"github.com/infinitbyte/framework/core/vfs"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/vfs"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -255,9 +255,9 @@ func (vfs StaticFS) Open(name string) (http.File, error) {
 
 	if vfs.CheckLocalFirst {
 
-		name = util.TrimLeftStr(name, vfs.TrimLeftPath)
+		tempName := util.TrimLeftStr(name, vfs.TrimLeftPath)
 
-		localFile := path.Join(vfs.StaticFolder, name)
+		localFile := path.Join(vfs.StaticFolder, tempName)
 
 		log.Trace("check local file, ", localFile)
 
