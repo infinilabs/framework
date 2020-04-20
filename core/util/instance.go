@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"os"
 	"path"
@@ -26,6 +27,9 @@ func CheckInstanceLock(p string) {
 // ClearInstanceLock remove the lock
 func ClearInstanceLock() {
 	if locked {
-		os.Remove(path.Join(file))
+		err:=os.Remove(path.Join(file))
+		if err!=nil{
+			fmt.Println(err)
+		}
 	}
 }
