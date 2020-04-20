@@ -17,20 +17,21 @@ limitations under the License.
 package modules
 
 import (
-	"github.com/infinitbyte/framework/core/module"
-	"github.com/infinitbyte/framework/modules/api"
-	"github.com/infinitbyte/framework/modules/boltdb"
-	"github.com/infinitbyte/framework/modules/cluster"
-	"github.com/infinitbyte/framework/modules/elastic"
-	"github.com/infinitbyte/framework/modules/filter"
-	"github.com/infinitbyte/framework/modules/pipeline"
-	"github.com/infinitbyte/framework/modules/queue"
-	"github.com/infinitbyte/framework/modules/stats"
-	"github.com/infinitbyte/framework/modules/ui"
+	"infini.sh/framework/core/module"
+	"infini.sh/framework/modules/api"
+	"infini.sh/framework/modules/boltdb"
+	"infini.sh/framework/modules/cluster"
+	"infini.sh/framework/modules/elastic"
+	"infini.sh/framework/modules/filter"
+	"infini.sh/framework/modules/pipeline"
+	"infini.sh/framework/modules/queue"
+	"infini.sh/framework/modules/stats"
+	"infini.sh/framework/modules/ui"
 )
 
 // RegisterSystemModule is where modules are registered
 func Register() {
+	//module.RegisterSystemModule(nsq.NSQModule{})
 	module.RegisterSystemModule(elastic.ElasticModule{})
 	module.RegisterSystemModule(boltdb.StorageModule{})
 	module.RegisterSystemModule(filter.FilterModule{})

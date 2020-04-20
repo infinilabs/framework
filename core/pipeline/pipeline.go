@@ -18,9 +18,9 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/stats"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"runtime"
 	"strings"
 	"time"

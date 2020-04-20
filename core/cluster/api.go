@@ -17,12 +17,12 @@ limitations under the License.
 package cluster
 
 import (
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 
 	"encoding/json"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/api"
+	"infini.sh/framework/core/api"
 	"net/http"
 )
 

@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/elastic"
-	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/orm"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 )
 
 type ElasticStore struct {

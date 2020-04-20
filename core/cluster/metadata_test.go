@@ -18,7 +18,7 @@ package cluster
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/util"
 	"testing"
 )
 

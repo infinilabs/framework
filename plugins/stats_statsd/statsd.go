@@ -3,8 +3,8 @@ package stats
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	. "github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/stats"
+	. "infini.sh/framework/core/config"
+	"infini.sh/framework/core/stats"
 	"github.com/quipo/statsd"
 	"sync"
 	"time"

@@ -19,9 +19,9 @@ package env
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"os"
 	"path"

@@ -3,10 +3,10 @@ package queue
 import (
 	"errors"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/queue"
-	. "github.com/infinitbyte/framework/modules/queue/disk_queue"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/queue"
+	. "infini.sh/framework/modules/queue/disk_queue"
 	"os"
 	"path"
 	"strings"
@@ -41,17 +41,17 @@ func initQueue(name string) error {
 		return nil
 	}
 
-	log.Debugf("init queue,%s", name)
+	log.Debugf("init queue: %s", name)
 
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0777)
 
-	readBuffSize := 0
-	syncTimeout := 5 * time.Second
+	readBuffSize := 10000
+	syncTimeout := 10 * time.Second
 	var syncEvery int64 = 2500
 
 	//TODO parameter
-	q := NewDiskQueue(strings.ToLower(channel), dataPath, 100*1024*1024, 1, 1<<25, syncEvery, syncTimeout, readBuffSize)
+	q := NewDiskQueue(strings.ToLower(channel), dataPath, 500*1024*1024, 1, 1<<25, syncEvery, syncTimeout, readBuffSize)
 	queues[name] = &q
 
 	return nil

@@ -17,7 +17,7 @@ limitations under the License.
 package filter
 
 import (
-	"github.com/infinitbyte/framework/core/api/router"
+	"infini.sh/framework/core/api/router"
 	"net/http"
 )
 

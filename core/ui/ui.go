@@ -23,11 +23,11 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
-	"github.com/infinitbyte/framework/core/api"
-	"github.com/infinitbyte/framework/core/api/router"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/ui/websocket"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/ui/websocket"
+	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
 	"path"
@@ -59,6 +59,8 @@ func StartUI(cfg *UIConfig) {
 	mux = http.NewServeMux()
 
 	router = httprouter.New(mux)
+	//router.RedirectTrailingSlash=false
+	//router.RedirectFixedPath=false
 
 	//registered handlers
 	if registeredUIHandler != nil {

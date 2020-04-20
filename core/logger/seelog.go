@@ -19,9 +19,9 @@ package logger
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/env"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/util"
 	"github.com/ryanuber/go-glob"
 	"strings"
 	"sync"

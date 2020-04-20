@@ -17,8 +17,8 @@ limitations under the License.
 package api
 
 import (
-	"github.com/infinitbyte/framework/core/api"
-	"github.com/infinitbyte/framework/core/config"
+	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/config"
 )
 
 // Name return API

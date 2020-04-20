@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/errors"
+	"infini.sh/framework/core/errors"
 )
 
 // ClusterConfig stores cluster settings

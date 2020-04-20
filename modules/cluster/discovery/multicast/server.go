@@ -19,9 +19,9 @@ package multicast
 //
 //import (
 //	"encoding/hex"
-//	"github.com/infinitbyte/framework/core/cluster"
-//	"github.com/infinitbyte/framework/core/env"
-//	"github.com/infinitbyte/framework/core/util"
+//	"infini.sh/framework/core/cluster"
+//	"infini.sh/framework/core/env"
+//	"infini.sh/framework/core/util"
 //	"log"
 //	"net"
 //	"time"

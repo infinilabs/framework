@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"flag"
-	"github.com/infinitbyte/framework/core/env"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/rpc"
-	"github.com/infinitbyte/framework/core/util"
-	pb "github.com/infinitbyte/framework/modules/cluster/demo/helloworld"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/rpc"
+	"infini.sh/framework/core/util"
+	pb "infini.sh/framework/modules/cluster/demo/helloworld"
 )
 
 const (

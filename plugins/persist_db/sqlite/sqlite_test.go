@@ -2,7 +2,7 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/util"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
 	"testing"

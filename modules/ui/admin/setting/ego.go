@@ -5,7 +5,7 @@ package setting
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/modules/ui/common"
+	"infini.sh/framework/modules/ui/common"
 	"io"
 	"net/http"
 )

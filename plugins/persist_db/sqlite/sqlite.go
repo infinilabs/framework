@@ -2,7 +2,7 @@ package sqlite
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/global"
+	"infini.sh/framework/core/global"
 	"github.com/jinzhu/gorm"
 	"os"
 	"path"

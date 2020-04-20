@@ -6,9 +6,9 @@ package websocket
 
 import (
 	"encoding/json"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/logger"
-	"github.com/infinitbyte/framework/core/stats"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/logger"
+	"infini.sh/framework/core/stats"
 	"strings"
 	"time"
 )

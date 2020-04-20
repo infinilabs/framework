@@ -18,7 +18,7 @@ package elastic
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/util"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"

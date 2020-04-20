@@ -19,8 +19,8 @@ package queue
 import (
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
-	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/stats"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/stats"
 	"sync"
 	"time"
 )

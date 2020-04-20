@@ -1,7 +1,7 @@
 package kv
 
 import (
-	"github.com/infinitbyte/framework/core/kv"
+	"infini.sh/framework/core/kv"
 	"sync"
 )
 

@@ -19,12 +19,12 @@ package api
 import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
-	"github.com/infinitbyte/framework/core/global"
+	"infini.sh/framework/core/global"
 	"net/http"
 	"sync"
 )
 
-const sessionName string = "INFINITBYTE-SESSION"
+const sessionName string = "INFINI-SESSION"
 
 func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 	return getStore().Get(r, key)

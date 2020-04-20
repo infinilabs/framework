@@ -18,14 +18,14 @@ package elastic
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/elastic"
-	"github.com/infinitbyte/framework/core/env"
-	"github.com/infinitbyte/framework/core/errors"
-	"github.com/infinitbyte/framework/core/global"
-	"github.com/infinitbyte/framework/core/kv"
-	"github.com/infinitbyte/framework/core/orm"
-	"github.com/infinitbyte/framework/modules/elastic/adapter"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/modules/elastic/adapter"
 	"strings"
 )
 

@@ -17,7 +17,7 @@ limitations under the License.
 package stats
 
 import (
-	"github.com/infinitbyte/framework/core/stats"
+	"infini.sh/framework/core/stats"
 	"net/http"
 )
 

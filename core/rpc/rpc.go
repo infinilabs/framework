@@ -23,8 +23,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/config"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // Install the gzip compressor

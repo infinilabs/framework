@@ -29,7 +29,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/infinitbyte/framework/core/errors"
+	"infini.sh/framework/core/errors"
 	"golang.org/x/net/proxy"
 	"io"
 )
@@ -230,7 +230,7 @@ type Result struct {
 	Size       uint64
 }
 
-const userAgent = "Mozilla/5.0 (compatible; infinitbyte/1.0; +http://github.com/infinitbyte/framework)"
+const userAgent = "Mozilla/5.0 (compatible; infinitbyte/1.0; +http://infini.sh/framework)"
 
 const ContentTypeJson = "application/json;charset=utf-8"
 const ContentTypeXml = "application/xml;charset=utf-8"

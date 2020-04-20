@@ -17,7 +17,7 @@ limitations under the License.
 package discovery
 
 import (
-	pb "github.com/infinitbyte/framework/core/cluster/pb"
+	pb "infini.sh/framework/core/cluster/pb"
 
 	"context"
 )

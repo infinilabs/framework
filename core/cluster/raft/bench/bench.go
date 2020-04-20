@@ -6,7 +6,7 @@ package raftbench
 // makes comparing backend performance easier by sharing the tests.
 
 import (
-	"github.com/infinitbyte/framework/modules/cluster/raft/raft"
+	"infini.sh/framework/modules/cluster/raft/raft"
 	"testing"
 )
 

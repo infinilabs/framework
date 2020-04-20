@@ -18,7 +18,7 @@ package global
 
 import (
 	"errors"
-	"github.com/infinitbyte/framework/core/env"
+	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
 )

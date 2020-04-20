@@ -17,7 +17,7 @@ limitations under the License.
 package module
 
 import (
-	"github.com/infinitbyte/framework/core/config"
+	"infini.sh/framework/core/config"
 )
 
 // Module defines system level module structure

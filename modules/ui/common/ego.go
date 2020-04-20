@@ -5,8 +5,8 @@ package common
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/api"
-	"github.com/infinitbyte/framework/core/global"
+	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/global"
 	"html"
 	"io"
 	"net/http"
@@ -18,7 +18,7 @@ func Body(w io.Writer) error {
 	return nil
 }
 func Footer(w io.Writer) error {
-	_, _ = io.WriteString(w, "\n\n<div class=\"tm-footer\">\n    <div class=\"uk-container uk-container-center uk-text-center\">\n        <br>\n        <hr class=\"uk-article-divider\" >\n\n        <div class=\"uk-panel\">\n            <p>Licensed under <a target=\"_blank\" href=\"https://github.com/infinitbyte/gopa/blob/master/LICENSE\">Apache License, Version 2.0</a>.</p>\n            <a href=\"/admin/\"><img src=\"/static/assets/img/logo.svg\" height=\"30\" title=\"GOPA\" alt=\"GOPA\"></a>\n        </div>\n\n    </div>\n</div>\n</body>\n<script src=\"/static/assets/js/ie_detect.js\"></script>\n</html>\n")
+	_, _ = io.WriteString(w, "\n\n<div class=\"tm-footer\">\n    <div class=\"uk-container uk-container-center uk-text-center\">\n        <br>\n        <hr class=\"uk-article-divider\" >\n\n        <div class=\"uk-panel\">\n            <p>Licensed under <a target=\"_blank\" href=\"https://infini.sh/gopa/blob/master/LICENSE\">Apache License, Version 2.0</a>.</p>\n            <a href=\"/admin/\"><img src=\"/static/assets/img/logo.svg\" height=\"30\" title=\"GOPA\" alt=\"GOPA\"></a>\n        </div>\n\n    </div>\n</div>\n</body>\n<script src=\"/static/assets/js/ie_detect.js\"></script>\n</html>\n")
 	return nil
 }
 func Head(w io.Writer, title string, customHeaderBlock string) error {
@@ -27,7 +27,7 @@ func Head(w io.Writer, title string, customHeaderBlock string) error {
 	_, _ = io.WriteString(w, html.EscapeString(fmt.Sprint(title)))
 	_, _ = io.WriteString(w, " - ")
 	_, _ = io.WriteString(w, html.EscapeString(fmt.Sprint(global.Env().GetAppCapitalName())))
-	_, _ = io.WriteString(w, "</title>\n\n  <meta content=IE=7 http-equiv=X-UA-Compatible>\n  <meta content=text/html;charset=utf-8 http-equiv=content-type>\n\n  <meta name=\"robots\" content=\"all\">\n  <meta name=\"license\" content=\"keep-copyright-footprint,no-KPI-shit,respect-first\">\n  <meta name=\"creator\" content=\"medcl\">\n  <meta name=\"generator\" content=\"https://github.com/infinitbyte/framework\">\n  <meta name=\"copyright\" content=\"Apache License, Version 2.0\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\n  <link rel=\"stylesheet\" href=\"/static/assets/uikit-2.27.1/css/uikit.min.css\" />\n  <link rel=\"icon\" href=\"/static/assets/img/favicon.ico\" type=\"image/x-icon\" />\n  <link rel=\"shortcut icon\" href=\"/static/assets/img/favicon.ico\" type=\"image/x-icon\" />\n\n  <script src=\"/static/assets/js/jquery.min.js\"></script>\n  <script src=\"/static/assets/uikit-2.27.1/js/uikit.min.js\"></script>\n\n  <script src=\"/static/assets/js/d3-4.0.min.js\"></script>\n  <script src=\"/static/assets/js/vue.min.js\"></script>\n\n  <meta charset=\"utf-8\">\n  ")
+	_, _ = io.WriteString(w, "</title>\n\n  <meta content=IE=7 http-equiv=X-UA-Compatible>\n  <meta content=text/html;charset=utf-8 http-equiv=content-type>\n\n  <meta name=\"robots\" content=\"all\">\n  <meta name=\"license\" content=\"keep-copyright-footprint,no-KPI-shit,respect-first\">\n  <meta name=\"creator\" content=\"medcl\">\n  <meta name=\"generator\" content=\"https://infini.sh/framework\">\n  <meta name=\"copyright\" content=\"Apache License, Version 2.0\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\n  <link rel=\"stylesheet\" href=\"/static/assets/uikit-2.27.1/css/uikit.min.css\" />\n  <link rel=\"icon\" href=\"/static/assets/img/favicon.ico\" type=\"image/x-icon\" />\n  <link rel=\"shortcut icon\" href=\"/static/assets/img/favicon.ico\" type=\"image/x-icon\" />\n\n  <script src=\"/static/assets/js/jquery.min.js\"></script>\n  <script src=\"/static/assets/uikit-2.27.1/js/uikit.min.js\"></script>\n\n  <script src=\"/static/assets/js/d3-4.0.min.js\"></script>\n  <script src=\"/static/assets/js/vue.min.js\"></script>\n\n  <meta charset=\"utf-8\">\n  ")
 	if len(customHeaderBlock) > 0 {
 		_, _ = io.WriteString(w, "\n  ")
 		_, _ = io.WriteString(w, html.EscapeString(fmt.Sprint(customHeaderBlock)))
@@ -107,6 +107,6 @@ func OffCanvas(w io.Writer, current string) error {
 		}
 	}
 
-	_, _ = io.WriteString(w, "\n        </ul></div>\n      </li>\n      <li class=\"uk-nav-divider\"></li>\n      <li><a href=\"http://github.com/infinitbyte/gopa\">GitHub</a></li>\n      <li><a href=\"http://github.com/infinitbyte/gopa/issues\">Issues</a></li>\n      <li><a href=\"https://github.com/infinitbyte/gopa/releases\">Releases</a></li>\n      <li><a href=\"http://github.com/infinitbyte/gopa/blob/master/CHANGES.md\">Changelog</a></li>\n    </ul>\n\n  </div>\n\n</div>\n")
+	_, _ = io.WriteString(w, "\n        </ul></div>\n      </li>\n      <li class=\"uk-nav-divider\"></li>\n      <li><a href=\"http://infini.sh/gopa\">GitHub</a></li>\n      <li><a href=\"http://infini.sh/gopa/issues\">Issues</a></li>\n      <li><a href=\"https://infini.sh/gopa/releases\">Releases</a></li>\n      <li><a href=\"http://infini.sh/gopa/blob/master/CHANGES.md\">Changelog</a></li>\n    </ul>\n\n  </div>\n\n</div>\n")
 	return nil
 }

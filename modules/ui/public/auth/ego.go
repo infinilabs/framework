@@ -5,8 +5,8 @@ package auth
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/util"
-	"github.com/infinitbyte/framework/modules/ui/common"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/ui/common"
 	"html"
 	"io"
 	"net/http"
