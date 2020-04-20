@@ -46,3 +46,4 @@ bin/
 /leveldb
 /dist
 vendor/
+/cmd/vfs/vfs
