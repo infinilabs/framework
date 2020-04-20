@@ -210,6 +210,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/vfs"
 	"io/ioutil"
@@ -284,6 +285,11 @@ func (vfs StaticFS) Open(name string) (http.File, error) {
 		log.Debug("local file not found,", localFile)
 	}
 
+	if vfs.SkipVFS{
+		log.Trace("file was not found on vfs, ",name)
+		return nil,errors.New("file not found")
+	}
+
 	f, err := vfs.prepare(name)
 	if err != nil {
 		return nil, err
@@ -297,6 +303,8 @@ type StaticFS struct {
 	StaticFolder    string
 	TrimLeftPath    string
 	CheckLocalFirst bool
+	SkipVFS         bool
+
 }
 
 var data = map[string]*vfs.VFile{
