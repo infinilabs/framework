@@ -18,7 +18,7 @@ package vfs
 
 import (
 	"fmt"
-	"github.com/infinitbyte/framework/core/util"
+	"infini.sh/framework/core/util"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
