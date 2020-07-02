@@ -1,28 +1,38 @@
 SHELL=/bin/bash
 
-# Default version
-FRAMEWORK_VERSION := 0.1.0_SNAPSHOT
+# APP info
+APP_NAME := TEMPLATE-APP-NAME
+
+APP_VERSION := 1.0.0_SNAPSHOT
+APP_CONFIG := $(APP_NAME).yml
+APP_STATIC_FOLDER := static
+APP_UI_FOLDER := ui
+APP_PLUGIN_FOLDER := plugin
+
 
 # Get release version from environment
 ifneq "$(VERSION)" ""
-   FRAMEWORK_VERSION := $(VERSION)
+   APP_VERSION := $(VERSION)
 endif
 
 # Ensure GOPATH is set before running build process.
 ifeq "$(GOPATH)" ""
-  $(error Please set the environment variable GOPATH before running `make`)
+  GOPATH := ~/go
+  #$(error Please set the environment variable GOPATH before running `make`)
 endif
+
+
+PATH := $(PATH):$(GOPATH)/bin
 
 # Go environment
 CURDIR := $(shell pwd)
 OLDGOPATH:= $(GOPATH)
 NEWGOPATH:= $(CURDIR):$(CURDIR)/vendor:$(GOPATH)
 
-GO        := GO15VENDOREXPERIMENT="1" go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s
+GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags='-s -w' -gcflags "-m"  --work
+GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0  $(GO) build -ldflags -s
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
-
-GO111MODULE=off
 
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
@@ -30,7 +40,12 @@ MAC       := "Darwin"
 GO_FILES=$(find . -iname '*.go' | grep -v /vendor/)
 PKGS=$(go list ./... | grep -v /vendor/)
 
+INFINI_BASE_FOLDER := $(GOPATH)/src/infini.sh/
+FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)/framework/
+FRAMEWORK_REPO := https://github.com/medcl/infini-framework.git
+FRAMEWORK_BRANCH := master
 FRAMEWORK_VENDOR_FOLDER := $(CURDIR)/vendor/
+FRAMEWORK_VENDOR＿REPO :=  https://github.com/medcl/infini-framework-vendor.git
 FRAMEWORK_VENDOR_BRANCH := master
 
 FRAMEWORK_OFFLINE_BUILD := ""
@@ -38,113 +53,148 @@ ifneq "$(OFFLINE_BUILD)" ""
    FRAMEWORK_OFFLINE_BUILD := $(OFFLINE_BUILD)
 endif
 
-.PHONY: all build update test
+.PHONY: all build update test clean
 
 default: build
 
 build: config
+	@#echo $(GOPATH)
+	@echo $(NEWGOPATH)
+	$(GOBUILD) -o bin/$(APP_NAME)
+	@$(MAKE) restore-generated-file
 
-init:
-	@echo building FRAMEWORK $(FRAMEWORK_VERSION)
-	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(git clone  -b $(FRAMEWORK_VENDOR_BRANCH) https://github.com/infinitbyte/framework-vendor.git vendor) fi
-	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd vendor && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
+build-cmd: config
+	@$(MAKE) restore-generated-file
 
+# used to build the binary for gdb debugging
+build-race: clean config update-vfs
+	$(GOBUILD) -gcflags "-m -N -l" -race -o bin/$(APP_NAME)
+	@$(MAKE) restore-generated-file
+
+tar: build
+	cd bin && tar cfz ../bin/$(APP_NAME).tar.gz $(APP_NAME) $(APP_CONFIG)
+
+cross-build: clean config update-vfs
+	$(GO) test
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -o bin/$(APP_NAME)-windows64.exe
+	GOOS=darwin  GOARCH=amd64 $(GOBUILD) -o bin/$(APP_NAME)-darwin64
+	GOOS=linux  GOARCH=amd64 $(GOBUILD) -o bin/$(APP_NAME)-linux64
+	@$(MAKE) restore-generated-file
+
+
+build-win:
+	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64     $(GOBUILD) -o bin/$(APP_NAME)-windows64.exe
+	CC=i686-w64-mingw32-gcc   CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386         $(GOBUILD) -o bin/$(APP_NAME)-windows32.exe
+
+build-linux:
+	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o bin/$(APP_NAME)-linux64
+	GOOS=linux  GOARCH=386    $(GOBUILD) -o bin/$(APP_NAME)-linux32
+	GOOS=linux  GOARCH=arm   GOARM=5    $(GOBUILD) -o bin/$(APP_NAME)-armv5
+
+build-darwin:
+	GOOS=darwin  GOARCH=amd64     $(GOBUILD) -o bin/$(APP_NAME)-darwin64
+	GOOS=darwin  GOARCH=386       $(GOBUILD) -o bin/$(APP_NAME)-darwin32
+
+build-bsd:
+	GOOS=freebsd  GOARCH=amd64    $(GOBUILD) -o bin/$(APP_NAME)-freebsd64
+	GOOS=freebsd  GOARCH=386      $(GOBUILD) -o bin/$(APP_NAME)-freebsd32
+	GOOS=netbsd  GOARCH=amd64     $(GOBUILD) -o bin/$(APP_NAME)-netbsd64
+	GOOS=netbsd  GOARCH=386       $(GOBUILD) -o bin/$(APP_NAME)-netbsd32
+	GOOS=openbsd  GOARCH=amd64    $(GOBUILD) -o bin/$(APP_NAME)-openbsd64
+	GOOS=openbsd  GOARCH=386      $(GOBUILD) -o bin/$(APP_NAME)-openbsd32
+
+all: clean config update-vfs cross-build restore-generated-file
+
+all-platform: clean config update-vfs cross-build-all-platform restore-generated-file
+
+cross-build-all-platform: clean config build-bsd build-linux build-darwin build-win  restore-generated-file
 
 format:
 	go fmt $$(go list ./... | grep -v /vendor/)
 
-update-ui:
-	@echo "generate static files"
-	@(cd cmd/vfs && $(GOBUILD) -o ../../bin/vfs)
-	@bin/vfs -ignore="static.go|.DS_Store" -o=static/static.go -pkg=static static
+clean_data:
+	rm -rif dist
+	rm -rif data
+	rm -rif log
 
-update-template-ui:
-	@echo "generate UI pages"
-	@$(GO) get github.com/infinitbyte/ego/cmd/ego
-	@cd core/ && ego
-	@cd modules/ && ego
-	@cd plugins/ && ego
+clean: clean_data
+	rm -rif bin
+	mkdir bin
 
-config: update-ui update-template-ui
+init:
+	@echo building $(APP_NAME) $(APP_VERSION)
+	@echo $(CURDIR)
+	@mkdir -p $(INFINI_BASE_FOLDER)
+	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(cd $(INFINI_BASE_FOLDER)&&git clone -b $(FRAMEWORK_BRANCH) $(FRAMEWORK_REPO) ) fi
+	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(git clone  -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR＿REPO) vendor) fi
+	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_FOLDER) && git pull origin $(FRAMEWORK_BRANCH)); fi;
+	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd vendor && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
 
-fetch-depends:
-	@echo "fetch dependencies"
-	$(GO) get -u github.com/cihub/seelog
-	$(GO) get -u github.com/PuerkitoBio/purell
-	$(GO) get -u github.com/clarkduvall/hyperloglog
-	$(GO) get -u github.com/PuerkitoBio/goquery
-	$(GO) get -u github.com/jmoiron/jsonq
-	$(GO) get -u github.com/gorilla/websocket
-	$(GO) get -u github.com/boltdb/bolt/...
-	$(GO) get -u github.com/alash3al/goemitter
-	$(GO) get -u github.com/bkaradzic/go-lz4
-	$(GO) get -u github.com/elgs/gojq
-	$(GO) get -u github.com/kardianos/osext
-	$(GO) get -u github.com/zeebo/sbloom
-	$(GO) get -u github.com/asdine/storm
-	$(GO) get -u github.com/rs/xid
-	$(GO) get -u github.com/seiflotfy/cuckoofilter
-	$(GO) get -u github.com/hashicorp/raft
-	$(GO) get -u github.com/hashicorp/raft-boltdb
-	$(GO) get -u github.com/jaytaylor/html2text
-	$(GO) get -u github.com/asdine/storm/codec/protobuf
-	$(GO) get -u github.com/ryanuber/go-glob
-	$(GO) get -u github.com/gorilla/sessions
-	$(GO) get -u github.com/mattn/go-sqlite3
-	$(GO) get -u github.com/jinzhu/gorm
-	$(GO) get -u github.com/stretchr/testify/assert
-	$(GO) get -u github.com/spf13/viper
-	$(GO) get -u github.com/RoaringBitmap/roaring
-	$(GO) get -u github.com/elastic/go-ucfg
-	$(GO) get -u github.com/jasonlvhit/gocron
-	$(GO) get -u github.com/quipo/statsd
-	$(GO) get -u github.com/go-sql-driver/mysql
-	$(GO) get -u github.com/jbowles/cld2_nlpt
-	$(GO) get -u github.com/mafredri/cdp
-	$(GO) get -u github.com/ararog/timeago
-	$(GO) get -u github.com/google/go-github/github
-	$(GO) get -u golang.org/x/oauth2
-	$(GO) get -u github.com/rs/cors
-	$(GO) get -u google.golang.org/grpc
-	$(GO) get -u golang.org/x/net/http2
+update-generated-file:
+	@echo "update generated info"
+	@echo -e "package config\n\nconst LastCommitLog = \""`git log -1 --pretty=format:"%h, %ad, %an, %s"` "\"\nconst BuildDate = \"`date`\"" > config/generated.go
+	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
+
+
+restore-generated-file:
+	@echo "restore generated info"
+	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
+	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
+
+
+update-vfs:
+	cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs ~/
+	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && ~/vfs -ignore="static.go|.DS_Store" -o static.go -pkg public . ) fi
+
+config: init update-vfs update-generated-file
+	@echo "update configs"
+	@# $(GO) env
+	@mkdir -p bin
+	@cp $(APP_CONFIG) bin/$(APP_CONFIG)
+
+
+dist: cross-build package
+
+dist-major-platform: all package
+
+dist-all-platform: all-platform package-all-platform
+
+package:
+	@echo "Packaging"
+	cd bin && tar cfz ../bin/darwin64.tar.gz darwin64  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/linux64.tar.gz linux64  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/windows64.tar.gz windows64  $(APP_CONFIG)
+
+package-all-platform: package-darwin-platform package-linux-platform package-windows-platform
+	@echo "Packaging all"
+	cd bin && tar cfz ../bin/freebsd64.tar.gz     $(APP_NAME)-freebsd64  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/freebsd32.tar.gz     $(APP_NAME)-freebsd32  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/netbsd64.tar.gz      $(APP_NAME)-netbsd64  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/netbsd32.tar.gz      $(APP_NAME)-netbsd32  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/openbsd64.tar.gz     $(APP_NAME)-openbsd64  $(APP_CONFIG)
+	cd bin && tar cfz ../bin/openbsd32.tar.gz     $(APP_NAME)-openbsd32  $(APP_CONFIG)
+
+
+package-darwin-platform:
+	@echo "Packaging Darwin"
+	cd bin && tar cfz ../bin/darwin64.tar.gz      $(APP_NAME)-darwin64 $(APP_CONFIG)
+	cd bin && tar cfz ../bin/darwin32.tar.gz      $(APP_NAME)-darwin32 $(APP_CONFIG)
+
+package-linux-platform:
+	@echo "Packaging Linux"
+	cd bin && tar cfz ../bin/linux64.tar.gz     $(APP_NAME)-linux64 $(APP_CONFIG)
+	cd bin && tar cfz ../bin/linux32.tar.gz     $(APP_NAME)-linux32 $(APP_CONFIG)
+	cd bin && tar cfz ../bin/armv5.tar.gz       $(APP_NAME)-armv5   $(APP_CONFIG)
+
+package-windows-platform:
+	@echo "Packaging Windows"
+	cd bin && tar cfz ../bin/windows64.tar.gz   $(APP_NAME)-windows64.exe $(APP_CONFIG)
+	cd bin && tar cfz ../bin/windows32.tar.gz   $(APP_NAME)-windows32.exe $(APP_CONFIG)
 
 test:
 	go get -u github.com/kardianos/govendor
 	go get github.com/stretchr/testify/assert
 	govendor test +local
-	#$(GO) test -timeout 60s ./... --ignore ./vendor
+	go test -timeout 60s ./...
 	#GORACE="halt_on_error=1" go test ./... -race -timeout 120s  --ignore ./vendor
 	#go test -bench=. -benchmem
-
-check:
-	$(GO)  get github.com/golang/lint/golint
-	$(GO)  get honnef.co/go/tools/cmd/megacheck
-	test -z $(gofmt -s -l $GO_FILES)    # Fail if a .go file hasn't been formatted with gofmt
-	$(GO) test -v -race $(PKGS)            # Run all the tests with the race detector enabled
-	$(GO) vet $(PKGS)                      # go vet is the official Go static analyzer
-	@echo "go tool vet"
-	go tool vet main.go
-	go tool vet core
-	go tool vet modules
-	megacheck $(PKGS)                      # "go vet on steroids" + linter
-	golint -set_exit_status $(PKGS)    # one last linter
-
-errcheck:
-	go get github.com/kisielk/errcheck
-	errcheck -blank $(PKGS)
-
-cover:
-	go get github.com/mattn/goveralls
-	go test -v -cover -race -coverprofile=data/coverage.out
-	goveralls -coverprofile=data/coverage.out -service=travis-ci -repotoken=$COVERALLS_TOKEN
-
-cyclo:
-	go get -u github.com/fzipp/gocyclo
-	gocyclo -top 10 -over 12 $$(ls -d */ | grep -v vendor)
-
-benchmarks:
-	go test github.com/infinitbyte/gopa/core/util -benchtime=1s -bench ^Benchmark -run ^$
-	go test github.com/infinitbyte/gopa//modules/crawler/pipe -benchtime=1s -bench  ^Benchmark -run ^$
-
-update_proto:
-	(cd core/cluster/pb && protoc --go_out=plugins=grpc:. *.proto)

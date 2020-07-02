@@ -3,9 +3,9 @@ package stats
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/quipo/statsd"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/stats"
-	"github.com/quipo/statsd"
 	"sync"
 	"time"
 )

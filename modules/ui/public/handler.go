@@ -22,11 +22,11 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/google/go-github/github"
+	"golang.org/x/oauth2"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/ui/public/auth"
-	"golang.org/x/oauth2"
 	"net/http"
 )
 

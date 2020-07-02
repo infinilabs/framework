@@ -8,14 +8,14 @@ import (
 	"encoding/pem"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	"github.com/rs/cors"
+	"golang.org/x/net/http2"
 	"infini.sh/framework/core/api/filter"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"github.com/rs/cors"
-	"golang.org/x/net/http2"
 	"net"
 	"net/http"
 	"os"
@@ -182,9 +182,9 @@ func StartAPI(cfg *config.Config) {
 			cert = path.Join(global.Env().GetWorkingDir(), "certs", "auto.cert")
 			key = path.Join(global.Env().GetWorkingDir(), "certs", "auto.key")
 
-			util.FileAppendContentWithByte(rootCert, rootCertPEM)
-			util.FileAppendContentWithByte(cert, servCertPEM)
-			util.FileAppendContentWithByte(key, servKeyPEM)
+			util.FilePutContentWithByte(rootCert, rootCertPEM)
+			util.FilePutContentWithByte(cert, servCertPEM)
+			util.FilePutContentWithByte(key, servKeyPEM)
 		}
 
 		srv := &http.Server{

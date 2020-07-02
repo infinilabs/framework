@@ -18,10 +18,10 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"github.com/stretchr/testify/assert"
 	"testing"
 )
 

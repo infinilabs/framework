@@ -18,9 +18,9 @@ package public
 
 import (
 	"github.com/emirpasic/gods/sets/hashset"
+	"golang.org/x/oauth2"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/ui"
-	"golang.org/x/oauth2"
 )
 
 const (

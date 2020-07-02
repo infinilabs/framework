@@ -23,10 +23,8 @@ import (
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/ui"
 	"infini.sh/framework/core/ui/websocket"
-	"infini.sh/framework/core/vfs"
 	"infini.sh/framework/modules/ui/admin"
 	"infini.sh/framework/modules/ui/public"
-	"infini.sh/framework/static"
 	_ "net/http/pprof"
 )
 
@@ -61,7 +59,6 @@ func (module UIModule) Setup(cfg *Config) {
 
 		ui.StartUI(&uiConfig)
 
-		vfs.RegisterFS(static.StaticFS{StaticFolder: "static", TrimLeftPath: "", CheckLocalFirst: true})
 	}
 
 }

@@ -18,12 +18,12 @@ package filter
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	. "infini.sh/framework/core/env"
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/boltdb"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"

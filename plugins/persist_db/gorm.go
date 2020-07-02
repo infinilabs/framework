@@ -3,8 +3,8 @@ package persist_db
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	api "infini.sh/framework/core/orm"
 	"github.com/jinzhu/gorm"
+	api "infini.sh/framework/core/orm"
 	"sync"
 	"time"
 )

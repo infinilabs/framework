@@ -27,8 +27,8 @@ func CheckInstanceLock(p string) {
 // ClearInstanceLock remove the lock
 func ClearInstanceLock() {
 	if locked {
-		err:=os.Remove(path.Join(file))
-		if err!=nil{
+		err := os.Remove(path.Join(file))
+		if err != nil {
 			fmt.Println(err)
 		}
 	}

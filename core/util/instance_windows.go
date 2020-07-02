@@ -7,11 +7,11 @@ import (
 
 // CheckProcessExists check if the pid is running
 func CheckProcessExists(pid int) bool {
-	cmd,_ := exec.Command("tasklist","/FI", "PID eq " + strconv.Itoa(pid)).Output()
+	cmd, _ := exec.Command("tasklist", "/FI", "PID eq "+strconv.Itoa(pid)).Output()
 	output := string(cmd[:])
-	if ContainStr(output,"PID"){
+	if ContainStr(output, "PID") {
 		return true
-	}else{
+	} else {
 		return false
 	}
 }

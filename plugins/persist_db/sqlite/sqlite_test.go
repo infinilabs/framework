@@ -2,9 +2,9 @@ package sqlite
 
 import (
 	"fmt"
-	"infini.sh/framework/core/util"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
+	"infini.sh/framework/core/util"
 	"testing"
 	"time"
 )

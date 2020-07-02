@@ -16,7 +16,7 @@ limitations under the License.
 
 package dag
 
-import "infini.sh/gopa/pipeline/codec"
+import "infini.sh/crawler/pipeline/codec"
 
 type Context struct {
 	Channel chan []byte

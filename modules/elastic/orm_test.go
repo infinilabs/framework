@@ -18,8 +18,8 @@ package elastic
 
 import (
 	"fmt"
-	"infini.sh/framework/core/util"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/util"
 	"testing"
 	"time"
 )

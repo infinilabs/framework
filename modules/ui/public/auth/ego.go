@@ -5,9 +5,9 @@ package auth
 
 import (
 	"fmt"
+	"html"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/ui/common"
-	"html"
 	"io"
 	"net/http"
 )

@@ -29,8 +29,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
 	"golang.org/x/net/proxy"
+	"infini.sh/framework/core/errors"
 	"io"
 )
 

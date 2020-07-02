@@ -19,8 +19,8 @@ package nsq
 import (
 	"bytes"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/pipeline"
 	"github.com/nsqio/go-nsq"
+	"infini.sh/framework/core/pipeline"
 )
 
 type ReadNSQJoint struct {

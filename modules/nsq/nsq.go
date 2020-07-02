@@ -2,8 +2,8 @@ package nsq
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
 	"github.com/nsqio/nsq/nsqd"
+	"infini.sh/framework/core/config"
 )
 
 type NSQModule struct {

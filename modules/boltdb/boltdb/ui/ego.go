@@ -6,8 +6,8 @@ package ui
 import (
 	"fmt"
 	"github.com/boltdb/bolt"
-	"infini.sh/framework/modules/ui/common"
 	"html"
+	"infini.sh/framework/modules/ui/common"
 	"io"
 	"net/http"
 	"path/filepath"

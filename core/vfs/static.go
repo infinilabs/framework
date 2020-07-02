@@ -83,9 +83,9 @@ func (fs StaticFS) Open(name string) (http.File, error) {
 		log.Debug("local file not found,", localFile)
 	}
 
-	if fs.SkipVFS{
-		log.Trace("file was not found on vfs, ",name)
-		return nil,errors.New("file not found")
+	if fs.SkipVFS {
+		log.Trace("file was not found on vfs, ", name)
+		return nil, errors.New("file not found")
 	}
 
 	f, err := fs.prepare(name)

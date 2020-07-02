@@ -2,8 +2,8 @@ package sqlite
 
 import (
 	"fmt"
-	"infini.sh/framework/core/global"
 	"github.com/jinzhu/gorm"
+	"infini.sh/framework/core/global"
 	"os"
 	"path"
 )
