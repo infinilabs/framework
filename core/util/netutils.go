@@ -181,3 +181,38 @@ func GetIntranetIP() (string, error) {
 
 	return "", errors.New("can't get intranet ip")
 }
+
+// GetLocalIP returns the non loopback local IP of the host
+func GetLocalIPs() []string {
+	addrs, err := net.InterfaceAddrs()
+	ips := []string{}
+	if err != nil {
+		return ips
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ips = append(ips, ipnet.IP.String())
+			}
+		}
+	}
+	return ips
+}
+
+func CheckIPBinding(ip string) (bool, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false, err
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				if ip == ipnet.IP.String() {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}

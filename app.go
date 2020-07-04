@@ -224,6 +224,14 @@ func (app *App) Shutdown() {
 	//cleanup
 	util.ClearInstanceLock()
 
+	callbacks := global.ShutdownCallback()
+	if callbacks != nil && len(callbacks) > 0 {
+		for i, v := range callbacks {
+			log.Trace("executing callback: ", i)
+			v()
+		}
+	}
+
 	if r := recover(); r != nil {
 		if r == nil {
 			return

@@ -88,3 +88,13 @@ func Env() *env.Env {
 	}
 	return e
 }
+
+var shutdownCallback = []func(){}
+
+func RegisterShutdownCallback(callback func()) {
+	shutdownCallback = append(shutdownCallback, callback)
+}
+
+func ShutdownCallback() []func() {
+	return shutdownCallback
+}

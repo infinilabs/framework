@@ -15,6 +15,8 @@
 3. Auto generate TLS certs
 4. Support Check if PID is running on windows
 5. Update VFS
+6. Support Setup alias on network interface
+7. Support Add callback functions to execute on shutdown
 
 ##### improvement
 1. Add elasticsearch adaptors for major versions 
