@@ -137,7 +137,7 @@ func StartAPI(cfg *config.Config) {
 			NextProtos: []string{"spdy/3"},
 		}
 
-		var cert, key string
+		var ca, cert, key string
 		log.Trace("using tls connection")
 
 		//var creds credentials.TransportCredentials
@@ -145,46 +145,52 @@ func StartAPI(cfg *config.Config) {
 			log.Debug("using pre-defined cert files")
 
 		} else {
-			log.Info("auto generate server cert")
-			rootCert, rootKey, rootCertPEM = util.GetRootCert()
-
-			certPool = x509.NewCertPool()
-			certPool.AppendCertsFromPEM(rootCertPEM)
-
-			// create a key-pair for the server
-			servKey, err := rsa.GenerateKey(rand.Reader, 2048)
-			if err != nil {
-				panic(err)
-			}
-
-			// create a template for the server
-			servCertTmpl, err := util.GetCertTemplate()
-			if err != nil {
-				panic(err)
-			}
-
-			servCertTmpl.KeyUsage = x509.KeyUsageDigitalSignature
-			servCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
-
-			// create a certificate which wraps the server's public key, sign it with the root private key
-			_, servCertPEM, err := util.CreateCert(servCertTmpl, rootCert, &servKey.PublicKey, rootKey)
-			if err != nil {
-				panic(err)
-			}
-
-			// provide the private key and the cert
-			servKeyPEM := pem.EncodeToMemory(&pem.Block{
-				Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(servKey),
-			})
-
-			os.MkdirAll(path.Join(global.Env().GetWorkingDir(), "certs"), 0775)
-			rootCert := path.Join(global.Env().GetWorkingDir(), "certs", "root.cert")
+			ca = path.Join(global.Env().GetWorkingDir(), "certs", "root.cert")
 			cert = path.Join(global.Env().GetWorkingDir(), "certs", "auto.cert")
 			key = path.Join(global.Env().GetWorkingDir(), "certs", "auto.key")
 
-			util.FilePutContentWithByte(rootCert, rootCertPEM)
-			util.FilePutContentWithByte(cert, servCertPEM)
-			util.FilePutContentWithByte(key, servKeyPEM)
+			if !(util.FileExists(ca) && util.FileExists(cert) && util.FileExists(key)) {
+
+				os.MkdirAll(path.Join(global.Env().GetWorkingDir(), "certs"), 0775)
+
+				log.Info("auto generating cert files")
+				rootCert, rootKey, rootCertPEM = util.GetRootCert()
+
+				certPool = x509.NewCertPool()
+				certPool.AppendCertsFromPEM(rootCertPEM)
+
+				// create a key-pair for the server
+				servKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					panic(err)
+				}
+
+				// create a template for the server
+				servCertTmpl, err := util.GetCertTemplate()
+				if err != nil {
+					panic(err)
+				}
+
+				servCertTmpl.KeyUsage = x509.KeyUsageDigitalSignature
+				servCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+
+				// create a certificate which wraps the server's public key, sign it with the root private key
+				_, servCertPEM, err := util.CreateCert(servCertTmpl, rootCert, &servKey.PublicKey, rootKey)
+				if err != nil {
+					panic(err)
+				}
+
+				// provide the private key and the cert
+				servKeyPEM := pem.EncodeToMemory(&pem.Block{
+					Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(servKey),
+				})
+
+				util.FilePutContentWithByte(ca, rootCertPEM)
+				util.FilePutContentWithByte(cert, servCertPEM)
+				util.FilePutContentWithByte(key, servKeyPEM)
+			}else{
+				log.Debug("loading auto generated certs")
+			}
 		}
 
 		srv := &http.Server{
