@@ -9,13 +9,6 @@ import (
 	"os/exec"
 )
 
-func checkPermission() {
-	log.Debug("to continue use net alias, you need to run as root or elevate with sudo.")
-	if !util.RequireSudo() {
-		panic(errors.New("root or sudo permission needed."))
-	}
-}
-
 const alias = "infini"
 
 //Linux
