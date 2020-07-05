@@ -93,31 +93,34 @@ func (pipe *PipeRunner) decodeContext(context []byte) pipeline.Context {
 
 func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 
-	if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
-		log.Info("use schedule in pipeline runner")
+	var inputMessage []byte
+	context := pipeline.Context{}
+	if pipe.config.InputQueue != "" {
+		log.Info("consume message from queue, ", pipe.config.InputQueue)
+		inputMessage = <-queue.ReadChan(pipe.config.InputQueue)
+		stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
+
+		context = pipe.decodeContext(inputMessage)
+
+		if global.Env().IsDebug {
+			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
+
+			pipe.execute(shard, context, &pipe.config.pipelineConfig)
+
+			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
+		}
+	} else if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
+		log.Debug("use schedule in pipeline runner")
 		context := pipeline.Context{}
 		pipe.execute(shard, context, &pipe.config.pipelineConfig)
 	} else {
 		log.Info("no schedule was defined")
-		var inputMessage []byte
 		for {
 			select {
 			case <-*signal:
 				log.Trace("pipeline:", pipe.config.Name, " exit, shard:", shard)
 				return
 			default:
-
-				context := pipeline.Context{}
-				if pipe.config.InputQueue != "" {
-					inputMessage = <-queue.ReadChan(pipe.config.InputQueue)
-					stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
-
-					context = pipe.decodeContext(inputMessage)
-
-					if global.Env().IsDebug {
-						log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
-					}
-				}
 
 				//TODO dynamic load pipeline config
 				//url := context.GetStringOrDefault(pipeline.CONTEXT_TASK_URL, "")
@@ -131,8 +134,6 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 				//	}
 				//}
 
-				pipe.execute(shard, context, &pipe.config.pipelineConfig)
-				log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 			}
 		}
 	}
