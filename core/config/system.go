@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"infini.sh/framework/core/errors"
+	"strings"
 )
 
 // ClusterConfig stores cluster settings
@@ -22,13 +23,28 @@ type RPCConfig struct {
 
 // NetworkConfig stores network settings
 type NetworkConfig struct {
-	Host    string `config:"host"`
-	Port    string `config:"port"`
-	Binding string `config:"binding"`
+	Host              string `config:"host"`
+	Port              string `config:"port"`
+	Binding           string `config:"binding"`
+	AutoAvailablePort bool   `config:"auto_available_port"`
+}
+
+func (cfg NetworkConfig) GetBindingPort() string {
+	if cfg.Port != "" {
+		return cfg.Port
+	}
+	if cfg.Binding != "" {
+		array := strings.Split(cfg.Binding, ":")
+		return array[1]
+	}
+	panic("error on get binding port")
 }
 
 func (cfg NetworkConfig) GetBindingAddr() string {
 	if cfg.Binding != "" {
+		array := strings.Split(cfg.Binding, ":")
+		cfg.Host = array[0]
+		cfg.Port = array[1]
 		return cfg.Binding
 	}
 	if cfg.Host != "" && cfg.Port != "" {

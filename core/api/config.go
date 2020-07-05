@@ -23,3 +23,10 @@ type APIConfig struct {
 	TLSConfig     config.TLSConfig     `config:"tls"`
 	NetworkConfig config.NetworkConfig `config:"network"`
 }
+
+func (config *APIConfig) GetSchema() string {
+	if config.TLSConfig.TLSEnabled {
+		return "https"
+	}
+	return "http"
+}

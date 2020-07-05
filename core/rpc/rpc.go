@@ -227,8 +227,11 @@ func GetRPCAddress() string {
 
 func StartRPCServer() {
 
-	listenAddress = util.AutoGetAddress(rpcConfig.NetworkConfig.GetBindingAddr())
-
+	if rpcConfig.NetworkConfig.AutoAvailablePort {
+		listenAddress = util.AutoGetAddress(rpcConfig.NetworkConfig.GetBindingAddr())
+	} else {
+		listenAddress = rpcConfig.NetworkConfig.GetBindingAddr()
+	}
 	var err error
 	listener, err = net.Listen("tcp", listenAddress)
 	if err != nil {

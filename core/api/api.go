@@ -106,7 +106,12 @@ func StartAPI(cfg *config.Config) {
 		return
 	}
 
-	listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())
+	if apiConfig.NetworkConfig.AutoAvailablePort {
+		listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())
+	} else {
+		listenAddress = apiConfig.NetworkConfig.GetBindingAddr()
+	}
+
 	l, err := net.Listen("tcp", listenAddress)
 
 	if err != nil {
@@ -188,7 +193,7 @@ func StartAPI(cfg *config.Config) {
 				util.FilePutContentWithByte(ca, rootCertPEM)
 				util.FilePutContentWithByte(cert, servCertPEM)
 				util.FilePutContentWithByte(key, servKeyPEM)
-			}else{
+			} else {
 				log.Debug("loading auto generated certs")
 			}
 		}

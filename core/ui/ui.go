@@ -97,7 +97,12 @@ func StartUI(cfg *UIConfig) {
 
 	schema := "http://"
 
-	bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
+	if uiConfig.NetworkConfig.AutoAvailablePort {
+		bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
+	} else {
+		bindAddress = uiConfig.NetworkConfig.GetBindingAddr()
+	}
+
 	if uiConfig.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
