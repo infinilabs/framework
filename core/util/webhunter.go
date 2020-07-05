@@ -230,7 +230,7 @@ type Result struct {
 	Size       uint64
 }
 
-const userAgent = "Mozilla/5.0 (compatible; infinitbyte/1.0; +http://infini.sh/framework)"
+const userAgent = "Mozilla/5.0 (compatible; infinibyte/1.0; +http://infini.sh/framework)"
 
 const ContentTypeJson = "application/json;charset=utf-8"
 const ContentTypeXml = "application/xml;charset=utf-8"
@@ -264,7 +264,7 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 	//request.Header.Set("Accept-Encoding", "gzip,deflate,sdch")
 
 	if req.ContentType != "" {
-		request.Header.Add("Content-Type", req.ContentType)
+		request.Header.Set("Content-Type", req.ContentType)
 	}
 
 	//request.Header.Set("Cache-Control", "max-age=0")
