@@ -18,7 +18,6 @@ package discovery
 
 import (
 	"context"
-	log "github.com/cihub/seelog"
 	pb "infini.sh/framework/core/cluster/pb"
 )
 
@@ -27,19 +26,16 @@ type Discovery struct {
 
 func (c *Discovery) Join(ctx context.Context, in *pb.NodeRequest) (*pb.AckResponse, error) {
 	out := new(pb.AckResponse)
-
 	return out, nil
 }
 
 func (c *Discovery) Leave(ctx context.Context, in *pb.NodeRequest) (*pb.AckResponse, error) {
 	out := new(pb.AckResponse)
-
 	return out, nil
 }
 
 func (c *Discovery) Ping(ctx context.Context, in *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
 	out := new(pb.HealthCheckResponse)
 	out.Success = true
-	log.Debug("received ping from: ", in.NodeIp, ",", in.NodePort)
 	return out, nil
 }

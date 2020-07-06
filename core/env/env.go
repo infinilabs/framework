@@ -150,9 +150,16 @@ var (
 	defaultSystemConfig = config.SystemConfig{
 		ClusterConfig: config.ClusterConfig{
 			Seeds: []string{"127.0.0.1:10000"},
+			HealthCheckInMilliseconds: 10000,
+			DiscoveryTimeoutInMilliseconds: 10000,
+			MinimumNodes: 1,
+			BoradcastConfig: config.NetworkConfig{
+				Binding: "224.3.2.2:9876",
+			},
 			RPCConfig: config.RPCConfig{
 				NetworkConfig: config.NetworkConfig{
 					Binding: "0.0.0.0:10000",
+					SkipOccupiedPort: true,
 				},
 			},
 		},

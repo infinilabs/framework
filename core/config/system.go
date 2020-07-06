@@ -14,6 +14,21 @@ type ClusterConfig struct {
 	Seeds           []string      `config:"seeds"`
 	RPCConfig       RPCConfig     `config:"rpc"`
 	BoradcastConfig NetworkConfig `config:"broadcast"`
+	DiscoveryTimeoutInMilliseconds int64 `config:"discovery_timeout_ms"`
+	HealthCheckInMilliseconds int64 `config:"health_check_ms"`
+}
+
+func (cfg ClusterConfig) GetSeeds() []string {
+	if (len(cfg.Seeds)) == 0 {
+		return cfg.Seeds
+	}
+	newSeeds := []string{}
+	for _, v := range cfg.Seeds {
+		if v != cfg.RPCConfig.NetworkConfig.GetBindingAddr() {
+			newSeeds = append(newSeeds, v)
+		}
+	}
+	return newSeeds
 }
 
 type RPCConfig struct {
@@ -23,10 +38,10 @@ type RPCConfig struct {
 
 // NetworkConfig stores network settings
 type NetworkConfig struct {
-	Host              string `config:"host"`
-	Port              string `config:"port"`
-	Binding           string `config:"binding"`
-	AutoAvailablePort bool   `config:"auto_available_port"`
+	Host             string `config:"host"`
+	Port             string `config:"port"`
+	Binding          string `config:"binding"`
+	SkipOccupiedPort bool   `config:"skip_occupied_port"`
 }
 
 func (cfg NetworkConfig) GetBindingPort() string {
@@ -69,6 +84,8 @@ type PathConfig struct {
 type SystemConfig struct {
 	ClusterConfig ClusterConfig `config:"cluster"`
 
+	APIConfig APIConfig `config:"api"`
+
 	NodeConfig NodeConfig `config:"node"`
 
 	PathConfig PathConfig `config:"path"`
@@ -82,6 +99,19 @@ type SystemConfig struct {
 	Modules []*Config `config:"modules"`
 
 	Plugins []*Config `config:"plugins"`
+}
+
+type APIConfig struct {
+	Enabled       bool          `config:"enabled"`
+	TLSConfig     TLSConfig     `config:"tls"`
+	NetworkConfig NetworkConfig `config:"network"`
+}
+
+func (config *APIConfig) GetSchema() string {
+	if config.TLSConfig.TLSEnabled {
+		return "https"
+	}
+	return "http"
 }
 
 type TLSConfig struct {

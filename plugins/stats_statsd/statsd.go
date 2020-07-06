@@ -71,6 +71,14 @@ func (module StatsDModule) Stop() error {
 	return nil
 }
 
+func (module StatsDModule) Absolute(category, key string, value int64) {
+
+	if !statsdInited {
+		return
+	}
+	buffer.Absolute(category+"."+key, value)
+}
+
 func (module StatsDModule) Increment(category, key string) {
 
 	module.IncrementBy(category, key, 1)

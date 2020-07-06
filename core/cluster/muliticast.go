@@ -19,7 +19,7 @@ package cluster
 import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/util"
-	"log"
+	log "github.com/cihub/seelog"
 	"net"
 )
 
@@ -27,34 +27,38 @@ const (
 	maxDataSize = 4096
 )
 
+//var lastBroadcast time.Time
 //send a Broadcast message to network to discovery the cluster
 func Broadcast(config config.NetworkConfig, req *Request) {
-
+	//if time.Now().Sub(lastBroadcast).Seconds() < 5 {
+	//	log.Warn("broadcast requests was throttled(5s)")
+	//	return
+	//}
 	addr, err := net.ResolveUDPAddr("udp", config.GetBindingAddr())
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 	c, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	payload := util.ToJSONBytes(req)
 
 	c.Write(payload)
-
+	//lastBroadcast=time.Now()
 }
 
 func ServeMulticastDiscovery(config config.NetworkConfig, h func(*net.UDPAddr, int, []byte), signal chan bool) {
 
 	addr, err := net.ResolveUDPAddr("udp", config.GetBindingAddr())
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	l, err := net.ListenMulticastUDP("udp", nil, addr)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	l.SetReadBuffer(maxDataSize)
@@ -65,7 +69,7 @@ func ServeMulticastDiscovery(config config.NetworkConfig, h func(*net.UDPAddr, i
 		b := make([]byte, maxDataSize)
 		n, src, err := l.ReadFromUDP(b)
 		if err != nil {
-			log.Fatal("ReadFromUDP failed:", err)
+			log.Error("read from UDP failed:", err)
 		}
 		h(src, n, b)
 	}

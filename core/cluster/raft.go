@@ -9,12 +9,13 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	pb "infini.sh/framework/core/cluster/pb"
 	"infini.sh/framework/core/cluster/raft"
-	"infini.sh/framework/core/cluster/raft-boltdb"
+	raftboltdb "infini.sh/framework/core/cluster/raft-boltdb"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rpc"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"net"
@@ -70,8 +71,14 @@ func GetLeader() string {
 	return getRaft().raft.Leader()
 }
 
+//other peers, self not include
 func GetPeers() []string {
 	return getRaft().raft.Peers()
+}
+
+//get all nodes, include self
+func GetNodes() []string {
+	return getRaft().raft.Nodes()
 }
 
 func GetClusterReadonlyMetadata() Metadata {
@@ -120,6 +127,8 @@ type NullWriter int
 
 func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 
+var discoveryStartTime = time.Now()
+
 func Open() (err error) {
 
 	getRaft().addr = rpc.GetRPCAddress()
@@ -135,9 +144,9 @@ func Open() (err error) {
 	<-signal
 
 	var seeds []string
-	if len(global.Env().SystemConfig.ClusterConfig.Seeds) > 0 {
+	if len(global.Env().SystemConfig.ClusterConfig.GetSeeds()) > 0 {
 		log.Tracef("use config seeds")
-		seeds = global.Env().SystemConfig.ClusterConfig.Seeds
+		seeds = global.Env().SystemConfig.ClusterConfig.GetSeeds()
 	}
 
 	if GetLocalActivePeersCount() > 1 && GetLocalActivePeersCount() >= global.Env().SystemConfig.ClusterConfig.MinimumNodes {
@@ -145,25 +154,34 @@ func Open() (err error) {
 		log.Tracef("prefer use local active peers as seeds, %v", len(seeds))
 	}
 
-	err = getRaft().restart(seeds)
+	err = getRaft().restart(seeds, RESTART_WITH_INITIAL_STATE)
 	if err != nil {
 		log.Error(err)
 		panic(err)
 	}
 
-	//Hello world, I am up, where is the cluster?
+	////Hello world, I am up, where is the cluster out there?
 	discoveryCluster()
 
 	//How are you, I'll reach to you
-	runTasks()
+	runDiscoveryTasks()
 
 	registerNode(getRaft().localNode)
 
 	return err
 }
-
+var lastDiscoveried time.Time
 func discoveryCluster() {
 
+	if time.Since(lastDiscoveried)<5*time.Second{
+		log.Debug("discovery request already sent within 5 sends, skip")
+		return
+	}
+
+	//if discovered{
+	//	log.Debug("already sent discovery request, skip")
+	//	return
+	//}
 	req := Request{}
 
 	node :=
@@ -179,25 +197,43 @@ func discoveryCluster() {
 	getRaft().localNode = &node
 	Broadcast(clusterConfig.BoradcastConfig, &req)
 
+	discovered = true
+	lastDiscoveried=time.Now()
 }
 
-func runTasks() {
+var discovered bool
+var selfPromoted bool
 
-	//if listen as leader, start heartbeat service
+func runDiscoveryTasks() {
+
+	//if listen as leader, start health check service
 	go func() {
-
 	start_loop:
 
 		for {
 			if getRaft().raft == nil || getRaft().raft.Leader() != "" && getRaft().raft.Leader() != getRaft().addr {
 				log.Trace("I am not qualified to run the health check, skip")
+				time.Sleep(30*time.Second)
 				goto quit_loop
 			}
 
 			if getRaft().raft.Leader() == "" {
-				if GetLocalActivePeersCount() > 0 {
-					//try nominate
-					nominate()
+				log.Debug("leader is not selected, try nominate one")
+				//try discovery first, and then do nominate
+				if GetLocalActivePeersCount() > 0 && discovered {
+					if time.Since(discoveryStartTime).Milliseconds() > global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds {
+						//try nominate
+						nominate()
+					} else {
+
+						timeToWait := global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds - time.Since(discoveryStartTime).Milliseconds()
+
+						if timeToWait > 0 {
+							time.Sleep(time.Millisecond * time.Duration(timeToWait))
+							log.Info("still waiting for discovery result, or start nominate process after ", time.Millisecond*time.Duration(timeToWait))
+						}
+					}
+
 				} else {
 					//where is cluster
 					discoveryCluster()
@@ -206,105 +242,149 @@ func runTasks() {
 				goto quit_loop
 				continue
 			} else {
-				//leader check all the connections
-				runCheck()
+				//leader will do health check on all the connections
+				//runHealthCheck() //TODO open it after debug
 			}
 
-			time.Sleep(time.Second * 5)
+			////if not self electable, do wait
+			//if selfElectable(){
+			//	timeToWait := global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds - time.Since(discoveryStartTime).Milliseconds()
+			//	if timeToWait > 0 {
+			//		log.Info("timeout to do self promotion, ",time.Millisecond * time.Duration(timeToWait))
+			//		time.Sleep(time.Millisecond * time.Duration(timeToWait))
+			//		err := getRaft().restart(global.Env().SystemConfig.ClusterConfig.GetSeeds(),RESTART_WITH_SELFT_PROMOTE)
+			//		if err != nil {
+			//			panic(err)
+			//		}
+			//	}
+			//}
+
+			log.Trace("pause health check service for 10s")
+			time.Sleep(time.Second * 10)
 		}
 
 	quit_loop:
-		log.Trace("pause heartbeat service")
-		time.Sleep(time.Second * 30)
+
+		//log.Trace("enter quit_loop")
+
+		//self promote should be used for only once
+		if selfElectable() && selfPromoted == false {
+
+			//log.Trace("enter selfElectable")
+
+			timeToWait := global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds - time.Since(discoveryStartTime).Milliseconds()
+
+			if timeToWait > 0 {
+				log.Debug("wait to do self promotion, after ", time.Millisecond*time.Duration(timeToWait))
+				time.Sleep(time.Millisecond * time.Duration(timeToWait))
+			}
+
+			//fmt.Println(GetActivePeers())
+			//fmt.Println(getRaft().raft.Leader())
+			//fmt.Println(GetLocalActivePeersCount())
+
+			if getRaft().raft.Leader() == "" && GetLocalActivePeersCount() <= 0 {
+				seeds, _ := GetActivePeers()
+				err := getRaft().restart(seeds, RESTART_WITH_SELFT_PROMOTE)
+				if err != nil {
+					panic(err)
+				}
+				selfPromoted = true
+			}
+		}
+
+		log.Trace("pause health check service for ", time.Millisecond *time.Duration(global.Env().SystemConfig.ClusterConfig.HealthCheckInMilliseconds))
+		time.Sleep(time.Millisecond * time.Duration(global.Env().SystemConfig.ClusterConfig.HealthCheckInMilliseconds))
+
 		goto start_loop
 	}()
 }
 
-func runCheck() {
+func runHealthCheck() {
+	if len(localKnowPeers) == 0 {
+		return
+	}
 
-	log.Tracef("start heartbeat check, %v hosts", len(localKnowPeers))
+	log.Tracef("start health check to %v hosts", len(localKnowPeers))
 	localRpc := util.GetSafetyInternalAddress(rpc.GetRPCAddress())
 
 	for i, v := range localKnowPeers {
-		log.Trace("heartbeat:", i, ",", v, ",", v.RPCEndpoint, " vs ", localRpc)
+		log.Trace("health check: ", i, ",", v, ", remote: ", v.RPCEndpoint, " local: ", localRpc)
 
 		previousState := v.Active
 
 		////ignore local node
 		if v.RPCEndpoint == localRpc {
 
-			//if I am leader and I am not in the list, add it
-			if v, ok := localKnowPeers[v.RPCEndpoint]; !ok && !v.Active {
-				log.Error("adding leader myself")
-				v.Active = true
-				getRaft().Up(v)
-			}
+			////if I am leader and I am not in the list, add it
+			//if v, ok := localKnowPeers[v.RPCEndpoint]; !ok && !v.Active {
+			//	log.Error("adding leader myself")
+			//	v.Active = true
+			//	getRaft().Up(v)
+			//}
 
 			log.Trace("ignore self check")
 			continue
 		}
 
-		conn, err := rpc.ObtainConnection(v.RPCEndpoint)
-		if err != nil {
+		client, err := rpc.ObtainConnection(v.RPCEndpoint)
+		if err != nil || client==nil {
 			v.Active = false
 			getRaft().Leave(v.RPCEndpoint, v.RPCEndpoint)
+			stats.Absolute("node_countdown", v.RPCEndpoint, 0)
 		}
-
-		defer conn.Close()
-		c := pb.NewDiscoveryClient(conn)
+		defer client.Close()
+		c := pb.NewDiscoveryClient(client.ClientConn)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		log.Tracef("send ping request: %s %v %v", v.Name, v.GetRPCAddr().IP.String(), uint32(v.GetRPCAddr().Port))
+
 		r, err := c.Ping(ctx, &pb.HealthCheckRequest{
-			NodeName: global.Env().SystemConfig.NodeConfig.Name,
-			NodeIp:   getRaft().tcpAddr.IP.String(),
-			NodePort: uint32(getRaft().tcpAddr.Port),
+			NodeName: v.Name,
+			NodeIp:   v.GetRPCAddr().IP.String(),
+			NodePort: uint32(v.GetRPCAddr().Port),
 		})
 
+		if err != nil {
+			log.Error(err)
+		}
+
 		if r == nil || (err != nil && previousState == true) {
-			log.Error(v.RPCEndpoint, ",", err)
-			v.Active = false
-			getRaft().Down(v.RPCEndpoint, v.RPCEndpoint)
+
+			stats.Increment("node_countdown", v.RPCEndpoint)
+			count := stats.Stat("node_countdown", v.RPCEndpoint)
+			log.Errorf("%v not able reach for %v times, %v", v.RPCEndpoint,count,err)
+
+			if count >= 3 {
+				log.Debugf("node %v unable to reach for %v times, mark it was down", v.RPCEndpoint, count)
+				v.Active = false
+				getRaft().Down(v.RPCEndpoint, v.RPCEndpoint)
+				stats.Absolute("node_countdown", v.RPCEndpoint, 0)
+			}
 			continue
 		}
 
 		if r.Success && !previousState {
 			v.Active = true
 			getRaft().Up(v)
+			stats.Absolute("node_countdown", v.RPCEndpoint, 0)
 		}
-		log.Trace("heartbeat success,", r.Success)
-
+		log.Trace("all health check tasks are done")
 	}
 }
 
 var restartLock sync.Mutex
 
-func (s *RaftModule) restart(seeds []string) (err error) {
-	restartLock.Lock()
-	defer restartLock.Unlock()
-
-	if time.Now().Sub(electedTime).Seconds() < 30 {
-		log.Debug("skip election, already in progress")
-		return
-	}
-
-	log.Trace("restart with seeds,", seeds)
-
+func (s *RaftModule) shutdownRaft() error {
 	if getRaft().raft != nil && getRaft().raft.State() != raft.Shutdown {
-		err = getRaft().raft.Shutdown().Error()
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-
+		return getRaft().raft.Shutdown().Error()
 	}
+	return nil
+}
 
-	if global.Env().SystemConfig.ClusterConfig.MinimumNodes == 1 && len(seeds) == 0 {
-		log.Warnf("minimum raft number is 1 and got zero seeds, will start as leader")
-		s.cfg.StartAsLeader = true
-	}
-
+func (s *RaftModule) startRaft(seeds []string) error {
 	addr, err := net.ResolveTCPAddr("tcp", s.addr)
 	if err != nil {
 		log.Error(err)
@@ -325,6 +405,7 @@ func (s *RaftModule) restart(seeds []string) (err error) {
 	peerStore := &raft.StaticPeers{StaticPeers: seeds}
 
 	dir := path.Join(global.Env().GetWorkingDir(), "raft")
+
 	// Create the snapshot store. This allows the Raft to truncate the log.
 	snapshots, err := raft.NewFileSnapshotStore(dir, retainSnapshotCount, os.Stderr)
 	if err != nil {
@@ -348,8 +429,92 @@ func (s *RaftModule) restart(seeds []string) (err error) {
 	log.Trace("raft initialized")
 
 	//started = true
-	electedTime = time.Now()
+	//electedTime = time.Now()
 	return nil
+}
+
+func (s *RaftModule) restart(seeds []string, t RESTART_TYPE) (err error) {
+
+	log.Trace("restart leader selection or discovery process, type: ", t, " seeds: ", seeds)
+
+	restartLock.Lock()
+	defer restartLock.Unlock()
+
+	//if time.Now().Sub(electedTime).Seconds() < 30 {
+	//	log.Debug("skip election, already in progress")
+	//	return
+	//}
+
+	if t == RESTART_WITH_INITIAL_STATE {
+
+		err = s.startRaft(seeds)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+	} else if t == RESTART_WITH_KNOWN_LEADER {
+		err := s.shutdownRaft()
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		err = s.startRaft(seeds)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+	} else if t == RESTART_WITH_LEADER_SELECTION {
+
+		err := s.shutdownRaft()
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		err = s.startRaft(seeds)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+	} else if t == RESTART_WITH_SELFT_PROMOTE {
+
+		log.Debug("start to do self promote")
+
+		//after 30s(configurable) timeout, if there are no other peers show up, do promote self
+		if time.Since(discoveryStartTime).Milliseconds() >= global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds && selfElectable() && len(seeds) == 0 {
+
+			err := s.shutdownRaft()
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+
+			log.Warnf("can't discovery a valid cluster, will be act as leader")
+			s.cfg.StartAsLeader = true
+
+			err = s.startRaft(seeds)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+		}
+	} else {
+		panic("unknow restart type")
+	}
+
+	return nil
+}
+
+//check if self promote was enabled
+func selfElectable() bool {
+
+	return global.Env().SystemConfig.ClusterConfig.MinimumNodes <= 1
+	//no matter how many seeds was specified, if minimum was set to <1, then self promotion should be enabled
+	//&& len(global.Env().SystemConfig.ClusterConfig.GetSeeds()) == 0
 }
 
 var localKnowPeers = make(map[string]*Node)
@@ -362,16 +527,29 @@ const EVENT_LEADER_READY = "LEADER_READY"
 
 var electedTime time.Time
 
+type RESTART_TYPE string
+
+const RESTART_WITH_KNOWN_LEADER RESTART_TYPE = "RESTART_WITH_KNOWN_LEADER"
+const RESTART_WITH_LEADER_SELECTION RESTART_TYPE = "RESTART_WITH_LEADER_SELECTION"
+const RESTART_WITH_INITIAL_STATE RESTART_TYPE = "RESTART_WITH_INITIAL_STATE"
+const RESTART_WITH_SELFT_PROMOTE RESTART_TYPE = "RESTART_WITH_SELFT_PROMOTE"
+
 func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
 	v := Request{}
 
 	util.FromJSONBytes(b[:n], &v)
 
-	log.Tracef("received multicast message: %v", v)
+	log.Tracef("received multicast message: %v", util.ToJson(v, false))
 
 	if getRaft().raft == nil {
 		log.Error("raft is not initialized")
+		return
+	}
+
+	//ignore my broadcast message
+	if v.FromNode.RPCEndpoint==s.addr{
+		log.Trace("ignore my broadcast message")
 		return
 	}
 
@@ -384,6 +562,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 	case EVENT_LEADER_DISCOVERY:
 
 		if getRaft().raft.Leader() == getRaft().addr {
+			log.Debug("some node is up, let me send a greeting message")
 			registerNode(&v.Node)
 
 			req := Request{}
@@ -398,10 +577,10 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
 		break
 	case EVENT_LEADER_ECHO:
-
 		if v.Node.RPCEndpoint == getRaft().addr && getRaft().raft.Leader() == "" {
+			fmt.Println("received a message from leader, bingo")
 			registerNode(&v.FromNode)
-			err := getRaft().restart([]string{v.FromNode.RPCEndpoint})
+			err := getRaft().restart([]string{v.FromNode.RPCEndpoint}, RESTART_WITH_KNOWN_LEADER)
 			if err != nil {
 				panic(err)
 			}
@@ -412,8 +591,8 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 	case EVENT_LEADER_READY:
 		log.Tracef("leader %v is ready", v.Node.RPCEndpoint)
 		if getRaft().raft.Leader() == "" {
-			seeds, _ := GetActivePeers()
-			err := getRaft().restart(seeds)
+			seeds := []string{v.Node.RPCEndpoint}
+			err := getRaft().restart(seeds, RESTART_WITH_KNOWN_LEADER)
 			if err != nil {
 				panic(err)
 			}
@@ -421,13 +600,14 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
 		break
 	case EVENT_LEADER_NOMINATE:
-
 		l.Lock()
 		defer l.Unlock()
 
-		log.Tracef("check nominate message, %v vs %v ", v.Node.RPCEndpoint, s.addr)
+		log.Tracef("seems %s is nominating to be %s leader",v.FromNode.RPCEndpoint,v.Node.RPCEndpoint)
 
+		//if i am the leader, i will tell these nodes, don't bother, come and join me
 		if getRaft().raft.Leader() == s.addr && getRaft().raft.Leader() != "" {
+			log.Debugf("no bother looking，i am the leader, let me add you to my group, let's have fun together")
 
 			getRaft().raft.AddPeer(v.Node.RPCEndpoint)
 
@@ -442,7 +622,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 			return
 		}
 
-		//if the nominate is for self, tickets +1
+		//if the nominate is for self, tickets +1, and can't nominated by self
 		if v.Node.RPCEndpoint != getRaft().addr && v.Node.RPCEndpoint == s.addr && getRaft().raft.Leader() == "" {
 			ticketsBox.Add(v.FromNode.RPCEndpoint)
 			log.Debugf("i am nominated as leader, got ticket: %v ,from:%s", ticketsBox.Size(), src.String())
@@ -459,7 +639,9 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 					seeds = append(seeds, v.(string))
 				}
 
-				err := s.restart(seeds)
+				log.Debug("tickets enough，I am the leader now，let's do it!")
+
+				err := s.restart(seeds, RESTART_WITH_LEADER_SELECTION)
 				if err != nil {
 					panic(err)
 					log.Error(err)
@@ -471,7 +653,6 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 				req.Node = *getRaft().localNode
 				req.NodeType = EVENT_LEADER_READY
 				Broadcast(clusterConfig.BoradcastConfig, &req)
-
 			}
 		}
 
@@ -481,6 +662,11 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
 //register local node status
 func registerNode(node *Node) {
+	//skip adding self
+	if node.RPCEndpoint == getRaft().addr {
+		return
+	}
+
 	if add, ok := localKnowPeers[node.RPCEndpoint]; !ok {
 
 		node.Active = true
@@ -512,25 +698,33 @@ func nominate() {
 		log.Debugf("met enough raft nodes(%v), start nomination", global.Env().SystemConfig.ClusterConfig.MinimumNodes)
 
 		//check master connection
-		runCheck()
+		runHealthCheck()
 
 		plist, _ := GetActivePeers()
 
 		//nominate first node as leader
 		sort.Strings(plist)
 		req := Request{}
+		if GetLocalActivePeersCount() <= 0 {
+			return
+		}
 
 		req.NodeType = EVENT_LEADER_NOMINATE
 		req.Node = *localKnowPeers[plist[0]]
 		req.FromNode = *getRaft().localNode
 
-		log.Trace("time:", time.Now().Sub(lastNomiateTime).Seconds(), "node:", lastNomiateNode, " vs ", req.Node.RPCEndpoint)
+		if req.Node.RPCEndpoint == getRaft().addr {
+			log.Debugf("skip to nominate self")
+			return
+		}
+
+		log.Trace("time:", time.Now().Sub(lastNomiateTime).Seconds(), ", node:", lastNomiateNode, " vs ", req.Node.RPCEndpoint)
 		if lastNomiateNode == req.Node.RPCEndpoint && time.Now().Sub(lastNomiateTime).Seconds() < 30 {
 			log.Debugf("skip to nominate the same node within 30s")
 			return
 		}
 
-		log.Trace("I nominate: ", req.Node.RPCEndpoint)
+		log.Debug("hey, anyone wanna be leader, I am going to nominate: ", req.Node.RPCEndpoint)
 
 		Broadcast(clusterConfig.BoradcastConfig, &req)
 
@@ -608,7 +802,7 @@ func (s *RaftModule) ExecuteCommand(c *Command) error {
 	//}
 
 	//f := s.raft.Apply(b, raftTimeout)
-	//log.Tracef("apply command successful")
+	log.Tracef("apply command successful")
 	//return f.Error()
 	return nil
 }

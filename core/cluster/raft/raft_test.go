@@ -99,10 +99,6 @@ func (a *testLoggerAdapter) Write(d []byte) (int, error) {
 	return len(d), nil
 }
 
-func newTestLogger(t *testing.T) *log.Logger {
-	return log.New(&testLoggerAdapter{t: t}, "", log.Lmicroseconds)
-}
-
 func newTestLoggerWithPrefix(t *testing.T, prefix string) *log.Logger {
 	return log.New(&testLoggerAdapter{t: t, prefix: prefix}, "", log.Lmicroseconds)
 }

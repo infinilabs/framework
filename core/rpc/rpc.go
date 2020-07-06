@@ -17,6 +17,7 @@ limitations under the License.
 package rpc
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/util"
@@ -38,7 +40,7 @@ func GetRPCServer() *grpc.Server {
 }
 
 //only select local connection
-func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
+func ObtainLocalConnection() (conn *ClientConn, err error) {
 	return ObtainConnection(listenAddress)
 }
 
@@ -49,7 +51,7 @@ func ObtainLocalConnection() (conn *grpc.ClientConn, err error) {
 //var addr = flag.String("rpc.bind", "localhost:20000", "the rpc address to bind to")
 
 //auto select connection
-func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
+func ObtainConnection(addr string) (client *ClientConn, err error) {
 	log.Trace("obtain client connection: ", addr)
 
 	if rpcConfig.TLSConfig.TLSEnabled {
@@ -68,10 +70,10 @@ func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
 			}
 
 			// Set up a connection to the server.
-			conn, err = grpc.Dial(addr, grpc.WithTransportCredentials(creds))
-			if err != nil {
-				log.Errorf("did not connect: %v", err)
-			}
+			//conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
+			//if err != nil {
+			//	log.Errorf("did not connect: %v", err)
+			//}
 
 			// Load the client certificates from disk
 			certificate, err := tls.LoadX509KeyPair(cert, key)
@@ -99,19 +101,51 @@ func ObtainConnection(addr string) (conn *grpc.ClientConn, err error) {
 		}
 
 		dialOption := grpc.WithTransportCredentials(creds)
-		conn, err = grpc.Dial(addr, dialOption)
+
+		p, err := New(func() (*grpc.ClientConn, error) {
+			return grpc.Dial(addr, dialOption)
+		}, 1, 2, 0)
+
+		// Get a client
+		client, err := p.Get(context.Background())
 		if err != nil {
-			log.Errorf("cannot connect to %s, %v", addr, err)
+			log.Errorf("Get returned an error: %s", err.Error())
 		}
+		if client == nil {
+			log.Error("client was nil")
+		}
+		return client,nil
+
+		//conn, err = grpc.Dial(addr, dialOption)
+		//if err != nil {
+		//	log.Errorf("cannot connect to %s, %v", addr, err)
+		//}
 
 	} else {
 		log.Trace("using insecure tcp connection")
-		conn, err = grpc.Dial(addr, grpc.WithInsecure())
+
+		p, err := New(func() (*grpc.ClientConn, error) {
+			return grpc.Dial(addr, grpc.WithInsecure())
+		}, 1, 2, 0)
+
+		// Get a client
+		client, err := p.Get(context.Background())
 		if err != nil {
-			log.Errorf("cannot connect to %s, %v", addr, err)
+			log.Errorf("Get returned an error: %s", err.Error())
 		}
+		if client == nil {
+			log.Error("client was nil")
+		}
+
+		return client,err
+
+		//conn, err = grpc.Dial(addr, grpc.WithInsecure())
+		//if err != nil {
+		//	log.Errorf("cannot connect to %s, %v", addr, err)
+		//}
+
+
 	}
-	return conn, err
 }
 
 var s *grpc.Server
@@ -126,7 +160,6 @@ var rootCertPEM []byte
 func Setup(cfg *config.RPCConfig) {
 	rpcConfig = cfg
 	var err error
-	s = grpc.NewServer()
 	if rpcConfig.TLSConfig.TLSEnabled {
 		cert := rpcConfig.TLSConfig.TLSCertFile
 		key := rpcConfig.TLSConfig.TLSKeyFile
@@ -206,10 +239,12 @@ func Setup(cfg *config.RPCConfig) {
 			}
 		}
 
-		s = grpc.NewServer(grpc.Creds(creds))
+		s = grpc.NewServer(grpc.Creds(creds), grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute}))
 	} else {
 		log.Trace("using insecure tcp connection")
-		s = grpc.NewServer()
+		s = grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute}))
 	}
 
 }
@@ -227,11 +262,12 @@ func GetRPCAddress() string {
 
 func StartRPCServer() {
 
-	if rpcConfig.NetworkConfig.AutoAvailablePort {
+	if rpcConfig.NetworkConfig.SkipOccupiedPort {
 		listenAddress = util.AutoGetAddress(rpcConfig.NetworkConfig.GetBindingAddr())
 	} else {
 		listenAddress = rpcConfig.NetworkConfig.GetBindingAddr()
 	}
+
 	var err error
 	listener, err = net.Listen("tcp", listenAddress)
 	if err != nil {

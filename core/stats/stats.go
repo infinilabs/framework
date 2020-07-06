@@ -25,6 +25,8 @@ type StatsInterface interface {
 
 	DecrementBy(category, key string, value int64)
 
+	Absolute(category, key string, value int64)
+
 	Timing(category, key string, v int64)
 
 	Gauge(category, key string, v int64)
@@ -53,6 +55,12 @@ func Decrement(category, key string) {
 func DecrementBy(category, key string, value int64) {
 	for _, v := range handlers {
 		v.DecrementBy(category, key, value)
+	}
+}
+
+func Absolute(category, key string, value int64) {
+	for _, v := range handlers {
+		v.Absolute(category, key, value)
 	}
 }
 

@@ -17,12 +17,10 @@ limitations under the License.
 package cluster
 
 import (
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
-
 	"encoding/json"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/global"
 	"net/http"
 )
 
@@ -46,16 +44,21 @@ func (handler ClusterAPI) clusterInfo(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{}
 	stats["cluster_name"] = global.Env().SystemConfig.ClusterConfig.Name
 	stats["status"] = GetRaftStatus()
-	stats["number_of_nodes"] = GetLocalActivePeersCount()
-	stats["local_meta"] = GetLocalPeers()
-	stats["cluster_meta"] = GetClusterReadonlyMetadata()
 	stats["number_of_minimum_nodes"] = global.Env().SystemConfig.ClusterConfig.MinimumNodes
+	nodes := GetNodes()
+	stats["number_of_nodes"] = len(nodes)
 	stats["timed_out"] = false
-	stats["raft"] = util.MapStr{
-		"leader": GetLeader(),
-		"seeds":  GetPeers(),
-		"stats":  GetStats(),
-	}
+	stats["leader_node"] = GetLeader()
+	stats["nodes"] = nodes
+
+
+	//TODO local node stats
+	//stats["cluster_meta"] = GetClusterReadonlyMetadata()
+	//stats["number_of_nodes"] = GetLocalActivePeersCount()
+	//stats["local_meta"] = GetLocalPeers()
+	//stats["stats"] = GetStats()
+	//stats["allow_self_promote"] = (global.Env().SystemConfig.ClusterConfig.MinimumNodes<=1&&len(global.Env().SystemConfig.ClusterConfig.GetSeeds())==0)
+
 
 	b, _ := json.MarshalIndent(stats, "", "  ")
 	w.Write(b)

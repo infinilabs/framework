@@ -3,7 +3,6 @@ package raft
 import (
 	"errors"
 	"io"
-	"log"
 	"net"
 	"time"
 )
@@ -40,11 +39,10 @@ func NewTCPTransportWithLogger(
 	advertise net.Addr,
 	maxPool int,
 	timeout time.Duration,
-	logger *log.Logger,
 	listener net.Listener,
 ) (*NetworkTransport, error) {
 	return newTCPTransport(bindAddr, advertise, maxPool, timeout, func(stream StreamLayer) *NetworkTransport {
-		return NewNetworkTransportWithLogger(stream, maxPool, timeout, logger)
+		return NewNetworkTransportWithLogger(stream, maxPool, timeout)
 	}, listener)
 }
 

@@ -275,6 +275,10 @@ func (r *Raft) Peers() []string {
 	return r.peers
 }
 
+func (r *Raft) Nodes() []string {
+	return append(r.peers,r.localAddr)
+}
+
 // setLeader is used to modify the current leader of the cluster
 func (r *Raft) setLeader(leader string) {
 	r.leaderLock.Lock()
@@ -506,7 +510,9 @@ func (r *Raft) Stats() map[string]string {
 		"fsm_pending":         toString(uint64(len(r.fsmCommitCh))),
 		"last_snapshot_index": toString(lastSnapIndex),
 		"last_snapshot_term":  toString(lastSnapTerm),
-		"num_peers":           toString(uint64(len(r.peers))),
+		//"num_peers":           toString(uint64(len(r.peers))),
+		"number_of_nodes":           toString(uint64(len(r.peers))+1),
+
 	}
 	last := r.LastContact()
 	if last.IsZero() {
@@ -1104,7 +1110,6 @@ func (r *Raft) preparePeerChange(l *logFuture) bool {
 	// Check if this is a known peer
 	p := l.log.peer
 	knownPeer := PeerContained(r.peers, p) || r.localAddr == p
-
 	// Ignore known peers on add
 	if l.log.Type == LogAddPeer && knownPeer {
 		l.respond(ErrKnownPeer)

@@ -13,7 +13,6 @@ import (
 	"infini.sh/framework/core/api/filter"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net"
@@ -86,7 +85,7 @@ var rootCert *x509.Certificate
 var rootKey *rsa.PrivateKey
 var rootCertPEM []byte
 
-var apiConfig *APIConfig
+var apiConfig *config.APIConfig
 
 var listenAddress string
 
@@ -98,15 +97,14 @@ func StartAPI(cfg *config.Config) {
 		AllowedMethods: []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
-	apiConfig = &APIConfig{}
+	apiConfig = &global.Env().SystemConfig.APIConfig
 
-	env.ParseConfig("api", apiConfig)
 
 	if !apiConfig.Enabled {
 		return
 	}
 
-	if apiConfig.NetworkConfig.AutoAvailablePort {
+	if apiConfig.NetworkConfig.SkipOccupiedPort {
 		listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())
 	} else {
 		listenAddress = apiConfig.NetworkConfig.GetBindingAddr()

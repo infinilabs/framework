@@ -24,7 +24,7 @@ import (
 type Request struct {
 	NodeType string `json:"type,omitempty"`
 	Node     Node   `json:"node,omitempty"`
-	FromNode Node   `json:"local_node,omitempty"`
+	FromNode Node   `json:"from,omitempty"`
 }
 
 type Node struct {

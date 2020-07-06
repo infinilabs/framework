@@ -105,6 +105,14 @@ func (s *Stats) IncrementBy(category, key string, value int64) {
 	runtime.Gosched()
 }
 
+func (s *Stats) Absolute(category, key string, value int64) {
+	s.initData(category, key)
+	s.l.Lock()
+	(*s.Data)[category][key] = value
+	s.l.Unlock()
+	runtime.Gosched()
+}
+
 func (s *Stats) Decrement(category, key string) {
 	s.DecrementBy(category, key, 1)
 }

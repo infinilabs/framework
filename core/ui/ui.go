@@ -97,7 +97,7 @@ func StartUI(cfg *UIConfig) {
 
 	schema := "http://"
 
-	if uiConfig.NetworkConfig.AutoAvailablePort {
+	if uiConfig.NetworkConfig.SkipOccupiedPort {
 		bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
 	} else {
 		bindAddress = uiConfig.NetworkConfig.GetBindingAddr()
