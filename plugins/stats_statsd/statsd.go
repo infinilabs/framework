@@ -1,10 +1,12 @@
-package stats
+package statsd
 
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/quipo/statsd"
 	. "infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/stats"
 	"sync"
 	"time"
@@ -17,6 +19,12 @@ type StatsDConfig struct {
 	IntervalInSeconds time.Duration `config:"interval_in_seconds"`
 }
 type StatsDModule struct {
+}
+
+var cfg *Config
+
+func (module StatsDModule) Setup(config *Config) {
+	cfg = config
 }
 
 var statsdInited bool
@@ -32,16 +40,17 @@ var defaultStatsdConfig = StatsDConfig{
 }
 
 func (module StatsDModule) Name() string {
-	return "StatsD"
+	return "statsd"
 }
 
-func (module StatsDModule) Start(cfg *Config) {
+func (module StatsDModule) Start() error {
 	if statsdInited {
-		return
+		panic(errors.New("statsd not inited"))
 	}
 
 	config := defaultStatsdConfig
-	cfg.Unpack(&config)
+	//cfg.Unpack(&config)
+	env.ParseConfig("statsd", &config)
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	l1.Lock()
@@ -53,7 +62,7 @@ func (module StatsDModule) Start(cfg *Config) {
 	err := statsdclient.CreateSocket()
 	if nil != err {
 		log.Warn(err)
-		return
+		return err
 	}
 
 	interval := time.Second * config.IntervalInSeconds // aggregate stats and flush every 2 seconds
@@ -62,6 +71,7 @@ func (module StatsDModule) Start(cfg *Config) {
 	statsdInited = true
 
 	stats.Register(module)
+	return nil
 }
 
 func (module StatsDModule) Stop() error {
