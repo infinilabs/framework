@@ -17,12 +17,14 @@ limitations under the License.
 package util
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -250,4 +252,79 @@ func EncodeToBytes(key interface{}) ([]byte, error) {
 
 func GetBytes(key interface{}) []byte {
 	return []byte(fmt.Sprintf("%v", key.(interface{})))
+}
+
+func GetSplitFunc(split []byte) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+
+	sLen := len(split)
+
+	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		dataLen := len(data)
+
+		// Return nothing if at end of file and no data passed
+		if atEOF && dataLen == 0 {
+			return 0, nil, nil
+		}
+
+		// Find next separator and return token
+		if i := bytes.Index(data, split); i >= 0 {
+			return i + sLen, data[0:i], nil
+		}
+
+		// If we're at EOF, we have a final, non-terminated line. Return it.
+		if atEOF {
+			return dataLen, data, nil
+		}
+
+		// Request more data.
+		return 0, nil, nil
+	}
+}
+
+func ExtractFieldFromJson(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte) (bool, []byte) {
+	return ExtractFieldFromJsonOrder(data, fieldStartWith, fieldEndWith, leftMustContain, false)
+}
+
+func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool) (bool, []byte) {
+	scanner := bufio.NewScanner(bytes.NewReader(*data))
+	scanner.Split(GetSplitFunc(fieldEndWith))
+	var str []byte
+	for scanner.Scan() {
+		text := scanner.Bytes()
+		if bytes.Contains(text, leftMustContain) {
+			str = text
+			break
+		}
+	}
+
+	if len(str) > 0 {
+		var offset int
+		if reverse {
+			offset = bytes.LastIndex(str, fieldStartWith)
+		} else {
+			offset = bytes.Index(str, fieldStartWith)
+		}
+
+		if offset > 0 && offset < len(str) {
+			newStr := str[offset+len(fieldStartWith) : len(str)]
+			return true, newStr
+		}
+	} else {
+		log.Warn("input data doesn't contain the split bytes")
+	}
+	return false, nil
+}
+
+func IsBytesEndingWith(data *[]byte, ending []byte) bool {
+	return IsBytesEndingWithOrder(data, ending, false)
+}
+
+func IsBytesEndingWithOrder(data *[]byte, ending []byte, reverse bool) bool {
+	var offset int
+	if reverse {
+		offset = bytes.LastIndex(*data, ending)
+	} else {
+		offset = bytes.Index(*data, ending)
+	}
+	return len(*data)-offset <= len(ending)
 }
