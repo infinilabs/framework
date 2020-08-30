@@ -273,3 +273,12 @@ func MD5digest(str string) string {
 	sum := md5.Sum([]byte(str))
 	return hex.EncodeToString(sum[:])
 }
+
+func MD5digestBytes(b []byte) [16]byte {
+	return md5.Sum(b)
+}
+
+func MD5digestString(b []byte) string {
+	sum := md5.Sum(b)
+	return hex.EncodeToString(sum[:])
+}
