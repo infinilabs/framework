@@ -149,16 +149,16 @@ var startTime = time.Now().UTC()
 var (
 	defaultSystemConfig = config.SystemConfig{
 		ClusterConfig: config.ClusterConfig{
-			Seeds: []string{"127.0.0.1:10000"},
-			HealthCheckInMilliseconds: 10000,
+			Seeds:                          []string{},
+			HealthCheckInMilliseconds:      10000,
 			DiscoveryTimeoutInMilliseconds: 10000,
-			MinimumNodes: 1,
+			MinimumNodes:                   1,
 			BoradcastConfig: config.NetworkConfig{
 				Binding: "224.3.2.2:9876",
 			},
 			RPCConfig: config.RPCConfig{
 				NetworkConfig: config.NetworkConfig{
-					Binding: "0.0.0.0:10000",
+					Binding:          "0.0.0.0:10000",
 					SkipOccupiedPort: true,
 				},
 			},
@@ -167,8 +167,9 @@ var (
 			Name: util.PickRandomName(),
 		},
 		PathConfig: config.PathConfig{
-			Data: "data",
-			Log:  "log",
+			Plugin: "plugins",
+			Data:   "data",
+			Log:    "log",
 		},
 
 		AllowMultiInstance: true,
@@ -312,6 +313,7 @@ func GetStartTime() time.Time {
 }
 
 var workingDir = ""
+var pluginDir = ""
 
 // GetWorkingDir returns root working dir of app instance
 func (env *Env) GetWorkingDir() string {
@@ -352,7 +354,10 @@ func (env *Env) GetWorkingDir() string {
 
 		procExists := util.CheckProcessExists(pid)
 		if !procExists {
-			util.FileDelete(lockFile)
+			err := util.FileDelete(lockFile)
+			if err != nil {
+				panic(err)
+			}
 			log.Debug("dead process with broken lock file, removed: ", lockFile)
 			workingDir = p
 			return p
@@ -362,4 +367,18 @@ func (env *Env) GetWorkingDir() string {
 	}
 	panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
 
+}
+
+func (env *Env) GetPluginDir() string {
+	if pluginDir != "" {
+		return pluginDir
+	}
+
+	if env.SystemConfig.PathConfig.Plugin == "" {
+		pluginDir = "./plugins"
+	} else {
+		pluginDir = env.SystemConfig.PathConfig.Plugin
+	}
+
+	return pluginDir
 }

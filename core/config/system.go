@@ -8,14 +8,14 @@ import (
 
 // ClusterConfig stores cluster settings
 type ClusterConfig struct {
-	Enabled         bool          `config:"enabled"`
-	Name            string        `config:"name"`
-	MinimumNodes    int           `config:"minimum_nodes"`
-	Seeds           []string      `config:"seeds"`
-	RPCConfig       RPCConfig     `config:"rpc"`
-	BoradcastConfig NetworkConfig `config:"broadcast"`
-	DiscoveryTimeoutInMilliseconds int64 `config:"discovery_timeout_ms"`
-	HealthCheckInMilliseconds int64 `config:"health_check_ms"`
+	Enabled                        bool          `config:"enabled"`
+	Name                           string        `config:"name"`
+	MinimumNodes                   int           `config:"minimum_nodes"`
+	Seeds                          []string      `config:"seeds"`
+	RPCConfig                      RPCConfig     `config:"rpc"`
+	BoradcastConfig                NetworkConfig `config:"broadcast"`
+	DiscoveryTimeoutInMilliseconds int64         `config:"discovery_timeout_ms"`
+	HealthCheckInMilliseconds      int64         `config:"health_check_ms"`
 }
 
 func (cfg ClusterConfig) GetSeeds() []string {
@@ -42,6 +42,7 @@ type NetworkConfig struct {
 	Port             string `config:"port"`
 	Binding          string `config:"binding"`
 	SkipOccupiedPort bool   `config:"skip_occupied_port"`
+	ReusePort        bool   `config:"reuse_port"`
 }
 
 func (cfg NetworkConfig) GetBindingPort() string {
@@ -75,9 +76,10 @@ type NodeConfig struct {
 
 // PathConfig stores path settings
 type PathConfig struct {
-	Data string `config:"data"`
-	Log  string `config:"logs"`
-	Cert string `config:"certs"`
+	Plugin string `config:"plugins"`
+	Data   string `config:"data"`
+	Log    string `config:"logs"`
+	Cert   string `config:"certs"`
 }
 
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply

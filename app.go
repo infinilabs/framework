@@ -29,8 +29,10 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/plugins"
 	defaultLog "log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -40,6 +42,7 @@ import (
 
 type App struct {
 	environment  *env.Env
+	numCPU       int
 	quitSignal   chan bool
 	isDaemonMode bool
 	isDebug      bool
@@ -80,17 +83,37 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "\n}\n")
 }
 
-func (app *App) Init(customFunc func()) {
-	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
-	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
-	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
-	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
-	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
-	flag.StringVar(&app.cpuproFile, "cpuprofile", "", "write cpu profile to this file")
-	flag.StringVar(&app.memproFile, "memprofile", "", "write memory profile to this file")
-	flag.StringVar(&app.httpprof, "pprof", "", "enable and setup pprof/expvar service, eg: localhost:6060 , the endpoint will be: http://localhost:6060/debug/pprof/ and http://localhost:6060/debug/vars")
+type Options struct {
+	EnableProfiling bool
+}
 
+func (app *App) Init(customFunc func()) {
+
+	options := Options{
+		EnableProfiling: true,
+	}
+	app.InitWithOptions(options, customFunc)
+}
+func (app *App) InitWithOptions(options Options, customFunc func()) {
+
+	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
 	flag.StringVar(&app.logDir, "log_path", "log", "the log path")
+
+	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
+
+	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
+
+	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
+
+	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
+
+	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
+
+	if options.EnableProfiling {
+		flag.StringVar(&app.cpuproFile, "cpuprofile", "", "write cpu profile to this file")
+		flag.StringVar(&app.memproFile, "memprofile", "", "write memory profile to this file")
+		flag.StringVar(&app.httpprof, "pprof", "", "enable and setup pprof/expvar service, eg: localhost:6060 , the endpoint will be: http://localhost:6060/debug/pprof/ and http://localhost:6060/debug/vars")
+	}
 
 	flag.Parse()
 
@@ -109,42 +132,45 @@ func (app *App) Init(customFunc func()) {
 
 	logger.SetLogging(app.environment, app.logLevel, app.logDir)
 
-	//profile options
-	if app.httpprof != "" {
-		go func() {
-			log.Infof("pprof listen at: http://%s/debug/pprof/", app.httpprof)
-			mux := http.NewServeMux()
+	if options.EnableProfiling {
 
-			// register pprof handler
-			mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
-				http.DefaultServeMux.ServeHTTP(w, r)
-			})
+		//profile options
+		if app.httpprof != "" {
+			go func() {
+				log.Infof("pprof listen at: http://%s/debug/pprof/", app.httpprof)
+				mux := http.NewServeMux()
 
-			// register metrics handler
-			mux.HandleFunc("/debug/vars", app.metricsHandler)
+				// register pprof handler
+				mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
+					http.DefaultServeMux.ServeHTTP(w, r)
+				})
 
-			endpoint := http.ListenAndServe(app.httpprof, mux)
-			log.Debug("stop pprof server: %v", endpoint)
-		}()
-	}
+				// register metrics handler
+				mux.HandleFunc("/debug/vars", app.metricsHandler)
 
-	if app.cpuproFile != "" {
-		f, err := os.Create(app.cpuproFile)
-		if err != nil {
-			panic(err)
+				endpoint := http.ListenAndServe(app.httpprof, mux)
+				log.Debug("stop pprof server: %v", endpoint)
+			}()
 		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
-	if app.memproFile != "" {
-		if app.memproFile != "" {
-			f, err := os.Create(app.memproFile)
+		if app.cpuproFile != "" {
+			f, err := os.Create(app.cpuproFile)
 			if err != nil {
 				panic(err)
 			}
-			pprof.WriteHeapProfile(f)
-			f.Close()
+			pprof.StartCPUProfile(f)
+			defer pprof.StopCPUProfile()
+		}
+
+		if app.memproFile != "" {
+			if app.memproFile != "" {
+				f, err := os.Create(app.memproFile)
+				if err != nil {
+					panic(err)
+				}
+				pprof.WriteHeapProfile(f)
+				f.Close()
+			}
 		}
 	}
 
@@ -154,7 +180,12 @@ func (app *App) Init(customFunc func()) {
 }
 
 func (app *App) Start(setup func(), start func()) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	if app.numCPU <= 0 {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	} else {
+		runtime.GOMAXPROCS(app.numCPU)
+	}
 
 	fmt.Println(app.environment.GetWelcomeMessage())
 
@@ -187,6 +218,9 @@ func (app *App) Start(setup func(), start func()) {
 
 	//set path to persist id
 	util.RestorePersistID(app.environment.GetWorkingDir())
+
+	//loading plugins
+	plugins.Discovery(app.environment.GetPluginDir())
 
 	if setup != nil {
 		setup()

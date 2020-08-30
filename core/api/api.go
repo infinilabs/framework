@@ -99,7 +99,6 @@ func StartAPI(cfg *config.Config) {
 
 	apiConfig = &global.Env().SystemConfig.APIConfig
 
-
 	if !apiConfig.Enabled {
 		return
 	}
