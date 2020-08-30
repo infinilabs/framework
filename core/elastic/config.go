@@ -18,6 +18,8 @@ package elastic
 
 import (
 	"fmt"
+	url2 "net/url"
+	"strings"
 )
 
 var apis = map[string]API{}
@@ -41,6 +43,7 @@ type ElasticsearchConfig struct {
 	Enabled      bool   `json:"enabled,omitempty" config:"enabled"`
 	HttpProxy    string `config:"http_proxy"`
 	Endpoint     string `config:"endpoint"`
+	Version      string `config:"version"`
 	TemplateName string `config:"template_name"`
 	IndexPrefix  string `config:"index_prefix"`
 	BasicAuth    *struct {
@@ -49,7 +52,27 @@ type ElasticsearchConfig struct {
 	} `config:"basic_auth"`
 }
 
+//format: host:port
+func (config *ElasticsearchConfig) GetHost() string {
+	u, err := url2.Parse(config.Endpoint)
+	if err != nil {
+		panic(err)
+	}
+	return u.Host
+}
+
+func (config *ElasticsearchConfig) IsTLS() bool {
+	if strings.Contains(config.Endpoint, "https") {
+		return true
+	} else {
+		return false
+	}
+}
+
 func GetConfig(k string) ElasticsearchConfig {
+	if k == "" {
+		panic(fmt.Errorf("elasticsearch config undefined"))
+	}
 	v, ok := cfgs[k]
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch config %v was not found", k))
@@ -58,6 +81,10 @@ func GetConfig(k string) ElasticsearchConfig {
 }
 
 func GetClient(k string) API {
+	if k == "" {
+		panic(fmt.Errorf("elasticsearch config was undefined"))
+	}
+
 	v, ok := apis[k]
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch client %v was not found", k))

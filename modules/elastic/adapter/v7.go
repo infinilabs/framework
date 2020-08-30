@@ -18,10 +18,13 @@ package adapter
 
 import (
 	"bytes"
+	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/valyala/fasthttp"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
@@ -242,7 +245,7 @@ func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount
 		panic("scroll request is nil")
 	}
 
-	resp, err := c.Request(util.Verb_POST, url, jsonBody)
+	resp, err := c.Request(util.Verb_GET, url, jsonBody)
 
 	if resp.StatusCode != 200 {
 		return nil, errors.New(string(resp.Body))
@@ -264,26 +267,86 @@ func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return scroll, err
 }
 
+func BasicAuth(req *fasthttp.Request, user, pass string) {
+	msg := fmt.Sprintf("%s:%s", user, pass)
+	encoded := base64.StdEncoding.EncodeToString([]byte(msg))
+	req.Header.Add("Authorization", "Basic "+encoded)
+}
+
 func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
 	id := bytes.NewBufferString(scrollId)
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, id)
-	resp, err := c.Request(util.Verb_GET, url, nil)
 
-	if err != nil {
-		panic(err)
-		return nil, err
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 60000,
+		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
-	if resp.StatusCode != 200 {
-		return nil, errors.New(string(resp.Body))
+	req := fasthttp.AcquireRequest()
+	res := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(res)
+
+	BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
+
+	req.SetRequestURI(url)
+
+	err := client.Do(req, res)
+	if err != nil {
+		panic(err)
 	}
 
 	scroll := &elastic.ScrollResponseV7{}
-	err = json.Unmarshal(resp.Body, &scroll)
+	err = json.Unmarshal(res.Body(), &scroll)
 	if err != nil {
 		panic(err)
 		return nil, err
 	}
+	if err != nil {
+		//log.Error(body)
+		log.Error(err)
+		return nil, err
+	}
+
+	//resp, err := c.Request(util.Verb_GET, url, nil)
+	//
+	//if err != nil {
+	//	panic(err)
+	//	return nil, err
+	//}
+	//
+	//if resp.StatusCode != 200 {
+	//	return nil, errors.New(string(resp.Body))
+	//}
+	//
+	//scroll := &elastic.ScrollResponseV7{}
+	////v, err := p.ParseBytes(resp.Body)
+	////scroll.ScrollId=string(v.GetStringBytes("_scroll_id"))
+	//
+	////scroll.ScrollId,err=jsonparser.GetString(resp.Body, "_scroll_id")
+	////if err != nil {
+	////	panic(err)
+	////	return nil, err
+	////}
+	////fmt.Println(len(resp.Body))
+	//
+	////var count int64 =0
+	////jsonparser.ArrayEach(resp.Body, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	////	//fmt.Println(jsonparser.GetString(value, "_id"))
+	////	count++
+	////}, "hits", "hits")
+	////stats.IncrementBy("scroll","total", count)
+	//
+	////hits:=v.GetArray("hits.hits")
+	////fmt.Println(string(resp.Body))
+	////fmt.Println(len(hits))
+	////fmt.Println(scroll.ScrollId)
+	//
+	//err = json.Unmarshal(resp.Body, &scroll)
+	//if err != nil {
+	//	panic(err)
+	//	return nil, err
+	//}
 
 	return scroll, nil
 }

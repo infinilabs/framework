@@ -2,7 +2,6 @@ package elastic
 
 import (
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 type Indexes map[string]interface{}
@@ -92,22 +91,13 @@ func (scroll *ScrollResponseV7) GetShardResponse() ShardResponse {
 	return scroll.Shards
 }
 
-type ClusterVersion struct {
+type ClusterInformation struct {
 	Name        string `json:"name"`
 	ClusterName string `json:"cluster_name"`
 	Version     struct {
 		Number        string `json:"number"`
 		LuceneVersion string `json:"lucene_version"`
 	} `json:"version"`
-}
-
-func (c *ClusterVersion) GetMajorVersion() int {
-	vs := strings.Split(c.Version.Number, ".")
-	n, err := util.ToInt(vs[0])
-	if err != nil {
-		panic(err)
-	}
-	return n
 }
 
 type ClusterHealth struct {

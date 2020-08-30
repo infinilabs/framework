@@ -88,34 +88,40 @@ func initElasticInstances() {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
 		}
-		esVersion, err := adapter.ClusterVersion(&esConfig)
-		if err != nil {
-			panic(err)
-			return
-		}
-		if global.Env().IsDebug {
-			log.Debug("elasticsearch version: ", esVersion.Version.Number)
+
+		var ver string
+		if esConfig.Version == "" || esConfig.Version == "auto" {
+			esVersion, err := adapter.ClusterVersion(&esConfig)
+			if err != nil {
+				panic(err)
+				return
+			}
+			ver = esVersion.Version.Number
 		}
 
-		if strings.HasPrefix(esVersion.Version.Number, "7.") {
+		if global.Env().IsDebug {
+			log.Debug("elasticsearch version: ", ver)
+		}
+
+		if strings.HasPrefix(ver, "7.") {
 			api := new(adapter.ESAPIV7)
 			api.Config = esConfig
-			api.Version = esVersion
+			api.Version = ver
 			client = api
-		} else if strings.HasPrefix(esVersion.Version.Number, "6.") {
+		} else if strings.HasPrefix(ver, "6.") {
 			api := new(adapter.ESAPIV6)
 			api.Config = esConfig
-			api.Version = esVersion
+			api.Version = ver
 			client = api
-		} else if strings.HasPrefix(esVersion.Version.Number, "5.") {
+		} else if strings.HasPrefix(ver, "5.") {
 			api := new(adapter.ESAPIV5)
 			api.Config = esConfig
-			api.Version = esVersion
+			api.Version = ver
 			client = api
 		} else {
 			api := new(adapter.ESAPIV0)
 			api.Config = esConfig
-			api.Version = esVersion
+			api.Version = ver
 			client = api
 		}
 		elastic.RegisterInstance(k, esConfig, client)
@@ -136,7 +142,10 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	module.Init()
 
 	moduleConfig := getDefaultConfig()
-	cfg.Unpack(&moduleConfig)
+	err := cfg.Unpack(&moduleConfig)
+	if err != nil {
+		panic(err)
+	}
 
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
 

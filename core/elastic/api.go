@@ -25,9 +25,11 @@ type API interface {
 
 	Init()
 
+	GetMajorVersion() int
+
 	ClusterHealth() *ClusterHealth
 
-	ClusterVersion() *ClusterVersion
+	ClusterVersion() string
 
 	CreateIndex(name string, settings map[string]interface{}) error
 

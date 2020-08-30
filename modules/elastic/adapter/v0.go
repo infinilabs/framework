@@ -30,8 +30,17 @@ import (
 )
 
 type ESAPIV0 struct {
-	Version elastic.ClusterVersion
+	Version string
 	Config  elastic.ElasticsearchConfig
+}
+
+func (c *ESAPIV0) GetMajorVersion() int {
+	vs := strings.Split(c.Version, ".")
+	n, err := util.ToInt(vs[0])
+	if err != nil {
+		panic(err)
+	}
+	return n
 }
 
 const TypeName6 = "doc"
@@ -364,8 +373,8 @@ func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
 	return false, nil
 }
 
-func (c *ESAPIV0) ClusterVersion() *elastic.ClusterVersion {
-	return &c.Version
+func (c *ESAPIV0) ClusterVersion() string {
+	return c.Version
 }
 
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {

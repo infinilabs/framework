@@ -19,11 +19,12 @@ package adapter
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/yeqown/log"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 )
 
-func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterVersion, error) {
+func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInformation, error) {
 
 	req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
 
@@ -41,10 +42,11 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterVersion
 		panic(err)
 	}
 
-	version := elastic.ClusterVersion{}
+	version := elastic.ClusterInformation{}
 	err = json.Unmarshal(response.Body, &version)
 
 	if err != nil {
+		log.Error(string(response.Body))
 		panic(err)
 	}
 	return version, nil
