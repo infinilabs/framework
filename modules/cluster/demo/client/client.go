@@ -51,7 +51,7 @@ func main() {
 
 	defer conn.Close()
 
-	c := pb.NewGreeterClient(conn)
+	c := pb.NewGreeterClient(conn.ClientConn)
 
 	// Contact the server and print out its response.
 	name := defaultName

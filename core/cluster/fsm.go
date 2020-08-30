@@ -36,14 +36,12 @@ const NodeDown string = "NODE_DOWN"
 const NodeLeave string = "NODE_LEAVE"
 
 type ClusterFSM struct {
-	l sync.Mutex
-	//m map[string]interface{}
+	l    sync.Mutex
 	meta Metadata
 }
 
 func NewFSM() *ClusterFSM {
 	return &ClusterFSM{
-		//m: make(map[string]interface{}),
 		meta: Metadata{KnownNodesRPCEndpoint: make(map[string]*Node)},
 	}
 }
@@ -62,7 +60,7 @@ func (f *ClusterFSM) Apply(l *raft.Log) interface{} {
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
-
+	fmt.Println("hit command,", c.Op, ",", c.Key, ",", c.Value)
 	switch c.Op {
 	case NodeUp:
 		node := Node{}
@@ -103,37 +101,6 @@ func (f *ClusterFSM) applyNodeLeave(key string) interface{} {
 	return nil
 }
 
-//
-//func (f *ClusterFSM) applySet(key, value string) interface{} {
-//	f.l.Lock()
-//	defer f.l.Unlock()
-//	f.m[key] = value
-//	return nil
-//}
-//
-//func (f *ClusterFSM) applyDelete(key string) interface{} {
-//	f.l.Lock()
-//	defer f.l.Unlock()
-//	delete(f.m, key)
-//	return nil
-//}
-//
-//var step int64 = 1
-//
-//func (f *ClusterFSM) applyIncr(key string) interface{} {
-//	f.l.Lock()
-//	defer f.l.Unlock()
-//	f.m[key] = f.m[key].(int64) + step
-//	return nil
-//}
-//
-//func (f *ClusterFSM) applyDecr(key string) interface{} {
-//	f.l.Lock()
-//	defer f.l.Unlock()
-//	f.m[key] = f.m[key].(int64) - step
-//	return nil
-//}
-
 // Snapshot returns a snapshot of the key-value store.
 func (f *ClusterFSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.l.Lock()
@@ -157,7 +124,6 @@ func (f *ClusterFSM) Restore(rc io.ReadCloser) error {
 }
 
 type fsmSnapshot struct {
-	//Store map[string]interface{}
 	Metadata interface{}
 }
 

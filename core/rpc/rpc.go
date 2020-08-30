@@ -60,6 +60,7 @@ func ObtainConnection(addr string) (client *ClientConn, err error) {
 
 		cert := rpcConfig.TLSConfig.TLSCertFile
 		key := rpcConfig.TLSConfig.TLSKeyFile
+
 		if cert != "" && key != "" {
 			log.Trace("use pre-defined cert")
 
@@ -114,7 +115,7 @@ func ObtainConnection(addr string) (client *ClientConn, err error) {
 		if client == nil {
 			log.Error("client was nil")
 		}
-		return client,nil
+		return client, nil
 
 		//conn, err = grpc.Dial(addr, dialOption)
 		//if err != nil {
@@ -137,13 +138,12 @@ func ObtainConnection(addr string) (client *ClientConn, err error) {
 			log.Error("client was nil")
 		}
 
-		return client,err
+		return client, err
 
 		//conn, err = grpc.Dial(addr, grpc.WithInsecure())
 		//if err != nil {
 		//	log.Errorf("cannot connect to %s, %v", addr, err)
 		//}
-
 
 	}
 }

@@ -63,7 +63,7 @@ type NetworkTransport struct {
 
 	heartbeatFn     func(RPC)
 	heartbeatFnLock sync.Mutex
-	maxPool int
+	maxPool         int
 
 	shutdown     bool
 	shutdownCh   chan struct{}
@@ -381,7 +381,7 @@ func (n *NetworkTransport) handleConn(conn net.Conn) {
 	for {
 		if err := n.handleCommand(r, dec, enc); err != nil {
 			if err != io.EOF {
-				log.Errorf("raft-net: Failed to decode incoming command: %v", err)
+				log.Debugf("raft-net: Failed to decode incoming command: %v", err)
 			}
 			return
 		}

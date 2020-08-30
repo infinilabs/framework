@@ -17,9 +17,9 @@ limitations under the License.
 package cluster
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 	"net"
 )
 
