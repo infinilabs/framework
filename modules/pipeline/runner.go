@@ -32,6 +32,7 @@ type PipeRunner struct {
 	config       PipeRunnerConfig
 	lock         sync.Mutex
 	quitChannels []*chan bool
+	pipes        []*pipeline.Pipeline
 }
 
 func (pipe *PipeRunner) Start(config PipeRunnerConfig) {
@@ -79,6 +80,12 @@ func (pipe *PipeRunner) Stop() {
 	pipe.lock.Lock()
 	defer pipe.lock.Unlock()
 
+	for _, item := range pipe.pipes {
+		if item != nil {
+			item.Stop()
+		}
+	}
+
 	for i, item := range pipe.quitChannels {
 		if item != nil {
 			*item <- true
@@ -96,19 +103,20 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 	var inputMessage []byte
 	context := pipeline.Context{}
 	if pipe.config.InputQueue != "" {
-		log.Info("consume message from queue, ", pipe.config.InputQueue)
+		log.Debug("consume message from queue, ", pipe.config.InputQueue)
 		inputMessage = <-queue.ReadChan(pipe.config.InputQueue)
 		stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
-
 		context = pipe.decodeContext(inputMessage)
+
+		log.Debug("got message from queue, ", context)
 
 		if global.Env().IsDebug {
 			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
-
-			pipe.execute(shard, context, &pipe.config.pipelineConfig)
-
-			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 		}
+		pipe.execute(shard, context, &pipe.config.pipelineConfig)
+
+		log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
+
 	} else if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
 		log.Debug("use schedule in pipeline runner")
 		context := pipeline.Context{}
@@ -139,7 +147,7 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 	}
 }
 
-func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineConfig *pipeline.PipelineConfig) {
+func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineConfig *pipeline.PipelineConfig) *pipeline.Pipeline {
 	var p *pipeline.Pipeline
 	defer func() {
 		if !global.Env().IsDebug {
@@ -166,6 +174,8 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 	}()
 
 	p = pipeline.NewPipelineFromConfig(pipe.config.Name, pipelineConfig, &context)
+	pipe.pipes = append(pipe.pipes, p)
+
 	p.Run()
 
 	if pipe.config.ThresholdInMs > 0 {
@@ -173,4 +183,5 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 		time.Sleep(time.Duration(pipe.config.ThresholdInMs) * time.Millisecond)
 		log.Debug("pipeline:", pipe.config.Name, ", shard:", shard, ", instance:", p.GetID(), ", wake up now,continue crawing")
 	}
+	return p
 }

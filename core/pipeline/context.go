@@ -24,6 +24,13 @@ import (
 
 type ParaKey string
 
+type RunningState string
+
+const STARTED RunningState = "STARTED"
+const PAUSED RunningState = "PAUSED"
+const STOPPED RunningState = "STOPPED"
+const FINISHED RunningState = "FINISHED"
+
 type Context struct {
 	Parameters
 
@@ -34,6 +41,7 @@ type Context struct {
 
 	//private parameters
 	breakFlag  bool
+	pauseFlag  bool
 	exitFlag   bool
 	PipelineID string
 }
@@ -46,6 +54,18 @@ func (context *Context) End(msg interface{}) {
 	}
 	context.breakFlag = true
 	context.Payload = msg
+}
+
+func (context *Context) Resume() {
+	context.pauseFlag = false
+}
+
+func (context *Context) Pause() {
+	context.pauseFlag = true
+}
+
+func (context *Context) IsPause() bool {
+	return context.pauseFlag
 }
 
 // IsEnd indicates whether the pipe process is end, end means no more processes will be execute

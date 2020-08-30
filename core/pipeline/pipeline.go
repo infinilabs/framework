@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -31,9 +32,15 @@ type Pipeline struct {
 
 	name string
 
+	input   Input
+	output  Output
+	filters []Filter
+
 	startProcessor Processor
 
 	processors []Processor
+
+	runningState RunningState
 
 	context *Context
 
@@ -42,11 +49,14 @@ type Pipeline struct {
 	errorProcessor Processor
 
 	currentProcessor string
+
+	newVersion bool
 }
 
 func NewPipeline(name string) *Pipeline {
 	pipe := &Pipeline{}
 	pipe.id = util.GetUUID()
+	pipe.filters = []Filter{}
 	pipe.name = strings.TrimSpace(name)
 	pipe.context = &Context{}
 	pipe.context.init()
@@ -68,6 +78,22 @@ func (pipe *Pipeline) GetID() string {
 
 func (pipe *Pipeline) GetContext() *Context {
 	return pipe.context
+}
+
+func (pipe *Pipeline) Input(s Input) *Pipeline {
+	pipe.input = s
+	pipe.newVersion=true
+	return pipe
+}
+
+func (pipe *Pipeline) Output(s Output) *Pipeline {
+	pipe.output = s
+	return pipe
+}
+
+func (pipe *Pipeline) Filter(s Filter) *Pipeline {
+	pipe.filters = append(pipe.filters, s)
+	return pipe
 }
 
 func (pipe *Pipeline) Start(s Processor) *Pipeline {
@@ -100,15 +126,104 @@ func (pipe *Pipeline) CurrentProcessor() string {
 	return pipe.currentProcessor
 }
 
-func (pipe *Pipeline) Pause() *Context {
-	return pipe.context
+func (pipe *Pipeline) Start1() *Pipeline {
+	pipe.runningState = STARTED
+	return pipe
 }
 
-func (pipe *Pipeline) Resume() *Context {
-	return pipe.context
+func (pipe *Pipeline) Pause() *Pipeline {
+	pipe.runningState = PAUSED
+	return pipe
+}
+
+func (pipe *Pipeline) Resume() *Pipeline {
+	pipe.runningState = STARTED
+	return pipe
+}
+
+func (pipe *Pipeline) Stop() *Pipeline {
+	pipe.runningState = STOPPED
+	return pipe
+}
+
+func (pipe *Pipeline) Run1() *Pipeline {
+
+	var err error
+	if pipe.output != nil {
+		//open output first
+		err = pipe.output.Open()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if pipe.input == nil {
+		panic(errors.New("pipeline input can't be null"))
+	}
+
+	//open input after output
+	err = pipe.input.Open()
+	if err != nil {
+		panic(err)
+	}
+
+	pipe.Start1()
+
+	var data []byte
+
+	for {
+		switch pipe.runningState {
+		case STARTED:
+			data, err = pipe.input.Read()
+			if err != nil {
+				panic(err)
+			}
+
+			for _, f := range pipe.filters {
+				err = f.Filter(data)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			if pipe.output != nil {
+				err = pipe.output.Write(data)
+				if err != nil {
+					panic(err)
+				}
+			}
+			pipe.runningState = FINISHED
+
+			return nil
+		case PAUSED:
+			break
+		case STOPPED:
+			err = pipe.input.Close()
+			if err != nil {
+				panic(err)
+			}
+
+			if pipe.output != nil {
+				err = pipe.output.Close()
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			return nil
+		}
+
+	}
 }
 
 func (pipe *Pipeline) Run() *Context {
+
+	if pipe.newVersion{
+		pipe.Run1()
+		return nil
+	}
+
+	pipe.runningState = STARTED
 
 	stats.Increment(pipe.name+".pipeline", "total")
 
@@ -228,6 +343,23 @@ func NewPipelineFromConfig(name string, config *PipelineConfig, context *Context
 	pipe := NewPipeline(name)
 
 	pipe.Context(context)
+
+	if config.Input != nil && config.Input.Enabled {
+		input := GetInputJointInstance(config.Input)
+		pipe.Input(input)
+	}
+
+	if config.Output != nil && config.Output.Enabled {
+		input := GetOutputJointInstance(config.Output)
+		pipe.Output(input)
+	}
+
+	for _, cfg := range config.Filters {
+		if cfg.Enabled {
+			j := GetFilterJointInstance(cfg)
+			pipe.Filter(j)
+		}
+	}
 
 	if config.StartProcessor != nil && config.StartProcessor.Enabled {
 		input := GetJointInstance(config.StartProcessor)

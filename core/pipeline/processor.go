@@ -16,7 +16,34 @@ limitations under the License.
 
 package pipeline
 
-type Processor interface {
+type Joint interface {
 	Name() string
+}
+
+type Processor interface {
+	Joint
 	Process(s *Context) error
+}
+
+type ComplexProcessor interface {
+	Processor
+}
+
+type Input interface {
+	Joint
+	Open() error
+	Close() error
+	Read() ([]byte, error)
+}
+
+type Output interface {
+	Joint
+	Open() error
+	Close() error
+	Write([]byte) error
+}
+
+type Filter interface {
+	Joint
+	Filter([]byte) error
 }

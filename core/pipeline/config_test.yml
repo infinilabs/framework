@@ -1,6 +1,6 @@
 pipelines:
 - name: es_scroll
-  start:
+  input:
     joint: es_scroll
     enabled: true
     parameters:
@@ -8,7 +8,13 @@ pipelines:
       username: elastic
       password: changeme
       index: twitter
-  process: []
+  filters:
+    - joint: cleanup
+      enabled: false
+  output:
+    joint: elastic_bulk
+    enabled: false
+
   error:
     joint: on_error
     enabled: true

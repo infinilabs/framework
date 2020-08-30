@@ -28,7 +28,34 @@ func GetAllRegisteredJoints() map[string]interface{} {
 	return typeRegistry
 }
 
+type JointType string
+
+const INPUT JointType = "INPUT"
+const OUTPUT JointType = "OUTPUT"
+const FILTER JointType = "FILTER"
+const PROCESSOR JointType = "PROCESSOR"
+
 func GetJointInstance(cfg *ProcessorConfig) Processor {
+
+	return getJoint(cfg).(Processor)
+}
+
+func GetInputJointInstance(cfg *ProcessorConfig) Input {
+
+	return getJoint(cfg).(Input)
+}
+
+func GetOutputJointInstance(cfg *ProcessorConfig) Output {
+
+	return getJoint(cfg).(Output)
+}
+
+func GetFilterJointInstance(cfg *ProcessorConfig) Filter {
+
+	return getJoint(cfg).(Filter)
+}
+
+func getJoint(cfg *ProcessorConfig) interface{} {
 	log.Tracef("get joint instances, %v", cfg.Name)
 	if typeRegistry[cfg.Name] != nil {
 		t := reflect.ValueOf(typeRegistry[cfg.Name]).Type()
@@ -38,18 +65,17 @@ func GetJointInstance(cfg *ProcessorConfig) Processor {
 		if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
 			f.Set(reflect.ValueOf(cfg.Parameters))
 		}
-		v1 := v.Interface().(Processor)
-		return v1
+		return v.Interface()
 	}
 	panic(errors.New(cfg.Name + " not found"))
 }
 
-func RegisterPipeJoint(joint Processor) {
-	k := string(joint.Name())
+func RegisterPipeJoint(joint interface{}) {
+	k := joint.(Joint).Name()
 	RegisterPipeJointWithName(k, joint)
 }
 
-func RegisterPipeJointWithName(jointName string, joint Processor) {
+func RegisterPipeJointWithName(jointName string, joint interface{}) {
 	if typeRegistry[jointName] != nil {
 		panic(errors.Errorf("joint with same name already registered, %s", jointName))
 	}

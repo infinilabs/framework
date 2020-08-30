@@ -187,12 +187,12 @@ func TestNewPipelineFromConfig(t *testing.T) {
 
 	assert.Equal(t, 1, len(pipeConfigs.Pipelines))
 	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].Name)
-	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].StartProcessor.Name)
-	assert.Equal(t, true, pipeConfigs.Pipelines[0].StartProcessor.Enabled)
-	assert.Equal(t, "http://localhost:9200", pipeConfigs.Pipelines[0].StartProcessor.Parameters["endpoint"])
-	assert.Equal(t, "elastic", pipeConfigs.Pipelines[0].StartProcessor.Parameters["username"])
-	assert.Equal(t, "changeme", pipeConfigs.Pipelines[0].StartProcessor.Parameters["password"])
-	assert.Equal(t, "twitter", pipeConfigs.Pipelines[0].StartProcessor.Parameters["index"])
+	assert.Equal(t, "es_scroll", pipeConfigs.Pipelines[0].Input.Name)
+	assert.Equal(t, true, pipeConfigs.Pipelines[0].Input.Enabled)
+	assert.Equal(t, "http://localhost:9200", pipeConfigs.Pipelines[0].Input.Parameters["endpoint"])
+	assert.Equal(t, "elastic", pipeConfigs.Pipelines[0].Input.Parameters["username"])
+	assert.Equal(t, "changeme", pipeConfigs.Pipelines[0].Input.Parameters["password"])
+	assert.Equal(t, "twitter", pipeConfigs.Pipelines[0].Input.Parameters["index"])
 
 	fmt.Println(pipeConfigs)
 
@@ -204,11 +204,15 @@ func TestGetStaticPipelineConfig(t *testing.T) {
 	global.RegisterEnv(env.EmptyEnv().SetConfigFile("config_test.yml"))
 
 	p := GetStaticPipelineConfig("es_scroll")
-	assert.Equal(t, "es_scroll", p.StartProcessor.Name)
-	assert.Equal(t, true, p.StartProcessor.Enabled)
-	assert.Equal(t, "http://localhost:9200", p.StartProcessor.Parameters["endpoint"])
-	assert.Equal(t, "elastic", p.StartProcessor.Parameters["username"])
-	assert.Equal(t, "changeme", p.StartProcessor.Parameters["password"])
-	assert.Equal(t, "twitter", p.StartProcessor.Parameters["index"])
+	assert.Equal(t, "es_scroll", p.Input.Name)
+	assert.Equal(t, true, p.Input.Enabled)
+	assert.Equal(t, "http://localhost:9200", p.Input.Parameters["endpoint"])
+	assert.Equal(t, "elastic", p.Input.Parameters["username"])
+	assert.Equal(t, "changeme", p.Input.Parameters["password"])
+	assert.Equal(t, "twitter", p.Input.Parameters["index"])
+	assert.Equal(t, "cleanup", p.Filters[0].Name)
+	assert.Equal(t, false, p.Filters[0].Enabled)
+	assert.Equal(t, "elastic_bulk", p.Output.Name)
+	assert.Equal(t, false, p.Output.Enabled)
 
 }

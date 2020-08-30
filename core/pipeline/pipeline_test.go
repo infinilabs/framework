@@ -23,6 +23,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"testing"
+	"time"
 )
 
 type crawlerJoint struct {
@@ -168,5 +169,129 @@ func TestContextMarshal(t *testing.T) {
 	b2, _ = c.GetBytes("B")
 	fmt.Println("new B:", string(b2))
 	assert.Equal(t, []byte(url), b2)
+
+}
+
+type myinput struct {
+}
+
+func (input myinput) Open() error {
+	fmt.Println("opening input now")
+	return nil
+}
+
+func (input myinput) Close() error {
+	fmt.Println("closing input now")
+	return nil
+}
+
+func (input myinput) Read() ([]byte, error) {
+	time.Sleep(1 * time.Second)
+	fmt.Println("reading now")
+	return []byte("a"), nil
+}
+
+type myoutput struct {
+}
+
+func (output myoutput) Open() error {
+	fmt.Println("opening output now")
+	return nil
+}
+
+func (output myoutput) Close() error {
+	fmt.Println("closing output now")
+	return nil
+}
+
+func (output myoutput) Write(data []byte) error {
+	fmt.Println("writing now,", string(data))
+	return nil
+}
+
+type SimpleFilter struct {
+}
+
+func (filter SimpleFilter) Filter(data []byte) error {
+	fmt.Println("filter now,", util.ToUppercase(data))
+	return nil
+}
+
+func TestPipelineReadingDataAndOutput(t *testing.T) {
+
+	global.RegisterEnv(env.EmptyEnv())
+
+	filters := []Filter{SimpleFilter{}}
+
+	context := &Context{}
+	pipe := Pipeline{input: myinput{}, output: myoutput{}, context: context, filters: filters}
+
+	pipe.Start1()
+	var key ParaKey = "KEY"
+	i := 0
+
+	context.Set(key, i)
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		pipe.Pause()
+		fmt.Println("paused pipeline")
+		time.Sleep(10 * time.Second)
+		pipe.Resume()
+		fmt.Println("resumed pipeline")
+		time.Sleep(10 * time.Second)
+		pipe.Stop()
+		fmt.Println("stopped pipeline")
+	}()
+
+	var err error
+	err = pipe.input.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer pipe.input.Close()
+
+	pipe.output.Open()
+	defer pipe.output.Close()
+
+	var data []byte
+
+	for {
+		switch pipe.runningState {
+		case STARTED:
+			data, err = pipe.input.Read()
+			if err != nil {
+				fmt.Println(err)
+
+				break
+			}
+			x := pipe.context.MustGetInt(key)
+			fmt.Println("x:", x)
+			x++
+			pipe.context.Set(key, x)
+
+			for _, f := range pipe.filters {
+				err = f.Filter(data)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			err = pipe.output.Write(data)
+			if err != nil {
+				panic(err)
+			}
+
+			if i > 100 {
+				break
+			}
+			break
+		case PAUSED:
+			break
+		case STOPPED:
+			return
+		}
+
+	}
 
 }

@@ -31,15 +31,22 @@ type ProcessorConfig struct {
 
 // PipelineConfig config for each pipeline, a pipeline may have more than one processors
 type PipelineConfig struct {
-	ID             string             `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
-	Name           string             `json:"name,omitempty" config:"name"`
+	ID   string `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
+	Name string `json:"name,omitempty" config:"name"`
+
+	//TODO remove
 	StartProcessor *ProcessorConfig   `json:"start,omitempty" config:"start"`
 	Processors     []*ProcessorConfig `json:"process,omitempty" config:"process"`
 	EndProcessor   *ProcessorConfig   `json:"end,omitempty" config:"end"`
 	ErrorProcessor *ProcessorConfig   `json:"error,omitempty" config:"error"`
-	Created        time.Time          `json:"created,omitempty"`
-	Updated        time.Time          `json:"updated,omitempty"`
-	Tags           []string           `json:"tags,omitempty" config:"tags"`
+
+	Input   *ProcessorConfig   `json:"input,omitempty" config:"input"`
+	Filters []*ProcessorConfig `json:"filters,omitempty" config:"filters"`
+	Output  *ProcessorConfig   `json:"output,omitempty" config:"output"`
+
+	Created time.Time `json:"created,omitempty"`
+	Updated time.Time `json:"updated,omitempty"`
+	Tags    []string  `json:"tags,omitempty" config:"tags"`
 }
 
 var m map[string]PipelineConfig
