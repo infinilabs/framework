@@ -29,7 +29,7 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/plugins"
+	//"infini.sh/framework/plugins"
 	defaultLog "log"
 	"net/http"
 	_ "net/http/pprof"
@@ -220,7 +220,7 @@ func (app *App) Start(setup func(), start func()) {
 	util.RestorePersistID(app.environment.GetWorkingDir())
 
 	//loading plugins
-	plugins.Discovery(app.environment.GetPluginDir())
+	//plugins.Discovery(app.environment.GetPluginDir())
 
 	if setup != nil {
 		setup()

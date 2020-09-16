@@ -19,7 +19,7 @@ package adapter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/yeqown/log"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 )
