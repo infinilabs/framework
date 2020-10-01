@@ -44,7 +44,7 @@ check:
 		conn.Close()
 	}
 	if err != nil {
-		log.Trace("still not there")
+		log.Trace("still not there, ",addr)
 		goto wait
 	}
 	return nil
