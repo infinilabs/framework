@@ -197,7 +197,7 @@ func CreateFile(dir string, name string) (string, error) {
 		return src, nil
 	}
 
-	if err := os.MkdirAll(src, 0777); err != nil {
+	if err := os.MkdirAll(src, 0755); err != nil {
 		if os.IsPermission(err) {
 			fmt.Println("permission denied")
 		}

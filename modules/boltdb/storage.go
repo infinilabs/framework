@@ -59,7 +59,7 @@ func (module StorageModule) Setup(cfg *config.Config) {
 
 	if c.Enabled {
 		folder := path.Join(global.Env().GetWorkingDir(), "blob")
-		os.MkdirAll(folder, 0777)
+		os.MkdirAll(folder, 0755)
 		impl = boltdb.BoltdbStore{FileName: path.Join(folder, "/bolt.db")}
 		err := impl.Open()
 		if err != nil {

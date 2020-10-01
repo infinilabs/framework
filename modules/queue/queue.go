@@ -46,7 +46,7 @@ func (module DiskQueue) initQueue(name string) error {
 	log.Debugf("init queue: %s", name)
 
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
-	os.MkdirAll(dataPath, 0777)
+	os.MkdirAll(dataPath, 0755)
 
 	readBuffSize := module.GetIntOrDefault("read_chan_buffer", 0)
 	syncTime := time.Duration(module.GetIntOrDefault("sync_timeout_in_seconds", 10)) * time.Second

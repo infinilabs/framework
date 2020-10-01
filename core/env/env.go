@@ -131,8 +131,8 @@ func (env *Env) Init() *Env {
 	if err != nil {
 		panic(err)
 	}
-	os.MkdirAll(env.GetWorkingDir(), 0777)
-	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0777)
+	os.MkdirAll(env.GetWorkingDir(), 0755)
+	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0755)
 
 	if env.IsDebug {
 		log.Debug(util.ToJson(env, true))
