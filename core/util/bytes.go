@@ -310,9 +310,39 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 			return true, newStr
 		}
 	} else {
-		log.Warn("input data doesn't contain the split bytes")
+		log.Trace("input data doesn't contain the split bytes")
 	}
 	return false, nil
+}
+
+func ProcessJsonData(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool, handler func(start,end int)) bool {
+	scanner := bufio.NewScanner(bytes.NewReader(*data))
+	scanner.Split(GetSplitFunc(fieldEndWith))
+	var str []byte
+	for scanner.Scan() {
+		text := scanner.Bytes()
+		if bytes.Contains(text, leftMustContain) {
+			str = text
+			break
+		}
+	}
+
+	if len(str) > 0 {
+		var offset int
+		if reverse {
+			offset = bytes.LastIndex(str, fieldStartWith)
+		} else {
+			offset = bytes.Index(str, fieldStartWith)
+		}
+
+		if offset > 0 && offset < len(str) {
+			handler(offset+len(fieldStartWith),len(str))
+			return true
+		}
+	} else {
+		log.Trace("input data doesn't contain the split bytes")
+	}
+	return false
 }
 
 func IsBytesEndingWith(data *[]byte, ending []byte) bool {
@@ -327,4 +357,17 @@ func IsBytesEndingWithOrder(data *[]byte, ending []byte, reverse bool) bool {
 		offset = bytes.Index(*data, ending)
 	}
 	return len(*data)-offset <= len(ending)
+}
+
+
+func BytesSearchValue(data,startTerm,endTerm,searchTrim []byte) bool  {
+	index:=bytes.Index(data,startTerm)
+	leftData:=data[index+len(startTerm):]
+	endIndex:=bytes.Index(leftData,endTerm)
+	lastTerm:=leftData[0:endIndex]
+
+	if bytes.Contains(lastTerm,searchTrim){
+		return true
+	}
+	return false
 }
