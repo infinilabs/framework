@@ -17,7 +17,7 @@ limitations under the License.
 package util
 
 import (
-	"github.com/golang/go/src/pkg/fmt"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"strconv"

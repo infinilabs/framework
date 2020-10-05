@@ -48,6 +48,15 @@ func JoinPath(filenames ...string) string {
 	return result
 }
 
+func FilesExists(path ...string) bool {
+	for _,v:=range path{
+		if !FileExists(v){
+			return false
+		}
+	}
+	return true
+}
+
 // FileExists check if the path are exists
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
