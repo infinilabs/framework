@@ -24,10 +24,10 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/valyala/fasthttp"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/fasthttp"
 	"strings"
 )
 

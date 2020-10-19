@@ -50,6 +50,13 @@ type API interface {
 	DeleteIndex(name string) error
 
 	Refresh(name string) (err error)
+
+	GetNodes() (*NodesResponse, error)
+}
+
+type NodesResponse struct {
+	ClusterName string                 `json:"cluster_name,omitempty" index:"cluster_name"`
+	Nodes       map[string]interface{} `json:"nodes,omitempty" index:"nodes"`
 }
 
 type TemplateAPI interface {

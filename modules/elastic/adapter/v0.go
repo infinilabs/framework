@@ -400,6 +400,26 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	return health
 }
 
+func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error){
+	nodes:=&elastic.NodesResponse{}
+
+	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	responseHandle(resp)
+
+	err = json.Unmarshal(resp.Body, nodes)
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+
+	return nodes, nil
+}
+
 func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	if data == nil || data.Len() == 0 {
 		return
@@ -410,6 +430,9 @@ func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	url := fmt.Sprintf("%s/_bulk", c.Config.Endpoint)
 
 	resp, err := c.Request(util.Verb_POST, url, data.Bytes())
+
+	//fmt.Println(url)
+	//fmt.Println("bulk results;",string(resp.Body))
 
 	if err != nil {
 		panic(err)
