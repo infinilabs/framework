@@ -20,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 	uis "infini.sh/framework/core/api"
 	. "infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/ui"
 	"infini.sh/framework/core/ui/websocket"
@@ -41,8 +42,11 @@ func (module UIModule) Name() string {
 }
 func (module UIModule) Setup(cfg *Config) {
 
+
 	uiConfig := ui.UIConfig{}
-	cfg.Unpack(&uiConfig)
+	//cfg.Unpack(&uiConfig)
+
+	env.ParseConfig("web", &uiConfig)
 
 	if uiConfig.Enabled {
 
