@@ -75,19 +75,23 @@ func GetConfig(k string) ElasticsearchConfig {
 	}
 	v, ok := cfgs[k]
 	if !ok {
-		panic(fmt.Sprintf("elasticsearch config %v was not found", k))
+		panic(fmt.Sprintf("elasticsearch config [%v] was not found", k))
 	}
 	return v
 }
 
 func GetClient(k string) API {
 	if k == "" {
-		panic(fmt.Errorf("elasticsearch config was undefined"))
+		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
 
 	v, ok := apis[k]
-	if !ok {
-		panic(fmt.Sprintf("elasticsearch client %v was not found", k))
+	if ok {
+		return v
 	}
-	return v
+
+	////try to load config,and init client
+	//cfg:=GetConfig(k)
+
+	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
