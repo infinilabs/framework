@@ -98,6 +98,14 @@ func (para *Parameters) GetIntOrDefault(key ParaKey, defaultV int) int {
 	return defaultV
 }
 
+func (para *Parameters) GetDurationOrDefault(key ParaKey, defaultV string) time.Duration {
+	dur, err := time.ParseDuration(para.GetStringOrDefault(key,defaultV))
+	if err!=nil{
+		panic(err)
+	}
+	return dur
+}
+
 func (para *Parameters) GetInt(key ParaKey, defaultV int) (int, bool) {
 	v, ok := para.GetInt64(key, 0)
 	if ok {
@@ -189,6 +197,16 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.(map[string]interface{})
+	return s, ok
+}
+
+func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
+	v := para.Get(key)
+	s, ok := v.(map[string]int)
+	if !ok{
+		v=map[string]int{}
+		para.Set(key,v)
+	}
 	return s, ok
 }
 

@@ -156,6 +156,14 @@ func FormatTime(date time.Time) string {
 	return date.Format("2006-01-02 15:04:05")
 }
 
+func ParseTime(str string) time.Time  {
+	v,err:= time.Parse("2006-01-02 15:04:05",str)
+	if err!=nil{
+		panic(err)
+	}
+	return v
+}
+
 func FormatTimeForFileName(date time.Time) string {
 	return date.Format("2006-01-02_150405")
 }
