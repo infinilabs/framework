@@ -111,8 +111,8 @@ func TestPipeline(t *testing.T) {
 	assert.Equal(t, "http://gogo.com", context.Data["host"])
 }
 
-const key1 ParaKey = "DEPTH"
-const key2 ParaKey = "DEPTH2"
+const key1 param.ParaKey = "DEPTH"
+const key2 param.ParaKey = "DEPTH2"
 
 func TestContext(t *testing.T) {
 	global.RegisterEnv(env.EmptyEnv())
@@ -228,7 +228,7 @@ func TestPipelineReadingDataAndOutput(t *testing.T) {
 	pipe := Pipeline{input: myinput{}, output: myoutput{}, context: context, filters: filters}
 
 	pipe.Start1()
-	var key ParaKey = "KEY"
+	var key param.ParaKey = "KEY"
 	i := 0
 
 	context.Set(key, i)

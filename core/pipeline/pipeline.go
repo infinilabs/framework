@@ -59,14 +59,12 @@ func NewPipeline(name string) *Pipeline {
 	pipe.filters = []Filter{}
 	pipe.name = strings.TrimSpace(name)
 	pipe.context = &Context{}
-	pipe.context.init()
 	return pipe
 }
 
 func (pipe *Pipeline) Context(s *Context) *Pipeline {
 	if s != nil {
 		pipe.context = s
-		pipe.context.init()
 	}
 
 	return pipe

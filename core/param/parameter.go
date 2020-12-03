@@ -21,7 +21,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -50,7 +49,7 @@ func (para *Parameters) init() {
 	para.l.Unlock()
 }
 
-func (para *Parameters) MustGetTime(key pipeline.ParaKey) time.Time {
+func (para *Parameters) MustGetTime(key ParaKey) time.Time {
 	v, ok := para.GetTime(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -58,7 +57,7 @@ func (para *Parameters) MustGetTime(key pipeline.ParaKey) time.Time {
 	return v
 }
 
-func (para *Parameters) GetTime(key pipeline.ParaKey) (time.Time, bool) {
+func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 	v := para.Get(key)
 	s, ok := v.(time.Time)
 	if ok {
@@ -67,7 +66,7 @@ func (para *Parameters) GetTime(key pipeline.ParaKey) (time.Time, bool) {
 	return s, ok
 }
 
-func (para *Parameters) GetString(key pipeline.ParaKey) (string, bool) {
+func (para *Parameters) GetString(key ParaKey) (string, bool) {
 	v := para.Get(key)
 	s, ok := v.(string)
 	if ok {
@@ -76,7 +75,7 @@ func (para *Parameters) GetString(key pipeline.ParaKey) (string, bool) {
 	return s, ok
 }
 
-func (para *Parameters) GetBool(key pipeline.ParaKey, defaultV bool) bool {
+func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
 	v := para.Get(key)
 	s, ok := v.(bool)
 	if ok {
@@ -85,13 +84,13 @@ func (para *Parameters) GetBool(key pipeline.ParaKey, defaultV bool) bool {
 	return defaultV
 }
 
-func (para *Parameters) Has(key pipeline.ParaKey) bool {
+func (para *Parameters) Has(key ParaKey) bool {
 	para.init()
 	_, ok := para.Data[string(key)]
 	return ok
 }
 
-func (para *Parameters) GetIntOrDefault(key pipeline.ParaKey, defaultV int) int {
+func (para *Parameters) GetIntOrDefault(key ParaKey, defaultV int) int {
 	v, ok := para.GetInt(key, defaultV)
 	if ok {
 		return v
@@ -99,7 +98,7 @@ func (para *Parameters) GetIntOrDefault(key pipeline.ParaKey, defaultV int) int 
 	return defaultV
 }
 
-func (para *Parameters) GetDurationOrDefault(key pipeline.ParaKey, defaultV string) time.Duration {
+func (para *Parameters) GetDurationOrDefault(key ParaKey, defaultV string) time.Duration {
 	dur, err := time.ParseDuration(para.GetStringOrDefault(key,defaultV))
 	if err!=nil{
 		panic(err)
@@ -107,7 +106,7 @@ func (para *Parameters) GetDurationOrDefault(key pipeline.ParaKey, defaultV stri
 	return dur
 }
 
-func (para *Parameters) GetInt(key pipeline.ParaKey, defaultV int) (int, bool) {
+func (para *Parameters) GetInt(key ParaKey, defaultV int) (int, bool) {
 	v, ok := para.GetInt64(key, 0)
 	if ok {
 		return int(v), ok
@@ -115,7 +114,7 @@ func (para *Parameters) GetInt(key pipeline.ParaKey, defaultV int) (int, bool) {
 	return defaultV, ok
 }
 
-func (para *Parameters) GetInt64OrDefault(key pipeline.ParaKey, defaultV int64) int64 {
+func (para *Parameters) GetInt64OrDefault(key ParaKey, defaultV int64) int64 {
 	v, ok := para.GetInt64(key, defaultV)
 	if ok {
 		return v
@@ -123,7 +122,7 @@ func (para *Parameters) GetInt64OrDefault(key pipeline.ParaKey, defaultV int64) 
 	return defaultV
 }
 
-func (para *Parameters) GetInt64(key pipeline.ParaKey, defaultV int64) (int64, bool) {
+func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	v := para.Get(key)
 
 	s, ok := v.(int64)
@@ -149,7 +148,7 @@ func (para *Parameters) GetInt64(key pipeline.ParaKey, defaultV int64) (int64, b
 	return defaultV, ok
 }
 
-func (para *Parameters) MustGet(key pipeline.ParaKey) interface{} {
+func (para *Parameters) MustGet(key ParaKey) interface{} {
 	para.init()
 
 	s := string(key)
@@ -165,7 +164,7 @@ func (para *Parameters) MustGet(key pipeline.ParaKey) interface{} {
 	return v
 }
 
-func (para *Parameters) GetStringMap(key pipeline.ParaKey) (result map[string]string, ok bool) {
+func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok bool) {
 
 	m, ok := para.GetMap(key)
 	if ok {
@@ -195,13 +194,13 @@ func (para *Parameters) GetStringMap(key pipeline.ParaKey) (result map[string]st
 	return result, ok
 }
 
-func (para *Parameters) GetMap(key pipeline.ParaKey) (map[string]interface{}, bool) {
+func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.(map[string]interface{})
 	return s, ok
 }
 
-func (para *Parameters) GetIntMapOrInit(key pipeline.ParaKey) (map[string]int, bool) {
+func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 	v := para.Get(key)
 	s, ok := v.(map[string]int)
 	if !ok{
@@ -211,7 +210,7 @@ func (para *Parameters) GetIntMapOrInit(key pipeline.ParaKey) (map[string]int, b
 	return s, ok
 }
 
-func (para *Parameters) GetBytes(key pipeline.ParaKey) ([]byte, bool) {
+func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 	v := para.Get(key)
 	if reflect.TypeOf(v).Kind() == reflect.String {
 		str := v.(string)
@@ -224,7 +223,7 @@ func (para *Parameters) GetBytes(key pipeline.ParaKey) ([]byte, bool) {
 	}
 }
 
-func (para *Parameters) MustGetStringArray(key pipeline.ParaKey) []string {
+func (para *Parameters) MustGetStringArray(key ParaKey) []string {
 	result, ok := para.GetStringArray(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -232,7 +231,7 @@ func (para *Parameters) MustGetStringArray(key pipeline.ParaKey) []string {
 	return result
 }
 
-func (para *Parameters) GetStringArray(key pipeline.ParaKey) ([]string, bool) {
+func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	array, ok := para.GetArray(key)
 	var result []string
 	if ok {
@@ -245,13 +244,13 @@ func (para *Parameters) GetStringArray(key pipeline.ParaKey) ([]string, bool) {
 }
 
 // GetArray will return a array which type of the items are interface {}
-func (para *Parameters) GetArray(key pipeline.ParaKey) ([]interface{}, bool) {
+func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.([]interface{})
 	return s, ok
 }
 
-func (para *Parameters) MustGetArray(key pipeline.ParaKey) []interface{} {
+func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 	s, ok := para.GetArray(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -259,7 +258,7 @@ func (para *Parameters) MustGetArray(key pipeline.ParaKey) []interface{} {
 	return s
 }
 
-func (para *Parameters) Get(key pipeline.ParaKey) interface{} {
+func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
 	para.l.RLock()
 	s := string(key)
@@ -272,7 +271,7 @@ func (para *Parameters) Get(key pipeline.ParaKey) interface{} {
 	return v
 }
 
-func (para *Parameters) GetOrDefault(key pipeline.ParaKey, val interface{}) interface{} {
+func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
 	para.l.RLock()
 	s := string(key)
@@ -284,7 +283,7 @@ func (para *Parameters) GetOrDefault(key pipeline.ParaKey, val interface{}) inte
 	return v
 }
 
-func (para *Parameters) Set(key pipeline.ParaKey, value interface{}) {
+func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
 	para.l.Lock()
 	s := string(key)
@@ -292,7 +291,7 @@ func (para *Parameters) Set(key pipeline.ParaKey, value interface{}) {
 	para.l.Unlock()
 }
 
-func (para *Parameters) MustGetString(key pipeline.ParaKey) string {
+func (para *Parameters) MustGetString(key ParaKey) string {
 	s, ok := para.GetString(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -300,7 +299,7 @@ func (para *Parameters) MustGetString(key pipeline.ParaKey) string {
 	return s
 }
 
-func (para *Parameters) GetStringOrDefault(key pipeline.ParaKey, val string) string {
+func (para *Parameters) GetStringOrDefault(key ParaKey, val string) string {
 	s, ok := para.GetString(key)
 	if (!ok) || len(s) == 0 {
 		return val
@@ -308,7 +307,7 @@ func (para *Parameters) GetStringOrDefault(key pipeline.ParaKey, val string) str
 	return s
 }
 
-func (para *Parameters) MustGetBytes(key pipeline.ParaKey) []byte {
+func (para *Parameters) MustGetBytes(key ParaKey) []byte {
 	s, ok := para.GetBytes(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -317,7 +316,7 @@ func (para *Parameters) MustGetBytes(key pipeline.ParaKey) []byte {
 }
 
 // MustGetInt return 0 if not key was found
-func (para *Parameters) MustGetInt(key pipeline.ParaKey) int {
+func (para *Parameters) MustGetInt(key ParaKey) int {
 	v, ok := para.GetInt(key, 0)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -325,7 +324,7 @@ func (para *Parameters) MustGetInt(key pipeline.ParaKey) int {
 	return v
 }
 
-func (para *Parameters) MustGetInt64(key pipeline.ParaKey) int64 {
+func (para *Parameters) MustGetInt64(key ParaKey) int64 {
 	s, ok := para.GetInt64(key, 0)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
@@ -333,7 +332,7 @@ func (para *Parameters) MustGetInt64(key pipeline.ParaKey) int64 {
 	return s
 }
 
-func (para *Parameters) MustGetMap(key pipeline.ParaKey) map[string]interface{} {
+func (para *Parameters) MustGetMap(key ParaKey) map[string]interface{} {
 	s, ok := para.GetMap(key)
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))

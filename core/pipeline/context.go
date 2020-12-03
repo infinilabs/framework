@@ -23,7 +23,6 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-type ParaKey string
 
 type RunningState string
 
