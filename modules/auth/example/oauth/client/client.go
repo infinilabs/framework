@@ -43,6 +43,12 @@ func main() {
 		http.Redirect(w, r, u, http.StatusFound)
 	})
 
+	http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		globalToken = nil
+		http.Redirect(w, r, "/" ,http.StatusUnauthorized)
+		return
+	})
+
 	http.HandleFunc("/oauth2", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		state := r.Form.Get("state")

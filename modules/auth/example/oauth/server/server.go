@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/go-oauth2/oauth2/v4/errors"
-	"github.com/go-oauth2/oauth2/v4/generates"
-	"github.com/go-oauth2/oauth2/v4/manage"
-	"github.com/go-oauth2/oauth2/v4/models"
-	"github.com/go-oauth2/oauth2/v4/server"
-	"github.com/go-oauth2/oauth2/v4/store"
+	"github.com/go-oauth2/oauth2/errors"
+	"github.com/go-oauth2/oauth2/generates"
+	"github.com/go-oauth2/oauth2/manage"
+	"github.com/go-oauth2/oauth2/models"
+	"github.com/go-oauth2/oauth2/server"
+	"github.com/go-oauth2/oauth2/store"
 	"github.com/go-session/session"
 )
 
