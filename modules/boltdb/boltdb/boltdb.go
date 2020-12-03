@@ -253,7 +253,7 @@ func (s BoltdbStore) Search(t1, t2 interface{}, q1 *orm.Query) (error, orm.Resul
 	if q1.Conds != nil {
 
 		//TODO
-		//q2 = db.Select(q.Eq(q1.Conds.Field, q1.Filter.Value)) //can't limit here, bug .Limit(q1.Size).Skip(q1.From)
+		//q2 = db.Select(q.Eq(q1.Conds.Field, q1.RequestFilter.Value)) //can't limit here, bug .Limit(q1.Size).Skip(q1.From)
 
 	} else {
 		q2 = db.Select(q.True()).Limit(q1.Size).Skip(q1.From)
