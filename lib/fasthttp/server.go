@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"infini.sh/framework/core/param"
 	"io"
 	"log"
 	"mime/multipart"
@@ -541,6 +542,10 @@ func CompressHandlerBrotliLevel(h RequestHandler, brotliLevel, otherLevel int) R
 type RequestCtx struct {
 	noCopy noCopy //nolint:unused,structcheck
 
+	param.Parameters
+
+	flags map[string]bool
+
 	// Incoming request.
 	//
 	// Copying Request by value is forbidden. Use pointer to Request instead.
@@ -570,6 +575,8 @@ type RequestCtx struct {
 
 	hijackHandler    HijackHandler
 	hijackNoResponse bool
+
+	finished bool
 }
 
 // HijackHandler must process the hijacked connection c.
@@ -625,6 +632,37 @@ func (ctx *RequestCtx) HijackSetNoResponse(noResponse bool) {
 func (ctx *RequestCtx) Hijacked() bool {
 	return ctx.hijackHandler != nil
 }
+
+//is all process finished
+func (ctx *RequestCtx) Finished() {
+	ctx.finished=true
+}
+
+//should filters continue to process
+func (ctx *RequestCtx) Continue() bool {
+	return !ctx.finished
+}
+
+func (ctx *RequestCtx) SetFlag(flag string,value bool) {
+	ctx.flags[flag]=value
+}
+
+func (ctx *RequestCtx) GetFlag(flag string,defaultValue bool) bool {
+	v,ok:=ctx.flags[flag]
+	if ok{
+		return v
+	}
+	return defaultValue
+}
+//
+//func (ctx *RequestCtx) GetMetadata(key string)(interface{},bool) {
+//	v,ok:= ctx.metadata[key]
+//	return v,ok
+//}
+//
+//func (ctx *RequestCtx) SetMetadata(key string,v interface{}) {
+//	ctx.metadata[key]=v
+//}
 
 // SetUserValue stores the given value (arbitrary object)
 // under the given key in ctx.
@@ -1657,7 +1695,7 @@ func (s *Server) configTLS() {
 
 // DefaultConcurrency is the maximum number of concurrent connections
 // the Server may serve by default (i.e. if Server.Concurrency isn't set).
-const DefaultConcurrency = 512 * 1024
+const DefaultConcurrency = 1024 * 1024
 
 // Serve serves incoming connections from the given listener.
 //
@@ -2165,6 +2203,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
+			ctx.Reset()
 			s.Handler(ctx)
 		}
 
@@ -2470,8 +2509,23 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 	} else {
 		ctx = v.(*RequestCtx)
 	}
+
+	ctx.Reset()
+
 	ctx.c = c
 	return
+}
+
+func (ctx *RequestCtx) Reset(){
+	//reset flags and metadata
+	if ctx.Data==nil||len(ctx.Data)>0{
+		ctx.Data= map[string]interface{}{}
+	}
+	if ctx.flags==nil|| len(ctx.flags)>0{
+		ctx.flags= map[string]bool{}
+	}
+
+	ctx.finished=false
 }
 
 // Init2 prepares ctx for passing to RequestHandler.
