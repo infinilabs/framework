@@ -19,6 +19,7 @@ package pipeline
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 )
 
@@ -32,7 +33,7 @@ const STOPPED RunningState = "STOPPED"
 const FINISHED RunningState = "FINISHED"
 
 type Context struct {
-	Parameters
+	param.Parameters
 
 	SequenceID   int64       `json:"sequence"`
 	IsSimulate   bool        `json:"is_simulate"`

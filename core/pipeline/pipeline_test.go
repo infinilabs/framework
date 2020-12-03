@@ -21,13 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 	"testing"
 	"time"
 )
 
 type crawlerJoint struct {
-	Parameters
+	param.Parameters
 }
 
 func (joint crawlerJoint) Name() string {
