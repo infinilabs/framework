@@ -122,8 +122,7 @@ func (para *Parameters) GetInt64OrDefault(key ParaKey, defaultV int64) int64 {
 	return defaultV
 }
 
-func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
-	v := para.Get(key)
+func GetInt64OrDefault(v interface{},defaultV int64)(int64,bool)  {
 
 	s, ok := v.(int64)
 	if ok {
@@ -146,6 +145,13 @@ func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	}
 
 	return defaultV, ok
+}
+
+func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
+	v := para.Get(key)
+
+	return GetInt64OrDefault(v,defaultV)
+
 }
 
 func (para *Parameters) MustGet(key ParaKey) interface{} {

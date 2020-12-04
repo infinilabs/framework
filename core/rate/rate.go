@@ -5,7 +5,6 @@ package rate
 
 import (
 	"sync"
-
 	"golang.org/x/time/rate"
 )
 
