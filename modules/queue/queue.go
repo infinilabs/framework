@@ -4,8 +4,8 @@ import (
 	"errors"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/queue"
 	. "infini.sh/framework/modules/queue/disk_queue"
 	"os"
@@ -18,7 +18,6 @@ import (
 var queues map[string]*BackendQueue
 
 type DiskQueue struct {
-	param.Parameters
 }
 
 func (module DiskQueue) Name() string {
@@ -48,12 +47,14 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	readBuffSize := module.GetIntOrDefault("read_chan_buffer", 0)
-	syncTime := time.Duration(module.GetIntOrDefault("sync_timeout_in_seconds", 10)) * time.Second
-	var syncEvery = module.GetInt64OrDefault("sync_every_in_seconds", 1000)
-	var maxPerFile = module.GetInt64OrDefault("max_bytes_per_file", 50*1024*1024*1024)
-	var minMsgSize int = module.GetIntOrDefault("min_msg_size", 1)
-	var maxMsgSize int = module.GetIntOrDefault("max_msg_size", 1<<25)
+
+
+	readBuffSize := cfg.readChanBuffer
+	syncTime := time.Duration(cfg.syncTimeoutInSeconds) * time.Second
+	var syncEvery =cfg.syncEveryInSeconds
+	var maxPerFile = cfg.maxBytesPerFile
+	var minMsgSize int = cfg.minMsgSize
+	var maxMsgSize int = cfg.maxMsgSize
 
 	q := NewDiskQueue(strings.ToLower(channel), dataPath, maxPerFile, int32(minMsgSize), int32(maxMsgSize), syncEvery, syncTime, readBuffSize)
 	queues[name] = &q
@@ -115,7 +116,32 @@ func (module DiskQueue) GetQueues() []string {
 	return result
 }
 
+//min_msg_size: 1
+//max_msg_size: 500000000 #500,000,000
+//max_bytes_per_file: 50*1024*1024*1024
+//sync_every_in_seconds: 10
+//sync_timeout_in_seconds: 10
+//read_chan_buffer: 0
+type QueueConfig struct {
+	minMsgSize int
+	maxMsgSize int
+	maxBytesPerFile int64
+	syncEveryInSeconds int64
+	syncTimeoutInSeconds int
+	readChanBuffer int
+}
+var cfg *QueueConfig
 func (module DiskQueue) Start() error {
+	cfg=&QueueConfig{
+		minMsgSize: 1,
+		maxMsgSize: 500000000,
+		maxBytesPerFile: 50*1024*1024*1024,
+		syncEveryInSeconds: 10,
+		syncTimeoutInSeconds: 10,
+		readChanBuffer: 0,
+	}
+	env.ParseConfig("queue", cfg)
+
 	return nil
 }
 
