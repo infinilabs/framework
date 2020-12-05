@@ -639,8 +639,13 @@ func (ctx *RequestCtx) Finished() {
 }
 
 //should filters continue to process
-func (ctx *RequestCtx) Continue() bool {
+func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
+}
+
+//resume processing pipeline, allow filters continue
+func (ctx *RequestCtx) Resume() {
+	ctx.finished=false
 }
 
 func (ctx *RequestCtx) SetFlag(flag string,value bool) {
