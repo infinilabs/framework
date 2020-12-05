@@ -34,7 +34,7 @@ type ESAPIV0 struct {
 	Config  elastic.ElasticsearchConfig
 }
 
-func (c *ESAPIV0) GetMajorVersion() int {
+func (c ESAPIV0) GetMajorVersion() int {
 	vs := strings.Split(c.Version, ".")
 	n, err := util.ToInt(vs[0])
 	if err != nil {

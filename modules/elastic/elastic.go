@@ -36,6 +36,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
+		InitTemplate: true,
 	}
 )
 
@@ -48,6 +49,7 @@ type ModuleConfig struct {
 	StoreEnabled   bool   `config:"store_enabled"`
 	ORMEnabled     bool   `config:"orm_enabled"`
 	Elasticsearch  string `config:"elasticsearch"`
+	InitTemplate  bool `config:"init_template"`
 }
 
 var indexer *ElasticIndexer
@@ -97,6 +99,9 @@ func initElasticInstances() {
 				return
 			}
 			ver = esVersion.Version.Number
+			esConfig.Version=ver
+		}else{
+			ver=esConfig.Version
 		}
 
 		if global.Env().IsDebug {
@@ -148,10 +153,12 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	}
 
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
+	if moduleConfig.InitTemplate{
+		client.Init()
+	}
 
 	if moduleConfig.ORMEnabled {
 		handler := ElasticORM{Client: client}
-		handler.Client.Init()
 		orm.Register("elastic", handler)
 	}
 
