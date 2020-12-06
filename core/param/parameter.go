@@ -18,9 +18,8 @@ package param
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -122,6 +121,53 @@ func (para *Parameters) GetInt64OrDefault(key ParaKey, defaultV int64) int64 {
 	return defaultV
 }
 
+func (para *Parameters) GetFloat64OrDefault(key ParaKey, defaultV float64) float64 {
+	v, ok := para.GetFloat64(key, defaultV)
+	if ok {
+		return v
+	}
+	return defaultV
+}
+
+func (para *Parameters) GetFloat32OrDefault(key ParaKey, defaultV float32) float32 {
+	v, ok := para.GetFloat32(key, defaultV)
+	if ok {
+		return v
+	}
+	return defaultV
+}
+
+func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64,bool) {
+	v := para.Get(key)
+
+	s, ok := v.(float64)
+	if ok {
+		return s, ok
+	}
+
+	s1, ok := v.(float32)
+	if ok {
+		return float64(s1), ok
+	}
+
+	return defaultV,false
+}
+func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32,bool) {
+	v := para.Get(key)
+
+	s1, ok := v.(float32)
+	if ok {
+		return float32(s1), ok
+	}
+
+	s, ok := v.(float64)
+	if ok {
+		return float32(s), ok
+	}
+
+	return defaultV,false
+}
+
 func GetInt64OrDefault(v interface{},defaultV int64)(int64,bool)  {
 
 	s, ok := v.(int64)
@@ -216,6 +262,78 @@ func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 	return s, ok
 }
 
+func (para *Parameters) Config(key ParaKey,obj interface{}) {
+	rt := reflect.TypeOf(obj).Elem()
+	if rt.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("input must be struct, %v, %v",key,obj))
+		return
+	}
+
+	paraObj, ok :=para.GetMap(key)
+	if !ok{
+		panic(errors.New(fmt.Sprintf("no config %v found in parameter",key)))
+		return
+	}
+
+	newPara:=Parameters{Data: paraObj}
+	mutable := reflect.ValueOf(obj).Elem()
+
+	for i:=0;i<mutable.NumField();i++{
+		f:=mutable.Field(i)
+		tag:=rt.Field(i).Tag.Get("config")
+		field:=mutable.FieldByName(rt.Field(i).Name)
+		//fmt.Println("tag:",tag,",",rt.Field(i).Name,",",i,":",f.Type(),",",f.Kind(),",",f.String(),",",field)
+		key:=ParaKey(tag)
+		if newPara.Has(key){
+			//fmt.Printf("config %s found in parameters,",key)
+			switch f.Kind() {
+			case reflect.Bool:
+				field.SetBool(newPara.GetBool(key,false))
+				break
+			case reflect.String:
+				field.SetString(newPara.GetStringOrDefault(key,""))
+				mutable.FieldByName(rt.Field(i).Name).SetString("medcl")
+				break
+			case reflect.Int64:
+			case reflect.Int32:
+			case reflect.Int16:
+			case reflect.Int8:
+			case reflect.Int:
+			case reflect.Uint64:
+			case reflect.Uint32:
+			case reflect.Uint16:
+			case reflect.Uint:
+				field.SetInt(newPara.GetInt64OrDefault(key,0))
+				break
+			case reflect.Float32:
+			case reflect.Float64:
+				field.SetFloat(newPara.GetFloat64OrDefault(key,0))
+				break
+				//Complex64
+				//Complex128
+
+				//Array
+				//Interface
+				//Map
+				//Slice
+				//Struct
+			}
+		}
+	}
+
+	//t := reflect.TypeOf(obj)
+	//for i:=0;i<t.NumField();i++{
+	//	f:=t.Field(i)
+	//	fmt.Println(i,":",f)
+	//}
+	//v := reflect.New(t).Elem()
+
+	//f := obj.FieldByName("Data")
+	//if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
+	//	f.Set(reflect.ValueOf(cfg.Parameters))
+	//}
+}
+
 func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 	v := para.Get(key)
 	if reflect.TypeOf(v).Kind() == reflect.String {
@@ -269,10 +387,10 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	para.l.RLock()
 	s := string(key)
 	v := para.Data[s]
-	if global.Env().IsDebug {
-		t := reflect.TypeOf(v)
-		log.Debugf("parameter: %s %v %v", s, v, t)
-	}
+	//if global.Env().IsDebug {
+	//	t := reflect.TypeOf(v)
+	//	log.Debugf("parameter: %s %v %v", s, v, t)
+	//}
 	para.l.RUnlock()
 	return v
 }
