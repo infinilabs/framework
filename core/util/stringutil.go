@@ -290,3 +290,15 @@ func MD5digestString(b []byte) string {
 	sum := md5.Sum(b)
 	return hex.EncodeToString(sum[:])
 }
+
+func JoinArray(array []string,delimiter string) string {
+	buffer:=bytes.NewBuffer([]byte{})
+	x:=len(array)-1
+	for i,v:=range array{
+		buffer.WriteString(v)
+		if i < x{
+			buffer.WriteString(delimiter)
+		}
+	}
+	return buffer.String()
+}
