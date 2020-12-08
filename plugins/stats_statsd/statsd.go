@@ -16,6 +16,7 @@ type StatsDConfig struct {
 	Host              string        `config:"host"`
 	Port              int           `config:"port"`
 	Namespace         string        `config:"namespace"`
+	Protocol          string        `config:"protocol"`
 	IntervalInSeconds time.Duration `config:"interval_in_seconds"`
 }
 type StatsDModule struct {
@@ -36,6 +37,7 @@ var defaultStatsdConfig = StatsDConfig{
 	Host:              "localhost",
 	Port:              8125,
 	Namespace:         "app.",
+	Protocol:          "udp",
 	IntervalInSeconds: 1,
 }
 
@@ -59,7 +61,12 @@ func (module StatsDModule) Start() error {
 
 	log.Debug("statsd connec to, ", addr, ",prefix:", config.Namespace)
 
-	err := statsdclient.CreateSocket()
+	var err error
+	if config.Protocol=="tcp"{
+		err = statsdclient.CreateTCPSocket()
+	}else{
+		err = statsdclient.CreateSocket()
+	}
 	if nil != err {
 		log.Warn(err)
 		return err

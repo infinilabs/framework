@@ -2,6 +2,7 @@ https://graphite.readthedocs.io/en/latest/install.html
 
 docker run -d \
  --name graphite \
+ --sysctl net.ipv6.conf.all.disable_ipv6=1  \
  --restart=always \
  -p 8018:80 \
  -p 2003-2004:2003-2004 \
