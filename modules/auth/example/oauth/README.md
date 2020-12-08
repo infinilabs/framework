@@ -1,4 +1,7 @@
-# Use Examples
+OpenID Connect Identity (OIDC) and OAuth 2.0 Provider with Pluggable Connectors
+https://github.com/dexidp/dex/tree/master/connector
+
+
 
 ## Run Server
 
@@ -81,7 +84,3 @@ Open the browser [http://localhost:9094/client](http://localhost:9094/client)
   "expiry": "2019-02-12T11:10:35.864838+08:00"
 }
 ```
-
-![login](https://raw.githubusercontent.com/go-oauth2/oauth2/master/example/server/static/login.png)
-![auth](https://raw.githubusercontent.com/go-oauth2/oauth2/master/example/server/static/auth.png)
-![token](https://raw.githubusercontent.com/go-oauth2/oauth2/master/example/server/static/token.png)
