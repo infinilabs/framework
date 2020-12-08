@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"infini.sh/framework/core/param"
+	"infini.sh/framework/core/stats"
 	"io"
 	"log"
 	"mime/multipart"
@@ -2209,6 +2210,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
 			ctx.Reset()
+			stats.Increment("request","total")
 			s.Handler(ctx)
 		}
 
