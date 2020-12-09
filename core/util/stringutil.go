@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"runtime"
@@ -301,4 +302,14 @@ func JoinArray(array []string,delimiter string) string {
 		}
 	}
 	return buffer.String()
+}
+var strCRLF=[]byte("\r\n")
+var escapedStrCRLF=[]byte("\\n")
+//escape "\r\n" to "\\n"
+func EscapeNewLine(input []byte)[]byte  {
+	return ReplaceByte(input,strCRLF,escapedStrCRLF)
+}
+
+func ToString(obj interface{})string  {
+	return fmt.Sprintf("%v", obj)
 }

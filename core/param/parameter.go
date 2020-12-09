@@ -204,11 +204,7 @@ func (para *Parameters) MustGet(key ParaKey) interface{} {
 	para.init()
 
 	s := string(key)
-
-	para.l.RLock()
 	v, ok := para.Data[s]
-	para.l.RUnlock()
-
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
 	}
@@ -222,7 +218,7 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for k, v := range m {
-			result[k] = v.(string)
+			result[k],ok = v.(string)
 		}
 		return result, ok
 	}
@@ -239,11 +235,26 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for _, v := range array {
-			o := strings.Split(v, "->")
-			result[util.TrimSpaces(o[0])] = util.TrimSpaces(o[1])
+			if strings.Contains(v,"->"){
+				o := strings.Split(v, "->")
+				result[util.TrimSpaces(o[0])] = util.TrimSpaces(o[1])
+			}
 		}
 	}
 	return result, ok
+}
+
+func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool) {
+	v := para.Get(key)
+	s, ok := v.([]interface{})
+	f:=[]map[string]interface{}{}
+	for _,m:=range s{
+		y,ok:=m.(map[string]interface{})
+		if ok{
+			f=append(f,y)
+		}
+	}
+	return f, ok
 }
 
 func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
@@ -361,7 +372,12 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	if ok {
 		result = []string{}
 		for _, v := range array {
-			result = append(result, v.(string))
+			x,ok:=v.(string)
+			if ok{
+				result = append(result,x)
+			//}else{
+				//fmt.Println(v)
+			}
 		}
 	}
 	return result, ok
@@ -371,6 +387,9 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.([]interface{})
+	if !ok{
+		//fmt.Println(v)
+	}
 	return s, ok
 }
 
@@ -384,23 +403,15 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 
 func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
-	para.l.RLock()
 	s := string(key)
 	v := para.Data[s]
-	//if global.Env().IsDebug {
-	//	t := reflect.TypeOf(v)
-	//	log.Debugf("parameter: %s %v %v", s, v, t)
-	//}
-	para.l.RUnlock()
 	return v
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
-	para.l.RLock()
 	s := string(key)
 	v := para.Data[s]
-	para.l.RUnlock()
 	if v == nil {
 		return val
 	}

@@ -586,7 +586,7 @@ func (d *diskQueue) ioLoop() {
 	var count int64
 	var r chan []byte
 
-	syncTicker := time.NewTicker(d.syncTimeout)
+	syncTicker := time.NewTicker(time.Duration(d.syncTimeout) * time.Millisecond)
 
 	for {
 		// dont sync all the time :)

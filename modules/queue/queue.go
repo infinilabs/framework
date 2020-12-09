@@ -26,6 +26,23 @@ func (module DiskQueue) Name() string {
 
 var initLocker sync.Mutex
 
+//min_msg_size: 1
+//max_msg_size: 500000000 #500,000,000
+//max_bytes_per_file: 50*1024*1024*1024
+//sync_every_in_seconds: 10
+//sync_timeout_in_seconds: 10
+//read_chan_buffer: 0
+type QueueConfig struct {
+	MinMsgSize       int   `config:"min_msg_size"`
+	MaxMsgSize       int   `config:"max_msg_size"`
+	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
+	SyncEveryRecords int64 `config:"sync_every_records"`
+	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
+	ReadChanBuffer   int   `config:"read_chan_buffer"`
+}
+
+var cfg *QueueConfig
+
 func (module DiskQueue) initQueue(name string) error {
 
 	channel := "default"
@@ -47,24 +64,31 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-
-
-	readBuffSize := cfg.readChanBuffer
-	syncTime := time.Duration(cfg.syncTimeoutInSeconds) * time.Second
-	var syncEvery =cfg.syncEveryInSeconds
-	var maxPerFile = cfg.maxBytesPerFile
-	var minMsgSize int = cfg.minMsgSize
-	var maxMsgSize int = cfg.maxMsgSize
-
-	q := NewDiskQueue(strings.ToLower(channel), dataPath, maxPerFile, int32(minMsgSize), int32(maxMsgSize), syncEvery, syncTime, readBuffSize)
+	q := NewDiskQueue(strings.ToLower(channel), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer)
 	queues[name] = &q
 
 	return nil
 }
+var diskQueue *DiskQueue
 
-func (module DiskQueue) Setup(cfg *config.Config) {
+func (module DiskQueue) Setup(config *config.Config) {
+
+	cfg = &QueueConfig{
+		MinMsgSize:       1,
+		MaxMsgSize:       500000000,
+		MaxBytesPerFile:  50 * 1024 * 1024 * 1024,
+		SyncEveryRecords: 1000,
+		SyncTimeoutInMS:  10000,
+		ReadChanBuffer:   0,
+	}
+	diskQueue=&DiskQueue{}
+
+	_,err:=env.ParseConfig("queue", cfg)
+	if err!=nil{
+		panic(err)
+	}
+
 	queues = make(map[string]*BackendQueue)
-	queue.Register("disk", module)
 }
 
 func (module DiskQueue) Push(k string, v []byte) error {
@@ -116,32 +140,8 @@ func (module DiskQueue) GetQueues() []string {
 	return result
 }
 
-//min_msg_size: 1
-//max_msg_size: 500000000 #500,000,000
-//max_bytes_per_file: 50*1024*1024*1024
-//sync_every_in_seconds: 10
-//sync_timeout_in_seconds: 10
-//read_chan_buffer: 0
-type QueueConfig struct {
-	minMsgSize int
-	maxMsgSize int
-	maxBytesPerFile int64
-	syncEveryInSeconds int64
-	syncTimeoutInSeconds int
-	readChanBuffer int
-}
-var cfg *QueueConfig
 func (module DiskQueue) Start() error {
-	cfg=&QueueConfig{
-		minMsgSize: 1,
-		maxMsgSize: 500000000,
-		maxBytesPerFile: 50*1024*1024*1024,
-		syncEveryInSeconds: 10,
-		syncTimeoutInSeconds: 10,
-		readChanBuffer: 0,
-	}
-	env.ParseConfig("queue", cfg)
-
+	queue.Register("disk", diskQueue)
 	return nil
 }
 
