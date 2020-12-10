@@ -23,10 +23,13 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	errors2 "infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"regexp"
+	errors3 "src/github.com/pkg/errors"
 	"strings"
+	"time"
 )
 
 type ESAPIV0 struct {
@@ -48,7 +51,7 @@ const TypeName6 = "doc"
 func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result, err error) {
 
 	if global.Env().IsDebug {
-		log.Trace(method, ",", url, ",", string(body))
+		log.Trace(method, ",", url, ",", util.SubString(string(body),0,3000))
 	}
 
 	var req *util.Request
@@ -78,10 +81,31 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 		req.SetProxy(c.Config.HttpProxy)
 	}
 
+	defer func(data *util.Request)(result *util.Result, err error) {
+		var resp *util.Result
+		if err := recover();err != nil {
+			var count=0
+			RETRY:
+				if count>10{
+					log.Errorf("still have error in bulk request, after retry [%v] times\n", err)
+					return resp,errors3.Errorf("still have error in bulk request, after retry [%v] times\n", err)
+				}
+				count++
+				log.Errorf("error in bulk request, sleep 10s and retry [%v]: %s\n", count,err)
+				time.Sleep(10*time.Second)
+				resp, err = util.ExecuteRequestWithCatchFlag(req,true)
+				if err != nil {
+					log.Errorf("retry still have error in bulk request, sleep 10s and retry [%v]: %s\n", count,err)
+					goto RETRY
+				}
+		}
+		return resp,err
+	}(req)
+
 	resp, err := util.ExecuteRequest(req)
 
 	if err != nil {
-		panic(err)
+		//panic(err)
 		return nil, err
 	}
 
@@ -184,7 +208,6 @@ func (c *ESAPIV0) Index(indexName string, id interface{}, data interface{}) (*el
 		panic(err)
 		return nil, err
 	}
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("indexing response: ", string(resp.Body))
@@ -214,8 +237,6 @@ func (c *ESAPIV0) Get(indexName, id string) (*elastic.GetResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("get response: ", string(resp.Body))
@@ -249,8 +270,6 @@ func (c *ESAPIV0) Delete(indexName, id string) (*elastic.DeleteResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("delete response: ", string(resp.Body))
@@ -286,7 +305,6 @@ func (c *ESAPIV0) Count(indexName string) (*elastic.CountResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("count response: ", string(resp.Body))
@@ -335,7 +353,6 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("search response: ", string(queryDSL), ",", string(resp.Body))
@@ -388,8 +405,6 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 		return &elastic.ClusterHealth{Name: c.Config.Endpoint, Status: "unreachable"}
 	}
 
-	responseHandle(resp)
-
 	health := &elastic.ClusterHealth{}
 	err = json.Unmarshal(resp.Body, health)
 
@@ -410,7 +425,6 @@ func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error){
 		panic(err)
 		return nil, err
 	}
-	responseHandle(resp)
 	err = json.Unmarshal(resp.Body, nodes)
 	if err != nil {
 		panic(err)
@@ -423,19 +437,15 @@ func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	if data == nil || data.Len() == 0 {
 		return
 	}
-
 	data.WriteRune('\n')
 
 	url := fmt.Sprintf("%s/_bulk", c.Config.Endpoint)
-
-	resp, err := c.Request(util.Verb_POST, url, data.Bytes())
+	_, err := c.Request(util.Verb_POST, url, data.Bytes())
 
 	if err != nil {
 		panic(err)
 		return
 	}
-
-	responseHandle(resp)
 
 	data.Reset()
 }
@@ -452,7 +462,6 @@ func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) 
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	err = json.Unmarshal(resp.Body, allSettings)
 	if err != nil {
@@ -472,7 +481,6 @@ func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, in
 		panic(err)
 		return "", 0, nil, err
 	}
-	responseHandle(resp)
 
 	idxs := elastic.Indexes{}
 	er := json.Unmarshal(resp.Body, &idxs)
@@ -571,25 +579,22 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 			staticIndexSettings := getEmptyIndexSettings()
 			staticIndexSettings["settings"].(map[string]interface{})["index"].(map[string]interface{})["analysis"] = set
 
-			resp, err := s.Request("POST", fmt.Sprintf("%s/%s/_close", s.Config.Endpoint, name), nil)
-			responseHandle(resp)
+			_, err := s.Request("POST", fmt.Sprintf("%s/%s/_close", s.Config.Endpoint, name), nil)
 
 			//TODO error handle
 
 			body := bytes.Buffer{}
 			enc := json.NewEncoder(&body)
 			enc.Encode(staticIndexSettings)
-			resp, err = s.Request("PUT", url, body.Bytes())
+			_, err = s.Request("PUT", url, body.Bytes())
 			if err != nil {
 				panic(err)
 			}
 
-			responseHandle(resp)
 
 			delete(settings["settings"].(map[string]interface{})["index"].(map[string]interface{}), "analysis")
 
-			resp, err = s.Request("POST", fmt.Sprintf("%s/%s/_open", s.Config.Endpoint, name), nil)
-			responseHandle(resp)
+			_, err = s.Request("POST", fmt.Sprintf("%s/%s/_open", s.Config.Endpoint, name), nil)
 
 			//TODO error handle
 		}
@@ -598,8 +603,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	body := bytes.Buffer{}
 	enc := json.NewEncoder(&body)
 	enc.Encode(settings)
-	resp, err := s.Request(util.Verb_PUT, url, body.Bytes())
-	responseHandle(resp)
+	_, err := s.Request(util.Verb_PUT, url, body.Bytes())
 
 	return err
 }
@@ -617,8 +621,6 @@ func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 		panic(err)
 	}
 
-	responseHandle(resp)
-
 	return resp.Body, nil
 }
 
@@ -633,9 +635,7 @@ func (c *ESAPIV0) DeleteIndex(indexName string) (err error) {
 
 	url := fmt.Sprintf("%s/%s", c.Config.Endpoint, indexName)
 
-	resp, err := c.Request(util.Verb_DELETE, url, nil)
-
-	responseHandle(resp)
+	c.Request(util.Verb_DELETE, url, nil)
 
 	return nil
 }
@@ -659,13 +659,11 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 
 	url := fmt.Sprintf("%s/%s", c.Config.Endpoint, indexName)
 
-	resp, err := c.Request(util.Verb_PUT, url, body.Bytes())
+	_, err = c.Request(util.Verb_PUT, url, body.Bytes())
 
 	if err != nil {
 		panic(err)
 	}
-
-	responseHandle(resp)
 
 	return err
 }
@@ -681,9 +679,7 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 
 	url := fmt.Sprintf("%s/%s/_refresh", s.Config.Endpoint, name)
 
-	resp, err := s.Request(util.Verb_POST, url, nil)
-
-	responseHandle(resp)
+	_, err = s.Request(util.Verb_POST, url, nil)
 
 	return err
 }
@@ -747,8 +743,6 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 		return nil, err
 	}
 
-	responseHandle(resp)
-
 	return scroll, err
 }
 
@@ -778,8 +772,6 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, e
 		return nil, err
 	}
 
-	responseHandle(resp)
-
 	return scroll, nil
 }
 
@@ -792,8 +784,6 @@ func (c *ESAPIV0) TemplateExists(templateName string) (bool, error) {
 		return true, nil
 	}
 
-	responseHandle(resp)
-
 	return false, nil
 }
 
@@ -805,18 +795,20 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 		return nil, err
 	}
 
-	responseHandle(resp)
-
 	return resp.Body, nil
 }
 
-func responseHandle(resp *util.Result) {
+func reqResponseHandle(req interface{},resp *util.Result) {
 	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
-		panic(errors.New(string(resp.Body)))
+		//TODO handle 413
+		panic(errors2.Errorf("req: %v, response: %v",req,resp))
 	}
 
 	if global.Env().IsDebug {
 		log.Trace(util.ToJson(resp, true))
 	}
+}
+func responseHandle(resp *util.Result) {
 
+	reqResponseHandle(nil,resp)
 }

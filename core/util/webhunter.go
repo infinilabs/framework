@@ -238,6 +238,21 @@ const ContentTypeForm = "application/x-www-form-urlencoded;charset=UTF-8"
 
 // ExecuteRequest issue a request
 func ExecuteRequest(req *Request) (result *Result, err error) {
+	return ExecuteRequestWithCatchFlag(req,false)
+}
+
+func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, err error) {
+
+	if !catchError{
+		defer func()(result *Result, err error) {
+			result=&Result{}
+			if err := recover();err != nil {
+				log.Errorf("error in request: %s\n", err)
+				return result,errors.Errorf("error in request: %s\n", err)
+			}
+			return nil, err
+		}()
+	}
 
 	//log.Trace("let's: " + req.Method + ", " + req.Url)
 
@@ -250,7 +265,9 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 	}
 
 	if err != nil {
-		panic(err)
+		log.Errorf("[2] error in request: %s\n", err)
+		//panic(err)
+		return nil, err
 	}
 
 	if req.Agent != "" {
@@ -303,7 +320,7 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 		// 127.0.0.1:9050 instead.
 		tbProxyURL, err := uri.Parse(req.Proxy)
 		if err != nil {
-			panic(err)
+			//panic(err)
 			return nil, fmt.Errorf("Failed to parse proxy URL: %v", err)
 		}
 
@@ -313,7 +330,7 @@ func ExecuteRequest(req *Request) (result *Result, err error) {
 		// IsolateSOCKSAuth is needed.
 		tbDialer, err := proxy.FromURL(tbProxyURL, proxy.Direct)
 		if err != nil {
-			panic(err)
+			//panic(err)
 			return nil, fmt.Errorf("Failed to obtain proxy dialer: %v", err)
 		}
 
@@ -404,8 +421,9 @@ func execute(req *http.Request) (*Result, error) {
 	}()
 
 	if err != nil {
-		panic(err)
-		//return result, err
+		//log.Error(err)
+		//panic(err)
+		return result, err
 	}
 
 	if resp != nil {
@@ -440,7 +458,8 @@ func execute(req *http.Request) (*Result, error) {
 		reader, err = gzip.NewReader(resp.Body)
 
 		if err != nil {
-			panic(err)
+			return nil, err
+			//panic(err)
 		}
 	}
 
@@ -449,7 +468,8 @@ func execute(req *http.Request) (*Result, error) {
 		io.Copy(ioutil.Discard, reader)
 		reader.Close()
 		if err != nil {
-			panic(err)
+			return result,nil
+			//panic(err)
 		}
 
 		result.Body = body

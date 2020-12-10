@@ -108,7 +108,6 @@ func (c *ESAPIV7) Delete(indexName, id string) (*elastic.DeleteResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	esResp := &elastic.DeleteResponse{}
 	err = json.Unmarshal(resp.Body, esResp)
@@ -134,7 +133,6 @@ func (c *ESAPIV7) Get(indexName, id string) (*elastic.GetResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	esResp := &elastic.GetResponse{}
 	err = json.Unmarshal(resp.Body, esResp)
@@ -169,7 +167,6 @@ func (c *ESAPIV7) Index(indexName string, id interface{}, data interface{}) (*el
 	if err != nil {
 		return nil, err
 	}
-	responseHandle(resp)
 
 	if global.Env().IsDebug {
 		log.Trace("indexing response: ", string(resp.Body))
