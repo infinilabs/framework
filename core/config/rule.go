@@ -18,9 +18,11 @@ package config
 
 // Rule is container of rules
 type Rule struct {
-	Contain []string `config:"contain"`
-	Prefix  []string `config:"prefix"`
-	Suffix  []string `config:"suffix"`
+	Contain  []string `config:"contain"`
+	Prefix   []string `config:"prefix"`
+	Suffix   []string `config:"suffix"`
+	Wildcard []string `config:"wildcard"`
+	Regex    []string `config:"regex"`
 }
 
 // Rules defines two fields,
