@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -274,20 +275,32 @@ func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 }
 
 func (para *Parameters) Config(key ParaKey,obj interface{}) {
+
+	if obj==nil{
+		panic(errors.New("config object can't be nil"))
+	}
+
 	rt := reflect.TypeOf(obj).Elem()
+
 	if rt.Kind() != reflect.Struct {
 		panic(fmt.Sprintf("input must be struct, %v, %v",key,obj))
 		return
 	}
 
 	paraObj, ok :=para.GetMap(key)
+
 	if !ok{
-		panic(errors.New(fmt.Sprintf("no config %v found in parameter",key)))
+		panic(errors.New(fmt.Sprintf("no config [%v] found in parameter",key)))
 		return
 	}
 
 	newPara:=Parameters{Data: paraObj}
 	mutable := reflect.ValueOf(obj).Elem()
+
+	if !mutable.IsValid(){
+		log.Errorf("invalid config [%v] %v %v %v %v",key,paraObj,obj,newPara,mutable)
+		return
+	}
 
 	for i:=0;i<mutable.NumField();i++{
 		f:=mutable.Field(i)
@@ -296,7 +309,7 @@ func (para *Parameters) Config(key ParaKey,obj interface{}) {
 		//fmt.Println("tag:",tag,",",rt.Field(i).Name,",",i,":",f.Type(),",",f.Kind(),",",f.String(),",",field)
 		key:=ParaKey(tag)
 		if newPara.Has(key){
-			//fmt.Printf("config %s found in parameters,",key)
+			//fmt.Printf("config [%s] found in parameters\n",key)
 			switch f.Kind() {
 			case reflect.Bool:
 				field.SetBool(newPara.GetBool(key,false))
@@ -328,6 +341,40 @@ func (para *Parameters) Config(key ParaKey,obj interface{}) {
 				//Map
 				//Slice
 				//Struct
+			case reflect.Slice:
+				arr,ok:=newPara.GetArray(key)
+
+
+				//fmt.Println("kind:",field.Type().Elem().Kind())
+
+
+				if ok{
+					one := reflect.ValueOf(arr[0])
+					//targetType:=field.Type()
+					targetItemsType:=field.Type().Elem()
+					//fmt.Println(targetType)
+					//fmt.Println(targetItemsType)
+					slice := reflect.MakeSlice(reflect.SliceOf(targetItemsType), len(arr), len(arr))
+					//fmt.Println(one)
+					//fmt.Println(reflect.TypeOf(arr))
+					for i:=0;i<len(arr);i++{
+						one = reflect.ValueOf(arr[i])
+						//fmt.Println(one)
+						v := slice.Index(i)
+						//if targetType=={
+							v.Set(one)
+						//}
+
+						//fmt.Println(one.String())
+						v = slice.Index(i)
+					}
+					//fmt.Println(slice)
+					field.Set(slice)
+				}
+				break
+			default:
+				fmt.Println("type not handled: ",f.Kind())
+				break
 			}
 		}
 	}
@@ -404,8 +451,23 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
 	s := string(key)
-	v := para.Data[s]
-	return v
+	t:=para.Data
+
+	if strings.Contains(s,"."){
+		keys:=strings.Split(s,".")
+		for _,x:=range keys{
+			y,ok:=t[x]
+			if ok{
+				s=x
+				z,ok:=y.(map[string]interface{})
+				if ok{
+					t=z
+				}
+			}
+		}
+	}
+
+	return t[s]
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
