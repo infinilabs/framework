@@ -51,7 +51,7 @@ const TypeName6 = "doc"
 func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result, err error) {
 
 	if global.Env().IsDebug {
-		log.Trace(method, ",", url, ",", util.SubString(string(body),0,3000))
+		log.Trace(method, ",", url, ",", util.SubString(string(body), 0, 3000))
 	}
 
 	var req *util.Request
@@ -81,26 +81,28 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 		req.SetProxy(c.Config.HttpProxy)
 	}
 
-	defer func(data *util.Request)(result *util.Result, err error) {
-		var resp *util.Result
-		if err := recover();err != nil {
-			var count=0
+	if !global.Env().IsDebug {
+		defer func(data *util.Request) (result *util.Result, err error) {
+			var resp *util.Result
+			if err := recover(); err != nil {
+				var count = 0
 			RETRY:
-				if count>10{
+				if count > 10 {
 					log.Errorf("still have error in bulk request, after retry [%v] times\n", err)
-					return resp,errors3.Errorf("still have error in bulk request, after retry [%v] times\n", err)
+					return resp, errors3.Errorf("still have error in bulk request, after retry [%v] times\n", err)
 				}
 				count++
-				log.Errorf("error in bulk request, sleep 10s and retry [%v]: %s\n", count,err)
-				time.Sleep(10*time.Second)
-				resp, err = util.ExecuteRequestWithCatchFlag(req,true)
+				log.Errorf("error in bulk request, sleep 10s and retry [%v]: %s\n", count, err)
+				time.Sleep(10 * time.Second)
+				resp, err = util.ExecuteRequestWithCatchFlag(req, true)
 				if err != nil {
-					log.Errorf("retry still have error in bulk request, sleep 10s and retry [%v]: %s\n", count,err)
+					log.Errorf("retry still have error in bulk request, sleep 10s and retry [%v]: %s\n", count, err)
 					goto RETRY
 				}
-		}
-		return resp,err
-	}(req)
+			}
+			return resp, err
+		}(req)
+	}
 
 	resp, err := util.ExecuteRequest(req)
 
@@ -415,8 +417,8 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	return health
 }
 
-func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error){
-	nodes:=&elastic.NodesResponse{}
+func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
+	nodes := &elastic.NodesResponse{}
 
 	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -590,7 +592,6 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 			if err != nil {
 				panic(err)
 			}
-
 
 			delete(settings["settings"].(map[string]interface{})["index"].(map[string]interface{}), "analysis")
 
@@ -778,7 +779,7 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, e
 func (c *ESAPIV0) TemplateExists(templateName string) (bool, error) {
 	url := fmt.Sprintf("%s/_template/%s", c.Config.Endpoint, templateName)
 	resp, err := c.Request(util.Verb_GET, url, nil)
-	if err != nil || resp.StatusCode == 404 {
+	if err != nil || resp != nil && resp.StatusCode == 404 {
 		return false, err
 	} else {
 		return true, nil
@@ -798,10 +799,10 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	return resp.Body, nil
 }
 
-func reqResponseHandle(req interface{},resp *util.Result) {
+func reqResponseHandle(req interface{}, resp *util.Result) {
 	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
 		//TODO handle 413
-		panic(errors2.Errorf("req: %v, response: %v",req,resp))
+		panic(errors2.Errorf("req: %v, status: %v, response: %v", req,resp.StatusCode, string(resp.Body)))
 	}
 
 	if global.Env().IsDebug {
@@ -810,5 +811,5 @@ func reqResponseHandle(req interface{},resp *util.Result) {
 }
 func responseHandle(resp *util.Result) {
 
-	reqResponseHandle(nil,resp)
+	reqResponseHandle(nil, resp)
 }
