@@ -2,14 +2,16 @@ package fasthttp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"encoding/base64"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"io"
-	"log"
+	log "github.com/cihub/seelog"
 	"mime/multipart"
 	"net"
 	"os"
@@ -17,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	log2 "log"
 )
 
 var errNoCertOrKeyProvided = errors.New("cert or key has not provided")
@@ -648,6 +651,31 @@ func (ctx *RequestCtx) Filtered() {
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
+
+func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
+	username:=ctx.Request.URI().Username()
+	if username!=nil&&len(username)>0{
+		return true,username,ctx.Request.URI().Password()
+	}
+
+	//
+	key:=ctx.Request.Header.Peek("Authorization")
+	if len(key)>0{
+		newKey:=strings.TrimLeft(string(key),"Basic ")
+		decoded,err := base64.StdEncoding.DecodeString(newKey)
+		if err!=nil{
+			log.Error("parse basic auth error: ",err)
+		}
+		info:=bytes.Split(decoded,[]byte(":"))
+		if len(info)==2{
+			return true,info[0],info[1]
+		}
+	}
+
+	return false,nil,nil
+
+}
+
 
 //resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
@@ -1884,7 +1912,7 @@ func wrapPerIPConn(s *Server, c net.Conn) net.Conn {
 	return acquirePerIPConn(c, ip, &s.perIPConnCounter)
 }
 
-var defaultLogger = Logger(log.New(os.Stderr, "", log.LstdFlags))
+var defaultLogger = Logger(log2.New(os.Stderr, "", log2.LstdFlags))
 
 func (s *Server) logger() Logger {
 	if s.Logger != nil {
