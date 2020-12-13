@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	fastjsonPath  = "infini.sh/gateway/lib/fastjson_marshal"
+	fastjsonPath  = "infini.sh/framework/lib/fastjson_marshal"
 	isZeroMethod  = "isZero"
 	marshalMethod = "MarshalFastJSON"
 )
