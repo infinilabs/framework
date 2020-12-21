@@ -238,7 +238,7 @@ const ContentTypeForm = "application/x-www-form-urlencoded;charset=UTF-8"
 
 // ExecuteRequest issue a request
 func ExecuteRequest(req *Request) (result *Result, err error) {
-	return ExecuteRequestWithCatchFlag(req,false)
+	return ExecuteRequestWithCatchFlag(req,true)
 }
 
 func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, err error) {
@@ -421,8 +421,6 @@ func execute(req *http.Request) (*Result, error) {
 	}()
 
 	if err != nil {
-		//log.Error(err)
-		//panic(err)
 		return result, err
 	}
 

@@ -88,15 +88,15 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 				var count = 0
 			RETRY:
 				if count > 10 {
-					log.Errorf("still have error in bulk request, after retry [%v] times\n", err)
-					return resp, errors3.Errorf("still have error in bulk request, after retry [%v] times\n", err)
+					log.Errorf("still have error in request, after retry [%v] times\n", err)
+					return resp, errors3.Errorf("still have error in request, after retry [%v] times\n", err)
 				}
 				count++
-				log.Errorf("error in bulk request, sleep 10s and retry [%v]: %s\n", count, err)
+				log.Errorf("error in request, sleep 10s and retry [%v]: %s\n", count, err)
 				time.Sleep(10 * time.Second)
 				resp, err = util.ExecuteRequestWithCatchFlag(req, true)
 				if err != nil {
-					log.Errorf("retry still have error in bulk request, sleep 10s and retry [%v]: %s\n", count, err)
+					log.Errorf("retry still have error in request, sleep 10s and retry [%v]: %s\n", count, err)
 					goto RETRY
 				}
 			}
@@ -107,11 +107,12 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 	resp, err := util.ExecuteRequest(req)
 
 	if err != nil {
-		//panic(err)
 		return nil, err
 	}
 
-	responseHandle(resp)
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
+		return resp,errors2.Errorf("req: %v, status: %v, response: %v", req,resp.StatusCode, string(resp.Body))
+	}
 
 	return resp, err
 }
@@ -427,6 +428,7 @@ func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
 		panic(err)
 		return nil, err
 	}
+
 	err = json.Unmarshal(resp.Body, nodes)
 	if err != nil {
 		panic(err)
@@ -797,19 +799,4 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	}
 
 	return resp.Body, nil
-}
-
-func reqResponseHandle(req interface{}, resp *util.Result) {
-	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
-		//TODO handle 413
-		panic(errors2.Errorf("req: %v, status: %v, response: %v", req,resp.StatusCode, string(resp.Body)))
-	}
-
-	if global.Env().IsDebug {
-		log.Trace(util.ToJson(resp, true))
-	}
-}
-func responseHandle(resp *util.Result) {
-
-	reqResponseHandle(nil, resp)
 }
