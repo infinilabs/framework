@@ -661,10 +661,10 @@ func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 	//
 	key:=ctx.Request.Header.Peek("Authorization")
 	if len(key)>0{
-		newKey:=strings.TrimLeft(string(key),"Basic ")
+		newKey:=strings.TrimSpace(strings.TrimLeft(string(key),"Basic"))
 		decoded,err := base64.StdEncoding.DecodeString(newKey)
 		if err!=nil{
-			log.Error("parse basic auth error: ",err)
+			log.Errorf("parse basic auth [%v] error: %v",newKey,err)
 		}
 		info:=bytes.Split(decoded,[]byte(":"))
 		if len(info)==2{
