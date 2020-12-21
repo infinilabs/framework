@@ -56,7 +56,7 @@ type Query struct {
 	From     int
 	Size     int
 	Conds    []*Cond
-	RawQuery string
+	RawQuery []byte
 }
 
 type Cond struct {

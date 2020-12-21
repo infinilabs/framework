@@ -88,39 +88,47 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 	request.From = q.From
 	request.Size = q.Size
 
-	if q.Conds != nil && len(q.Conds) > 0 {
-		request.Query = &elastic.Query{}
+	var searchResponse *elastic.SearchResponse
+	result := api.Result{}
 
-		boolQuery := elastic.BoolQuery{}
+	if len(q.RawQuery) > 0 {
+		searchResponse, err = handler.Client.SearchWithRawQueryDSL(getIndexName(t), q.RawQuery)
+	} else {
 
-		for _, c1 := range q.Conds {
-			q := getQuery(c1)
-			switch c1.BoolType {
-			case api.Must:
-				boolQuery.Must = append(boolQuery.Must, q)
-				break
-			case api.MustNot:
-				boolQuery.MustNot = append(boolQuery.MustNot, q)
-				break
-			case api.Should:
-				boolQuery.Should = append(boolQuery.Should, q)
-				break
+		if q.Conds != nil && len(q.Conds) > 0 {
+			request.Query = &elastic.Query{}
+
+			boolQuery := elastic.BoolQuery{}
+
+			for _, c1 := range q.Conds {
+				q := getQuery(c1)
+				switch c1.BoolType {
+				case api.Must:
+					boolQuery.Must = append(boolQuery.Must, q)
+					break
+				case api.MustNot:
+					boolQuery.MustNot = append(boolQuery.MustNot, q)
+					break
+				case api.Should:
+					boolQuery.Should = append(boolQuery.Should, q)
+					break
+				}
+
 			}
 
+			request.Query.BoolQuery = &boolQuery
+
 		}
 
-		request.Query.BoolQuery = &boolQuery
-
-	}
-
-	if q.Sort != nil && len(*q.Sort) > 0 {
-		for _, i := range *q.Sort {
-			request.AddSort(i.Field, string(i.SortType))
+		if q.Sort != nil && len(*q.Sort) > 0 {
+			for _, i := range *q.Sort {
+				request.AddSort(i.Field, string(i.SortType))
+			}
 		}
+
+		searchResponse, err = handler.Client.Search(getIndexName(t), &request)
 	}
 
-	result := api.Result{}
-	searchResponse, err := handler.Client.Search(getIndexName(t), &request)
 	if err != nil {
 		return err, result
 	}
