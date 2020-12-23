@@ -9,6 +9,11 @@ import (
 type MyConfig struct {
 	Name string `config:"name"`
 	Age int `config:"age"`
+	Bio struct{
+		Address string `config:"addr"`
+	}  `config:"bio"`
+	KV map[string]interface{}`config:"kv"`
+	Tags []string `config:"tags"`
 }
 
 func TestUnpackConfig(t *testing.T) {
@@ -16,14 +21,28 @@ func TestUnpackConfig(t *testing.T) {
 	data:=map[string]interface{}{}
 	data["name"]="medcl"
 	data["age"]=123
-	para.Set("config",data)
+	bio:=map[string]interface{}{}
+	bio["addr"]="China"
+	data["bio"]=bio
 
-	fmt.Println(para)
+
+	kv:=map[string]interface{}{}
+	kv["ID"]="12345"
+	data["kv"]=kv
+
+	data["tags"]=[]string{"golang","ES"}
+
+	para.Set("config",data)
 
 	obj:=MyConfig{}
 	para.Config("config",&obj)
-	fmt.Println(obj.Name)
-	fmt.Println(obj.Age)
+	assert.Equal(t,obj.Name,"medcl")
+	assert.Equal(t,obj.Age,123)
+	assert.Equal(t,obj.Bio.Address,"China")
+	assert.Equal(t,obj.KV["ID"],"12345")
+	assert.Equal(t,obj.Tags,[]string{"golang","ES"})
+	fmt.Println(obj)
+
 }
 
 

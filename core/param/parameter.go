@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -99,8 +100,8 @@ func (para *Parameters) GetIntOrDefault(key ParaKey, defaultV int) int {
 }
 
 func (para *Parameters) GetDurationOrDefault(key ParaKey, defaultV string) time.Duration {
-	dur, err := time.ParseDuration(para.GetStringOrDefault(key,defaultV))
-	if err!=nil{
+	dur, err := time.ParseDuration(para.GetStringOrDefault(key, defaultV))
+	if err != nil {
 		panic(err)
 	}
 	return dur
@@ -138,7 +139,7 @@ func (para *Parameters) GetFloat32OrDefault(key ParaKey, defaultV float32) float
 	return defaultV
 }
 
-func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64,bool) {
+func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64, bool) {
 	v := para.Get(key)
 
 	s, ok := v.(float64)
@@ -151,9 +152,9 @@ func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64,bool)
 		return float64(s1), ok
 	}
 
-	return defaultV,false
+	return defaultV, false
 }
-func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32,bool) {
+func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32, bool) {
 	v := para.Get(key)
 
 	s1, ok := v.(float32)
@@ -166,10 +167,10 @@ func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32,bool)
 		return float32(s), ok
 	}
 
-	return defaultV,false
+	return defaultV, false
 }
 
-func GetInt64OrDefault(v interface{},defaultV int64)(int64,bool)  {
+func GetInt64OrDefault(v interface{}, defaultV int64) (int64, bool) {
 
 	s, ok := v.(int64)
 	if ok {
@@ -197,7 +198,7 @@ func GetInt64OrDefault(v interface{},defaultV int64)(int64,bool)  {
 func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	v := para.Get(key)
 
-	return GetInt64OrDefault(v,defaultV)
+	return GetInt64OrDefault(v, defaultV)
 
 }
 
@@ -219,7 +220,7 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for k, v := range m {
-			result[k],ok = v.(string)
+			result[k], ok = v.(string)
 		}
 		return result, ok
 	}
@@ -236,7 +237,7 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for _, v := range array {
-			if strings.Contains(v,"->"){
+			if strings.Contains(v, "->") {
 				o := strings.Split(v, "->")
 				result[util.TrimSpaces(o[0])] = util.TrimSpaces(o[1])
 			}
@@ -248,11 +249,11 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.([]interface{})
-	f:=[]map[string]interface{}{}
-	for _,m:=range s{
-		y,ok:=m.(map[string]interface{})
-		if ok{
-			f=append(f,y)
+	f := []map[string]interface{}{}
+	for _, m := range s {
+		y, ok := m.(map[string]interface{})
+		if ok {
+			f = append(f, y)
 		}
 	}
 	return f, ok
@@ -267,129 +268,135 @@ func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 	v := para.Get(key)
 	s, ok := v.(map[string]int)
-	if !ok{
-		v=map[string]int{}
-		para.Set(key,v)
+	if !ok {
+		v = map[string]int{}
+		para.Set(key, v)
 	}
 	return s, ok
 }
 
-func (para *Parameters) Config(key ParaKey,obj interface{}) {
-
-	if obj==nil{
+func (para *Parameters) Config(key ParaKey, obj interface{}) {
+	if obj == nil {
 		panic(errors.New("config object can't be nil"))
 	}
+	paraObj, ok := para.GetMap(key)
 
-	rt := reflect.TypeOf(obj).Elem()
-
-	if rt.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("input must be struct, %v, %v",key,obj))
+	if !ok {
+		panic(errors.New(fmt.Sprintf("no config [%v] found in parameter", key)))
 		return
 	}
 
-	paraObj, ok :=para.GetMap(key)
-
-	if !ok{
-		panic(errors.New(fmt.Sprintf("no config [%v] found in parameter",key)))
-		return
-	}
-
-	newPara:=Parameters{Data: paraObj}
+	objType := reflect.TypeOf(obj)
+	rt := objType.Elem()
+	newPara := Parameters{Data: paraObj}
 	mutable := reflect.ValueOf(obj).Elem()
+	newPara.ConfigBinding(key,rt,&mutable)
+}
+func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *reflect.Value) {
 
-	if !mutable.IsValid(){
-		log.Errorf("invalid config [%v] %v %v %v %v",key,paraObj,obj,newPara,mutable)
+	if !mutable.IsValid() {
+		log.Errorf("invalid config [%v] %v", key)
 		return
 	}
 
-	for i:=0;i<mutable.NumField();i++{
-		f:=mutable.Field(i)
-		tag:=rt.Field(i).Tag.Get("config")
-		field:=mutable.FieldByName(rt.Field(i).Name)
-		//fmt.Println("tag:",tag,",",rt.Field(i).Name,",",i,":",f.Type(),",",f.Kind(),",",f.String(),",",field)
-		key:=ParaKey(tag)
-		if newPara.Has(key){
-			//fmt.Printf("config [%s] found in parameters\n",key)
+	for i := 0; i < mutable.NumField(); i++ {
+		f := mutable.Field(i)
+		tag := rt.Field(i).Tag.Get("config")
+		field := mutable.FieldByName(rt.Field(i).Name)
+
+		key := ParaKey(tag)
+
+		if global.Env().IsDebug{
+			log.Trace("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ",", f.Kind(), ",", f.String(), ",", field)
+		}
+
+		if newPara.Has(key) {
 			switch f.Kind() {
 			case reflect.Bool:
-				field.SetBool(newPara.GetBool(key,false))
+				field.SetBool(newPara.GetBool(key, false))
 				break
 			case reflect.String:
-				field.SetString(newPara.GetStringOrDefault(key,""))
-				mutable.FieldByName(rt.Field(i).Name).SetString("medcl")
+				field.SetString(newPara.GetStringOrDefault(key, ""))
 				break
 			case reflect.Int64:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Int32:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Int16:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Int8:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Int:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Uint64:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Uint32:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Uint16:
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
+				break
 			case reflect.Uint:
-				field.SetInt(newPara.GetInt64OrDefault(key,0))
+				field.SetInt(newPara.GetInt64OrDefault(key, 0))
 				break
 			case reflect.Float32:
+				field.SetFloat(newPara.GetFloat64OrDefault(key, 0))
+				break
 			case reflect.Float64:
-				field.SetFloat(newPara.GetFloat64OrDefault(key,0))
+				field.SetFloat(newPara.GetFloat64OrDefault(key, 0))
 				break
 				//Complex64
 				//Complex128
-
 				//Array
 				//Interface
-				//Map
-				//Slice
-				//Struct
+			//case reflect.Array:
+			//	break
+			case reflect.Map:
+				paraObj, ok := newPara.GetMap(key)
+				if ok {
+					field.Set(reflect.MakeMap(field.Type()))
+					for k,v:=range paraObj{
+						field.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(v))
+					}
+				}
+				break
+			case reflect.Struct:
+				paraObj, ok := newPara.GetMap(key)
+				if ok {
+					v2:=reflect.New(field.Type()).Elem()
+					newPara := Parameters{Data: paraObj}
+					newPara.ConfigBinding(key,field.Type(),&v2)
+					field.Set(v2)
+				}
+				break
 			case reflect.Slice:
-				arr,ok:=newPara.GetArray(key)
-
-
-				//fmt.Println("kind:",field.Type().Elem().Kind())
-
-
-				if ok{
+				arr, ok := newPara.GetArray(key)
+				if ok {
 					one := reflect.ValueOf(arr[0])
-					//targetType:=field.Type()
-					targetItemsType:=field.Type().Elem()
-					//fmt.Println(targetType)
-					//fmt.Println(targetItemsType)
+					targetItemsType := field.Type().Elem()
 					slice := reflect.MakeSlice(reflect.SliceOf(targetItemsType), len(arr), len(arr))
-					//fmt.Println(one)
-					//fmt.Println(reflect.TypeOf(arr))
-					for i:=0;i<len(arr);i++{
+					for i := 0; i < len(arr); i++ {
 						one = reflect.ValueOf(arr[i])
-						//fmt.Println(one)
 						v := slice.Index(i)
-						//if targetType=={
-							v.Set(one)
-						//}
-
-						//fmt.Println(one.String())
+						v.Set(one)
 						v = slice.Index(i)
 					}
-					//fmt.Println(slice)
 					field.Set(slice)
 				}
 				break
 			default:
-				fmt.Println("type not handled: ",f.Kind())
+				log.Errorf("type not handled: [%v]", f.Kind())
 				break
 			}
 		}
 	}
 
-	//t := reflect.TypeOf(obj)
-	//for i:=0;i<t.NumField();i++{
-	//	f:=t.Field(i)
-	//	fmt.Println(i,":",f)
-	//}
-	//v := reflect.New(t).Elem()
-
-	//f := obj.FieldByName("Data")
-	//if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
-	//	f.Set(reflect.ValueOf(cfg.Parameters))
-	//}
 }
 
 func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
@@ -419,11 +426,9 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	if ok {
 		result = []string{}
 		for _, v := range array {
-			x,ok:=v.(string)
-			if ok{
-				result = append(result,x)
-			//}else{
-				//fmt.Println(v)
+			x, ok := v.(string)
+			if ok {
+				result = append(result, x)
 			}
 		}
 	}
@@ -434,8 +439,14 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	v := para.Get(key)
 	s, ok := v.([]interface{})
-	if !ok{
-		//fmt.Println(v)
+	if ok {
+		return s,ok
+	}
+	s1, ok := v.([]string)
+	if ok{
+		for _,v1:=range s1{
+			s=append(s,v1)
+		}
 	}
 	return s, ok
 }
@@ -451,17 +462,17 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
 	s := string(key)
-	t:=para.Data
+	t := para.Data
 
-	if strings.Contains(s,"."){
-		keys:=strings.Split(s,".")
-		for _,x:=range keys{
-			y,ok:=t[x]
-			if ok{
-				s=x
-				z,ok:=y.(map[string]interface{})
-				if ok{
-					t=z
+	if strings.Contains(s, ".") {
+		keys := strings.Split(s, ".")
+		for _, x := range keys {
+			y, ok := t[x]
+			if ok {
+				s = x
+				z, ok := y.(map[string]interface{})
+				if ok {
+					t = z
 				}
 			}
 		}
