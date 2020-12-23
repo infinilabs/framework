@@ -27,47 +27,7 @@ import (
 )
 
 type ESAPIV5 struct {
-	ESAPIV0
-}
-
-func (c *ESAPIV5) Init() {
-	c.ESAPIV0.Init()
-}
-
-func (s *ESAPIV5) ClusterHealth() *elastic.ClusterHealth {
-	return s.ESAPIV0.ClusterHealth()
-}
-
-func (s *ESAPIV5) Bulk(data *bytes.Buffer) {
-	s.ESAPIV0.Bulk(data)
-}
-
-func (s *ESAPIV5) GetIndexSettings(indexNames string) (*elastic.Indexes, error) {
-	return s.ESAPIV0.GetIndexSettings(indexNames)
-}
-func (s *ESAPIV5) GetMapping(copyAllIndexes bool, indexNames string) (string, int, *elastic.Indexes, error) {
-	return s.ESAPIV0.GetMapping(copyAllIndexes, indexNames)
-}
-
-func (s *ESAPIV5) UpdateIndexSettings(indexName string, settings map[string]interface{}) error {
-	return s.ESAPIV0.UpdateIndexSettings(indexName, settings)
-}
-
-func (s *ESAPIV5) DeleteIndex(name string) (err error) {
-	return s.ESAPIV0.DeleteIndex(name)
-}
-
-func (s *ESAPIV5) CreateIndex(name string, settings map[string]interface{}) (err error) {
-	return s.ESAPIV0.CreateIndex(name, settings)
-}
-
-func (s *ESAPIV5) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
-
-	return s.ESAPIV0.UpdateMapping(indexName, mappings)
-}
-
-func (s *ESAPIV5) Refresh(name string) (err error) {
-	return s.ESAPIV0.Refresh(name)
+	ESAPIV2
 }
 
 func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
@@ -155,11 +115,4 @@ func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	}
 
 	return scroll, nil
-}
-
-func (s *ESAPIV5) TemplateExists(templateName string) (bool, error) {
-	return s.ESAPIV0.TemplateExists(templateName)
-}
-func (s *ESAPIV5) PutTemplate(templateName string, template []byte) ([]byte, error) {
-	return s.ESAPIV0.PutTemplate(templateName, template)
 }

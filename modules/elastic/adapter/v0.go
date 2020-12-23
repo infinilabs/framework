@@ -111,7 +111,7 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
-		return resp,errors2.Errorf("req: %v, status: %v, response: %v", req,resp.StatusCode, string(resp.Body))
+		return resp,errors2.Errorf("req: %v, status: %v, response: %v", req.Url,resp.StatusCode, string(resp.Body))
 	}
 
 	return resp, err
@@ -425,13 +425,11 @@ func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
 	err = json.Unmarshal(resp.Body, nodes)
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 	return nodes, nil
@@ -469,7 +467,6 @@ func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) 
 
 	err = json.Unmarshal(resp.Body, allSettings)
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -482,7 +479,6 @@ func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, in
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
-		panic(err)
 		return "", 0, nil, err
 	}
 
@@ -490,7 +486,6 @@ func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, in
 	er := json.Unmarshal(resp.Body, &idxs)
 
 	if er != nil {
-		panic(err)
 		return "", 0, nil, er
 	}
 
@@ -756,7 +751,6 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	resp, err := s.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -771,7 +765,6 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	scroll := &elastic.ScrollResponse{}
 	err = json.Unmarshal(resp.Body, &scroll)
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
