@@ -251,7 +251,7 @@ func (app *App) Start(setup func(), start func()) {
 		}
 	}()
 
-	fmt.Printf("[%s] %s, now started.\n", app.environment.GetAppCapitalName(), app.environment.GetVersion())
+	fmt.Printf("[%s] %s now started.\n", app.environment.GetAppCapitalName(), app.environment.GetVersion())
 
 	<-app.quitSignal
 }

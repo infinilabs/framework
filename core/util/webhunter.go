@@ -395,7 +395,7 @@ var t = &http.Transport{
 	IdleConnTimeout:       timeout,
 	TLSHandshakeTimeout:   timeout,
 	ExpectContinueTimeout: timeout,
-	DisableCompression:    true,
+	DisableCompression:    true, //TODO
 	DisableKeepAlives:     false,
 	MaxIdleConns:          20000,
 	MaxIdleConnsPerHost:   20000,

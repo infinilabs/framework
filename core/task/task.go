@@ -1,8 +1,9 @@
 package task
 
 import (
-	"time"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
+	"time"
 )
 
 var scheduleTasks = []ScheduleTask{}
@@ -27,7 +28,9 @@ func RunTasks()  {
 			select {
 			case <- ticker.C:
 				for _,task:=range scheduleTasks{
-					log.Tracef("task: %s, %v, %v",task.Description,task.Type,task.Interval)
+					if global.Env().IsDebug{
+						log.Tracef("task: %s, %v, %v",task.Description,task.Type,task.Interval)
+					}
 					task.Task()
 				}
 			case <- quit:
