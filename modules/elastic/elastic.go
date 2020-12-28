@@ -17,7 +17,6 @@ limitations under the License.
 package elastic
 
 import (
-	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
@@ -110,7 +109,12 @@ func initElasticInstances() {
 			log.Debug("elasticsearch version: ", ver)
 		}
 
-		if strings.HasPrefix(ver, "7.") {
+		if strings.HasPrefix(ver, "8.") {
+			api := new(adapter.ESAPIV8)
+			api.Config = esConfig
+			api.Version = ver
+			client = api
+		} else if strings.HasPrefix(ver, "7.") {
 			api := new(adapter.ESAPIV7)
 			api.Config = esConfig
 			api.Version = ver
@@ -122,6 +126,11 @@ func initElasticInstances() {
 			client = api
 		} else if strings.HasPrefix(ver, "5.") {
 			api := new(adapter.ESAPIV5)
+			api.Config = esConfig
+			api.Version = ver
+			client = api
+		}else if strings.HasPrefix(ver, "2.") {
+			api := new(adapter.ESAPIV2)
 			api.Config = esConfig
 			api.Version = ver
 			client = api
@@ -199,12 +208,12 @@ func discovery() {
 			var replace = false
 			oldMetadata := elastic.GetMetadata(cfg.Name)
 			//log.Trace(oldMetadata)
-			var oldNodesTopologyVersion=0
+			var oldNodesTopologyVersion = 0
 			if oldMetadata == nil {
 				//log.Trace("oldmetadata==nil")
 				replace = true
 			} else {
-				oldNodesTopologyVersion=oldMetadata.NodesTopologyVersion
+				oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
 				//check
 				if len(nodes.Nodes) != len(oldMetadata.Nodes) {
 					//log.Trace("num of nodes not equal")
@@ -217,11 +226,9 @@ func discovery() {
 						if ok {
 							//ip changed
 							if v.Http.PublishAddress != v1.Http.PublishAddress {
-								fmt.Println("PublishAddress not equal")
 								replace = true
 							}
 						} else {
-							fmt.Println("new node id found")
 							replace = true
 							break
 						}
@@ -230,10 +237,10 @@ func discovery() {
 			}
 
 			if replace {
-				log.Trace("elasticsearch metadata updated,",nodes.Nodes)
+				log.Trace("elasticsearch metadata updated,", nodes.Nodes)
 				metadata := elastic.ElasticsearchMetadata{}
-				metadata.NodesTopologyVersion=oldNodesTopologyVersion+1
-				metadata.Nodes=nodes.Nodes
+				metadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
+				metadata.Nodes = nodes.Nodes
 				elastic.SetMetadata(cfg.Name, &metadata)
 			}
 		}
