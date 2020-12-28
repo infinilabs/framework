@@ -61,9 +61,10 @@ func loadElasticConfig() {
 
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if err != nil {
+	if exist&&err != nil {
 		panic(err)
 	}
+
 	if exist {
 		for _, v := range configs {
 			if !v.Enabled {
