@@ -244,12 +244,14 @@ func (app *App) Start(setup func(), start func()) {
 		s := <-sigc
 		if s == os.Interrupt || s.(os.Signal) == syscall.SIGINT || s.(os.Signal) == syscall.SIGTERM ||
 			s.(os.Signal) == syscall.SIGKILL || s.(os.Signal) == syscall.SIGQUIT {
-			fmt.Printf("\n[%s] got signal:%v, start shutting down\n", app.environment.GetAppCapitalName(), s.String())
+			fmt.Printf("\n[%s] got signal: %v, start shutting down\n", app.environment.GetAppCapitalName(), s.String())
 			//wait workers to exit
 			module.Stop()
 			app.quitSignal <- true
 		}
 	}()
+
+	fmt.Printf("[%s] %s, now started.\n", app.environment.GetAppCapitalName(), app.environment.GetVersion())
 
 	<-app.quitSignal
 }
