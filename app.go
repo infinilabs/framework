@@ -52,7 +52,6 @@ type App struct {
 	cpuproFile   string
 	memproFile   string
 	httpprof     string
-	logDir       string
 }
 
 func NewApp(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) *App {
@@ -97,16 +96,10 @@ func (app *App) Init(customFunc func()) {
 func (app *App) InitWithOptions(options Options, customFunc func()) {
 
 	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
-	flag.StringVar(&app.logDir, "log_path", "log", "the log path")
-
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
-
 	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
-
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
-
 	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
-
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 
 	if options.EnableProfiling {
@@ -119,7 +112,7 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 
 	defaultLog.SetOutput(logger.EmptyLogger{})
 
-	logger.SetLogging(env.EmptyEnv(), app.logLevel, app.logDir)
+	logger.SetLogging(env.EmptyEnv(), app.logLevel)
 
 	app.environment.IsDebug = app.isDebug
 
@@ -130,7 +123,7 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	//put env into global registrar
 	global.RegisterEnv(app.environment)
 
-	logger.SetLogging(app.environment, app.logLevel, app.logDir)
+	logger.SetLogging(app.environment, app.logLevel)
 
 	if options.EnableProfiling {
 
@@ -251,7 +244,7 @@ func (app *App) Start(setup func(), start func()) {
 		}
 	}()
 
-	fmt.Printf("[%s] %s now started.\n", app.environment.GetAppCapitalName(), app.environment.GetVersion())
+	log.Infof("%s now started.", app.environment.GetAppName())
 
 	<-app.quitSignal
 }
@@ -299,6 +292,9 @@ func (app *App) Shutdown() {
 	if app.environment.IsDebug {
 		fmt.Println(string(*stats.StatsAll()))
 	}
+
+	log.Infof("%s now terminated.", app.environment.GetAppName())
+	log.Flush()
 
 	if !app.isDaemonMode {
 		//print goodbye message

@@ -33,7 +33,7 @@ var l sync.Mutex
 var e *env.Env
 
 // SetLogging init set logging
-func SetLogging(env *env.Env, logLevel string, logFile string) {
+func SetLogging(env *env.Env, logLevel string) {
 
 	e = env
 
@@ -47,10 +47,15 @@ func SetLogging(env *env.Env, logLevel string, logFile string) {
 	}
 	l.Unlock()
 
+	appName:=env.GetAppLowercaseName()
+	if appName==""{
+		appName="app"
+	}
+
 	if env != nil {
 		envLevel := strings.ToLower(env.LoggingLevel)
 		if env.SystemConfig != nil {
-			file = env.SystemConfig.PathConfig.Log + "/" + env.GetAppLowercaseName() + ".log"
+			file = env.SystemConfig.PathConfig.Log + "/" + appName + ".log"
 		}
 		if len(envLevel) > 0 {
 			loggingConfig.LogLevel = envLevel
@@ -62,13 +67,9 @@ func SetLogging(env *env.Env, logLevel string, logFile string) {
 		loggingConfig.LogLevel = strings.ToLower(logLevel)
 	}
 
-	if len(logFile) > 0 {
-		file = logFile
-	}
-
 	//finally check filename
 	if file == "" {
-		file = "./log/" + env.GetAppLowercaseName() + ".log"
+		file = "./log/" + appName + ".log"
 	}
 
 	if loggingConfig.FuncFilterPattern == "" {
@@ -140,7 +141,7 @@ func UpdateLoggingConfig(config *config.LoggingConfig) {
 	l.Lock()
 	loggingConfig = config
 	l.Unlock()
-	SetLogging(e, "", "")
+	SetLogging(e, "")
 }
 
 // Flush is flush logs to output
