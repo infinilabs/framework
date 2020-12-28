@@ -37,7 +37,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		InitTemplate:  true,
+		InitTemplate:  false,
 	}
 )
 
@@ -158,6 +158,10 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	module.Init()
 
 	moduleConfig := getDefaultConfig()
+	if !cfg.Enabled(false){
+		return
+	}
+
 	err := cfg.Unpack(&moduleConfig)
 	if err != nil {
 		panic(err)
