@@ -305,45 +305,5 @@ func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, e
 		return nil, err
 	}
 
-	//resp, err := c.Request(util.Verb_GET, url, nil)
-	//
-	//if err != nil {
-	//	panic(err)
-	//	return nil, err
-	//}
-	//
-	//if resp.StatusCode != 200 {
-	//	return nil, errors.New(string(resp.Body))
-	//}
-	//
-	//scroll := &elastic.ScrollResponseV7{}
-	////v, err := p.ParseBytes(resp.Body)
-	////scroll.ScrollId=string(v.GetStringBytes("_scroll_id"))
-	//
-	////scroll.ScrollId,err=jsonparser.GetString(resp.Body, "_scroll_id")
-	////if err != nil {
-	////	panic(err)
-	////	return nil, err
-	////}
-	////fmt.Println(len(resp.Body))
-	//
-	////var count int64 =0
-	////jsonparser.ArrayEach(resp.Body, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-	////	//fmt.Println(jsonparser.GetString(value, "_id"))
-	////	count++
-	////}, "hits", "hits")
-	////stats.IncrementBy("scroll","total", count)
-	//
-	////hits:=v.GetArray("hits.hits")
-	////fmt.Println(string(resp.Body))
-	////fmt.Println(len(hits))
-	////fmt.Println(scroll.ScrollId)
-	//
-	//err = json.Unmarshal(resp.Body, &scroll)
-	//if err != nil {
-	//	panic(err)
-	//	return nil, err
-	//}
-
 	return scroll, nil
 }

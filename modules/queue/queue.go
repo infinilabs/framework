@@ -75,16 +75,16 @@ func (module DiskQueue) Setup(config *config.Config) {
 
 	cfg = &QueueConfig{
 		MinMsgSize:       1,
-		MaxMsgSize:       500000000,
-		MaxBytesPerFile:  50 * 1024 * 1024 * 1024,
+		MaxMsgSize:       104857600, //100MB
+		MaxBytesPerFile:  50 * 1024 * 1024 * 1024, //50GB
 		SyncEveryRecords: 1000,
-		SyncTimeoutInMS:  10000,
+		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
 	}
 	diskQueue=&DiskQueue{}
 
-	_,err:=env.ParseConfig("queue", cfg)
-	if err!=nil{
+	ok,err:=env.ParseConfig("queue", cfg)
+	if ok&&err!=nil{
 		panic(err)
 	}
 

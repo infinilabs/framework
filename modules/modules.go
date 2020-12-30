@@ -26,6 +26,7 @@ import (
 	"infini.sh/framework/modules/pipeline"
 	"infini.sh/framework/modules/queue"
 	"infini.sh/framework/modules/stats"
+	"infini.sh/framework/modules/task"
 	"infini.sh/framework/modules/ui"
 )
 
@@ -41,4 +42,5 @@ func Register() {
 	module.RegisterSystemModule(ui.UIModule{})
 	module.RegisterSystemModule(pipeline.PipeModule{})
 	module.RegisterSystemModule(cluster.ClusterModule{})
+	module.RegisterSystemModule(task.TaskModule{})
 }

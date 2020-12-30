@@ -17,7 +17,6 @@ limitations under the License.
 package global
 
 import (
-	"errors"
 	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
@@ -84,7 +83,8 @@ func RegisterEnv(e1 *env.Env) {
 // Env returns registered env, should be available globally
 func Env() *env.Env {
 	if e == nil {
-		panic(errors.New("env is not inited"))
+		RegisterEnv(env.EmptyEnv())
+		//panic(errors.New("env is not inited"))
 	}
 	return e
 }

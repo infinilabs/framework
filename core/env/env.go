@@ -106,7 +106,7 @@ func (env *Env) GetWelcomeMessage() string {
 		commitLog = " " + env.GetLastCommitLog()
 	}
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
-	s += env.GetVersion() + ", " + commitLog + ""
+	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + "," + commitLog + ""
 	return s
 }
 

@@ -25,6 +25,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/task"
 	"infini.sh/framework/modules/elastic/adapter"
 	"strings"
 )
@@ -36,7 +37,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		InitTemplate: true,
+		InitTemplate:  false,
 	}
 )
 
@@ -49,7 +50,7 @@ type ModuleConfig struct {
 	StoreEnabled   bool   `config:"store_enabled"`
 	ORMEnabled     bool   `config:"orm_enabled"`
 	Elasticsearch  string `config:"elasticsearch"`
-	InitTemplate  bool `config:"init_template"`
+	InitTemplate   bool   `config:"init_template"`
 }
 
 var indexer *ElasticIndexer
@@ -60,9 +61,10 @@ func loadElasticConfig() {
 
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if err != nil {
+	if exist&&err != nil {
 		panic(err)
 	}
+
 	if exist {
 		for _, v := range configs {
 			if !v.Enabled {
@@ -99,16 +101,21 @@ func initElasticInstances() {
 				return
 			}
 			ver = esVersion.Version.Number
-			esConfig.Version=ver
-		}else{
-			ver=esConfig.Version
+			esConfig.Version = ver
+		} else {
+			ver = esConfig.Version
 		}
 
 		if global.Env().IsDebug {
 			log.Debug("elasticsearch version: ", ver)
 		}
 
-		if strings.HasPrefix(ver, "7.") {
+		if strings.HasPrefix(ver, "8.") {
+			api := new(adapter.ESAPIV8)
+			api.Config = esConfig
+			api.Version = ver
+			client = api
+		} else if strings.HasPrefix(ver, "7.") {
 			api := new(adapter.ESAPIV7)
 			api.Config = esConfig
 			api.Version = ver
@@ -120,6 +127,11 @@ func initElasticInstances() {
 			client = api
 		} else if strings.HasPrefix(ver, "5.") {
 			api := new(adapter.ESAPIV5)
+			api.Config = esConfig
+			api.Version = ver
+			client = api
+		}else if strings.HasPrefix(ver, "2.") {
+			api := new(adapter.ESAPIV2)
 			api.Config = esConfig
 			api.Version = ver
 			client = api
@@ -147,13 +159,17 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	module.Init()
 
 	moduleConfig := getDefaultConfig()
+	if !cfg.Enabled(false){
+		return
+	}
+
 	err := cfg.Unpack(&moduleConfig)
 	if err != nil {
 		panic(err)
 	}
 
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
-	if moduleConfig.InitTemplate{
+	if moduleConfig.InitTemplate {
 		client.Init()
 	}
 
@@ -181,7 +197,71 @@ func (module ElasticModule) Stop() error {
 
 }
 
+func discovery() {
+	all := elastic.GetAllConfigs()
+	for _, cfg := range all {
+		if cfg.Discovery.Enabled {
+			client := elastic.GetClient(cfg.Name)
+			nodes, err := client.GetNodes()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			if len(nodes.Nodes) <= 0 {
+				continue
+			}
+			var replace = false
+			oldMetadata := elastic.GetMetadata(cfg.Name)
+			//log.Trace(oldMetadata)
+			var oldNodesTopologyVersion = 0
+			if oldMetadata == nil {
+				//log.Trace("oldmetadata==nil")
+				replace = true
+			} else {
+				oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
+				//check
+				if len(nodes.Nodes) != len(oldMetadata.Nodes) {
+					//log.Trace("num of nodes not equal")
+					replace = true
+				} else {
+					for k, v := range nodes.Nodes {
+						v1, ok := oldMetadata.Nodes[k]
+
+						//for exist node
+						if ok {
+							//ip changed
+							if v.Http.PublishAddress != v1.Http.PublishAddress {
+								replace = true
+							}
+						} else {
+							replace = true
+							break
+						}
+					}
+				}
+			}
+
+			if replace {
+				log.Trace("elasticsearch metadata updated,", nodes.Nodes)
+				metadata := elastic.ElasticsearchMetadata{}
+				metadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
+				metadata.Nodes = nodes.Nodes
+				elastic.SetMetadata(cfg.Name, &metadata)
+			}
+		}
+	}
+}
+
 func (module ElasticModule) Start() error {
+
+	t := task.ScheduleTask{
+		Description: "discovery nodes topology",
+		Type:        "interval",
+		Interval:    "10s",
+		Task:        discovery,
+	}
+	task.RegisterScheduleTask(t)
+
 	if indexer != nil {
 		indexer.Start()
 	}

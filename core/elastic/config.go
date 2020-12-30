@@ -24,6 +24,7 @@ import (
 
 var apis = map[string]API{}
 var cfgs = map[string]ElasticsearchConfig{}
+var metas = map[string]*ElasticsearchMetadata{}
 
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 	if apis == nil {
@@ -32,8 +33,18 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 	if cfgs == nil {
 		cfgs = map[string]ElasticsearchConfig{}
 	}
+	if metas == nil {
+		metas = map[string]*ElasticsearchMetadata{}
+	}
 	apis[elastic] = handler
 	cfgs[elastic] = cfg
+
+}
+
+type ElasticsearchMetadata struct {
+	NodesTopologyVersion int
+	IndicesChanged bool
+	Nodes map[string]NodesInfo
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
@@ -46,10 +57,19 @@ type ElasticsearchConfig struct {
 	Version      string `config:"version"`
 	TemplateName string `config:"template_name"`
 	IndexPrefix  string `config:"index_prefix"`
-	BasicAuth    *struct {
+
+	BasicAuth *struct {
 		Username string `config:"username"`
 		Password string `config:"password"`
 	} `config:"basic_auth"`
+
+	Discovery struct {
+		Enabled bool `config:"enabled"`
+		Refresh struct {
+			Enabled  bool   `config:"enabled"`
+			Interval string `config:"interval"`
+		} `config:"refresh"`
+	} `config:"discovery"`
 }
 
 //format: host:port
@@ -80,6 +100,17 @@ func GetConfig(k string) ElasticsearchConfig {
 	return v
 }
 
+func GetMetadata(k string) *ElasticsearchMetadata {
+	if k == "" {
+		panic(fmt.Errorf("elasticsearch metata undefined"))
+	}
+	v, _ := metas[k]
+	//if !ok {
+	//	panic(fmt.Sprintf("elasticsearch metata [%v] was not found", k))
+	//}
+	return v
+}
+
 func GetClient(k string) API {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch config undefined"))
@@ -94,4 +125,11 @@ func GetClient(k string) API {
 	//cfg:=GetConfig(k)
 
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
+}
+
+func GetAllConfigs()map[string]ElasticsearchConfig  {
+	return cfgs
+}
+func SetMetadata(k string,v *ElasticsearchMetadata)  {
+	metas[k]=v
 }
