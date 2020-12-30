@@ -16,7 +16,11 @@ limitations under the License.
 
 package elastic
 
-import "bytes"
+import (
+	"bytes"
+
+	"infini.sh/framework/core/util"
+)
 
 type API interface {
 	ScrollAPI
@@ -52,6 +56,8 @@ type API interface {
 	Refresh(name string) (err error)
 
 	GetNodes() (*NodesResponse, error)
+
+	Request(method, url string, body []byte) (result *util.Result, err error)
 }
 
 type NodesResponse struct {
