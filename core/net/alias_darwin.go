@@ -39,6 +39,10 @@ func EnableAlias(device, ip string, netmask string) error {
 
 	checkPermission()
 
+	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
+		panic("net alias not supported on your platform.")
+	}
+
 	log.Debugf("setup net alias %s, %s, %s", device, ip, netmask)
 	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", device, "alias", ip, netmask)
 	_, err := setupVIP.CombinedOutput()
@@ -66,6 +70,10 @@ func EnableAlias(device, ip string, netmask string) error {
 //netsh interface set interface name="INFINI Ethernet" admin=DISABLED
 func DisableAlias(device, ip string, netmask string) error {
 	checkPermission()
+
+	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
+		panic("net alias not supported on your platform.")
+	}
 
 	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", device, "-alias", ip)
 	_, err := setupVIP.CombinedOutput()
