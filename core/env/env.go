@@ -148,6 +148,13 @@ var startTime = time.Now().UTC()
 
 var (
 	defaultSystemConfig = config.SystemConfig{
+		APIConfig: config.APIConfig{
+				Enabled: true,
+				NetworkConfig: config.NetworkConfig{
+					Binding:          "0.0.0.0:2900",
+					SkipOccupiedPort: true,
+				},
+		},
 		ClusterConfig: config.ClusterConfig{
 			Seeds:                          []string{},
 			HealthCheckInMilliseconds:      10000,
