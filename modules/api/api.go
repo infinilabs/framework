@@ -18,7 +18,10 @@ package api
 
 import (
 	"infini.sh/framework/core/api"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/global"
+	"net/http"
 )
 
 // Name return API
@@ -26,8 +29,16 @@ func (module APIModule) Name() string {
 	return "API"
 }
 
+const whoisAPI = "/_framework/api/_whoami"
+
+
 // Start api server
 func (module APIModule) Setup(cfg *config.Config) {
+	api.HandleAPIMethod(api.GET, whoisAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
+		w.WriteHeader(200)
+	})
+
 	//API server
 	api.StartAPI(cfg)
 }
