@@ -88,3 +88,8 @@ func TestGetIntranetIP(t *testing.T) {
 	ip, _ := GetIntranetIP()
 	fmt.Println(ip)
 }
+
+func TestGetAutoIP(t *testing.T) {
+	ip:= GetSafetyInternalAddress("0.0.0.0:8888")
+	fmt.Println(ip)
+}

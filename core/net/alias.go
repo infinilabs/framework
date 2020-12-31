@@ -7,8 +7,8 @@ import (
 )
 
 func checkPermission() {
-	log.Debug("to continue use net alias, you need to run as root or elevate with sudo.")
-	if !util.RequireSudo() {
-		panic(errors.New("root or sudo permission needed."))
+	log.Debug("to continue use net alias, you need to run as root user.")
+	if !util.HasSudoPermission() {
+		panic(errors.New("root permission are required."))
 	}
 }

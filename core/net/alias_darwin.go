@@ -22,7 +22,10 @@ import (
 //netsh -c Interface ip delete address name="INFINI Ethernet" addr=10.10.0.21
 func SetupAlias(device, ip, netmask string) error {
 
-	EnableAlias(device, ip, netmask)
+	err:=EnableAlias(device, ip, netmask)
+	if err != nil {
+		panic(err)
+	}
 
 	//register global callback to disable alias before shutdown
 	global.RegisterShutdownCallback(func() {
