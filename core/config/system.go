@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 	"strings"
 )
 
@@ -41,8 +42,16 @@ type NetworkConfig struct {
 	Host             string `config:"host"`
 	Port             string `config:"port"`
 	Binding          string `config:"binding"`
+	Publish          string `config:"publish"`
 	SkipOccupiedPort bool   `config:"skip_occupied_port"`
 	ReusePort        bool   `config:"reuse_port"`
+}
+
+func (cfg NetworkConfig) GetPublishAddr() string {
+	if cfg.Publish!=""{
+		return util.GetSafetyInternalAddress(cfg.Publish)
+	}
+	return util.GetSafetyInternalAddress(cfg.GetBindingAddr())
 }
 
 func (cfg NetworkConfig) GetBindingPort() string {
