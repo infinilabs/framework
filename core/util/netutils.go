@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"net"
 	"strconv"
@@ -215,4 +216,44 @@ func CheckIPBinding(ip string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func Ipv4MaskString(m []byte) string {
+	if len(m) != 4 {
+		panic("ipv4Mask: len must be 4 bytes")
+	}
+
+	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
+}
+
+
+func GetPublishNetworkDeviceInfo()(string,string,string,error)  {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addrs {
+			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					//fmt.Println(i.Name)
+					//fmt.Println(ipnet.IP.String())
+					//fmt.Println(Ipv4MaskString(ipnet.Mask))
+					//fmt.Println(i.HardwareAddr.String())
+					//fmt.Println(i.MTU)
+					return i.Name,ipnet.IP.String(),Ipv4MaskString(ipnet.Mask),nil
+				}
+			}
+		}
+	}
+	return "","","",errors.New("no publishable network device found")
+}
+
+func GetIPPrefix(ip string)string  {
+	index:=strings.LastIndex(ip,".")
+	return SubString(ip,0,index)
 }

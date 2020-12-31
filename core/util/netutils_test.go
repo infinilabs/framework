@@ -93,3 +93,9 @@ func TestGetAutoIP(t *testing.T) {
 	ip:= GetSafetyInternalAddress("0.0.0.0:8888")
 	fmt.Println(ip)
 }
+
+
+func TestGetAddress(t *testing.T) {
+	dev,ip,mask,_:=GetPublishNetworkDeviceInfo()
+	fmt.Println(dev,ip,mask)
+}
