@@ -84,7 +84,10 @@ func Start() {
 
 		if cfg.Enabled(true) {
 			log.Trace("starting module: ", v.Name())
-			v.Start()
+			err:=v.Start()
+			if err!=nil{
+				panic(err)
+			}
 			log.Debug("started module: ", v.Name())
 		}
 
@@ -100,7 +103,10 @@ func Start() {
 
 		if cfg.Enabled(true) {
 			log.Trace("starting plugin: ", v.Name())
-			v.Start()
+			err:=v.Start()
+			if err!=nil{
+				panic(err)
+			}
 			log.Debug("started plugin: ", v.Name())
 		}
 
