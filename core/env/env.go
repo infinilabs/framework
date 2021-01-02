@@ -188,21 +188,21 @@ var configObject *config.Config
 
 func (env *Env) loadConfig() error {
 
-	var ignoreFileMissing bool
+	var ignoreFileMissing =true
 	if env.configFile == "" {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
 	}
 
+	env.SystemConfig = &defaultSystemConfig
+
+	if env.SystemConfig.ClusterConfig.Name == "" {
+		env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
+	}
+
 	filename, _ := filepath.Abs(env.configFile)
 
 	if util.FileExists(filename) {
-		env.SystemConfig = &defaultSystemConfig
-
-		if env.SystemConfig.ClusterConfig.Name == "" {
-			env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
-		}
-
 		log.Debug("load file:", filename)
 		var err error
 		configObject, err = config.LoadFile(filename)
