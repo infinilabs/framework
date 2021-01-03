@@ -95,11 +95,12 @@ func (app *App) Init(customFunc func()) {
 }
 func (app *App) InitWithOptions(options Options, customFunc func()) {
 
+	showversion:=flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
 	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
-	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
 	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
+	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 
 	if options.EnableProfiling {
@@ -109,6 +110,15 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 
 	flag.Parse()
+
+	if *showversion{
+		fmt.Println(app.environment.GetAppName())
+		fmt.Println(app.environment.GetVersion())
+		fmt.Println(app.environment.GetBuildDate())
+		fmt.Println(app.environment.GetLastCommitHash())
+		os.Exit(1)
+	}
+
 
 	defaultLog.SetOutput(logger.EmptyLogger{})
 
