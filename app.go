@@ -112,10 +112,7 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	flag.Parse()
 
 	if *showversion{
-		fmt.Println(app.environment.GetAppName())
-		fmt.Println(app.environment.GetVersion())
-		fmt.Println(app.environment.GetBuildDate())
-		fmt.Println(app.environment.GetLastCommitHash())
+		fmt.Println(app.environment.GetAppName(),app.environment.GetVersion(),app.environment.GetBuildDate(),app.environment.GetLastCommitHash())
 		os.Exit(1)
 	}
 
