@@ -21,15 +21,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
 	log "github.com/cihub/seelog"
+	errors3 "github.com/pkg/errors"
 	"infini.sh/framework/core/elastic"
 	errors2 "infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"regexp"
-	errors3 "src/github.com/pkg/errors"
-	"strings"
-	"time"
 )
 
 type ESAPIV0 struct {
@@ -111,7 +112,7 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
-		return resp,errors2.Errorf("req: %v, status: %v, response: %v", req.Url,resp.StatusCode, string(resp.Body))
+		return resp, errors2.Errorf("req: %v, status: %v, response: %v", req.Url, resp.StatusCode, string(resp.Body))
 	}
 
 	return resp, err
@@ -792,4 +793,25 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	}
 
 	return resp.Body, nil
+}
+
+func (c *ESAPIV0) SearchTasksByIds(ids []string) (*elastic.SearchResponse, error) {
+	if len(ids) == 0 {
+		return nil, errors.New("param ids can not be empty")
+	}
+	esBody := `{
+  "query":{
+    "terms": {
+      "_id": [
+      %s
+      ]
+    }
+  }
+}`
+	strTerms := ""
+	for _, term := range ids {
+		strTerms += fmt.Sprintf(`"%s",`, term)
+	}
+	esBody = fmt.Sprintf(esBody, strTerms[0:len(strTerms)-1])
+	return c.SearchWithRawQueryDSL(".tasks", []byte(esBody))
 }

@@ -58,19 +58,20 @@ type API interface {
 	GetNodes() (*NodesResponse, error)
 
 	Request(method, url string, body []byte) (result *util.Result, err error)
+	SearchTasksByIds(ids []string) (*SearchResponse, error)
 }
 
 type NodesInfo struct {
-	Name                    string   `json:"name,omitempty"`
-	Version                 string   `json:"version,omitempty"`
-	Http struct{
-		PublishAddress          string   `json:"publish_address,omitempty"`
-		MaxContentLengthInBytes int      `json:"max_content_length_in_bytes,omitempty"`
-	}`json:"http,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+	Http    struct {
+		PublishAddress          string `json:"publish_address,omitempty"`
+		MaxContentLengthInBytes int    `json:"max_content_length_in_bytes,omitempty"`
+	} `json:"http,omitempty"`
 
-	TotalIndexingBuffer     int      `json:"total_indexing_buffer,omitempty"`
-	Attributes              map[string]interface{} `json:"attributes,omitempty"`
-	Roles                   []string `json:"roles,omitempty"`
+	TotalIndexingBuffer int                    `json:"total_indexing_buffer,omitempty"`
+	Attributes          map[string]interface{} `json:"attributes,omitempty"`
+	Roles               []string               `json:"roles,omitempty"`
 	//TODO return more nodes level settings, for later check and usage
 }
 
