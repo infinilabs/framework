@@ -312,6 +312,8 @@ func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter s
 func EmptyEnv() *Env {
 	system := defaultSystemConfig
 	system.ClusterConfig.Name = "app"
+	system.PathConfig.Data="/tmp/"
+	system.PathConfig.Log="/tmp/"
 	return &Env{SystemConfig: &system}
 }
 
