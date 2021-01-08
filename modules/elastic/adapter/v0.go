@@ -815,3 +815,45 @@ func (c *ESAPIV0) SearchTasksByIds(ids []string) (*elastic.SearchResponse, error
 	esBody = fmt.Sprintf(esBody, strTerms[0:len(strTerms)-1])
 	return c.SearchWithRawQueryDSL(".tasks", []byte(esBody))
 }
+
+func (c *ESAPIV0) GetIndices() ([]elastic.CatIndicesInfo, error) {
+	url := fmt.Sprintf("%s/_cat/indices?format=json", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var catIndices = []elastic.CatIndicesInfo{}
+	err = json.Unmarshal(resp.Body, &catIndices)
+	if err != nil {
+		return nil, err
+	}
+	return catIndices, nil
+}
+
+func (c *ESAPIV0) Reindex(body []byte) (*elastic.ReindexResponse, error) {
+	url := fmt.Sprintf("%s/_reindex?wait_for_completion=false", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_POST, url, body)
+	if err != nil {
+		return nil, err
+	}
+	var reindexResponse = &elastic.ReindexResponse{}
+	err = json.Unmarshal(resp.Body, reindexResponse)
+	if err != nil {
+		return nil, err
+	}
+	return reindexResponse, nil
+}
+
+func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteByQueryResponse, error) {
+	url := fmt.Sprintf("%s/%s/_delete_by_query", c.Config.Endpoint, indexName)
+	resp, err := c.Request(util.Verb_POST, url, body)
+	if err != nil {
+		return nil, err
+	}
+	var delResponse = &elastic.DeleteByQueryResponse{}
+	err = json.Unmarshal(resp.Body, delResponse)
+	if err != nil {
+		return nil, err
+	}
+	return delResponse, nil
+}
