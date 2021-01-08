@@ -40,7 +40,7 @@ func TestDiskQueue(t *testing.T) {
 		panic(err)
 	}
 	defer os.RemoveAll(tmpDir)
-	dq := NewDiskQueue(dqName, tmpDir, 1024, 4, 1<<10, 2500, 1*time.Second, 0)
+	dq := NewDiskQueue(dqName, tmpDir, 1024, 4, 1<<10, 2500, 1*time.Second, 0,0)
 	defer dq.Close()
 
 	assert.NotEqual(t, nil, dq)
@@ -91,7 +91,7 @@ func benchmarkDiskQueuePut(size int64, b *testing.B) {
 		panic(err)
 	}
 	defer os.RemoveAll(tmpDir)
-	dq := NewDiskQueue(dqName, tmpDir, 1024768*100, 0, 1<<20, 2500, 2*time.Second, 10)
+	dq := NewDiskQueue(dqName, tmpDir, 1024768*100, 0, 1<<20, 2500, 2*time.Second, 10,0)
 	defer dq.Close()
 	b.SetBytes(size)
 	data := make([]byte, size)
@@ -241,7 +241,7 @@ func benchmarkDiskQueueGet(size int64, b *testing.B) {
 		panic(err)
 	}
 	defer os.RemoveAll(tmpDir)
-	dq := NewDiskQueue(dqName, tmpDir, 1024768, 0, 1<<10, 2500, 2*time.Second, 10)
+	dq := NewDiskQueue(dqName, tmpDir, 1024768, 0, 1<<10, 2500, 2*time.Second, 10,0)
 	defer dq.Close()
 	b.SetBytes(size)
 	data := make([]byte, size)

@@ -39,6 +39,7 @@ type QueueConfig struct {
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
 	ReadChanBuffer   int   `config:"read_chan_buffer"`
+	WriteChanBuffer   int   `config:"write_chan_buffer"`
 }
 
 var cfg *QueueConfig
@@ -64,7 +65,7 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	q := NewDiskQueue(strings.ToLower(channel), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer)
+	q := NewDiskQueue(strings.ToLower(channel), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
 	queues[name] = &q
 
 	return nil
@@ -80,6 +81,7 @@ func (module DiskQueue) Setup(config *config.Config) {
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
+		WriteChanBuffer:   0,
 	}
 	diskQueue=&DiskQueue{}
 

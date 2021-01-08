@@ -89,7 +89,7 @@ type diskQueue struct {
 // from the filesystem and starting the read ahead goroutine
 func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 	minMsgSize int32, maxMsgSize int32,
-	syncEvery int64, syncTimeout time.Duration, readBufferSize int) BackendQueue {
+	syncEvery int64, syncTimeout time.Duration, readBufferSize int, writeBufferSize int) BackendQueue {
 	d := diskQueue{
 		name:              name,
 		dataPath:          dataPath,
@@ -97,7 +97,7 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 		minMsgSize:        minMsgSize,
 		maxMsgSize:        maxMsgSize,
 		readChan:          make(chan []byte, readBufferSize),
-		writeChan:         make(chan []byte),
+		writeChan:         make(chan []byte, writeBufferSize),
 		writeResponseChan: make(chan error),
 		emptyChan:         make(chan int),
 		emptyResponseChan: make(chan error),
