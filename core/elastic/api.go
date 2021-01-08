@@ -18,7 +18,6 @@ package elastic
 
 import (
 	"bytes"
-
 	"infini.sh/framework/core/util"
 )
 
@@ -56,12 +55,13 @@ type API interface {
 	Refresh(name string) (err error)
 
 	GetNodes() (*NodesResponse, error)
-
 	GetIndices() (*map[string]IndexInfo, error)
-
 	GetPrimaryShards() (*map[string]ShardInfo, error)
 
 	Request(method, url string, body []byte) (result *util.Result, err error)
+	SearchTasksByIds(ids []string) (*SearchResponse, error)
+	Reindex(body []byte) (*ReindexResponse, error)
+	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
 }
 
 type NodesInfo struct {
@@ -122,4 +122,25 @@ type MappingAPI interface {
 type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (interface{}, error)
 	NextScroll(scrollTime string, scrollId string) (interface{}, error)
+}
+
+type CatIndicesInfo struct {
+	Health       string `json:"health"`
+	Index        string `json:"index"`
+	UUID         string `json:"uuid"`
+	Pri          string `json:"pri"`
+	Rep          string `json:"rep"`
+	DocsCount    string `json:"docs.count"`
+	DocsDeleted  string `json:"docs.deleted"`
+	StoreSize    string `json:"store.size"`
+	PriStoreSize string `json:"pri.store.size"`
+}
+
+type ReindexResponse struct {
+	Task string `json:"task"`
+}
+
+type DeleteByQueryResponse struct {
+	Deleted int `json:"deleted"`
+	Total   int `json:"total"`
 }
