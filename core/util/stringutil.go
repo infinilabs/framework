@@ -143,6 +143,10 @@ func IntToString(num int) string {
 	return strconv.Itoa(num)
 }
 
+func ToInt64(str string) (int64, error) {
+	return strconv.ParseInt(str, 10, 64)
+}
+
 func ToInt(str string) (int, error) {
 	if IndexAny(str, ".") > 0 {
 		nonFractionalPart := Split(str, ".")
