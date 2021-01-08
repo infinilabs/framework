@@ -61,7 +61,7 @@ func loadElasticConfig() {
 
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if exist&&err != nil {
+	if exist && err != nil {
 		panic(err)
 	}
 
@@ -130,7 +130,7 @@ func initElasticInstances() {
 			api.Config = esConfig
 			api.Version = ver
 			client = api
-		}else if strings.HasPrefix(ver, "2.") {
+		} else if strings.HasPrefix(ver, "2.") {
 			api := new(adapter.ESAPIV2)
 			api.Config = esConfig
 			api.Version = ver
@@ -159,7 +159,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	module.Init()
 
 	moduleConfig := getDefaultConfig()
-	if !cfg.Enabled(false){
+	if !cfg.Enabled(false) {
 		return
 	}
 
@@ -202,6 +202,7 @@ func discovery() {
 	for _, cfg := range all {
 		if cfg.Discovery.Enabled {
 			client := elastic.GetClient(cfg.Name)
+
 			nodes, err := client.GetNodes()
 			if err != nil {
 				log.Error(err)
@@ -210,44 +211,72 @@ func discovery() {
 			if len(nodes.Nodes) <= 0 {
 				continue
 			}
-			var replace = false
+
 			oldMetadata := elastic.GetMetadata(cfg.Name)
-			//log.Trace(oldMetadata)
+			newMetadata := elastic.ElasticsearchMetadata{}
+
+			//Nodes
+			//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
+			var nodesChanged = false
 			var oldNodesTopologyVersion = 0
 			if oldMetadata == nil {
-				//log.Trace("oldmetadata==nil")
-				replace = true
+				nodesChanged = true
 			} else {
 				oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
-				//check
+				newMetadata.NodesTopologyVersion=oldNodesTopologyVersion
+				newMetadata.Nodes=oldMetadata.Nodes
+
 				if len(nodes.Nodes) != len(oldMetadata.Nodes) {
-					//log.Trace("num of nodes not equal")
-					replace = true
+					nodesChanged = true
 				} else {
 					for k, v := range nodes.Nodes {
 						v1, ok := oldMetadata.Nodes[k]
-
-						//for exist node
 						if ok {
-							//ip changed
 							if v.Http.PublishAddress != v1.Http.PublishAddress {
-								replace = true
+								nodesChanged = true
 							}
 						} else {
-							replace = true
+							nodesChanged = true
 							break
 						}
 					}
 				}
 			}
 
-			if replace {
-				log.Trace("elasticsearch metadata updated,", nodes.Nodes)
-				metadata := elastic.ElasticsearchMetadata{}
-				metadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
-				metadata.Nodes = nodes.Nodes
-				elastic.SetMetadata(cfg.Name, &metadata)
+			if nodesChanged{
+				newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
+				newMetadata.Nodes = nodes.Nodes
 			}
+
+			var indicesChanged bool
+			//Indices
+			indices,err:=client.GetIndices()
+			if err!=nil{
+				panic(err)
+			}
+			if indices!=nil{
+				//TODO check if that changed or skip replace
+				newMetadata.Indices=*indices
+				indicesChanged=true
+			}
+			var shardsChanged bool
+
+			//Shards
+			shards,err:=client.GetPrimaryShards()
+			if err!=nil{
+				panic(err)
+			}
+			if shards!=nil{
+				//TODO check if that changed or skip replace
+				newMetadata.PrimaryShards=*shards
+				shardsChanged=true
+			}
+
+			if nodesChanged ||indicesChanged||shardsChanged {
+				log.Trace("elasticsearch newMetadata updated,", nodes.Nodes)
+				elastic.SetMetadata(cfg.Name, &newMetadata)
+			}
+
 		}
 	}
 }
@@ -261,6 +290,8 @@ func (module ElasticModule) Start() error {
 		Task:        discovery,
 	}
 	task.RegisterScheduleTask(t)
+
+	discovery()
 
 	if indexer != nil {
 		indexer.Start()

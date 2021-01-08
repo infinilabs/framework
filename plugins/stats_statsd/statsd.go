@@ -13,6 +13,7 @@ import (
 )
 
 type StatsDConfig struct {
+	Enabled              bool        `config:"enabled"`
 	Host              string        `config:"host"`
 	Port              int           `config:"port"`
 	Namespace         string        `config:"namespace"`
@@ -34,6 +35,7 @@ var buffer *statsd.StatsdBuffer
 var l1 sync.RWMutex
 
 var defaultStatsdConfig = StatsDConfig{
+	Enabled: false,
 	Host:              "localhost",
 	Port:              8125,
 	Namespace:         "app.",
@@ -53,6 +55,9 @@ func (module StatsDModule) Start() error {
 	config := defaultStatsdConfig
 	//cfg.Unpack(&config)
 	env.ParseConfig("statsd", &config)
+	if !config.Enabled{
+		return nil
+	}
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	l1.Lock()

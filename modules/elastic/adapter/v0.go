@@ -435,6 +435,150 @@ func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
 	return nodes, nil
 }
 
+//{
+//"health" : "green",
+//"status" : "open",
+//"index" : ".monitoring-kibana-7-2021.01.01",
+//"uuid" : "Kdkyc5QNS1ekTXTQ-Q-Row",
+//"pri" : "1",
+//"rep" : "0",
+//"docs.count" : "17278",
+//"docs.deleted" : "0",
+//"store.size" : "2.9mb",
+//"pri.store.size" : "2.9mb"
+//}
+type CatIndexResponse struct {
+	Index        string `json:"index,omitempty"`
+	Uuid         string `json:"uuid,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Health       string `json:"health,omitempty"`
+	Pri          string `json:"pri,omitempty"`
+	Rep          string `json:"rep,omitempty"`
+	DocsCount    string `json:"docs.count,omitempty"`
+	DocsDeleted  string `json:"docs.deleted,omitempty"`
+	StoreSize    string `json:"store.size,omitempty"`
+	PriStoreSize string `json:"pri.store.size,omitempty"`
+}
+
+func (c *ESAPIV0) GetIndices() (*map[string]elastic.IndexInfo, error) {
+
+	url := fmt.Sprintf("%s/_cat/indices?v&format=json", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	data := []CatIndexResponse{}
+	err = json.Unmarshal(resp.Body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	indexInfo := map[string]elastic.IndexInfo{}
+	for _,v:=range data{
+		info:=elastic.IndexInfo{}
+		info.ID=v.Uuid
+		info.Index=v.Index
+		info.Status=v.Status
+		info.Health=v.Health
+
+		info.Shards,err=util.ToInt(v.Pri)
+		if err!=nil{
+			panic(err)
+		}
+
+		info.Replicas,err=util.ToInt(v.Rep)
+		if err!=nil{
+			panic(err)
+		}
+
+		info.DocsCount,err=util.ToInt64(v.DocsCount)
+		if err!=nil{
+			//panic(err)
+		}
+
+		info.DocsDeleted,err=util.ToInt64(v.DocsDeleted)
+		if err!=nil{
+			//panic(err)
+		}
+
+		indexInfo[v.Index]=info
+	}
+
+	return &indexInfo, nil
+}
+
+
+//{
+//"index" : ".monitoring-es-7-2020.12.29",
+//"shard" : "0",
+//"prirep" : "p",
+//"state" : "STARTED",
+//"unassigned.reason" : null,
+//"docs" : "227608",
+//"store" : "132.5mb",
+//"id" : "qIgTsxtuQ8mzAGiBATkqHw",
+//"node" : "dev",
+//"ip" : "192.168.3.98"
+//}
+type CatShardResponse struct {
+	Index            string `json:"index,omitempty"`
+	ShardID          string `json:"shard,omitempty"`
+	ShardType        string `json:"prirep,omitempty"`
+	State            string `json:"state,omitempty"`
+	UnassignedReason string `json:"unassigned,omitempty"`
+	Docs             string `json:"docs,omitempty"`
+	Store            string `json:"store,omitempty"`
+	NodeID           string `json:"id,omitempty"`
+	NodeName         string `json:"node,omitempty"`
+	NodeIP           string `json:"ip,omitempty"`
+}
+
+//index:shardID -> nodesInfo
+func (c *ESAPIV0) GetPrimaryShards() (*map[string]elastic.ShardInfo, error) {
+	data := []CatShardResponse{}
+
+	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(resp.Body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	infos:=map[string]elastic.ShardInfo{}
+	for _,v:=range data{
+		if v.ShardType!="p"{
+			continue
+		}
+
+		info:=elastic.ShardInfo{}
+		info.Index=v.Index
+		info.ShardID=v.ShardID
+		info.Primary=v.ShardType=="p"
+
+		info.State=v.State
+		info.Docs,err=util.ToInt64(v.Docs)
+		if err!=nil{
+			//panic(err)
+			info.Docs=0
+		}
+		info.Store=v.Store
+		info.NodeID=v.NodeID
+		info.NodeName=v.NodeName
+		info.NodeIP=v.NodeIP
+
+		infos[fmt.Sprintf("%v:%v",info.Index,info.ShardID)]=info
+	}
+	return &infos, nil
+}
+
+
+
+
 func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	if data == nil || data.Len() == 0 {
 		return

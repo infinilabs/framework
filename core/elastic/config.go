@@ -43,8 +43,26 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 
 type ElasticsearchMetadata struct {
 	NodesTopologyVersion int
-	IndicesChanged bool
-	Nodes map[string]NodesInfo
+	IndicesChanged       bool
+	Nodes                map[string]NodesInfo
+	Indices              map[string]IndexInfo
+	PrimaryShards        map[string]ShardInfo
+}
+
+func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int)(*ShardInfo)  {
+	info,ok:=meta.PrimaryShards[fmt.Sprintf("%v:%v",index,shardID)]
+	if ok{
+		return &info
+	}
+	return nil
+}
+
+func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string)(*NodesInfo)  {
+	info,ok:=meta.Nodes[nodeID]
+	if ok{
+		return &info
+	}
+	return nil
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
@@ -65,6 +83,7 @@ type ElasticsearchConfig struct {
 
 	Discovery struct {
 		Enabled bool `config:"enabled"`
+		Modules []string `config:"module"`
 		Refresh struct {
 			Enabled  bool   `config:"enabled"`
 			Interval string `config:"interval"`

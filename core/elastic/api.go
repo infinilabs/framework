@@ -57,26 +57,56 @@ type API interface {
 
 	GetNodes() (*NodesResponse, error)
 
+	GetIndices() (*map[string]IndexInfo, error)
+
+	GetPrimaryShards() (*map[string]ShardInfo, error)
+
 	Request(method, url string, body []byte) (result *util.Result, err error)
 }
 
 type NodesInfo struct {
-	Name                    string   `json:"name,omitempty"`
-	Version                 string   `json:"version,omitempty"`
-	Http struct{
-		PublishAddress          string   `json:"publish_address,omitempty"`
-		MaxContentLengthInBytes int      `json:"max_content_length_in_bytes,omitempty"`
-	}`json:"http,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+	Http    struct {
+		PublishAddress          string `json:"publish_address,omitempty"`
+		MaxContentLengthInBytes int    `json:"max_content_length_in_bytes,omitempty"`
+	} `json:"http,omitempty"`
 
-	TotalIndexingBuffer     int      `json:"total_indexing_buffer,omitempty"`
-	Attributes              map[string]interface{} `json:"attributes,omitempty"`
-	Roles                   []string `json:"roles,omitempty"`
+	TotalIndexingBuffer int                    `json:"total_indexing_buffer,omitempty"`
+	Attributes          map[string]interface{} `json:"attributes,omitempty"`
+	Roles               []string               `json:"roles,omitempty"`
 	//TODO return more nodes level settings, for later check and usage
 }
 
+type IndexInfo struct {
+	ID        string `json:"id,omitempty"`
+	Index        string `json:"index,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Health       string `json:"health,omitempty"`
+	Shards       int    `json:"shards,omitempty"`
+	Replicas     int    `json:"replicas,omitempty"`
+	DocsCount    int64  `json:"docs_count,omitempty"`
+	DocsDeleted  int64  `json:"docs_deleted,omitempty"`
+	StoreSize    string `json:"store_size,omitempty"`
+	PriStoreSize string `json:"pri_store_size,omitempty"`
+}
+
+type ShardInfo struct {
+	Index            string `json:"index,omitempty"`
+	ShardID          string `json:"shard_id,omitempty"`
+	Primary          bool   `json:"primary,omitempty"`
+	State            string `json:"state,omitempty"`
+	UnassignedReason string `json:"unassigned_reason,omitempty"`
+	Docs             int64  `json:"docs_count,omitempty"`
+	Store            string `json:"store_size,omitempty"`
+	NodeID           string `json:"node_id,omitempty"`
+	NodeName         string `json:"node_name,omitempty"`
+	NodeIP           string `json:"node_ip,omitempty"`
+}
+
 type NodesResponse struct {
-	ClusterName string               `json:"cluster_name,omitempty"`
-	Nodes       map[string]NodesInfo `json:"nodes,omitempty"`
+	ClusterName string `json:"cluster_name,omitempty"`
+	Nodes       map[string]NodesInfo
 }
 
 type TemplateAPI interface {
