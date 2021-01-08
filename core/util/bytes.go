@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unsafe"
 )
 
@@ -234,8 +235,12 @@ func ToJSONBytes(v interface{}) []byte {
 
 //FromJSONBytes simply do json unmarshal
 func FromJSONBytes(b []byte, v interface{}) {
+	if b == nil || len(b) == 0 {
+		return
+	}
 	err := json.Unmarshal(b, v)
 	if err != nil {
+		log.Error("data:", string(b))
 		panic(err)
 	}
 }
@@ -291,9 +296,11 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 	var str []byte
 	for scanner.Scan() {
 		text := scanner.Bytes()
-		if bytes.Contains(text, leftMustContain) {
-			str = text
-			break
+		if leftMustContain != nil && len(leftMustContain) > 0 {
+			if bytes.Contains(text, leftMustContain) {
+				str = text
+				break
+			}
 		}
 	}
 
@@ -315,7 +322,7 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 	return false, nil
 }
 
-func ProcessJsonData(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool, handler func(start,end int)) bool {
+func ProcessJsonData(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool, handler func(start, end int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
 	scanner.Split(GetSplitFunc(fieldEndWith))
 	var str []byte
@@ -336,7 +343,7 @@ func ProcessJsonData(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, l
 		}
 
 		if offset > 0 && offset < len(str) {
-			handler(offset+len(fieldStartWith),len(str))
+			handler(offset+len(fieldStartWith), len(str))
 			return true
 		}
 	} else {
@@ -359,15 +366,77 @@ func IsBytesEndingWithOrder(data *[]byte, ending []byte, reverse bool) bool {
 	return len(*data)-offset <= len(ending)
 }
 
+func BytesSearchValue(data, startTerm, endTerm, searchTrim []byte) bool {
+	index := bytes.Index(data, startTerm)
+	leftData := data[index+len(startTerm):]
+	endIndex := bytes.Index(leftData, endTerm)
+	lastTerm := leftData[0:endIndex]
 
-func BytesSearchValue(data,startTerm,endTerm,searchTrim []byte) bool  {
-	index:=bytes.Index(data,startTerm)
-	leftData:=data[index+len(startTerm):]
-	endIndex:=bytes.Index(leftData,endTerm)
-	lastTerm:=leftData[0:endIndex]
-
-	if bytes.Contains(lastTerm,searchTrim){
+	if bytes.Contains(lastTerm, searchTrim) {
 		return true
 	}
 	return false
+}
+
+var bufferPool *sync.Pool = &sync.Pool{
+	New: func() interface{} {
+		buff := &bytes.Buffer{}
+		buff.Grow(512)
+		return buff
+	},
+}
+
+func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []byte) []byte {
+
+	matchStart := false
+	matchEnd := false
+
+	//buffer := bufferPool.Get().(*bytes.Buffer)
+	toBeMachedBuffer := bufferPool.Get().(*bytes.Buffer)
+	//defer bufferPool.Put(buffer)
+	defer bufferPool.Put(toBeMachedBuffer)
+	//defer buffer.Reset()
+	defer toBeMachedBuffer.Reset()
+	var value []byte
+	for _, v := range *data {
+		toBeMachedBuffer.WriteByte(v)
+
+		if matchStart && matchEnd {
+			//return buffer.Bytes()
+			return value
+		}
+
+		if matchStart && !matchEnd {
+			//collecting data
+			//check whether matched end
+			if bytes.HasSuffix(toBeMachedBuffer.Bytes(), end) {
+				matchEnd = true
+				toBeMachedBuffer.Reset()
+			} else {
+				filtered:=false
+				if removedFromValue != nil && len(removedFromValue) > 0 {
+					for _, x := range removedFromValue {
+						if v==x{
+							filtered=true
+							break
+						}
+					}
+				}
+				if !filtered{
+					value=append(value,v)
+					//buffer.WriteByte(v)
+				}
+			}
+			continue
+		}
+
+		if !matchStart {
+			if bytes.HasSuffix(toBeMachedBuffer.Bytes(), start) {
+				matchStart = true
+				toBeMachedBuffer.Reset()
+				continue
+			}
+		}
+	}
+	return nil
 }

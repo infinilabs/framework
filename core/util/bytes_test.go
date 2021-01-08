@@ -398,6 +398,85 @@ func TestLastIndex(t *testing.T) {
 }
 
 func TestExtractFieldFromJson1(t *testing.T) {
+	//{ "index" : { "_index" : "test", "_id" : "1" } }
+	//{ "delete" : { "_index" : "test", "_id" : "2" } }
+	//{ "create" : { "_index" : "test", "_id" : "3" } }
+	//{ "update" : {"_id" : "1", "_index" : "test"} }
+	data:=[]byte("{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }")
+	data1:=[]byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"_doc\",\"_id\":\"GZq-bnYBC53QmW9Kk2ve\"}}")
+
+	start:=[]byte("\"")
+	end:=[]byte("\"")
+	//matchStart:=false
+	//matchEnd:=false
+	//
+	//buffer:=bytes.Buffer{}
+	//toBeMachedBuffer:=bytes.Buffer{}
+	//for i,v:=range data{
+	//	toBeMachedBuffer.WriteByte(v)
+	//
+	//	if matchStart&&matchEnd{
+	//		fmt.Println(buffer.String())
+	//		break
+	//	}
+	//
+	//	if matchStart&&!matchEnd{
+	//		//collecting data
+	//		//check whether matched end
+	//		if bytes.HasSuffix(toBeMachedBuffer.Bytes(),end){
+	//			matchEnd=true
+	//			toBeMachedBuffer.Reset()
+	//		}else{
+	//			buffer.WriteByte(v)
+	//		}
+	//		continue
+	//	}
+	//
+	//	if !matchStart{
+	//		if bytes.HasSuffix(toBeMachedBuffer.Bytes(),start){
+	//		//v==start[0]{
+	//			matchStart=true
+	//			toBeMachedBuffer.Reset()
+	//			fmt.Println("matched start:",i)
+	//			continue
+	//		}
+	//	}
+	//
+	//
+	//}
+	value:=ExtractFieldFromBytes(&data,start,end,nil)
+	fmt.Println(string(value))
+	assert.Equal(t,"index",string(value))
+
+	value=ExtractFieldFromBytes(&data1,start,end,nil)
+	fmt.Println(string(value))
+
+
+	start=[]byte("\"_index\"")
+	end=[]byte("\",")
+	filteredFromValue:=[]byte(": \"")
+	value=ExtractFieldFromBytes(&data,start,end,filteredFromValue)
+	fmt.Println(string(value))
+	assert.Equal(t,"test",string(value))
+
+	value=ExtractFieldFromBytes(&data1,start,end,filteredFromValue)
+	fmt.Println(string(value))
+
+	start=[]byte("\"_id\"")
+	end=[]byte("}")
+	filteredFromValue=[]byte(": \"")
+	value=ExtractFieldFromBytes(&data,start,end,filteredFromValue)
+	fmt.Println(string(value))
+	assert.Equal(t,"1",string(value))
+
+	value=ExtractFieldFromBytes(&data1,start,end,filteredFromValue)
+	fmt.Println(string(value))
+
+
+
+}
+
+func TestExtractFieldFromJson2(t *testing.T) {
 	data1 := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFDlMMWJGWFFCbVRLSFpIbTNXVm1GAAAAAAA0lIsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":1,\"timed_out\":false,\"terminated_early\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":1.0,\"hits\":[]}}")
 	hit, str1 := ExtractFieldFromJson(&data1, []byte("hits\":{\"total\":{\"value\":"), []byte(",\"relation\""), []byte("\"total\":{\"value\""))
 	fmt.Println(hit)
