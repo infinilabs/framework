@@ -116,15 +116,16 @@ func rotl64(x uint64, r uint8) uint64 {
 	return (x << r) | (x >> (64 - r))
 }
 
-func fmix321(h int) int {
-	h ^= h >> 16
-	h *= 0x85ebca6b
-	h ^= h >> 13
-	h *= 0xc2b2ae35
-	h ^= h >> 16
+//func fmix321(h int) int {
+//	h ^= h >> 16
+//	h *= 0x85ebca6b
+//	h ^= h >> 13
+//	h *= 0xc2b2ae35
+//	h ^= h >> 16
+//
+//	return h
+//}
 
-	return h
-}
 func fmix32(h uint32) uint32 {
 	h ^= h >> 16
 	h *= 0x85ebca6b
