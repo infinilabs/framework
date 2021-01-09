@@ -37,6 +37,9 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
+		StoreConfig:StoreConfig{
+			Enabled: false,
+		},
 	}
 )
 
@@ -46,9 +49,9 @@ func getDefaultConfig() ModuleConfig {
 
 type ModuleConfig struct {
 	IndexerEnabled bool      `config:"indexer_enabled"`
-	StoreEnabled   bool      `config:"store_enabled"`
 	Elasticsearch  string    `config:"elasticsearch"`
 	ORMConfig      ORMConfig `config:"orm"`
+	StoreConfig     StoreConfig `config:"store"`
 }
 
 var m = map[string]elastic.ElasticsearchConfig{}
@@ -175,8 +178,8 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		orm.Register("elastic", handler)
 	}
 
-	if moduleConfig.StoreEnabled {
-		handler := ElasticStore{Client: client}
+	if moduleConfig.StoreConfig.Enabled {
+		handler := ElasticStore{Client: client,Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", handler)
 	}
 

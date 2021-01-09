@@ -172,8 +172,8 @@ func GetBy(field string, value interface{}, t interface{}, to interface{}) (erro
 	return getHandler().GetBy(field, value, t, to)
 }
 
-func Get(o interface{}) error {
-	return getHandler().Get(o)
+func GetIndexName(o interface{}) string {
+	return getHandler().GetIndexName(o)
 }
 
 func Save(o interface{}) error {
