@@ -41,7 +41,6 @@ var (
 			Enabled:      true,
 			InitTemplate: true,
 			IndexPrefix:  ".infini-",
-			TemplateName: "infini-default",
 		},
 		StoreConfig: StoreConfig{
 			Enabled: true,
