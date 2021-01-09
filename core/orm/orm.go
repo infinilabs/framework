@@ -26,6 +26,8 @@ type ORM interface {
 
 	RegisterSchemaWithIndexName(t interface{},indexName string) error
 
+	GetIndexName(o interface{}) string
+
 	Save(o interface{}) error
 
 	Update(o interface{}) error
