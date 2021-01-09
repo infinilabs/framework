@@ -37,8 +37,14 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		StoreConfig:StoreConfig{
-			Enabled: false,
+		ORMConfig: ORMConfig{
+			Enabled:      true,
+			InitTemplate: true,
+			IndexPrefix:  ".infini",
+			TemplateName: "infini-default",
+		},
+		StoreConfig: StoreConfig{
+			Enabled: true,
 		},
 	}
 )
@@ -48,10 +54,9 @@ func getDefaultConfig() ModuleConfig {
 }
 
 type ModuleConfig struct {
-	IndexerEnabled bool      `config:"indexer_enabled"`
-	Elasticsearch  string    `config:"elasticsearch"`
-	ORMConfig      ORMConfig `config:"orm"`
-	StoreConfig     StoreConfig `config:"store"`
+	Elasticsearch string      `config:"elasticsearch"`
+	ORMConfig     ORMConfig   `config:"orm"`
+	StoreConfig   StoreConfig `config:"store"`
 }
 
 var m = map[string]elastic.ElasticsearchConfig{}
@@ -77,7 +82,6 @@ func loadElasticConfig() {
 				v.ID = v.Name
 			}
 			m[v.ID] = v
-
 		}
 	}
 }
@@ -146,11 +150,8 @@ func initElasticInstances() {
 }
 
 func (module ElasticModule) Init() {
-
 	loadElasticConfig()
-
 	initElasticInstances()
-
 }
 
 func (module ElasticModule) Setup(cfg *config.Config) {
@@ -169,17 +170,16 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
 
-
 	if moduleConfig.ORMConfig.Enabled {
 		if moduleConfig.ORMConfig.InitTemplate {
-			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName,moduleConfig.ORMConfig.IndexPrefix)
+			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
 		handler := ElasticORM{Client: client}
 		orm.Register("elastic", handler)
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
-		handler := ElasticStore{Client: client,Config: moduleConfig.StoreConfig}
+		handler := ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", handler)
 	}
 
@@ -273,6 +273,7 @@ func discovery() {
 		}
 	}
 }
+
 func (module ElasticModule) Start() error {
 
 	t := task.ScheduleTask{
