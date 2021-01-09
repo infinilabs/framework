@@ -73,8 +73,6 @@ type ElasticsearchConfig struct {
 	HttpProxy    string `config:"http_proxy"`
 	Endpoint     string `config:"endpoint"`
 	Version      string `config:"version"`
-	TemplateName string `config:"template_name"`
-	IndexPrefix  string `config:"index_prefix"`
 
 	BasicAuth *struct {
 		Username string `config:"username"`

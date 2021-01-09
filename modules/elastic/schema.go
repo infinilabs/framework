@@ -20,13 +20,23 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"strings"
 	"unicode"
 )
 
+var indexNames map[string]string=make(map[string]string)
+
 func getIndexName(any interface{}) string {
-	return util.GetTypeName(any, true)
+	pkg,t:=util.GetTypeAndPackageName(any, true)
+	key:=fmt.Sprintf("%s-%s",pkg,t)
+	//prefer to use registered index name
+	v,ok:=indexNames[key]
+	if ok{
+		return v
+	}
+	return t
 }
 
 // getIndexID extract the field value and will be used as document ID
@@ -70,7 +80,33 @@ func parseAnnotation(mapping []util.Annotation) string {
 //elastic_mapping:"content: { type: binary, doc_values:false }"
 func (handler ElasticORM) RegisterSchema(t interface{}) error {
 
-	indexName := getIndexName(t)
+	return handler.RegisterSchemaWithIndexName(t,"")
+}
+
+func initIndexName(t interface{},indexName string)string  {
+	pkg,ojbType:=util.GetTypeAndPackageName(t, true)
+	key:=fmt.Sprintf("%s-%s",pkg,ojbType)
+	if indexName!=""{
+		v,ok:=indexNames[indexName]
+		if ok{
+			if v==key{
+				log.Warnf("duplicated schema registration %s",key)
+				return indexName
+			}
+			panic(errors.Errorf("index name [%s][%s] already registered!",indexName,key))
+		}
+	}else{
+		indexName=ojbType
+	}
+
+	indexNames[key]=indexName
+	indexNames[indexName]=key
+	return indexName
+}
+
+func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName string) error {
+
+	indexName=initIndexName(t,indexName)
 
 	log.Trace("indexName: ", indexName)
 	exist, err := handler.Client.IndexExists(indexName)

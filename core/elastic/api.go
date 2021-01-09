@@ -26,7 +26,7 @@ type API interface {
 	MappingAPI
 	TemplateAPI
 
-	Init()
+	InitDefaultTemplate(templateName,indexPrefix string)
 
 	GetMajorVersion() int
 

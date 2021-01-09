@@ -37,7 +37,6 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		InitTemplate:  false,
 	}
 )
 
@@ -46,14 +45,11 @@ func getDefaultConfig() ModuleConfig {
 }
 
 type ModuleConfig struct {
-	IndexerEnabled bool   `config:"indexer_enabled"`
-	StoreEnabled   bool   `config:"store_enabled"`
-	ORMEnabled     bool   `config:"orm_enabled"`
-	Elasticsearch  string `config:"elasticsearch"`
-	InitTemplate   bool   `config:"init_template"`
+	IndexerEnabled bool      `config:"indexer_enabled"`
+	StoreEnabled   bool      `config:"store_enabled"`
+	Elasticsearch  string    `config:"elasticsearch"`
+	ORMConfig      ORMConfig `config:"orm"`
 }
-
-var indexer *ElasticIndexer
 
 var m = map[string]elastic.ElasticsearchConfig{}
 
@@ -169,11 +165,12 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 	}
 
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
-	if moduleConfig.InitTemplate {
-		client.Init()
-	}
 
-	if moduleConfig.ORMEnabled {
+
+	if moduleConfig.ORMConfig.Enabled {
+		if moduleConfig.ORMConfig.InitTemplate {
+			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName,moduleConfig.ORMConfig.IndexPrefix)
+		}
 		handler := ElasticORM{Client: client}
 		orm.Register("elastic", handler)
 	}
@@ -183,18 +180,11 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		kv.Register("elastic", handler)
 	}
 
-	if moduleConfig.IndexerEnabled {
-		indexer = &ElasticIndexer{client: client, indexChannel: "index"}
-	}
-
 }
 
 func (module ElasticModule) Stop() error {
-	if indexer != nil {
-		indexer.Stop()
-	}
+	//TODO stop discovery
 	return nil
-
 }
 
 func discovery() {
@@ -223,8 +213,8 @@ func discovery() {
 				nodesChanged = true
 			} else {
 				oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
-				newMetadata.NodesTopologyVersion=oldNodesTopologyVersion
-				newMetadata.Nodes=oldMetadata.Nodes
+				newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
+				newMetadata.Nodes = oldMetadata.Nodes
 
 				if len(nodes.Nodes) != len(oldMetadata.Nodes) {
 					nodesChanged = true
@@ -243,36 +233,36 @@ func discovery() {
 				}
 			}
 
-			if nodesChanged{
+			if nodesChanged {
 				newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
 				newMetadata.Nodes = nodes.Nodes
 			}
 
 			var indicesChanged bool
 			//Indices
-			indices,err:=client.GetIndices()
-			if err!=nil{
+			indices, err := client.GetIndices()
+			if err != nil {
 				panic(err)
 			}
-			if indices!=nil{
+			if indices != nil {
 				//TODO check if that changed or skip replace
-				newMetadata.Indices=*indices
-				indicesChanged=true
+				newMetadata.Indices = *indices
+				indicesChanged = true
 			}
 			var shardsChanged bool
 
 			//Shards
-			shards,err:=client.GetPrimaryShards()
-			if err!=nil{
+			shards, err := client.GetPrimaryShards()
+			if err != nil {
 				panic(err)
 			}
-			if shards!=nil{
+			if shards != nil {
 				//TODO check if that changed or skip replace
-				newMetadata.PrimaryShards=*shards
-				shardsChanged=true
+				newMetadata.PrimaryShards = *shards
+				shardsChanged = true
 			}
 
-			if nodesChanged ||indicesChanged||shardsChanged {
+			if nodesChanged || indicesChanged || shardsChanged {
 				log.Trace("elasticsearch newMetadata updated,", nodes.Nodes)
 				elastic.SetMetadata(cfg.Name, &newMetadata)
 			}
@@ -280,7 +270,6 @@ func discovery() {
 		}
 	}
 }
-
 func (module ElasticModule) Start() error {
 
 	t := task.ScheduleTask{
@@ -290,12 +279,7 @@ func (module ElasticModule) Start() error {
 		Task:        discovery,
 	}
 	task.RegisterScheduleTask(t)
-
 	discovery()
-
-	if indexer != nil {
-		indexer.Start()
-	}
 	return nil
 
 }

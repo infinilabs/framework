@@ -24,6 +24,8 @@ import (
 type ORM interface {
 	RegisterSchema(t interface{}) error
 
+	RegisterSchemaWithIndexName(t interface{},indexName string) error
+
 	Save(o interface{}) error
 
 	Update(o interface{}) error

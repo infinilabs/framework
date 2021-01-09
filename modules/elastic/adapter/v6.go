@@ -29,8 +29,8 @@ type ESAPIV6 struct {
 	ESAPIV5
 }
 
-func (c *ESAPIV6) Init() {
-	c.initTemplate(c.Config.IndexPrefix)
+func (c *ESAPIV6) InitDefaultTemplate(templateName,indexPrefix string) {
+	c.initTemplate(templateName,indexPrefix)
 }
 
 func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
@@ -61,16 +61,13 @@ func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1, TypeName6)
 }
 
-func (c *ESAPIV6) initTemplate(indexPrefix string) {
+func (c *ESAPIV6) initTemplate(templateName,indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
-	templateName := global.Env().GetAppLowercaseName()
-
-	if c.Config.TemplateName != "" {
-		templateName = c.Config.TemplateName
+	if templateName==""{
+		templateName = global.Env().GetAppLowercaseName()
 	}
-
 	exist, err := c.TemplateExists(templateName)
 	if err != nil {
 		panic(err)

@@ -68,3 +68,27 @@ func TestExtractIndexMappingMetadata(t *testing.T) {
 	mapping := getIndexMapping(host)
 	fmt.Println(util.ToJson(mapping, true))
 }
+
+func TestSchemaRegister(t *testing.T) {
+	o:=MyHost{}
+	indexName:=initIndexName(o,"")
+	fmt.Println(indexName)
+	assert.Equal(t,"myhost",indexName)
+
+	indexName=getIndexName(o)
+	fmt.Println(indexName)
+	assert.Equal(t,"myhost",indexName)
+
+	indexName=initIndexName(o,"myindex")
+	fmt.Println(indexName)
+	assert.Equal(t,"myindex",indexName)
+
+	indexName=getIndexName(o)
+	fmt.Println(indexName)
+	assert.Equal(t,"myindex",indexName)
+
+
+	//indexName=initIndexName(MyHostConfig{},"myindex")
+	//fmt.Println(indexName)
+
+}

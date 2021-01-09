@@ -1,19 +1,36 @@
 package elastic
 
 import (
+	"fmt"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 )
 
+type ORMConfig struct {
+	Enabled      bool   `config:"enabled"`
+	InitTemplate bool   `config:"init_template"`
+	TemplateName string `config:"template_name"`
+	IndexPrefix  string `config:"index_prefix"`
+}
+
 type ElasticORM struct {
 	Client elastic.API
+	Config ORMConfig
+}
+
+func (handler ElasticORM) GetIndexName(o interface{}) string {
+	indexName:=getIndexName(o)
+	if handler.Config.IndexPrefix==""{
+		return indexName
+	}
+	return fmt.Sprintf("%s%s",handler.Config.IndexPrefix,indexName)
 }
 
 func (handler ElasticORM) Get(o interface{}) error {
 
-	response, err := handler.Client.Get(getIndexName(o), getIndexID(o))
+	response, err := handler.Client.Get(handler.GetIndexName(o), getIndexID(o))
 	if err != nil {
 		return err
 	}
@@ -31,7 +48,7 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}, 
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
-	_, err := handler.Client.Index(getIndexName(o), getIndexID(o), o)
+	_, err := handler.Client.Index(handler.GetIndexName(o), getIndexID(o), o)
 	return err
 }
 
@@ -40,12 +57,12 @@ func (handler ElasticORM) Update(o interface{}) error {
 }
 
 func (handler ElasticORM) Delete(o interface{}) error {
-	_, err := handler.Client.Delete(getIndexName(o), getIndexID(o))
+	_, err := handler.Client.Delete(handler.GetIndexName(o), getIndexID(o))
 	return err
 }
 
 func (handler ElasticORM) Count(o interface{}) (int, error) {
-	countResponse, err := handler.Client.Count(getIndexName(o))
+	countResponse, err := handler.Client.Count(handler.GetIndexName(o))
 	if err != nil {
 		return 0, err
 	}
@@ -92,7 +109,7 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 	result := api.Result{}
 
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.SearchWithRawQueryDSL(getIndexName(t), q.RawQuery)
+		searchResponse, err = handler.Client.SearchWithRawQueryDSL(handler.GetIndexName(t), q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
@@ -126,7 +143,7 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 			}
 		}
 
-		searchResponse, err = handler.Client.Search(getIndexName(t), &request)
+		searchResponse, err = handler.Client.Search(handler.GetIndexName(t), &request)
 	}
 
 	if err != nil {

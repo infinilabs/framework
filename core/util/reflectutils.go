@@ -139,11 +139,17 @@ func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) st
 }
 
 func GetTypeName(any interface{}, lowercase bool) string {
+	_,t:=GetTypeAndPackageName(any,lowercase)
+	return t
+}
+
+func GetTypeAndPackageName(any interface{}, lowercase bool) (string,string) {
+	pkg := reflect.Indirect(reflect.ValueOf(any)).Type().PkgPath()
 	name := reflect.Indirect(reflect.ValueOf(any)).Type().Name()
 	if lowercase {
 		name = strings.ToLower(name)
 	}
-	return name
+	return pkg,name
 }
 
 func TypeIsMap(any interface{}) bool {
