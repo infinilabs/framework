@@ -201,6 +201,10 @@ func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
 
+func RegisterSchemaWithIndexName(t interface{},index string) error {
+	return getHandler().RegisterSchemaWithIndexName(t,index)
+}
+
 func RegisterSchema(t interface{}) error {
 	return getHandler().RegisterSchema(t)
 }
