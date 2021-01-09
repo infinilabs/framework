@@ -200,7 +200,7 @@ func discovery() {
 				log.Error(err)
 				continue
 			}
-			if len(nodes.Nodes) <= 0 {
+			if nodes==nil||len(*nodes) <= 0 {
 				continue
 			}
 
@@ -218,10 +218,10 @@ func discovery() {
 				newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
 				newMetadata.Nodes = oldMetadata.Nodes
 
-				if len(nodes.Nodes) != len(oldMetadata.Nodes) {
+				if len(*nodes) != len(oldMetadata.Nodes) {
 					nodesChanged = true
 				} else {
-					for k, v := range nodes.Nodes {
+					for k, v := range *nodes {
 						v1, ok := oldMetadata.Nodes[k]
 						if ok {
 							if v.Http.PublishAddress != v1.Http.PublishAddress {
@@ -237,7 +237,7 @@ func discovery() {
 
 			if nodesChanged {
 				newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
-				newMetadata.Nodes = nodes.Nodes
+				newMetadata.Nodes = *nodes
 			}
 
 			var indicesChanged bool
@@ -265,7 +265,7 @@ func discovery() {
 			}
 
 			if nodesChanged || indicesChanged || shardsChanged {
-				log.Trace("elasticsearch newMetadata updated,", nodes.Nodes)
+				log.Trace("elasticsearch newMetadata updated,", *nodes)
 				elastic.SetMetadata(cfg.Name, &newMetadata)
 			}
 

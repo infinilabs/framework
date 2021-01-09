@@ -54,7 +54,7 @@ type API interface {
 
 	Refresh(name string) (err error)
 
-	GetNodes() (*NodesResponse, error)
+	GetNodes() (*map[string]NodesInfo, error)
 	GetIndices() (*map[string]IndexInfo, error)
 	GetPrimaryShards() (*map[string]ShardInfo, error)
 

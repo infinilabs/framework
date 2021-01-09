@@ -394,7 +394,7 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	return health
 }
 
-func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
+func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	nodes := &elastic.NodesResponse{}
 
 	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
@@ -408,7 +408,7 @@ func (c *ESAPIV0) GetNodes() (*elastic.NodesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nodes, nil
+	return &nodes.Nodes, nil
 }
 
 //{
