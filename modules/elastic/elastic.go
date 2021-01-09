@@ -40,7 +40,7 @@ var (
 		ORMConfig: ORMConfig{
 			Enabled:      true,
 			InitTemplate: true,
-			IndexPrefix:  ".infini",
+			IndexPrefix:  ".infini-",
 			TemplateName: "infini-default",
 		},
 		StoreConfig: StoreConfig{
