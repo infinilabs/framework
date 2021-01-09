@@ -39,7 +39,7 @@ type StoreConfig struct {
 
 func (store ElasticStore) Open() error {
 	o:=Blob{}
-	err:=orm.RegisterSchemaWithIndexName(o,"blob")
+	err:=orm.RegisterSchemaWithIndexName(o,store.Config.IndexName)
 	if err!=nil{
 		panic(err)
 	}
