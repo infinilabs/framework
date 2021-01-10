@@ -18,7 +18,6 @@ package elastic
 
 import (
 	"bytes"
-	"infini.sh/framework/core/util"
 )
 
 type API interface {
@@ -58,7 +57,6 @@ type API interface {
 	GetIndices() (*map[string]IndexInfo, error)
 	GetPrimaryShards() (*map[string]ShardInfo, error)
 
-	Request(method, url string, body []byte) (result *util.Result, err error)
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
 	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
