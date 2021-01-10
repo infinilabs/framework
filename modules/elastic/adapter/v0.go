@@ -33,8 +33,6 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-const defaultTemplateName = "infini"
-
 type ESAPIV0 struct {
 	Version string
 	Config  elastic.ElasticsearchConfig
@@ -556,6 +554,7 @@ func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	if data == nil || data.Len() == 0 {
 		return
 	}
+	defer data.Reset()
 	data.WriteRune('\n')
 
 	url := fmt.Sprintf("%s/_bulk", c.Config.Endpoint)
@@ -566,7 +565,6 @@ func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 		return
 	}
 
-	data.Reset()
 }
 
 func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) {
