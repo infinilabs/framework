@@ -53,6 +53,8 @@ type Request struct {
 	// Request timeout. Usually set by DoDealine or DoTimeout
 	// if <= 0, means not set
 	timeout time.Duration
+
+	bodyLength int
 }
 
 // Response represents HTTP response.
@@ -93,6 +95,9 @@ type Response struct {
 	raddr net.Addr
 	// Local TCPAddr from concurrently net.Conn
 	laddr net.Addr
+
+	bodyLength int
+	destination []string
 }
 
 // SetHost sets host for the request.
@@ -879,6 +884,14 @@ func (req *Request) Reset() {
 	req.Header.Reset()
 	req.resetSkipHeader()
 	req.timeout = 0
+	req.bodyLength=-1
+}
+
+func (req *Request)GetBodyLength() int  {
+	if req.bodyLength<=0{
+		req.bodyLength=len(req.bodyBytes())
+	}
+	return req.bodyLength
 }
 
 func (req *Request) resetSkipHeader() {
@@ -911,6 +924,8 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
+	resp.bodyLength=-1
+	resp.destination=resp.destination[0:0]
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1642,6 +1657,14 @@ func (req *Request) String() string {
 	return getHTTPString(req)
 }
 
+func (req *Request) ResetBodyLength(size int) {
+	req.body.B=req.body.B[0:size]
+}
+
+func (resp *Response) ResetBodyLength(size int) {
+	resp.body.B=resp.body.B[0:size]
+}
+
 // String returns response representation.
 //
 // Returns error message instead of response representation on error.
@@ -1649,6 +1672,21 @@ func (req *Request) String() string {
 // Use Write instead of String for performance-critical code.
 func (resp *Response) String() string {
 	return getHTTPString(resp)
+}
+
+func (resp *Response) GetBodyLength() int {
+	if resp.bodyLength<=0{
+		resp.bodyLength=len(resp.bodyBytes())
+	}
+	return resp.bodyLength
+}
+
+func (resp *Response) SetDestination(str string) {
+	resp.destination=append(resp.destination,str)
+}
+
+func (resp *Response) Destination() []string {
+	return resp.destination
 }
 
 func getHTTPString(hw httpWriter) string {
