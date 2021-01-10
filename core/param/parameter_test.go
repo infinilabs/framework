@@ -14,6 +14,7 @@ type MyConfig struct {
 	}  `config:"bio"`
 	KV map[string]interface{}`config:"kv"`
 	Tags []string `config:"tags"`
+	Codes []int `config:"code"`
 }
 
 func TestUnpackConfig(t *testing.T) {
@@ -70,4 +71,27 @@ func TestGetNestedKey(t *testing.T) {
 
 	v2:=para.Get("config.hunan")
 	fmt.Println(v2)
+}
+
+type SimpleConfig struct {
+	Tags []string `config:"tags"`
+	Codes []int `config:"code"`
+}
+func TestGetStringArray(t *testing.T) {
+	para:=Parameters{}
+	data:=map[string]interface{}{}
+	data["tags"]=[]string{"hello","world"}
+	data["code"]=[]int{1,2,3}
+	para.Set("config",data)
+
+	obj:=SimpleConfig{}
+	para.Config("config",&obj)
+	fmt.Println(obj.Tags)
+	fmt.Println(obj.Codes)
+
+	v,ok:=para.GetStringArray("config.tags")
+	fmt.Println(v,ok)
+	v1,ok:=para.GetIntArray("config.code")
+	fmt.Println(v1,ok)
+
 }

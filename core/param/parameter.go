@@ -305,9 +305,10 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 		field := mutable.FieldByName(rt.Field(i).Name)
 
 		key := ParaKey(tag)
+		//fmt.Println("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
 
 		if global.Env().IsDebug{
-			log.Trace("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ",", f.Kind(), ",", f.String(), ",", field)
+			log.Trace("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
 		}
 
 		if newPara.Has(key) {
@@ -377,6 +378,7 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 				break
 			case reflect.Slice:
 				arr, ok := newPara.GetArray(key)
+				//fmt.Println("key:",key,"array,",arr,",ok:",ok)
 				if ok {
 					one := reflect.ValueOf(arr[0])
 					targetItemsType := field.Type().Elem()
@@ -435,19 +437,91 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	return result, ok
 }
 
+
+func (para *Parameters) GetInt64Array(key ParaKey) ([]int64, bool) {
+	array, ok := para.GetArray(key)
+	//fmt.Println(array,ok)
+
+	var result []int64
+	if ok {
+		result = []int64{}
+		for _, v := range array {
+			x, ok := GetInt64OrDefault(v,0)
+			//fmt.Println(x,ok,reflect.TypeOf(v))
+			if ok {
+				result = append(result, x)
+			}
+		}
+	}
+	return result, ok
+}
+
 // GetArray will return a array which type of the items are interface {}
 func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
+
+	//TODO cache
+
 	v := para.Get(key)
+
+	if v==nil{
+		return []interface{}{},false
+	}
+
 	s, ok := v.([]interface{})
 	if ok {
 		return s,ok
 	}
+
 	s1, ok := v.([]string)
 	if ok{
 		for _,v1:=range s1{
 			s=append(s,v1)
 		}
+		return s,ok
 	}
+
+	s2, ok := v.([]int)
+	if ok{
+		for _,v1:=range s2{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
+	s3, ok := v.([]int32)
+	if ok{
+		for _,v1:=range s3{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
+	s4, ok := v.([]int64)
+	if ok{
+		for _,v1:=range s4{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
+	s5, ok := v.([]float32)
+	if ok{
+		for _,v1:=range s5{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
+	s6, ok := v.([]float64)
+	if ok{
+		for _,v1:=range s6{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
+	//TODO handle rest types
+	log.Warnf("parameters failed to GetArray, type: %v",reflect.TypeOf(v))
 	return s, ok
 }
 
