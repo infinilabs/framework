@@ -3,6 +3,7 @@
 package fasthttpadaptor
 
 import (
+	log "github.com/cihub/seelog"
 	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"io"
 	"net/http"
@@ -74,7 +75,7 @@ func NewFastHTTPHandler(h http.Handler) fasthttp2.RequestHandler {
 		r.Body = &netHTTPBody{body}
 		rURL, err := url.ParseRequestURI(r.RequestURI)
 		if err != nil {
-			ctx.Logger().Printf("cannot parse requestURI %q: %s", r.RequestURI, err)
+			log.Errorf("cannot parse requestURI %q: %s", r.RequestURI, err)
 			ctx.Error("Internal Server Error", fasthttp2.StatusInternalServerError)
 			return
 		}

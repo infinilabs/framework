@@ -2333,7 +2333,7 @@ func TestRequestCtxInit(t *testing.T) {
 	if !ip.IsUnspecified() {
 		t.Fatalf("unexpected ip for bare RequestCtx: %q. Expected 0.0.0.0", ip)
 	}
-	ctx.Logger().Printf("foo bar %d", 10)
+	//ctx.Logger().Printf("foo bar %d", 10)
 
 	expectedLog := "#0012345700000000 - 0.0.0.0:0<->0.0.0.0:0 - GET http:/// - foo bar 10\n"
 	if logger.out != expectedLog {
@@ -2823,12 +2823,12 @@ func TestServerLogger(t *testing.T) {
 	cl := &testLogger{}
 	s := &Server{
 		Handler: func(ctx *RequestCtx) {
-			logger := ctx.Logger()
+			//logger := ctx.Logger()
 			h := &ctx.Request.Header
-			logger.Printf("begin")
+			//logger.Printf("begin")
 			ctx.Success("text/html", []byte(fmt.Sprintf("requestURI=%s, body=%q, remoteAddr=%s",
 				h.RequestURI(), ctx.Request.Body(), ctx.RemoteAddr())))
-			logger.Printf("end")
+			//logger.Printf("end")
 		},
 		Logger: cl,
 	}

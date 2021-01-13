@@ -1,6 +1,7 @@
 package fasthttp
 
 import (
+	log "github.com/cihub/seelog"
 	"net"
 	"runtime"
 	"strings"
@@ -23,9 +24,6 @@ type workerPool struct {
 	LogAllErrors bool
 
 	MaxIdleWorkerDuration time.Duration
-
-	Logger Logger
-
 	lock         sync.Mutex
 	workersCount int
 	mustStop     bool
@@ -231,7 +229,7 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 				strings.Contains(errStr, "first record does not look like a TLS handshake") ||
 				strings.Contains(errStr, "protocol wrong type for socket") ||
 				strings.Contains(errStr, "i/o timeout")) {
-				wp.Logger.Printf("error when serving connection %q<->%q: %s", c.LocalAddr(), c.RemoteAddr(), err)
+				log.Errorf("error when serving connection %v<->%v: %s", c.LocalAddr(), c.RemoteAddr(), err)
 			}
 		}
 		if err == errHijacked {

@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"encoding/base64"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"io"
-	log "github.com/cihub/seelog"
 	"mime/multipart"
 	"net"
 	"os"
@@ -19,7 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	log2 "log"
 )
 
 var errNoCertOrKeyProvided = errors.New("cert or key has not provided")
@@ -160,6 +159,7 @@ type Server struct {
 	// Take into account that no `panic` recovery is done by `fasthttp` (thus any `panic` will take down the entire server).
 	// Instead the user should use `recover` to handle these situations.
 	Handler RequestHandler
+	TraceHandler RequestHandler
 
 	// ErrorHandler for returning a response in case of an error while receiving or parsing the request.
 	//
@@ -568,7 +568,6 @@ type RequestCtx struct {
 
 	time time.Time
 
-	logger ctxLogger
 	s      *Server
 	c      net.Conn
 	fbr    firstByteReader
@@ -1413,27 +1412,6 @@ func (ctx *RequestCtx) IsBodyStream() bool {
 	return ctx.Response.IsBodyStream()
 }
 
-// Logger returns logger, which may be used for logging arbitrary
-// request-specific messages inside RequestHandler.
-//
-// Each message logged via returned logger contains request-specific information
-// such as request id, request duration, local address, remote address,
-// request method and request url.
-//
-// It is safe re-using returned logger for logging multiple messages
-// for the current request.
-//
-// The returned logger is valid until returning from RequestHandler.
-func (ctx *RequestCtx) Logger() Logger {
-	if ctx.logger.ctx == nil {
-		ctx.logger.ctx = ctx
-	}
-	if ctx.logger.logger == nil {
-		ctx.logger.logger = ctx.s.logger()
-	}
-	return &ctx.logger
-}
-
 // TimeoutError sets response status code to StatusRequestTimeout and sets
 // body to the given msg.
 //
@@ -1764,7 +1742,6 @@ func (s *Server) Serve(ln net.Listener) error {
 		WorkerFunc:      s.serveConn,
 		MaxWorkersCount: maxWorkersCount,
 		LogAllErrors:    s.LogAllErrors,
-		Logger:          s.logger(),
 		connState:       s.setState,
 	}
 	wp.Start()
@@ -1793,7 +1770,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			c.Close()
 			s.setState(c, StateClosed)
 			if time.Since(lastOverflowErrorTime) > time.Minute {
-				s.logger().Printf("The incoming connection cannot be served, because %d concurrent connections are served. "+
+				log.Errorf("The incoming connection cannot be served, because %d concurrent connections are served. "+
 					"Try increasing Server.Concurrency", maxWorkersCount)
 				lastOverflowErrorTime = time.Now()
 			}
@@ -1868,12 +1845,12 @@ func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.
 				panic("BUG: net.Listener returned non-nil conn and non-nil error")
 			}
 			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
-				s.logger().Printf("Temporary error when accepting new connections: %s", netErr)
+				log.Errorf("Temporary error when accepting new connections: %s", netErr)
 				time.Sleep(time.Second)
 				continue
 			}
 			if err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
-				s.logger().Printf("Permanent error when accepting new connections: %s", err)
+				log.Errorf("Permanent error when accepting new connections: %s", err)
 				return nil, err
 			}
 			return nil, io.EOF
@@ -1885,7 +1862,7 @@ func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.
 			pic := wrapPerIPConn(s, c)
 			if pic == nil {
 				if time.Since(*lastPerIPErrorTime) > time.Minute {
-					s.logger().Printf("The number of connections from %s exceeds MaxConnsPerIP=%d",
+					log.Errorf("The number of connections from %s exceeds MaxConnsPerIP=%d",
 						getConnIP4(c), s.MaxConnsPerIP)
 					*lastPerIPErrorTime = time.Now()
 				}
@@ -1910,15 +1887,6 @@ func wrapPerIPConn(s *Server, c net.Conn) net.Conn {
 		return nil
 	}
 	return acquirePerIPConn(c, ip, &s.perIPConnCounter)
-}
-
-var defaultLogger = Logger(log2.New(os.Stderr, "", log2.LstdFlags))
-
-func (s *Server) logger() Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return defaultLogger
 }
 
 var (
@@ -2260,15 +2228,12 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		if !ctx.IsGet() && ctx.IsHead() {
 			ctx.Response.SkipBody = true
 		}
-		reqReset = true
-		ctx.Request.Reset()
 
 		hijackHandler = ctx.hijackHandler
 		ctx.hijackHandler = nil
 		hijackNoResponse = ctx.hijackNoResponse && hijackHandler != nil
 		ctx.hijackNoResponse = false
 
-		ctx.userValues.Reset()
 
 		if s.MaxRequestsPerConn > 0 && connRequestNum >= uint64(s.MaxRequestsPerConn) {
 			ctx.SetConnectionClose()
@@ -2351,6 +2316,19 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			err = errHijacked
 			break
 		}
+
+
+		//logging and reset
+		if s.TraceHandler!=nil{
+			//TODO, may send to another chan and processing
+			ctx.Resume()
+			s.TraceHandler(ctx)
+		}
+
+		reqReset = true
+		ctx.Request.Reset()
+		ctx.Response.Reset()
+		ctx.userValues.Reset()
 
 		s.setState(c, StateIdle)
 
@@ -2459,7 +2437,7 @@ func writeResponse(ctx *RequestCtx, w *bufio.Writer) error {
 		panic("BUG: cannot write timed out response")
 	}
 	err := ctx.Response.Write(w)
-	ctx.Response.Reset()
+	//ctx.Response.Reset()
 	return err
 }
 
@@ -2576,7 +2554,6 @@ func (ctx *RequestCtx) Reset(){
 // See https://github.com/valyala/httpteleport for details.
 func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage bool) {
 	ctx.c = conn
-	ctx.logger.logger = logger
 	ctx.connID = nextConnID()
 	ctx.s = fakeServer
 	ctx.connRequestNum = 0
@@ -2599,9 +2576,6 @@ func (ctx *RequestCtx) Init(req *Request, remoteAddr net.Addr, logger Logger) {
 	c := &fakeAddrer{
 		laddr: zeroTCPAddr,
 		raddr: remoteAddr,
-	}
-	if logger == nil {
-		logger = defaultLogger
 	}
 	ctx.Init2(c, logger, true)
 	req.CopyTo(&ctx.Request)

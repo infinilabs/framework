@@ -2392,7 +2392,6 @@ func (c *pipelineConnClient) init() {
 			// Keep restarting the worker if it fails (connection errors for example).
 			for {
 				if err := c.worker(); err != nil {
-					c.logger().Printf("error in PipelineClient(%q): %s", c.Addr, err)
 					if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
 						// Throttle client reconnections on temporary errors
 						time.Sleep(time.Second)
@@ -2624,13 +2623,6 @@ func (c *pipelineConnClient) reader(conn net.Conn, stopCh <-chan struct{}) error
 
 		w.done <- struct{}{}
 	}
-}
-
-func (c *pipelineConnClient) logger() Logger {
-	if c.Logger != nil {
-		return c.Logger
-	}
-	return defaultLogger
 }
 
 // PendingRequests returns the current number of pending requests pipelined
