@@ -300,10 +300,9 @@ func (app *App) Shutdown() {
 		fmt.Println(string(*stats.StatsAll()))
 	}
 
-	log.Infof("%s now terminated.", app.environment.GetAppName())
-	log.Flush()
-
 	if !app.isDaemonMode {
+		log.Infof("%s now terminated.", app.environment.GetAppName())
+		log.Flush()
 		//print goodbye message
 		fmt.Println(app.environment.GetGoodbyeMessage())
 	}
