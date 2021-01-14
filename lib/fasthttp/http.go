@@ -1658,10 +1658,17 @@ func (req *Request) String() string {
 }
 
 func (req *Request) ResetBodyLength(size int) {
+	if req.body==nil||req.body.B==nil{
+		return
+	}
 	req.body.B=req.body.B[0:size]
 }
 
 func (resp *Response) ResetBodyLength(size int) {
+	if resp.bodyRaw!=nil{
+		resp.bodyRaw=resp.bodyRaw[0:size]
+		return
+	}
 	if resp.body==nil||resp.body.B==nil{
 		return
 	}
