@@ -2321,14 +2321,30 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		//logging and reset
 		if s.TraceHandler!=nil{
 			//TODO, may send to another chan and processing
-			ctx.Resume()
-			s.TraceHandler(ctx)
+			ctx1:=ctx
+			go func() {
+				//process tracing handler
+
+				ctx1.Resume()
+
+				s.TraceHandler(ctx1)
+
+				//release ctx
+				ctx1.Request.Reset()
+				ctx1.Response.Reset()
+				ctx1.userValues.Reset()
+				s.releaseCtx(ctx1)
+			}()
+			//TODO improve performance
 		}
 
+		//acquire a new ctx
 		reqReset = true
-		ctx.Request.Reset()
-		ctx.Response.Reset()
-		ctx.userValues.Reset()
+		//ctx.Request.Reset()
+		//ctx.Response.Reset()
+		//ctx.userValues.Reset()
+
+		ctx=s.acquireCtx(c)
 
 		s.setState(c, StateIdle)
 
