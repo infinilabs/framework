@@ -644,6 +644,7 @@ func (ctx *RequestCtx) Finished() {
 func (ctx *RequestCtx) Filtered() {
 	ctx.finished=true
 	ctx.Response.Header.Set("FILTERED","true")
+	ctx.Response.SetDestination("filtered")
 	ctx.Response.SetStatusCode(403)
 }
 
