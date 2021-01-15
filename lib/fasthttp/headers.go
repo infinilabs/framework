@@ -1,5 +1,8 @@
 package fasthttp
 
+var AuthHeaderKeys=[]string{"authorization","Authorization","AUTHORIZATION"}
+
+
 // Headers
 const (
 	// Authentication

@@ -650,7 +650,6 @@ func (ctx *RequestCtx) Filtered() {
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
-
 func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 	username:=ctx.Request.URI().Username()
 	if username!=nil&&len(username)>0{
@@ -658,7 +657,7 @@ func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 	}
 
 	//
-	key:=ctx.Request.Header.Peek("Authorization")
+	key:=ctx.Request.Header.PeekAny(AuthHeaderKeys)
 	if len(key)>0{
 		newKey:=strings.TrimSpace(strings.TrimLeft(string(key),"Basic"))
 		decoded,err := base64.StdEncoding.DecodeString(newKey)

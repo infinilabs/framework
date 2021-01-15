@@ -1166,6 +1166,16 @@ func (h *RequestHeader) Peek(key string) []byte {
 	return h.peek(k)
 }
 
+func (h *RequestHeader) PeekAny(keys []string) []byte {
+	for _,k:=range keys{
+		v:=h.Peek(k)
+		if len(v)>0{
+			return v
+		}
+	}
+	return nil
+}
+
 // PeekBytes returns header value for the given key.
 //
 // Returned value is valid until the next call to RequestHeader.
