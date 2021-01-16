@@ -413,17 +413,17 @@ func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []b
 				matchEnd = true
 				toBeMachedBuffer.Reset()
 			} else {
-				filtered:=false
+				filtered := false
 				if removedFromValue != nil && len(removedFromValue) > 0 {
 					for _, x := range removedFromValue {
-						if v==x{
-							filtered=true
+						if v == x {
+							filtered = true
 							break
 						}
 					}
 				}
-				if !filtered{
-					value=append(value,v)
+				if !filtered {
+					value = append(value, v)
 					//buffer.WriteByte(v)
 				}
 			}
@@ -439,4 +439,16 @@ func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []b
 		}
 	}
 	return nil
+}
+
+func CompareStringAndBytes(b []byte, s string) bool {
+	if len(s) != len(b) {
+		return false
+	}
+	for i, x := range b {
+		if x != s[i] {
+			return false
+		}
+	}
+	return true
 }
