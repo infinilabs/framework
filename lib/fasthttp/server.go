@@ -580,6 +580,7 @@ type RequestCtx struct {
 	hijackNoResponse bool
 
 	finished bool
+	pathStr string
 }
 
 // HijackHandler must process the hijacked connection c.
@@ -936,6 +937,13 @@ func (ctx *RequestCtx) UserAgent() []byte {
 // The path is valid until returning from RequestHandler.
 func (ctx *RequestCtx) Path() []byte {
 	return ctx.URI().Path()
+}
+
+func (ctx *RequestCtx) PathStr() string {
+	if ctx.pathStr==""{
+		ctx.pathStr=string(ctx.Path())
+	}
+	return ctx.pathStr
 }
 
 // Host returns requested host.
@@ -2561,6 +2569,7 @@ func (ctx *RequestCtx) Reset(){
 	}
 
 	ctx.finished=false
+	ctx.pathStr=""
 }
 
 // Init2 prepares ctx for passing to RequestHandler.
