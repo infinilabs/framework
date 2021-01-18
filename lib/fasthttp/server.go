@@ -594,9 +594,10 @@ var bytesBufferPool = &sync.Pool{
 	},
 }
 
-func (res *Response)Encode(data *bytes.Buffer) []byte {
+func (res *Response)Encode() []byte {
 
-	buffer:=bytesBufferPool.Get().(*bytes.Buffer)
+	//buffer:=bytesBufferPool.Get().(*bytes.Buffer)
+	buffer:=bytes.Buffer{}
 	res.Header.VisitAll(func(key, value []byte) {
 		buffer.Write(key)
 		buffer.Write(colon)
@@ -615,6 +616,8 @@ func (res *Response)Encode(data *bytes.Buffer) []byte {
 	status := make([]byte, 4)
 	util.Uint32toBytes(status,uint32(res.StatusCode()))
 
+	data:=bytes.Buffer{}
+
 	//header length
 	data.Write(headerLength)
 	data.Write(buffer.Bytes())
@@ -626,8 +629,8 @@ func (res *Response)Encode(data *bytes.Buffer) []byte {
 	//status
 	data.Write(status)
 
-	buffer.Reset()
-	bytesBufferPool.Put(buffer)
+	//buffer.Reset()
+	//bytesBufferPool.Put(buffer)
 
 	return data.Bytes()
 }

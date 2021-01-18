@@ -77,9 +77,9 @@ const (
 	// Message body information
 	HeaderContentEncoding = "Content-Encoding"
 	HeaderContentLanguage = "Content-Language"
-	HeaderContentLength   = "Content-Length"
+	HeaderContentLength   = "content-length"
 	HeaderContentLocation = "Content-Location"
-	HeaderContentType     = "Content-Type"
+	HeaderContentType     = "content-type"
 
 	// Proxies
 	HeaderForwarded       = "Forwarded"

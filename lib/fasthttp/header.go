@@ -612,7 +612,7 @@ func (h *ResponseHeader) SetNoDefaultContentType(noDefaultContentType bool) {
 
 // Reset clears response header.
 func (h *ResponseHeader) Reset() {
-	h.disableNormalizing = false
+	//h.disableNormalizing = true
 	h.SetNoDefaultContentType(false)
 	h.noDefaultDate = false
 	h.resetSkipNormalize()
