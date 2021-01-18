@@ -163,6 +163,8 @@ func NewPutRequest(url string, body []byte) *Request {
 	return &req
 }
 
+
+
 // NewGetRequest issue a simple http get request
 func NewGetRequest(url string, body []byte) *Request {
 	req := Request{}

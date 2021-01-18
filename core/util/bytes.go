@@ -78,6 +78,20 @@ func BytesToInt64(buf []byte) int64 {
 	return int64(binary.BigEndian.Uint64(buf))
 }
 
+func IntToBytes(n int) []byte {
+	data := int64(n)
+	bytebuf := bytes.NewBuffer([]byte{})
+	binary.Write(bytebuf, binary.BigEndian, data)
+	return bytebuf.Bytes()
+}
+
+func BytesToInt(buf []byte) int {
+	bytebuff := bytes.NewBuffer(buf)
+	var data int64
+	binary.Read(bytebuff, binary.BigEndian, &data)
+	return int(data)
+}
+
 // DeepCopy return a deep copied object
 func DeepCopy(value interface{}) interface{} {
 	if valueMap, ok := value.(map[string]interface{}); ok {

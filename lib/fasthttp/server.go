@@ -6,11 +6,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"io"
 	"mime/multipart"
 	"net"
@@ -582,6 +584,113 @@ type RequestCtx struct {
 	finished bool
 	pathStr string
 }
+
+var colon = []byte(": ")
+var newLine = []byte("\n")
+
+var bytesBufferPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func (res *Response)Encode(data *bytes.Buffer) []byte {
+
+	buffer:=bytesBufferPool.Get().(*bytes.Buffer)
+	res.Header.VisitAll(func(key, value []byte) {
+		buffer.Write(key)
+		buffer.Write(colon)
+		buffer.Write(value)
+		buffer.Write(newLine)
+	})
+
+	body := res.Body()
+
+	headerLength := make([]byte, 4)
+	binary.LittleEndian.PutUint32(headerLength, uint32(buffer.Len()))
+
+	bodyLength := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bodyLength, uint32(len(body)))
+
+	status := make([]byte, 4)
+	util.Uint32toBytes(status,uint32(res.StatusCode()))
+
+	//header length
+	data.Write(headerLength)
+	data.Write(buffer.Bytes())
+
+	//body
+	data.Write(bodyLength)
+	data.Write(body)
+
+	//status
+	data.Write(status)
+
+	buffer.Reset()
+	bytesBufferPool.Put(buffer)
+
+	return data.Bytes()
+}
+
+var bytesReaderPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Reader)
+	},
+}
+
+//TODO optimize memmove issue, buffer read
+func (res *Response)Decode(data []byte) error {
+
+	reader:=bytesReaderPool.Get().(*bytes.Reader)
+	reader.Reset(data)
+	defer bytesReaderPool.Put(reader)
+
+	readerHeaderLengthBytes := make([]byte, 4)
+	//reader := bytes.NewBuffer(data)
+	_, err := reader.Read(readerHeaderLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerHeaderLength := binary.LittleEndian.Uint32(readerHeaderLengthBytes)
+	readerHeader := make([]byte, readerHeaderLength)
+	_, err = reader.Read(readerHeader)
+	if err != nil {
+		return err
+	}
+
+	line := bytes.Split(readerHeader, newLine)
+	for _, l := range line {
+		kv := bytes.Split(l, colon)
+		if len(kv) == 2 {
+			res.Header.SetBytesKV(kv[0], kv[1])
+		}
+	}
+
+	readerBodyLengthBytes := make([]byte, 4)
+	_, err = reader.Read(readerBodyLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
+	readerBody := make([]byte, readerBodyLength)
+	_, err = reader.Read(readerBody)
+	if err != nil {
+		return err
+	}
+	res.SetBodyRaw(readerBody)
+
+	statusCode := make([]byte, 4)
+	_, err = reader.Read(statusCode)
+	if err != nil {
+		return err
+	}
+
+	res.SetStatusCode(int(util.BytesToUint32(statusCode)))
+	return nil
+}
+
 
 // HijackHandler must process the hijacked connection c.
 //
