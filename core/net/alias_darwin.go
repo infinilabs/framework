@@ -24,7 +24,7 @@ func SetupAlias(device, ip, netmask string) error {
 
 	err:=EnableAlias(device, ip, netmask)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	//register global callback to disable alias before shutdown
@@ -40,7 +40,7 @@ func EnableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
 	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
-		panic("net alias not supported on your platform.")
+		return errors.New("net alias not supported on your platform.")
 	}
 
 	log.Debugf("setup net alias %s, %s, %s", device, ip, netmask)
@@ -72,7 +72,7 @@ func DisableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
 	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
-		panic("net alias not supported on your platform.")
+		return errors.New("net alias not supported on your platform.")
 	}
 
 	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", device, "-alias", ip)
