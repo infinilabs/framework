@@ -75,10 +75,10 @@ const (
 	HeaderContentDisposition = "Content-Disposition"
 
 	// Message body information
-	HeaderContentEncoding = "Content-Encoding"
-	HeaderContentLanguage = "Content-Language"
+	HeaderContentEncoding = "content-encoding"
+	HeaderContentLanguage = "content-language"
 	HeaderContentLength   = "content-length"
-	HeaderContentLocation = "Content-Location"
+	HeaderContentLocation = "content-location"
 	HeaderContentType     = "content-type"
 
 	// Proxies
