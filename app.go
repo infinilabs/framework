@@ -137,6 +137,28 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 		//profile options
 		if app.httpprof != "" {
 			go func() {
+
+				defer func() {
+					if !global.Env().IsDebug {
+						if r := recover(); r != nil {
+
+							if r == nil {
+								return
+							}
+							var v string
+							switch r.(type) {
+							case error:
+								v = r.(error).Error()
+							case runtime.Error:
+								v = r.(runtime.Error).Error()
+							case string:
+								v = r.(string)
+							}
+							log.Error("error to serve httpprof,", v)
+						}
+					}
+				}()
+
 				log.Infof("pprof listen at: http://%s/debug/pprof/", app.httpprof)
 				mux := http.NewServeMux()
 
@@ -241,6 +263,27 @@ func (app *App) Start(setup func(), start func()) {
 		os.Interrupt)
 
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+
+					if r == nil {
+						return
+					}
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on stopping modules,", v)
+				}
+			}
+		}()
+
 		s := <-sigc
 		if s == os.Interrupt || s.(os.Signal) == syscall.SIGINT || s.(os.Signal) == syscall.SIGTERM ||
 			s.(os.Signal) == syscall.SIGKILL || s.(os.Signal) == syscall.SIGQUIT {

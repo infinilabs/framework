@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -17,6 +18,7 @@ import (
 	"mime/multipart"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2444,6 +2446,28 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//TODO, may send to another chan and processing
 			ctx1:=ctx
 			go func() {
+
+				defer func() {
+					if !global.Env().IsDebug {
+						if r := recover(); r != nil {
+
+							if r == nil {
+								return
+							}
+							var v string
+							switch r.(type) {
+							case error:
+								v = r.(error).Error()
+							case runtime.Error:
+								v = r.(runtime.Error).Error()
+							case string:
+								v = r.(string)
+							}
+							log.Error("error on handling tracing flow,", v)
+						}
+					}
+				}()
+
 				//process tracing handler
 
 				ctx1.Resume()
