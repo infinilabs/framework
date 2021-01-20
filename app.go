@@ -141,10 +141,6 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
-
-							if r == nil {
-								return
-							}
 							var v string
 							switch r.(type) {
 							case error:
@@ -266,10 +262,6 @@ func (app *App) Start(setup func(), start func()) {
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
-
-					if r == nil {
-						return
-					}
 					var v string
 					switch r.(type) {
 					case error:
@@ -312,9 +304,6 @@ func (app *App) Shutdown() {
 	}
 
 	if r := recover(); r != nil {
-		if r == nil {
-			return
-		}
 		var v string
 		switch r.(type) {
 		case error:
