@@ -1054,10 +1054,13 @@ func (ctx *RequestCtx) Path() []byte {
 }
 
 func (ctx *RequestCtx) PathStr() string {
-	if ctx.pathStr==""{
-		ctx.pathStr=string(ctx.Path())
-	}
-	return ctx.pathStr
+
+	return string(ctx.Path())
+
+	//if ctx.pathStr==""{
+	//	ctx.pathStr=string(ctx.Path())
+	//}
+	//return ctx.pathStr
 }
 
 // Host returns requested host.
@@ -2445,15 +2448,17 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		if s.TraceHandler!=nil{
 			//TODO, may send to another chan and processing
 			ctx1:=ctx
+			ctx=s.acquireCtx(c)
+
+			//ctx.Request.SetRequestURI("/this-test")
+			//fmt.Println("old:",ctx1.Request.URI().String())
+			//fmt.Println("new:",ctx.Request.URI().String())
+
 			go func() {
 
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
-
-							if r == nil {
-								return
-							}
 							var v string
 							switch r.(type) {
 							case error:
@@ -2489,7 +2494,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		//ctx.Response.Reset()
 		//ctx.userValues.Reset()
 
-		ctx=s.acquireCtx(c)
+		//ctx2:=s.acquireCtx(c)
+		//ctx=ctx2
 
 		s.setState(c, StateIdle)
 
