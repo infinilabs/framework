@@ -76,8 +76,9 @@ type IndexStats struct {
 			Segments struct{
 				Count int `json:"count"`
 			}`json:"segments"`
+
 			Merges struct{
-				Current int `json:"count"`
+				Current int `json:"current"`
 			}`json:"merges"`
 
 		}`json:"primaries"`
