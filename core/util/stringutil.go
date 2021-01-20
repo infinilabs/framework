@@ -308,10 +308,13 @@ func JoinArray(array []string,delimiter string) string {
 	return buffer.String()
 }
 var strCRLF=[]byte("\r\n")
+var strCRLF1=[]byte("\n")
 var escapedStrCRLF=[]byte("\\n")
 //escape "\r\n" to "\\n"
 func EscapeNewLine(input []byte)[]byte  {
-	return ReplaceByte(input,strCRLF,escapedStrCRLF)
+	 input=ReplaceByte(input,strCRLF,escapedStrCRLF)
+	 input=ReplaceByte(input,strCRLF1,escapedStrCRLF)
+	 return input
 }
 
 func ToString(obj interface{})string  {
