@@ -572,7 +572,7 @@ func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) 
 	// get all settings
 	allSettings := &elastic.Indexes{}
 
-	url := fmt.Sprintf("%s/%s/_settings", c.Config.Endpoint, indexNames)
+	url := fmt.Sprintf("%s/%s/_settings?include_defaults", c.Config.Endpoint, indexNames)
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
@@ -743,7 +743,7 @@ func (c *ESAPIV0) DeleteIndex(indexName string) (err error) {
 
 func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{}) (err error) {
 
-	cleanSettings(settings)
+	//cleanSettings(settings)
 
 	body := bytes.Buffer{}
 	if len(settings) > 0 {
