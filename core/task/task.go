@@ -28,10 +28,6 @@ func RunTasks()  {
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
-
-					if r == nil {
-						return
-					}
 					var v string
 					switch r.(type) {
 					case error:

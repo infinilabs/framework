@@ -921,6 +921,30 @@ func (c *ESAPIV0) Reindex(body []byte) (*elastic.ReindexResponse, error) {
 	return reindexResponse, nil
 }
 
+func (c *ESAPIV0) 	GetIndexStats(indexName string)(*elastic.IndexStats,error) {
+	url := fmt.Sprintf("%s/%s/_stats", c.Config.Endpoint, indexName)
+	resp, err := c.Request(util.Verb_GET, url,nil)
+	if err != nil {
+		return nil, err
+	}
+	var response=&elastic.IndexStats{}
+	err = json.Unmarshal(resp.Body, response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+
+func (c *ESAPIV0) Forcemerge(indexName string,maxCount int)(error) {
+	url := fmt.Sprintf("%s/%s/_forcemerge?max_num_segments=%v", c.Config.Endpoint, indexName,maxCount)
+	_, err := c.Request(util.Verb_POST, url, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteByQueryResponse, error) {
 	url := fmt.Sprintf("%s/%s/_delete_by_query", c.Config.Endpoint, indexName)
 	resp, err := c.Request(util.Verb_POST, url, body)

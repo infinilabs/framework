@@ -60,6 +60,30 @@ type API interface {
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
 	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
+
+
+	GetIndexStats(indexName string)(*IndexStats,error)
+	Forcemerge(indexName string,maxCount int)(error)
+}
+
+type IndexStats struct {
+	All struct{
+		Primary struct{
+			Store struct{
+				SizeInBytes int `json:"size_in_bytes"`
+			}`json:"store"`
+
+			Segments struct{
+				Count int `json:"count"`
+			}`json:"segments"`
+
+			Merges struct{
+				Current int `json:"current"`
+			}`json:"merges"`
+
+		}`json:"primaries"`
+
+	}`json:"_all"`
 }
 
 type NodesInfo struct {
