@@ -131,6 +131,12 @@ type InsertResponse struct {
 	Type    string `json:"_type"`
 	ID      string `json:"_id"`
 	Version int    `json:"_version"`
+
+	Shards struct{
+		Total int `json:"total" `
+		Failed int `json:"failed"`
+		Successful int `json:"successful"`
+	} `json:"_shards"` //es 2.x index api
 }
 
 // GetResponse is a get response object
@@ -150,6 +156,11 @@ type DeleteResponse struct {
 	Type    string `json:"_type"`
 	ID      string `json:"_id"`
 	Version int    `json:"_version"`
+	Shards struct{
+		Total int `json:"total" `
+		Failed int `json:"failed"`
+		Successful int `json:"successful"`
+	} `json:"_shards"` //es 2.x index api
 }
 
 // CountResponse is a count response object

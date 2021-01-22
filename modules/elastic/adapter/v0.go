@@ -186,8 +186,8 @@ func (c *ESAPIV0) initTemplate(templateName,indexPrefix string) {
 }
 
 // Index index a document into elasticsearch
-func (c *ESAPIV0) Index(indexName string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
-	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, TypeName6, id)
+func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
+	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, docType, id)
 
 	js, err := json.Marshal(data)
 
@@ -215,7 +215,7 @@ func (c *ESAPIV0) Index(indexName string, id interface{}, data interface{}) (*el
 	if err != nil {
 		return &elastic.InsertResponse{}, err
 	}
-	if !(esResp.Result == "created" || esResp.Result == "updated") {
+	if !(esResp.Result == "created" || esResp.Result == "updated" || esResp.Shards.Successful > 0) {
 		return nil, errors.New(string(resp.Body))
 	}
 
@@ -223,8 +223,8 @@ func (c *ESAPIV0) Index(indexName string, id interface{}, data interface{}) (*el
 }
 
 // Get fetch document by id
-func (c *ESAPIV0) Get(indexName, id string) (*elastic.GetResponse, error) {
-	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName6 + "/" + id
+func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
+	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
@@ -249,8 +249,8 @@ func (c *ESAPIV0) Get(indexName, id string) (*elastic.GetResponse, error) {
 }
 
 // Delete used to delete document by id
-func (c *ESAPIV0) Delete(indexName, id string) (*elastic.DeleteResponse, error) {
-	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName6 + "/" + id
+func (c *ESAPIV0) Delete(indexName, docType, id string) (*elastic.DeleteResponse, error) {
+	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	if global.Env().IsDebug {
 		log.Debug("delete doc: ", url)
@@ -271,7 +271,7 @@ func (c *ESAPIV0) Delete(indexName, id string) (*elastic.DeleteResponse, error) 
 	if err != nil {
 		return &elastic.DeleteResponse{}, err
 	}
-	if esResp.Result != "deleted" {
+	if !(esResp.Result != "deleted" || esResp.Shards.Successful > 0) {
 		return nil, errors.New(string(resp.Body))
 	}
 

@@ -68,7 +68,7 @@ func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte,
 }
 
 func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
-	response, err := store.Client.Get(store.Config.IndexName, getKey(bucket, string(key)))
+	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +102,12 @@ func getKey(bucket, key string) string {
 func (store ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
-	_, err := store.Client.Index(store.Config.IndexName, getKey(bucket, string(key)), file)
+	_, err := store.Client.Index(store.Config.IndexName, "_doc", getKey(bucket, string(key)), file)
 	return err
 }
 
 func (store ElasticStore) DeleteKey(bucket string, key []byte) error {
-	_, err := store.Client.Delete(store.Config.IndexName, getKey(bucket, string(key)))
+	_, err := store.Client.Delete(store.Config.IndexName, "_doc", getKey(bucket, string(key)))
 	return err
 }
 

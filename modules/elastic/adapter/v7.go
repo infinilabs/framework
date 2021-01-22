@@ -95,7 +95,7 @@ func (c *ESAPIV7) initTemplate(templateName,indexPrefix string) {
 const TypeName7 = "_doc"
 
 // Delete used to delete document by id
-func (c *ESAPIV7) Delete(indexName, id string) (*elastic.DeleteResponse, error) {
+func (c *ESAPIV7) Delete(indexName,docType, id string) (*elastic.DeleteResponse, error) {
 	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	resp, err := c.Request(util.Verb_DELETE, url, nil)
@@ -117,7 +117,7 @@ func (c *ESAPIV7) Delete(indexName, id string) (*elastic.DeleteResponse, error) 
 }
 
 // Get fetch document by id
-func (c *ESAPIV7) Get(indexName, id string) (*elastic.GetResponse, error) {
+func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
 	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -139,7 +139,7 @@ func (c *ESAPIV7) Get(indexName, id string) (*elastic.GetResponse, error) {
 }
 
 // IndexDoc index a document into elasticsearch
-func (c *ESAPIV7) Index(indexName string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
+func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
 	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, TypeName7, id)
 
 	js, err := json.Marshal(data)

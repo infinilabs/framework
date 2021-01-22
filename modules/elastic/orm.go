@@ -30,7 +30,7 @@ func (handler ElasticORM) GetIndexName(o interface{}) string {
 
 func (handler ElasticORM) Get(o interface{}) error {
 
-	response, err := handler.Client.Get(handler.GetIndexName(o), getIndexID(o))
+	response, err := handler.Client.Get(handler.GetIndexName(o),"", getIndexID(o))
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}, 
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
-	_, err := handler.Client.Index(handler.GetIndexName(o), getIndexID(o), o)
+	_, err := handler.Client.Index(handler.GetIndexName(o), "_doc", getIndexID(o), o)
 	return err
 }
 
@@ -57,7 +57,7 @@ func (handler ElasticORM) Update(o interface{}) error {
 }
 
 func (handler ElasticORM) Delete(o interface{}) error {
-	_, err := handler.Client.Delete(handler.GetIndexName(o), getIndexID(o))
+	_, err := handler.Client.Delete(handler.GetIndexName(o), "_doc", getIndexID(o))
 	return err
 }
 

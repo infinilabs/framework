@@ -35,12 +35,12 @@ type API interface {
 
 	CreateIndex(name string, settings map[string]interface{}) error
 
-	Index(indexName string, id interface{}, data interface{}) (*InsertResponse, error)
+	Index(indexName, docType string, id interface{}, data interface{}) (*InsertResponse, error)
 
 	Bulk(data *bytes.Buffer)
 
-	Get(indexName, id string) (*GetResponse, error)
-	Delete(indexName, id string) (*DeleteResponse, error)
+	Get(indexName, docType, id string) (*GetResponse, error)
+	Delete(indexName, docType, id string) (*DeleteResponse, error)
 	Count(indexName string) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
