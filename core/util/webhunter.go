@@ -341,8 +341,8 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 		tbTransport := &http.Transport{
 			Dial: tbDialer.Dial,
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
+				Timeout:   timeout,
+				KeepAlive: timeout,
 				DualStack: true,
 			}).DialContext,
 		}
@@ -376,11 +376,11 @@ func HttpDelete(resource string) (*Result, error) {
 	return ExecuteRequest(req)
 }
 
-var timeout = 30 * time.Second
+var timeout = 60 * time.Second
 var t = &http.Transport{
 	Dial: func(netw, addr string) (net.Conn, error) {
-		deadline := time.Now().Add(30 * time.Second)
-		c, err := net.DialTimeout(netw, addr, 10*time.Second)
+		deadline := time.Now().Add(timeout)
+		c, err := net.DialTimeout(netw, addr, timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -389,8 +389,8 @@ var t = &http.Transport{
 	},
 	Proxy: http.ProxyFromEnvironment,
 	DialContext: (&net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
+		Timeout:   timeout,
+		KeepAlive: timeout,
 		DualStack: true,
 	}).DialContext,
 	ResponseHeaderTimeout: timeout,
