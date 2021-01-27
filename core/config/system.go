@@ -80,7 +80,13 @@ func (cfg NetworkConfig) GetBindingAddr() string {
 
 // NodeConfig stores node settings
 type NodeConfig struct {
+	ID string `config:"id"`
 	Name string `config:"name"`
+	IP string `config:"ip"`
+}
+
+func (config *NodeConfig) ToString()string  {
+	return fmt.Sprintf("%s-%s",config.IP,config.Name)
 }
 
 // PathConfig stores path settings
