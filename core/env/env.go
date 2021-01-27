@@ -171,6 +171,7 @@ var (
 			},
 		},
 		NodeConfig: config.NodeConfig{
+			ID: util.GetUUID(),
 			Name: util.PickRandomName(),
 		},
 		PathConfig: config.PathConfig{
@@ -193,6 +194,8 @@ func (env *Env) loadConfig() error {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
 	}
+
+	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo()
 
 	env.SystemConfig = &defaultSystemConfig
 
