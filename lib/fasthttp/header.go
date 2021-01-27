@@ -1572,8 +1572,9 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	}
 
 	contentType := h.ContentType()
+
 	if len(contentType) == 0 && !h.ignoreBody() {
-		contentType = strPostArgsContentType
+		contentType = strJsonContentType
 	}
 	if len(contentType) > 0 {
 		dst = appendHeaderLine(dst, strContentType, contentType)
