@@ -572,9 +572,9 @@ type RequestCtx struct {
 
 	time time.Time
 
-	s      *Server
-	c      net.Conn
-	fbr    firstByteReader
+	s   *Server
+	c   net.Conn
+	fbr firstByteReader
 
 	timeoutResponse *Response
 	timeoutCh       chan struct{}
@@ -584,7 +584,17 @@ type RequestCtx struct {
 	hijackNoResponse bool
 
 	finished bool
-	pathStr string
+	pathStr  string
+	SequenceID       int64
+	flowProcess []string
+}
+
+func (ctx *RequestCtx)GetRequestProcess()[]string  {
+	return ctx.flowProcess
+}
+
+func (ctx *RequestCtx)AddFlowProcess(str string)  {
+	ctx.flowProcess=append(ctx.flowProcess,str)
 }
 
 var colon = []byte(": ")
@@ -2389,6 +2399,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			if bw == nil {
 				bw = acquireWriter(ctx)
 			}
+			//TODO
+			ctx.Response.Header.Set("process",util.JoinArray(ctx.flowProcess,"->"))
 			if err = writeResponse(ctx, bw); err != nil {
 				break
 			}
@@ -2476,7 +2488,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				//process tracing handler
 
 				ctx1.Resume()
-
+				//ctx1.c=nil
+				//ctx1.fbr.c=nil
 				s.TraceHandler(ctx1)
 
 				//release ctx
@@ -2682,23 +2695,44 @@ func releaseWriter(s *Server, w *bufio.Writer) {
 	s.writerPool.Put(w)
 }
 
-func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
-	v := s.ctxPool.Get()
-	if v == nil {
-		ctx = &RequestCtx{
-			s: s,
+
+var ctxPool = &sync.Pool{
+	New: func() interface{} {
+		c:=RequestCtx{
+			SequenceID: util.GetIncrementID("ctx"),
 		}
-		keepBodyBuffer := !s.ReduceMemoryUsage
-		ctx.Request.keepBodyBuffer = keepBodyBuffer
-		ctx.Response.keepBodyBuffer = keepBodyBuffer
-	} else {
-		ctx = v.(*RequestCtx)
-	}
+		return &c
+	},
+}
 
-	ctx.Reset()
+func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 
-	ctx.c = c
-	return
+	x1:=ctxPool.Get().(*RequestCtx)
+	x1.s=s
+	x1.SequenceID=util.GetIncrementID("ctx")
+	x1.c=c
+	x1.Reset()
+	return x1
+
+	//v := s.ctxPool.Get()
+	//if v == nil {
+	//	ctx = &RequestCtx{
+	//		SequenceID: util.GetIncrementID("ctx"),
+	//		s: s,
+	//	}
+	//	keepBodyBuffer := !s.ReduceMemoryUsage
+	//	ctx.Request.keepBodyBuffer = keepBodyBuffer
+	//	ctx.Response.keepBodyBuffer = keepBodyBuffer
+	//	fmt.Println("new-context:",ctx.Request.URI().String())
+	//} else {
+	//	ctx = v.(*RequestCtx)
+	//	fmt.Println("reuse-context:",ctx.Request.URI().String())
+	//}
+	//
+	//ctx.Reset()
+	//
+	//ctx.c = c
+	//return
 }
 
 func (ctx *RequestCtx) Reset(){
@@ -2712,6 +2746,7 @@ func (ctx *RequestCtx) Reset(){
 
 	ctx.finished=false
 	ctx.pathStr=""
+	ctx.flowProcess=[]string{}
 }
 
 // Init2 prepares ctx for passing to RequestHandler.
@@ -2831,12 +2866,20 @@ func (fa *fakeAddrer) Close() error {
 }
 
 func (s *Server) releaseCtx(ctx *RequestCtx) {
-	if ctx.timeoutResponse != nil {
-		panic("BUG: cannot release timed out RequestCtx")
-	}
-	ctx.c = nil
-	ctx.fbr.c = nil
-	s.ctxPool.Put(ctx)
+
+	ctx.c=nil
+	ctx.fbr.c=nil
+	ctx.Reset()
+	ctxPool.Put(ctx)
+
+	return
+
+	//if ctx.timeoutResponse != nil {
+	//	panic("BUG: cannot release timed out RequestCtx")
+	//}
+	//ctx.c = nil
+	//ctx.fbr.c = nil
+	//s.ctxPool.Put(ctx)
 }
 
 func (s *Server) getServerName() []byte {
