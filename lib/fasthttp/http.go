@@ -341,7 +341,7 @@ func (resp *Response) Body() []byte {
 //返回的没有压缩过的 body
 func (resp *Response) GetRawBody()[]byte  {
 
-	ce := string(resp.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"Content-Encoding"}))
+	ce := string(resp.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"content-encoding","Content-Encoding"}))
 
 	//log.Error(request.Request.URI,",",ce,",",string(util.EscapeNewLine(ctx.Response.Header.Header())))
 	//log.Error(ctx.Response.Header.String())
@@ -366,7 +366,7 @@ func (resp *Response) GetRawBody()[]byte  {
 }
 
 func (req *Request) GetRawBody()[]byte  {
-	ce := string(req.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"Content-Encoding"}))
+	ce := string(req.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"Content-Encoding","content-encoding"}))
 	if ce == "gzip" {
 		body, err := req.BodyGunzip()
 		if err != nil {
