@@ -2455,12 +2455,12 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			break
 		}
 
+		ctx1:=ctx
+		ctx=s.acquireCtx(c)
 
 		//logging and reset
 		if s.TraceHandler!=nil{
 			//TODO, may send to another chan and processing
-			ctx1:=ctx
-			ctx=s.acquireCtx(c)
 
 			//ctx.Request.SetRequestURI("/this-test")
 			//fmt.Println("old:",ctx1.Request.URI().String())
