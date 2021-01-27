@@ -49,3 +49,4 @@ vendor/
 /cmd/vfs/vfs
 *.so
 /test/
+cmd/genfastjson/genfastjson
