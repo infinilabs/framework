@@ -1664,6 +1664,15 @@ func (req *Request) ResetBodyLength(size int) {
 	req.body.B=req.body.B[0:size]
 }
 
+func GetBasicAuthHeader(user string, password string) string {
+	var userAndPass = user + ":" + password
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(userAndPass))
+}
+
+func (req *Request) SetBasicAuth(username string, password string) {
+	req.Header.Add("Authorization",GetBasicAuthHeader(username,password))
+}
+
 func (resp *Response) ResetBodyLength(size int) {
 	if resp.bodyRaw!=nil{
 		resp.bodyRaw=resp.bodyRaw[0:size]
