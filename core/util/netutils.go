@@ -226,8 +226,7 @@ func Ipv4MaskString(m []byte) string {
 	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }
 
-
-func GetPublishNetworkDeviceInfo()(string,string,string,error)  {
+func GetPublishNetworkDeviceInfo()(dev string,ip string,mask string,err error)  {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
