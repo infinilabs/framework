@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/valyala/fasthttp"
 	"io"
 	"mime/multipart"
 	"net"
@@ -337,6 +338,54 @@ func (resp *Response) Body() []byte {
 	return resp.bodyBytes()
 }
 
+//返回的没有压缩过的 body
+func (resp *Response) GetRawBody()[]byte  {
+
+	ce := string(resp.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"Content-Encoding"}))
+
+	//log.Error(request.Request.URI,",",ce,",",string(util.EscapeNewLine(ctx.Response.Header.Header())))
+	//log.Error(ctx.Response.Header.String())
+
+	if ce == "gzip" {
+		body, err := resp.BodyGunzip()
+		if err != nil {
+			//log.Error(request.Request.URI,",",ce,",",string(util.EscapeNewLine(ctx.Response.Header.Header())),string(body))
+			//time.Sleep(10*time.Second)
+			panic(err)
+		}
+		return body
+	} else if ce == "deflate" {
+		body, err := resp.BodyInflate()
+		if err != nil {
+			panic(err)
+		}
+		return body
+	} else {
+		return resp.Body()
+	}
+}
+
+func (req *Request) GetRawBody()[]byte  {
+	ce := string(req.Header.PeekAny([]string{fasthttp.HeaderContentEncoding,"Content-Encoding"}))
+	if ce == "gzip" {
+		body, err := req.BodyGunzip()
+		if err != nil {
+			//time.Sleep(10*time.Second)
+			panic(err)
+		}
+		return body
+	} else if ce == "deflate" {
+		body, err := req.BodyInflate()
+		if err != nil {
+			panic(err)
+		}
+		return body
+	} else {
+		return req.Body()
+	}
+}
+
+
 func (resp *Response) bodyBytes() []byte {
 	if resp.bodyRaw != nil {
 		return resp.bodyRaw
@@ -394,10 +443,13 @@ func (resp *Response) BodyGunzip() ([]byte, error) {
 
 func gunzipData(p []byte) ([]byte, error) {
 	var bb bytebufferpool.ByteBuffer
+	//log.Error("PP:\n",string(p))
 	_, err := WriteGunzip(&bb, p)
 	if err != nil {
+		//log.Error("YES err:\n",string(bb.B))
 		return nil, err
 	}
+	//log.Error("NO err:\n",bb.B)
 	return bb.B, nil
 }
 
