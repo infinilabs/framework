@@ -78,6 +78,7 @@ var (
 	str100Continue         = []byte("100-continue")
 	strPostArgsContentType = []byte("application/x-www-form-urlencoded")
 	strMultipartFormData   = []byte("multipart/form-data")
+	strJsonContentType   = []byte("application/json")
 	strBoundary            = []byte("boundary")
 	strBytes               = []byte("bytes")
 	strTextSlash           = []byte("text/")
