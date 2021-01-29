@@ -263,6 +263,7 @@ func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	}
 
 	req := fasthttp.AcquireRequest()
+	req.Reset()
 	res := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(res)

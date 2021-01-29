@@ -810,7 +810,7 @@ type clientDoer interface {
 
 func clientGetURL(dst []byte, url string, c clientDoer) (statusCode int, body []byte, err error) {
 	req := AcquireRequest()
-
+	req.Reset()
 	statusCode, body, err = doRequestFollowRedirectsBuffer(req, dst, url, c)
 
 	ReleaseRequest(req)
@@ -842,6 +842,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 	ch = chv.(chan clientURLResponse)
 
 	req := AcquireRequest()
+	req.Reset()
 
 	// Note that the request continues execution on ErrTimeout until
 	// client-specific ReadTimeout exceeds. This helps limiting load
@@ -880,6 +881,7 @@ var clientURLResponseChPool sync.Pool
 
 func clientPostURL(dst []byte, url string, postArgs *Args, c clientDoer) (statusCode int, body []byte, err error) {
 	req := AcquireRequest()
+	req.Reset()
 	req.Header.SetMethodBytes(strPost)
 	req.Header.SetContentTypeBytes(strPostArgsContentType)
 	if postArgs != nil {
@@ -1119,6 +1121,7 @@ func clientDoDeadline(req *Request, resp *Response, deadline time.Time, c client
 	// Make req and resp copies, since on timeout they no longer
 	// may be accessed.
 	reqCopy := AcquireRequest()
+	reqCopy.Reset()
 	req.copyToSkipBody(reqCopy)
 	swapRequestBody(req, reqCopy)
 	respCopy := AcquireResponse()
