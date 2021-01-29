@@ -125,13 +125,15 @@ func (d *diskQueue) Depth() int64 {
 
 // ReadChan returns the []byte channel for reading data
 func (d *diskQueue) ReadChan() chan []byte {
+	d.RLock()
+	defer d.RUnlock()
 	return d.readChan
 }
 
 // Put writes a []byte to the queue
 func (d *diskQueue) Put(data []byte) error {
-	d.RLock()
-	defer d.RUnlock()
+	d.Lock()
+	defer d.Unlock()
 
 	if d.exitFlag == 1 {
 		return errors.New("exiting")
