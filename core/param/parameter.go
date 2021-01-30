@@ -39,6 +39,7 @@ func (para *Parameters) init() {
 	if para.inited {
 		return
 	}
+	//TODO reuse parameter Data
 	if para.l == nil {
 		para.l = &sync.RWMutex{}
 	}

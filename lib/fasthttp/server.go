@@ -552,8 +552,6 @@ type RequestCtx struct {
 
 	param.Parameters
 
-	flags map[string]bool
-
 	// Incoming request.
 	//
 	// Copying Request by value is forbidden. Use pointer to Request instead.
@@ -805,28 +803,8 @@ func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 //resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
 	ctx.finished=false
+	ctx.AddFlowProcess("||")
 }
-
-func (ctx *RequestCtx) SetFlag(flag string,value bool) {
-	ctx.flags[flag]=value
-}
-
-func (ctx *RequestCtx) GetFlag(flag string,defaultValue bool) bool {
-	v,ok:=ctx.flags[flag]
-	if ok{
-		return v
-	}
-	return defaultValue
-}
-//
-//func (ctx *RequestCtx) GetMetadata(key string)(interface{},bool) {
-//	v,ok:= ctx.metadata[key]
-//	return v,ok
-//}
-//
-//func (ctx *RequestCtx) SetMetadata(key string,v interface{}) {
-//	ctx.metadata[key]=v
-//}
 
 // SetUserValue stores the given value (arbitrary object)
 // under the given key in ctx.
@@ -2740,10 +2718,6 @@ func (ctx *RequestCtx) Reset(){
 	if ctx.Data==nil||len(ctx.Data)>0{
 		ctx.Data= map[string]interface{}{}
 	}
-	if ctx.flags==nil|| len(ctx.flags)>0{
-		ctx.flags= map[string]bool{}
-	}
-
 	ctx.finished=false
 	ctx.pathStr=""
 	ctx.flowProcess=[]string{}

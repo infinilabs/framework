@@ -39,6 +39,15 @@ func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
 }
 
+func ContainsInAnyIntArray(i int64, v []int64) bool {
+	for _,x:=range v{
+		if i==x{
+			return true
+		}
+	}
+	return false
+}
+
 func ContainsAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if ContainStr(s, k) {
