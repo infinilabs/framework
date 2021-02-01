@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -17,6 +18,7 @@ import (
 	"mime/multipart"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2139,7 +2141,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 	ctx := s.acquireCtx(c)
 	ctx.Reset()
-	ctx.Request.resetSkipHeader()
+	//ctx.Request.resetSkipHeader()
 	ctx.Response.Reset()
 	ctx.connTime = connTime
 	isTLS := ctx.IsTLS()
@@ -2325,7 +2327,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
 			ctx.Reset()
-			ctx.Request.resetSkipHeader()
+			//ctx.Request.resetSkipHeader() //will reset request body
 			ctx.Response.Reset()
 			stats.Increment("request","total")
 			s.Handler(ctx)
@@ -2439,51 +2441,51 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			break
 		}
 
-		//ctx1:=ctx
+		ctx1:=ctx
 		ctx=s.acquireCtx(c)
 
-		////logging and reset
-		//if s.TraceHandler!=nil{
-		//	//TODO, may send to another chan and processing
-		//
-		//	//ctx.Request.SetRequestURI("/this-test")
-		//	//fmt.Println("old:",ctx1.Request.URI().String())
-		//	//fmt.Println("new:",ctx.Request.URI().String())
-		//
-		//	go func() {
-		//
-		//		defer func() {
-		//			if !global.Env().IsDebug {
-		//				if r := recover(); r != nil {
-		//					var v string
-		//					switch r.(type) {
-		//					case error:
-		//						v = r.(error).Error()
-		//					case runtime.Error:
-		//						v = r.(runtime.Error).Error()
-		//					case string:
-		//						v = r.(string)
-		//					}
-		//					log.Error("error on handling tracing flow,", v)
-		//				}
-		//			}
-		//		}()
-		//
-		//		//process tracing handler
-		//
-		//		ctx1.Resume()
-		//		//ctx1.c=nil
-		//		//ctx1.fbr.c=nil
-		//		s.TraceHandler(ctx1)
-		//
-		//		//release ctx
-		//		ctx1.Request.Reset()
-		//		ctx1.Response.Reset()
-		//		ctx1.userValues.Reset()
-		//		s.releaseCtx(ctx1)
-		//	}()
-		//	//TODO improve performance
-		//}
+		//logging and reset
+		if s.TraceHandler!=nil{
+			//TODO, may send to another chan and processing
+
+			//ctx.Request.SetRequestURI("/this-test")
+			//fmt.Println("old:",ctx1.Request.URI().String())
+			//fmt.Println("new:",ctx.Request.URI().String())
+
+			go func() {
+
+				defer func() {
+					if !global.Env().IsDebug {
+						if r := recover(); r != nil {
+							var v string
+							switch r.(type) {
+							case error:
+								v = r.(error).Error()
+							case runtime.Error:
+								v = r.(runtime.Error).Error()
+							case string:
+								v = r.(string)
+							}
+							log.Error("error on handling tracing flow,", v)
+						}
+					}
+				}()
+
+				//process tracing handler
+
+				ctx1.Resume()
+				//ctx1.c=nil
+				//ctx1.fbr.c=nil
+				s.TraceHandler(ctx1)
+
+				//release ctx
+				ctx1.Reset()
+				ctx1.Request.Reset()
+				ctx1.Response.Reset()
+				s.releaseCtx(ctx1)
+			}()
+			//TODO improve performance
+		}
 
 		//acquire a new ctx
 		reqReset = true
@@ -2736,6 +2738,7 @@ func (ctx *RequestCtx) Reset(){
 	ctx.flowProcess=[]string{}
 	//ctx.Request.Reset()
 	//ctx.Response.Reset()
+	ctx.userValues.Reset()
 }
 
 // Init2 prepares ctx for passing to RequestHandler.
