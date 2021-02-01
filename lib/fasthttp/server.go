@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -18,7 +17,6 @@ import (
 	"mime/multipart"
 	"net"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -582,7 +580,6 @@ type RequestCtx struct {
 	hijackNoResponse bool
 
 	finished bool
-	pathStr  string
 	SequenceID       int64
 	flowProcess []string
 }
@@ -1040,16 +1037,16 @@ func (ctx *RequestCtx) UserAgent() []byte {
 func (ctx *RequestCtx) Path() []byte {
 	return ctx.URI().Path()
 }
-
-func (ctx *RequestCtx) PathStr() string {
-
-	return string(ctx.Path())
-
-	//if ctx.pathStr==""{
-	//	ctx.pathStr=string(ctx.Path())
-	//}
-	//return ctx.pathStr
-}
+//
+//func (ctx *RequestCtx) PathStr() string {
+//
+//	return string(ctx.Path())
+//
+//	//if ctx.pathStr==""{
+//	//	ctx.pathStr=string(ctx.Path())
+//	//}
+//	//return ctx.pathStr
+//}
 
 // Host returns requested host.
 //
@@ -2141,6 +2138,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	writeTimeout := s.WriteTimeout
 
 	ctx := s.acquireCtx(c)
+	ctx.Reset()
+	ctx.Request.resetSkipHeader()
+	ctx.Response.Reset()
 	ctx.connTime = connTime
 	isTLS := ctx.IsTLS()
 	var (
@@ -2325,6 +2325,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
 			ctx.Reset()
+			ctx.Request.resetSkipHeader()
+			ctx.Response.Reset()
 			stats.Increment("request","total")
 			s.Handler(ctx)
 		}
@@ -2332,6 +2334,10 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		timeoutResponse = ctx.timeoutResponse
 		if timeoutResponse != nil {
 			ctx = s.acquireCtx(c)
+			ctx.Reset()
+			ctx.Request.resetSkipHeader()
+			ctx.Response.Reset()
+
 			timeoutResponse.CopyTo(&ctx.Response)
 			if br != nil {
 				// Close connection, since br may be attached to the old ctx via ctx.fbr.
@@ -2433,57 +2439,58 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			break
 		}
 
-		ctx1:=ctx
+		//ctx1:=ctx
 		ctx=s.acquireCtx(c)
 
-		//logging and reset
-		if s.TraceHandler!=nil{
-			//TODO, may send to another chan and processing
-
-			//ctx.Request.SetRequestURI("/this-test")
-			//fmt.Println("old:",ctx1.Request.URI().String())
-			//fmt.Println("new:",ctx.Request.URI().String())
-
-			go func() {
-
-				defer func() {
-					if !global.Env().IsDebug {
-						if r := recover(); r != nil {
-							var v string
-							switch r.(type) {
-							case error:
-								v = r.(error).Error()
-							case runtime.Error:
-								v = r.(runtime.Error).Error()
-							case string:
-								v = r.(string)
-							}
-							log.Error("error on handling tracing flow,", v)
-						}
-					}
-				}()
-
-				//process tracing handler
-
-				ctx1.Resume()
-				//ctx1.c=nil
-				//ctx1.fbr.c=nil
-				s.TraceHandler(ctx1)
-
-				//release ctx
-				ctx1.Request.Reset()
-				ctx1.Response.Reset()
-				ctx1.userValues.Reset()
-				s.releaseCtx(ctx1)
-			}()
-			//TODO improve performance
-		}
+		////logging and reset
+		//if s.TraceHandler!=nil{
+		//	//TODO, may send to another chan and processing
+		//
+		//	//ctx.Request.SetRequestURI("/this-test")
+		//	//fmt.Println("old:",ctx1.Request.URI().String())
+		//	//fmt.Println("new:",ctx.Request.URI().String())
+		//
+		//	go func() {
+		//
+		//		defer func() {
+		//			if !global.Env().IsDebug {
+		//				if r := recover(); r != nil {
+		//					var v string
+		//					switch r.(type) {
+		//					case error:
+		//						v = r.(error).Error()
+		//					case runtime.Error:
+		//						v = r.(runtime.Error).Error()
+		//					case string:
+		//						v = r.(string)
+		//					}
+		//					log.Error("error on handling tracing flow,", v)
+		//				}
+		//			}
+		//		}()
+		//
+		//		//process tracing handler
+		//
+		//		ctx1.Resume()
+		//		//ctx1.c=nil
+		//		//ctx1.fbr.c=nil
+		//		s.TraceHandler(ctx1)
+		//
+		//		//release ctx
+		//		ctx1.Request.Reset()
+		//		ctx1.Response.Reset()
+		//		ctx1.userValues.Reset()
+		//		s.releaseCtx(ctx1)
+		//	}()
+		//	//TODO improve performance
+		//}
 
 		//acquire a new ctx
 		reqReset = true
-		//ctx.Request.Reset()
-		//ctx.Response.Reset()
-		//ctx.userValues.Reset()
+		//TODO reset?
+		ctx.Reset()
+		ctx.Response.Reset()
+		ctx.Request.Reset()
 
 		//ctx2:=s.acquireCtx(c)
 		//ctx=ctx2
@@ -2507,6 +2514,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		// before request reset call. in such cases, call it before
 		// release to fix #548
 		if !reqReset {
+			ctx.Reset()
+			ctx.Request.resetSkipHeader()
+			ctx.Response.Reset()
 			ctx.Request.Reset()
 		}
 		s.releaseCtx(ctx)
@@ -2619,6 +2629,10 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	n, err := c.Read(b[:])
 
 	ctx = s.acquireCtx(c)
+	ctx.Reset()
+	ctx.Request.resetSkipHeader()
+	ctx.Response.Reset()
+
 	*ctxP = ctx
 	if err != nil {
 		// Treat all errors as EOF on unsuccessful read
@@ -2719,8 +2733,9 @@ func (ctx *RequestCtx) Reset(){
 		ctx.Data= map[string]interface{}{}
 	}
 	ctx.finished=false
-	ctx.pathStr=""
 	ctx.flowProcess=[]string{}
+	//ctx.Request.Reset()
+	//ctx.Response.Reset()
 }
 
 // Init2 prepares ctx for passing to RequestHandler.
