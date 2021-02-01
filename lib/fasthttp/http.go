@@ -339,7 +339,7 @@ func (resp *Response) Body() []byte {
 //返回的没有压缩过的 body
 func (resp *Response) GetRawBody()[]byte  {
 
-	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding,"content-encoding","Content-Encoding"}))
+	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2}))
 
 	//log.Error(request.Request.URI,",",ce,",",string(util.EscapeNewLine(ctx.Response.Header.Header())))
 	//log.Error(ctx.Response.Header.String())
@@ -364,7 +364,7 @@ func (resp *Response) GetRawBody()[]byte  {
 }
 
 func (req *Request) GetRawBody()[]byte  {
-	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding,"Content-Encoding","content-encoding"}))
+	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := req.BodyGunzip()
 		if err != nil {
@@ -834,7 +834,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 		return nil, ErrNoMultipartForm
 	}
 
-	ce := req.Header.peek(strContentEncoding)
+	ce := req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})
 	body := req.bodyBytes()
 	if bytes.Equal(ce, strGzip) {
 		// Do not care about memory usage here.
@@ -1086,7 +1086,7 @@ func (req *Request) ContinueReadBody(r *bufio.Reader, maxBodySize int, preParseM
 			// This way we limit memory usage for large file uploads, since their contents
 			// is streamed into temporary files if file size exceeds defaultMaxInMemoryFileSize.
 			req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
-			if len(req.multipartFormBoundary) > 0 && len(req.Header.peek(strContentEncoding)) == 0 {
+			if len(req.multipartFormBoundary) > 0 && len(req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) == 0 {
 				req.multipartForm, err = readMultipartForm(r, req.multipartFormBoundary, contentLength, defaultMaxInMemoryFileSize)
 				if err != nil {
 					req.Reset()
@@ -1368,7 +1368,7 @@ func (resp *Response) WriteDeflateLevel(w *bufio.Writer, level int) error {
 }
 
 func (resp *Response) brotliBody(level int) error {
-	if len(resp.Header.peek(strContentEncoding)) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1423,7 +1423,7 @@ func (resp *Response) brotliBody(level int) error {
 }
 
 func (resp *Response) gzipBody(level int) error {
-	if len(resp.Header.peek(strContentEncoding)) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1478,7 +1478,7 @@ func (resp *Response) gzipBody(level int) error {
 }
 
 func (resp *Response) deflateBody(level int) error {
-	if len(resp.Header.peek(strContentEncoding)) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1756,6 +1756,11 @@ func (resp *Response) SetDestination(str string) {
 
 func (resp *Response) Destination() []string {
 	return resp.destination
+}
+
+func (res *Response) IsCompressed() (compressed bool,compressType []byte) {
+	ce := res.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})
+	return len(ce)>0,ce
 }
 
 func getHTTPString(hw httpWriter) string {

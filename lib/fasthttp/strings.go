@@ -44,6 +44,7 @@ var (
 	strServer           = []byte(HeaderServer)
 	strTransferEncoding = []byte(HeaderTransferEncoding)
 	strContentEncoding  = []byte(HeaderContentEncoding)
+	strContentEncoding2  = []byte(HeaderContentEncoding2)
 	strAcceptEncoding   = []byte(HeaderAcceptEncoding)
 	strUserAgent        = []byte(HeaderUserAgent)
 	strCookie           = []byte(HeaderCookie)
