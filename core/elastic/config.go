@@ -47,6 +47,7 @@ type ElasticsearchMetadata struct {
 	Nodes                map[string]NodesInfo
 	Indices              map[string]IndexInfo
 	PrimaryShards        map[string]ShardInfo
+	Aliases              map[string]AliasInfo
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int)(*ShardInfo)  {

@@ -56,6 +56,8 @@ type API interface {
 	GetNodes() (*map[string]NodesInfo, error)
 	GetIndices() (*map[string]IndexInfo, error)
 	GetPrimaryShards() (*map[string]ShardInfo, error)
+	GetAliases() (*map[string]AliasInfo,error)
+
 
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
@@ -124,6 +126,11 @@ type ShardInfo struct {
 	NodeID           string `json:"node_id,omitempty"`
 	NodeName         string `json:"node_name,omitempty"`
 	NodeIP           string `json:"node_ip,omitempty"`
+}
+type AliasInfo struct {
+	Alias            string `json:"alias,omitempty"`
+	Index          	[]string `json:"index,omitempty"`
+	WriteIndex        string   `json:"write_index,omitempty"`
 }
 
 type NodesResponse struct {

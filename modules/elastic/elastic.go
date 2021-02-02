@@ -240,8 +240,8 @@ func discovery() {
 				newMetadata.Nodes = *nodes
 			}
 
-			var indicesChanged bool
 			//Indices
+			var indicesChanged bool
 			indices, err := client.GetIndices()
 			if err != nil {
 				panic(err)
@@ -251,9 +251,9 @@ func discovery() {
 				newMetadata.Indices = *indices
 				indicesChanged = true
 			}
-			var shardsChanged bool
 
 			//Shards
+			var shardsChanged bool
 			shards, err := client.GetPrimaryShards()
 			if err != nil {
 				panic(err)
@@ -264,8 +264,22 @@ func discovery() {
 				shardsChanged = true
 			}
 
-			if nodesChanged || indicesChanged || shardsChanged {
-				log.Trace("elasticsearch newMetadata updated,", *nodes)
+			//Indices
+			var aliasesChanged bool
+			aliases, err := client.GetAliases()
+			if err != nil {
+				panic(err)
+			}
+			if aliases != nil {
+				//TODO check if that changed or skip replace
+				newMetadata.Aliases = *aliases
+				aliasesChanged = true
+			}
+
+			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged {
+				if global.Env().IsDebug{
+					log.Trace("elasticsearch metadata updated,", newMetadata)
+				}
 				elastic.SetMetadata(cfg.Name, &newMetadata)
 			}
 
