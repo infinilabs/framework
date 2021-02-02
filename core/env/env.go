@@ -155,6 +155,8 @@ var (
 					SkipOccupiedPort: true,
 				},
 		},
+		LoggingConfig: config.LoggingConfig{
+		},
 		ClusterConfig: config.ClusterConfig{
 			Seeds:                          []string{},
 			HealthCheckInMilliseconds:      10000,

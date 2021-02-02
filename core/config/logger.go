@@ -19,9 +19,10 @@ package config
 // LoggingConfig object to store logging related settings
 type LoggingConfig struct {
 	RealtimePushEnabled  bool   `json:"realtime"`
-	LogLevel             string `json:"log_level"`
+	LogLevel             string `json:"log_level" config:"level"`
 	PushLogLevel         string `json:"push_log_level"`
 	FuncFilterPattern    string `json:"func_pattern"`
 	FileFilterPattern    string `json:"file_pattern"`
 	MessageFilterPattern string `json:"message_pattern"`
+	IsDebug              bool   `json:"debug"  config:"debug"`
 }

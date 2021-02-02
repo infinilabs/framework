@@ -127,6 +127,14 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 
 	app.environment.Init()
 
+	//allow use yml to configure the log level
+	if app.environment.SystemConfig.LoggingConfig.LogLevel!=""{
+		app.logLevel=app.environment.SystemConfig.LoggingConfig.LogLevel
+	}
+	if app.environment.SystemConfig.LoggingConfig.IsDebug{
+		app.environment.IsDebug = app.environment.SystemConfig.LoggingConfig.IsDebug
+	}
+
 	//put env into global registrar
 	global.RegisterEnv(app.environment)
 

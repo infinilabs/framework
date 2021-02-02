@@ -107,6 +107,8 @@ type SystemConfig struct {
 
 	PathConfig PathConfig `config:"path"`
 
+	LoggingConfig LoggingConfig `config:"log"`
+
 	CookieSecret string `config:"cookie_secret"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
