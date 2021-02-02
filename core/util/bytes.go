@@ -466,3 +466,34 @@ func CompareStringAndBytes(b []byte, s string) bool {
 	}
 	return true
 }
+
+func LimitedBytesSearch(data []byte, term []byte,limit int) bool {
+	buffer:=make([]byte,len(term))
+	start:=false
+	bufferOffset:=0
+	for i,v:=range data{
+		if i>limit{
+			return false
+		}
+		if!start{
+			if term[0]==v{
+				start=true
+				bufferOffset=0
+				buffer=append(buffer,v)
+			}
+		}else{
+			if  len(buffer)==len(term){
+				return true
+			}
+
+			bufferOffset++
+			if term[bufferOffset]==v{
+				buffer=append(buffer,v)
+			}else{
+				start=false
+				buffer=[]byte{}
+			}
+		}
+	}
+	return false
+}

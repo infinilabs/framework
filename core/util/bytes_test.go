@@ -542,6 +542,51 @@ func TestUInt32ToBytes(t *testing.T) {
 	assert.Equal(t, v, x)
 }
 
+func TestLimitedBytesSearch(t *testing.T)  {
+	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+
+	term:=[]byte("\"errors\":true")
+	limit:=64
+	//buffer:=make([]byte,len(term))
+	//start:=false
+	//bufferOffset:=0
+	//for i,v:=range data{
+	//	if i>limit{
+	//		return
+	//	}
+	//	if!start{
+	//		if term[0]==v{
+	//			start=true
+	//			bufferOffset=0
+	//			buffer=append(buffer,v)
+	//		}
+	//	}else{
+	//		if  len(buffer)==len(term){
+	//			fmt.Println("matched!",string(buffer)," vs ",string(term))
+	//			return
+	//		}
+	//
+	//		bufferOffset++
+	//		if term[bufferOffset]==v{
+	//			buffer=append(buffer,v)
+	//		}else{
+	//			start=false
+	//			buffer=[]byte{}
+	//		}
+	//
+	//	}
+	//
+	//
+	//}
+
+	ok:=LimitedBytesSearch(data,term,limit)
+	assert.Equal(t,true,ok)
+
+	term=[]byte("\"errors\":false")
+	ok=LimitedBytesSearch(data,term,limit)
+	assert.Equal(t,false,ok)
+}
+
 func TestBytesSearchValue(t *testing.T)  {
 	data:=[]byte("{\n  \"id\" : \"FnZGLWN4OXRpVGItTVZtdzZ1U2hGTEEdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoxMTU2OTE=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601100879183,\n  \"expiration_time_in_millis\" : 1601100948312,\n  \"response\" :")
 	startTerm:=[]byte("\"is_running\"")
