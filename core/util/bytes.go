@@ -336,28 +336,86 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 	return false, nil
 }
 
-func ProcessJsonData(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool, handler func(start, end int)) bool {
+// []byte("gte"), []byte("strict_date_optional_time"), []byte("range")
+//blockSplit 按照那个部分来进行划分多个区块；
+//validBlockMustContain 区块必须包含的关键字
+//reverse 是从区块的前面还是后面进行处理
+//processBlockStartWithBlock 从什么地方开始处理
+//processBlockEndWithBlock 从什么地方结束处理
+//maxSpan 开始和结束位置的最大间隔，约束范围
+//匹配位置的处理函数
+func ProcessJsonData(data *[]byte, blockSplit []byte, validBlockMustContain []byte, reverse bool,  matchBlockStartWith []byte, matchBlocksEndWith []byte,maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
-	scanner.Split(GetSplitFunc(fieldEndWith))
+	scanner.Split(GetSplitFunc(blockSplit))
 	var str []byte
+	block:=0
+	index:=0
 	for scanner.Scan() {
 		text := scanner.Bytes()
-		if bytes.Contains(text, leftMustContain) {
+		//fmt.Println("scan+")
+		if len(text)>0{
+			block++
+		}
+		index=index+len(text)
+		if bytes.Contains(text, validBlockMustContain) {
+			//fmt.Println("not valid block+")
 			str = text
 			break
 		}
 	}
+	//fmt.Println("index:",index-len(str),"block:",string(str))
+	//fmt.Println("index:",index,"len(str):",len(str),",len(matchBlockStartWith):",len(matchBlockStartWith),",len(data):",len(*data),",block:",string(str))
+	globalIndex:=len(*data)-len(str)//-len(matchBlockStartWith)
+	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:]))
+	if block==1{
+		return false
+	}
 
+//TODO 处理一个 block 里面匹配多个 match 的情况，多个条件需要替换
 	if len(str) > 0 {
-		var offset int
+		var startOffset int
+		var endOffset int
+		base:=len(matchBlockStartWith)
+		//fmt.Println("reverse:",reverse)
+		//fmt.Println("base:",base)
 		if reverse {
-			offset = bytes.LastIndex(str, fieldStartWith)
+			startOffset = bytes.LastIndex(str, matchBlockStartWith)
 		} else {
-			offset = bytes.Index(str, fieldStartWith)
+			startOffset = bytes.Index(str, matchBlockStartWith)
 		}
 
-		if offset > 0 && offset < len(str) {
-			handler(offset+len(fieldStartWith), len(str))
+		startOffset=startOffset+base-len(matchBlockStartWith)
+
+		if matchBlocksEndWith!=nil{
+			endOffset = bytes.Index(str[startOffset:], matchBlocksEndWith)
+			endOffset=startOffset+endOffset
+		}
+
+		if endOffset<=0{
+			//fmt.Println("matchBlocksEndWith is nil:",matchBlocksEndWith)
+			endOffset=len(str)
+		}
+
+
+		//fmt.Println("startOffset:",startOffset)
+		//fmt.Println("endOffset:",endOffset)
+
+		if endOffset<=startOffset{
+			//fmt.Println("start offset < end offset")
+			return false
+		}
+
+		//fmt.Println("span:",endOffset-startOffset)
+		if maxSpan< (endOffset-startOffset){
+			//fmt.Println("beyond max span:",endOffset-startOffset," vs ",maxSpan)
+			return false
+		}
+
+		//fmt.Println("new block:",string(str[startOffset:endOffset]))
+		//fmt.Println("new global block:",string((*data)[globalIndex+startOffset:globalIndex+endOffset]))
+
+		if startOffset > 0 && startOffset < len(str) {
+			matchedBlockProcessHandler(str[startOffset:endOffset],globalIndex+startOffset,globalIndex+endOffset)
 			return true
 		}
 	} else {
