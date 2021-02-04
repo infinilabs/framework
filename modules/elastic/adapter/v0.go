@@ -456,25 +456,10 @@ func (c *ESAPIV0) GetIndices() (*map[string]elastic.IndexInfo, error) {
 		info.Status = v.Status
 		info.Health = v.Health
 
-		info.Shards, err = util.ToInt(v.Pri)
-		if err != nil {
-			panic(err)
-		}
-
-		info.Replicas, err = util.ToInt(v.Rep)
-		if err != nil {
-			panic(err)
-		}
-
-		info.DocsCount, err = util.ToInt64(v.DocsCount)
-		if err != nil {
-			//panic(err)
-		}
-
-		info.DocsDeleted, err = util.ToInt64(v.DocsDeleted)
-		if err != nil {
-			//panic(err)
-		}
+		info.Shards, _ = util.ToInt(v.Pri)
+		info.Replicas, _ = util.ToInt(v.Rep)
+		info.DocsCount, _ = util.ToInt64(v.DocsCount)
+		info.DocsDeleted, _ = util.ToInt64(v.DocsDeleted)
 
 		indexInfo[v.Index] = info
 	}
@@ -536,7 +521,6 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]elastic.ShardInfo, error) {
 		info.State = v.State
 		info.Docs, err = util.ToInt64(v.Docs)
 		if err != nil {
-			//panic(err)
 			info.Docs = 0
 		}
 		info.Store = v.Store
