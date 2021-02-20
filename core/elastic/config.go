@@ -50,17 +50,17 @@ type ElasticsearchMetadata struct {
 	Aliases              map[string]AliasInfo
 }
 
-func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int)(*ShardInfo)  {
-	info,ok:=meta.PrimaryShards[fmt.Sprintf("%v:%v",index,shardID)]
-	if ok{
+func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
+	info, ok := meta.PrimaryShards[fmt.Sprintf("%v:%v", index, shardID)]
+	if ok {
 		return &info
 	}
 	return nil
 }
 
-func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string)(*NodesInfo)  {
-	info,ok:=meta.Nodes[nodeID]
-	if ok{
+func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
+	info, ok := meta.Nodes[nodeID]
+	if ok {
 		return &info
 	}
 	return nil
@@ -68,12 +68,13 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string)(*NodesInfo)  {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-	ID           string `json:"id,omitempty" index:"id"`
-	Name         string `json:"name,omitempty" config:"name"`
-	Enabled      bool   `json:"enabled,omitempty" config:"enabled"`
-	HttpProxy    string `config:"http_proxy"`
-	Endpoint     string `config:"endpoint"`
-	Version      string `config:"version"`
+	ID        string   `json:"id,omitempty" index:"id"`
+	Name      string   `json:"name,omitempty" config:"name"`
+	Enabled   bool     `json:"enabled,omitempty" config:"enabled"`
+	HttpProxy string   `config:"http_proxy"`
+	Endpoint  string   `config:"endpoint"`
+	Endpoints []string `config:"endpoints"`
+	Version   string   `config:"version"`
 
 	BasicAuth *struct {
 		Username string `config:"username"`
@@ -81,7 +82,7 @@ type ElasticsearchConfig struct {
 	} `config:"basic_auth"`
 
 	Discovery struct {
-		Enabled bool `config:"enabled"`
+		Enabled bool     `config:"enabled"`
 		Modules []string `config:"module"`
 		Refresh struct {
 			Enabled  bool   `config:"enabled"`
@@ -145,9 +146,9 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
-func GetAllConfigs()map[string]ElasticsearchConfig  {
+func GetAllConfigs() map[string]ElasticsearchConfig {
 	return cfgs
 }
-func SetMetadata(k string,v *ElasticsearchMetadata)  {
-	metas[k]=v
+func SetMetadata(k string, v *ElasticsearchMetadata) {
+	metas[k] = v
 }
