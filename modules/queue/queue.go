@@ -47,13 +47,13 @@ var cfg *QueueConfig
 func (module DiskQueue) initQueue(name string) error {
 
 	channel := "default"
+	initLocker.Lock()
+	defer initLocker.Unlock()
 
 	if queues[name] != nil {
 		return nil
 	}
 
-	initLocker.Lock()
-	defer initLocker.Unlock()
 
 	//double check after lock in
 	if queues[name] != nil {
