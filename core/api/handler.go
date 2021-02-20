@@ -158,14 +158,20 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 	return nil
 }
 
-func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool) error {
+func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool,status int,obj map[string]interface{}) error {
 	if !handler.wroteHeader {
 		handler.WriteJSONHeader(w)
-		w.WriteHeader(200)
+		w.WriteHeader(status)
 	}
 
-	v := map[string]bool{}
-	v["ok"] = ack
+	v := map[string]interface{}{}
+	v["acknowledged"] = ack
+
+	if obj!=nil{
+		for k,v1:=range obj{
+			v[k]=v1
+		}
+	}
 
 	b, err := handler.EncodeJSON(v)
 	if err != nil {
@@ -177,6 +183,10 @@ func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool) error {
 	}
 
 	return nil
+}
+
+func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) error {
+	return handler.WriteAckJSON(w,true,200,nil)
 }
 
 // GetParameter return query parameter with argument name
