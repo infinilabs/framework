@@ -124,8 +124,13 @@ type AggregationResponse struct {
 	Buckets []Bucket `json:"buckets,omitempty"`
 }
 
+type Response struct {
+	StatusCode int
+}
+
 // InsertResponse is a index response object
 type InsertResponse struct {
+	Response
 	Result  string `json:"result"`
 	Index   string `json:"_index"`
 	Type    string `json:"_type"`
@@ -141,6 +146,7 @@ type InsertResponse struct {
 
 // GetResponse is a get response object
 type GetResponse struct {
+	Response
 	Found   bool                   `json:"found"`
 	Index   string                 `json:"_index"`
 	Type    string                 `json:"_type"`
@@ -151,6 +157,7 @@ type GetResponse struct {
 
 // DeleteResponse is a delete response object
 type DeleteResponse struct {
+	Response
 	Result  string `json:"result"`
 	Index   string `json:"_index"`
 	Type    string `json:"_type"`
@@ -165,11 +172,13 @@ type DeleteResponse struct {
 
 // CountResponse is a count response object
 type CountResponse struct {
+	Response
 	Count int `json:"count"`
 }
 
 // SearchResponse is a count response object
 type SearchResponse struct {
+	Response
 	Took     int  `json:"took"`
 	TimedOut bool `json:"timed_out"`
 	Hits     struct {

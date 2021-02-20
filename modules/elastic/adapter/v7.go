@@ -105,14 +105,15 @@ func (c *ESAPIV7) Delete(indexName,docType, id string) (*elastic.DeleteResponse,
 	}
 
 	esResp := &elastic.DeleteResponse{}
+	esResp.StatusCode=resp.StatusCode
 	err = json.Unmarshal(resp.Body, esResp)
+
 	if err != nil {
 		return &elastic.DeleteResponse{}, err
 	}
-	if esResp.Result != "deleted" {
+	if esResp.Result != "deleted" && esResp.Result!="not_found" {
 		return nil, errors.New(string(resp.Body))
 	}
-
 	return esResp, nil
 }
 
