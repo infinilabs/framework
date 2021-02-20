@@ -22,6 +22,7 @@ type ElasticORM struct {
 
 func (handler ElasticORM) GetIndexName(o interface{}) string {
 	indexName:=getIndexName(o)
+
 	if handler.Config.IndexPrefix==""{
 		return indexName
 	}

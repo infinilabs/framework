@@ -173,7 +173,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		if moduleConfig.ORMConfig.InitTemplate {
 			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
-		handler := ElasticORM{Client: client}
+		handler := ElasticORM{Client: client,Config: moduleConfig.ORMConfig}
 		orm.Register("elastic", handler)
 	}
 
