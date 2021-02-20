@@ -125,7 +125,7 @@ type AggregationResponse struct {
 }
 
 type Response struct {
-	StatusCode int
+	StatusCode int `json:"-"`
 }
 
 // InsertResponse is a index response object
