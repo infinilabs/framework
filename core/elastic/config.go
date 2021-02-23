@@ -20,6 +20,7 @@ import (
 	"fmt"
 	url2 "net/url"
 	"strings"
+	"time"
 )
 
 var apis = map[string]API{}
@@ -69,26 +70,31 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
 	ID        string   `json:"id,omitempty" index:"id"`
-	Name      string   `json:"name,omitempty" config:"name"`
-	Enabled   bool     `json:"enabled,omitempty" config:"enabled"`
-	HttpProxy string   `config:"http_proxy"`
-	Endpoint  string   `config:"endpoint"`
-	Endpoints []string `config:"endpoints"`
-	Version   string   `config:"version"`
+	Name      string   `json:"name,omitempty" config:"name" elastic_mapping:"endpoint:{type:keyword}"`
+	Description string    `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Enabled   bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	HttpProxy string   `json:"http_proxy,omitempty" config:"http_proxy"`
+	Endpoint  string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	//Endpoints []string `config:"endpoints"`
+	Version   string   `json:"version,omitempty" config:"version"`
 
 	BasicAuth *struct {
-		Username string `config:"username"`
-		Password string `config:"password"`
-	} `config:"basic_auth"`
+		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
+		Password string `json:"password,omitempty" config:"password" elastic_mapping:"username:{type:keyword}"`
+	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	Discovery struct {
-		Enabled bool     `config:"enabled"`
-		Modules []string `config:"module"`
+		Enabled bool     `json:"enabled,omitempty" config:"enabled"`
+		Modules []string `json:"module,omitempty" config:"module"`
 		Refresh struct {
-			Enabled  bool   `config:"enabled"`
-			Interval string `config:"interval"`
-		} `config:"refresh"`
-	} `config:"discovery"`
+			Enabled  bool   `json:"enabled,omitempty" config:"enabled"`
+			Interval string `json:"interval,omitempty" config:"interval"`
+		} `json:"refresh,omitempty" config:"refresh"`
+	} `json:"discovery,omitempty" config:"discovery"`
+
+	Order       int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
+	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
 }
 
 //format: host:port
