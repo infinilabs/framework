@@ -62,6 +62,11 @@ func StartUI(cfg *UIConfig) {
 	//router.RedirectTrailingSlash=false
 	//router.RedirectFixedPath=false
 
+	router.NotFound= http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("my 404"))
+		rw.WriteHeader(404)
+	})
+
 	//registered handlers
 	if registeredUIHandler != nil {
 		for k, v := range registeredUIHandler {
