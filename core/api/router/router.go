@@ -78,6 +78,7 @@ package httprouter
 
 import (
 	"net/http"
+	"strings"
 )
 
 // Handle is a function that can be registered to a route to handle HTTP
@@ -110,6 +111,9 @@ func (ps Params) ByName(name string) string {
 // Router is a http.Handler which can be used to dispatch requests to different
 // handler functions via configurable routes
 type Router struct {
+	//method/path/handler
+	hashRoute map[string]map[string]Handle
+
 	trees map[string]*node
 
 	// Enables automatic redirection if the current route can't be matched but a
@@ -118,6 +122,8 @@ type Router struct {
 	// client is redirected to /foo with http status code 301 for GET requests
 	// and 307 for all other request methods.
 	RedirectTrailingSlash bool
+
+	ResolveConflict bool
 
 	// If enabled, the router tries to fix the current request path, if no
 	// handle is registered for it.
@@ -170,6 +176,7 @@ var _ http.Handler = New(http.NewServeMux())
 // Path auto-correction, including trailing slashes, is enabled by default.
 func New(mux *http.ServeMux) *Router {
 	return &Router{
+		ResolveConflict: true,
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
@@ -226,8 +233,25 @@ func (r *Router) Handle(method, path string, handle Handle) {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
 
+	if r.ResolveConflict {
+		if !strings.ContainsAny(path, "*:") {
+			if r.hashRoute == nil || len(r.hashRoute) == 0 {
+				r.hashRoute = map[string]map[string]Handle{}
+			}
+			paths, ok := r.hashRoute[method]
+			if !ok {
+				paths = map[string]Handle{}
+				paths[path] = handle
+			} else {
+				paths[path] = handle
+			}
+			r.hashRoute[method] = paths
+			return
+		}
+	}
 	if r.trees == nil {
 		r.trees = make(map[string]*node)
+		r.hashRoute=make(map[string]map[string]Handle)
 	}
 
 	root := r.trees[method]
@@ -279,15 +303,48 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 // If the path was found, it returns the handle function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
+func (r *Router) LookupTree(method, path string) (Handle, Params, bool) {
 	if root := r.trees[method]; root != nil {
 		return root.getValue(path)
 	}
 	return nil, nil, false
 }
 
+func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
+
+	if r.ResolveConflict{
+		if r.hashRoute!=nil{
+			v,ok:=r.hashRoute[method]
+			if ok{
+				v1,ok:=v[path]
+				if ok{
+					return v1,nil,(path == "/")
+				}
+			}
+		}
+	}
+
+	return r.LookupTree(method,path)
+}
+
 func (r *Router) allowed(path, reqMethod string) (allow string) {
 	if path == "*" { // server-wide
+
+		if r.ResolveConflict{
+			for method,_:=range r.hashRoute{
+				if method == "OPTIONS" {
+					continue
+				}
+
+				// add request method to list of allowed methods
+				if len(allow) == 0 {
+					allow = method
+				} else {
+					allow += ", " + method
+				}
+			}
+		}
+
 		for method := range r.trees {
 			if method == "OPTIONS" {
 				continue
@@ -301,6 +358,27 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 			}
 		}
 	} else { // specific path
+
+		if r.ResolveConflict {
+			if !strings.ContainsAny(path, "*:") {
+				for method, v := range r.hashRoute {
+					// Skip the requested method - we already tried this one
+					if method == reqMethod || method == "OPTIONS" {
+						continue
+					}
+
+					handle := v[path]
+					if handle != nil {
+						// add request method to list of allowed methods
+						if len(allow) == 0 {
+							allow = method
+						} else {
+							allow += ", " + method
+						}
+					}
+				}
+			}
+		}
 		for method := range r.trees {
 			// Skip the requested method - we already tried this one
 			if method == reqMethod || method == "OPTIONS" {
@@ -331,6 +409,45 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	path := req.URL.Path
+
+	if r.ResolveConflict{
+		handler, ps,tsr:=r.Lookup(req.Method,path)
+		if handler!=nil{
+			handler(w, req, ps)
+			return
+		} else if req.Method != "CONNECT" && path != "/" {
+			code := 301 // Permanent redirect, request with GET method
+			if req.Method != "GET" {
+				// Temporary redirect, request with same method
+				// As of Go 1.3, Go does not support status code 308.
+				code = 307
+			}
+
+			if  tsr&&r.RedirectTrailingSlash {
+				if len(path) > 1 && path[len(path)-1] == '/' {
+					req.URL.Path = path[:len(path)-1]
+				} else {
+					req.URL.Path = path + "/"
+				}
+				http.Redirect(w, req, req.URL.String(), code)
+				return
+			}
+
+			//// Try to fix the request path
+			//if r.RedirectFixedPath {
+			//	//TODO
+			//	fixedPath, found := root.findCaseInsensitivePath(
+			//		CleanPath(path),
+			//		r.RedirectTrailingSlash,
+			//	)
+			//	if found {
+			//		req.URL.Path = string(fixedPath)
+			//		http.Redirect(w, req, req.URL.String(), code)
+			//		return
+			//	}
+			//}
+		}
+	}
 
 	if root := r.trees[req.Method]; root != nil {
 		if handle, ps, tsr := root.getValue(path); handle != nil {
@@ -395,5 +512,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	if r.NotFound!=nil{
+		r.NotFound.ServeHTTP(w,req)
+		return
+	}
 	r.mux.ServeHTTP(w, req)
 }
