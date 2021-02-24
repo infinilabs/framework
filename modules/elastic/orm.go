@@ -6,18 +6,13 @@ import (
 	"infini.sh/framework/core/errors"
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/common"
 )
 
-type ORMConfig struct {
-	Enabled      bool   `config:"enabled"`
-	InitTemplate bool   `config:"init_template"`
-	TemplateName string `config:"template_name"`
-	IndexPrefix  string `config:"index_prefix"`
-}
 
 type ElasticORM struct {
 	Client elastic.API
-	Config ORMConfig
+	Config common.ORMConfig
 }
 
 func (handler ElasticORM) GetIndexName(o interface{}) string {

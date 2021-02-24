@@ -26,8 +26,8 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
-	"infini.sh/framework/modules/elastic/adapter"
-	"strings"
+	. "infini.sh/framework/modules/elastic/common"
+	 "infini.sh/framework/modules/elastic/api"
 )
 
 func (module ElasticModule) Name() string {
@@ -52,16 +52,10 @@ func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
 
-type ModuleConfig struct {
-	Elasticsearch string      `config:"elasticsearch"`
-	ORMConfig     ORMConfig   `config:"orm"`
-	StoreConfig   StoreConfig `config:"store"`
-}
 
 var m = map[string]elastic.ElasticsearchConfig{}
 
 func loadElasticConfig() {
-
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
 	if exist && err != nil {
@@ -86,66 +80,14 @@ func loadElasticConfig() {
 }
 
 func initElasticInstances() {
-
 	for k, esConfig := range m {
-
-		var client elastic.API
 		if !esConfig.Enabled {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
 		}
-
-		var ver string
-		if esConfig.Version == "" || esConfig.Version == "auto" {
-			esVersion, err := adapter.ClusterVersion(&esConfig)
-			if err != nil {
-				panic(err)
-				return
-			}
-			ver = esVersion.Version.Number
-			esConfig.Version = ver
-		} else {
-			ver = esConfig.Version
-		}
-
-		if global.Env().IsDebug {
-			log.Debug("elasticsearch version: ", ver)
-		}
-
-		if strings.HasPrefix(ver, "8.") {
-			api := new(adapter.ESAPIV8)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		} else if strings.HasPrefix(ver, "7.") {
-			api := new(adapter.ESAPIV7)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		} else if strings.HasPrefix(ver, "6.") {
-			api := new(adapter.ESAPIV6)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		} else if strings.HasPrefix(ver, "5.") {
-			api := new(adapter.ESAPIV5)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		} else if strings.HasPrefix(ver, "2.") {
-			api := new(adapter.ESAPIV2)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		} else {
-			api := new(adapter.ESAPIV0)
-			api.Config = esConfig
-			api.Version = ver
-			client = api
-		}
+		client:=InitClientWithConfig(esConfig)
 		elastic.RegisterInstance(k, esConfig, client)
 	}
-
 }
 
 func (module ElasticModule) Init() {
@@ -181,6 +123,8 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		handler := ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", handler)
 	}
+
+	api.Init(moduleConfig)
 
 }
 

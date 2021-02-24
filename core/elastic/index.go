@@ -100,9 +100,39 @@ type ClusterInformation struct {
 	} `json:"version"`
 }
 
+
+//"cluster_name": "pi",
+//"status": "green",
+//"timed_out": false,
+//"number_of_nodes": 3,
+//"number_of_data_nodes": 3,
+//"active_primary_shards": 58,
+//"active_shards": 116,
+//"relocating_shards": 0,
+//"initializing_shards": 0,
+//"unassigned_shards": 0,
+//"delayed_unassigned_shards": 0,
+//"number_of_pending_tasks": 0,
+//"number_of_in_flight_fetch": 0,
+//"task_max_waiting_in_queue_millis": 0,
+//"active_shards_percent_as_number": 100
+
 type ClusterHealth struct {
 	Name   string `json:"cluster_name"`
 	Status string `json:"status"`
+	TimedOut bool `json:"timed_out"`
+	NumberOfNodes int `json:"number_of_nodes"`
+	NumberOf_data_nodes int `json:"number_of_data_nodes"`
+	ActivePrimary_shards int `json:"active_primary_shards"`
+	ActiveShards int `json:"active_shards"`
+	RelocatingShards int `json:"relocating_shards"`
+	InitializingShards int `json:"initializing_shards"`
+	UnassignedShards int `json:"unassigned_shards"`
+	DelayedUnassignedShards int `json:"delayed_unassigned_shards"`
+	NumberOfPendingTasks int `json:"number_of_pending_tasks"`
+	NumberOfInFlightFetch int `json:"number_of_in_flight_fetch"`
+	TaskMaxWaitingInQueueMillis float64 `json:"task_max_waiting_in_queue_millis"`
+	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
 }
 
 // IndexDocument used to construct indexing document

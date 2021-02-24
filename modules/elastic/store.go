@@ -25,16 +25,12 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/common"
 )
 
 type ElasticStore struct {
 	Client elastic.API
-	Config StoreConfig
-}
-
-type StoreConfig struct {
-	Enabled      bool   `config:"enabled"`
-	IndexName  string `config:"index_name"`
+	Config common.StoreConfig
 }
 
 func (store ElasticStore) Open() error {
