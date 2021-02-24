@@ -26,7 +26,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	errors3 "github.com/pkg/errors"
 	"infini.sh/framework/core/elastic"
 	errors2 "infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -90,7 +89,7 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 			RETRY:
 				if count > 10 {
 					log.Errorf("still have error in request, after retry [%v] times\n", err)
-					return resp, errors3.Errorf("still have error in request, after retry [%v] times\n", err)
+					return resp, errors2.Errorf("still have error in request, after retry [%v] times\n", err)
 				}
 				count++
 				log.Errorf("error in request, sleep 10s and retry [%v]: %s\n", count, err)
@@ -227,22 +226,24 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
-
+	esResp := &elastic.GetResponse{}
 	if err != nil {
 		return nil, err
 	}
+
+	esResp.StatusCode=resp.StatusCode
 
 	if global.Env().IsDebug {
 		log.Trace("get response: ", string(resp.Body))
 	}
 
-	esResp := &elastic.GetResponse{}
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
-		return &elastic.GetResponse{}, err
+		return esResp, err
 	}
+
 	if !esResp.Found {
-		return nil, errors.New(string(resp.Body))
+		return esResp, errors.New(string(resp.Body))
 	}
 
 	return esResp, nil
@@ -381,6 +382,7 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
+		log.Error(string(resp.Body))
 		log.Error(err)
 		return &elastic.ClusterHealth{Name: c.Config.Endpoint, Status: "unreachable"}
 	}
@@ -389,6 +391,7 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	err = json.Unmarshal(resp.Body, health)
 
 	if err != nil {
+		log.Error(string(resp.Body))
 		log.Error(err)
 		return &elastic.ClusterHealth{Name: c.Config.Endpoint, Status: "unreachable"}
 	}
@@ -921,51 +924,59 @@ func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
 	return response, nil
 }
 
-//{
-//"alias" : "ilm-history-2",
-//"index" : "ilm-history-2-000002",
-//"filter" : "-",
-//"routing.index" : "-",
-//"routing.search" : "-",
-//"is_write_index" : "true"
+//"dict" : {
+	//"aliases" : {
+	//"dictalias1" : {
+	//"is_write_index" : true
+	//},
+	//"dictalias2" : {
+	//"is_write_index" : true
+	//}
+	//}
 //},
-type CatAliasesResponse struct {
-	Alias         string `json:"alias,omitempty"`
-	Index         string `json:"index,omitempty"`
-	Filter        string `json:"filter,omitempty"`
-	RoutingIndex  string `json:"routing.index,omitempty"`
-	RoutingSearch string `json:"routing.search,omitempty"`
-	IsWriteIndex  string   `json:"is_write_index,omitempty"`
+type AliasesResponse struct {
+		Aliases map[string]struct{
+			IsWriteIndex  bool   `json:"is_write_index,omitempty"`
+			IsHiddenIndex  bool   `json:"is_hidden,omitempty"`
+			IndexRouting  string `json:"index_routing,omitempty"`
+			SearchRouting string `json:"search_routing,omitempty"`
+			Filter        interface{} `json:"filter,omitempty"`
+		}`json:"aliases,omitempty"`
 }
 
 func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 
-	url := fmt.Sprintf("%s/_cat/aliases?v&format=json", c.Config.Endpoint)
+	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
 		return nil, err
 	}
-	data := []CatAliasesResponse{}
+	data := map[string]AliasesResponse{}
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
 		return nil, err
 	}
 
 	aliasInfo := map[string]elastic.AliasInfo{}
-	for _, v := range data {
-		info,ok:=aliasInfo[v.Alias]
-		if !ok{
-			info = elastic.AliasInfo{}
-			info.Alias = v.Alias
-		}
+	for index, v := range data {
+		for alias,v1 :=range v.Aliases{
+			info,ok:=aliasInfo[alias]
+			if !ok{
+				info = elastic.AliasInfo{}
+				info.Alias = alias
+			}
 
-		info.Index = append(info.Index,v.Index)
-		if v.IsWriteIndex=="true"{
-			info.WriteIndex = v.Index
+			info.Index = append(info.Index,index)
+			if v1.IsWriteIndex{
+				info.WriteIndex = index
+			}
+			aliasInfo[alias] = info
 		}
+	}
 
-		aliasInfo[v.Alias] = info
+	if global.Env().IsDebug{
+		log.Trace("get alias:",util.ToJson(aliasInfo,false))
 	}
 
 	return &aliasInfo, nil
