@@ -43,7 +43,7 @@ func Broadcast(config config.NetworkConfig, req *Request) {
 		log.Error(err)
 	}
 
-	payload := util.ToJSONBytes(req)
+	payload := util.MustToJSONBytes(req)
 
 	c.Write(payload)
 	//lastBroadcast=time.Now()

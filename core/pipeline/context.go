@@ -85,11 +85,11 @@ func (context *Context) Exit(msg interface{}) {
 }
 
 func (context *Context) Marshall() []byte {
-	return util.ToJSONBytes(context)
+	return util.MustToJSONBytes(context)
 }
 
 func UnMarshall(b []byte) Context {
 	c := Context{}
-	util.FromJSONBytes(b, &c)
+	util.MustFromJSONBytes(b, &c)
 	return c
 }

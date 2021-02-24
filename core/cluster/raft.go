@@ -259,31 +259,14 @@ func runDiscoveryTasks() {
 				runHealthCheck() //TODO open it after debug
 			}
 
-			////if not self electable, do wait
-			//if selfElectable(){
-			//	timeToWait := global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds - time.Since(discoveryStartTime).Milliseconds()
-			//	if timeToWait > 0 {
-			//		log.Info("timeout to do self promotion, ",time.Millisecond * time.Duration(timeToWait))
-			//		time.Sleep(time.Millisecond * time.Duration(timeToWait))
-			//		err := getRaft().restart(global.Env().SystemConfig.ClusterConfig.GetSeeds(),RESTART_WITH_SELFT_PROMOTE)
-			//		if err != nil {
-			//			panic(err)
-			//		}
-			//	}
-			//}
-
 			log.Trace("pause health check service for 10s")
 			time.Sleep(time.Second * 10)
 		}
 
 	quit_loop:
 
-		//log.Trace("enter quit_loop")
-
 		//self promote should be used for only once
 		if selfElectable() && selfPromoted == false {
-
-			//log.Trace("enter selfElectable")
 
 			timeToWait := global.Env().SystemConfig.ClusterConfig.DiscoveryTimeoutInMilliseconds - time.Since(discoveryStartTime).Milliseconds()
 
@@ -291,10 +274,6 @@ func runDiscoveryTasks() {
 				log.Debugf("wait %s to try self promotion,  ", time.Millisecond*time.Duration(timeToWait))
 				time.Sleep(time.Millisecond * time.Duration(timeToWait))
 			}
-
-			//fmt.Println(GetActivePeers())
-			//fmt.Println(getRaft().raft.Leader())
-			//fmt.Println(GetLocalActivePeersCount())
 
 			if getRaft().raft.Leader() == "" && GetLocalActivePeersCount() <= 0 && !skipSelfPromotion {
 				log.Debugf("start to do self promotion")
@@ -330,13 +309,6 @@ func runHealthCheck() {
 
 		////ignore local node
 		if targetEndpoint == localRpc {
-
-			////if I am leader and I am not in the list, add it
-			//if v, ok := localKnowPeers[v.RPCEndpoint]; !ok && !v.Active {
-			//	log.Error("adding leader myself")
-			//	v.Active = true
-			//	getRaft().Up(v)
-			//}
 
 			log.Trace("ignore self check")
 			continue
@@ -458,11 +430,6 @@ func (s *RaftModule) restart(seeds []string, t RESTART_TYPE) (err error) {
 	restartLock.Lock()
 	defer restartLock.Unlock()
 
-	//if time.Now().Sub(electedTime).Seconds() < 30 {
-	//	log.Debug("skip election, already in progress")
-	//	return
-	//}
-
 	if t == RESTART_WITH_INITIAL_STATE {
 
 		err = s.startRaft(seeds)
@@ -536,8 +503,6 @@ func (s *RaftModule) restart(seeds []string, t RESTART_TYPE) (err error) {
 func selfElectable() bool {
 
 	return global.Env().SystemConfig.ClusterConfig.MinimumNodes <= 1
-	//no matter how many seeds was specified, if minimum was set to <1, then self promotion should be enabled
-	//&& len(global.Env().SystemConfig.ClusterConfig.GetSeeds()) == 0
 }
 
 var localKnowPeers = make(map[string]*Node)
@@ -562,7 +527,7 @@ func (s *RaftModule) multicastCallback(src *net.UDPAddr, n int, b []byte) {
 
 	v := Request{}
 
-	util.FromJSONBytes(b[:n], &v)
+	util.MustFromJSONBytes(b[:n], &v)
 
 	log.Tracef("received multicast message: %v", util.ToJson(v, false))
 
@@ -775,11 +740,6 @@ func (s *RaftModule) Up(node *Node) error {
 
 	localKnowPeers[node.RPCEndpoint].Active = true
 
-	//c := Command{}
-	//c.Op = NodeUp
-	//c.Key = node.RPCEndpoint
-	//c.Value = util.ToJson(node, false)
-	//s.ExecuteCommand(&c)
 	return nil
 }
 
@@ -791,10 +751,6 @@ func (s *RaftModule) Down(raftAddr, rpcAddr string) error {
 
 	localKnowPeers[raftAddr].Active = false
 
-	//c := Command{}
-	//c.Op = NodeDown
-	//c.Key = rpcAddr
-	//s.ExecuteCommand(&c)
 	return nil
 }
 
@@ -806,29 +762,6 @@ func (s *RaftModule) Leave(raftAddr, rpcAddr string) error {
 		log.Error(f.Error())
 	}
 
-	//c := Command{}
-	//c.Op = NodeLeave
-	//c.Key = rpcAddr
-	//s.ExecuteCommand(&c)
-	return nil
-}
-
-func (s *RaftModule) ExecuteCommand(c *Command) error {
-
-	//log.Tracef("execute command: %v", c)
-	//
-	//if getRaft().raft.State() != raft.Leader {
-	//	log.Tracef("I am not leader, skip")
-	//	return fmt.Errorf("not leader")
-	//}
-	//
-	//b, err := json.Marshal(c)
-	//if err != nil {
-	//	return err
-	//}
-	//f := s.raft.Apply(b, raftTimeout)
-	//log.Tracef("apply command successful")
-	//return f.Error()
 	return nil
 }
 

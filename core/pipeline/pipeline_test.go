@@ -145,7 +145,7 @@ func TestContextMarshal(t *testing.T) {
 	context.Set("B", arr)
 	fmt.Println("before:", context)
 
-	c1 := util.ToJSONBytes(context)
+	c1 := util.MustToJSONBytes(context)
 
 	fmt.Println(string(c1))
 
@@ -155,7 +155,7 @@ func TestContextMarshal(t *testing.T) {
 	assert.Equal(t, c1, c2)
 
 	c := Context{}
-	util.FromJSONBytes(c1, &c)
+	util.MustFromJSONBytes(c1, &c)
 	fmt.Println("after:", c)
 	assert.Equal(t, url, c.Get("URL"))
 

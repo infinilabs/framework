@@ -84,7 +84,6 @@ func RegisterEnv(e1 *env.Env) {
 func Env() *env.Env {
 	if e == nil {
 		RegisterEnv(env.EmptyEnv())
-		//panic(errors.New("env is not inited"))
 	}
 	return e
 }

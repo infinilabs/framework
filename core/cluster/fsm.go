@@ -26,11 +26,6 @@ import (
 	"sync"
 )
 
-//const Set string = "SET"
-//const Del string = "DEL"
-//const Incr string = "INC"
-//const Decr string = "DEC"
-
 const NodeUp string = "NODE_UP"
 const NodeDown string = "NODE_DOWN"
 const NodeLeave string = "NODE_LEAVE"
@@ -46,13 +41,6 @@ func NewFSM() *ClusterFSM {
 	}
 }
 
-//
-//// Get returns the value for the given key.
-//func (s *ClusterFSM) Get(key string) (interface{}, error) {
-//	s.l.Lock()
-//	defer s.l.Unlock()
-//	return s.m[key], nil
-//}
 
 // Apply applies a Raft log entry to the key-value store.
 func (f *ClusterFSM) Apply(l *raft.Log) interface{} {
@@ -60,11 +48,13 @@ func (f *ClusterFSM) Apply(l *raft.Log) interface{} {
 	if err := json.Unmarshal(l.Data, &c); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
-	fmt.Println("hit command,", c.Op, ",", c.Key, ",", c.Value)
 	switch c.Op {
 	case NodeUp:
 		node := Node{}
-		util.FromJson(c.Value, &node)
+		err:=util.FromJson(c.Value, &node)
+		if err!=nil{
+			panic(err)
+		}
 		return f.applyNodeUp(c.Key, &node)
 	case NodeDown:
 		return f.applyNodeDown(c.Key)
