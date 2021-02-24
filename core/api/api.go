@@ -89,6 +89,15 @@ var apiConfig *config.APIConfig
 
 var listenAddress string
 
+var notfoundHandler =http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	rw.Write([]byte("{\"message\":\"not_found\"}"))
+	rw.WriteHeader(404)
+})
+
+func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request))  {
+	notfoundHandler=handler
+}
+
 // StartAPI will start listen and act as the API server
 func StartAPI(cfg *config.Config) {
 
@@ -114,6 +123,8 @@ func StartAPI(cfg *config.Config) {
 	if err != nil {
 		panic(err)
 	}
+
+	router.NotFound=notfoundHandler
 
 	schema := "http://"
 	if apiConfig.TLSConfig.TLSEnabled {
