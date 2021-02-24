@@ -122,18 +122,18 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
-
+	esResp := &elastic.GetResponse{}
 	if err != nil {
 		return nil, err
 	}
 
-	esResp := &elastic.GetResponse{}
+	esResp.StatusCode=resp.StatusCode
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
-		return &elastic.GetResponse{}, err
+		return esResp, err
 	}
 	if !esResp.Found {
-		return nil, errors.New(string(resp.Body))
+		return esResp, errors.New(string(resp.Body))
 	}
 
 	return esResp, nil
