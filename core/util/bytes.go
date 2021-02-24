@@ -238,25 +238,35 @@ func ReplaceByte(str []byte, old, new []byte) []byte {
 	return []byte(strings.Replace(string(str), string(old), string(new), -1))
 }
 
-//ToJSONBytes convert interface to json with byte array
-func ToJSONBytes(v interface{}) []byte {
-	b, err := json.Marshal(v)
+//MustToJSONBytes convert interface to json with byte array
+func MustToJSONBytes(v interface{}) []byte {
+	b, err := ToJSONBytes(v)
 	if err != nil {
 		panic(err)
 	}
 	return b
 }
 
-//FromJSONBytes simply do json unmarshal
-func FromJSONBytes(b []byte, v interface{}) {
-	if b == nil || len(b) == 0 {
-		return
-	}
-	err := json.Unmarshal(b, v)
+func ToJSONBytes(v interface{}) ([]byte,error) {
+	return json.Marshal(v)
+}
+
+//MustFromJSONBytes simply do json unmarshal
+func MustFromJSONBytes(b []byte, v interface{}) {
+	var err error
+	err=FromJSONBytes(b,v)
 	if err != nil {
 		log.Error("data:", string(b))
 		panic(err)
 	}
+}
+
+func FromJSONBytes(b []byte, v interface{})(err error) {
+	if b == nil || len(b) == 0 {
+		return
+	}
+	err = json.Unmarshal(b, v)
+	return err
 }
 
 func EncodeToBytes(key interface{}) ([]byte, error) {
