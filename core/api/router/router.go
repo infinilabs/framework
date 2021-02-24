@@ -512,9 +512,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if r.NotFound!=nil{
-		r.NotFound.ServeHTTP(w,req)
-		return
-	}
 	r.mux.ServeHTTP(w, req)
+
+	//if r.NotFound!=nil{
+	//	r.NotFound.ServeHTTP(w,req)
+	//}
 }
