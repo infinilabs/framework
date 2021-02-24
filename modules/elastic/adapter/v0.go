@@ -105,13 +105,8 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 	}
 
 	resp, err := util.ExecuteRequest(req)
-
 	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 404 {
-		return resp, errors2.Errorf("req: %v, status: %v, response: %v", req.Url, resp.StatusCode, string(resp.Body))
+		return resp, err
 	}
 
 	return resp, err
@@ -346,7 +341,7 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 	esResp := &elastic.SearchResponse{}
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
-		return &elastic.SearchResponse{}, err
+		return esResp, err
 	}
 
 	return esResp, nil
