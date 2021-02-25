@@ -468,7 +468,97 @@ var bufferPool *sync.Pool = &sync.Pool{
 	},
 }
 
+func BytesHasSuffix(left,right []byte) bool {
+
+	if len(left)==0||len(right)==0{
+		return false
+	}
+
+	//fmt.Println(len(left))
+	//fmt.Println(len(right))
+	//fmt.Println(string(left[len(left)-1]))
+
+	if len(right)==1{
+		if right[0]==left[len(left)-1]{
+			return true
+		}else{
+			return false
+		}
+	}
+	return bytes.HasSuffix(left, right)
+}
+
+func InsertBytesAfterField(data *[]byte, start,toBeSkipedBytes, end []byte, bytesToInsert []byte) []byte {
+
+	matchStart := false
+	matchEnd := false
+
+	toBeMachedBuffer := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(toBeMachedBuffer)
+	defer toBeMachedBuffer.Reset()
+
+	for i, v := range *data {
+		toBeMachedBuffer.WriteByte(v)
+		//fmt.Println("gonna check:",string(toBeMachedBuffer.String()))
+		if matchStart && matchEnd {
+			break
+		}
+
+		if matchStart && !matchEnd {
+			//skip unwanted bytes
+			if toBeSkipedBytes!=nil&&len(toBeSkipedBytes)>0{
+				if BytesHasSuffix(toBeMachedBuffer.Bytes(), toBeSkipedBytes) {
+					toBeSkipedBytes=nil
+					toBeMachedBuffer.Reset()
+					continue
+				}
+			}
+
+			//collecting data
+			//check whether matched end
+			if BytesHasSuffix(toBeMachedBuffer.Bytes(), end) {
+				//fmt.Println("mateched end")
+				matchEnd = true
+				offset:=i+1
+				start:=(*data)[:offset]
+				left:=(*data)[offset:]
+				//fmt.Println(string(""))
+				//fmt.Println(string(start))
+				//fmt.Println(string(bytesToInsert))
+				//fmt.Println(string(left))
+				if bytesToInsert != nil && len(bytesToInsert) > 0 {
+					newbuf:=bufferPool.Get().(*bytes.Buffer)
+					newbuf.Write(start)
+					newbuf.Write(bytesToInsert)
+					newbuf.Write(left)
+					data:= newbuf.Bytes()
+					newbuf.Reset()
+					bufferPool.Put(newbuf)
+					return data
+				}
+				toBeMachedBuffer.Reset()
+			}
+			continue
+		}
+
+		if !matchStart {
+			if BytesHasSuffix(toBeMachedBuffer.Bytes(), start) {
+
+				//fmt.Println("mateched start")
+
+				matchStart = true
+				toBeMachedBuffer.Reset()
+				continue
+			}
+		}
+	}
+	return *data
+}
+
 func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []byte) []byte {
+	return ExtractFieldFromBytesWitSkipBytes(data,start,nil,end,removedFromValue)
+}
+func ExtractFieldFromBytesWitSkipBytes(data *[]byte, start,toBeSkipedBytes, end []byte, removedFromValue []byte) []byte {
 
 	matchStart := false
 	matchEnd := false
@@ -480,8 +570,11 @@ func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []b
 	//defer buffer.Reset()
 	defer toBeMachedBuffer.Reset()
 	var value []byte
+
 	for _, v := range *data {
 		toBeMachedBuffer.WriteByte(v)
+
+		//fmt.Println("going to check:",toBeMachedBuffer.String())
 
 		if matchStart && matchEnd {
 			//return buffer.Bytes()
@@ -489,9 +582,19 @@ func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []b
 		}
 
 		if matchStart && !matchEnd {
-			//collecting data
+
+			//skip unwanted bytes
+			if toBeSkipedBytes!=nil&&len(toBeSkipedBytes)>0{
+				if BytesHasSuffix(toBeMachedBuffer.Bytes(), toBeSkipedBytes) {
+					toBeSkipedBytes=nil
+					toBeMachedBuffer.Reset()
+					continue
+				}
+			}
+
+				//collecting data
 			//check whether matched end
-			if bytes.HasSuffix(toBeMachedBuffer.Bytes(), end) {
+			if BytesHasSuffix(toBeMachedBuffer.Bytes(), end) {
 				matchEnd = true
 				toBeMachedBuffer.Reset()
 			} else {
@@ -513,7 +616,7 @@ func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []b
 		}
 
 		if !matchStart {
-			if bytes.HasSuffix(toBeMachedBuffer.Bytes(), start) {
+			if BytesHasSuffix(toBeMachedBuffer.Bytes(), start) {
 				matchStart = true
 				toBeMachedBuffer.Reset()
 				continue
