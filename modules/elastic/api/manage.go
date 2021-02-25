@@ -161,6 +161,11 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String())
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
+
+	fmt.Println("result")
+	fmt.Println(err)
+	fmt.Println(res)
+
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -188,9 +193,15 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		return
 	}
 
-	client.ClusterHealth()
+	health:=client.ClusterHealth()
 
-	//resBody["summary"] = conf
+
+	summary:=map[string]interface{}{}
+	summary["cluster_name"]=health.Name
+	summary["status"]=health.Status
+
+
+	resBody["summary"] = summary
 	resBody["metrics"] = id
 
 	h.WriteJSON(w, resBody,http.StatusOK)}
