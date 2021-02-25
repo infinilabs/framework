@@ -30,14 +30,14 @@ func murmur3Hash(data []byte) int32 {
 	return murmurhash3.Murmur3A(newArray, 0)
 }
 
-func GetShardID(docID []byte, numberOfShards int) int {
-	return GetShardIDWithRoutingOffset(docID,numberOfShards,-1,1)
+func GetShardID(esMajorVersion int,docID []byte, numberOfShards int) int {
+	return GetShardIDWithRoutingOffset(esMajorVersion,docID,numberOfShards,-1,1)
 }
 
-func GetShardIDWithRoutingOffset(docID []byte, numberOfShards int, routingNumShards int, partitionOffset uint32) int {
+func GetShardIDWithRoutingOffset(esMajorVersion int,docID []byte, numberOfShards int, routingNumShards int, partitionOffset uint32) int {
 
 	hash := murmur3Hash(docID)
-	esMajorVersion := 7 //only es after 7.0.0,need to consider routing hash to calculate hash
+	//esMajorVersion := 7 //only es after 7.0.0,need to consider routing hash to calculate hash
 	if routingNumShards <= 0 {
 		routingNumShards = getRoutingNumOfShards(numberOfShards, esMajorVersion) //number_of_routing_shards
 	}
