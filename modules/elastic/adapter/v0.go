@@ -35,14 +35,19 @@ import (
 type ESAPIV0 struct {
 	Version string
 	Config  elastic.ElasticsearchConfig
+	majorVersion int
 }
 
 func (c ESAPIV0) GetMajorVersion() int {
+	if c.majorVersion>0{
+		return c.majorVersion
+	}
 	vs := strings.Split(c.Version, ".")
 	n, err := util.ToInt(vs[0])
 	if err != nil {
 		panic(err)
 	}
+	c.majorVersion=n
 	return n
 }
 

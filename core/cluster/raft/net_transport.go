@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"sync"
@@ -394,6 +395,8 @@ func (n *NetworkTransport) handleConn(conn net.Conn) {
 
 // handleCommand is used to decode and dispatch a single command.
 func (n *NetworkTransport) handleCommand(r *bufio.Reader, dec *codec.Decoder, enc *codec.Encoder) error {
+
+	defer io.Copy(ioutil.Discard, r)
 
 	// Get the rpc type
 	rpcType, err := r.ReadByte()
