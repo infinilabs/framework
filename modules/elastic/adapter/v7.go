@@ -269,7 +269,9 @@ func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(res)
 
-	BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
+	if c.Config.BasicAuth!=nil{
+		BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
+	}
 
 	req.SetRequestURI(url)
 
