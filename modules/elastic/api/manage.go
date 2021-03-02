@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )
@@ -193,18 +194,68 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		return
 	}
 
-	health:=client.ClusterHealth()
-
+	status:=client.GetClusterStats()
 
 	summary:=map[string]interface{}{}
-	summary["cluster_name"]=health.Name
-	summary["status"]=health.Status
+	summary["cluster_name"]=status.ClusterName
+	summary["status"]=status.Status
+	summary["indices_count"]=status.Indices["count"]
+	summary["total_shards"]=status.Indices["shards"].(map[string]interface{})["total"]
+	summary["primary_shards"]=status.Indices["shards"].(map[string]interface{})["primaries"]
+	summary["replication_shards"]=status.Indices["shards"].(map[string]interface{})["replication"]
+	//summary["unassigned_shards"]=status.Indices["shards"].(map[string]interface{})["primaries"]
+
+
+
+	summary["document_count"]=status.Indices["docs"].(map[string]interface{})["count"]
+	summary["deleted_document_count"]=status.Indices["docs"].(map[string]interface{})["deleted"]
+
+	summary["used_store_bytes"]=status.Indices["store"].(map[string]interface{})["size_in_bytes"]
+
+
+	summary["max_store_bytes"]=status.Nodes["fs"].(map[string]interface{})["total_in_bytes"]
+	summary["available_store_bytes"]=status.Nodes["fs"].(map[string]interface{})["available_in_bytes"]
+
+
+	summary["fielddata_bytes"]=status.Indices["fielddata"].(map[string]interface{})["memory_size_in_bytes"]
+	summary["fielddata_evictions"]=status.Indices["fielddata"].(map[string]interface{})["evictions"]
+
+
+	summary["query_cache_bytes"]=status.Indices["query_cache"].(map[string]interface{})["memory_size_in_bytes"]
+	summary["query_cache_total_count"]=status.Indices["query_cache"].(map[string]interface{})["total_count"]
+	summary["query_cache_hit_count"]=status.Indices["query_cache"].(map[string]interface{})["hit_count"]
+	summary["query_cache_miss_count"]=status.Indices["query_cache"].(map[string]interface{})["miss_count"]
+	summary["query_cache_evictions"]=status.Indices["query_cache"].(map[string]interface{})["evictions"]
+
+
+	summary["segments_count"]=status.Indices["segments"].(map[string]interface{})["count"]
+	summary["segments_memory_in_bytes"]=status.Indices["segments"].(map[string]interface{})["memory_in_bytes"]
+
+
+	summary["nodes_count"]=status.Nodes["count"].(map[string]interface{})["total"]
+	summary["version"]=status.Nodes["versions"]
+
+	summary["mem_total_in_bytes"]=status.Nodes["os"].(map[string]interface{})["mem"].(map[string]interface{})["total_in_bytes"]
+	summary["mem_used_in_bytes"]=status.Nodes["os"].(map[string]interface{})["mem"].(map[string]interface{})["used_in_bytes"]
+	summary["mem_used_percent"]=status.Nodes["os"].(map[string]interface{})["mem"].(map[string]interface{})["used_percent"]
+
+
+	summary["uptime"]=status.Nodes["jvm"].(map[string]interface{})["max_uptime_in_millis"]
+	summary["used_jvm_bytes"]=status.Nodes["jvm"].(map[string]interface{})["mem"].(map[string]interface{})["heap_used_in_bytes"]
+	summary["max_jvm_bytes"]=status.Nodes["jvm"].(map[string]interface{})["mem"].(map[string]interface{})["heap_max_in_bytes"]
 
 
 	resBody["summary"] = summary
-	resBody["metrics"] = id
+	//resBody["metrics"] = id
 
-	h.WriteJSON(w, resBody,http.StatusOK)}
+	err=h.WriteJSON(w, resBody,http.StatusOK)
+	if err!=nil{
+		log.Error(err)
+	}
+
+
+
+}
 
 
 //TODO, use expired hash

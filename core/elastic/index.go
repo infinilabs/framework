@@ -118,6 +118,7 @@ type ClusterInformation struct {
 //"active_shards_percent_as_number": 100
 
 type ClusterHealth struct {
+	ResponseBase
 	Name   string `json:"cluster_name"`
 	Status string `json:"status"`
 	TimedOut bool `json:"timed_out"`
@@ -133,6 +134,18 @@ type ClusterHealth struct {
 	NumberOfInFlightFetch int `json:"number_of_in_flight_fetch"`
 	TaskMaxWaitingInQueueMillis float64 `json:"task_max_waiting_in_queue_millis"`
 	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
+}
+
+
+
+type ClusterStats struct {
+	ResponseBase
+	ClusterName   string `json:"cluster_name"`
+	Status string `json:"status"`
+	ClusterUUID string `json:"cluster_uuid"`
+	Timestamp int64 `json:"timestamp"`
+	Indices map[string]interface{} `json:"indices"`
+	Nodes map[string]interface{} `json:"nodes"`
 }
 
 // IndexDocument used to construct indexing document
@@ -154,13 +167,14 @@ type AggregationResponse struct {
 	Buckets []Bucket `json:"buckets,omitempty"`
 }
 
-type Response struct {
+type ResponseBase struct {
 	StatusCode int `json:"-"`
+	ErrorObject  error `json:"-"`
 }
 
 // InsertResponse is a index response object
 type InsertResponse struct {
-	Response
+	ResponseBase
 	Result  string `json:"result"`
 	Index   string `json:"_index"`
 	Type    string `json:"_type"`
@@ -176,7 +190,7 @@ type InsertResponse struct {
 
 // GetResponse is a get response object
 type GetResponse struct {
-	Response
+	ResponseBase
 	Found   bool                   `json:"found"`
 	Index   string                 `json:"_index"`
 	Type    string                 `json:"_type"`
@@ -187,7 +201,7 @@ type GetResponse struct {
 
 // DeleteResponse is a delete response object
 type DeleteResponse struct {
-	Response
+	ResponseBase
 	Result  string `json:"result"`
 	Index   string `json:"_index"`
 	Type    string `json:"_type"`
@@ -202,13 +216,13 @@ type DeleteResponse struct {
 
 // CountResponse is a count response object
 type CountResponse struct {
-	Response
+	ResponseBase
 	Count int `json:"count"`
 }
 
 // SearchResponse is a count response object
 type SearchResponse struct {
-	Response
+	ResponseBase
 	Took     int  `json:"took"`
 	TimedOut bool `json:"timed_out"`
 	Hits     struct {

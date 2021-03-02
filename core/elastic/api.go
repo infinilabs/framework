@@ -31,6 +31,8 @@ type API interface {
 
 	ClusterHealth() *ClusterHealth
 
+	GetClusterStats() *ClusterStats
+
 	ClusterVersion() string
 
 	CreateIndex(name string, settings map[string]interface{}) error

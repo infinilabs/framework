@@ -375,25 +375,57 @@ func (c *ESAPIV0) ClusterVersion() string {
 	return c.Version
 }
 
+func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
+	//_cluster/stats
+	url := fmt.Sprintf("%s/_cluster/stats", c.Config.Endpoint)
+
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	obj:= &elastic.ClusterStats{}
+	if err != nil {
+		if resp!=nil{
+			obj.StatusCode=resp.StatusCode
+		}else{
+			obj.StatusCode=500
+		}
+		obj.ErrorObject=err
+		return obj
+	}
+
+	err = json.Unmarshal(resp.Body, obj)
+	if err != nil {
+		obj.StatusCode=resp.StatusCode
+		obj.ErrorObject=err
+		return obj
+	}
+
+	return obj
+}
+
+
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 
 	url := fmt.Sprintf("%s/_cluster/health", c.Config.Endpoint)
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
-
+	obj:= &elastic.ClusterHealth{}
 	if err != nil {
-		log.Error(string(resp.Body))
-		log.Error(err)
-		return &elastic.ClusterHealth{Name: c.Config.Endpoint, Status: "unreachable"}
+		if resp!=nil{
+			obj.StatusCode=resp.StatusCode
+		}else{
+			obj.StatusCode=500
+		}
+		obj.ErrorObject=err
+		return obj
 	}
 
 	health := &elastic.ClusterHealth{}
 	err = json.Unmarshal(resp.Body, health)
 
 	if err != nil {
-		log.Error(string(resp.Body))
-		log.Error(err)
-		return &elastic.ClusterHealth{Name: c.Config.Endpoint, Status: "unreachable"}
+		obj.StatusCode=resp.StatusCode
+		obj.ErrorObject=err
+		return obj
 	}
 	return health
 }
