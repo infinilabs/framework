@@ -20,14 +20,19 @@ import (
 	"fmt"
 	url2 "net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
 var apis = map[string]API{}
 var cfgs = map[string]ElasticsearchConfig{}
 var metas = map[string]*ElasticsearchMetadata{}
-
+var lock = sync.RWMutex{}
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
+
+	lock.Lock()
+	defer lock.Unlock()
+
 	if apis == nil {
 		apis = map[string]API{}
 	}
