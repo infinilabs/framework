@@ -8,6 +8,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/elastic/common"
+	"math/rand"
 	"net/http"
 	log "github.com/cihub/seelog"
 	"strings"
@@ -163,9 +164,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
-	fmt.Println("result")
 	fmt.Println(err)
-	fmt.Println(res)
 
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -246,7 +245,10 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 
 	resBody["summary"] = summary
-	//resBody["metrics"] = id
+
+
+	metrics:=h.GetClusterMetrics(id)
+	resBody["metrics"] = metrics
 
 	err=h.WriteJSON(w, resBody,http.StatusOK)
 	if err!=nil{
@@ -312,4 +314,123 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 	health:=client.ClusterHealth()
 
 	h.WriteJSON(w,health,200)
+}
+
+const PositionLeft = "left"
+const PositionRight = "right"
+const PositionTop = "top"
+const PositionBottom = "bottom"
+
+func (h *APIHandler) GetClusterMetrics(id string) map[string]MetricItem {
+	result:=map[string]MetricItem{}
+
+	metricKey:="cluster_throughput"
+	metricItem:=MetricItem{}
+
+	//axis
+	metricItem.Axis=[]MetricAxis{}
+	axis:=MetricAxis{}
+
+	axis.ID=util.GetUUID()
+	axis.Title="indexing"
+	axis.Group="group-1"
+	axis.Position=PositionLeft
+	axis.FormatType="num"
+	axis.LabelFormat="0,0"
+	axis.TickFormat="0,0.[00]"
+	axis.Ticks=5
+	axis.ShowGridLines=true
+
+	metricItem.Axis=append(metricItem.Axis,axis)
+
+	//lines
+	metricItem.Lines=[]MetricLine{}
+	line:=MetricLine{}
+
+	line.BucketSize="30 seconds"
+	line.TimeRange=TimeRange{Min: 1551438000000,Max: 1551441600000}
+	line.Metric=MetricSummary{
+		App: "elasticsearch",
+		Title: "Indexing Rate",
+		Group: "group-1",
+		Field: "indices_stats._all.total.indexing.index_total",
+		MetricAgg: "max",
+		Label: "Total Indexing",
+		Description: "Number of documents being indexed for primary and replica shards.",
+		Units: "e/s",
+		FormatType: "num",
+		Format: "0,0.[00]",
+		TickFormat: "0,0.[00]",
+		HasCalculation: false,
+		IsDerivative: true,
+	}
+
+	data:=[][]interface{}{}
+
+	start:=1551438000000
+	for i:=0;i<120;i++{
+		point:=rand.Intn(100)
+		points:=[]interface{}{start,point}
+		data=append(data,points)
+		start+=30000
+	}
+
+
+	line.Data=data
+
+	metricItem.Lines=append(metricItem.Lines,line)
+
+
+	result[metricKey]=metricItem
+
+	return result
+}
+
+
+type MetricAxis struct{
+	ID string  `json:"id"`
+	Group string  `json:"group"`
+	Title string  `json:"title"`
+
+	FormatType string  `json:"formatType"`
+	Position string  `json:"position"`
+	TickFormat string  `json:"tickFormat"`
+	Ticks int  `json:"ticks"`
+	LabelFormat string  `json:"labelFormat"`
+	ShowGridLines bool  `json:"showGridLines"`
+}
+type TimeRange struct{
+	Min int64 `json:"min"`
+	Max int64 `json:"max"`
+}
+
+type MetricLine struct {
+	TimeRange TimeRange`json:"timeRange"`
+	Data [][]interface{} `json:"data"`
+	BucketSize string `json:"bucket_size"`
+	Metric MetricSummary `json:"metric"`
+}
+
+type MetricSummary struct {
+	App string `json:"app"`
+	Group string `json:"group"`
+	Title string `json:"title"`
+	Label string `json:"label"`
+	Description string `json:"description"`
+
+	MetricAgg string `json:"metricAgg"`
+	Field string `json:"field"`
+
+	FormatType string `json:"formatType"`
+	Format string `json:"format"`
+	TickFormat string `json:"tickFormat"`
+	Units string `json:"units"`
+
+	HasCalculation bool `json:"hasCalculation"`
+	IsDerivative bool `json:"isDerivative"`
+}
+
+type MetricItem struct {
+	Axis []MetricAxis  `json:"axis"`
+	Lines []MetricLine `json:"lines"`
 }
