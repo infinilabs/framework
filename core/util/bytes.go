@@ -354,12 +354,13 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 //processBlockEndWithBlock 从什么地方结束处理
 //maxSpan 开始和结束位置的最大间隔，约束范围
 //匹配位置的处理函数
-func ProcessJsonData(data *[]byte, blockSplit []byte, validBlockMustContain []byte, reverse bool,  matchBlockStartWith []byte, matchBlocksEndWith []byte,maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
+func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBlockMustContain [][]byte, reverse bool,  matchBlockStartWith []byte, matchBlocksEndWith []byte,maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
 	scanner.Split(GetSplitFunc(blockSplit))
 	var str []byte
 	block:=0
 	index:=0
+	hasValidBlock:=false
 	for scanner.Scan() {
 		text := scanner.Bytes()
 		//fmt.Println("scan+")
@@ -367,12 +368,33 @@ func ProcessJsonData(data *[]byte, blockSplit []byte, validBlockMustContain []by
 			block++
 		}
 		index=index+len(text)
-		if bytes.Contains(text, validBlockMustContain) {
-			//fmt.Println("not valid block+")
-			str = text
-			break
+		if len(text)>limitBlockSize{
+			text=text[0:limitBlockSize]
 		}
+
+		if len(validBlockMustContain)>0{
+			invalid:=false
+			for _,v:=range validBlockMustContain{
+				if !bytes.Contains(text, v) {
+					//fmt.Println("valid block+")
+					invalid=true
+				}
+			}
+			if !invalid{
+				str = text
+				hasValidBlock=true
+				break
+			}
+		}else{
+			hasValidBlock=true
+		}
+
 	}
+	if!hasValidBlock{
+		//fmt.Println("none valid block+")
+		return false
+	}
+
 	//fmt.Println("index:",index-len(str),"block:",string(str))
 	//fmt.Println("index:",index,"len(str):",len(str),",len(matchBlockStartWith):",len(matchBlockStartWith),",len(data):",len(*data),",block:",string(str))
 	globalIndex:=len(*data)-len(str)//-len(matchBlockStartWith)
