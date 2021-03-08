@@ -99,7 +99,7 @@ func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request))  
 }
 
 // StartAPI will start listen and act as the API server
-func StartAPI(cfg *config.Config) {
+func StartAPI() {
 
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},

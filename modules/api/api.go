@@ -32,7 +32,6 @@ func (module APIModule) Name() string {
 const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 
-
 // Start api server
 func (module APIModule) Setup(cfg *config.Config) {
 	api.HandleAPIMethod(api.GET, whoisAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -40,7 +39,6 @@ func (module APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte("\n"))
 		w.WriteHeader(200)
 	})
-
 	api.HandleAPIMethod(api.GET, versionAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().GetVersion()))
 		w.Write([]byte("\n"))
@@ -50,11 +48,11 @@ func (module APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte("\n"))
 		w.WriteHeader(200)
 	})
-
-	//API server
-	api.StartAPI(cfg)
 }
 func (module APIModule) Start() error {
+
+	//API server
+	api.StartAPI()
 
 	return nil
 }

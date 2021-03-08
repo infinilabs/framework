@@ -41,6 +41,7 @@ type Env struct {
 	version       string
 	commit        string
 	buildDate     string
+	eolDate     string
 
 	configFile string
 
@@ -80,6 +81,10 @@ func (env *Env) GetBuildDate() string {
 // GetVersion returns the version of this build
 func (env *Env) GetVersion() string {
 	return env.version
+}
+
+func (env *Env) GetEOLDate() string {
+	return env.eolDate
 }
 
 func (env *Env) GetAppName() string {
@@ -300,7 +305,7 @@ func getModuleName(c *config.Config) string {
 }
 
 // EmptyEnv return a empty env instance
-func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) *Env {
+func NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *Env {
 	return &Env{
 		name:           util.TrimSpaces(name),
 		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
@@ -309,6 +314,7 @@ func NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter s
 		version:        util.TrimSpaces(ver),
 		commit:         util.TrimSpaces(commit),
 		buildDate:      buildDate,
+		eolDate:      eolDate,
 		terminalHeader: terminalHeader,
 		terminalFooter: terminalFooter,
 	}

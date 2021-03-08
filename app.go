@@ -29,6 +29,8 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/license"
+
 	//"infini.sh/framework/plugins"
 	defaultLog "log"
 	"net/http"
@@ -54,8 +56,8 @@ type App struct {
 	httpprof     string
 }
 
-func NewApp(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter string) *App {
-	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate, terminalHeader, terminalFooter)}
+func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
+	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
 }
 
 // report expvar and all metrics
@@ -92,6 +94,13 @@ func (app *App) Init(customFunc func()) {
 		EnableProfiling: true,
 	}
 	app.InitWithOptions(options, customFunc)
+
+
+	//init license
+	license.Init()
+
+	license.Verify()
+
 }
 func (app *App) InitWithOptions(options Options, customFunc func()) {
 
