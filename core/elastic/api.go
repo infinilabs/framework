@@ -32,6 +32,8 @@ type API interface {
 	ClusterHealth() *ClusterHealth
 
 	GetClusterStats() *ClusterStats
+	GetNodesStats() *NodesStats
+	GetIndicesStats() *IndicesStats
 
 	ClusterVersion() string
 

@@ -186,7 +186,16 @@ func (c *ESAPIV0) initTemplate(templateName, indexPrefix string) {
 
 // Index index a document into elasticsearch
 func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
+
+	if docType==""{
+		docType=TypeName6
+	}
+
 	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, docType, id)
+
+	if id==""{
+		url = fmt.Sprintf("%s/%s/%s/", c.Config.Endpoint, indexName, docType)
+	}
 
 	js, err := json.Marshal(data)
 
@@ -375,6 +384,62 @@ func (c *ESAPIV0) ClusterVersion() string {
 	return c.Version
 }
 
+func (c *ESAPIV0) GetNodesStats() *elastic.NodesStats {
+	// /_nodes/_local/stats
+	// /_nodes/_all/stats`
+
+	url := fmt.Sprintf("%s/_nodes/_all/stats", c.Config.Endpoint)
+
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	obj:= &elastic.NodesStats{}
+	if err != nil {
+		if resp!=nil{
+			obj.StatusCode=resp.StatusCode
+		}else{
+			obj.StatusCode=500
+		}
+		obj.ErrorObject=err
+		return obj
+	}
+
+	err = json.Unmarshal(resp.Body, obj)
+	if err != nil {
+		obj.StatusCode=resp.StatusCode
+		obj.ErrorObject=err
+		return obj
+	}
+
+	return obj
+}
+
+func (c *ESAPIV0) GetIndicesStats() *elastic.IndicesStats {
+	// /_stats/docs,fielddata,indexing,merge,search,segments,store,refresh,query_cache,request_cache?filter_path=indices
+	url := fmt.Sprintf("%s/_stats/docs,fielddata,indexing,merge,search,segments,store,refresh,query_cache,request_cache?filter_path=indices", c.Config.Endpoint)
+
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	obj:= &elastic.IndicesStats{}
+	if err != nil {
+		if resp!=nil{
+			obj.StatusCode=resp.StatusCode
+		}else{
+			obj.StatusCode=500
+		}
+		obj.ErrorObject=err
+		return obj
+	}
+
+	err = json.Unmarshal(resp.Body, obj)
+	if err != nil {
+		obj.StatusCode=resp.StatusCode
+		obj.ErrorObject=err
+		return obj
+	}
+
+	return obj
+}
+
 func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.Config.Endpoint)
@@ -401,7 +466,6 @@ func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
 
 	return obj
 }
-
 
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 

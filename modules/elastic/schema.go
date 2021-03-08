@@ -21,6 +21,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"strings"
 	"unicode"
@@ -106,9 +107,12 @@ func initIndexName(t interface{},indexName string)string  {
 
 func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName string) error {
 
-	indexName=initIndexName(t,indexName)
+	initIndexName(t,indexName)
+
+	indexName=orm.GetIndexName(t)
 
 	log.Trace("indexName: ", indexName)
+
 	exist, err := handler.Client.IndexExists(indexName)
 	if err != nil {
 		panic(err)

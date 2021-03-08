@@ -2,15 +2,15 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"math/rand"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )
@@ -316,25 +316,22 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w,health,200)
 }
 
-const PositionLeft = "left"
-const PositionRight = "right"
-const PositionTop = "top"
-const PositionBottom = "bottom"
 
-func (h *APIHandler) GetClusterMetrics(id string) map[string]MetricItem {
-	result:=map[string]MetricItem{}
+
+func (h *APIHandler) GetClusterMetrics(id string) map[string]common.MetricItem {
+	result:=map[string]common.MetricItem{}
 
 	metricKey:="cluster_throughput"
-	metricItem:=MetricItem{}
+	metricItem:=common.MetricItem{}
 
 	//axis
-	metricItem.Axis=[]MetricAxis{}
-	axis:=MetricAxis{}
+	metricItem.Axis=[]common.MetricAxis{}
+	axis:=common.MetricAxis{}
 
 	axis.ID=util.GetUUID()
 	axis.Title="indexing"
 	axis.Group="group-1"
-	axis.Position=PositionLeft
+	axis.Position=common.PositionLeft
 	axis.FormatType="num"
 	axis.LabelFormat="0,0"
 	axis.TickFormat="0,0.[00]"
@@ -344,12 +341,12 @@ func (h *APIHandler) GetClusterMetrics(id string) map[string]MetricItem {
 	metricItem.Axis=append(metricItem.Axis,axis)
 
 	//lines
-	metricItem.Lines=[]MetricLine{}
-	line:=MetricLine{}
+	metricItem.Lines=[]common.MetricLine{}
+	line:=common.MetricLine{}
 
 	line.BucketSize="30 seconds"
-	line.TimeRange=TimeRange{Min: 1551438000000,Max: 1551441600000}
-	line.Metric=MetricSummary{
+	line.TimeRange=common.TimeRange{Min: 1551438000000,Max: 1551441600000}
+	line.Metric=common.MetricSummary{
 		App: "elasticsearch",
 		Title: "Indexing Rate",
 		Group: "group-1",
@@ -365,9 +362,65 @@ func (h *APIHandler) GetClusterMetrics(id string) map[string]MetricItem {
 		IsDerivative: true,
 	}
 
+
+
+	//{
+	//  "size": 0,
+	//  "aggs": {
+	//    "dates": {
+	//      "date_histogram": {
+	//        "field": "timestamp",
+	//        "interval": "10s"
+	//      },
+	//      "aggs": {
+	//        "indices_count": {
+	//          "max": {
+	//            "field": "cluster_stats.indices.count"
+	//          }
+	//        },
+	//        "shards_count": {
+	//          "max": {
+	//            "field": "cluster_stats.indices.shards.total"
+	//          }
+	//        }
+	//      }
+	//    }
+	//  }
+	//}
+
+	query:=map[string]interface{}{}
+	query["size"]=0
+	query["aggs"]= util.MapStr{
+		"dates": util.MapStr{
+			"date_histogram":util.MapStr{
+				"field": "timestamp",
+				"interval": "10s",
+			},
+			"aggs":util.MapStr{
+				"indices_count":util.MapStr{
+					"max":util.MapStr{
+						"field": "cluster_stats.indices.count",
+					},
+				},"shards_count":util.MapStr{
+					"max":util.MapStr{
+						"field": "cluster_stats.indices.shards.total",
+					},
+				},
+			},
+		},
+	}
+
+	response,err:=elastic.GetClient(id).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
+	if err!=nil{
+		log.Error(err)
+		panic(err)
+	}
+
+	fmt.Println(response)
+
 	data:=[][]interface{}{}
 
-	start:=1551438000000
+	var start int64=1551438000000
 	for i:=0;i<120;i++{
 		point:=rand.Intn(100)
 		points:=[]interface{}{start,point}
@@ -384,53 +437,4 @@ func (h *APIHandler) GetClusterMetrics(id string) map[string]MetricItem {
 	result[metricKey]=metricItem
 
 	return result
-}
-
-
-type MetricAxis struct{
-	ID string  `json:"id"`
-	Group string  `json:"group"`
-	Title string  `json:"title"`
-
-	FormatType string  `json:"formatType"`
-	Position string  `json:"position"`
-	TickFormat string  `json:"tickFormat"`
-	Ticks int  `json:"ticks"`
-	LabelFormat string  `json:"labelFormat"`
-	ShowGridLines bool  `json:"showGridLines"`
-}
-type TimeRange struct{
-	Min int64 `json:"min"`
-	Max int64 `json:"max"`
-}
-
-type MetricLine struct {
-	TimeRange TimeRange`json:"timeRange"`
-	Data [][]interface{} `json:"data"`
-	BucketSize string `json:"bucket_size"`
-	Metric MetricSummary `json:"metric"`
-}
-
-type MetricSummary struct {
-	App string `json:"app"`
-	Group string `json:"group"`
-	Title string `json:"title"`
-	Label string `json:"label"`
-	Description string `json:"description"`
-
-	MetricAgg string `json:"metricAgg"`
-	Field string `json:"field"`
-
-	FormatType string `json:"formatType"`
-	Format string `json:"format"`
-	TickFormat string `json:"tickFormat"`
-	Units string `json:"units"`
-
-	HasCalculation bool `json:"hasCalculation"`
-	IsDerivative bool `json:"isDerivative"`
-}
-
-type MetricItem struct {
-	Axis []MetricAxis  `json:"axis"`
-	Lines []MetricLine `json:"lines"`
 }

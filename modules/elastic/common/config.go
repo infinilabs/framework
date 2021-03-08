@@ -20,10 +20,17 @@ type StoreConfig struct {
 	IndexName  string `config:"index_name"`
 }
 
+type MonitoringConfig struct {
+	Enabled       bool     `config:"enabled"`
+	Interval      string   `config:"interval,omitempty"`
+}
+
 type ModuleConfig struct {
 	Elasticsearch string      `config:"elasticsearch"`
 	ORMConfig     ORMConfig   `config:"orm"`
 	StoreConfig   StoreConfig `config:"store"`
+	MonitoringConfig   MonitoringConfig `config:"monitoring"`
+
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.API) {

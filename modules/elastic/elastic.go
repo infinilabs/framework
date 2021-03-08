@@ -17,6 +17,7 @@ limitations under the License.
 package elastic
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
@@ -28,6 +29,7 @@ import (
 	"infini.sh/framework/core/task"
 	. "infini.sh/framework/modules/elastic/common"
 	 "infini.sh/framework/modules/elastic/api"
+	"time"
 )
 
 func (module ElasticModule) Name() string {
@@ -37,6 +39,10 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
+		MonitoringConfig: MonitoringConfig{
+			Enabled: false,
+			Interval: "10s",
+		},
 		ORMConfig: ORMConfig{
 			Enabled:      true,
 			InitTemplate: true,
@@ -51,7 +57,6 @@ var (
 func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
-
 
 var m = map[string]elastic.ElasticsearchConfig{}
 
@@ -95,11 +100,13 @@ func (module ElasticModule) Init() {
 	initElasticInstances()
 }
 
+var moduleConfig=ModuleConfig{}
+
 func (module ElasticModule) Setup(cfg *config.Config) {
 
 	module.Init()
 
-	moduleConfig := getDefaultConfig()
+	moduleConfig = getDefaultConfig()
 	if !cfg.Enabled(false) {
 		return
 	}
@@ -124,13 +131,46 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		kv.Register("elastic", handler)
 	}
 
-	api.Init(moduleConfig)
+	err = orm.RegisterSchemaWithIndexName(MonitoringItem{}, "monitoring")
+	if err != nil {
+		panic(err)
+	}
 
+	api.Init(moduleConfig)
 }
 
 func (module ElasticModule) Stop() error {
 	//TODO stop discovery
 	return nil
+}
+
+
+func monitoring()  {
+	all := elastic.GetAllConfigs()
+	for k, v := range all {
+		task1 := task.ScheduleTask{
+			Description: fmt.Sprintf("refresh nodes for elasticsearch [%v]", v),
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func() {
+
+				log.Tracef("run monitoring task for elasticsearch: "+k)
+
+				client := elastic.GetClient(k)
+				stats := client.GetClusterStats()
+				item := MonitoringItem{}
+				item.Elasticsearch = k
+				item.ClusterStats = stats
+				item.Timestamp = time.Now()
+				item.Agent = global.Env().SystemConfig.NodeConfig
+				_, err := client.Index(orm.GetIndexName(item), "", "", item)
+				if err != nil {
+					log.Error(err)
+				}
+			},
+		}
+		task.RegisterScheduleTask(task1)
+	}
 }
 
 func discovery() {
@@ -239,8 +279,15 @@ func (module ElasticModule) Start() error {
 		Interval:    "10s",
 		Task:        discovery,
 	}
+
 	task.RegisterScheduleTask(t)
+
 	discovery()
+
+	if moduleConfig.MonitoringConfig.Enabled{
+		monitoring()
+	}
+
 	return nil
 
 }

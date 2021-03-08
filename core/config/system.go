@@ -80,9 +80,9 @@ func (cfg NetworkConfig) GetBindingAddr() string {
 
 // NodeConfig stores node settings
 type NodeConfig struct {
-	ID string `config:"id"`
-	Name string `config:"name"`
-	IP string `config:"ip"`
+	ID string `json:"id,omitempty" config:"id"`
+	Name string `json:"name,omitempty" config:"name"`
+	IP string `json:"ip,omitempty" config:"ip"`
 }
 
 func (config *NodeConfig) ToString()string  {

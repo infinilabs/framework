@@ -137,7 +137,6 @@ type ClusterHealth struct {
 }
 
 
-
 type ClusterStats struct {
 	ResponseBase
 	ClusterName   string `json:"cluster_name"`
@@ -146,6 +145,16 @@ type ClusterStats struct {
 	Timestamp int64 `json:"timestamp"`
 	Indices map[string]interface{} `json:"indices"`
 	Nodes map[string]interface{} `json:"nodes"`
+}
+
+type NodesStats struct {
+	ResponseBase
+	Nodes map[string]interface{} `json:"nodes"`
+}
+
+type IndicesStats struct {
+	ResponseBase
+	Nodes map[string]interface{} `json:"indices"`
 }
 
 // IndexDocument used to construct indexing document
