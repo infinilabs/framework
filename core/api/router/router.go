@@ -235,6 +235,7 @@ func (r *Router) Handle(method, path string, handle Handle) {
 
 	if r.ResolveConflict {
 		if !strings.ContainsAny(path, "*:") {
+
 			if r.hashRoute == nil || len(r.hashRoute) == 0 {
 				r.hashRoute = map[string]map[string]Handle{}
 			}
@@ -251,7 +252,6 @@ func (r *Router) Handle(method, path string, handle Handle) {
 	}
 	if r.trees == nil {
 		r.trees = make(map[string]*node)
-		r.hashRoute=make(map[string]map[string]Handle)
 	}
 
 	root := r.trees[method]
@@ -379,6 +379,7 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 				}
 			}
 		}
+
 		for method := range r.trees {
 			// Skip the requested method - we already tried this one
 			if method == reqMethod || method == "OPTIONS" {
