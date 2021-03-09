@@ -119,7 +119,11 @@ func (c *ESAPIV7) Delete(indexName,docType, id string) (*elastic.DeleteResponse,
 
 // Get fetch document by id
 func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
-	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
+	if docType==""{
+		docType=TypeName7
+	}
+
+	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	esResp := &elastic.GetResponse{}

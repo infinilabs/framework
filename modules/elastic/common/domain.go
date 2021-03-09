@@ -61,7 +61,7 @@ type MetricItem struct {
 
 type MonitoringItem struct {
 	Agent         interface{} `json:"agent,omitempty"`
-	Timestamp     time.Time   `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }`
+	Timestamp     time.Time   `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Elasticsearch string      `json:"elasticsearch,omitempty"`
 	ClusterStats  interface{} `json:"cluster_stats,omitempty"`
 }

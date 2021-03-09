@@ -168,7 +168,7 @@ type IndexDocument struct {
 }
 
 type Bucket struct {
-	Key      string `json:"key,omitempty"`
+	Key      interface{} `json:"key,omitempty"`
 	DocCount int    `json:"doc_count,omitempty"`
 }
 

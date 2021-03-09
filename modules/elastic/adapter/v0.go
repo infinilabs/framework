@@ -232,6 +232,11 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 
 // Get fetch document by id
 func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
+
+	if docType==""{
+		docType=TypeName6
+	}
+
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)

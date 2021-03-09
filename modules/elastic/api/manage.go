@@ -164,8 +164,6 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
-	fmt.Println(err)
-
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -410,13 +408,11 @@ func (h *APIHandler) GetClusterMetrics(id string) map[string]common.MetricItem {
 		},
 	}
 
-	response,err:=elastic.GetClient(id).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
+	_,err:=elastic.GetClient(id).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
 		panic(err)
 	}
-
-	fmt.Println(response)
 
 	data:=[][]interface{}{}
 
