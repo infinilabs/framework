@@ -291,6 +291,10 @@ func TrimLeftStr(str string, left string) string {
 	return TrimPrefix(str, left)
 }
 
+func TrimRightStr(str string, right string) string {
+	return TrimSuffix(str, right)
+}
+
 func MD5digest(str string) string {
 	sum := md5.Sum([]byte(str))
 	return hex.EncodeToString(sum[:])
