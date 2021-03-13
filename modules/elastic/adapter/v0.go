@@ -343,12 +343,18 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 
 func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
 	url := c.Config.Endpoint + "/" + indexName + "/_search"
+	esResp := &elastic.SearchResponse{}
 
 	if global.Env().IsDebug {
 		log.Trace("search: ", url, ",", string(queryDSL))
 	}
 
 	resp, err := c.Request(util.Verb_GET, url, queryDSL)
+	if resp!=nil{
+		esResp.StatusCode=resp.StatusCode
+		esResp.ErrorObject=err
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +363,6 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 		log.Trace("search response: ", string(queryDSL), ",", string(resp.Body))
 	}
 
-	esResp := &elastic.SearchResponse{}
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
 		return esResp, err
