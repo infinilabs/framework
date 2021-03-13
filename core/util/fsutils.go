@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"bufio"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"io"
@@ -183,6 +184,22 @@ func FileGetContent(file string) ([]byte, error) {
 	}
 	return b, nil
 }
+
+func FileGetLines(filePath string)[]string  {
+	file, err := os.Open(filePath)
+	if err != nil {
+		panic(err)
+	}
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	var text []string
+	for scanner.Scan() {
+		text = append(text, scanner.Text())
+	}
+	file.Close()
+	return text
+}
+
 
 // IsFile returns false when it's a directory or does not exist.
 func IsFile(file string) bool {
