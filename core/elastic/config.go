@@ -88,6 +88,11 @@ type ElasticsearchConfig struct {
 		Password string `json:"password,omitempty" config:"password" elastic_mapping:"username:{type:keyword}"`
 	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
+	TrafficControl *struct {
+		MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+		MaxQpsPerNode int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
+
 	Discovery struct {
 		Enabled bool     `json:"enabled,omitempty" config:"enabled"`
 		Modules []string `json:"module,omitempty" config:"module"`
