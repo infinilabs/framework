@@ -929,6 +929,13 @@ func (req *Request) Reset() {
 	req.bodyLength=-1
 }
 
+func (req *Request)GetRequestLength() int  {
+	length:=len(req.RequestURI())
+	length+=len(req.Header.rawHeaders)
+	length+=req.GetBodyLength()
+	return length
+}
+
 func (req *Request)GetBodyLength() int  {
 	if req.bodyLength<=0{
 		req.bodyLength=len(req.bodyBytes())
