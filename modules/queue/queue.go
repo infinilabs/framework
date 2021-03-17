@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"errors"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -103,23 +102,26 @@ func (module DiskQueue) ReadChan(k string) chan []byte {
 	return (*queues[k]).ReadChan()
 }
 
-func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) ([]byte, error) {
-	module.initQueue(k)
+func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) (data []byte,timeout bool) {
+	err:=module.initQueue(k)
+	if err!=nil{
+		panic(err)
+	}
+
 	if timeoutInSeconds > 0 {
-		timeout := make(chan bool, 1)
-		go func() {
-			time.Sleep(timeoutInSeconds)
-			timeout <- true
-		}()
-		select {
-		case b := <-(*queues[k]).ReadChan():
-			return b, nil
-		case <-timeout:
-			return nil, errors.New("time out")
+		to := time.NewTimer(timeoutInSeconds)
+		for {
+			to.Reset(time.Second)
+			select {
+			case b := <-(*queues[k]).ReadChan():
+				return b,false
+			case <-to.C:
+				return nil,true
+			}
 		}
 	} else {
 		b := <-(*queues[k]).ReadChan()
-		return b, nil
+		return b,false
 	}
 }
 

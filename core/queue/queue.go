@@ -27,7 +27,7 @@ import (
 
 type Queue interface {
 	Push(string, []byte) error
-	Pop(string, time.Duration) ([]byte, error)
+	Pop(string, time.Duration) (data []byte,timeout bool)
 	ReadChan(k string) chan []byte
 	Close(string) error
 	Depth(string) int64
@@ -74,18 +74,18 @@ func Pop(k string) ([]byte, error) {
 			return nil, pauseMsg
 		}
 
-		o, er := handler.Pop(k, -1)
-		if er == nil {
+		o, ok := handler.Pop(k, -1)
+		if !ok {
 			stats.Increment("queue."+k, "pop")
-			return o, er
+			return o, nil
 		}
 		stats.Increment("queue."+k, "pop_error")
-		return o, er
+		return o, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
 }
 
-func PopTimeout(k string, timeoutInSeconds time.Duration) ([]byte, error) {
+func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout bool,err error) {
 	if timeoutInSeconds < 1 {
 		timeoutInSeconds = 5
 	}
@@ -93,15 +93,15 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) ([]byte, error) {
 	if handler != nil {
 
 		if pausedReadQueue.Contains(k) {
-			return nil, pauseMsg
+			return nil,false, pauseMsg
 		}
 
-		o, er := handler.Pop(k, timeoutInSeconds)
-		if er == nil {
+		o, ok := handler.Pop(k, timeoutInSeconds)
+		if !ok {
 			stats.Increment("queue."+k, "pop")
 		}
 		stats.Increment("queue."+k, "pop_error")
-		return o, er
+		return o,ok, nil
 	}
 	panic(errors.New("handler is not registered"))
 }
