@@ -102,16 +102,16 @@ func (module DiskQueue) ReadChan(k string) chan []byte {
 	return (*queues[k]).ReadChan()
 }
 
-func (module DiskQueue) Pop(k string, timeoutInSeconds time.Duration) (data []byte,timeout bool) {
+func (module DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	err:=module.initQueue(k)
 	if err!=nil{
 		panic(err)
 	}
 
-	if timeoutInSeconds > 0 {
-		to := time.NewTimer(timeoutInSeconds)
+	if timeoutDuration > 0 {
+		to := time.NewTimer(timeoutDuration)
 		for {
-			to.Reset(time.Second)
+			to.Reset(timeoutDuration)
 			select {
 			case b := <-(*queues[k]).ReadChan():
 				return b,false
