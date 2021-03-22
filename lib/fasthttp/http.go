@@ -1762,6 +1762,12 @@ func (res *Response) IsCompressed() (compressed bool,compressType []byte) {
 	return len(ce)>0,ce
 }
 
+func (resp *Response) GetResponseLength() int {
+	length:=len(resp.Header.Header())
+	length+=resp.GetBodyLength()
+	return length
+}
+
 func getHTTPString(hw httpWriter) string {
 	w := bytebufferpool.Get()
 	bw := bufio.NewWriter(w)

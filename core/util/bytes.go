@@ -690,3 +690,37 @@ func LimitedBytesSearch(data []byte, term []byte,limit int) bool {
 	}
 	return false
 }
+
+
+type ByteValue struct {
+	Size float64
+}
+
+func (this ByteValue) String() string {
+	var rt float64
+	var suffix string
+	const (
+		Byte  = 1
+		KByte = Byte * 1024
+		MByte = KByte * 1024
+		GByte = MByte * 1024
+	)
+
+	if this.Size > GByte {
+		rt = this.Size / GByte
+		suffix = "GB"
+	} else if this.Size > MByte {
+		rt = this.Size / MByte
+		suffix = "MB"
+	} else if this.Size > KByte {
+		rt = this.Size / KByte
+		suffix = "KB"
+	} else {
+		rt = this.Size
+		suffix = "bytes"
+	}
+
+	srt := fmt.Sprintf("%.2f%v", rt, suffix)
+
+	return srt
+}
