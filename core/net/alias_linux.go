@@ -17,10 +17,10 @@ const alias = "infini"
 func SetupAlias(device, ip, netmask string) error {
 	checkPermission()
 	log.Debugf("setup net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), ip, "netmask", netmask)
-	_, err := setupVIP.CombinedOutput()
+	setupVIP := exec.Command("/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), ip, "netmask", netmask)
+	data, err := setupVIP.CombinedOutput()
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to set floating IP on interface: %s", err))
+		return errors.New(fmt.Sprintf("failed to set floating IP on interface: %s, %s", string(data), err))
 	}
 
 	ok, err := util.CheckIPBinding(ip)
@@ -47,7 +47,7 @@ func EnableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
 	log.Debugf("enable net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "up")
+	setupVIP := exec.Command( "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "up")
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to enable alias on interface: %s", err))
@@ -76,7 +76,7 @@ func DisableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
 	log.Debugf("enable net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "down")
+	setupVIP := exec.Command( "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "down")
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to disable alias on interface: %s", err))

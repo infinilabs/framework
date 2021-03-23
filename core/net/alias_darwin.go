@@ -39,15 +39,15 @@ func EnableAlias(device, ip string, netmask string) error {
 
 	checkPermission()
 
-	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
+	if !util.FilesExists("/sbin/ifconfig"){
 		return errors.New("net alias not supported on your platform.")
 	}
 
 	log.Debugf("setup net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", device, "alias", ip, netmask)
-	_, err := setupVIP.CombinedOutput()
+	setupVIP := exec.Command("/sbin/ifconfig", device, "alias", ip, netmask)
+	data, err := setupVIP.CombinedOutput()
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to set alias on interface: %s", err))
+		return errors.New(fmt.Sprintf("failed to set alias on interface: %s, %s",string(data), err))
 	}
 
 	ok, err := util.CheckIPBinding(ip)
@@ -71,11 +71,11 @@ func EnableAlias(device, ip string, netmask string) error {
 func DisableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
-	if !util.FilesExists("/usr/bin/sudo","/sbin/ifconfig"){
+	if !util.FilesExists("/sbin/ifconfig"){
 		return errors.New("net alias not supported on your platform.")
 	}
 
-	setupVIP := exec.Command("/usr/bin/sudo", "/sbin/ifconfig", device, "-alias", ip)
+	setupVIP := exec.Command( "/sbin/ifconfig", device, "-alias", ip)
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to disable alias on interface: %s", err))
