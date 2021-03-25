@@ -9,6 +9,17 @@ import (
 	"strings"
 )
 
+func IsRootUser() bool {
+	user,err:=user.Current()
+	if err!=nil{
+		panic(err)
+	}
+	if user.Name=="root" || user.Username=="root"{
+		return true
+	}
+	return false
+}
+
 func HasSudoPermission() bool {
 
 	user,err:=user.Current()
