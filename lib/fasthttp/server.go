@@ -763,13 +763,6 @@ func (ctx *RequestCtx) Finished() {
 	ctx.finished=true
 }
 
-func (ctx *RequestCtx) Filtered() {
-	ctx.finished=true
-	ctx.Response.Header.Set("FILTERED","true")
-	ctx.Response.SetDestination("filtered")
-	ctx.Response.SetStatusCode(403)
-}
-
 //should filters continue to process
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
