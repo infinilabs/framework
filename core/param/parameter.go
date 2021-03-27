@@ -31,21 +31,23 @@ import (
 
 type Parameters struct {
 	Data   map[string]interface{} `json:"data,omitempty"`
-	l      *sync.RWMutex
+	l      sync.RWMutex
 	inited bool
 }
+
+const uuid = "PARA_INTERNAL_UUID"
 
 func (para *Parameters) init() {
 	if para.inited {
 		return
 	}
-	//TODO reuse parameter Data
-	if para.l == nil {
-		para.l = &sync.RWMutex{}
-	}
 	para.l.Lock()
 	if para.Data == nil {
 		para.Data = map[string]interface{}{}
+	}
+	_,ok:=para.Data[uuid]
+	if !ok{
+		para.Data[uuid] = util.GetUUID()
 	}
 	para.inited = true
 	para.l.Unlock()
@@ -66,6 +68,10 @@ func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 		return s, ok
 	}
 	return s, ok
+}
+
+func (para *Parameters) UUID() (string) {
+	return para.MustGetString(uuid)
 }
 
 func (para *Parameters) GetString(key ParaKey) (string, bool) {
