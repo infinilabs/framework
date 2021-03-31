@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -20,7 +19,7 @@ type APIHandler struct {
 	Config common.ModuleConfig
 }
 
-func (h *APIHandler)Client() elastic.API {
+func (h *APIHandler) Client() elastic.API {
 	return elastic.GetClient(h.Config.Elasticsearch)
 }
 
@@ -40,7 +39,6 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	conf.Created = time.Now()
 	conf.Enabled=true
 	conf.Updated = conf.Created
-	//conf.ID = id
 	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
 	_, err = esClient.Index(index, "", id, conf)
 	if err != nil {
@@ -48,8 +46,6 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-
-	//conf.ID = ir.ID
 
 	resBody["_source"] = conf
 	resBody["_id"] = id
@@ -244,8 +240,8 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 	resBody["summary"] = summary
 
-
-	metrics:=h.GetClusterMetrics(id)
+	bucketSize:=60
+	metrics:=h.GetClusterMetrics(id,bucketSize)
 	resBody["metrics"] = metrics
 
 	err=h.WriteJSON(w, resBody,http.StatusOK)
@@ -314,123 +310,190 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w,health,200)
 }
 
-
-
-func (h *APIHandler) GetClusterMetrics(id string) map[string]common.MetricItem {
-	result:=map[string]common.MetricItem{}
-
-	metricKey:="cluster_throughput"
+func newMetricItem(metricKey string) *common.MetricItem  {
 	metricItem:=common.MetricItem{}
 
+	metricItem.Key=metricKey
+
 	//axis
-	metricItem.Axis=[]common.MetricAxis{}
-	axis:=common.MetricAxis{}
-
-	axis.ID=util.GetUUID()
-	axis.Title="indexing"
-	axis.Group="group-1"
-	axis.Position=common.PositionLeft
-	axis.FormatType="num"
-	axis.LabelFormat="0,0"
-	axis.TickFormat="0,0.[00]"
-	axis.Ticks=5
-	axis.ShowGridLines=true
-
-	metricItem.Axis=append(metricItem.Axis,axis)
+	metricItem.Axis=[]*common.MetricAxis{}
 
 	//lines
-	metricItem.Lines=[]common.MetricLine{}
-	line:=common.MetricLine{}
+	metricItem.Lines=[]*common.MetricLine{}
 
-	line.BucketSize="30 seconds"
-	line.TimeRange=common.TimeRange{Min: 1551438000000,Max: 1551441600000}
-	line.Metric=common.MetricSummary{
-		App: "elasticsearch",
-		Title: "Indexing Rate",
-		Group: "group-1",
-		Field: "indices_stats._all.total.indexing.index_total",
-		MetricAgg: "max",
-		Label: "Total Indexing",
-		Description: "Number of documents being indexed for primary and replica shards.",
-		Units: "e/s",
-		FormatType: "num",
-		Format: "0,0.[00]",
-		TickFormat: "0,0.[00]",
-		HasCalculation: false,
-		IsDerivative: true,
+	return &metricItem
+}
+
+
+func (h *APIHandler) GetClusterMetrics(id string,bucketSize int) map[string]*common.MetricItem {
+
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+
+	metricItems:=[]*common.MetricItem{}
+
+	metricItem:=newMetricItem("cluster_throughput")
+	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
+
+	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","index_stats.total.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for primary shards.","group1","index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Search Rate","Total Searching","Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!","group2","index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+
+
+
+	metricItem=newMetricItem("cluster_latency")
+	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
+
+	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","index_stats.total.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","index_stats.total.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","index_stats.total.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","index_stats.total.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","index_stats.total.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+
+
+	metricItem=newMetricItem("cluster_storage")
+	metricItem.AddAxi("storage","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	metricItem.AddAxi("shards","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
+
+	metricItem.AddLine("Disk","Indices Storage","","group1","cluster_stats.indices.store.size_in_bytes","max",bucketSizeStr,"","bytes","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Disk","Available Disk","","group5","cluster_stats.nodes.fs.available_in_bytes","max",bucketSizeStr,"","bytes","0,0.[00]","0,0.[00]",false,false)
+
+	metricItem.AddLine("Indices Count","Indices Count","","group4","cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Shards Count","Shards Count","","group3","cluster_stats.indices.shards.total","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Documents Count","Documents Count","","group2","cluster_stats.indices.docs.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItems=append(metricItems,metricItem)
+
+
+	//metricItem=newMetricItem("system_load")
+	//metricItem.AddAxi("load","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+	//
+	//metricItem.AddLine("Load","System Load","","group1","cluster_stats.nodes.process.cpu.percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	//metricItems=append(metricItems,metricItem)
+
+
+	query:=map[string]interface{}{}
+	query["query"]=util.MapStr{
+		"term":util.MapStr{
+			"elasticsearch":util.MapStr{
+				"value": id,
+			},
+		},
+	}
+
+	metricData:=map[string][][]interface{}{}
+
+	aggs:=map[string]interface{}{}
+
+	for _,metricItem:=range metricItems{
+		for _,line:=range metricItem.Lines{
+
+			metricData[line.Metric.DataKey]=[][]interface{}{}
+
+			aggs[line.Metric.ID]=util.MapStr{
+				"max":util.MapStr{
+					"field": line.Metric.Field,
+				},
+			}
+
+			if line.Metric.IsDerivative{
+				//add which metric keys to extract
+				aggs[line.Metric.ID+"_deriv"]=util.MapStr{
+					"derivative":util.MapStr{
+						"buckets_path": line.Metric.ID,
+					},
+				}
+			}
+		}
 	}
 
 
 
-	//{
-	//  "size": 0,
-	//  "aggs": {
-	//    "dates": {
-	//      "date_histogram": {
-	//        "field": "timestamp",
-	//        "interval": "10s"
-	//      },
-	//      "aggs": {
-	//        "indices_count": {
-	//          "max": {
-	//            "field": "cluster_stats.indices.count"
-	//          }
-	//        },
-	//        "shards_count": {
-	//          "max": {
-	//            "field": "cluster_stats.indices.shards.total"
-	//          }
-	//        }
-	//      }
-	//    }
-	//  }
-	//}
+	//"nodes_count":util.MapStr{
+	//	"max":util.MapStr{
+	//		"field": "cluster_stats.nodes.count.total",
+	//	},
+	//},
+	//"shards_count":util.MapStr{
+	//	"max":util.MapStr{
+	//		"field": "cluster_stats.indices.shards.total",
+	//	},
+	//},
+	//"primary_shards_count":util.MapStr{
+	//	"max":util.MapStr{
+	//		"field": "cluster_stats.indices.shards.primaries",
+	//	},
+	//},
+	//"segments_count":util.MapStr{
+	//	"max":util.MapStr{
+	//		"field": "cluster_stats.indices.segments.count",
+	//	},
+	//},
+	//"store_in_bytes":util.MapStr{
+	//	"max":util.MapStr{
+	//		"field": "cluster_stats.indices.store.size_in_bytes",
+	//	},
+	//},
 
-	query:=map[string]interface{}{}
+
 	query["size"]=0
 	query["aggs"]= util.MapStr{
 		"dates": util.MapStr{
 			"date_histogram":util.MapStr{
 				"field": "timestamp",
-				"interval": "10s",
+				"fixed_interval": bucketSizeStr,
 			},
-			"aggs":util.MapStr{
-				"indices_count":util.MapStr{
-					"max":util.MapStr{
-						"field": "cluster_stats.indices.count",
-					},
-				},"shards_count":util.MapStr{
-					"max":util.MapStr{
-						"field": "cluster_stats.indices.shards.total",
-					},
-				},
-			},
+			"aggs":aggs,
 		},
 	}
 
-	_,err:=elastic.GetClient(id).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
 		panic(err)
 	}
 
-	data:=[][]interface{}{}
 
-	var start int64=1551438000000
-	for i:=0;i<120;i++{
-		point:=rand.Intn(100)
-		points:=[]interface{}{start,point}
-		data=append(data,points)
-		start+=30000
+	var minDate,maxDate int64
+	if response.StatusCode==200{
+		for _,v:=range response.Aggregations{
+			for _,bucket:=range v.Buckets {
+				v,ok:=bucket["key"].(float64)
+				if !ok{
+					panic("invalid bucket key")
+				}
+				dateTime:=(int64(v))
+				minDate=util.MinInt64(minDate,dateTime)
+				maxDate=util.MaxInt64(maxDate,dateTime)
+				for mk1,mv1:=range metricData{
+					v1,ok:=bucket[mk1]
+					if ok{
+						v2,ok:=v1.(map[string]interface{})
+						if ok{
+							v3,ok:=v2["value"].(float64)
+							if ok{
+								v4:=int64(v3)/int64(bucketSize)
+								points:=[]interface{}{dateTime,v4}
+								metricData[mk1]=append(mv1,points)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
+	result:=map[string]*common.MetricItem{}
 
-	line.Data=data
-
-	metricItem.Lines=append(metricItem.Lines,line)
-
-
-	result[metricKey]=metricItem
+	for _,metricItem:=range metricItems {
+		for _,line:=range metricItem.Lines{
+			line.TimeRange=common.TimeRange{Min: minDate,Max: maxDate}
+			line.Data=metricData[line.Metric.DataKey]
+		}
+		result[metricItem.Key]=metricItem
+	}
 
 	return result
 }

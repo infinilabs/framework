@@ -2,9 +2,7 @@ package task
 
 import (
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/ui"
 )
 
 type TaskModule struct {
@@ -15,10 +13,6 @@ func (module TaskModule) Name() string {
 }
 
 func (module TaskModule) Setup(cfg *config.Config) {
-
-	uiConfig := ui.UIConfig{}
-
-	env.ParseConfig("task", &uiConfig)
 
 }
 

@@ -2729,8 +2729,6 @@ func (ctx *RequestCtx) Reset(){
 	}
 	ctx.finished=false
 	ctx.flowProcess=[]string{}
-	//ctx.Request.Reset()
-	//ctx.Response.Reset()
 	ctx.userValues.Reset()
 }
 

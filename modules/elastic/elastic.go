@@ -17,7 +17,6 @@ limitations under the License.
 package elastic
 
 import (
-	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
@@ -27,8 +26,9 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
-	 "infini.sh/framework/modules/elastic/api"
 	"time"
 )
 
@@ -40,7 +40,7 @@ var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
 		MonitoringConfig: MonitoringConfig{
-			Enabled: false,
+			Enabled:  false,
 			Interval: "10s",
 		},
 		ORMConfig: ORMConfig{
@@ -60,7 +60,7 @@ func getDefaultConfig() ModuleConfig {
 
 var m = map[string]elastic.ElasticsearchConfig{}
 
-func loadElasticConfig() {
+func loadFileBasedElasticConfig() {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
 	if exist && err != nil {
@@ -73,6 +73,7 @@ func loadElasticConfig() {
 				log.Debug("elasticsearch ", v.Name, " is not enabled")
 				continue
 			}
+			v.Source = "file"
 			if v.ID == "" {
 				if v.Name == "" {
 					panic(errors.Errorf("invalid elasticsearch config, %v", v))
@@ -84,27 +85,59 @@ func loadElasticConfig() {
 	}
 }
 
+func loadESBasedElasticConfig() {
+	configs := []elastic.ElasticsearchConfig{}
+	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
+	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
+	if err != nil {
+		panic(err)
+	}
+
+	if len(result.Hits.Hits) > 0 {
+		for _, v1 := range result.Hits.Hits {
+			cfg := elastic.ElasticsearchConfig{}
+			bytes := util.MustToJSONBytes(v1.Source)
+			util.MustFromJSONBytes(bytes, &cfg)
+			cfg.ID = v1.ID.(string)
+			configs = append(configs, cfg)
+		}
+	}
+
+	for _, v := range configs {
+		if !v.Enabled {
+			log.Debug("elasticsearch ", v.Name, " is not enabled")
+			continue
+		}
+		v.Source = "elastic"
+		if v.ID == "" {
+			if v.Name == "" {
+				panic(errors.Errorf("invalid elasticsearch config, %v", v))
+			}
+			v.ID = v.Name
+		}
+		m[v.ID] = v
+	}
+
+}
+
 func initElasticInstances() {
 	for k, esConfig := range m {
 		if !esConfig.Enabled {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
 		}
-		client:=InitClientWithConfig(esConfig)
+		client := InitClientWithConfig(esConfig)
 		elastic.RegisterInstance(k, esConfig, client)
 	}
 }
 
-func (module ElasticModule) Init() {
-	loadElasticConfig()
-	initElasticInstances()
-}
-
-var moduleConfig=ModuleConfig{}
+var moduleConfig = ModuleConfig{}
 
 func (module ElasticModule) Setup(cfg *config.Config) {
 
-	module.Init()
+	loadFileBasedElasticConfig()
+	//loadESBasedElasticConfig()
+	initElasticInstances()
 
 	moduleConfig = getDefaultConfig()
 	if !cfg.Enabled(false) {
@@ -122,13 +155,18 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		if moduleConfig.ORMConfig.InitTemplate {
 			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
-		handler := ElasticORM{Client: client,Config: moduleConfig.ORMConfig}
+		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
 		orm.Register("elastic", handler)
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
 		handler := ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", handler)
+	}
+
+	err = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+	if err != nil {
+		panic(err)
 	}
 
 	err = orm.RegisterSchemaWithIndexName(MonitoringItem{}, "monitoring")
@@ -144,33 +182,46 @@ func (module ElasticModule) Stop() error {
 	return nil
 }
 
+func monitoring() {
 
-func monitoring()  {
-	all := elastic.GetAllConfigs()
-	for k, v := range all {
-		task1 := task.ScheduleTask{
-			Description: fmt.Sprintf("refresh nodes for elasticsearch [%v]", v),
-			Type:        "interval",
-			Interval:    "10s",
-			Task: func() {
+	task1 := task.ScheduleTask{
+		Description: "monitoring for elasticsearch clusters",
+		Type:        "interval",
+		Interval:    "10s",
+		Task: func() {
+			all := elastic.GetAllConfigs()
+			for k, v := range all {
 
-				log.Tracef("run monitoring task for elasticsearch: "+k)
 
+				if !v.Monitored || !v.Enabled {
+					continue
+				}
+
+				log.Tracef("run monitoring task for elasticsearch: " + k)
 				client := elastic.GetClient(k)
 				stats := client.GetClusterStats()
+				indexStats,err := client.GetStats()
+
 				item := MonitoringItem{}
-				item.Elasticsearch = k
+				item.Elasticsearch = v.ID
 				item.ClusterStats = stats
+				if indexStats!=nil{
+					item.IndexStats = indexStats.All
+				}
 				item.Timestamp = time.Now()
 				item.Agent = global.Env().SystemConfig.NodeConfig
-				_, err := client.Index(orm.GetIndexName(item), "", "", item)
+				monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
+				_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
 				if err != nil {
 					log.Error(err)
 				}
-			},
-		}
-		task.RegisterScheduleTask(task1)
+
+			}
+
+		},
 	}
+
+	task.RegisterScheduleTask(task1)
 }
 
 func discovery() {
@@ -184,7 +235,7 @@ func discovery() {
 				log.Error(err)
 				continue
 			}
-			if nodes==nil||len(*nodes) <= 0 {
+			if nodes == nil || len(*nodes) <= 0 {
 				continue
 			}
 
@@ -226,7 +277,7 @@ func discovery() {
 
 			//Indices
 			var indicesChanged bool
-			indices, err := client.GetIndices()
+			indices, err := client.GetIndices("")
 			if err != nil {
 				panic(err)
 			}
@@ -261,7 +312,7 @@ func discovery() {
 			}
 
 			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged {
-				if global.Env().IsDebug{
+				if global.Env().IsDebug {
 					log.Trace("elasticsearch metadata updated,", newMetadata)
 				}
 				elastic.SetMetadata(cfg.Name, &newMetadata)
@@ -272,6 +323,9 @@ func discovery() {
 }
 
 func (module ElasticModule) Start() error {
+
+	loadESBasedElasticConfig()
+	initElasticInstances()
 
 	t := task.ScheduleTask{
 		Description: "discovery nodes topology",
@@ -284,7 +338,7 @@ func (module ElasticModule) Start() error {
 
 	discovery()
 
-	if moduleConfig.MonitoringConfig.Enabled{
+	if moduleConfig.MonitoringConfig.Enabled {
 		monitoring()
 	}
 

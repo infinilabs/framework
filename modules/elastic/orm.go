@@ -140,6 +140,7 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 		}
 
 		searchResponse, err = handler.Client.Search(handler.GetIndexName(t), &request)
+
 	}
 
 	if err != nil {

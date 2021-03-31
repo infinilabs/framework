@@ -58,7 +58,9 @@ type API interface {
 	Refresh(name string) (err error)
 
 	GetNodes() (*map[string]NodesInfo, error)
-	GetIndices() (*map[string]IndexInfo, error)
+
+	GetIndices(pattern string) (*map[string]IndexInfo, error)
+
 	GetPrimaryShards() (*map[string]ShardInfo, error)
 	GetAliases() (*map[string]AliasInfo,error)
 
@@ -69,7 +71,19 @@ type API interface {
 
 
 	GetIndexStats(indexName string)(*IndexStats,error)
+	GetStats()(*Stats,error)
 	Forcemerge(indexName string,maxCount int)(error)
+
+}
+
+type Stats struct {
+	All struct{
+		Primary map[string]interface{}`json:"primaries"`
+		Total map[string]interface{}`json:"total"`
+
+	}`json:"_all"`
+
+	Indices map[string]interface{}`json:"indices"`
 }
 
 type IndexStats struct {
@@ -115,6 +129,7 @@ type IndexInfo struct {
 	Replicas     int    `json:"replicas,omitempty"`
 	DocsCount    int64  `json:"docs_count,omitempty"`
 	DocsDeleted  int64  `json:"docs_deleted,omitempty"`
+	SegmentsCount  int64  `json:"segments_count,omitempty"`
 	StoreSize    string `json:"store_size,omitempty"`
 	PriStoreSize string `json:"pri_store_size,omitempty"`
 }
@@ -157,16 +172,44 @@ type ScrollAPI interface {
 	NextScroll(scrollTime string, scrollId string) (interface{}, error)
 }
 
-type CatIndicesInfo struct {
-	Health       string `json:"health"`
-	Index        string `json:"index"`
-	UUID         string `json:"uuid"`
-	Pri          string `json:"pri"`
-	Rep          string `json:"rep"`
-	DocsCount    string `json:"docs.count"`
-	DocsDeleted  string `json:"docs.deleted"`
-	StoreSize    string `json:"store.size"`
-	PriStoreSize string `json:"pri.store.size"`
+//{
+//"health" : "green",
+//"status" : "open",
+//"index" : ".monitoring-kibana-7-2021.01.01",
+//"uuid" : "Kdkyc5QNS1ekTXTQ-Q-Row",
+//"pri" : "1",
+//"rep" : "0",
+//"docs.count" : "17278",
+//"docs.deleted" : "0",
+//"store.size" : "2.9mb",
+//"pri.store.size" : "2.9mb"
+//}
+type CatIndexResponse struct {
+	Health       string `json:"health,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Index        string `json:"index,omitempty"`
+	Uuid         string `json:"uuid,omitempty"`
+	Pri          string `json:"pri,omitempty"`
+	Rep          string `json:"rep,omitempty"`
+	DocsCount    string `json:"docs.count,omitempty"`
+	DocsDeleted  string `json:"docs.deleted,omitempty"`
+	StoreSize    string `json:"store.size,omitempty"`
+	PriStoreSize string `json:"pri.store.size,omitempty"`
+	SegmentCount string `json:"segments.count,omitempty"`
+
+	//TotalMemory string `json:"memory.total,omitempty"`
+	//FieldDataMemory string `json:"fielddata.memory_size,omitempty"`
+	//FieldDataEvictions string `json:"fielddata.evictions,omitempty"`
+	//QueryCacheMemory string `json:"query_cache.memory_size,omitempty"`
+	//QueryCacheEvictions string `json:"query_cache.evictions,omitempty"`
+	//RequestCacheMemory string `json:"request_cache.memory_size,omitempty"`
+	//RequestCacheEvictions string `json:"request_cache.evictions,omitempty"`
+	//RequestCacheHitCount string `json:"request_cache.hit_count,omitempty"`
+	//RequestCacheMissCount string `json:"request_cache.miss_count,omitempty"`
+	//SegmentMemory string `json:"segments.memory,omitempty"`
+	//SegmentWriterMemory string `json:"segments.index_writer_memory,omitempty"`
+	//SegmentVersionMapMemory string `json:"segments.version_map_memory,omitempty"`
+	//SegmentFixedBitsetMemory string `json:"segments.fixed_bitset_memory,omitempty"`
 }
 
 type ReindexResponse struct {

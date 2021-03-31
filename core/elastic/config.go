@@ -74,10 +74,12 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
+	Source        string   `json:"-"`
 	ID        string   `json:"-" index:"id"`
 	Name      string   `json:"name,omitempty" config:"name" elastic_mapping:"endpoint:{type:keyword}"`
 	Description string    `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled   bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	Monitored   bool     `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	HttpProxy string   `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint  string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	//Endpoints []string `config:"endpoints"`

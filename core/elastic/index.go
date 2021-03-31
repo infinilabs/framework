@@ -167,13 +167,17 @@ type IndexDocument struct {
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }
 
+type BucketBase map[string]interface{}
+
 type Bucket struct {
+	KeyAsString      interface{} `json:"key_as_string,omitempty"`
 	Key      interface{} `json:"key,omitempty"`
 	DocCount int    `json:"doc_count,omitempty"`
+
 }
 
 type AggregationResponse struct {
-	Buckets []Bucket `json:"buckets,omitempty"`
+	Buckets []BucketBase `json:"buckets,omitempty"`
 }
 
 type ResponseBase struct {

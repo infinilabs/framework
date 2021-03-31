@@ -521,40 +521,20 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	return &nodes.Nodes, nil
 }
 
-//{
-//"health" : "green",
-//"status" : "open",
-//"index" : ".monitoring-kibana-7-2021.01.01",
-//"uuid" : "Kdkyc5QNS1ekTXTQ-Q-Row",
-//"pri" : "1",
-//"rep" : "0",
-//"docs.count" : "17278",
-//"docs.deleted" : "0",
-//"store.size" : "2.9mb",
-//"pri.store.size" : "2.9mb"
-//}
-type CatIndexResponse struct {
-	Index        string `json:"index,omitempty"`
-	Uuid         string `json:"uuid,omitempty"`
-	Status       string `json:"status,omitempty"`
-	Health       string `json:"health,omitempty"`
-	Pri          string `json:"pri,omitempty"`
-	Rep          string `json:"rep,omitempty"`
-	DocsCount    string `json:"docs.count,omitempty"`
-	DocsDeleted  string `json:"docs.deleted,omitempty"`
-	StoreSize    string `json:"store.size,omitempty"`
-	PriStoreSize string `json:"pri.store.size,omitempty"`
-}
 
-func (c *ESAPIV0) GetIndices() (*map[string]elastic.IndexInfo, error) {
+func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
 
-	url := fmt.Sprintf("%s/_cat/indices?v&format=json", c.Config.Endpoint)
+	url := fmt.Sprintf("%s/_cat/indices?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.Config.Endpoint)
+	if pattern!=""{
+		url = fmt.Sprintf("%s/_cat/indices/%s?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.Config.Endpoint,pattern)
+	}
+
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
 		return nil, err
 	}
-	data := []CatIndexResponse{}
+	data := []elastic.CatIndexResponse{}
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
 		return nil, err
@@ -572,6 +552,10 @@ func (c *ESAPIV0) GetIndices() (*map[string]elastic.IndexInfo, error) {
 		info.Replicas, _ = util.ToInt(v.Rep)
 		info.DocsCount, _ = util.ToInt64(v.DocsCount)
 		info.DocsDeleted, _ = util.ToInt64(v.DocsDeleted)
+		info.SegmentsCount,_=util.ToInt64(v.SegmentCount)
+
+		info.StoreSize=v.StoreSize
+		info.PriStoreSize=v.PriStoreSize
 
 		indexInfo[v.Index] = info
 	}
@@ -1023,6 +1007,20 @@ func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
 		return nil, err
 	}
 	var response = &elastic.IndexStats{}
+	err = json.Unmarshal(resp.Body, response)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
+	url := fmt.Sprintf("%s/_stats", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var response = &elastic.Stats{}
 	err = json.Unmarshal(resp.Body, response)
 	if err != nil {
 		return nil, err

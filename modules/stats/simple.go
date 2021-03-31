@@ -30,7 +30,9 @@ type SimpleStatsConfig struct {
 
 func (module SimpleStatsModule) Setup(cfg *Config) {
 
-	config = &SimpleStatsConfig{}
+	config = &SimpleStatsConfig{
+		Persist: true,
+	}
 	env.ParseConfig("stats", config)
 
 	if config.Persist {
