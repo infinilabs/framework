@@ -42,13 +42,23 @@ func (c ESAPIV0) GetMajorVersion() int {
 	if c.majorVersion>0{
 		return c.majorVersion
 	}
-	vs := strings.Split(c.Version, ".")
-	n, err := util.ToInt(vs[0])
-	if err != nil {
-		panic(err)
+
+	if c.Version=="" && c.Config.Endpoint!=""{
+		c.Version = GetMajorVersion(c.Config)
+
 	}
-	c.majorVersion=n
-	return n
+
+	if c.Version!=""{
+		vs := strings.Split(c.Version, ".")
+		n, err := util.ToInt(vs[0])
+		if err != nil {
+			panic(err)
+		}
+		c.majorVersion=n
+		return n
+	}
+
+	panic("invalid major version")
 }
 
 const TypeName6 = "doc"

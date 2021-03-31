@@ -96,7 +96,6 @@ type Response struct {
 	laddr net.Addr
 
 	bodyLength int
-	destination []string
 }
 
 // SetHost sets host for the request.
@@ -974,7 +973,6 @@ func (resp *Response) Reset() {
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
 	resp.bodyLength=-1
-	resp.destination=resp.destination[0:0]
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1747,14 +1745,6 @@ func (resp *Response) GetBodyLength() int {
 		resp.bodyLength=len(resp.bodyBytes())
 	}
 	return resp.bodyLength
-}
-
-func (resp *Response) SetDestination(str string) {
-	resp.destination=append(resp.destination,str)
-}
-
-func (resp *Response) Destination() []string {
-	return resp.destination
 }
 
 func (res *Response) IsCompressed() (compressed bool,compressType []byte) {

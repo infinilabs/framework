@@ -21,8 +21,17 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 )
+
+func GetMajorVersion(esConfig elastic.ElasticsearchConfig)string  {
+	esVersion, err := ClusterVersion(&esConfig)
+	if err != nil {
+		panic(err)
+	}
+	return esVersion.Version.Number
+}
 
 func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInformation, error) {
 
@@ -42,9 +51,12 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInforma
 		panic(err)
 	}
 
+	if response.StatusCode!=200{
+		panic(errors.New(string(response.Body)))
+	}
+
 	version := elastic.ClusterInformation{}
 	err = json.Unmarshal(response.Body, &version)
-
 	if err != nil {
 		log.Error(string(response.Body))
 		panic(err)

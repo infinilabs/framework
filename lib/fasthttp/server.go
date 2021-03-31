@@ -584,6 +584,7 @@ type RequestCtx struct {
 	finished bool
 	SequenceID       int64
 	flowProcess []string
+	destination []string
 }
 
 func (ctx *RequestCtx)GetRequestProcess()[]string  {
@@ -592,6 +593,14 @@ func (ctx *RequestCtx)GetRequestProcess()[]string  {
 
 func (ctx *RequestCtx)AddFlowProcess(str string)  {
 	ctx.flowProcess=append(ctx.flowProcess,str)
+}
+
+func (ctx *RequestCtx) SetDestination(str string) {
+	ctx.destination=append(ctx.destination,str)
+}
+
+func (ctx *RequestCtx) Destination() []string {
+	return ctx.destination
 }
 
 var colon = []byte(": ")
@@ -2729,6 +2738,7 @@ func (ctx *RequestCtx) Reset(){
 	}
 	ctx.finished=false
 	ctx.flowProcess=[]string{}
+	ctx.destination=ctx.destination[0:0]
 	ctx.userValues.Reset()
 }
 
