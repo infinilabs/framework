@@ -1118,3 +1118,15 @@ func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteB
 	}
 	return delResponse, nil
 }
+
+func (c *ESAPIV0) SetSearchTemplate(templateID string, body []byte) error {
+	url := fmt.Sprintf("%s/_scripts/%s", c.Config.Endpoint, templateID)
+	_, err := c.Request(util.Verb_PUT, url, body)
+	return err
+}
+
+func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
+	url := fmt.Sprintf("%s/_scripts/%s", c.Config.Endpoint, templateID)
+	_, err := c.Request(util.Verb_DELETE, url, nil)
+	return err
+}

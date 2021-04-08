@@ -73,7 +73,8 @@ type API interface {
 	GetIndexStats(indexName string)(*IndexStats,error)
 	GetStats()(*Stats,error)
 	Forcemerge(indexName string,maxCount int)(error)
-
+	SetSearchTemplate(templateID string, body []byte) error
+	DeleteSearchTemplate(templateID string) error
 }
 
 type Stats struct {

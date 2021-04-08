@@ -280,6 +280,7 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 
 		cfg.ID=id
 		clusters[id]=cfg
+		config = cfg
 	}
 
 	client:=common.InitClientWithConfig(config)
