@@ -44,8 +44,6 @@ type QueueConfig struct {
 var cfg *QueueConfig
 
 func (module DiskQueue) initQueue(name string) error {
-
-	channel := "default"
 	initLocker.Lock()
 	defer initLocker.Unlock()
 
@@ -64,7 +62,7 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	q := NewDiskQueue(strings.ToLower(channel), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
+	q := NewDiskQueue(strings.ToLower(name), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
 	queues[name] = &q
 
 	return nil
@@ -97,7 +95,7 @@ func (module DiskQueue) Push(k string, v []byte) error {
 	return (*queues[k]).Put(v)
 }
 
-func (module DiskQueue) ReadChan(k string) chan []byte {
+func (module DiskQueue) ReadChan(k string) <-chan []byte{
 	module.initQueue(k)
 	return (*queues[k]).ReadChan()
 }

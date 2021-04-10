@@ -34,7 +34,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -53,15 +52,16 @@ type diskQueue struct {
 	sync.RWMutex
 
 	// instantiation time metadata
-	name            string
-	dataPath        string
-	maxBytesPerFile int64 // currently this cannot change once created
-	minMsgSize      int32
-	maxMsgSize      int32
-	syncEvery       int64         // number of writes per fsync
-	syncTimeout     time.Duration // duration of time per fsync
-	exitFlag        int32
-	needSync        bool
+	name                string
+	dataPath            string
+	maxBytesPerFile     int64 // cannot change once created
+	maxBytesPerFileRead int64
+	minMsgSize          int32
+	maxMsgSize          int32
+	syncEvery           int64         // number of writes per fsync
+	syncTimeout         time.Duration // duration of time per fsync
+	exitFlag            int32
+	needSync            bool
 
 	// keeps track of the position where we have read
 	// (but not yet sent over readChan)
@@ -77,6 +77,7 @@ type diskQueue struct {
 	readChan chan []byte
 
 	// internal channels
+	depthChan         chan int64
 	writeChan         chan []byte
 	writeResponseChan chan error
 	emptyChan         chan int
@@ -97,6 +98,7 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 		minMsgSize:        minMsgSize,
 		maxMsgSize:        maxMsgSize,
 		readChan:          make(chan []byte, readBufferSize),
+		depthChan:         make(chan int64),
 		writeChan:         make(chan []byte, writeBufferSize),
 		writeResponseChan: make(chan error),
 		emptyChan:         make(chan int),
@@ -114,26 +116,28 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 	}
 
 	go d.ioLoop()
-
 	return &d
 }
 
 // Depth returns the depth of the queue
 func (d *diskQueue) Depth() int64 {
-	return atomic.LoadInt64(&d.depth)
+	depth, ok := <-d.depthChan
+	if !ok {
+		// ioLoop exited
+		depth = d.depth
+	}
+	return depth
 }
 
-// ReadChan returns the []byte channel for reading data
-func (d *diskQueue) ReadChan() chan []byte {
-	d.RLock()
-	defer d.RUnlock()
+// ReadChan returns the receive-only []byte channel for reading data
+func (d *diskQueue) ReadChan() <-chan []byte {
 	return d.readChan
 }
 
 // Put writes a []byte to the queue
 func (d *diskQueue) Put(data []byte) error {
-	d.Lock()
-	defer d.Unlock()
+	d.RLock()
+	defer d.RUnlock()
 
 	if d.exitFlag == 1 {
 		return errors.New("exiting")
@@ -171,6 +175,8 @@ func (d *diskQueue) exit(deleted bool) error {
 	close(d.exitChan)
 	// ensure that ioLoop has exited
 	<-d.exitSyncChan
+
+	close(d.depthChan)
 
 	if d.readFile != nil {
 		d.readFile.Close()
@@ -241,7 +247,7 @@ func (d *diskQueue) skipToNextRWFile() error {
 	d.readPos = 0
 	d.nextReadFileNum = d.writeFileNum
 	d.nextReadPos = 0
-	atomic.StoreInt64(&d.depth, 0)
+	d.depth = 0
 
 	return err
 }
@@ -267,6 +273,16 @@ func (d *diskQueue) readOne() ([]byte, error) {
 				d.readFile.Close()
 				d.readFile = nil
 				return nil, err
+			}
+		}
+
+		// for "complete" files (i.e. not the "current" file), maxBytesPerFileRead
+		// should be initialized to the file's size, or default to maxBytesPerFile
+		d.maxBytesPerFileRead = d.maxBytesPerFile
+		if d.readFileNum < d.writeFileNum {
+			stat, err := d.readFile.Stat()
+			if err == nil {
+				d.maxBytesPerFileRead = stat.Size()
 			}
 		}
 
@@ -303,10 +319,10 @@ func (d *diskQueue) readOne() ([]byte, error) {
 	d.nextReadPos = d.readPos + totalBytes
 	d.nextReadFileNum = d.readFileNum
 
-	// TODO: each data file should embed the maxBytesPerFile
-	// as the first 8 bytes (at creation time) ensuring that
-	// the value can change without affecting runtime
-	if d.nextReadPos > d.maxBytesPerFile {
+	// we only consider rotating if we're reading a "complete" file
+	// and since we cannot know the size at which it was rotated, we
+	// rely on maxBytesPerFileRead rather than maxBytesPerFile
+	if d.readFileNum < d.writeFileNum && d.nextReadPos >= d.maxBytesPerFileRead {
 		if d.readFile != nil {
 			d.readFile.Close()
 			d.readFile = nil
@@ -346,7 +362,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 	dataLen := int32(len(data))
 
 	if dataLen < d.minMsgSize || dataLen > d.maxMsgSize {
-		return fmt.Errorf("invalid message write size (%d) maxMsgSize=%d", dataLen, d.maxMsgSize)
+		return fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.minMsgSize, d.maxMsgSize)
 	}
 
 	d.writeBuf.Reset()
@@ -370,9 +386,13 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 	totalBytes := int64(4 + dataLen)
 	d.writePos += totalBytes
-	atomic.AddInt64(&d.depth, 1)
+	d.depth += 1
 
-	if d.writePos > d.maxBytesPerFile {
+	if d.writePos >= d.maxBytesPerFile {
+		if d.readFileNum == d.writeFileNum {
+			d.maxBytesPerFileRead = d.writePos
+		}
+
 		d.writeFileNum++
 		d.writePos = 0
 
@@ -431,7 +451,7 @@ func (d *diskQueue) retrieveMetaData() error {
 	if err != nil {
 		return err
 	}
-	atomic.StoreInt64(&d.depth, depth)
+	d.depth = depth
 	d.nextReadFileNum = d.readFileNum
 	d.nextReadPos = d.readPos
 
@@ -440,7 +460,6 @@ func (d *diskQueue) retrieveMetaData() error {
 
 // persistMetaData atomically writes state to the filesystem
 func (d *diskQueue) persistMetaData() error {
-
 	var f *os.File
 	var err error
 
@@ -454,7 +473,7 @@ func (d *diskQueue) persistMetaData() error {
 	}
 
 	_, err = fmt.Fprintf(f, "%d\n%d,%d\n%d,%d\n",
-		atomic.LoadInt64(&d.depth),
+		d.depth,
 		d.readFileNum, d.readPos,
 		d.writeFileNum, d.writePos)
 	if err != nil {
@@ -494,7 +513,7 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 				d.name, depth)
 		}
 		// force set depth 0
-		atomic.StoreInt64(&d.depth, 0)
+		d.depth = 0
 		d.needSync = true
 	}
 
@@ -520,8 +539,7 @@ func (d *diskQueue) moveForward() {
 	oldReadFileNum := d.readFileNum
 	d.readFileNum = d.nextReadFileNum
 	d.readPos = d.nextReadPos
-
-	depth := atomic.AddInt64(&d.depth, -1)
+	d.depth -= 1
 
 	// see if we need to clean up the old file
 	if oldReadFileNum != d.nextReadFileNum {
@@ -535,7 +553,7 @@ func (d *diskQueue) moveForward() {
 		}
 	}
 
-	d.checkTailCorruption(depth)
+	d.checkTailCorruption(d.depth)
 }
 
 func (d *diskQueue) handleReadError() {
@@ -626,6 +644,7 @@ func (d *diskQueue) ioLoop() {
 			count++
 			// moveForward sets needSync flag if a file is removed
 			d.moveForward()
+		case d.depthChan <- d.depth:
 		case <-d.emptyChan:
 			d.emptyResponseChan <- d.deleteAllFiles()
 			count = 0

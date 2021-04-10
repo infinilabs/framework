@@ -28,7 +28,7 @@ import (
 type Queue interface {
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte,timeout bool)
-	ReadChan(k string) chan []byte
+	ReadChan(k string) <-chan []byte
 	Close(string) error
 	Depth(string) int64
 	GetQueues() []string
@@ -52,7 +52,7 @@ func Push(k string, v []byte) error {
 
 var pauseMsg = errors.New("queue was paused to read")
 
-func ReadChan(k string) chan []byte {
+func ReadChan(k string) <-chan []byte {
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			pauseLock.Lock()
