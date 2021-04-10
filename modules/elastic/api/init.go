@@ -17,4 +17,11 @@ func Init(cfg common.ModuleConfig) {
 	ui.HandleUIMethod(api.DELETE, "/elasticsearch/:id", clusterAPI.HandleDeleteClusterAction)
 	ui.HandleUIMethod(api.GET, "/elasticsearch/_search", clusterAPI.HandleSearchClusterAction)
 	ui.HandleUIMethod(api.POST, "/elasticsearch/_search", clusterAPI.HandleSearchClusterAction)
+
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/search_template", clusterAPI.HandleCreateSearchTemplateAction)
+	ui.HandleUIMethod(api.PUT, "/elasticsearch/:id/search_template/:template_id", clusterAPI.HandleUpdateSearchTemplateAction)
+	ui.HandleUIMethod(api.DELETE, "/elasticsearch/:id/search_template/:template_id", clusterAPI.HandleDeleteSearchTemplateAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/search_template/_get/:template_id", clusterAPI.HandleGetSearchTemplateAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/search_template/_search", clusterAPI.HandleSearchSearchTemplateAction)
+
 }
