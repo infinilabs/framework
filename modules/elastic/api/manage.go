@@ -409,35 +409,6 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int) map[string]*com
 		}
 	}
 
-
-
-	//"nodes_count":util.MapStr{
-	//	"max":util.MapStr{
-	//		"field": "cluster_stats.nodes.count.total",
-	//	},
-	//},
-	//"shards_count":util.MapStr{
-	//	"max":util.MapStr{
-	//		"field": "cluster_stats.indices.shards.total",
-	//	},
-	//},
-	//"primary_shards_count":util.MapStr{
-	//	"max":util.MapStr{
-	//		"field": "cluster_stats.indices.shards.primaries",
-	//	},
-	//},
-	//"segments_count":util.MapStr{
-	//	"max":util.MapStr{
-	//		"field": "cluster_stats.indices.segments.count",
-	//	},
-	//},
-	//"store_in_bytes":util.MapStr{
-	//	"max":util.MapStr{
-	//		"field": "cluster_stats.indices.store.size_in_bytes",
-	//	},
-	//},
-
-
 	query["size"]=0
 	query["aggs"]= util.MapStr{
 		"dates": util.MapStr{
