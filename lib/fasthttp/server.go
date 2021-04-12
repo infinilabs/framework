@@ -776,30 +776,56 @@ func (ctx *RequestCtx) Finished() {
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
+
 func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 	username:=ctx.Request.URI().Username()
 	if username!=nil&&len(username)>0{
 		return true,username,ctx.Request.URI().Password()
 	}
 
-	//
-	key:=ctx.Request.Header.PeekAny(AuthHeaderKeys)
-	if len(key)>0{
-		newKey:=strings.TrimSpace(strings.TrimLeft(string(key),"Basic"))
-		decoded,err := base64.StdEncoding.DecodeString(newKey)
-		if err!=nil{
-			log.Errorf("parse basic auth [%v] error: %v",newKey,err)
-		}
-		info:=bytes.Split(decoded,[]byte(":"))
-		if len(info)==2{
-			return true,info[0],info[1]
-		}
-	}
+	ctx.ParseAuthorization()
 
-	return false,nil,nil
+	return len(ctx.Request.URI().Username())>0,ctx.Request.URI().Username(),ctx.Request.URI().Password()
 
 }
 
+func (ctx *RequestCtx) ParseAPIKey()(exists bool,apiKey []byte) {
+	api:=ctx.Request.URI().apiKey
+	if len(apiKey)>0{
+		return true,api
+	}
+
+	ctx.ParseAuthorization()
+
+	return len(ctx.Request.URI().apiKey)>0,ctx.Request.URI().apiKey
+}
+
+func (ctx *RequestCtx) ParseAuthorization()() {
+
+	key:=ctx.Request.Header.PeekAny(AuthHeaderKeys)
+	if len(key)>0{
+		kvPair:=strings.Split(string(key)," ")
+		if len(kvPair)==2{
+			if kvPair[0]=="Basic"{
+				decoded,err := base64.StdEncoding.DecodeString(kvPair[1])
+				if err!=nil{
+					log.Errorf("parse basic auth [%v] error: %v",kvPair[1],err)
+				}
+				info:=bytes.Split(decoded,[]byte(":"))
+				if len(info)==2{
+					ctx.Request.uri.username=info[0]
+					ctx.Request.uri.password=info[1]
+				}
+			}else if kvPair[0]=="ApiKey"{
+				decoded,err := base64.StdEncoding.DecodeString(kvPair[1])
+				if err!=nil{
+					log.Errorf("parse apiKey [%v] error: %v",kvPair[1],err)
+				}
+				ctx.Request.uri.apiKey=decoded
+			}
+		}
+	}
+}
 
 //resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
