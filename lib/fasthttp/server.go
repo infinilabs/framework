@@ -789,15 +789,15 @@ func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
 
 }
 
-func (ctx *RequestCtx) ParseAPIKey()(exists bool,apiKey []byte) {
-	api:=ctx.Request.URI().apiKey
-	if len(apiKey)>0{
-		return true,api
+func (ctx *RequestCtx) ParseAPIKey()(exists bool,apiID,apiKey []byte) {
+	api:=ctx.Request.URI().apiID
+	if len(api)>0{
+		return true,api,ctx.Request.URI().apiKey
 	}
 
 	ctx.ParseAuthorization()
 
-	return len(ctx.Request.URI().apiKey)>0,ctx.Request.URI().apiKey
+	return len(ctx.Request.URI().apiID)>0,ctx.Request.URI().apiID,ctx.Request.URI().apiKey
 }
 
 func (ctx *RequestCtx) ParseAuthorization()() {
@@ -821,7 +821,11 @@ func (ctx *RequestCtx) ParseAuthorization()() {
 				if err!=nil{
 					log.Errorf("parse apiKey [%v] error: %v",kvPair[1],err)
 				}
-				ctx.Request.uri.apiKey=decoded
+				info:=bytes.Split(decoded,[]byte(":"))
+				if len(info)==2{
+					ctx.Request.uri.apiID=info[0]
+					ctx.Request.uri.apiKey=info[1]
+				}
 			}
 		}
 	}

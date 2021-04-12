@@ -64,6 +64,7 @@ type URI struct {
 
 	username []byte
 	password []byte
+	apiID []byte
 	apiKey []byte
 }
 
@@ -220,6 +221,7 @@ func (u *URI) Reset() {
 	u.queryString = u.queryString[:0]
 	u.hash = u.hash[:0]
 	u.username = u.username[:0]
+	u.apiID = u.apiID[:0]
 	u.apiKey = u.apiKey[:0]
 	u.password = u.password[:0]
 
