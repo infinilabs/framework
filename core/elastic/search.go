@@ -10,3 +10,25 @@ type SearchTemplate struct {
 	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
 }
+
+type SearchTemplateHistory struct {
+	ID string `json:"-" index:"id"`
+	TemplateID string `json:"template_id" elastic_mapping:"template_id:{type:keyword}"`
+	Action string `json:"action" elastic_mapping:"action:{type:keyword}"`
+	Content map[string]interface{} `json:"content,omitempty" elastic_mapping:"content:{type:object}"`
+	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+}
+
+type AliasAction map[string]AliasActionBody
+
+type AliasActionBody struct{
+	Index string `json:"index,omitempty"`
+	Alias string `json:"alias"`
+	Indices []string `json:"indices,omitempty"`
+	Filter map[string]interface{} `json:"filter,omitempty"`
+	Routing string `json:"routing,omitempty"`
+}
+
+type AliasRequest struct{
+	Actions []AliasAction `json:"actions"`
+}

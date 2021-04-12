@@ -115,42 +115,54 @@ func (h *APIHandler) HandleUpdateSearchTemplateAction(w http.ResponseWriter, req
 		return
 	}
 	originTemplate := getRes.Source
-	originName := originTemplate["name"].(string)
-	if template.Name != "" && template.Name != originName {
-		err = client.DeleteSearchTemplate(originName)
+	targetTemplate := make(map[string]interface{}, len(originTemplate))
+	for k, v := range originTemplate {
+		targetTemplate[k] = v
+	}
+	targetName := originTemplate["name"].(string)
+	if template.Name != "" && template.Name != targetName {
+		err = client.DeleteSearchTemplate(targetName)
 		if err != nil {
 			resBody["error"] = err.Error()
 			h.WriteJSON(w, resBody, http.StatusInternalServerError)
 			return
 		}
-		originTemplate["name"] = template.Name
-		originName = template.Name
+		targetTemplate["name"] = template.Name
+		targetName = template.Name
 	}
 	if template.Source != "" {
-		originTemplate["source"] = template.Source
+		targetTemplate["source"] = template.Source
 	}
 	var body = map[string]interface{}{
 		"script": map[string]interface{}{
 			"lang":   "mustache",
-			"source": originTemplate["source"],
+			"source": targetTemplate["source"],
 		},
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	err = client.SetSearchTemplate(originName, bodyBytes)
+	err = client.SetSearchTemplate(targetName, bodyBytes)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 
-	originTemplate["updated"] = time.Now()
-	insertRes, err := esClient.Index(index, "", templateID, originTemplate)
+	targetTemplate["updated"] = time.Now()
+	insertRes, err := esClient.Index(index, "", templateID, targetTemplate)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+
+	ht := &elastic.SearchTemplateHistory{
+		TemplateID: templateID,
+		Action: "update",
+		Content: originTemplate,
+		Created: time.Now(),
+	}
+	esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht)
 
 	resBody["_source"] = originTemplate
 	resBody["_id"] = templateID
@@ -199,6 +211,14 @@ func (h *APIHandler) HandleDeleteSearchTemplateAction(w http.ResponseWriter, req
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+
+	ht := &elastic.SearchTemplateHistory{
+		TemplateID: templateID,
+		Action: "delete",
+		Content: res.Source,
+		Created: time.Now(),
+	}
+	esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht)
 
 	resBody["_id"] = templateID
 	resBody["result"] = delRes.Result
@@ -253,4 +273,35 @@ func (h *APIHandler) HandleGetSearchTemplateAction(w http.ResponseWriter, req *h
 		return
 	}
 	h.WriteJSON(w,getResponse,200)
+}
+
+func (h *APIHandler) HandleSearchSearchTemplateHistoryAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	resBody := map[string] interface{}{
+	}
+	var (
+		templateID = h.GetParameterOrDefault(req, "template_id", "")
+		strFrom = h.GetParameterOrDefault(req, "from", "0")
+		strSize = h.GetParameterOrDefault(req, "size", "20")
+		queryDSL = `{"query":{"bool":{"must":[%s]}},"from": %d, "size": %d}`
+		mustBuilder = &strings.Builder{}
+	)
+	from, _ := strconv.Atoi(strFrom)
+	size, _ := strconv.Atoi(strSize)
+	targetClusterID := ps.ByName("id")
+	mustBuilder.WriteString(fmt.Sprintf(`{"match":{"content.cluster_id": "%s"}}`, targetClusterID))
+	if templateID != ""{
+		mustBuilder.WriteString(fmt.Sprintf(`,{"match":{"template_id": "%s"}}`, templateID))
+	}
+
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), from, size)
+	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.SearchTemplateHistory{}), []byte(queryDSL))
+
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	h.WriteJSON(w, res, http.StatusOK)
 }

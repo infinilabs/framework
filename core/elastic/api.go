@@ -75,6 +75,7 @@ type API interface {
 	Forcemerge(indexName string,maxCount int)(error)
 	SetSearchTemplate(templateID string, body []byte) error
 	DeleteSearchTemplate(templateID string) error
+	Alias(body []byte) error
 }
 
 type Stats struct {

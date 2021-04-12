@@ -1130,3 +1130,9 @@ func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
 	_, err := c.Request(util.Verb_DELETE, url, nil)
 	return err
 }
+
+func (c *ESAPIV0) Alias(body []byte) error {
+	url := fmt.Sprintf("%s/_aliases", c.Config.Endpoint)
+	_, err := c.Request(util.Verb_POST, url, body)
+	return err
+}
