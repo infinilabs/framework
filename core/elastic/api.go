@@ -75,6 +75,8 @@ type API interface {
 	Forcemerge(indexName string,maxCount int)(error)
 	SetSearchTemplate(templateID string, body []byte) error
 	DeleteSearchTemplate(templateID string) error
+	RenderTemplate(body map[string]interface{}) ([]byte, error)
+	SearchTemplate(body map[string]interface{}) ([]byte, error)
 	Alias(body []byte) error
 }
 

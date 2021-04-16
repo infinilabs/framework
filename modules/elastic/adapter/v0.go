@@ -1120,15 +1120,47 @@ func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteB
 }
 
 func (c *ESAPIV0) SetSearchTemplate(templateID string, body []byte) error {
-	url := fmt.Sprintf("%s/_scripts/%s", c.Config.Endpoint, templateID)
-	_, err := c.Request(util.Verb_PUT, url, body)
+	url := fmt.Sprintf("%s/_search/template/%s", c.Config.Endpoint, templateID)
+	_, err := c.Request(util.Verb_POST, url, body)
 	return err
 }
 
 func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
-	url := fmt.Sprintf("%s/_scripts/%s", c.Config.Endpoint, templateID)
+	url := fmt.Sprintf("%s/_search/template/%s", c.Config.Endpoint, templateID)
 	_, err := c.Request(util.Verb_DELETE, url, nil)
 	return err
+}
+
+func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
+	if c.Version < "5.6" {
+		if source, ok := body["source"]; ok {
+			body["inline"] = source
+			delete(body, "source")
+		}
+	}
+	url := fmt.Sprintf("%s/_render/template", c.Config.Endpoint)
+	bytesBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.Request(util.Verb_GET, url, bytesBody)
+	return res.Body, err
+}
+
+func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
+	if c.Version < "5.6" {
+		if source, ok := body["source"]; ok {
+			body["inline"] = source
+			delete(body, "source")
+		}
+	}
+	url := fmt.Sprintf("%s/_search/template", c.Config.Endpoint)
+	bytesBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.Request(util.Verb_GET, url, bytesBody)
+	return res.Body, err
 }
 
 func (c *ESAPIV0) Alias(body []byte) error {

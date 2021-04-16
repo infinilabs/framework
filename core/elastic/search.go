@@ -27,6 +27,9 @@ type AliasActionBody struct{
 	Indices []string `json:"indices,omitempty"`
 	Filter map[string]interface{} `json:"filter,omitempty"`
 	Routing string `json:"routing,omitempty"`
+	SearchRouting string `json:"search_routing,omitempty"`
+	IndexRouting string `json:"index_routing,omitempty"`
+	IsWriteIndex bool `json:"is_write_index,omitempty"`
 }
 
 type AliasRequest struct{

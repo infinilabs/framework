@@ -116,3 +116,23 @@ func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (interface{}, e
 
 	return scroll, nil
 }
+
+func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
+	if s.Version < "5.6" {
+		fmt.Println(s.Version, templateID)
+		return s.ESAPIV0.SetSearchTemplate(templateID, body)
+	}
+	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
+	_, err := s.Request(util.Verb_PUT, url, body)
+	return err
+}
+
+func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
+	if s.Version < "5.6" {
+		fmt.Println(s.Version, templateID)
+		return s.ESAPIV0.DeleteSearchTemplate(templateID)
+	}
+	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
+	_, err := s.Request(util.Verb_DELETE, url, nil)
+	return err
+}
