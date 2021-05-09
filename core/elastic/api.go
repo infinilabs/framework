@@ -63,6 +63,7 @@ type API interface {
 
 	GetPrimaryShards() (*map[string]ShardInfo, error)
 	GetAliases() (*map[string]AliasInfo,error)
+	GetAliasesDetail() (*map[string]AliasDetailInfo, error)
 
 
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
@@ -154,6 +155,21 @@ type AliasInfo struct {
 	Alias            string `json:"alias,omitempty"`
 	Index          	[]string `json:"index,omitempty"`
 	WriteIndex        string   `json:"write_index,omitempty"`
+}
+
+type AliasDetailInfo struct {
+	Alias            string `json:"alias,omitempty"`
+	Indexes          	[]AliasIndex `json:"indexes,omitempty"`
+	WriteIndex        string   `json:"write_index,omitempty"`
+}
+
+type AliasIndex struct {
+	Index string `json:"index"`
+	Filter interface{} `json:"filter"`
+	IndexRouting string `json:"index_routing"`
+	SearchRouting string `json:"search_routing"`
+	IsHidden bool `json:"is_hidden"`
+	IsWriteIndex bool `json:"is_write_index"`
 }
 
 type NodesResponse struct {

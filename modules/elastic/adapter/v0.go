@@ -1096,6 +1096,47 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	return &aliasInfo, nil
 }
 
+func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error) {
+
+	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	data := map[string]AliasesResponse{}
+	err = json.Unmarshal(resp.Body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	aliasInfo := map[string]elastic.AliasDetailInfo{}
+	for index, v := range data {
+		for alias,v1 :=range v.Aliases{
+			info,ok:=aliasInfo[alias]
+			if !ok{
+				info = elastic.AliasDetailInfo{}
+				info.Alias = alias
+			}
+
+			info.Indexes = append(info.Indexes,elastic.AliasIndex{
+				Index: index,
+				Filter: v1.Filter,
+				SearchRouting: v1.SearchRouting,
+				IndexRouting: v1.IndexRouting,
+				IsHidden: v1.IsHiddenIndex,
+				IsWriteIndex: v1.IsWriteIndex,
+			})
+			if v1.IsWriteIndex{
+				info.WriteIndex = index
+			}
+			aliasInfo[alias] = info
+		}
+	}
+
+	return &aliasInfo, nil
+}
+
 func (c *ESAPIV0) Forcemerge(indexName string, maxCount int) error {
 	url := fmt.Sprintf("%s/%s/_forcemerge?max_num_segments=%v", c.Config.Endpoint, indexName, maxCount)
 	_, err := c.Request(util.Verb_POST, url, nil)
