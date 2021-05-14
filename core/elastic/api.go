@@ -222,3 +222,52 @@ type DeleteByQueryResponse struct {
 	Deleted int `json:"deleted"`
 	Total   int `json:"total"`
 }
+
+
+
+//{ "index" : { "_index" : "test", "_id" : "1" } }
+//{ "delete" : { "_index" : "test", "_id" : "2" } }
+//{ "create" : { "_index" : "test", "_id" : "3" } }
+//{ "update" : {"_id" : "1", "_index" : "test"} }
+type BulkActionMetadata struct {
+	Index *BulkIndexMetadata`json:"index,omitempty"`
+	Delete *BulkIndexMetadata `json:"delete,omitempty"`
+	Create *BulkIndexMetadata `json:"create,omitempty"`
+	Update *BulkIndexMetadata `json:"update,omitempty"`
+}
+
+type BulkIndexMetadata struct {
+	Index string  `json:"_index,omitempty"`
+	Type string  `json:"_type,omitempty"`
+	ID string  `json:"_id,omitempty"`
+	Pipeline string  `json:"pipeline,omitempty"`
+	Refresh string  `json:"refresh,omitempty"`
+	Source interface{}  `json:"_source,omitempty"`
+	SourceExcludes interface{}  `json:"_source_excludes,omitempty"`
+	SourceIncludes interface{}  `json:"_source_includes,omitempty"`
+	RetryOnConflict interface{}  `json:"retry_on_conflict,omitempty"`
+	RequireAlias interface{}  `json:"require_alias,omitempty"`
+	Parent1 interface{}  `json:"_parent,omitempty"`
+	Parent2 interface{}  `json:"parent,omitempty"`
+	Routing1 interface{}  `json:"routing,omitempty"`
+	Routing2 interface{}  `json:"_routing,omitempty"`
+	Version1 interface{}  `json:"_version,omitempty"`
+	Version2 interface{}  `json:"version,omitempty"`
+
+	//for bulk response
+	Result string  `json:"result,omitempty"`
+	Status int  `json:"status,omitempty"`
+	SeqNo int  `json:"_seq_no,omitempty"`
+	PrimaryTerm int  `json:"_primary_term,omitempty"`
+	Shards *struct{}  `json:"_shards,omitempty"`
+	Error *struct{
+		Type string  `json:"type,omitempty"`
+		Reason string  `json:"reason,omitempty"`
+	}  `json:"error,omitempty"`
+}
+
+type BulkResponse struct {
+	Took int `json:"took"`
+	Errors bool `json:"errors"`
+	Items []BulkActionMetadata `json:"items"`
+}

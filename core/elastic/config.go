@@ -64,6 +64,14 @@ func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int
 	return nil
 }
 
+func (meta *ElasticsearchMetadata) GetActiveNodeInfo() *NodesInfo {
+	for _,v:=range meta.Nodes{
+		return &v
+	}
+	return nil
+}
+
+
 func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 	info, ok := meta.Nodes[nodeID]
 	if ok {
