@@ -47,6 +47,7 @@ func (h *APIHandler) HandleCreateSearchTemplateAction(w http.ResponseWriter, req
 	}
 	bodyBytes, _ := json.Marshal(body)
 
+	fmt.Println(client)
 	err = client.SetSearchTemplate(template.Name, bodyBytes)
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -304,4 +305,72 @@ func (h *APIHandler) HandleSearchSearchTemplateHistoryAction(w http.ResponseWrit
 	}
 
 	h.WriteJSON(w, res, http.StatusOK)
+}
+
+func (h *APIHandler) HandleRenderTemplateAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	resBody := map[string] interface{}{
+	}
+	targetClusterID := ps.ByName("id")
+	exists,client,err:=h.GetClusterClient(targetClusterID)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	if !exists{
+		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		h.WriteJSON(w, resBody, http.StatusNotFound)
+		return
+	}
+	reqBody := map[string]interface{}{}
+	err = h.DecodeJSON(req, &reqBody)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	res, err := client.RenderTemplate(reqBody)
+
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	h.WriteJSON(w, string(res), http.StatusOK)
+}
+
+func (h *APIHandler) HandleSearchTemplateAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	resBody := map[string] interface{}{
+	}
+	targetClusterID := ps.ByName("id")
+	exists,client,err:=h.GetClusterClient(targetClusterID)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	if !exists{
+		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		h.WriteJSON(w, resBody, http.StatusNotFound)
+		return
+	}
+	reqBody := map[string]interface{}{}
+	err = h.DecodeJSON(req, &reqBody)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	res, err := client.SearchTemplate(reqBody)
+
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	h.WriteJSON(w, string(res), http.StatusOK)
 }

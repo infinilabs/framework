@@ -65,7 +65,7 @@ func (h *APIHandler) HandleGetAliasAction(w http.ResponseWriter, req *http.Reque
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
-	res, err := client.GetAliases()
+	res, err := client.GetAliasesDetail()
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
