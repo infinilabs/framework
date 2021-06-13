@@ -13,7 +13,7 @@ import (
 	"src/github.com/valyala/bytebufferpool"
 	"sync"
 	"time"
-	)
+)
 
 // Request represents HTTP request.
 //
@@ -98,7 +98,6 @@ type Response struct {
 	bodyLength int
 }
 
-// SetHost sets host for the request.
 func (req *Request) SetHost(host string) {
 	req.URI().SetHost(host)
 }

@@ -18,6 +18,8 @@ package elastic
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/rate"
 	url2 "net/url"
 	"strings"
 	"sync"
@@ -25,7 +27,7 @@ import (
 )
 
 var apis = map[string]API{}
-var cfgs = map[string]ElasticsearchConfig{}
+var cfgs = map[string]*ElasticsearchConfig{}
 var metas = map[string]*ElasticsearchMetadata{}
 var lock = sync.RWMutex{}
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
@@ -37,13 +39,13 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 		apis = map[string]API{}
 	}
 	if cfgs == nil {
-		cfgs = map[string]ElasticsearchConfig{}
+		cfgs = map[string]*ElasticsearchConfig{}
 	}
 	if metas == nil {
 		metas = map[string]*ElasticsearchMetadata{}
 	}
 	apis[elastic] = handler
-	cfgs[elastic] = cfg
+	cfgs[elastic] = &cfg
 
 }
 
@@ -115,6 +117,11 @@ type ElasticsearchConfig struct {
 	Order       int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
 	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
+
+
+	clusterFailureTicket int
+	clusterOnFailure bool
+	clusterAvailable bool
 }
 
 //format: host:port
@@ -134,7 +141,7 @@ func (config *ElasticsearchConfig) IsTLS() bool {
 	}
 }
 
-func GetConfig(k string) ElasticsearchConfig {
+func GetConfig(k string) *ElasticsearchConfig {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
@@ -172,9 +179,66 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
-func GetAllConfigs() map[string]ElasticsearchConfig {
+func GetAllConfigs() map[string]*ElasticsearchConfig {
 	return cfgs
 }
 func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas[k] = v
+}
+
+
+func (config *ElasticsearchConfig) ReportFailure() bool{
+	if !config.clusterAvailable{
+		return true
+	}
+
+	config.clusterOnFailure=true
+	if rate.GetRateLimiter("cluster_failure",config.Name,1,1,time.Second*1).Allow(){
+		fmt.Println("vote failure ticket++")
+		config.clusterFailureTicket++
+		if config.clusterFailureTicket>=10{
+			fmt.Println("enough failure ticket, mark it down")
+			config.clusterFailureTicket=10
+			config.clusterAvailable=false
+			config.clusterFailureTicket=0
+			log.Infof("elasticsearch [%v] is not available",config.Name)
+			return true
+		}
+	}
+	return false
+}
+
+func (config *ElasticsearchConfig) IsAvailable() bool {
+	if !config.Enabled{
+		return false
+	}
+
+	return config.clusterAvailable
+}
+
+func (config *ElasticsearchConfig) Init() {
+	config.clusterAvailable=true
+	config.clusterOnFailure=false
+	config.clusterFailureTicket=0
+}
+
+func (config *ElasticsearchConfig) ReportSuccess() {
+	if !config.Enabled{
+		return
+	}
+
+	if config.clusterAvailable{
+		return
+	}
+
+	if config.clusterOnFailure ||!config.clusterAvailable{
+		if rate.GetRateLimiter("cluster_recovery_health",config.Name,1,1,time.Second*1).Allow(){
+			fmt.Println("vote success ticket++")
+			config.clusterFailureTicket--
+			config.clusterOnFailure=false
+			config.clusterAvailable=true
+			config.clusterFailureTicket=0
+			log.Infof("elasticsearch [%v] is coming back",config.Name)
+		}
+	}
 }

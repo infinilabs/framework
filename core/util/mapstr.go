@@ -310,3 +310,48 @@ func (op putOperation) Do(key string, data MapStr) (interface{}, error) {
 	data[key] = op.Value
 	return existingValue, nil
 }
+
+
+// Flatten flattens the given MapStr and returns a flat MapStr.
+//
+// Example:
+//   "hello": MapStr{"world": "test" }
+//
+// This is converted to:
+//   "hello.world": "test"
+//
+// This can be useful for testing or logging.
+func (m MapStr) Flatten() MapStr {
+	return flatten("", m, MapStr{})
+}
+
+// flatten is a helper for Flatten. See docs for Flatten. For convenience the
+// out parameter is returned.
+func flatten(prefix string, in, out MapStr) MapStr {
+	for k, v := range in {
+		var fullKey string
+		if prefix == "" {
+			fullKey = k
+		} else {
+			fullKey = prefix + "." + k
+		}
+
+		if m, ok := tryToMapStr(v); ok {
+			flatten(fullKey, m, out)
+		} else {
+			out[fullKey] = v
+		}
+	}
+	return out
+}
+
+func tryToMapStr(v interface{}) (MapStr, bool) {
+	switch m := v.(type) {
+	case MapStr:
+		return m, true
+	case map[string]interface{}:
+		return MapStr(m), true
+	default:
+		return nil, false
+	}
+}

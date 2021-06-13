@@ -9,3 +9,9 @@ modules:
 - module: parser
   enabled: false
   parser_id: "abc12"
+
+config_map_array:
+- if:
+  name1: value1
+- key2:
+  name2: value2

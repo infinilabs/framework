@@ -587,12 +587,40 @@ type RequestCtx struct {
 	destination []string
 }
 
+
+
+func (para *RequestCtx) GetValue(s string) (interface{}, error){
+	//fmt.Println("try to get values in request ctx,",s)
+	if util.PrefixStr(s,"_ctx."){
+		//fmt.Println("it's getting metadata parameters")
+		keys:=strings.Split(s,".")
+		//fmt.Println("keys:",keys)
+		if len(keys)>=2{
+			if keys[1]=="response"{
+				if keys[2]=="status"{
+					//fmt.Println("return status code,",para.Response.StatusCode())
+					return para.Response.StatusCode(),nil
+				}
+			}
+		}
+	}
+
+	v:=para.Get(param.ParaKey(s))
+	if v!=nil{
+		return v,nil
+	}else{
+		return nil,errors.New("key not found")
+	}
+}
+
 func (ctx *RequestCtx)GetRequestProcess()[]string  {
 	return ctx.flowProcess
 }
 
 func (ctx *RequestCtx)AddFlowProcess(str string)  {
-	ctx.flowProcess=append(ctx.flowProcess,str)
+	if str!=""{
+		ctx.flowProcess=append(ctx.flowProcess,str)
+	}
 }
 
 func (ctx *RequestCtx) SetDestination(str string) {
@@ -612,6 +640,195 @@ var bytesBufferPool = &sync.Pool{
 	},
 }
 
+var bytesReaderPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Reader)
+	},
+}
+
+
+func (req *Request)Encode() []byte {
+
+	schemaLength := make([]byte, 4)
+	schemaL:=len(req.URI().Scheme())
+	binary.LittleEndian.PutUint32(schemaLength, uint32(schemaL))
+
+	methodLength := make([]byte, 4)
+	methodL:=len(req.Header.Method())
+	binary.LittleEndian.PutUint32(methodLength, uint32(methodL))
+
+
+	uriLength := make([]byte, 4)
+	uriL:=len(req.RequestURI())
+	binary.LittleEndian.PutUint32(uriLength, uint32(uriL))
+
+
+	//buffer:=bytesBufferPool.Get().(*bytes.Buffer)
+	headerBuffer:=bytes.Buffer{}
+	req.Header.Del("content-type")
+	req.Header.VisitAll(func(key, value []byte) {
+		headerBuffer.Write(key)
+		headerBuffer.Write(colon)
+		headerBuffer.Write(value)
+		headerBuffer.Write(newLine)
+	})
+
+	headerLength := make([]byte, 4)
+	binary.LittleEndian.PutUint32(headerLength, uint32(headerBuffer.Len()))
+
+	bodyLength := make([]byte, 4)
+	bodyL:=len(req.bodyBytes())
+	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
+
+
+
+	//	buff.Write(req.Header.method)
+	//	buff.Write(req.Header.host)
+	//	buff.Write(req.Header.RequestURI())
+	//	buff.Write(req.Header.rawHeaders)
+	//	buff.Write(req.bodyBytes())
+
+
+	data:=bytes.Buffer{}
+
+	//schema
+	data.Write(schemaLength)
+	data.Write(req.URI().Scheme())
+
+	//method
+	data.Write(methodLength)
+	data.Write(req.Header.Method())
+
+	//uri
+	data.Write(uriLength)
+	data.Write(req.RequestURI())
+
+	//header length
+	data.Write(headerLength)
+	data.Write(headerBuffer.Bytes())
+
+	//body
+	data.Write(bodyLength)
+	if bodyL>0{
+		data.Write(req.bodyBytes())
+	}
+
+	//fmt.Println(headerLength)
+	//fmt.Println(len(req.Header.rawHeaders))
+	//fmt.Println(bodyL)
+	//fmt.Println(len(req.bodyBytes()))
+
+	//buffer.Reset()
+	//bytesBufferPool.Put(buffer)
+
+	return data.Bytes()
+}
+
+//TODO optimize memmove issue, buffer read
+func (req *Request)Decode(data []byte) error {
+	req.Reset()
+
+	reader:=bytesReaderPool.Get().(*bytes.Reader)
+	reader.Reset(data)
+	defer bytesReaderPool.Put(reader)
+
+	//schema
+	schemaLengthBytes := make([]byte, 4)
+	_, err := reader.Read(schemaLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerSchemaLength := binary.LittleEndian.Uint32(schemaLengthBytes)
+	readerSchema := make([]byte, readerSchemaLength)
+	_, err = reader.Read(readerSchema)
+	if err != nil {
+		return err
+	}
+	req.URI().SetSchemeBytes(readerSchema)
+
+	if string(readerSchema)=="https"{
+		req.isTLS=true
+	}else{
+		req.isTLS=false
+	}
+
+	//method
+	methodLengthBytes := make([]byte, 4)
+	_, err = reader.Read(methodLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerMethodLength := binary.LittleEndian.Uint32(methodLengthBytes)
+	readerMethod := make([]byte, readerMethodLength)
+	_, err = reader.Read(readerMethod)
+	if err != nil {
+		return err
+	}
+	req.Header.SetMethodBytes(readerMethod)
+
+
+	//uri
+	uriLengthBytes := make([]byte, 4)
+	_, err = reader.Read(uriLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerUriLength := binary.LittleEndian.Uint32(uriLengthBytes)
+	readerUri := make([]byte, readerUriLength)
+	_, err = reader.Read(readerUri)
+	if err != nil {
+		return err
+	}
+
+	req.SetRequestURIBytes(readerUri)
+
+	//headers
+	readerHeaderLengthBytes := make([]byte, 4)
+	//reader := bytes.NewBuffer(data)
+	_, err = reader.Read(readerHeaderLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerHeaderLength := binary.LittleEndian.Uint32(readerHeaderLengthBytes)
+	readerHeader := make([]byte, readerHeaderLength)
+	_, err = reader.Read(readerHeader)
+	if err != nil {
+		return err
+	}
+
+	line := bytes.Split(readerHeader, newLine)
+	for _, l := range line {
+		kv := bytes.Split(l, colon)
+		if len(kv) == 2 {
+			req.Header.SetBytesKV(kv[0], kv[1])
+		}
+	}
+
+	readerBodyLengthBytes := make([]byte, 4)
+	_, err = reader.Read(readerBodyLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
+
+	if readerBodyLength>0{
+		readerBody := make([]byte, readerBodyLength)
+		_, err = reader.Read(readerBody)
+		if err != nil {
+			return err
+		}
+		req.SetBody(readerBody)
+	}
+
+	return nil
+}
+
+
 func (res *Response)Encode() []byte {
 
 	//buffer:=bytesBufferPool.Get().(*bytes.Buffer)
@@ -629,20 +846,23 @@ func (res *Response)Encode() []byte {
 	binary.LittleEndian.PutUint32(headerLength, uint32(buffer.Len()))
 
 	bodyLength := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bodyLength, uint32(len(body)))
+	bodyL:=len(body)
+	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
 	status := make([]byte, 4)
 	util.Uint32toBytes(status,uint32(res.StatusCode()))
 
 	data:=bytes.Buffer{}
 
-	//header length
+	//header
 	data.Write(headerLength)
 	data.Write(buffer.Bytes())
 
 	//body
 	data.Write(bodyLength)
-	data.Write(body)
+	if bodyL>0{
+		data.Write(body)
+	}
 
 	//status
 	data.Write(status)
@@ -651,12 +871,6 @@ func (res *Response)Encode() []byte {
 	//bytesBufferPool.Put(buffer)
 
 	return data.Bytes()
-}
-
-var bytesReaderPool = &sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Reader)
-	},
 }
 
 //TODO optimize memmove issue, buffer read
@@ -695,12 +909,14 @@ func (res *Response)Decode(data []byte) error {
 	}
 
 	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
-	readerBody := make([]byte, readerBodyLength)
-	_, err = reader.Read(readerBody)
-	if err != nil {
-		return err
+	if readerBodyLength>0{
+		readerBody := make([]byte, readerBodyLength)
+		_, err = reader.Read(readerBody)
+		if err != nil {
+			return err
+		}
+		res.SetBody(readerBody)
 	}
-	res.SetBodyRaw(readerBody)
 
 	statusCode := make([]byte, 4)
 	_, err = reader.Read(statusCode)
@@ -2764,7 +2980,7 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 func (ctx *RequestCtx) Reset(){
 	//reset flags and metadata
 	if ctx.Data==nil||len(ctx.Data)>0{
-		ctx.Data= map[string]interface{}{}
+		ctx.ResetParameters()
 	}
 	ctx.finished=false
 	ctx.flowProcess=[]string{}

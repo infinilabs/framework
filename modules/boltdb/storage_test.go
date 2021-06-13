@@ -36,7 +36,7 @@ func Test(t *testing.T) {
 	global.RegisterEnv(env1)
 
 	storage = StorageModule{}
-	storage.Start(GetModuleConfig(storage.Name()))
+	storage.Start()
 
 	//Memory pressure test
 	//for i := 0; i < 1; i++ {

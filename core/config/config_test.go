@@ -48,6 +48,7 @@ func TestLoadDefaultCfg(t *testing.T) {
 
 type globalConfig struct {
 	Modules []*Config `config:"modules"`
+	MapConfig []*Config `config:"config_map_array"`
 }
 
 type crawlerConfig struct {
@@ -71,6 +72,16 @@ func TestLoadModules(t *testing.T) {
 		fmt.Println(err)
 	}
 
+	fmt.Println("map_config:",config)
+	for k,v:=range config.MapConfig{
+		fmt.Println("key:",k)
+		fmt.Println("value:",v)
+		if v.HasField("if"){
+			fmt.Println("is if filter")
+		}
+	}
+
+
 	crawlerCfg := defaultCrawlerConfig
 
 	cf1 := newConfig(t, config.Modules)
@@ -79,11 +90,16 @@ func TestLoadModules(t *testing.T) {
 	assert.Equal(t, crawlerCfg.Namespace, "hello world")
 	assert.Equal(t, crawlerCfg.LikedCount, 1235)
 
+
+
 	parserConfig := struct {
 		ID string `config:"parser_id" validate:"required"`
 	}{}
 	cf1[1].Unpack(&parserConfig)
 	fmt.Println(parserConfig.ID)
+
+
+
 
 }
 

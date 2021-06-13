@@ -1177,6 +1177,18 @@ func (h *RequestHeader) Peek(key string) []byte {
 	return h.peek(k)
 }
 
+//peak value
+func (h *RequestHeader) PeekAnyKey(keys []string)(key string,value []byte) {
+	for _,k:=range keys{
+		v:=h.Peek(k)
+		if len(v)>0{
+			return k,v
+		}
+	}
+	return "",nil
+}
+
+//peak value
 func (h *RequestHeader) PeekAny(keys []string) []byte {
 	for _,k:=range keys{
 		v:=h.Peek(k)

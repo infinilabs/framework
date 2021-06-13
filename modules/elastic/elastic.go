@@ -39,6 +39,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
+		LoadRemoteElasticsearchConfigs: true,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -126,6 +127,7 @@ func initElasticInstances() {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
 		}
+		esConfig.Init()
 		client := InitClientWithConfig(esConfig)
 		elastic.RegisterInstance(k, esConfig, client)
 	}
@@ -202,6 +204,8 @@ func monitoring() {
 				stats := client.GetClusterStats()
 				indexStats,err := client.GetStats()
 
+				v.ReportSuccess()
+
 				item := MonitoringItem{}
 				item.Elasticsearch = v.ID
 				item.ClusterStats = stats
@@ -238,6 +242,8 @@ func discovery() {
 			if nodes == nil || len(*nodes) <= 0 {
 				continue
 			}
+
+			cfg.ReportSuccess()
 
 			oldMetadata := elastic.GetMetadata(cfg.Name)
 			newMetadata := elastic.ElasticsearchMetadata{}
@@ -324,7 +330,10 @@ func discovery() {
 
 func (module ElasticModule) Start() error {
 
-	loadESBasedElasticConfig()
+	if moduleConfig.LoadRemoteElasticsearchConfigs {
+		loadESBasedElasticConfig()
+	}
+
 	initElasticInstances()
 
 	t := task.ScheduleTask{

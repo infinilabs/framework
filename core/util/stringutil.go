@@ -27,16 +27,66 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"reflect"
 	"runtime"
 	"strconv"
 	. "strings"
-	"time"
 	"unicode"
 	"unicode/utf16"
 )
 
 func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
+}
+
+func CompareInterface(x interface{}, y interface{}) bool {
+
+		if x == nil || y == nil {
+			return false
+		}
+
+		var xint int = 0
+		var yint int = 0
+
+		xtyp := reflect.TypeOf(x)
+		switch xtyp.Kind() {
+		case reflect.Int:
+			xint = int(x.(int))
+		case reflect.Int32:
+			xint = int(x.(int32))
+		case reflect.Int16:
+			xint = int(x.(int16))
+		case reflect.Int64:
+			xint = int(x.(int64))
+		}
+
+		ytyp := reflect.TypeOf(y)
+		switch ytyp.Kind() {
+		case reflect.Int:
+			yint = int(y.(int))
+		case reflect.Int32:
+			yint = int(y.(int32))
+		case reflect.Int16:
+			yint = int(y.(int16))
+		case reflect.Int64:
+			yint = int(y.(int64))
+		}
+
+		if xint <= yint {
+			return false
+		}
+
+		return true
+}
+
+func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
+	for _,x:=range v{
+		//fmt.Println("checking..",i,x,i==x,CompareInterface(i,x),reflect.TypeOf(x),reflect.TypeOf(x))
+		if CompareInterface(i,x){
+			return true
+		}
+	}
+	return false
 }
 
 func ContainsInAnyIntArray(i int64, v []int64) bool {
@@ -164,50 +214,6 @@ func ToInt(str string) (int, error) {
 		return strconv.Atoi(str)
 	}
 
-}
-
-func FormatTime(date time.Time) string {
-	return date.Format("2006-01-02 15:04:05")
-}
-
-func ParseTime(str string) time.Time  {
-	v,err:= time.Parse("2006-01-02 15:04:05",str)
-	if err!=nil{
-		panic(err)
-	}
-	return v
-}
-
-func FormatTimeForFileName(date time.Time) string {
-	return date.Format("2006-01-02_150405")
-}
-
-func FormatUnixTimestamp(unix int64) string {
-	date := FromUnixTimestamp(unix)
-	return date.Format("2006-01-02 15:04:05")
-}
-func FromUnixTimestamp(unix int64) time.Time {
-	return time.Unix(unix, 0)
-}
-
-func FormatTimeWithLocalTZ(date time.Time) string {
-	localLoc, err := time.LoadLocation("Local")
-	if err != nil {
-		panic(errors.New(`Failed to load location "Local"`))
-	}
-	localDateTime := date.In(localLoc)
-
-	return localDateTime.Format("2006-01-02 15:04:05")
-}
-
-func FormatTimeWithTZ(date time.Time) string {
-	return date.Format("2016-10-24 09:34:19 +0000 UTC")
-}
-
-// GetLocalZone return a local timezone
-func GetLocalZone() string {
-	zone, _ := time.Now().Zone()
-	return zone
 }
 
 func GetRuntimeErrorMessage(r runtime.Error) string {

@@ -18,12 +18,12 @@ package param
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"reflect"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -37,11 +37,21 @@ type Parameters struct {
 
 const uuid = "PARA_INTERNAL_UUID"
 
+func (para *Parameters) ResetParameters() {
+	para.l.Lock()
+	para.Data = map[string]interface{}{}
+	para.l.Unlock()
+}
+
 func (para *Parameters) init() {
 	if para.inited {
 		return
 	}
 	para.l.Lock()
+	defer para.l.Unlock()
+	if para.inited {
+		return
+	}
 	if para.Data == nil {
 		para.Data = map[string]interface{}{}
 	}
@@ -50,7 +60,6 @@ func (para *Parameters) init() {
 		para.Data[uuid] = util.GetUUID()
 	}
 	para.inited = true
-	para.l.Unlock()
 }
 
 func (para *Parameters) MustGetTime(key ParaKey) time.Time {
@@ -94,7 +103,9 @@ func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
 
 func (para *Parameters) Has(key ParaKey) bool {
 	para.init()
+	para.l.Lock()
 	_, ok := para.Data[string(key)]
+	para.l.Unlock()
 	return ok
 }
 
@@ -204,16 +215,16 @@ func GetInt64OrDefault(v interface{}, defaultV int64) (int64, bool) {
 
 func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	v := para.Get(key)
-
 	return GetInt64OrDefault(v, defaultV)
-
 }
 
 func (para *Parameters) MustGet(key ParaKey) interface{} {
 	para.init()
 
 	s := string(key)
+	para.l.Lock()
 	v, ok := para.Data[s]
+	para.l.Unlock()
 	if !ok {
 		panic(fmt.Errorf("%s not found in context", key))
 	}
@@ -527,8 +538,18 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 		return s,ok
 	}
 
+	s7, ok := v.([]uint64)
+	if ok{
+		for _,v1:=range s7{
+			s=append(s,v1)
+		}
+		return s,ok
+	}
+
 	//TODO handle rest types
-	log.Warnf("parameters failed to GetArray, type: %v",reflect.TypeOf(v))
+	if global.Env().IsDebug{
+		log.Warnf("parameters failed to GetArray, key: %v, type: %v",key,reflect.TypeOf(v))
+	}
 	return s, ok
 }
 
@@ -540,32 +561,44 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 	return s
 }
 
+
+func (para *Parameters) GetValue(s string) (interface{}, error){
+	v:=para.Get(ParaKey(s))
+	if v!=nil{
+		return v,nil
+	}else{
+		return nil,errors.New("key not found")
+	}
+}
+
 func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
 	s := string(key)
-	t := para.Data
-
+	para.l.Lock()
 	if strings.Contains(s, ".") {
 		keys := strings.Split(s, ".")
 		for _, x := range keys {
-			y, ok := t[x]
+			y, ok := para.Data[x]
 			if ok {
 				s = x
 				z, ok := y.(map[string]interface{})
 				if ok {
-					t = z
+					para.Data = z
 				}
 			}
 		}
 	}
-
-	return t[s]
+	x:= para.Data[s]
+	para.l.Unlock()
+	return x
 }
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
 	s := string(key)
+	para.l.Lock()
 	v := para.Data[s]
+	para.l.Unlock()
 	if v == nil {
 		return val
 	}
@@ -574,8 +607,8 @@ func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 
 func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
-	para.l.Lock()
 	s := string(key)
+	para.l.Lock()
 	para.Data[s] = value
 	para.l.Unlock()
 }

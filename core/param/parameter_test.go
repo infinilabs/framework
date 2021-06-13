@@ -91,7 +91,7 @@ func TestGetStringArray(t *testing.T) {
 
 	v,ok:=para.GetStringArray("config.tags")
 	fmt.Println(v,ok)
-	v1,ok:=para.GetIntArray("config.code")
+	v1,ok:=para.GetInt64Array("config.code")
 	fmt.Println(v1,ok)
 
 }

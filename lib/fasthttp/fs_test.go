@@ -608,7 +608,7 @@ func TestFSHandlerConcurrent(t *testing.T) {
 func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []string) {
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 	ctx.Request.Header.SetHost("foobar.com")
 
 	filesTested := 0

@@ -78,7 +78,7 @@ const (
 	HeaderContentEncoding = "content-encoding"
 	HeaderContentEncoding2 = "Content-Encoding"
 	HeaderContentLanguage = "content-language"
-	HeaderContentLength   = "content-length"
+	HeaderContentLength   = "Content-Length"
 	HeaderContentLocation = "content-location"
 	HeaderContentType     = "content-type"
 

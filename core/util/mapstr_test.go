@@ -384,3 +384,52 @@ func TestAddTag(t *testing.T) {
 		}
 	}
 }
+
+func TestMapstrFlatten(t *testing.T) {
+	type data struct {
+		Event    MapStr
+		Expected MapStr
+	}
+	tests := []data{
+		{
+			Event: MapStr{
+				"hello": MapStr{
+					"world": 15,
+				},
+			},
+			Expected: MapStr{
+				"hello.world": 15,
+			},
+		},
+		{
+			Event: MapStr{
+				"test": 15,
+			},
+			Expected: MapStr{
+				"test": 15,
+			},
+		},
+		{
+			Event: MapStr{
+				"test": 15,
+				"hello": MapStr{
+					"world": MapStr{
+						"ok": "test",
+					},
+				},
+				"elastic": MapStr{
+					"for": "search",
+				},
+			},
+			Expected: MapStr{
+				"test":           15,
+				"hello.world.ok": "test",
+				"elastic.for":    "search",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.Equal(t, test.Expected, test.Event.Flatten())
+	}
+}

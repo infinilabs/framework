@@ -39,10 +39,10 @@ func Test(t *testing.T) {
 	global.RegisterEnv(env1)
 
 	storage := boltdb.StorageModule{}
-	storage.Start(GetModuleConfig(storage.Name()))
+	storage.Start()
 
 	m := FilterModule{}
-	m.Start(GetModuleConfig(m.Name()))
+	m.Start()
 	b, _ := filter.CheckThenAdd(filterKey, []byte("key"))
 	assert.Equal(t, false, b)
 
