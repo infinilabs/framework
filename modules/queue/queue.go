@@ -88,6 +88,8 @@ func (module DiskQueue) Setup(config *config.Config) {
 	}
 
 	queues = make(map[string]*BackendQueue)
+
+	RegisterAPI()
 }
 
 func (module DiskQueue) Push(k string, v []byte) error {
