@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"infini.sh/framework/core/errors"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -14,7 +15,8 @@ import (
 	"time"
 )
 
-var queues map[string]*BackendQueue
+var queues sync.Map=sync.Map{}
+//map[string]*BackendQueue
 
 type DiskQueue struct {
 }
@@ -47,13 +49,8 @@ func (module DiskQueue) initQueue(name string) error {
 	initLocker.Lock()
 	defer initLocker.Unlock()
 
-	if queues[name] != nil {
-		return nil
-	}
-
-
-	//double check after lock in
-	if queues[name] != nil {
+	_,ok:= queues.Load(name)
+	if ok{
 		return nil
 	}
 
@@ -62,8 +59,9 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	q := NewDiskQueue(strings.ToLower(name), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
-	queues[name] = &q
+	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
+
+	queues.Store(name,&tempQueue)
 
 	return nil
 }
@@ -87,19 +85,27 @@ func (module DiskQueue) Setup(config *config.Config) {
 		panic(err)
 	}
 
-	queues = make(map[string]*BackendQueue)
+	//queues = make(map[string]*BackendQueue)
 
 	RegisterAPI()
 }
 
 func (module DiskQueue) Push(k string, v []byte) error {
 	module.initQueue(k)
-	return (*queues[k]).Put(v)
+	q,ok:=queues.Load(k)
+	if ok{
+		return (*q.(*BackendQueue)).Put(v)
+	}
+	return errors.Errorf("queue [%v] not found",k)
 }
 
 func (module DiskQueue) ReadChan(k string) <-chan []byte{
 	module.initQueue(k)
-	return (*queues[k]).ReadChan()
+	q,ok:=queues.Load(k)
+	if ok{
+		return (*q.(*BackendQueue)).ReadChan()
+	}
+	panic(errors.Errorf("queue [%v] not found",k))
 }
 
 func (module DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
@@ -113,34 +119,42 @@ func (module DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byt
 		for {
 			to.Reset(timeoutDuration)
 			select {
-			case b := <-(*queues[k]).ReadChan():
+			case b := <-module.ReadChan(k):
 				return b,false
 			case <-to.C:
 				return nil,true
 			}
 		}
 	} else {
-		b := <-(*queues[k]).ReadChan()
+		b := <-module.ReadChan(k)
 		return b,false
 	}
 }
 
 func (module DiskQueue) Close(k string) error {
-	b := (*queues[k]).Close()
-	return b
+	q,ok:=queues.Load(k)
+	if ok{
+		return (*q.(*BackendQueue)).Close()
+	}
+	panic(errors.Errorf("queue [%v] not found",k))
 }
 
 func (module DiskQueue) Depth(k string) int64 {
 	module.initQueue(k)
-	b := (*queues[k]).Depth()
-	return b
+	q,ok:=queues.Load(k)
+	if ok{
+		return (*q.(*BackendQueue)).Depth()
+	}
+	panic(errors.Errorf("queue [%v] not found",k))
 }
 
 func (module DiskQueue) GetQueues() []string {
 	result := []string{}
-	for k := range queues {
-		result = append(result, k)
-	}
+
+	queues.Range(func(key, value interface{}) bool {
+		result = append(result, key.(string))
+		return true
+	})
 	return result
 }
 
@@ -150,11 +164,16 @@ func (module DiskQueue) Start() error {
 }
 
 func (module DiskQueue) Stop() error {
-	for _, v := range queues {
-		err := (*v).Close()
-		if err != nil {
-			log.Debug(err)
+
+	queues.Range(func(key, value interface{}) bool {
+		q,ok:=queues.Load(key)
+		if ok{
+			err := (*q.(*BackendQueue)).Close()
+			if err != nil {
+				log.Error(err)
+			}
 		}
-	}
+		return true
+	})
 	return nil
 }

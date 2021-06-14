@@ -10,7 +10,7 @@ import (
 	"mime/multipart"
 	"net"
 	"os"
-	"src/github.com/valyala/bytebufferpool"
+	"github.com/valyala/bytebufferpool"
 	"sync"
 	"time"
 )

@@ -43,15 +43,21 @@ func (para *Parameters) ResetParameters() {
 	para.l.Unlock()
 }
 
+var lock sync.Mutex
+
 func (para *Parameters) init() {
 	if para.inited {
 		return
 	}
-	para.l.Lock()
-	defer para.l.Unlock()
+
+	lock.Lock()
+	defer lock.Unlock()
+
 	if para.inited {
 		return
 	}
+
+	para.l.Lock()
 	if para.Data == nil {
 		para.Data = map[string]interface{}{}
 	}
@@ -60,6 +66,7 @@ func (para *Parameters) init() {
 		para.Data[uuid] = util.GetUUID()
 	}
 	para.inited = true
+	para.l.Unlock()
 }
 
 func (para *Parameters) MustGetTime(key ParaKey) time.Time {

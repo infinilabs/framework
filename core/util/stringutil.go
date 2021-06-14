@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"strconv"
 	. "strings"
+	"sync"
 	"unicode"
 	"unicode/utf16"
 )
@@ -39,50 +40,56 @@ func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
 }
 
-func CompareInterface(x interface{}, y interface{}) bool {
+func CompareInteger(x interface{}, y interface{}) bool {
 
 		if x == nil || y == nil {
 			return false
 		}
 
-		var xint int = 0
-		var yint int = 0
-
-		xtyp := reflect.TypeOf(x)
-		switch xtyp.Kind() {
-		case reflect.Int:
-			xint = int(x.(int))
-		case reflect.Int32:
-			xint = int(x.(int32))
-		case reflect.Int16:
-			xint = int(x.(int16))
-		case reflect.Int64:
-			xint = int(x.(int64))
+		if x==y{
+			return true
 		}
 
-		ytyp := reflect.TypeOf(y)
-		switch ytyp.Kind() {
-		case reflect.Int:
-			yint = int(y.(int))
-		case reflect.Int32:
-			yint = int(y.(int32))
-		case reflect.Int16:
-			yint = int(y.(int16))
-		case reflect.Int64:
-			yint = int(y.(int64))
+		var xint int = InterfaceToInt(x)
+		var yint int = InterfaceToInt(y)
+		//fmt.Println(xint,",",yint)
+		if xint == yint {
+			return true
 		}
+		return false
+}
 
-		if xint <= yint {
-			return false
-		}
-
-		return true
+func InterfaceToInt(y interface{})int  {
+	ytyp := reflect.TypeOf(y)
+	var yint int = 0
+	switch ytyp.Kind() {
+	case reflect.Int:
+		yint = int(y.(int))
+	case reflect.Int8:
+		yint = int(y.(int8))
+	case reflect.Int16:
+		yint = int(y.(int16))
+	case reflect.Int32:
+		yint = int(y.(int32))
+	case reflect.Int64:
+		yint = int(y.(int64))
+	case reflect.Uint:
+		yint = int(y.(uint))
+	case reflect.Uint8:
+		yint = int(y.(uint8))
+	case reflect.Uint16:
+		yint = int(y.(uint16))
+	case reflect.Uint32:
+		yint = int(y.(uint32))
+	case reflect.Uint64:
+		yint = int(y.(uint64))
+	}
+	return yint
 }
 
 func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
 	for _,x:=range v{
-		//fmt.Println("checking..",i,x,i==x,CompareInterface(i,x),reflect.TypeOf(x),reflect.TypeOf(x))
-		if CompareInterface(i,x){
+		if CompareInteger(i,x){
 			return true
 		}
 	}
@@ -181,10 +188,15 @@ func MergeSpace(in string) (out string) {
 	return TrimSpace(buffer.String())
 }
 
+var locker sync.Mutex
 func ToJson(in interface{}, indent bool) string {
 	if in == nil {
 		return ""
 	}
+
+	locker.Lock()
+	defer locker.Unlock()
+
 	var b []byte
 	if indent {
 		b, _ = json.MarshalIndent(in, " ", " ")

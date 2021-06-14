@@ -35,6 +35,9 @@ type PipeRunner struct {
 	pipes        []*pipeline.Pipeline
 }
 
+var lock sync.Mutex
+
+
 func (pipe *PipeRunner) Start(config PipeRunnerConfig) {
 	if !config.Enabled {
 		log.Debugf("pipeline: %s was disabled", config.Name)
@@ -171,7 +174,9 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 	}()
 
 	p = pipeline.NewPipelineFromConfig(pipe.config.Name, pipelineConfig, &context)
+	lock.Lock()
 	pipe.pipes = append(pipe.pipes, p)
+	lock.Unlock()
 
 	p.Run()
 

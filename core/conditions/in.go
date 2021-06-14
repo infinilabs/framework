@@ -70,9 +70,10 @@ func (c InArray) Check(event ValuesMap) bool {
 	//fmt.Println("checking data:",value," vs ",c.Data)
 
 	if util.ContainsAnyInAnyIntArray(value,c.Data){
-		//fmt.Println("event data in targets")
+		//fmt.Println("event data in targets,",value,",",c.Data)
 		return true
 	}else{
+		//fmt.Println("event data not in targets,",value,",",c.Data)
 		return false
 	}
 }
