@@ -194,10 +194,10 @@ func (config *ElasticsearchConfig) ReportFailure() bool{
 
 	config.clusterOnFailure=true
 	if rate.GetRateLimiter("cluster_failure",config.Name,1,1,time.Second*1).Allow(){
-		fmt.Println("vote failure ticket++")
+		log.Debug("vote failure ticket++")
 		config.clusterFailureTicket++
 		if config.clusterFailureTicket>=10{
-			fmt.Println("enough failure ticket, mark it down")
+			log.Debug("enough failure ticket, mark it down")
 			config.clusterFailureTicket=10
 			config.clusterAvailable=false
 			config.clusterFailureTicket=0
@@ -233,7 +233,7 @@ func (config *ElasticsearchConfig) ReportSuccess() {
 
 	if config.clusterOnFailure ||!config.clusterAvailable{
 		if rate.GetRateLimiter("cluster_recovery_health",config.Name,1,1,time.Second*1).Allow(){
-			fmt.Println("vote success ticket++")
+			log.Debug("vote success ticket++")
 			config.clusterFailureTicket--
 			config.clusterOnFailure=false
 			config.clusterAvailable=true
