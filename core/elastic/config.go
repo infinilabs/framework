@@ -122,6 +122,8 @@ type ElasticsearchConfig struct {
 	clusterFailureTicket int
 	clusterOnFailure bool
 	clusterAvailable bool
+
+	configLock sync.RWMutex
 }
 
 //format: host:port
@@ -192,6 +194,9 @@ func (config *ElasticsearchConfig) ReportFailure() bool{
 		return true
 	}
 
+	config.configLock.Lock()
+	defer config.configLock.Unlock()
+
 	config.clusterOnFailure=true
 	if rate.GetRateLimiter("cluster_failure",config.Name,1,1,time.Second*1).Allow(){
 		log.Debug("vote failure ticket++")
@@ -231,10 +236,12 @@ func (config *ElasticsearchConfig) ReportSuccess() {
 		return
 	}
 
+	config.configLock.Lock()
+	defer config.configLock.Unlock()
+
 	if config.clusterOnFailure ||!config.clusterAvailable{
 		if rate.GetRateLimiter("cluster_recovery_health",config.Name,1,1,time.Second*1).Allow(){
 			log.Debug("vote success ticket++")
-			config.clusterFailureTicket--
 			config.clusterOnFailure=false
 			config.clusterAvailable=true
 			config.clusterFailureTicket=0
