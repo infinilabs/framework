@@ -864,35 +864,48 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) (scroll interface{}, err error) {
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
-	if len(query) > 0 || len(fields) > 0 {
+	if len(query) > 0 || len(sourceFields) > 0||true {
 		queryBody := map[string]interface{}{}
-		if len(fields) > 0 {
-			if !strings.Contains(fields, ",") {
-				panic(errors.New("The fields shoud be seraprated by ,"))
+		if len(sourceFields) > 0 {
+			if !strings.Contains(sourceFields, ",") {
+				panic(errors.New("The source fields shoud be seraprated by ,"))
 				return
 			} else {
-				queryBody["_source"] = strings.Split(fields, ",")
+				queryBody["_source"] = strings.Split(sourceFields, ",")
 			}
+		}
+
+		if len(sortField) > 0 {
+			if len(sortType)==0{
+				sortType="asc"
+			}
+			sort:= []map[string]interface{}{}
+			sort=append(sort,util.MapStr{
+				sortField:util.MapStr{
+					"order":sortType,
+				},
+			})
+			queryBody["sort"] =sort
 		}
 
 		if len(query) > 0 {
 			queryBody["query"] = map[string]interface{}{}
 			queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
 			queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
+		}
 
-			jsonArray, err := json.Marshal(queryBody)
-			if err != nil {
-				panic(err)
+		jsonArray, err := json.Marshal(queryBody)
+		if err != nil {
+			panic(err)
 
-			} else {
-				jsonBody = jsonArray
-			}
+		} else {
+			jsonBody = jsonArray
 		}
 
 	}

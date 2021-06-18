@@ -30,19 +30,32 @@ type ESAPIV5 struct {
 	ESAPIV2
 }
 
-func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string) (scroll interface{}, err error) {
+func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) (scroll interface{}, err error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
-	if len(query) > 0 || maxSlicedCount > 0 || len(fields) > 0 {
+	if len(query) > 0 || maxSlicedCount > 0 || len(sourceFields) > 0 {
 		queryBody := map[string]interface{}{}
 
-		if len(fields) > 0 {
-			if !strings.Contains(fields, ",") {
+		if len(sourceFields) > 0 {
+			if !strings.Contains(sourceFields, ",") {
 				return nil, errors.New("")
 			} else {
-				queryBody["_source"] = strings.Split(fields, ",")
+				queryBody["_source"] = strings.Split(sourceFields, ",")
 			}
+		}
+
+		if len(sortField) > 0 {
+			if len(sortType)==0{
+				sortType="asc"
+			}
+		sort:= []map[string]interface{}{}
+		sort=append(sort,util.MapStr{
+			sortField:util.MapStr{
+				"order":sortType,
+			},
+		})
+		queryBody["sort"] =sort
 		}
 
 		if len(query) > 0 {
