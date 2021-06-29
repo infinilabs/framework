@@ -1648,7 +1648,7 @@ func (h *ResponseHeader) parse(buf []byte) (int, error) {
 }
 
 func (h *RequestHeader) ignoreBody() bool {
-	return h.IsGet() || h.IsHead()
+	return h.IsHead()
 }
 
 func (h *RequestHeader) parse(buf []byte) (int, error) {
