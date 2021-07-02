@@ -18,18 +18,21 @@ package elastic
 
 import (
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/rate"
 	url2 "net/url"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/util"
 )
 
 var apis = map[string]API{}
 var cfgs = map[string]*ElasticsearchConfig{}
 var metas = map[string]*ElasticsearchMetadata{}
 var lock = sync.RWMutex{}
+
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 
 	lock.Lock()
@@ -54,25 +57,27 @@ type ElasticsearchMetadata struct {
 	IndicesChanged       bool
 	Nodes                map[string]NodesInfo
 	Indices              map[string]IndexInfo
-	PrimaryShards        map[string]ShardInfo
+	PrimaryShards        map[string]map[string]ShardInfo
 	Aliases              map[string]AliasInfo
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
-	info, ok := meta.PrimaryShards[fmt.Sprintf("%v:%v", index, shardID)]
+	indexMap, ok := meta.PrimaryShards[index]
 	if ok {
-		return &info
+		shardInfo, ok := indexMap[util.IntToString(shardID)]
+		if ok {
+			return &shardInfo
+		}
 	}
 	return nil
 }
 
 func (meta *ElasticsearchMetadata) GetActiveNodeInfo() *NodesInfo {
-	for _,v:=range meta.Nodes{
+	for _, v := range meta.Nodes {
 		return &v
 	}
 	return nil
 }
-
 
 func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 	info, ok := meta.Nodes[nodeID]
@@ -84,16 +89,16 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-	Source        string   `json:"-"`
-	ID        string   `json:"-" index:"id"`
-	Name      string   `json:"name,omitempty" config:"name" elastic_mapping:"endpoint:{type:keyword}"`
-	Description string    `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
-	Enabled   bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
-	Monitored   bool     `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
-	HttpProxy string   `json:"http_proxy,omitempty" config:"http_proxy"`
-	Endpoint  string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	Source      string `json:"-"`
+	ID          string `json:"-" index:"id"`
+	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"endpoint:{type:keyword}"`
+	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Enabled     bool   `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	HttpProxy   string `json:"http_proxy,omitempty" config:"http_proxy"`
+	Endpoint    string `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	//Endpoints []string `config:"endpoints"`
-	Version   string   `json:"version,omitempty" config:"version"`
+	Version string `json:"version,omitempty" config:"version"`
 
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
@@ -102,7 +107,7 @@ type ElasticsearchConfig struct {
 
 	TrafficControl *struct {
 		MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-		MaxQpsPerNode int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+		MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
 
 	Discovery struct {
@@ -114,14 +119,13 @@ type ElasticsearchConfig struct {
 		} `json:"refresh,omitempty" config:"refresh"`
 	} `json:"discovery,omitempty" config:"discovery"`
 
-	Order       int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
-	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
-	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
-
+	Order   int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
+	Created time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
 
 	clusterFailureTicket int
-	clusterOnFailure bool
-	clusterAvailable bool
+	clusterOnFailure     bool
+	clusterAvailable     bool
 
 	configLock sync.RWMutex
 }
@@ -188,25 +192,24 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas[k] = v
 }
 
-
-func (config *ElasticsearchConfig) ReportFailure() bool{
-	if !config.clusterAvailable{
+func (config *ElasticsearchConfig) ReportFailure() bool {
+	if !config.clusterAvailable {
 		return true
 	}
 
 	config.configLock.Lock()
 	defer config.configLock.Unlock()
 
-	config.clusterOnFailure=true
-	if rate.GetRateLimiter("cluster_failure",config.Name,1,1,time.Second*1).Allow(){
+	config.clusterOnFailure = true
+	if rate.GetRateLimiter("cluster_failure", config.Name, 1, 1, time.Second*1).Allow() {
 		log.Debug("vote failure ticket++")
 		config.clusterFailureTicket++
-		if config.clusterFailureTicket>=10{
+		if config.clusterFailureTicket >= 10 {
 			log.Debug("enough failure ticket, mark it down")
-			config.clusterFailureTicket=10
-			config.clusterAvailable=false
-			config.clusterFailureTicket=0
-			log.Infof("elasticsearch [%v] is not available",config.Name)
+			config.clusterFailureTicket = 10
+			config.clusterAvailable = false
+			config.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is not available", config.Name)
 			return true
 		}
 	}
@@ -214,7 +217,7 @@ func (config *ElasticsearchConfig) ReportFailure() bool{
 }
 
 func (config *ElasticsearchConfig) IsAvailable() bool {
-	if !config.Enabled{
+	if !config.Enabled {
 		return false
 	}
 
@@ -222,30 +225,30 @@ func (config *ElasticsearchConfig) IsAvailable() bool {
 }
 
 func (config *ElasticsearchConfig) Init() {
-	config.clusterAvailable=true
-	config.clusterOnFailure=false
-	config.clusterFailureTicket=0
+	config.clusterAvailable = true
+	config.clusterOnFailure = false
+	config.clusterFailureTicket = 0
 }
 
 func (config *ElasticsearchConfig) ReportSuccess() {
-	if !config.Enabled{
+	if !config.Enabled {
 		return
 	}
 
-	if config.clusterAvailable{
+	if config.clusterAvailable {
 		return
 	}
 
 	config.configLock.Lock()
 	defer config.configLock.Unlock()
 
-	if config.clusterOnFailure ||!config.clusterAvailable{
-		if rate.GetRateLimiter("cluster_recovery_health",config.Name,1,1,time.Second*1).Allow(){
+	if config.clusterOnFailure || !config.clusterAvailable {
+		if rate.GetRateLimiter("cluster_recovery_health", config.Name, 1, 1, time.Second*1).Allow() {
 			log.Debug("vote success ticket++")
-			config.clusterOnFailure=false
-			config.clusterAvailable=true
-			config.clusterFailureTicket=0
-			log.Infof("elasticsearch [%v] is coming back",config.Name)
+			config.clusterOnFailure = false
+			config.clusterAvailable = true
+			config.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is coming back", config.Name)
 		}
 	}
 }
