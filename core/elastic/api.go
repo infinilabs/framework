@@ -64,6 +64,7 @@ type API interface {
 	GetPrimaryShards() (*map[string]map[string]ShardInfo, error)
 	GetAliases() (*map[string]AliasInfo, error)
 	GetAliasesDetail() (*map[string]AliasDetailInfo, error)
+	GetAliasesAndIndices() (*AliasAndIndicesResponse, error)
 
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
@@ -77,6 +78,7 @@ type API interface {
 	RenderTemplate(body map[string]interface{}) ([]byte, error)
 	SearchTemplate(body map[string]interface{}) ([]byte, error)
 	Alias(body []byte) error
+	FieldCaps(target string) ([]byte, error)
 }
 
 type Stats struct {

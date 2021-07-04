@@ -3,10 +3,11 @@ package fasthttp
 import (
 	"bytes"
 	"fmt"
-	stackless2 "infini.sh/framework/lib/fasthttp/stackless"
 	"io"
 	"os"
 	"sync"
+
+	stackless2 "infini.sh/framework/lib/fasthttp/stackless"
 
 	"github.com/klauspost/compress/flate"
 	"github.com/klauspost/compress/gzip"
@@ -148,7 +149,7 @@ func AppendGzipBytesLevel(dst, src []byte, level int) []byte {
 //    * CompressBestCompression
 //    * CompressDefaultCompression
 //    * CompressHuffmanOnly
-func WriteGzipLevel(w io.Writer, p []byte, level int) (int, error) {
+func WriteGzipLevelOld(w io.Writer, p []byte, level int) (int, error) {
 	switch w.(type) {
 	case *byteSliceWriter,
 		*bytes.Buffer,
@@ -167,6 +168,38 @@ func WriteGzipLevel(w io.Writer, p []byte, level int) (int, error) {
 		releaseStacklessGzipWriter(zw, level)
 		return n, err
 	}
+}
+
+func WriteGzipLevel(w io.Writer, b []byte, lvl int) (n int, err error) {
+	zw, err := acquireGzipWriter(w, lvl)
+	if err != nil {
+		return 0, err
+	}
+	defer releaseGzipWriter(zw)
+
+	if n, err = zw.Write(b); err != nil {
+		return n, err
+	}
+
+	return len(b), err
+}
+
+var gzipWriterPool sync.Pool
+
+func acquireGzipWriter(w io.Writer, lvl int) (zw *gzip.Writer, err error) {
+	v := gzipWriterPool.Get()
+	if v == nil {
+		return gzip.NewWriterLevel(w, lvl)
+	}
+
+	zw = v.(*gzip.Writer)
+	zw.Reset(w)
+	return
+}
+
+func releaseGzipWriter(zw *gzip.Writer) {
+	zw.Close()
+	gzipWriterPool.Put(zw)
 }
 
 var stacklessWriteGzip = stackless2.NewFunc(nonblockingWriteGzip)

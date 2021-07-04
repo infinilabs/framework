@@ -201,7 +201,7 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 		docType = TypeName6
 	}
 
-	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, docType, id)
+	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.Config.Endpoint, indexName, docType, id)
 
 	if id == "" {
 		url = fmt.Sprintf("%s/%s/%s/", c.Config.Endpoint, indexName, docType)
@@ -1133,6 +1133,7 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	return &aliasInfo, nil
 }
 
+
 func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error) {
 
 	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
@@ -1172,6 +1173,47 @@ func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error
 	}
 
 	return &aliasInfo, nil
+}
+
+func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, error) {
+
+	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	data := map[string]AliasesResponse{}
+	err = json.Unmarshal(resp.Body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	resInfo := elastic.AliasAndIndicesResponse{}
+	aliasInfo := map[string]elastic.AAIR_Alias{}
+	for index, v := range data {
+		idxItem :=  elastic.AAIR_Indices{
+			Name:       index,
+			Attributes: []string{"open"},
+		}
+		for alias,_ :=range v.Aliases{
+			idxItem.Aliases = append(idxItem.Aliases, alias)
+			info,ok:=aliasInfo[alias]
+			if !ok{
+				info = elastic.AAIR_Alias{
+					Name: alias,
+				}
+			}
+			info.Indices = append(info.Indices, index)
+			aliasInfo[alias] = info
+		}
+		resInfo.Indices = append(resInfo.Indices, idxItem)
+	}
+	for _, alias := range aliasInfo {
+		resInfo.Aliases = append(resInfo.Aliases, alias)
+	}
+
+	return &resInfo, nil
 }
 
 func (c *ESAPIV0) Forcemerge(indexName string, maxCount int) error {
@@ -1245,4 +1287,10 @@ func (c *ESAPIV0) Alias(body []byte) error {
 	url := fmt.Sprintf("%s/_aliases", c.Config.Endpoint)
 	_, err := c.Request(util.Verb_POST, url, body)
 	return err
+}
+
+func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
+	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", c.Config.Endpoint, target)
+	res, err := c.Request(util.Verb_GET, url, nil)
+	return res.Body, err
 }
