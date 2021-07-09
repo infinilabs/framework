@@ -24,6 +24,7 @@ import (
 	"infini.sh/framework/core/util"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,6 +52,8 @@ type Pipeline struct {
 	currentProcessor string
 
 	newVersion bool
+
+	lock sync.RWMutex
 }
 
 func NewPipeline(name string) *Pipeline {
@@ -125,22 +128,30 @@ func (pipe *Pipeline) CurrentProcessor() string {
 }
 
 func (pipe *Pipeline) Start1() *Pipeline {
+	pipe.lock.Lock()
 	pipe.runningState = STARTED
+	pipe.lock.Unlock()
 	return pipe
 }
 
 func (pipe *Pipeline) Pause() *Pipeline {
+	pipe.lock.Lock()
 	pipe.runningState = PAUSED
+	pipe.lock.Unlock()
 	return pipe
 }
 
 func (pipe *Pipeline) Resume() *Pipeline {
+	pipe.lock.Lock()
 	pipe.runningState = STARTED
+	pipe.lock.Unlock()
 	return pipe
 }
 
 func (pipe *Pipeline) Stop() *Pipeline {
+	pipe.lock.Lock()
 	pipe.runningState = STOPPED
+	pipe.lock.Unlock()
 	return pipe
 }
 
@@ -190,7 +201,9 @@ func (pipe *Pipeline) Run1() *Pipeline {
 					panic(err)
 				}
 			}
+			pipe.lock.Lock()
 			pipe.runningState = FINISHED
+			pipe.lock.Unlock()
 
 			return nil
 		case PAUSED:
@@ -221,7 +234,10 @@ func (pipe *Pipeline) Run() *Context {
 		return nil
 	}
 
+	pipe.lock.Lock()
 	pipe.runningState = STARTED
+	pipe.lock.Unlock()
+
 
 	stats.Increment(pipe.name+".pipeline", "total")
 
