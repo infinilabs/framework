@@ -196,7 +196,7 @@ var configObject *config.Config
 
 func (env *Env) loadConfig() error {
 
-	var ignoreFileMissing =true
+	var ignoreFileMissing =false
 	if env.configFile == "" {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
@@ -229,7 +229,7 @@ func (env *Env) loadConfig() error {
 
 	} else {
 		if !ignoreFileMissing {
-			return errors.Errorf("no config was found: %s", filename)
+			return errors.Errorf("config not found: %s", filename)
 		}
 	}
 
