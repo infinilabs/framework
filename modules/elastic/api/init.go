@@ -30,4 +30,19 @@ func Init(cfg common.ModuleConfig) {
 	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/alias", clusterAPI.HandleAliasAction)
 	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/alias", clusterAPI.HandleGetAliasAction)
 
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/saved_objects/index-pattern", clusterAPI.HandleCreateIndexPatternAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.HandleGetIndexPatternListAction)
+	ui.HandleUIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/index-pattern/:indexPatternID", clusterAPI.HandleDeleteIndexPatternAction)
+	ui.HandleUIMethod(api.PUT, "/elasticsearch/:id/saved_objects/index-pattern/:indexPatternID", clusterAPI.HandleUpdateIndexPatternAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/internal/index-pattern-management/resolve_index/:wild", clusterAPI.HandleResolveIndexAction)
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.HandleBulkGetIndexPatternAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/index_patterns/_fields_for_wildcard", clusterAPI.HandleGetFieldCapsAction)
+
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.HandleEseSearchAction)
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/suggestions/values/:index", clusterAPI.HandleValueSuggestionAction)
+	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/setting", clusterAPI.HandleSettingAction)
+	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.HandleGetSettingAction)
+
+
+
 }

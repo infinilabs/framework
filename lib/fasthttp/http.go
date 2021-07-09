@@ -10,9 +10,10 @@ import (
 	"mime/multipart"
 	"net"
 	"os"
-	"github.com/valyala/bytebufferpool"
 	"sync"
 	"time"
+
+	"github.com/valyala/bytebufferpool"
 )
 
 // Request represents HTTP request.
@@ -335,8 +336,8 @@ func (resp *Response) Body() []byte {
 }
 
 //返回的没有压缩过的 body
-func (resp *Response) GetRawBody()[]byte  {
-	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2}))
+func (resp *Response) GetRawBody() []byte {
+	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := resp.BodyGunzip()
 		if err != nil {
@@ -354,8 +355,8 @@ func (resp *Response) GetRawBody()[]byte  {
 	}
 }
 
-func (req *Request) GetRawBody()[]byte  {
-	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2}))
+func (req *Request) GetRawBody() []byte {
+	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := req.BodyGunzip()
 		if err != nil {
@@ -372,7 +373,6 @@ func (req *Request) GetRawBody()[]byte  {
 		return req.Body()
 	}
 }
-
 
 func (resp *Response) bodyBytes() []byte {
 	if resp.bodyRaw != nil {
@@ -409,6 +409,7 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 var (
 	responseBodyPool bytebufferpool.Pool
 	requestBodyPool  bytebufferpool.Pool
+	gunzipDataPool   bytebufferpool.Pool
 )
 
 // BodyGunzip returns un-gzipped body data.
@@ -431,6 +432,7 @@ func (resp *Response) BodyGunzip() ([]byte, error) {
 
 func gunzipData(p []byte) ([]byte, error) {
 	var bb bytebufferpool.ByteBuffer
+
 	//log.Error("PP:\n",string(p))
 	_, err := WriteGunzip(&bb, p)
 	if err != nil {
@@ -824,7 +826,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 		return nil, ErrNoMultipartForm
 	}
 
-	ce := req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})
+	ce := req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})
 	body := req.bodyBytes()
 	if bytes.Equal(ce, strGzip) {
 		// Do not care about memory usage here.
@@ -924,19 +926,19 @@ func (req *Request) Reset() {
 	req.Header.Reset()
 	req.resetSkipHeader()
 	req.timeout = 0
-	req.bodyLength=-1
+	req.bodyLength = -1
 }
 
-func (req *Request)GetRequestLength() int  {
-	length:=len(req.RequestURI())
-	length+=len(req.Header.rawHeaders)
-	length+=req.GetBodyLength()
+func (req *Request) GetRequestLength() int {
+	length := len(req.RequestURI())
+	length += len(req.Header.rawHeaders)
+	length += req.GetBodyLength()
 	return length
 }
 
-func (req *Request)GetBodyLength() int  {
-	if req.bodyLength<=0{
-		req.bodyLength=len(req.bodyBytes())
+func (req *Request) GetBodyLength() int {
+	if req.bodyLength <= 0 {
+		req.bodyLength = len(req.bodyBytes())
 	}
 	return req.bodyLength
 }
@@ -967,11 +969,11 @@ func (resp *Response) Reset() {
 	resp.Header.Reset()
 	resp.resetSkipHeader()
 	resp.SkipBody = false
-	resp.Cached=false
+	resp.Cached = false
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
-	resp.bodyLength=-1
+	resp.bodyLength = -1
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1082,7 +1084,7 @@ func (req *Request) ContinueReadBody(r *bufio.Reader, maxBodySize int, preParseM
 			// This way we limit memory usage for large file uploads, since their contents
 			// is streamed into temporary files if file size exceeds defaultMaxInMemoryFileSize.
 			req.multipartFormBoundary = string(req.Header.MultipartFormBoundary())
-			if len(req.multipartFormBoundary) > 0 && len(req.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) == 0 {
+			if len(req.multipartFormBoundary) > 0 && len(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})) == 0 {
 				req.multipartForm, err = readMultipartForm(r, req.multipartFormBoundary, contentLength, defaultMaxInMemoryFileSize)
 				if err != nil {
 					req.Reset()
@@ -1364,7 +1366,7 @@ func (resp *Response) WriteDeflateLevel(w *bufio.Writer, level int) error {
 }
 
 func (resp *Response) brotliBody(level int) error {
-	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1419,7 +1421,7 @@ func (resp *Response) brotliBody(level int) error {
 }
 
 func (resp *Response) gzipBody(level int) error {
-	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1474,7 +1476,7 @@ func (resp *Response) gzipBody(level int) error {
 }
 
 func (resp *Response) deflateBody(level int) error {
-	if len(resp.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})) > 0 {
+	if len(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})) > 0 {
 		// It looks like the body is already compressed.
 		// Do not compress it again.
 		return nil
@@ -1704,10 +1706,10 @@ func (req *Request) String() string {
 }
 
 func (req *Request) ResetBodyLength(size int) {
-	if req.body==nil||req.body.B==nil{
+	if req.body == nil || req.body.B == nil {
 		return
 	}
-	req.body.B=req.body.B[0:size]
+	req.body.B = req.body.B[0:size]
 }
 
 func GetBasicAuthHeader(user string, password string) string {
@@ -1716,18 +1718,18 @@ func GetBasicAuthHeader(user string, password string) string {
 }
 
 func (req *Request) SetBasicAuth(username string, password string) {
-	req.Header.Add("Authorization",GetBasicAuthHeader(username,password))
+	req.Header.Add("Authorization", GetBasicAuthHeader(username, password))
 }
 
 func (resp *Response) ResetBodyLength(size int) {
-	if resp.bodyRaw!=nil{
-		resp.bodyRaw=resp.bodyRaw[0:size]
+	if resp.bodyRaw != nil {
+		resp.bodyRaw = resp.bodyRaw[0:size]
 		return
 	}
-	if resp.body==nil||resp.body.B==nil{
+	if resp.body == nil || resp.body.B == nil {
 		return
 	}
-	resp.body.B=resp.body.B[0:size]
+	resp.body.B = resp.body.B[0:size]
 }
 
 // String returns response representation.
@@ -1740,20 +1742,20 @@ func (resp *Response) String() string {
 }
 
 func (resp *Response) GetBodyLength() int {
-	if resp.bodyLength<=0{
-		resp.bodyLength=len(resp.bodyBytes())
+	if resp.bodyLength <= 0 {
+		resp.bodyLength = len(resp.bodyBytes())
 	}
 	return resp.bodyLength
 }
 
-func (res *Response) IsCompressed() (compressed bool,compressType []byte) {
-	ce := res.Header.PeekAny([]string{HeaderContentEncoding,HeaderContentEncoding2})
-	return len(ce)>0,ce
+func (res *Response) IsCompressed() (compressed bool, compressType []byte) {
+	ce := res.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})
+	return len(ce) > 0, ce
 }
 
 func (resp *Response) GetResponseLength() int {
-	length:=len(resp.Header.Header())
-	length+=resp.GetBodyLength()
+	length := len(resp.Header.Header())
+	length += resp.GetBodyLength()
 	return length
 }
 
@@ -1840,10 +1842,58 @@ func writeBodyFixedSize(w *bufio.Writer, r io.Reader, size int64) error {
 	return err
 }
 
+func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (written int64, err error) {
+	// If the reader has a WriteTo method, use it to do the copy.
+	// Avoids an allocation and a copy.
+	if wt, ok := src.(io.WriterTo); ok {
+		return wt.WriteTo(dst)
+	}
+	// Similarly, if the writer has a ReadFrom method, use it to do the copy.
+	if rt, ok := dst.(io.ReaderFrom); ok {
+		return rt.ReadFrom(src)
+	}
+	// 当 buf 为空时，和 copy 行为一致
+	if buf == nil {
+		size := 32 * 1024
+		if l, ok := src.(*io.LimitedReader); ok && int64(size) > l.N {
+			if l.N < 1 {
+				size = 1
+			} else {
+				size = int(l.N)
+			}
+		}
+		buf = make([]byte, size)
+	}
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
 func copyZeroAlloc(w io.Writer, r io.Reader) (int64, error) {
 	vbuf := copyBufPool.Get()
 	buf := vbuf.([]byte)
-	n, err := io.CopyBuffer(w, r, buf)
+	n, err := copyBuffer(w, r, buf)
 	copyBufPool.Put(vbuf)
 	return n, err
 }

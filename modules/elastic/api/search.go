@@ -47,7 +47,7 @@ func (h *APIHandler) HandleCreateSearchTemplateAction(w http.ResponseWriter, req
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	fmt.Println(client)
+	//fmt.Println(client)
 	err = client.SetSearchTemplate(template.Name, bodyBytes)
 	if err != nil {
 		resBody["error"] = err.Error()

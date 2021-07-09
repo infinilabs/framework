@@ -25,7 +25,7 @@ type API interface {
 	MappingAPI
 	TemplateAPI
 
-	InitDefaultTemplate(templateName,indexPrefix string)
+	InitDefaultTemplate(templateName, indexPrefix string)
 
 	GetMajorVersion() int
 
@@ -61,54 +61,51 @@ type API interface {
 
 	GetIndices(pattern string) (*map[string]IndexInfo, error)
 
-	GetPrimaryShards() (*map[string]ShardInfo, error)
-	GetAliases() (*map[string]AliasInfo,error)
+	GetPrimaryShards() (*map[string]map[string]ShardInfo, error)
+	GetAliases() (*map[string]AliasInfo, error)
 	GetAliasesDetail() (*map[string]AliasDetailInfo, error)
-
+	GetAliasesAndIndices() (*AliasAndIndicesResponse, error)
 
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
 	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
 
-
-	GetIndexStats(indexName string)(*IndexStats,error)
-	GetStats()(*Stats,error)
-	Forcemerge(indexName string,maxCount int)(error)
+	GetIndexStats(indexName string) (*IndexStats, error)
+	GetStats() (*Stats, error)
+	Forcemerge(indexName string, maxCount int) error
 	SetSearchTemplate(templateID string, body []byte) error
 	DeleteSearchTemplate(templateID string) error
 	RenderTemplate(body map[string]interface{}) ([]byte, error)
 	SearchTemplate(body map[string]interface{}) ([]byte, error)
 	Alias(body []byte) error
+	FieldCaps(target string) ([]byte, error)
 }
 
 type Stats struct {
-	All struct{
-		Primary map[string]interface{}`json:"primaries"`
-		Total map[string]interface{}`json:"total"`
+	All struct {
+		Primary map[string]interface{} `json:"primaries"`
+		Total   map[string]interface{} `json:"total"`
+	} `json:"_all"`
 
-	}`json:"_all"`
-
-	Indices map[string]interface{}`json:"indices"`
+	Indices map[string]interface{} `json:"indices"`
 }
 
 type IndexStats struct {
-	All struct{
-		Primary struct{
-			Store struct{
+	All struct {
+		Primary struct {
+			Store struct {
 				SizeInBytes int `json:"size_in_bytes"`
-			}`json:"store"`
+			} `json:"store"`
 
-			Segments struct{
+			Segments struct {
 				Count int `json:"count"`
-			}`json:"segments"`
+			} `json:"segments"`
 
-			Merges struct{
+			Merges struct {
 				Current int `json:"current"`
-			}`json:"merges"`
-
-		}`json:"primaries"`
-
-	}`json:"_all"`
+			} `json:"merges"`
+		} `json:"primaries"`
+	} `json:"_all"`
 }
 
 type NodesInfo struct {
@@ -126,17 +123,17 @@ type NodesInfo struct {
 }
 
 type IndexInfo struct {
-	ID        string `json:"id,omitempty"`
-	Index        string `json:"index,omitempty"`
-	Status       string `json:"status,omitempty"`
-	Health       string `json:"health,omitempty"`
-	Shards       int    `json:"shards,omitempty"`
-	Replicas     int    `json:"replicas,omitempty"`
-	DocsCount    int64  `json:"docs_count,omitempty"`
-	DocsDeleted  int64  `json:"docs_deleted,omitempty"`
-	SegmentsCount  int64  `json:"segments_count,omitempty"`
-	StoreSize    string `json:"store_size,omitempty"`
-	PriStoreSize string `json:"pri_store_size,omitempty"`
+	ID            string `json:"id,omitempty"`
+	Index         string `json:"index,omitempty"`
+	Status        string `json:"status,omitempty"`
+	Health        string `json:"health,omitempty"`
+	Shards        int    `json:"shards,omitempty"`
+	Replicas      int    `json:"replicas,omitempty"`
+	DocsCount     int64  `json:"docs_count,omitempty"`
+	DocsDeleted   int64  `json:"docs_deleted,omitempty"`
+	SegmentsCount int64  `json:"segments_count,omitempty"`
+	StoreSize     string `json:"store_size,omitempty"`
+	PriStoreSize  string `json:"pri_store_size,omitempty"`
 }
 
 type ShardInfo struct {
@@ -152,24 +149,24 @@ type ShardInfo struct {
 	NodeIP           string `json:"node_ip,omitempty"`
 }
 type AliasInfo struct {
-	Alias            string `json:"alias,omitempty"`
-	Index          	[]string `json:"index,omitempty"`
-	WriteIndex        string   `json:"write_index,omitempty"`
+	Alias      string   `json:"alias,omitempty"`
+	Index      []string `json:"index,omitempty"`
+	WriteIndex string   `json:"write_index,omitempty"`
 }
 
 type AliasDetailInfo struct {
-	Alias            string `json:"alias,omitempty"`
-	Indexes          	[]AliasIndex `json:"indexes,omitempty"`
-	WriteIndex        string   `json:"write_index,omitempty"`
+	Alias      string       `json:"alias,omitempty"`
+	Indexes    []AliasIndex `json:"indexes,omitempty"`
+	WriteIndex string       `json:"write_index,omitempty"`
 }
 
 type AliasIndex struct {
-	Index string `json:"index"`
-	Filter interface{} `json:"filter"`
-	IndexRouting string `json:"index_routing"`
-	SearchRouting string `json:"search_routing"`
-	IsHidden bool `json:"is_hidden"`
-	IsWriteIndex bool `json:"is_write_index"`
+	Index         string      `json:"index"`
+	Filter        interface{} `json:"filter"`
+	IndexRouting  string      `json:"index_routing"`
+	SearchRouting string      `json:"search_routing"`
+	IsHidden      bool        `json:"is_hidden"`
+	IsWriteIndex  bool        `json:"is_write_index"`
 }
 
 type NodesResponse struct {
@@ -188,7 +185,7 @@ type MappingAPI interface {
 }
 
 type ScrollAPI interface {
-	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string,sortField,sortType string) (interface{}, error)
+	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) (interface{}, error)
 	NextScroll(scrollTime string, scrollId string) (interface{}, error)
 }
 
@@ -241,51 +238,49 @@ type DeleteByQueryResponse struct {
 	Total   int `json:"total"`
 }
 
-
-
 //{ "index" : { "_index" : "test", "_id" : "1" } }
 //{ "delete" : { "_index" : "test", "_id" : "2" } }
 //{ "create" : { "_index" : "test", "_id" : "3" } }
 //{ "update" : {"_id" : "1", "_index" : "test"} }
 type BulkActionMetadata struct {
-	Index *BulkIndexMetadata`json:"index,omitempty"`
+	Index  *BulkIndexMetadata `json:"index,omitempty"`
 	Delete *BulkIndexMetadata `json:"delete,omitempty"`
 	Create *BulkIndexMetadata `json:"create,omitempty"`
 	Update *BulkIndexMetadata `json:"update,omitempty"`
 }
 
 type BulkIndexMetadata struct {
-	Index string  `json:"_index,omitempty"`
-	Type string  `json:"_type,omitempty"`
-	ID string  `json:"_id,omitempty"`
-	Pipeline string  `json:"pipeline,omitempty"`
-	Refresh string  `json:"refresh,omitempty"`
-	Source interface{}  `json:"_source,omitempty"`
-	SourceExcludes interface{}  `json:"_source_excludes,omitempty"`
-	SourceIncludes interface{}  `json:"_source_includes,omitempty"`
-	RetryOnConflict interface{}  `json:"retry_on_conflict,omitempty"`
-	RequireAlias interface{}  `json:"require_alias,omitempty"`
-	Parent1 interface{}  `json:"_parent,omitempty"`
-	Parent2 interface{}  `json:"parent,omitempty"`
-	Routing1 interface{}  `json:"routing,omitempty"`
-	Routing2 interface{}  `json:"_routing,omitempty"`
-	Version1 interface{}  `json:"_version,omitempty"`
-	Version2 interface{}  `json:"version,omitempty"`
+	Index           string      `json:"_index,omitempty"`
+	Type            string      `json:"_type,omitempty"`
+	ID              string      `json:"_id,omitempty"`
+	Pipeline        string      `json:"pipeline,omitempty"`
+	Refresh         string      `json:"refresh,omitempty"`
+	Source          interface{} `json:"_source,omitempty"`
+	SourceExcludes  interface{} `json:"_source_excludes,omitempty"`
+	SourceIncludes  interface{} `json:"_source_includes,omitempty"`
+	RetryOnConflict interface{} `json:"retry_on_conflict,omitempty"`
+	RequireAlias    interface{} `json:"require_alias,omitempty"`
+	Parent1         interface{} `json:"_parent,omitempty"`
+	Parent2         interface{} `json:"parent,omitempty"`
+	Routing1        interface{} `json:"routing,omitempty"`
+	Routing2        interface{} `json:"_routing,omitempty"`
+	Version1        interface{} `json:"_version,omitempty"`
+	Version2        interface{} `json:"version,omitempty"`
 
 	//for bulk response
-	Result string  `json:"result,omitempty"`
-	Status int  `json:"status,omitempty"`
-	SeqNo int  `json:"_seq_no,omitempty"`
-	PrimaryTerm int  `json:"_primary_term,omitempty"`
-	Shards *struct{}  `json:"_shards,omitempty"`
-	Error *struct{
-		Type string  `json:"type,omitempty"`
-		Reason string  `json:"reason,omitempty"`
-	}  `json:"error,omitempty"`
+	Result      string    `json:"result,omitempty"`
+	Status      int       `json:"status,omitempty"`
+	SeqNo       int       `json:"_seq_no,omitempty"`
+	PrimaryTerm int       `json:"_primary_term,omitempty"`
+	Shards      *struct{} `json:"_shards,omitempty"`
+	Error       *struct {
+		Type   string `json:"type,omitempty"`
+		Reason string `json:"reason,omitempty"`
+	} `json:"error,omitempty"`
 }
 
 type BulkResponse struct {
-	Took int `json:"took"`
-	Errors bool `json:"errors"`
-	Items []BulkActionMetadata `json:"items"`
+	Took   int                  `json:"took"`
+	Errors bool                 `json:"errors"`
+	Items  []BulkActionMetadata `json:"items"`
 }

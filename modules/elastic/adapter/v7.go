@@ -150,7 +150,7 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 		docType=TypeName7
 	}
 
-	url := fmt.Sprintf("%s/%s/%s/%s", c.Config.Endpoint, indexName, docType, id)
+	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.Config.Endpoint, indexName, docType, id)
 
 	if id==""{
 		url = fmt.Sprintf("%s/%s/%s/", c.Config.Endpoint, indexName, docType)
