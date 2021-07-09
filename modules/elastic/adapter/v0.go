@@ -648,7 +648,11 @@ func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
 	data.WriteRune('\n')
 
 	url := fmt.Sprintf("%s/_bulk", c.Config.Endpoint)
-	_, err := c.Request(util.Verb_POST, url, data.Bytes())
+	result, err := c.Request(util.Verb_POST, url, data.Bytes())
+
+	if global.Env().IsDebug{
+		log.Trace(string(result.Body),err)
+	}
 
 	if err != nil {
 		panic(err)
