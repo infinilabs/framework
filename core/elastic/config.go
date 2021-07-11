@@ -126,6 +126,7 @@ type ElasticsearchConfig struct {
 	clusterFailureTicket int
 	clusterOnFailure     bool
 	clusterAvailable     bool
+	schema string
 
 	configLock sync.RWMutex
 }
@@ -145,6 +146,18 @@ func (config *ElasticsearchConfig) IsTLS() bool {
 	} else {
 		return false
 	}
+}
+
+func (config *ElasticsearchConfig) Schema() string {
+	if config.schema!=""{
+		return config.schema
+	}
+	if strings.Contains(config.Endpoint, "https") {
+		config.schema= "https"
+	} else {
+		config.schema= "http"
+	}
+	return config.schema
 }
 
 func GetConfig(k string) *ElasticsearchConfig {
