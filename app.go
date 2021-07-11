@@ -21,6 +21,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/daemon"
 	"infini.sh/framework/core/env"
@@ -336,7 +337,8 @@ func (app *App) Shutdown() {
 		buf := make([]byte, 1<<20)
 
 		runtime.Stack(buf, app.environment.IsDebug)
-		fmt.Printf("\n%s", buf)
+		
+		fmt.Printf("\n%s\n", util.StripCtlAndExtFromUTF8(string(buf)))
 
 	}
 
