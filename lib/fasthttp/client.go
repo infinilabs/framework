@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+type ClientAPI interface {
+	Do(req *Request, resp *Response) error
+}
+
 // Do performs the given http request and fills the given http response.
 //
 // Request must contain at least non-zero RequestURI with full url (including
