@@ -228,6 +228,7 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 				strings.Contains(errStr, "unknown certificate") ||
 				strings.Contains(errStr, "first record does not look like a TLS handshake") ||
 				strings.Contains(errStr, "protocol wrong type for socket") ||
+				strings.Contains(errStr, "cannot find http request method in") ||
 				strings.Contains(errStr, "i/o timeout")) {
 				log.Errorf("error when serving connection %v<->%v: %s", c.LocalAddr(), c.RemoteAddr(), err)
 			}

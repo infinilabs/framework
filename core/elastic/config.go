@@ -97,8 +97,8 @@ type ElasticsearchConfig struct {
 	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	HttpProxy   string `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint    string `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
-	//Endpoints []string `config:"endpoints"`
 	Version string `json:"version,omitempty" config:"version"`
+	ClientMode string `json:"client_mode,omitempty" config:"client_mode"`
 
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
