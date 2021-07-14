@@ -106,12 +106,15 @@ func (env *Env) GetAppDesc() string {
 func (env *Env) GetWelcomeMessage() string {
 	s := env.terminalHeader
 
-	commitLog := ""
-	if env.GetLastCommitLog() != "" {
-		commitLog = " " + env.GetLastCommitLog()
-	}
+	message := ""
+	//if env.GetLastCommitLog() != "" {
+	//	message = " " + env.GetLastCommitLog()
+	//}
+
+	message =fmt.Sprintf("%s, %s",env.GetBuildDate(),env.GetLastCommitHash())
+
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
-	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + "," + commitLog + ""
+	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + ", " + message + ""
 	return s
 }
 
