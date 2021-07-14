@@ -131,32 +131,40 @@ var (
 // current time, and a new log file is created using the original log file name.
 // If the length of the write is greater than MaxFileSize, an error is returned.
 func (l *RotateWriter) Write(p []byte) (n int, err error) {
+	return l.WriteBytesArray(p)
+}
+
+func (l *RotateWriter) WriteBytesArray(ps ...[]byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	writeLen := int64(len(p))
-	if writeLen > l.max() {
-		return 0, fmt.Errorf(
-			"write length %d exceeds maximum file size %d", writeLen, l.max(),
-		)
-	}
-
-	if l.file == nil {
-		if err = l.openExistingOrNew(len(p)); err != nil {
-			return 0, err
+	t:=0
+	for _,p:=range ps{
+		writeLen := int64(len(p))
+		if millRun > l.max() {
+			return 0, fmt.Errorf(
+				"write length %d exceeds maximum file size %d", writeLen, l.max(),
+			)
 		}
-	}
 
-	if l.size+writeLen > l.max() {
-		if err := l.rotate(); err != nil {
-			return 0, err
+		if l.file == nil {
+			if err = l.openExistingOrNew(len(p)); err != nil {
+				return 0, err
+			}
 		}
+
+		if l.size+writeLen > l.max() {
+			if err := l.rotate(); err != nil {
+				return 0, err
+			}
+		}
+
+		n, err = l.file.Write(p)
+		t+=n
+		l.size += int64(n)
 	}
 
-	n, err = l.file.Write(p)
-	l.size += int64(n)
-
-	return n, err
+	return t, err
 }
 
 // Close implements io.Closer, and closes the current logfile.
