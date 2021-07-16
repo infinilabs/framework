@@ -141,7 +141,7 @@ func (l *RotateWriter) WriteBytesArray(ps ...[]byte) (n int, err error) {
 	t:=0
 	for _,p:=range ps{
 		writeLen := int64(len(p))
-		if millRun > l.max() {
+		if writeLen > l.max() {
 			return 0, fmt.Errorf(
 				"write length %d exceeds maximum file size %d", writeLen, l.max(),
 			)
