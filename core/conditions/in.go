@@ -23,33 +23,19 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-// Equals is a Condition for testing string equality.
 type InArray struct {
 	Field string
 	Data []interface{}
 }
 
-// NewEqualsCondition builds a new Equals using the given configuration of string equality checks.
 func NewInArrayCondition(fields map[string]interface{}) (c InArray, err error) {
 	c = InArray{}
 
 	if len(fields)>0{
 		for field, value := range util.MapStr(fields).Flatten() {
-			//fmt.Println(field,value)
 			c.Field=field
 			c.Data=value.([]interface{})
-			//fmt.Println(c.Data)
 		}
-			//for field, _ := range fields {
-			//c.Field=field
-			////v,ok:=value.([]interface{})
-			////fmt.Println(v,ok)
-			//v,ok:=p.GetArray(param.ParaKey(field))
-			//fmt.Println(v,ok)
-			//if ok{
-			//	//c.Data=v
-			//}
-		//}
 	}else{
 		return c, errors.New("invalid in parameters")
 	}
@@ -59,15 +45,10 @@ func NewInArrayCondition(fields map[string]interface{}) (c InArray, err error) {
 
 func (c InArray) Check(event ValuesMap) bool {
 
-	//fmt.Println("check in array,",c.Field)
-
 	value, err := event.GetValue(c.Field)
 	if err != nil {
-		//fmt.Println("no field found in event")
 		return false
 	}
-
-	//fmt.Println("checking data:",value," vs ",c.Data)
 
 	if util.ContainsAnyInAnyIntArray(value,c.Data){
 		//fmt.Println("event data in targets,",value,",",c.Data)
