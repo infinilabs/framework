@@ -590,16 +590,88 @@ type RequestCtx struct {
 
 
 func (para *RequestCtx) GetValue(s string) (interface{}, error){
-	//fmt.Println("try to get values in request ctx,",s)
 	if util.PrefixStr(s,"_ctx."){
-		//fmt.Println("it's getting metadata parameters")
 		keys:=strings.Split(s,".")
-		//fmt.Println("keys:",keys)
 		if len(keys)>=2{
-			if keys[1]=="response"{
-				if keys[2]=="status"{
-					//fmt.Println("return status code,",para.Response.StatusCode())
-					return para.Response.StatusCode(),nil
+			rootFied:=keys[1]
+			if rootFied!=""{
+				switch rootFied {
+				case "id":
+					return para.ID(),nil
+				case "tls":
+					return para.IsTLS(),nil
+				case "remote_addr":
+					return para.RemoteAddr().String(),nil
+				case "local_addr":
+					return para.LocalAddr().String(),nil
+				case "request":
+					if len(keys)>=3 {
+						requestField := keys[2]
+						if requestField != "" {
+							switch requestField {
+							case "host":
+								return string(para.Request.Host()), nil
+							case "method":
+								return string(para.Method()), nil
+							case "uri":
+								return string(para.Request.URI().String()), nil
+							case "path":
+								return string(para.Request.URI().Path()), nil
+							case "body":
+								return string(para.Request.GetRawBody()), nil
+							case "body_length":
+								return para.Request.GetBodyLength(), nil
+							case "query_args":
+								if len(keys) == 4 { //TODO notify
+									argsField := keys[3]
+									if argsField != "" {
+										v := para.Request.URI().QueryArgs().Peek(argsField)
+										return string(v), nil
+									}
+								}
+							case "header":
+								if len(keys) == 4 { //TODO notify
+									headerKey := keys[3]
+									if headerKey != "" {
+										v := para.Request.Header.Peek(headerKey)
+										return string(v), nil
+									}
+								}
+							case "user":
+								exists, user, _ := para.ParseBasicAuth()
+								if exists {
+									return string(user), nil
+								}
+								return "", nil
+							}
+						}
+					}
+					break
+				case "response":
+					if len(keys)>=3{
+						responseField :=keys[2]
+						if responseField !=""{
+							switch responseField {
+							case "status":
+								return para.Response.StatusCode(),nil
+							case "body":
+								return string(para.Response.GetRawBody()),nil
+							case "content_type":
+								return string(para.Response.Header.ContentType()),nil
+							case "body_length":
+								return para.Response.GetBodyLength(),nil
+							case "header":
+								if len(keys)==4{ //TODO notify
+									headerKey:=keys[3]
+									if headerKey!=""{
+										v:= para.Response.Header.Peek(headerKey)
+										return string(v),nil
+									}
+								}
+							}
+						}
+					}
+					break
 				}
 			}
 		}
