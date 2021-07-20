@@ -33,6 +33,17 @@ type ProcessorConfig struct {
 type PipelineConfig struct {
 	ID   string `gorm:"not null;unique;primary_key" json:"id,omitempty" index:"id"`
 	Name string `json:"name,omitempty" config:"name"`
+	Enabled bool `json:"enabled,omitempty" config:"enabled"`
+	MaxGoRoutine int `config:"max_go_routine"`
+
+	//Speed Control
+	ThresholdInMs int `config:"threshold_in_ms"`
+
+	//Timeout Control
+	TimeoutInMs int `config:"timeout_in_ms"`
+
+	InputQueue string `config:"input_queue"`
+	Schedule string `config:"schedule"`
 
 	//TODO remove
 	StartProcessor *ProcessorConfig   `json:"start,omitempty" config:"start"`
@@ -52,7 +63,15 @@ type PipelineConfig struct {
 var m map[string]PipelineConfig
 
 func GetStaticPipelineConfig(pipelineID string) PipelineConfig {
+	t1:=GetPipelineConfigs()
+	v, ok := t1[pipelineID]
+	if !ok {
+		panic("pipeline config not found")
+	}
+	return v
+}
 
+func GetPipelineConfigs() map[string]PipelineConfig {
 	if m == nil {
 		m = map[string]PipelineConfig{}
 		var pipelines []PipelineConfig
@@ -72,9 +91,5 @@ func GetStaticPipelineConfig(pipelineID string) PipelineConfig {
 			}
 		}
 	}
-	v, ok := m[pipelineID]
-	if !ok {
-		panic("pipeline config not found")
-	}
-	return v
+	return m
 }

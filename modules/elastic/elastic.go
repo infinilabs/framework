@@ -39,18 +39,18 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		LoadRemoteElasticsearchConfigs: true,
+		LoadRemoteElasticsearchConfigs: false,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
 		},
 		ORMConfig: ORMConfig{
-			Enabled:      true,
+			Enabled:      false,
 			InitTemplate: true,
 			IndexPrefix:  ".infini-",
 		},
 		StoreConfig: StoreConfig{
-			Enabled: true,
+			Enabled: false,
 		},
 	}
 )
@@ -138,49 +138,44 @@ var moduleConfig = ModuleConfig{}
 func (module ElasticModule) Setup(cfg *config.Config) {
 
 	loadFileBasedElasticConfig()
-	//loadESBasedElasticConfig()
 	initElasticInstances()
 
 	moduleConfig = getDefaultConfig()
-	if !cfg.Enabled(false) {
-		return
-	}
 
-	err := cfg.Unpack(&moduleConfig)
-	if err != nil {
+	exists,err:=env.ParseConfig("elastic", &moduleConfig)
+	if exists&&err != nil {
 		panic(err)
 	}
 
-	client := elastic.GetClient(moduleConfig.Elasticsearch)
-
 	if moduleConfig.ORMConfig.Enabled {
+		client := elastic.GetClient(moduleConfig.Elasticsearch)
 		if moduleConfig.ORMConfig.InitTemplate {
 			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
 		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
 		orm.Register("elastic", handler)
+
+		err = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+		if err != nil {
+			panic(err)
+		}
+
+		err = orm.RegisterSchemaWithIndexName(MonitoringItem{}, "monitoring")
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
+		client := elastic.GetClient(moduleConfig.Elasticsearch)
 		handler := ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", handler)
-	}
-
-	err = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
-	if err != nil {
-		panic(err)
-	}
-
-	err = orm.RegisterSchemaWithIndexName(MonitoringItem{}, "monitoring")
-	if err != nil {
-		panic(err)
 	}
 
 	api.Init(moduleConfig)
 }
 
 func (module ElasticModule) Stop() error {
-	//TODO stop discovery
 	return nil
 }
 

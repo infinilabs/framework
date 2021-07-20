@@ -590,6 +590,7 @@ type RequestCtx struct {
 
 
 func (para *RequestCtx) GetValue(s string) (interface{}, error){
+
 	if util.PrefixStr(s,"_ctx."){
 		keys:=strings.Split(s,".")
 		if len(keys)>=2{

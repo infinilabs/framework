@@ -29,7 +29,7 @@ import (
 )
 
 type PipeRunner struct {
-	config       PipeRunnerConfig
+	config       pipeline.PipelineConfig
 	lock         sync.Mutex
 	quitChannels []*chan bool
 	pipes        []*pipeline.Pipeline
@@ -38,11 +38,13 @@ type PipeRunner struct {
 var lock sync.Mutex
 
 
-func (pipe *PipeRunner) Start(config PipeRunnerConfig) {
+func (pipe *PipeRunner) Start(config pipeline.PipelineConfig) {
 	if !config.Enabled {
 		log.Debugf("pipeline: %s was disabled", config.Name)
 		return
 	}
+
+	log.Debug("starting pipeline: ",config.Name)
 
 	pipe.lock.Lock()
 	defer pipe.lock.Unlock()
@@ -70,7 +72,7 @@ func (pipe *PipeRunner) Resume() {
 
 }
 
-func (pipe *PipeRunner) Update(config PipeRunnerConfig) {
+func (pipe *PipeRunner) Update(config pipeline.PipelineConfig) {
 	pipe.Stop()
 	pipe.Start(config)
 }
@@ -116,16 +118,16 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 		if global.Env().IsDebug {
 			log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message received:", util.ToJson(context, true))
 		}
-		pipe.execute(shard, context, &pipe.config.pipelineConfig)
+		pipe.execute(shard, context, &pipe.config)
 
 		log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
 
 	} else if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
-		log.Debug("use schedule in pipeline runner")
+		log.Debug("use schedule in pipeline runner,",pipe.config.Name)
 		context := pipeline.Context{}
-		pipe.execute(shard, context, &pipe.config.pipelineConfig)
+		pipe.execute(shard, context, &pipe.config)
 	} else {
-		log.Info("no schedule was defined")
+		log.Info("no schedule was defined,",pipe.config.Name)
 		for {
 			select {
 			case <-*signal:

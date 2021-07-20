@@ -340,7 +340,7 @@ func (resp *Response) GetRawBody() []byte {
 	if resp.GetBodyLength()<=0{
 		return nil
 	}
-	
+
 	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := resp.BodyGunzip()

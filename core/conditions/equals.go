@@ -89,7 +89,6 @@ func NewEqualsCondition(fields map[string]interface{}) (c Equals, err error) {
 // Check determines whether the given event matches this condition.
 func (c Equals) Check(event ValuesMap) bool {
 	for field, equalValue := range c {
-
 		value, err := event.GetValue(field)
 		if err != nil {
 			return false

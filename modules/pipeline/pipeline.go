@@ -36,11 +36,8 @@ func (module PipeModule) Name() string {
 
 var config = struct {
 	APIEnabled bool               `config:"api_enabled"`
-	Runners    []PipeRunnerConfig `config:"runners"`
 }{
 	APIEnabled: true,
-	//TODO load default pipe config
-	//GetDefaultPipeConfig(),
 }
 
 func (module PipeModule) Setup(cfg *Config) {
@@ -52,9 +49,7 @@ func (module PipeModule) Setup(cfg *Config) {
 	}
 
 	if config.APIEnabled {
-
 		handler := API{}
-
 		handler.Init()
 	}
 
@@ -69,19 +64,11 @@ func (module PipeModule) Start() error {
 	//orm.RegisterSchema(pipeline.PipelineConfig{})
 
 	runners = map[string]*PipeRunner{}
-	for i, v := range config.Runners {
-		if v.PipelineID == "" {
-			panic(errors.Errorf("pipeline config can't be null, %v, %v", i, v))
-		}
 
-		//if (v.InputQueue) == "" {
-		//	panic(errors.Errorf("input queue can't be null, %v, %v", i, v))
-		//}
-
-		v.pipelineConfig = pipeline.GetStaticPipelineConfig(v.PipelineID)
-
+	cfgs:=pipeline.GetPipelineConfigs()
+	for k,v:=range cfgs{
 		p := &PipeRunner{config: v}
-		runners[v.Name] = p
+		runners[k] = p
 	}
 
 	log.Debug("starting up pipeline framework")
