@@ -55,6 +55,9 @@ type Request struct {
 	timeout time.Duration
 
 	bodyLength int
+
+	encodeLocker sync.RWMutex
+	decodeLocker sync.RWMutex
 }
 
 // Response represents HTTP response.
@@ -97,6 +100,9 @@ type Response struct {
 	laddr net.Addr
 
 	bodyLength int
+
+	encodeLocker sync.RWMutex
+	decodeLocker sync.RWMutex
 }
 
 func (req *Request) SetHost(host string) {

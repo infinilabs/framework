@@ -707,6 +707,18 @@ func (ctx *RequestCtx) Destination() []string {
 var colon = []byte(": ")
 var newLine = []byte("\n")
 
+var bytesBufferPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+var bytesReaderPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Reader)
+	},
+}
+
 func getLengthBytes(data []byte)[]byte  {
 	l:=len(data)
 	bytesLength := make([]byte, 4)
@@ -719,8 +731,9 @@ func (req *Request)Encode() []byte {
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
-	headerBuffer:=bytes.Buffer{}
-
+	headerBuffer:=bytesBufferPool.Get().(*bytes.Buffer)
+	headerBuffer.Reset()
+	defer bytesBufferPool.Put(headerBuffer)
 	req.Header.Del("content-type")
 	req.Header.VisitAll(func(key, value []byte) {
 		headerBuffer.Write(key)
@@ -739,7 +752,9 @@ func (req *Request)Encode() []byte {
 
 	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
-	data:=bytes.Buffer{}
+	data:=bytesBufferPool.Get().(*bytes.Buffer)
+	data.Reset()
+	defer bytesBufferPool.Put(data)
 
 	//schema
 	schema:=req.URI().Scheme()
@@ -858,11 +873,10 @@ func (req *Request)Decode(data []byte) error {
 	return nil
 }
 
+
 func (res *Response)Encode() []byte {
 
-	res.encodeLocker.Unlock()
-	defer res.encodeLocker.Unlock()
-
+	//buffer:=bytesBufferPool.Get().(*bytes.Buffer)
 	buffer:=bytes.Buffer{}
 	res.Header.VisitAll(func(key, value []byte) {
 		buffer.Write(key)
@@ -898,19 +912,22 @@ func (res *Response)Encode() []byte {
 	//status
 	data.Write(status)
 
+	//buffer.Reset()
+	//bytesBufferPool.Put(buffer)
+
 	return data.Bytes()
 }
 
 //TODO optimize memmove issue, buffer read
 func (res *Response)Decode(data []byte) error {
 
-	res.decodeLocker.Unlock()
-	defer res.decodeLocker.Unlock()
-
+	//reader:=bytesReaderPool.Get().(*bytes.Reader)
+	//defer bytesReaderPool.Put(reader)
 	reader:=bytes.Reader{}
 	reader.Reset(data)
 
 	readerHeaderLengthBytes := make([]byte, 4)
+	//reader := bytes.NewBuffer(data)
 	_, err := reader.Read(readerHeaderLengthBytes)
 	if err != nil {
 		return err
@@ -956,6 +973,7 @@ func (res *Response)Decode(data []byte) error {
 	res.SetStatusCode(int(util.BytesToUint32(statusCode)))
 	return nil
 }
+
 
 // HijackHandler must process the hijacked connection c.
 //
