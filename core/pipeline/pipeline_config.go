@@ -76,11 +76,19 @@ func GetPipelineConfigs() map[string]PipelineConfig {
 		m = map[string]PipelineConfig{}
 		var pipelines []PipelineConfig
 		exist, err := env.ParseConfig("pipelines", &pipelines)
-		if err != nil {
+		if exist&&err != nil {
 			panic(err)
 		}
 		if exist {
 			for _, v := range pipelines {
+
+				if v.MaxGoRoutine<=0{
+					v.MaxGoRoutine=1
+				}
+				if v.TimeoutInMs<=0{
+					v.TimeoutInMs=5000
+				}
+
 				if v.ID == "" {
 					if v.Name == "" {
 						panic(errors.Errorf("invalid pipeline config, %v", v))
