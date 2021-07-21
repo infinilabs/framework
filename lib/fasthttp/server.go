@@ -860,7 +860,7 @@ func (req *Request)Decode(data []byte) error {
 
 func (res *Response)Encode() []byte {
 
-	res.encodeLocker.Unlock()
+	res.encodeLocker.Lock()
 	defer res.encodeLocker.Unlock()
 
 	buffer:=bytes.Buffer{}
@@ -904,7 +904,7 @@ func (res *Response)Encode() []byte {
 //TODO optimize memmove issue, buffer read
 func (res *Response)Decode(data []byte) error {
 
-	res.decodeLocker.Unlock()
+	res.decodeLocker.Lock()
 	defer res.decodeLocker.Unlock()
 
 	reader:=bytes.Reader{}
