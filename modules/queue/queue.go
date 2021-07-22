@@ -39,8 +39,8 @@ type QueueConfig struct {
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
-	ReadChanBuffer   int   `config:"read_chan_buffer"`
-	WriteChanBuffer   int   `config:"write_chan_buffer"`
+	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
+	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
 }
 
 var cfg *QueueConfig
@@ -72,7 +72,7 @@ func (module DiskQueue) Setup(config *config.Config) {
 	cfg = &QueueConfig{
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
-		MaxBytesPerFile:  50 * 1024 * 1024 * 1024, //50GB
+		MaxBytesPerFile:  10 * 1024 * 1024 * 1024, //10GB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
