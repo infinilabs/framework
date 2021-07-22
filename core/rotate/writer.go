@@ -308,7 +308,7 @@ func (l *RotateWriter) filename() string {
 // files are removed, keeping at most l.MaxRotationCount files, as long as
 // none of them are older than MaxFileAge.
 func (l *RotateWriter) millRunOnce() error {
-	if l.MaxRotationCount == 0 && l.MaxFileAge == 0 && !l.Compress {
+	if l.MaxRotationCount <= 0 && l.MaxFileAge <= 0 && !l.Compress {
 		return nil
 	}
 
