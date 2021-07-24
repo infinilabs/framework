@@ -57,6 +57,11 @@ type Env struct {
 	LoggingLevel string
 
 	init bool
+
+
+	 workingDataDir string
+	 workingLogDir string
+	 pluginDir string
 }
 
 // GetLastCommitLog returns last commit information of source code
@@ -139,8 +144,8 @@ func (env *Env) Init() *Env {
 	if err != nil {
 		panic(err)
 	}
-	os.MkdirAll(env.GetWorkingDir(), 0755)
-	os.MkdirAll(env.SystemConfig.PathConfig.Log, 0755)
+	os.MkdirAll(env.GetDataDir(), 0755)
+	os.MkdirAll(env.GetLogDir(), 0755)
 
 	if env.IsDebug {
 		log.Debug(util.ToJson(env, true))
@@ -335,18 +340,30 @@ func GetStartTime() time.Time {
 	return startTime
 }
 
-var workingDir = ""
-var pluginDir = ""
 
-// GetWorkingDir returns root working dir of app instance
-func (env *Env) GetWorkingDir() string {
-	if workingDir != "" {
-		return workingDir
+// GetDataDir returns root working dir of app instance
+func (env *Env) GetDataDir() string {
+	if env.workingDataDir!=""{
+		return env.workingDataDir
 	}
+	env.workingDataDir,env.workingLogDir=env.getWorkingDir()
+	return env.workingDataDir
+}
+
+func (env *Env) GetLogDir() string {
+	if env.workingLogDir!=""{
+		return env.workingLogDir
+	}
+	env.workingDataDir,env.workingLogDir=env.getWorkingDir()
+	return env.workingLogDir
+}
+
+func (env *Env) getWorkingDir() (string,string) {
 
 	if !env.SystemConfig.AllowMultiInstance {
-		workingDir = path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
-		return workingDir
+		env.workingDataDir = path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
+		env.workingLogDir = path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
+		return env.workingDataDir,env.workingLogDir
 	}
 
 	//auto select next nodes folder, eg: nodes/1 nodes/2
@@ -356,10 +373,12 @@ func (env *Env) GetWorkingDir() string {
 	}
 	for j := 0; j < env.SystemConfig.MaxNumOfInstance; j++ {
 		p := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", util.IntToString(i))
+		p1 := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", util.IntToString(i))
 		lockFile := path.Join(p, ".lock")
 		if !util.FileExists(lockFile) {
-			workingDir = p
-			return workingDir
+			env.workingDataDir = p
+			env.workingLogDir = p1
+			return env.workingDataDir,env.workingLogDir
 		}
 
 		//check if pid is alive
@@ -382,8 +401,9 @@ func (env *Env) GetWorkingDir() string {
 				panic(err)
 			}
 			log.Debug("dead process with broken lock file, removed: ", lockFile)
-			workingDir = p
-			return p
+			env.workingDataDir = p
+			env.workingLogDir = p1
+			return p,p1
 		}
 
 		i++
@@ -393,15 +413,15 @@ func (env *Env) GetWorkingDir() string {
 }
 
 func (env *Env) GetPluginDir() string {
-	if pluginDir != "" {
-		return pluginDir
+	if env.pluginDir != "" {
+		return env.pluginDir
 	}
 
 	if env.SystemConfig.PathConfig.Plugin == "" {
-		pluginDir = "./plugins"
+		env.pluginDir = "./plugins"
 	} else {
-		pluginDir = env.SystemConfig.PathConfig.Plugin
+		env.pluginDir = env.SystemConfig.PathConfig.Plugin
 	}
 
-	return pluginDir
+	return env.pluginDir
 }

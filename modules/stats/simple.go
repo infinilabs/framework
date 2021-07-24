@@ -36,7 +36,7 @@ func (module SimpleStatsModule) Setup(cfg *Config) {
 	env.ParseConfig("stats", config)
 
 	if config.Persist {
-		dataPath = path.Join(global.Env().GetWorkingDir(), "stats")
+		dataPath = path.Join(global.Env().GetDataDir(), "stats")
 		os.MkdirAll(dataPath, 0755)
 	}
 

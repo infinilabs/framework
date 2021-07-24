@@ -23,6 +23,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/util"
+	"path"
 	"strings"
 	"sync"
 )
@@ -55,7 +56,7 @@ func SetLogging(env *env.Env, logLevel string) {
 	if env != nil {
 		envLevel := strings.ToLower(env.LoggingLevel)
 		if env.SystemConfig != nil {
-			file = env.SystemConfig.PathConfig.Log + "/" + appName + ".log"
+			file = path.Join(env.GetLogDir(),  appName + ".log")
 		}
 		if len(envLevel) > 0 {
 			loggingConfig.LogLevel = envLevel

@@ -250,10 +250,10 @@ func (app *App) Start(setup func(), start func()) {
 	}
 
 	//check instance lock
-	util.CheckInstanceLock(app.environment.GetWorkingDir())
+	util.CheckInstanceLock(app.environment.GetDataDir())
 
 	//set path to persist id
-	util.RestorePersistID(app.environment.GetWorkingDir())
+	util.RestorePersistID(app.environment.GetDataDir())
 
 	//loading plugins
 	//plugins.Discovery(app.environment.GetPluginDir())

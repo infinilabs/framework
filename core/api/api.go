@@ -158,13 +158,13 @@ func StartAPI() {
 			log.Debug("using pre-defined cert files")
 
 		} else {
-			ca = path.Join(global.Env().GetWorkingDir(), "certs", "root.cert")
-			cert = path.Join(global.Env().GetWorkingDir(), "certs", "auto.cert")
-			key = path.Join(global.Env().GetWorkingDir(), "certs", "auto.key")
+			ca = path.Join(global.Env().GetDataDir(), "certs", "root.cert")
+			cert = path.Join(global.Env().GetDataDir(), "certs", "auto.cert")
+			key = path.Join(global.Env().GetDataDir(), "certs", "auto.key")
 
 			if !(util.FileExists(ca) && util.FileExists(cert) && util.FileExists(key)) {
 
-				os.MkdirAll(path.Join(global.Env().GetWorkingDir(), "certs"), 0775)
+				os.MkdirAll(path.Join(global.Env().GetDataDir(), "certs"), 0775)
 
 				log.Info("auto generating cert files")
 				rootCert, rootKey, rootCertPEM = util.GetRootCert()

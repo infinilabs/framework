@@ -58,7 +58,7 @@ func (module StorageModule) Setup(cfg *config.Config) {
 	cfg.Unpack(&c)
 
 	if c.Enabled {
-		folder := path.Join(global.Env().GetWorkingDir(), "blob")
+		folder := path.Join(global.Env().GetDataDir(), "blob")
 		os.MkdirAll(folder, 0755)
 		impl = boltdb.BoltdbStore{FileName: path.Join(folder, "/bolt.db")}
 		err := impl.Open()

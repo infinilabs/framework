@@ -56,7 +56,7 @@ func (module DiskQueue) initQueue(name string) error {
 
 	log.Debugf("init queue: %s", name)
 
-	dataPath := path.Join(global.Env().GetWorkingDir(), "queue", strings.ToLower(name))
+	dataPath := path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
 	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)

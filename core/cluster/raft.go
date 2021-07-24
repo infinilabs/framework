@@ -394,7 +394,7 @@ func (s *RaftModule) startRaft(seeds []string) error {
 
 	peerStore := &raft.StaticPeers{StaticPeers: seeds}
 
-	dir := path.Join(global.Env().GetWorkingDir(), "raft")
+	dir := path.Join(global.Env().GetDataDir(), "raft")
 
 	// Create the snapshot store. This allows the Raft to truncate the log.
 	snapshots, err := raft.NewFileSnapshotStore(dir, retainSnapshotCount, os.Stderr)
@@ -772,7 +772,7 @@ func SnapshotClusterState() {
 	l.Lock()
 	defer l.Unlock()
 
-	persistedPath := path.Join(global.Env().GetWorkingDir(), "_cluster")
+	persistedPath := path.Join(global.Env().GetDataDir(), "_cluster")
 
 	var buf bytes.Buffer
 	err := gob.NewEncoder(&buf).Encode(getRaft().localNode)
@@ -791,7 +791,7 @@ func RestoreClusterState() {
 	l.Lock()
 	defer l.Unlock()
 
-	persistedPath := path.Join(global.Env().GetWorkingDir(), "_cluster")
+	persistedPath := path.Join(global.Env().GetDataDir(), "_cluster")
 
 	if !util.FileExists(persistedPath) {
 		return
