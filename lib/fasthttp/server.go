@@ -2391,6 +2391,24 @@ func (s *Server) serveConnCleanup() {
 }
 
 func (s *Server) serveConn(c net.Conn) (err error) {
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error in serveConn, ", v)
+			}
+		}
+	}()
+
 	defer s.serveConnCleanup()
 	atomic.AddUint32(&s.concurrency, 1)
 
