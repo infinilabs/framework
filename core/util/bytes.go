@@ -208,8 +208,12 @@ func ToBytes(s string) (uint64, error) {
 
 /** https://github.com/cloudfoundry/bytefmt/blob/master/bytes.go end **/
 
-func BytesToString(bs []byte) string {
+func UnsafeBytesToString(bs []byte) string {
 	return *(*string)(unsafe.Pointer(&bs))
+}
+
+func UnsafeStringToBytes(s string) []byte {
+	return *(*[]byte)(unsafe.Pointer(&s))
 }
 
 // ToLowercase convert string bytes to lowercase
@@ -282,6 +286,8 @@ func EncodeToBytes(key interface{}) ([]byte, error) {
 func GetBytes(key interface{}) []byte {
 	return []byte(fmt.Sprintf("%v", key.(interface{})))
 }
+
+
 
 func GetSplitFunc(split []byte) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
