@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Supported compression levels.

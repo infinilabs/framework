@@ -16,10 +16,6 @@ limitations under the License.
 
 package elastic
 
-import (
-	"bytes"
-)
-
 type API interface {
 	ScrollAPI
 	MappingAPI
@@ -41,7 +37,7 @@ type API interface {
 
 	Index(indexName, docType string, id interface{}, data interface{}) (*InsertResponse, error)
 
-	Bulk(data *bytes.Buffer)
+	Bulk(data []byte)
 
 	Get(indexName, docType, id string) (*GetResponse, error)
 	Delete(indexName, docType, id string) (*DeleteResponse, error)

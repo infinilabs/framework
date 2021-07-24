@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Don't send the fragment/hash/# part of a URL to the server.

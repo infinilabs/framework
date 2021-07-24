@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 func BenchmarkAppendHTMLEscape(b *testing.B) {

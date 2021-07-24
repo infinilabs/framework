@@ -659,15 +659,13 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[string]elastic.ShardInfo, 
 	return &infos, nil
 }
 
-func (c *ESAPIV0) Bulk(data *bytes.Buffer) {
-	if data == nil || data.Len() == 0 {
+func (c *ESAPIV0) Bulk(data []byte) {
+	if data == nil || len(data) == 0 {
 		return
 	}
-	defer data.Reset()
-	data.WriteRune('\n')
 
 	url := fmt.Sprintf("%s/_bulk", c.Config.Endpoint)
-	result, err := c.Request(util.Verb_POST, url, data.Bytes())
+	result, err := c.Request(util.Verb_POST, url, data)
 
 	if global.Env().IsDebug{
 		log.Trace(string(result.Body),err)

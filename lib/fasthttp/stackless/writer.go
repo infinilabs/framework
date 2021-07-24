@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Writer is an interface stackless writer must conform to.

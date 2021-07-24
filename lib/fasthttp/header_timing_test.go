@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 var strFoobar = []byte("foobar.com")

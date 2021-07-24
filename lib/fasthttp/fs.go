@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/gzip"
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // ServeFileBytesUncompressed returns HTTP response containing file contents

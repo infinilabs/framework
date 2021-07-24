@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/valyala/bytebufferpool"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Request represents HTTP request.
