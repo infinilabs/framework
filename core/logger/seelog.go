@@ -22,6 +22,7 @@ import (
 	"github.com/ryanuber/go-glob"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
 	"path"
 	"strings"
@@ -94,14 +95,19 @@ func SetLogging(env *env.Env, logLevel string) {
 		fmt.Println(err)
 	}
 
-	rollingFileWriter, _ := NewRollingFileWriterSize(file, rollingArchiveNone, "", 10000000000, 5, rollingNameModePostfix)
-	bufferedWriter, _ := NewBufferedWriter(rollingFileWriter, 10000, 1000)
+	cfg1:=rotate.RotateConfig{
+		Compress:     true,
+		MaxFileAge:   0,
+		MaxFileCount: 100,
+		MaxFileSize: 1024,
+	}
+	fileHandler:=rotate.GetFileHandler(file,cfg1)
 
 	l, _ := log.LogLevelFromString(strings.ToLower(loggingConfig.LogLevel))
 	pushl, _ := log.LogLevelFromString(strings.ToLower(loggingConfig.PushLogLevel))
 
 	//logging receivers
-	receivers := []interface{}{consoleWriter, bufferedWriter}
+	receivers := []interface{}{consoleWriter, fileHandler}
 
 	root, err := log.NewSplitDispatcher(formatter, receivers)
 	if err != nil {
