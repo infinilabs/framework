@@ -19,8 +19,6 @@ package modules
 import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/modules/api"
-	"infini.sh/framework/modules/boltdb"
-	"infini.sh/framework/modules/cluster"
 	"infini.sh/framework/modules/elastic"
 	"infini.sh/framework/modules/filter"
 	"infini.sh/framework/modules/pipeline"
@@ -34,13 +32,12 @@ import (
 func Register() {
 	//module.RegisterSystemModule(nsq.NSQModule{})
 	module.RegisterSystemModule(elastic.ElasticModule{})
-	module.RegisterSystemModule(boltdb.StorageModule{})
 	module.RegisterSystemModule(filter.FilterModule{})
 	module.RegisterSystemModule(stats.SimpleStatsModule{})
 	module.RegisterSystemModule(queue.DiskQueue{})
 	module.RegisterSystemModule(api.APIModule{})
 	module.RegisterSystemModule(ui.UIModule{})
 	module.RegisterSystemModule(pipeline.PipeModule{})
-	module.RegisterSystemModule(cluster.ClusterModule{})
+	//module.RegisterSystemModule(cluster.ClusterModule{})
 	module.RegisterSystemModule(task.TaskModule{})
 }

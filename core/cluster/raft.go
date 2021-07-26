@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	pb "infini.sh/framework/core/cluster/pb"
 	"infini.sh/framework/core/cluster/raft"
-	raftboltdb "infini.sh/framework/core/cluster/raft-boltdb"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
@@ -21,7 +19,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -391,32 +388,33 @@ func (s *RaftModule) startRaft(seeds []string) error {
 		//disable raft logging
 		s.cfg.LogOutput = new(NullWriter)
 	}
-
-	peerStore := &raft.StaticPeers{StaticPeers: seeds}
-
-	dir := path.Join(global.Env().GetDataDir(), "raft")
-
-	// Create the snapshot store. This allows the Raft to truncate the log.
-	snapshots, err := raft.NewFileSnapshotStore(dir, retainSnapshotCount, os.Stderr)
-	if err != nil {
-		return fmt.Errorf("file snapshot store: %s", err)
-	}
+	//
+	//peerStore := &raft.StaticPeers{StaticPeers: seeds}
+	//
+	//dir := path.Join(global.Env().GetDataDir(), "raft")
+	//
+	//// Create the snapshot store. This allows the Raft to truncate the log.
+	//snapshots, err := raft.NewFileSnapshotStore(dir, retainSnapshotCount, os.Stderr)
+	//if err != nil {
+	//	return fmt.Errorf("file snapshot store: %s", err)
+	//}
 
 	// Create the log store and stable store.
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(dir, "raft.db"))
-
-	if err != nil {
-		panic(err)
-	}
-
-	// Instantiate the Raft systems.
-	ra, err := raft.NewRaft(s.cfg, s.fsm, logStore, logStore, snapshots, peerStore, s.addr, s.transport)
-	if err != nil {
-		return fmt.Errorf("new raft: %s", err)
-	}
-	getRaft().raft = ra
-
-	log.Trace("raft initialized")
+	//var logStore raft.FileSnapshotStore
+	////logStore, err := raftboltdb.NewBoltStore(filepath.Join(dir, "raft.db"))
+	//
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
+	//// Instantiate the Raft systems.
+	//ra, err := raft.NewRaft(s.cfg, s.fsm, logStore, logStore, snapshots, peerStore, s.addr, s.transport)
+	//if err != nil {
+	//	return fmt.Errorf("new raft: %s", err)
+	//}
+	//getRaft().raft = ra
+	//
+	//log.Trace("raft initialized")
 
 	//started = true
 	//electedTime = time.Now()
