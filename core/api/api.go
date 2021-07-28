@@ -252,5 +252,5 @@ func StartAPI() {
 	if err != nil {
 		panic(err)
 	}
-	log.Info("api server listen at: ", schema, listenAddress)
+	log.Info("api listen at: ", schema, listenAddress)
 }

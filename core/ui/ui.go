@@ -176,7 +176,7 @@ func StartUI(cfg *UIConfig) {
 		panic(err)
 	}
 
-	log.Info("ui server listen at: ", schema, bindAddress)
+	log.Info("ui listen at: ", schema, bindAddress)
 
 }
 
