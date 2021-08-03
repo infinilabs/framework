@@ -127,12 +127,12 @@ func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
 
 // Result is a general json result
 type Result struct {
-	Total  int         `json:"total"`
+	Total  int64         `json:"total"`
 	Result interface{} `json:"result"`
 }
 
 // WriteJSONListResult output result list to json format
-func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int, v interface{}, statusCode int) error {
+func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v interface{}, statusCode int) error {
 	result := Result{}
 	result.Total = total
 	result.Result = v

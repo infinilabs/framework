@@ -44,7 +44,7 @@ func GetPipelineConfig(id string) (*pipeline.PipelineConfig, error) {
 	return nil, errors.Errorf("not found, %s", id)
 }
 
-func GetPipelineList(from, size int) (int, []pipeline.PipelineConfig, error) {
+func GetPipelineList(from, size int) (int64, []pipeline.PipelineConfig, error) {
 	var configs []pipeline.PipelineConfig
 
 	query := orm.Query{From: from, Size: size}

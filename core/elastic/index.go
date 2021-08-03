@@ -33,7 +33,7 @@ type ScrollResponse struct {
 	TimedOut bool   `json:"timed_out,omitempty"`
 	Hits     struct {
 		MaxScore float32       `json:"max_score,omitempty"`
-		Total    int           `json:"total,omitempty"`
+		Total    int64           `json:"total,omitempty"`
 		Docs     []interface{} `json:"hits,omitempty"`
 	} `json:"hits"`
 	Shards ShardResponse `json:"_shards,omitempty"`
@@ -44,14 +44,14 @@ type ScrollResponseV7 struct {
 	Hits struct {
 		MaxScore float32 `json:"max_score,omitempty"`
 		Total    struct {
-			Value    int    `json:"value,omitempty"`
+			Value    int64    `json:"value,omitempty"`
 			Relation string `json:"relation,omitempty"`
 		} `json:"total,omitempty"`
 		Docs []interface{} `json:"hits,omitempty"`
 	} `json:"hits"`
 }
 
-func (scroll *ScrollResponse) GetHitsTotal() int {
+func (scroll *ScrollResponse) GetHitsTotal() int64 {
 	return scroll.Hits.Total
 }
 
@@ -71,7 +71,7 @@ func (scroll *ScrollResponse) GetShardResponse() ShardResponse {
 	return scroll.Shards
 }
 
-func (scroll *ScrollResponseV7) GetHitsTotal() int {
+func (scroll *ScrollResponseV7) GetHitsTotal() int64 {
 	return scroll.Hits.Total.Value
 }
 
@@ -172,7 +172,7 @@ type BucketBase map[string]interface{}
 type Bucket struct {
 	KeyAsString      interface{} `json:"key_as_string,omitempty"`
 	Key      interface{} `json:"key,omitempty"`
-	DocCount int    `json:"doc_count,omitempty"`
+	DocCount int64    `json:"doc_count,omitempty"`
 
 }
 
@@ -230,7 +230,7 @@ type DeleteResponse struct {
 // CountResponse is a count response object
 type CountResponse struct {
 	ResponseBase
-	Count int `json:"count"`
+	Count int64 `json:"count"`
 }
 
 // SearchResponse is a count response object
@@ -246,15 +246,15 @@ type SearchResponse struct {
 	Aggregations map[string]AggregationResponse `json:"aggregations,omitempty"`
 }
 
-func (response *SearchResponse) GetTotal() int {
+func (response *SearchResponse) GetTotal() int64 {
 
 	if response.Hits.Total != nil {
 
 		if util.TypeIsMap(response.Hits.Total) {
 			v := response.Hits.Total.(map[string]interface{})
-			return util.GetIntValue(v["value"])
+			return util.GetInt64Value(v["value"])
 		} else {
-			return util.GetIntValue(response.Hits.Total)
+			return util.GetInt64Value(response.Hits.Total)
 		}
 	}
 	return -1

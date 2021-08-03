@@ -40,7 +40,7 @@ type ORM interface {
 
 	GetBy(field string, value interface{}, t interface{}, to interface{}) (error, Result)
 
-	Count(o interface{}) (int, error)
+	Count(o interface{}) (int64, error)
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 }
@@ -163,7 +163,7 @@ func And(conds ...*Cond) []*Cond {
 }
 
 type Result struct {
-	Total  int
+	Total  int64
 	Result interface{}
 }
 
@@ -189,7 +189,7 @@ func Delete(o interface{}) error {
 	return getHandler().Delete(o)
 }
 
-func Count(o interface{}) (int, error) {
+func Count(o interface{}) (int64, error) {
 	return getHandler().Count(o)
 }
 

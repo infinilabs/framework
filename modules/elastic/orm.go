@@ -57,7 +57,7 @@ func (handler ElasticORM) Delete(o interface{}) error {
 	return err
 }
 
-func (handler ElasticORM) Count(o interface{}) (int, error) {
+func (handler ElasticORM) Count(o interface{}) (int64, error) {
 	countResponse, err := handler.Client.Count(handler.GetIndexName(o))
 	if err != nil {
 		return 0, err

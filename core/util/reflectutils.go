@@ -160,28 +160,28 @@ func TypeIsMap(any interface{}) bool {
 	return false
 }
 
-func GetIntValue(any interface{}) int {
+func GetInt64Value(any interface{}) int64 {
 
 	vt := reflect.TypeOf(any)
 	if vt.String() == "float64" {
 		v := any.(float64)
-		var y = int(v)
+		var y = int64(v)
 		return y
 	} else if vt.String() == "float32" {
 		v := any.(float32)
-		var y = int(v)
+		var y = int64(v)
 		return y
 	} else if vt.String() == "int64" {
 		v := any.(int64)
-		var y = int(v)
+		var y = int64(v)
 		return y
 	} else if vt.String() == "uint64" {
 		v := any.(uint64)
-		var y = int(v)
+		var y = int64(v)
 		return y
 	} else if vt.String() == "uint" {
 		v := any.(uint)
-		var y = int(v)
+		var y = int64(v)
 		return y
 	}
 	return -1
