@@ -90,7 +90,7 @@ type IndexStats struct {
 	All struct {
 		Primary struct {
 			Store struct {
-				SizeInBytes int `json:"size_in_bytes"`
+				SizeInBytes int64 `json:"size_in_bytes"`
 			} `json:"store"`
 
 			Segments struct {
@@ -109,10 +109,10 @@ type NodesInfo struct {
 	Version string `json:"version,omitempty"`
 	Http    struct {
 		PublishAddress          string `json:"publish_address,omitempty"`
-		MaxContentLengthInBytes int    `json:"max_content_length_in_bytes,omitempty"`
+		MaxContentLengthInBytes int64    `json:"max_content_length_in_bytes,omitempty"`
 	} `json:"http,omitempty"`
 
-	TotalIndexingBuffer int                    `json:"total_indexing_buffer,omitempty"`
+	TotalIndexingBuffer int64                    `json:"total_indexing_buffer,omitempty"`
 	Attributes          map[string]interface{} `json:"attributes,omitempty"`
 	Roles               []string               `json:"roles,omitempty"`
 	//TODO return more nodes level settings, for later check and usage
@@ -230,8 +230,8 @@ type ReindexResponse struct {
 }
 
 type DeleteByQueryResponse struct {
-	Deleted int `json:"deleted"`
-	Total   int `json:"total"`
+	Deleted int64 `json:"deleted"`
+	Total   int64 `json:"total"`
 }
 
 //{ "index" : { "_index" : "test", "_id" : "1" } }
@@ -266,8 +266,8 @@ type BulkIndexMetadata struct {
 	//for bulk response
 	Result      string    `json:"result,omitempty"`
 	Status      int       `json:"status,omitempty"`
-	SeqNo       int       `json:"_seq_no,omitempty"`
-	PrimaryTerm int       `json:"_primary_term,omitempty"`
+	SeqNo       int64       `json:"_seq_no,omitempty"`
+	PrimaryTerm int64       `json:"_primary_term,omitempty"`
 	Shards      *struct{} `json:"_shards,omitempty"`
 	Error       *struct {
 		Type   string `json:"type,omitempty"`

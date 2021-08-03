@@ -17,6 +17,7 @@ limitations under the License.
 package util
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -67,4 +68,10 @@ func TestTrimLeft(t *testing.T) {
 	str = "/static/static://off"
 	new = TrimLeftStr(str, "/static")
 	assert.Equal(t, "/static://off", new)
+}
+
+func TestToInt64(t *testing.T) {
+	str := "6393600409"
+	new,_:=ToInt64(str)
+	fmt.Println(new)
 }
