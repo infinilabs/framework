@@ -255,7 +255,7 @@ func (config *ElasticsearchConfig) ReportSuccess() {
 	config.configLock.Lock()
 	defer config.configLock.Unlock()
 
-	if config.clusterOnFailure || !config.clusterAvailable {
+	if config.clusterOnFailure && !config.clusterAvailable {
 		if rate.GetRateLimiter("cluster_recovery_health", config.Name, 1, 1, time.Second*1).Allow() {
 			log.Debug("vote success ticket++")
 			config.clusterOnFailure = false
