@@ -37,6 +37,26 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	if client.ClusterVersion() < "7.2" {
+		if aggs, ok := reqParams.Body["aggs"]; ok {
+			if maggs, ok := aggs.(map[string]interface{}); ok {
+				if aggs2, ok := maggs["2"].(map[string]interface{}); ok {
+					if aggVals, ok := aggs2["date_histogram"].(map[string]interface{}); ok {
+						var interval interface{}
+						if calendarInterval, ok := aggVals["calendar_interval"]; ok {
+							interval = calendarInterval
+							delete(aggVals, "calendar_interval")
+						}
+						if fixedInterval, ok := aggVals["fixed_interval"]; ok {
+							interval = fixedInterval
+							delete(aggVals, "fixed_interval")
+						}
+						aggVals["interval"] = interval
+					}
+				}
+			}
+		}
+	}
 
 	reqDSL, _ := json.Marshal(reqParams.Body)
 

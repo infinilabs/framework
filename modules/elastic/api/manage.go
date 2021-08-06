@@ -240,8 +240,12 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 	resBody["summary"] = summary
 
+	now := time.Now()
+	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.UnixNano()/1e6) )
+	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Minute*15).UnixNano()/1e6))
+
 	bucketSize:=60
-	metrics:=h.GetClusterMetrics(id,bucketSize)
+	metrics:=h.GetClusterMetrics(id,bucketSize,min,max)
 	resBody["metrics"] = metrics
 
 	err=h.WriteJSON(w, resBody,http.StatusOK)
@@ -326,7 +330,7 @@ func newMetricItem(metricKey string) *common.MetricItem  {
 }
 
 
-func (h *APIHandler) GetClusterMetrics(id string,bucketSize int) map[string]*common.MetricItem {
+func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max string) map[string]*common.MetricItem {
 
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 
@@ -368,18 +372,43 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int) map[string]*com
 	metricItems=append(metricItems,metricItem)
 
 
-	//metricItem=newMetricItem("system_load")
-	//metricItem.AddAxi("load","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-	//
-	//metricItem.AddLine("Load","System Load","","group1","cluster_stats.nodes.process.cpu.percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
-	//metricItems=append(metricItems,metricItem)
+	metricItem=newMetricItem("system_load")
+	metricItem.AddAxi("load","group6",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+
+	metricItem.AddLine("Load","System Load","","group6","cluster_stats.nodes.process.cpu.percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("system_memory")
+	metricItem.AddAxi("memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	metricItem.AddAxi("memory","group2",common.PositionRight,"ratio","0.[0]","0.[0]",5,false)
+
+	metricItem.AddLine("JVM Max Heap","Max Heap","","group1","cluster_stats.nodes.jvm.mem.heap_max_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("JVM Used Heap","Used Heap","","group1","cluster_stats.nodes.jvm.mem.heap_used_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("OS Used Percent","OS Used Percent","","group2","cluster_stats.nodes.os.mem.used_percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItems=append(metricItems,metricItem)
 
 
 	query:=map[string]interface{}{}
 	query["query"]=util.MapStr{
-		"term":util.MapStr{
-			"elasticsearch":util.MapStr{
-				"value": id,
+		"bool": util.MapStr{
+			"must": []util.MapStr{
+				{
+					"term":util.MapStr{
+						"elasticsearch":util.MapStr{
+							"value": id,
+						},
+					},
+				},
+			},
+			"filter": []util.MapStr{
+				{
+					"range": util.MapStr{
+						"timestamp": util.MapStr{
+							"gte": min,
+							"lte": max,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -446,8 +475,11 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int) map[string]*com
 						if ok{
 							v3,ok:=v2["value"].(float64)
 							if ok{
-								v4:=int64(v3)/int64(bucketSize)
-								points:=[]interface{}{dateTime,v4}
+								if strings.HasSuffix(mk1, "_deriv"){
+									v3 = v3/float64(bucketSize)
+								}
+								//v4:=int64(v3)/int64(bucketSize)
+								points:=[]interface{}{dateTime,v3}
 								metricData[mk1]=append(mv1,points)
 							}
 						}
