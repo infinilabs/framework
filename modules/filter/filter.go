@@ -16,12 +16,6 @@ type FilterConfig struct {
 
 type KVFilterConfig struct{}
 
-var (
-	defaultConfig = FilterConfig{
-		KV: &KVFilterConfig{},
-	}
-)
-
 func (module FilterModule) Name() string {
 	return "Filter"
 }
@@ -30,14 +24,12 @@ var handler filter.Filter
 
 func (module FilterModule) Setup(cfg *Config) {
 
-	//init config
-	cfg.Unpack(&defaultConfig)
-
 	handler = kv.KVFilter{}
 	filter.Register("kv", handler)
 }
 
 func (module FilterModule) Start() error {
+	handler.Open()
 	return nil
 }
 

@@ -23,7 +23,6 @@ import (
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/boltdb"
 	"os"
 	"testing"
 	"time"
@@ -38,13 +37,16 @@ func Test(t *testing.T) {
 	env1.IsDebug = true
 	global.RegisterEnv(env1)
 
-	storage := boltdb.StorageModule{}
-	storage.Start()
-
 	m := FilterModule{}
+	m.Setup(nil)
 	m.Start()
 	b, _ := filter.CheckThenAdd(filterKey, []byte("key"))
 	assert.Equal(t, false, b)
+
+	//err=filter.Add(filterKey,[]byte("key"))
+	//fmt.Println(err)
+	//ok:=filter.Exists(filterKey,[]byte("key"))
+	//fmt.Println(ok)
 
 	//Memory pressure test
 	for i := 0; i < 1; i++ {
