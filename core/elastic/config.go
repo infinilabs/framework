@@ -206,12 +206,12 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 }
 
 func (config *ElasticsearchConfig) ReportFailure() bool {
+	config.configLock.Lock()
+	defer config.configLock.Unlock()
+
 	if !config.clusterAvailable {
 		return true
 	}
-
-	config.configLock.Lock()
-	defer config.configLock.Unlock()
 
 	config.clusterOnFailure = true
 	if rate.GetRateLimiter("cluster_failure", config.Name, 1, 1, time.Second*1).Allow() {
@@ -233,6 +233,9 @@ func (config *ElasticsearchConfig) IsAvailable() bool {
 	if !config.Enabled {
 		return false
 	}
+
+	config.configLock.RLock()
+	defer config.configLock.RUnlock()
 
 	return config.clusterAvailable
 }
