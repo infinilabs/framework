@@ -9,7 +9,7 @@ type Indexes map[string]interface{}
 type ScrollResponseAPI interface {
 	GetScrollId() string
 	SetScrollId(id string)
-	GetHitsTotal() int
+	GetHitsTotal() int64
 	GetShardResponse() ShardResponse
 	GetDocs() []interface{}
 }
