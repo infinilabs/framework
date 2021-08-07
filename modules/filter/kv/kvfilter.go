@@ -19,8 +19,7 @@ func (filter KVFilter) Open() error {
 	defer l.Unlock()
 
 	opt := nutsdb.DefaultOptions
-	opt.EntryIdxMode=nutsdb.HintBPTSparseIdxMode
-	opt.Dir = path.Join(global.Env().GetDataDir(),"nutsdb")
+	opt.Dir = path.Join(global.Env().GetDataDir(),"filter")
 	var err error
 	h, err := nutsdb.Open(opt)
 	if err != nil {
