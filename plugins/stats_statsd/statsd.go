@@ -13,12 +13,13 @@ import (
 )
 
 type StatsDConfig struct {
-	Enabled              bool        `config:"enabled"`
+	Enabled           bool          `config:"enabled"`
 	Host              string        `config:"host"`
 	Port              int           `config:"port"`
 	Namespace         string        `config:"namespace"`
 	Protocol          string        `config:"protocol"`
-	IntervalInSeconds time.Duration `config:"interval_in_seconds"`
+	IntervalInSeconds int `config:"interval_in_seconds"`
+	BufferSize        int           `config:"buffer_size"`
 }
 type StatsDModule struct {
 }
@@ -35,7 +36,7 @@ var buffer *statsd.StatsdBuffer
 var l1 sync.RWMutex
 
 var defaultStatsdConfig = StatsDConfig{
-	Enabled: false,
+	Enabled:           false,
 	Host:              "localhost",
 	Port:              8125,
 	Namespace:         "app.",
@@ -55,7 +56,7 @@ func (module StatsDModule) Start() error {
 	config := defaultStatsdConfig
 	//cfg.Unpack(&config)
 	env.ParseConfig("statsd", &config)
-	if !config.Enabled{
+	if !config.Enabled {
 		return nil
 	}
 
@@ -67,9 +68,9 @@ func (module StatsDModule) Start() error {
 	log.Debug("statsd connec to, ", addr, ",prefix:", config.Namespace)
 
 	var err error
-	if config.Protocol=="tcp"{
+	if config.Protocol == "tcp" {
 		err = statsdclient.CreateTCPSocket()
-	}else{
+	} else {
 		err = statsdclient.CreateSocket()
 	}
 	if nil != err {
@@ -77,8 +78,11 @@ func (module StatsDModule) Start() error {
 		return err
 	}
 
-	interval := time.Second * config.IntervalInSeconds // aggregate stats and flush every 2 seconds
-	buffer = statsd.NewStatsdBuffer(interval, statsdclient)
+	interval := time.Second * time.Duration(config.IntervalInSeconds) // aggregate stats and flush every 2 seconds
+	if config.BufferSize<=0{
+		config.BufferSize=100
+	}
+	buffer = statsd.NewStatsdBuffer(interval,config.BufferSize, statsdclient)
 
 	statsdInited = true
 
