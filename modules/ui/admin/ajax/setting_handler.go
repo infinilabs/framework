@@ -17,7 +17,7 @@ limitations under the License.
 package ajax
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
 	api "infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"

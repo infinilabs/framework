@@ -19,7 +19,7 @@ package pipeline
 import (
 	"net/http"
 
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/pipeline"

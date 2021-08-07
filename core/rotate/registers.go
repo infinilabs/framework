@@ -8,38 +8,45 @@ import (
 	"sync"
 )
 
-var fileHandlers =map[string]*RotateWriter{}
+var fileHandlers = map[string]*RotateWriter{}
 var lock sync.RWMutex
 
 type RotateConfig struct {
-	Compress bool
-	MaxFileAge int
+	Compress     bool
+	MaxFileAge   int
 	MaxFileCount int
-	MaxFileSize int
+	MaxFileSize  int
 }
 
-func GetFileHandler(path string,config RotateConfig) *RotateWriter {
+var DefaultConfig = RotateConfig{
+	Compress:     true,
+	MaxFileAge:   0,
+	MaxFileCount: 10,
+	MaxFileSize:  1024,
+}
+
+func GetFileHandler(path string, config RotateConfig) *RotateWriter {
 	lock.Lock()
-	v,ok:=fileHandlers[path]
-	if !ok{
-		v=&RotateWriter{
+	v, ok := fileHandlers[path]
+	if !ok {
+		v = &RotateWriter{
 			Filename:         path,
 			Compress:         config.Compress,
 			MaxFileAge:       config.MaxFileAge,
 			MaxRotationCount: config.MaxFileCount,
 			MaxFileSize:      config.MaxFileSize,
 		}
-		fileHandlers[path]=v
+		fileHandlers[path] = v
 	}
 	lock.Unlock()
 	return v
 }
 
-func Close()  {
-	for k,v:=range fileHandlers{
-		log.Trace("closing rotate writer: ",k)
-		err:=v.Close()
-		if err!=nil{
+func Close() {
+	for k, v := range fileHandlers {
+		log.Trace("closing rotate writer: ", k)
+		err := v.Close()
+		if err != nil {
 			log.Error(err)
 		}
 	}

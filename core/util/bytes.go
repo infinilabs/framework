@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"

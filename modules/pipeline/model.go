@@ -17,7 +17,7 @@ limitations under the License.
 package pipeline
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"

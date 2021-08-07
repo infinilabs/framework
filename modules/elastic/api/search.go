@@ -1,7 +1,7 @@
 package api
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"fmt"
 	"net/http"
 	httprouter "infini.sh/framework/core/api/router"

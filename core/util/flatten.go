@@ -7,7 +7,7 @@
 package util
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"reflect"
 	"strings"
 )

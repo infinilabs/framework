@@ -5,7 +5,7 @@
 package websocket
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/stats"

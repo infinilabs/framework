@@ -1,18 +1,11 @@
 package elastic
 
 import (
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
 )
 
 type Indexes map[string]interface{}
-
-type ScrollResponseAPI interface {
-	GetScrollId() string
-	SetScrollId(id string)
-	GetHitsTotal() int64
-	GetShardResponse() ShardResponse
-	GetDocs() []interface{}
-}
 
 type ShardResponse struct {
 	Total      int `json:"total,omitempty"`
@@ -21,82 +14,18 @@ type ShardResponse struct {
 	Failed     int `json:"failed,omitempty"`
 	Failures   []struct {
 		Shard  int         `json:"shard,omitempty"`
-		Index  string      `json:"index,omitempty"`
+		Index  string      `json:"index,omitempty,nocopy,intern"`
 		Status int         `json:"status,omitempty"`
-		Reason interface{} `json:"reason,omitempty"`
+		Reason json.RawMessage `json:"reason,omitempty,nocopy"`
 	} `json:"failures,omitempty"`
 }
 
-type ScrollResponse struct {
-	Took     int    `json:"took,omitempty"`
-	ScrollId string `json:"_scroll_id,omitempty"`
-	TimedOut bool   `json:"timed_out,omitempty"`
-	Hits     struct {
-		MaxScore float32       `json:"max_score,omitempty"`
-		Total    int64           `json:"total,omitempty"`
-		Docs     []interface{} `json:"hits,omitempty"`
-	} `json:"hits"`
-	Shards ShardResponse `json:"_shards,omitempty"`
-}
-
-type ScrollResponseV7 struct {
-	ScrollResponse
-	Hits struct {
-		MaxScore float32 `json:"max_score,omitempty"`
-		Total    struct {
-			Value    int64    `json:"value,omitempty"`
-			Relation string `json:"relation,omitempty"`
-		} `json:"total,omitempty"`
-		Docs []interface{} `json:"hits,omitempty"`
-	} `json:"hits"`
-}
-
-func (scroll *ScrollResponse) GetHitsTotal() int64 {
-	return scroll.Hits.Total
-}
-
-func (scroll *ScrollResponse) GetScrollId() string {
-	return scroll.ScrollId
-}
-
-func (scroll *ScrollResponse) SetScrollId(id string) {
-	scroll.ScrollId = id
-}
-
-func (scroll *ScrollResponse) GetDocs() []interface{} {
-	return scroll.Hits.Docs
-}
-
-func (scroll *ScrollResponse) GetShardResponse() ShardResponse {
-	return scroll.Shards
-}
-
-func (scroll *ScrollResponseV7) GetHitsTotal() int64 {
-	return scroll.Hits.Total.Value
-}
-
-func (scroll *ScrollResponseV7) GetScrollId() string {
-	return scroll.ScrollId
-}
-
-func (scroll *ScrollResponseV7) SetScrollId(id string) {
-	scroll.ScrollId = id
-}
-
-func (scroll *ScrollResponseV7) GetDocs() []interface{} {
-	return scroll.Hits.Docs
-}
-
-func (scroll *ScrollResponseV7) GetShardResponse() ShardResponse {
-	return scroll.Shards
-}
-
 type ClusterInformation struct {
-	Name        string `json:"name"`
-	ClusterName string `json:"cluster_name"`
+	Name        string `json:"name,nocopy,intern"`
+	ClusterName string `json:"cluster_name,nocopy,intern"`
 	Version     struct {
-		Number        string `json:"number"`
-		LuceneVersion string `json:"lucene_version"`
+		Number        string `json:"number,nocopy,intern"`
+		LuceneVersion string `json:"lucene_version,nocopy,intern"`
 	} `json:"version"`
 }
 

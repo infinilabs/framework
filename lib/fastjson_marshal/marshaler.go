@@ -15,7 +15,7 @@
 package fastjson_marshal
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"

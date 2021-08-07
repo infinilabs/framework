@@ -17,7 +17,7 @@ limitations under the License.
 package cluster
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/global"

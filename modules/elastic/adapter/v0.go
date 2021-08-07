@@ -18,9 +18,9 @@ package adapter
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"regexp"
 	"strings"
 	"time"
@@ -61,7 +61,7 @@ func (c ESAPIV0) GetMajorVersion() int {
 	panic("invalid major version")
 }
 
-const TypeName6 = "doc"
+const TypeName0 = "doc"
 
 func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result, err error) {
 
@@ -136,8 +136,7 @@ func (c *ESAPIV0) getDefaultTemplate(indexPrefix string) string {
 {
 "template": "%s*",
 "settings": {
-    "number_of_shards": %v,
-    "index.max_result_window":10000000
+    "number_of_shards": %v
   },
   "mappings": {
     "%s": {
@@ -146,8 +145,8 @@ func (c *ESAPIV0) getDefaultTemplate(indexPrefix string) string {
           "strings": {
             "match_mapping_type": "string",
             "mapping": {
-              "type": "keyword",
-              "ignore_above": 256
+              "type": "string",
+               "index": "not_analyzed"
             }
           }
         }
@@ -156,7 +155,7 @@ func (c *ESAPIV0) getDefaultTemplate(indexPrefix string) string {
   }
 }
 `
-	return fmt.Sprintf(template, indexPrefix, 1, TypeName6)
+	return fmt.Sprintf(template, indexPrefix, 1, TypeName0)
 }
 
 func (c *ESAPIV0) initTemplate(templateName, indexPrefix string) {
@@ -198,7 +197,7 @@ func (c *ESAPIV0) initTemplate(templateName, indexPrefix string) {
 func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
 
 	if docType == "" {
-		docType = TypeName6
+		docType = TypeName0
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.Config.Endpoint, indexName, docType, id)
@@ -244,7 +243,7 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
 
 	if docType == "" {
-		docType = TypeName6
+		docType = TypeName0
 	}
 
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
@@ -833,7 +832,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 }
 
 func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
-	url := fmt.Sprintf("%s/%s/%s/_mapping", s.Config.Endpoint, indexName, TypeName6)
+	url := fmt.Sprintf("%s/%s/%s/_mapping", s.Config.Endpoint, indexName, TypeName0)
 
 	resp, err := s.Request(util.Verb_POST, url, mappings)
 
@@ -964,10 +963,17 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return scroll, err
 }
 
-func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
-	//  curl -XGET 'http://es-0.9:9200/_search/scroll?scroll=5m'
-	id := bytes.NewBufferString(scrollId)
-	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, id)
+//var scrollResponsePool = &sync.Pool{
+//	New: func() interface{} {
+//		c := fasthttp.RequestCtx{
+//			SequenceID: util.GetIncrementID("ctx"),
+//		}
+//		return &c
+//	},
+//}
+
+func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
+	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, scrollId)
 	resp, err := s.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
@@ -981,14 +987,15 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) (interface{}, e
 	if global.Env().IsDebug {
 		log.Trace("next scroll,", url, "m,", string(resp.Body))
 	}
-	// decode elasticsearch scroll response
-	scroll := &elastic.ScrollResponse{}
-	err = json.Unmarshal(resp.Body, &scroll)
-	if err != nil {
-		return nil, err
-	}
 
-	return scroll, nil
+	//// decode elasticsearch scroll response
+	//scroll := &elastic.ScrollResponse{}
+	//err = json.Unmarshal(resp.Body, &scroll)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	return resp.Body, nil
 }
 
 func (c *ESAPIV0) TemplateExists(templateName string) (bool, error) {

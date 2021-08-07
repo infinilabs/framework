@@ -5,7 +5,7 @@ package util
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"errors"
 	"hash"
 	"time"

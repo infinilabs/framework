@@ -4,7 +4,7 @@
 package daemon
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"fmt"
 	"os"
 	"syscall"

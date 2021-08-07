@@ -182,7 +182,7 @@ type MappingAPI interface {
 
 type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) (interface{}, error)
-	NextScroll(scrollTime string, scrollId string) (interface{}, error)
+	NextScroll(scrollTime string, scrollId string) ([]byte, error)
 }
 
 //{

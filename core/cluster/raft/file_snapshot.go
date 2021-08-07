@@ -3,7 +3,7 @@ package raft
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"fmt"
 	"hash"
 	"hash/crc64"

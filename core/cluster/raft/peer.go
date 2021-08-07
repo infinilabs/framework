@@ -2,7 +2,7 @@ package raft
 
 import (
 	"bytes"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"

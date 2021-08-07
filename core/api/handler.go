@@ -17,7 +17,7 @@ limitations under the License.
 package api
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
 	"github.com/jmoiron/jsonq"
 	"infini.sh/framework/core/api/router"

@@ -17,12 +17,10 @@ limitations under the License.
 package adapter
 
 import (
-	"bytes"
-	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"strings"
 
 	log "github.com/cihub/seelog"
@@ -280,44 +278,63 @@ func BasicAuth(req *fasthttp.Request, user, pass string) {
 	req.Header.Add("Authorization", "Basic "+encoded)
 }
 
-func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
-	id := bytes.NewBufferString(scrollId)
-	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, id)
-
-	client := &fasthttp.Client{
-		MaxConnsPerHost: 60000,
-		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
-
-	req := fasthttp.AcquireRequest()
-	req.Reset()
-	req.ResetBody()
-	res := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(res)
-
-	if c.Config.BasicAuth!=nil{
-		BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
-	}
-
-	req.SetRequestURI(url)
-
-	err := client.Do(req, res)
-	if err != nil {
-		panic(err)
-	}
-
-	scroll := &elastic.ScrollResponseV7{}
-	err = json.Unmarshal(res.Body(), &scroll)
-	if err != nil {
-		panic(err)
-		return nil, err
-	}
-	if err != nil {
-		//log.Error(body)
-		log.Error(err)
-		return nil, err
-	}
-
-	return scroll, nil
-}
+//
+//func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
+//
+//	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, scrollId)
+//	resp, err := c.Request(util.Verb_GET, url, nil)
+//
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	if resp.StatusCode != 200 {
+//		return nil, errors.New(string(resp.Body))
+//	}
+//
+//	//scroll := &elastic.ScrollResponse{}
+//	//err = json.Unmarshal(resp.Body, &scroll)
+//	//if err != nil {
+//	//	panic(err)
+//	//	return nil, err
+//	//}
+//
+//	return resp.Body, nil
+//
+//	//url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, scrollId)
+//	//
+//	//client := &fasthttp.Client{
+//	//	MaxConnsPerHost: 60000,
+//	//	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+//	//}
+//	//
+//	//req := fasthttp.AcquireRequest()
+//	//req.Reset()
+//	//req.ResetBody()
+//	//res := fasthttp.AcquireResponse()
+//	//defer fasthttp.ReleaseRequest(req)
+//	//defer fasthttp.ReleaseResponse(res)
+//	//
+//	//if c.Config.BasicAuth!=nil{
+//	//	BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
+//	//}
+//	//
+//	//req.SetRequestURI(url)
+//	//
+//	//err := client.Do(req, res)
+//	//if err != nil {
+//	//	log.Error(err)
+//	//	return nil, err
+//	//}
+//
+//	//
+//	//scroll := &elastic.ScrollResponseV7{}
+//	//err = json.Unmarshal(res.Body(), &scroll)
+//	//if err != nil {
+//	//	log.Error(err)
+//	//	return nil, err
+//	//}
+//	//
+//	////TODO buggy
+//	//return res.Body(), nil
+//}

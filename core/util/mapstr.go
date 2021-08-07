@@ -5,7 +5,7 @@
 package util
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"fmt"
 	"infini.sh/framework/core/errors"
 	"strings"

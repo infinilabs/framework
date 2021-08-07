@@ -17,18 +17,80 @@ limitations under the License.
 package adapter
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	log "github.com/cihub/seelog"
 	"strings"
 )
 
 type ESAPIV5 struct {
 	ESAPIV2
 }
+
+
+func (c *ESAPIV5) InitDefaultTemplate(templateName,indexPrefix string) {
+	c.initTemplate(templateName,indexPrefix)
+}
+
+func (c *ESAPIV5) getDefaultTemplate(indexPrefix string) string {
+	template := `
+{
+"template": "%s*",
+"settings": {
+    "number_of_shards": %v,
+    "index.max_result_window":10000000
+  },
+  "mappings": {
+    "%s": {
+      "dynamic_templates": [
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+`
+	return fmt.Sprintf(template, indexPrefix, 1, TypeName5)
+}
+
+func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
+	if global.Env().IsDebug {
+		log.Trace("init elasticsearch template")
+	}
+	if templateName==""{
+		templateName = global.Env().GetAppLowercaseName()
+	}
+	exist, err := c.TemplateExists(templateName)
+	if err != nil {
+		panic(err)
+	}
+	if !exist {
+		template := c.getDefaultTemplate(indexPrefix)
+		log.Trace("template: ", template)
+		res, err := c.PutTemplate(templateName, []byte(template))
+		if err != nil {
+			panic(err)
+		}
+		if global.Env().IsDebug {
+			log.Trace("put template response, %v", string(res))
+		}
+	}
+	log.Debugf("elasticsearch template successful initialized")
+
+}
+
+const TypeName5 = "doc"
 
 func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) (scroll interface{}, err error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
@@ -103,31 +165,6 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	return scroll, err
-}
-
-func (s *ESAPIV5) NextScroll(scrollTime string, scrollId string) (interface{}, error) {
-	id := bytes.NewBufferString(scrollId)
-
-	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, id)
-	resp, err := s.Request(util.Verb_GET, url, nil)
-
-	if err != nil {
-		panic(err)
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, errors.New(string(resp.Body))
-	}
-
-	scroll := &elastic.ScrollResponse{}
-	err = json.Unmarshal(resp.Body, &scroll)
-	if err != nil {
-		panic(err)
-		return nil, err
-	}
-
-	return scroll, nil
 }
 
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {

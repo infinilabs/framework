@@ -61,6 +61,8 @@ func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1, TypeName6)
 }
 
+const TypeName6 = "_doc"
+
 func (c *ESAPIV6) initTemplate(templateName,indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
