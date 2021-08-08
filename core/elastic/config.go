@@ -175,10 +175,15 @@ func GetMetadata(k string) *ElasticsearchMetadata {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch metata undefined"))
 	}
-	v, _ := metas[k]
-	//if !ok {
-	//	panic(fmt.Sprintf("elasticsearch metata [%v] was not found", k))
-	//}
+
+	lock.RLock()
+	defer lock.RUnlock()
+
+	v, ok := metas[k]
+	if !ok {
+		log.Debug(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
+		//panic(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
+	}
 	return v
 }
 
@@ -201,7 +206,12 @@ func GetClient(k string) API {
 func GetAllConfigs() map[string]*ElasticsearchConfig {
 	return cfgs
 }
+
 func SetMetadata(k string, v *ElasticsearchMetadata) {
+
+	lock.Lock()
+	defer lock.Unlock()
+
 	metas[k] = v
 }
 
