@@ -25,7 +25,6 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
 )
 
 var apis = map[string]API{}
@@ -57,14 +56,14 @@ type ElasticsearchMetadata struct {
 	IndicesChanged       bool
 	Nodes                map[string]NodesInfo
 	Indices              map[string]IndexInfo
-	PrimaryShards        map[string]map[string]ShardInfo
+	PrimaryShards        map[string]map[int]ShardInfo
 	Aliases              map[string]AliasInfo
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
 	indexMap, ok := meta.PrimaryShards[index]
 	if ok {
-		shardInfo, ok := indexMap[util.IntToString(shardID)]
+		shardInfo, ok := indexMap[shardID]
 		if ok {
 			return &shardInfo
 		}

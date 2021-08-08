@@ -605,7 +605,7 @@ type CatShardResponse struct {
 }
 
 //index:shardID -> nodesInfo
-func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[string]elastic.ShardInfo, error) {
+func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, error) {
 	data := []CatShardResponse{}
 
 	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.Config.Endpoint)
@@ -623,7 +623,7 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[string]elastic.ShardInfo, 
 		return nil, err
 	}
 
-	infos := map[string]map[string]elastic.ShardInfo{}
+	infos := map[string]map[int]elastic.ShardInfo{}
 	for _, v := range data {
 		if v.ShardType != "p" {
 			continue
@@ -646,10 +646,14 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[string]elastic.ShardInfo, 
 
 		indexMap, ok := infos[v.Index]
 		if !ok {
-			indexMap = map[string]elastic.ShardInfo{}
+			indexMap = map[int]elastic.ShardInfo{}
 		}
-
-		indexMap[v.ShardID] = info
+		id,err:=util.ToInt(v.ShardID)
+		if err!=nil{
+			log.Error("invalid shard id, it should be number,",string(resp.Body))
+			return nil, err
+		}
+		indexMap[id] = info
 		infos[v.Index] = indexMap
 
 		// infos[fmt.Sprintf("%v:%v", info.Index, info.ShardID)] = info

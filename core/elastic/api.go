@@ -57,7 +57,7 @@ type API interface {
 
 	GetIndices(pattern string) (*map[string]IndexInfo, error)
 
-	GetPrimaryShards() (*map[string]map[string]ShardInfo, error)
+	GetPrimaryShards() (*map[string]map[int]ShardInfo, error)
 	GetAliases() (*map[string]AliasInfo, error)
 	GetAliasesDetail() (*map[string]AliasDetailInfo, error)
 	GetAliasesAndIndices() (*AliasAndIndicesResponse, error)
