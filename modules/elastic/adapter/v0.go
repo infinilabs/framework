@@ -514,11 +514,9 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
-	nodes := &elastic.NodesResponse{}
 
 	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
-
 	if err != nil {
 		return nil, err
 	}
@@ -527,11 +525,12 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 		return nil, errors.New(string(resp.Body))
 	}
 
-	err = json.Unmarshal(resp.Body, nodes)
+	node := elastic.NodesResponse{}
+	err=node.UnmarshalJSON(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	return &nodes.Nodes, nil
+	return &node.Nodes, nil
 }
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
