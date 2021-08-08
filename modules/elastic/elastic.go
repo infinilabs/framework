@@ -225,16 +225,20 @@ func monitoring() {
 
 func discovery() {
 	all := elastic.GetAllConfigs()
+
 	for _, cfg := range all {
+
 		if cfg.Discovery.Enabled {
 			client := elastic.GetClient(cfg.Name)
-
 			nodes, err := client.GetNodes()
+
 			if err != nil {
 				log.Error(err)
 				continue
 			}
+
 			if nodes == nil || len(*nodes) <= 0 {
+				log.Error(cfg.Name," nodes info not retrieved")
 				continue
 			}
 

@@ -2404,7 +2404,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				case string:
 					v = r.(string)
 				}
-				log.Error("error in serveConn, ", v)
+				log.Error("error in serveConn, ", v,",",r)
 			}
 		}
 	}()
