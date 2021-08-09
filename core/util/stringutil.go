@@ -22,9 +22,9 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
-	"github.com/segmentio/encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"net/url"
 	"reflect"
@@ -208,6 +208,10 @@ func ToJson(in interface{}, indent bool) string {
 
 func FromJson(str string, to interface{}) error {
 	return json.Unmarshal([]byte(str), to)
+}
+
+func Int64ToString(num int64) string {
+	return strconv.FormatInt(num,10)
 }
 
 func IntToString(num int) string {

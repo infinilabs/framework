@@ -185,6 +185,19 @@ func FileGetContent(file string) ([]byte, error) {
 	return b, nil
 }
 
+func FileLinesWalk(filePath string,f func([]byte))error  {
+	file, err := os.Open(filePath)
+	if err != nil {
+		panic(err)
+	}
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		f(scanner.Bytes())
+	}
+	return file.Close()
+}
+
 func FileGetLines(filePath string)[]string  {
 	file, err := os.Open(filePath)
 	if err != nil {

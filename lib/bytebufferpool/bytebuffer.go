@@ -68,6 +68,17 @@ func (b *ByteBuffer) Bytes() []byte {
 	return b.B
 }
 
+func (b *ByteBuffer) WriteBytesArray(ps ...[]byte)(count int, err error) {
+	for _,p:=range ps{
+		v,err:=b.Write(p)
+		count+=v
+		if err!=nil{
+			break
+		}
+	}
+	return count,err
+}
+
 // Write implements io.Writer - it appends p to ByteBuffer.B
 func (b *ByteBuffer) Write(p []byte) (int, error) {
 	b.B = append(b.B, p...)

@@ -70,8 +70,21 @@ func TestTrimLeft(t *testing.T) {
 	assert.Equal(t, "/static://off", new)
 }
 
+
 func TestToInt64(t *testing.T) {
 	str := "6393600409"
 	new,_:=ToInt64(str)
 	fmt.Println(new)
+}
+
+func TestInt64ToString(t *testing.T) {
+	i := 6393600409
+	new:=Int64ToString(int64(i))
+	fmt.Println(new)
+	assert.Equal(t, "6393600409", new)
+
+	i = 63
+	new=Int64ToString(int64(i))
+	fmt.Println(new)
+	assert.Equal(t, "63", new)
 }
