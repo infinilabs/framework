@@ -965,15 +965,6 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return scroll, err
 }
 
-//var scrollResponsePool = &sync.Pool{
-//	New: func() interface{} {
-//		c := fasthttp.RequestCtx{
-//			SequenceID: util.GetIncrementID("ctx"),
-//		}
-//		return &c
-//	},
-//}
-
 func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.Config.Endpoint, scrollTime, scrollId)
 	resp, err := s.Request(util.Verb_GET, url, nil)
@@ -989,13 +980,6 @@ func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error)
 	if global.Env().IsDebug {
 		log.Trace("next scroll,", url, "m,", string(resp.Body))
 	}
-
-	//// decode elasticsearch scroll response
-	//scroll := &elastic.ScrollResponse{}
-	//err = json.Unmarshal(resp.Body, &scroll)
-	//if err != nil {
-	//	return nil, err
-	//}
 
 	return resp.Body, nil
 }
