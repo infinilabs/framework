@@ -88,6 +88,15 @@ type MappingAPI interface {
 }
 
 type ScrollAPI interface {
-	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) (interface{}, error)
+	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) (ScrollResponseAPI, error)
 	NextScroll(scrollTime string, scrollId string) ([]byte, error)
+}
+
+
+type ScrollResponseAPI interface {
+	GetScrollId() string
+	SetScrollId(id string)
+	GetHitsTotal() int64
+	GetShardResponse() ShardResponse
+	GetDocs() []IndexDocument
 }

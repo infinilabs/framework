@@ -891,7 +891,7 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) (scroll interface{}, err error) {
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ( elastic.ScrollResponseAPI,  error) {
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
@@ -902,7 +902,6 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 		if len(sourceFields) > 0 {
 			if !strings.Contains(sourceFields, ",") {
 				panic(errors.New("The source fields shoud be seraprated by ,"))
-				return
 			} else {
 				queryBody["_source"] = strings.Split(sourceFields, ",")
 			}
@@ -956,8 +955,8 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 		return nil, errors.New(string(resp.Body))
 	}
 
-	scroll = &elastic.ScrollResponse{}
-	err = json.Unmarshal(resp.Body, scroll)
+	scroll := &elastic.ScrollResponse{}
+	err = scroll.UnmarshalJSON(resp.Body)
 	if err != nil {
 		panic(err)
 		return nil, err
