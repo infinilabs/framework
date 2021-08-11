@@ -1,28 +1,12 @@
-/*
-Copyright 2016 Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package pipeline
 
 import (
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"runtime"
+	log "github.com/cihub/seelog"
 	"strings"
 	"sync"
 	"time"
@@ -269,7 +253,7 @@ func (pipe *Pipeline) Run() *Context {
 		stats.Increment(pipe.name+".pipeline", "finished")
 	}()
 
-	var err error
+	//var err error
 
 	pipe.startPipeline()
 
@@ -294,17 +278,20 @@ func (pipe *Pipeline) Run() *Context {
 
 		pipe.setCurrentProcessor(v.Name())
 		startTime := time.Now().UTC()
-		err = v.Process(pipe.context)
+		//err = v.Process(pipe.context)
+		v.Process(pipe.context)
 
 		elapsedTime := time.Now().UTC().Sub(startTime)
 		stats.Timing(pipe.name+".pipeline", v.Name(), elapsedTime.Nanoseconds())
-		if err != nil {
-			stats.Increment(pipe.name+".pipeline", "error")
-			log.Debugf("%s-%s: %v", pipe.name, v.Name(), err)
-			pipe.context.Payload = err.Error()
-			pipe.handlePipelineError()
-			return pipe.context
-		}
+		//TODO add back processor error return
+		//if err != nil {
+		//	stats.Increment(pipe.name+".pipeline", "error")
+		//	log.Debugf("%s-%s: %v", pipe.name, v.Name(), err)
+		//	pipe.context.Payload = err.Error()
+		//	pipe.handlePipelineError()
+		//	return pipe.context
+		//}
+
 		log.Trace(pipe.name, ", end joint,", v.Name())
 	}
 

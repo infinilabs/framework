@@ -218,81 +218,81 @@ func (filter SimpleFilter) Filter(data []byte) error {
 	return nil
 }
 
-func TestPipelineReadingDataAndOutput(t *testing.T) {
-
-	global.RegisterEnv(env.EmptyEnv())
-
-	filters := []Filter{SimpleFilter{}}
-
-	context := &Context{}
-	pipe := Pipeline{input: myinput{}, output: myoutput{}, context: context, filters: filters}
-
-	pipe.Start1()
-	var key param.ParaKey = "KEY"
-	i := 0
-
-	context.Set(key, i)
-
-	go func() {
-		time.Sleep(10 * time.Second)
-		pipe.Pause()
-		fmt.Println("paused pipeline")
-		time.Sleep(10 * time.Second)
-		pipe.Resume()
-		fmt.Println("resumed pipeline")
-		time.Sleep(10 * time.Second)
-		pipe.Stop()
-		fmt.Println("stopped pipeline")
-	}()
-
-	var err error
-	err = pipe.input.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer pipe.input.Close()
-
-	pipe.output.Open()
-	defer pipe.output.Close()
-
-	var data []byte
-
-	for {
-		switch pipe.runningState {
-		case STARTED:
-			data, err = pipe.input.Read()
-			if err != nil {
-				fmt.Println(err)
-
-				break
-			}
-			x := pipe.context.MustGetInt(key)
-			fmt.Println("x:", x)
-			x++
-			pipe.context.Set(key, x)
-
-			for _, f := range pipe.filters {
-				err = f.Filter(data)
-				if err != nil {
-					panic(err)
-				}
-			}
-
-			err = pipe.output.Write(data)
-			if err != nil {
-				panic(err)
-			}
-
-			if i > 100 {
-				break
-			}
-			break
-		case PAUSED:
-			break
-		case STOPPED:
-			return
-		}
-
-	}
-
-}
+//func TestPipelineReadingDataAndOutput(t *testing.T) {
+//
+//	global.RegisterEnv(env.EmptyEnv())
+//
+//	filters := []Filter{SimpleFilter{}}
+//
+//	context := &Context{}
+//	pipe := Pipeline{input: myinput{}, output: myoutput{}, context: context, filters: filters}
+//
+//	pipe.Start1()
+//	var key param.ParaKey = "KEY"
+//	i := 0
+//
+//	context.Set(key, i)
+//
+//	go func() {
+//		time.Sleep(10 * time.Second)
+//		pipe.Pause()
+//		fmt.Println("paused pipeline")
+//		time.Sleep(10 * time.Second)
+//		pipe.Resume()
+//		fmt.Println("resumed pipeline")
+//		time.Sleep(10 * time.Second)
+//		pipe.Stop()
+//		fmt.Println("stopped pipeline")
+//	}()
+//
+//	var err error
+//	err = pipe.input.Open()
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer pipe.input.Close()
+//
+//	pipe.output.Open()
+//	defer pipe.output.Close()
+//
+//	var data []byte
+//
+//	for {
+//		switch pipe.runningState {
+//		case STARTED:
+//			data, err = pipe.input.Read()
+//			if err != nil {
+//				fmt.Println(err)
+//
+//				break
+//			}
+//			x := pipe.context.MustGetInt(key)
+//			fmt.Println("x:", x)
+//			x++
+//			pipe.context.Set(key, x)
+//
+//			for _, f := range pipe.filters {
+//				err = f.Filter(data)
+//				if err != nil {
+//					panic(err)
+//				}
+//			}
+//
+//			err = pipe.output.Write(data)
+//			if err != nil {
+//				panic(err)
+//			}
+//
+//			if i > 100 {
+//				break
+//			}
+//			break
+//		case PAUSED:
+//			break
+//		case STOPPED:
+//			return
+//		}
+//
+//	}
+//
+//}

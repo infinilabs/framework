@@ -44,6 +44,38 @@ type Context struct {
 	pauseFlag  bool
 	exitFlag   bool
 	PipelineID string
+	flowProcess []string
+	finished bool
+}
+
+func (ctx *Context)ResetContext()  {
+	ctx.ResetParameters()
+	ctx.finished=false
+	ctx.flowProcess=[]string{}
+}
+func (ctx *Context)GetFlowProcess()[]string  {
+	return ctx.flowProcess
+}
+
+func (ctx *Context)GetRequestProcess()[]string  {
+	return ctx.flowProcess
+}
+
+func (ctx *Context)AddFlowProcess(str string)  {
+	if str!=""{
+		ctx.flowProcess=append(ctx.flowProcess,str)
+	}
+}
+
+
+//is all process finished
+func (ctx *Context) Finished() {
+	ctx.finished=true
+}
+
+//should filters continue to process
+func (ctx *Context) ShouldContinue() bool {
+	return !ctx.finished
 }
 
 // End break all pipelines, but the end phrase not included
@@ -56,8 +88,13 @@ func (context *Context) End(msg interface{}) {
 	context.Payload = msg
 }
 
-func (context *Context) Resume() {
-	context.pauseFlag = false
+
+
+//resume processing pipeline, allow filters continue
+func (ctx *Context) Resume() {
+	ctx.finished=false
+	ctx.pauseFlag = false
+	ctx.AddFlowProcess("||")
 }
 
 func (context *Context) Pause() {

@@ -18,7 +18,9 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
+	p "infini.sh/framework/core/plugin"
 	"reflect"
 )
 
@@ -71,7 +73,7 @@ func getJoint(cfg *ProcessorConfig) interface{} {
 }
 
 func RegisterPipeJoint(joint interface{}) {
-	k := joint.(Joint).Name()
+	k := joint.(ProcessorBase).Name()
 	RegisterPipeJointWithName(k, joint)
 }
 
@@ -80,4 +82,45 @@ func RegisterPipeJointWithName(jointName string, joint interface{}) {
 		panic(errors.Errorf("joint with same name already registered, %s", jointName))
 	}
 	typeRegistry[jointName] = joint
+}
+
+
+//new
+
+type processorPlugin struct {
+	name   string
+	constr Constructor
+}
+
+var pluginKey = "basic.processor"
+
+func Plugin(name string, c Constructor) map[string][]interface{} {
+	return p.MakePlugin(pluginKey, processorPlugin{name, c})
+}
+
+func init() {
+	p.MustRegisterLoader(pluginKey, func(ifc interface{}) error {
+		p, ok := ifc.(processorPlugin)
+		if !ok {
+			return errors.New("plugin does not match processor plugin type")
+		}
+
+		return registry.Register(p.name, p.constr)
+	})
+}
+
+type Constructor func(config *config.Config) (Processor, error)
+
+var registry = NewNamespace()
+
+func RegisterPlugin(name string, constructor Constructor) {
+	log.Debugf("Register plugin %s", name)
+	err := registry.Register(name, constructor)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func GetPlugin(name string)  {
+
 }
