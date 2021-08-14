@@ -139,6 +139,18 @@ type BulkActionMetadata struct {
 	Update *BulkIndexMetadata `json:"update,omitempty"`
 }
 
+func (action *BulkActionMetadata)GetItem() *BulkIndexMetadata  {
+	if action.Index!=nil{
+		return action.Index
+	}else if action.Delete!=nil{
+		return action.Delete
+	}else if action.Create!=nil{
+		return action.Create
+	}else{
+		return action.Update
+	}
+}
+
 type BulkIndexMetadata struct {
 	Index           string      `json:"_index,omitempty"`
 	Type            string      `json:"_type,omitempty"`
@@ -159,18 +171,23 @@ type BulkIndexMetadata struct {
 
 	//for bulk response
 	Result      string    `json:"result,omitempty"`
-	Status      int       `json:"status,omitempty"`
 	SeqNo       int64     `json:"_seq_no,omitempty"`
 	PrimaryTerm int64     `json:"_primary_term,omitempty"`
 	Shards      *struct{} `json:"_shards,omitempty"`
-	Error       *struct {
-		Type   string `json:"type,omitempty"`
-		Reason string `json:"reason,omitempty"`
-	} `json:"error,omitempty"`
+
+	ErrorResponse
 }
 
 type BulkResponse struct {
 	Took   int                  `json:"took"`
 	Errors bool                 `json:"errors"`
 	Items  []BulkActionMetadata `json:"items"`
+}
+
+type ErrorResponse struct {
+	Status int                 `json:"status,omitempty"`
+	Error       *struct {
+		Type   string `json:"type,omitempty"`
+		Reason string `json:"reason,omitempty"`
+	} `json:"error,omitempty"`
 }
