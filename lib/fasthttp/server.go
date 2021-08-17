@@ -714,6 +714,7 @@ func getLengthBytes(data []byte)[]byte  {
 	return bytesLength
 }
 
+//TODO pass in bytes buffer, reuse outside
 func (req *Request)Encode() []byte {
 
 	req.encodeLocker.Lock()

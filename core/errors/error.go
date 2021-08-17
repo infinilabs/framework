@@ -110,6 +110,13 @@ func Errorf(format string, args ...interface{}) error {
 	}
 }
 
+func Error(args ...interface{}) error {
+	return _error{
+		fmt.Sprint(args...),
+		callers(),
+	}
+}
+
 type cause struct {
 	code    ErrorCode
 	cause   error
