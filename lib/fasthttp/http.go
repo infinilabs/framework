@@ -342,6 +342,7 @@ func (resp *Response) Body() []byte {
 }
 
 //返回的没有压缩过的 body
+//TODO cache
 func (resp *Response) GetRawBody() []byte {
 	if resp.GetBodyLength()<=0{
 		return nil
@@ -365,6 +366,7 @@ func (resp *Response) GetRawBody() []byte {
 	}
 }
 
+//TODO cache
 func (req *Request) GetRawBody() []byte {
 	if req.GetBodyLength()<=0{
 		return nil
