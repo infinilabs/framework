@@ -47,15 +47,16 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	if config.BasicAuth != nil {
 		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
 	}
-	fhc := fasthttp.Client{
-		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
 	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
 	method = strings.ToUpper(method)
 	freq.Header.SetMethod(method)
 	freq.SetBodyStream(req.Body, -1)
 	defer req.Body.Close()
-	fhc.Do(freq, fres)
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 1000,
+		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+	}
+	client.Do(freq, fres)
 	b := fres.Body()
 	w.Header().Set("Content-type", string(fres.Header.ContentType()))
 	w.Write(b)
