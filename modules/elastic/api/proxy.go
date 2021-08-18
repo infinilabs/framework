@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	httprouter "infini.sh/framework/core/api/router"
@@ -46,12 +47,15 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	if config.BasicAuth != nil {
 		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
 	}
+	fhc := fasthttp.Client{
+		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+	}
 	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
 	method = strings.ToUpper(method)
 	freq.Header.SetMethod(method)
 	freq.SetBodyStream(req.Body, -1)
 	defer req.Body.Close()
-	fasthttp.Do(freq, fres)
+	fhc.Do(freq, fres)
 	b := fres.Body()
 	w.Header().Set("Content-type", string(fres.Header.ContentType()))
 	w.Write(b)
