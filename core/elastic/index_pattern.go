@@ -10,6 +10,7 @@ type IndexPattern struct {
 	ID string `json:"-" index:"id"`
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	Title string `json:"title" elastic_mapping:"title:{type:keyword}"`
+	ViewName string `json:"viewName" elastic_mapping:"view_name:{type:text}`
 	TimeFieldName string `json:"timeFieldName" elastic_mapping:"timeFieldName:{type:keyword}"`
 	Fields string `json:"fields" elastic_mapping:"fields:{type:text}"`
 	FieldFormatMap string `json:"fieldFormatMap" elastic_mapping:"fields:{type:text}`

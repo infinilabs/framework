@@ -76,7 +76,7 @@ func (h *APIHandler) HandleGetIndexPatternListAction(w http.ResponseWriter, req 
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
-	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title", "updated_at"],"size": %d, "query":{"bool":{"must":{"match":{"cluster_id":"%s"}}%s}}}`, size, targetClusterID, search))
+	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title","viewName", "updated_at"],"size": %d, "query":{"bool":{"must":{"match":{"cluster_id":"%s"}}%s}}}`, size, targetClusterID, search))
 
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexPattern{}),queryDSL)
 	if err != nil {
@@ -98,6 +98,7 @@ func (h *APIHandler) HandleGetIndexPatternListAction(w http.ResponseWriter, req 
 			"id": hit.ID,
 			"attributes": map[string]interface{}{
 				"title": hit.Source["title"],
+				"viewName": hit.Source["viewName"],
 			},
 			"score": 0,
 			"type": "index-pattern",
@@ -216,6 +217,7 @@ func (h *APIHandler) HandleBulkGetIndexPatternAction(w http.ResponseWriter, req 
 			"attributes": map[string]interface{}{
 				"title": hit.Source["title"],
 				"fields": hit.Source["fields"],
+				"viewName": hit.Source["viewName"],
 				"timeFieldName":  hit.Source["timeFieldName"],
 				"fieldFormatMap":  hit.Source["fieldFormatMap"],
 			},
