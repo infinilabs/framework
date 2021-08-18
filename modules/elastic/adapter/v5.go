@@ -169,7 +169,7 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 	if s.Version < "5.6" {
-		fmt.Println(s.Version, templateID)
+		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV0.SetSearchTemplate(templateID, body)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
@@ -179,7 +179,7 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 
 func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
 	if s.Version < "5.6" {
-		fmt.Println(s.Version, templateID)
+		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV0.DeleteSearchTemplate(templateID)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
