@@ -16,13 +16,11 @@ import (
 )
 
 var queues sync.Map=sync.Map{}
-//map[string]*BackendQueue
-
 type DiskQueue struct {
 }
 
 func (module DiskQueue) Name() string {
-	return "Queue"
+	return "disk_queue"
 }
 
 var initLocker sync.Mutex
