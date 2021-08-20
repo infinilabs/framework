@@ -1285,7 +1285,72 @@ func (c *ESAPIV0) Alias(body []byte) error {
 }
 
 func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
-	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", c.Config.Endpoint, target)
+	url := fmt.Sprintf("%s/%s/_mappings", c.Config.Endpoint, target)
 	res, err := c.Request(util.Verb_GET, url, nil)
-	return res.Body, err
+	if err != nil {
+		return nil, err
+	}
+	mappingsRes := map[string] interface{}{}
+	err = json.Unmarshal(res.Body, &mappingsRes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		indices []string
+		fields = map[string]interface{}{}
+	)
+
+	for indexName, mappingsInterface := range mappingsRes {
+		indices = append(indices, indexName)
+		if mappings, ok := mappingsInterface.(map[string]interface{}); ok {
+			if mappingsValue, ok := mappings["mappings"].(map[string]interface{}); ok {
+				for _, docInterface := range mappingsValue {
+					if docTypeValue, ok := docInterface.(map[string]interface{}); ok {
+						if propertiesInterface, ok := docTypeValue["properties"]; ok {
+							if properties, ok := propertiesInterface.(map[string]interface{}); ok {
+								walkProperties(fields, properties, "")
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	result := map[string]interface{}{
+		"indices": indices,
+		"fields": fields,
+	}
+	resultBytes, err := json.Marshal(result)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return resultBytes, nil
+}
+
+ func walkProperties(fields, properties map[string]interface{}, prefix string){
+	var dotFieldName string
+	for fieldName, fieldInterface := range properties {
+		if prefix != ""{
+			dotFieldName = fmt.Sprintf("%s.%s", prefix, fieldName)
+		}else{
+			dotFieldName = fieldName
+		}
+		if field, ok := fieldInterface.(map[string]interface{}); ok {
+			if esType, ok := field["type"].(string); ok {
+				fields[dotFieldName] = map[string]interface{}{
+					esType: map[string]interface{}{
+						"type": field["type"],
+						"searchable":true,
+						"aggregatable": true,
+					},
+				}
+			}else if propertiesInterface, ok := field["properties"]; ok {
+				if subProperties, ok := propertiesInterface.(map[string]interface{}); ok {
+					walkProperties(fields, subProperties, dotFieldName)
+				}
+			}
+		}
+	}
 }

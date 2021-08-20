@@ -281,7 +281,11 @@ func (h *APIHandler) HandleUpdateIndexPatternAction(w http.ResponseWriter, req *
 func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
-
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 	targetClusterID := ps.ByName("id")
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
@@ -310,7 +314,8 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	var fieldCaps = &elastic.FieldCapsResponse{}
 	err = json.Unmarshal(buf, fieldCaps)
 	if err != nil {
-		resBody["error"] = err
+		fmt.Println(string(buf))
+		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
@@ -401,7 +406,7 @@ func createKbnFieldTypes() []KbnFieldType{
 		{
 			Name: "string",
 			ESTypes: []string{
-				"text", "keyword", "_type", "_id","_index",
+				"text", "keyword", "_type", "_id","_index","string",
 			},
 		},{
 			Name:"number",

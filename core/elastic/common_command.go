@@ -12,6 +12,6 @@ type CommonCommand struct {
 	ID string `json:"-" index:"id"`
 	Title string `json:"title" elastic_mapping:"title:{type:text}"`
 	Tag []string `json:"tag" elastic_mapping:"tag:{type:object}`
-	Request CommandRequest `json:"request" elastic_mapping:"tag:{type:object}`
+	Requests []CommandRequest `json:"requests" elastic_mapping:"tag:{type:object}`
 	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 }

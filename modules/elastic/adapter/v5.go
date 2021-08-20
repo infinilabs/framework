@@ -170,7 +170,7 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 	if s.Version < "5.6" {
 		//fmt.Println(s.Version, templateID)
-		return s.ESAPIV0.SetSearchTemplate(templateID, body)
+		return s.ESAPIV2.SetSearchTemplate(templateID, body)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
 	_, err := s.Request(util.Verb_PUT, url, body)
@@ -180,9 +180,18 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
 	if s.Version < "5.6" {
 		//fmt.Println(s.Version, templateID)
-		return s.ESAPIV0.DeleteSearchTemplate(templateID)
+		return s.ESAPIV2.DeleteSearchTemplate(templateID)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
 	_, err := s.Request(util.Verb_DELETE, url, nil)
 	return err
+}
+
+func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
+	if s.Version < "5.4" {
+		return s.ESAPIV2.FieldCaps(target)
+	}
+	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.Config.Endpoint, target)
+	res, err := s.Request(util.Verb_GET, url, nil)
+	return res.Body, err
 }
