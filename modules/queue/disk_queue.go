@@ -33,7 +33,7 @@ var initLocker sync.Mutex
 //sync_every_in_seconds: 10
 //sync_timeout_in_seconds: 10
 //read_chan_buffer: 0
-type QueueConfig struct {
+type DiskQueueConfig struct {
 	MinMsgSize       int   `config:"min_msg_size"`
 	MaxMsgSize       int   `config:"max_msg_size"`
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
@@ -43,7 +43,7 @@ type QueueConfig struct {
 	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
 }
 
-var cfg *QueueConfig
+var cfg *DiskQueueConfig
 
 func (module DiskQueue) initQueue(name string) error {
 	initLocker.Lock()
@@ -69,7 +69,7 @@ var diskQueue *DiskQueue
 
 func (module DiskQueue) Setup(config *config.Config) {
 
-	cfg = &QueueConfig{
+	cfg = &DiskQueueConfig{
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
 		MaxBytesPerFile:  10 * 1024 * 1024 * 1024, //10GB
@@ -80,7 +80,7 @@ func (module DiskQueue) Setup(config *config.Config) {
 	}
 	diskQueue=&DiskQueue{}
 
-	ok,err:=env.ParseConfig("queue", cfg)
+	ok,err:=env.ParseConfig("disk_queue", cfg)
 	if ok&&err!=nil{
 		panic(err)
 	}
