@@ -91,7 +91,8 @@ func loadESBasedElasticConfig() {
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
 	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
-		panic(err)
+		log.Error(err)
+		return
 	}
 
 	if len(result.Hits.Hits) > 0 {
@@ -112,7 +113,8 @@ func loadESBasedElasticConfig() {
 		v.Source = "elastic"
 		if v.ID == "" {
 			if v.Name == "" {
-				panic(errors.Errorf("invalid elasticsearch config, %v", v))
+				log.Errorf("invalid elasticsearch config, %v", v)
+				continue
 			}
 			v.ID = v.Name
 		}
@@ -284,7 +286,8 @@ func discovery() {
 			var indicesChanged bool
 			indices, err := client.GetIndices("")
 			if err != nil {
-				panic(err)
+				log.Error(err)
+				continue
 			}
 			if indices != nil {
 				//TODO check if that changed or skip replace
@@ -296,7 +299,8 @@ func discovery() {
 			var shardsChanged bool
 			shards, err := client.GetPrimaryShards()
 			if err != nil {
-				panic(err)
+				log.Error(err)
+				continue
 			}
 			if shards != nil {
 				//TODO check if that changed or skip replace
@@ -308,7 +312,8 @@ func discovery() {
 			var aliasesChanged bool
 			aliases, err := client.GetAliases()
 			if err != nil {
-				panic(err)
+				log.Error(err)
+				continue
 			}
 			if aliases != nil {
 				//TODO check if that changed or skip replace
