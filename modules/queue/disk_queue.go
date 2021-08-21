@@ -158,6 +158,7 @@ func (module DiskQueue) GetQueues() []string {
 
 func (module DiskQueue) Start() error {
 	queue.Register("disk", diskQueue)
+	queue.RegisterDefaultHandler(diskQueue)
 	return nil
 }
 

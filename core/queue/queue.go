@@ -25,7 +25,8 @@ import (
 	"time"
 )
 
-type Queue interface {
+type QueueAPI interface {
+
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte,timeout bool)
 	ReadChan(k string) <-chan []byte
@@ -34,10 +35,22 @@ type Queue interface {
 	GetQueues() []string
 }
 
-var handler Queue
+var defaultHandler  QueueAPI
+var handlers  map[string]QueueAPI= map[string]QueueAPI{}
+
+func getHandler(name string) QueueAPI {
+	handler,ok:=handlers[name]
+	if ok{
+		return handler
+	}
+	return defaultHandler
+}
 
 func Push(k string, v []byte) error {
 	var err error = nil
+
+	handler:=getHandler(k)
+
 	if handler != nil {
 		err = handler.Push(k, v)
 		if err == nil {
@@ -53,6 +66,7 @@ func Push(k string, v []byte) error {
 var pauseMsg = errors.New("queue was paused to read")
 
 func ReadChan(k string) <-chan []byte {
+	handler:=getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			pauseLock.Lock()
@@ -69,6 +83,7 @@ func ReadChan(k string) <-chan []byte {
 }
 
 func Pop(k string) ([]byte, error) {
+	handler:=getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			return nil, pauseMsg
@@ -90,6 +105,8 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 		timeoutInSeconds = 5
 	}
 
+	handler:=getHandler(k)
+
 	if handler != nil {
 
 		if pausedReadQueue.Contains(k) {
@@ -107,6 +124,7 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 }
 
 func Close(k string) error {
+	handler:=getHandler(k)
 	if handler != nil {
 		o := handler.Close(k)
 		stats.Increment("queue."+k, "close")
@@ -117,6 +135,7 @@ func Close(k string) error {
 }
 
 func Depth(k string) int64 {
+	handler:=getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k)
 		stats.Increment("queue."+k, "call_depth")
@@ -126,12 +145,15 @@ func Depth(k string) int64 {
 }
 
 func GetQueues() []string {
-	if handler != nil {
-		o := handler.GetQueues()
-		stats.Increment("queue.", "get_queues")
-		return o
+	result :=[]string{}
+	for _,handler:=range adapters{
+		if handler != nil {
+			o := handler.GetQueues()
+			stats.Increment("queue.", "get_queues")
+			result =append(result, o...)
+		}
 	}
-	panic(errors.New("handler is not registered"))
+	return result
 }
 
 var pausedReadQueue = hashset.New()
@@ -146,6 +168,7 @@ func PauseRead(k string) {
 	pauseChan[k] = make(chan bool)
 	pausedReadQueue.Add(k)
 }
+
 func ResumeRead(k string) {
 	pauseLock.Lock()
 	defer pauseLock.Unlock()
@@ -157,21 +180,26 @@ func ResumeRead(k string) {
 	log.Debugf("queue: %s was resumed, signal: %v", k, size)
 }
 
-var adapters map[string]Queue
+var adapters map[string]QueueAPI=map[string]QueueAPI{}
 
-func Register(name string, h Queue) {
-	if adapters == nil {
-		adapters = map[string]Queue{}
+func RegisterDefaultHandler(h QueueAPI) {
+	defaultHandler=h
+}
+
+func IniQueue(name string, typeOfAdaptor string) {
+	handler,ok:=adapters[typeOfAdaptor]
+	if !ok{
+		panic(errors.Errorf("queue adaptor [%v] not found",typeOfAdaptor))
 	}
+	handlers[name]=handler
+}
+
+func Register(name string, h QueueAPI) {
 	_, ok := adapters[name]
 	if ok {
 		panic(errors.Errorf("queue handler with same name: %v already exists", name))
 	}
 
 	adapters[name] = h
-
-	handler = h
-
 	log.Debug("register queue handler: ", name)
-
 }

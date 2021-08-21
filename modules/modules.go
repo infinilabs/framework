@@ -35,6 +35,8 @@ func Register() {
 	module.RegisterSystemModule(filter.FilterModule{})
 	module.RegisterSystemModule(stats.SimpleStatsModule{})
 	module.RegisterSystemModule(queue.DiskQueue{})
+	module.RegisterSystemModule(&queue.RedisModule{})
+	module.RegisterSystemModule(&queue.QueueModule{})
 	module.RegisterSystemModule(api.APIModule{})
 	module.RegisterSystemModule(ui.UIModule{})
 	module.RegisterSystemModule(pipeline.PipeModule{})
