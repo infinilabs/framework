@@ -163,6 +163,8 @@ func GetConfig(k string) *ElasticsearchConfig {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
+	lock.RLock()
+	defer lock.RUnlock()
 	v, ok := cfgs[k]
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch config [%v] was not found", k))
