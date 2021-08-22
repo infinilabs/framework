@@ -1,2 +1,2 @@
-set GOPATH=%CD%;%CD%/vendor;%GOPATH%
+set GOPATH=%CD%;%CD%/../vendor;%GOPATH%
 go build

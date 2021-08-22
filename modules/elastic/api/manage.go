@@ -240,12 +240,12 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 	resBody["summary"] = summary
 
-	bucketSize:=60
+	bucketSize:=h.GetIntOrDefault(req,"bucket_size",10)//默认 10，每个 bucket 的时间范围，单位秒
+	metricCount:=h.GetIntOrDefault(req,"metric_count",15*60) //默认 15分钟的区间，每分钟15个指标，也就是 15*60 个 bucket
 
 	now := time.Now()
 	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(int(1.5*(float64(bucketSize))))).UnixNano()/1e6) ) //remove last bucket windows
-	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Minute*16).UnixNano()/1e6))
-
+	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(bucketSize*metricCount+1)).UnixNano()/1e6))
 
 	metrics:=h.GetClusterMetrics(id,bucketSize,min,max)
 	resBody["metrics"] = metrics
@@ -482,7 +482,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max string
 								}
 								//only keep positive value
 								if v3<0{
-									v3=0
+									continue
 								}
 								//v4:=int64(v3)/int64(bucketSize)
 								points:=[]interface{}{dateTime,v3}
