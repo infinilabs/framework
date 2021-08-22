@@ -48,7 +48,7 @@ func (t *Time) UnmarshalJSON(data []byte) (err error) {
 	if data[0] != []byte(`"`)[0] || data[len(data)-1] != []byte(`"`)[0] {
 		return errors.New("Not quoted")
 	}
-	*t, err = ParseTimeWithSpec(string(data[1 : len(data)-1]))
+	*t, err = ParseTimeWithStandardSpec(string(data[1 : len(data)-1]))
 	return
 }
 
@@ -58,10 +58,16 @@ func (t Time) Hash32(h hash.Hash32) error {
 }
 
 // ParseTime parses a time in the TsLayout format.
-func ParseTimeWithSpec(timespec string) (Time, error) {
-	t, err := time.Parse(TsLayout, timespec)
+func ParseTimeWithStandardSpec(value string) (Time, error) {
+	t, err := time.Parse(TsLayout, value)
 	return Time(t), err
 }
+
+func ParseStandardTime(value string) (time.Time, error) {
+	t, err := time.Parse(TsLayout, value)
+	return t, err
+}
+
 
 func (t Time) String() string {
 	return time.Time(t).Format(TsLayout)
@@ -69,8 +75,8 @@ func (t Time) String() string {
 
 // MustParseTime is a convenience equivalent of the ParseTime function
 // that panics in case of errors.
-func MustParseTime(timespec string) Time {
-	ts, err := ParseTimeWithSpec(timespec)
+func MustParseTime(value string) Time {
+	ts, err := ParseTimeWithStandardSpec(value)
 	if err != nil {
 		panic(err)
 	}

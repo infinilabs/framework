@@ -244,8 +244,57 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	metricCount:=h.GetIntOrDefault(req,"metric_count",15*60) //默认 15分钟的区间，每分钟15个指标，也就是 15*60 个 bucket
 
 	now := time.Now()
-	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(int(1.5*(float64(bucketSize))))).UnixNano()/1e6) ) //remove last bucket windows
-	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(bucketSize*metricCount+1)).UnixNano()/1e6))
+	//min,max are unix nanoseconds
+
+	minStr:=h.Get(req,"min","")
+	maxStr:=h.Get(req,"max","")
+
+	var min,max int
+	var rangeFrom,rangeTo time.Time
+	if minStr==""{
+		rangeFrom=now.Add(-time.Second*time.Duration(bucketSize*metricCount+1))
+	}else{
+		//try 2021-08-21T14:06:04.818Z
+		rangeFrom,err=util.ParseStandardTime(minStr)
+		if err!=nil{
+			//try 1629637500000
+			rangeFrom=util.FromUnixTimestamp(int64(min)/1000)
+		}
+	}
+
+	if maxStr==""{
+		rangeTo=now.Add(-time.Second*time.Duration(int(1*(float64(bucketSize)))))
+	}else{
+		rangeTo,err=util.ParseStandardTime(maxStr)
+		if err!=nil{
+			rangeTo=util.FromUnixTimestamp(int64(max)/1000)
+		}
+	}
+
+	min=int(rangeFrom.UnixNano()/1e6)
+	max=int(rangeTo.UnixNano()/1e6)
+	hours:=rangeTo.Sub(rangeFrom).Hours()
+
+	if hours<2{
+		bucketSize=10
+	}else if hours<12{
+		bucketSize=60
+	}else if hours< 25{//1day
+		bucketSize=60*5
+	}else if hours<= 7*24+1{//7days
+		bucketSize=60*15
+	}else if hours<= 15*24+1{//15days
+		bucketSize=60*30
+	}else if hours< 30*24+1{ //<30 days
+		bucketSize=60*60//hourly
+	}else if hours>= 30*24+1{ //>30days
+		bucketSize=12*60*60 //half daily
+	}else if hours>= 90*24+1{ //>90days
+		bucketSize=60*60*24//daily bucket
+	}
+
+	//fmt.Println(min," vs ",max,",",rangeFrom,rangeTo,"range hours:",hours)
+
 
 	metrics:=h.GetClusterMetrics(id,bucketSize,min,max)
 	resBody["metrics"] = metrics
@@ -332,7 +381,7 @@ func newMetricItem(metricKey string) *common.MetricItem  {
 }
 
 
-func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max string) map[string]*common.MetricItem {
+func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) map[string]*common.MetricItem {
 
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 
