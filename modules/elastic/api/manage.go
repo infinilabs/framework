@@ -243,7 +243,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	bucketSize:=60
 
 	now := time.Now()
-	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(bucketSize)).UnixNano()/1e6) ) //remove last bucket windows
+	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(int(1.5*(float64(bucketSize))))).UnixNano()/1e6) ) //remove last bucket windows
 	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Minute*16).UnixNano()/1e6))
 
 
