@@ -240,11 +240,13 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 	resBody["summary"] = summary
 
-	now := time.Now()
-	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.UnixNano()/1e6) )
-	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Minute*15).UnixNano()/1e6))
-
 	bucketSize:=60
+
+	now := time.Now()
+	max := h.GetParameterOrDefault(req, "max", fmt.Sprintf("%d", now.Add(-time.Second*time.Duration(bucketSize)).UnixNano()/1e6) ) //remove last bucket windows
+	min := h.GetParameterOrDefault(req, "min", fmt.Sprintf("%d", now.Add(-time.Minute*16).UnixNano()/1e6))
+
+
 	metrics:=h.GetClusterMetrics(id,bucketSize,min,max)
 	resBody["metrics"] = metrics
 
@@ -477,6 +479,10 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max string
 							if ok{
 								if strings.HasSuffix(mk1, "_deriv"){
 									v3 = v3/float64(bucketSize)
+								}
+								//only keep positive value
+								if v3<0{
+									v3=0
 								}
 								//v4:=int64(v3)/int64(bucketSize)
 								points:=[]interface{}{dateTime,v3}
