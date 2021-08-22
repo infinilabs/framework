@@ -36,12 +36,16 @@ type api1 struct {
 // QueueStatsAction return queue stats information
 func (handler api1) QueueStatsAction(w http.ResponseWriter, req *http.Request) {
 
-	data := map[string]int64{}
+	datas := map[string]map[string]int64{}
 	queues := queue.GetQueues()
-	for _, q := range queues {
-		data[q] = queue.Depth(q)
+	for t, qs := range queues {
+		data := map[string]int64{}
+		for _,q:=range qs{
+			data[q] = queue.Depth(q)
+		}
+		datas[t]=data
 	}
 	handler.WriteJSON(w, util.MapStr{
-		"depth": data,
+		"depth": datas,
 	}, 200)
 }

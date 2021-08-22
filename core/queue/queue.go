@@ -127,16 +127,18 @@ func Depth(k string) int64 {
 	panic(errors.New("handler is not registered"))
 }
 
-func GetQueues() []string {
-	result :=[]string{}
-	for _,handler:=range adapters{
+func GetQueues() map[string][]string {
+	results:=map[string][]string{}
+	for q,handler:=range adapters{
+		result :=[]string{}
 		if handler != nil {
 			o := handler.GetQueues()
-			stats.Increment("queue.", "get_queues")
+			stats.Increment("queue."+q, "get_queues")
 			result =append(result, o...)
+			results[q]=result
 		}
 	}
-	return result
+	return results
 }
 
 var pausedReadQueue = hashset.New()
