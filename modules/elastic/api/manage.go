@@ -258,7 +258,13 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		rangeFrom,err=util.ParseStandardTime(minStr)
 		if err!=nil{
 			//try 1629637500000
-			rangeFrom=util.FromUnixTimestamp(int64(min)/1000)
+			v,err:=util.ToInt(minStr)
+			if err!=nil{
+				log.Error("invalid timestamp:",minStr,err)
+				rangeFrom=now.Add(-time.Second*time.Duration(bucketSize*metricCount+1))
+			}else{
+				rangeFrom=util.FromUnixTimestamp(int64(v)/1000)
+			}
 		}
 	}
 
@@ -267,7 +273,13 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	}else{
 		rangeTo,err=util.ParseStandardTime(maxStr)
 		if err!=nil{
-			rangeTo=util.FromUnixTimestamp(int64(max)/1000)
+			v,err:=util.ToInt(maxStr)
+			if err!=nil{
+				log.Error("invalid timestamp:",maxStr,err)
+				rangeTo=now.Add(-time.Second*time.Duration(int(1*(float64(bucketSize)))))
+			}else{
+				rangeTo=util.FromUnixTimestamp(int64(v)/1000)
+			}
 		}
 	}
 
@@ -289,9 +301,9 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		bucketSize=60*30
 	}else if hours< 30*24+1{ //<30 days
 		bucketSize=60*60//hourly
-	}else if hours>= 30*24+1{ //>30days
+	}else if hours<= 30*24+1{ //<30days
 		bucketSize=12*60*60 //half daily
-	}else if hours>= 90*24+1{ //>90days
+	}else if hours>= 30*24+1{ //>30days
 		bucketSize=60*60*24//daily bucket
 	}
 
