@@ -34,6 +34,27 @@ const versionAPI = "/_framework/api/_version"
 
 // Start api server
 func (module APIModule) Setup(cfg *config.Config) {
+	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.Write([]byte(global.Env().GetAppCapitalName()))
+		w.Write([]byte(", "))
+		w.Write([]byte(global.Env().GetVersion()))
+		w.Write([]byte(", "))
+		w.Write([]byte(global.Env().GetBuildDate()))
+		w.Write([]byte(", "))
+		w.Write([]byte(global.Env().GetLastCommitLog()))
+		w.Write([]byte("\n\n"))
+
+		w.Write([]byte("API Directory:\n"))
+		for k,v:=range api.APIs{
+			w.Write([]byte(v))
+			w.Write([]byte("\t"))
+			w.Write([]byte(k))
+			w.Write([]byte("\n"))
+		}
+
+		w.WriteHeader(200)
+	})
+
 	api.HandleAPIMethod(api.GET, whoisAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
 		w.Write([]byte("\n"))
@@ -41,10 +62,6 @@ func (module APIModule) Setup(cfg *config.Config) {
 	})
 	api.HandleAPIMethod(api.GET, versionAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().GetVersion()))
-		w.Write([]byte("\n"))
-		w.Write([]byte(global.Env().GetLastCommitLog()))
-		w.Write([]byte("\n"))
-		w.Write([]byte(global.Env().GetBuildDate()))
 		w.Write([]byte("\n"))
 		w.WriteHeader(200)
 	})
