@@ -106,10 +106,15 @@ func (pipe *PipeRunner) decodeContext(context []byte) pipeline.Context {
 func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 
 	var inputMessage []byte
+	var err error
 	context := pipeline.Context{}
 	if pipe.config.InputQueue != "" {
 		log.Debug("consume message from queue, ", pipe.config.InputQueue)
-		inputMessage = <-queue.ReadChan(pipe.config.InputQueue)
+		inputMessage,err = queue.Pop(pipe.config.InputQueue)
+		if err!=nil{
+			log.Error(err)
+			return
+		}
 		stats.Increment("queue."+string(pipe.config.InputQueue), "pop")
 		context = pipe.decodeContext(inputMessage)
 

@@ -8,7 +8,8 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
-	"src/github.com/go-redis/redis"
+	log "github.com/cihub/seelog"
+	"github.com/go-redis/redis"
 	"time"
 )
 
@@ -21,7 +22,6 @@ type RedisConfig struct {
 	Enabled     bool `config:"enabled"`
 	Host     string `config:"host"`
 	Port     int    `config:"port"`
-	Channel  string `config:"channel"`
 	Password string `config:"password"`
 	Db       int    `config:"db"`
 }
@@ -42,8 +42,6 @@ func (module *RedisModule) Setup(cfg *config.Config) {
 
 type RedisQueue struct {
 	client *redis.Client
-	channel chan []byte
-	closed bool
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
@@ -51,35 +49,21 @@ func (module *RedisQueue) Push(k string, v []byte) error {
 	return err
 }
 
-func (module *RedisQueue) ReadChan(k string) <-chan []byte{
-
-	if module.closed{
-		return nil
-	}
-
-	//TODO improve
-	go func() {
-		msg:=<-module.client.Subscribe(k).Channel()
-		module.channel <- []byte(msg.Payload)
-	}()
-	return module.channel
-}
-
 func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	if timeoutDuration > 0 {
-		to := time.NewTimer(timeoutDuration)
-		for {
-			to.Reset(timeoutDuration)
-			select {
-			case b := <-module.ReadChan(k):
-				return b,false
-			case <-to.C:
-				return nil,true
-			}
+		msg,err:=module.client.PSubscribe(k).ReceiveTimeout(timeoutDuration)
+		if err!=nil{
+			log.Error(err)
+			return msg.([]byte),true
 		}
+		return msg.([]byte),false
 	} else {
-		b := <-module.ReadChan(k)
-		return b,false
+		msg,err:=module.client.PSubscribe(k).Receive()
+		if err!=nil{
+			log.Error(err)
+			return msg.([]byte),true
+		}
+		return msg.([]byte),false
 	}
 }
 
@@ -114,7 +98,7 @@ func (module *RedisModule) Start() error {
 		panic(err)
 	}
 
-	handler:=&RedisQueue{client: module.client,channel: make(chan []byte)}
+	handler:=&RedisQueue{client: module.client}
 	queue.Register("redis",handler)
 
 	return nil

@@ -13,10 +13,6 @@ type QueueModule struct {
 	configs []QueueConfig
 }
 
-//func New()module.Module  {
-//	return &QueueModule{}
-//}
-
 type QueueConfig struct {
 	Name string `config:"name"`
 	Type string `config:"type"`

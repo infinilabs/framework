@@ -29,7 +29,6 @@ type QueueAPI interface {
 
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte,timeout bool)
-	ReadChan(k string) <-chan []byte
 	Close(string) error
 	Depth(string) int64
 	GetQueues() []string
@@ -65,22 +64,6 @@ func Push(k string, v []byte) error {
 
 var pauseMsg = errors.New("queue was paused to read")
 
-func ReadChan(k string) <-chan []byte {
-	handler:=getHandler(k)
-	if handler != nil {
-		if pausedReadQueue.Contains(k) {
-			pauseLock.Lock()
-			pauseCount[k]++
-			pauseLock.Unlock()
-			log.Debugf("queue: %s was paused to read", k)
-			<-pauseChan[k]
-			log.Debugf("queue: %s was resumed to read", k)
-		}
-		return handler.ReadChan(k)
-	}
-	stats.Increment("queue."+k, "read_chan_error")
-	panic(errors.New("handler is not registered"))
-}
 
 func Pop(k string) ([]byte, error) {
 	handler:=getHandler(k)
