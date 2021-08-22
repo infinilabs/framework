@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/segmentio/encoding/json"
 	"regexp"
+	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 
@@ -473,6 +474,17 @@ func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
 		}
 		obj.ErrorObject = err
 		return obj
+	}
+
+	//dirty fix for es 7.0.0
+	if c.GetMajorVersion()==7{
+		v,err:=jsonparser.GetInt(resp.Body,"indices","segments","max_unsafe_auto_id_timestamp")
+		if err!=nil||v< -1{
+			d,err:=jsonparser.Set(resp.Body,[]byte("-1"),"indices","segments","max_unsafe_auto_id_timestamp")
+			if err==nil{
+				resp.Body=d
+			}
+		}
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
@@ -1062,6 +1074,7 @@ func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var response = &elastic.Stats{}
 	err = json.Unmarshal(resp.Body, response)
 	if err != nil {
