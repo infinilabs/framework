@@ -275,8 +275,10 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	max=int(rangeTo.UnixNano()/1e6)
 	hours:=rangeTo.Sub(rangeFrom).Hours()
 
-	if hours<2{
+	if hours<1{
 		bucketSize=10
+	}else if hours<2{
+		bucketSize=30
 	}else if hours<12{
 		bucketSize=60
 	}else if hours< 25{//1day
