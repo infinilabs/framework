@@ -70,8 +70,8 @@ func Pop(k string) ([]byte, error) {
 			return nil, pauseMsg
 		}
 
-		o, ok := handler.Pop(k, -1)
-		if !ok {
+		o, timeout := handler.Pop(k, -1)
+		if !timeout {
 			stats.Increment("queue."+k, "pop")
 			return o, nil
 		}
@@ -94,12 +94,12 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 			return nil,false, pauseMsg
 		}
 
-		o, ok := handler.Pop(k, timeoutInSeconds)
-		if !ok {
+		o, timeout := handler.Pop(k, timeoutInSeconds)
+		if !timeout {
 			stats.Increment("queue."+k, "pop")
 		}
 		stats.Increment("queue."+k, "pop_timeout")
-		return o,ok, nil
+		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
 }

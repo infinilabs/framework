@@ -4,12 +4,13 @@
 package queue
 
 import (
+	"context"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"github.com/go-redis/redis"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
+	"github.com/go-redis/redis"
+	"sync"
 	"time"
 )
 
@@ -22,7 +23,9 @@ type RedisConfig struct {
 	Enabled     bool `config:"enabled"`
 	Host     string `config:"host"`
 	Port     int    `config:"port"`
+	Username string `config:"username"`
 	Password string `config:"password"`
+	PoolSize int `config:"pool_size"`
 	Db       int    `config:"db"`
 }
 
@@ -33,6 +36,7 @@ func (module *RedisModule) Name() string {
 func (module *RedisModule) Setup(cfg *config.Config) {
 	module.config = RedisConfig{
 		Db: 0,
+		PoolSize: 1000,
 	}
 	ok, err := env.ParseConfig("redis", &module.config)
 	if ok && err != nil {
@@ -40,58 +44,62 @@ func (module *RedisModule) Setup(cfg *config.Config) {
 	}
 }
 
+var ctx = context.Background()
+
 type RedisQueue struct {
 	client *redis.Client
 	pubsub map[string]*redis.PubSub
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
-	_,err:=module.client.Publish(k,v).Result()
+	_,err:=module.client.Publish(ctx,k,v).Result()
 	return err
 }
+
 
 func (module *RedisQueue) getChannel(k string)*redis.PubSub{
 	v,ok:= module.pubsub[k]
 	if ok{
 		return v
 	}
-	v=module.client.PSubscribe(k)
+	v=module.client.PSubscribe(ctx,k)
 	module.pubsub[k]=v
 	return v
 }
 
-func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
-	if timeoutDuration > 0 {
-		msg,err:=module.getChannel(k).ReceiveTimeout(timeoutDuration)
-		if err!=nil{
-			log.Trace(err)
-			timeout=true
-		}
+var lock sync.RWMutex
 
-		m,ok:=msg.(*redis.Message)
-		if ok&&m!=nil{
-			data=[]byte(m.Payload)
-		}else{
-			timeout=true
+func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	pub:=module.getChannel(k)
+	if timeoutDuration > 0 {
+		to := time.NewTimer(timeoutDuration)
+		for {
+			to.Reset(timeoutDuration)
+			select {
+			case m := <-pub.Channel():
+				if m==nil||len(m.Payload)==0{
+					return nil,true
+				}
+				return []byte(m.Payload),false
+			case <-to.C:
+				return nil,true
+			}
 		}
 	} else {
-		msg,err:=module.getChannel(k).Receive()
-		if err!=nil{
-			log.Error(err)
-			timeout=true
+		m := <-pub.Channel()
+		if m==nil||len(m.Payload)==0{
+			return nil,true
 		}
-		m,ok:=msg.(*redis.Message)
-		if ok&&m!=nil{
-			data=[]byte(m.Payload)
-		}else {
-			timeout=true
-		}
+		return []byte(m.Payload),false
 	}
-	return data,timeout
 }
 
 func (module *RedisQueue) Close(k string) error {
-	return module.client.Subscribe(k).Close()
+	return module.client.Subscribe(ctx,k).Close()
 }
 
 func (module *RedisQueue) Depth(k string) int64 {
@@ -115,11 +123,13 @@ func (module *RedisModule) Start() error {
 
 	module.client = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%v", module.config.Host, module.config.Port),
+		Username: module.config.Username,
 		Password: module.config.Password,
+		PoolSize: module.config.PoolSize,
 		DB:       module.config.Db,
 	})
 
-	_, err := module.client.Ping().Result()
+	_, err := module.client.Ping(ctx).Result()
 	if err != nil {
 		panic(err)
 	}
