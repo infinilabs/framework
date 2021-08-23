@@ -5,11 +5,11 @@ package queue
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
+	"github.com/go-redis/redis"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
-	log "github.com/cihub/seelog"
-	"github.com/go-redis/redis"
 	"time"
 )
 
@@ -42,6 +42,7 @@ func (module *RedisModule) Setup(cfg *config.Config) {
 
 type RedisQueue struct {
 	client *redis.Client
+	pubsub map[string]*redis.PubSub
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
@@ -49,22 +50,44 @@ func (module *RedisQueue) Push(k string, v []byte) error {
 	return err
 }
 
+func (module *RedisQueue) getChannel(k string)*redis.PubSub{
+	v,ok:= module.pubsub[k]
+	if ok{
+		return v
+	}
+	v=module.client.PSubscribe(k)
+	module.pubsub[k]=v
+	return v
+}
+
 func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	if timeoutDuration > 0 {
-		msg,err:=module.client.PSubscribe(k).ReceiveTimeout(timeoutDuration)
+		msg,err:=module.getChannel(k).ReceiveTimeout(timeoutDuration)
 		if err!=nil{
-			log.Error(err)
-			return msg.([]byte),true
+			log.Trace(err)
+			timeout=true
 		}
-		return msg.([]byte),false
+
+		m,ok:=msg.(*redis.Message)
+		if ok&&m!=nil{
+			data=[]byte(m.Payload)
+		}else{
+			timeout=true
+		}
 	} else {
-		msg,err:=module.client.PSubscribe(k).Receive()
+		msg,err:=module.getChannel(k).Receive()
 		if err!=nil{
 			log.Error(err)
-			return msg.([]byte),true
+			timeout=true
 		}
-		return msg.([]byte),false
+		m,ok:=msg.(*redis.Message)
+		if ok&&m!=nil{
+			data=[]byte(m.Payload)
+		}else {
+			timeout=true
+		}
 	}
+	return data,timeout
 }
 
 func (module *RedisQueue) Close(k string) error {
@@ -78,6 +101,9 @@ func (module *RedisQueue) Depth(k string) int64 {
 
 func (module *RedisQueue) GetQueues() []string {
 	result := []string{}
+	for k,_:=range module.pubsub{
+		result=append(result,k)
+	}
 	return result
 }
 
@@ -98,7 +124,7 @@ func (module *RedisModule) Start() error {
 		panic(err)
 	}
 
-	handler:=&RedisQueue{client: module.client}
+	handler:=&RedisQueue{client: module.client,pubsub: map[string]*redis.PubSub{}}
 	queue.Register("redis",handler)
 
 	return nil

@@ -47,9 +47,7 @@ func getHandler(name string) QueueAPI {
 
 func Push(k string, v []byte) error {
 	var err error = nil
-
 	handler:=getHandler(k)
-
 	if handler != nil {
 		err = handler.Push(k, v)
 		if err == nil {
@@ -77,7 +75,7 @@ func Pop(k string) ([]byte, error) {
 			stats.Increment("queue."+k, "pop")
 			return o, nil
 		}
-		stats.Increment("queue."+k, "pop_error")
+		stats.Increment("queue."+k, "pop_timeout")
 		return o, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
@@ -100,7 +98,7 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 		if !ok {
 			stats.Increment("queue."+k, "pop")
 		}
-		stats.Increment("queue."+k, "pop_error")
+		stats.Increment("queue."+k, "pop_timeout")
 		return o,ok, nil
 	}
 	panic(errors.New("handler is not registered"))
