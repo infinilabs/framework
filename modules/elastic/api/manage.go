@@ -425,15 +425,22 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 
 
 	metricItem=newMetricItem("cluster_storage")
-	metricItem.AddAxi("storage","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	metricItem.AddAxi("shards","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddAxi("indices_storage","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	metricItem.AddAxi("available_storage","group2",common.PositionRight,"bytes","0.[0]","0.[0]",5,true)
 
 	metricItem.AddLine("Disk","Indices Storage","","group1","cluster_stats.indices.store.size_in_bytes","max",bucketSizeStr,"","bytes","0,0.[00]","0,0.[00]",false,false)
-	metricItem.AddLine("Disk","Available Disk","","group5","cluster_stats.nodes.fs.available_in_bytes","max",bucketSizeStr,"","bytes","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Disk","Available Disk","","group2","cluster_stats.nodes.fs.available_in_bytes","max",bucketSizeStr,"","bytes","0,0.[00]","0,0.[00]",false,false)
 
-	metricItem.AddLine("Indices Count","Indices Count","","group4","cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-	metricItem.AddLine("Shards Count","Shards Count","","group3","cluster_stats.indices.shards.total","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-	metricItem.AddLine("Documents Count","Documents Count","","group2","cluster_stats.indices.docs.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("cluster_documents")
+	metricItem.AddAxi("documents","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddAxi("counts","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
+
+	metricItem.AddLine("Documents Count","Documents Count","","group1","cluster_stats.indices.docs.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Indices Count","Indices Count","","group3","cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Shards Count","Shards Count","","group2","cluster_stats.indices.shards.total","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+
 	metricItems=append(metricItems,metricItem)
 
 
