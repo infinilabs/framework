@@ -222,7 +222,7 @@ func (h *APIHandler) HandleBulkGetIndexPatternAction(w http.ResponseWriter, req 
 				"fieldFormatMap":  hit.Source["fieldFormatMap"],
 			},
 			"score": 0,
-			"type": "index-pattern",
+			"type": "view",
 			"namespaces":[]string{"default"},
 			"migrationVersion": map[string]interface{}{"index-pattern": "7.6.0"},
 			"updated_at": hit.Source["updated_at"],
