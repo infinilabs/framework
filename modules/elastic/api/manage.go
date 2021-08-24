@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -325,10 +326,12 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 //TODO, use expired hash
 var clusters = map[string]elastic.ElasticsearchConfig{}
+var clustersMutex = &sync.RWMutex{}
 
 func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
-
+	clustersMutex.RLock()
 	config,ok:=clusters[id]
+	clustersMutex.RUnlock()
 	if !ok{
 		indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 		getResponse, err := h.Client().Get(indexName, "", id)
@@ -348,7 +351,9 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 		}
 
 		cfg.ID=id
+		clustersMutex.Lock()
 		clusters[id]=cfg
+		clustersMutex.Unlock()
 		config = cfg
 	}
 
