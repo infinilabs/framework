@@ -70,7 +70,7 @@ func (module DiskQueue) Setup(config *config.Config) {
 	cfg = &DiskQueueConfig{
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
-		MaxBytesPerFile:  10 * 1024 * 1024 * 1024, //10GB
+		MaxBytesPerFile:  1 * 1024 * 1024 * 1024, //1GB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
