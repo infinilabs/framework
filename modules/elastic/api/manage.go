@@ -189,6 +189,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	}
 
 	status:=client.GetClusterStats()
+	//TODO 拿不到在线状态，应该去取集群的最近的一个历史版本信息，而不是报错
 
 	summary:=map[string]interface{}{}
 	summary["cluster_name"]=status.ClusterName
