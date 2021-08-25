@@ -247,7 +247,6 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	}
 
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
-	fmt.Println(url)
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	esResp := &elastic.GetResponse{}
@@ -1337,7 +1336,7 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 	}
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 	return resultBytes, nil
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/tls"
 	//"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -14,7 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-	//"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/lib/fasthttp"
 )
 
 type APIHandler struct {
@@ -610,25 +611,25 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 	h.WriteJSON(w, status, http.StatusOK)
 }
 
-//func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-//	var (
-//		freq = fasthttp.AcquireRequest()
-//		fres = fasthttp.AcquireResponse()
-//	)
-//	defer func() {
-//		fasthttp.ReleaseRequest(freq)
-//		fasthttp.ReleaseResponse(fres)
-//	}()
-//
-//	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
-//	method = strings.ToUpper(method)
-//	freq.Header.SetMethod(method)
-//	freq.SetBodyStream(req.Body, -1)
-//	defer req.Body.Close()
-//	client := &fasthttp.Client{
-//		MaxConnsPerHost: 1000,
-//		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-//	}
-//	client.Do(freq, fres)
-//	b := fres.Body()
-//}
+func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var (
+		freq = fasthttp.AcquireRequest()
+		fres = fasthttp.AcquireResponse()
+	)
+	defer func() {
+		fasthttp.ReleaseRequest(freq)
+		fasthttp.ReleaseResponse(fres)
+	}()
+
+	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
+	method = strings.ToUpper(method)
+	freq.Header.SetMethod(method)
+	freq.SetBodyStream(req.Body, -1)
+	defer req.Body.Close()
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 1000,
+		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+	}
+	client.Do(freq, fres)
+	b := fres.Body()
+}

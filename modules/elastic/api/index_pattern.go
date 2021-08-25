@@ -314,7 +314,6 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	var fieldCaps = &elastic.FieldCapsResponse{}
 	err = json.Unmarshal(buf, fieldCaps)
 	if err != nil {
-		fmt.Println(string(buf))
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
