@@ -40,10 +40,10 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.A
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		ver, err = adapter.GetMajorVersion(esConfig)
-		if err != nil {
-			return nil, err
-		}
+		ver, _ = adapter.GetMajorVersion(esConfig)
+		//if err != nil {
+		//	return nil, err
+		//}
 		esConfig.Version = ver
 	} else {
 		ver = esConfig.Version
