@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	//"infini.sh/framework/lib/fasthttp"
 )
 
 type APIHandler struct {
@@ -357,11 +359,12 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 		config = cfg
 	}
 
-	client:=common.InitClientWithConfig(config)
+	client, _:=common.InitClientWithConfig(config)
 	elastic.RegisterInstance(id, config, client)
 
 	return true,client,nil
 }
+
 
 func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string] interface{}{}
@@ -582,3 +585,49 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 
 	return result
 }
+
+func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+	configs := elastic.GetAllConfigs()
+	var status = map[string]interface{}{}
+	for key, _ := range configs {
+		if key == "default" {
+			continue
+		}
+		client := elastic.GetClient(key)
+		nodes, _ := client.GetNodes()
+		status[key] = map[string]interface{}{
+			"version": client.ClusterVersion(),
+			"health_status": client.ClusterHealth().Status,
+			"nodes_count": len(*nodes),
+		}
+	}
+	h.WriteJSON(w, status, http.StatusOK)
+}
+
+//func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+//	var (
+//		freq = fasthttp.AcquireRequest()
+//		fres = fasthttp.AcquireResponse()
+//	)
+//	defer func() {
+//		fasthttp.ReleaseRequest(freq)
+//		fasthttp.ReleaseResponse(fres)
+//	}()
+//
+//	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
+//	method = strings.ToUpper(method)
+//	freq.Header.SetMethod(method)
+//	freq.SetBodyStream(req.Body, -1)
+//	defer req.Body.Close()
+//	client := &fasthttp.Client{
+//		MaxConnsPerHost: 1000,
+//		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+//	}
+//	client.Do(freq, fres)
+//	b := fres.Body()
+//}

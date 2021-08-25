@@ -101,6 +101,7 @@ func loadESBasedElasticConfig() {
 			bytes := util.MustToJSONBytes(v1.Source)
 			util.MustFromJSONBytes(bytes, &cfg)
 			cfg.ID = v1.ID.(string)
+			cfg.Discovery.Enabled = true
 			configs = append(configs, cfg)
 		}
 	}
@@ -130,7 +131,11 @@ func initElasticInstances() {
 			continue
 		}
 		esConfig.Init()
-		client := InitClientWithConfig(esConfig)
+		client, err := InitClientWithConfig(esConfig)
+		if err != nil {
+			log.Error("elasticsearch ", esConfig.Name, err)
+			continue
+		}
 		elastic.RegisterInstance(k, esConfig, client)
 	}
 }
@@ -231,7 +236,7 @@ func discovery() {
 	for _, cfg := range all {
 
 		if cfg.Discovery.Enabled {
-			client := elastic.GetClient(cfg.Name)
+			client := elastic.GetClient(cfg.ID)
 			nodes, err := client.GetNodes()
 
 			if err != nil {

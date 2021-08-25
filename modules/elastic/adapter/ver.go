@@ -25,15 +25,15 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-func GetMajorVersion(esConfig elastic.ElasticsearchConfig)string  {
+func GetMajorVersion(esConfig elastic.ElasticsearchConfig)(string, error)  {
 	esVersion, err := ClusterVersion(&esConfig)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return esVersion.Version.Number
+	return esVersion.Version.Number, nil
 }
 
-func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInformation, error) {
+func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterInformation, error) {
 
 	req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
 
@@ -48,7 +48,7 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInforma
 
 	response, err := util.ExecuteRequest(req)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if response.StatusCode!=200{
@@ -59,7 +59,7 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (elastic.ClusterInforma
 	err = json.Unmarshal(response.Body, &version)
 	if err != nil {
 		log.Error(string(response.Body))
-		panic(err)
+		return nil, err
 	}
-	return version, nil
+	return &version, nil
 }

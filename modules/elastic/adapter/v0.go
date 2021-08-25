@@ -45,8 +45,7 @@ func (c ESAPIV0) GetMajorVersion() int {
 	}
 
 	if c.Version == "" && c.Config.Endpoint != "" {
-		c.Version = GetMajorVersion(c.Config)
-
+		c.Version, _ = GetMajorVersion(c.Config)
 	}
 
 	if c.Version != "" {
@@ -248,6 +247,7 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	}
 
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
+	fmt.Println(url)
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	esResp := &elastic.GetResponse{}

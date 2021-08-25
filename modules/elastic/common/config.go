@@ -34,11 +34,16 @@ type ModuleConfig struct {
 
 }
 
-func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.API) {
+func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.API, err error) {
 
-	var ver string
+	var (
+		ver string
+	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		ver = adapter.GetMajorVersion(esConfig)
+		ver, err = adapter.GetMajorVersion(esConfig)
+		if err != nil {
+			return nil, err
+		}
 		esConfig.Version = ver
 	} else {
 		ver = esConfig.Version
@@ -80,6 +85,6 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.A
 		client = api
 	}
 
-	return client
+	return client, nil
 }
 
