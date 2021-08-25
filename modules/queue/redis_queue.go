@@ -52,6 +52,7 @@ type RedisQueue struct {
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
+	module.getChannel(k)
 	_,err:=module.client.Publish(ctx,k,v).Result()
 	return err
 }
