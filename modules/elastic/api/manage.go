@@ -2,7 +2,7 @@ package api
 
 import (
 	"crypto/tls"
-	//"crypto/tls"
+	"encoding/json"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
@@ -615,21 +615,46 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	var (
 		freq = fasthttp.AcquireRequest()
 		fres = fasthttp.AcquireResponse()
+		resBody = map[string] interface{}{}
 	)
 	defer func() {
 		fasthttp.ReleaseRequest(freq)
 		fasthttp.ReleaseResponse(fres)
 	}()
-
-	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
-	method = strings.ToUpper(method)
-	freq.Header.SetMethod(method)
-	freq.SetBodyStream(req.Body, -1)
+	var config = &elastic.ElasticsearchConfig{}
+	err := h.DecodeJSON(req, &config)
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("json decode error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	defer req.Body.Close()
+	freq.SetRequestURI(fmt.Sprintf("%s/", config.Endpoint))
+	freq.Header.SetMethod("GET")
+	if strings.TrimSpace(config.BasicAuth.Username) != ""{
+		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	}
+
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
-	client.Do(freq, fres)
+	err = client.Do(freq, fres)
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("request error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	b := fres.Body()
+	clusterInfo := &elastic.ClusterInformation{}
+	err = json.Unmarshal(b, clusterInfo)
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("cluster info decode error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	resBody["version"] = clusterInfo.Version.Number
+	resBody["cluster_name"] = clusterInfo.ClusterName
+	h.WriteJSON(w, resBody, http.StatusOK)
+
 }
