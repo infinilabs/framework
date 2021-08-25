@@ -6,10 +6,10 @@ package queue
 import (
 	"context"
 	"fmt"
+	"github.com/go-redis/redis"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
-	"github.com/go-redis/redis"
 	"sync"
 	"time"
 )
@@ -48,24 +48,23 @@ var ctx = context.Background()
 
 type RedisQueue struct {
 	client *redis.Client
-	pubsub map[string]*redis.PubSub
+	pubsub map[string]int
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
 	module.getChannel(k)
-	_,err:=module.client.Publish(ctx,k,v).Result()
+	_,err:=module.client.LPush(ctx,k,v).Result()
 	return err
 }
 
 
-func (module *RedisQueue) getChannel(k string)*redis.PubSub{
-	v,ok:= module.pubsub[k]
+func (module *RedisQueue) getChannel(k string){
+	_,ok:= module.pubsub[k]
 	if ok{
-		return v
+		return
 	}
-	v=module.client.PSubscribe(ctx,k)
-	module.pubsub[k]=v
-	return v
+	module.pubsub[k]=1
+	return
 }
 
 var lock sync.RWMutex
@@ -75,28 +74,24 @@ func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []b
 	lock.Lock()
 	defer lock.Unlock()
 
-	pub:=module.getChannel(k)
 	if timeoutDuration > 0 {
-		to := time.NewTimer(timeoutDuration)
-		for {
-			to.Reset(timeoutDuration)
-			select {
-			case m := <-pub.Channel():
-				if m==nil||len(m.Payload)==0{
-					return nil,true
-				}
-				return []byte(m.Payload),false
-			case <-to.C:
-				return nil,true
-			}
-		}
-	} else {
-		m := <-pub.Channel()
-		if m==nil||len(m.Payload)==0{
+		v,err:= module.client.BLPop(ctx,timeoutDuration,k).Result()
+		if err!=nil{
 			return nil,true
 		}
-		return []byte(m.Payload),false
+
+		if len(v)==1{
+			return []byte(v[0]),false
+		}
+
+	} else {
+		v,err:=module.client.LPop(ctx,k).Result()
+		if err!=nil{
+			return nil,true
+		}
+		return []byte(v),false
 	}
+	return nil,true
 }
 
 func (module *RedisQueue) Close(k string) error {
@@ -104,8 +99,11 @@ func (module *RedisQueue) Close(k string) error {
 }
 
 func (module *RedisQueue) Depth(k string) int64 {
-	//module.client.
-	return -1
+	c,err:=module.client.LLen(ctx,k).Result()
+	if err!=nil{
+		return -1
+	}
+	return c
 }
 
 func (module *RedisQueue) GetQueues() []string {
@@ -135,7 +133,7 @@ func (module *RedisModule) Start() error {
 		panic(err)
 	}
 
-	handler:=&RedisQueue{client: module.client,pubsub: map[string]*redis.PubSub{}}
+	handler:=&RedisQueue{client: module.client,pubsub: map[string]int{}}
 	queue.Register("redis",handler)
 
 	return nil
