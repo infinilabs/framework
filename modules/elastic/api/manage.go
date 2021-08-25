@@ -1,7 +1,7 @@
 package api
 
 import (
-	"crypto/tls"
+	//"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
