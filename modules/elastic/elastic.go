@@ -344,6 +344,7 @@ func (module ElasticModule) Start() error {
 	}
 
 	initElasticInstances()
+	log.Trace("loadESBasedElasticConfig completed")
 
 	t := task.ScheduleTask{
 		Description: "discovery nodes topology",

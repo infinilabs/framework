@@ -10,12 +10,12 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 type APIHandler struct {
@@ -43,6 +43,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	conf.Created = time.Now()
 	conf.Enabled=true
 	conf.Updated = conf.Created
+	conf.Endpoint = fmt.Sprintf("%s://%s", conf.Schema, conf.Host)
 	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
 	_, err = esClient.Index(index, "", id, conf)
 	if err != nil {
@@ -103,6 +104,13 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 		}
 		source[k] = v
 	}
+
+	if host, ok := conf["host"].(string); ok {
+		if schema, ok := conf["schema"].(string); ok {
+			source["endpoint"] =  fmt.Sprintf("%s://%s", schema, host)
+		}
+	}
+
 	conf["updated"] = time.Now()
 	_, err = esClient.Index(indexName, "", id, source)
 	if err != nil {
@@ -589,23 +597,15 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 }
 
 func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(err)
-		}
-	}()
 	configs := elastic.GetAllConfigs()
 	var status = map[string]interface{}{}
-	for key, _ := range configs {
+	for key, conf := range configs {
 		if key == "default" {
 			continue
 		}
-		client := elastic.GetClient(key)
-		nodes, _ := client.GetNodes()
 		status[key] = map[string]interface{}{
-			"version": client.ClusterVersion(),
-			"health_status": client.ClusterHealth().Status,
-			"nodes_count": len(*nodes),
+			"health_status": conf.IsAvailable(),
+			"nodes_count": 1,
 		}
 	}
 	h.WriteJSON(w, status, http.StatusOK)
@@ -625,24 +625,26 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err := h.DecodeJSON(req, &config)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("json decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteJSON(w, resBody, http.StatusOK)
 		return
 	}
 	defer req.Body.Close()
+	config.Endpoint = fmt.Sprintf("%s://%s", config.Schema, config.Host)
 	freq.SetRequestURI(fmt.Sprintf("%s/", config.Endpoint))
 	freq.Header.SetMethod("GET")
-	if strings.TrimSpace(config.BasicAuth.Username) != ""{
+	if config.BasicAuth != nil && strings.TrimSpace(config.BasicAuth.Username) != ""{
 		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
 	}
 
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+		ReadTimeout: time.Second * 5,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("request error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteJSON(w, resBody, http.StatusOK)
 		return
 	}
 	b := fres.Body()
@@ -650,11 +652,40 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = json.Unmarshal(b, clusterInfo)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("cluster info decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteJSON(w, resBody, http.StatusOK)
 		return
 	}
 	resBody["version"] = clusterInfo.Version.Number
 	resBody["cluster_name"] = clusterInfo.ClusterName
+
+	//fetch cluster health info
+	freq.SetRequestURI(fmt.Sprintf("%s/_cluster/health", config.Endpoint))
+	fres.Reset()
+	err = client.Do(freq, fres)
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("request cluster health info error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusOK)
+		return
+	}
+	var statusCode = fres.StatusCode()
+	if statusCode == http.StatusUnauthorized {
+		resBody["error"] = fmt.Sprintf("required authentication credentials")
+		h.WriteJSON(w, resBody, http.StatusOK)
+		return
+	}
+
+	healthInfo := &elastic.ClusterHealth{}
+	err = json.Unmarshal(fres.Body(), &healthInfo)
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("cluster health info decode error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusOK)
+		return
+	}
+	resBody["status"] = healthInfo.Status
+	resBody["number_of_nodes"] = healthInfo.NumberOfNodes
+	resBody["number_of_data_nodes"] = healthInfo.NumberOf_data_nodes
+	resBody["active_shards"] = healthInfo.ActiveShards
+
 	h.WriteJSON(w, resBody, http.StatusOK)
 
 }

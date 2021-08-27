@@ -125,9 +125,10 @@ type ElasticsearchConfig struct {
 	clusterFailureTicket int
 	clusterOnFailure     bool
 	clusterAvailable     bool
-	schema string
+	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
 	configLock sync.RWMutex
+	Host string `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 }
 
 //format: host:port
@@ -147,16 +148,16 @@ func (config *ElasticsearchConfig) IsTLS() bool {
 	}
 }
 
-func (config *ElasticsearchConfig) Schema() string {
-	if config.schema!=""{
-		return config.schema
+func (config *ElasticsearchConfig) GetSchema() string {
+	if config.Schema!=""{
+		return config.Schema
 	}
 	if strings.Contains(config.Endpoint, "https") {
-		config.schema= "https"
+		config.Schema= "https"
 	} else {
-		config.schema= "http"
+		config.Schema= "http"
 	}
-	return config.schema
+	return config.Schema
 }
 
 func GetConfig(k string) *ElasticsearchConfig {

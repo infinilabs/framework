@@ -11,7 +11,7 @@ func Init(cfg common.ModuleConfig) {
 
 	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/health", clusterAPI.GetClusterHealth)
 	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/metrics", clusterAPI.HandleClusterMetricsAction)
-	ui.HandleUIMethod(api.POST, "/elasticsearch", clusterAPI.HandleCreateClusterAction)
+	ui.HandleUIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)
 	ui.HandleUIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
 	ui.HandleUIMethod(api.GET, "/elasticsearch/:id", clusterAPI.HandleGetClusterAction)
 	ui.HandleUIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.HandleUpdateClusterAction)
