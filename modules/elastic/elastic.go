@@ -124,6 +124,7 @@ func loadESBasedElasticConfig() {
 
 }
 
+
 func initElasticInstances() {
 	for k, esConfig := range m {
 		if !esConfig.Enabled {
@@ -251,7 +252,7 @@ func discovery() {
 
 			cfg.ReportSuccess()
 
-			oldMetadata := elastic.GetMetadata(cfg.Name)
+			oldMetadata := elastic.GetMetadata(cfg.ID)
 			newMetadata := elastic.ElasticsearchMetadata{}
 
 			//Nodes
@@ -326,11 +327,20 @@ func discovery() {
 				aliasesChanged = true
 			}
 
-			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged {
+			//health status
+			var healthChanged bool
+			health := client.ClusterHealth()
+			if health != nil {
+				//TODO check if that changed or skip replace
+				newMetadata.HealthStatus = health.Status
+				healthChanged = true
+			}
+
+			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
 				if global.Env().IsDebug {
 					log.Trace("elasticsearch metadata updated,", newMetadata)
 				}
-				elastic.SetMetadata(cfg.Name, &newMetadata)
+				elastic.SetMetadata(cfg.ID, &newMetadata)
 			}
 
 		}

@@ -4,6 +4,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
+	log "src/github.com/cihub/seelog"
 	"strings"
 )
 
@@ -88,3 +89,17 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.A
 	return client, nil
 }
 
+func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, error){
+	if !esConfig.Enabled {
+		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
+		return nil, nil
+	}
+	esConfig.Init()
+	client, err := InitClientWithConfig(esConfig)
+	if err != nil {
+		log.Error("elasticsearch ", esConfig.Name, err)
+		return client, err
+	}
+	elastic.RegisterInstance(esConfig.ID, esConfig, client)
+	return client, err
+}

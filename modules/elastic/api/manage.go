@@ -55,6 +55,12 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	resBody["_source"] = conf
 	resBody["_id"] = id
 	resBody["result"] = "created"
+	conf.ID = id
+	conf.Discovery.Enabled = true
+	_, err = common.InitElasticInstance(*conf)
+	if err != nil {
+		log.Warn("regist config and init client error: ", err)
+	}
 
 	h.WriteJSON(w, resBody,http.StatusOK)
 
@@ -74,6 +80,11 @@ func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Req
 			h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		}
 		return
+	}
+	if basicAuth, ok := getResponse.Source["basic_auth"]; ok {
+		if authMap, ok := basicAuth.(map[string]interface{}); ok {
+			delete(authMap, "password")
+		}
 	}
 	h.WriteJSON(w,getResponse,200)
 }
@@ -122,6 +133,18 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	resBody["_id"] = id
 	resBody["result"] = "updated"
 
+	//update config in heap
+	confBytes, _ := json.Marshal(source)
+	newConf := &elastic.ElasticsearchConfig{}
+	json.Unmarshal(confBytes, newConf)
+	newConf.ID = id
+	newConf.Discovery.Enabled = true
+	newConf.Enabled = true
+	_, err = common.InitElasticInstance(*newConf)
+	if err != nil {
+		log.Warn("re regist config and init client error: ", err)
+	}
+
 	h.WriteJSON(w, resBody,http.StatusOK)}
 
 func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
@@ -141,6 +164,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 		return
 	}
 
+	elastic.RemoveInstance(id)
 	resBody["_id"] = id
 	resBody["result"] = response.Result
 	h.WriteJSON(w, resBody, response.StatusCode)
@@ -171,6 +195,16 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String())
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
+
+	if len(res.Hits.Hits) > 0 {
+		for _, hit := range res.Hits.Hits {
+			if basicAuth, ok := hit.Source["basic_auth"]; ok {
+				if authMap, ok := basicAuth.(map[string]interface{}); ok {
+					delete(authMap, "password")
+				}
+			}
+		}
+	}
 
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -603,9 +637,13 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 		if key == "default" {
 			continue
 		}
+		meta := elastic.GetMetadata(conf.ID)
+		if meta == nil {
+			continue
+		}
 		status[key] = map[string]interface{}{
-			"health_status": conf.IsAvailable(),
-			"nodes_count": 1,
+			"health_status": meta.HealthStatus,
+			"nodes_count": len(meta.Nodes),
 		}
 	}
 	h.WriteJSON(w, status, http.StatusOK)

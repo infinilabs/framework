@@ -17,12 +17,15 @@ limitations under the License.
 package adapter
 
 import (
+	"crypto/tls"
 	"github.com/segmentio/encoding/json"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/fasthttp"
+	"time"
 )
 
 func GetMajorVersion(esConfig elastic.ElasticsearchConfig)(string, error)  {
@@ -35,31 +38,84 @@ func GetMajorVersion(esConfig elastic.ElasticsearchConfig)(string, error)  {
 
 func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterInformation, error) {
 
-	req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
+	//req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
+	//
+	//req.SetContentType(util.ContentTypeJson)
+	//
+	//if config.BasicAuth != nil {
+	//	req.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	//}
+	//if config.HttpProxy != "" {
+	//	req.SetProxy(config.HttpProxy)
+	//}
+	//
+	//response, err := util.ExecuteRequest(req)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//if response.StatusCode!=200{
+	//	panic(errors.New(string(response.Body)))
+	//}
+	//
+	//version := elastic.ClusterInformation{}
+	//err = json.Unmarshal(response.Body, &version)
+	//if err != nil {
+	//	log.Error(string(response.Body))
+	//	return nil, err
+	//}
+	//return &version, nil
 
-	req.SetContentType(util.ContentTypeJson)
-
-	if config.BasicAuth != nil {
-		req.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
-	}
-	if config.HttpProxy != "" {
-		req.SetProxy(config.HttpProxy)
-	}
-
-	response, err := util.ExecuteRequest(req)
+	url := fmt.Sprintf("%s", config.Endpoint)
+	result, err := RequestTimeout("GET", url, nil, config, time.Second * 3)
 	if err != nil {
 		return nil, err
 	}
 
-	if response.StatusCode!=200{
-		panic(errors.New(string(response.Body)))
+	if result.StatusCode!=200{
+		return nil, errors.New(string(result.Body))
 	}
 
 	version := elastic.ClusterInformation{}
-	err = json.Unmarshal(response.Body, &version)
+	err = json.Unmarshal(result.Body, &version)
 	if err != nil {
-		log.Error(string(response.Body))
+		log.Error(string(result.Body))
 		return nil, err
 	}
 	return &version, nil
+}
+
+func RequestTimeout(method, url string, body []byte, config *elastic.ElasticsearchConfig, timeout time.Duration) (result *util.Result, err error) {
+	var (
+		req = fasthttp.AcquireRequest()
+		res = fasthttp.AcquireResponse()
+	)
+	defer func() {
+		fasthttp.ReleaseRequest(req)
+		fasthttp.ReleaseResponse(res)
+	}()
+
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 1000,
+		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+		ReadTimeout: time.Second * 60,
+	}
+	req.Header.SetMethod(method)
+	req.SetBody(body)
+	req.SetRequestURI(url)
+	req.Header.SetContentType(util.ContentTypeJson)
+	if config != nil && config.BasicAuth != nil {
+		req.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	}
+
+	err = client.DoTimeout(req, res, timeout)
+	if err != nil {
+		return nil, err
+	}
+	result = &util.Result{
+		Body: res.Body(),
+		StatusCode: res.StatusCode(),
+	}
+	return result, nil
+
 }

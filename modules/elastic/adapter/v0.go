@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
 	"regexp"
-	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 

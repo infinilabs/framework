@@ -29,6 +29,7 @@ import (
 
 var apis = map[string]API{}
 var cfgs = map[string]*ElasticsearchConfig{}
+
 var metas = map[string]*ElasticsearchMetadata{}
 var lock = sync.RWMutex{}
 
@@ -51,6 +52,21 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 
 }
 
+func RemoveInstance(elastic string){
+	lock.Lock()
+	defer lock.Unlock()
+	if cfgs != nil {
+		delete(cfgs, elastic)
+	}
+	if apis != nil {
+		delete(apis, elastic)
+	}
+	if metas != nil {
+		delete(metas, elastic)
+	}
+
+}
+
 type ElasticsearchMetadata struct {
 	NodesTopologyVersion int
 	IndicesChanged       bool
@@ -58,6 +74,7 @@ type ElasticsearchMetadata struct {
 	Indices              map[string]IndexInfo
 	PrimaryShards        map[string]map[int]ShardInfo
 	Aliases              map[string]AliasInfo
+	HealthStatus string
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
