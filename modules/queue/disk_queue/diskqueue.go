@@ -233,6 +233,9 @@ func (d *diskQueue) skipToNextRWFile() error {
 	}
 
 	for i := d.readFileNum; i <= d.writeFileNum; i++ {
+
+		//TODO, keep old files for a configure time window
+
 		fn := d.fileName(i)
 		innerErr := os.Remove(fn)
 		if innerErr != nil && !os.IsNotExist(innerErr) {
@@ -260,6 +263,10 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 	if d.readFile == nil {
 		curFileName := d.fileName(d.readFileNum)
+
+		//TODO if the file was compressed, decompress it first, and decompress few files ahead, keep # files decompressed
+		//fmt.Println("opening file:",curFileName)
+
 		d.readFile, err = os.OpenFile(curFileName, os.O_RDONLY, 0600)
 		if err != nil {
 			return nil, err
@@ -365,6 +372,8 @@ func (d *diskQueue) writeOne(data []byte) error {
 		return fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.minMsgSize, d.maxMsgSize)
 	}
 
+	//TODO, checking max storage and available storage
+
 	d.writeBuf.Reset()
 	err = binary.Write(&d.writeBuf, binary.BigEndian, dataLen)
 	if err != nil {
@@ -406,6 +415,11 @@ func (d *diskQueue) writeOne(data []byte) error {
 			d.writeFile.Close()
 			d.writeFile = nil
 		}
+
+
+		//TODO checking for storage, warning or throttling queue push
+		//checking file list and compress file
+		//如果已有多少个文件未压缩，则新文件默认则压缩存储
 	}
 
 	return err
