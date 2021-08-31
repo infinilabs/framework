@@ -12,10 +12,10 @@ var fileHandlers = map[string]*RotateWriter{}
 var lock sync.RWMutex
 
 type RotateConfig struct {
-	Compress     bool
-	MaxFileAge   int
-	MaxFileCount int
-	MaxFileSize  int
+	Compress     bool `config:"compress_after_rotate"`
+	MaxFileAge   int  `config:"max_file_age"`
+	MaxFileCount int  `config:"max_file_count"`
+	MaxFileSize  int  `config:"max_file_size_in_mb"`
 }
 
 var DefaultConfig = RotateConfig{
