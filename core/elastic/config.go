@@ -75,6 +75,7 @@ type ElasticsearchMetadata struct {
 	PrimaryShards        map[string]map[int]ShardInfo
 	Aliases              map[string]AliasInfo
 	HealthStatus string
+	ClusterAvailable bool
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
@@ -243,15 +244,19 @@ func (config *ElasticsearchConfig) ReportFailure() bool {
 	}
 
 	config.clusterOnFailure = true
-	if rate.GetRateLimiter("cluster_failure", config.Name, 1, 1, time.Second*1).Allow() {
+	if rate.GetRateLimiter("cluster_failure", config.ID, 1, 1, time.Second*1).Allow() {
 		log.Debug("vote failure ticket++")
 		config.clusterFailureTicket++
 		if config.clusterFailureTicket >= 10 {
 			log.Debug("enough failure ticket, mark it down")
-			config.clusterFailureTicket = 10
 			config.clusterAvailable = false
 			config.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is not available", config.Name)
+			log.Infof("elasticsearch [%v] is not available", config.ID)
+			meta := GetMetadata(config.ID)
+			if meta != nil {
+				meta.ClusterAvailable = false
+			}
+			SetMetadata(config.ID, meta)
 			return true
 		}
 	}
@@ -288,12 +293,12 @@ func (config *ElasticsearchConfig) ReportSuccess() {
 	defer config.configLock.Unlock()
 
 	if config.clusterOnFailure && !config.clusterAvailable {
-		if rate.GetRateLimiter("cluster_recovery_health", config.Name, 1, 1, time.Second*1).Allow() {
+		if rate.GetRateLimiter("cluster_recovery_health", config.ID, 1, 1, time.Second*1).Allow() {
 			log.Debug("vote success ticket++")
 			config.clusterOnFailure = false
 			config.clusterAvailable = true
 			config.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is coming back", config.Name)
+			log.Infof("elasticsearch [%v] is coming back", config.ID)
 		}
 	}
 }

@@ -197,7 +197,6 @@ func monitoring() {
 			all := elastic.GetAllConfigs()
 			for k, v := range all {
 
-
 				if !v.Monitored || !v.Enabled {
 					continue
 				}
@@ -206,6 +205,10 @@ func monitoring() {
 				client := elastic.GetClient(k)
 				stats := client.GetClusterStats()
 				indexStats,err := client.GetStats()
+				if err != nil {
+					log.Error(v.Name, " get cluster stats error: ", err)
+					continue
+				}
 
 				v.ReportSuccess()
 
@@ -242,11 +245,13 @@ func discovery() {
 
 			if err != nil {
 				log.Error(err)
+				cfg.ReportFailure()
 				continue
 			}
 
 			if nodes == nil || len(*nodes) <= 0 {
 				log.Error(cfg.Name," nodes info not retrieved")
+				cfg.ReportFailure()
 				continue
 			}
 
@@ -335,6 +340,7 @@ func discovery() {
 				newMetadata.HealthStatus = health.Status
 				healthChanged = true
 			}
+			newMetadata.ClusterAvailable = cfg.IsAvailable()
 
 			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
 				if global.Env().IsDebug {
