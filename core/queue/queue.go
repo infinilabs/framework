@@ -47,6 +47,9 @@ func getHandler(name string) QueueAPI {
 
 func Push(k string, v []byte) error {
 	var err error = nil
+	if k==""{
+		panic(errors.New("queue name can't be nil"))
+	}
 	handler:=getHandler(k)
 	if handler != nil {
 		err = handler.Push(k, v)
@@ -64,6 +67,10 @@ var pauseMsg = errors.New("queue was paused to read")
 
 
 func Pop(k string) ([]byte, error) {
+	if k==""{
+		panic(errors.New("queue name can't be nil"))
+	}
+
 	handler:=getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
@@ -82,6 +89,10 @@ func Pop(k string) ([]byte, error) {
 }
 
 func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout bool,err error) {
+	if k==""{
+		panic(errors.New("queue name can't be nil"))
+	}
+
 	if timeoutInSeconds < 1 {
 		timeoutInSeconds = 5
 	}
@@ -116,6 +127,10 @@ func Close(k string) error {
 }
 
 func Depth(k string) int64 {
+	if k==""{
+		panic(errors.New("queue name can't be nil"))
+	}
+
 	handler:=getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k)
@@ -170,6 +185,10 @@ func RegisterDefaultHandler(h QueueAPI) {
 }
 
 func IniQueue(name string, typeOfAdaptor string) {
+	if name==""{
+		panic(errors.New("queue name can't be nil"))
+	}
+
 	handler,ok:=adapters[typeOfAdaptor]
 	if !ok{
 		panic(errors.Errorf("queue adaptor [%v] not found",typeOfAdaptor))
