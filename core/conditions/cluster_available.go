@@ -1,9 +1,9 @@
 package conditions
 
 import (
-	"infini.sh/framework/core/errors"
 	"fmt"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/errors"
 )
 
 type ClusterAvailable []string
@@ -14,7 +14,7 @@ func NewClusterAvailableCondition(names []string) (ClusterAvailable) {
 
 func (c ClusterAvailable) Check(event ValuesMap) bool {
 	for _, field := range c {
-		cfg:=elastic.GetConfig(field)
+		cfg:=elastic.GetMetadata(field)
 		if cfg==nil{
 			panic(errors.Errorf("elasticsearch config [%v] not found, ",c))
 		}

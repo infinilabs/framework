@@ -637,16 +637,11 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 		if key == "default" {
 			continue
 		}
-		meta := elastic.GetMetadata(conf.ID)
-		if meta == nil {
-			meta = &elastic.ElasticsearchMetadata{
-				ClusterAvailable: false,
-			}
-		}
+		meta := elastic.GetOrInitMetadata(conf)
 		status[key] = map[string]interface{}{
 			"health_status": meta.HealthStatus,
 			"nodes_count": len(meta.Nodes),
-			"cluster_available": meta.ClusterAvailable,
+			"cluster_available": meta.IsAvailable(),
 		}
 	}
 	h.WriteJSON(w, status, http.StatusOK)

@@ -68,6 +68,8 @@ func RemoveInstance(elastic string){
 }
 
 type ElasticsearchMetadata struct {
+	Config *ElasticsearchConfig
+
 	NodesTopologyVersion int
 	IndicesChanged       bool
 	Nodes                map[string]NodesInfo
@@ -75,7 +77,12 @@ type ElasticsearchMetadata struct {
 	PrimaryShards        map[string]map[int]ShardInfo
 	Aliases              map[string]AliasInfo
 	HealthStatus string
-	ClusterAvailable bool
+
+	clusterFailureTicket int
+	clusterOnFailure     bool
+	clusterAvailable     bool
+	lastSuccess time.Time
+	configLock sync.RWMutex
 }
 
 func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
@@ -140,12 +147,8 @@ type ElasticsearchConfig struct {
 	Created time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
 
-	clusterFailureTicket int
-	clusterOnFailure     bool
-	clusterAvailable     bool
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
-	configLock sync.RWMutex
 	Host string `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 }
 
@@ -167,6 +170,9 @@ func (config *ElasticsearchConfig) IsTLS() bool {
 }
 
 func (config *ElasticsearchConfig) GetSchema() string {
+	lock.RLock()
+	defer lock.RUnlock()
+
 	if config.Schema!=""{
 		return config.Schema
 	}
@@ -191,13 +197,22 @@ func GetConfig(k string) *ElasticsearchConfig {
 	return v
 }
 
+func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
+	v:=GetMetadata(cfg.ID)
+	if v==nil{
+		v=&ElasticsearchMetadata{Config: cfg}
+		SetMetadata(cfg.ID,v)
+	}
+	return v
+}
+
 func GetMetadata(k string) *ElasticsearchMetadata {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch metata undefined"))
 	}
 
-	lock.RLock()
-	defer lock.RUnlock()
+	lock.Lock()
+	defer lock.Unlock()
 
 	v, ok := metas[k]
 	if !ok {
@@ -223,6 +238,13 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
+func GetAllMetadata() map[string]*ElasticsearchMetadata {
+	lock.Lock()
+	defer lock.Unlock()
+
+	return metas
+}
+
 func GetAllConfigs() map[string]*ElasticsearchConfig {
 	return cfgs
 }
@@ -235,70 +257,68 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas[k] = v
 }
 
-func (config *ElasticsearchConfig) ReportFailure() bool {
-	config.configLock.Lock()
-	defer config.configLock.Unlock()
+func (meta *ElasticsearchMetadata) ReportFailure() bool {
+	meta.configLock.Lock()
+	defer meta.configLock.Unlock()
 
-	if !config.clusterAvailable {
+	if !meta.clusterAvailable {
 		return true
 	}
 
-	config.clusterOnFailure = true
-	if rate.GetRateLimiter("cluster_failure", config.ID, 1, 1, time.Second*1).Allow() {
+	meta.clusterOnFailure = true
+	if rate.GetRateLimiter("cluster_failure", meta.Config.ID, 1, 1, time.Second*1).Allow() {
 		log.Debug("vote failure ticket++")
-		config.clusterFailureTicket++
-		if config.clusterFailureTicket >= 10 {
+		meta.clusterFailureTicket++
+		if meta.clusterFailureTicket >= 10 ||time.Since(meta.lastSuccess)>10*time.Second{
 			log.Debug("enough failure ticket, mark it down")
-			config.clusterAvailable = false
-			config.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is not available", config.ID)
-			meta := GetMetadata(config.ID)
-			if meta != nil {
-				meta.ClusterAvailable = false
-			}
-			SetMetadata(config.ID, meta)
+			meta.clusterAvailable = false
+			meta.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is not available", meta.Config.ID)
 			return true
 		}
 	}
 	return false
 }
 
-func (config *ElasticsearchConfig) IsAvailable() bool {
-	if !config.Enabled {
+func (meta *ElasticsearchMetadata) IsAvailable() bool {
+	if !meta.Config.Enabled {
 		return false
 	}
 
-	config.configLock.RLock()
-	defer config.configLock.RUnlock()
+	meta.configLock.RLock()
+	defer meta.configLock.RUnlock()
 
-	return config.clusterAvailable
+	return meta.clusterAvailable
 }
 
-func (config *ElasticsearchConfig) Init() {
-	config.clusterAvailable = true
-	config.clusterOnFailure = false
-	config.clusterFailureTicket = 0
+func (meta *ElasticsearchMetadata) Init() {
+	meta.clusterAvailable = true
+	meta.clusterOnFailure = false
+	meta.clusterFailureTicket = 0
 }
 
-func (config *ElasticsearchConfig) ReportSuccess() {
-	if !config.Enabled {
+func (meta *ElasticsearchMetadata) ReportSuccess() {
+
+	meta.lastSuccess=time.Now()
+
+	if !meta.Config.Enabled {
 		return
 	}
 
-	if config.clusterAvailable {
+	if meta.clusterAvailable {
 		return
 	}
 
-	config.configLock.Lock()
-	defer config.configLock.Unlock()
+	meta.configLock.Lock()
+	defer meta.configLock.Unlock()
 
-	if config.clusterOnFailure && !config.clusterAvailable {
-		if rate.GetRateLimiter("cluster_recovery_health", config.ID, 1, 1, time.Second*1).Allow() {
+	if meta.clusterOnFailure && !meta.clusterAvailable {
+		if rate.GetRateLimiter("cluster_recovery_health", meta.Config.ID, 1, 1, time.Second*1).Allow() {
 			log.Debug("vote success ticket++")
-			config.clusterOnFailure = false
-			config.clusterAvailable = true
-			config.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is coming back", config.ID)
+			meta.clusterOnFailure = false
+			meta.clusterAvailable = true
+			meta.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is coming back", meta.Config.ID)
 		}
 	}
 }

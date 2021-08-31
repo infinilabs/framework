@@ -94,7 +94,6 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 		return nil, nil
 	}
-	esConfig.Init()
 	client, err := InitClientWithConfig(esConfig)
 	if err != nil {
 		log.Error("elasticsearch ", esConfig.Name, err)

@@ -79,7 +79,7 @@ func (module PipeModule) Start() error {
 	}
 	if ok {
 		for _, v := range pipelines {
-			go func() {
+			go func(v PipelineConfigV2) {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
@@ -105,7 +105,7 @@ func (module PipeModule) Start() error {
 				if err != nil {
 					panic(err)
 				}
-			}()
+			}(v)
 
 		}
 	}

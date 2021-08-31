@@ -131,7 +131,6 @@ func initElasticInstances() {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
 		}
-		esConfig.Init()
 		client, err := InitClientWithConfig(esConfig)
 		if err != nil {
 			log.Error("elasticsearch ", esConfig.Name, err)
@@ -194,10 +193,10 @@ func monitoring() {
 		Type:        "interval",
 		Interval:    "10s",
 		Task: func() {
-			all := elastic.GetAllConfigs()
+			all := elastic.GetAllMetadata()
 			for k, v := range all {
 
-				if !v.Monitored || !v.Enabled {
+				if !v.Config.Monitored || !v.Config.Enabled {
 					continue
 				}
 
@@ -206,14 +205,14 @@ func monitoring() {
 				stats := client.GetClusterStats()
 				indexStats,err := client.GetStats()
 				if err != nil {
-					log.Error(v.Name, " get cluster stats error: ", err)
+					log.Error(v.Config.Name, " get cluster stats error: ", err)
 					continue
 				}
 
 				v.ReportSuccess()
 
 				item := MonitoringItem{}
-				item.Elasticsearch = v.ID
+				item.Elasticsearch = v.Config.ID
 				item.ClusterStats = stats
 				if indexStats!=nil{
 					item.IndexStats = indexStats.All
@@ -243,22 +242,24 @@ func discovery() {
 			client := elastic.GetClient(cfg.ID)
 			nodes, err := client.GetNodes()
 
+			oldMetadata := elastic.GetOrInitMetadata(cfg)
+
 			if err != nil {
 				log.Error(err)
-				cfg.ReportFailure()
+				oldMetadata.ReportFailure()
 				continue
 			}
 
 			if nodes == nil || len(*nodes) <= 0 {
 				log.Error(cfg.Name," nodes info not retrieved")
-				cfg.ReportFailure()
+				oldMetadata.ReportFailure()
 				continue
 			}
 
-			cfg.ReportSuccess()
+			oldMetadata.ReportSuccess()
 
-			oldMetadata := elastic.GetMetadata(cfg.ID)
-			newMetadata := elastic.ElasticsearchMetadata{}
+			newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
+			newMetadata.Init()
 
 			//Nodes
 			//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
@@ -340,7 +341,6 @@ func discovery() {
 				newMetadata.HealthStatus = health.Status
 				healthChanged = true
 			}
-			newMetadata.ClusterAvailable = cfg.IsAvailable()
 
 			if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
 				if global.Env().IsDebug {
