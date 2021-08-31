@@ -201,6 +201,7 @@ func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 	v:=GetMetadata(cfg.ID)
 	if v==nil{
 		v=&ElasticsearchMetadata{Config: cfg}
+		v.Init()
 		SetMetadata(cfg.ID,v)
 	}
 	return v

@@ -234,11 +234,15 @@ func monitoring() {
 }
 
 func discovery() {
+	discoveryMetadata(false)
+}
+
+func discoveryMetadata(force bool) {
 	all := elastic.GetAllConfigs()
 
 	for _, cfg := range all {
 
-		if cfg.Discovery.Enabled {
+		if cfg.Discovery.Enabled||force {
 			client := elastic.GetClient(cfg.ID)
 			nodes, err := client.GetNodes()
 
@@ -371,7 +375,7 @@ func (module ElasticModule) Start() error {
 
 	task.RegisterScheduleTask(t)
 
-	discovery()
+	discoveryMetadata(true)
 
 	if moduleConfig.MonitoringConfig.Enabled {
 		monitoring()
