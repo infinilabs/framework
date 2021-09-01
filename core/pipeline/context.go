@@ -17,6 +17,7 @@ limitations under the License.
 package pipeline
 
 import (
+	"context"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
@@ -46,6 +47,7 @@ type Context struct {
 	PipelineID string
 	flowProcess []string
 	finished bool
+	context.Context
 }
 
 func (ctx *Context)ResetContext()  {
