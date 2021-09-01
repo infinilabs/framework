@@ -268,13 +268,13 @@ func (meta *ElasticsearchMetadata) ReportFailure() bool {
 
 	meta.clusterOnFailure = true
 	if rate.GetRateLimiter("cluster_failure", meta.Config.ID, 1, 1, time.Second*1).Allow() {
-		log.Debug("vote failure ticket++")
+		log.Debugf("vote failure ticket++ for elasticsearch [%v]",meta.Config.Name)
 		meta.clusterFailureTicket++
-		if meta.clusterFailureTicket >= 10 ||time.Since(meta.lastSuccess)>10*time.Second{
-			log.Debug("enough failure ticket, mark it down")
+		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess)>5*time.Second) ||time.Since(meta.lastSuccess)>10*time.Second{
+			log.Debug("enough failure ticket for elasticsearch [%v], mark it down",meta.Config.Name)
 			meta.clusterAvailable = false
 			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is not available", meta.Config.ID)
+			log.Infof("elasticsearch [%v] is not available", meta.Config.Name)
 			return true
 		}
 	}
@@ -295,6 +295,7 @@ func (meta *ElasticsearchMetadata) IsAvailable() bool {
 func (meta *ElasticsearchMetadata) Init() {
 	meta.clusterAvailable = true
 	meta.clusterOnFailure = false
+	meta.lastSuccess=time.Now()
 	meta.clusterFailureTicket = 0
 }
 
@@ -315,11 +316,11 @@ func (meta *ElasticsearchMetadata) ReportSuccess() {
 
 	if meta.clusterOnFailure && !meta.clusterAvailable {
 		if rate.GetRateLimiter("cluster_recovery_health", meta.Config.ID, 1, 1, time.Second*1).Allow() {
-			log.Debug("vote success ticket++")
+			log.Debugf("vote success ticket++ for elasticsearch [%v]",meta.Config.Name)
 			meta.clusterOnFailure = false
 			meta.clusterAvailable = true
 			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is coming back", meta.Config.ID)
+			log.Infof("elasticsearch [%v] is coming back", meta.Config.Name)
 		}
 	}
 }
