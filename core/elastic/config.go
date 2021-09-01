@@ -115,7 +115,7 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 type ElasticsearchConfig struct {
 	Source      string `json:"-"`
 	ID          string `json:"-" index:"id"`
-	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"endpoint:{type:keyword}"`
+	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
 	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled     bool   `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
 	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
@@ -126,7 +126,7 @@ type ElasticsearchConfig struct {
 
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-		Password string `json:"password,omitempty" config:"password" elastic_mapping:"username:{type:keyword}"`
+		Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {

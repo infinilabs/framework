@@ -120,7 +120,7 @@ func (h *APIHandler) HandleDeleteIndexPatternAction(w http.ResponseWriter, req *
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
-	_, err := esClient.Delete(orm.GetIndexName(elastic.IndexPattern{}), "", indexPatternID)
+	_, err := esClient.Delete(orm.GetIndexName(elastic.IndexPattern{}), "", indexPatternID, "wait_for")
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)

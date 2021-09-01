@@ -273,11 +273,14 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 }
 
 // Delete used to delete document by id
-func (c *ESAPIV0) Delete(indexName, docType, id string) (*elastic.DeleteResponse, error) {
+func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
 	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
 
 	if global.Env().IsDebug {
 		log.Debug("delete doc: ", url)
+	}
+	if len(refresh)>0 {
+		url = url + "?refresh=" + refresh[0]
 	}
 
 	resp, err := c.Request(util.Verb_DELETE, url, nil)

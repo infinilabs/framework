@@ -13,6 +13,7 @@ import (
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -152,7 +153,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	}
 	id := ps.ByName("id")
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id)
+	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
 
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -174,25 +175,25 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	resBody := map[string] interface{}{
 	}
 	var (
-		name = h.GetParameterOrDefault(req, "name", "")
-		enabled = h.GetParameterOrDefault(req, "enabled", "")
-		queryDSL = `{"query":{"bool":{"must":[%s]}}}`
-		mustBuilder = &strings.Builder{}
+		name          = h.GetParameterOrDefault(req, "name", "")
+		queryDSL      = `{"query":{"bool":{"filter":[%s]}}, "size": %d, "from": %d}`
+		strSize       = h.GetParameterOrDefault(req, "size", "20")
+		strFrom       = h.GetParameterOrDefault(req, "from", "0")
+		filterBuilder = &strings.Builder{}
 	)
 	if name != ""{
-		mustBuilder.WriteString(fmt.Sprintf(`{"match":{"name": "%s"}}`, name))
+		filterBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name": "%s"}}`, name))
 	}
-	if enabled != "" {
-		if enabled != "true" {
-			enabled = "false"
-		}
-		if mustBuilder.Len() > 0 {
-			mustBuilder.WriteString(",")
-		}
-		mustBuilder.WriteString(fmt.Sprintf(`{"match":{"enabled": %s}}`, enabled))
+	size, _ := strconv.Atoi(strSize)
+	if size <= 0 {
+		size = 20
+	}
+	from, _ := strconv.Atoi(strFrom)
+	if from < 0 {
+		from = 0
 	}
 
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String())
+	queryDSL = fmt.Sprintf(queryDSL, filterBuilder.String(), size, from)
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 

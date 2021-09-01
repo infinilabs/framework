@@ -93,8 +93,12 @@ func (c *ESAPIV7) initTemplate(templateName,indexPrefix string) {
 const TypeName7 = "_doc"
 
 // Delete used to delete document by id
-func (c *ESAPIV7) Delete(indexName,docType, id string) (*elastic.DeleteResponse, error) {
+func (c *ESAPIV7) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
 	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
+
+	if len(refresh)>0 {
+		url = url + "?refresh=" + refresh[0]
+	}
 
 	resp, err := c.Request(util.Verb_DELETE, url, nil)
 

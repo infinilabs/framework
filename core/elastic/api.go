@@ -40,7 +40,7 @@ type API interface {
 	Bulk(data []byte)
 
 	Get(indexName, docType, id string) (*GetResponse, error)
-	Delete(indexName, docType, id string) (*DeleteResponse, error)
+	Delete(indexName, docType, id string, refresh ...string) (*DeleteResponse, error)
 	Count(indexName string) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
