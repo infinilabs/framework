@@ -201,7 +201,7 @@ func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 	v:=GetMetadata(cfg.ID)
 	if v==nil{
 		v=&ElasticsearchMetadata{Config: cfg}
-		v.Init()
+		v.Init(false)
 		SetMetadata(cfg.ID,v)
 	}
 	return v
@@ -292,9 +292,9 @@ func (meta *ElasticsearchMetadata) IsAvailable() bool {
 	return meta.clusterAvailable
 }
 
-func (meta *ElasticsearchMetadata) Init() {
-	meta.clusterAvailable = true
-	meta.clusterOnFailure = false
+func (meta *ElasticsearchMetadata) Init(health bool){
+	meta.clusterAvailable = health
+	meta.clusterOnFailure = !health
 	meta.lastSuccess=time.Now()
 	meta.clusterFailureTicket = 0
 }
