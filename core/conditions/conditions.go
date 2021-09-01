@@ -24,18 +24,18 @@ import (
 
 // Config represents a configuration for a condition, as you would find it in the config files.
 type Config struct {
-	Equals      *Fields                `config:"equals"`
-	Contains    *Fields                `config:"contains"`
-	Regexp      *Fields                `config:"regexp"`
-	Range       *Fields                `config:"range"`
-	QueueHasLag []string               `config:"queue_has_lag"`
+	Equals           *Fields                `config:"equals"`
+	Contains         *Fields                `config:"contains"`
+	Regexp           *Fields                `config:"regexp"`
+	Range            *Fields                `config:"range"`
+	QueueHasLag      []string               `config:"queue_has_lag"`
 	ClusterAvailable []string               `config:"cluster_available"`
-	HasFields   []string               `config:"has_fields"`
-	Network     map[string]interface{} `config:"network"`
-	OR          []Config               `config:"or"`
-	AND         []Config               `config:"and"`
-	NOT         *Config                `config:"not"`
-	IN          map[string]interface{}  `config:"in"`
+	HasFields        []string               `config:"has_fields"`
+	Network          map[string]interface{} `config:"network"`
+	OR               []Config               `config:"or"`
+	AND              []Config               `config:"and"`
+	NOT              *Config                `config:"not"`
+	IN               map[string]interface{} `config:"in"`
 }
 
 // Condition is the interface for all defined conditions
@@ -74,7 +74,7 @@ func NewCondition(config *Config) (Condition, error) {
 	case config.HasFields != nil:
 		condition = NewHasFieldsCondition(config.HasFields)
 	case config.QueueHasLag != nil:
-		condition = NewDiskQueueHasLagCondition(config.QueueHasLag)
+		condition = NewQueueHasLagCondition(config.QueueHasLag)
 	case config.ClusterAvailable != nil:
 		condition = NewClusterAvailableCondition(config.ClusterAvailable)
 	case config.Network != nil && len(config.Network) > 0:

@@ -7,7 +7,7 @@ import (
 
 type QueueHasLag []string
 
-func NewDiskQueueHasLagCondition(queueName []string) (QueueHasLag) {
+func NewQueueHasLagCondition(queueName []string) (QueueHasLag) {
 	return QueueHasLag(queueName)
 }
 
