@@ -585,9 +585,32 @@ type RequestCtx struct {
 	SequenceID       int64
 	flowProcess []string
 	destination []string
+
+	// ctx is either the client or server context. It should only
+	// be modified via copying the whole Request using WithContext.
+	// It is unexported to prevent people from using Context wrong
+	// and mutating the contexts held by callers of the same request.
+	ctx context.Context
 }
 
 
+// Context returns the request's context. To change the context, use
+// WithContext.
+//
+// The returned context is always non-nil; it defaults to the
+// background context.
+//
+// For outgoing client requests, the context controls cancellation.
+//
+// For incoming server requests, the context is canceled when the
+// client's connection closes, the request is canceled (with HTTP/2),
+// or when the ServeHTTP method returns.
+func (r *RequestCtx) Context() context.Context {
+	if r.ctx != nil {
+		return r.ctx
+	}
+	return context.Background()
+}
 
 func (para *RequestCtx) GetValue(s string) (interface{}, error){
 
@@ -639,7 +662,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 									}
 								}
 							case "user":
-								exists, user, _ := para.ParseBasicAuth()
+								exists, user, _ := para.Request.ParseBasicAuth()
 								if exists {
 									return string(user), nil
 								}
@@ -1022,15 +1045,15 @@ func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
 
-func (ctx *RequestCtx) ParseBasicAuth()(exists bool,user,pass []byte) {
-	username:=ctx.Request.URI().Username()
+func (ctx *Request) ParseBasicAuth()(exists bool,user,pass []byte) {
+	username:=ctx.URI().Username()
 	if username!=nil&&len(username)>0{
-		return true,username,ctx.Request.URI().Password()
+		return true,username,ctx.URI().Password()
 	}
 
 	ctx.ParseAuthorization()
 
-	return len(ctx.Request.URI().Username())>0,ctx.Request.URI().Username(),ctx.Request.URI().Password()
+	return len(ctx.URI().Username())>0,ctx.URI().Username(),ctx.URI().Password()
 
 }
 
@@ -1040,14 +1063,14 @@ func (ctx *RequestCtx) ParseAPIKey()(exists bool,apiID,apiKey []byte) {
 		return true,api,ctx.Request.URI().apiKey
 	}
 
-	ctx.ParseAuthorization()
+	ctx.Request.ParseAuthorization()
 
 	return len(ctx.Request.URI().apiID)>0,ctx.Request.URI().apiID,ctx.Request.URI().apiKey
 }
 
-func (ctx *RequestCtx) ParseAuthorization()() {
+func (ctx *Request) ParseAuthorization()() {
 
-	key:=ctx.Request.Header.PeekAny(AuthHeaderKeys)
+	key:=ctx.Header.PeekAny(AuthHeaderKeys)
 	if len(key)>0{
 		kvPair:=strings.Split(string(key)," ")
 		if len(kvPair)==2{
@@ -1058,8 +1081,8 @@ func (ctx *RequestCtx) ParseAuthorization()() {
 				}
 				info:=bytes.Split(decoded,[]byte(":"))
 				if len(info)==2{
-					ctx.Request.uri.username=info[0]
-					ctx.Request.uri.password=info[1]
+					ctx.uri.username=info[0]
+					ctx.uri.password=info[1]
 				}
 			}else if kvPair[0]=="ApiKey"{
 				decoded,err := base64.StdEncoding.DecodeString(kvPair[1])
@@ -1068,8 +1091,8 @@ func (ctx *RequestCtx) ParseAuthorization()() {
 				}
 				info:=bytes.Split(decoded,[]byte(":"))
 				if len(info)==2{
-					ctx.Request.uri.apiID=info[0]
-					ctx.Request.uri.apiKey=info[1]
+					ctx.uri.apiID=info[0]
+					ctx.uri.apiKey=info[1]
 				}
 			}
 		}
