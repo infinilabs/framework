@@ -114,7 +114,7 @@ type Constructor func(config *config.Config) (Processor, error)
 var registry = NewNamespace()
 
 func RegisterPlugin(name string, constructor Constructor) {
-	log.Debugf("Register plugin %s", name)
+	log.Debugf("register plugin: %s", name)
 	err := registry.Register(name, constructor)
 	if err != nil {
 		panic(err)
