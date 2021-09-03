@@ -83,16 +83,16 @@ func (module PipeModule) Start() error {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
-							var v string
+							var err string
 							switch r.(type) {
 							case error:
-								v = r.(error).Error()
+								err = r.(error).Error()
 							case runtime.Error:
-								v = r.(runtime.Error).Error()
+								err = r.(runtime.Error).Error()
 							case string:
-								v = r.(string)
+								err = r.(string)
 							}
-							log.Error(r,v)
+							log.Errorf("error on pipeline:%v, %v",v.Name,err)
 						}
 					}
 				}()

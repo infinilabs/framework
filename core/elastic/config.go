@@ -320,7 +320,7 @@ func (meta *ElasticsearchMetadata) ReportSuccess() {
 			meta.clusterOnFailure = false
 			meta.clusterAvailable = true
 			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is coming back", meta.Config.Name)
+			log.Infof("elasticsearch [%v] is available now", meta.Config.Name)
 		}
 	}
 }
