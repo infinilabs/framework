@@ -249,7 +249,7 @@ func discoveryMetadata(force bool) {
 				nodes, err := client.GetNodes()
 
 				if err != nil {
-					log.Error(cfg.Name," ",err)
+					log.Debug(cfg.Name," ",err)
 					oldMetadata.ReportFailure()
 					return
 				}
