@@ -244,13 +244,12 @@ func discoveryMetadata(force bool) {
 
 		go func(cfg *elastic.ElasticsearchConfig) {
 			if cfg.Discovery.Enabled||force {
+				oldMetadata := elastic.GetOrInitMetadata(cfg)
 				client := elastic.GetClient(cfg.ID)
 				nodes, err := client.GetNodes()
 
-				oldMetadata := elastic.GetOrInitMetadata(cfg)
-
 				if err != nil {
-					log.Error(err)
+					log.Error(cfg.Name," ",err)
 					oldMetadata.ReportFailure()
 					return
 				}
