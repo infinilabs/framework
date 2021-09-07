@@ -193,39 +193,45 @@ func monitoring() {
 		Type:        "interval",
 		Interval:    "10s",
 		Task: func() {
-			all := elastic.GetAllMetadata()
-			for k, v := range all {
+			elastic.WalkMetadata(func(key, value interface{}) bool {
+					k:=key.(string)
+					if value==nil{
+						return false
+					}
 
-				if !v.Config.Monitored || !v.Config.Enabled {
-					continue
-				}
+					v,ok:=value.(*elastic.ElasticsearchMetadata)
+					if ok{
+						if !v.Config.Monitored || !v.Config.Enabled {
+							return false
+						}
 
-				log.Tracef("run monitoring task for elasticsearch: " + k)
-				client := elastic.GetClient(k)
-				stats := client.GetClusterStats()
-				indexStats,err := client.GetStats()
-				if err != nil {
-					log.Error(v.Config.Name, " get cluster stats error: ", err)
-					continue
-				}
+						log.Tracef("run monitoring task for elasticsearch: " + k)
+						client := elastic.GetClient(k)
+						stats := client.GetClusterStats()
+						indexStats,err := client.GetStats()
+						if err != nil {
+							log.Error(v.Config.Name, " get cluster stats error: ", err)
+							return false
+						}
 
-				v.ReportSuccess()
+						v.ReportSuccess()
 
-				item := MonitoringItem{}
-				item.Elasticsearch = v.Config.ID
-				item.ClusterStats = stats
-				if indexStats!=nil{
-					item.IndexStats = indexStats.All
-				}
-				item.Timestamp = time.Now()
-				item.Agent = global.Env().SystemConfig.NodeConfig
-				monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
-				_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
-				if err != nil {
-					log.Error(err)
-				}
-
-			}
+						item := MonitoringItem{}
+						item.Elasticsearch = v.Config.ID
+						item.ClusterStats = stats
+						if indexStats!=nil{
+							item.IndexStats = indexStats.All
+						}
+						item.Timestamp = time.Now()
+						item.Agent = global.Env().SystemConfig.NodeConfig
+						monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
+						_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
+						if err != nil {
+							log.Error(err)
+						}
+					}
+				return true
+			})
 
 		},
 	}
@@ -238,131 +244,129 @@ func discovery() {
 }
 
 func discoveryMetadata(force bool) {
-	all := elastic.GetAllConfigs()
-
-	for _, cfg := range all {
-
-		go func(cfg *elastic.ElasticsearchConfig) {
-
-			//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
-
-			if cfg.Enabled||force {
-				oldMetadata := elastic.GetOrInitMetadata(cfg)
-				client := elastic.GetClient(cfg.ID)
-				nodes, err := client.GetNodes()
+	elastic.WalkConfigs(func(key, value interface{}) bool {
+		cfg,ok:=value.(*elastic.ElasticsearchConfig)
+		if ok&&cfg!=nil{
+			go func(cfg *elastic.ElasticsearchConfig) {
+				//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
+				if cfg.Enabled||force {
+					oldMetadata := elastic.GetOrInitMetadata(cfg)
+					client := elastic.GetClient(cfg.ID)
+					nodes, err := client.GetNodes()
 
 
-				if err != nil {
-					log.Debug(cfg.Name," ",err)
-					oldMetadata.ReportFailure()
-					return
-				}
+					if err != nil {
+						log.Debug(cfg.Name," ",err)
+						oldMetadata.ReportFailure()
+						return
+					}
 
-				if nodes == nil || len(*nodes) <= 0 {
-					log.Error(cfg.Name," nodes info not retrieved")
-					oldMetadata.ReportFailure()
-					return
-				}
+					if nodes == nil || len(*nodes) <= 0 {
+						log.Error(cfg.Name," nodes info not retrieved")
+						oldMetadata.ReportFailure()
+						return
+					}
 
-				oldMetadata.ReportSuccess()
+					oldMetadata.ReportSuccess()
 
-				newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
-				newMetadata.Init(true)
+					newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
+					newMetadata.Init(true)
 
-				//Nodes
-				//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
-				var nodesChanged = false
-				var oldNodesTopologyVersion = 0
-				if oldMetadata == nil {
-					nodesChanged = true
-				} else {
-					oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
-					newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
-					newMetadata.Nodes = oldMetadata.Nodes
-
-					if len(*nodes) != len(oldMetadata.Nodes) {
+					//Nodes
+					//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
+					var nodesChanged = false
+					var oldNodesTopologyVersion = 0
+					if oldMetadata == nil {
 						nodesChanged = true
 					} else {
-						for k, v := range *nodes {
-							v1, ok := oldMetadata.Nodes[k]
-							if ok {
-								if v.Http.PublishAddress != v1.Http.PublishAddress {
+						oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
+						newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
+						newMetadata.Nodes = oldMetadata.Nodes
+
+						if len(*nodes) != len(oldMetadata.Nodes) {
+							nodesChanged = true
+						} else {
+							for k, v := range *nodes {
+								v1, ok := oldMetadata.Nodes[k]
+								if ok {
+									if v.Http.PublishAddress != v1.Http.PublishAddress {
+										nodesChanged = true
+									}
+								} else {
 									nodesChanged = true
+									break
 								}
-							} else {
-								nodesChanged = true
-								break
 							}
 						}
 					}
-				}
 
-				if nodesChanged {
-					newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
-					newMetadata.Nodes = *nodes
-				}
-
-				//Indices
-				var indicesChanged bool
-				indices, err := client.GetIndices("")
-				if err != nil {
-					log.Error(err)
-					return
-				}
-				if indices != nil {
-					//TODO check if that changed or skip replace
-					newMetadata.Indices = *indices
-					indicesChanged = true
-				}
-
-				//Shards
-				var shardsChanged bool
-				shards, err := client.GetPrimaryShards()
-				if err != nil {
-					log.Error(err)
-					return
-				}
-				if shards != nil {
-					//TODO check if that changed or skip replace
-					newMetadata.PrimaryShards = *shards
-					shardsChanged = true
-				}
-
-				//Indices
-				var aliasesChanged bool
-				aliases, err := client.GetAliases()
-				if err != nil {
-					log.Error(err)
-					return
-				}
-				if aliases != nil {
-					//TODO check if that changed or skip replace
-					newMetadata.Aliases = *aliases
-					aliasesChanged = true
-				}
-
-				//health status
-				var healthChanged bool
-				health := client.ClusterHealth()
-				if health != nil {
-					//TODO check if that changed or skip replace
-					newMetadata.HealthStatus = health.Status
-					healthChanged = true
-				}
-
-				if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
-					if global.Env().IsDebug {
-						log.Trace("elasticsearch metadata updated,", newMetadata)
+					if nodesChanged {
+						newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
+						newMetadata.Nodes = *nodes
 					}
-					elastic.SetMetadata(cfg.ID, &newMetadata)
+
+					//Indices
+					var indicesChanged bool
+					indices, err := client.GetIndices("")
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					if indices != nil {
+						//TODO check if that changed or skip replace
+						newMetadata.Indices = *indices
+						indicesChanged = true
+					}
+
+					//Shards
+					var shardsChanged bool
+					shards, err := client.GetPrimaryShards()
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					if shards != nil {
+						//TODO check if that changed or skip replace
+						newMetadata.PrimaryShards = *shards
+						shardsChanged = true
+					}
+
+					//Indices
+					var aliasesChanged bool
+					aliases, err := client.GetAliases()
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					if aliases != nil {
+						//TODO check if that changed or skip replace
+						newMetadata.Aliases = *aliases
+						aliasesChanged = true
+					}
+
+					//health status
+					var healthChanged bool
+					health := client.ClusterHealth()
+					if health != nil {
+						//TODO check if that changed or skip replace
+						newMetadata.HealthStatus = health.Status
+						healthChanged = true
+					}
+
+					if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
+						if global.Env().IsDebug {
+							log.Trace("elasticsearch metadata updated,", newMetadata)
+						}
+						elastic.SetMetadata(cfg.ID, &newMetadata)
+					}
+
+					//fmt.Println(cfg.Name,",",newMetadata.IsAvailable(),",",newMetadata.HealthStatus)
+
 				}
-
-				//fmt.Println(cfg.Name,",",newMetadata.IsAvailable(),",",newMetadata.HealthStatus)
-
-			}
-		}(cfg)
-
-	}
+			}(cfg)
+		}
+		return true
+	})
 }
 
 func (module ElasticModule) Start() error {

@@ -632,19 +632,20 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 }
 
 func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	configs := elastic.GetAllConfigs()
 	var status = map[string]interface{}{}
-	for key, conf := range configs {
-		if key == "default" {
-			continue
+	elastic.WalkConfigs(func(k, value interface{}) bool {
+		key:=k.(string)
+		cfg,ok:=value.(*elastic.ElasticsearchConfig)
+		if ok&&cfg!=nil{
+			meta := elastic.GetOrInitMetadata(cfg)
+			status[key] = map[string]interface{}{
+				"health_status": meta.HealthStatus,
+				"nodes_count": len(meta.Nodes),
+				"cluster_available": meta.IsAvailable(),
+			}
 		}
-		meta := elastic.GetOrInitMetadata(conf)
-		status[key] = map[string]interface{}{
-			"health_status": meta.HealthStatus,
-			"nodes_count": len(meta.Nodes),
-			"cluster_available": meta.IsAvailable(),
-		}
-	}
+		return true
+	})
 	h.WriteJSON(w, status, http.StatusOK)
 }
 

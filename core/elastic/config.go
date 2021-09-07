@@ -27,44 +27,20 @@ import (
 	"infini.sh/framework/core/rate"
 )
 
-var apis = map[string]API{}
-var cfgs = map[string]*ElasticsearchConfig{}
+var apis = sync.Map{}
+var cfgs = sync.Map{}
 
-var metas = map[string]*ElasticsearchMetadata{}
-var lock = sync.RWMutex{}
+var metas = sync.Map{}
 
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
-
-	lock.Lock()
-	defer lock.Unlock()
-
-	if apis == nil {
-		apis = map[string]API{}
-	}
-	if cfgs == nil {
-		cfgs = map[string]*ElasticsearchConfig{}
-	}
-	if metas == nil {
-		metas = map[string]*ElasticsearchMetadata{}
-	}
-	apis[elastic] = handler
-	cfgs[elastic] = &cfg
-
+	apis.Store(elastic,handler)
+	cfgs.Store(elastic,&cfg)
 }
 
 func RemoveInstance(elastic string){
-	lock.Lock()
-	defer lock.Unlock()
-	if cfgs != nil {
-		delete(cfgs, elastic)
-	}
-	if apis != nil {
-		delete(apis, elastic)
-	}
-	if metas != nil {
-		delete(metas, elastic)
-	}
-
+	cfgs.Delete(elastic)
+	apis.Delete(elastic)
+	metas.Delete(elastic)
 }
 
 type ElasticsearchMetadata struct {
@@ -170,9 +146,6 @@ func (config *ElasticsearchConfig) IsTLS() bool {
 }
 
 func (config *ElasticsearchConfig) GetSchema() string {
-	lock.RLock()
-	defer lock.RUnlock()
-
 	if config.Schema!=""{
 		return config.Schema
 	}
@@ -188,13 +161,11 @@ func GetConfig(k string) *ElasticsearchConfig {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
-	lock.RLock()
-	defer lock.RUnlock()
-	v, ok := cfgs[k]
+	v, ok := cfgs.Load(k)
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch config [%v] was not found", k))
 	}
-	return v
+	return v.(*ElasticsearchConfig)
 }
 
 func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
@@ -212,15 +183,13 @@ func GetMetadata(k string) *ElasticsearchMetadata {
 		panic(fmt.Errorf("elasticsearch metata undefined"))
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
-
-	v, ok := metas[k]
+	v, ok := metas.Load(k)
 	if !ok {
 		log.Debug(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
-		//panic(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
+		return nil
 	}
-	return v
+	 x,ok:=v.(*ElasticsearchMetadata)
+	 return x
 }
 
 func GetClient(k string) API {
@@ -228,34 +197,27 @@ func GetClient(k string) API {
 		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
 
-	v, ok := apis[k]
+	v, ok := apis.Load(k)
 	if ok {
-		return v
+		f,ok:=v.(API)
+		if ok{
+			return f
+		}
 	}
-
-	////try to load config,and init client
-	//cfg:=GetConfig(k)
 
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
-func GetAllMetadata() map[string]*ElasticsearchMetadata {
-	lock.Lock()
-	defer lock.Unlock()
-
-	return metas
+func WalkMetadata(walkFunc func(key, value interface{}) bool){
+	metas.Range(walkFunc)
 }
 
-func GetAllConfigs() map[string]*ElasticsearchConfig {
-	return cfgs
+func WalkConfigs(walkFunc func(key, value interface{})bool) {
+	 cfgs.Range(walkFunc)
 }
 
 func SetMetadata(k string, v *ElasticsearchMetadata) {
-
-	lock.Lock()
-	defer lock.Unlock()
-
-	metas[k] = v
+	metas.Store(k,v)
 }
 
 func (meta *ElasticsearchMetadata) ReportFailure() bool {
