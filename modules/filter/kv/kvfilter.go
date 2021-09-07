@@ -18,7 +18,15 @@ func (filter KVFilter) Open() error {
 	l.Lock()
 	defer l.Unlock()
 
-	opt := nutsdb.DefaultOptions
+	opt := nutsdb.Options{
+		EntryIdxMode:         nutsdb.HintKeyValAndRAMIdxMode,
+		SegmentSize:          8 * 1024 * 1024,
+		NodeNum:              1,
+		RWMode:               nutsdb.FileIO,
+		SyncEnable:           true,
+		StartFileLoadingMode: nutsdb.FileIO,
+	}
+	
 	opt.Dir = path.Join(global.Env().GetDataDir(),"filter")
 	var err error
 	h, err := nutsdb.Open(opt)
