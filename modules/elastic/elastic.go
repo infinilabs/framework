@@ -39,7 +39,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		LoadRemoteElasticsearchConfigs: false,
+		LoadRemoteElasticsearchConfigs: true,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -243,10 +243,14 @@ func discoveryMetadata(force bool) {
 	for _, cfg := range all {
 
 		go func(cfg *elastic.ElasticsearchConfig) {
-			if cfg.Discovery.Enabled||force {
+
+			//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
+
+			if cfg.Enabled||force {
 				oldMetadata := elastic.GetOrInitMetadata(cfg)
 				client := elastic.GetClient(cfg.ID)
 				nodes, err := client.GetNodes()
+
 
 				if err != nil {
 					log.Debug(cfg.Name," ",err)
@@ -352,6 +356,8 @@ func discoveryMetadata(force bool) {
 					}
 					elastic.SetMetadata(cfg.ID, &newMetadata)
 				}
+
+				//fmt.Println(cfg.Name,",",newMetadata.IsAvailable(),",",newMetadata.HealthStatus)
 
 			}
 		}(cfg)
