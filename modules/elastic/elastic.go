@@ -38,8 +38,8 @@ func (module ElasticModule) Name() string {
 
 var (
 	defaultConfig = ModuleConfig{
-		Elasticsearch: "default",
-		LoadRemoteElasticsearchConfigs: false,
+		Elasticsearch:       "default",
+		RemoteConfigEnabled: false,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -373,7 +373,7 @@ func discoveryMetadata(force bool) {
 
 func (module ElasticModule) Start() error {
 
-	if moduleConfig.LoadRemoteElasticsearchConfigs {
+	if moduleConfig.RemoteConfigEnabled {
 		loadESBasedElasticConfig()
 	}
 

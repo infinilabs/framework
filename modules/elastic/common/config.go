@@ -26,10 +26,9 @@ type MonitoringConfig struct {
 }
 
 type ModuleConfig struct {
-	Enabled                        bool             `config:"enabled"`
-	Elasticsearch                  string           `config:"elasticsearch"`
-	LoadRemoteElasticsearchConfigs bool             `config:"load_remote_elasticsearch_configs"`
-	ORMConfig                      ORMConfig        `config:"orm"`
+	Elasticsearch       string    `config:"elasticsearch"`
+	RemoteConfigEnabled bool      `config:"remote_configs"`
+	ORMConfig           ORMConfig `config:"orm"`
 	StoreConfig                    StoreConfig      `config:"store"`
 	MonitoringConfig               MonitoringConfig `config:"monitoring"`
 }
