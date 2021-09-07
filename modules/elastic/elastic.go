@@ -39,7 +39,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		LoadRemoteElasticsearchConfigs: false,
+		LoadRemoteElasticsearchConfigs: true,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -352,7 +352,6 @@ func discoveryMetadata(force bool) {
 					}
 					elastic.SetMetadata(cfg.ID, &newMetadata)
 				}
-
 			}
 		}(cfg)
 
