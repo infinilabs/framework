@@ -182,7 +182,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 		filterBuilder = &strings.Builder{}
 	)
 	if name != ""{
-		filterBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name": "%s"}}`, name))
+		filterBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.keyword": "%s"}}`, name))
 	}
 	size, _ := strconv.Atoi(strSize)
 	if size <= 0 {
