@@ -26,7 +26,7 @@ func (filter KVFilter) Open() error {
 		SyncEnable:           true,
 		StartFileLoadingMode: nutsdb.FileIO,
 	}
-	
+
 	opt.Dir = path.Join(global.Env().GetDataDir(),"filter")
 	var err error
 	h, err := nutsdb.Open(opt)

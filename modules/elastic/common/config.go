@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-
 type ORMConfig struct {
 	Enabled      bool   `config:"enabled"`
 	InitTemplate bool   `config:"init_template"`
@@ -17,25 +16,25 @@ type ORMConfig struct {
 }
 
 type StoreConfig struct {
-	Enabled      bool   `config:"enabled"`
-	IndexName  string `config:"index_name"`
+	Enabled   bool   `config:"enabled"`
+	IndexName string `config:"index_name"`
 }
 
 type MonitoringConfig struct {
-	Enabled       bool     `config:"enabled"`
-	Interval      string   `config:"interval,omitempty"`
+	Enabled  bool   `config:"enabled"`
+	Interval string `config:"interval,omitempty"`
 }
 
 type ModuleConfig struct {
-	Elasticsearch string      `config:"elasticsearch"`
-	LoadRemoteElasticsearchConfigs bool      `config:"load_remote_elasticsearch_configs"`
-	ORMConfig     ORMConfig   `config:"orm"`
-	StoreConfig   StoreConfig `config:"store"`
-	MonitoringConfig   MonitoringConfig `config:"monitoring"`
-
+	Enabled                        bool             `config:"enabled"`
+	Elasticsearch                  string           `config:"elasticsearch"`
+	LoadRemoteElasticsearchConfigs bool             `config:"load_remote_elasticsearch_configs"`
+	ORMConfig                      ORMConfig        `config:"orm"`
+	StoreConfig                    StoreConfig      `config:"store"`
+	MonitoringConfig               MonitoringConfig `config:"monitoring"`
 }
 
-func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.API, err error) {
+func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
 
 	var (
 		ver string
@@ -50,8 +49,8 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.A
 		ver = esConfig.Version
 	}
 
-	if util.SuffixStr(esConfig.Endpoint,"/"){
-		esConfig.Endpoint=esConfig.Endpoint[:len(esConfig.Endpoint)-1]
+	if util.SuffixStr(esConfig.Endpoint, "/") {
+		esConfig.Endpoint = esConfig.Endpoint[:len(esConfig.Endpoint)-1]
 	}
 
 	if strings.HasPrefix(ver, "8.") {
@@ -89,7 +88,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig)(client elastic.A
 	return client, nil
 }
 
-func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, error){
+func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, error) {
 	if !esConfig.Enabled {
 		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 		return nil, nil

@@ -24,18 +24,19 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"strings"
+	"sync"
 	"unicode"
 )
 
-var indexNames map[string]string=make(map[string]string)
+var indexNames =sync.Map{}
 
 func getIndexName(any interface{}) string {
 	pkg,t:=util.GetTypeAndPackageName(any, true)
 	key:=fmt.Sprintf("%s-%s",pkg,t)
 	//prefer to use registered index name
-	v,ok:=indexNames[key]
+	v,ok:=indexNames.Load(key)
 	if ok{
-		return v
+		return v.(string)
 	}
 	return t
 }
@@ -88,7 +89,7 @@ func initIndexName(t interface{},indexName string)string  {
 	pkg,ojbType:=util.GetTypeAndPackageName(t, true)
 	key:=fmt.Sprintf("%s-%s",pkg,ojbType)
 	if indexName!=""{
-		v,ok:=indexNames[indexName]
+		v,ok:=indexNames.Load(indexName)
 		if ok{
 			if v==key{
 				log.Warnf("duplicated schema registration %s",key)
@@ -100,8 +101,8 @@ func initIndexName(t interface{},indexName string)string  {
 		indexName=ojbType
 	}
 
-	indexNames[key]=indexName
-	indexNames[indexName]=key
+	indexNames.Store(key,indexName)
+	indexNames.Store(indexName,key)
 	return indexName
 }
 

@@ -39,7 +39,7 @@ func (module ElasticModule) Name() string {
 var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch: "default",
-		LoadRemoteElasticsearchConfigs: true,
+		LoadRemoteElasticsearchConfigs: false,
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -145,11 +145,13 @@ var moduleConfig = ModuleConfig{}
 func (module ElasticModule) Setup(cfg *config.Config) {
 
 	loadFileBasedElasticConfig()
+
 	initElasticInstances()
 
 	moduleConfig = getDefaultConfig()
 
 	exists,err:=env.ParseConfig("elastic", &moduleConfig)
+
 	if exists&&err != nil {
 		panic(err)
 	}
