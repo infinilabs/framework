@@ -37,6 +37,16 @@ func equalsIntValue(i uint64) equalsValue {
 	}
 }
 
+func equalsFloatValue(i float64) equalsValue {
+	return func(value interface{}) bool {
+		if sValue, err := ExtractFloat(value); err == nil {
+			return sValue == i
+		}
+		logger.Warnf("expected float but got type %T in equals condition.", value)
+		return false
+	}
+}
+
 func equalsStringValue(s string) equalsValue {
 	return func(value interface{}) bool {
 		if sValue, err := ExtractString(value); err == nil {
@@ -65,6 +75,12 @@ func NewEqualsCondition(fields map[string]interface{}) (c Equals, err error) {
 		uintValue, err := ExtractInt(value)
 		if err == nil {
 			c[field] = equalsIntValue(uintValue)
+			continue
+		}
+
+		ufloatValue, err := ExtractFloat(value)
+		if err == nil {
+			c[field] = equalsFloatValue(ufloatValue)
 			continue
 		}
 

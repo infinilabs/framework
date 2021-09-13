@@ -645,7 +645,6 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 							case "body":
 								return string(para.Request.GetRawBody()), nil
 							case "body_json":
-								//aggs.total_num.terms.field
 								keys:=keys[3:]
 								if len(keys)==0{
 									return nil,errors.New("invalid json key")
@@ -655,10 +654,24 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 									log.Error(err)
 									return nil,err
 								}
-								if t==jsonparser.NotExist{
+
+								switch t {
+								case jsonparser.NotExist:
 									return nil,errors.New("key not found")
+								case jsonparser.String:
+									return string(v),nil
+								case jsonparser.Boolean:
+									return jsonparser.ParseBoolean(v)
+								case jsonparser.Number:
+									i,err:=jsonparser.ParseInt(v)
+									if err!=nil{
+										return jsonparser.ParseFloat(v)
+									}
+									return i,err
+								default:
+									log.Error("json type not handled:",s,v,t,err)
 								}
-								return string(v),nil
+
 							case "body_length":
 								return para.Request.GetBodyLength(), nil
 							case "query_args":
