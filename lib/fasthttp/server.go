@@ -647,17 +647,17 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 							case "body_json":
 								keys:=keys[3:]
 								if len(keys)==0{
-									return nil,errors.New("invalid json key")
+									return nil,errors.New("invalid json key:"+s)
 								}
 								v,t,_,err:=jsonparser.Get(para.Request.GetRawBody(),keys...)
 								if err!=nil{
-									log.Error(err)
+									log.Error(s,err)
 									return nil,err
 								}
 
 								switch t {
 								case jsonparser.NotExist:
-									return nil,errors.New("key not found")
+									return nil,errors.New("key not found:"+s)
 								case jsonparser.String:
 									return string(v),nil
 								case jsonparser.Boolean:
@@ -734,7 +734,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 	if v!=nil{
 		return v,nil
 	}else{
-		return nil,errors.New("key not found")
+		return nil,errors.New("key not found:"+s)
 	}
 }
 
