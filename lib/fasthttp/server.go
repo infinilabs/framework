@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"github.com/buger/jsonparser"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -643,6 +644,21 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 								return string(para.Request.URI().Path()), nil
 							case "body":
 								return string(para.Request.GetRawBody()), nil
+							case "body_json":
+								//aggs.total_num.terms.field
+								keys:=keys[3:]
+								if len(keys)==0{
+									return nil,errors.New("invalid json key")
+								}
+								v,t,_,err:=jsonparser.Get(para.Request.GetRawBody(),keys...)
+								if err!=nil{
+									log.Error(err)
+									return nil,err
+								}
+								if t==jsonparser.NotExist{
+									return nil,errors.New("key not found")
+								}
+								return string(v),nil
 							case "body_length":
 								return para.Request.GetBodyLength(), nil
 							case "query_args":
