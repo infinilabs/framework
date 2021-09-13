@@ -115,7 +115,7 @@ func New(cfg PluginConfig) (*Processors, error) {
 				validActions = append(validActions, k)
 
 			}
-			return nil, errors.Errorf("the processor action %s does not exist. Valid actions: %v", actionName, strings.Join(validActions, ", "))
+			return nil, errors.Errorf("the processor %s does not exist. valid processors: %v", actionName, strings.Join(validActions, ", "))
 		}
 
 		//actionCfg.PrintDebugf("Configure processor action '%v' with:", actionName)
