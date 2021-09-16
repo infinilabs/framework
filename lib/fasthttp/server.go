@@ -651,7 +651,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 								}
 								v,t,_,err:=jsonparser.Get(para.Request.GetRawBody(),keys...)
 								if err!=nil{
-									log.Error(s,err)
+									//log.Error(s,err)
 									return nil,err
 								}
 
