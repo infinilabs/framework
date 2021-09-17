@@ -254,8 +254,9 @@ func discoveryMetadata(force bool) {
 				if cfg.Enabled||force {
 					oldMetadata := elastic.GetOrInitMetadata(cfg)
 					client := elastic.GetClient(cfg.ID)
-					nodes, err := client.GetNodes()
 
+					//TODO 按需加载节点信息，检测节点连通性
+					nodes, err := client.GetNodes()
 
 					if err != nil {
 						log.Debug(cfg.Name," ",err)
@@ -274,37 +275,42 @@ func discoveryMetadata(force bool) {
 					newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
 					newMetadata.Init(true)
 
-					//Nodes
-					//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
 					var nodesChanged = false
-					var oldNodesTopologyVersion = 0
-					if oldMetadata == nil {
-						nodesChanged = true
-					} else {
-						oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
-						newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
-						newMetadata.Nodes = oldMetadata.Nodes
 
-						if len(*nodes) != len(oldMetadata.Nodes) {
+					if cfg.Discovery.Enabled{
+
+						//Nodes
+						//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
+						var oldNodesTopologyVersion = 0
+						if oldMetadata == nil {
 							nodesChanged = true
 						} else {
-							for k, v := range *nodes {
-								v1, ok := oldMetadata.Nodes[k]
-								if ok {
-									if v.Http.PublishAddress != v1.Http.PublishAddress {
+							oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
+							newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
+							newMetadata.Nodes = oldMetadata.Nodes
+
+							if len(*nodes) != len(oldMetadata.Nodes) {
+								nodesChanged = true
+							} else {
+								for k, v := range *nodes {
+									v1, ok := oldMetadata.Nodes[k]
+									if ok {
+										if v.Http.PublishAddress != v1.Http.PublishAddress {
+											nodesChanged = true
+										}
+									} else {
 										nodesChanged = true
+										break
 									}
-								} else {
-									nodesChanged = true
-									break
 								}
 							}
 						}
-					}
 
-					if nodesChanged {
-						newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
-						newMetadata.Nodes = *nodes
+						if nodesChanged {
+							newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
+							newMetadata.Nodes = *nodes
+						}
+
 					}
 
 					//Indices
@@ -345,6 +351,7 @@ func discoveryMetadata(force bool) {
 						newMetadata.Aliases = *aliases
 						aliasesChanged = true
 					}
+
 
 					//health status
 					var healthChanged bool
