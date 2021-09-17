@@ -3,6 +3,8 @@ package conditions
 import (
 	"fmt"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/util"
+	"strings"
 )
 
 type QueueHasLag []string
@@ -13,8 +15,16 @@ func NewQueueHasLagCondition(queueName []string) (QueueHasLag) {
 
 func (c QueueHasLag) Check(event ValuesMap) bool {
 	for _, field := range c {
+
+		var maxDepth int64
+		if strings.Contains(field,">"){
+			array:=strings.Split(field,">")
+			maxDepth,_=util.ToInt64(strings.TrimSpace(array[1]))
+			field=strings.TrimSpace(array[0])
+		}
+
 		depth:=queue.Depth(field)
-		if depth>0 {
+		if depth>maxDepth {
 			return true
 		}
 	}
