@@ -29,6 +29,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
+	"strings"
 	"time"
 )
 
@@ -222,7 +223,16 @@ func monitoring() {
 						item.Elasticsearch = v.Config.ID
 						item.ClusterStats = stats
 						if indexStats!=nil{
-							item.IndexStats = indexStats.All
+
+							//replace . to _dot_
+							for k,v:=range indexStats.Indices{
+								if util.PrefixStr(k,"."){
+									delete(indexStats.Indices,k)
+									indexStats.Indices[strings.Replace(k,".","_dot_",1)]=v
+								}
+							}
+
+							item.IndexStats = indexStats
 						}
 						item.Timestamp = time.Now()
 						item.Agent = global.Env().SystemConfig.NodeConfig
