@@ -39,6 +39,7 @@ func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
 "index_patterns": "%s*",
 "settings": {
     "number_of_shards": %v,
+    "index.mapping.total_fields.limit": 20000,
     "index.max_result_window":10000000
   },
   "mappings": {
