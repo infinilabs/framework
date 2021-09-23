@@ -62,10 +62,10 @@ wait:
 	return nil
 }
 
-// TestListenPort check availability of port with ip
-func TestListenPort(ip string, port int) bool {
+// TestTCPPort check availability of port with ip
+func TestTCPPort(ip string, port int) bool {
 
-	log.Tracef("testing port %s:%d", ip, port)
+	log.Tracef("testing tcp connection: %s:%d", ip, port)
 	host := ip + ":" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", host)
 	if ln != nil {
@@ -76,7 +76,7 @@ func TestListenPort(ip string, port int) bool {
 	}
 
 	if err != nil {
-		log.Debugf("can't listen on port %s, %s", host, err)
+		log.Debugf("failed to connect to %v:%v, %v", host,port, err)
 		return false
 	}
 	return true
@@ -88,7 +88,7 @@ func GetAvailablePort(ip string, port int) int {
 	maxRetry := 500
 
 	for i := 0; i < maxRetry; i++ {
-		ok := TestListenPort(ip, port)
+		ok := TestTCPPort(ip, port)
 		if ok {
 			log.Trace("get available port: ", port)
 			return port
