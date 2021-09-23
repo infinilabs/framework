@@ -1,5 +1,10 @@
 package elastic
 
+import (
+	"sync"
+	"time"
+)
+
 type Stats struct {
 	All struct {
 		Primary map[string]interface{} `json:"primaries"`
@@ -139,18 +144,6 @@ type BulkActionMetadata struct {
 	Update *BulkIndexMetadata `json:"update,omitempty"`
 }
 
-func (action *BulkActionMetadata)GetItem() *BulkIndexMetadata  {
-	if action.Index!=nil{
-		return action.Index
-	}else if action.Delete!=nil{
-		return action.Delete
-	}else if action.Create!=nil{
-		return action.Create
-	}else{
-		return action.Update
-	}
-}
-
 type BulkIndexMetadata struct {
 	Index           string      `json:"_index,omitempty"`
 	Type            string      `json:"_type,omitempty"`
@@ -190,4 +183,73 @@ type ErrorResponse struct {
 		Type   string `json:"type,omitempty"`
 		Reason string `json:"reason,omitempty"`
 	} `json:"error,omitempty"`
+}
+
+type ElasticsearchMetadata struct {
+	Config *ElasticsearchConfig
+
+	NodesTopologyVersion int
+	IndicesChanged       bool
+	Nodes                map[string]NodesInfo
+	Indices              map[string]IndexInfo
+	PrimaryShards        map[string]map[int]ShardInfo
+	Aliases              map[string]AliasInfo
+	HealthStatus string
+
+	NodeAvailable map[string]NodeAvailableInfo
+
+	clusterFailureTicket int
+	clusterOnFailure     bool
+	clusterAvailable     bool
+	lastSuccess time.Time
+	configLock sync.RWMutex
+}
+
+type NodeAvailableInfo struct {
+	Available bool
+	Host string
+	Port int
+	LastActive time.Time
+	LastFailure time.Time
+}
+
+// ElasticsearchConfig contains common settings for elasticsearch
+type ElasticsearchConfig struct {
+	Source      string `json:"-"`
+	ID          string `json:"-" index:"id"`
+	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
+	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Enabled     bool   `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	HttpProxy   string `json:"http_proxy,omitempty" config:"http_proxy"`
+	Endpoint    string `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	Version string `json:"version,omitempty" config:"version"`
+	ClientMode string `json:"client_mode,omitempty" config:"client_mode"`
+
+	BasicAuth *struct {
+		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
+		Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
+	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+
+	TrafficControl *struct {
+		MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+		MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
+
+	Discovery struct {
+		Enabled bool     `json:"enabled,omitempty" config:"enabled"`
+		Modules []string `json:"module,omitempty" config:"module"`
+		Refresh struct {
+			Enabled  bool   `json:"enabled,omitempty" config:"enabled"`
+			Interval string `json:"interval,omitempty" config:"interval"`
+		} `json:"refresh,omitempty" config:"refresh"`
+	} `json:"discovery,omitempty" config:"discovery"`
+
+	Order   int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
+	Created time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
+
+	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
+
+	Host string `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 }
