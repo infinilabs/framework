@@ -196,7 +196,7 @@ type ElasticsearchMetadata struct {
 	Aliases              map[string]AliasInfo
 	HealthStatus string
 
-	NodeAvailable map[string]NodeAvailableInfo
+	HostAvailableInfo map[string]HostAvailableInfo
 
 	clusterFailureTicket int
 	clusterOnFailure     bool
@@ -205,7 +205,7 @@ type ElasticsearchMetadata struct {
 	configLock sync.RWMutex
 }
 
-type NodeAvailableInfo struct {
+type HostAvailableInfo struct {
 	Available bool
 	Host string
 	Port int

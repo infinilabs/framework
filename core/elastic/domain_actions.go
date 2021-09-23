@@ -55,8 +55,17 @@ func (action *BulkActionMetadata)GetItem() *BulkIndexMetadata  {
 	}
 }
 
-func (meta *ElasticsearchMetadata)IsEndpointAvailable(endpoint string)bool  {
-	info,ok:=meta.NodeAvailable[endpoint]
+func (meta *ElasticsearchMetadata) GetAvailableHost(endpoint string)string  {
+	for x,v:=range meta.HostAvailableInfo {
+		if v.Available && x!=endpoint{
+			return x
+		}
+	}
+	return meta.Config.GetHost()
+}
+
+func (meta *ElasticsearchMetadata) IsHostAvailable(endpoint string)bool  {
+	info,ok:=meta.HostAvailableInfo[endpoint]
 	if ok{
 		return info.Available
 	}
@@ -220,6 +229,7 @@ func (meta *ElasticsearchMetadata) Init(health bool){
 	meta.clusterAvailable = health
 	meta.clusterOnFailure = !health
 	meta.lastSuccess=time.Now()
+	meta.HostAvailableInfo = map[string]HostAvailableInfo{}
 	meta.clusterFailureTicket = 0
 }
 

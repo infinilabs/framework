@@ -41,6 +41,10 @@ var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch:       "default",
 		RemoteConfigEnabled: false,
+		HealthCheckConfig: HealthCheckConfig{
+			Enabled:  true,
+			Interval: "10s",
+		},
 		MonitoringConfig: MonitoringConfig{
 			Enabled:  false,
 			Interval: "10s",
@@ -190,65 +194,122 @@ func (module ElasticModule) Stop() error {
 }
 
 func monitoring() {
-
 	task1 := task.ScheduleTask{
 		Description: "monitoring for elasticsearch clusters",
 		Type:        "interval",
 		Interval:    "10s",
 		Task: func() {
 			elastic.WalkMetadata(func(key, value interface{}) bool {
-					k:=key.(string)
-					if value==nil{
+				k:=key.(string)
+				if value==nil{
+					return false
+				}
+
+				v,ok:=value.(*elastic.ElasticsearchMetadata)
+				if ok{
+					if !v.Config.Monitored || !v.Config.Enabled {
 						return false
 					}
 
-					v,ok:=value.(*elastic.ElasticsearchMetadata)
-					if ok{
-						if !v.Config.Monitored || !v.Config.Enabled {
-							return false
-						}
-
-						log.Tracef("run monitoring task for elasticsearch: " + k)
-						client := elastic.GetClient(k)
-						stats := client.GetClusterStats()
-						indexStats,err := client.GetStats()
-						if err != nil {
-							log.Error(v.Config.Name, " get cluster stats error: ", err)
-							return false
-						}
-
-						v.ReportSuccess()
-
-						item := MonitoringItem{}
-						item.Elasticsearch = v.Config.ID
-						item.ClusterStats = stats
-						if indexStats!=nil{
-
-							//replace . to _dot_
-							for k,v:=range indexStats.Indices{
-								if util.PrefixStr(k,"."){
-									delete(indexStats.Indices,k)
-									indexStats.Indices[strings.Replace(k,".","_dot_",1)]=v
-								}
-							}
-
-							item.IndexStats = indexStats
-						}
-						item.Timestamp = time.Now()
-						item.Agent = global.Env().SystemConfig.NodeConfig
-						monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
-						_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
-						if err != nil {
-							log.Error(err)
-						}
+					log.Tracef("run monitoring task for elasticsearch: " + k)
+					client := elastic.GetClient(k)
+					stats := client.GetClusterStats()
+					indexStats,err := client.GetStats()
+					if err != nil {
+						log.Error(v.Config.Name, " get cluster stats error: ", err)
+						return false
 					}
+
+					v.ReportSuccess()
+
+					item := MonitoringItem{}
+					item.Elasticsearch = v.Config.ID
+					item.ClusterStats = stats
+					if indexStats!=nil{
+
+						//replace . to _dot_
+						for k,v:=range indexStats.Indices{
+							if util.PrefixStr(k,"."){
+								delete(indexStats.Indices,k)
+								indexStats.Indices[strings.Replace(k,".","_dot_",1)]=v
+							}
+						}
+
+						item.IndexStats = indexStats
+					}
+					item.Timestamp = time.Now()
+					item.Agent = global.Env().SystemConfig.NodeConfig
+					monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
+					_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
+					if err != nil {
+						log.Error(err)
+					}
+				}
 				return true
 			})
-
 		},
 	}
 
 	task.RegisterScheduleTask(task1)
+
+
+}
+
+func healthCheck() {
+
+	task2:=task.ScheduleTask{
+		Description: "check for elasticsearch node availability",
+		Type:        "interval",
+		Interval:    "10s",
+		Task: func() {
+			elastic.WalkMetadata(func(key, value interface{}) bool {
+				k:=key.(string)
+
+				if value==nil{
+					return false
+				}
+
+				v,ok:=value.(*elastic.ElasticsearchMetadata)
+				if ok{
+					if !v.Config.Discovery.Enabled || !v.Config.Enabled {
+						return false
+					}
+
+					log.Debugf("run monitoring task for elasticsearch: " + k)
+					for x,y:=range v.Nodes{
+						nodeInfo,ok:=v.HostAvailableInfo[x]
+						if !ok{
+							nodeInfo=elastic.HostAvailableInfo{}
+							arr:=strings.Split(y.Http.PublishAddress,":")
+							if len(arr)==2{
+								nodeInfo.Host=arr[0]
+								port,err:=util.ToInt(arr[1])
+								if err!=nil{
+									log.Errorf("unable to parse port, %v, %v",y.Http.PublishAddress,err)
+									continue
+								}
+								nodeInfo.Port=port
+							}
+						}
+						avail:=util.TestTCPPort(nodeInfo.Host,nodeInfo.Port)
+						if avail{
+							nodeInfo.LastActive=time.Now()
+						}else{
+							nodeInfo.LastFailure=time.Now()
+						}
+						nodeInfo.Available=avail
+						v.HostAvailableInfo[y.Http.PublishAddress]=nodeInfo
+						log.Debugf("elasticsearch [%v] [%v], connection check: [%v]" ,x,y.Http.PublishAddress,nodeInfo.Available)
+
+					}
+				}
+				return true
+			})
+		},
+	}
+
+	task.RegisterScheduleTask(task2)
+
 }
 
 func discovery() {
@@ -275,7 +336,7 @@ func discoveryMetadata(force bool) {
 					}
 
 					if nodes == nil || len(*nodes) <= 0 {
-						log.Error(cfg.Name," nodes info not retrieved")
+						log.Errorf("elasticsearch [%v] failed to get nodes info",cfg.Name)
 						oldMetadata.ReportFailure()
 						return
 					}
@@ -410,6 +471,10 @@ func (module ElasticModule) Start() error {
 
 	if moduleConfig.MonitoringConfig.Enabled {
 		monitoring()
+	}
+
+	if moduleConfig.HealthCheckConfig.Enabled{
+		healthCheck()
 	}
 
 	return nil

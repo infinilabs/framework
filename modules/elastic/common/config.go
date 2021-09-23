@@ -25,12 +25,18 @@ type MonitoringConfig struct {
 	Interval string `config:"interval,omitempty"`
 }
 
+type HealthCheckConfig struct {
+	Enabled  bool   `config:"enabled"`
+	Interval string `config:"interval,omitempty"`
+}
+
 type ModuleConfig struct {
 	Elasticsearch       string    `config:"elasticsearch"`
 	RemoteConfigEnabled bool      `config:"remote_configs"`
 	ORMConfig           ORMConfig `config:"orm"`
 	StoreConfig                    StoreConfig      `config:"store"`
 	MonitoringConfig               MonitoringConfig `config:"monitoring"`
+	HealthCheckConfig              HealthCheckConfig `config:"health_check"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {

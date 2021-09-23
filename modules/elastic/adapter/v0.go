@@ -531,6 +531,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 
 	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
+
 	if err != nil {
 		return nil, err
 	}
@@ -540,6 +541,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	}
 
 	node := elastic.NodesResponse{}
+
 	err=node.UnmarshalJSON(resp.Body)
 	if err != nil {
 		return nil, err
