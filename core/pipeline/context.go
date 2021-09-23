@@ -30,54 +30,64 @@ type RunningState string
 const STARTED RunningState = "STARTED"
 const PAUSED RunningState = "PAUSED"
 const STOPPED RunningState = "STOPPED"
+const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
 
 type Context struct {
-	param.Parameters
+	param.Parameters `json:"parameters"`
 
-	SequenceID   int64       `json:"sequence"`
-	IsSimulate   bool        `json:"is_simulate"`
-	IgnoreBroken bool        `json:"ignore_broken"`
+	IsSimulate   bool        `json:"simulate"`
+	IgnoreBroken bool        `json:"-"`
 	Payload      interface{} `json:"-"`
 
 	//private parameters
-	breakFlag  bool
-	pauseFlag  bool
-	exitFlag   bool
-	PipelineID string
-	flowProcess []string
-	finished bool
-	context.Context
+	RunningState    RunningState `json:"state"`
+	ProcessHistory  []string     `json:"executed"`
+	context.Context `json:"-"`
+}
+
+func AcquireContext()*Context{
+	ctx:=Context{}
+	ctx.Context=context.Background()
+	ctx.ResetContext()
+	return &ctx
 }
 
 func (ctx *Context)ResetContext()  {
 	ctx.ResetParameters()
-	ctx.finished=false
-	ctx.flowProcess=[]string{}
+	ctx.RunningState =STOPPED
+	ctx.ProcessHistory =[]string{}
 }
 func (ctx *Context)GetFlowProcess()[]string  {
-	return ctx.flowProcess
+	return ctx.ProcessHistory
 }
 
 func (ctx *Context)GetRequestProcess()[]string  {
-	return ctx.flowProcess
+	return ctx.ProcessHistory
 }
 
 func (ctx *Context)AddFlowProcess(str string)  {
 	if str!=""{
-		ctx.flowProcess=append(ctx.flowProcess,str)
+		ctx.ProcessHistory =append(ctx.ProcessHistory,str)
 	}
 }
 
+func (ctx *Context)IsCanceled()bool  {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
 
-//is all process finished
 func (ctx *Context) Finished() {
-	ctx.finished=true
+	ctx.RunningState =FINISHED
 }
 
 //should filters continue to process
 func (ctx *Context) ShouldContinue() bool {
-	return !ctx.finished
+	return !(ctx.RunningState==FINISHED)
 }
 
 // End break all pipelines, but the end phrase not included
@@ -86,40 +96,51 @@ func (context *Context) End(msg interface{}) {
 	if context == nil {
 		panic(errors.New("context is nil"))
 	}
-	context.breakFlag = true
+	context.RunningState = STOPPED
 	context.Payload = msg
 }
 
 
 
+func (context *Context) Start() {
+	context.RunningState = STARTED
+}
+
+func (context *Context) Failed() {
+	context.RunningState = FAILED
+}
+
 //resume processing pipeline, allow filters continue
 func (ctx *Context) Resume() {
-	ctx.finished=false
-	ctx.pauseFlag = false
+	ctx.RunningState = STARTED
 	ctx.AddFlowProcess("||")
 }
 
 func (context *Context) Pause() {
-	context.pauseFlag = true
+	context.RunningState = PAUSED
+}
+
+func (context *Context) Stop() {
+	context.RunningState = STOPPED
 }
 
 func (context *Context) IsPause() bool {
-	return context.pauseFlag
+	return context.RunningState==PAUSED
 }
 
 // IsEnd indicates whether the pipe process is end, end means no more processes will be execute
 func (context *Context) IsEnd() bool {
-	return context.breakFlag
+	return context.RunningState==STOPPED
 }
 
 // IsExit means all pipelines will be broke and jump to outside, even the end phrase will not be executed as well
 func (context *Context) IsExit() bool {
-	return context.exitFlag
+	return context.RunningState==FINISHED
 }
 
 // Exit tells pipeline to exit
 func (context *Context) Exit(msg interface{}) {
-	context.exitFlag = true
+	context.RunningState = FINISHED
 	context.Payload = msg
 }
 

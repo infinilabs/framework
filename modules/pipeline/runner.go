@@ -37,7 +37,6 @@ type PipeRunner struct {
 
 var lock sync.Mutex
 
-
 func (pipe *PipeRunner) Start(config pipeline.PipelineConfig) {
 	if !config.Enabled {
 		log.Debugf("pipeline: %s was disabled", config.Name)
@@ -125,11 +124,11 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 		}
 		pipe.execute(shard, context, &pipe.config)
 
-		log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , message ", context.SequenceID, " process finished")
+		log.Trace("pipeline:", pipe.config.Name, ", shard:", shard, " , process finished")
 
 	} else if pipe.config.Schedule == "" || pipe.config.Schedule == "once" {
 		log.Debug("use schedule in pipeline runner,",pipe.config.Name)
-		context := pipeline.Context{}
+		context = pipeline.Context{}
 		pipe.execute(shard, context, &pipe.config)
 	} else {
 		log.Info("no schedule was defined,",pipe.config.Name)
@@ -155,6 +154,8 @@ func (pipe *PipeRunner) runPipeline(signal *chan bool, shard int) {
 			}
 		}
 	}
+
+	log.Info("pipeline finished:",pipe.config.Name,",",shard)
 }
 
 func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineConfig *pipeline.PipelineConfig) *pipeline.Pipeline {
@@ -172,7 +173,7 @@ func (pipe *PipeRunner) execute(shard int, context pipeline.Context, pipelineCon
 					v = r.(string)
 				}
 
-				log.Error("pipeline:", pipe.config.Name, ", shard:", shard, ", sequence:", context.SequenceID, ", err: ", v)
+				log.Error("pipeline:", pipe.config.Name, ", shard:", shard, ", err: ", v)
 				if p != nil {
 					log.Error("instance:", p.GetID(), " ,joint:", p.CurrentProcessor(), "context", util.ToJson(p.GetContext(), true))
 				}

@@ -18,18 +18,27 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
+	"infini.sh/framework/core/util"
+	"net/http"
 	"runtime"
+	"time"
 )
 
-var started bool
-var runners map[string]*PipeRunner
+
 
 type PipeModule struct {
+	api.Handler
+	pipelines map[string]*pipeline.Processors
+	contexts map[string]*pipeline.Context
+	started bool
+	runners map[string]*PipeRunner
 }
 
 func (module PipeModule) Name() string {
@@ -42,7 +51,7 @@ var moduleCfg = struct {
 	APIEnabled: true,
 }
 
-func (module PipeModule) Setup(cfg *config.Config) {
+func (module *PipeModule) Setup(cfg *config.Config) {
 
 	cfg.Unpack(&moduleCfg)
 
@@ -50,13 +59,18 @@ func (module PipeModule) Setup(cfg *config.Config) {
 		log.Debug("pipeline framework config: ", moduleCfg)
 	}
 
+	module.pipelines= map[string]*pipeline.Processors{}
+	module.contexts= map[string]*pipeline.Context{}
+
 	pipeline.RegisterPlugin("dag", pipeline.NewDAGProcessor)
 	pipeline.RegisterPlugin("echo", NewEchoProcessor)
-	//pipeline.RegisterPlugin("processors",NewDAGProcessor)
 
 	if moduleCfg.APIEnabled {
 		handler := API{}
 		handler.Init()
+		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
+		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)
+		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTask)
 	}
 
 }
@@ -66,8 +80,43 @@ type PipelineConfigV2 struct {
 	Processors pipeline.PluginConfig `config:"processors"`
 }
 
-func (module PipeModule) Start() error {
-	if started {
+
+func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id:=ps.ByName("id")
+	ctx,ok:=module.contexts[id]
+	if ok{
+		ctx.Start()
+		module.WriteAckOKJSON(w)
+	}else{
+		module.WriteAckJSON(w,false,404,util.MapStr{
+			"error":"task not found",
+		})
+	}
+}
+
+func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id:=ps.ByName("id")
+	ctx,ok:=module.contexts[id]
+	if ok{
+		ctx.Stop()
+		module.WriteAckOKJSON(w)
+	}else{
+		module.WriteAckJSON(w,false,404,util.MapStr{
+			"error":"task not found",
+		})
+	}
+}
+
+func (module *PipeModule) getPipelines(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	obj:=map[string]interface{}{}
+	for k,_:=range module.pipelines{
+		obj[k]=module.contexts[k]
+	}
+	module.WriteJSON(w,obj,200)
+}
+
+func (module *PipeModule) Start() error {
+	if module.started {
 		return errors.New("pipeline framework already started, please stop it first.")
 	}
 
@@ -79,7 +128,17 @@ func (module PipeModule) Start() error {
 	}
 	if ok {
 		for _, v := range pipelines {
-			go func(v PipelineConfigV2) {
+
+			processor, err := pipeline.New(v.Processors)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			ctx:=pipeline.AcquireContext()
+			module.pipelines[v.Name]=processor
+			module.contexts[v.Name]=ctx
+
+			go func(p *pipeline.Processors,ctx *pipeline.Context) {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
@@ -92,20 +151,49 @@ func (module PipeModule) Start() error {
 							case string:
 								err = r.(string)
 							}
-							log.Errorf("error on pipeline:%v, %v",v.Name,err)
+							log.Errorf("error on pipeline:%v, %v",p.Name(),err)
 						}
 					}
 				}()
-				log.Debug("init pipeline_v2:", v.Name)
-				processor, err := pipeline.New(v.Processors)
-				if err != nil {
-					panic(err)
+
+				log.Debug("start processing pipeline_v2:", p.Name())
+
+				for {
+
+					if ctx.IsCanceled(){
+						log.Infof("task [%v] has been cancelled",p.Name())
+						break
+					}
+
+					switch ctx.RunningState {
+					case pipeline.STARTED:
+						log.Debugf("task [%v] started",p.Name())
+						ctx.Start()
+						err = p.Process(ctx)
+						if err != nil {
+							ctx.Failed()
+						}else{
+							ctx.Finished()
+						}
+						break
+					case pipeline.PAUSED:
+						time.Sleep(1*time.Second)
+						break
+					case pipeline.STOPPED:
+						ctx.Context.Done()
+						log.Debugf("task [%v] stopped",p.Name())
+						break
+					case pipeline.FINISHED:
+						log.Infof("task [%v] finished",p.Name())
+						return
+					}
+
+					time.Sleep(10*time.Second)
 				}
-				err = processor.Process(&pipeline.Context{})
-				if err != nil {
-					panic(err)
-				}
-			}(v)
+
+				//some cancel func
+
+			}(processor,ctx)
 
 		}
 	}
@@ -115,28 +203,30 @@ func (module PipeModule) Start() error {
 	//TODO
 	//orm.RegisterSchema(pipeline.PipelineConfig{})
 
-	runners = map[string]*PipeRunner{}
+
+	module.runners = map[string]*PipeRunner{}
 
 	cfgs := pipeline.GetPipelineConfigs()
+
 	for k, v := range cfgs {
 		p := &PipeRunner{config: v}
-		runners[k] = p
+		module.runners[k] = p
 	}
 
 	log.Debug("starting up pipeline framework")
-	for _, v := range runners {
+	for _, v := range module.runners {
 		v.Start(v.config)
 	}
 
-	started = true
+	module.started = true
 	return nil
 }
 
-func (module PipeModule) Stop() error {
-	if started {
-		started = false
+func (module *PipeModule) Stop() error {
+	if module.started {
+		module.started = false
 		log.Debug("shutting down pipeline framework")
-		for _, v := range runners {
+		for _, v := range module.runners {
 			v.Stop()
 		}
 	} else {

@@ -185,7 +185,6 @@ func (procs *Processors) Close() error {
 // list then a nil event is returned.
 func (procs *Processors) Process(ctx *Context) error{
 	for _, p := range procs.List {
-
 		if !ctx.ShouldContinue(){
 			if global.Env().IsDebug{
 				log.Debugf("filter [%v] not continued",p.Name())
@@ -194,9 +193,11 @@ func (procs *Processors) Process(ctx *Context) error{
 			return nil
 		}
 		ctx.AddFlowProcess(p.Name())
+		log.Debug("start processing:",p.Name())
 		err:=p.Process(ctx)
 		//event, err = p.Process(filterCfg,ctx)
 		if err != nil {
+			log.Info("error on processing:",p.Name())
 			return err
 		}
 		//if event == nil {
@@ -210,6 +211,7 @@ func (procs *Processors) Process(ctx *Context) error{
 func (procs *Processors) Name() string {
 	return "filters"
 }
+
 func (procs *Processors) String() string {
 	var s []string
 	for _, p := range procs.List {
