@@ -57,7 +57,7 @@ func Start() {
 		}
 
 	}
-	log.Debug("all system modules finished setup")
+	log.Debug("all system module setup finished")
 
 	log.Trace("start to setup user plugins")
 	for _, v := range m.user {
@@ -73,7 +73,7 @@ func Start() {
 		}
 
 	}
-	log.Debug("all user plugins finished setup")
+	log.Debug("all user plugin setup finished")
 
 	log.Trace("start to start system modules")
 	for _, v := range m.system {
@@ -92,7 +92,7 @@ func Start() {
 		}
 
 	}
-	log.Debug("all system modules started")
+	log.Debug("all system module started")
 
 	log.Trace("start to start user plugins")
 	for _, v := range m.user {
@@ -111,7 +111,7 @@ func Start() {
 		}
 
 	}
-	log.Debug("all user plugins started")
+	log.Debug("all user plugin started")
 
 }
 

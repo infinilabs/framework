@@ -70,20 +70,20 @@ func StartUI(cfg *UIConfig) {
 	//registered handlers
 	if registeredUIHandler != nil {
 		for k, v := range registeredUIHandler {
-			log.Debug("register custom http handler: ", k)
+			log.Debug("register http handler: ", k)
 			mux.Handle(k, v)
 		}
 	}
 	if registeredUIFuncHandler != nil {
 		for k, v := range registeredUIFuncHandler {
-			log.Debug("register custom http handler: ", k)
+			log.Debug("register http handler: ", k)
 			mux.HandleFunc(k, v)
 		}
 	}
 	if registeredUIMethodHandler != nil {
 		for k, v := range registeredUIMethodHandler {
 			for m, n := range v {
-				log.Debug("register custom http handler: ", k, " ", m)
+				log.Debug("register http handler: ", k, " ", m)
 				router.Handle(k, m, n)
 			}
 		}
@@ -95,7 +95,7 @@ func StartUI(cfg *UIConfig) {
 
 	if registeredWebSocketCommandHandler != nil {
 		for k, v := range registeredWebSocketCommandHandler {
-			log.Debug("register custom websocket handler: ", k, " ", v)
+			log.Debug("register websocket handler: ", k, " ", v)
 			websocket.HandleWebSocketCommand(k, webSocketCommandUsage[k], v)
 		}
 	}

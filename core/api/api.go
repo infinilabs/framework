@@ -76,7 +76,7 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	registeredAPIMethodHandler[m][pattern] = handler
 	APIs[pattern]=m
 
-	log.Debugf("register custom http handler: %v %v", m, pattern)
+	log.Debugf("register http handler: %v %v", m, pattern)
 
 	router.Handle(m, pattern, handler)
 	l.Unlock()
