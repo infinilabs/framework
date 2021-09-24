@@ -275,7 +275,7 @@ func healthCheck() {
 						return false
 					}
 
-					log.Debugf("run monitoring task for elasticsearch: " + k)
+					log.Debugf("run health check task for elasticsearch: " + k)
 					for x,y:=range v.Nodes{
 						nodeInfo,ok:=v.HostAvailableInfo[x]
 						if !ok{
@@ -291,7 +291,7 @@ func healthCheck() {
 								nodeInfo.Port=port
 							}
 						}
-						avail:=util.TestTCPPort(nodeInfo.Host,nodeInfo.Port)
+						avail:=util.TestTCPPort(nodeInfo.Host,util.IntToString(nodeInfo.Port))
 						if avail{
 							nodeInfo.LastActive=time.Now()
 						}else{
@@ -299,7 +299,7 @@ func healthCheck() {
 						}
 						nodeInfo.Available=avail
 						v.HostAvailableInfo[y.Http.PublishAddress]=nodeInfo
-						log.Debugf("elasticsearch [%v] [%v], connection check: [%v]" ,x,y.Http.PublishAddress,nodeInfo.Available)
+						log.Debugf("elasticsearch [%v] [%v], connection available: [%v]" ,x,y.Http.PublishAddress,nodeInfo.Available)
 
 					}
 				}

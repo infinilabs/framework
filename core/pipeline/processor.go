@@ -197,7 +197,7 @@ func (procs *Processors) Process(ctx *Context) error{
 		err:=p.Process(ctx)
 		//event, err = p.Process(filterCfg,ctx)
 		if err != nil {
-			log.Info("error on processing:",p.Name())
+			log.Error("error on processing:",p.Name())
 			return err
 		}
 		//if event == nil {
