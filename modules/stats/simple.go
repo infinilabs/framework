@@ -28,7 +28,7 @@ type SimpleStatsConfig struct {
 	Persist bool `config:"persist"`
 }
 
-func (module SimpleStatsModule) Setup(cfg *Config) {
+func (module *SimpleStatsModule) Setup(cfg *Config) {
 
 	config = &SimpleStatsConfig{
 		Persist: true,
@@ -48,12 +48,12 @@ func (module SimpleStatsModule) Setup(cfg *Config) {
 	api.HandleAPIFunc("/stats", module.StatsAction)
 }
 
-func (module SimpleStatsModule) Start() error {
+func (module *SimpleStatsModule) Start() error {
 
 	return nil
 }
 
-func (module SimpleStatsModule) Stop() error {
+func (module *SimpleStatsModule) Stop() error {
 
 	if config.Persist {
 		data.l.Lock()

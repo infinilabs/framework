@@ -100,8 +100,12 @@ func GetAvailablePort(ip string, port int) int {
 }
 
 func TestTCPPort(host string,port string)bool  {
+	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port))
+}
+
+func TestTCPAddress(host string)bool  {
 	timeout := time.Second
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), timeout)
+	conn, err := net.DialTimeout("tcp", host, timeout)
 	if err != nil {
 		return false
 	}

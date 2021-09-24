@@ -44,18 +44,23 @@ type Context struct {
 	RunningState    RunningState `json:"state"`
 	ProcessHistory  []string     `json:"executed"`
 	context.Context `json:"-"`
+	cancelFunc context.CancelFunc
 }
 
 func AcquireContext()*Context{
+	//TODO
 	ctx:=Context{}
-	ctx.Context=context.Background()
 	ctx.ResetContext()
 	return &ctx
 }
 
+func ReleaseContext(ctx *Context)  {
+	//TODO
+}
+
 func (ctx *Context)ResetContext()  {
+	ctx.Context,ctx.cancelFunc=context.WithCancel(context.Background())
 	ctx.ResetParameters()
-	ctx.RunningState =STOPPED
 	ctx.ProcessHistory =[]string{}
 }
 func (ctx *Context)GetFlowProcess()[]string  {
@@ -73,8 +78,9 @@ func (ctx *Context)AddFlowProcess(str string)  {
 }
 
 func (ctx *Context)IsCanceled()bool  {
+
 	select {
-	case <-ctx.Done():
+	case <-ctx.Context.Done():
 		return true
 	default:
 		return false
@@ -103,6 +109,7 @@ func (context *Context) End(msg interface{}) {
 
 
 func (context *Context) Start() {
+	context.ResetContext()
 	context.RunningState = STARTED
 }
 
@@ -121,6 +128,7 @@ func (context *Context) Pause() {
 }
 
 func (context *Context) Stop() {
+	context.cancelFunc()
 	context.RunningState = STOPPED
 }
 

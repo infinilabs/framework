@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/elastic/model"
 	"regexp"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ import (
 
 type ESAPIV0 struct {
 	Version      string
-	Config       elastic.ElasticsearchConfig
+	Config       model.ElasticsearchConfig
 	majorVersion int
 }
 
@@ -527,7 +528,7 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	return health
 }
 
-func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
+func (c *ESAPIV0) GetNodes() (*map[string]model.NodesInfo, error) {
 
 	url := fmt.Sprintf("%s/_nodes", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -540,7 +541,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 		return nil, errors.New(string(resp.Body))
 	}
 
-	node := elastic.NodesResponse{}
+	node := model.NodesResponse{}
 
 	err=node.UnmarshalJSON(resp.Body)
 	if err != nil {
@@ -549,7 +550,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	return &node.Nodes, nil
 }
 
-func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
+func (c *ESAPIV0) GetIndices(pattern string) (*map[string]model.IndexInfo, error) {
 
 	url := fmt.Sprintf("%s/_cat/indices?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.Config.Endpoint)
 	if pattern != "" {
@@ -566,15 +567,15 @@ func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, err
 		return nil, errors.New(string(resp.Body))
 	}
 
-	data := []elastic.CatIndexResponse{}
+	data := []model.CatIndexResponse{}
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
 		return nil, err
 	}
 
-	indexInfo := map[string]elastic.IndexInfo{}
+	indexInfo := map[string]model.IndexInfo{}
 	for _, v := range data {
-		info := elastic.IndexInfo{}
+		info := model.IndexInfo{}
 		info.ID = v.Uuid
 		info.Index = v.Index
 		info.Status = v.Status
@@ -621,7 +622,7 @@ type CatShardResponse struct {
 }
 
 //index:shardID -> nodesInfo
-func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, error) {
+func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]model.ShardInfo, error) {
 	data := []CatShardResponse{}
 
 	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.Config.Endpoint)
@@ -639,13 +640,13 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 		return nil, err
 	}
 
-	infos := map[string]map[int]elastic.ShardInfo{}
+	infos := map[string]map[int]model.ShardInfo{}
 	for _, v := range data {
 		if v.ShardType != "p" {
 			continue
 		}
 
-		info := elastic.ShardInfo{}
+		info := model.ShardInfo{}
 		info.Index = v.Index
 		info.ShardID = v.ShardID
 		info.Primary = v.ShardType == "p"
@@ -662,7 +663,7 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 
 		indexMap, ok := infos[v.Index]
 		if !ok {
-			indexMap = map[int]elastic.ShardInfo{}
+			indexMap = map[int]model.ShardInfo{}
 		}
 		id,err:=util.ToInt(v.ShardID)
 		if err!=nil{
@@ -1044,13 +1045,13 @@ func (c *ESAPIV0) SearchTasksByIds(ids []string) (*elastic.SearchResponse, error
 	return c.SearchWithRawQueryDSL(".tasks", []byte(esBody))
 }
 
-func (c *ESAPIV0) Reindex(body []byte) (*elastic.ReindexResponse, error) {
+func (c *ESAPIV0) Reindex(body []byte) (*model.ReindexResponse, error) {
 	url := fmt.Sprintf("%s/_reindex?wait_for_completion=false", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_POST, url, body)
 	if err != nil {
 		return nil, err
 	}
-	var reindexResponse = &elastic.ReindexResponse{}
+	var reindexResponse = &model.ReindexResponse{}
 	err = json.Unmarshal(resp.Body, reindexResponse)
 	if err != nil {
 		return nil, err
@@ -1058,13 +1059,13 @@ func (c *ESAPIV0) Reindex(body []byte) (*elastic.ReindexResponse, error) {
 	return reindexResponse, nil
 }
 
-func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
+func (c *ESAPIV0) GetIndexStats(indexName string) (*model.IndexStats, error) {
 	url := fmt.Sprintf("%s/%s/_stats", c.Config.Endpoint, indexName)
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	var response = &elastic.IndexStats{}
+	var response = &model.IndexStats{}
 	err = json.Unmarshal(resp.Body, response)
 	if err != nil {
 		return nil, err
@@ -1072,14 +1073,14 @@ func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
 	return response, nil
 }
 
-func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
+func (c *ESAPIV0) GetStats() (*model.Stats, error) {
 	url := fmt.Sprintf("%s/_stats", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var response = &elastic.Stats{}
+	var response = &model.Stats{}
 	err = json.Unmarshal(resp.Body, response)
 	if err != nil {
 		return nil, err
@@ -1107,7 +1108,7 @@ type AliasesResponse struct {
 	} `json:"aliases,omitempty"`
 }
 
-func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
+func (c *ESAPIV0) GetAliases() (*map[string]model.AliasInfo, error) {
 
 	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -1121,12 +1122,12 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 		return nil, err
 	}
 
-	aliasInfo := map[string]elastic.AliasInfo{}
+	aliasInfo := map[string]model.AliasInfo{}
 	for index, v := range data {
 		for alias, v1 := range v.Aliases {
 			info, ok := aliasInfo[alias]
 			if !ok {
-				info = elastic.AliasInfo{}
+				info = model.AliasInfo{}
 				info.Alias = alias
 			}
 
@@ -1146,7 +1147,7 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 }
 
 
-func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error) {
+func (c *ESAPIV0) GetAliasesDetail() (*map[string]model.AliasDetailInfo, error) {
 
 	url := fmt.Sprintf("%s/_alias", c.Config.Endpoint)
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -1160,16 +1161,16 @@ func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error
 		return nil, err
 	}
 
-	aliasInfo := map[string]elastic.AliasDetailInfo{}
+	aliasInfo := map[string]model.AliasDetailInfo{}
 	for index, v := range data {
 		for alias, v1 := range v.Aliases {
 			info, ok := aliasInfo[alias]
 			if !ok {
-				info = elastic.AliasDetailInfo{}
+				info = model.AliasDetailInfo{}
 				info.Alias = alias
 			}
 
-			info.Indexes = append(info.Indexes, elastic.AliasIndex{
+			info.Indexes = append(info.Indexes, model.AliasIndex{
 				Index:         index,
 				Filter:        v1.Filter,
 				SearchRouting: v1.SearchRouting,
@@ -1237,13 +1238,13 @@ func (c *ESAPIV0) Forcemerge(indexName string, maxCount int) error {
 	return nil
 }
 
-func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteByQueryResponse, error) {
+func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*model.DeleteByQueryResponse, error) {
 	url := fmt.Sprintf("%s/%s/_delete_by_query", c.Config.Endpoint, indexName)
 	resp, err := c.Request(util.Verb_POST, url, body)
 	if err != nil {
 		return nil, err
 	}
-	var delResponse = &elastic.DeleteByQueryResponse{}
+	var delResponse = &model.DeleteByQueryResponse{}
 	err = json.Unmarshal(resp.Body, delResponse)
 	if err != nil {
 		return nil, err

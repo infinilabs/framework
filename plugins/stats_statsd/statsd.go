@@ -22,18 +22,18 @@ type StatsDConfig struct {
 	BufferSize        int           `config:"buffer_size"`
 }
 type StatsDModule struct {
+	 statsdInited bool
+	 statsdclient *statsd.StatsdClient
+	 buffer *statsd.StatsdBuffer
+	 l1 sync.RWMutex
+	 cfg *Config
 }
 
-var cfg *Config
 
-func (module StatsDModule) Setup(config *Config) {
-	cfg = config
+func (module *StatsDModule) Setup(config *Config) {
+	module.cfg = config
 }
 
-var statsdInited bool
-var statsdclient *statsd.StatsdClient
-var buffer *statsd.StatsdBuffer
-var l1 sync.RWMutex
 
 var defaultStatsdConfig = StatsDConfig{
 	Enabled:           false,
@@ -44,12 +44,12 @@ var defaultStatsdConfig = StatsDConfig{
 	IntervalInSeconds: 1,
 }
 
-func (module StatsDModule) Name() string {
+func (module *StatsDModule) Name() string {
 	return "statsd"
 }
 
-func (module StatsDModule) Start() error {
-	if statsdInited {
+func (module *StatsDModule) Start() error {
+	if module.statsdInited {
 		panic(errors.New("statsd not inited"))
 	}
 
@@ -61,17 +61,17 @@ func (module StatsDModule) Start() error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	l1.Lock()
-	defer l1.Unlock()
-	statsdclient = statsd.NewStatsdClient(addr, config.Namespace)
+	module.l1.Lock()
+	defer module.l1.Unlock()
+	module.statsdclient = statsd.NewStatsdClient(addr, config.Namespace)
 
 	log.Debug("statsd connec to, ", addr, ",prefix:", config.Namespace)
 
 	var err error
 	if config.Protocol == "tcp" {
-		err = statsdclient.CreateTCPSocket()
+		err = module.statsdclient.CreateTCPSocket()
 	} else {
-		err = statsdclient.CreateSocket()
+		err = module.statsdclient.CreateSocket()
 	}
 	if nil != err {
 		log.Warn(err)
@@ -82,71 +82,71 @@ func (module StatsDModule) Start() error {
 	if config.BufferSize<=0{
 		config.BufferSize=100
 	}
-	buffer = statsd.NewStatsdBuffer(interval,config.BufferSize, statsdclient)
+	module.buffer = statsd.NewStatsdBuffer(interval,config.BufferSize, module.statsdclient)
 
-	statsdInited = true
+	module.statsdInited = true
 
 	stats.Register(module)
 	return nil
 }
 
-func (module StatsDModule) Stop() error {
-	if statsdclient != nil {
-		statsdclient.Close()
+func (module *StatsDModule) Stop() error {
+	if module.statsdclient != nil {
+		module.statsdclient.Close()
 	}
 	return nil
 }
 
-func (module StatsDModule) Absolute(category, key string, value int64) {
+func (module *StatsDModule) Absolute(category, key string, value int64) {
 
-	if !statsdInited {
+	if !module.statsdInited {
 		return
 	}
-	buffer.Absolute(category+"."+key, value)
+	module.buffer.Absolute(category+"."+key, value)
 }
 
-func (module StatsDModule) Increment(category, key string) {
+func (module *StatsDModule) Increment(category, key string) {
 
 	module.IncrementBy(category, key, 1)
 }
 
-func (module StatsDModule) IncrementBy(category, key string, value int64) {
-	if !statsdInited {
+func (module *StatsDModule) IncrementBy(category, key string, value int64) {
+	if !module.statsdInited {
 		return
 	}
-	buffer.Incr(category+"."+key, value)
+	module.buffer.Incr(category+"."+key, value)
 }
 
-func (module StatsDModule) Decrement(category, key string) {
+func (module *StatsDModule) Decrement(category, key string) {
 	module.DecrementBy(category, key, 1)
 }
 
-func (module StatsDModule) DecrementBy(category, key string, value int64) {
-	if !statsdInited {
+func (module *StatsDModule) DecrementBy(category, key string, value int64) {
+	if !module.statsdInited {
 		return
 	}
-	buffer.Decr(category+"."+key, value)
+	module.buffer.Decr(category+"."+key, value)
 }
 
-func (module StatsDModule) Timing(category, key string, v int64) {
-	if !statsdInited {
+func (module *StatsDModule) Timing(category, key string, v int64) {
+	if !module.statsdInited {
 		return
 	}
-	buffer.Timing(category+"."+key, v)
+	module.buffer.Timing(category+"."+key, v)
 
 }
 
-func (module StatsDModule) Gauge(category, key string, v int64) {
-	if !statsdInited {
+func (module *StatsDModule) Gauge(category, key string, v int64) {
+	if !module.statsdInited {
 		return
 	}
-	buffer.Gauge(category+"."+key, v)
+	module.buffer.Gauge(category+"."+key, v)
 }
 
-func (module StatsDModule) Stat(category, key string) int64 {
+func (module *StatsDModule) Stat(category, key string) int64 {
 	return 0
 }
 
-func (module StatsDModule) StatsAll() *[]byte {
+func (module *StatsDModule) StatsAll() *[]byte {
 	return nil
 }

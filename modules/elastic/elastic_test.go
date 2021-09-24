@@ -2,7 +2,7 @@ package elastic
 
 import (
 	"fmt"
-	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/elastic/model"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
 	"src/github.com/buger/jsonparser"
@@ -11,7 +11,7 @@ import (
 
 func TestGetShards(t *testing.T) {
 
-	cfg:=elastic.ElasticsearchConfig{Endpoint: "http://192.168.3.201:9200",}
+	cfg:= model.ElasticsearchConfig{Endpoint: "http://192.168.3.201:9200",}
 
 	api:=adapter.ESAPIV0{Config: cfg}
 	shards,err:=api.GetIndices("*")

@@ -85,7 +85,9 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
-		ctx.Start()
+		if ctx.RunningState!=pipeline.STARTED{
+			ctx.Start()
+		}
 		module.WriteAckOKJSON(w)
 	}else{
 		module.WriteAckJSON(w,false,404,util.MapStr{
@@ -156,42 +158,35 @@ func (module *PipeModule) Start() error {
 					}
 				}()
 
-				log.Debug("start processing pipeline_v2:", p.Name())
+				log.Info("processing pipeline_v2:", p.String())
 
 				for {
-
-					if ctx.IsCanceled(){
-						log.Infof("task [%v] has been cancelled",p.Name())
-						break
-					}
-
 					switch ctx.RunningState {
 					case pipeline.STARTED:
-						log.Debugf("task [%v] started",p.Name())
+						log.Infof("task [%v] running start",p.String())
 						ctx.Start()
 						err = p.Process(ctx)
 						if err != nil {
 							ctx.Failed()
-						}else{
-							ctx.Finished()
+							log.Error(err)
 						}
+						log.Infof("task [%v] running end",p.String())
+						break
+					case pipeline.FAILED:
+						log.Tracef("task [%v] stopped",p.Name())
 						break
 					case pipeline.PAUSED:
 						time.Sleep(1*time.Second)
 						break
 					case pipeline.STOPPED:
-						ctx.Context.Done()
-						log.Debugf("task [%v] stopped",p.Name())
+						log.Infof("task [%v] stopped",p.Name())
 						break
 					case pipeline.FINISHED:
-						log.Infof("task [%v] finished",p.Name())
-						return
+						log.Tracef("task [%v] finished",p.String())
+						break
 					}
-
-					time.Sleep(10*time.Second)
+					time.Sleep(1*time.Second)
 				}
-
-				//some cancel func
 
 			}(processor,ctx)
 

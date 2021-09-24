@@ -8,19 +8,19 @@ import (
 type TaskModule struct {
 }
 
-func (module TaskModule) Name() string {
+func (module *TaskModule) Name() string {
 	return "task"
 }
 
-func (module TaskModule) Setup(cfg *config.Config) {
+func (module *TaskModule) Setup(cfg *config.Config) {
 
 }
 
-func (module TaskModule) Start() error {
+func (module *TaskModule) Start() error {
 	task.RunTasks()
 	return nil
 }
-func (module TaskModule) Stop() error {
+func (module *TaskModule) Stop() error {
 	task.StopTasks()
 	return nil
 }

@@ -1,4 +1,4 @@
-package elastic
+package model
 
 import (
 	"sync"
@@ -44,6 +44,12 @@ type NodesInfo struct {
 	Attributes          map[string]interface{} `json:"attributes,omitempty"`
 	Roles               []string               `json:"roles,omitempty"`
 	//TODO return more nodes level settings, for later check and usage
+}
+
+type NodeAvailable struct {
+	Available bool `json:"-,omitempty,nocopy"`
+	LastActive time.Time `json:"-,omitempty,nocopy"`
+	LastFailure time.Time `json:"-,omitempty,nocopy"`
 }
 
 type IndexInfo struct {
@@ -196,21 +202,11 @@ type ElasticsearchMetadata struct {
 	Aliases              map[string]AliasInfo
 	HealthStatus string
 
-	HostAvailableInfo map[string]HostAvailableInfo
-
 	clusterFailureTicket int
 	clusterOnFailure     bool
 	clusterAvailable     bool
 	lastSuccess time.Time
 	configLock sync.RWMutex
-}
-
-type HostAvailableInfo struct {
-	Available bool
-	Host string
-	Port int
-	LastActive time.Time
-	LastFailure time.Time
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch

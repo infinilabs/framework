@@ -33,7 +33,7 @@ func Register() {
 	//module.RegisterSystemModule(nsq.NSQModule{})
 	module.RegisterSystemModule(elastic.ElasticModule{})
 	module.RegisterSystemModule(filter.FilterModule{})
-	module.RegisterSystemModule(stats.SimpleStatsModule{})
+	module.RegisterSystemModule(&stats.SimpleStatsModule{})
 	module.RegisterSystemModule(queue.DiskQueue{})
 	module.RegisterSystemModule(&queue.RedisModule{})
 	module.RegisterSystemModule(&queue.QueueModule{})
@@ -41,5 +41,5 @@ func Register() {
 	module.RegisterSystemModule(&ui.UIModule{})
 	module.RegisterSystemModule(&pipeline.PipeModule{})
 	//module.RegisterSystemModule(cluster.ClusterModule{})
-	module.RegisterSystemModule(task.TaskModule{})
+	module.RegisterSystemModule(&task.TaskModule{})
 }

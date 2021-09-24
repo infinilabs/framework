@@ -20,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"runtime"
 	"strings"
 )
 
@@ -184,6 +185,24 @@ func (procs *Processors) Close() error {
 // an error. If the event has been dropped (canceled) by a processor in the
 // list then a nil event is returned.
 func (procs *Processors) Process(ctx *Context) error{
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var err string
+				switch r.(type) {
+				case error:
+					err = r.(error).Error()
+				case runtime.Error:
+					err = r.(runtime.Error).Error()
+				case string:
+					err = r.(string)
+				}
+				log.Errorf("error on pipeline:%v, %v",procs.String(),err)
+			}
+		}
+	}()
+
 	for _, p := range procs.List {
 		if !ctx.ShouldContinue(){
 			if global.Env().IsDebug{
