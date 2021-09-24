@@ -25,7 +25,7 @@ import (
 )
 
 // Name return API
-func (module APIModule) Name() string {
+func (module *APIModule) Name() string {
 	return "API"
 }
 
@@ -33,7 +33,7 @@ const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 
 // Start api server
-func (module APIModule) Setup(cfg *config.Config) {
+func (module *APIModule) Setup(cfg *config.Config) {
 	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().GetAppCapitalName()))
 		w.Write([]byte(", "))
@@ -66,7 +66,7 @@ func (module APIModule) Setup(cfg *config.Config) {
 		w.WriteHeader(200)
 	})
 }
-func (module APIModule) Start() error {
+func (module *APIModule) Start() error {
 
 	//API server
 	api.StartAPI()
@@ -75,7 +75,7 @@ func (module APIModule) Start() error {
 }
 
 // Stop api server
-func (module APIModule) Stop() error {
+func (module *APIModule) Stop() error {
 	return nil
 }
 

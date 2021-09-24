@@ -37,10 +37,11 @@ func LoggerReceiver(message string, level log.LogLevel, context log.LogContextIn
 	websocket.BroadcastMessage(message)
 }
 
-func (module UIModule) Name() string {
+func (module *UIModule) Name() string {
 	return "Web"
 }
-func (module UIModule) Setup(cfg *Config) {
+
+func (module *UIModule) Setup(cfg *Config) {
 
 
 	uiConfig := ui.UIConfig{}
@@ -67,11 +68,12 @@ func (module UIModule) Setup(cfg *Config) {
 
 }
 
-func (module UIModule) Start() error {
+func (module *UIModule) Start() error {
 
 	return nil
 }
-func (module UIModule) Stop() error {
+
+func (module *UIModule) Stop() error {
 
 	return nil
 }
