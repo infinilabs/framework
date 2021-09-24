@@ -34,9 +34,9 @@ const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
 
 type Context struct {
-	param.Parameters `json:"parameters"`
+	param.Parameters `json:"parameters,omitempty"`
 
-	IsSimulate   bool        `json:"simulate"`
+	IsSimulate   bool        `json:"-"`
 	IgnoreBroken bool        `json:"-"`
 	Payload      interface{} `json:"-"`
 
@@ -59,6 +59,7 @@ func ReleaseContext(ctx *Context)  {
 }
 
 func (ctx *Context)ResetContext()  {
+	ctx.RunningState=STARTED
 	ctx.Context,ctx.cancelFunc=context.WithCancel(context.Background())
 	ctx.ResetParameters()
 	ctx.ProcessHistory =[]string{}
