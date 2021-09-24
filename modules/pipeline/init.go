@@ -153,36 +153,36 @@ func (module *PipeModule) Start() error {
 							case string:
 								err = r.(string)
 							}
-							log.Errorf("error on pipeline:%v, %v",p.Name(),err)
+							log.Errorf("error on pipeline:%v, %v",p.String(),err)
 						}
 					}
 				}()
 
-				log.Info("processing pipeline_v2:", p.String())
+				log.Debug("processing pipeline_v2:", p.String())
 
 				for {
 					switch ctx.RunningState {
 					case pipeline.STARTED:
-						log.Infof("task [%v] running start",p.String())
+						log.Infof("pipeline [%v] start running",p.String())
 						ctx.Start()
 						err = p.Process(ctx)
 						if err != nil {
 							ctx.Failed()
-							log.Error(err)
+							log.Errorf("error on pipeline:%v, %v",p.String(),err)
 						}
-						log.Infof("task [%v] running end",p.String())
+						log.Infof("pipeline [%v] end running",p.String())
 						break
 					case pipeline.FAILED:
-						log.Tracef("task [%v] stopped",p.Name())
+						log.Tracef("pipeline [%v] stopped",p.String())
 						break
 					case pipeline.PAUSED:
 						time.Sleep(1*time.Second)
 						break
 					case pipeline.STOPPED:
-						log.Infof("task [%v] stopped",p.Name())
+						log.Infof("pipeline [%v] stopped",p.String())
 						break
 					case pipeline.FINISHED:
-						log.Tracef("task [%v] finished",p.String())
+						log.Tracef("pipeline [%v] finished",p.String())
 						break
 					}
 					time.Sleep(1*time.Second)
@@ -193,11 +193,8 @@ func (module *PipeModule) Start() error {
 		}
 	}
 
-	//return nil
-
 	//TODO
 	//orm.RegisterSchema(pipeline.PipelineConfig{})
-
 
 	module.runners = map[string]*PipeRunner{}
 
