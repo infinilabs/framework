@@ -369,7 +369,7 @@ func discoveryMetadata(force bool) {
 					var indicesChanged bool
 					indices, err := client.GetIndices("")
 					if err != nil {
-						log.Error(err)
+						log.Errorf("[%v], %v",cfg.Name,err)
 						return
 					}
 					if indices != nil {
@@ -382,7 +382,7 @@ func discoveryMetadata(force bool) {
 					var shardsChanged bool
 					shards, err := client.GetPrimaryShards()
 					if err != nil {
-						log.Error(err)
+						log.Errorf("[%v], %v",cfg.Name,err)
 						return
 					}
 					if shards != nil {
@@ -395,7 +395,7 @@ func discoveryMetadata(force bool) {
 					var aliasesChanged bool
 					aliases, err := client.GetAliases()
 					if err != nil {
-						log.Error(err)
+						log.Errorf("[%v], %v",cfg.Name,err)
 						return
 					}
 					if aliases != nil {

@@ -173,16 +173,16 @@ func (module *PipeModule) Start() error {
 						log.Infof("pipeline [%v] end running",p.String())
 						break
 					case pipeline.FAILED:
-						log.Tracef("pipeline [%v] failed",p.String())
+						log.Debugf("pipeline [%v] failed",p.String())
 						break
 					case pipeline.PAUSED:
 						time.Sleep(1*time.Second)
 						break
 					case pipeline.STOPPED:
-						log.Infof("pipeline [%v] stopped",p.String())
+						log.Debugf("pipeline [%v] stopped",p.String())
 						break
 					case pipeline.FINISHED:
-						log.Tracef("pipeline [%v] finished",p.String())
+						log.Debugf("pipeline [%v] finished",p.String())
 						break
 					}
 					time.Sleep(1*time.Second)
