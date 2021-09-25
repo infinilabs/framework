@@ -23,7 +23,6 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"strings"
 	"sync"
 	"unicode"
 )
@@ -63,7 +62,8 @@ func parseAnnotation(mapping []util.Annotation) string {
 		tag := field.Tag
 		//nested tag
 		if len(field.Annotation) > 0 {
-			tag = strings.Replace(tag, "}", fmt.Sprintf(", %s  }", parseAnnotation(field.Annotation)), -1)
+			tag = fmt.Sprintf("%s:{type:nested,%s}", field.Tag, parseAnnotation(field.Annotation))
+			//tag = strings.Replace(tag, "}", fmt.Sprintf(", %s  }", parseAnnotation(field.Annotation)), -1)
 		}
 		if util.TrimSpaces(tag) != "" {
 			if hasField {
