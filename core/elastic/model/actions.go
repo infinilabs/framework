@@ -4,9 +4,9 @@
 package model
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/rate"
 	url2 "net/url"
-	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )
@@ -73,7 +73,7 @@ func (meta *ElasticsearchMetadata) ReportSuccess() {
 			meta.clusterOnFailure = false
 			meta.clusterAvailable = true
 			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is available now", meta.Config.Name)
+			log.Infof("elasticsearch [%v] is available", meta.Config.Name)
 		}
 	}
 }
