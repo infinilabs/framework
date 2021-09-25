@@ -22,13 +22,14 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
+	"sync"
 )
 
 
 type RunningState string
 
 const STARTED RunningState = "STARTED"
-const PAUSED RunningState = "PAUSED"
+//const PAUSED RunningState = "PAUSED"
 const STOPPED RunningState = "STOPPED"
 const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
@@ -45,6 +46,8 @@ type Context struct {
 	ProcessHistory  []string     `json:"executed"`
 	context.Context `json:"-"`
 	cancelFunc context.CancelFunc
+	isPaused bool
+	pause sync.WaitGroup
 }
 
 func AcquireContext()*Context{
@@ -118,14 +121,22 @@ func (context *Context) Failed() {
 	context.RunningState = FAILED
 }
 
-//resume processing pipeline, allow filters continue
+//resume pipeline, set to start mode
 func (ctx *Context) Resume() {
-	ctx.RunningState = STARTED
-	ctx.AddFlowProcess("||")
+	//ctx.RunningState = STARTED
+	ctx.isPaused=false
+	ctx.pause.Done()
 }
 
-func (context *Context) Pause() {
-	context.RunningState = PAUSED
+//pause and wait signal to resume
+func (ctx *Context) Pause() {
+	if ctx.isPaused{
+		return
+	}
+	//ctx.RunningState = PAUSED
+	ctx.pause.Add(1)
+	ctx.isPaused=true
+	ctx.pause.Wait()
 }
 
 func (context *Context) Stop() {
@@ -134,7 +145,8 @@ func (context *Context) Stop() {
 }
 
 func (context *Context) IsPause() bool {
-	return context.RunningState==PAUSED
+	return context.isPaused
+	//return context.RunningState==PAUSED
 }
 
 // IsEnd indicates whether the pipe process is end, end means no more processes will be execute

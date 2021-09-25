@@ -69,8 +69,8 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 		handler := API{}
 		handler.Init()
 		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
-		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTask)
+		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)
 	}
 
 }
@@ -85,6 +85,10 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
+		if ctx.IsPause(){
+			ctx.Resume()
+		}
+
 		if ctx.RunningState!=pipeline.STARTED{
 			ctx.Start()
 		}
@@ -100,7 +104,9 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
-		ctx.Stop()
+		if ctx.RunningState==pipeline.STARTED{
+			ctx.Stop()
+		}
 		module.WriteAckOKJSON(w)
 	}else{
 		module.WriteAckJSON(w,false,404,util.MapStr{
@@ -174,15 +180,19 @@ func (module *PipeModule) Start() error {
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",p.String())
+						ctx.Pause()
 						break
-					case pipeline.PAUSED:
-						time.Sleep(1*time.Second)
-						break
+					//case pipeline.PAUSED:
+					//	time.Sleep(10*time.Second)
+					//	log.Debugf("pipeline [%v] paused",p.String())
+					//	break
 					case pipeline.STOPPED:
 						log.Debugf("pipeline [%v] stopped",p.String())
+						ctx.Pause()
 						break
 					case pipeline.FINISHED:
 						log.Debugf("pipeline [%v] finished",p.String())
+						ctx.Pause()
 						break
 					}
 					time.Sleep(1*time.Second)
