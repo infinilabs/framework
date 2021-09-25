@@ -322,7 +322,7 @@ func discoveryMetadata(force bool) {
 					oldMetadata.ReportSuccess()
 
 					newMetadata := model.ElasticsearchMetadata{Config: cfg}
-					newMetadata.Init(true)
+					newMetadata.Init(oldMetadata.IsAvailable())
 
 					var nodesChanged = false
 

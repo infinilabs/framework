@@ -63,7 +63,7 @@ func GetOrInitMetadata(cfg *model.ElasticsearchConfig) *model.ElasticsearchMetad
 	v:=GetMetadata(cfg.ID)
 	if v==nil{
 		v=&model.ElasticsearchMetadata{Config: cfg}
-		v.Init(true)
+		v.Init(false)
 		SetMetadata(cfg.ID,v)
 	}
 	return v
