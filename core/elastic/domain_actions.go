@@ -19,7 +19,6 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic/model"
 	"sync"
 )
 
@@ -28,16 +27,16 @@ var cfgs = sync.Map{}
 var metas = sync.Map{}
 var hosts=sync.Map{}
 
-func RegisterInstance(elastic string, cfg model.ElasticsearchConfig, handler API) {
+func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 	apis.Store(elastic,handler)
 	cfgs.Store(elastic,&cfg)
 }
 
-func GetOrInitHost(host string)(*model.NodeAvailable)  {
-	v:=model.NodeAvailable{Available: true}
+func GetOrInitHost(host string)(*NodeAvailable)  {
+	v:= NodeAvailable{Available: true}
 	v1,loaded:=hosts.LoadOrStore(host,&v)
 	if loaded{
-		return v1.(*model.NodeAvailable)
+		return v1.(*NodeAvailable)
 	}
 	return &v
 }
@@ -48,7 +47,7 @@ func RemoveInstance(elastic string){
 	metas.Delete(elastic)
 }
 
-func GetConfig(k string) *model.ElasticsearchConfig {
+func GetConfig(k string) *ElasticsearchConfig {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch config undefined"))
 	}
@@ -56,20 +55,20 @@ func GetConfig(k string) *model.ElasticsearchConfig {
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch config [%v] was not found", k))
 	}
-	return v.(*model.ElasticsearchConfig)
+	return v.(*ElasticsearchConfig)
 }
 
-func GetOrInitMetadata(cfg *model.ElasticsearchConfig) *model.ElasticsearchMetadata {
+func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 	v:=GetMetadata(cfg.ID)
 	if v==nil{
-		v=&model.ElasticsearchMetadata{Config: cfg}
+		v=&ElasticsearchMetadata{Config: cfg}
 		v.Init(false)
 		SetMetadata(cfg.ID,v)
 	}
 	return v
 }
 
-func GetMetadata(k string) *model.ElasticsearchMetadata {
+func GetMetadata(k string) *ElasticsearchMetadata {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch metata undefined"))
 	}
@@ -79,7 +78,7 @@ func GetMetadata(k string) *model.ElasticsearchMetadata {
 		log.Debug(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
 		return nil
 	}
-	 x,ok:=v.(*model.ElasticsearchMetadata)
+	 x,ok:=v.(*ElasticsearchMetadata)
 	 return x
 }
 
@@ -111,7 +110,7 @@ func WalkHosts(walkFunc func(key, value interface{})bool) {
 	 hosts.Range(walkFunc)
 }
 
-func SetMetadata(k string, v *model.ElasticsearchMetadata) {
+func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas.Store(k,v)
 }
 
@@ -129,7 +128,7 @@ func GetAvailableHost(cluster string)string  {
 func IsHostAvailable(endpoint string)bool {
 	info,ok:=hosts.Load(endpoint)
 	if ok{
-		return info.(*model.NodeAvailable).Available
+		return info.(*NodeAvailable).Available
 	}
 	log.Warnf("available info for [%v] was not found",endpoint)
 	return false

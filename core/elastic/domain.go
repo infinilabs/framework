@@ -1,4 +1,4 @@
-package model
+package elastic
 
 import (
 	"sync"
@@ -102,8 +102,8 @@ type AliasIndex struct {
 
 type NodesResponse struct {
 	NodesCount  map[string]interface{} `json:"_nodes"`
-	ClusterName string                 `json:"cluster_name"`
-	Nodes       map[string]NodesInfo   `json:"nodes"`
+	ClusterName string               `json:"cluster_name"`
+	Nodes       map[string]NodesInfo `json:"nodes"`
 }
 
 type CatIndexResponse struct {
@@ -199,8 +199,8 @@ type ElasticsearchMetadata struct {
 	Nodes                map[string]NodesInfo
 	Indices              map[string]IndexInfo
 	PrimaryShards        map[string]map[int]ShardInfo
-	Aliases              map[string]AliasInfo
-	HealthStatus string
+	Aliases map[string]AliasInfo
+	Health  *ClusterHealth
 
 	clusterFailureTicket int
 	clusterOnFailure     bool

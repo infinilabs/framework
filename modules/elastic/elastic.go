@@ -20,7 +20,6 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/elastic/model"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -65,10 +64,10 @@ func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
 
-var m = map[string]model.ElasticsearchConfig{}
+var m = map[string]elastic.ElasticsearchConfig{}
 
 func loadFileBasedElasticConfig() {
-	var configs []model.ElasticsearchConfig
+	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
 	if exist && err != nil {
 		panic(err)
@@ -93,9 +92,9 @@ func loadFileBasedElasticConfig() {
 }
 
 func loadESBasedElasticConfig() {
-	configs := []model.ElasticsearchConfig{}
+	configs := []elastic.ElasticsearchConfig{}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
-	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(model.ElasticsearchConfig{}), &query)
+	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
 		log.Error(err)
 		return
@@ -103,7 +102,7 @@ func loadESBasedElasticConfig() {
 
 	if len(result.Hits.Hits) > 0 {
 		for _, v1 := range result.Hits.Hits {
-			cfg := model.ElasticsearchConfig{}
+			cfg := elastic.ElasticsearchConfig{}
 			bytes := util.MustToJSONBytes(v1.Source)
 			util.MustFromJSONBytes(bytes, &cfg)
 			cfg.ID = v1.ID.(string)
@@ -170,7 +169,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
 		orm.Register("elastic", handler)
 
-		err = orm.RegisterSchemaWithIndexName(model.ElasticsearchConfig{}, "cluster")
+		err = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
 		if err != nil {
 			panic(err)
 		}
@@ -206,7 +205,7 @@ func monitoring() {
 					return false
 				}
 
-				v,ok:=value.(*model.ElasticsearchMetadata)
+				v,ok:=value.(*elastic.ElasticsearchMetadata)
 				if ok{
 					if !v.Config.Monitored || !v.Config.Enabled {
 						return false
@@ -270,7 +269,7 @@ func healthCheck() {
 					return false
 				}
 
-				v,ok:=value.(*model.NodeAvailable)
+				v,ok:=value.(*elastic.NodeAvailable)
 				if ok{
 
 					log.Debugf("check availability for node: " + k)
@@ -296,9 +295,9 @@ func discovery() {
 
 func discoveryMetadata(force bool) {
 	elastic.WalkConfigs(func(key, value interface{}) bool {
-		cfg,ok:=value.(*model.ElasticsearchConfig)
+		cfg,ok:=value.(*elastic.ElasticsearchConfig)
 		if ok&&cfg!=nil{
-			go func(cfg *model.ElasticsearchConfig) {
+			go func(cfg *elastic.ElasticsearchConfig) {
 				//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
 				if cfg.Enabled||force {
 					oldMetadata := elastic.GetOrInitMetadata(cfg)
@@ -321,7 +320,7 @@ func discoveryMetadata(force bool) {
 
 					oldMetadata.ReportSuccess()
 
-					newMetadata := model.ElasticsearchMetadata{Config: cfg}
+					newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
 					newMetadata.Init(oldMetadata.IsAvailable())
 
 					var nodesChanged = false
@@ -409,7 +408,7 @@ func discoveryMetadata(force bool) {
 					health := client.ClusterHealth()
 					if health != nil {
 						//TODO check if that changed or skip replace
-						newMetadata.HealthStatus = health.Status
+						newMetadata.Health = health
 						healthChanged = true
 					}
 

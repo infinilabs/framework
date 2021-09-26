@@ -8,7 +8,6 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/elastic/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
@@ -30,7 +29,7 @@ func (h *APIHandler) Client() elastic.API {
 }
 
 func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
-	var conf = &model.ElasticsearchConfig{}
+	var conf = &elastic.ElasticsearchConfig{}
 	resBody := map[string] interface{}{
 	}
 	err := h.DecodeJSON(req, conf)
@@ -46,7 +45,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	conf.Enabled=true
 	conf.Updated = conf.Created
 	conf.Endpoint = fmt.Sprintf("%s://%s", conf.Schema, conf.Host)
-	index:=orm.GetIndexName(model.ElasticsearchConfig{})
+	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
 	_, err = esClient.Index(index, "", id, conf)
 	if err != nil {
 		resBody["error"] = err
@@ -72,7 +71,7 @@ func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Req
 	resBody := map[string] interface{}{}
 
 	id := ps.ByName("id")
-	indexName := orm.GetIndexName(model.ElasticsearchConfig{})
+	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 	getResponse, err := h.Client().Get(indexName, "", id)
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -103,7 +102,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	}
 	id := ps.ByName("id")
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	indexName := orm.GetIndexName(model.ElasticsearchConfig{})
+	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 	originConf, err := esClient.Get(indexName, "", id)
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -137,7 +136,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 
 	//update config in heap
 	confBytes, _ := json.Marshal(source)
-	newConf := &model.ElasticsearchConfig{}
+	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
 	newConf.Discovery.Enabled = true
@@ -154,7 +153,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	}
 	id := ps.ByName("id")
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	response, err := esClient.Delete(orm.GetIndexName(model.ElasticsearchConfig{}), "", id, "wait_for")
+	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
 
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -196,7 +195,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 
 	queryDSL = fmt.Sprintf(queryDSL, filterBuilder.String(), size, from)
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(model.ElasticsearchConfig{}), []byte(queryDSL))
+	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
 	if len(res.Hits.Hits) > 0 {
 		for _, hit := range res.Hits.Hits {
@@ -373,7 +372,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 
 //TODO, use expired hash
-var clusters = map[string]model.ElasticsearchConfig{}
+var clusters = map[string]elastic.ElasticsearchConfig{}
 var clustersMutex = &sync.RWMutex{}
 
 func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
@@ -381,14 +380,14 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 	config,ok:=clusters[id]
 	clustersMutex.RUnlock()
 	if !ok{
-		indexName := orm.GetIndexName(model.ElasticsearchConfig{})
+		indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 		getResponse, err := h.Client().Get(indexName, "", id)
 		if err != nil {
 			return false, nil, err
 		}
 
 		bytes:=util.MustToJSONBytes(getResponse.Source)
-		cfg:= model.ElasticsearchConfig{}
+		cfg:= elastic.ElasticsearchConfig{}
 		err=util.FromJSONBytes(bytes,&cfg)
 		if err != nil {
 			return false, nil, err
@@ -636,13 +635,12 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 	var status = map[string]interface{}{}
 	elastic.WalkConfigs(func(k, value interface{}) bool {
 		key:=k.(string)
-		cfg,ok:=value.(*model.ElasticsearchConfig)
+		cfg,ok:=value.(*elastic.ElasticsearchConfig)
 		if ok&&cfg!=nil{
 			meta := elastic.GetOrInitMetadata(cfg)
 			status[key] = map[string]interface{}{
-				"health_status": meta.HealthStatus,
-				"nodes_count": len(meta.Nodes),
-				"cluster_available": meta.IsAvailable(),
+				"health": meta.Health,
+				"available": meta.IsAvailable(),
 			}
 		}
 		return true
@@ -660,7 +658,7 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 		fasthttp.ReleaseRequest(freq)
 		fasthttp.ReleaseResponse(fres)
 	}()
-	var config = &model.ElasticsearchConfig{}
+	var config = &elastic.ElasticsearchConfig{}
 	err := h.DecodeJSON(req, &config)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("json decode error: %v", err)

@@ -16,8 +16,6 @@ limitations under the License.
 
 package elastic
 
-import "infini.sh/framework/core/elastic/model"
-
 type API interface {
 	ScrollAPI
 	MappingAPI
@@ -55,21 +53,21 @@ type API interface {
 
 	Refresh(name string) (err error)
 
-	GetNodes() (*map[string]model.NodesInfo, error)
+	GetNodes() (*map[string]NodesInfo, error)
 
-	GetIndices(pattern string) (*map[string]model.IndexInfo, error)
+	GetIndices(pattern string) (*map[string]IndexInfo, error)
 
-	GetPrimaryShards() (*map[string]map[int]model.ShardInfo, error)
-	GetAliases() (*map[string]model.AliasInfo, error)
-	GetAliasesDetail() (*map[string]model.AliasDetailInfo, error)
+	GetPrimaryShards() (*map[string]map[int]ShardInfo, error)
+	GetAliases() (*map[string]AliasInfo, error)
+	GetAliasesDetail() (*map[string]AliasDetailInfo, error)
 	GetAliasesAndIndices() (*AliasAndIndicesResponse, error)
 
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
-	Reindex(body []byte) (*model.ReindexResponse, error)
-	DeleteByQuery(indexName string, body []byte) (*model.DeleteByQueryResponse, error)
+	Reindex(body []byte) (*ReindexResponse, error)
+	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
 
-	GetIndexStats(indexName string) (*model.IndexStats, error)
-	GetStats() (*model.Stats, error)
+	GetIndexStats(indexName string) (*IndexStats, error)
+	GetStats() (*Stats, error)
 	Forcemerge(indexName string, maxCount int) error
 	SetSearchTemplate(templateID string, body []byte) error
 	DeleteSearchTemplate(templateID string) error

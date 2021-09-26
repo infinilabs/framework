@@ -1,12 +1,12 @@
 /* ©INFINI, All Rights Reserved.
  * mail: contact#infini.ltd */
 
-package model
+package elastic
 
 import (
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/rate"
 	url2 "net/url"
+	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )

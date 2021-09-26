@@ -22,14 +22,13 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/elastic/model"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"time"
 )
 
-func GetMajorVersion(esConfig model.ElasticsearchConfig)(string, error)  {
+func GetMajorVersion(esConfig elastic.ElasticsearchConfig)(string, error)  {
 	esVersion, err := ClusterVersion(&esConfig)
 	if err != nil {
 		return "", err
@@ -37,7 +36,7 @@ func GetMajorVersion(esConfig model.ElasticsearchConfig)(string, error)  {
 	return esVersion.Version.Number, nil
 }
 
-func ClusterVersion(config *model.ElasticsearchConfig) (*elastic.ClusterInformation, error) {
+func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterInformation, error) {
 
 	//req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
 	//
@@ -86,7 +85,7 @@ func ClusterVersion(config *model.ElasticsearchConfig) (*elastic.ClusterInformat
 	return &version, nil
 }
 
-func RequestTimeout(method, url string, body []byte, config *model.ElasticsearchConfig, timeout time.Duration) (result *util.Result, err error) {
+func RequestTimeout(method, url string, body []byte, config *elastic.ElasticsearchConfig, timeout time.Duration) (result *util.Result, err error) {
 	var (
 		req = fasthttp.AcquireRequest()
 		res = fasthttp.AcquireResponse()

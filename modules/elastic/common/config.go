@@ -2,10 +2,9 @@ package common
 
 import (
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/elastic/model"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -40,7 +39,7 @@ type ModuleConfig struct {
 	HealthCheckConfig              HealthCheckConfig `config:"health_check"`
 }
 
-func InitClientWithConfig(esConfig model.ElasticsearchConfig) (client elastic.API, err error) {
+func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
 
 	var (
 		ver string
@@ -94,7 +93,7 @@ func InitClientWithConfig(esConfig model.ElasticsearchConfig) (client elastic.AP
 	return client, nil
 }
 
-func InitElasticInstance(esConfig model.ElasticsearchConfig) (elastic.API, error) {
+func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, error) {
 	if !esConfig.Enabled {
 		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 		return nil, nil
