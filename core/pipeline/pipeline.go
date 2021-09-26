@@ -118,19 +118,19 @@ func (pipe *Pipeline) Start1() *Pipeline {
 	return pipe
 }
 
-func (pipe *Pipeline) Pause() *Pipeline {
-	pipe.lock.Lock()
-	pipe.runningState = PAUSED
-	pipe.lock.Unlock()
-	return pipe
-}
-
-func (pipe *Pipeline) Resume() *Pipeline {
-	pipe.lock.Lock()
-	pipe.runningState = STARTED
-	pipe.lock.Unlock()
-	return pipe
-}
+//func (pipe *Pipeline) Pause() *Pipeline {
+//	pipe.lock.Lock()
+//	pipe.runningState = PAUSED
+//	pipe.lock.Unlock()
+//	return pipe
+//}
+//
+//func (pipe *Pipeline) Resume() *Pipeline {
+//	pipe.lock.Lock()
+//	pipe.runningState = STARTED
+//	pipe.lock.Unlock()
+//	return pipe
+//}
 
 func (pipe *Pipeline) Stop() *Pipeline {
 	pipe.lock.Lock()
@@ -190,8 +190,8 @@ func (pipe *Pipeline) Run1() *Pipeline {
 			pipe.lock.Unlock()
 
 			return nil
-		case PAUSED:
-			break
+		//case PAUSED:
+		//	break
 		case STOPPED:
 			err = pipe.input.Close()
 			if err != nil {

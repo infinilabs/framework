@@ -69,8 +69,8 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 		handler := API{}
 		handler.Init()
 		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
-		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTask)
+		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)
 	}
 
 }
@@ -85,6 +85,10 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
+		if ctx.IsPause(){
+			ctx.Resume()
+		}
+
 		if ctx.RunningState!=pipeline.STARTED{
 			ctx.Start()
 		}
@@ -100,7 +104,9 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
-		ctx.Stop()
+		if ctx.RunningState==pipeline.STARTED{
+			ctx.Stop()
+		}
 		module.WriteAckOKJSON(w)
 	}else{
 		module.WriteAckJSON(w,false,404,util.MapStr{
@@ -140,7 +146,7 @@ func (module *PipeModule) Start() error {
 			module.pipelines[v.Name]=processor
 			module.contexts[v.Name]=ctx
 
-			go func(p *pipeline.Processors,ctx *pipeline.Context) {
+			go func(cfg PipelineConfigV2,p *pipeline.Processors,ctx *pipeline.Context) {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
@@ -153,42 +159,46 @@ func (module *PipeModule) Start() error {
 							case string:
 								err = r.(string)
 							}
-							log.Errorf("error on pipeline:%v, %v",p.String(),err)
+							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
 						}
 					}
 				}()
 
-				log.Debug("processing pipeline_v2:", p.String())
+				log.Debug("processing pipeline_v2:", cfg.Name)
 
 				for {
 					switch ctx.RunningState {
 					case pipeline.STARTED:
-						log.Infof("pipeline [%v] start running",p.String())
+						log.Infof("pipeline [%v] start running",cfg.Name)
 						ctx.Start()
 						err = p.Process(ctx)
 						if err != nil {
 							ctx.Failed()
-							log.Errorf("error on pipeline:%v, %v",p.String(),err)
+							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
 						}
-						log.Infof("pipeline [%v] end running",p.String())
+						log.Infof("pipeline [%v] end running",cfg.Name)
 						break
 					case pipeline.FAILED:
-						log.Tracef("pipeline [%v] failed",p.String())
+						log.Debugf("pipeline [%v] failed",cfg.Name)
+						ctx.Pause()
 						break
-					case pipeline.PAUSED:
-						time.Sleep(1*time.Second)
-						break
+					//case pipeline.PAUSED:
+					//	time.Sleep(10*time.Second)
+					//	log.Debugf("pipeline [%v] paused",p.String())
+					//	break
 					case pipeline.STOPPED:
-						log.Infof("pipeline [%v] stopped",p.String())
+						log.Debugf("pipeline [%v] stopped",cfg.Name)
+						ctx.Pause()
 						break
 					case pipeline.FINISHED:
-						log.Tracef("pipeline [%v] finished",p.String())
+						log.Debugf("pipeline [%v] finished",cfg.Name)
+						ctx.Pause()
 						break
 					}
 					time.Sleep(1*time.Second)
 				}
 
-			}(processor,ctx)
+			}(v,processor,ctx)
 
 		}
 	}
