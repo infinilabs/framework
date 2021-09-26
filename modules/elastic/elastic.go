@@ -271,16 +271,14 @@ func healthCheck() {
 
 				v,ok:=value.(*elastic.NodeAvailable)
 				if ok{
-
 					log.Debugf("check availability for node: " + k)
 						avail:=util.TestTCPAddress(k)
 						if avail{
-							v.LastActive=time.Now()
+							v.ReportSuccess()
 						}else{
-							v.LastFailure=time.Now()
+							v.ReportFailure()
 						}
-						v.Available=avail
-						log.Debugf("node [%v], connection available: [%v]" ,k,v.Available)
+						log.Debugf("node [%v], connection available: [%v] [%v]" ,k,avail,v.IsAvailable())
 				}
 				return true
 			})
@@ -316,14 +314,12 @@ func discoveryMetadata(force bool) {
 					nodes, err := client.GetNodes()
 
 					if err != nil {
-						log.Debug(cfg.Name," ",err)
-						oldMetadata.ReportFailure()
+						log.Errorf("elasticsearch [%v] failed to get nodes info, err: [%v]",cfg.Name,err)
 						return
 					}
 
 					if nodes == nil || len(*nodes) <= 0 {
 						log.Errorf("elasticsearch [%v] failed to get nodes info",cfg.Name)
-						oldMetadata.ReportFailure()
 						return
 					}
 

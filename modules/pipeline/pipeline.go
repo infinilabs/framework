@@ -175,8 +175,10 @@ func (module *PipeModule) Start() error {
 						if err != nil {
 							ctx.Failed()
 							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
+							break
 						}
 						log.Infof("pipeline [%v] end running",cfg.Name)
+						ctx.Finished()
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",cfg.Name)

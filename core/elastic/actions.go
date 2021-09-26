@@ -11,27 +11,58 @@ import (
 	"time"
 )
 
-func (meta *ElasticsearchMetadata) ReportFailure() bool {
-	meta.configLock.Lock()
-	defer meta.configLock.Unlock()
+func (node *NodeAvailable) ReportFailure() bool {
+	node.configLock.Lock()
+	defer node.configLock.Unlock()
 
-	if !meta.clusterAvailable {
+	if !node.available {
 		return true
 	}
 
-	meta.clusterOnFailure = true
-	if rate.GetRateLimiter("cluster_failure", meta.Config.ID, 1, 1, time.Second*1).Allow() {
-		log.Debugf("vote failure ticket++ for elasticsearch [%v]",meta.Config.Name)
-		meta.clusterFailureTicket++
-		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess)>5*time.Second) ||time.Since(meta.lastSuccess)>10*time.Second{
-			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down",meta.Config.Name)
-			meta.clusterAvailable = false
-			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is not available", meta.Config.Name)
+	node.onFailure = true
+	if rate.GetRateLimiter("node_failure", node.Host, 1, 1, time.Second*1).Allow() {
+		log.Debugf("vote failure ticket++ for elasticsearch [%v]", node.Host)
+
+		node.ticket++
+		//if the target host is not available for 10s, mark it down
+		if (node.ticket >= 10 && time.Since(node.lastSuccess)>5*time.Second) ||time.Since(node.lastSuccess)>10*time.Second{
+			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down", node.Host)
+			node.available = false
+			node.ticket = 0
+			log.Infof("node [%v] is not available", node.Host)
 			return true
 		}
 	}
 	return false
+}
+
+func (node *NodeAvailable) ReportSuccess() {
+
+	node.lastSuccess=time.Now()
+
+	if node.available {
+		return
+	}
+
+	node.configLock.Lock()
+	defer node.configLock.Unlock()
+
+	if node.onFailure && !node.available {
+		if rate.GetRateLimiter("node_available", node.Host, 1, 1, time.Second*1).Allow() {
+			log.Debugf("vote success ticket++ for elasticsearch [%v]", node.Host)
+			node.onFailure = false
+			node.available = true
+			node.ticket = 0
+			log.Infof("node [%v] is available", node.Host)
+		}
+	}
+}
+
+func (node *NodeAvailable) IsAvailable() bool {
+		node.configLock.RLock()
+	defer node.configLock.RUnlock()
+
+	return node.available
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
@@ -50,32 +81,6 @@ func (meta *ElasticsearchMetadata) Init(health bool){
 	meta.clusterOnFailure = !health
 	meta.lastSuccess=time.Now()
 	meta.clusterFailureTicket = 0
-}
-
-func (meta *ElasticsearchMetadata) ReportSuccess() {
-
-	meta.lastSuccess=time.Now()
-
-	if !meta.Config.Enabled {
-		return
-	}
-
-	if meta.clusterAvailable {
-		return
-	}
-
-	meta.configLock.Lock()
-	defer meta.configLock.Unlock()
-
-	if meta.clusterOnFailure && !meta.clusterAvailable {
-		if rate.GetRateLimiter("cluster_recovery_health", meta.Config.ID, 1, 1, time.Second*1).Allow() {
-			log.Debugf("vote success ticket++ for elasticsearch [%v]",meta.Config.Name)
-			meta.clusterOnFailure = false
-			meta.clusterAvailable = true
-			meta.clusterFailureTicket = 0
-			log.Infof("elasticsearch [%v] is available", meta.Config.Name)
-		}
-	}
 }
 
 func (meta *BulkActionMetadata)GetItem() *BulkIndexMetadata {
@@ -123,12 +128,12 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
 	hosts:=meta.GetSeedHosts()
 	for _,v:=range hosts{
-		//log.Error("checking host,",v,":",IsHostAvailable(v))
 		if IsHostAvailable(v){
 			return v
 		}
 	}
-	//log.Error("no host available, choose the first one, ",hosts[0])
+	log.Error("no host available, choose the first one, ",hosts[0])
+	meta.ReportFailure()
 	return hosts[0]
 }
 
@@ -166,3 +171,50 @@ func (meta *ElasticsearchMetadata) GetSchema() string {
 	return meta.Config.Schema
 }
 
+
+func (meta *ElasticsearchMetadata) ReportFailure() bool {
+	meta.configLock.Lock()
+	defer meta.configLock.Unlock()
+
+	if !meta.clusterAvailable {
+		return true
+	}
+
+	meta.clusterOnFailure = true
+	if rate.GetRateLimiter("cluster_failure", meta.Config.Name, 1, 1, time.Second*1).Allow() {
+		log.Debugf("vote failure ticket++ for elasticsearch [%v]", meta.Config.Name)
+
+		meta.clusterFailureTicket++
+		//if the target host is not available for 10s, mark it down
+		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess)>5*time.Second) ||time.Since(meta.lastSuccess)>10*time.Second{
+			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down", meta.Config.Name)
+			meta.clusterAvailable = false
+			meta.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is not available", meta.Config.Name)
+			return true
+		}
+	}
+	return false
+}
+
+func (meta *ElasticsearchMetadata) ReportSuccess() {
+
+	meta.lastSuccess=time.Now()
+
+	if meta.clusterAvailable {
+		return
+	}
+
+	meta.configLock.Lock()
+	defer meta.configLock.Unlock()
+
+	if meta.clusterOnFailure && !meta.clusterAvailable {
+		if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*1).Allow() {
+			log.Debugf("vote success ticket++ for elasticsearch [%v]", meta.Config.Name)
+			meta.clusterOnFailure = false
+			meta.clusterAvailable = true
+			meta.clusterFailureTicket = 0
+			log.Infof("elasticsearch [%v] is available", meta.Config.Name)
+		}
+	}
+}

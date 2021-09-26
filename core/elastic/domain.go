@@ -47,9 +47,12 @@ type NodesInfo struct {
 }
 
 type NodeAvailable struct {
-	Available bool `json:"-,omitempty,nocopy"`
-	LastActive time.Time `json:"-,omitempty,nocopy"`
-	LastFailure time.Time `json:"-,omitempty,nocopy"`
+	Host      string
+	ticket    int
+	onFailure bool
+	available            bool
+	lastSuccess      time.Time
+	configLock sync.RWMutex
 }
 
 type IndexInfo struct {

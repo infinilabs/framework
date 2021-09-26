@@ -963,27 +963,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic5(out *jwriter.Writer, in
 }
 
 // MarshalJSON supports json.Marshaler interface
-func (v NodeAvailable) MarshalJSON() ([]byte, error) {
+func (node NodeAvailable) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic5(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic5(&w, node)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v NodeAvailable) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic5(w, v)
+func (node NodeAvailable) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic5(w, node)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
-func (v *NodeAvailable) UnmarshalJSON(data []byte) error {
+func (node *NodeAvailable) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic5(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic5(&r, node)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *NodeAvailable) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic5(l, v)
+func (node *NodeAvailable) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic5(l, node)
 }
 func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic6(in *jlexer.Lexer, out *IndexStats) {
 	isTopLevel := in.IsStart()

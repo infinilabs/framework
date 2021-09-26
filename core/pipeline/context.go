@@ -29,7 +29,7 @@ import (
 type RunningState string
 
 const STARTED RunningState = "STARTED"
-//const PAUSED RunningState = "PAUSED"
+const CANCELLED RunningState = "CANCELLED"
 const STOPPED RunningState = "STOPPED"
 const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
@@ -119,6 +119,10 @@ func (context *Context) Start() {
 
 func (context *Context) Failed() {
 	context.RunningState = FAILED
+}
+
+func (context *Context) Cancelled() {
+	context.RunningState = CANCELLED
 }
 
 //resume pipeline, set to start mode
