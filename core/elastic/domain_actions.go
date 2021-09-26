@@ -19,6 +19,8 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
+	uri "net/url"
 	"sync"
 )
 
@@ -114,22 +116,51 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas.Store(k,v)
 }
 
-
-func GetAvailableHost(cluster string)string  {
-	meta:=GetMetadata(cluster)
-	for _,v:=range meta.Nodes{
-		if IsHostAvailable(v.Http.PublishAddress){
-			return v.Http.PublishAddress
-		}
-	}
-	return meta.Config.Endpoint
-}
-
 func IsHostAvailable(endpoint string)bool {
 	info,ok:=hosts.Load(endpoint)
 	if ok{
 		return info.(*NodeAvailable).Available
 	}
-	log.Warnf("available info for [%v] was not found",endpoint)
-	return false
+	//log.Warnf("no available info for host [%v]",endpoint)
+	return true
+}
+
+//ip:port
+func (meta *ElasticsearchMetadata) GetSeedHosts()[]string {
+
+	if len(meta.seedHosts)>0{
+		return meta.seedHosts
+	}
+
+	hosts:=[]string{}
+	if len(meta.Config.Hosts)>0{
+		for _,h:=range meta.Config.Hosts{
+			hosts=append(hosts,h)
+		}
+	}
+	if len(meta.Config.Host)>0{
+		hosts=append(hosts,meta.Config.Host)
+	}
+
+	if meta.Config.Endpoint !=""{
+		i,err:=uri.Parse(meta.Config.Endpoint)
+		if err!=nil{
+			panic(err)
+		}
+		hosts=append(hosts,i.Host)
+	}
+	if len(meta.Config.Endpoints)>0{
+		for _,h:=range meta.Config.Endpoints{
+			i,err:=uri.Parse(h)
+			if err!=nil{
+				panic(err)
+			}
+			hosts=append(hosts,i.Host)
+		}
+	}
+	if len(hosts)==0{
+		panic(errors.Errorf("no valid endpoint for [%v]",meta.Config.Name))
+	}
+	meta.seedHosts=hosts
+	return meta.seedHosts
 }

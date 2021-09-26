@@ -95,7 +95,7 @@ const TypeName7 = "_doc"
 
 // Delete used to delete document by id
 func (c *ESAPIV7) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
-	url := c.Config.Endpoint + "/" + indexName + "/" + TypeName7 + "/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	if len(refresh)>0 {
 		url = url + "?refresh=" + refresh[0]
@@ -126,7 +126,7 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 		docType=TypeName7
 	}
 
-	url := c.Config.Endpoint + "/" + indexName + "/" + docType + "/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	esResp := &elastic.GetResponse{}
@@ -153,10 +153,10 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 		docType=TypeName7
 	}
 
-	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.Config.Endpoint, indexName, docType, id)
+	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.GetEndpoint(), indexName, docType, id)
 
 	if id==""{
-		url = fmt.Sprintf("%s/%s/%s/", c.Config.Endpoint, indexName, docType)
+		url = fmt.Sprintf("%s/%s/%s/", c.GetEndpoint(), indexName, docType)
 	}
 
 	js, err := json.Marshal(data)
@@ -191,7 +191,7 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 }
 
 func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
-	url := fmt.Sprintf("%s/%s/_mapping", c.Config.Endpoint, indexName)
+	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_POST, url, mappings)
 
 	if err != nil {
@@ -202,7 +202,7 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 }
 
 func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( elastic.ScrollResponseAPI, error) {
-	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.Config.Endpoint, indexNames, scrollTime, docBufferCount)
+	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 	var jsonBody []byte
 	if len(query) > 0 || maxSlicedCount > 0 || len(sourceFields) > 0||true {
 		queryBody := map[string]interface{}{}
@@ -285,7 +285,7 @@ func BasicAuth(req *fasthttp.Request, user, pass string) {
 //
 //func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
 //
-//	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, scrollId)
+//	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.GetEndpoint(), scrollTime, scrollId)
 //	resp, err := c.Request(util.Verb_GET, url, nil)
 //
 //	if err != nil {
@@ -305,7 +305,7 @@ func BasicAuth(req *fasthttp.Request, user, pass string) {
 //
 //	return resp.Body, nil
 //
-//	//url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.Config.Endpoint, scrollTime, scrollId)
+//	//url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.GetEndpoint(), scrollTime, scrollId)
 //	//
 //	//client := &fasthttp.Client{
 //	//	MaxConnsPerHost: 60000,

@@ -4,9 +4,9 @@
 package elastic
 
 import (
-	"infini.sh/framework/core/rate"
-	url2 "net/url"
+	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/rate"
 	"strings"
 	"time"
 )
@@ -116,32 +116,53 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 	return nil
 }
 
-//format: host:port
-func (config *ElasticsearchConfig) GetHost() string {
-	u, err := url2.Parse(config.Endpoint)
-	if err != nil {
-		panic(err)
-	}
-	return u.Host
+func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
+	return fmt.Sprintf("%s://%s",meta.GetSchema(),meta.GetActiveHost())
 }
 
-func (config *ElasticsearchConfig) IsTLS() bool {
-	if strings.Contains(config.Endpoint, "https") {
-		return true
-	} else {
-		return false
+func (meta *ElasticsearchMetadata) GetActiveHost() string {
+	hosts:=meta.GetSeedHosts()
+	for _,v:=range hosts{
+		//log.Error("checking host,",v,":",IsHostAvailable(v))
+		if IsHostAvailable(v){
+			return v
+		}
 	}
+	//log.Error("no host available, choose the first one, ",hosts[0])
+	return hosts[0]
 }
 
-func (config *ElasticsearchConfig) GetSchema() string {
-	if config.Schema!=""{
-		return config.Schema
+func (meta *ElasticsearchMetadata) IsTLS() bool {
+	return meta.GetSchema()=="https"
+}
+
+func (meta *ElasticsearchMetadata) GetSchema() string {
+	if meta.Config.Schema!=""{
+		return meta.Config.Schema
 	}
-	if strings.Contains(config.Endpoint, "https") {
-		config.Schema= "https"
-	} else {
-		config.Schema= "http"
+	if meta.Config.Endpoint!=""{
+		if strings.Contains(meta.Config.Endpoint, "https") {
+			meta.Config.Schema= "https"
+		} else {
+			meta.Config.Schema= "http"
+		}
+		return meta.Config.Schema
 	}
-	return config.Schema
+	if len(meta.Config.Endpoints)>0{
+		for _,v:=range meta.Config.Endpoints{
+			if strings.Contains(v, "https") {
+				meta.Config.Schema= "https"
+			} else {
+				meta.Config.Schema= "http"
+			}
+			return meta.Config.Schema
+		}
+	}
+
+	if meta.Config.Schema==""{
+		meta.Config.Schema="http"
+	}
+
+	return meta.Config.Schema
 }
 

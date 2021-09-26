@@ -94,7 +94,7 @@ func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
 const TypeName5 = "doc"
 
 func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) (elastic.ScrollResponseAPI,  error) {
-	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.Config.Endpoint, indexNames, scrollTime, docBufferCount)
+	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
 	if len(query) > 0 || maxSlicedCount > 0 || len(sourceFields) > 0 {
@@ -173,7 +173,7 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV2.SetSearchTemplate(templateID, body)
 	}
-	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
+	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
 	_, err := s.Request(util.Verb_PUT, url, body)
 	return err
 }
@@ -183,7 +183,7 @@ func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
 		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV2.DeleteSearchTemplate(templateID)
 	}
-	url := fmt.Sprintf("%s/_scripts/%s", s.Config.Endpoint, templateID)
+	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
 	_, err := s.Request(util.Verb_DELETE, url, nil)
 	return err
 }
@@ -192,7 +192,7 @@ func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
 	if s.Version < "5.4" {
 		return s.ESAPIV2.FieldCaps(target)
 	}
-	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.Config.Endpoint, target)
+	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.GetEndpoint(), target)
 	res, err := s.Request(util.Verb_GET, url, nil)
 	return res.Body, err
 }

@@ -207,6 +207,7 @@ type ElasticsearchMetadata struct {
 	clusterAvailable     bool
 	lastSuccess time.Time
 	configLock sync.RWMutex
+	seedHosts []string
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
@@ -219,6 +220,7 @@ type ElasticsearchConfig struct {
 	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	HttpProxy   string `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint    string `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
 	Version string `json:"version,omitempty" config:"version"`
 	ClientMode string `json:"client_mode,omitempty" config:"client_mode"`
 
@@ -248,4 +250,5 @@ type ElasticsearchConfig struct {
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
 	Host string `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
+	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
 }

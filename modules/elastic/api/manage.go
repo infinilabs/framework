@@ -60,7 +60,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	conf.Discovery.Enabled = true
 	_, err = common.InitElasticInstance(*conf)
 	if err != nil {
-		log.Warn("regist config and init client error: ", err)
+		log.Warn("error on init elasticsearch:", err)
 	}
 
 	h.WriteJSON(w, resBody,http.StatusOK)
@@ -143,7 +143,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf.Enabled = true
 	_, err = common.InitElasticInstance(*newConf)
 	if err != nil {
-		log.Warn("re regist config and init client error: ", err)
+		log.Warn("error on init elasticsearch:", err)
 	}
 
 	h.WriteJSON(w, resBody,http.StatusOK)}

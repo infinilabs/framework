@@ -3,10 +3,10 @@ package api
 import (
 	"crypto/tls"
 	"fmt"
-	"net/http"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
+	"net/http"
 	"strings"
 )
 
@@ -43,11 +43,11 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		fasthttp.ReleaseRequest(freq)
 		fasthttp.ReleaseResponse(fres)
 	}()
-	config := elastic.GetConfig(targetClusterID)
-	if config.BasicAuth != nil {
-		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	metadata := elastic.GetMetadata(targetClusterID)
+	if metadata.Config.BasicAuth != nil {
+		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
-	freq.SetRequestURI(fmt.Sprintf("%s/%s", config.Endpoint, path))
+	freq.SetRequestURI(fmt.Sprintf("%s/%s", metadata.GetActiveEndpoint(), path))
 	method = strings.ToUpper(method)
 	freq.Header.SetMethod(method)
 	freq.SetBodyStream(req.Body, -1)

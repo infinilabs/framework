@@ -19,7 +19,6 @@ package adapter
 import (
 	"crypto/tls"
 	"fmt"
-	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
@@ -28,46 +27,17 @@ import (
 	"time"
 )
 
-func GetMajorVersion(esConfig elastic.ElasticsearchConfig)(string, error)  {
-	esVersion, err := ClusterVersion(&esConfig)
+func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata)(string, error)  {
+	esVersion, err := ClusterVersion(esConfig)
 	if err != nil {
 		return "", err
 	}
 	return esVersion.Version.Number, nil
 }
 
-func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterInformation, error) {
-
-	//req := util.NewGetRequest(fmt.Sprintf("%s", config.Endpoint), nil)
-	//
-	//req.SetContentType(util.ContentTypeJson)
-	//
-	//if config.BasicAuth != nil {
-	//	req.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
-	//}
-	//if config.HttpProxy != "" {
-	//	req.SetProxy(config.HttpProxy)
-	//}
-	//
-	//response, err := util.ExecuteRequest(req)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//if response.StatusCode!=200{
-	//	panic(errors.New(string(response.Body)))
-	//}
-	//
-	//version := elastic.ClusterInformation{}
-	//err = json.Unmarshal(response.Body, &version)
-	//if err != nil {
-	//	log.Error(string(response.Body))
-	//	return nil, err
-	//}
-	//return &version, nil
-
-	url := fmt.Sprintf("%s", config.Endpoint)
-	result, err := RequestTimeout("GET", url, nil, config, time.Second * 3)
+func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterInformation, error) {
+	url := fmt.Sprintf("%v://%v", metadata.GetSchema(), metadata.GetActiveHost())
+	result, err := RequestTimeout("GET", url, nil, metadata, time.Second * 3)
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +49,12 @@ func ClusterVersion(config *elastic.ElasticsearchConfig) (*elastic.ClusterInform
 	version := elastic.ClusterInformation{}
 	err = json.Unmarshal(result.Body, &version)
 	if err != nil {
-		log.Error(string(result.Body))
 		return nil, err
 	}
 	return &version, nil
 }
 
-func RequestTimeout(method, url string, body []byte, config *elastic.ElasticsearchConfig, timeout time.Duration) (result *util.Result, err error) {
+func RequestTimeout(method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
 	var (
 		req = fasthttp.AcquireRequest()
 		res = fasthttp.AcquireResponse()
@@ -104,8 +73,8 @@ func RequestTimeout(method, url string, body []byte, config *elastic.Elasticsear
 	req.SetBody(body)
 	req.SetRequestURI(url)
 	req.Header.SetContentType(util.ContentTypeJson)
-	if config != nil && config.BasicAuth != nil {
-		req.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	if metadata.Config != nil && metadata.Config.BasicAuth != nil {
+		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
 	err = client.DoTimeout(req, res, timeout)

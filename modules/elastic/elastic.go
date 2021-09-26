@@ -301,6 +301,15 @@ func discoveryMetadata(force bool) {
 				//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
 				if cfg.Enabled||force {
 					oldMetadata := elastic.GetOrInitMetadata(cfg)
+
+					if force{
+						//add seeds to host for health check
+						hosts:= oldMetadata.GetSeedHosts()
+						for _,host:=range hosts{
+							elastic.GetOrInitHost(host)
+						}
+					}
+
 					client := elastic.GetClient(cfg.ID)
 
 					//TODO 按需加载节点信息，检测节点连通性
@@ -430,7 +439,7 @@ func (module ElasticModule) Start() error {
 	}
 
 	initElasticInstances()
-	log.Trace("loadESBasedElasticConfig completed")
+	log.Trace("load ESBased ElasticConfig completed")
 
 	t := task.ScheduleTask{
 		Description: "discovery nodes topology",

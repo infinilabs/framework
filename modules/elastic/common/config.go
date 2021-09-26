@@ -1,10 +1,9 @@
 package common
 
 import (
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/adapter"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/modules/elastic/adapter"
 	"strings"
 )
 
@@ -45,47 +44,43 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		ver, _ = adapter.GetMajorVersion(esConfig)
-		//if err != nil {
-		//	return nil, err
-		//}
-		esConfig.Version = ver
+		esConfig.Version, _ = adapter.GetMajorVersion(elastic.GetOrInitMetadata(&esConfig))
 	} else {
 		ver = esConfig.Version
 	}
 
-	if util.SuffixStr(esConfig.Endpoint, "/") {
-		esConfig.Endpoint = esConfig.Endpoint[:len(esConfig.Endpoint)-1]
+	if ver==""&&esConfig.Version!=""{
+		ver = esConfig.Version
 	}
 
 	if strings.HasPrefix(ver, "8.") {
 		api := new(adapter.ESAPIV8)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "7.") {
 		api := new(adapter.ESAPIV7)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "6.") {
 		api := new(adapter.ESAPIV6)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "5.") {
 		api := new(adapter.ESAPIV5)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "2.") {
 		api := new(adapter.ESAPIV2)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	} else {
 		api := new(adapter.ESAPIV0)
-		api.Config = esConfig
+		api.Elasticsearch = esConfig.Name
 		api.Version = ver
 		client = api
 	}
