@@ -77,6 +77,7 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 
 type PipelineConfigV2 struct {
 	Name       string                `config:"name"`
+	AutoStart  bool                  `config:"auto_start"`
 	Processors pipeline.PluginConfig `config:"processors"`
 }
 
@@ -164,6 +165,9 @@ func (module *PipeModule) Start() error {
 					}
 				}()
 
+				if !cfg.AutoStart{
+					ctx.RunningState=pipeline.STOPPED
+				}
 				log.Debug("processing pipeline_v2:", cfg.Name)
 
 				for {
