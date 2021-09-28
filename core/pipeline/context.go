@@ -23,6 +23,7 @@ import (
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 	"sync"
+	"time"
 )
 
 
@@ -42,8 +43,10 @@ type Context struct {
 	Payload      interface{} `json:"-"`
 
 	//private parameters
+	StartTime    *time.Time `json:"start_time,omitempty"`
+	EndTime      *time.Time `json:"end_time,omitempty"`
 	RunningState    RunningState `json:"state"`
-	ProcessHistory  []string     `json:"executed"`
+	ProcessHistory  []string     `json:"-"`
 	context.Context `json:"-"`
 	cancelFunc context.CancelFunc
 	isPaused bool
@@ -63,6 +66,9 @@ func ReleaseContext(ctx *Context)  {
 
 func (ctx *Context)ResetContext()  {
 	ctx.RunningState=STARTED
+	t:=time.Now()
+	ctx.StartTime=&t
+	ctx.EndTime=nil
 	ctx.Context,ctx.cancelFunc=context.WithCancel(context.Background())
 	ctx.ResetParameters()
 	ctx.ProcessHistory =[]string{}
@@ -92,6 +98,8 @@ func (ctx *Context)IsCanceled()bool  {
 }
 
 func (ctx *Context) Finished() {
+	t:=time.Now()
+	ctx.EndTime=&t
 	ctx.RunningState =FINISHED
 }
 
@@ -108,6 +116,8 @@ func (context *Context) End(msg interface{}) {
 	}
 	context.RunningState = STOPPED
 	context.Payload = msg
+	t:=time.Now()
+	context.EndTime=&t
 }
 
 
@@ -119,10 +129,14 @@ func (context *Context) Start() {
 
 func (context *Context) Failed() {
 	context.RunningState = FAILED
+	t:=time.Now()
+	context.EndTime=&t
 }
 
 func (context *Context) Cancelled() {
 	context.RunningState = CANCELLED
+	t:=time.Now()
+	context.EndTime=&t
 }
 
 //resume pipeline, set to start mode
@@ -146,6 +160,8 @@ func (ctx *Context) Pause() {
 func (context *Context) Stop() {
 	context.cancelFunc()
 	context.RunningState = STOPPED
+	t:=time.Now()
+	context.EndTime=&t
 }
 
 func (context *Context) IsPause() bool {
@@ -167,6 +183,8 @@ func (context *Context) IsExit() bool {
 func (context *Context) Exit(msg interface{}) {
 	context.RunningState = FINISHED
 	context.Payload = msg
+	t:=time.Now()
+	context.EndTime=&t
 }
 
 func (context *Context) Marshall() []byte {
