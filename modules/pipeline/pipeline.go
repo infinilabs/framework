@@ -78,6 +78,7 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 type PipelineConfigV2 struct {
 	Name       string                `config:"name"`
 	AutoStart  bool                  `config:"auto_start"`
+	KeepRunning  bool                  `config:"keep_running"`
 	Processors pipeline.PluginConfig `config:"processors"`
 }
 
@@ -140,7 +141,7 @@ func (module *PipeModule) Start() error {
 
 			processor, err := pipeline.New(v.Processors)
 			if err != nil {
-				log.Error(err)
+				log.Error(v.Name,err)
 				continue
 			}
 			ctx:=pipeline.AcquireContext()
@@ -182,7 +183,9 @@ func (module *PipeModule) Start() error {
 							break
 						}
 						log.Infof("pipeline [%v] end running",cfg.Name)
-						ctx.End("running finished")
+						if !cfg.KeepRunning{
+							ctx.End("running finished")
+						}
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",cfg.Name)
