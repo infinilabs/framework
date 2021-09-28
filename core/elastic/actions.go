@@ -133,7 +133,7 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 		}
 	}
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
-		log.Error("no host available, choose the first one, ",hosts[0])
+		log.Error("no hosts available, choose: ",hosts[0])
 	}
 	meta.ReportFailure()
 	return hosts[0]
