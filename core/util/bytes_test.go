@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
@@ -623,4 +624,22 @@ func TestBytesSearchValue(t *testing.T)  {
 
 	fmt.Println(BytesSearchValue(data,startTerm,endTerm,searchTrim))
 
+}
+
+func BenchmarkLimitedBytesSearch(b *testing.B) {
+	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+	term:=[]byte("\"errors\":true")
+	limit:=64
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		LimitedBytesSearch(data,term,limit)
+	}
+}
+
+func BenchmarkJsonParser(b *testing.B) {
+	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		jsonparser.GetBoolean(data,"errors")
+	}
 }
