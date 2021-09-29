@@ -36,6 +36,7 @@ import (
 type PipeModule struct {
 	api.Handler
 	pipelines map[string]*pipeline.Processors
+	configs map[string]*PipelineConfigV2
 	contexts map[string]*pipeline.Context
 	started bool
 	runners map[string]*PipeRunner
@@ -61,6 +62,7 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 
 	module.pipelines= map[string]*pipeline.Processors{}
 	module.contexts= map[string]*pipeline.Context{}
+	module.configs= map[string]*PipelineConfigV2{}
 
 	pipeline.RegisterPlugin("dag", pipeline.NewDAGProcessor)
 	pipeline.RegisterPlugin("echo", NewEchoProcessor)
@@ -76,10 +78,10 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 }
 
 type PipelineConfigV2 struct {
-	Name       string                `config:"name"`
-	AutoStart  bool                  `config:"auto_start"`
-	KeepRunning  bool                  `config:"keep_running"`
-	Processors pipeline.PluginConfig `config:"processors"`
+	Name       string                `config:"name" json:"name,omitempty"`
+	AutoStart  bool                  `config:"auto_start" json:"auto_start"`
+	KeepRunning  bool                  `config:"keep_running" json:"keep_running"`
+	Processors pipeline.PluginConfig `config:"processors" json:"processors,omitempty"`
 }
 
 
@@ -145,6 +147,7 @@ func (module *PipeModule) Start() error {
 				continue
 			}
 			ctx:=pipeline.AcquireContext()
+			module.configs[v.Name]=&v
 			module.pipelines[v.Name]=processor
 			module.contexts[v.Name]=ctx
 
@@ -174,7 +177,7 @@ func (module *PipeModule) Start() error {
 				for {
 					switch ctx.RunningState {
 					case pipeline.STARTED:
-						log.Infof("pipeline [%v] start running",cfg.Name)
+						log.Debugf("pipeline [%v] start running",cfg.Name)
 						ctx.Start()
 						err = p.Process(ctx)
 						if err != nil {
@@ -182,14 +185,17 @@ func (module *PipeModule) Start() error {
 							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
 							break
 						}
-						log.Infof("pipeline [%v] end running",cfg.Name)
+						log.Debugf("pipeline [%v] end running",cfg.Name)
 						if !cfg.KeepRunning{
 							ctx.End("running finished")
 						}
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",cfg.Name)
-						ctx.Pause()
+						if !cfg.KeepRunning{
+							time.Sleep(10*time.Second)
+							ctx.Pause()
+						}
 						break
 					//case pipeline.PAUSED:
 					//	time.Sleep(10*time.Second)
