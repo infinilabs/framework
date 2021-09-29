@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
@@ -19,7 +20,6 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"github.com/buger/jsonparser"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -767,14 +767,14 @@ func getLengthBytes(data []byte)[]byte  {
 }
 
 //TODO pass in bytes buffer, reuse outside
-func (req *Request)Encode() []byte {
-
+func (req *Request)OverrideBodyEncode(body []byte) []byte {
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
 	headerBuffer:=bytes.Buffer{}
 
 	req.Header.Del("content-type")
+	req.Header.Del("content-length") //TODO check issue
 	req.Header.VisitAll(func(key, value []byte) {
 		headerBuffer.Write(key)
 		headerBuffer.Write(colon)
@@ -788,7 +788,7 @@ func (req *Request)Encode() []byte {
 	binary.LittleEndian.PutUint32(headerLength, headerBytesLen)
 
 	bodyLength := make([]byte, 4)
-	bodyL:=len(req.bodyBytes())
+	bodyL:=len(body)
 
 	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
@@ -814,8 +814,6 @@ func (req *Request)Encode() []byte {
 	data.Write(getLengthBytes(header))
 	data.Write(headerBytes)
 
-	//body
-	body:=req.bodyBytes()
 	data.Write(getLengthBytes(body))
 	if len(body)>0{
 		data.Write(body)
@@ -823,6 +821,11 @@ func (req *Request)Encode() []byte {
 
 	b:= data.Bytes()
 	return b
+}
+
+func (req *Request)Encode() []byte {
+	body:=req.bodyBytes()
+	return req.OverrideBodyEncode(body)
 }
 
 func readBytesLength(reader io.Reader)uint32  {
