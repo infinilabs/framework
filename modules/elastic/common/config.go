@@ -55,27 +55,27 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 
 	if strings.HasPrefix(ver, "8.") {
 		api := new(adapter.ESAPIV8)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "7.") {
 		api := new(adapter.ESAPIV7)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "6.") {
 		api := new(adapter.ESAPIV6)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "5.") {
 		api := new(adapter.ESAPIV5)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	} else if strings.HasPrefix(ver, "2.") {
 		api := new(adapter.ESAPIV2)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	} else {
