@@ -94,7 +94,7 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 		}
 
 		if ctx.RunningState!=pipeline.STARTED{
-			ctx.Start()
+			ctx.RunningState=pipeline.STARTING
 		}
 		module.WriteAckOKJSON(w)
 	}else{
@@ -108,8 +108,9 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
-		if ctx.RunningState==pipeline.STARTED{
-			ctx.Stop()
+		if ctx.RunningState==pipeline.STARTED||ctx.RunningState==pipeline.STARTING{
+			ctx.RunningState=pipeline.STOPPING
+			ctx.CancelTask()
 		}
 		module.WriteAckOKJSON(w)
 	}else{
@@ -176,19 +177,27 @@ func (module *PipeModule) Start() error {
 
 				for {
 					switch ctx.RunningState {
-					case pipeline.STARTED:
+					case pipeline.STARTING:
 						log.Debugf("pipeline [%v] start running",cfg.Name)
 						ctx.Start()
+
+						RESTART:
 						err = p.Process(ctx)
 						if err != nil {
 							ctx.Failed()
 							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
 							break
 						}
-						log.Debugf("pipeline [%v] end running",cfg.Name)
-						if !cfg.KeepRunning{
-							ctx.End("running finished")
+
+						if cfg.KeepRunning{
+							if ctx.RunningState==pipeline.STOPPED||ctx.RunningState==pipeline.STOPPING{
+								break
+							}
+							log.Debugf("pipeline [%v] end running, restart again",cfg.Name)
+							goto RESTART
 						}
+						log.Debugf("pipeline [%v] end running",cfg.Name)
+						ctx.Finished()
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",cfg.Name)
@@ -197,10 +206,10 @@ func (module *PipeModule) Start() error {
 							ctx.Pause()
 						}
 						break
-					//case pipeline.PAUSED:
-					//	time.Sleep(10*time.Second)
-					//	log.Debugf("pipeline [%v] paused",p.String())
-					//	break
+					case pipeline.STOPPING:
+						ctx.CancelTask()
+						ctx.Pause()
+						break
 					case pipeline.STOPPED:
 						log.Debugf("pipeline [%v] stopped",cfg.Name)
 						ctx.Pause()
@@ -243,8 +252,31 @@ func (module *PipeModule) Stop() error {
 	if module.started {
 		module.started = false
 		log.Debug("shutting down pipeline framework")
+
+		start:=time.Now()
+
+		CLOSING:
 		for _, v := range module.runners {
+			log.Trace("start shutting down pipeline:",v.config.Name)
 			v.Stop()
+			log.Trace("finished shutting down pipeline:",v.config.Name)
+		}
+
+		for k, v := range module.contexts {
+			log.Trace("start shutting down pipeline:",k)
+			v.CancelTask()
+			log.Trace("finished shutting down pipeline:",k)
+		}
+
+		for _, v := range module.contexts {
+			if v.RunningState==pipeline.STARTED||v.RunningState==pipeline.STARTING{
+				time.Sleep(100*time.Millisecond)
+				if time.Now().Sub(start).Minutes()>5{
+					log.Error("pipeline framework failure to stop tasks, quiting")
+					return errors.New("pipeline framework failure to stop tasks, quiting")
+				}
+				goto CLOSING
+			}
 		}
 	} else {
 		log.Error("pipeline framework is not started")

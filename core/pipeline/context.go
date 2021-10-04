@@ -29,8 +29,10 @@ import (
 
 type RunningState string
 
+const STARTING RunningState = "STARTING"
 const STARTED RunningState = "STARTED"
 const CANCELLED RunningState = "CANCELLED"
+const STOPPING RunningState = "STOPPING"
 const STOPPED RunningState = "STOPPED"
 const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
@@ -65,7 +67,7 @@ func ReleaseContext(ctx *Context)  {
 }
 
 func (ctx *Context)ResetContext()  {
-	ctx.RunningState=STARTED
+	ctx.RunningState=STARTING
 	t:=time.Now()
 	ctx.StartTime=&t
 	ctx.EndTime=nil
@@ -114,7 +116,7 @@ func (context *Context) End(msg interface{}) {
 	if context == nil {
 		panic(errors.New("context is nil"))
 	}
-	context.RunningState = STOPPED
+	context.RunningState = FINISHED
 	context.Payload = msg
 	t:=time.Now()
 	context.EndTime=&t
@@ -157,9 +159,9 @@ func (ctx *Context) Pause() {
 	ctx.pause.Wait()
 }
 
-func (context *Context) Stop() {
+func (context *Context) CancelTask() {
 	context.cancelFunc()
-	context.RunningState = STOPPED
+	context.RunningState=STOPPED
 	t:=time.Now()
 	context.EndTime=&t
 }
