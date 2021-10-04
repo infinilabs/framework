@@ -2206,6 +2206,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			}
 			return err
 		}
+
 		s.setState(c, StateNew)
 		atomic.AddInt32(&s.open, 1)
 		if !wp.Serve(c) {
@@ -2254,15 +2255,24 @@ func (s *Server) Shutdown() error {
 		return nil
 	}
 
+	log.Tracef("total numbers of connections: %v",len(s.ln))
+
 	for _, ln := range s.ln {
-		if err := ln.Close(); err != nil {
-			return err
-		}
+		go func(listener *net.Listener) {
+			if err := ln.Close(); err != nil {
+				log.Error(err)
+				//return err
+			}
+		}(&ln)
 	}
+
+	log.Tracef("closed: %v",len(s.ln))
 
 	if s.done != nil {
 		close(s.done)
 	}
+
+	log.Tracef("closed channel: %v",len(s.ln))
 
 	// Closing the listener will make Serve() call Stop on the worker pool.
 	// Setting .stop to 1 will make serveConn() break out of its loop.

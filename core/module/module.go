@@ -122,9 +122,9 @@ func Stop() {
 		v := m.user[i]
 		cfg := env.GetPluginConfig(v.Name())
 		if cfg.Enabled(true) {
-			log.Trace("stopping plugin: ", v.Name())
+			log.Debug("stopping plugin: ", v.Name())
 			v.Stop()
-			log.Debug("stopped plugin: ", v.Name())
+			log.Info("stopped plugin: ", v.Name())
 		}
 	}
 	log.Debug("all user unloaded")
@@ -134,9 +134,9 @@ func Stop() {
 		v := m.system[i]
 		cfg := env.GetModuleConfig(v.Name())
 		if cfg.Enabled(true) {
-			log.Trace("stopping module: ", v.Name())
+			log.Debug("stopping module: ", v.Name())
 			v.Stop()
-			log.Debug("stopped module: ", v.Name())
+			log.Info("stopped module: ", v.Name())
 		}
 	}
 	log.Debug("all system stopped")
