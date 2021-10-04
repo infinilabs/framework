@@ -140,6 +140,7 @@ func (d *diskQueue) Put(data []byte) error {
 	defer d.RUnlock()
 
 	if d.exitFlag == 1 {
+		log.Errorf("queue [%v] exiting, data maybe lost",d.name)
 		return errors.New("exiting")
 	}
 
@@ -320,6 +321,8 @@ func (d *diskQueue) readOne() ([]byte, error) {
 	}
 
 	totalBytes := int64(4 + msgSize)
+
+	//log.Error("position:",d.readFileNum,",",d.readPos,",",totalBytes)
 
 	// we only advance next* because we have not yet sent this to consumers
 	// (where readFileNum, readPos will actually be advanced)
@@ -640,7 +643,7 @@ func (d *diskQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					log.Errorf("ERROR: reading from diskqueue(%s) at %d of %s - %s",
+					log.Debugf("ERROR: reading from diskqueue(%s) at %d of %s - %s",
 						d.name, d.readPos, d.fileName(d.readFileNum), err)
 					d.handleReadError()
 					continue
@@ -677,7 +680,7 @@ func (d *diskQueue) ioLoop() {
 	}
 
 exit:
-	log.Tracef("DISKQUEUE(%s): closing ... ioLoop", d.name)
+	log.Debugf("DISKQUEUE(%s): closing ... ioLoop", d.name)
 	syncTicker.Stop()
 	d.exitSyncChan <- 1
 }
