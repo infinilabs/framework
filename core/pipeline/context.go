@@ -18,10 +18,7 @@ package pipeline
 
 import (
 	"context"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/util"
 	"sync"
 	"time"
 )
@@ -47,18 +44,21 @@ type Context struct {
 	//private parameters
 	StartTime    *time.Time `json:"start_time,omitempty"`
 	EndTime      *time.Time `json:"end_time,omitempty"`
-	RunningState    RunningState `json:"state"`
+	runningState    RunningState `json:"state"`
 	ProcessHistory  []string     `json:"-"`
 	context.Context `json:"-"`
 	cancelFunc context.CancelFunc
 	isPaused bool
 	pause sync.WaitGroup
+	isQuit bool
+	stateLock sync.RWMutex
 }
 
 func AcquireContext()*Context{
 	//TODO
 	ctx:=Context{}
 	ctx.ResetContext()
+	ctx.runningState=STARTING
 	return &ctx
 }
 
@@ -66,8 +66,14 @@ func ReleaseContext(ctx *Context)  {
 	//TODO
 }
 
+
+func (ctx *Context)GetRunningState()RunningState  {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.runningState
+
+}
 func (ctx *Context)ResetContext()  {
-	ctx.RunningState=STARTING
 	t:=time.Now()
 	ctx.StartTime=&t
 	ctx.EndTime=nil
@@ -100,101 +106,115 @@ func (ctx *Context)IsCanceled()bool  {
 }
 
 func (ctx *Context) Finished() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
 	t:=time.Now()
 	ctx.EndTime=&t
-	ctx.RunningState =FINISHED
+	ctx.runningState =FINISHED
 }
 
 //should filters continue to process
 func (ctx *Context) ShouldContinue() bool {
-	return !(ctx.RunningState==FINISHED)
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return !(ctx.runningState==FINISHED)
 }
 
-// End break all pipelines, but the end phrase not included
-func (context *Context) End(msg interface{}) {
-	log.Trace("break,", context, ",", msg)
-	if context == nil {
-		panic(errors.New("context is nil"))
-	}
-	context.RunningState = FINISHED
-	context.Payload = msg
+func (context *Context) Starting() {
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
+
+	context.runningState = STARTING
+}
+
+func (context *Context) Started() {
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
+
+	context.ResetContext()
+	context.runningState = STARTED
+}
+
+func (context *Context) Failed() {
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
+
+	context.runningState = FAILED
 	t:=time.Now()
 	context.EndTime=&t
 }
 
+func (context *Context) Stopped() {
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
 
-
-func (context *Context) Start() {
-	context.ResetContext()
-	context.RunningState = STARTED
-}
-
-func (context *Context) Failed() {
-	context.RunningState = FAILED
+	context.runningState = STOPPED
 	t:=time.Now()
 	context.EndTime=&t
 }
 
 func (context *Context) Cancelled() {
-	context.RunningState = CANCELLED
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
+
+	context.runningState = CANCELLED
 	t:=time.Now()
 	context.EndTime=&t
 }
 
 //resume pipeline, set to start mode
 func (ctx *Context) Resume() {
-	//ctx.RunningState = STARTED
+	ctx.stateLock.Lock()
 	ctx.isPaused=false
+	ctx.stateLock.Unlock()
+
 	ctx.pause.Done()
 }
 
 //pause and wait signal to resume
 func (ctx *Context) Pause() {
+	ctx.stateLock.Lock()
 	if ctx.isPaused{
 		return
 	}
-	//ctx.RunningState = PAUSED
-	ctx.pause.Add(1)
 	ctx.isPaused=true
+	ctx.stateLock.Unlock()
+
+	ctx.pause.Add(1)
 	ctx.pause.Wait()
 }
 
 func (context *Context) CancelTask() {
+	context.stateLock.Lock()
+	if context.runningState==STARTED||context.runningState==STARTING{
+		context.runningState=STOPPING
+	}
+	context.stateLock.Unlock()
+
 	context.cancelFunc()
-	context.RunningState=STOPPED
-	t:=time.Now()
-	context.EndTime=&t
 }
 
 func (context *Context) IsPause() bool {
-	return context.isPaused
-	//return context.RunningState==PAUSED
-}
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
 
-// IsEnd indicates whether the pipe process is end, end means no more processes will be execute
-func (context *Context) IsEnd() bool {
-	return context.RunningState==STOPPED
+	return context.isPaused
 }
 
 // IsExit means all pipelines will be broke and jump to outside, even the end phrase will not be executed as well
 func (context *Context) IsExit() bool {
-	return context.RunningState==FINISHED
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
+
+	return context.isQuit
 }
 
 // Exit tells pipeline to exit
-func (context *Context) Exit(msg interface{}) {
-	context.RunningState = FINISHED
-	context.Payload = msg
-	t:=time.Now()
-	context.EndTime=&t
-}
+func (context *Context) Exit() {
+	context.stateLock.Lock()
+	defer context.stateLock.Unlock()
 
-func (context *Context) Marshall() []byte {
-	return util.MustToJSONBytes(context)
-}
-
-func UnMarshall(b []byte) Context {
-	c := Context{}
-	util.MustFromJSONBytes(b, &c)
-	return c
+	context.isQuit=true
 }

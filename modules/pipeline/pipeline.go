@@ -28,6 +28,7 @@ import (
 	"infini.sh/framework/core/util"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -39,7 +40,8 @@ type PipeModule struct {
 	configs map[string]*PipelineConfigV2
 	contexts map[string]*pipeline.Context
 	started bool
-	runners map[string]*PipeRunner
+	//runners map[string]*PipeRunner
+	wg sync.WaitGroup
 }
 
 func (module PipeModule) Name() string {
@@ -93,8 +95,8 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 			ctx.Resume()
 		}
 
-		if ctx.RunningState!=pipeline.STARTED{
-			ctx.RunningState=pipeline.STARTING
+		if ctx.GetRunningState()!=pipeline.STARTED{
+			ctx.Starting()
 		}
 		module.WriteAckOKJSON(w)
 	}else{
@@ -108,8 +110,7 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 	id:=ps.ByName("id")
 	ctx,ok:=module.contexts[id]
 	if ok{
-		if ctx.RunningState==pipeline.STARTED||ctx.RunningState==pipeline.STARTING{
-			ctx.RunningState=pipeline.STOPPING
+		if ctx.GetRunningState()==pipeline.STARTED||ctx.GetRunningState()==pipeline.STARTING{
 			ctx.CancelTask()
 		}
 		module.WriteAckOKJSON(w)
@@ -121,9 +122,13 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 }
 
 func (module *PipeModule) getPipelines(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	obj:=map[string]interface{}{}
+	obj:=util.MapStr{}
 	for k,_:=range module.pipelines{
-		obj[k]=module.contexts[k]
+		obj[k]=util.MapStr{
+			"state":module.contexts[k].GetRunningState(),
+			"start_time":module.contexts[k].StartTime,
+			"end_time":module.contexts[k].EndTime,
+		}
 	}
 	module.WriteJSON(w,obj,200)
 }
@@ -171,38 +176,43 @@ func (module *PipeModule) Start() error {
 				}()
 
 				if !cfg.AutoStart{
-					ctx.RunningState=pipeline.STOPPED
+					ctx.Stopped()
+				}else{
+					ctx.Starting()
 				}
+
 				log.Debug("processing pipeline_v2:", cfg.Name)
 
 				for {
-					switch ctx.RunningState {
+					state:=ctx.GetRunningState()
+					switch state {
 					case pipeline.STARTING:
+					RESTART:
 						log.Debugf("pipeline [%v] start running",cfg.Name)
-						ctx.Start()
-
-						RESTART:
+						ctx.Started()
 						err = p.Process(ctx)
+
+						if cfg.KeepRunning&&!ctx.IsExit(){
+							if ctx.GetRunningState()!=pipeline.STOPPED&&ctx.GetRunningState()!=pipeline.STOPPING{
+								log.Debugf("pipeline [%v] end running, restart again",cfg.Name)
+								goto RESTART
+							}
+						}
+
 						if err != nil {
 							ctx.Failed()
 							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
 							break
+						}else{
+							ctx.Stopped()
 						}
 
-						if cfg.KeepRunning{
-							if ctx.RunningState==pipeline.STOPPED||ctx.RunningState==pipeline.STOPPING{
-								break
-							}
-							log.Debugf("pipeline [%v] end running, restart again",cfg.Name)
-							goto RESTART
-						}
 						log.Debugf("pipeline [%v] end running",cfg.Name)
 						ctx.Finished()
 						break
 					case pipeline.FAILED:
 						log.Debugf("pipeline [%v] failed",cfg.Name)
 						if !cfg.KeepRunning{
-							time.Sleep(10*time.Second)
 							ctx.Pause()
 						}
 						break
@@ -227,23 +237,6 @@ func (module *PipeModule) Start() error {
 		}
 	}
 
-	//TODO
-	//orm.RegisterSchema(pipeline.PipelineConfig{})
-
-	module.runners = map[string]*PipeRunner{}
-
-	cfgs := pipeline.GetPipelineConfigs()
-
-	for k, v := range cfgs {
-		p := &PipeRunner{config: v}
-		module.runners[k] = p
-	}
-
-	log.Debug("starting up pipeline framework")
-	for _, v := range module.runners {
-		v.Start(v.config)
-	}
-
 	module.started = true
 	return nil
 }
@@ -252,24 +245,19 @@ func (module *PipeModule) Stop() error {
 	if module.started {
 		module.started = false
 		log.Debug("shutting down pipeline framework")
-
 		start:=time.Now()
 
-		CLOSING:
-		for _, v := range module.runners {
-			log.Trace("start shutting down pipeline:",v.config.Name)
-			v.Stop()
-			log.Trace("finished shutting down pipeline:",v.config.Name)
-		}
+	CLOSING:
 
 		for k, v := range module.contexts {
 			log.Trace("start shutting down pipeline:",k)
 			v.CancelTask()
+			v.Exit()
 			log.Trace("finished shutting down pipeline:",k)
 		}
 
 		for _, v := range module.contexts {
-			if v.RunningState==pipeline.STARTED||v.RunningState==pipeline.STARTING{
+			if v.GetRunningState()==pipeline.STARTED||v.GetRunningState()==pipeline.STARTING||v.GetRunningState()==pipeline.STOPPING{
 				time.Sleep(100*time.Millisecond)
 				if time.Now().Sub(start).Minutes()>5{
 					log.Error("pipeline framework failure to stop tasks, quiting")
