@@ -2255,30 +2255,28 @@ func (s *Server) Shutdown() error {
 		return nil
 	}
 
-	log.Tracef("total numbers of connections: %v",len(s.ln))
-
 	for _, ln := range s.ln {
-		go func(listener *net.Listener) {
-			if err := ln.Close(); err != nil {
-				log.Error(err)
-				//return err
-			}
-		}(&ln)
+		log.Tracef("closing:%v",ln.Addr())
+		if err := ln.Close(); err != nil {
+			log.Error(err)
+			//return err
+		}
 	}
 
-	log.Tracef("closed: %v",len(s.ln))
+	log.Tracef("closed: s.ln")
 
 	if s.done != nil {
 		close(s.done)
 	}
 
-	log.Tracef("closed channel: %v",len(s.ln))
+	log.Tracef("closed: s.done")
 
 	// Closing the listener will make Serve() call Stop on the worker pool.
 	// Setting .stop to 1 will make serveConn() break out of its loop.
 	// Now we just have to wait until all workers are done.
 	for {
 		if open := atomic.LoadInt32(&s.open); open == 0 {
+			log.Tracef("closed: s.open, %v",open)
 			break
 		}
 		// This is not an optimal solution but using a sync.WaitGroup
@@ -2286,6 +2284,7 @@ func (s *Server) Shutdown() error {
 		// while Wait() is waiting.
 		time.Sleep(time.Millisecond * 100)
 	}
+	log.Tracef("closed: for")
 
 	s.done = nil
 	s.ln = nil
@@ -2689,8 +2688,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			ctx.Reset()
 			//ctx.Request.resetSkipHeader() //will reset request body
 			ctx.Response.Reset()
-			stats.Increment("request","total")
+			stats.Increment("request","received")
 			s.Handler(ctx)
+			stats.Increment("request","finished")
 		}
 
 		timeoutResponse = ctx.timeoutResponse
