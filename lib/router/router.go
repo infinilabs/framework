@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"infini.sh/framework/lib/router/radix"
 	"github.com/savsgio/gotils/bytes"
 	"github.com/savsgio/gotils/strconv"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/lib/router/radix"
 )
 
 // MethodWild wild HTTP method
@@ -32,8 +32,8 @@ func New() *Router {
 		registeredPaths:        make(map[string][]string),
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
-		HandleMethodNotAllowed: true,
-		HandleOPTIONS:          true,
+		HandleMethodNotAllowed: false,
+		HandleOPTIONS:          false,
 	}
 }
 
