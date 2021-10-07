@@ -17,6 +17,7 @@ limitations under the License.
 package stats
 
 import (
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/stats"
 	"net/http"
 )
@@ -27,7 +28,7 @@ func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
 }
 
 // StatsAction return stats information
-func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request) {
+func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	m := stats.StatsAll()
 	handler.WriteJSONHeader(w)

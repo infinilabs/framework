@@ -45,7 +45,7 @@ func (module *SimpleStatsModule) Setup(cfg *Config) {
 	stats.Register(data)
 
 	//register api
-	api.HandleAPIFunc("/stats", module.StatsAction)
+	api.HandleAPIMethod(api.GET,"/stats", module.StatsAction)
 }
 
 func (module *SimpleStatsModule) Start() error {

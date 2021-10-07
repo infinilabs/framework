@@ -18,6 +18,7 @@ package queue
 
 import (
 	"infini.sh/framework/core/api"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -26,7 +27,7 @@ import (
 func RegisterAPI()  {
 	api2:=api1{}
 	//http://localhost:2900/queue/stats
-	api.HandleAPIFunc("/queue/stats", api2.QueueStatsAction)
+	api.HandleAPIMethod(api.GET,"/queue/stats", api2.QueueStatsAction)
 }
 
 type api1 struct {
@@ -34,7 +35,7 @@ type api1 struct {
 }
 
 // QueueStatsAction return queue stats information
-func (handler api1) QueueStatsAction(w http.ResponseWriter, req *http.Request) {
+func (handler api1) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	datas := map[string]map[string]int64{}
 	queues := queue.GetQueues()
