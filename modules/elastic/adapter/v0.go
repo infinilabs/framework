@@ -24,6 +24,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -38,12 +39,16 @@ type ESAPIV0 struct {
 	Version      string
 	majorVersion int
 	metadata *elastic.ElasticsearchMetadata
+	metaLocker sync.RWMutex
 }
 
 func (c *ESAPIV0) GetEndpoint()string {
 	return c.GetMetadata().GetActiveEndpoint()
 }
 func (c *ESAPIV0) GetMetadata()*elastic.ElasticsearchMetadata {
+	c.metaLocker.Lock()
+	c.metaLocker.Unlock()
+
 	if c.metadata!=nil{
 		return c.metadata
 	}
