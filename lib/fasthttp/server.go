@@ -629,7 +629,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 					return para.RemoteAddr().String(),nil
 				case "local_addr":
 					return para.LocalAddr().String(),nil
-				case "elapsed_ms":
+				case "elapsed":
 					return para.GetElapsedTime().Milliseconds(),nil
 				case "request":
 					if len(keys)>=3 {
@@ -676,6 +676,8 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 
 							case "body_length":
 								return para.Request.GetBodyLength(), nil
+							case "body_size":
+								return para.Request.GetBodyLength(), nil
 							case "query_args":
 								if len(keys) == 4 { //TODO notify
 									argsField := keys[3]
@@ -709,11 +711,15 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 							switch responseField {
 							case "status":
 								return para.Response.StatusCode(),nil
+							case "status_code":
+								return para.Response.StatusCode(),nil
 							case "body":
 								return string(para.Response.GetRawBody()),nil
 							case "content_type":
 								return string(para.Response.Header.ContentType()),nil
 							case "body_length":
+								return para.Response.GetBodyLength(),nil
+							case "body_size":
 								return para.Response.GetBodyLength(),nil
 							case "header":
 								if len(keys)==4{ //TODO notify
