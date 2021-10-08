@@ -629,6 +629,8 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 					return para.RemoteAddr().String(),nil
 				case "local_addr":
 					return para.LocalAddr().String(),nil
+				case "elapsed_ms":
+					return para.GetElapsedTime().Milliseconds(),nil
 				case "request":
 					if len(keys)>=3 {
 						requestField := keys[2]
