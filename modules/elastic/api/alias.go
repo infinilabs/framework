@@ -1,11 +1,11 @@
 package api
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"net/http"
 )
 
 func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
@@ -36,6 +36,7 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 	}
 
 	bodyBytes, _ := json.Marshal(aliasReq)
+	fmt.Println(string(bodyBytes))
 
 	err = client.Alias(bodyBytes)
 	if err != nil {
