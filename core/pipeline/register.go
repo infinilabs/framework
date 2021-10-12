@@ -1,126 +1,261 @@
-/*
-Copyright Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package pipeline
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	p "infini.sh/framework/core/plugin"
-	"reflect"
+	"strings"
 )
 
-var typeRegistry = make(map[string]interface{})
-
-func GetAllRegisteredJoints() map[string]interface{} {
-	return typeRegistry
+type Namespace struct {
+	processorReg map[string]processorPluginer
+	filterReg map[string]filterPluginer
 }
-
-type JointType string
-
-const INPUT JointType = "INPUT"
-const OUTPUT JointType = "OUTPUT"
-const FILTER JointType = "FILTER"
-const PROCESSOR JointType = "PROCESSOR"
-
-func GetJointInstance(cfg *ProcessorConfig) Processor {
-
-	return getJoint(cfg).(Processor)
-}
-
-func GetInputJointInstance(cfg *ProcessorConfig) Input {
-
-	return getJoint(cfg).(Input)
-}
-
-func GetOutputJointInstance(cfg *ProcessorConfig) Output {
-
-	return getJoint(cfg).(Output)
-}
-
-func GetFilterJointInstance(cfg *ProcessorConfig) Filter {
-
-	return getJoint(cfg).(Filter)
-}
-
-func getJoint(cfg *ProcessorConfig) interface{} {
-	log.Tracef("get joint instances, %v", cfg.Name)
-	if typeRegistry[cfg.Name] != nil {
-		t := reflect.ValueOf(typeRegistry[cfg.Name]).Type()
-		v := reflect.New(t).Elem()
-
-		f := v.FieldByName("Data")
-		if f.IsValid() && f.CanSet() && f.Kind() == reflect.Map {
-			f.Set(reflect.ValueOf(cfg.Parameters))
-		}
-		return v.Interface()
-	}
-	panic(errors.New(cfg.Name + " not found"))
-}
-
-func RegisterPipeJoint(joint interface{}) {
-	k := joint.(ProcessorBase).Name()
-	RegisterPipeJointWithName(k, joint)
-}
-
-func RegisterPipeJointWithName(jointName string, joint interface{}) {
-	if typeRegistry[jointName] != nil {
-		panic(errors.Errorf("joint with same name already registered, %s", jointName))
-	}
-	typeRegistry[jointName] = joint
-}
-
-
-//new
 
 type processorPlugin struct {
 	name   string
-	constr Constructor
+	c ProcessorConstructor
 }
 
-var pluginKey = "basic.processor"
-
-func Plugin(name string, c Constructor) map[string][]interface{} {
-	return p.MakePlugin(pluginKey, processorPlugin{name, c})
+func (p processorPlugin) ProcessorPlugin() ProcessorConstructor {
+	return p.c
 }
 
-func init() {
-	p.MustRegisterLoader(pluginKey, func(ifc interface{}) error {
-		p, ok := ifc.(processorPlugin)
-		if !ok {
-			return errors.New("plugin does not match processor plugin type")
+type filterPlugin struct {
+	name   string
+	c FilterConstructor
+}
+
+func (p filterPlugin) FilterPlugin() FilterConstructor {
+	return p.c
+}
+
+type processorPluginer interface {
+	ProcessorPlugin() ProcessorConstructor
+}
+
+
+type filterPluginer interface {
+	FilterPlugin() FilterConstructor
+}
+
+func NewNamespace() *Namespace {
+	return &Namespace{
+		processorReg: map[string]processorPluginer{},
+		filterReg: map[string]filterPluginer{},
+	}
+}
+
+func (ns *Namespace) RegisterProcessor(name string, factory ProcessorConstructor) error {
+	p := processorPlugin{name,NewConditional(factory)}
+	names := strings.Split(name, ".")
+	if err := ns.addProcessor(names, p); err != nil {
+		return fmt.Errorf("plugin %s registration fail %v", name, err)
+	}
+	return nil
+}
+
+func (ns *Namespace) RegisterFilter(name string, factory FilterConstructor) error {
+	p := filterPlugin{name,NewFilterConditional(factory)}
+	names := strings.Split(name, ".")
+	if err := ns.addFilter(names, p); err != nil {
+		return fmt.Errorf("plugin %s registration fail %v", name, err)
+	}
+	return nil
+}
+
+func (ns *Namespace) addProcessor(names []string, p processorPluginer) error {
+	name := names[0]
+
+	// register plugin if intermediate node in path being processed
+	if len(names) == 1 {
+		if _, found := ns.processorReg[name]; found {
+			return errors.Errorf("%v exists already", name)
 		}
 
-		return registry.Register(p.name, p.constr)
+		ns.processorReg[name] = p
+		return nil
+	}
+
+	// check if namespace path already exists
+	tmp, found := ns.processorReg[name]
+	if found {
+		ns, ok := tmp.(*Namespace)
+		if !ok {
+			return errors.New("non-namespace plugin already registered")
+		}
+		return ns.addProcessor(names[1:], p)
+	}
+
+	// register new namespace
+	sub := NewNamespace()
+	err := sub.addProcessor(names[1:], p)
+	if err != nil {
+		return err
+	}
+	ns.processorReg[name] = sub
+	return nil
+}
+
+func (ns *Namespace) addFilter(names []string, p filterPluginer) error {
+	name := names[0]
+
+	// register plugin if intermediate node in path being processed
+	if len(names) == 1 {
+		if _, found := ns.filterReg[name]; found {
+			return errors.Errorf("%v exists already", name)
+		}
+
+		ns.filterReg[name] = p
+		return nil
+	}
+
+	// check if namespace path already exists
+	tmp, found := ns.filterReg[name]
+	if found {
+		ns, ok := tmp.(*Namespace)
+		if !ok {
+			return errors.New("non-namespace plugin already registered")
+		}
+		return ns.addFilter(names[1:], p)
+	}
+
+	// register new namespace
+	sub := NewNamespace()
+	err := sub.addFilter(names[1:], p)
+	if err != nil {
+		return err
+	}
+	ns.filterReg[name] = sub
+	return nil
+}
+
+func (ns *Namespace) ProcessorPlugin() ProcessorConstructor {
+	return NewConditional(func(cfg *config.Config) (Processor, error) {
+		var section string
+		for _, name := range cfg.GetFields() {
+			if name == "when" { // TODO: remove check for "when" once fields are filtered
+				continue
+			}
+
+			if section != "" {
+				return nil, errors.Errorf("too many lookup modules "+
+					"configured (%v, %v)", section, name)
+			}
+
+			section = name
+		}
+
+		if section == "" {
+			return nil, errors.New("no lookup module configured")
+		}
+
+		backend, found := ns.processorReg[section]
+		if !found {
+			return nil, errors.Errorf("unknown lookup module: %v", section)
+		}
+
+		config, err := cfg.Child(section, -1)
+		if err != nil {
+			return nil, err
+		}
+
+		constructor := backend.ProcessorPlugin()
+		return constructor(config)
 	})
 }
 
-type Constructor func(config *config.Config) (Processor, error)
+func (ns *Namespace) FilterPlugin() FilterConstructor {
+	return NewFilterConditional(func(cfg *config.Config) (Filter, error) {
+		var section string
+		for _, name := range cfg.GetFields() {
+			if name == "when" { // TODO: remove check for "when" once fields are filtered
+				continue
+			}
+
+			if section != "" {
+				return nil, errors.Errorf("too many lookup modules "+
+					"configured (%v, %v)", section, name)
+			}
+
+			section = name
+		}
+
+		if section == "" {
+			return nil, errors.New("no lookup module configured")
+		}
+
+		backend, found := ns.filterReg[section]
+		if !found {
+			return nil, errors.Errorf("unknown lookup module: %v", section)
+		}
+
+		config, err := cfg.Child(section, -1)
+		if err != nil {
+			return nil, err
+		}
+
+		constructor := backend.FilterPlugin()
+		return constructor(config)
+	})
+}
+
+func (ns *Namespace) ProcessorConstructors() map[string]ProcessorConstructor {
+	c := make(map[string]ProcessorConstructor, len(ns.processorReg))
+	for name, p := range ns.processorReg {
+		c[name] = p.ProcessorPlugin()
+	}
+	return c
+}
+
+func (p processorPlugin) Plugin() ProcessorConstructor { return p.c }
+
+func (p filterPlugin) Plugin() FilterConstructor { return p.c }
+
+
+var pluginKey = "basic.processor"
+
+func ProcessorPlugin(name string, c ProcessorConstructor) map[string][]interface{} {
+	return p.MakePlugin(pluginKey, processorPlugin{name, c})
+}
+
+func FilterPlugin(name string, c FilterConstructor) map[string][]interface{} {
+	return p.MakePlugin(pluginKey, filterPlugin{name, c})
+}
+
+//func init() {
+//	p.MustRegisterLoader(pluginKey, func(ifc interface{}) error {
+//		p, ok := ifc.(processorPlugin)
+//		if !ok {
+//			return errors.New("plugin does not match processor plugin type")
+//		}
+//
+//		return registry.RegisterProcessor(p.name, p.constr)
+//	})
+//}
+
+type FilterConstructor func(config *config.Config) (Filter, error)
+
+type ProcessorConstructor func(config *config.Config) (Processor, error)
+
+type Constructor func(config *config.Config) (ProcessorBase, error)
 
 var registry = NewNamespace()
 
-func RegisterPlugin(name string, constructor Constructor) {
-	log.Debugf("register plugin: %s", name)
-	err := registry.Register(name, constructor)
+func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
+	log.Debugf("register processor: %s", name)
+	err := registry.RegisterProcessor(name, constructor)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func GetPlugin(name string)  {
-
+func RegisterFilterPlugin(name string, constructor FilterConstructor) {
+	log.Debugf("register filter: %s", name)
+	err := registry.RegisterFilter(name, constructor)
+	if err != nil {
+		panic(err)
+	}
 }

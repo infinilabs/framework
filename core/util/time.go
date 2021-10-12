@@ -5,8 +5,8 @@ package util
 
 import (
 	"encoding/binary"
-	"github.com/segmentio/encoding/json"
 	"errors"
+	"github.com/segmentio/encoding/json"
 	"hash"
 	"time"
 )
@@ -129,4 +129,12 @@ func FormatTimeWithTZ(date time.Time) string {
 func GetLocalZone() string {
 	zone, _ := time.Now().Zone()
 	return zone
+}
+
+func GetDurationOrDefault(str string,defaultV time.Duration)time.Duration{
+	t,err:=time.ParseDuration(str)
+	if err!=nil{
+		return defaultV
+	}
+	return t
 }
