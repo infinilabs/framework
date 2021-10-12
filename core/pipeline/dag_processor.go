@@ -32,10 +32,10 @@ func getProcessors(cfg []*config2.Config) ([]Processor, error) {
 
 		//log.Info("get dag plugin:",actionName,actionCfg)
 
-		gen, exists := registry.reg[actionName]
+		gen, exists := registry.processorReg[actionName]
 		if !exists {
 			var validActions []string
-			for k := range registry.reg {
+			for k := range registry.processorReg {
 				validActions = append(validActions, k)
 
 			}
@@ -43,7 +43,7 @@ func getProcessors(cfg []*config2.Config) ([]Processor, error) {
 		}
 
 		//actionCfg.PrintDebugf("Configure processor action '%v' with:", actionName)
-		constructor := gen.Plugin()
+		constructor := gen.ProcessorPlugin()
 		plugin, err := constructor(actionCfg)
 		if err != nil {
 			return nil, err

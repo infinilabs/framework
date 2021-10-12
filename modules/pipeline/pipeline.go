@@ -66,8 +66,8 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 	module.contexts= map[string]*pipeline.Context{}
 	module.configs= map[string]*PipelineConfigV2{}
 
-	pipeline.RegisterPlugin("dag", pipeline.NewDAGProcessor)
-	pipeline.RegisterPlugin("echo", NewEchoProcessor)
+	pipeline.RegisterProcessorPlugin("dag", pipeline.NewDAGProcessor)
+	pipeline.RegisterProcessorPlugin("echo", NewEchoProcessor)
 
 	if moduleCfg.APIEnabled {
 		handler := API{}
@@ -126,8 +126,8 @@ func (module *PipeModule) getPipelines(w http.ResponseWriter, req *http.Request,
 	for k,_:=range module.pipelines{
 		obj[k]=util.MapStr{
 			"state":module.contexts[k].GetRunningState(),
-			"start_time":module.contexts[k].StartTime,
-			"end_time":module.contexts[k].EndTime,
+			"start_time":module.contexts[k].GetStartTime(),
+			"end_time":module.contexts[k].GetEndTime(),
 		}
 	}
 	module.WriteJSON(w,obj,200)
@@ -147,7 +147,7 @@ func (module *PipeModule) Start() error {
 	if ok {
 		for _, v := range pipelines {
 
-			processor, err := pipeline.New(v.Processors)
+			processor, err := pipeline.NewPipeline(v.Processors)
 			if err != nil {
 				log.Error(v.Name,err)
 				continue

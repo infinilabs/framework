@@ -140,7 +140,7 @@ package pipeline
 //	}
 //
 //	if pipe.input == nil {
-//		panic(errors.New("pipeline input can't be null"))
+//		panic(errors.NewPipeline("pipeline input can't be null"))
 //	}
 //
 //	//open input after output
@@ -267,8 +267,8 @@ package pipeline
 //
 //		pipe.setCurrentProcessor(v.Name())
 //		startTime := time.Now().UTC()
-//		//err = v.Process(pipe.context)
-//		v.Process(pipe.context)
+//		//err = v.Filter(pipe.context)
+//		v.Filter(pipe.context)
 //
 //		elapsedTime := time.Now().UTC().Sub(startTime)
 //		stats.Timing(pipe.name+".pipeline", v.Name(), elapsedTime.Nanoseconds())
@@ -292,7 +292,7 @@ package pipeline
 //	log.Trace("start pipeline: ", pipe.name)
 //	if pipe.startProcessor != nil {
 //		pipe.setCurrentProcessor(pipe.startProcessor.Name())
-//		pipe.startProcessor.Process(pipe.context)
+//		pipe.startProcessor.Filter(pipe.context)
 //	}
 //	log.Trace("pipeline: ", pipe.name, ", started")
 //}
@@ -306,7 +306,7 @@ package pipeline
 //	log.Trace("start finish pipeline, ", pipe.name)
 //	if pipe.endProcessor != nil {
 //		pipe.setCurrentProcessor(pipe.endProcessor.Name())
-//		pipe.endProcessor.Process(pipe.context)
+//		pipe.endProcessor.Filter(pipe.context)
 //	}
 //	log.Trace("end finish pipeline, ", pipe.name)
 //}
@@ -316,7 +316,7 @@ package pipeline
 //	if pipe.errorProcessor != nil {
 //		log.Trace("start handle pipeline error, ", pipe.name)
 //		pipe.setCurrentProcessor(pipe.errorProcessor.Name())
-//		pipe.errorProcessor.Process(pipe.context)
+//		pipe.errorProcessor.Filter(pipe.context)
 //		log.Trace("end handle pipeline error, ", pipe.name)
 //	}
 //}

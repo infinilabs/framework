@@ -34,7 +34,7 @@ type API struct {
 func (handler API) Init() {
 
 	//Pipeline API
-	api.HandleAPIMethod(api.GET, "/pipeline/joints/", handler.getPipelineJoints)
+	//api.HandleAPIMethod(api.GET, "/pipeline/joints/", handler.getPipelineJoints)
 
 	api.HandleAPIMethod(api.GET, "/pipeline/configs/", handler.getPipelineConfigs)
 	api.HandleAPIMethod(api.POST, "/pipeline/config/", handler.createPipelineConfig)
@@ -43,11 +43,11 @@ func (handler API) Init() {
 	api.HandleAPIMethod(api.DELETE, "/pipeline/config/:id", handler.deletePipelineConfig)
 }
 
-//Pipeline config operations
-func (handler API) getPipelineJoints(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	joints := pipeline.GetAllRegisteredJoints()
-	handler.WriteJSON(w, joints, http.StatusOK)
-}
+////Pipeline config operations
+//func (handler API) getPipelineJoints(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+//	joints := pipeline.GetAllRegisteredJoints()
+//	handler.WriteJSON(w, joints, http.StatusOK)
+//}
 
 func (handler API) getPipelineConfigs(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	fr := handler.GetParameter(req, "from")

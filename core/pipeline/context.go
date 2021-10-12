@@ -37,15 +37,15 @@ const FINISHED RunningState = "FINISHED"
 type Context struct {
 	param.Parameters `json:"parameters,omitempty"`
 
-	IsSimulate   bool        `json:"-"`
-	IgnoreBroken bool        `json:"-"`
-	Payload      interface{} `json:"-"`
+	//IsSimulate   bool        `json:"-"`
+	//IgnoreBroken bool        `json:"-"`
+	//Payload      interface{} `json:"-"`
 
 	//private parameters
-	StartTime    *time.Time `json:"start_time,omitempty"`
-	EndTime      *time.Time `json:"end_time,omitempty"`
+	startTime *time.Time `json:"start_time,omitempty"`
+	endTime   *time.Time `json:"end_time,omitempty"`
 	runningState    RunningState `json:"state"`
-	ProcessHistory  []string     `json:"-"`
+	processHistory  []string     `json:"-"`
 	context.Context `json:"-"`
 	cancelFunc context.CancelFunc
 	isPaused bool
@@ -67,6 +67,18 @@ func ReleaseContext(ctx *Context)  {
 }
 
 
+func (ctx *Context)GetStartTime()*time.Time  {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.startTime
+}
+
+func (ctx *Context)GetEndTime()*time.Time  {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.endTime
+}
+
 func (ctx *Context)GetRunningState()RunningState  {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
@@ -75,23 +87,23 @@ func (ctx *Context)GetRunningState()RunningState  {
 }
 func (ctx *Context)ResetContext()  {
 	t:=time.Now()
-	ctx.StartTime=&t
-	ctx.EndTime=nil
+	ctx.startTime =&t
+	ctx.endTime =nil
 	ctx.Context,ctx.cancelFunc=context.WithCancel(context.Background())
 	ctx.ResetParameters()
-	ctx.ProcessHistory =[]string{}
+	ctx.processHistory =[]string{}
 }
 func (ctx *Context)GetFlowProcess()[]string  {
-	return ctx.ProcessHistory
+	return ctx.processHistory
 }
 
 func (ctx *Context)GetRequestProcess()[]string  {
-	return ctx.ProcessHistory
+	return ctx.processHistory
 }
 
 func (ctx *Context)AddFlowProcess(str string)  {
 	if str!=""{
-		ctx.ProcessHistory =append(ctx.ProcessHistory,str)
+		ctx.processHistory =append(ctx.processHistory,str)
 	}
 }
 
@@ -110,7 +122,7 @@ func (ctx *Context) Finished() {
 	defer ctx.stateLock.Unlock()
 
 	t:=time.Now()
-	ctx.EndTime=&t
+	ctx.endTime =&t
 	ctx.runningState =FINISHED
 }
 
@@ -143,7 +155,7 @@ func (context *Context) Failed() {
 
 	context.runningState = FAILED
 	t:=time.Now()
-	context.EndTime=&t
+	context.endTime =&t
 }
 
 func (context *Context) Stopped() {
@@ -152,7 +164,7 @@ func (context *Context) Stopped() {
 
 	context.runningState = STOPPED
 	t:=time.Now()
-	context.EndTime=&t
+	context.endTime =&t
 }
 
 func (context *Context) Cancelled() {
@@ -161,7 +173,7 @@ func (context *Context) Cancelled() {
 
 	context.runningState = CANCELLED
 	t:=time.Now()
-	context.EndTime=&t
+	context.endTime =&t
 }
 
 //resume pipeline, set to start mode

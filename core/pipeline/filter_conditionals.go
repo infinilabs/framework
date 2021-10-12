@@ -15,34 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package common
+package pipeline
 
 import (
+	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/conditions"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/lib/fasthttp"
-	log "github.com/cihub/seelog"
 	"strings"
-	"errors"
 )
 
-// NewConditional returns a constructor suitable for registering when conditionals as a plugin.
-func NewConditional(
-	ruleFactory RequestFilterConstructor,
-) RequestFilterConstructor {
-	return func(cfg *config.Config) (RequestFilter, error) {
+// NewFilterConditional returns a constructor suitable for registering when conditionals as a plugin.
+func NewFilterConditional(
+	ruleFactory FilterConstructor,
+) FilterConstructor {
+	return func(cfg *config.Config) (Filter, error) {
 		rule, err := ruleFactory(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return addCondition(cfg, rule)
+		return addFilterCondition(cfg, rule)
 	}
 }
 
-// NewConditionList takes a slice of Config objects and turns them into real Condition objects.
-func NewConditionList(config []conditions.Config) ([]conditions.Condition, error) {
+// NewFilterConditionList takes a slice of Config objects and turns them into real Condition objects.
+func NewFilterConditionList(config []conditions.Config) ([]conditions.Condition, error) {
 	out := make([]conditions.Condition, len(config))
 	for i, condConfig := range config {
 		cond, err := conditions.NewCondition(&condConfig)
@@ -55,17 +55,17 @@ func NewConditionList(config []conditions.Config) ([]conditions.Condition, error
 	return out, nil
 }
 
-// WhenProcessor is a tuple of condition plus a Processor.
-type WhenProcessor struct {
+// WhenFilter is a tuple of condition plus a Processor.
+type WhenFilter struct {
 	condition conditions.Condition
-	p         RequestFilter
+	p         Filter
 }
 
-// NewConditionRule returns a processor that will execute the provided processor if the condition is true.
-func NewConditionRule(
+// NewFilterConditionRule returns a processor that will execute the provided processor if the condition is true.
+func NewFilterConditionRule(
 	config conditions.Config,
-	p RequestFilter,
-) (RequestFilter, error) {
+	p Filter,
+) (Filter, error) {
 	cond, err := conditions.NewCondition(&config)
 	if err != nil {
 		return nil, errors.Unwrap(err)
@@ -74,11 +74,11 @@ func NewConditionRule(
 	if cond == nil {
 		return p, nil
 	}
-	return &WhenProcessor{cond, p}, nil
+	return &WhenFilter{cond, p}, nil
 }
 
-// Run executes this WhenProcessor.
-func (r WhenProcessor) Process(ctx *fasthttp.RequestCtx) {
+// Run executes this WhenFilter.
+func (r WhenFilter) Filter(ctx *fasthttp.RequestCtx) {
 	if !ctx.ShouldContinue(){
 		if global.Env().IsDebug{
 			log.Debugf("filter [%v] not continued",r.Name())
@@ -92,21 +92,21 @@ func (r WhenProcessor) Process(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	ctx.AddFlowProcess(r.p.Name())
-	r.p.Process(ctx)
+	r.p.Filter(ctx)
 }
 
-func (r WhenProcessor) Name() string {
+func (r WhenFilter) Name() string {
 	return "when"
 }
 
-func (r *WhenProcessor) String() string {
+func (r *WhenFilter) String() string {
 	return fmt.Sprintf("%v, condition=%v", r.p.Name(), r.condition.String())
 }
 
-func addCondition(
+func addFilterCondition(
 	cfg *config.Config,
-	p RequestFilter,
-) (RequestFilter, error) {
+	p Filter,
+) (Filter, error) {
 	if !cfg.HasField("when") {
 		return p, nil
 	}
@@ -120,25 +120,19 @@ func addCondition(
 		return nil, err
 	}
 
-	return NewConditionRule(condConfig, p)
+	return NewFilterConditionRule(condConfig, p)
 }
 
-type ifThenElseConfig struct {
-	Cond conditions.Config `config:"if"   validate:"required"`
-	Then *config.Config    `config:"then" validate:"required"`
-	Else *config.Config    `config:"else"`
-}
-
-// IfThenElseProcessor executes one set of processors (then) if the condition is
+// IfThenElseFilter executes one set of processors (then) if the condition is
 // true and another set of processors (else) if the condition is false.
-type IfThenElseProcessor struct {
+type IfThenElseFilter struct {
 	cond conditions.Condition
-	then *RequestFilters
-	els  *RequestFilters
+	then *Filters
+	els  *Filters
 }
 
-// NewIfElseThenProcessor construct a new IfThenElseProcessor.
-func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
+// NewIfElseThenFilter construct a new IfThenElseFilter.
+func NewIfElseThenFilter(cfg *config.Config) (*IfThenElseFilter, error) {
 	var tempConfig ifThenElseConfig
 	if err := cfg.Unpack(&tempConfig); err != nil {
 		return nil, err
@@ -149,22 +143,22 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 		return nil, err
 	}
 
-	newProcessors := func(c *config.Config) (*RequestFilters, error) {
+	newProcessors := func(c *config.Config) (*Filters, error) {
 		if c == nil {
 			return nil, nil
 		}
 		if !c.IsArray() {
-			return New([]*config.Config{c})
+			return NewFilter([]*config.Config{c})
 		}
 
 		var pc PluginConfig
 		if err := c.Unpack(&pc); err != nil {
 			return nil, err
 		}
-		return New(pc)
+		return NewFilter(pc)
 	}
 
-	var ifProcessors, elseProcessors *RequestFilters
+	var ifProcessors, elseProcessors *Filters
 	if ifProcessors, err = newProcessors(tempConfig.Then); err != nil {
 		return nil, err
 	}
@@ -172,12 +166,12 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 		return nil, err
 	}
 
-	return &IfThenElseProcessor{cond, ifProcessors, elseProcessors}, nil
+	return &IfThenElseFilter{cond, ifProcessors, elseProcessors}, nil
 }
 
 // Run checks the if condition and executes the processors attached to the
 // then statement or the else statement based on the condition.
-func (p IfThenElseProcessor) Process(ctx *fasthttp.RequestCtx) {
+func (p IfThenElseFilter) Filter(ctx *fasthttp.RequestCtx) {
 	if !ctx.ShouldContinue(){
 		if global.Env().IsDebug{
 			log.Debugf("filter [%v] not continued",p.Name())
@@ -191,21 +185,21 @@ func (p IfThenElseProcessor) Process(ctx *fasthttp.RequestCtx) {
 			log.Trace("if -> then branch")
 		}
 		ctx.AddFlowProcess("then")
-		p.then.Process( ctx)
+		p.then.Filter( ctx)
 	} else if p.els != nil {
 		if global.Env().IsDebug {
 			log.Trace("if -> else branch")
 		}
 		ctx.AddFlowProcess("else")
-		p.els.Process( ctx)
+		p.els.Filter( ctx)
 	}
 }
 
-func (p IfThenElseProcessor) Name() string {
+func (p IfThenElseFilter) Name() string {
 	return "if"
 }
 
-func (p *IfThenElseProcessor) String() string {
+func (p *IfThenElseFilter) String() string {
 	var sb strings.Builder
 	sb.WriteString("if ")
 	sb.WriteString(p.cond.String())

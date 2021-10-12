@@ -141,7 +141,7 @@ type testCase struct {
 //				t.Fatal(err)
 //			}
 //
-//			processor, err := common.New(pluginConfig)
+//			processor, err := common.NewPipeline(pluginConfig)
 //			if err != nil {
 //				t.Fatal(err)
 //			}

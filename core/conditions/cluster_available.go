@@ -26,6 +26,6 @@ func (c ClusterAvailable) Check(event ValuesMap) bool {
 }
 
 func (c ClusterAvailable) String() string {
-	return fmt.Sprintf("queue_has_lag: %v", []string(c))
+	return fmt.Sprintf("cluster_available: %v", []string(c))
 }
 

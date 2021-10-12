@@ -37,28 +37,28 @@ type Processors struct {
 	List []Processor
 }
 
-type ComplexProcessor interface {
-	Processor
-}
-
-type Input interface {
-	ProcessorBase
-	Open() error
-	Close() error
-	Read() ([]byte, error)
-}
-
-type Output interface {
-	ProcessorBase
-	Open() error
-	Close() error
-	Write([]byte) error
-}
-
-type Filter interface {
-	ProcessorBase
-	Filter([]byte) error
-}
+//type ComplexProcessor interface {
+//	Processor
+//}
+//
+//type Input interface {
+//	ProcessorBase
+//	Open() error
+//	Close() error
+//	Read() ([]byte, error)
+//}
+//
+//type Output interface {
+//	ProcessorBase
+//	Open() error
+//	Close() error
+//	Write([]byte) error
+//}
+//
+//type Filter interface {
+//	ProcessorBase
+//	Filter([]byte) error
+//}
 
 
 
@@ -76,12 +76,12 @@ func Close(p Processor) error {
 	return nil
 }
 
-func NewList() *Processors {
+func NewPipelineList() *Processors {
 	return &Processors{}
 }
 
-func New(cfg PluginConfig) (*Processors, error) {
-	procs := NewList()
+func NewPipeline(cfg PluginConfig) (*Processors, error) {
+	procs := NewPipelineList()
 
 	for _, procConfig := range cfg {
 		// Handle if/then/else processor which has multiple top-level keys.
@@ -109,24 +109,28 @@ func New(cfg PluginConfig) (*Processors, error) {
 
 		//fmt.Println("get plugin:",actionName,actionCfg)
 
-		gen, exists := registry.reg[actionName]
+		gen, exists := registry.processorReg[actionName]
 		if !exists {
 			var validActions []string
-			for k := range registry.reg {
+			for k := range registry.processorReg {
 				validActions = append(validActions, k)
 
 			}
 			return nil, errors.Errorf("the processor %s does not exist. valid processors: %v", actionName, strings.Join(validActions, ", "))
 		}
 
-		//actionCfg.PrintDebugf("Configure processor action '%v' with:", actionName)
-		constructor := gen.Plugin()
+		constructor := gen.ProcessorPlugin()
 		plugin, err := constructor(actionCfg)
 		if err != nil {
 			return nil, err
 		}
 
-		procs.AddProcessor(plugin)
+		p,ok:=plugin.(Processor)
+		if ok{
+			procs.AddProcessor(p)
+		}else{
+			return nil, errors.Errorf("invalid processor: [%v]",plugin.Name())
+		}
 	}
 
 	if len(procs.List) > 0 {
@@ -181,9 +185,6 @@ func (procs *Processors) Close() error {
 	return errs.Err()
 }
 
-// Run executes the all processors serially and returns the event and possibly
-// an error. If the event has been dropped (canceled) by a processor in the
-// list then a nil event is returned.
 func (procs *Processors) Process(ctx *Context) error{
 
 	defer func() {
@@ -214,7 +215,7 @@ func (procs *Processors) Process(ctx *Context) error{
 		ctx.AddFlowProcess(p.Name())
 		log.Debug("start processing:",p.Name())
 		err:=p.Process(ctx)
-		//event, err = p.Process(filterCfg,ctx)
+		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {
 			log.Error("error on processing:",p.Name())
 			return err

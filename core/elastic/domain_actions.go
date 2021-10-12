@@ -60,6 +60,24 @@ func GetConfig(k string) *ElasticsearchConfig {
 	return v.(*ElasticsearchConfig)
 }
 
+var versions = map[string]int{}
+var versionLock = sync.RWMutex{}
+
+
+func (meta *ElasticsearchMetadata) GetMajorVersion() int {
+	versionLock.RLock()
+	esMajorVersion, ok := versions[meta.Config.ID]
+	versionLock.RUnlock()
+
+	if !ok {
+		versionLock.Lock()
+		esMajorVersion = GetClient(meta.Config.ID).GetMajorVersion()
+		versions[meta.Config.ID] = esMajorVersion
+		versionLock.Unlock()
+	}
+	return esMajorVersion
+}
+
 func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 	v:=GetMetadata(cfg.ID)
 	if v==nil{

@@ -2225,7 +2225,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			s.setState(c, StateClosed)
 			if time.Since(lastOverflowErrorTime) > time.Minute {
 				log.Errorf("The incoming connection cannot be served, because %d concurrent connections are served. "+
-					"Try increasing Server.Concurrency", maxWorkersCount)
+					"Try increasing entry.max_concurrency", maxWorkersCount)
 				lastOverflowErrorTime = time.Now()
 			}
 

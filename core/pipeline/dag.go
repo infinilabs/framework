@@ -6,7 +6,7 @@ type Dag struct {
 	jobs []*Job
 }
 
-// New creates new DAG
+// NewPipeline creates new DAG
 func NewDAG(mode string) *Dag {
 	return &Dag{
 		mode: mode,

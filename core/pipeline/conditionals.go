@@ -12,8 +12,8 @@ import (
 
 // NewConditional returns a constructor suitable for registering when conditionals as a plugin.
 func NewConditional(
-	ruleFactory Constructor,
-) Constructor {
+	ruleFactory ProcessorConstructor,
+) ProcessorConstructor {
 	return func(cfg *config.Config) (Processor, error) {
 		rule, err := ruleFactory(cfg)
 		if err != nil {
@@ -137,14 +137,14 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 			return nil, nil
 		}
 		if !c.IsArray() {
-			return New([]*config.Config{c})
+			return NewPipeline([]*config.Config{c})
 		}
 
 		var pc PluginConfig
 		if err := c.Unpack(&pc); err != nil {
 			return nil, err
 		}
-		return New(pc)
+		return NewPipeline(pc)
 	}
 
 	var ifProcessors, elseProcessors *Processors
