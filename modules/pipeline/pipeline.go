@@ -140,7 +140,7 @@ func (module *PipeModule) Start() error {
 
 	//TODO, each pipeline could be initialized
 	var pipelines []PipelineConfigV2
-	ok, err := env.ParseConfig("pipelines_v2", &pipelines)
+	ok, err := env.ParseConfig("pipelines", &pipelines)
 	if ok && err != nil {
 		panic(err)
 	}
