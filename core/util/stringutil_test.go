@@ -77,6 +77,33 @@ func TestToInt64(t *testing.T) {
 	fmt.Println(new)
 }
 
+func TestContainsAnyInAnyIntArray(t *testing.T) {
+	str:="key"
+	strs:=[]interface{}{}
+	strs=append(strs,"key","key1")
+	ok:=ContainsAnyInAnyIntArray(str,strs)
+	fmt.Println(ok)
+	assert.Equal(t, true, ok)
+
+	str="key3"
+	ok=ContainsAnyInAnyIntArray(str,strs)
+	fmt.Println(ok)
+	assert.Equal(t, false, ok)
+
+
+	str1:=5
+	strs2:=[]interface{}{}
+	strs2=append(strs2,5,6)
+	ok2:=ContainsAnyInAnyIntArray(str1,strs2)
+	fmt.Println(ok2)
+	assert.Equal(t, true, ok2)
+
+	str1=7
+	ok2=ContainsAnyInAnyIntArray(str1,strs2)
+	fmt.Println(ok2)
+	assert.Equal(t, false, ok2)
+}
+
 func TestInt64ToString(t *testing.T) {
 	i := 6393600409
 	new:=Int64ToString(int64(i))

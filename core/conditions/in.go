@@ -46,18 +46,14 @@ func NewInArrayCondition(fields map[string]interface{}) (c InArray, err error) {
 func (c InArray) Check(event ValuesMap) bool {
 
 	value, err := event.GetValue(c.Field)
-	//fmt.Println(value,err)
 
 	if err != nil {
 		return false
 	}
 
-	//fmt.Println("check event data in targets,",value,",",c.Data)
-
 	if util.ContainsAnyInAnyIntArray(value,c.Data){
 		return true
 	}else{
-		//fmt.Println("event data not in targets,",value,",",c.Data)
 		return false
 	}
 }

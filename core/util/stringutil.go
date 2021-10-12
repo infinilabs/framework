@@ -88,6 +88,20 @@ func InterfaceToInt(y interface{})int  {
 }
 
 func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
+
+	str,ok:=i.(string)
+	if ok{
+		for _,x:=range v{
+			y,ok:=x.(string)
+			if ok{
+				if str==y{
+					return true
+				}
+			}
+		}
+		return false
+	}
+
 	for _,x:=range v{
 		if CompareInteger(i,x){
 			return true

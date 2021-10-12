@@ -79,6 +79,7 @@ func NewFilterConditionRule(
 
 // Run executes this WhenFilter.
 func (r WhenFilter) Filter(ctx *fasthttp.RequestCtx) {
+
 	if !ctx.ShouldContinue(){
 		if global.Env().IsDebug{
 			log.Debugf("filter [%v] not continued",r.Name())
@@ -91,6 +92,7 @@ func (r WhenFilter) Filter(ctx *fasthttp.RequestCtx) {
 		ctx.AddFlowProcess(r.p.Name()+"-skipped")
 		return
 	}
+
 	ctx.AddFlowProcess(r.p.Name())
 	r.p.Filter(ctx)
 }
