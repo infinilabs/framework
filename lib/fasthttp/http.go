@@ -106,6 +106,7 @@ type Response struct {
 }
 
 func (req *Request) SetHost(host string) {
+	req.Header.SetHost(host)
 	req.URI().SetHost(host)
 }
 
