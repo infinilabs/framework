@@ -2754,7 +2754,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 			//TODO
-			ctx.Response.Header.Set("process",util.JoinArray(ctx.flowProcess,"->"))
+			ctx.Response.Header.Set("Filters",util.JoinArray(ctx.flowProcess,"->"))
 			if err = writeResponse(ctx, bw); err != nil {
 				break
 			}
@@ -2840,10 +2840,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				}()
 
 				//process tracing handler
-
 				ctx1.Resume()
-				//ctx1.c=nil
-				//ctx1.fbr.c=nil
 				s.TraceHandler(ctx1)
 
 				//release ctx
