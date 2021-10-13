@@ -206,7 +206,6 @@ type ElasticsearchMetadata struct {
 	Health  *ClusterHealth
 
 	clusterFailureTicket int
-	clusterOnFailure     bool
 	clusterAvailable     bool
 	lastSuccess time.Time
 	configLock sync.RWMutex

@@ -78,7 +78,6 @@ func (meta *ElasticsearchMetadata) IsAvailable() bool {
 
 func (meta *ElasticsearchMetadata) Init(health bool){
 	meta.clusterAvailable = health
-	meta.clusterOnFailure = !health
 	meta.lastSuccess=time.Now()
 	meta.clusterFailureTicket = 0
 }
@@ -126,6 +125,7 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 }
 
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
+
 	hosts:=meta.GetSeedHosts()
 	for _,v:=range hosts{
 		if IsHostAvailable(v){
@@ -133,7 +133,7 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 		}
 	}
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
-		log.Error("no hosts available, choose: ",hosts[0])
+		log.Debug("no hosts available, choose: ",hosts[0])
 	}
 	meta.ReportFailure()
 	return hosts[0]
@@ -175,6 +175,8 @@ func (meta *ElasticsearchMetadata) GetSchema() string {
 
 
 func (meta *ElasticsearchMetadata) ReportFailure() bool {
+	log.Tracef("report failure for elasticsearch [%v]", meta.Config.Name)
+
 	meta.configLock.Lock()
 	defer meta.configLock.Unlock()
 
@@ -182,9 +184,8 @@ func (meta *ElasticsearchMetadata) ReportFailure() bool {
 		return true
 	}
 
-	meta.clusterOnFailure = true
 	if rate.GetRateLimiter("cluster_failure", meta.Config.Name, 1, 1, time.Second*1).Allow() {
-		log.Debugf("vote failure ticket++ for elasticsearch [%v]", meta.Config.Name)
+		log.Tracef("vote failure ticket++ for elasticsearch [%v] ticks:[%v], time:%v", meta.Config.Name,meta.clusterFailureTicket,time.Since(meta.lastSuccess)>5*time.Second)
 
 		meta.clusterFailureTicket++
 		//if the target host is not available for 10s, mark it down
@@ -210,10 +211,9 @@ func (meta *ElasticsearchMetadata) ReportSuccess() {
 	meta.configLock.Lock()
 	defer meta.configLock.Unlock()
 
-	if meta.clusterOnFailure && !meta.clusterAvailable {
+	if !meta.clusterAvailable {
 		if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*1).Allow() {
-			log.Debugf("vote success ticket++ for elasticsearch [%v]", meta.Config.Name)
-			meta.clusterOnFailure = false
+			log.Tracef("vote success ticket++ for elasticsearch [%v]", meta.Config.Name)
 			meta.clusterAvailable = true
 			meta.clusterFailureTicket = 0
 			log.Infof("elasticsearch [%v] is available", meta.Config.Name)
