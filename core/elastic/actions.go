@@ -11,12 +11,16 @@ import (
 	"time"
 )
 
-func (node *NodeAvailable) ReportFailure() bool {
+func (node *NodeAvailable) ReportFailure() {
 	node.configLock.Lock()
 	defer node.configLock.Unlock()
 
 	if !node.available {
-		return true
+		return
+	}
+
+	if len(node.Host)==0{
+		return
 	}
 
 	node.onFailure = true
@@ -30,10 +34,10 @@ func (node *NodeAvailable) ReportFailure() bool {
 			node.available = false
 			node.ticket = 0
 			log.Infof("node [%v] is not available", node.Host)
-			return true
+			return
 		}
 	}
-	return false
+	return
 }
 
 func (node *NodeAvailable) ReportSuccess() {
