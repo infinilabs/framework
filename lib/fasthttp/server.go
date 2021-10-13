@@ -2754,7 +2754,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 			//TODO
-			ctx.Response.Header.Set("Filters",util.JoinArray(ctx.flowProcess,"->"))
+			ctx.Response.Header.Set("X-Filters",util.JoinArray(ctx.flowProcess,"->"))
 			if err = writeResponse(ctx, bw); err != nil {
 				break
 			}
