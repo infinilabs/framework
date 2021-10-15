@@ -366,6 +366,15 @@ func (resp *Response) GetRawBody() []byte {
 	}
 }
 
+
+func (req *Request) IsGzipped() bool {
+	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
+	if ce == "gzip" {
+		return true
+	}
+	return false
+}
+
 //TODO cache
 func (req *Request) GetRawBody() []byte {
 	if req.GetBodyLength()<=0{
