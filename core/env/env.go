@@ -169,6 +169,7 @@ var (
 				},
 		},
 		LoggingConfig: config.LoggingConfig{
+			DisableFileOutput: false,
 		},
 		ClusterConfig: config.ClusterConfig{
 			Seeds:                          []string{},
@@ -333,6 +334,7 @@ func EmptyEnv() *Env {
 	system.ClusterConfig.Name = "app"
 	system.PathConfig.Data=os.TempDir()
 	system.PathConfig.Log=os.TempDir()
+	system.LoggingConfig.DisableFileOutput=true
 	return &Env{SystemConfig: &system}
 }
 

@@ -40,13 +40,7 @@ func SetLogging(env *env.Env, logLevel string) {
 	e = env
 
 	l.Lock()
-	if loggingConfig == nil {
-		loggingConfig = &config.LoggingConfig{}
-		loggingConfig.LogLevel = "info"
-		loggingConfig.PushLogLevel = "info"
-		loggingConfig.FileFilterPattern = "*"
-		loggingConfig.FuncFilterPattern = "*"
-	}
+	loggingConfig=&env.SystemConfig.LoggingConfig
 	l.Unlock()
 
 	appName:=env.GetAppLowercaseName()
@@ -67,11 +61,6 @@ func SetLogging(env *env.Env, logLevel string) {
 	//overwrite env config
 	if len(logLevel) > 0 {
 		loggingConfig.LogLevel = strings.ToLower(logLevel)
-	}
-
-	//finally check filename
-	if file == "" {
-		file = "./log/" + appName + ".log"
 	}
 
 	if loggingConfig.FuncFilterPattern == "" {
@@ -95,19 +84,28 @@ func SetLogging(env *env.Env, logLevel string) {
 		fmt.Println(err)
 	}
 
-	cfg1:=rotate.RotateConfig{
-		Compress:     true,
-		MaxFileAge:   0,
-		MaxFileCount: 100,
-		MaxFileSize: 1024,
-	}
-	fileHandler:=rotate.GetFileHandler(file,cfg1)
-
 	l, _ := log.LogLevelFromString(strings.ToLower(loggingConfig.LogLevel))
 	pushl, _ := log.LogLevelFromString(strings.ToLower(loggingConfig.PushLogLevel))
 
 	//logging receivers
-	receivers := []interface{}{consoleWriter, fileHandler}
+	receivers := []interface{}{consoleWriter}
+
+	if !loggingConfig.DisableFileOutput{
+		//finally check filename
+		if file == "" {
+			file = "./log/" + appName + ".log"
+		}
+
+		cfg1:=rotate.RotateConfig{
+			Compress:     true,
+			MaxFileAge:   0,
+			MaxFileCount: 100,
+			MaxFileSize: 1024,
+		}
+		fileHandler:=rotate.GetFileHandler(file,cfg1)
+		receivers=append(receivers,fileHandler)
+	}
+
 
 	root, err := log.NewSplitDispatcher(formatter, receivers)
 	if err != nil {
