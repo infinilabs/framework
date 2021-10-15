@@ -225,6 +225,8 @@ func (app *App) Start(setup func(), start func()) {
 
 	fmt.Println(app.environment.GetWelcomeMessage())
 
+	log.Infof("initializing %s.", app.environment.GetAppName())
+
 	//daemon
 	if app.isDaemonMode {
 		if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
@@ -304,7 +306,7 @@ func (app *App) Start(setup func(), start func()) {
 		}
 	}()
 
-	log.Infof("%s now started.", app.environment.GetAppName())
+	log.Infof("%s is running now.", app.environment.GetAppName())
 
 	<-app.quitSignal
 }
