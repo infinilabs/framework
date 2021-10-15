@@ -18,12 +18,12 @@ package param
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"reflect"
-	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -262,10 +262,11 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for _, v := range array {
-			if strings.Contains(v, "->") {
-				o := strings.Split(v, "->")
-				result[util.TrimSpaces(o[0])] = util.TrimSpaces(o[1])
+			k1,v1,err:=util.ConvertStringToMap(v,"->")
+			if err!=nil{
+				panic(err)
 			}
+			result[k1]=v1
 		}
 	}
 	return result, ok

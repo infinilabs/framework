@@ -378,3 +378,12 @@ func EscapeNewLine(input []byte)[]byte  {
 func ToString(obj interface{})string  {
 	return fmt.Sprintf("%v", obj)
 }
+
+//convert a->b to a,b
+func ConvertStringToMap(str string,splitter string)(k,v string,err error)  {
+	if Contains(str, splitter) {
+		o := Split(str, splitter)
+		return TrimSpaces(o[0]), TrimSpaces(o[1]),nil
+	}
+	return "","",errors.New("invalid format")
+}
