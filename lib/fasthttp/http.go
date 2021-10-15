@@ -351,7 +351,7 @@ func (resp *Response) GetRawBody() []byte {
 	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := resp.BodyGunzip()
-		if err != nil {
+		if err!=nil{
 			panic(err)
 		}
 		return body
@@ -367,6 +367,14 @@ func (resp *Response) GetRawBody() []byte {
 }
 
 
+func (req *Request) AcceptGzippedResponse() bool {
+	ce := string(req.Header.PeekAny([]string{HeaderAcceptEncoding, HeaderAcceptEncoding2}))
+	if ce == "gzip" {
+		return true
+	}
+	return false
+}
+
 func (req *Request) IsGzipped() bool {
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
@@ -377,15 +385,20 @@ func (req *Request) IsGzipped() bool {
 
 //TODO cache
 func (req *Request) GetRawBody() []byte {
+
 	if req.GetBodyLength()<=0{
 		return nil
 	}
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := req.BodyGunzip()
-		if err != nil {
+		if err!=nil{
 			panic(err)
 		}
+
+		req.Header.Del(HeaderContentEncoding)
+		req.Header.Del(HeaderContentEncoding2)
+
 		return body
 	} else if ce == "deflate" {
 		body, err := req.BodyInflate()

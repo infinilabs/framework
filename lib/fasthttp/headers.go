@@ -46,6 +46,7 @@ const (
 	HeaderAccept         = "Accept"
 	HeaderAcceptCharset  = "Accept-Charset"
 	HeaderAcceptEncoding = "Accept-Encoding"
+	HeaderAcceptEncoding2 = "accept-encoding"
 	HeaderAcceptLanguage = "Accept-Language"
 
 	// Controls

@@ -781,6 +781,8 @@ func (req *Request)OverrideBodyEncode(body []byte) []byte {
 
 	headerBuffer:=bytes.Buffer{}
 
+	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
+
 	req.Header.Del("content-type")
 	req.Header.Del("content-length") //TODO check issue
 	req.Header.VisitAll(func(key, value []byte) {
@@ -832,7 +834,7 @@ func (req *Request)OverrideBodyEncode(body []byte) []byte {
 }
 
 func (req *Request)Encode() []byte {
-	body:=req.bodyBytes()
+	body:=req.GetRawBody()
 	return req.OverrideBodyEncode(body)
 }
 
