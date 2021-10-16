@@ -82,6 +82,7 @@ const (
 	HeaderContentLength   = "Content-Length"
 	HeaderContentLocation = "content-location"
 	HeaderContentType     = "content-type"
+	HeaderContentType2     = "Content-Type"
 
 	// Proxies
 	HeaderForwarded       = "Forwarded"

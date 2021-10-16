@@ -774,6 +774,8 @@ func getLengthBytes(data []byte)[]byte  {
 	return bytesLength
 }
 
+var contentTypes=[]string{HeaderContentType2,HeaderContentType}
+
 //TODO pass in bytes buffer, reuse outside
 func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []byte {
 	req.encodeLocker.Lock()
@@ -784,6 +786,14 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
 
 	//req.Header.Del("content-type")
+
+	t:=req.Header.PeekAny(contentTypes)
+	if t==nil||len(t)==0{
+		t=strJsonContentType
+	}
+	req.Header.Del(HeaderContentType)
+	req.Header.Del(HeaderContentType2)
+
 	req.Header.Del("content-length") //TODO check issue
 	req.Header.VisitAll(func(key, value []byte) {
 		key1:=util.UnsafeBytesToString(key)
