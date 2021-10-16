@@ -134,7 +134,7 @@ func NewPipeline(cfg PluginConfig) (*Processors, error) {
 	}
 
 	if len(procs.List) > 0 {
-		log.Debugf("Generated new processors: %v", procs)
+		log.Debugf("generated new processors: %v", procs)
 	}
 	return procs, nil
 }

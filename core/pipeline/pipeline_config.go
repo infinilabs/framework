@@ -59,7 +59,7 @@ func GetPipelineConfigs() map[string]PipelineConfig {
 	if m == nil {
 		m = map[string]PipelineConfig{}
 		var pipelines []PipelineConfig
-		exist, err := env.ParseConfig("pipelines", &pipelines)
+		exist, err := env.ParseConfig("pipeline", &pipelines)
 		if exist&&err != nil {
 			panic(err)
 		}

@@ -83,7 +83,7 @@ type PipelineConfigV2 struct {
 	Name       string                `config:"name" json:"name,omitempty"`
 	AutoStart  bool                  `config:"auto_start" json:"auto_start"`
 	KeepRunning  bool                  `config:"keep_running" json:"keep_running"`
-	Processors pipeline.PluginConfig `config:"processors" json:"processors,omitempty"`
+	Processors pipeline.PluginConfig `config:"processor" json:"processor,omitempty"`
 }
 
 
@@ -140,7 +140,7 @@ func (module *PipeModule) Start() error {
 
 	//TODO, each pipeline could be initialized
 	var pipelines []PipelineConfigV2
-	ok, err := env.ParseConfig("pipelines", &pipelines)
+	ok, err := env.ParseConfig("pipeline", &pipelines)
 	if ok && err != nil {
 		panic(err)
 	}

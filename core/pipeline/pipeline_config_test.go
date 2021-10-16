@@ -176,7 +176,7 @@ func TestNewPipelineFromConfig(t *testing.T) {
 	}
 
 	pipeConfigs := struct {
-		Pipelines []PipelineConfig `config:"pipelines"`
+		Pipelines []PipelineConfig `config:"pipeline"`
 	}{}
 
 	err = config.Unpack(&pipeConfigs)
