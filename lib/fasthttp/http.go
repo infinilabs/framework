@@ -396,8 +396,8 @@ func (req *Request) GetRawBody() []byte {
 			panic(err)
 		}
 
-		req.Header.Del(HeaderContentEncoding)
-		req.Header.Del(HeaderContentEncoding2)
+		//req.Header.Del(HeaderContentEncoding)
+		//req.Header.Del(HeaderContentEncoding2)
 
 		return body
 	} else if ce == "deflate" {

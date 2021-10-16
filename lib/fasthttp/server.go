@@ -775,7 +775,7 @@ func getLengthBytes(data []byte)[]byte  {
 }
 
 //TODO pass in bytes buffer, reuse outside
-func (req *Request)OverrideBodyEncode(body []byte) []byte {
+func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []byte {
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
@@ -783,9 +783,13 @@ func (req *Request)OverrideBodyEncode(body []byte) []byte {
 
 	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
 
-	req.Header.Del("content-type")
+	//req.Header.Del("content-type")
 	req.Header.Del("content-length") //TODO check issue
 	req.Header.VisitAll(func(key, value []byte) {
+		key1:=util.UnsafeBytesToString(key)
+		if removeCompressHeader && (key1==HeaderContentEncoding||key1==HeaderContentEncoding2){
+			return
+		}
 		headerBuffer.Write(key)
 		headerBuffer.Write(colon)
 		headerBuffer.Write(value)
@@ -834,8 +838,8 @@ func (req *Request)OverrideBodyEncode(body []byte) []byte {
 }
 
 func (req *Request)Encode() []byte {
-	body:=req.GetRawBody()
-	return req.OverrideBodyEncode(body)
+	body:=req.Body()
+	return req.OverrideBodyEncode(body,false)
 }
 
 func readBytesLength(reader io.Reader)uint32  {
