@@ -25,6 +25,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
@@ -313,13 +314,10 @@ func discoveryMetadata(force bool) {
 					//TODO 按需加载节点信息，检测节点连通性
 					nodes, err := client.GetNodes()
 
-					if err != nil {
-						log.Errorf("elasticsearch [%v] failed to get nodes info, err: [%v]",cfg.Name,err)
-						return
-					}
-
-					if nodes == nil || len(*nodes) <= 0 {
-						log.Errorf("elasticsearch [%v] failed to get nodes info",cfg.Name)
+					if err != nil || nodes == nil || len(*nodes) <= 0 {
+						if rate.GetRateLimiterPerSecond(cfg.ID, "get_nodes_failure_on_error", 1).Allow() {
+							log.Errorf("elasticsearch [%v] failed to get nodes info",cfg.Name)
+						}
 						return
 					}
 
