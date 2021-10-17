@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"io"
 	"math/rand"
 	"os"
@@ -120,6 +121,16 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 }
 
 // Depth returns the depth of the queue
+func (d *diskQueue) ReadContext() Context {
+	ctx:=Context{}
+	ctx.Depth=d.depth
+	ctx.FileNum=d.nextReadFileNum
+	ctx.NextReadOffset=d.nextReadPos
+	ctx.MaxLength=d.maxBytesPerFileRead
+	ctx.File=d.fileName(ctx.FileNum)
+	return ctx
+}
+
 func (d *diskQueue) Depth() int64 {
 	depth, ok := <-d.depthChan
 	if !ok {
@@ -273,7 +284,9 @@ func (d *diskQueue) readOne() ([]byte, error) {
 			return nil, err
 		}
 
-		log.Tracef("DISKQUEUE(%s): readOne() opened %s", d.name, curFileName)
+		if global.Env().IsDebug{
+			log.Tracef("DISKQUEUE(%s): readOne() opened %s", d.name, curFileName)
+		}
 
 		if d.readPos > 0 {
 			_, err = d.readFile.Seek(d.readPos, 0)
@@ -344,6 +357,8 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 	return readBuf, nil
 }
+
+
 
 // writeOne performs a low level filesystem write for a single []byte
 // while advancing write positions and rolling files, if necessary

@@ -140,6 +140,14 @@ func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v
 }
 
 // WriteJSON output signal result with json format
+func (handler Handler) WriteJSONErrorResult(w http.ResponseWriter, msg interface{}, statusCode int) error {
+	err:=util.MapStr{
+		"message":msg,
+		"status":statusCode,
+	}
+	return handler.WriteJSON(w,err,statusCode)
+}
+
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
 	if !handler.wroteHeader {
 		handler.WriteJSONHeader(w)

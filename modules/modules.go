@@ -34,7 +34,7 @@ func Register() {
 	module.RegisterSystemModule(elastic.ElasticModule{})
 	module.RegisterSystemModule(filter.FilterModule{})
 	module.RegisterSystemModule(&stats.SimpleStatsModule{})
-	module.RegisterSystemModule(queue.DiskQueue{})
+	module.RegisterSystemModule(&queue.DiskQueue{})
 	module.RegisterSystemModule(&queue.RedisModule{})
 	module.RegisterSystemModule(&queue.QueueModule{})
 	module.RegisterSystemModule(&api.APIModule{})

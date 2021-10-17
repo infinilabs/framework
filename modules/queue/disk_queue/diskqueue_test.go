@@ -23,8 +23,10 @@ package queue
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -54,6 +56,57 @@ func TestDiskQueue(t *testing.T) {
 
 	msgOut := <-dq.ReadChan()
 	assert.Equal(t, msgOut, msg)
+}
+
+func TestReadQueue(t *testing.T)  {
+	curFileName:="/Users/medcl/go/src/infini.sh/gateway/data/gateway/nodes/0/queue/request_logging/request_logging.diskqueue.000000.dat"
+	var err error
+	var msgSize int32
+	readFile, err := os.OpenFile(curFileName, os.O_RDONLY, 0600)
+	defer readFile.Close()
+	if err != nil {
+		return
+	}
+	var readPos int64=0
+	if readPos > 0 {
+		_, err = readFile.Seek(readPos, 0)
+		if err != nil {
+			return
+		}
+	}
+
+	READ_MSG:
+		fmt.Println("start reading message")
+	//read message size
+	var reader= bufio.NewReader(readFile)
+	err = binary.Read(reader, binary.BigEndian, &msgSize)
+	if err != nil {
+		return
+	}
+
+	//if msgSize < d.minMsgSize || msgSize > d.maxMsgSize {
+	//	// this file is corrupt and we have no reasonable guarantee on
+	//	// where a new message should begin
+	//	d.readFile.Close()
+	//	d.readFile = nil
+	//	return nil, fmt.Errorf("invalid message read size (%d)", msgSize)
+	//}
+
+	//read message
+	readBuf := make([]byte, msgSize)
+	_, err = io.ReadFull(reader, readBuf)
+	if err != nil {
+		return
+	}
+
+	totalBytes := int64(4 + msgSize)
+	fmt.Println(totalBytes)
+
+	fmt.Println("message:",string(readBuf))
+	nextReadPos := readPos + totalBytes
+	fmt.Println("nextPosition:",nextReadPos)
+	goto READ_MSG
+
 }
 
 func BenchmarkDiskQueuePut16(b *testing.B) {
@@ -254,3 +307,4 @@ func benchmarkDiskQueueGet(size int64, b *testing.B) {
 		<-dq.ReadChan()
 	}
 }
+

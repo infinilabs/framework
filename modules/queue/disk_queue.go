@@ -1,10 +1,11 @@
 package queue
 
 import (
-	"infini.sh/framework/core/errors"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	. "infini.sh/framework/modules/queue/disk_queue"
@@ -15,22 +16,17 @@ import (
 	"time"
 )
 
-var queues sync.Map=sync.Map{}
 type DiskQueue struct {
+	cfg *DiskQueueConfig
+	initLocker sync.Mutex
+	api.Handler
+	queues sync.Map
 }
 
-func (module DiskQueue) Name() string {
+func (module *DiskQueue) Name() string {
 	return "disk_queue"
 }
 
-var initLocker sync.Mutex
-
-//min_msg_size: 1
-//max_msg_size: 500000000 #500,000,000
-//max_bytes_per_file: 50*1024*1024*1024
-//sync_every_in_seconds: 10
-//sync_timeout_in_seconds: 10
-//read_chan_buffer: 0
 type DiskQueueConfig struct {
 	MinMsgSize       int   `config:"min_msg_size"`
 	MaxMsgSize       int   `config:"max_msg_size"`
@@ -41,13 +37,11 @@ type DiskQueueConfig struct {
 	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
 }
 
-var cfg *DiskQueueConfig
+func (module *DiskQueue) initQueue(name string) error {
+	module.initLocker.Lock()
+	defer module.initLocker.Unlock()
 
-func (module DiskQueue) initQueue(name string) error {
-	initLocker.Lock()
-	defer initLocker.Unlock()
-
-	_,ok:= queues.Load(name)
+	_,ok:= module.queues.Load(name)
 	if ok{
 		return nil
 	}
@@ -57,17 +51,16 @@ func (module DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath, cfg.MaxBytesPerFile, int32(cfg.MinMsgSize), int32(cfg.MaxMsgSize), cfg.SyncEveryRecords, time.Duration(cfg.SyncTimeoutInMS), cfg.ReadChanBuffer,cfg.WriteChanBuffer)
+	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath, module.cfg.MaxBytesPerFile, int32(module.cfg.MinMsgSize), int32(module.cfg.MaxMsgSize), module.cfg.SyncEveryRecords, time.Duration(module.cfg.SyncTimeoutInMS), module.cfg.ReadChanBuffer, module.cfg.WriteChanBuffer)
 
-	queues.Store(name,&tempQueue)
+	module.queues.Store(name,&tempQueue)
 
 	return nil
 }
-var diskQueue *DiskQueue
 
-func (module DiskQueue) Setup(config *config.Config) {
+func (module *DiskQueue) Setup(config *config.Config) {
 
-	cfg = &DiskQueueConfig{
+	module.cfg = &DiskQueueConfig{
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
 		MaxBytesPerFile:  1 * 1024 * 1024 * 1024, //1GB
@@ -76,38 +69,37 @@ func (module DiskQueue) Setup(config *config.Config) {
 		ReadChanBuffer:   0,
 		WriteChanBuffer:   0,
 	}
-	diskQueue=&DiskQueue{}
 
-	ok,err:=env.ParseConfig("disk_queue", cfg)
+	ok,err:=env.ParseConfig("disk_queue", module.cfg)
 	if ok&&err!=nil{
 		panic(err)
 	}
 
-	//queues = make(map[string]*BackendQueue)
+	module.queues=sync.Map{}
 
-	RegisterAPI()
+	module.RegisterAPI()
 }
 
-func (module DiskQueue) Push(k string, v []byte) error {
+func (module *DiskQueue) Push(k string, v []byte) error {
 	module.initQueue(k)
-	q,ok:=queues.Load(k)
+	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Put(v)
 	}
 	return errors.Errorf("queue [%v] not found",k)
 }
 
-func (module DiskQueue) ReadChan(k string) <-chan []byte{
+func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 	module.initQueue(k)
-	q,ok:=queues.Load(k)
+	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).ReadChan()
 	}
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
-func (module DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
-	err:=module.initQueue(k)
+func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
+	err:= module.initQueue(k)
 	if err!=nil{
 		panic(err)
 	}
@@ -129,43 +121,43 @@ func (module DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byt
 	}
 }
 
-func (module DiskQueue) Close(k string) error {
-	q,ok:=queues.Load(k)
+func (module *DiskQueue) Close(k string) error {
+	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Close()
 	}
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
-func (module DiskQueue) Depth(k string) int64 {
+func (module *DiskQueue) Depth(k string) int64 {
 	module.initQueue(k)
-	q,ok:=queues.Load(k)
+	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Depth()
 	}
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
-func (module DiskQueue) GetQueues() []string {
+func (module *DiskQueue) GetQueues() []string {
 	result := []string{}
 
-	queues.Range(func(key, value interface{}) bool {
+	module.queues.Range(func(key, value interface{}) bool {
 		result = append(result, key.(string))
 		return true
 	})
 	return result
 }
 
-func (module DiskQueue) Start() error {
-	queue.Register("disk", diskQueue)
-	queue.RegisterDefaultHandler(diskQueue)
+func (module *DiskQueue) Start() error {
+	queue.Register("disk", module)
+	queue.RegisterDefaultHandler(module)
 	return nil
 }
 
-func (module DiskQueue) Stop() error {
+func (module *DiskQueue) Stop() error {
 
-	queues.Range(func(key, value interface{}) bool {
-		q,ok:=queues.Load(key)
+	module.queues.Range(func(key, value interface{}) bool {
+		q,ok:=module.queues.Load(key)
 		if ok{
 			err := (*q.(*BackendQueue)).Close()
 			if err != nil {
