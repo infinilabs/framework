@@ -2183,9 +2183,10 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 			} else {
 				if out.TrafficControl == nil {
 					out.TrafficControl = new(struct {
-						MaxWaitTimeInMs int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-						MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-						MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+						MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+						MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+						MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+						MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 					})
 				}
 				easyjson3e1fa5ecDecode9(in, out.TrafficControl)
@@ -2640,9 +2641,10 @@ func easyjson3e1fa5ecEncode11(out *jwriter.Writer, in struct {
 	out.RawByte('}')
 }
 func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
-	MaxWaitTimeInMs int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-	MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-	MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+	MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+	MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+	MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+	MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 }) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
@@ -2662,6 +2664,8 @@ func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
 			continue
 		}
 		switch key {
+		case "max_connection_per_node":
+			out.MaxConnectionPerNode = int(in.Int())
 		case "max_wait_time_in_ms":
 			out.MaxWaitTimeInMs = int(in.Int())
 		case "max_bytes_per_node":
@@ -2679,17 +2683,28 @@ func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
 	}
 }
 func easyjson3e1fa5ecEncode9(out *jwriter.Writer, in struct {
-	MaxWaitTimeInMs int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-	MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-	MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+	MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+	MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+	MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+	MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 }) {
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.MaxWaitTimeInMs != 0 {
-		const prefix string = ",\"max_wait_time_in_ms\":"
+	if in.MaxConnectionPerNode != 0 {
+		const prefix string = ",\"max_connection_per_node\":"
 		first = false
 		out.RawString(prefix[1:])
+		out.Int(int(in.MaxConnectionPerNode))
+	}
+	if in.MaxWaitTimeInMs != 0 {
+		const prefix string = ",\"max_wait_time_in_ms\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int(int(in.MaxWaitTimeInMs))
 	}
 	if in.MaxBytesPerNode != 0 {

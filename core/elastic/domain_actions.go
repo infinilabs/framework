@@ -17,33 +17,36 @@ limitations under the License.
 package elastic
 
 import (
+	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/lib/fasthttp"
 	uri "net/url"
 	"sync"
+	"time"
 )
 
 var apis = sync.Map{}
 var cfgs = sync.Map{}
 var metas = sync.Map{}
-var hosts=sync.Map{}
+var hosts = sync.Map{}
 
 func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
-	apis.Store(elastic,handler)
-	cfgs.Store(elastic,&cfg)
+	apis.Store(elastic, handler)
+	cfgs.Store(elastic, &cfg)
 }
 
-func GetOrInitHost(host string)(*NodeAvailable)  {
-	v:= NodeAvailable{Host:host,available: true}
-	v1,loaded:=hosts.LoadOrStore(host,&v)
-	if loaded{
+func GetOrInitHost(host string) *NodeAvailable {
+	v := NodeAvailable{Host: host, available: true}
+	v1, loaded := hosts.LoadOrStore(host, &v)
+	if loaded {
 		return v1.(*NodeAvailable)
 	}
 	return &v
 }
 
-func RemoveInstance(elastic string){
+func RemoveInstance(elastic string) {
 	cfgs.Delete(elastic)
 	apis.Delete(elastic)
 	metas.Delete(elastic)
@@ -63,7 +66,6 @@ func GetConfig(k string) *ElasticsearchConfig {
 var versions = map[string]int{}
 var versionLock = sync.RWMutex{}
 
-
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 	versionLock.RLock()
 	esMajorVersion, ok := versions[meta.Config.ID]
@@ -79,11 +81,11 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 }
 
 func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
-	v:=GetMetadata(cfg.ID)
-	if v==nil{
-		v=&ElasticsearchMetadata{Config: cfg}
+	v := GetMetadata(cfg.ID)
+	if v == nil {
+		v = &ElasticsearchMetadata{Config: cfg}
 		v.Init(false)
-		SetMetadata(cfg.ID,v)
+		SetMetadata(cfg.ID, v)
 	}
 	return v
 }
@@ -98,8 +100,8 @@ func GetMetadata(k string) *ElasticsearchMetadata {
 		log.Debug(fmt.Sprintf("elasticsearch metadata [%v] was not found", k))
 		return nil
 	}
-	 x,ok:=v.(*ElasticsearchMetadata)
-	 return x
+	x, ok := v.(*ElasticsearchMetadata)
+	return x
 }
 
 func GetClient(k string) API {
@@ -109,8 +111,8 @@ func GetClient(k string) API {
 
 	v, ok := apis.Load(k)
 	if ok {
-		f,ok:=v.(API)
-		if ok{
+		f, ok := v.(API)
+		if ok {
 			return f
 		}
 	}
@@ -118,67 +120,115 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
-func WalkMetadata(walkFunc func(key, value interface{}) bool){
+func WalkMetadata(walkFunc func(key, value interface{}) bool) {
 	metas.Range(walkFunc)
 }
 
-func WalkConfigs(walkFunc func(key, value interface{})bool) {
-	 cfgs.Range(walkFunc)
+func WalkConfigs(walkFunc func(key, value interface{}) bool) {
+	cfgs.Range(walkFunc)
 }
 
-func WalkHosts(walkFunc func(key, value interface{})bool) {
-	 hosts.Range(walkFunc)
+func WalkHosts(walkFunc func(key, value interface{}) bool) {
+	hosts.Range(walkFunc)
 }
 
 func SetMetadata(k string, v *ElasticsearchMetadata) {
-	metas.Store(k,v)
+	metas.Store(k, v)
 }
 
-func IsHostAvailable(endpoint string)bool {
-	info,ok:=hosts.Load(endpoint)
-	if ok{
+func IsHostAvailable(endpoint string) bool {
+	info, ok := hosts.Load(endpoint)
+	if ok {
 		return info.(*NodeAvailable).IsAvailable()
 	}
-	log.Debugf("no available info for host [%v]",endpoint)
+	log.Debugf("no available info for host [%v]", endpoint)
 	return true
 }
 
 //ip:port
-func (meta *ElasticsearchMetadata) GetSeedHosts()[]string {
+func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 
-	if len(meta.seedHosts)>0{
+	if len(meta.seedHosts) > 0 {
 		return meta.seedHosts
 	}
 
-	hosts:=[]string{}
-	if len(meta.Config.Hosts)>0{
-		for _,h:=range meta.Config.Hosts{
-			hosts=append(hosts,h)
+	hosts := []string{}
+	if len(meta.Config.Hosts) > 0 {
+		for _, h := range meta.Config.Hosts {
+			hosts = append(hosts, h)
 		}
 	}
-	if len(meta.Config.Host)>0{
-		hosts=append(hosts,meta.Config.Host)
+	if len(meta.Config.Host) > 0 {
+		hosts = append(hosts, meta.Config.Host)
 	}
 
-	if meta.Config.Endpoint !=""{
-		i,err:=uri.Parse(meta.Config.Endpoint)
-		if err!=nil{
+	if meta.Config.Endpoint != "" {
+		i, err := uri.Parse(meta.Config.Endpoint)
+		if err != nil {
 			panic(err)
 		}
-		hosts=append(hosts,i.Host)
+		hosts = append(hosts, i.Host)
 	}
-	if len(meta.Config.Endpoints)>0{
-		for _,h:=range meta.Config.Endpoints{
-			i,err:=uri.Parse(h)
-			if err!=nil{
+	if len(meta.Config.Endpoints) > 0 {
+		for _, h := range meta.Config.Endpoints {
+			i, err := uri.Parse(h)
+			if err != nil {
 				panic(err)
 			}
-			hosts=append(hosts,i.Host)
+			hosts = append(hosts, i.Host)
 		}
 	}
-	if len(hosts)==0{
-		panic(errors.Errorf("no valid endpoint for [%v]",meta.Config.Name))
+	if len(hosts) == 0 {
+		panic(errors.Errorf("no valid endpoint for [%v]", meta.Config.Name))
 	}
-	meta.seedHosts=hosts
+	meta.seedHosts = hosts
 	return meta.seedHosts
+}
+
+var clients = map[string]*fasthttp.Client{}
+var clientLock sync.RWMutex
+
+func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fasthttp.Client {
+
+	//get available host
+	available := IsHostAvailable(host)
+
+	if !available {
+		if metadata.IsAvailable() {
+			newEndpoint := metadata.GetActiveHost()
+			log.Warnf("[%v] is not available, try: [%v]", host, newEndpoint)
+			host = newEndpoint
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	clientLock.RLock()
+	client, ok := clients[host]
+	clientLock.RUnlock()
+
+	//TODO configureable
+	if !ok{
+		clientLock.Lock()
+		client = &fasthttp.Client{
+			MaxConnsPerHost: 5000,
+			MaxConnDuration:               0,
+			MaxIdleConnDuration:           0,
+			ReadTimeout:                   0,
+			WriteTimeout:                  0,
+			DisableHeaderNamesNormalizing: true,
+			DisablePathNormalizing:        true,
+			MaxConnWaitTimeout:            0,
+			TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
+		}
+
+		if metadata.Config.TrafficControl != nil &&metadata.Config.TrafficControl.MaxConnectionPerNode>0 {
+			client.MaxConnsPerHost = metadata.Config.TrafficControl.MaxConnectionPerNode
+		}
+
+		clients[host] = client
+		clientLock.Unlock()
+	}
+
+	return client
 }

@@ -232,6 +232,7 @@ type ElasticsearchConfig struct {
 	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {
+		MaxConnectionPerNode int  `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
 		MaxWaitTimeInMs int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
 		MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
 		MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
