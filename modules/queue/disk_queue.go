@@ -27,6 +27,9 @@ func (module *DiskQueue) Name() string {
 	return "disk_queue"
 }
 
+//#  disk.max_used_bytes:  100GB #trigger warning message
+//#  disk.warning_free_bytes:  20GB #trigger warning message
+//#  disk.reserved_free_bytes: 10GB #enter readonly mode, no writes allowed
 type DiskQueueConfig struct {
 	MinMsgSize       int   `config:"min_msg_size"`
 	MaxMsgSize       int   `config:"max_msg_size"`
@@ -35,6 +38,10 @@ type DiskQueueConfig struct {
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
+
+	MaxUsedBytes   uint64   `config:"max_used_bytes"`
+	WarningFreeBytes   uint64   `config:"warning_free_bytes"`
+	ReservedFreeBytes   uint64   `config:"reserved_free_bytes"`
 }
 
 func (module *DiskQueue) initQueue(name string) error {
@@ -51,7 +58,11 @@ func (module *DiskQueue) initQueue(name string) error {
 	dataPath := path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(name))
 	os.MkdirAll(dataPath, 0755)
 
-	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath, module.cfg.MaxBytesPerFile, int32(module.cfg.MinMsgSize), int32(module.cfg.MaxMsgSize), module.cfg.SyncEveryRecords, time.Duration(module.cfg.SyncTimeoutInMS), module.cfg.ReadChanBuffer, module.cfg.WriteChanBuffer)
+	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath,
+		module.cfg.MaxBytesPerFile, int32(module.cfg.MinMsgSize), int32(module.cfg.MaxMsgSize),
+		module.cfg.SyncEveryRecords, time.Duration(module.cfg.SyncTimeoutInMS),
+		module.cfg.ReadChanBuffer, module.cfg.WriteChanBuffer,module.
+		cfg.MaxUsedBytes,module.cfg.WarningFreeBytes,module.cfg.ReservedFreeBytes)
 
 	module.queues.Store(name,&tempQueue)
 
@@ -68,6 +79,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
 		WriteChanBuffer:   0,
+		ReservedFreeBytes: 1 * 1024 * 1024 * 1024,
 	}
 
 	ok,err:=env.ParseConfig("disk_queue", module.cfg)
