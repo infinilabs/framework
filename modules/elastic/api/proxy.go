@@ -7,6 +7,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
+	"src/github.com/segmentio/encoding/json"
 	"strings"
 )
 
@@ -56,8 +57,24 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
-	client.Do(freq, fres)
-	b := fres.Body()
+	err = client.Do(freq, fres)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	okBody := struct {
+		RequestHeader string `json:"request_header"`
+		ResponseHeader string `json:"response_header"`
+		ResponseBody string `json:"response_body"`
+	}{
+		RequestHeader: freq.Header.String(),
+		ResponseHeader: fres.Header.String(),
+		ResponseBody: string(fres.Body()),
+	}
+
 	w.Header().Set("Content-type", string(fres.Header.ContentType()))
-	w.Write(b)
+	w.WriteHeader(fres.StatusCode())
+	json.NewEncoder(w).Encode(okBody)
+
 }

@@ -45,9 +45,6 @@ func Init(cfg common.ModuleConfig) {
 	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.HandleGetSettingAction)
 
 	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/_proxy", clusterAPI.HandleProxyAction)
-
-	ui.HandleUIMethod(api.POST, "/elasticsearch/:id/command", clusterAPI.HandleSaveCommonCommandAction)
-	ui.HandleUIMethod(api.GET, "/elasticsearch/:id/command/_search", clusterAPI.HandleQueryCommonCommandAction)
 	ui.HandleUIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.HandleTestConnectionAction)
 
 }

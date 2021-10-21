@@ -282,10 +282,6 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 		return esResp, err
 	}
 
-	if !esResp.Found {
-		return esResp, errors.New(string(resp.Body))
-	}
-
 	return esResp, nil
 }
 
@@ -831,33 +827,33 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	if global.Env().IsDebug {
 		log.Trace("update index: ", name, ", ", settings)
 	}
-	cleanSettings(settings)
+	//cleanSettings(settings)
 	url := fmt.Sprintf("%s/%s/_settings", s.GetEndpoint(), name)
 
-	if _, ok := settings["settings"].(map[string]interface{})["index"]; ok {
-		if set, ok := settings["settings"].(map[string]interface{})["index"].(map[string]interface{})["analysis"]; ok {
-			staticIndexSettings := getEmptyIndexSettings()
-			staticIndexSettings["settings"].(map[string]interface{})["index"].(map[string]interface{})["analysis"] = set
-
-			_, err := s.Request("POST", fmt.Sprintf("%s/%s/_close", s.GetEndpoint(), name), nil)
-
-			//TODO error handle
-
-			body := bytes.Buffer{}
-			enc := json.NewEncoder(&body)
-			enc.Encode(staticIndexSettings)
-			_, err = s.Request("PUT", url, body.Bytes())
-			if err != nil {
-				panic(err)
-			}
-
-			delete(settings["settings"].(map[string]interface{})["index"].(map[string]interface{}), "analysis")
-
-			_, err = s.Request("POST", fmt.Sprintf("%s/%s/_open", s.GetEndpoint(), name), nil)
-
-			//TODO error handle
-		}
-	}
+	//if _, ok := settings["settings"].(map[string]interface{})["index"]; ok {
+	//	if set, ok := settings["settings"].(map[string]interface{})["index"].(map[string]interface{})["analysis"]; ok {
+	//		staticIndexSettings := getEmptyIndexSettings()
+	//		staticIndexSettings["settings"].(map[string]interface{})["index"].(map[string]interface{})["analysis"] = set
+	//
+	//		_, err := s.Request("POST", fmt.Sprintf("%s/%s/_close", s.GetEndpoint(), name), nil)
+	//
+	//		//TODO error handle
+	//
+	//		body := bytes.Buffer{}
+	//		enc := json.NewEncoder(&body)
+	//		enc.Encode(staticIndexSettings)
+	//		_, err = s.Request("PUT", url, body.Bytes())
+	//		if err != nil {
+	//			panic(err)
+	//		}
+	//
+	//		delete(settings["settings"].(map[string]interface{})["index"].(map[string]interface{}), "analysis")
+	//
+	//		_, err = s.Request("POST", fmt.Sprintf("%s/%s/_open", s.GetEndpoint(), name), nil)
+	//
+	//		//TODO error handle
+	//	}
+	//}
 
 	body := bytes.Buffer{}
 	enc := json.NewEncoder(&body)
@@ -1388,3 +1384,15 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 		}
 	}
 }
+
+func (c *ESAPIV0) Close(name string) ([]byte, error) {
+	url := fmt.Sprintf("%s/%s/_close",c.GetEndpoint(), name)
+	closeRes, err := c.Request(util.Verb_POST, url, nil)
+	return closeRes.Body, err
+}
+func (c *ESAPIV0) Open(name string) ([]byte, error) {
+	url := fmt.Sprintf("%s/%s/_open",c.GetEndpoint(), name)
+	openRes, err := c.Request(util.Verb_POST, url, nil)
+	return openRes.Body, err
+}
+

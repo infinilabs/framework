@@ -139,9 +139,6 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	if err != nil {
 		return esResp, err
 	}
-	if !esResp.Found {
-		return esResp, errors.New(string(resp.Body))
-	}
 
 	return esResp, nil
 }
