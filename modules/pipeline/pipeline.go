@@ -18,6 +18,8 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/vbauerster/mpb"
+	"github.com/vbauerster/mpb/decor"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
@@ -42,6 +44,8 @@ type PipeModule struct {
 	started bool
 	//runners map[string]*PipeRunner
 	wg sync.WaitGroup
+
+
 }
 
 func (module PipeModule) Name() string {
@@ -242,6 +246,22 @@ func (module *PipeModule) Start() error {
 }
 
 func (module *PipeModule) Stop() error {
+
+	p := mpb.New(mpb.WithWidth(64))
+
+	total := len(module.contexts)
+	name := "Closing pipeline:"
+	bar := p.Add(int64(total),
+		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler("▌").Tip("▌").Padding("░").Rbound("╟")),
+		mpb.PrependDecorators(
+			decor.Name(name, decor.WC{W: len(name) + 1, C: decor.DidentRight}),
+			decor.OnComplete(
+				decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "done",
+			),
+		),
+		mpb.AppendDecorators(decor.Percentage()),
+	)
+
 	if module.started {
 		module.started = false
 		log.Debug("shutting down pipeline framework")
@@ -263,12 +283,18 @@ func (module *PipeModule) Stop() error {
 					log.Error("pipeline framework failure to stop tasks, quiting")
 					return errors.New("pipeline framework failure to stop tasks, quiting")
 				}
+				log.Debugf("retry pipeline [%v] closing",v.UUID())
 				goto CLOSING
+			}else{
+				bar.Increment()
 			}
 		}
 	} else {
 		log.Error("pipeline framework is not started")
 	}
+
+	// wait for our bar to complete and flush
+	p.Wait()
 
 	return nil
 }
