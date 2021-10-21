@@ -26,10 +26,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/status"
 	"io"
 	"math/rand"
 	"os"
@@ -85,13 +88,20 @@ type diskQueue struct {
 	emptyResponseChan chan error
 	exitChan          chan int
 	exitSyncChan      chan int
+
+
+	maxUsedBytes   uint64
+	warningFreeBytes   uint64
+	reservedFreeBytes   uint64
+
+	preventRead bool//readonly or not
 }
 
 // NewDiskQueue instantiates a new instance of diskQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
 func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 	minMsgSize int32, maxMsgSize int32,
-	syncEvery int64, syncTimeout time.Duration, readBufferSize int, writeBufferSize int) BackendQueue {
+	syncEvery int64, syncTimeout time.Duration, readBufferSize int, writeBufferSize int,maxUsedBytes,warningFreeBytes,reservedFreeBytes uint64) BackendQueue {
 	d := diskQueue{
 		name:              name,
 		dataPath:          dataPath,
@@ -108,6 +118,10 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 		exitSyncChan:      make(chan int),
 		syncEvery:         syncEvery,
 		syncTimeout:       syncTimeout,
+
+		maxUsedBytes:		maxUsedBytes,
+		warningFreeBytes:	warningFreeBytes,
+		reservedFreeBytes:	reservedFreeBytes,
 	}
 
 	// no need to lock here, nothing else could possibly be touching this instance
@@ -153,6 +167,16 @@ func (d *diskQueue) Put(data []byte) error {
 	if d.exitFlag == 1 {
 		log.Errorf("queue [%v] exiting, data maybe lost",d.name)
 		return errors.New("exiting")
+	}
+
+	if d.preventRead{
+		err:=d.checkCapacity()
+		if err!=nil{
+			if rate.GetRateLimiterPerSecond(d.name, "disk_full_failure",1).Allow() {
+				log.Errorf("queue [%v] is readonly, %v",d.name,err)
+			}
+		}
+		return errors.New("readonly")
 	}
 
 	d.writeChan <- data
@@ -420,6 +444,12 @@ func (d *diskQueue) writeOne(data []byte) error {
 			d.maxBytesPerFileRead = d.writePos
 		}
 
+		//TODO checking for storage, warning or throttling queue push
+		//checking file list and compress file
+		//如果已有多少个文件未压缩，则新文件默认则压缩存储
+
+		d.checkCapacity()
+
 		d.writeFileNum++
 		d.writePos = 0
 
@@ -433,14 +463,31 @@ func (d *diskQueue) writeOne(data []byte) error {
 			d.writeFile.Close()
 			d.writeFile = nil
 		}
-
-
-		//TODO checking for storage, warning or throttling queue push
-		//checking file list and compress file
-		//如果已有多少个文件未压缩，则新文件默认则压缩存储
 	}
 
 	return err
+}
+
+func (d *diskQueue) checkCapacity() error {
+
+	if  d.warningFreeBytes>0||d.maxUsedBytes>0||d.reservedFreeBytes>0{
+		stats:=status.DiskUsage(d.dataPath)
+		if d.maxUsedBytes>0&&stats.Used>=d.maxUsedBytes{
+			d.preventRead=true
+			return errors.Errorf("disk usage [%v] > threshold [%v]",util.ByteSize(stats.Used),util.ByteSize(d.maxUsedBytes))
+		}else if d.reservedFreeBytes>0&&stats.Free<=uint64(d.reservedFreeBytes){
+			d.preventRead = true
+			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.reservedFreeBytes))
+		}else if d.warningFreeBytes>0&&stats.Free<=uint64(d.warningFreeBytes){
+			if rate.GetRateLimiterPerSecond(d.name, "disk_full_warning",1).Allow() {
+				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.warningFreeBytes))
+			}
+		}
+		if d.preventRead{
+			d.preventRead=false
+		}
+	}
+	return nil
 }
 
 // sync fsyncs the current writeFile and persists metadata
