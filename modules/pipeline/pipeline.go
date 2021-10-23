@@ -247,22 +247,27 @@ func (module *PipeModule) Start() error {
 
 func (module *PipeModule) Stop() error {
 
-	p := mpb.New(mpb.WithWidth(64))
-
-	total := len(module.contexts)
-	name := "Closing pipeline:"
-	bar := p.Add(int64(total),
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler("▌").Tip("▌").Padding("░").Rbound("╟")),
-		mpb.PrependDecorators(
-			decor.Name(name, decor.WC{W: len(name) + 1, C: decor.DidentRight}),
-			decor.OnComplete(
-				decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "done",
-			),
-		),
-		mpb.AppendDecorators(decor.Percentage()),
-	)
-
 	if module.started {
+		
+		total := len(module.contexts)
+
+		if total<=0{
+			return nil
+		}
+
+		p := mpb.New(mpb.WithWidth(64))
+		name := "Closing pipeline:"
+		bar := p.Add(int64(total),
+			mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler("▌").Tip("▌").Padding("░").Rbound("╟")),
+			mpb.PrependDecorators(
+				decor.Name(name, decor.WC{W: len(name) + 1, C: decor.DidentRight}),
+				decor.OnComplete(
+					decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "done",
+				),
+			),
+			mpb.AppendDecorators(decor.Percentage()),
+		)
+
 		module.started = false
 		log.Debug("shutting down pipeline framework")
 		start:=time.Now()
@@ -289,12 +294,12 @@ func (module *PipeModule) Stop() error {
 				bar.Increment()
 			}
 		}
+
+		// wait for our bar to complete and flush
+		p.Wait()
 	} else {
 		log.Error("pipeline framework is not started")
 	}
-
-	// wait for our bar to complete and flush
-	p.Wait()
 
 	return nil
 }
