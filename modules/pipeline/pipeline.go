@@ -248,14 +248,14 @@ func (module *PipeModule) Start() error {
 func (module *PipeModule) Stop() error {
 
 	if module.started {
-		
+
 		total := len(module.contexts)
 
 		if total<=0{
 			return nil
 		}
 
-		p := mpb.New(mpb.WithWidth(64))
+		p := mpb.New(mpb.WithWidth(40))
 		name := "Closing pipeline:"
 		bar := p.Add(int64(total),
 			mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler("▌").Tip("▌").Padding("░").Rbound("╟")),
@@ -268,7 +268,6 @@ func (module *PipeModule) Stop() error {
 			mpb.AppendDecorators(decor.Percentage()),
 		)
 
-		module.started = false
 		log.Debug("shutting down pipeline framework")
 		start:=time.Now()
 
@@ -297,6 +296,7 @@ func (module *PipeModule) Stop() error {
 
 		// wait for our bar to complete and flush
 		p.Wait()
+		module.started = false
 	} else {
 		log.Error("pipeline framework is not started")
 	}
