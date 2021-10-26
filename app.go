@@ -58,6 +58,13 @@ type App struct {
 }
 
 func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
+	if terminalFooter==""{
+		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
+		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
+		terminalFooter += (" / // || // _/ / // || // /    \n")
+		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/  LABS.  \n\n")
+		terminalFooter += ("©INFINILABS.COM, All Rights Reserved.\n")
+	}
 	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
 }
 
