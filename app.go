@@ -62,8 +62,8 @@ func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminal
 		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
 		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
 		terminalFooter += (" / // || // _/ / // || // /    \n")
-		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/  LABS.  \n\n")
-		terminalFooter += ("©INFINILABS.COM, All Rights Reserved.\n")
+		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/   \n\n")
+		terminalFooter += ("©INFINI.LTD, All Rights Reserved.\n")
 	}
 	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
 }
