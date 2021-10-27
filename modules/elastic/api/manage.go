@@ -726,3 +726,25 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	h.WriteJSON(w, resBody, http.StatusOK)
 
 }
+
+func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	result:=util.MapStr{}
+	elastic.WalkMetadata(func(key, value interface{}) bool {
+		m:=util.MapStr{}
+		k:=key.(string)
+		if value==nil{
+			return false
+		}
+
+		v,ok:=value.(*elastic.ElasticsearchMetadata)
+		if ok{
+			m["version"]=v.GetMajorVersion()
+			m["hosts"]=v.GetSeedHosts()
+			result[k]=m
+		}
+		return true
+	})
+
+	h.WriteJSON(w, result, http.StatusOK)
+
+}
