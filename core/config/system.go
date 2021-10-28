@@ -124,6 +124,9 @@ type APIConfig struct {
 	Enabled       bool          `config:"enabled"`
 	TLSConfig     TLSConfig     `config:"tls"`
 	NetworkConfig NetworkConfig `config:"network"`
+	CrossDomain struct{
+		AllowedOrigins       []string          `config:"allowed_origins"`
+	} `config:"cors"`
 }
 
 func (config *APIConfig) GetSchema() string {
