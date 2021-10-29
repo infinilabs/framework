@@ -73,10 +73,11 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
 	if !ok {
 		versionLock.Lock()
+		defer versionLock.Unlock()
 		esMajorVersion = GetClient(meta.Config.ID).GetMajorVersion()
 		versions[meta.Config.ID] = esMajorVersion
-		versionLock.Unlock()
 	}
+
 	return esMajorVersion
 }
 
