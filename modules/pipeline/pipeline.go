@@ -86,8 +86,9 @@ func (module *PipeModule) Setup(cfg *config.Config) {
 type PipelineConfigV2 struct {
 	Name       string                `config:"name" json:"name,omitempty"`
 	AutoStart  bool                  `config:"auto_start" json:"auto_start"`
-	KeepRunning  bool                  `config:"keep_running" json:"keep_running"`
-	Processors pipeline.PluginConfig `config:"processor" json:"processor,omitempty"`
+	KeepRunning    bool                  `config:"keep_running" json:"keep_running"`
+	RetryDelayInMs int                   `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
+	Processors     pipeline.PluginConfig `config:"processor" json:"processor,omitempty"`
 }
 
 
@@ -157,6 +158,11 @@ func (module *PipeModule) Start() error {
 				continue
 			}
 			ctx:=pipeline.AcquireContext()
+
+			if v.RetryDelayInMs <=0{
+				v.RetryDelayInMs =1000
+			}
+
 			module.configs[v.Name]=&v
 			module.pipelines[v.Name]=processor
 			module.contexts[v.Name]=ctx
@@ -174,7 +180,7 @@ func (module *PipeModule) Start() error {
 							case string:
 								err = r.(string)
 							}
-							log.Errorf("error on pipeline:%v, %v",cfg.Name,err)
+							log.Errorf("error on pipeline: %v, retry delay: %vms",cfg.Name,err)
 						}
 					}
 				}()
@@ -198,7 +204,10 @@ func (module *PipeModule) Start() error {
 
 						if cfg.KeepRunning&&!ctx.IsExit(){
 							if ctx.GetRunningState()!=pipeline.STOPPED&&ctx.GetRunningState()!=pipeline.STOPPING{
-								log.Debugf("pipeline [%v] end running, restart again",cfg.Name)
+								log.Debugf("pipeline [%v] end running, restart again, [%v]",cfg.Name,cfg.RetryDelayInMs)
+								if cfg.RetryDelayInMs >0{
+									time.Sleep(time.Duration(cfg.RetryDelayInMs)*time.Millisecond)
+								}
 								goto RESTART
 							}
 						}
