@@ -37,34 +37,6 @@ type Processors struct {
 	List []Processor
 }
 
-//type ComplexProcessor interface {
-//	Processor
-//}
-//
-//type Input interface {
-//	ProcessorBase
-//	Open() error
-//	Close() error
-//	Read() ([]byte, error)
-//}
-//
-//type Output interface {
-//	ProcessorBase
-//	Open() error
-//	Close() error
-//	Write([]byte) error
-//}
-//
-//type Filter interface {
-//	ProcessorBase
-//	Filter([]byte) error
-//}
-
-
-
-
-
-
 type Closer interface {
 	Close() error
 }
@@ -217,7 +189,7 @@ func (procs *Processors) Process(ctx *Context) error{
 		err:=p.Process(ctx)
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {
-			log.Error("error on processing:",p.Name())
+			log.Error("error on processing:",p.Name(),",",err)
 			return err
 		}
 		//if event == nil {
