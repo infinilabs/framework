@@ -52,7 +52,7 @@ func RunTasks()  {
 					if global.Env().IsDebug{
 						log.Tracef("task: %s, %v, %v",task.Description,task.Type,task.Interval)
 					}
-					task.Task()
+					go task.Task()
 				}
 				taskLock.RUnlock()
 			case <- quit:
