@@ -35,15 +35,42 @@ type IndexStats struct {
 type NodesInfo struct {
 	Name    string `json:"name,omitempty,nocopy"`
 	Version string `json:"version,omitempty,nocopy"`
-	Http    struct {
-		PublishAddress          string `json:"publish_address,omitempty"`
-		MaxContentLengthInBytes int64  `json:"max_content_length_in_bytes,omitempty"`
+
+	Http struct {
+		BoundAddress            []string `json:"bound_address"`
+		PublishAddress          string   `json:"publish_address,omitempty"`
+		MaxContentLengthInBytes int64    `json:"max_content_length_in_bytes,omitempty"`
 	} `json:"http,omitempty"`
 
-	TotalIndexingBuffer int64                  `json:"total_indexing_buffer,omitempty"`
-	Attributes          map[string]interface{} `json:"attributes,omitempty"`
-	Roles               []string               `json:"roles,omitempty"`
-	//TODO return more nodes level settings, for later check and usage
+	Attributes map[string]interface{} `json:"attributes,omitempty"`
+	Roles      []string               `json:"roles,omitempty"`
+
+	TransportAddress string `json:"transport_address"`
+	Host             string `json:"host"`
+	Ip               string `json:"ip"`
+
+	BuildFlavor string `json:"build_flavor"`
+	BuildType   string `json:"build_type"`
+	BuildHash           string `json:"build_hash"`
+
+	TotalIndexingBuffer int64  `json:"total_indexing_buffer,omitempty"`
+
+	Settings   map[string]interface{} `json:"settings"`
+	Os         map[string]interface{} `json:"os"`
+	Process    map[string]interface{} `json:"process"`
+	Jvm        map[string]interface{} `json:"jvm"`
+	ThreadPool map[string]interface{} `json:"thread_pool"`
+	Transport  struct {
+		BoundAddress   []string `json:"bound_address"`
+		PublishAddress string   `json:"publish_address"`
+		Profiles       struct {
+		} `json:"profiles"`
+	} `json:"transport"`
+
+	Plugins []interface{}            `json:"plugins"`
+	Modules []map[string]interface{} `json:"modules"`
+	Ingest  map[string]interface{}   `json:"ingest"`
+	Aggregations  map[string]interface{}   `json:"aggregations"`
 }
 
 type NodeAvailable struct {
@@ -197,12 +224,14 @@ type ErrorResponse struct {
 type ElasticsearchMetadata struct {
 	Config *ElasticsearchConfig
 
-	NodesTopologyVersion int
-	IndicesChanged       bool
-	Nodes                map[string]NodesInfo
-	Indices              map[string]IndexInfo
-	PrimaryShards        map[string]map[int]ShardInfo
-	Aliases map[string]AliasInfo
+	ClusterState *ClusterState
+
+	NodesTopologyVersion  int
+
+	Nodes                *map[string]NodesInfo
+	Indices              *map[string]IndexInfo
+	PrimaryShards        *map[string]map[int]ShardInfo
+	Aliases *map[string]AliasInfo
 	Health  *ClusterHealth
 
 	clusterFailureTicket int
@@ -214,8 +243,8 @@ type ElasticsearchMetadata struct {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-	Source      string `json:"-"`
-	ID          string `json:"-" index:"id"`
+	Source      string `json:"source,omitempty"`
+	ID          string `json:"id,omitempty" index:"id"`
 	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
 	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled     bool   `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
@@ -225,6 +254,7 @@ type ElasticsearchConfig struct {
 	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
 	Version string `json:"version,omitempty" config:"version"`
 	ClientMode string `json:"client_mode,omitempty" config:"client_mode"`
+	RequestTimeout int `json:"request_timeout,omitempty" config:"request_timeout"`
 
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`

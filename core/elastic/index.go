@@ -3,6 +3,7 @@ package elastic
 import (
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
+	"time"
 )
 
 type Indexes map[string]interface{}
@@ -13,9 +14,9 @@ type ShardResponse struct {
 	Skipped    int `json:"skipped,omitempty"`
 	Failed     int `json:"failed,omitempty"`
 	Failures   []struct {
-		Shard  int         `json:"shard,omitempty"`
-		Index  string      `json:"index,omitempty,nocopy,intern"`
-		Status int         `json:"status,omitempty"`
+		Shard  int             `json:"shard,omitempty"`
+		Index  string          `json:"index,omitempty,nocopy,intern"`
+		Status int             `json:"status,omitempty"`
 		Reason json.RawMessage `json:"reason,omitempty,nocopy"`
 	} `json:"failures,omitempty"`
 }
@@ -28,7 +29,6 @@ type ClusterInformation struct {
 		LuceneVersion string `json:"lucene_version,nocopy,intern"`
 	} `json:"version"`
 }
-
 
 //"cluster_name": "pi",
 //"status": "green",
@@ -48,32 +48,82 @@ type ClusterInformation struct {
 
 type ClusterHealth struct {
 	ResponseBase
-	Name   string `json:"cluster_name"`
-	Status string `json:"status"`
-	TimedOut bool `json:"timed_out"`
-	NumberOfNodes int `json:"number_of_nodes"`
-	NumberOf_data_nodes int `json:"number_of_data_nodes"`
-	ActivePrimary_shards int `json:"active_primary_shards"`
-	ActiveShards int `json:"active_shards"`
-	RelocatingShards int `json:"relocating_shards"`
-	InitializingShards int `json:"initializing_shards"`
-	UnassignedShards int `json:"unassigned_shards"`
-	DelayedUnassignedShards int `json:"delayed_unassigned_shards"`
-	NumberOfPendingTasks int `json:"number_of_pending_tasks"`
-	NumberOfInFlightFetch int `json:"number_of_in_flight_fetch"`
+	Name                        string  `json:"cluster_name"`
+	Status                      string  `json:"status"`
+	TimedOut                    bool    `json:"timed_out"`
+	NumberOfNodes               int     `json:"number_of_nodes"`
+	NumberOf_data_nodes         int     `json:"number_of_data_nodes"`
+	ActivePrimary_shards        int     `json:"active_primary_shards"`
+	ActiveShards                int     `json:"active_shards"`
+	RelocatingShards            int     `json:"relocating_shards"`
+	InitializingShards          int     `json:"initializing_shards"`
+	UnassignedShards            int     `json:"unassigned_shards"`
+	DelayedUnassignedShards     int     `json:"delayed_unassigned_shards"`
+	NumberOfPendingTasks        int     `json:"number_of_pending_tasks"`
+	NumberOfInFlightFetch       int     `json:"number_of_in_flight_fetch"`
 	TaskMaxWaitingInQueueMillis float64 `json:"task_max_waiting_in_queue_millis"`
 	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
 }
 
+type ClusterState struct {
+	ResponseBase
+
+	ClusterName string `json:"cluster_name"`
+	Version     int64  `json:"version"`
+	StateUUID   string `json:"state_uuid"`
+	MasterNode  string `json:"master_node"`
+	//Nodes        map[string]ClusterStateNodes `json:"nodes"`
+	RoutingTable *ClusterRoutingTable `json:"routing_table,omitempty"`
+
+	CompressedSizeInBytes int `json:"compressed_size_in_bytes"` //v6.0+
+}
+
+type ClusterStateNodes struct {
+	Name string `json:"name"`
+
+	EphemeralId string `json:"ephemeral_id"` //v5.0+
+
+	TransportAddress string                 `json:"transport_address"`
+	Attributes       map[string]interface{} `json:"attributes,omitempty"`
+}
+type ClusterRoutingTable struct {
+	Indices map[string]struct {
+		Shards map[string][]struct {
+			State          string      `json:"state"`
+			Primary        bool        `json:"primary"`
+			Node           string      `json:"node"`
+			RelocatingNode interface{} `json:"relocating_node,omitempty"`
+			Shard          int         `json:"shard"`
+			Index          string      `json:"index"`
+			Version        int         `json:"version"` //< v5.0
+
+			//v5.0+ START
+			RecoverySource *struct {
+				Type string `json:"type"`
+			} `json:"recovery_source,omitempty"`
+			UnassignedInfo *struct {
+				Reason           string    `json:"reason"`
+				At               time.Time `json:"at"`
+				Delayed          bool      `json:"delayed"`
+				AllocationStatus string    `json:"allocation_status"`
+			} `json:"unassigned_info,omitempty"`
+			//END
+
+			AllocationId *struct {
+				Id string `json:"id"`
+			} `json:"allocation_id,omitempty"`
+		} `json:"shards"`
+	} `json:"indices"`
+}
 
 type ClusterStats struct {
 	ResponseBase
-	ClusterName   string `json:"cluster_name"`
-	Status string `json:"status"`
-	ClusterUUID string `json:"cluster_uuid"`
-	Timestamp int64 `json:"timestamp"`
-	Indices map[string]interface{} `json:"indices"`
-	Nodes map[string]interface{} `json:"nodes"`
+	ClusterName string                 `json:"cluster_name"`
+	Status      string                 `json:"status"`
+	ClusterUUID string                 `json:"cluster_uuid"`
+	Timestamp   int64                  `json:"timestamp"`
+	Indices     map[string]interface{} `json:"indices"`
+	Nodes       map[string]interface{} `json:"nodes"`
 }
 
 type NodesStats struct {
@@ -99,10 +149,9 @@ type IndexDocument struct {
 type BucketBase map[string]interface{}
 
 type Bucket struct {
-	KeyAsString      interface{} `json:"key_as_string,omitempty"`
-	Key      interface{} `json:"key,omitempty"`
-	DocCount int64    `json:"doc_count,omitempty"`
-
+	KeyAsString interface{} `json:"key_as_string,omitempty"`
+	Key         interface{} `json:"key,omitempty"`
+	DocCount    int64       `json:"doc_count,omitempty"`
 }
 
 type AggregationResponse struct {
@@ -110,8 +159,8 @@ type AggregationResponse struct {
 }
 
 type ResponseBase struct {
-	StatusCode int `json:"-"`
-	ErrorObject  error `json:"-"`
+	StatusCode  int   `json:"-"`
+	ErrorObject error `json:"-"`
 }
 
 // InsertResponse is a index response object
@@ -123,9 +172,9 @@ type InsertResponse struct {
 	ID      string `json:"_id"`
 	Version int    `json:"_version"`
 
-	Shards struct{
-		Total int `json:"total" `
-		Failed int `json:"failed"`
+	Shards struct {
+		Total      int `json:"total" `
+		Failed     int `json:"failed"`
 		Successful int `json:"successful"`
 	} `json:"_shards"` //es 2.x index api
 }
@@ -149,9 +198,9 @@ type DeleteResponse struct {
 	Type    string `json:"_type"`
 	ID      string `json:"_id"`
 	Version int    `json:"_version"`
-	Shards struct{
-		Total int `json:"total" `
-		Failed int `json:"failed"`
+	Shards  struct {
+		Total      int `json:"total" `
+		Failed     int `json:"failed"`
 		Successful int `json:"successful"`
 	} `json:"_shards"` //es 2.x index api
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package elastic
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
@@ -25,7 +26,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
@@ -42,12 +42,20 @@ var (
 	defaultConfig = ModuleConfig{
 		Elasticsearch:       "default",
 		RemoteConfigEnabled: false,
-		HealthCheckConfig: HealthCheckConfig{
+		HealthCheckConfig: CheckConfig{
 			Enabled:  true,
 			Interval: "10s",
 		},
-		MonitoringConfig: MonitoringConfig{
+		NodeAvailabilityCheckConfig: CheckConfig{
+			Enabled:  true,
+			Interval: "10s",
+		},
+		MonitoringConfig: CheckConfig{
 			Enabled:  false,
+			Interval: "10s",
+		},
+		MetadataRefresh: CheckConfig{
+			Enabled:  true,
 			Interval: "10s",
 		},
 		ORMConfig: ORMConfig{
@@ -96,6 +104,7 @@ func loadESBasedElasticConfig() {
 	configs := []elastic.ElasticsearchConfig{}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
 	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
+	//log.Errorf("%v %v",query,result)
 	if err != nil {
 		log.Error(err)
 		return
@@ -110,29 +119,33 @@ func loadESBasedElasticConfig() {
 			cfg.Discovery.Enabled = true
 			configs = append(configs, cfg)
 		}
-	}
 
-	for _, v := range configs {
-		if !v.Enabled {
-			log.Debug("elasticsearch ", v.Name, " is not enabled")
-			continue
-		}
-		v.Source = "elastic"
-		if v.ID == "" {
-			if v.Name == "" {
-				log.Errorf("invalid elasticsearch config, %v", v)
+		for _, v := range configs {
+			if !v.Enabled {
+				log.Debug("elasticsearch ", v.Name, " is not enabled")
 				continue
 			}
-			v.ID = v.Name
+			v.Source = "elastic"
+			if v.ID == "" {
+				if v.Name == "" {
+					log.Errorf("invalid elasticsearch config, %v", v)
+					continue
+				}
+				v.ID = v.Name
+			}
+			m[v.ID] = v
 		}
-		m[v.ID] = v
 	}
+
+	log.Infof("loading [%v] remote elasticsearch configs",len(result.Hits.Hits) )
 
 }
 
-
 func initElasticInstances() {
 	for k, esConfig := range m {
+
+		log.Trace("init elasticsearch ", esConfig.Name,esConfig.Enabled)
+
 		if !esConfig.Enabled {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
@@ -156,9 +169,9 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 
 	moduleConfig = getDefaultConfig()
 
-	exists,err:=env.ParseConfig("elastic", &moduleConfig)
+	exists, err := env.ParseConfig("elastic", &moduleConfig)
 
-	if exists&&err != nil {
+	if exists && err != nil {
 		panic(err)
 	}
 
@@ -201,24 +214,24 @@ func monitoring() {
 		Interval:    "10s",
 		Task: func() {
 			elastic.WalkMetadata(func(key, value interface{}) bool {
-				k:=key.(string)
-				if value==nil{
-					return false
+				k := key.(string)
+				if value == nil {
+					return true
 				}
 
-				v,ok:=value.(*elastic.ElasticsearchMetadata)
-				if ok{
-					if !v.Config.Monitored || !v.Config.Enabled {
-						return false
+				v, ok := value.(*elastic.ElasticsearchMetadata)
+				if ok {
+					if !v.Config.Monitored || !v.Config.Enabled || !v.IsAvailable() {
+						return true
 					}
 
 					log.Tracef("run monitoring task for elasticsearch: " + k)
 					client := elastic.GetClient(k)
 					stats := client.GetClusterStats()
-					indexStats,err := client.GetStats()
+					indexStats, err := client.GetStats()
 					if err != nil {
 						log.Error(v.Config.Name, " get cluster stats error: ", err)
-						return false
+						return true
 					}
 
 					v.ReportSuccess()
@@ -226,13 +239,13 @@ func monitoring() {
 					item := MonitoringItem{}
 					item.Elasticsearch = v.Config.ID
 					item.ClusterStats = stats
-					if indexStats!=nil{
+					if indexStats != nil {
 
 						//replace . to _dot_
-						for k,v:=range indexStats.Indices{
-							if util.PrefixStr(k,"."){
-								delete(indexStats.Indices,k)
-								indexStats.Indices[strings.Replace(k,".","_dot_",1)]=v
+						for k, v := range indexStats.Indices {
+							if util.PrefixStr(k, ".") {
+								delete(indexStats.Indices, k)
+								indexStats.Indices[strings.Replace(k, ".", "_dot_", 1)] = v
 							}
 						}
 
@@ -240,7 +253,7 @@ func monitoring() {
 					}
 					item.Timestamp = time.Now()
 					item.Agent = global.Env().SystemConfig.NodeConfig
-					monitoringClient:=elastic.GetClient(moduleConfig.Elasticsearch)
+					monitoringClient := elastic.GetClient(moduleConfig.Elasticsearch)
 					_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
 					if err != nil {
 						log.Error(err)
@@ -253,33 +266,32 @@ func monitoring() {
 
 	task.RegisterScheduleTask(task1)
 
-
 }
 
-func healthCheck() {
+func nodeAvailabilityCheck() {
 
-	task2:=task.ScheduleTask{
+	task2 := task.ScheduleTask{
 		Description: "check for elasticsearch node availability",
 		Type:        "interval",
 		Interval:    "10s",
 		Task: func() {
 			elastic.WalkHosts(func(key, value interface{}) bool {
-				k:=key.(string)
+				k := key.(string)
 
-				if value==nil{
-					return false
+				if value == nil {
+					return true
 				}
 
-				v,ok:=value.(*elastic.NodeAvailable)
-				if ok{
+				v, ok := value.(*elastic.NodeAvailable)
+				if ok {
 					log.Debugf("check availability for node: " + k)
-						avail:=util.TestTCPAddress(k)
-						if avail{
-							v.ReportSuccess()
-						}else{
-							v.ReportFailure()
-						}
-						log.Debugf("node [%v], connection available: [%v] [%v]" ,k,avail,v.IsAvailable())
+					avail := util.TestTCPAddress(k)
+					if avail {
+						v.ReportSuccess()
+					} else {
+						v.ReportFailure()
+					}
+					log.Debugf("node [%v], connection available: [%v] [%v]", k, avail, v.IsAvailable())
 				}
 				return true
 			})
@@ -288,142 +300,37 @@ func healthCheck() {
 	task.RegisterScheduleTask(task2)
 }
 
-func discovery() {
-	discoveryMetadata(false)
-}
+func clusterStateRefresh() {
 
-func discoveryMetadata(force bool) {
 	elastic.WalkConfigs(func(key, value interface{}) bool {
-		cfg,ok:=value.(*elastic.ElasticsearchConfig)
-		if ok&&cfg!=nil{
-			go func(cfg *elastic.ElasticsearchConfig) {
-				//fmt.Println("checking:",cfg.Name,"Discovery:",cfg.Discovery.Enabled)
-				if cfg.Enabled||force {
-					oldMetadata := elastic.GetOrInitMetadata(cfg)
 
-					if force{
-						//add seeds to host for health check
-						hosts:= oldMetadata.GetSeedHosts()
-						for _,host:=range hosts{
-							elastic.GetOrInitHost(host)
-						}
-					}
+		log.Trace("walk metadata: ",key)
 
-					client := elastic.GetClient(cfg.ID)
+		if value == nil {
+			return true
+		}
+		v, ok := value.(*elastic.ElasticsearchConfig)
 
-					//TODO 按需加载节点信息，检测节点连通性
-					nodes, err := client.GetNodes()
+		log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
 
-					if err != nil || nodes == nil || len(*nodes) <= 0 {
-						if rate.GetRateLimiterPerSecond(cfg.ID, "get_nodes_failure_on_error", 1).Allow() {
-							log.Errorf("elasticsearch [%v] failed to get nodes info",cfg.Name)
-						}
-						return
-					}
+		if ok {
+			if !v.Enabled{
+				return true
+			}
 
-					oldMetadata.ReportSuccess()
-
-					newMetadata := elastic.ElasticsearchMetadata{Config: cfg}
-					newMetadata.Init(oldMetadata.IsAvailable())
-
-					var nodesChanged = false
-
-					if cfg.Discovery.Enabled{
-
-						//Nodes
-						//if util.ContainsAnyInArray("nodes", cfg.Discovery.Modules) {
-						var oldNodesTopologyVersion = 0
-						if oldMetadata == nil {
-							nodesChanged = true
-						} else {
-							oldNodesTopologyVersion = oldMetadata.NodesTopologyVersion
-							newMetadata.NodesTopologyVersion = oldNodesTopologyVersion
-							newMetadata.Nodes = oldMetadata.Nodes
-
-							if len(*nodes) != len(oldMetadata.Nodes) {
-								nodesChanged = true
-							} else {
-								for k, v := range *nodes {
-
-									elastic.GetOrInitHost(v.Http.PublishAddress)
-
-									v1, ok := oldMetadata.Nodes[k]
-									if ok {
-										if v.Http.PublishAddress != v1.Http.PublishAddress {
-											nodesChanged = true
-										}
-									} else {
-										nodesChanged = true
-										break
-									}
-								}
-							}
-						}
-
-						if nodesChanged {
-							newMetadata.NodesTopologyVersion = oldNodesTopologyVersion + 1
-							newMetadata.Nodes = *nodes
-						}
-
-					}
-
-					//Indices
-					var indicesChanged bool
-					indices, err := client.GetIndices("")
-					if err != nil {
-						log.Errorf("[%v], %v",cfg.Name,err)
-						return
-					}
-					if indices != nil {
-						//TODO check if that changed or skip replace
-						newMetadata.Indices = *indices
-						indicesChanged = true
-					}
-
-					//Shards
-					var shardsChanged bool
-					shards, err := client.GetPrimaryShards()
-					if err != nil {
-						log.Errorf("[%v], %v",cfg.Name,err)
-						return
-					}
-					if shards != nil {
-						//TODO check if that changed or skip replace
-						newMetadata.PrimaryShards = *shards
-						shardsChanged = true
-					}
-
-					//Indices
-					var aliasesChanged bool
-					aliases, err := client.GetAliases()
-					if err != nil {
-						log.Errorf("[%v], %v",cfg.Name,err)
-						return
-					}
-					if aliases != nil {
-						//TODO check if that changed or skip replace
-						newMetadata.Aliases = *aliases
-						aliasesChanged = true
-					}
-
-					//health status
-					var healthChanged bool
-					health := client.ClusterHealth()
-					if health != nil {
-						//TODO check if that changed or skip replace
-						newMetadata.Health = health
-						healthChanged = true
-					}
-
-					if nodesChanged || indicesChanged || shardsChanged || aliasesChanged || healthChanged{
-						log.Debug("elasticsearch metadata updated,", len(newMetadata.Nodes),nodesChanged , indicesChanged , shardsChanged, aliasesChanged, healthChanged)
-						elastic.SetMetadata(cfg.ID, &newMetadata)
-					}
-				}
-			}(cfg)
+			task2 := task.ScheduleTask{
+				Description: fmt.Sprintf("elasticsearch [%v] state refresh",v.Name),
+				Type:        "interval",
+				Interval:    "10s",
+				Task: func() {
+					updateClusterState(v.ID)
+				},
+			}
+			task.RegisterScheduleTask(task2)
 		}
 		return true
 	})
+
 }
 
 func (module ElasticModule) Start() error {
@@ -433,26 +340,118 @@ func (module ElasticModule) Start() error {
 	}
 
 	initElasticInstances()
-	log.Trace("load ESBased ElasticConfig completed")
 
-	t := task.ScheduleTask{
-		Description: "discovery nodes topology",
-		Type:        "interval",
-		Interval:    "10s",
-		Task:        discovery,
+	clusterHealthCheck(true)
+
+	if moduleConfig.HealthCheckConfig.Enabled {
+		t := task.ScheduleTask{
+			Description: "cluster health check",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func() {
+				clusterHealthCheck(false)
+			},
+		}
+
+		task.RegisterScheduleTask(t)
 	}
-
-	task.RegisterScheduleTask(t)
-
-	discoveryMetadata(true)
 
 	if moduleConfig.MonitoringConfig.Enabled {
 		monitoring()
 	}
 
-	if moduleConfig.HealthCheckConfig.Enabled{
-		healthCheck()
+	if moduleConfig.NodeAvailabilityCheckConfig.Enabled {
+		nodeAvailabilityCheck()
 	}
+
+	log.Tracef("metadata refresh enabled:%v",moduleConfig.MetadataRefresh.Enabled)
+
+	if moduleConfig.MetadataRefresh.Enabled {
+		//refresh cluster state
+		clusterStateRefresh()
+
+		//refresh nodes
+		task2 := task.ScheduleTask{
+			Description: fmt.Sprintf("elasticsearch nodes discovery"),
+			Type:        "interval",
+			Interval:    "60s",
+			Task: func() {
+				elastic.WalkMetadata(func(key, value interface{}) bool {
+					if value==nil{
+						return true
+					}
+					v,ok:=value.(*elastic.ElasticsearchMetadata)
+					if ok{
+						updateNodeInfo(v)
+					}
+					return true
+				})
+			},
+		}
+		task.RegisterScheduleTask(task2)
+
+
+		//refresh indices
+		task2 = task.ScheduleTask{
+			Description: fmt.Sprintf("elasticsearch indices discovery"),
+			Type:        "interval",
+			Interval:    "30s",
+			Task: func() {
+				elastic.WalkMetadata(func(key, value interface{}) bool {
+					if value==nil{
+						return true
+					}
+					v,ok:=value.(*elastic.ElasticsearchMetadata)
+					if ok{
+						updateIndices(v)
+					}
+					return true
+				})
+			},
+		}
+		task.RegisterScheduleTask(task2)
+
+		//refresh index alias
+		task2 = task.ScheduleTask{
+			Description: fmt.Sprintf("elasticsearch alias discovery"),
+			Type:        "interval",
+			Interval:    "30s",
+			Task: func() {
+				elastic.WalkMetadata(func(key, value interface{}) bool {
+					if value==nil{
+						return true
+					}
+					v,ok:=value.(*elastic.ElasticsearchMetadata)
+					if ok{
+						updateAliases(v)
+					}
+					return true
+				})
+			},
+		}
+		task.RegisterScheduleTask(task2)
+
+		//refresh primary_shards
+		task2 = task.ScheduleTask{
+			Description: fmt.Sprintf("elasticsearch shards discovery"),
+			Type:        "interval",
+			Interval:    "30s",
+			Task: func() {
+				elastic.WalkMetadata(func(key, value interface{}) bool {
+					if value==nil{
+						return true
+					}
+					v,ok:=value.(*elastic.ElasticsearchMetadata)
+					if ok{
+						updateShards(v)
+					}
+					return true
+				})
+			},
+		}
+		task.RegisterScheduleTask(task2)
+	}
+
 
 	return nil
 

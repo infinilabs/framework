@@ -27,7 +27,10 @@ type API interface {
 
 	ClusterHealth() *ClusterHealth
 
+	GetClusterState() (*ClusterState,error)
+
 	GetClusterStats() *ClusterStats
+
 	GetNodesStats() *NodesStats
 	GetIndicesStats() *IndicesStats
 

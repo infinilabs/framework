@@ -75,7 +75,9 @@ func (c *ESAPIV0) GetMajorVersion() int {
 		return n
 	}
 
-	panic("invalid major version")
+	log.Debugf("failed to get the major version of elasticsearch [%v], fallback to v0",c.GetMetadata().Config.Name)
+
+	return 0
 }
 
 const TypeName0 = "doc"
@@ -474,6 +476,35 @@ func (c *ESAPIV0) GetIndicesStats() *elastic.IndicesStats {
 	return obj
 }
 
+func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
+
+	//GET /_cluster/state/version,nodes,master_node,routing_table
+	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cluster/state/version,master_node,routing_table", c.GetEndpoint())
+
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	obj := &elastic.ClusterState{}
+	if err != nil {
+		if resp != nil {
+			obj.StatusCode = resp.StatusCode
+		} else {
+			obj.StatusCode = 500
+		}
+		obj.ErrorObject = err
+		return obj,err
+	}
+
+	err = json.Unmarshal(resp.Body, obj)
+	if err != nil {
+		obj.StatusCode = resp.StatusCode
+		obj.ErrorObject = err
+		return obj,err
+	}
+
+	return obj,nil
+}
+
 func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
@@ -492,15 +523,15 @@ func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
 	}
 
 	//dirty fix for es 7.0.0
-	if c.GetMajorVersion()==7{
-		v,err:=jsonparser.GetInt(resp.Body,"indices","segments","max_unsafe_auto_id_timestamp")
-		if err!=nil||v< -1{
-			d,err:=jsonparser.Set(resp.Body,[]byte("-1"),"indices","segments","max_unsafe_auto_id_timestamp")
-			if err==nil{
-				resp.Body=d
-			}
+	//if c.GetMajorVersion()==7{
+	v,err:=jsonparser.GetInt(resp.Body,"indices","segments","max_unsafe_auto_id_timestamp")
+	if err!=nil||v< -1{
+		d,err:=jsonparser.Set(resp.Body,[]byte("-1"),"indices","segments","max_unsafe_auto_id_timestamp")
+		if err==nil{
+			resp.Body=d
 		}
 	}
+	//}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {

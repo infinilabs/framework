@@ -37,7 +37,12 @@ func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata)(string, error)  {
 
 func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterInformation, error) {
 	url := fmt.Sprintf("%v://%v", metadata.GetSchema(), metadata.GetActiveHost())
-	result, err := RequestTimeout("GET", url, nil, metadata, time.Second * 3)
+
+	if metadata.Config.RequestTimeout<=0{
+		metadata.Config.RequestTimeout=30
+	}
+
+	result, err := RequestTimeout("GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +60,7 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 }
 
 func RequestTimeout(method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
+
 	var (
 		req = fasthttp.AcquireRequest()
 		res = fasthttp.AcquireResponse()
@@ -67,7 +73,10 @@ func RequestTimeout(method, url string, body []byte, metadata *elastic.Elasticse
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-		ReadTimeout: time.Second * 60,
+		MaxConnWaitTimeout: timeout,
+		MaxIdleConnDuration: timeout,
+		WriteTimeout: timeout,
+		ReadTimeout: timeout,
 	}
 	req.Header.SetMethod(method)
 	req.SetBody(body)
@@ -78,6 +87,7 @@ func RequestTimeout(method, url string, body []byte, metadata *elastic.Elasticse
 	}
 
 	err = client.DoTimeout(req, res, timeout)
+
 	if err != nil {
 		return nil, err
 	}

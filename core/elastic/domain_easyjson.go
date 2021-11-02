@@ -7,6 +7,7 @@ import (
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
+	time "time"
 )
 
 // suppress unused package warning
@@ -689,8 +690,6 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic4(in *jlexer.Lexer, out *
 			out.Version = string(in.UnsafeString())
 		case "http":
 			easyjson3e1fa5ecDecode1(in, &out.Http)
-		case "total_indexing_buffer":
-			out.TotalIndexingBuffer = int64(in.Int64())
 		case "attributes":
 			if in.IsNull() {
 				in.Skip()
@@ -740,6 +739,248 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic4(in *jlexer.Lexer, out *
 				}
 				in.Delim(']')
 			}
+		case "transport_address":
+			out.TransportAddress = string(in.String())
+		case "host":
+			out.Host = string(in.String())
+		case "ip":
+			out.Ip = string(in.String())
+		case "build_flavor":
+			out.BuildFlavor = string(in.String())
+		case "build_type":
+			out.BuildType = string(in.String())
+		case "build_hash":
+			out.BuildHash = string(in.String())
+		case "total_indexing_buffer":
+			out.TotalIndexingBuffer = int64(in.Int64())
+		case "settings":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Settings = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v13 interface{}
+					if m, ok := v13.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v13.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v13 = in.Interface()
+					}
+					(out.Settings)[key] = v13
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "os":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Os = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v14 interface{}
+					if m, ok := v14.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v14.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v14 = in.Interface()
+					}
+					(out.Os)[key] = v14
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "process":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Process = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v15 interface{}
+					if m, ok := v15.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v15.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v15 = in.Interface()
+					}
+					(out.Process)[key] = v15
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "jvm":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Jvm = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v16 interface{}
+					if m, ok := v16.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v16.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v16 = in.Interface()
+					}
+					(out.Jvm)[key] = v16
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "thread_pool":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.ThreadPool = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v17 interface{}
+					if m, ok := v17.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v17.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v17 = in.Interface()
+					}
+					(out.ThreadPool)[key] = v17
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "transport":
+			easyjson3e1fa5ecDecode2(in, &out.Transport)
+		case "plugins":
+			if in.IsNull() {
+				in.Skip()
+				out.Plugins = nil
+			} else {
+				in.Delim('[')
+				if out.Plugins == nil {
+					if !in.IsDelim(']') {
+						out.Plugins = make([]interface{}, 0, 4)
+					} else {
+						out.Plugins = []interface{}{}
+					}
+				} else {
+					out.Plugins = (out.Plugins)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v18 interface{}
+					if m, ok := v18.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v18.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v18 = in.Interface()
+					}
+					out.Plugins = append(out.Plugins, v18)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "modules":
+			if in.IsNull() {
+				in.Skip()
+				out.Modules = nil
+			} else {
+				in.Delim('[')
+				if out.Modules == nil {
+					if !in.IsDelim(']') {
+						out.Modules = make([]map[string]interface{}, 0, 8)
+					} else {
+						out.Modules = []map[string]interface{}{}
+					}
+				} else {
+					out.Modules = (out.Modules)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v19 map[string]interface{}
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						in.Delim('{')
+						v19 = make(map[string]interface{})
+						for !in.IsDelim('}') {
+							key := string(in.String())
+							in.WantColon()
+							var v20 interface{}
+							if m, ok := v20.(easyjson.Unmarshaler); ok {
+								m.UnmarshalEasyJSON(in)
+							} else if m, ok := v20.(json.Unmarshaler); ok {
+								_ = m.UnmarshalJSON(in.Raw())
+							} else {
+								v20 = in.Interface()
+							}
+							(v19)[key] = v20
+							in.WantComma()
+						}
+						in.Delim('}')
+					}
+					out.Modules = append(out.Modules, v19)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "ingest":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Ingest = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v21 interface{}
+					if m, ok := v21.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v21.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v21 = in.Interface()
+					}
+					(out.Ingest)[key] = v21
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		case "aggregations":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Aggregations = make(map[string]interface{})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v22 interface{}
+					if m, ok := v22.(easyjson.Unmarshaler); ok {
+						m.UnmarshalEasyJSON(in)
+					} else if m, ok := v22.(json.Unmarshaler); ok {
+						_ = m.UnmarshalJSON(in.Raw())
+					} else {
+						v22 = in.Interface()
+					}
+					(out.Aggregations)[key] = v22
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -780,16 +1021,6 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic4(out *jwriter.Writer, in
 		}
 		easyjson3e1fa5ecEncode1(out, in.Http)
 	}
-	if in.TotalIndexingBuffer != 0 {
-		const prefix string = ",\"total_indexing_buffer\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Int64(int64(in.TotalIndexingBuffer))
-	}
 	if len(in.Attributes) != 0 {
 		const prefix string = ",\"attributes\":"
 		if first {
@@ -800,21 +1031,21 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic4(out *jwriter.Writer, in
 		}
 		{
 			out.RawByte('{')
-			v13First := true
-			for v13Name, v13Value := range in.Attributes {
-				if v13First {
-					v13First = false
+			v23First := true
+			for v23Name, v23Value := range in.Attributes {
+				if v23First {
+					v23First = false
 				} else {
 					out.RawByte(',')
 				}
-				out.String(string(v13Name))
+				out.String(string(v23Name))
 				out.RawByte(':')
-				if m, ok := v13Value.(easyjson.Marshaler); ok {
+				if m, ok := v23Value.(easyjson.Marshaler); ok {
 					m.MarshalEasyJSON(out)
-				} else if m, ok := v13Value.(json.Marshaler); ok {
+				} else if m, ok := v23Value.(json.Marshaler); ok {
 					out.Raw(m.MarshalJSON())
 				} else {
-					out.Raw(json.Marshal(v13Value))
+					out.Raw(json.Marshal(v23Value))
 				}
 			}
 			out.RawByte('}')
@@ -830,13 +1061,307 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic4(out *jwriter.Writer, in
 		}
 		{
 			out.RawByte('[')
-			for v14, v15 := range in.Roles {
-				if v14 > 0 {
+			for v24, v25 := range in.Roles {
+				if v24 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v15))
+				out.String(string(v25))
 			}
 			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"transport_address\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.TransportAddress))
+	}
+	{
+		const prefix string = ",\"host\":"
+		out.RawString(prefix)
+		out.String(string(in.Host))
+	}
+	{
+		const prefix string = ",\"ip\":"
+		out.RawString(prefix)
+		out.String(string(in.Ip))
+	}
+	{
+		const prefix string = ",\"build_flavor\":"
+		out.RawString(prefix)
+		out.String(string(in.BuildFlavor))
+	}
+	{
+		const prefix string = ",\"build_type\":"
+		out.RawString(prefix)
+		out.String(string(in.BuildType))
+	}
+	{
+		const prefix string = ",\"build_hash\":"
+		out.RawString(prefix)
+		out.String(string(in.BuildHash))
+	}
+	if in.TotalIndexingBuffer != 0 {
+		const prefix string = ",\"total_indexing_buffer\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.TotalIndexingBuffer))
+	}
+	{
+		const prefix string = ",\"settings\":"
+		out.RawString(prefix)
+		if in.Settings == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v26First := true
+			for v26Name, v26Value := range in.Settings {
+				if v26First {
+					v26First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v26Name))
+				out.RawByte(':')
+				if m, ok := v26Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v26Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v26Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"os\":"
+		out.RawString(prefix)
+		if in.Os == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v27First := true
+			for v27Name, v27Value := range in.Os {
+				if v27First {
+					v27First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v27Name))
+				out.RawByte(':')
+				if m, ok := v27Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v27Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v27Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"process\":"
+		out.RawString(prefix)
+		if in.Process == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v28First := true
+			for v28Name, v28Value := range in.Process {
+				if v28First {
+					v28First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v28Name))
+				out.RawByte(':')
+				if m, ok := v28Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v28Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v28Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"jvm\":"
+		out.RawString(prefix)
+		if in.Jvm == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v29First := true
+			for v29Name, v29Value := range in.Jvm {
+				if v29First {
+					v29First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v29Name))
+				out.RawByte(':')
+				if m, ok := v29Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v29Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v29Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"thread_pool\":"
+		out.RawString(prefix)
+		if in.ThreadPool == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v30First := true
+			for v30Name, v30Value := range in.ThreadPool {
+				if v30First {
+					v30First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v30Name))
+				out.RawByte(':')
+				if m, ok := v30Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v30Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v30Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"transport\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncode2(out, in.Transport)
+	}
+	{
+		const prefix string = ",\"plugins\":"
+		out.RawString(prefix)
+		if in.Plugins == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v31, v32 := range in.Plugins {
+				if v31 > 0 {
+					out.RawByte(',')
+				}
+				if m, ok := v32.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v32.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v32))
+				}
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"modules\":"
+		out.RawString(prefix)
+		if in.Modules == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v33, v34 := range in.Modules {
+				if v33 > 0 {
+					out.RawByte(',')
+				}
+				if v34 == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+					out.RawString(`null`)
+				} else {
+					out.RawByte('{')
+					v35First := true
+					for v35Name, v35Value := range v34 {
+						if v35First {
+							v35First = false
+						} else {
+							out.RawByte(',')
+						}
+						out.String(string(v35Name))
+						out.RawByte(':')
+						if m, ok := v35Value.(easyjson.Marshaler); ok {
+							m.MarshalEasyJSON(out)
+						} else if m, ok := v35Value.(json.Marshaler); ok {
+							out.Raw(m.MarshalJSON())
+						} else {
+							out.Raw(json.Marshal(v35Value))
+						}
+					}
+					out.RawByte('}')
+				}
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"ingest\":"
+		out.RawString(prefix)
+		if in.Ingest == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v36First := true
+			for v36Name, v36Value := range in.Ingest {
+				if v36First {
+					v36First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v36Name))
+				out.RawByte(':')
+				if m, ok := v36Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v36Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v36Value))
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	{
+		const prefix string = ",\"aggregations\":"
+		out.RawString(prefix)
+		if in.Aggregations == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v37First := true
+			for v37Name, v37Value := range in.Aggregations {
+				if v37First {
+					v37First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v37Name))
+				out.RawByte(':')
+				if m, ok := v37Value.(easyjson.Marshaler); ok {
+					m.MarshalEasyJSON(out)
+				} else if m, ok := v37Value.(json.Marshaler); ok {
+					out.Raw(m.MarshalJSON())
+				} else {
+					out.Raw(json.Marshal(v37Value))
+				}
+			}
+			out.RawByte('}')
 		}
 	}
 	out.RawByte('}')
@@ -865,9 +1390,10 @@ func (v *NodesInfo) UnmarshalJSON(data []byte) error {
 func (v *NodesInfo) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic4(l, v)
 }
-func easyjson3e1fa5ecDecode1(in *jlexer.Lexer, out *struct {
-	PublishAddress          string `json:"publish_address,omitempty"`
-	MaxContentLengthInBytes int64  `json:"max_content_length_in_bytes,omitempty"`
+func easyjson3e1fa5ecDecode2(in *jlexer.Lexer, out *struct {
+	BoundAddress   []string `json:"bound_address"`
+	PublishAddress string   `json:"publish_address"`
+	Profiles       struct{} `json:"profiles"`
 }) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
@@ -887,6 +1413,160 @@ func easyjson3e1fa5ecDecode1(in *jlexer.Lexer, out *struct {
 			continue
 		}
 		switch key {
+		case "bound_address":
+			if in.IsNull() {
+				in.Skip()
+				out.BoundAddress = nil
+			} else {
+				in.Delim('[')
+				if out.BoundAddress == nil {
+					if !in.IsDelim(']') {
+						out.BoundAddress = make([]string, 0, 4)
+					} else {
+						out.BoundAddress = []string{}
+					}
+				} else {
+					out.BoundAddress = (out.BoundAddress)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v38 string
+					v38 = string(in.String())
+					out.BoundAddress = append(out.BoundAddress, v38)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "publish_address":
+			out.PublishAddress = string(in.String())
+		case "profiles":
+			easyjson3e1fa5ecDecode3(in, &out.Profiles)
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode2(out *jwriter.Writer, in struct {
+	BoundAddress   []string `json:"bound_address"`
+	PublishAddress string   `json:"publish_address"`
+	Profiles       struct{} `json:"profiles"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"bound_address\":"
+		out.RawString(prefix[1:])
+		if in.BoundAddress == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v39, v40 := range in.BoundAddress {
+				if v39 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v40))
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"publish_address\":"
+		out.RawString(prefix)
+		out.String(string(in.PublishAddress))
+	}
+	{
+		const prefix string = ",\"profiles\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncode3(out, in.Profiles)
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode3(in *jlexer.Lexer, out *struct{}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode3(out *jwriter.Writer, in struct{}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode1(in *jlexer.Lexer, out *struct {
+	BoundAddress            []string `json:"bound_address"`
+	PublishAddress          string   `json:"publish_address,omitempty"`
+	MaxContentLengthInBytes int64    `json:"max_content_length_in_bytes,omitempty"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "bound_address":
+			if in.IsNull() {
+				in.Skip()
+				out.BoundAddress = nil
+			} else {
+				in.Delim('[')
+				if out.BoundAddress == nil {
+					if !in.IsDelim(']') {
+						out.BoundAddress = make([]string, 0, 4)
+					} else {
+						out.BoundAddress = []string{}
+					}
+				} else {
+					out.BoundAddress = (out.BoundAddress)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v41 string
+					v41 = string(in.String())
+					out.BoundAddress = append(out.BoundAddress, v41)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		case "publish_address":
 			out.PublishAddress = string(in.String())
 		case "max_content_length_in_bytes":
@@ -902,26 +1582,37 @@ func easyjson3e1fa5ecDecode1(in *jlexer.Lexer, out *struct {
 	}
 }
 func easyjson3e1fa5ecEncode1(out *jwriter.Writer, in struct {
-	PublishAddress          string `json:"publish_address,omitempty"`
-	MaxContentLengthInBytes int64  `json:"max_content_length_in_bytes,omitempty"`
+	BoundAddress            []string `json:"bound_address"`
+	PublishAddress          string   `json:"publish_address,omitempty"`
+	MaxContentLengthInBytes int64    `json:"max_content_length_in_bytes,omitempty"`
 }) {
 	out.RawByte('{')
 	first := true
 	_ = first
+	{
+		const prefix string = ",\"bound_address\":"
+		out.RawString(prefix[1:])
+		if in.BoundAddress == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v42, v43 := range in.BoundAddress {
+				if v42 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v43))
+			}
+			out.RawByte(']')
+		}
+	}
 	if in.PublishAddress != "" {
 		const prefix string = ",\"publish_address\":"
-		first = false
-		out.RawString(prefix[1:])
+		out.RawString(prefix)
 		out.String(string(in.PublishAddress))
 	}
 	if in.MaxContentLengthInBytes != 0 {
 		const prefix string = ",\"max_content_length_in_bytes\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Int64(int64(in.MaxContentLengthInBytes))
 	}
 	out.RawByte('}')
@@ -1012,7 +1703,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic6(in *jlexer.Lexer, out *
 		}
 		switch key {
 		case "_all":
-			easyjson3e1fa5ecDecode2(in, &out.All)
+			easyjson3e1fa5ecDecode4(in, &out.All)
 		default:
 			in.SkipRecursive()
 		}
@@ -1030,7 +1721,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic6(out *jwriter.Writer, in
 	{
 		const prefix string = ",\"_all\":"
 		out.RawString(prefix[1:])
-		easyjson3e1fa5ecEncode2(out, in.All)
+		easyjson3e1fa5ecEncode4(out, in.All)
 	}
 	out.RawByte('}')
 }
@@ -1058,7 +1749,7 @@ func (v *IndexStats) UnmarshalJSON(data []byte) error {
 func (v *IndexStats) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic6(l, v)
 }
-func easyjson3e1fa5ecDecode2(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode4(in *jlexer.Lexer, out *struct {
 	Primary struct {
 		Store struct {
 			SizeInBytes int64 `json:"size_in_bytes"`
@@ -1090,7 +1781,7 @@ func easyjson3e1fa5ecDecode2(in *jlexer.Lexer, out *struct {
 		}
 		switch key {
 		case "primaries":
-			easyjson3e1fa5ecDecode3(in, &out.Primary)
+			easyjson3e1fa5ecDecode5(in, &out.Primary)
 		default:
 			in.SkipRecursive()
 		}
@@ -1101,7 +1792,7 @@ func easyjson3e1fa5ecDecode2(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode2(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode4(out *jwriter.Writer, in struct {
 	Primary struct {
 		Store struct {
 			SizeInBytes int64 `json:"size_in_bytes"`
@@ -1120,11 +1811,11 @@ func easyjson3e1fa5ecEncode2(out *jwriter.Writer, in struct {
 	{
 		const prefix string = ",\"primaries\":"
 		out.RawString(prefix[1:])
-		easyjson3e1fa5ecEncode3(out, in.Primary)
+		easyjson3e1fa5ecEncode5(out, in.Primary)
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode3(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode5(in *jlexer.Lexer, out *struct {
 	Store struct {
 		SizeInBytes int64 `json:"size_in_bytes"`
 	} `json:"store"`
@@ -1154,11 +1845,11 @@ func easyjson3e1fa5ecDecode3(in *jlexer.Lexer, out *struct {
 		}
 		switch key {
 		case "store":
-			easyjson3e1fa5ecDecode4(in, &out.Store)
+			easyjson3e1fa5ecDecode6(in, &out.Store)
 		case "segments":
-			easyjson3e1fa5ecDecode5(in, &out.Segments)
+			easyjson3e1fa5ecDecode7(in, &out.Segments)
 		case "merges":
-			easyjson3e1fa5ecDecode6(in, &out.Merges)
+			easyjson3e1fa5ecDecode8(in, &out.Merges)
 		default:
 			in.SkipRecursive()
 		}
@@ -1169,7 +1860,7 @@ func easyjson3e1fa5ecDecode3(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode3(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode5(out *jwriter.Writer, in struct {
 	Store struct {
 		SizeInBytes int64 `json:"size_in_bytes"`
 	} `json:"store"`
@@ -1186,21 +1877,21 @@ func easyjson3e1fa5ecEncode3(out *jwriter.Writer, in struct {
 	{
 		const prefix string = ",\"store\":"
 		out.RawString(prefix[1:])
-		easyjson3e1fa5ecEncode4(out, in.Store)
+		easyjson3e1fa5ecEncode6(out, in.Store)
 	}
 	{
 		const prefix string = ",\"segments\":"
 		out.RawString(prefix)
-		easyjson3e1fa5ecEncode5(out, in.Segments)
+		easyjson3e1fa5ecEncode7(out, in.Segments)
 	}
 	{
 		const prefix string = ",\"merges\":"
 		out.RawString(prefix)
-		easyjson3e1fa5ecEncode6(out, in.Merges)
+		easyjson3e1fa5ecEncode8(out, in.Merges)
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode6(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode8(in *jlexer.Lexer, out *struct {
 	Current int `json:"current"`
 }) {
 	isTopLevel := in.IsStart()
@@ -1233,7 +1924,7 @@ func easyjson3e1fa5ecDecode6(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode6(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode8(out *jwriter.Writer, in struct {
 	Current int `json:"current"`
 }) {
 	out.RawByte('{')
@@ -1246,7 +1937,7 @@ func easyjson3e1fa5ecEncode6(out *jwriter.Writer, in struct {
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode5(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode7(in *jlexer.Lexer, out *struct {
 	Count int `json:"count"`
 }) {
 	isTopLevel := in.IsStart()
@@ -1279,7 +1970,7 @@ func easyjson3e1fa5ecDecode5(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode5(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode7(out *jwriter.Writer, in struct {
 	Count int `json:"count"`
 }) {
 	out.RawByte('{')
@@ -1292,7 +1983,7 @@ func easyjson3e1fa5ecEncode5(out *jwriter.Writer, in struct {
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode4(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode6(in *jlexer.Lexer, out *struct {
 	SizeInBytes int64 `json:"size_in_bytes"`
 }) {
 	isTopLevel := in.IsStart()
@@ -1325,7 +2016,7 @@ func easyjson3e1fa5ecDecode4(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode4(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode6(out *jwriter.Writer, in struct {
 	SizeInBytes int64 `json:"size_in_bytes"`
 }) {
 	out.RawByte('{')
@@ -1557,7 +2248,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic8(in *jlexer.Lexer, out *
 						Reason string `json:"reason,omitempty"`
 					})
 				}
-				easyjson3e1fa5ecDecode7(in, out.Error)
+				easyjson3e1fa5ecDecode9(in, out.Error)
 			}
 		default:
 			in.SkipRecursive()
@@ -1587,7 +2278,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic8(out *jwriter.Writer, in
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode7(out, *in.Error)
+		easyjson3e1fa5ecEncode9(out, *in.Error)
 	}
 	out.RawByte('}')
 }
@@ -1615,7 +2306,7 @@ func (v *ErrorResponse) UnmarshalJSON(data []byte) error {
 func (v *ErrorResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic8(l, v)
 }
-func easyjson3e1fa5ecDecode7(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
 	Type   string `json:"type,omitempty"`
 	Reason string `json:"reason,omitempty"`
 }) {
@@ -1651,7 +2342,7 @@ func easyjson3e1fa5ecDecode7(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode7(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode9(out *jwriter.Writer, in struct {
 	Type   string `json:"type,omitempty"`
 	Reason string `json:"reason,omitempty"`
 }) {
@@ -1705,87 +2396,127 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic9(in *jlexer.Lexer, out *
 				}
 				(*out.Config).UnmarshalEasyJSON(in)
 			}
+		case "ClusterState":
+			if in.IsNull() {
+				in.Skip()
+				out.ClusterState = nil
+			} else {
+				if out.ClusterState == nil {
+					out.ClusterState = new(ClusterState)
+				}
+				easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic10(in, out.ClusterState)
+			}
 		case "NodesTopologyVersion":
 			out.NodesTopologyVersion = int(in.Int())
-		case "IndicesChanged":
-			out.IndicesChanged = bool(in.Bool())
 		case "Nodes":
 			if in.IsNull() {
 				in.Skip()
+				out.Nodes = nil
 			} else {
-				in.Delim('{')
-				out.Nodes = make(map[string]NodesInfo)
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v16 NodesInfo
-					(v16).UnmarshalEasyJSON(in)
-					(out.Nodes)[key] = v16
-					in.WantComma()
+				if out.Nodes == nil {
+					out.Nodes = new(map[string]NodesInfo)
 				}
-				in.Delim('}')
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					in.Delim('{')
+					*out.Nodes = make(map[string]NodesInfo)
+					for !in.IsDelim('}') {
+						key := string(in.String())
+						in.WantColon()
+						var v44 NodesInfo
+						(v44).UnmarshalEasyJSON(in)
+						(*out.Nodes)[key] = v44
+						in.WantComma()
+					}
+					in.Delim('}')
+				}
 			}
 		case "Indices":
 			if in.IsNull() {
 				in.Skip()
+				out.Indices = nil
 			} else {
-				in.Delim('{')
-				out.Indices = make(map[string]IndexInfo)
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v17 IndexInfo
-					(v17).UnmarshalEasyJSON(in)
-					(out.Indices)[key] = v17
-					in.WantComma()
+				if out.Indices == nil {
+					out.Indices = new(map[string]IndexInfo)
 				}
-				in.Delim('}')
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					in.Delim('{')
+					*out.Indices = make(map[string]IndexInfo)
+					for !in.IsDelim('}') {
+						key := string(in.String())
+						in.WantColon()
+						var v45 IndexInfo
+						(v45).UnmarshalEasyJSON(in)
+						(*out.Indices)[key] = v45
+						in.WantComma()
+					}
+					in.Delim('}')
+				}
 			}
 		case "PrimaryShards":
 			if in.IsNull() {
 				in.Skip()
+				out.PrimaryShards = nil
 			} else {
-				in.Delim('{')
-				out.PrimaryShards = make(map[string]map[int]ShardInfo)
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v18 map[int]ShardInfo
-					if in.IsNull() {
-						in.Skip()
-					} else {
-						in.Delim('{')
-						v18 = make(map[int]ShardInfo)
-						for !in.IsDelim('}') {
-							key := int(in.IntStr())
-							in.WantColon()
-							var v19 ShardInfo
-							(v19).UnmarshalEasyJSON(in)
-							(v18)[key] = v19
-							in.WantComma()
-						}
-						in.Delim('}')
-					}
-					(out.PrimaryShards)[key] = v18
-					in.WantComma()
+				if out.PrimaryShards == nil {
+					out.PrimaryShards = new(map[string]map[int]ShardInfo)
 				}
-				in.Delim('}')
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					in.Delim('{')
+					*out.PrimaryShards = make(map[string]map[int]ShardInfo)
+					for !in.IsDelim('}') {
+						key := string(in.String())
+						in.WantColon()
+						var v46 map[int]ShardInfo
+						if in.IsNull() {
+							in.Skip()
+						} else {
+							in.Delim('{')
+							v46 = make(map[int]ShardInfo)
+							for !in.IsDelim('}') {
+								key := int(in.IntStr())
+								in.WantColon()
+								var v47 ShardInfo
+								(v47).UnmarshalEasyJSON(in)
+								(v46)[key] = v47
+								in.WantComma()
+							}
+							in.Delim('}')
+						}
+						(*out.PrimaryShards)[key] = v46
+						in.WantComma()
+					}
+					in.Delim('}')
+				}
 			}
 		case "Aliases":
 			if in.IsNull() {
 				in.Skip()
+				out.Aliases = nil
 			} else {
-				in.Delim('{')
-				out.Aliases = make(map[string]AliasInfo)
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v20 AliasInfo
-					(v20).UnmarshalEasyJSON(in)
-					(out.Aliases)[key] = v20
-					in.WantComma()
+				if out.Aliases == nil {
+					out.Aliases = new(map[string]AliasInfo)
 				}
-				in.Delim('}')
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					in.Delim('{')
+					*out.Aliases = make(map[string]AliasInfo)
+					for !in.IsDelim('}') {
+						key := string(in.String())
+						in.WantColon()
+						var v48 AliasInfo
+						(v48).UnmarshalEasyJSON(in)
+						(*out.Aliases)[key] = v48
+						in.WantComma()
+					}
+					in.Delim('}')
+				}
 			}
 		case "Health":
 			if in.IsNull() {
@@ -1795,7 +2526,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic9(in *jlexer.Lexer, out *
 				if out.Health == nil {
 					out.Health = new(ClusterHealth)
 				}
-				easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic10(in, out.Health)
+				easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in, out.Health)
 			}
 		default:
 			in.SkipRecursive()
@@ -1821,113 +2552,133 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic9(out *jwriter.Writer, in
 		}
 	}
 	{
+		const prefix string = ",\"ClusterState\":"
+		out.RawString(prefix)
+		if in.ClusterState == nil {
+			out.RawString("null")
+		} else {
+			easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic10(out, *in.ClusterState)
+		}
+	}
+	{
 		const prefix string = ",\"NodesTopologyVersion\":"
 		out.RawString(prefix)
 		out.Int(int(in.NodesTopologyVersion))
 	}
 	{
-		const prefix string = ",\"IndicesChanged\":"
-		out.RawString(prefix)
-		out.Bool(bool(in.IndicesChanged))
-	}
-	{
 		const prefix string = ",\"Nodes\":"
 		out.RawString(prefix)
-		if in.Nodes == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
+		if in.Nodes == nil {
+			out.RawString("null")
 		} else {
-			out.RawByte('{')
-			v21First := true
-			for v21Name, v21Value := range in.Nodes {
-				if v21First {
-					v21First = false
-				} else {
-					out.RawByte(',')
+			if *in.Nodes == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+				out.RawString(`null`)
+			} else {
+				out.RawByte('{')
+				v49First := true
+				for v49Name, v49Value := range *in.Nodes {
+					if v49First {
+						v49First = false
+					} else {
+						out.RawByte(',')
+					}
+					out.String(string(v49Name))
+					out.RawByte(':')
+					(v49Value).MarshalEasyJSON(out)
 				}
-				out.String(string(v21Name))
-				out.RawByte(':')
-				(v21Value).MarshalEasyJSON(out)
+				out.RawByte('}')
 			}
-			out.RawByte('}')
 		}
 	}
 	{
 		const prefix string = ",\"Indices\":"
 		out.RawString(prefix)
-		if in.Indices == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
+		if in.Indices == nil {
+			out.RawString("null")
 		} else {
-			out.RawByte('{')
-			v22First := true
-			for v22Name, v22Value := range in.Indices {
-				if v22First {
-					v22First = false
-				} else {
-					out.RawByte(',')
+			if *in.Indices == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+				out.RawString(`null`)
+			} else {
+				out.RawByte('{')
+				v50First := true
+				for v50Name, v50Value := range *in.Indices {
+					if v50First {
+						v50First = false
+					} else {
+						out.RawByte(',')
+					}
+					out.String(string(v50Name))
+					out.RawByte(':')
+					(v50Value).MarshalEasyJSON(out)
 				}
-				out.String(string(v22Name))
-				out.RawByte(':')
-				(v22Value).MarshalEasyJSON(out)
+				out.RawByte('}')
 			}
-			out.RawByte('}')
 		}
 	}
 	{
 		const prefix string = ",\"PrimaryShards\":"
 		out.RawString(prefix)
-		if in.PrimaryShards == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
+		if in.PrimaryShards == nil {
+			out.RawString("null")
 		} else {
-			out.RawByte('{')
-			v23First := true
-			for v23Name, v23Value := range in.PrimaryShards {
-				if v23First {
-					v23First = false
-				} else {
-					out.RawByte(',')
-				}
-				out.String(string(v23Name))
-				out.RawByte(':')
-				if v23Value == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-					out.RawString(`null`)
-				} else {
-					out.RawByte('{')
-					v24First := true
-					for v24Name, v24Value := range v23Value {
-						if v24First {
-							v24First = false
-						} else {
-							out.RawByte(',')
-						}
-						out.IntStr(int(v24Name))
-						out.RawByte(':')
-						(v24Value).MarshalEasyJSON(out)
+			if *in.PrimaryShards == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+				out.RawString(`null`)
+			} else {
+				out.RawByte('{')
+				v51First := true
+				for v51Name, v51Value := range *in.PrimaryShards {
+					if v51First {
+						v51First = false
+					} else {
+						out.RawByte(',')
 					}
-					out.RawByte('}')
+					out.String(string(v51Name))
+					out.RawByte(':')
+					if v51Value == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+						out.RawString(`null`)
+					} else {
+						out.RawByte('{')
+						v52First := true
+						for v52Name, v52Value := range v51Value {
+							if v52First {
+								v52First = false
+							} else {
+								out.RawByte(',')
+							}
+							out.IntStr(int(v52Name))
+							out.RawByte(':')
+							(v52Value).MarshalEasyJSON(out)
+						}
+						out.RawByte('}')
+					}
 				}
+				out.RawByte('}')
 			}
-			out.RawByte('}')
 		}
 	}
 	{
 		const prefix string = ",\"Aliases\":"
 		out.RawString(prefix)
-		if in.Aliases == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
+		if in.Aliases == nil {
+			out.RawString("null")
 		} else {
-			out.RawByte('{')
-			v25First := true
-			for v25Name, v25Value := range in.Aliases {
-				if v25First {
-					v25First = false
-				} else {
-					out.RawByte(',')
+			if *in.Aliases == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+				out.RawString(`null`)
+			} else {
+				out.RawByte('{')
+				v53First := true
+				for v53Name, v53Value := range *in.Aliases {
+					if v53First {
+						v53First = false
+					} else {
+						out.RawByte(',')
+					}
+					out.String(string(v53Name))
+					out.RawByte(':')
+					(v53Value).MarshalEasyJSON(out)
 				}
-				out.String(string(v25Name))
-				out.RawByte(':')
-				(v25Value).MarshalEasyJSON(out)
+				out.RawByte('}')
 			}
-			out.RawByte('}')
 		}
 	}
 	{
@@ -1936,7 +2687,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic9(out *jwriter.Writer, in
 		if in.Health == nil {
 			out.RawString("null")
 		} else {
-			easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic10(out, *in.Health)
+			easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out, *in.Health)
 		}
 	}
 	out.RawByte('}')
@@ -1965,7 +2716,7 @@ func (v *ElasticsearchMetadata) UnmarshalJSON(data []byte) error {
 func (v *ElasticsearchMetadata) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic9(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic10(in *jlexer.Lexer, out *ClusterHealth) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out *ClusterHealth) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2024,7 +2775,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic10(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic10(out *jwriter.Writer, in ClusterHealth) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, in ClusterHealth) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2105,7 +2856,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic10(out *jwriter.Writer, i
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out *ElasticsearchConfig) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic10(in *jlexer.Lexer, out *ClusterState) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2124,6 +2875,816 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 			continue
 		}
 		switch key {
+		case "cluster_name":
+			out.ClusterName = string(in.String())
+		case "version":
+			out.Version = int64(in.Int64())
+		case "state_uuid":
+			out.StateUUID = string(in.String())
+		case "master_node":
+			out.MasterNode = string(in.String())
+		case "routing_table":
+			if in.IsNull() {
+				in.Skip()
+				out.RoutingTable = nil
+			} else {
+				if out.RoutingTable == nil {
+					out.RoutingTable = new(ClusterRoutingTable)
+				}
+				easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(in, out.RoutingTable)
+			}
+		case "compressed_size_in_bytes":
+			out.CompressedSizeInBytes = int(in.Int())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic10(out *jwriter.Writer, in ClusterState) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"cluster_name\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.ClusterName))
+	}
+	{
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.Version))
+	}
+	{
+		const prefix string = ",\"state_uuid\":"
+		out.RawString(prefix)
+		out.String(string(in.StateUUID))
+	}
+	{
+		const prefix string = ",\"master_node\":"
+		out.RawString(prefix)
+		out.String(string(in.MasterNode))
+	}
+	if in.RoutingTable != nil {
+		const prefix string = ",\"routing_table\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(out, *in.RoutingTable)
+	}
+	{
+		const prefix string = ",\"compressed_size_in_bytes\":"
+		out.RawString(prefix)
+		out.Int(int(in.CompressedSizeInBytes))
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(in *jlexer.Lexer, out *ClusterRoutingTable) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "indices":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Indices = make(map[string]struct {
+					Shards map[string][]struct {
+						State          string      `json:"state"`
+						Primary        bool        `json:"primary"`
+						Node           string      `json:"node"`
+						RelocatingNode interface{} `json:"relocating_node,omitempty"`
+						Shard          int         `json:"shard"`
+						Index          string      `json:"index"`
+						Version        int         `json:"version"`
+						RecoverySource *struct {
+							Type string `json:"type"`
+						} `json:"recovery_source,omitempty"`
+						UnassignedInfo *struct {
+							Reason           string    `json:"reason"`
+							At               time.Time `json:"at"`
+							Delayed          bool      `json:"delayed"`
+							AllocationStatus string    `json:"allocation_status"`
+						} `json:"unassigned_info,omitempty"`
+						AllocationId *struct {
+							Id string `json:"id"`
+						} `json:"allocation_id,omitempty"`
+					} `json:"shards"`
+				})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v54 struct {
+						Shards map[string][]struct {
+							State          string      `json:"state"`
+							Primary        bool        `json:"primary"`
+							Node           string      `json:"node"`
+							RelocatingNode interface{} `json:"relocating_node,omitempty"`
+							Shard          int         `json:"shard"`
+							Index          string      `json:"index"`
+							Version        int         `json:"version"`
+							RecoverySource *struct {
+								Type string `json:"type"`
+							} `json:"recovery_source,omitempty"`
+							UnassignedInfo *struct {
+								Reason           string    `json:"reason"`
+								At               time.Time `json:"at"`
+								Delayed          bool      `json:"delayed"`
+								AllocationStatus string    `json:"allocation_status"`
+							} `json:"unassigned_info,omitempty"`
+							AllocationId *struct {
+								Id string `json:"id"`
+							} `json:"allocation_id,omitempty"`
+						} `json:"shards"`
+					}
+					easyjson3e1fa5ecDecode10(in, &v54)
+					(out.Indices)[key] = v54
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(out *jwriter.Writer, in ClusterRoutingTable) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"indices\":"
+		out.RawString(prefix[1:])
+		if in.Indices == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v55First := true
+			for v55Name, v55Value := range in.Indices {
+				if v55First {
+					v55First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v55Name))
+				out.RawByte(':')
+				easyjson3e1fa5ecEncode10(out, v55Value)
+			}
+			out.RawByte('}')
+		}
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode10(in *jlexer.Lexer, out *struct {
+	Shards map[string][]struct {
+		State          string      `json:"state"`
+		Primary        bool        `json:"primary"`
+		Node           string      `json:"node"`
+		RelocatingNode interface{} `json:"relocating_node,omitempty"`
+		Shard          int         `json:"shard"`
+		Index          string      `json:"index"`
+		Version        int         `json:"version"`
+		RecoverySource *struct {
+			Type string `json:"type"`
+		} `json:"recovery_source,omitempty"`
+		UnassignedInfo *struct {
+			Reason           string    `json:"reason"`
+			At               time.Time `json:"at"`
+			Delayed          bool      `json:"delayed"`
+			AllocationStatus string    `json:"allocation_status"`
+		} `json:"unassigned_info,omitempty"`
+		AllocationId *struct {
+			Id string `json:"id"`
+		} `json:"allocation_id,omitempty"`
+	} `json:"shards"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "shards":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				in.Delim('{')
+				out.Shards = make(map[string][]struct {
+					State          string      `json:"state"`
+					Primary        bool        `json:"primary"`
+					Node           string      `json:"node"`
+					RelocatingNode interface{} `json:"relocating_node,omitempty"`
+					Shard          int         `json:"shard"`
+					Index          string      `json:"index"`
+					Version        int         `json:"version"`
+					RecoverySource *struct {
+						Type string `json:"type"`
+					} `json:"recovery_source,omitempty"`
+					UnassignedInfo *struct {
+						Reason           string    `json:"reason"`
+						At               time.Time `json:"at"`
+						Delayed          bool      `json:"delayed"`
+						AllocationStatus string    `json:"allocation_status"`
+					} `json:"unassigned_info,omitempty"`
+					AllocationId *struct {
+						Id string `json:"id"`
+					} `json:"allocation_id,omitempty"`
+				})
+				for !in.IsDelim('}') {
+					key := string(in.String())
+					in.WantColon()
+					var v56 []struct {
+						State          string      `json:"state"`
+						Primary        bool        `json:"primary"`
+						Node           string      `json:"node"`
+						RelocatingNode interface{} `json:"relocating_node,omitempty"`
+						Shard          int         `json:"shard"`
+						Index          string      `json:"index"`
+						Version        int         `json:"version"`
+						RecoverySource *struct {
+							Type string `json:"type"`
+						} `json:"recovery_source,omitempty"`
+						UnassignedInfo *struct {
+							Reason           string    `json:"reason"`
+							At               time.Time `json:"at"`
+							Delayed          bool      `json:"delayed"`
+							AllocationStatus string    `json:"allocation_status"`
+						} `json:"unassigned_info,omitempty"`
+						AllocationId *struct {
+							Id string `json:"id"`
+						} `json:"allocation_id,omitempty"`
+					}
+					if in.IsNull() {
+						in.Skip()
+						v56 = nil
+					} else {
+						in.Delim('[')
+						if v56 == nil {
+							if !in.IsDelim(']') {
+								v56 = make([]struct {
+									State          string      `json:"state"`
+									Primary        bool        `json:"primary"`
+									Node           string      `json:"node"`
+									RelocatingNode interface{} `json:"relocating_node,omitempty"`
+									Shard          int         `json:"shard"`
+									Index          string      `json:"index"`
+									Version        int         `json:"version"`
+									RecoverySource *struct {
+										Type string `json:"type"`
+									} `json:"recovery_source,omitempty"`
+									UnassignedInfo *struct {
+										Reason           string    `json:"reason"`
+										At               time.Time `json:"at"`
+										Delayed          bool      `json:"delayed"`
+										AllocationStatus string    `json:"allocation_status"`
+									} `json:"unassigned_info,omitempty"`
+									AllocationId *struct {
+										Id string `json:"id"`
+									} `json:"allocation_id,omitempty"`
+								}, 0, 0)
+							} else {
+								v56 = []struct {
+									State          string      `json:"state"`
+									Primary        bool        `json:"primary"`
+									Node           string      `json:"node"`
+									RelocatingNode interface{} `json:"relocating_node,omitempty"`
+									Shard          int         `json:"shard"`
+									Index          string      `json:"index"`
+									Version        int         `json:"version"`
+									RecoverySource *struct {
+										Type string `json:"type"`
+									} `json:"recovery_source,omitempty"`
+									UnassignedInfo *struct {
+										Reason           string    `json:"reason"`
+										At               time.Time `json:"at"`
+										Delayed          bool      `json:"delayed"`
+										AllocationStatus string    `json:"allocation_status"`
+									} `json:"unassigned_info,omitempty"`
+									AllocationId *struct {
+										Id string `json:"id"`
+									} `json:"allocation_id,omitempty"`
+								}{}
+							}
+						} else {
+							v56 = (v56)[:0]
+						}
+						for !in.IsDelim(']') {
+							var v57 struct {
+								State          string      `json:"state"`
+								Primary        bool        `json:"primary"`
+								Node           string      `json:"node"`
+								RelocatingNode interface{} `json:"relocating_node,omitempty"`
+								Shard          int         `json:"shard"`
+								Index          string      `json:"index"`
+								Version        int         `json:"version"`
+								RecoverySource *struct {
+									Type string `json:"type"`
+								} `json:"recovery_source,omitempty"`
+								UnassignedInfo *struct {
+									Reason           string    `json:"reason"`
+									At               time.Time `json:"at"`
+									Delayed          bool      `json:"delayed"`
+									AllocationStatus string    `json:"allocation_status"`
+								} `json:"unassigned_info,omitempty"`
+								AllocationId *struct {
+									Id string `json:"id"`
+								} `json:"allocation_id,omitempty"`
+							}
+							easyjson3e1fa5ecDecode11(in, &v57)
+							v56 = append(v56, v57)
+							in.WantComma()
+						}
+						in.Delim(']')
+					}
+					(out.Shards)[key] = v56
+					in.WantComma()
+				}
+				in.Delim('}')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode10(out *jwriter.Writer, in struct {
+	Shards map[string][]struct {
+		State          string      `json:"state"`
+		Primary        bool        `json:"primary"`
+		Node           string      `json:"node"`
+		RelocatingNode interface{} `json:"relocating_node,omitempty"`
+		Shard          int         `json:"shard"`
+		Index          string      `json:"index"`
+		Version        int         `json:"version"`
+		RecoverySource *struct {
+			Type string `json:"type"`
+		} `json:"recovery_source,omitempty"`
+		UnassignedInfo *struct {
+			Reason           string    `json:"reason"`
+			At               time.Time `json:"at"`
+			Delayed          bool      `json:"delayed"`
+			AllocationStatus string    `json:"allocation_status"`
+		} `json:"unassigned_info,omitempty"`
+		AllocationId *struct {
+			Id string `json:"id"`
+		} `json:"allocation_id,omitempty"`
+	} `json:"shards"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"shards\":"
+		out.RawString(prefix[1:])
+		if in.Shards == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+			out.RawString(`null`)
+		} else {
+			out.RawByte('{')
+			v58First := true
+			for v58Name, v58Value := range in.Shards {
+				if v58First {
+					v58First = false
+				} else {
+					out.RawByte(',')
+				}
+				out.String(string(v58Name))
+				out.RawByte(':')
+				if v58Value == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+					out.RawString("null")
+				} else {
+					out.RawByte('[')
+					for v59, v60 := range v58Value {
+						if v59 > 0 {
+							out.RawByte(',')
+						}
+						easyjson3e1fa5ecEncode11(out, v60)
+					}
+					out.RawByte(']')
+				}
+			}
+			out.RawByte('}')
+		}
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode11(in *jlexer.Lexer, out *struct {
+	State          string      `json:"state"`
+	Primary        bool        `json:"primary"`
+	Node           string      `json:"node"`
+	RelocatingNode interface{} `json:"relocating_node,omitempty"`
+	Shard          int         `json:"shard"`
+	Index          string      `json:"index"`
+	Version        int         `json:"version"`
+	RecoverySource *struct {
+		Type string `json:"type"`
+	} `json:"recovery_source,omitempty"`
+	UnassignedInfo *struct {
+		Reason           string    `json:"reason"`
+		At               time.Time `json:"at"`
+		Delayed          bool      `json:"delayed"`
+		AllocationStatus string    `json:"allocation_status"`
+	} `json:"unassigned_info,omitempty"`
+	AllocationId *struct {
+		Id string `json:"id"`
+	} `json:"allocation_id,omitempty"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "state":
+			out.State = string(in.String())
+		case "primary":
+			out.Primary = bool(in.Bool())
+		case "node":
+			out.Node = string(in.String())
+		case "relocating_node":
+			if m, ok := out.RelocatingNode.(easyjson.Unmarshaler); ok {
+				m.UnmarshalEasyJSON(in)
+			} else if m, ok := out.RelocatingNode.(json.Unmarshaler); ok {
+				_ = m.UnmarshalJSON(in.Raw())
+			} else {
+				out.RelocatingNode = in.Interface()
+			}
+		case "shard":
+			out.Shard = int(in.Int())
+		case "index":
+			out.Index = string(in.String())
+		case "version":
+			out.Version = int(in.Int())
+		case "recovery_source":
+			if in.IsNull() {
+				in.Skip()
+				out.RecoverySource = nil
+			} else {
+				if out.RecoverySource == nil {
+					out.RecoverySource = new(struct {
+						Type string `json:"type"`
+					})
+				}
+				easyjson3e1fa5ecDecode12(in, out.RecoverySource)
+			}
+		case "unassigned_info":
+			if in.IsNull() {
+				in.Skip()
+				out.UnassignedInfo = nil
+			} else {
+				if out.UnassignedInfo == nil {
+					out.UnassignedInfo = new(struct {
+						Reason           string    `json:"reason"`
+						At               time.Time `json:"at"`
+						Delayed          bool      `json:"delayed"`
+						AllocationStatus string    `json:"allocation_status"`
+					})
+				}
+				easyjson3e1fa5ecDecode13(in, out.UnassignedInfo)
+			}
+		case "allocation_id":
+			if in.IsNull() {
+				in.Skip()
+				out.AllocationId = nil
+			} else {
+				if out.AllocationId == nil {
+					out.AllocationId = new(struct {
+						Id string `json:"id"`
+					})
+				}
+				easyjson3e1fa5ecDecode14(in, out.AllocationId)
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode11(out *jwriter.Writer, in struct {
+	State          string      `json:"state"`
+	Primary        bool        `json:"primary"`
+	Node           string      `json:"node"`
+	RelocatingNode interface{} `json:"relocating_node,omitempty"`
+	Shard          int         `json:"shard"`
+	Index          string      `json:"index"`
+	Version        int         `json:"version"`
+	RecoverySource *struct {
+		Type string `json:"type"`
+	} `json:"recovery_source,omitempty"`
+	UnassignedInfo *struct {
+		Reason           string    `json:"reason"`
+		At               time.Time `json:"at"`
+		Delayed          bool      `json:"delayed"`
+		AllocationStatus string    `json:"allocation_status"`
+	} `json:"unassigned_info,omitempty"`
+	AllocationId *struct {
+		Id string `json:"id"`
+	} `json:"allocation_id,omitempty"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"state\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.State))
+	}
+	{
+		const prefix string = ",\"primary\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.Primary))
+	}
+	{
+		const prefix string = ",\"node\":"
+		out.RawString(prefix)
+		out.String(string(in.Node))
+	}
+	if in.RelocatingNode != nil {
+		const prefix string = ",\"relocating_node\":"
+		out.RawString(prefix)
+		if m, ok := in.RelocatingNode.(easyjson.Marshaler); ok {
+			m.MarshalEasyJSON(out)
+		} else if m, ok := in.RelocatingNode.(json.Marshaler); ok {
+			out.Raw(m.MarshalJSON())
+		} else {
+			out.Raw(json.Marshal(in.RelocatingNode))
+		}
+	}
+	{
+		const prefix string = ",\"shard\":"
+		out.RawString(prefix)
+		out.Int(int(in.Shard))
+	}
+	{
+		const prefix string = ",\"index\":"
+		out.RawString(prefix)
+		out.String(string(in.Index))
+	}
+	{
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.Int(int(in.Version))
+	}
+	if in.RecoverySource != nil {
+		const prefix string = ",\"recovery_source\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncode12(out, *in.RecoverySource)
+	}
+	if in.UnassignedInfo != nil {
+		const prefix string = ",\"unassigned_info\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncode13(out, *in.UnassignedInfo)
+	}
+	if in.AllocationId != nil {
+		const prefix string = ",\"allocation_id\":"
+		out.RawString(prefix)
+		easyjson3e1fa5ecEncode14(out, *in.AllocationId)
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode14(in *jlexer.Lexer, out *struct {
+	Id string `json:"id"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "id":
+			out.Id = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode14(out *jwriter.Writer, in struct {
+	Id string `json:"id"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"id\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Id))
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode13(in *jlexer.Lexer, out *struct {
+	Reason           string    `json:"reason"`
+	At               time.Time `json:"at"`
+	Delayed          bool      `json:"delayed"`
+	AllocationStatus string    `json:"allocation_status"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "reason":
+			out.Reason = string(in.String())
+		case "at":
+			if data := in.Raw(); in.Ok() {
+				in.AddError((out.At).UnmarshalJSON(data))
+			}
+		case "delayed":
+			out.Delayed = bool(in.Bool())
+		case "allocation_status":
+			out.AllocationStatus = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode13(out *jwriter.Writer, in struct {
+	Reason           string    `json:"reason"`
+	At               time.Time `json:"at"`
+	Delayed          bool      `json:"delayed"`
+	AllocationStatus string    `json:"allocation_status"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"reason\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Reason))
+	}
+	{
+		const prefix string = ",\"at\":"
+		out.RawString(prefix)
+		out.Raw((in.At).MarshalJSON())
+	}
+	{
+		const prefix string = ",\"delayed\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.Delayed))
+	}
+	{
+		const prefix string = ",\"allocation_status\":"
+		out.RawString(prefix)
+		out.String(string(in.AllocationStatus))
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecode12(in *jlexer.Lexer, out *struct {
+	Type string `json:"type"`
+}) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "type":
+			out.Type = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson3e1fa5ecEncode12(out *jwriter.Writer, in struct {
+	Type string `json:"type"`
+}) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"type\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Type))
+	}
+	out.RawByte('}')
+}
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(in *jlexer.Lexer, out *ElasticsearchConfig) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "source":
+			out.Source = string(in.String())
+		case "id":
+			out.ID = string(in.String())
 		case "name":
 			out.Name = string(in.String())
 		case "description":
@@ -2152,9 +3713,9 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 					out.Endpoints = (out.Endpoints)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v26 string
-					v26 = string(in.String())
-					out.Endpoints = append(out.Endpoints, v26)
+					var v61 string
+					v61 = string(in.String())
+					out.Endpoints = append(out.Endpoints, v61)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2163,6 +3724,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 			out.Version = string(in.String())
 		case "client_mode":
 			out.ClientMode = string(in.String())
+		case "request_timeout":
+			out.RequestTimeout = int(in.Int())
 		case "basic_auth":
 			if in.IsNull() {
 				in.Skip()
@@ -2174,7 +3737,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 						Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 					})
 				}
-				easyjson3e1fa5ecDecode8(in, out.BasicAuth)
+				easyjson3e1fa5ecDecode15(in, out.BasicAuth)
 			}
 		case "traffic_control":
 			if in.IsNull() {
@@ -2189,10 +3752,10 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 						MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 					})
 				}
-				easyjson3e1fa5ecDecode9(in, out.TrafficControl)
+				easyjson3e1fa5ecDecode16(in, out.TrafficControl)
 			}
 		case "discovery":
-			easyjson3e1fa5ecDecode10(in, &out.Discovery)
+			easyjson3e1fa5ecDecode17(in, &out.Discovery)
 		case "order":
 			out.Order = int(in.Int())
 		case "created":
@@ -2223,9 +3786,9 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 					out.Hosts = (out.Hosts)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v27 string
-					v27 = string(in.String())
-					out.Hosts = append(out.Hosts, v27)
+					var v62 string
+					v62 = string(in.String())
+					out.Hosts = append(out.Hosts, v62)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2240,10 +3803,26 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, in ElasticsearchConfig) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(out *jwriter.Writer, in ElasticsearchConfig) {
 	out.RawByte('{')
 	first := true
 	_ = first
+	if in.Source != "" {
+		const prefix string = ",\"source\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.Source))
+	}
+	if in.ID != "" {
+		const prefix string = ",\"id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ID))
+	}
 	if in.Name != "" {
 		const prefix string = ",\"name\":"
 		if first {
@@ -2314,11 +3893,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		}
 		{
 			out.RawByte('[')
-			for v28, v29 := range in.Endpoints {
-				if v28 > 0 {
+			for v63, v64 := range in.Endpoints {
+				if v63 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v29))
+				out.String(string(v64))
 			}
 			out.RawByte(']')
 		}
@@ -2343,6 +3922,16 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		}
 		out.String(string(in.ClientMode))
 	}
+	if in.RequestTimeout != 0 {
+		const prefix string = ",\"request_timeout\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(in.RequestTimeout))
+	}
 	if in.BasicAuth != nil {
 		const prefix string = ",\"basic_auth\":"
 		if first {
@@ -2351,7 +3940,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode8(out, *in.BasicAuth)
+		easyjson3e1fa5ecEncode15(out, *in.BasicAuth)
 	}
 	if in.TrafficControl != nil {
 		const prefix string = ",\"traffic_control\":"
@@ -2361,7 +3950,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode9(out, *in.TrafficControl)
+		easyjson3e1fa5ecEncode16(out, *in.TrafficControl)
 	}
 	if true {
 		const prefix string = ",\"discovery\":"
@@ -2371,7 +3960,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode10(out, in.Discovery)
+		easyjson3e1fa5ecEncode17(out, in.Discovery)
 	}
 	if in.Order != 0 {
 		const prefix string = ",\"order\":"
@@ -2433,11 +4022,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		}
 		{
 			out.RawByte('[')
-			for v30, v31 := range in.Hosts {
-				if v30 > 0 {
+			for v65, v66 := range in.Hosts {
+				if v65 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v31))
+				out.String(string(v66))
 			}
 			out.RawByte(']')
 		}
@@ -2448,27 +4037,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v ElasticsearchConfig) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ElasticsearchConfig) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ElasticsearchConfig) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ElasticsearchConfig) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(l, v)
 }
-func easyjson3e1fa5ecDecode10(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode17(in *jlexer.Lexer, out *struct {
 	Enabled bool     `json:"enabled,omitempty" config:"enabled"`
 	Modules []string `json:"module,omitempty" config:"module"`
 	Refresh struct {
@@ -2512,15 +4101,15 @@ func easyjson3e1fa5ecDecode10(in *jlexer.Lexer, out *struct {
 					out.Modules = (out.Modules)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v32 string
-					v32 = string(in.String())
-					out.Modules = append(out.Modules, v32)
+					var v67 string
+					v67 = string(in.String())
+					out.Modules = append(out.Modules, v67)
 					in.WantComma()
 				}
 				in.Delim(']')
 			}
 		case "refresh":
-			easyjson3e1fa5ecDecode11(in, &out.Refresh)
+			easyjson3e1fa5ecDecode18(in, &out.Refresh)
 		default:
 			in.SkipRecursive()
 		}
@@ -2531,7 +4120,7 @@ func easyjson3e1fa5ecDecode10(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode10(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode17(out *jwriter.Writer, in struct {
 	Enabled bool     `json:"enabled,omitempty" config:"enabled"`
 	Modules []string `json:"module,omitempty" config:"module"`
 	Refresh struct {
@@ -2558,11 +4147,11 @@ func easyjson3e1fa5ecEncode10(out *jwriter.Writer, in struct {
 		}
 		{
 			out.RawByte('[')
-			for v33, v34 := range in.Modules {
-				if v33 > 0 {
+			for v68, v69 := range in.Modules {
+				if v68 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v34))
+				out.String(string(v69))
 			}
 			out.RawByte(']')
 		}
@@ -2575,11 +4164,11 @@ func easyjson3e1fa5ecEncode10(out *jwriter.Writer, in struct {
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode11(out, in.Refresh)
+		easyjson3e1fa5ecEncode18(out, in.Refresh)
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode11(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode18(in *jlexer.Lexer, out *struct {
 	Enabled  bool   `json:"enabled,omitempty" config:"enabled"`
 	Interval string `json:"interval,omitempty" config:"interval"`
 }) {
@@ -2615,7 +4204,7 @@ func easyjson3e1fa5ecDecode11(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode11(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode18(out *jwriter.Writer, in struct {
 	Enabled  bool   `json:"enabled,omitempty" config:"enabled"`
 	Interval string `json:"interval,omitempty" config:"interval"`
 }) {
@@ -2640,7 +4229,7 @@ func easyjson3e1fa5ecEncode11(out *jwriter.Writer, in struct {
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode16(in *jlexer.Lexer, out *struct {
 	MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
 	MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
 	MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
@@ -2682,7 +4271,7 @@ func easyjson3e1fa5ecDecode9(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode9(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode16(out *jwriter.Writer, in struct {
 	MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
 	MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
 	MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
@@ -2729,7 +4318,7 @@ func easyjson3e1fa5ecEncode9(out *jwriter.Writer, in struct {
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecode8(in *jlexer.Lexer, out *struct {
+func easyjson3e1fa5ecDecode15(in *jlexer.Lexer, out *struct {
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
 	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 }) {
@@ -2765,7 +4354,7 @@ func easyjson3e1fa5ecDecode8(in *jlexer.Lexer, out *struct {
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncode8(out *jwriter.Writer, in struct {
+func easyjson3e1fa5ecEncode15(out *jwriter.Writer, in struct {
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
 	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 }) {
@@ -2790,7 +4379,7 @@ func easyjson3e1fa5ecEncode8(out *jwriter.Writer, in struct {
 	}
 	out.RawByte('}')
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(in *jlexer.Lexer, out *DeleteByQueryResponse) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(in *jlexer.Lexer, out *DeleteByQueryResponse) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2823,7 +4412,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(out *jwriter.Writer, in DeleteByQueryResponse) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(out *jwriter.Writer, in DeleteByQueryResponse) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2843,27 +4432,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v DeleteByQueryResponse) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v DeleteByQueryResponse) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic12(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *DeleteByQueryResponse) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *DeleteByQueryResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic12(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(in *jlexer.Lexer, out *CatIndexResponse) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(in *jlexer.Lexer, out *CatIndexResponse) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2914,7 +4503,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(out *jwriter.Writer, in CatIndexResponse) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(out *jwriter.Writer, in CatIndexResponse) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3030,27 +4619,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v CatIndexResponse) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v CatIndexResponse) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic13(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *CatIndexResponse) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *CatIndexResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic13(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(in *jlexer.Lexer, out *BulkResponse) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(in *jlexer.Lexer, out *BulkResponse) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3089,9 +4678,9 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(in *jlexer.Lexer, out 
 					out.Items = (out.Items)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v35 BulkActionMetadata
-					(v35).UnmarshalEasyJSON(in)
-					out.Items = append(out.Items, v35)
+					var v70 BulkActionMetadata
+					(v70).UnmarshalEasyJSON(in)
+					out.Items = append(out.Items, v70)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3106,7 +4695,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(out *jwriter.Writer, in BulkResponse) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(out *jwriter.Writer, in BulkResponse) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3127,11 +4716,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(out *jwriter.Writer, i
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v36, v37 := range in.Items {
-				if v36 > 0 {
+			for v71, v72 := range in.Items {
+				if v71 > 0 {
 					out.RawByte(',')
 				}
-				(v37).MarshalEasyJSON(out)
+				(v72).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -3142,27 +4731,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v BulkResponse) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v BulkResponse) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *BulkResponse) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *BulkResponse) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(in *jlexer.Lexer, out *BulkIndexMetadata) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(in *jlexer.Lexer, out *BulkIndexMetadata) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3293,7 +4882,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(in *jlexer.Lexer, out 
 				if out.Shards == nil {
 					out.Shards = new(struct{})
 				}
-				easyjson3e1fa5ecDecode12(in, out.Shards)
+				easyjson3e1fa5ecDecode3(in, out.Shards)
 			}
 		case "status":
 			out.Status = int(in.Int())
@@ -3308,7 +4897,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(in *jlexer.Lexer, out 
 						Reason string `json:"reason,omitempty"`
 					})
 				}
-				easyjson3e1fa5ecDecode7(in, out.Error)
+				easyjson3e1fa5ecDecode9(in, out.Error)
 			}
 		default:
 			in.SkipRecursive()
@@ -3320,7 +4909,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(out *jwriter.Writer, in BulkIndexMetadata) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(out *jwriter.Writer, in BulkIndexMetadata) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3584,7 +5173,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(out *jwriter.Writer, i
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode12(out, *in.Shards)
+		easyjson3e1fa5ecEncode3(out, *in.Shards)
 	}
 	if in.Status != 0 {
 		const prefix string = ",\"status\":"
@@ -3604,7 +5193,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(out *jwriter.Writer, i
 		} else {
 			out.RawString(prefix)
 		}
-		easyjson3e1fa5ecEncode7(out, *in.Error)
+		easyjson3e1fa5ecEncode9(out, *in.Error)
 	}
 	out.RawByte('}')
 }
@@ -3612,62 +5201,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v BulkIndexMetadata) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v BulkIndexMetadata) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic15(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *BulkIndexMetadata) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *BulkIndexMetadata) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic15(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(l, v)
 }
-func easyjson3e1fa5ecDecode12(in *jlexer.Lexer, out *struct{}) {
-	isTopLevel := in.IsStart()
-	if in.IsNull() {
-		if isTopLevel {
-			in.Consumed()
-		}
-		in.Skip()
-		return
-	}
-	in.Delim('{')
-	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
-		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
-		switch key {
-		default:
-			in.SkipRecursive()
-		}
-		in.WantComma()
-	}
-	in.Delim('}')
-	if isTopLevel {
-		in.Consumed()
-	}
-}
-func easyjson3e1fa5ecEncode12(out *jwriter.Writer, in struct{}) {
-	out.RawByte('{')
-	first := true
-	_ = first
-	out.RawByte('}')
-}
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(in *jlexer.Lexer, out *BulkActionMetadata) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(in *jlexer.Lexer, out *BulkActionMetadata) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3736,7 +5290,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(out *jwriter.Writer, in BulkActionMetadata) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(out *jwriter.Writer, in BulkActionMetadata) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3782,27 +5336,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v BulkActionMetadata) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v BulkActionMetadata) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic16(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *BulkActionMetadata) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *BulkActionMetadata) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic16(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(in *jlexer.Lexer, out *AliasInfo) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(in *jlexer.Lexer, out *AliasInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3839,9 +5393,9 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(in *jlexer.Lexer, out 
 					out.Index = (out.Index)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v38 string
-					v38 = string(in.String())
-					out.Index = append(out.Index, v38)
+					var v73 string
+					v73 = string(in.String())
+					out.Index = append(out.Index, v73)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -3858,7 +5412,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(out *jwriter.Writer, in AliasInfo) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(out *jwriter.Writer, in AliasInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3878,11 +5432,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(out *jwriter.Writer, i
 		}
 		{
 			out.RawByte('[')
-			for v39, v40 := range in.Index {
-				if v39 > 0 {
+			for v74, v75 := range in.Index {
+				if v74 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v40))
+				out.String(string(v75))
 			}
 			out.RawByte(']')
 		}
@@ -3903,27 +5457,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v AliasInfo) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v AliasInfo) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *AliasInfo) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *AliasInfo) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(in *jlexer.Lexer, out *AliasIndex) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic20(in *jlexer.Lexer, out *AliasIndex) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3970,7 +5524,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(out *jwriter.Writer, in AliasIndex) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic20(out *jwriter.Writer, in AliasIndex) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -4016,27 +5570,27 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v AliasIndex) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic20(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v AliasIndex) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic18(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic20(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *AliasIndex) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic20(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *AliasIndex) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic18(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic20(l, v)
 }
-func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(in *jlexer.Lexer, out *AliasDetailInfo) {
+func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic21(in *jlexer.Lexer, out *AliasDetailInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -4073,9 +5627,9 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(in *jlexer.Lexer, out 
 					out.Indexes = (out.Indexes)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v41 AliasIndex
-					(v41).UnmarshalEasyJSON(in)
-					out.Indexes = append(out.Indexes, v41)
+					var v76 AliasIndex
+					(v76).UnmarshalEasyJSON(in)
+					out.Indexes = append(out.Indexes, v76)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -4092,7 +5646,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(in *jlexer.Lexer, out 
 		in.Consumed()
 	}
 }
-func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(out *jwriter.Writer, in AliasDetailInfo) {
+func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic21(out *jwriter.Writer, in AliasDetailInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -4112,11 +5666,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(out *jwriter.Writer, i
 		}
 		{
 			out.RawByte('[')
-			for v42, v43 := range in.Indexes {
-				if v42 > 0 {
+			for v77, v78 := range in.Indexes {
+				if v77 > 0 {
 					out.RawByte(',')
 				}
-				(v43).MarshalEasyJSON(out)
+				(v78).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -4137,23 +5691,23 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(out *jwriter.Writer, i
 // MarshalJSON supports json.Marshaler interface
 func (v AliasDetailInfo) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(&w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic21(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v AliasDetailInfo) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(w, v)
+	easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic21(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *AliasDetailInfo) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(&r, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic21(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *AliasDetailInfo) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(l, v)
+	easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic21(l, v)
 }

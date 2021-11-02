@@ -21,6 +21,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/lib/fasthttp"
 	uri "net/url"
 	"sync"
@@ -67,6 +68,7 @@ var versions = map[string]int{}
 var versionLock = sync.RWMutex{}
 
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {
+
 	versionLock.RLock()
 	esMajorVersion, ok := versions[meta.Config.ID]
 	versionLock.RUnlock()
@@ -75,7 +77,9 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 		versionLock.Lock()
 		defer versionLock.Unlock()
 		esMajorVersion = GetClient(meta.Config.ID).GetMajorVersion()
-		versions[meta.Config.ID] = esMajorVersion
+		if esMajorVersion>0{
+			versions[meta.Config.ID] = esMajorVersion
+		}
 	}
 
 	return esMajorVersion
@@ -121,6 +125,7 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
+//最后返回的为判断是否继续 walk
 func WalkMetadata(walkFunc func(key, value interface{}) bool) {
 	metas.Range(walkFunc)
 }
@@ -232,4 +237,65 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fast
 	}
 
 	return client
+}
+
+
+func (metadata *ElasticsearchMetadata) LastSuccess()time.Time{
+	return metadata.lastSuccess
+}
+
+func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string,*IndexInfo, error) {
+	if metadata.Indices==nil{
+		return index,nil,errors.Errorf("index [%v] setting not found,", index)
+	}
+
+	indexSettings, ok := (*metadata.Indices)[index]
+
+	if !ok {
+		if global.Env().IsDebug {
+			log.Tracef("index [%v] was not found in index settings,", index)
+		}
+
+		if metadata.Aliases!=nil{
+			alias, ok := (*metadata.Aliases)[index]
+			if ok {
+				if global.Env().IsDebug {
+					log.Tracef("found index [%v] in alias settings,", index)
+				}
+				newIndex := alias.WriteIndex
+				if alias.WriteIndex == "" {
+					if len(alias.Index) == 1 {
+						newIndex = alias.Index[0]
+						if global.Env().IsDebug {
+							log.Trace("found index [%v] in alias settings, no write_index, but only have one index, will use it,", index)
+						}
+					} else {
+						log.Warnf("writer_index [%v] was not found in alias [%v] settings,", index, alias)
+						return index,nil,errors.Error("writer_index was not found in alias settings,", index, ",", alias)
+					}
+				}
+				indexSettings, ok = (*metadata.Indices)[newIndex]
+				if ok {
+					if global.Env().IsDebug {
+						log.Trace("index was found in index settings, ", index, "=>", newIndex, ",", indexSettings)
+					}
+					index = newIndex
+					return index,&indexSettings,nil
+
+				} else {
+					if global.Env().IsDebug {
+						log.Tracef("writer_index [%v] was not found in index settings,", index)
+					}
+				}
+			} else {
+				if global.Env().IsDebug {
+					log.Tracef("index [%v] was not found in alias settings,", index)
+				}
+			}
+		}
+
+		return index,nil,errors.Errorf("index [%v] setting not found,", index)
+	}
+
+	return index,&indexSettings,nil
 }

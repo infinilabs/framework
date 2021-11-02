@@ -19,23 +19,20 @@ type StoreConfig struct {
 	IndexName string `config:"index_name"`
 }
 
-type MonitoringConfig struct {
-	Enabled  bool   `config:"enabled"`
-	Interval string `config:"interval,omitempty"`
-}
-
-type HealthCheckConfig struct {
+type CheckConfig struct {
 	Enabled  bool   `config:"enabled"`
 	Interval string `config:"interval,omitempty"`
 }
 
 type ModuleConfig struct {
-	Elasticsearch       string    `config:"elasticsearch"`
-	RemoteConfigEnabled bool      `config:"remote_configs"`
-	ORMConfig           ORMConfig `config:"orm"`
-	StoreConfig                    StoreConfig      `config:"store"`
-	MonitoringConfig               MonitoringConfig `config:"monitoring"`
-	HealthCheckConfig              HealthCheckConfig `config:"health_check"`
+	Elasticsearch               string      `config:"elasticsearch"`
+	RemoteConfigEnabled         bool        `config:"remote_configs"`
+	ORMConfig                   ORMConfig   `config:"orm"`
+	StoreConfig                 StoreConfig `config:"store"`
+	MonitoringConfig            CheckConfig `config:"monitoring"`
+	HealthCheckConfig           CheckConfig `config:"health_check"`
+	NodeAvailabilityCheckConfig CheckConfig `config:"availability_check"`
+	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
@@ -49,7 +46,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver = esConfig.Version
 	}
 
-	if ver==""&&esConfig.Version!=""{
+	if ver == "" && esConfig.Version != "" {
 		ver = esConfig.Version
 	}
 

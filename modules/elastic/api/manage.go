@@ -733,14 +733,50 @@ func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps ht
 		m:=util.MapStr{}
 		k:=key.(string)
 		if value==nil{
-			return false
+			return true
 		}
 
 		v,ok:=value.(*elastic.ElasticsearchMetadata)
 		if ok{
-			m["version"]=v.GetMajorVersion()
-			m["hosts"]=v.GetSeedHosts()
+			m["major_version"]=v.GetMajorVersion()
+			m["seed_hosts"]=v.GetSeedHosts()
+			m["state"]=v.ClusterState
+			m["topology_version"]=v.NodesTopologyVersion
+			m["nodes"]=v.Nodes
+			m["indices"]=v.Indices
+			m["health"]=v.Health
+			m["aliases"]=v.Aliases
+			m["primary_shards"]=v.PrimaryShards
+			m["available"]=v.IsAvailable()
+			m["schema"]=v.GetSchema()
+			m["config"]=v.Config
+			m["last_success"]=v.LastSuccess()
 			result[k]=m
+		}
+		return true
+	})
+
+	h.WriteJSON(w, result, http.StatusOK)
+
+}
+
+func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	result:=util.MapStr{}
+
+	elastic.WalkHosts(func(key, value interface{}) bool {
+		k := key.(string)
+		if value == nil {
+			return true
+		}
+
+		v, ok := value.(*elastic.NodeAvailable)
+		if ok {
+			result[k]=util.MapStr{
+				"host":v.Host,
+				"available":v.IsAvailable(),
+				"last_success":v.LastSuccess(),
+				"failure_tickets":v.FailureTickets(),
+			}
 		}
 		return true
 	})
