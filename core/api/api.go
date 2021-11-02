@@ -106,16 +106,18 @@ func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request))  
 // StartAPI will start listen and act as the API server
 func StartAPI() {
 
-	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
-	})
 
 	apiConfig = &global.Env().SystemConfig.APIConfig
 
 	if !apiConfig.Enabled {
 		return
 	}
+
+	c := cors.New(cors.Options{
+		AllowedOrigins: apiConfig.CrossDomain.AllowedOrigins,
+		AllowCredentials: true,
+		AllowedMethods: []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
+	})
 
 	if apiConfig.NetworkConfig.SkipOccupiedPort {
 		listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())

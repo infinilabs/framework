@@ -640,6 +640,7 @@ func BenchmarkJsonParser(b *testing.B) {
 	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		jsonparser.GetBoolean(data,"errors")
+		ok,_:=jsonparser.GetBoolean(data,"errors")
+		assert.Equal(b,true,ok)
 	}
 }
