@@ -23,6 +23,12 @@ func PickRandomNameByDict(str string) string {
 	return array[i]
 }
 
+func PickRandomNumber(seed int) int {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	i := r.Intn(seed)
+	return i
+}
+
 func PickRandomCnName() string {
 	return PickRandomNameByDict(cnNames)
 }
