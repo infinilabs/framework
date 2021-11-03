@@ -725,6 +725,12 @@ func (req *Request) AppendBodyString(s string) {
 // SetBody sets request body.
 //
 // It is safe re-using body argument after the function returns.
+func (req *Request) SetRawBody(body []byte) {
+	req.Header.Del(HeaderContentEncoding)
+	req.Header.Del(HeaderContentEncoding2)
+	req.SetBody(body)
+}
+
 func (req *Request) SetBody(body []byte) {
 	req.SetBodyString(b2s(body))
 }
