@@ -5,7 +5,6 @@ package common
 
 import (
 	"infini.sh/framework/core/util"
-	"time"
 )
 
 const PositionLeft = "left"
@@ -115,10 +114,3 @@ func (metricItem *MetricItem) AddAxi(title, group, position, formatType, labelFo
 	return metricItem
 }
 
-type MonitoringItem struct {
-	Agent         interface{} `json:"agent,omitempty"`
-	Timestamp     time.Time   `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Elasticsearch string      `json:"elasticsearch,omitempty"`
-	ClusterStats  interface{} `json:"cluster_stats,omitempty"`
-	IndexStats    interface{} `json:"index_stats,omitempty"`
-}

@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
+	common2 "infini.sh/framework/modules/metrics/common"
 	"net/http"
 	"strconv"
 	"strings"
@@ -234,7 +235,8 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		return
 	}
 
-	status:=client.GetClusterStats()
+	//TODO, don't direct reach to elasticsearch
+	status:=client.GetClusterStats("")
 	//TODO 拿不到在线状态，应该去取集群的最近的一个历史版本信息，而不是报错
 
 	summary:=map[string]interface{}{}
@@ -575,7 +577,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 		},
 	}
 
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(common.MonitoringItem{}),util.MustToJSONBytes(query))
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(common2.MetricEvent{}),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
 		panic(err)

@@ -40,26 +40,33 @@ func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
 }
 
-func CompareInteger(x interface{}, y interface{}) bool {
-
-		if x == nil || y == nil {
-			return false
-		}
-
-		if x==y{
-			return true
-		}
-
-		var xint int = InterfaceToInt(x)
-		var yint int = InterfaceToInt(y)
-		//fmt.Println(xint,",",yint)
-		if xint == yint {
-			return true
-		}
-		return false
+func StringDefault(val, defaultV string) string {
+	if val != "" {
+		return val
+	}
+	return defaultV
 }
 
-func InterfaceToInt(y interface{})int  {
+func CompareInteger(x interface{}, y interface{}) bool {
+
+	if x == nil || y == nil {
+		return false
+	}
+
+	if x == y {
+		return true
+	}
+
+	var xint int = InterfaceToInt(x)
+	var yint int = InterfaceToInt(y)
+	//fmt.Println(xint,",",yint)
+	if xint == yint {
+		return true
+	}
+	return false
+}
+
+func InterfaceToInt(y interface{}) int {
 	ytyp := reflect.TypeOf(y)
 	var yint int = 0
 	switch ytyp.Kind() {
@@ -89,12 +96,12 @@ func InterfaceToInt(y interface{})int  {
 
 func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
 
-	str,ok:=i.(string)
-	if ok{
-		for _,x:=range v{
-			y,ok:=x.(string)
-			if ok{
-				if str==y{
+	str, ok := i.(string)
+	if ok {
+		for _, x := range v {
+			y, ok := x.(string)
+			if ok {
+				if str == y {
 					return true
 				}
 			}
@@ -102,8 +109,8 @@ func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
 		return false
 	}
 
-	for _,x:=range v{
-		if CompareInteger(i,x){
+	for _, x := range v {
+		if CompareInteger(i, x) {
 			return true
 		}
 	}
@@ -111,8 +118,8 @@ func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
 }
 
 func ContainsInAnyIntArray(i int64, v []int64) bool {
-	for _,x:=range v{
-		if i==x{
+	for _, x := range v {
+		if i == x {
 			return true
 		}
 	}
@@ -120,8 +127,8 @@ func ContainsInAnyIntArray(i int64, v []int64) bool {
 }
 
 func ContainsInAnyInt32Array(i int, v []int) bool {
-	for _,x:=range v{
-		if i==x{
+	for _, x := range v {
+		if i == x {
 			return true
 		}
 	}
@@ -212,6 +219,7 @@ func MergeSpace(in string) (out string) {
 }
 
 var locker sync.Mutex
+
 func ToJson(in interface{}, indent bool) string {
 	if in == nil {
 		return ""
@@ -234,7 +242,7 @@ func FromJson(str string, to interface{}) error {
 }
 
 func Int64ToString(num int64) string {
-	return strconv.FormatInt(num,10)
+	return strconv.FormatInt(num, 10)
 }
 
 func IntToString(num int) string {
@@ -354,36 +362,58 @@ func MD5digestString(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func JoinArray(array []string,delimiter string) string {
-	buffer:=bytes.NewBuffer([]byte{})
-	x:=len(array)-1
-	for i,v:=range array{
+func JoinArray(array []string, delimiter string) string {
+	buffer := bytes.NewBuffer([]byte{})
+	x := len(array) - 1
+	for i, v := range array {
 		buffer.WriteString(v)
-		if i < x{
+		if i < x {
 			buffer.WriteString(delimiter)
 		}
 	}
 	return buffer.String()
 }
-var strCRLF=[]byte("\r\n")
-var strCRLF1=[]byte("\n")
-var escapedStrCRLF=[]byte("\\n")
-//escape "\r\n" to "\\n"
-func EscapeNewLine(input []byte)[]byte  {
-	 input=ReplaceByte(input,strCRLF,escapedStrCRLF)
-	 input=ReplaceByte(input,strCRLF1,escapedStrCRLF)
-	 return input
+
+func JoinMapString(array map[string]string, delimiter string) string {
+	buffer := bytes.NewBuffer([]byte{})
+	for k, v := range array {
+		buffer.WriteString(k)
+		buffer.WriteString(delimiter)
+		buffer.WriteString(ToString(v))
+	}
+	return buffer.String()
 }
 
-func ToString(obj interface{})string  {
+func JoinMap(array map[string]interface{}, delimiter string) string {
+	buffer := bytes.NewBuffer([]byte{})
+	for k, v := range array {
+		buffer.WriteString(k)
+		buffer.WriteString(delimiter)
+		buffer.WriteString(ToString(v))
+	}
+	return buffer.String()
+}
+
+var strCRLF = []byte("\r\n")
+var strCRLF1 = []byte("\n")
+var escapedStrCRLF = []byte("\\n")
+
+//escape "\r\n" to "\\n"
+func EscapeNewLine(input []byte) []byte {
+	input = ReplaceByte(input, strCRLF, escapedStrCRLF)
+	input = ReplaceByte(input, strCRLF1, escapedStrCRLF)
+	return input
+}
+
+func ToString(obj interface{}) string {
 	return fmt.Sprintf("%v", obj)
 }
 
 //convert a->b to a,b
-func ConvertStringToMap(str string,splitter string)(k,v string,err error)  {
+func ConvertStringToMap(str string, splitter string) (k, v string, err error) {
 	if Contains(str, splitter) {
 		o := Split(str, splitter)
-		return TrimSpaces(o[0]), TrimSpaces(o[1]),nil
+		return TrimSpaces(o[0]), TrimSpaces(o[1]), nil
 	}
-	return "","",errors.New("invalid format")
+	return "", "", errors.New("invalid format")
 }

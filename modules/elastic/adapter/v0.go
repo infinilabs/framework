@@ -505,9 +505,13 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	return obj,nil
 }
 
-func (c *ESAPIV0) GetClusterStats() *elastic.ClusterStats {
+func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
+
+	if node!=""{
+		url = fmt.Sprintf("%s/_cluster/stats/nodes/%v", c.GetEndpoint(),node)
+	}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
@@ -587,6 +591,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	node := elastic.NodesResponse{}
 
 	err=node.UnmarshalJSON(resp.Body)
+
 	if err != nil {
 		return nil, err
 	}

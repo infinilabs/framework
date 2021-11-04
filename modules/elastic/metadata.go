@@ -49,10 +49,6 @@ func clusterHealthCheck(force bool) {
 	})
 }
 
-func getBasicClusterState() {
-
-}
-
 //update cluster state
 func updateClusterState(clusterId string) {
 
@@ -88,10 +84,6 @@ func updateClusterState(clusterId string) {
 }
 
 func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
-
-	if !meta.Config.Discovery.Enabled {
-		return
-	}
 
 	client := elastic.GetClient(meta.Config.ID)
 	nodes, err := client.GetNodes()

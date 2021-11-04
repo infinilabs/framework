@@ -29,7 +29,6 @@ type ModuleConfig struct {
 	RemoteConfigEnabled         bool        `config:"remote_configs"`
 	ORMConfig                   ORMConfig   `config:"orm"`
 	StoreConfig                 StoreConfig `config:"store"`
-	MonitoringConfig            CheckConfig `config:"monitoring"`
 	HealthCheckConfig           CheckConfig `config:"health_check"`
 	NodeAvailabilityCheckConfig CheckConfig `config:"availability_check"`
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`

@@ -23,15 +23,13 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
-	"strings"
-	"time"
+	"infini.sh/framework/modules/metrics/common"
 )
 
 func (module ElasticModule) Name() string {
@@ -48,10 +46,6 @@ var (
 		},
 		NodeAvailabilityCheckConfig: CheckConfig{
 			Enabled:  true,
-			Interval: "10s",
-		},
-		MonitoringConfig: CheckConfig{
-			Enabled:  false,
 			Interval: "10s",
 		},
 		MetadataRefresh: CheckConfig{
@@ -188,7 +182,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 			panic(err)
 		}
 
-		err = orm.RegisterSchemaWithIndexName(MonitoringItem{}, "monitoring")
+		err = orm.RegisterSchemaWithIndexName(common.MetricEvent{}, "metrics")
 		if err != nil {
 			panic(err)
 		}
@@ -205,67 +199,6 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 
 func (module ElasticModule) Stop() error {
 	return nil
-}
-
-func monitoring() {
-	task1 := task.ScheduleTask{
-		Description: "monitoring for elasticsearch clusters",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func() {
-			elastic.WalkMetadata(func(key, value interface{}) bool {
-				k := key.(string)
-				if value == nil {
-					return true
-				}
-
-				v, ok := value.(*elastic.ElasticsearchMetadata)
-				if ok {
-					if !v.Config.Monitored || !v.Config.Enabled || !v.IsAvailable() {
-						return true
-					}
-
-					log.Tracef("run monitoring task for elasticsearch: " + k)
-					client := elastic.GetClient(k)
-					stats := client.GetClusterStats()
-					indexStats, err := client.GetStats()
-					if err != nil {
-						log.Error(v.Config.Name, " get cluster stats error: ", err)
-						return true
-					}
-
-					v.ReportSuccess()
-
-					item := MonitoringItem{}
-					item.Elasticsearch = v.Config.ID
-					item.ClusterStats = stats
-					if indexStats != nil {
-
-						//replace . to _dot_
-						for k, v := range indexStats.Indices {
-							if util.PrefixStr(k, ".") {
-								delete(indexStats.Indices, k)
-								indexStats.Indices[strings.Replace(k, ".", "_dot_", 1)] = v
-							}
-						}
-
-						item.IndexStats = indexStats
-					}
-					item.Timestamp = time.Now()
-					item.Agent = global.Env().SystemConfig.NodeConfig
-					monitoringClient := elastic.GetClient(moduleConfig.Elasticsearch)
-					_, err = monitoringClient.Index(orm.GetIndexName(item), "", "", item)
-					if err != nil {
-						log.Error(err)
-					}
-				}
-				return true
-			})
-		},
-	}
-
-	task.RegisterScheduleTask(task1)
-
 }
 
 func nodeAvailabilityCheck() {
@@ -356,9 +289,6 @@ func (module ElasticModule) Start() error {
 		task.RegisterScheduleTask(t)
 	}
 
-	if moduleConfig.MonitoringConfig.Enabled {
-		monitoring()
-	}
 
 	if moduleConfig.NodeAvailabilityCheckConfig.Enabled {
 		nodeAvailabilityCheck()
@@ -451,7 +381,6 @@ func (module ElasticModule) Start() error {
 		}
 		task.RegisterScheduleTask(task2)
 	}
-
 
 	return nil
 
