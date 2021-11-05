@@ -211,7 +211,7 @@ func (env *Env) loadConfig() error {
 		ignoreFileMissing = true
 	}
 
-	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo()
+	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo("")
 
 	env.SystemConfig = &defaultSystemConfig
 

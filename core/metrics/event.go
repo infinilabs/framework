@@ -32,8 +32,8 @@ type AgentMeta struct {
 
 	AgentID  string   `json:"id,omitempty"`
 	Hostname string   `json:"hostname,omitempty"`
-	MajorIP  string   `json:"ip,omitempty"`
-	IP       []string `json:"binding_ip,omitempty"`
+	MajorIP  string   `json:"major_ip,omitempty"`
+	IP       []string `json:"ips,omitempty"`
 
 	Tags   []string          `json:"tags,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`

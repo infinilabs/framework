@@ -28,6 +28,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	. "strings"
@@ -416,4 +417,12 @@ func ConvertStringToMap(str string, splitter string) (k, v string, err error) {
 		return TrimSpaces(o[0]), TrimSpaces(o[1]), nil
 	}
 	return "", "", errors.New("invalid format")
+}
+
+func RegexPatternMatch(pattern, value string)bool {
+	reg, err := regexp.Compile(pattern)
+	if err != nil {
+		panic(err)
+	}
+	return reg.MatchString(value)
 }

@@ -243,7 +243,7 @@ func Ipv4MaskString(m []byte) string {
 	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }
 
-func GetPublishNetworkDeviceInfo()(dev string,ip string,mask string,err error)  {
+func GetPublishNetworkDeviceInfo(pattern string)(dev string,ip string,mask string,err error)  {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
@@ -256,11 +256,19 @@ func GetPublishNetworkDeviceInfo()(dev string,ip string,mask string,err error)  
 		for _, address := range addrs {
 			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 				if ipnet.IP.To4() != nil {
+
 					//fmt.Println(i.Name)
 					//fmt.Println(ipnet.IP.String())
 					//fmt.Println(Ipv4MaskString(ipnet.Mask))
 					//fmt.Println(i.HardwareAddr.String())
 					//fmt.Println(i.MTU)
+
+					if pattern!=""{
+						ip:=ipnet.IP.String()
+						if !RegexPatternMatch(pattern,ip){
+							continue
+						}
+					}
 					return i.Name,ipnet.IP.String(),Ipv4MaskString(ipnet.Mask),nil
 				}
 			}

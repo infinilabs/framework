@@ -4,9 +4,9 @@
 package metrics
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
-	log "src/github.com/cihub/seelog"
 	"time"
 )
 

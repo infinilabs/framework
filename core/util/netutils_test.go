@@ -96,6 +96,6 @@ func TestGetAutoIP(t *testing.T) {
 
 
 func TestGetAddress(t *testing.T) {
-	dev,ip,mask,_:=GetPublishNetworkDeviceInfo()
+	dev,ip,mask,_:=GetPublishNetworkDeviceInfo("")
 	fmt.Println(dev,ip,mask)
 }
