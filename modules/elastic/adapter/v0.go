@@ -420,11 +420,11 @@ func (c *ESAPIV0) ClusterVersion() string {
 	return c.Version
 }
 
-func (c *ESAPIV0) GetNodesStats() *elastic.NodesStats {
-	// /_nodes/_local/stats
-	// /_nodes/_all/stats`
-
+func (c *ESAPIV0) GetNodesStats(node string) *elastic.NodesStats {
 	url := fmt.Sprintf("%s/_nodes/_all/stats", c.GetEndpoint())
+	if node!=""{
+		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetEndpoint(),node)
+	}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 

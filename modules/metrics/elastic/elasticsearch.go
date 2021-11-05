@@ -17,6 +17,8 @@ type Metric struct {
 
 	IndexPrimaryStats bool `config:"index_primary_stats"`
 	IndexTotalStats   bool `config:"index_total_stats"`
+
+	ClusterState bool `config:"cluster_state"`
 }
 
 //GET _cluster/stats
@@ -33,6 +35,7 @@ func New(cfg *config.Config) (*Metric, error) {
 		AllIndexStats:     true,
 		IndexPrimaryStats: true,
 		IndexTotalStats:   true,
+		ClusterState:      true,
 	}
 
 	err := cfg.Unpack(&me)
@@ -61,7 +64,6 @@ func (m *Metric) Collect() error {
 			}
 			log.Tracef("run monitoring task for elasticsearch: " + k)
 			client := elastic.GetClient(k)
-
 			var clusterUUID string
 
 			//nodes
@@ -70,29 +72,30 @@ func (m *Metric) Collect() error {
 					return true
 				}
 				for x, y := range *v.Nodes {
-					stats := client.GetClusterStats(x)
-					clusterUUID=stats.ClusterUUID
-					item := metrics.MetricEvent{
-						Metadata: metrics.EventMetadata{
-							Category: "elasticsearch",
-							Name:     "node_stats",
-							Datatype: "snapshot",
-							Labels: util.MapStr{
-								"cluster_id":   v.Config.ID,
-								"cluster_uuid": stats.ClusterUUID,
 
-								"node_id":   x,
-								"node_name": y.Name,
-								"node_ip":   y.Ip,
+					stats := client.GetNodesStats(x)
+					for e,f:=range stats.Nodes{
+						item := metrics.MetricEvent{
+							Metadata: metrics.EventMetadata{
+								Category: "elasticsearch",
+								Name:     "node_stats",
+								Datatype: "snapshot",
+								Labels: util.MapStr{
+									"cluster_id":   v.Config.ID,
+									//"cluster_uuid": stats.ClusterUUID,
+									"node_id":   e,
+									"node_name": y.Name,
+									"transport_address":   y.TransportAddress,
+								},
 							},
-						},
+						}
+						item.Metric = util.MapStr{
+							"elasticsearch": util.MapStr{
+								"node_stats": f,
+							},
+						}
+						metrics.Save(item)
 					}
-					item.Metric = util.MapStr{
-						"elasticsearch": util.MapStr{
-							"node_stats": stats,
-						},
-					}
-					metrics.Save(item)
 				}
 			}
 
@@ -106,12 +109,12 @@ func (m *Metric) Collect() error {
 				if indexStats != nil {
 
 					if m.AllIndexStats {
-						m.saveIndexStats(v.Config.ID,clusterUUID, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total)
+						m.saveIndexStats(v.Config.ID, clusterUUID, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total)
 					}
 
 					if m.IndexStats {
 						for x, y := range indexStats.Indices {
-							m.saveIndexStats(v.Config.ID,clusterUUID, y.Uuid, x, y.Primaries, y.Total)
+							m.saveIndexStats(v.Config.ID, clusterUUID, y.Uuid, x, y.Primaries, y.Total)
 						}
 					}
 				}
@@ -124,7 +127,7 @@ func (m *Metric) Collect() error {
 	return nil
 }
 
-func (m *Metric) saveIndexStats(clusterUUID,clusterId, uuid, name string, primary, total elastic.IndexLevelStats) {
+func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, primary, total elastic.IndexLevelStats) {
 
 	item := metrics.MetricEvent{
 		Metadata: metrics.EventMetadata{
@@ -133,7 +136,7 @@ func (m *Metric) saveIndexStats(clusterUUID,clusterId, uuid, name string, primar
 			Datatype: "snapshot",
 			Labels: util.MapStr{
 				"cluster_id":   clusterUUID,
-				"cluster_uuid": clusterId,
+				//"cluster_uuid": clusterId,
 
 				"index_id":   uuid,
 				"index_name": name,
@@ -141,10 +144,10 @@ func (m *Metric) saveIndexStats(clusterUUID,clusterId, uuid, name string, primar
 		},
 	}
 
-	mtr:=util.MapStr{}
-	if m.IndexPrimaryStats{
-		mtr["primaries"]=primary
-		mtr["total"]=total
+	mtr := util.MapStr{}
+	if m.IndexPrimaryStats {
+		mtr["primaries"] = primary
+		mtr["total"] = total
 	}
 
 	item.Metric = util.MapStr{
