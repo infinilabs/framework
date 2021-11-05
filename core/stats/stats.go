@@ -16,7 +16,10 @@ limitations under the License.
 
 package stats
 
-import "sync"
+import (
+	"infini.sh/framework/core/util"
+	"sync"
+)
 
 type StatsInterface interface {
 
@@ -41,8 +44,8 @@ type StatsInterface interface {
 
 var handlers = []StatsInterface{}
 
-func Increment(category, key string) {
-	IncrementBy(category, key, 1)
+func Increment(category string, key ... string) {
+	IncrementBy(category, util.JoinArray(key,"."), 1)
 }
 
 func IncrementBy(category, key string, value int64) {
