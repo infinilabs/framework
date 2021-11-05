@@ -4,8 +4,8 @@
 package metrics
 
 import (
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"time"
 )
@@ -28,11 +28,11 @@ func Save(event MetricEvent) error {
 	event.Timestamp = time.Now()
 	event.Agent= getMeta()
 
-	log.Error(event.String())
-
 	if getMeta().QueueName==""{
 		panic("queue can't be nil")
 	}
+
+	stats.Increment("metrics.save",event.Metadata.Category,event.Metadata.Name)
 
 	queue.Push(getMeta().QueueName, util.MustToJSONBytes(event))
 

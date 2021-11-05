@@ -81,7 +81,7 @@ func (m *Metric) Collect() error {
 					Name: "interfaces",
 					Datatype: "accumulate",
 				},
-				MetricData: ioCountersToMapStr(counters),
+				Metric: ioCountersToMapStr(counters),
 			})
 		}
 
@@ -101,7 +101,7 @@ func (m *Metric) Collect() error {
 					Name: "summary",
 					Datatype: "gauge",
 				},
-				MetricData: util.MapStr{
+				Metric: util.MapStr{
 					"network": util.MapStr{
 						"total": util.MapStr{
 							"in": util.MapStr{

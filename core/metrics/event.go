@@ -12,8 +12,8 @@ import (
 type MetricEvent struct {
 	Agent      *AgentMeta    `json:"agent"`
 	Timestamp  time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata   EventMetadata `json:"metadata"`
-	MetricData util.MapStr   `json:"metric"`
+	Metadata EventMetadata `json:"metadata"`
+	Metric   util.MapStr   `json:"metric"`
 }
 
 type EventMetadata struct {
@@ -24,7 +24,7 @@ type EventMetadata struct {
 }
 
 func (e *MetricEvent) String() string {
-	return fmt.Sprintf("%v-%v,%v,%v", e.Timestamp.UTC().Unix(), e.Metadata, e.Agent.Tags, e.Agent.Labels)
+	return fmt.Sprintf("%v %v %v", e.Timestamp.UTC().Unix(), e.Metadata.Category,e.Metadata.Name)
 }
 
 type AgentMeta struct {
