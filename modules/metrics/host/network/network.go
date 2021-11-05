@@ -8,7 +8,7 @@ import (
 	"github.com/shirou/gopsutil/net"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/metrics"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 	"strings"
 )
@@ -75,13 +75,13 @@ func (m *Metric) Collect() error {
 		}
 
 		if m.Detail {
-			metrics.Save(metrics.MetricEvent{
-				Metadata: metrics.EventMetadata{
+			event.Save(event.Event{
+				Metadata: event.EventMetadata{
 					Category: "network",
 					Name: "interfaces",
 					Datatype: "accumulate",
 				},
-				Metric: ioCountersToMapStr(counters),
+				Fields: ioCountersToMapStr(counters),
 			})
 		}
 
@@ -95,13 +95,13 @@ func (m *Metric) Collect() error {
 	if m.Summary {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
-			metrics.Save( metrics.MetricEvent{
-				Metadata: metrics.EventMetadata{
+			event.Save( event.Event{
+				Metadata: event.EventMetadata{
 					Category: "network",
 					Name: "summary",
 					Datatype: "gauge",
 				},
-				Metric: util.MapStr{
+				Fields: util.MapStr{
 					"network": util.MapStr{
 						"total": util.MapStr{
 							"in": util.MapStr{

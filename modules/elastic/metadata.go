@@ -4,6 +4,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"strings"
@@ -79,6 +80,11 @@ func updateClusterState(clusterId string) {
 		if stateChanged {
 			//TODO locker
 			meta.ClusterState = state
+			event:=util.MapStr{
+				"cluster_id":clusterId,
+			}
+			queue.Push("cluster_state_change",util.MustToJSONBytes(event))
+
 		}
 	}
 }

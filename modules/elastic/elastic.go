@@ -23,8 +23,8 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/metrics"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
@@ -182,7 +182,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 			panic(err)
 		}
 
-		err = orm.RegisterSchemaWithIndexName(metrics.MetricEvent{}, "metrics")
+		err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
 		if err != nil {
 			panic(err)
 		}

@@ -4,7 +4,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/metrics"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 )
 
@@ -23,9 +23,10 @@ type Metric struct {
 
 //GET _cluster/stats
 //GET _stats
-//GET /_nodes/_local
-//GET /_nodes/_local/stats
+//GET /_nodes/_local        #获取元数据信息，根据变更来判断是否存储信息快照
+//GET /_nodes/_local/stats  #统计信息
 //GET　/_nodes/_all/stats
+
 //GET /_cluster/state/version,nodes,master_node,routing_table
 
 func New(cfg *config.Config) (*Metric, error) {
@@ -66,7 +67,7 @@ func (m *Metric) Collect() error {
 			client := elastic.GetClient(k)
 			var clusterUUID string
 
-			//nodes
+			//nodes stats
 			if m.NodeStats {
 				if v.Nodes == nil {
 					return true
@@ -75,8 +76,8 @@ func (m *Metric) Collect() error {
 
 					stats := client.GetNodesStats(x)
 					for e,f:=range stats.Nodes{
-						item := metrics.MetricEvent{
-							Metadata: metrics.EventMetadata{
+						item := event.Event{
+							Metadata: event.EventMetadata{
 								Category: "elasticsearch",
 								Name:     "node_stats",
 								Datatype: "snapshot",
@@ -89,17 +90,17 @@ func (m *Metric) Collect() error {
 								},
 							},
 						}
-						item.Metric = util.MapStr{
+						item.Fields = util.MapStr{
 							"elasticsearch": util.MapStr{
 								"node_stats": f,
 							},
 						}
-						metrics.Save(item)
+						event.Save(item)
 					}
 				}
 			}
 
-			//indices
+			//indices stats
 			if m.AllIndexStats || m.IndexStats {
 				indexStats, err := client.GetStats()
 				if err != nil {
@@ -120,6 +121,12 @@ func (m *Metric) Collect() error {
 				}
 
 			}
+
+
+			//cluster state
+			//nodes info
+
+
 		}
 		return true
 	})
@@ -129,8 +136,8 @@ func (m *Metric) Collect() error {
 
 func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, primary, total elastic.IndexLevelStats) {
 
-	item := metrics.MetricEvent{
-		Metadata: metrics.EventMetadata{
+	item := event.Event{
+		Metadata: event.EventMetadata{
 			Category: "elasticsearch",
 			Name:     "index_stats",
 			Datatype: "snapshot",
@@ -150,11 +157,11 @@ func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, prima
 		mtr["total"] = total
 	}
 
-	item.Metric = util.MapStr{
+	item.Fields = util.MapStr{
 		"elasticsearch": util.MapStr{
 			"index_stats": mtr,
 		},
 	}
 
-	metrics.Save(item)
+	event.Save(item)
 }

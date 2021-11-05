@@ -1,45 +1,50 @@
-// Licensed to Elasticsearch B.V. under one or more contributor
-// license agreements. See the NOTICE file distributed with
-// this work for additional information regarding copyright
-// ownership. Elasticsearch B.V. licenses this file to you under
-// the Apache License, Version 2.0 (the "License"); you may
-// not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
+/* ©INFINI, All Rights Reserved.
+ * mail: contact#infini.ltd */
 
 package event
 
 import (
 	"errors"
+	"fmt"
 	"infini.sh/framework/core/util"
 	"strings"
 	"time"
-	)
+)
 
-// Event is the common event format shared by all beats.
-// Every event must have a timestamp and provide encodable Fields in `Fields`.
-// The `Meta`-fields can be used to pass additional meta-data to the outputs.
-// Output can optionally publish a subset of Meta, or ignore Meta.
 type Event struct {
-	Timestamp  time.Time
-	Meta       util.MapStr
-	Fields     util.MapStr
-	Private    interface{} // for beats private use
-	TimeSeries bool        // true if the event contains timeseries data
+	Agent     *AgentMeta    `json:"agent"`
+	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata  EventMetadata `json:"metadata"`
+	Fields     util.MapStr `json:"payload"`
+
+	Meta       util.MapStr `json:"-"`
+	Private    interface{} `json:"-"`// for beats private use
+	TimeSeries bool       `json:"-"` // true if the event contains timeseries data
 }
 
-var (
-	errNoTimestamp = errors.New("value is no timestamp")
-	errNoMapStr    = errors.New("value is no map[string]interface{} type")
-)
+type EventMetadata struct {
+	Labels util.MapStr `json:"labels,omitempty"`
+	Category string `json:"category,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Datatype string `json:"datatype,omitempty"`
+}
+
+func (e *Event) String() string {
+	return fmt.Sprintf("%v %v %v", e.Timestamp.UTC().Unix(), e.Metadata.Category,e.Metadata.Name)
+}
+
+type AgentMeta struct {
+	QueueName string `json:"-"`
+
+	AgentID  string   `json:"id,omitempty"`
+	Hostname string   `json:"hostname,omitempty"`
+	MajorIP  string   `json:"major_ip,omitempty"`
+	IP       []string `json:"ips,omitempty"`
+
+	Tags   []string          `json:"tags,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 
 // SetID overwrites the "id" field in the events metadata.
 // If Meta is nil, a new Meta dictionary is created.
@@ -61,6 +66,9 @@ func (e *Event) GetValue(key string) (interface{}, error) {
 	}
 	return e.Fields.GetValue(key)
 }
+
+var errNoTimestamp = errors.New("no timestamp found")
+var errNoMapStr = errors.New("no data found")
 
 func (e *Event) PutValue(key string, v interface{}) (interface{}, error) {
 	if key == "@timestamp" {

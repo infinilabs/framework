@@ -4,7 +4,7 @@ import (
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/metrics"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/metrics/elastic"
@@ -44,14 +44,14 @@ func (module *MetricsModule) Setup(cfg *Config) {
 func (module *MetricsModule) Start() error {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
-	meta := metrics.AgentMeta{
+	meta := event.AgentMeta{
 		MajorIP:   publicIP,
 		Hostname:  util.GetHostName(),
 		IP:        util.GetLocalIPs(),
 		QueueName: util.StringDefault(module.config.Queue, "metrics"),
 		Labels:    module.config.Labels,
 		Tags:      module.config.Tags}
-	metrics.RegisterMeta(&meta)
+	event.RegisterMeta(&meta)
 
 	log.Infof("ip:%v, host:%v, labels:%v, tags:%v", meta.MajorIP, meta.Hostname, util.JoinMapString(meta.Labels, "->"), util.JoinArray(meta.Tags, ","))
 
@@ -60,32 +60,38 @@ func (module *MetricsModule) Start() error {
 	if err != nil {
 		panic(err)
 	}
-	var task1 = task.ScheduleTask{
-		Description: "fetch network metrics",
-		Type:        "schedule",
-		Interval:    "10s",
-		Task: func() {
-			log.Debug("collecting network metrics")
-			net.Collect()
-		},
+	if net.Enabled{
+		var task1 = task.ScheduleTask{
+			Description: "fetch network metrics",
+			Type:        "schedule",
+			Interval:    "10s",
+			Task: func() {
+				log.Debug("collecting network metrics")
+				net.Collect()
+			},
+		}
+		task.RegisterScheduleTask(task1)
 	}
-	task.RegisterScheduleTask(task1)
+
+
 
 	//elasticsearch
 	es, err := elastic.New(module.config.ElasticsearchConfig)
 	if err != nil {
 		panic(err)
 	}
-	task1 = task.ScheduleTask{
-		Description: "monitoring for elasticsearch clusters",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func() {
-			log.Debug("collecting elasticsearch metrics")
-			es.Collect()
-		},
+	if es.Enabled{
+		var task1 = task.ScheduleTask{
+			Description: "monitoring for elasticsearch clusters",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func() {
+				log.Debug("collecting elasticsearch metrics")
+				es.Collect()
+			},
+		}
+		task.RegisterScheduleTask(task1)
 	}
-	task.RegisterScheduleTask(task1)
 
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
-	common2 "infini.sh/framework/core/metrics"
+	common2 "infini.sh/framework/core/event"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
@@ -577,7 +577,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 		},
 	}
 
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(common2.MetricEvent{}),util.MustToJSONBytes(query))
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(common2.Event{}),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
 		panic(err)
