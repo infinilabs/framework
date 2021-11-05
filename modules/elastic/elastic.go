@@ -24,12 +24,12 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/metrics"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
-	"infini.sh/framework/modules/metrics/common"
 )
 
 func (module ElasticModule) Name() string {
@@ -182,7 +182,7 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 			panic(err)
 		}
 
-		err = orm.RegisterSchemaWithIndexName(common.MetricEvent{}, "metrics")
+		err = orm.RegisterSchemaWithIndexName(metrics.MetricEvent{}, "metrics")
 		if err != nil {
 			panic(err)
 		}

@@ -4,8 +4,8 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/metrics"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/metrics/common"
 )
 
 type Metric struct {
@@ -62,8 +62,8 @@ func (m *Metric) Collect() error {
 				//	return true
 				//}
 
-				item := common.MetricEvent{
-					Metadata: common.EventMetadata{
+				item := metrics.MetricEvent{
+					Metadata: metrics.EventMetadata{
 						Category: "elasticsearch",
 						Name:     "node_stats",
 						Datatype: "snapshot",
@@ -92,7 +92,7 @@ func (m *Metric) Collect() error {
 				//
 				//	item.IndexStats = indexStats
 				//}
-				common.Save(item)
+				metrics.Save(item)
 			}
 
 		}

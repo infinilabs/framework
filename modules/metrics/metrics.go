@@ -4,9 +4,9 @@ import (
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/metrics"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/metrics/common"
 	"infini.sh/framework/modules/metrics/elastic"
 	"infini.sh/framework/modules/metrics/host/network"
 )
@@ -45,14 +45,14 @@ func (module *MetricsModule) Start() error {
 
 
 	_,publicIP,_,_:=util.GetPublishNetworkDeviceInfo()
-	meta := common.AgentMeta{
+	meta := metrics.AgentMeta{
 		MajorIP: publicIP,
 		Hostname:  util.GetHostName(),
 		IP:        util.GetLocalIPs(),
 		QueueName: util.StringDefault(module.config.Queue, "metrics"),
 		Labels:    module.config.Labels,
 		Tags:      module.config.Tags}
-	common.RegisterMeta(&meta)
+	metrics.RegisterMeta(&meta)
 
 	log.Infof("ip:%v, host:%v, labels:%v, tags:%v",meta.MajorIP,meta.Hostname,util.JoinMapString(meta.Labels,"->"),util.JoinArray(meta.Tags,","))
 
