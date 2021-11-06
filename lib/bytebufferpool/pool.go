@@ -53,7 +53,9 @@ func Get() *ByteBuffer { return defaultPool.Get() }
 func (p *Pool) Get() *ByteBuffer {
 	v := p.pool.Get()
 	if v != nil {
-		return v.(*ByteBuffer)
+		x:= v.(*ByteBuffer)
+		x.Reset()
+		return x
 	}
 	return &ByteBuffer{
 		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
