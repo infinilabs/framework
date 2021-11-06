@@ -21,7 +21,9 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 	"net/http"
+	"sort"
 )
 
 // Name return API
@@ -45,11 +47,18 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte("\n\n"))
 
 		w.Write([]byte("API Directory:\n"))
-		for k,v:=range api.APIs{
-			w.Write([]byte(v))
-			w.Write([]byte("\t"))
-			w.Write([]byte(k))
-			w.Write([]byte("\n"))
+
+		apis:=util.GetMapKeys(api.APIs)
+		sort.Strings(apis)
+
+		for _,k:=range apis{
+			v,ok:=api.APIs[k]
+			if ok{
+				w.Write([]byte(v))
+				w.Write([]byte("\t"))
+				w.Write([]byte(k))
+				w.Write([]byte("\n"))
+			}
 		}
 
 		w.WriteHeader(200)
