@@ -4,7 +4,6 @@
 package event
 
 import (
-	"github.com/yeqown/log"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -32,12 +31,15 @@ func Save(event Event) error {
 	if getMeta().QueueName==""{
 		panic("queue can't be nil")
 	}
-	
-	log.Error(event.Metadata.Category,event.Metadata.Name)
+
+	//log.Error(event.Metadata.Category,event.Metadata.Name,string(util.MustToJSONBytes(event)))
 
 	stats.Increment("metrics.save",event.Metadata.Category,event.Metadata.Name)
 
-	queue.Push(getMeta().QueueName, util.MustToJSONBytes(event))
+	err:=queue.Push(getMeta().QueueName, util.MustToJSONBytes(event))
+	if err!=nil{
+		panic(err)
+	}
 
 	return nil
 }

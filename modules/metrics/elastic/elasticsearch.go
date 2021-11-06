@@ -145,7 +145,7 @@ func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, prima
 				"cluster_id":   clusterUUID,
 				//"cluster_uuid": clusterId,
 
-				"index_id":   uuid,
+				"index_id":   util.StringDefault(uuid,name),
 				"index_name": name,
 			},
 		},

@@ -12,7 +12,7 @@ type Stats struct {
 	} `json:"_all"`
 
 	Indices map[string]struct {
-		Uuid string `json:"uuid"`
+		Uuid string `json:"uuid"` //v7.0+
 		Primaries IndexLevelStats `json:"primaries"`
 		Total IndexLevelStats `json:"total"`
 	} `json:"indices"`
