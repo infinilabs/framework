@@ -216,6 +216,8 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fast
 	//TODO configureable
 	if !ok{
 		clientLock.Lock()
+		defer clientLock.Unlock()
+
 		client = &fasthttp.Client{
 			MaxConnsPerHost: 5000,
 			MaxConnDuration:               0,
@@ -233,7 +235,7 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fast
 		}
 
 		clients[host] = client
-		clientLock.Unlock()
+
 	}
 
 	return client
