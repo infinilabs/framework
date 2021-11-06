@@ -355,3 +355,11 @@ func tryToMapStr(v interface{}) (MapStr, bool) {
 		return nil, false
 	}
 }
+
+func GetMapKeys(m map[string]string)[]string  {
+	keys:=[]string{}
+	for k,_:=range m{
+		keys=append(keys,k)
+	}
+	return keys
+}
