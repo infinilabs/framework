@@ -143,10 +143,8 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context,cou
 	log.Trace("start bulk worker")
 
 	mainBuf := processor.bufferPool.Get()
-	mainBuf.Reset()
 	defer processor.bufferPool.Put(mainBuf)
 	docBuf := processor.bufferPool.Get()
-	docBuf.Reset()
 	defer processor.bufferPool.Put(docBuf)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
