@@ -82,6 +82,7 @@ func updateClusterState(clusterId string) {
 			meta.ClusterState = state
 			event:=util.MapStr{
 				"cluster_id":clusterId,
+				"state":state,
 			}
 			queue.Push("cluster_state_change",util.MustToJSONBytes(event))
 

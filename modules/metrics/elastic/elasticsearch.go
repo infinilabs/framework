@@ -19,15 +19,18 @@ type Metric struct {
 	IndexTotalStats   bool `config:"index_total_stats"`
 
 	ClusterState bool `config:"cluster_state"`
+	NodeInfo bool `config:"node_info"`
 }
 
-//GET _cluster/stats
-//GET _stats
+//元数据定期快照
 //GET /_nodes/_local        #获取元数据信息，根据变更来判断是否存储信息快照
-//GET /_nodes/_local/stats  #统计信息
-//GET　/_nodes/_all/stats
-
 //GET /_cluster/state/version,nodes,master_node,routing_table
+
+//统计信息
+//GET _cluster/stats
+//GET _stats    #集群级别统计信息，已处理
+//GET /_nodes/_local/stats  #节点级别统计信息，统计信息
+
 
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
@@ -66,6 +69,7 @@ func (m *Metric) Collect() error {
 			log.Tracef("run monitoring task for elasticsearch: " + k)
 			client := elastic.GetClient(k)
 			var clusterUUID string
+			//TODO fetch cluster_uuid?
 
 			//nodes stats
 			if m.NodeStats {
@@ -73,7 +77,8 @@ func (m *Metric) Collect() error {
 					return true
 				}
 				for x, y := range *v.Nodes {
-
+					//get node level stats
+					//TODO routing request to specify host
 					stats := client.GetNodesStats(x)
 					for e,f:=range stats.Nodes{
 						item := event.Event{
@@ -86,6 +91,7 @@ func (m *Metric) Collect() error {
 									//"cluster_uuid": stats.ClusterUUID,
 									"node_id":   e,
 									"node_name": y.Name,
+									"ip": y.Ip,
 									"transport_address":   y.TransportAddress,
 								},
 							},
@@ -119,7 +125,6 @@ func (m *Metric) Collect() error {
 						}
 					}
 				}
-
 			}
 
 

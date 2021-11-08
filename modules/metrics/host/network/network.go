@@ -80,6 +80,9 @@ func (m *Metric) Collect() error {
 					Category: "network",
 					Name: "interfaces",
 					Datatype: "accumulate",
+					Labels: util.MapStr{
+						"ip": util.GetLocalIPs(),
+					},
 				},
 				Fields: ioCountersToMapStr(counters),
 			})
@@ -100,6 +103,9 @@ func (m *Metric) Collect() error {
 					Category: "network",
 					Name: "summary",
 					Datatype: "gauge",
+					Labels: util.MapStr{
+						"ip": util.GetLocalIPs(),
+					},
 				},
 				Fields: util.MapStr{
 					"network": util.MapStr{
