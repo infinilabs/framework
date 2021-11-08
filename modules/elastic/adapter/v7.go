@@ -198,7 +198,7 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 	return resp.Body, err
 }
 
-func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( elastic.ScrollResponseAPI, error) {
+func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( []byte, error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 	var jsonBody []byte
 	if len(query) > 0 || maxSlicedCount > 0 || len(sourceFields) > 0||true {
@@ -259,18 +259,10 @@ func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	if err != nil {
-		log.Error(err)
 		return nil, err
 	}
 
-	scroll1 := &elastic.ScrollResponseV7{}
-	err=scroll1.UnmarshalJSON(resp.Body)
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
-
-	return scroll1, err
+	return resp.Body, err
 }
 
 func BasicAuth(req *fasthttp.Request, user, pass string) {
@@ -278,64 +270,3 @@ func BasicAuth(req *fasthttp.Request, user, pass string) {
 	encoded := base64.StdEncoding.EncodeToString([]byte(msg))
 	req.Header.Add("Authorization", "Basic "+encoded)
 }
-
-//
-//func (c *ESAPIV7) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
-//
-//	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.GetEndpoint(), scrollTime, scrollId)
-//	resp, err := c.Request(util.Verb_GET, url, nil)
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	if resp.StatusCode != 200 {
-//		return nil, errors.New(string(resp.Body))
-//	}
-//
-//	//scroll := &elastic.ScrollResponse{}
-//	//err = json.Unmarshal(resp.Body, &scroll)
-//	//if err != nil {
-//	//	panic(err)
-//	//	return nil, err
-//	//}
-//
-//	return resp.Body, nil
-//
-//	//url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", c.GetEndpoint(), scrollTime, scrollId)
-//	//
-//	//client := &fasthttp.Client{
-//	//	MaxConnsPerHost: 60000,
-//	//	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-//	//}
-//	//
-//	//req := fasthttp.AcquireRequest()
-//	//req.Reset()
-//	//req.ResetBody()
-//	//res := fasthttp.AcquireResponse()
-//	//defer fasthttp.ReleaseRequest(req)
-//	//defer fasthttp.ReleaseResponse(res)
-//	//
-//	//if c.Config.BasicAuth!=nil{
-//	//	BasicAuth(req, c.Config.BasicAuth.Username, c.Config.BasicAuth.Password)
-//	//}
-//	//
-//	//req.SetRequestURI(url)
-//	//
-//	//err := client.Do(req, res)
-//	//if err != nil {
-//	//	log.Error(err)
-//	//	return nil, err
-//	//}
-//
-//	//
-//	//scroll := &elastic.ScrollResponseV7{}
-//	//err = json.Unmarshal(res.Body(), &scroll)
-//	//if err != nil {
-//	//	log.Error(err)
-//	//	return nil, err
-//	//}
-//	//
-//	////TODO buggy
-//	//return res.Body(), nil
-//}

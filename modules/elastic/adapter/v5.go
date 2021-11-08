@@ -21,7 +21,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"strings"
@@ -93,7 +92,7 @@ func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
 
 const TypeName5 = "doc"
 
-func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) (elastic.ScrollResponseAPI,  error) {
+func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ([]byte,  error) {
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
@@ -145,7 +144,6 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 	resp, err := s.Request(util.Verb_POST, url, jsonBody)
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -154,18 +152,11 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	if err != nil {
-		panic(err)
+		//panic(err)
 		return nil, err
 	}
 
-	scroll := &elastic.ScrollResponse{}
-	err = scroll.UnmarshalJSON(resp.Body)
-	if err != nil {
-		panic(err)
-		return nil, err
-	}
-
-	return scroll, err
+	return resp.Body, err
 }
 
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {

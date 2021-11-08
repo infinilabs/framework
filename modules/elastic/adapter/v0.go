@@ -956,7 +956,7 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ( elastic.ScrollResponseAPI,  error) {
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ( []byte,  error) {
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
@@ -1003,7 +1003,6 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	resp, err := s.Request(util.Verb_POST, url, jsonBody)
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -1012,22 +1011,15 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
+		log.Error("response status:",resp.StatusCode)
 		return nil, errors.New(string(resp.Body))
 	}
 
-	scroll := &elastic.ScrollResponse{}
-	err = scroll.UnmarshalJSON(resp.Body)
-	if err != nil {
-		panic(err)
-		return nil, err
-	}
-
-	return scroll, err
+	return resp.Body, err
 }
 
 func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
