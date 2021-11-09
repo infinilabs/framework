@@ -8,13 +8,13 @@ import (
 type Stats struct {
 	All struct {
 		Primaries IndexLevelStats `json:"primaries"`
-		Total   IndexLevelStats `json:"total"`
+		Total     IndexLevelStats `json:"total"`
 	} `json:"_all"`
 
 	Indices map[string]struct {
-		Uuid string `json:"uuid"` //v7.0+
+		Uuid      string          `json:"uuid"` //v7.0+
 		Primaries IndexLevelStats `json:"primaries"`
-		Total IndexLevelStats `json:"total"`
+		Total     IndexLevelStats `json:"total"`
 	} `json:"indices"`
 }
 
@@ -182,9 +182,9 @@ type NodesInfo struct {
 
 	BuildFlavor string `json:"build_flavor"`
 	BuildType   string `json:"build_type"`
-	BuildHash           string `json:"build_hash"`
+	BuildHash   string `json:"build_hash"`
 
-	TotalIndexingBuffer int64  `json:"total_indexing_buffer,omitempty"`
+	TotalIndexingBuffer int64 `json:"total_indexing_buffer,omitempty"`
 
 	Settings   map[string]interface{} `json:"settings"`
 	Os         map[string]interface{} `json:"os"`
@@ -198,19 +198,19 @@ type NodesInfo struct {
 		} `json:"profiles"`
 	} `json:"transport"`
 
-	Plugins []interface{}            `json:"plugins"`
-	Modules []map[string]interface{} `json:"modules"`
-	Ingest  map[string]interface{}   `json:"ingest"`
-	Aggregations  map[string]interface{}   `json:"aggregations"`
+	Plugins      []interface{}            `json:"plugins"`
+	Modules      []map[string]interface{} `json:"modules"`
+	Ingest       map[string]interface{}   `json:"ingest"`
+	Aggregations map[string]interface{}   `json:"aggregations"`
 }
 
 type NodeAvailable struct {
-	Host      string
-	ticket    int
-	onFailure bool
-	available            bool
-	lastSuccess      time.Time
-	configLock sync.RWMutex
+	Host        string
+	ticket      int
+	onFailure   bool
+	available   bool
+	lastSuccess time.Time
+	configLock  sync.RWMutex
 }
 
 type IndexInfo struct {
@@ -263,8 +263,8 @@ type AliasIndex struct {
 
 type NodesResponse struct {
 	NodesCount  map[string]interface{} `json:"_nodes"`
-	ClusterName string               `json:"cluster_name"`
-	Nodes       map[string]NodesInfo `json:"nodes"`
+	ClusterName string                 `json:"cluster_name"`
+	Nodes       map[string]NodesInfo   `json:"nodes"`
 }
 
 type CatIndexResponse struct {
@@ -345,8 +345,8 @@ type BulkResponse struct {
 }
 
 type ErrorResponse struct {
-	Status int                 `json:"status,omitempty"`
-	Error       *struct {
+	Status int `json:"status,omitempty"`
+	Error  *struct {
 		Type   string `json:"type,omitempty"`
 		Reason string `json:"reason,omitempty"`
 	} `json:"error,omitempty"`
@@ -357,35 +357,37 @@ type ElasticsearchMetadata struct {
 
 	ClusterState *ClusterState
 
-	NodesTopologyVersion  int
+	NodesTopologyVersion int
 
-	Nodes                *map[string]NodesInfo
-	Indices              *map[string]IndexInfo
-	PrimaryShards        *map[string]map[int]ShardInfo
-	Aliases *map[string]AliasInfo
-	Health  *ClusterHealth
+	Nodes         *map[string]NodesInfo
+	Indices       *map[string]IndexInfo
+	PrimaryShards *map[string]map[int]ShardInfo
+	Aliases       *map[string]AliasInfo
+	Health        *ClusterHealth
 
 	clusterFailureTicket int
 	clusterAvailable     bool
-	lastSuccess time.Time
-	configLock sync.RWMutex
-	seedHosts []string
+	lastSuccess          time.Time
+	configLock           sync.RWMutex
+	seedHosts            []string
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-	Source      string `json:"source,omitempty"`
-	ID          string `json:"id,omitempty" index:"id"`
-	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
-	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
-	Enabled     bool   `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
-	Monitored   bool   `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
-	HttpProxy   string `json:"http_proxy,omitempty" config:"http_proxy"`
-	Endpoint    string `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	Source      string   `json:"source,omitempty"`
+	ID          string   `json:"id,omitempty" index:"id"`
+	Name        string   `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
+	Description string   `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Enabled     bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	Monitored   bool     `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	HttpProxy   string   `json:"http_proxy,omitempty" config:"http_proxy"`
+	Endpoint    string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
-	Version string `json:"version,omitempty" config:"version"`
-	ClientMode string `json:"client_mode,omitempty" config:"client_mode"`
-	RequestTimeout int `json:"request_timeout,omitempty" config:"request_timeout"`
+	Version     string   `json:"version,omitempty" config:"version"`
+	ClientMode  string   `json:"client_mode,omitempty" config:"client_mode"`
+
+	RequestTimeout  int  `json:"request_timeout,omitempty" config:"request_timeout"`
+	RequestCompress bool `json:"request_compress,omitempty" config:"request_compress"`
 
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
@@ -393,10 +395,10 @@ type ElasticsearchConfig struct {
 	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {
-		MaxConnectionPerNode int  `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
-		MaxWaitTimeInMs int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-		MaxBytesPerNode int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-		MaxQpsPerNode   int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+		MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+		MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+		MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+		MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
 
 	Discovery struct {
@@ -414,6 +416,6 @@ type ElasticsearchConfig struct {
 
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
-	Host string `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
+	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
 }
