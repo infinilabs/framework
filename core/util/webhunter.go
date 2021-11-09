@@ -129,6 +129,7 @@ type Request struct {
 	Body        []byte
 	headers     map[string]string
 	ContentType string
+	Compress 	bool
 
 	basicAuthUsername string
 	basicAuthPassword string
@@ -278,9 +279,15 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 		request.Header.Set("User-Agent", userAgent)
 	}
 
+
+
 	//request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	//request.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
-	request.Header.Set("Accept-Encoding", "gzip,deflate")
+
+	if req.Compress{
+		request.Header.Set("Accept-Encoding", "gzip,deflate")
+	}
+
 
 	if req.ContentType != "" {
 		request.Header.Set("Content-Type", req.ContentType)
