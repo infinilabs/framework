@@ -78,23 +78,56 @@ func RequestTimeout(method, url string, body []byte, metadata *elastic.Elasticse
 		WriteTimeout: timeout,
 		ReadTimeout: timeout,
 	}
+
 	req.Header.SetMethod(method)
-	req.SetBody(body)
 	req.SetRequestURI(url)
 	req.Header.SetContentType(util.ContentTypeJson)
+
+	acceptGzipped:=req.AcceptGzippedResponse()
+	compressed:=false
+
+	//gzip request body
+	if len(body)>0{
+		if !req.IsGzipped() && metadata.Config.RequestCompress {
+			_, err := fasthttp.WriteGzipLevel(req.BodyWriter(), body, fasthttp.CompressBestSpeed)
+			if err != nil {
+				panic(err)
+			}
+			req.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
+			//compressed=true
+		} else {
+			req.SetBody(body)
+		}
+	}
+
+	//allow to receive gzipped response
+	if metadata.Config.RequestCompress{
+		req.Header.Set(fasthttp.HeaderAcceptEncoding, "gzip")
+		compressed=true
+	}
+
 	if metadata.Config != nil && metadata.Config.BasicAuth != nil {
 		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
 	err = client.DoTimeout(req, res, timeout)
-
 	if err != nil {
 		return nil, err
 	}
+
+	//restore body and header
+	if !acceptGzipped&&compressed{
+		body:=res.GetRawBody()
+		res.SwapBody(body)
+		res.Header.Del(fasthttp.HeaderContentEncoding)
+		res.Header.Del(fasthttp.HeaderContentEncoding2)
+	}
+
 	result = &util.Result{
 		Body: res.Body(),
 		StatusCode: res.StatusCode(),
 	}
+
 	return result, nil
 
 }

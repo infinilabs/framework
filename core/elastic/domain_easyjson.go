@@ -5284,6 +5284,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic14(in *jlexer.Lexer, out 
 			out.ClientMode = string(in.String())
 		case "request_timeout":
 			out.RequestTimeout = int(in.Int())
+		case "request_compress":
+			out.RequestCompress = bool(in.Bool())
 		case "basic_auth":
 			if in.IsNull() {
 				in.Skip()
@@ -5489,6 +5491,16 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic14(out *jwriter.Writer, i
 			out.RawString(prefix)
 		}
 		out.Int(int(in.RequestTimeout))
+	}
+	if in.RequestCompress {
+		const prefix string = ",\"request_compress\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.RequestCompress))
 	}
 	if in.BasicAuth != nil {
 		const prefix string = ",\"basic_auth\":"

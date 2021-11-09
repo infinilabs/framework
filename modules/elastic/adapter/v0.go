@@ -1024,8 +1024,9 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 
 func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
-	resp, err := s.Request(util.Verb_GET, url, nil)
 
+
+	resp, err :=RequestTimeout(util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}
