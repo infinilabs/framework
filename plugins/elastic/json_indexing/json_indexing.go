@@ -26,6 +26,7 @@ import (
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"runtime"
 	"sync"
@@ -102,6 +103,7 @@ func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 		processor.initLocker.Lock()
 		if processor.bufferPool == nil {
 			estimatedBulkSizeInByte := bulkSizeInByte + (bulkSizeInByte / 3)
+			log.Debug("buffer size:",util.ByteSize(uint64(estimatedBulkSizeInByte)),", max:",util.ByteSize(uint64(bulkSizeInByte*2)))
 			processor.bufferPool = bytebufferpool.NewPool(uint64(estimatedBulkSizeInByte), uint64(bulkSizeInByte*2))
 		}
 		processor.initLocker.Unlock()
