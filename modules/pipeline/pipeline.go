@@ -18,8 +18,6 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/vbauerster/mpb"
-	"github.com/vbauerster/mpb/decor"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
@@ -27,6 +25,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
+	"infini.sh/framework/core/progress"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"runtime"
@@ -44,8 +43,6 @@ type PipeModule struct {
 	started bool
 	//runners map[string]*PipeRunner
 	wg sync.WaitGroup
-
-
 }
 
 func (module PipeModule) Name() string {
@@ -90,7 +87,6 @@ type PipelineConfigV2 struct {
 	RetryDelayInMs int                   `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
 	Processors     pipeline.PluginConfig `config:"processor" json:"processor,omitempty"`
 }
-
 
 func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id:=ps.ByName("id")
@@ -258,24 +254,13 @@ func (module *PipeModule) Stop() error {
 
 	if module.started {
 
+		progress.Start()
+
 		total := len(module.contexts)
 
 		if total<=0{
 			return nil
 		}
-
-		p := mpb.New(mpb.WithWidth(40))
-		name := "Closing pipeline:"
-		bar := p.Add(int64(total),
-			mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler("▌").Tip("▌").Padding("░").Rbound("╟")),
-			mpb.PrependDecorators(
-				decor.Name(name, decor.WC{W: len(name) + 1, C: decor.DidentRight}),
-				decor.OnComplete(
-					decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "done",
-				),
-			),
-			mpb.AppendDecorators(decor.Percentage()),
-		)
 
 		log.Debug("shutting down pipeline framework")
 		start:=time.Now()
@@ -299,13 +284,11 @@ func (module *PipeModule) Stop() error {
 				log.Debugf("retry pipeline [%v] closing",v.UUID())
 				goto CLOSING
 			}else{
-				bar.Increment()
+				progress.IncreaseWithTotal("pipeline","shutdown", 1, len(module.contexts))
 			}
 		}
-
-		// wait for our bar to complete and flush
-		p.Wait()
 		module.started = false
+		progress.Stop()
 	} else {
 		log.Error("pipeline framework is not started")
 	}
