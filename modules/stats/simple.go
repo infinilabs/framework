@@ -1,8 +1,8 @@
 package stats
 
 import (
-	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -132,7 +132,11 @@ func (s *Stats) Timing(category, key string, v int64) {
 }
 
 func (s *Stats) Gauge(category, key string, v int64) {
-
+	s.initData(category, key)
+	s.l.Lock()
+	(*s.Data)[category][key] = v
+	s.l.Unlock()
+	runtime.Gosched()
 }
 
 func (s *Stats) Stat(category, key string) int64 {
