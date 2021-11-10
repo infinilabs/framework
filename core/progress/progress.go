@@ -33,6 +33,7 @@ func IncreaseWithTotal(category, key string, count, total int) {
 		barsMap[statsKey].Set(sumCount)
 	}
 	stats.Gauge(category,key,int64(sumCount*100/(total)))
+
 }
 
 var pool *pb.Pool
@@ -54,6 +55,7 @@ func Start() {
 }
 
 func ShowProgress() bool {
+
 	var showBar bool = false
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		showBar = true
@@ -67,8 +69,16 @@ func ShowProgress() bool {
 
 func Stop() {
 	if ShowProgress() {
-		for _,v:=range barsMap {
-			v.Finish()
+
+		for k,v:=range statsMap {
+			x:=barsMap[k]
+			if int(x.Total)==v{
+				if !x.IsFinished(){
+					x.Finish()
+				}
+			}else{
+				return
+			}
 		}
 		pool.Stop()
 		started=false
