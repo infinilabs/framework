@@ -81,6 +81,8 @@ func Stop() {
 			}
 		}
 		pool.Stop()
+		barsMap = map[string]*pb.ProgressBar{}
+		statsMap = map[string]int{}
 		started=false
 	}
 }
