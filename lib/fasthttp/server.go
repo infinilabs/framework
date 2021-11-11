@@ -2522,7 +2522,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	}
 	writeTimeout := s.WriteTimeout
 
-	ctx := s.acquireCtx(c)
+	ctx := s.AcquireCtx(c)
 	ctx.Reset()
 	//ctx.Request.resetSkipHeader()
 	ctx.Response.Reset()
@@ -2719,7 +2719,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 		timeoutResponse = ctx.timeoutResponse
 		if timeoutResponse != nil {
-			ctx = s.acquireCtx(c)
+			ctx = s.AcquireCtx(c)
 			ctx.Reset()
 			ctx.Request.resetSkipHeader()
 			ctx.Response.Reset()
@@ -2826,7 +2826,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		ctx1:=ctx
-		ctx=s.acquireCtx(c)
+		ctx=s.AcquireCtx(c)
 
 		//logging and reset
 		if s.TraceHandler!=nil{
@@ -2863,7 +2863,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				ctx1.Reset()
 				ctx1.Request.Reset()
 				ctx1.Response.Reset()
-				s.releaseCtx(ctx1)
+				s.ReleaseCtx(ctx1)
 			}()
 			//TODO improve performance
 		}
@@ -2875,7 +2875,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		ctx.Response.Reset()
 		ctx.Request.Reset()
 
-		//ctx2:=s.acquireCtx(c)
+		//ctx2:=s.AcquireCtx(c)
 		//ctx=ctx2
 
 		s.setState(c, StateIdle)
@@ -2902,7 +2902,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			ctx.Response.Reset()
 			ctx.Request.Reset()
 		}
-		s.releaseCtx(ctx)
+		s.ReleaseCtx(ctx)
 	}
 
 	return
@@ -3001,7 +3001,7 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	ctx := *ctxP
 	s := ctx.s
 	c := ctx.c
-	s.releaseCtx(ctx)
+	s.ReleaseCtx(ctx)
 
 	// Make GC happy, so it could garbage collect ctx
 	// while we waiting for the next request.
@@ -3011,7 +3011,7 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	var b [1]byte
 	n, err := c.Read(b[:])
 
-	ctx = s.acquireCtx(c)
+	ctx = s.AcquireCtx(c)
 	ctx.Reset()
 	ctx.Request.resetSkipHeader()
 	ctx.Response.Reset()
@@ -3080,7 +3080,7 @@ var ctxPool = &sync.Pool{
 	},
 }
 
-func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
+func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 
 	x1:=ctxPool.Get().(*RequestCtx)
 	x1.s=s
@@ -3237,7 +3237,7 @@ func (fa *fakeAddrer) Close() error {
 	panic("BUG: unexpected Close call")
 }
 
-func (s *Server) releaseCtx(ctx *RequestCtx) {
+func (s *Server) ReleaseCtx(ctx *RequestCtx) {
 
 	ctx.c=nil
 	ctx.fbr.c=nil
