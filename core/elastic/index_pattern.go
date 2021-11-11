@@ -2,11 +2,11 @@ package elastic
 
 import "time"
 
-type IndexPatternRequest struct {
-	Attributes IndexPattern `json:"attributes"`
+type ViewRequest struct {
+	Attributes View `json:"attributes"`
 }
 
-type IndexPattern struct {
+type View struct {
 	ID string `json:"-" index:"id"`
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	Title string `json:"title" elastic_mapping:"title:{type:keyword}"`

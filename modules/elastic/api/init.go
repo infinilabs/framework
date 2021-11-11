@@ -30,12 +30,12 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/alias", clusterAPI.HandleAliasAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/alias", clusterAPI.HandleGetAliasAction)
 
-	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/view", clusterAPI.HandleCreateIndexPatternAction)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.HandleGetIndexPatternListAction)
-	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/view/:indexPatternID", clusterAPI.HandleDeleteIndexPatternAction)
-	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/saved_objects/view/:indexPatternID", clusterAPI.HandleUpdateIndexPatternAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/view", clusterAPI.HandleCreateViewAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.HandleGetViewListAction)
+	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/view/:viewID", clusterAPI.HandleDeleteViewAction)
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/saved_objects/view/:viewID", clusterAPI.HandleUpdateViewAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/internal/view-management/resolve_index/:wild", clusterAPI.HandleResolveIndexAction)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.HandleBulkGetIndexPatternAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.HandleBulkGetViewAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.HandleGetFieldCapsAction)
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.HandleEseSearchAction)
