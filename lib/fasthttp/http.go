@@ -974,10 +974,13 @@ func (req *Request) Reset() {
 }
 
 func (req *Request) GetRequestLength() int {
-	length := len(req.RequestURI())
-	length += len(req.Header.rawHeaders)
-	length += req.GetBodyLength()
-	return length
+
+	return req.GetBodyLength()
+
+	//length := len(req.RequestURI())
+	//length += len(req.Header.rawHeaders)
+	//length += req.GetBodyLength()
+	//return length
 }
 
 func (req *Request) GetBodyLength() int {
@@ -1798,9 +1801,7 @@ func (res *Response) IsCompressed() (compressed bool, compressType []byte) {
 }
 
 func (resp *Response) GetResponseLength() int {
-	length := len(resp.Header.Header())
-	length += resp.GetBodyLength()
-	return length
+	return resp.GetBodyLength()
 }
 
 func getHTTPString(hw httpWriter) string {

@@ -22,6 +22,8 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/lib/fasthttp"
 	uri "net/url"
 	"sync"
@@ -246,6 +248,52 @@ func (metadata *ElasticsearchMetadata) LastSuccess()time.Time{
 	return metadata.lastSuccess
 }
 
+func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req , dataSize ,maxWaitInMS int){
+	if metadata.Config.TrafficControl != nil {
+
+		if metadata.Config.TrafficControl.MaxWaitTimeInMs <= 0 {
+			metadata.Config.TrafficControl.MaxWaitTimeInMs = 10 * 1000
+		}
+
+		if maxWaitInMS>0 {
+			metadata.Config.TrafficControl.MaxWaitTimeInMs = maxWaitInMS
+		}
+
+		maxTime := time.Duration(metadata.Config.TrafficControl.MaxWaitTimeInMs) * time.Millisecond
+		startTime := time.Now()
+	RetryRateLimit:
+
+		if time.Now().Sub(startTime) < maxTime {
+
+			if metadata.Config.TrafficControl.MaxQpsPerNode > 0 && req>0 {
+				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_qps", int(metadata.Config.TrafficControl.MaxQpsPerNode)).Allow() {
+					stats.Increment(metadata.Config.ID, "req-max_qps_throttled")
+					if global.Env().IsDebug {
+						log.Debugf("request qps throttle on node [%v]", node)
+					}
+					time.Sleep(10 * time.Millisecond)
+					goto RetryRateLimit
+				}
+			}
+
+			if metadata.Config.TrafficControl.MaxBytesPerNode > 0 &&dataSize>0{
+				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_bps",
+					int(metadata.Config.TrafficControl.MaxBytesPerNode)).AllowN(time.Now(), dataSize) {
+					stats.Increment(metadata.Config.ID, "req-max_bps_throttled")
+					if global.Env().IsDebug {
+						log.Debugf("request traffic throttle on node [%v]", node)
+					}
+					time.Sleep(10 * time.Millisecond)
+					goto RetryRateLimit
+				}
+			}
+
+		} else {
+			log.Warn("reached max traffic control time, throttle exit")
+		}
+	}
+}
+
 func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string,*IndexInfo, error) {
 	if metadata.Indices==nil{
 		return index,nil,errors.Errorf("index [%v] setting not found,", index)
@@ -301,3 +349,5 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string,*In
 
 	return index,&indexSettings,nil
 }
+
+
