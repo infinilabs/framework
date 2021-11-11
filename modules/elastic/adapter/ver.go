@@ -19,6 +19,7 @@ package adapter
 import (
 	"crypto/tls"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
@@ -27,7 +28,6 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -69,10 +69,10 @@ func RequestTimeout(method, url string, body []byte, metadata *elastic.Elasticse
 		req = fasthttp.AcquireRequest()
 		res = fasthttp.AcquireResponse()
 	)
-	defer func() {
-		fasthttp.ReleaseRequest(req)
-		fasthttp.ReleaseResponse(res)
-	}()
+	//defer func() {
+	//	fasthttp.ReleaseRequest(req)
+	//	fasthttp.ReleaseResponse(res)
+	//}()
 
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
