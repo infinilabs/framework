@@ -12,7 +12,6 @@ import (
 )
 
 func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	fmt.Println(req.Header.Get("origin"))
 	resBody := map[string]interface{}{
 	}
 	targetClusterID := ps.ByName("id")

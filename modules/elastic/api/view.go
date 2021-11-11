@@ -1,20 +1,20 @@
 package api
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func (h *APIHandler) HandleCreateIndexPatternAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
 
@@ -33,9 +33,9 @@ func (h *APIHandler) HandleCreateIndexPatternAction(w http.ResponseWriter, req *
 		return
 	}
 
-	var indexPattern = &elastic.IndexPatternRequest{}
+	var viewReq = &elastic.ViewRequest{}
 
-	err = h.DecodeJSON(req, indexPattern)
+	err = h.DecodeJSON(req, viewReq)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -44,25 +44,25 @@ func (h *APIHandler) HandleCreateIndexPatternAction(w http.ResponseWriter, req *
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	id := util.GetUUID()
-	indexPattern.Attributes.UpdatedAt = time.Now()
-	indexPattern.Attributes.ClusterID = targetClusterID
-	_, err = esClient.Index(orm.GetIndexName(indexPattern.Attributes),"", id, indexPattern.Attributes)
+	viewReq.Attributes.UpdatedAt = time.Now()
+	viewReq.Attributes.ClusterID = targetClusterID
+	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	resBody = map[string]interface{}{
-		"id": id,
-		"type":"index-pattern",
-		"updated_at": indexPattern.Attributes.UpdatedAt,
-		"attributes": indexPattern.Attributes,
-		"namespaces":[]string{"default"},
+		"id":         id,
+		"type":       "index-pattern",
+		"updated_at": viewReq.Attributes.UpdatedAt,
+		"attributes": viewReq.Attributes,
+		"namespaces": []string{"default"},
 	}
 	h.WriteJSON(w, resBody,http.StatusOK)
 }
 
-func (h *APIHandler) HandleGetIndexPatternListAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) HandleGetViewListAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
 
@@ -78,7 +78,7 @@ func (h *APIHandler) HandleGetIndexPatternListAction(w http.ResponseWriter, req 
 
 	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title","viewName", "updated_at"],"size": %d, "query":{"bool":{"must":{"match":{"cluster_id":"%s"}}%s}}}`, size, targetClusterID, search))
 
-	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexPattern{}),queryDSL)
+	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.View{}),queryDSL)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -111,16 +111,16 @@ func (h *APIHandler) HandleGetIndexPatternListAction(w http.ResponseWriter, req 
 	h.WriteJSON(w, resBody,http.StatusOK)
 }
 
-func (h *APIHandler) HandleDeleteIndexPatternAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) HandleDeleteViewAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
 
 	//targetClusterID := ps.ByName("id")
-	indexPatternID := ps.ByName("indexPatternID")
+	viewID := ps.ByName("viewID")
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
-	_, err := esClient.Delete(orm.GetIndexName(elastic.IndexPattern{}), "", indexPatternID, "wait_for")
+	_, err := esClient.Delete(orm.GetIndexName(elastic.View{}), "", viewID, "wait_for")
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -181,12 +181,13 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 	h.WriteJSON(w, res,http.StatusOK)
 }
 
-func (h *APIHandler) HandleBulkGetIndexPatternAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) HandleBulkGetViewAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
 	targetClusterID := ps.ByName("id")
 	var reqIDs = []struct {
 		ID string `json:"id"`
+		Type string `json:"type"`
 	}{}
 
 	err := h.DecodeJSON(req, &reqIDs)
@@ -195,16 +196,20 @@ func (h *APIHandler) HandleBulkGetIndexPatternAction(w http.ResponseWriter, req 
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	strIDs := []string{}
+	var strIDs []string
+	var indexNames []string
 	for _, reqID := range reqIDs {
-		strIDs = append(strIDs, fmt.Sprintf(`"%s"`, reqID.ID))
+		if(reqID.Type == "view"){
+			strIDs = append(strIDs, fmt.Sprintf(`"%s"`, reqID.ID))
+		}else if(reqID.Type == "index"){
+			indexNames = append(indexNames, reqID.ID)
+		}
 	}
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
-
 	queryDSL :=[]byte(fmt.Sprintf(`{"query": {"bool": {"must": [{"terms": {"_id": [%s]}},
 		{"match": {"cluster_id": "%s"}}]}}}`, strings.Join(strIDs, ","), targetClusterID))
-	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexPattern{}),queryDSL)
+	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.View{}),queryDSL)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -229,11 +234,37 @@ func (h *APIHandler) HandleBulkGetIndexPatternAction(w http.ResponseWriter, req 
 		}
 		savedObjects = append(savedObjects, savedObject)
 	}
+	//index mock
+	for _, indexName := range indexNames {
+		fields, err := h.getFieldCaps(targetClusterID, indexName, []string{"_source", "_id", "_type", "_index"})
+		if err != nil {
+			resBody["error"] = err.Error()
+			h.WriteJSON(w, resBody, http.StatusInternalServerError)
+			return
+		}
+		bufFields, _ := json.Marshal(fields)
+		var savedObject = map[string]interface{}{
+			"id": indexName, //fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s-%s", targetClusterID,indexName)))),
+			"attributes": map[string]interface{}{
+				"title": indexName,
+				"fields": string(bufFields),
+				"viewName": indexName,
+				"timeFieldName":  "",
+				"fieldFormatMap": "",
+			},
+			"score": 0,
+			"type": "index",
+			"namespaces":[]string{"default"},
+			"migrationVersion": map[string]interface{}{"index-pattern": "7.6.0"},
+			"updated_at": time.Now(),
+		}
+		savedObjects = append(savedObjects, savedObject)
+	}
 	resBody["saved_objects"] = savedObjects
 	h.WriteJSON(w, resBody,http.StatusOK)
 }
 
-func (h *APIHandler) HandleUpdateIndexPatternAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
 
@@ -252,73 +283,68 @@ func (h *APIHandler) HandleUpdateIndexPatternAction(w http.ResponseWriter, req *
 		return
 	}
 
-	var indexPattern = &elastic.IndexPatternRequest{}
+	var viewReq = &elastic.ViewRequest{}
 
-	err = h.DecodeJSON(req, indexPattern)
+	err = h.DecodeJSON(req, viewReq)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	if indexPattern.Attributes.Title == "" {
+	if viewReq.Attributes.Title == "" {
 		resBody["error"] = "miss title"
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	id := ps.ByName("indexPatternID")
+	id := ps.ByName("viewID")
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	indexPattern.Attributes.UpdatedAt = time.Now()
-	indexPattern.Attributes.ClusterID = targetClusterID
-	_, err = esClient.Index(orm.GetIndexName(indexPattern.Attributes),"", id, indexPattern.Attributes)
+	viewReq.Attributes.UpdatedAt = time.Now()
+	viewReq.Attributes.ClusterID = targetClusterID
+	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
 	if err != nil {
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	h.WriteJSON(w, indexPattern.Attributes ,http.StatusOK)
+	h.WriteJSON(w, viewReq.Attributes ,http.StatusOK)
 }
 
 func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{
 	}
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(err)
-		}
-	}()
 	targetClusterID := ps.ByName("id")
-	exists,client,err:=h.GetClusterClient(targetClusterID)
 
+	pattern := h.GetParameterOrDefault(req, "pattern", "*")
+	metaFields := req.URL.Query()["meta_fields"]
+	kbnFields, err := h.getFieldCaps(targetClusterID, pattern, metaFields)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	resBody["fields"] = kbnFields
+	h.WriteJSON(w,resBody ,http.StatusOK)
+}
 
-	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
-		h.WriteJSON(w, resBody, http.StatusNotFound)
-		return
+func (h *APIHandler) getFieldCaps(clusterID string, pattern string, metaFields []string) ([]KbnField, error){
+	exists,client,err:=h.GetClusterClient(clusterID)
+	if err != nil {
+		return nil, err
 	}
-
-	pattern := h.GetParameterOrDefault(req, "pattern", "*")
-	metaFields := req.URL.Query()["meta_fields"]
-	//fmt.Println(metaFields)
+	if !exists{
+		return nil, fmt.Errorf("cluster [%s] not found", clusterID)
+	}
 
 	buf, err := client.FieldCaps(pattern)
 	if err != nil {
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	var fieldCaps = &elastic.FieldCapsResponse{}
 	err = json.Unmarshal(buf, fieldCaps)
 	if err != nil {
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
+		return nil, err
 	}
-	kbnFields := []KbnField{}
+	var kbnFields = []KbnField{}
 	for filedName, fieldCaps := range fieldCaps.Fields {
 		if strings.HasPrefix(filedName, "_") && !isValidMetaField(filedName, metaFields){
 			continue
@@ -357,8 +383,7 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	sort.Slice(kbnFields, func(i, j int)bool{
 		return kbnFields[i].Name < kbnFields[j].Name
 	})
-	resBody["fields"] = kbnFields
-	h.WriteJSON(w,resBody ,http.StatusOK)
+	return kbnFields, nil
 }
 
 func isValidMetaField(fieldName string, metaFields []string) bool {
