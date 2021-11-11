@@ -30,6 +30,8 @@ type Request struct {
 	// Copying Header by value is forbidden. Use pointer to Header instead.
 	Header RequestHeader
 
+	rawBody []byte
+
 	uri      URI
 	postArgs Args
 
@@ -385,29 +387,31 @@ func (req *Request) IsGzipped() bool {
 
 //TODO cache
 func (req *Request) GetRawBody() []byte {
-
+	var err error
 	if req.GetBodyLength()<=0{
 		return nil
 	}
+
+	if len(req.rawBody)>0{
+		return req.rawBody
+	}
+
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
-		body, err := req.BodyGunzip()
+		req.rawBody, err = req.BodyGunzip()
 		if err!=nil{
 			panic(err)
 		}
-
-		//req.Header.Del(HeaderContentEncoding)
-		//req.Header.Del(HeaderContentEncoding2)
-
-		return body
+		return req.rawBody
 	} else if ce == "deflate" {
-		body, err := req.BodyInflate()
+		req.rawBody, err = req.BodyInflate()
 		if err != nil {
 			panic(err)
 		}
-		return body
+		return req.rawBody
 	} else {
-		return req.Body()
+		req.rawBody= req.Body()
+		return req.rawBody
 	}
 }
 
@@ -632,6 +636,7 @@ func (resp *Response) ReleaseBody(size int) {
 // Use this method only if you really understand how it works.
 // The majority of workloads don't need this method.
 func (req *Request) ReleaseBody(size int) {
+	req.rawBody=nil
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
 		req.body = nil
@@ -669,6 +674,8 @@ func (resp *Response) SwapBody(body []byte) []byte {
 // It is forbidden to use the body passed to SwapBody after
 // the function returns.
 func (req *Request) SwapBody(body []byte) []byte {
+	req.rawBody=nil
+
 	bb := req.bodyBuffer()
 
 	if req.bodyStream != nil {
@@ -737,6 +744,7 @@ func (req *Request) SetBody(body []byte) {
 
 // SetBodyString sets request body.
 func (req *Request) SetBodyString(body string) {
+	req.rawBody=nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
 	req.bodyBuffer().SetString(body)
@@ -744,6 +752,7 @@ func (req *Request) SetBodyString(body string) {
 
 // ResetBody resets request body.
 func (req *Request) ResetBody() {
+	req.rawBody=nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
 	req.bodyBuffer().Reset()
@@ -806,6 +815,9 @@ func (resp *Response) copyToSkipBody(dst *Response) {
 }
 
 func swapRequestBody(a, b *Request) {
+	a.rawBody=nil
+	b.rawBody=nil
+
 	a.body, b.body = b.body, a.body
 	a.bodyStream, b.bodyStream = b.bodyStream, a.bodyStream
 }
@@ -1288,6 +1300,9 @@ func (req *Request) onlyMultipartForm() bool {
 //
 // See also WriteTo.
 func (req *Request) Write(w *bufio.Writer) error {
+
+	req.rawBody=nil
+
 	if len(req.Header.Host()) == 0 || req.parsedURI {
 		uri := req.URI()
 		host := uri.Host()
@@ -1720,6 +1735,7 @@ func (resp *Response) writeBodyStream(w *bufio.Writer, sendBody bool) (err error
 }
 
 func (req *Request) closeBodyStream() error {
+	req.rawBody=nil
 	if req.bodyStream == nil {
 		return nil
 	}
