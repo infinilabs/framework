@@ -22,8 +22,12 @@ import (
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
+	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -109,6 +113,44 @@ func RequestTimeout(method, url string, body []byte, metadata *elastic.Elasticse
 	if metadata.Config != nil && metadata.Config.BasicAuth != nil {
 		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
+
+
+	if metadata.Config.TrafficControl != nil {
+
+		if metadata.Config.TrafficControl.MaxWaitTimeInMs <= 0 {
+			metadata.Config.TrafficControl.MaxWaitTimeInMs = 10 * 1000
+		}
+		maxTime := time.Duration(metadata.Config.TrafficControl.MaxWaitTimeInMs) * time.Millisecond
+		startTime := time.Now()
+	RetryRateLimit:
+
+		if time.Now().Sub(startTime) < maxTime {
+			if metadata.Config.TrafficControl.MaxQpsPerNode > 0 {
+				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_qps", int(metadata.Config.TrafficControl.MaxQpsPerNode)).Allow() {
+					stats.Increment(metadata.Config.ID, "req-max_qps_throttled")
+					if global.Env().IsDebug {
+						log.Tracef("throttle request [%v] to upstream [%v]", req.URI().String(), "request")
+					}
+					time.Sleep(10 * time.Millisecond)
+					goto RetryRateLimit
+				}
+			}
+
+			if metadata.Config.TrafficControl.MaxBytesPerNode > 0 {
+				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_bps", int(metadata.Config.TrafficControl.MaxBytesPerNode)).AllowN(time.Now(), req.GetRequestLength()) {
+					stats.Increment(metadata.Config.ID, "req-max_bps_throttled")
+					if global.Env().IsDebug {
+						log.Tracef("throttle request [%v] to upstream [%v]", req.URI().String(), "request")
+					}
+					time.Sleep(10 * time.Millisecond)
+					goto RetryRateLimit
+				}
+			}
+		} else {
+			log.Warn("reached max traffic control time, throttle quitting")
+		}
+	}
+
 
 	err = client.DoTimeout(req, res, timeout)
 	if err != nil {
