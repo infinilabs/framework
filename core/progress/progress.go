@@ -2,16 +2,23 @@ package progress
 
 import (
 	"fmt"
-	"github.com/mattn/go-isatty"
 	"gopkg.in/cheggaaa/pb.v1"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/stats"
-	"os"
 	"sync"
 )
 
 var statsLock sync.RWMutex
 var barsMap map[string]*pb.ProgressBar = map[string]*pb.ProgressBar{}
 var statsMap map[string]int = map[string]int{}
+
+func RegisterBar(category, key string, total int) {
+	if ShowProgress() {
+		statsKey := fmt.Sprintf("%v-%v", category, key)
+		var bar *pb.ProgressBar = pb.New(total).Prefix(fmt.Sprintf("[%v][%v]:", category, key))
+		barsMap[statsKey] = bar
+	}
+}
 
 func IncreaseWithTotal(category, key string, count, total int) {
 	statsKey := fmt.Sprintf("%v-%v", category, key)
@@ -30,10 +37,10 @@ func IncreaseWithTotal(category, key string, count, total int) {
 
 	statsMap[statsKey] = sumCount
 	if ShowProgress() {
+		barsMap[statsKey].Reset(total)
 		barsMap[statsKey].Set(sumCount)
 	}
 	stats.Gauge(category,key,int64(sumCount*100/(total)))
-
 }
 
 var pool *pb.Pool
@@ -56,15 +63,25 @@ func Start() {
 
 func ShowProgress() bool {
 
-	var showBar bool = false
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		showBar = true
-	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
-		showBar = true
-	} else {
-		showBar = false
+	cfg:= struct {
+		Enabled     bool     `config:"enabled" json:"enabled,omitempty"`
+	}{}
+
+	exists,_:=env.ParseConfig("progress_bar",&cfg)
+	if exists{
+		return cfg.Enabled
 	}
-	return showBar
+
+	return false
+	//var showBar bool = cfg.Enabled
+	//if isatty.IsTerminal(os.Stdout.Fd()) {
+	//	showBar = true
+	//} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	//	showBar = true
+	//} else {
+	//	showBar = false
+	//}
+	//return showBar
 }
 
 func Stop() {
