@@ -426,23 +426,29 @@ func (p *App) Stop(s service.Service) error {
 }
 
 func (app *App) Run() {
+	var err error
 
 	//init service
 	svcOptions := make(service.KeyValue)
 	svcOptions["Restart"] = "on-success"
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
 
+	workdir,err:=os.Getwd()
+	if err!=nil{
+		panic(err)
+	}
+
 	svcConfig := &service.Config{
 		Name:        app.environment.GetAppLowercaseName(),
 		DisplayName: app.environment.GetAppName(),
 		Description: app.environment.GetAppDesc(),
-		Dependencies: []string{
-			"Requires=network.target",
-			"After=network-online.target syslog.target"},
+		WorkingDirectory: workdir,
+		//Dependencies: []string{
+		//	"Requires=network.target",
+		//	"After=network-online.target syslog.target"},
 		Option: svcOptions,
 	}
 
-	var err error
 	app.svc, err = service.New(app, svcConfig)
 	if err != nil {
 		panic(err)
