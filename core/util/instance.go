@@ -5,6 +5,7 @@ import (
 	log "github.com/cihub/seelog"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 var locked bool
@@ -21,6 +22,7 @@ func CheckInstanceLock(p string) {
 	FilePutContent(file, IntToString(os.Getpid()))
 	log.Trace("lock placed,", file, " ,pid:", os.Getpid())
 	locked = true
+	p,_=filepath.Abs(p)
 	log.Info("workspace: ", p)
 }
 
