@@ -21,8 +21,8 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
-
 	log "github.com/cihub/seelog"
+	"github.com/kardianos/service"
 	"infini.sh/framework/core/daemon"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
@@ -31,7 +31,7 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
-
+	"sync"
 	//"infini.sh/framework/plugins"
 	defaultLog "log"
 	"net/http"
@@ -55,6 +55,15 @@ type App struct {
 	cpuproFile   string
 	memproFile   string
 	httpprof     string
+
+	setup func()
+	start func()
+	stop  func()
+
+	//for service
+	svc     service.Service
+	exit    chan os.Signal
+	svcFlag string
 }
 
 func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
@@ -103,22 +112,23 @@ func (app *App) Init(customFunc func()) {
 	}
 	app.InitWithOptions(options, customFunc)
 
-
 	//init license
 	license.Init()
 
 	license.Verify()
 
 }
+
 func (app *App) InitWithOptions(options Options, customFunc func()) {
 
 	showversion:=flag.Bool("v", false, "version")
-	flag.StringVar(&app.logLevel, "log", "info", "the log level,options:trace,debug,info,warn,error")
+	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
 	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
 	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
+	flag.StringVar(&app.svcFlag,"service", "", "service management, options: install,uninstall,start,stop")
 
 	if options.EnableProfiling {
 		flag.StringVar(&app.cpuproFile, "cpuprofile", "", "write cpu profile to this file")
@@ -132,7 +142,6 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 		fmt.Println(app.environment.GetAppName(),app.environment.GetVersion(),app.environment.GetBuildDate(),app.environment.GetLastCommitHash())
 		os.Exit(1)
 	}
-
 
 	defaultLog.SetOutput(logger.EmptyLogger{})
 
@@ -222,7 +231,12 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 }
 
-func (app *App) Start(setup func(), start func()) {
+func (app *App) Setup(setup func(), start func(), stop func()) {
+
+	//skip on service mode
+	if app.svcFlag!=""{
+		return
+	}
 
 	if app.numCPU <= 0 {
 		runtime.GOMAXPROCS(runtime.NumCPU())
@@ -272,50 +286,13 @@ func (app *App) Start(setup func(), start func()) {
 	}
 
 	if start != nil {
-		start()
+		app.start=start
 	}
 
-	app.quitSignal = make(chan bool)
+	if stop != nil {
+		app.stop=stop
+	}
 
-	//handle exit event
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-		os.Interrupt)
-
-	go func() {
-		defer func() {
-			if !global.Env().IsDebug {
-				if r := recover(); r != nil {
-					var v string
-					switch r.(type) {
-					case error:
-						v = r.(error).Error()
-					case runtime.Error:
-						v = r.(runtime.Error).Error()
-					case string:
-						v = r.(string)
-					}
-					log.Error("error on stopping modules,", v)
-				}
-			}
-		}()
-
-		s := <-sigc
-		if s == os.Interrupt || s.(os.Signal) == syscall.SIGINT || s.(os.Signal) == syscall.SIGTERM ||
-			s.(os.Signal) == syscall.SIGKILL || s.(os.Signal) == syscall.SIGQUIT {
-			fmt.Printf("\n[%s] got signal: %v, start shutting down\n", app.environment.GetAppCapitalName(), s.String())
-			//wait workers to exit
-			module.Stop()
-			app.quitSignal <- true
-		}
-	}()
-
-	log.Infof("%s is running now.", app.environment.GetAppName())
-
-	<-app.quitSignal
 }
 
 func (app *App) Shutdown() {
@@ -341,14 +318,13 @@ func (app *App) Shutdown() {
 			v = r.(string)
 		}
 
-		log.Error("shutdown: ", v)
+		log.Error("panic: ", v)
 
-		buf := make([]byte, 1<<20)
-
-		runtime.Stack(buf, app.environment.IsDebug)
-		
-		fmt.Printf("\n%s\n", util.StripCtlAndExtFromUTF8(string(buf)))
-
+		if global.Env().IsDebug{
+			buf := make([]byte, 1<<20)
+			runtime.Stack(buf, app.environment.IsDebug)
+			fmt.Printf("\n%s\n", util.StripCtlAndExtFromUTF8(string(buf)))
+		}
 	}
 
 	util.SnapshotPersistID()
@@ -368,4 +344,122 @@ func (app *App) Shutdown() {
 	}
 
 	os.Exit(0)
+}
+
+//for service
+func (p *App) Start(s service.Service) error {
+	p.quitSignal = make(chan bool)
+	go p.run()
+	log.Infof("%s is running now.", p.environment.GetAppName())
+	return nil
+}
+
+func (p *App) run() error {
+
+	//handle exit event
+	p.exit = make(chan os.Signal, 1)
+	signal.Notify(p.exit,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+		os.Interrupt)
+
+
+	var stopping bool
+	var stopLock sync.Mutex
+	go func() {
+		stopLock.Lock()
+		defer stopLock.Unlock()
+		if stopping{
+			return
+		}
+
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on stopping modules,", v)
+				}
+			}
+		}()
+
+		s := <-p.exit
+		if s == os.Interrupt || s.(os.Signal) == syscall.SIGINT || s.(os.Signal) == syscall.SIGTERM ||
+			s.(os.Signal) == syscall.SIGKILL || s.(os.Signal) == syscall.SIGQUIT {
+			stopping=true
+			fmt.Printf("\n[%s] got signal: %v, start shutting down\n", p.environment.GetAppCapitalName(), s.String())
+
+			//perform custom stop func first
+			if p.stop != nil {
+				p.stop()
+			}
+
+			//wait modules to stop
+			module.Stop()
+			p.quitSignal <- true
+		}
+	}()
+
+	if p.start != nil {
+		p.start()
+	}
+
+
+
+	return nil
+}
+
+func (p *App) Stop(s service.Service) error {
+	log.Trace("hit stop signal")
+	p.exit <- os.Interrupt
+	<-p.quitSignal
+	log.Trace("stopped")
+	return nil
+}
+
+func (app *App) Run() {
+
+	//init service
+	svcOptions := make(service.KeyValue)
+	svcOptions["Restart"] = "on-success"
+	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
+
+	svcConfig := &service.Config{
+		Name:        app.environment.GetAppLowercaseName(),
+		DisplayName: app.environment.GetAppName(),
+		Description: app.environment.GetAppDesc(),
+		Dependencies: []string{
+			"Requires=network.target",
+			"After=network-online.target syslog.target"},
+		Option: svcOptions,
+	}
+
+	var err error
+	app.svc, err = service.New(app, svcConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	if len(app.svcFlag) != 0 {
+		app.isDaemonMode = true
+		err = service.Control(app.svc, app.svcFlag)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Success")
+		return
+	}
+
+	err = (app.svc).Run()
+	if err != nil {
+		log.Error(err)
+	}
 }
