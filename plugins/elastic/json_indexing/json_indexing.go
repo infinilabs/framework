@@ -49,6 +49,7 @@ type Config struct {
 	IdleTimeoutInSeconds int    `config:"idle_timeout_in_seconds"`
 	BulkSizeInKB         int    `config:"bulk_size_in_kb"`
 	BulkSizeInMB         int    `config:"bulk_size_in_mb"`
+	IndexPrefix          string `config:"index_prefix"`
 	IndexName            string `config:"index_name"`
 	TypeName             string `config:"type_name"`
 	Elasticsearch        string `config:"elasticsearch"`
@@ -57,8 +58,8 @@ type Config struct {
 
 func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
-		BulkSizeInMB: 10,
-		NumOfWorkers: 1,
+		BulkSizeInMB:         10,
+		NumOfWorkers:         1,
 		IdleTimeoutInSeconds: 5,
 	}
 
@@ -103,7 +104,7 @@ func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 		processor.initLocker.Lock()
 		if processor.bufferPool == nil {
 			estimatedBulkSizeInByte := bulkSizeInByte + (bulkSizeInByte / 3)
-			log.Debug("buffer size:",util.ByteSize(uint64(estimatedBulkSizeInByte)),", max:",util.ByteSize(uint64(bulkSizeInByte*2)))
+			log.Debug("buffer size:", util.ByteSize(uint64(estimatedBulkSizeInByte)), ", max:", util.ByteSize(uint64(bulkSizeInByte*2)))
 			processor.bufferPool = bytebufferpool.NewPool(uint64(estimatedBulkSizeInByte), uint64(bulkSizeInByte*2))
 		}
 		processor.initLocker.Unlock()
@@ -113,7 +114,7 @@ func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 	totalSize := 0
 	for i := 0; i < processor.config.NumOfWorkers; i++ {
 		wg.Add(1)
-		go processor.NewBulkWorker(ctx,&totalSize, bulkSizeInByte, &wg)
+		go processor.NewBulkWorker(ctx, &totalSize, bulkSizeInByte, &wg)
 	}
 
 	wg.Wait()
@@ -121,7 +122,7 @@ func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context,count *int, bulkSizeInByte int, wg *sync.WaitGroup) {
+func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, count *int, bulkSizeInByte int, wg *sync.WaitGroup) {
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -153,18 +154,18 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context,cou
 
 	client := elastic.GetClient(processor.config.Elasticsearch)
 
-	var checkCount =0
+	var checkCount = 0
 
-	CHECK_AVAIABLE:
-	metadata:= elastic.GetMetadata(processor.config.Elasticsearch)
+CHECK_AVAIABLE:
+	metadata := elastic.GetMetadata(processor.config.Elasticsearch)
 
-	if !metadata.IsAvailable(){
+	if !metadata.IsAvailable() {
 		checkCount++
-		if checkCount>5{
-			panic(errors.Errorf("cluster [%v] is not available",processor.config.Elasticsearch))
+		if checkCount > 5 {
+			panic(errors.Errorf("cluster [%v] is not available", processor.config.Elasticsearch))
 		}
-		time.Sleep(1*time.Second)
-		log.Tracef("%v is not available, recheck now",metadata.Config.Name)
+		time.Sleep(1 * time.Second)
+		log.Tracef("%v is not available, recheck now", metadata.Config.Name)
 		goto CHECK_AVAIABLE
 	}
 
@@ -175,12 +176,12 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context,cou
 			processor.config.TypeName = "_doc"
 		}
 	}
-	var lastCommit time.Time=time.Now()
+	var lastCommit time.Time = time.Now()
 
 READ_DOCS:
 	for {
 
-		if ctx.IsCanceled(){
+		if ctx.IsCanceled() {
 			goto CLEAN_BUFFER
 		}
 
@@ -190,8 +191,12 @@ READ_DOCS:
 			panic(err)
 		}
 
-		if len(pop)>0{
+		if len(pop) > 0 {
 			stats.IncrementBy("bulk", "bytes_received", int64(mainBuf.Len()))
+
+			if processor.config.IndexName==""{
+				panic("index name is empty")
+			}
 
 			docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
 			docBuf.Write(pop)
@@ -204,7 +209,7 @@ READ_DOCS:
 		}
 
 		//submit no matter the size of bulk after idle timeout
-		if time.Since(lastCommit)>idleDuration && mainBuf.Len()>0{
+		if time.Since(lastCommit) > idleDuration && mainBuf.Len() > 0 {
 			if global.Env().IsDebug {
 				log.Trace("hit idle timeout, ", idleDuration.String())
 			}
@@ -218,32 +223,32 @@ READ_DOCS:
 			goto CLEAN_BUFFER
 		}
 
-		}
+	}
 
 CLEAN_BUFFER:
 
-		lastCommit=time.Now()
+	lastCommit = time.Now()
 
-		if docBuf.Len() > 0 {
-			mainBuf.Write(docBuf.Bytes())
-		}
+	if docBuf.Len() > 0 {
+		mainBuf.Write(docBuf.Bytes())
+	}
 
-		if mainBuf.Len() > 0 {
+	if mainBuf.Len() > 0 {
 
-			//TODO merge into bulk services
-			mainBuf.WriteByte('\n')
-			client.Bulk(mainBuf.Bytes())
-			mainBuf.Reset()
-			//TODO handle retry and fallback/over, dead letter queue
-			//set services to failure, need manual restart
-			//process dead letter queue first next round
+		//TODO merge into bulk services
+		mainBuf.WriteByte('\n')
+		client.Bulk(mainBuf.Bytes())
+		mainBuf.Reset()
+		//TODO handle retry and fallback/over, dead letter queue
+		//set services to failure, need manual restart
+		//process dead letter queue first next round
 
-			stats.IncrementBy("bulk", "bytes_processed", int64(mainBuf.Len()))
-			log.Trace("clean buffer, and execute bulk insert")
-		}
+		stats.IncrementBy("bulk", "bytes_processed", int64(mainBuf.Len()))
+		log.Trace("clean buffer, and execute bulk insert")
+	}
 
-		if ctx.IsCanceled(){
-			return
-		}
+	if ctx.IsCanceled() {
+		return
+	}
 	goto READ_DOCS
 }
