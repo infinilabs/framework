@@ -236,7 +236,11 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	}
 
 	//TODO, don't direct reach to elasticsearch
-	status:=client.GetClusterStats("")
+	status,err:=client.GetClusterStats("")
+	if err != nil {
+		log.Error("get cluster stats error: ", err)
+		return
+	}
 	//TODO 拿不到在线状态，应该去取集群的最近的一个历史版本信息，而不是报错
 
 	summary:=map[string]interface{}{}

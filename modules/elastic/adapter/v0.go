@@ -506,7 +506,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	return obj,nil
 }
 
-func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
+func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
 
@@ -524,7 +524,7 @@ func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
 			obj.StatusCode = 500
 		}
 		obj.ErrorObject = err
-		return obj
+		return obj,err
 	}
 
 	//dirty fix for es 7.0.0
@@ -542,10 +542,10 @@ func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
-		return obj
+		return obj,err
 	}
 
-	return obj
+	return obj,nil
 }
 
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
