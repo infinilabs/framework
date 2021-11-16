@@ -60,13 +60,16 @@ func (m *Metric) Collect() error {
 	}
 
 	elastic.WalkMetadata(func(key, value interface{}) bool {
+		log.Trace("walking:",key)
 		k := key.(string)
 		if value == nil {
+			log.Error("nil value:",key)
 			return true
 		}
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
 			if !v.Config.Monitored || !v.Config.Enabled || !v.IsAvailable() {
+				log.Debugf("cluster [%v] not enabled or not available, skip:",key)
 				return true
 			}
 			log.Tracef("run monitoring task for elasticsearch: " + k)
