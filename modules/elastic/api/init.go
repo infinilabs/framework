@@ -10,9 +10,11 @@ func Init(cfg common.ModuleConfig) {
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/health", clusterAPI.GetClusterHealth)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/metrics", clusterAPI.HandleClusterMetricsAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node_metrics", clusterAPI.HandleNodeMetricsAction)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.HandleGetClusterAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes", clusterAPI.HandleGetNodesAction)
 	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.HandleUpdateClusterAction)
 	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id", clusterAPI.HandleDeleteClusterAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/_search", clusterAPI.HandleSearchClusterAction)
