@@ -21,6 +21,11 @@ func RegisterBar(category, key string, total int) {
 }
 
 func IncreaseWithTotal(category, key string, count, total int) {
+
+	if total<=0{
+		return
+	}
+
 	statsKey := fmt.Sprintf("%v-%v", category, key)
 	statsLock.Lock()
 	defer statsLock.Unlock()

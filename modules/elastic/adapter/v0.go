@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/lib/fasthttp"
 	"regexp"
 	"strings"
 	"sync"
@@ -505,7 +506,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	return obj,nil
 }
 
-func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
+func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
 
@@ -523,7 +524,7 @@ func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
 			obj.StatusCode = 500
 		}
 		obj.ErrorObject = err
-		return obj
+		return obj,err
 	}
 
 	//dirty fix for es 7.0.0
@@ -541,10 +542,10 @@ func (c *ESAPIV0) GetClusterStats(node string) *elastic.ClusterStats {
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
-		return obj
+		return obj,err
 	}
 
-	return obj
+	return obj,nil
 }
 
 func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
@@ -1022,11 +1023,11 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return resp.Body, err
 }
 
-func (s *ESAPIV0) NextScroll(scrollTime string, scrollId string) ([]byte, error) {
+func (s *ESAPIV0) NextScroll(req *fasthttp.Request,res *fasthttp.Response,scrollTime string, scrollId string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
 
 
-	resp, err :=RequestTimeout(util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
+	resp, err :=RequestTimeout(req,res,util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}

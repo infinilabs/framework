@@ -10,6 +10,8 @@ import (
 
 type Metric struct {
 	Enabled   bool `config:"enabled"`
+
+	ClusterStats bool `config:"cluster_stats"`
 	NodeStats bool `config:"node_stats"`
 
 	IndexStats    bool `config:"index_stats"`
@@ -34,6 +36,7 @@ type Metric struct {
 
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
+		ClusterStats:      true,
 		NodeStats:         true,
 		IndexStats:        true,
 		AllIndexStats:     true,
@@ -70,6 +73,32 @@ func (m *Metric) Collect() error {
 			client := elastic.GetClient(k)
 			var clusterUUID string
 			//TODO fetch cluster_uuid?
+
+			//cluster stats
+			if m.ClusterStats{
+				stats,err:=client.GetClusterStats("")
+				if err != nil {
+					log.Error(v.Config.Name, " get cluster stats error: ", err)
+					return true
+				}
+
+				item := event.Event{
+					Metadata: event.EventMetadata{
+						Category: "elasticsearch",
+						Name:     "cluster_stats",
+						Datatype: "snapshot",
+						Labels: util.MapStr{
+							"cluster_id":   v.Config.ID,
+						},
+					},
+				}
+				item.Fields = util.MapStr{
+					"elasticsearch": util.MapStr{
+						"cluster_stats": stats,
+					},
+				}
+				event.Save(item)
+			}
 
 			//nodes stats
 			if m.NodeStats {
@@ -110,7 +139,7 @@ func (m *Metric) Collect() error {
 			if m.AllIndexStats || m.IndexStats {
 				indexStats, err := client.GetStats()
 				if err != nil {
-					log.Error(v.Config.Name, " get cluster stats error: ", err)
+					log.Error(v.Config.Name, " get indices stats error: ", err)
 					return true
 				}
 				if indexStats != nil {
@@ -126,7 +155,6 @@ func (m *Metric) Collect() error {
 					}
 				}
 			}
-
 
 			//cluster state
 			//nodes info

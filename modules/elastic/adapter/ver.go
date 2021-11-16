@@ -41,8 +41,12 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	if metadata.Config.RequestTimeout<=0{
 		metadata.Config.RequestTimeout=30
 	}
+	var req=fasthttp.AcquireRequest()
+	var res=fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(res)
 
-	result, err := RequestTimeout("GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout) * time.Second)
+	result, err := RequestTimeout(req,res,"GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +63,12 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	return &version, nil
 }
 
-func RequestTimeout(method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
+func RequestTimeout(req *fasthttp.Request,res *fasthttp.Response,method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
 
-	var (
-		req = fasthttp.AcquireRequest()
-		res = fasthttp.AcquireResponse()
-	)
+	//var (
+	//	req = fasthttp.AcquireRequest()
+	//	res = fasthttp.AcquireResponse()
+	//)
 	//defer func() {
 	//	fasthttp.ReleaseRequest(req)
 	//	fasthttp.ReleaseResponse(res)

@@ -113,6 +113,7 @@ func Start() {
 	}
 	log.Debug("all user plugin started")
 
+	log.Info("all modules started")
 }
 
 func Stop() {
@@ -124,21 +125,22 @@ func Stop() {
 		if cfg.Enabled(true) {
 			log.Debug("stopping plugin: ", v.Name())
 			v.Stop()
-			log.Info("stopped plugin: ", v.Name())
+			log.Debug("stopped plugin: ", v.Name())
 		}
 	}
-	log.Debug("all user unloaded")
+	log.Debug("all user module unloaded")
 
-	log.Trace("start to stop system")
+	log.Trace("start to stop system module")
 	for i := len(m.system) - 1; i >= 0; i-- {
 		v := m.system[i]
 		cfg := env.GetModuleConfig(v.Name())
 		if cfg.Enabled(true) {
 			log.Debug("stopping module: ", v.Name())
 			v.Stop()
-			log.Info("stopped module: ", v.Name())
+			log.Debug("stopped module: ", v.Name())
 		}
 	}
-	log.Debug("all system stopped")
+	log.Debug("all system module stopped")
 
+	log.Info("all modules stopped")
 }

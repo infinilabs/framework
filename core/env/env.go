@@ -221,27 +221,61 @@ func (env *Env) loadConfig() error {
 
 	filename, _ := filepath.Abs(env.configFile)
 
+	//looking config from pwd
+	pwd,_:=os.Getwd()
+	if pwd!=""{
+		pwd=path.Join(pwd,env.GetAppLowercaseName() + ".yml")
+	}
+	ex,err:=os.Executable()
+	var exPath string
+	if err==nil{
+		exPath=filepath.Dir(ex)
+	}
+	if exPath!=""{
+		exPath=path.Join(exPath,env.GetAppLowercaseName() + ".yml")
+	}
+
+	log.Trace("pwd:",pwd,",process path:",exPath)
+
 	if util.FileExists(filename) {
-		log.Debug("load file:", filename)
-		var err error
-		configObject, err = config.LoadFile(filename)
-		if err != nil {
+		err:=env.loadEnvFromConfigFile(filename)
+		if err!=nil{
 			return err
 		}
-
-		if err := configObject.Unpack(env.SystemConfig); err != nil {
+	}else if util.FileExists(pwd){
+		log.Warnf("default config missing, but found in %v",pwd)
+		err:=env.loadEnvFromConfigFile(pwd)
+		if err!=nil{
 			return err
 		}
-
-		pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
-		moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
-
+	}else if util.FileExists(exPath){
+		log.Warnf("default config missing, but found in %v",exPath)
+		err:=env.loadEnvFromConfigFile(exPath)
+		if err!=nil{
+			return err
+		}
 	} else {
 		if !ignoreFileMissing {
 			return errors.Errorf("config not found: %s", filename)
 		}
 	}
+	return nil
+}
 
+func (env *Env) loadEnvFromConfigFile(filename string) (error) {
+	log.Debug("loading config file:", filename)
+	var err error
+	configObject, err = config.LoadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	if err := configObject.Unpack(env.SystemConfig); err != nil {
+		return err
+	}
+
+	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
+	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 	return nil
 }
 

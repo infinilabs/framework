@@ -12,6 +12,7 @@ import (
 )
 
 type MetricConfig struct {
+	Enabled bool  `config:"enabled"`
 	MajorIPPattern string `config:"major_ip_pattern"`
 	Queue          string `config:"queue"`
 
@@ -32,9 +33,13 @@ func (this *MetricsModule) Name() string {
 
 func (module *MetricsModule) Setup(cfg *Config) {
 
-	module.config = &MetricConfig{}
+	module.config = &MetricConfig{Enabled: true}
 
-	_, err := env.ParseConfig("metrics", module.config)
+	exits, err := env.ParseConfig("metrics", module.config)
+	if !exits{
+		module.config.Enabled=false
+		return
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -42,6 +47,10 @@ func (module *MetricsModule) Setup(cfg *Config) {
 }
 
 func (module *MetricsModule) Start() error {
+
+	if !module.config.Enabled{
+		return nil
+	}
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
 	meta := event.AgentMeta{
