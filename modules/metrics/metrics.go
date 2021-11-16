@@ -65,42 +65,46 @@ func (module *MetricsModule) Start() error {
 	log.Infof("ip:%v, host:%v, labels:%v, tags:%v", meta.MajorIP, meta.Hostname, util.JoinMapString(meta.Labels, "->"), util.JoinArray(meta.Tags, ","))
 
 	//network
-	net, err := network.New(module.config.NetworkConfig)
-	if err != nil {
-		panic(err)
-	}
-	if net.Enabled{
-		var task1 = task.ScheduleTask{
-			Description: "fetch network metrics",
-			Type:        "schedule",
-			Interval:    "10s",
-			Task: func() {
-				log.Debug("collecting network metrics")
-				net.Collect()
-			},
+	if module.config.NetworkConfig!=nil{
+		net, err := network.New(module.config.NetworkConfig)
+		if err != nil {
+			panic(err)
 		}
-		task.RegisterScheduleTask(task1)
-	}
-
-
-
-	//elasticsearch
-	es, err := elastic.New(module.config.ElasticsearchConfig)
-	if err != nil {
-		panic(err)
-	}
-	if es.Enabled{
-		var task1 = task.ScheduleTask{
-			Description: "monitoring for elasticsearch clusters",
-			Type:        "interval",
-			Interval:    "10s",
-			Task: func() {
-				log.Debug("collecting elasticsearch metrics")
-				es.Collect()
-			},
+		if net.Enabled{
+			var task1 = task.ScheduleTask{
+				Description: "fetch network metrics",
+				Type:        "schedule",
+				Interval:    "10s",
+				Task: func() {
+					log.Debug("collecting network metrics")
+					net.Collect()
+				},
+			}
+			task.RegisterScheduleTask(task1)
 		}
-		task.RegisterScheduleTask(task1)
 	}
+
+
+	if module.config.ElasticsearchConfig!=nil{
+		//elasticsearch
+		es, err := elastic.New(module.config.ElasticsearchConfig)
+		if err != nil {
+			panic(err)
+		}
+		if es.Enabled{
+			var task1 = task.ScheduleTask{
+				Description: "monitoring for elasticsearch clusters",
+				Type:        "interval",
+				Interval:    "10s",
+				Task: func() {
+					log.Debug("collecting elasticsearch metrics")
+					es.Collect()
+				},
+			}
+			task.RegisterScheduleTask(task1)
+		}
+	}
+
 
 	return nil
 }
