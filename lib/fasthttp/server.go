@@ -613,6 +613,109 @@ func (r *RequestCtx) Context() context.Context {
 	return context.Background()
 }
 
+func (para *RequestCtx) SetValue(s string,value string) (error){
+
+	if util.PrefixStr(s,"_ctx."){
+		keys:=strings.Split(s,".")
+		if len(keys)>=2{
+			rootFied:=keys[1]
+			if rootFied!=""{
+				switch rootFied {
+				case "request":
+					if len(keys)>=3 {
+						requestField := keys[2]
+						if requestField != "" {
+							switch requestField {
+							case "host":
+								para.Request.SetHost(value)
+							case "method":
+								para.Request.Header.SetMethod(value)
+							case "uri":
+								para.Request.SetRequestURI(value)
+							case "path":
+								para.Request.URI().SetPath(value)
+							case "body":
+								para.Request.SetBodyString(value)
+							case "body_json":
+								keys:=keys[3:]
+								if len(keys)==0{
+									return errors.New("invalid json key:"+s)
+								}
+								body:=para.Request.GetRawBody()
+								body,err:=jsonparser.Set(body,[]byte(value),keys...)
+								para.Request.SetRawBody(body)
+								if err!=nil{
+									return err
+								}
+							case "query_args":
+								if len(keys) == 4 { //TODO notify
+									argsField := keys[3]
+									if argsField != "" {
+										para.Request.URI().QueryArgs().Set(argsField,value)
+										return nil
+									}
+								}
+							case "header":
+								if len(keys) == 4 { //TODO notify
+									headerKey := keys[3]
+									if headerKey != "" {
+										para.Request.Header.Set(headerKey,value)
+										return nil
+									}
+								}
+								return nil
+							}
+						}
+					}
+					break
+				case "response":
+					if len(keys)>=3{
+						responseField :=keys[2]
+						if responseField !=""{
+							switch responseField {
+							case "status":
+								status,err:=util.ToInt(value)
+								if err!=nil{
+									return err
+								}
+								para.Response.SetStatusCode(status)
+							case "content_type":
+								para.Response.Header.SetContentType(value)
+							case "header":
+								if len(keys)==4{ //TODO notify
+									headerKey:=keys[3]
+									if headerKey!=""{
+										para.Response.Header.Set(headerKey,value)
+										return nil
+									}
+								}
+							case "body":
+								para.Response.SetBodyString(value)
+							case "body_json":
+								keys:=keys[3:]
+								if len(keys)==0{
+									return errors.New("invalid json key:"+s)
+								}
+								body:=para.Response.GetRawBody()
+								body,err:=jsonparser.Set(body,[]byte(value),keys...)
+								para.Response.SetRawBody(body)
+								if err!=nil{
+									return err
+								}
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	para.Set(param.ParaKey(s),value)
+
+	return nil
+}
+
 func (para *RequestCtx) GetValue(s string) (interface{}, error){
 
 	if util.PrefixStr(s,"_ctx."){
