@@ -112,7 +112,15 @@ func (m *Metric) Collect() error {
 					//get node level stats
 					//TODO routing request to specify host
 					stats := client.GetNodesStats(x)
+
 					for e,f:=range stats.Nodes{
+						//remove adaptive_selection
+						x,ok:=f.(map[string]interface{})
+						if ok{
+							delete(x,"adaptive_selection")
+							delete(x,"ingest")
+						}
+
 						item := event.Event{
 							Metadata: event.EventMetadata{
 								Category: "elasticsearch",
@@ -130,7 +138,7 @@ func (m *Metric) Collect() error {
 						}
 						item.Fields = util.MapStr{
 							"elasticsearch": util.MapStr{
-								"node_stats": f,
+								"node_stats": x,
 							},
 						}
 						event.Save(item)

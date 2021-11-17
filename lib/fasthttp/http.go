@@ -605,10 +605,10 @@ func (resp *Response) ResetBody() {
 	}
 }
 
-// SetBodyRaw sets response body, but without copying it.
+// SetRawBody sets response body, but without copying it.
 //
 // From this point onward the body argument must not be changed.
-func (resp *Response) SetBodyRaw(body []byte) {
+func (resp *Response) SetRawBody(body []byte) {
 	resp.ResetBody()
 	resp.bodyRaw = body
 }

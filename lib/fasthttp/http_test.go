@@ -2076,7 +2076,7 @@ func TestResponseRawBodySet(t *testing.T) {
 
 	expectedS := "test"
 	body := []byte(expectedS)
-	resp.SetBodyRaw(body)
+	resp.SetRawBody(body)
 
 	testBodyWriteTo(t, &resp, expectedS, true)
 }
@@ -2087,7 +2087,7 @@ func TestResponseRawBodyReset(t *testing.T) {
 	var resp Response
 
 	body := []byte("test")
-	resp.SetBodyRaw(body)
+	resp.SetRawBody(body)
 	resp.ResetBody()
 
 	testBodyWriteTo(t, &resp, "", true)
@@ -2100,7 +2100,7 @@ func TestResponseRawBodyCopyTo(t *testing.T) {
 
 	expectedS := "test"
 	body := []byte(expectedS)
-	resp.SetBodyRaw(body)
+	resp.SetRawBody(body)
 
 	testResponseCopyTo(t, &resp)
 }

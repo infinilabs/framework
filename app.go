@@ -231,11 +231,11 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 }
 
-func (app *App) Setup(setup func(), start func(), stop func()) {
+func (app *App) Setup(setup func(), start func(), stop func())(bool) {
 
 	//skip on service mode
 	if app.svcFlag!=""{
-		return
+		return true
 	}
 
 	if app.numCPU <= 0 {
@@ -262,7 +262,7 @@ func (app *App) Setup(setup func(), start func(), stop func()) {
 
 			if child != nil {
 				fmt.Printf("[%s] started in background, pid: %v\n", app.environment.GetAppCapitalName(), os.Getpid()+1)
-				return
+				return false
 			}
 			defer context.Release()
 
@@ -293,6 +293,7 @@ func (app *App) Setup(setup func(), start func(), stop func()) {
 		app.stop=stop
 	}
 
+	return true
 }
 
 func (app *App) Shutdown() {
