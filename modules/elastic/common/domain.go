@@ -61,7 +61,7 @@ type MetricSummary struct {
 }
 
 type MetricItem struct {
-	Key   string        `json:"-"`
+	Key   string        `json:"key"`
 	Axis  []*MetricAxis `json:"axis"`
 	Lines []*MetricLine `json:"lines"`
 	Group string `json:"group"`
