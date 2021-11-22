@@ -17,7 +17,9 @@ func NewClusterAvailableCondition(names []string) (ClusterAvailable) {
 func (c ClusterAvailable) Check(event ValuesMap) bool {
 	for _, field := range c {
 		cfg:=elastic.GetMetadata(field)
-
+		if cfg==nil{
+			return false
+		}
 		if global.Env().IsDebug{
 			log.Tracef("checking cluster [%v] health [%v]",field,cfg.IsAvailable())
 		}
