@@ -56,6 +56,10 @@ func updateClusterState(clusterId string) {
 	log.Trace("update cluster state:",clusterId)
 
 	meta := elastic.GetMetadata(clusterId)
+	if meta==nil{
+		return
+	}
+
 	if !meta.IsAvailable(){
 		return
 	}
