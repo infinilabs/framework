@@ -45,6 +45,12 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		fasthttp.ReleaseResponse(fres)
 	}()
 	metadata := elastic.GetMetadata(targetClusterID)
+	if metadata==nil{
+		resBody["error"] = fmt.Sprintf("cluster [%s] metadata not found",targetClusterID)
+		h.WriteJSON(w, resBody, http.StatusNotFound)
+		return
+	}
+
 	if metadata.Config.BasicAuth != nil {
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}

@@ -159,6 +159,10 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 CHECK_AVAIABLE:
 	metadata := elastic.GetMetadata(processor.config.Elasticsearch)
 
+	if metadata==nil{
+		panic(errors.Errorf("cluster metadata [%v] not ready", processor.config.Elasticsearch))
+	}
+
 	if !metadata.IsAvailable() {
 		checkCount++
 		if checkCount > 5 {
