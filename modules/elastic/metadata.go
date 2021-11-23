@@ -95,6 +95,9 @@ func updateClusterState(clusterId string) {
 }
 
 func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
+	if !meta.IsAvailable(){
+		return
+	}
 
 	client := elastic.GetClient(meta.Config.ID)
 	nodes, err := client.GetNodes()
@@ -152,6 +155,11 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 }
 
 func updateIndices(meta *elastic.ElasticsearchMetadata) {
+
+	if !meta.IsAvailable(){
+		return
+	}
+
 	client := elastic.GetClient(meta.Config.ID)
 
 	//Indices
@@ -190,6 +198,11 @@ func updateIndices(meta *elastic.ElasticsearchMetadata) {
 }
 
 func updateAliases(meta *elastic.ElasticsearchMetadata) {
+
+	if !meta.IsAvailable(){
+		return
+	}
+
 	client := elastic.GetClient(meta.Config.ID)
 
 	//Aliases
@@ -227,6 +240,10 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 }
 
 func updateShards(meta *elastic.ElasticsearchMetadata) {
+	if !meta.IsAvailable(){
+		return
+	}
+
 	client := elastic.GetClient(meta.Config.ID)
 
 	//Shards
