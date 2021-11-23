@@ -346,12 +346,12 @@ func (h *APIHandler) getMetricParams(req *http.Request) (int, int, int, error) {
 		rangeFrom, err = util.ParseStandardTime(minStr)
 		if err != nil {
 			//try 1629637500000
-			v, err := util.ToInt(minStr)
+			v, err := util.ToInt64(minStr)
 			if err != nil {
 				log.Error("invalid timestamp:", minStr, err)
 				rangeFrom = now.Add(-time.Second * time.Duration(bucketSize*metricCount+1))
 			} else {
-				rangeFrom = util.FromUnixTimestamp(int64(v) / 1000)
+				rangeFrom = util.FromUnixTimestamp(v / 1000)
 			}
 		}
 	}
@@ -361,7 +361,7 @@ func (h *APIHandler) getMetricParams(req *http.Request) (int, int, int, error) {
 	} else {
 		rangeTo, err = util.ParseStandardTime(maxStr)
 		if err != nil {
-			v, err := util.ToInt(maxStr)
+			v, err := util.ToInt64(maxStr)
 			if err != nil {
 				log.Error("invalid timestamp:", maxStr, err)
 				rangeTo = now.Add(-time.Second * time.Duration(int(1*(float64(bucketSize)))))

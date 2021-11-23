@@ -106,7 +106,6 @@ func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request))  
 // StartAPI will start listen and act as the API server
 func StartAPI() {
 
-
 	apiConfig = &global.Env().SystemConfig.APIConfig
 
 	if !apiConfig.Enabled {
