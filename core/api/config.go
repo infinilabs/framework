@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ui
+package api
 
 import "infini.sh/framework/core/config"
 
@@ -23,6 +23,8 @@ type UIConfig struct {
 	AuthConfig    AuthConfig           `config:"auth"`
 	TLSConfig     config.TLSConfig     `config:"tls"`
 	NetworkConfig config.NetworkConfig `config:"network"`
+	BasePath      string               `config:"base_path"`
+	EmbeddingAPI  bool                 `config:"embedding_api"`
 }
 
 type AuthConfig struct {

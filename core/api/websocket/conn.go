@@ -5,9 +5,9 @@
 package websocket
 
 import (
-	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"net/http"
+	log "src/github.com/cihub/seelog"
 	"strings"
 	"sync"
 	"time"

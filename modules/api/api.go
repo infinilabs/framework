@@ -63,7 +63,6 @@ func (module *APIModule) Setup(cfg *config.Config) {
 
 		w.WriteHeader(200)
 	})
-
 	api.HandleAPIMethod(api.GET, whoisAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
 		w.Write([]byte("\n"))

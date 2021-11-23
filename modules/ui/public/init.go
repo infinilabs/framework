@@ -20,7 +20,6 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"golang.org/x/oauth2"
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/ui"
 )
 
 const (
@@ -36,10 +35,10 @@ var (
 	scopes = []string{"repo"}
 )
 
-func InitUI(cfg ui.AuthConfig) {
+func InitUI(cfg api.AuthConfig) {
 
 	public := PublicUI{}
-	ui.HandleUIMethod(api.GET, "/redirect/", public.RedirectHandler)
+	api.HandleUIMethod(api.GET, "/redirect/", public.RedirectHandler)
 
 	if !cfg.Enabled {
 		return
@@ -63,11 +62,11 @@ func InitUI(cfg ui.AuthConfig) {
 		}
 	}
 
-	ui.HandleUIMethod(api.GET, "/auth/github/", public.AuthHandler)
-	ui.HandleUIMethod(api.GET, "/auth/callback/", public.CallbackHandler)
-	ui.HandleUIMethod(api.GET, "/auth/login/", public.Login)
-	ui.HandleUIMethod(api.GET, "/auth/logout/", public.Logout)
-	ui.HandleUIMethod(api.GET, "/auth/success/", public.LoginSuccess)
-	ui.HandleUIMethod(api.GET, "/auth/fail/", public.LoginFail)
+	api.HandleUIMethod(api.GET, "/auth/github/", public.AuthHandler)
+	api.HandleUIMethod(api.GET, "/auth/callback/", public.CallbackHandler)
+	api.HandleUIMethod(api.GET, "/auth/login/", public.Login)
+	api.HandleUIMethod(api.GET, "/auth/logout/", public.Logout)
+	api.HandleUIMethod(api.GET, "/auth/success/", public.LoginSuccess)
+	api.HandleUIMethod(api.GET, "/auth/fail/", public.LoginFail)
 
 }

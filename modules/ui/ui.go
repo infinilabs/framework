@@ -19,17 +19,17 @@ package ui
 import (
 	log "github.com/cihub/seelog"
 	uis "infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/websocket"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/logger"
-	"infini.sh/framework/core/ui"
-	"infini.sh/framework/core/ui/websocket"
 	"infini.sh/framework/modules/ui/admin"
 	"infini.sh/framework/modules/ui/public"
 	_ "net/http/pprof"
 )
 
 type UIModule struct {
+	uiConfig *uis.UIConfig
 }
 
 func LoggerReceiver(message string, level log.LogLevel, context log.LogContextInterface) {
@@ -44,32 +44,31 @@ func (module *UIModule) Name() string {
 func (module *UIModule) Setup(cfg *Config) {
 
 
-	uiConfig := ui.UIConfig{}
+	module.uiConfig = &uis.UIConfig{}
 	//cfg.Unpack(&uiConfig)
 
-	env.ParseConfig("web", &uiConfig)
+	env.ParseConfig("web", module.uiConfig)
 
-	if uiConfig.Enabled {
+	if module.uiConfig.Enabled {
 
-		uis.EnableAuth(uiConfig.AuthConfig.Enabled)
+		uis.EnableAuth(module.uiConfig.AuthConfig.Enabled)
 
 		//init admin ui
 		admin.InitUI()
 
 		//init public ui
-		public.InitUI(uiConfig.AuthConfig)
+		public.InitUI(module.uiConfig.AuthConfig)
 
 		//register websocket logger
 		logger.RegisterWebsocketHandler(LoggerReceiver)
-
-		ui.StartUI(&uiConfig)
-
 	}
 
 }
 
 func (module *UIModule) Start() error {
-
+	if module.uiConfig.Enabled {
+		uis.StartUI(module.uiConfig)
+	}
 	return nil
 }
 

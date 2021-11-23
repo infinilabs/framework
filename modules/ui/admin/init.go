@@ -18,7 +18,6 @@ package admin
 
 import (
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/ui"
 	"infini.sh/framework/modules/ui/admin/ajax"
 	"infini.sh/framework/modules/ui/common"
 )
@@ -34,15 +33,15 @@ func InitUI() {
 	//UI pages init
 	adminUI := AdminUI{}
 
-	ui.HandleUIMethod(api.GET, "/admin/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
-	ui.HandleUIMethod(api.GET, "/admin/dashboard/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
-	ui.HandleUIMethod(api.GET, "/admin/console/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.ConsolePageAction))
+	api.HandleUIMethod(api.GET, "/admin/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
+	api.HandleUIMethod(api.GET, "/admin/dashboard/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.DashboardAction))
+	api.HandleUIMethod(api.GET, "/admin/console/", api.NeedPermission(api.PERMISSION_ADMIN_MINIMAL, adminUI.ConsolePageAction))
 
-	ui.HandleUIFunc("/admin/explore/", adminUI.ExplorePageAction)
+	api.HandleUIFunc("/admin/explore/", adminUI.ExplorePageAction)
 
 	//Ajax
 	ajax := ajax.Ajax{}
-	ui.HandleUIFunc("/setting/logger", ajax.LoggingSettingAction)
-	ui.HandleUIFunc("/setting/logger/", ajax.LoggingSettingAction)
+	api.HandleUIFunc("/setting/logger", ajax.LoggingSettingAction)
+	api.HandleUIFunc("/setting/logger/", ajax.LoggingSettingAction)
 
 }

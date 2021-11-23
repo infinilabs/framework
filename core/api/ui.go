@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ui
+package api
 
 import (
 	"bytes"
@@ -23,10 +23,9 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
-	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/ui/websocket"
 	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
@@ -38,9 +37,9 @@ import (
 	"time"
 )
 
-var router *httprouter.Router
-var mux *http.ServeMux
-var l sync.Mutex
+var uiRouter *httprouter.Router
+var uiServeMux *http.ServeMux
+var uiMutex sync.Mutex
 var uiConfig *UIConfig
 
 func GetUIConfig() UIConfig {
@@ -56,13 +55,13 @@ func GetBindAddress() string {
 func StartUI(cfg *UIConfig) {
 	uiConfig = cfg
 	//start web ui
-	mux = http.NewServeMux()
+	uiServeMux = http.NewServeMux()
 
-	router = httprouter.New(mux)
-	//router.RedirectTrailingSlash=false
-	//router.RedirectFixedPath=false
+	uiRouter = httprouter.New(uiServeMux)
+	//uiRouter.RedirectTrailingSlash=false
+	//uiRouter.RedirectFixedPath=false
 
-	router.NotFound= http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	uiRouter.NotFound= http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("my 404"))
 		rw.WriteHeader(404)
 	})
@@ -71,27 +70,45 @@ func StartUI(cfg *UIConfig) {
 	if registeredUIHandler != nil {
 		for k, v := range registeredUIHandler {
 			log.Debug("register http handler: ", k)
-			mux.Handle(k, v)
+			uiServeMux.Handle(k, v)
 		}
 	}
 	if registeredUIFuncHandler != nil {
 		for k, v := range registeredUIFuncHandler {
 			log.Debug("register http handler: ", k)
-			mux.HandleFunc(k, v)
+			uiServeMux.HandleFunc(k, v)
 		}
 	}
 	if registeredUIMethodHandler != nil {
 		for k, v := range registeredUIMethodHandler {
 			for m, n := range v {
 				log.Debug("register http handler: ", k, " ", m)
-				router.Handle(k, m, n)
+				uiRouter.Handle(k, m, n)
 			}
 		}
 	}
 
+	if cfg.EmbeddingAPI{
+		if registeredAPIMethodHandler != nil {
+			for k, v := range registeredAPIMethodHandler {
+				for m, n := range v {
+					log.Debug("register http handler: ", k, " ", m)
+					uiRouter.Handle(k, m, n)
+				}
+			}
+		}
+		if registeredAPIFuncHandler != nil {
+			for k, v := range registeredAPIFuncHandler {
+				log.Debug("register http handler: ", k)
+				uiServeMux.HandleFunc(k, v)
+			}
+		}
+	}
+
+
 	//init websocket,TODO configurable
 	websocket.InitWebSocket()
-	mux.HandleFunc("/ws", websocket.ServeWs)
+	uiServeMux.HandleFunc("/ws", websocket.ServeWs)
 
 	if registeredWebSocketCommandHandler != nil {
 		for k, v := range registeredWebSocketCommandHandler {
@@ -147,7 +164,7 @@ func StartUI(cfg *UIConfig) {
 
 		srv := &http.Server{
 			Addr:         bindAddress,
-			Handler:      context.ClearHandler(router),
+			Handler:      context.ClearHandler(uiRouter),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -162,7 +179,7 @@ func StartUI(cfg *UIConfig) {
 
 	} else {
 		go func() {
-			err := http.ListenAndServe(bindAddress, context.ClearHandler(router))
+			err := http.ListenAndServe(bindAddress, context.ClearHandler(uiRouter))
 			if err != nil {
 				log.Error(err)
 				panic(err)
@@ -194,28 +211,28 @@ var webSocketCommandUsage map[string]string
 
 // HandleUIFunc register ui request handler
 func HandleUIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	l.Lock()
+	uiMutex.Lock()
 	if registeredUIFuncHandler == nil {
 		registeredUIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
 	}
 	registeredUIFuncHandler[pattern] = handler
-	l.Unlock()
+	uiMutex.Unlock()
 }
 
 // HandleUI register ui request handler
 func HandleUI(pattern string, handler http.Handler) {
 
-	l.Lock()
+	uiMutex.Lock()
 	if registeredUIHandler == nil {
 		registeredUIHandler = map[string]http.Handler{}
 	}
 	registeredUIHandler[pattern] = handler
-	l.Unlock()
+	uiMutex.Unlock()
 }
 
 // HandleUIMethod register ui request handler
-func HandleUIMethod(method api.Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)) {
-	l.Lock()
+func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)) {
+	uiMutex.Lock()
 	if registeredUIMethodHandler == nil {
 		registeredUIMethodHandler = map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
@@ -225,13 +242,13 @@ func HandleUIMethod(method api.Method, pattern string, handler func(w http.Respo
 		registeredUIMethodHandler[string(method)] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
 	registeredUIMethodHandler[string(method)][pattern] = handler
-	l.Unlock()
+	uiMutex.Unlock()
 }
 
 // HandleWebSocketCommand register websocket command handler
 func HandleWebSocketCommand(command string, usage string, handler func(c *websocket.WebsocketConnection, array []string)) {
 
-	l.Lock()
+	uiMutex.Lock()
 	if registeredWebSocketCommandHandler == nil {
 		registeredWebSocketCommandHandler = map[string]func(c *websocket.WebsocketConnection, array []string){}
 		webSocketCommandUsage = map[string]string{}
@@ -240,7 +257,7 @@ func HandleWebSocketCommand(command string, usage string, handler func(c *websoc
 	command = strings.ToLower(strings.TrimSpace(command))
 	registeredWebSocketCommandHandler[command] = handler
 	webSocketCommandUsage[command] = usage
-	l.Unlock()
+	uiMutex.Unlock()
 }
 
 // GetPagination return a pagination html code snippet
