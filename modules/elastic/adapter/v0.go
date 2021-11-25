@@ -376,7 +376,7 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 		log.Trace("search: ", url, ",", string(queryDSL))
 	}
 
-	resp, err := c.Request(util.Verb_GET, url, queryDSL)
+	resp, err := c.Request(util.Verb_POST, url, queryDSL)
 	if resp != nil {
 		esResp.StatusCode = resp.StatusCode
 		esResp.ErrorObject = err
@@ -1318,7 +1318,7 @@ func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.Request(util.Verb_GET, url, bytesBody)
+	res, err := c.Request(util.Verb_POST, url, bytesBody)
 	return res.Body, err
 }
 
@@ -1334,7 +1334,7 @@ func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.Request(util.Verb_GET, url, bytesBody)
+	res, err := c.Request(util.Verb_POST, url, bytesBody)
 	return res.Body, err
 }
 

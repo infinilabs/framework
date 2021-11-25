@@ -252,7 +252,7 @@ func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount
 		panic("scroll request is nil")
 	}
 
-	resp, err := c.Request(util.Verb_GET, url, jsonBody)
+	resp, err := c.Request(util.Verb_POST, url, jsonBody)
 
 	if resp.StatusCode != 200 {
 		return nil, errors.New(string(resp.Body))
