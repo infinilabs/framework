@@ -12,6 +12,8 @@ import (
 type Metric struct {
 	Enabled   bool `config:"enabled"`
 
+	ClusterHealth bool `config:"cluster_health"`
+
 	ClusterStats bool `config:"cluster_stats"`
 	NodeStats bool `config:"node_stats"`
 
@@ -37,6 +39,7 @@ type Metric struct {
 
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
+		ClusterHealth:      true,
 		ClusterStats:      true,
 		NodeStats:         true,
 		IndexStats:        true,
@@ -80,6 +83,31 @@ func (m *Metric) Collect() error {
 			client := elastic.GetClient(k)
 			var clusterUUID string
 			//TODO fetch cluster_uuid?
+
+			if m.ClusterHealth{
+				health,err:=client.ClusterHealth()
+				if err != nil {
+					log.Error(v.Config.Name, " get cluster health error: ", err)
+					return true
+				}
+
+				item := event.Event{
+					Metadata: event.EventMetadata{
+						Category: "elasticsearch",
+						Name:     "cluster_health",
+						Datatype: "snapshot",
+						Labels: util.MapStr{
+							"cluster_id":   v.Config.ID,
+						},
+					},
+				}
+				item.Fields = util.MapStr{
+					"elasticsearch": util.MapStr{
+						"cluster_health": health,
+					},
+				}
+				event.Save(item)
+			}
 
 			//cluster stats
 			if m.ClusterStats{

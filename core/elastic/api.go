@@ -27,7 +27,7 @@ type API interface {
 
 	GetMajorVersion() int
 
-	ClusterHealth() *ClusterHealth
+	ClusterHealth() (*ClusterHealth,error)
 
 	GetClusterState() (*ClusterState,error)
 

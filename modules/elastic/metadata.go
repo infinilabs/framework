@@ -33,8 +33,8 @@ func clusterHealthCheck(force bool) {
 					client := elastic.GetClient(cfg.ID)
 
 					//check cluster health status
-					health := client.ClusterHealth()
-					if health==nil||health.StatusCode!=200{
+					health,err := client.ClusterHealth()
+					if err!=nil||health==nil||health.StatusCode!=200{
 						metadata.ReportFailure()
 					}else{
 						metadata.ReportSuccess()

@@ -483,7 +483,7 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	health:=client.ClusterHealth()
+	health,_:=client.ClusterHealth()
 
 	h.WriteJSON(w,health,200)
 }

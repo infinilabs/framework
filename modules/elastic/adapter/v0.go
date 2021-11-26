@@ -548,7 +548,7 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	return obj,nil
 }
 
-func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
+func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 
 	url := fmt.Sprintf("%s/_cluster/health", c.GetEndpoint())
 	health := &elastic.ClusterHealth{}
@@ -563,7 +563,7 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 
 	if err != nil {
 		health.ErrorObject = err
-		return health
+		return health,err
 	}
 
 	err = json.Unmarshal(resp.Body, health)
@@ -571,9 +571,9 @@ func (c *ESAPIV0) ClusterHealth() *elastic.ClusterHealth {
 	if err != nil {
 		health.StatusCode = resp.StatusCode
 		health.ErrorObject = err
-		return health
+		return health,err
 	}
-	return health
+	return health,err
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
