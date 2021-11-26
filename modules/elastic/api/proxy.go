@@ -56,7 +56,11 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	}
 	freq.SetRequestURI(fmt.Sprintf("%s/%s", metadata.GetActiveEndpoint(), path))
 	method = strings.ToUpper(method)
+	if method == http.MethodGet && req.ContentLength > 0 {
+		method = http.MethodPost
+	}
 	freq.Header.SetMethod(method)
+
 	freq.SetBodyStream(req.Body, -1)
 	defer req.Body.Close()
 	client := &fasthttp.Client{
