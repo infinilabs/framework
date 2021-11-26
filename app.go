@@ -47,6 +47,7 @@ type App struct {
 	environment  *env.Env
 	numCPU       int
 	quitSignal   chan bool
+	disableVerbose bool
 	isDaemonMode bool
 	isDebug      bool
 	pidFile      string
@@ -231,7 +232,7 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 }
 
-func (app *App) Setup(setup func(), start func(), stop func())(bool) {
+func (app *App) Setup(setup func(), start func(), stop func())(allowContinue bool) {
 
 	//skip on service mode
 	if app.svcFlag!=""{
@@ -258,7 +259,10 @@ func (app *App) Setup(setup func(), start func(), stop func())(bool) {
 				context.PidFileName = app.pidFile
 				context.PidFilePerm = 0644
 			}
-			child, _ := context.Reborn()
+			child, err := context.Reborn()
+			if err!=nil{
+				panic(err)
+			}
 
 			if child != nil {
 				fmt.Printf("[%s] started in background, pid: %v\n", app.environment.GetAppCapitalName(), os.Getpid()+1)
@@ -337,13 +341,12 @@ func (app *App) Shutdown() {
 		fmt.Println(string(*stats.StatsAll()))
 	}
 
-	if !app.isDaemonMode {
+	if !app.isDaemonMode && !app.disableVerbose {
 		log.Infof("%s now terminated.", app.environment.GetAppName())
 		log.Flush()
 		//print goodbye message
 		fmt.Println(app.environment.GetGoodbyeMessage())
 	}
-
 	os.Exit(0)
 }
 
@@ -456,7 +459,7 @@ func (app *App) Run() {
 	}
 
 	if len(app.svcFlag) != 0 {
-		app.isDaemonMode = true
+		app.disableVerbose = true
 		err = service.Control(app.svc, app.svcFlag)
 		if err != nil {
 			panic(err)

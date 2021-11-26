@@ -4,6 +4,8 @@
 package event
 
 import (
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -32,7 +34,9 @@ func Save(event Event) error {
 		panic("queue can't be nil")
 	}
 
-	//log.Error(event.Metadata.Category,event.Metadata.Name,string(util.MustToJSONBytes(event)))
+	if global.Env().IsDebug{
+		log.Debugf("%v-%v: %v",event.Metadata.Category,event.Metadata.Name,string(util.MustToJSONBytes(event.Metadata)))
+	}
 
 	stats.Increment("metrics.save",event.Metadata.Category,event.Metadata.Name)
 

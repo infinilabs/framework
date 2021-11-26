@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -69,10 +70,13 @@ func (m *Metric) Collect() error {
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
 			if !v.Config.Monitored || !v.Config.Enabled || !v.IsAvailable() {
-				log.Debugf("cluster [%v] not enabled or not available, skip:",key)
+				log.Debugf("cluster [%v] not enabled[%v] or monitored[%v] or not available[%v], skip collect",v.Config.Name,v.Config.Enabled,v.Config.Monitored,v.IsAvailable())
 				return true
 			}
-			log.Tracef("run monitoring task for elasticsearch: " + k)
+			if global.Env().IsDebug{
+				log.Debugf("run monitoring task for elasticsearch: %v - %v",k,v.Config.Name)
+			}
+
 			client := elastic.GetClient(k)
 			var clusterUUID string
 			//TODO fetch cluster_uuid?
@@ -106,6 +110,9 @@ func (m *Metric) Collect() error {
 			//nodes stats
 			if m.NodeStats {
 				if v.Nodes == nil {
+					if global.Env().IsDebug{
+						log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect",k,v.Config.Name)
+					}
 					return true
 				}
 				for x, y := range *v.Nodes {
@@ -163,6 +170,10 @@ func (m *Metric) Collect() error {
 						for x, y := range indexStats.Indices {
 							m.saveIndexStats(v.Config.ID, clusterUUID, y.Uuid, x, y.Primaries, y.Total)
 						}
+					}
+				}else{
+					if global.Env().IsDebug{
+						log.Debugf("elasticsearch: %v - %v, no index info was found, skip index metrics collect",k,v.Config.Name)
 					}
 				}
 			}

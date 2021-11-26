@@ -96,6 +96,7 @@ func updateClusterState(clusterId string) {
 
 func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	if !meta.IsAvailable(){
+		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
 		return
 	}
 
