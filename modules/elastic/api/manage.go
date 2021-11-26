@@ -14,7 +14,6 @@ import (
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -178,13 +177,13 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	}
 	var (
 		name          = h.GetParameterOrDefault(req, "name", "")
-		queryDSL      = `{"query":{"bool":{"filter":[%s]}}, "size": %d, "from": %d}`
+		queryDSL      = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
 		strSize       = h.GetParameterOrDefault(req, "size", "20")
-		strFrom       = h.GetParameterOrDefault(req, "from", "0")
-		filterBuilder = &strings.Builder{}
+		strFrom     = h.GetParameterOrDefault(req, "from", "0")
+		mustBuilder = &strings.Builder{}
 	)
 	if name != ""{
-		filterBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.keyword": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
 	}
 	size, _ := strconv.Atoi(strSize)
 	if size <= 0 {
@@ -195,10 +194,15 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 		from = 0
 	}
 
-	queryDSL = fmt.Sprintf(queryDSL, filterBuilder.String(), size, from)
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	if len(res.Hits.Hits) > 0 {
 		for _, hit := range res.Hits.Hits {
 			if basicAuth, ok := hit.Source["basic_auth"]; ok {
@@ -207,12 +211,6 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 				}
 			}
 		}
-	}
-
-	if err != nil {
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
 	}
 
 	h.WriteJSON(w, res, http.StatusOK)
@@ -326,7 +324,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 }
 
-func (h *APIHandler) getMetricParams(req *http.Request) (int, int, int, error) {
+func (h *APIHandler) getMetricParams(req *http.Request) (int, int64, int64, error) {
 	bucketSize := h.GetIntOrDefault(req, "bucket_size", 10)      //默认 10，每个 bucket 的时间范围，单位秒
 	metricCount := h.GetIntOrDefault(req, "metric_count", 15*60) //默认 15分钟的区间，每分钟15个指标，也就是 15*60 个 bucket
 
@@ -336,7 +334,7 @@ func (h *APIHandler) getMetricParams(req *http.Request) (int, int, int, error) {
 	minStr := h.Get(req, "min", "")
 	maxStr := h.Get(req, "max", "")
 
-	var min, max int
+	var min, max int64
 	var rangeFrom, rangeTo time.Time
 	var err error
 	if minStr == "" {
@@ -371,8 +369,8 @@ func (h *APIHandler) getMetricParams(req *http.Request) (int, int, int, error) {
 		}
 	}
 
-	min = int(rangeFrom.UnixNano() / 1e6)
-	max = int(rangeTo.UnixNano() / 1e6)
+	min = rangeFrom.UnixNano() / 1e6
+	max = rangeTo.UnixNano() / 1e6
 	hours := rangeTo.Sub(rangeFrom).Hours()
 	if hours <= 1 {
 		bucketSize = 60
@@ -536,812 +534,11 @@ const (
 	HttpGroupKey = "http"
 	MemoryGroupKey = "memory"
 	StorageGroupKey = "storage"
+	JVMGroupKey = "JVM"
+	ThreadPoolGroupKey = "thread_pool"
 )
 
-func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max int, nodeName string, top int) map[string]*common.MetricItem{
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	var must = []util.MapStr{
-		{
-			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
-				},
-			},
-		},
-		{
-			"term": util.MapStr{
-				"metadata.category": util.MapStr{
-					"value": "elasticsearch",
-				},
-			},
-		},
-		{
-			"term": util.MapStr{
-				"metadata.name": util.MapStr{
-					"value": "node_stats",
-				},
-			},
-		},
-	}
-	if nodeName != "" {
-		top = 1
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.labels.transport_address": util.MapStr{
-					"value": nodeName,
-				},
-			},
-		})
-	}
-
-	query:=map[string]interface{}{}
-	query["query"]=util.MapStr{
-		"bool": util.MapStr{
-			"must": must,
-			"filter": []util.MapStr{
-				{
-					"range": util.MapStr{
-						"timestamp": util.MapStr{
-							"gte": min,
-							"lte": max,
-						},
-					},
-				},
-			},
-		},
-	}
-	cpuMetric := newMetricItem("cpu", 1, SystemGroupKey)
-	cpuMetric.AddAxi("cpu","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-
-	nodeMetricItems := []GroupMetricItem{
-		{
-			Key: "cpu",
-			Field: "payload.elasticsearch.node_stats.process.cpu.percent",
-			ID: util.GetUUID(),
-			IsDerivative: false,
-			MetricItem: cpuMetric,
-			FormatType: "ratio",
-			Units: "%",
-		},
-	}
-
-	diskMetric := newMetricItem("disk", 2, SystemGroupKey)
-	diskMetric.AddAxi("disk available percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-			Key: "disk",
-			Field: "payload.elasticsearch.node_stats.fs.total.total_in_bytes",
-			ID: util.GetUUID(),
-			IsDerivative: false,
-			MetricItem: diskMetric,
-			FormatType: "ratio",
-			Units: "%",
-			Field2: "payload.elasticsearch.node_stats.fs.total.available_in_bytes",
-			Calc: func(value, value2 float64) float64 {
-				return value2/value * 100
-			},
-	})
-	// 索引速率
-	indexMetric:=newMetricItem("indexing_rate", 3, OperationGroupKey)
-	indexMetric.AddAxi("indexing rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "indexing_rate",
-		Field: "payload.elasticsearch.node_stats.indices.indexing.index_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: indexMetric,
-		FormatType: "num",
-		Units: "doc/s",
-	})
-	// 索引延时
-	indexLatencyMetric:=newMetricItem("indexing_latency", 4, LatencyGroupKey)
-	indexLatencyMetric.AddAxi("indexing latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "indexing_latency",
-		Field: "payload.elasticsearch.node_stats.indices.indexing.index_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: indexLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-
-	queryMetric:=newMetricItem("query_rate", 5, OperationGroupKey)
-	queryMetric.AddAxi("query rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "query_rate",
-		Field: "payload.elasticsearch.node_stats.indices.search.query_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryMetric,
-		FormatType: "num",
-		Units: "doc/s",
-	})
-
-	// 查询延时
-	queryLatencyMetric:=newMetricItem("query_latency", 6, LatencyGroupKey)
-	queryLatencyMetric.AddAxi("query latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "query_latency",
-		Field: "payload.elasticsearch.node_stats.indices.search.query_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-
-	fetchMetric:=newMetricItem("fetch_rate", 5, OperationGroupKey)
-	fetchMetric.AddAxi("fetch rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "fetch_rate",
-		Field: "payload.elasticsearch.node_stats.indices.search.fetch_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: fetchMetric,
-		FormatType: "num",
-		Units: "doc/s",
-	})
-
-	// fetch延时
-	fetchLatencyMetric:=newMetricItem("fetch_latency", 6, LatencyGroupKey)
-	fetchLatencyMetric.AddAxi("fetch latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "fetch_latency",
-		Field: "payload.elasticsearch.node_stats.indices.search.fetch_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: fetchLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-
-	// merge 延时
-	mergeLatencyMetric:=newMetricItem("merge_latency", 7, LatencyGroupKey)
-	mergeLatencyMetric.AddAxi("merge latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "merge_latency",
-		Field: "payload.elasticsearch.node_stats.indices.merges.total_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: mergeLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-
-	// refresh 延时
-	refreshLatencyMetric:=newMetricItem("refresh_latency", 8, LatencyGroupKey)
-	refreshLatencyMetric.AddAxi("refresh latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "refresh_latency",
-		Field: "payload.elasticsearch.node_stats.indices.refresh.total_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: refreshLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-	// flush 时延
-	flushLatencyMetric:=newMetricItem("flush_latency", 9, LatencyGroupKey)
-	flushLatencyMetric.AddAxi("flush latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "flush_latency",
-		Field: "payload.elasticsearch.node_stats.indices.flush.total_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: flushLatencyMetric,
-		FormatType: "num",
-		Units: "ms",
-	})
-	// QueryCache 内存占用大小
-	queryCacheMetric:=newMetricItem("query_cache", 10, CacheGroupKey)
-	queryCacheMetric.AddAxi("query cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "query_cache",
-		Field: "payload.elasticsearch.node_stats.indices.query_cache.memory_size_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: queryCacheMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-	// QueryCache 内存占用大小
-	requestCacheMetric:=newMetricItem("request_cache", 11, CacheGroupKey)
-	requestCacheMetric.AddAxi("request cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "request_cache",
-		Field: "payload.elasticsearch.node_stats.indices.request_cache.memory_size_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: requestCacheMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	// http 活跃连接数
-	httpActiveMetric:=newMetricItem("http_connect_num", 12, HttpGroupKey)
-	httpActiveMetric.AddAxi("http connect number","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "http_connect_num",
-		Field: "payload.elasticsearch.node_stats.http.current_open",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: httpActiveMetric,
-		FormatType: "num",
-		Units: "conns",
-	})
-	// http 活跃连接数速率
-	httpRateMetric:=newMetricItem("http_rate", 12, HttpGroupKey)
-	httpRateMetric.AddAxi("http rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "http_rate",
-		Field: "payload.elasticsearch.node_stats.http.total_opened",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: httpRateMetric,
-		FormatType: "num",
-		Units: "conns/s",
-	})
-
-	// segment 数量
-	segmentCountMetric:=newMetricItem("segment_count", 15, StorageGroupKey)
-	segmentCountMetric.AddAxi("segment count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "segment_count",
-		Field: "payload.elasticsearch.node_stats.indices.segments.count",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: segmentCountMetric,
-		FormatType: "num",
-		Units: "",
-	})
-
-	// segment memory
-	segmentMemoryMetric:=newMetricItem("segment_memory", 16, MemoryGroupKey)
-	segmentMemoryMetric.AddAxi("segment memory","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "segment_memory",
-		Field: "payload.elasticsearch.node_stats.indices.segments.memory_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: segmentMemoryMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	// docs 数量
-	docsCountMetric:=newMetricItem("docs_count", 17, StorageGroupKey)
-	docsCountMetric.AddAxi("docs count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "docs_count",
-		Field: "payload.elasticsearch.node_stats.indices.docs.count",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: docsCountMetric,
-		FormatType: "num",
-		Units: "",
-	})
-
-	// index store size
-	indexStoreMetric:=newMetricItem("index_storage", 18, StorageGroupKey)
-	indexStoreMetric.AddAxi("indices storage","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "index_storage",
-		Field: "payload.elasticsearch.node_stats.indices.store.size_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: indexStoreMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	// jvm used heap
-	jvmUsedPercentMetric:=newMetricItem("jvm_heap_used_percent", 19, MemoryGroupKey)
-	jvmUsedPercentMetric.AddAxi("JVM heap used percent","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "jvm_heap_used_percent",
-		Field: "payload.elasticsearch.node_stats.jvm.mem.heap_used_percent",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: jvmUsedPercentMetric,
-		FormatType: "num",
-		Units: "%",
-	})
-
-	aggs:=map[string]interface{}{}
-
-	for _,metricItem:=range nodeMetricItems{
-			aggs[metricItem.ID]=util.MapStr{
-				"max":util.MapStr{
-					"field": metricItem.Field,
-				},
-			}
-			if metricItem.Field2 != "" {
-				aggs[metricItem.ID + "_field2"]=util.MapStr{
-					"max":util.MapStr{
-						"field": metricItem.Field2,
-					},
-				}
-			}
-
-			if metricItem.IsDerivative{
-				aggs[metricItem.ID+"_deriv"]=util.MapStr{
-					"derivative":util.MapStr{
-						"buckets_path": metricItem.ID,
-					},
-				}
-				if metricItem.Field2 != "" {
-					aggs[metricItem.ID + "_field2_deriv"]=util.MapStr{
-						"derivative":util.MapStr{
-							"buckets_path": metricItem.ID + "_field2",
-						},
-					}
-				}
-			}
-	}
-
-	query["size"]=0
-	query["aggs"]= util.MapStr{
-		"group_by_level": util.MapStr{
-			"terms": util.MapStr{
-				"field": "metadata.labels.transport_address",
-				"size":  top,
-			},
-			"aggs": util.MapStr{
-				"dates": util.MapStr{
-					"date_histogram":util.MapStr{
-						"field": "timestamp",
-						"fixed_interval": bucketSizeStr,
-					},
-					"aggs":aggs,
-				},
-			},
-		},
-	}
-	return h.getMetrics(query, nodeMetricItems, bucketSize)
-
-}
-
-func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max int, indexName string, top int) map[string]*common.MetricItem{
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-
-	var must = []util.MapStr{
-		{
-			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
-				},
-			},
-		},
-		{
-			"term": util.MapStr{
-				"metadata.category": util.MapStr{
-					"value": "elasticsearch",
-				},
-			},
-		},
-		{
-			"term": util.MapStr{
-				"metadata.name": util.MapStr{
-					"value": "index_stats",
-				},
-			},
-		},
-	}
-	if indexName != "" {
-		top = 1
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.labels.index_name": util.MapStr{
-					"value": indexName,
-				},
-			},
-		})
-	}
-
-	query:=map[string]interface{}{}
-	query["query"]=util.MapStr{
-		"bool": util.MapStr{
-			"must": must,
-			"must_not": []util.MapStr{
-				{
-					"term": util.MapStr{
-						"metadata.labels.index_name": util.MapStr{
-							"value": "_all",
-						},
-					},
-				},
-			},
-			"filter": []util.MapStr{
-				{
-					"range": util.MapStr{
-						"timestamp": util.MapStr{
-							"gte": min,
-							"lte": max,
-						},
-					},
-				},
-			},
-		},
-	}
-	//索引存储大小
-	indexStorageMetric := newMetricItem("index_storage", 1, StorageGroupKey)
-	indexStorageMetric.AddAxi("Index storage","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-
-	indexMetricItems := []GroupMetricItem{
-		{
-			Key: "index_storage",
-			Field: "payload.elasticsearch.index_stats.total.store.size_in_bytes",
-			ID: util.GetUUID(),
-			IsDerivative: false,
-			MetricItem: indexStorageMetric,
-			FormatType: "bytes",
-			Units: "",
-		},
-	}
-	//索引文档个数
-	docCountMetric := newMetricItem("doc_count", 2, StorageGroupKey)
-	docCountMetric.AddAxi("Doc count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-			Key: "doc_count",
-			Field: "payload.elasticsearch.index_stats.total.docs.count",
-			ID: util.GetUUID(),
-			IsDerivative: false,
-			MetricItem: docCountMetric,
-			FormatType: "num",
-			Units: "",
-	})
-	//查询次数
-	queryTimesMetric := newMetricItem("query_times", 3, OperationGroupKey)
-	queryTimesMetric.AddAxi("Query times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "query_times",
-		Field: "payload.elasticsearch.index_stats.total.search.query_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryTimesMetric,
-		FormatType: "num",
-		Units: "",
-	})
-
-	//Fetch次数
-	fetchTimesMetric := newMetricItem("fetch_times", 4, OperationGroupKey)
-	fetchTimesMetric.AddAxi("Fetch times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "fetch_times",
-		Field: "payload.elasticsearch.index_stats.total.search.fetch_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: fetchTimesMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//Merge次数
-	mergeTimesMetric := newMetricItem("merge_times", 5, OperationGroupKey)
-	mergeTimesMetric.AddAxi("Merge times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "merge_times",
-		Field: "payload.elasticsearch.index_stats.total.merges.total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: mergeTimesMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//Refresh次数
-	refreshTimesMetric := newMetricItem("refresh_times", 6, OperationGroupKey)
-	refreshTimesMetric.AddAxi("Refresh times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "refresh_times",
-		Field: "payload.elasticsearch.index_stats.total.refresh.total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: refreshTimesMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//写入速率
-	indexingRateMetric := newMetricItem("indexing_rate", 7, OperationGroupKey)
-	indexingRateMetric.AddAxi("Indexing rate","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "indexing_rate",
-		Field: "payload.elasticsearch.index_stats.total.indexing.index_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: indexingRateMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//写入时延
-	indexingLatencyMetric := newMetricItem("indexing_latency", 8, LatencyGroupKey)
-	indexingLatencyMetric.AddAxi("Indexing latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "indexing_latency",
-		Field: "payload.elasticsearch.index_stats.total.indexing.index_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: indexingLatencyMetric,
-		FormatType: "num",
-		Units: "",
-	})
-
-	//查询时延
-	queryLatencyMetric := newMetricItem("query_latency", 9, LatencyGroupKey)
-	queryLatencyMetric.AddAxi("Query latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "query_latency",
-		Field: "payload.elasticsearch.index_stats.total.search.query_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryLatencyMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//fetch时延
-	fetchLatencyMetric := newMetricItem("fetch_latency", 9, LatencyGroupKey)
-	fetchLatencyMetric.AddAxi("Fetch latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "fetch_latency",
-		Field: "payload.elasticsearch.index_stats.total.search.fetch_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: fetchLatencyMetric,
-		FormatType: "num",
-		Units: "",
-	})
-
-	//merge时延
-	mergeLatencyMetric := newMetricItem("merge_latency", 10, LatencyGroupKey)
-	mergeLatencyMetric.AddAxi("Merge latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "merge_latency",
-		Field: "payload.elasticsearch.index_stats.total.merges.total_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: mergeLatencyMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//refresh时延
-	refreshLatencyMetric := newMetricItem("refresh_latency", 11, LatencyGroupKey)
-	refreshLatencyMetric.AddAxi("Refresh latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "refresh_latency",
-		Field: "payload.elasticsearch.index_stats.total.refresh.total_time_in_millis",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: refreshLatencyMetric,
-		FormatType: "num",
-		Units: "",
-	})
-	//queryCache
-	queryCacheMetric := newMetricItem("query_cache", 12, CacheGroupKey)
-	queryCacheMetric.AddAxi("Query cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "query_cache",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.memory_size_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: queryCacheMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-	//requestCache
-	requestCacheMetric := newMetricItem("request_cache", 12, CacheGroupKey)
-	requestCacheMetric.AddAxi("request cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "request_cache",
-		Field: "payload.elasticsearch.index_stats.total.request_cache.memory_size_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: requestCacheMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-	//segment memory
-	segmentMemoryMetric := newMetricItem("segment_memory", 13, MemoryGroupKey)
-	segmentMemoryMetric.AddAxi("Segment memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "segment_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.memory_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: segmentMemoryMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	//segment doc values memory
-	docValuesMemoryMetric := newMetricItem("segment_doc_values_memory", 13, MemoryGroupKey)
-	docValuesMemoryMetric.AddAxi("Segment Doc values Memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "segment_doc_values_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.doc_values_memory_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: docValuesMemoryMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	//segment terms memory
-	termsMemoryMetric := newMetricItem("segment_terms_memory", 13, MemoryGroupKey)
-	termsMemoryMetric.AddAxi("Segment Terms Memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "segment_terms_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.terms_memory_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: termsMemoryMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	//segment fields memory
-	fieldsMemoryMetric := newMetricItem("segment_fields_memory", 13, MemoryGroupKey)
-	fieldsMemoryMetric.AddAxi("Segment Fields Memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	indexMetricItems = append(indexMetricItems, GroupMetricItem{
-		Key: "segment_fields_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.stored_fields_memory_in_bytes",
-		ID: util.GetUUID(),
-		IsDerivative: false,
-		MetricItem: fieldsMemoryMetric,
-		FormatType: "bytes",
-		Units: "",
-	})
-
-	aggs:=map[string]interface{}{}
-
-	for _,metricItem:=range indexMetricItems {
-		aggs[metricItem.ID]=util.MapStr{
-			"max":util.MapStr{
-				"field": metricItem.Field,
-			},
-		}
-
-		if metricItem.IsDerivative{
-			aggs[metricItem.ID+"_deriv"]=util.MapStr{
-				"derivative":util.MapStr{
-					"buckets_path": metricItem.ID,
-				},
-			}
-		}
-	}
-
-	query["size"]=0
-	query["aggs"]= util.MapStr{
-		"group_by_level": util.MapStr{
-			"terms": util.MapStr{
-				"field": "metadata.labels.index_name",
-				"size":  top,
-				"order": util.MapStr{
-					"max_store": "desc",
-				},
-			},
-			"aggs": util.MapStr{
-				"dates": util.MapStr{
-					"date_histogram":util.MapStr{
-						"field": "timestamp",
-						"fixed_interval": bucketSizeStr,
-					},
-					"aggs":aggs,
-				},
-				"max_store": util.MapStr{
-					"max": util.MapStr{
-						"field": "payload.elasticsearch.index_stats.total.store.size_in_bytes",
-					},
-				},
-			},
-		},
-	}
-	return h.getMetrics(query, indexMetricItems, bucketSize)
-
-}
-
-type MetricData map[string][][]interface{}
-
-func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem{
-	defer func() {
-		if err:= recover(); err != nil {
-			fmt.Println(err)
-			debug.PrintStack()
-		}
-	}()
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}),util.MustToJSONBytes(query))
-	if err!=nil{
-		log.Error(err)
-		panic(err)
-	}
-	grpMetricItemsIndex := map[string] int{}
-	for i, item := range grpMetricItems {
-		grpMetricItemsIndex[item.ID] = i
-	}
-	grpMetricData :=map[string]MetricData{}
-
-	var minDate,maxDate int64
-	if response.StatusCode==200{
-		if nodeAgg, ok :=  response.Aggregations["group_by_level"]; ok {
-			for _,bucket:=range nodeAgg.Buckets {
-				grpKey := bucket["key"].(string)
-				for _, metricItem := range grpMetricItems {
-					metricItem.MetricItem.AddLine(metricItem.Key, grpKey, "", "group1", metricItem.Field, "max",bucketSizeStr,metricItem.Units,metricItem.FormatType,"0.[00]","0.[00]",false,false)
-					dataKey := metricItem.ID
-					if metricItem.IsDerivative {
-						dataKey = dataKey+"_deriv"
-					}
-					if _, ok := grpMetricData[dataKey]; !ok{
-						grpMetricData[dataKey] = map[string][][]interface{}{}
-					}
-					grpMetricData[dataKey][grpKey]=[][]interface{}{}
-				}
-				if datesAgg, ok := bucket["dates"].(map[string]interface{}); ok {
-					if datesBuckets, ok := datesAgg["buckets"].([]interface{}); ok {
-						for _, dateBucket := range datesBuckets {
-							if bucketMap, ok := dateBucket.(map[string]interface{}); ok {
-								v,ok:=bucketMap["key"].(float64)
-								if !ok{
-									panic("invalid bucket key")
-								}
-								dateTime:=(int64(v))
-								minDate=util.MinInt64(minDate,dateTime)
-								maxDate=util.MaxInt64(maxDate,dateTime)
-
-								for mk1,mv1:=range grpMetricData {
-									v1,ok:=bucketMap[mk1]
-									if ok{
-										v2,ok:=v1.(map[string]interface{})
-										if ok{
-											v3,ok:=v2["value"].(float64)
-											if ok{
-												if strings.HasSuffix(mk1, "_deriv"){
-													v3 = v3/float64(bucketSize)
-												}
-												if field2, ok := bucketMap[mk1 + "_field2"]; ok {
-													if idx, ok := grpMetricItemsIndex[mk1]; ok {
-														if field2Map, ok := field2.(map[string]interface{}); ok {
-															v3 = grpMetricItems[idx].Calc(v3, field2Map["value"].(float64))
-														}
-													}
-												}
-												if v3<0{
-													continue
-												}
-												points:=[]interface{}{dateTime,v3}
-												mv1[grpKey]=append(mv1[grpKey],points)
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-
-				}
-			}
-		}
-	}
-
-	result:=map[string]*common.MetricItem{}
-
-	for _,metricItem:=range grpMetricItems {
-		for _,line:=range metricItem.MetricItem.Lines{
-			line.TimeRange=common.TimeRange{Min: minDate,Max: maxDate}
-			dataKey := metricItem.ID
-			if metricItem.IsDerivative {
-				dataKey = dataKey +"_deriv"
-			}
-			line.Data= grpMetricData[dataKey][line.Metric.Label]
-		}
-		result[metricItem.Key]=metricItem.MetricItem
-	}
-
-	return result
-}
-
-func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) map[string]*common.MetricItem {
+func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64) map[string]*common.MetricItem {
 
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 
@@ -1380,31 +577,50 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
 	metricItem=newMetricItem("cluster_documents", 4, StorageGroupKey)
-	metricItem.AddAxi("documents","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
-	metricItem.AddAxi("counts","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
-
+	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddAxi("deleted","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Documents Count","Documents Count","","group1","payload.elasticsearch.cluster_stats.indices.docs.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-	metricItem.AddLine("Indices Count","Indices Count","","group3","payload.elasticsearch.cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-	metricItem.AddLine("Shards Count","Shards Count","","group2","payload.elasticsearch.cluster_stats.indices.shards.total","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-
+	metricItem.AddLine("Documents Deleted","Documents Deleted","","group2","payload.elasticsearch.cluster_stats.indices.docs.deleted","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
-
-	metricItem=newMetricItem("system_load", 5, SystemGroupKey)
-	metricItem.AddAxi("load","group6",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-
-	metricItem.AddLine("Load","System Load","","group6","payload.elasticsearch.cluster_stats.nodes.process.cpu.percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItem=newMetricItem("cluster_indices", 4, StorageGroupKey)
+	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddLine("Indices Count","Indices Count","","group1","payload.elasticsearch.cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
-	metricItem=newMetricItem("system_memory", 6, MemoryGroupKey)
-	metricItem.AddAxi("memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	metricItem.AddAxi("memory","group2",common.PositionRight,"ratio","0.[0]","0.[0]",5,false)
+	//Todo shard count
+	//metricItem=newMetricItem("shard_count", 4, StorageGroupKey)
+	//metricItem.AddAxi("counts","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	//metricItem.AddLine("primary","Indices Count","","group1","payload.elasticsearch.cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	//metricItem.AddLine("Shards Count","Shards Count","","group1","payload.elasticsearch.cluster_stats.indices.shards.total","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+	//
+	//clusterMetricItems=append(clusterMetricItems,metricItem)
 
-	metricItem.AddLine("JVM Max Heap","Max Heap","","group1","payload.elasticsearch.cluster_stats.nodes.jvm.mem.heap_max_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("JVM Used Heap","Used Heap","","group1","payload.elasticsearch.cluster_stats.nodes.jvm.mem.heap_used_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("OS Used Percent","OS Used Percent","","group2","payload.elasticsearch.cluster_stats.nodes.os.mem.used_percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+
+	//metricItem=newMetricItem("system_load", 5, SystemGroupKey)
+	//metricItem.AddAxi("load","group6",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+	//
+	//metricItem.AddLine("Load","System Load","","group6","payload.elasticsearch.cluster_stats.nodes.process.cpu.percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	//clusterMetricItems=append(clusterMetricItems,metricItem)
+	//
+	//metricItem=newMetricItem("system_memory", 6, MemoryGroupKey)
+	//metricItem.AddAxi("memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	//metricItem.AddAxi("memory","group2",common.PositionRight,"ratio","0.[0]","0.[0]",5,false)
+	//
+	//metricItem.AddLine("JVM Max Heap","Max Heap","","group1","payload.elasticsearch.cluster_stats.nodes.jvm.mem.heap_max_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
+	//metricItem.AddLine("JVM Used Heap","Used Heap","","group1","payload.elasticsearch.cluster_stats.nodes.jvm.mem.heap_used_in_bytes","max",bucketSizeStr,"","bytes","0.[00]","0.[00]",false,false)
+	//metricItem.AddLine("OS Used Percent","OS Used Percent","","group2","payload.elasticsearch.cluster_stats.nodes.os.mem.used_percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	//clusterMetricItems=append(clusterMetricItems,metricItem)
+
+	metricItem=newMetricItem("node_count", 7, MemoryGroupKey)
+	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+
+	metricItem.AddLine("Master Node","Master Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.master","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Data Node","Data Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.data","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Coordinating Node","Coordinating Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.coordinating_only","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Ingest Node","Ingest Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.ingest","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
+
 	clusterMetricItems=append(clusterMetricItems,metricItem)
-
 
 	query:=map[string]interface{}{}
 	query["query"]=util.MapStr{
@@ -1495,7 +711,120 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int) m
 	for k, v := range clusterMetricsResult {
 		indexMetricsResult[k] = v
 	}
+	statusMetric, err := h.getClusterStatusMetric(id,min,max,bucketSize)
+	if err == nil {
+		indexMetricsResult["cluster_health"] = statusMetric
+	}
 	return indexMetricsResult
+}
+
+func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSize int)(*common.MetricItem, error){
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	query := util.MapStr{
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": id,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "cluster_stats",
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+			},
+		},
+		"aggs": util.MapStr{
+			"dates": util.MapStr{
+				"date_histogram": util.MapStr{
+					"field": "timestamp",
+					"interval": bucketSizeStr,
+				},
+				"aggs": util.MapStr{
+					"group_status": util.MapStr{
+						"terms": util.MapStr{
+							"field": "payload.elasticsearch.cluster_stats.status",
+							"size": 5,
+						},
+					},
+				},
+			},
+		},
+	}
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}), util.MustToJSONBytes(query))
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	var minDate, maxDate int64
+	metricData := map[string][][]interface{}{
+		"red": [][]interface{}{},
+		"yellow": [][]interface{}{},
+		"green": [][]interface{}{},
+	}
+	metricItem:=newMetricItem("cluster_health", 7, MemoryGroupKey)
+	metricItem.AddAxi("percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+
+	metricItem.AddLine("Red","Red","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Yellow","Yellow","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Green","Green","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+
+	if response.StatusCode == 200 {
+		for _, bucket := range response.Aggregations["dates"].Buckets {
+			v, ok := bucket["key"].(float64)
+			if !ok {
+				log.Error("invalid bucket key")
+				return nil, fmt.Errorf("invalid bucket key")
+			}
+			dateTime := (int64(v))
+			minDate = util.MinInt64(minDate, dateTime)
+			maxDate = util.MaxInt64(maxDate, dateTime)
+			totalCount := bucket["doc_count"].(float64)
+			if grpStatus, ok := bucket["group_status"].(map[string]interface{}); ok {
+				if statusBks, ok := grpStatus["buckets"].([]interface{}); ok {
+					for _, statusBk := range statusBks {
+						if bkMap, ok := statusBk.(map[string]interface{}); ok {
+							statusKey := bkMap["key"].(string)
+							count := bkMap["doc_count"].(float64)
+							metricData[statusKey] = append(metricData[statusKey], []interface{}{
+								dateTime, count/totalCount * 100,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, line := range metricItem.Lines {
+		key := strings.ToLower(line.Metric.Title)
+		line.Color = key
+		line.Data = metricData[key]
+	}
+	return metricItem, nil
 }
 
 func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
@@ -1623,6 +952,7 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err := h.DecodeJSON(req, &config)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("json decode error: %v", err)
+		log.Errorf("json decode error: %v", err)
 		h.WriteJSON(w, resBody, http.StatusOK)
 		return
 	}
@@ -1642,6 +972,7 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = client.Do(freq, fres)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("request error: %v", err)
+		log.Error( "test_connection", "request error: ", err)
 		h.WriteJSON(w, resBody, http.StatusOK)
 		return
 	}
