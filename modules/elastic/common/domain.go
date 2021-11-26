@@ -35,6 +35,7 @@ type MetricLine struct {
 	Data       [][]interface{} `json:"data"`
 	BucketSize string          `json:"bucket_size"`
 	Metric     MetricSummary   `json:"metric"`
+	Color string `json:"color"`
 }
 
 type MetricSummary struct {
