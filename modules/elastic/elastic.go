@@ -321,25 +321,25 @@ func (module ElasticModule) Start() error {
 		task.RegisterScheduleTask(task2)
 
 
-		//refresh indices
-		task2 = task.ScheduleTask{
-			Description: fmt.Sprintf("elasticsearch indices discovery"),
-			Type:        "interval",
-			Interval:    "30s",
-			Task: func() {
-				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value==nil{
-						return true
-					}
-					v,ok:=value.(*elastic.ElasticsearchMetadata)
-					if ok{
-						updateIndices(v)
-					}
-					return true
-				})
-			},
-		}
-		task.RegisterScheduleTask(task2)
+		////refresh indices
+		//task2 = task.ScheduleTask{
+		//	Description: fmt.Sprintf("elasticsearch indices discovery"),
+		//	Type:        "interval",
+		//	Interval:    "30s",
+		//	Task: func() {
+		//		elastic.WalkMetadata(func(key, value interface{}) bool {
+		//			if value==nil{
+		//				return true
+		//			}
+		//			v,ok:=value.(*elastic.ElasticsearchMetadata)
+		//			if ok{
+		//				updateIndices(v)
+		//			}
+		//			return true
+		//		})
+		//	},
+		//}
+		//task.RegisterScheduleTask(task2)
 
 		//refresh index alias
 		task2 = task.ScheduleTask{
@@ -361,25 +361,25 @@ func (module ElasticModule) Start() error {
 		}
 		task.RegisterScheduleTask(task2)
 
-		//refresh primary_shards
-		task2 = task.ScheduleTask{
-			Description: fmt.Sprintf("elasticsearch shards discovery"),
-			Type:        "interval",
-			Interval:    "30s",
-			Task: func() {
-				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value==nil{
-						return true
-					}
-					v,ok:=value.(*elastic.ElasticsearchMetadata)
-					if ok{
-						updateShards(v)
-					}
-					return true
-				})
-			},
-		}
-		task.RegisterScheduleTask(task2)
+		////refresh primary_shards
+		//task2 = task.ScheduleTask{
+		//	Description: fmt.Sprintf("elasticsearch shards discovery"),
+		//	Type:        "interval",
+		//	Interval:    "30s",
+		//	Task: func() {
+		//		elastic.WalkMetadata(func(key, value interface{}) bool {
+		//			if value==nil{
+		//				return true
+		//			}
+		//			v,ok:=value.(*elastic.ElasticsearchMetadata)
+		//			if ok{
+		//				updateShards(v)
+		//			}
+		//			return true
+		//		})
+		//	},
+		//}
+		//task.RegisterScheduleTask(task2)
 	}
 
 	return nil

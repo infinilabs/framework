@@ -50,7 +50,7 @@ func clusterHealthCheck(force bool) {
 	})
 }
 
-//update cluster state
+//update cluster state, on state version change
 func updateClusterState(clusterId string) {
 
 	log.Trace("update cluster state:",clusterId)
@@ -94,6 +94,7 @@ func updateClusterState(clusterId string) {
 	}
 }
 
+//on demand, on state version change
 func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	if !meta.IsAvailable(){
 		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
@@ -155,49 +156,50 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	log.Trace("nodes changed:",nodesChanged,nodes)
 }
 
-func updateIndices(meta *elastic.ElasticsearchMetadata) {
+//func updateIndices(meta *elastic.ElasticsearchMetadata) {
+//
+//	if !meta.IsAvailable(){
+//		return
+//	}
+//
+//	client := elastic.GetClient(meta.Config.ID)
+//
+//	//Indices
+//	var indicesChanged bool
+//	indices, err := client.GetIndices("")
+//	if err != nil {
+//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		return
+//	}
+//
+//	if indices != nil {
+//		if meta.Indices == nil {
+//			indicesChanged = true
+//		} else {
+//			for k, v := range *indices {
+//				v1, ok := (*meta.Indices)[k]
+//				if ok {
+//					if v.ID != v1.ID {
+//						indicesChanged = true
+//						break
+//					}
+//				} else {
+//					indicesChanged = true
+//					break
+//				}
+//			}
+//		}
+//	}
+//
+//	if indicesChanged {
+//		//TOD locker
+//		meta.Indices = indices
+//
+//		log.Tracef("cluster indices [%v] updated", meta.Config.Name)
+//	}
+//}
 
-	if !meta.IsAvailable(){
-		return
-	}
-
-	client := elastic.GetClient(meta.Config.ID)
-
-	//Indices
-	var indicesChanged bool
-	indices, err := client.GetIndices("")
-	if err != nil {
-		log.Errorf("[%v], %v", meta.Config.Name, err)
-		return
-	}
-
-	if indices != nil {
-		if meta.Indices == nil {
-			indicesChanged = true
-		} else {
-			for k, v := range *indices {
-				v1, ok := (*meta.Indices)[k]
-				if ok {
-					if v.ID != v1.ID {
-						indicesChanged = true
-						break
-					}
-				} else {
-					indicesChanged = true
-					break
-				}
-			}
-		}
-	}
-
-	if indicesChanged {
-		//TOD locker
-		meta.Indices = indices
-
-		log.Tracef("cluster indices [%v] updated", meta.Config.Name)
-	}
-}
-
+//on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata) {
 
 	if !meta.IsAvailable(){
@@ -240,57 +242,57 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 	}
 }
 
-func updateShards(meta *elastic.ElasticsearchMetadata) {
-	if !meta.IsAvailable(){
-		return
-	}
-
-	client := elastic.GetClient(meta.Config.ID)
-
-	//Shards
-	var shardsChanged bool
-	shards, err := client.GetPrimaryShards()
-	if err != nil {
-		log.Errorf("[%v], %v", meta.Config.Name, err)
-		return
-	}
-
-	if meta.PrimaryShards == nil {
-		shardsChanged = true
-	} else {
-		if shards != nil {
-			for k, v := range *shards {
-				v1, ok := (*meta.PrimaryShards)[k]
-				if ok {
-					if len(v) != len(v1) {
-						shardsChanged = true
-						break
-					} else {
-						for x,y:=range v{
-							z1, ok := v1[x]
-							if ok{
-								if y.NodeID!=z1.NodeID{
-									shardsChanged = true
-									break
-								}
-							}else{
-								shardsChanged = true
-								break
-							}
-
-						}
-					}
-				} else {
-					shardsChanged = true
-					break
-				}
-			}
-		}
-	}
-
-	if shardsChanged {
-		//TOD locker
-		meta.PrimaryShards = shards
-		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
-	}
-}
+//func updateShards(meta *elastic.ElasticsearchMetadata) {
+//	if !meta.IsAvailable(){
+//		return
+//	}
+//
+//	client := elastic.GetClient(meta.Config.ID)
+//
+//	//Shards
+//	var shardsChanged bool
+//	shards, err := client.GetPrimaryShards()
+//	if err != nil {
+//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		return
+//	}
+//
+//	if meta.PrimaryShards == nil {
+//		shardsChanged = true
+//	} else {
+//		if shards != nil {
+//			for k, v := range *shards {
+//				v1, ok := (*meta.PrimaryShards)[k]
+//				if ok {
+//					if len(v) != len(v1) {
+//						shardsChanged = true
+//						break
+//					} else {
+//						for x,y:=range v{
+//							z1, ok := v1[x]
+//							if ok{
+//								if y.NodeID!=z1.NodeID{
+//									shardsChanged = true
+//									break
+//								}
+//							}else{
+//								shardsChanged = true
+//								break
+//							}
+//
+//						}
+//					}
+//				} else {
+//					shardsChanged = true
+//					break
+//				}
+//			}
+//		}
+//	}
+//
+//	if shardsChanged {
+//		//TOD locker
+//		meta.PrimaryShards = shards
+//		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
+//	}
+//}
