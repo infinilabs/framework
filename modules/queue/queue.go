@@ -31,6 +31,7 @@ func (module *QueueModule) Setup(cfg *config.Config) {
 	//load configs from remote elasticsearch
 
 	for _,v:=range configs{
+		v.Source="file"
 		if v.Id==""{
 			v.Id=v.Name
 		}
