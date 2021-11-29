@@ -9,7 +9,8 @@ func Init(cfg common.ModuleConfig) {
 	clusterAPI := APIHandler{Config: cfg}
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/health", clusterAPI.GetClusterHealth)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/metrics", clusterAPI.HandleClusterMetricsAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/metrics", clusterAPI.HandleMetricsSummaryAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/cluster_metrics", clusterAPI.HandleClusterMetricsAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node_metrics", clusterAPI.HandleNodeMetricsAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index_metrics", clusterAPI.HandleIndexMetricsAction)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)

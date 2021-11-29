@@ -32,10 +32,11 @@ type TimeRange struct {
 
 type MetricLine struct {
 	TimeRange  TimeRange       `json:"timeRange"`
-	Data       [][]interface{} `json:"data"`
+	Data       interface{} `json:"data"`
 	BucketSize string          `json:"bucket_size"`
 	Metric     MetricSummary   `json:"metric"`
 	Color string `json:"color"`
+	Type string `json:"type"`
 }
 
 type MetricSummary struct {

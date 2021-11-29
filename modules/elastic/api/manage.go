@@ -216,8 +216,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	h.WriteJSON(w, res, http.StatusOK)
 }
 
-//new
-func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
 
@@ -261,6 +260,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	searchRes, err := client.SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}), util.MustToJSONBytes(query))
 	if err != nil {
 		resBody["error"] = err.Error()
+		log.Error("MetricsSummary search error: ", err)
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
@@ -308,6 +308,16 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	}
 
 	resBody["summary"] = summary
+	err = h.WriteJSON(w, resBody, http.StatusOK)
+	if err != nil {
+		log.Error(err)
+	}
+}
+
+//new
+func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
 
 	bucketSize, min, max, err := h.getMetricParams(req)
 
@@ -617,7 +627,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 
 	metricItem.AddLine("Master Node","Master Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.master","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
 	metricItem.AddLine("Data Node","Data Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.data","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Coordinating Node","Coordinating Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.coordinating_only","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("Coordinating Node Only","Coordinating Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.coordinating_only","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
 	metricItem.AddLine("Ingest Node","Ingest Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.ingest","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
 
 	clusterMetricItems=append(clusterMetricItems,metricItem)
@@ -714,6 +724,8 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	statusMetric, err := h.getClusterStatusMetric(id,min,max,bucketSize)
 	if err == nil {
 		indexMetricsResult["cluster_health"] = statusMetric
+	}else{
+		log.Error("get cluster status metric error: ", err)
 	}
 	return indexMetricsResult
 }
@@ -781,17 +793,9 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 		return nil, err
 	}
 	var minDate, maxDate int64
-	metricData := map[string][][]interface{}{
-		"red": [][]interface{}{},
-		"yellow": [][]interface{}{},
-		"green": [][]interface{}{},
-	}
+	metricData := []interface{}{}
 	metricItem:=newMetricItem("cluster_health", 7, MemoryGroupKey)
-	metricItem.AddAxi("percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-
-	metricItem.AddLine("Red","Red","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Yellow","Yellow","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Green","Green","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+	metricItem.AddLine("status","Status","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
 
 	if response.StatusCode == 200 {
 		for _, bucket := range response.Aggregations["dates"].Buckets {
@@ -810,8 +814,10 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 						if bkMap, ok := statusBk.(map[string]interface{}); ok {
 							statusKey := bkMap["key"].(string)
 							count := bkMap["doc_count"].(float64)
-							metricData[statusKey] = append(metricData[statusKey], []interface{}{
-								dateTime, count/totalCount * 100,
+							metricData = append(metricData, map[string]interface{}{
+								"x": dateTime,
+								"y": count/totalCount * 100,
+								"g": statusKey,
 							})
 						}
 					}
@@ -819,11 +825,8 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 			}
 		}
 	}
-	for _, line := range metricItem.Lines {
-		key := strings.ToLower(line.Metric.Title)
-		line.Color = key
-		line.Data = metricData[key]
-	}
+	metricItem.Lines[0].Data = metricData
+	metricItem.Lines[0].Type = "bar"
 	return metricItem, nil
 }
 
