@@ -21,25 +21,33 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"sync"
 	"time"
 )
 
 type QueueAPI interface {
-
 	Push(string, []byte) error
-	Pop(string, time.Duration) (data []byte,timeout bool)
+	Pop(string, time.Duration) (data []byte, timeout bool)
 	Close(string) error
 	Depth(string) int64
 	GetQueues() []string
 }
 
-var defaultHandler  QueueAPI
-var handlers  map[string]QueueAPI= map[string]QueueAPI{}
+var defaultHandler QueueAPI
+var handlers map[string]QueueAPI = map[string]QueueAPI{}
+
+type Config struct {
+	Id       string                 `config:"id"`   //uuid for each queue
+	Name     string                 `config:"name"` //unique name of each queue
+	Codec    string                 `config:"codec"`
+	Type     string                 `config:"type"`
+	Metadata map[string]interface{} `config:"metadata"`
+}
 
 func getHandler(name string) QueueAPI {
-	handler,ok:=handlers[name]
-	if ok{
+	handler, ok := handlers[name]
+	if ok {
 		return handler
 	}
 	return defaultHandler
@@ -47,10 +55,10 @@ func getHandler(name string) QueueAPI {
 
 func Push(k string, v []byte) error {
 	var err error = nil
-	if k==""{
+	if k == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
-	handler:=getHandler(k)
+	handler := getHandler(k)
 	if handler != nil {
 		err = handler.Push(k, v)
 		if err == nil {
@@ -65,13 +73,52 @@ func Push(k string, v []byte) error {
 
 var pauseMsg = errors.New("queue was paused to read")
 
+var configs = map[string]*Config{}
+var cfgLock =sync.RWMutex{}
+
+func RegisterConfig(name string, cfg *Config) (*Config,error) {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+
+	_,ok:=configs[name]
+	if ok{
+		return nil,errors.New("config exists")
+	}else {
+		//init empty id
+		if cfg.Id==""{
+			cfg.Id=util.GetUUID()
+		}
+		configs[name]=cfg
+		return cfg,nil
+	}
+}
+
+func IsConfigExists(name string) bool {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	_,ok:=configs[name]
+	return ok
+}
+
+func GetConfig(name string) (*Config,bool) {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	v,ok:=configs[name]
+	return v,ok
+}
+
+func GetAllConfigs() map[string]*Config {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	return configs
+}
 
 func Pop(k string) ([]byte, error) {
-	if k==""{
+	if k == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler:=getHandler(k)
+	handler := getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			return nil, pauseMsg
@@ -88,8 +135,8 @@ func Pop(k string) ([]byte, error) {
 	panic(errors.New("handler is not registered"))
 }
 
-func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout bool,err error) {
-	if k==""{
+func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
+	if k == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
@@ -97,12 +144,12 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 		timeoutInSeconds = 5
 	}
 
-	handler:=getHandler(k)
+	handler := getHandler(k)
 
 	if handler != nil {
 
 		if pausedReadQueue.Contains(k) {
-			return nil,false, pauseMsg
+			return nil, false, pauseMsg
 		}
 
 		o, timeout := handler.Pop(k, timeoutInSeconds)
@@ -116,7 +163,7 @@ func PopTimeout(k string, timeoutInSeconds time.Duration) (data []byte, timeout 
 }
 
 func Close(k string) error {
-	handler:=getHandler(k)
+	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Close(k)
 		stats.Increment("queue."+k, "close")
@@ -127,11 +174,11 @@ func Close(k string) error {
 }
 
 func Depth(k string) int64 {
-	if k==""{
+	if k == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler:=getHandler(k)
+	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k)
 		stats.Increment("queue."+k, "call_depth")
@@ -141,14 +188,14 @@ func Depth(k string) int64 {
 }
 
 func GetQueues() map[string][]string {
-	results:=map[string][]string{}
-	for q,handler:=range adapters{
-		result :=[]string{}
+	results := map[string][]string{}
+	for q, handler := range adapters {
+		result := []string{}
 		if handler != nil {
 			o := handler.GetQueues()
 			stats.Increment("queue."+q, "get_queues")
-			result =append(result, o...)
-			results[q]=result
+			result = append(result, o...)
+			results[q] = result
 		}
 	}
 	return results
@@ -178,22 +225,22 @@ func ResumeRead(k string) {
 	log.Debugf("queue: %s was resumed, signal: %v", k, size)
 }
 
-var adapters map[string]QueueAPI=map[string]QueueAPI{}
+var adapters map[string]QueueAPI = map[string]QueueAPI{}
 
 func RegisterDefaultHandler(h QueueAPI) {
-	defaultHandler=h
+	defaultHandler = h
 }
 
 func IniQueue(name string, typeOfAdaptor string) {
-	if name==""{
+	if name == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler,ok:=adapters[typeOfAdaptor]
-	if !ok{
-		panic(errors.Errorf("queue adaptor [%v] not found",typeOfAdaptor))
+	handler, ok := adapters[typeOfAdaptor]
+	if !ok {
+		panic(errors.Errorf("queue adaptor [%v] not found", typeOfAdaptor))
 	}
-	handlers[name]=handler
+	handlers[name] = handler
 }
 
 func Register(name string, h QueueAPI) {
