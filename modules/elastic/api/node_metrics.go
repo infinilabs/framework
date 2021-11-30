@@ -3,11 +3,8 @@ package api
 import (
 	"fmt"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
-	"runtime/debug"
 	log "src/github.com/cihub/seelog"
 	"strings"
 )
@@ -112,7 +109,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: false,
 		Field2: "payload.elasticsearch.node_stats.os.swap.total_in_bytes",
 		Calc: func(value, value2 float64) float64 {
-			return (value / value2) * 100
+			return util.ToFixed((value / value2)*100, 2)
 		},
 		MetricItem: osSwapMetric,
 		FormatType: "ratio",
@@ -138,7 +135,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: false,
 		Field2: "payload.elasticsearch.node_stats.process.max_file_descriptors",
 		Calc: func(value, value2 float64) float64 {
-			return (value/value2) * 100
+			if value < 0 {
+				return value
+			}
+			return util.ToFixed((value / value2)*100, 2)
 		},
 		MetricItem: openFilePercentMetric,
 		FormatType: "ratio",
@@ -158,7 +158,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "%",
 		Field2: "payload.elasticsearch.node_stats.fs.total.available_in_bytes",
 		Calc: func(value, value2 float64) float64 {
-			return value2/value * 100
+			return util.ToFixed((value2 / value)*100, 2)
 		},
 	})
 	// 索引速率
@@ -195,7 +195,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: true,
 		MetricItem: queryMetric,
 		FormatType: "num",
-		Units: "doc/s",
+		Units: "requests/s",
 	})
 
 	// 查询延时
@@ -220,7 +220,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: true,
 		MetricItem: fetchMetric,
 		FormatType: "num",
-		Units: "doc/s",
+		Units: "requests/s",
 	})
 
 	// fetch延时
@@ -631,17 +631,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 type MetricData map[string][][]interface{}
 
 func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem{
-	defer func() {
-		if err:= recover(); err != nil {
-			fmt.Println(err)
-			debug.PrintStack()
-		}
-	}()
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}),util.MustToJSONBytes(query))
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)  //orm.GetIndexName(event.Event{})
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
-		panic(err)
 	}
 	grpMetricItemsIndex := map[string] int{}
 	for i, item := range grpMetricItems {
@@ -725,7 +718,6 @@ func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []
 		}
 		result[metricItem.Key]=metricItem.MetricItem
 	}
-
 	return result
 }
 

@@ -257,7 +257,7 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 			},
 		},
 	}
-	searchRes, err := client.SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}), util.MustToJSONBytes(query))
+	searchRes, err := client.SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		resBody["error"] = err.Error()
 		log.Error("MetricsSummary search error: ", err)
@@ -426,6 +426,19 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getIndexMetrics(id, bucketSize, min, max, indexName, top)
+
+	err = h.WriteJSON(w, resBody, http.StatusOK)
+	if err != nil {
+		log.Error(err)
+	}
+}
+func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := map[string]interface{}{}
+	id := ps.ByName("id")
+	bucketSize, min, max, err := h.getMetricParams(req)
+	nodeName := h.Get(req, "node_name", "")
+	top := h.GetIntOrDefault(req, "top", 5)
+	resBody["metrics"] = h.getQueueMetrics(id, bucketSize, min, max, nodeName, top)
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
@@ -855,7 +868,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 			},
 		},
 	}
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -936,7 +949,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 			"aggs": aggs,
 		},
 	}
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 		panic(err)
@@ -1145,4 +1158,8 @@ func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httpr
 
 	h.WriteJSON(w, result, http.StatusOK)
 
+}
+
+func getAllMetricsIndex() string{
+	return fmt.Sprintf("%s*", orm.GetIndexName(event.Event{}))
 }
