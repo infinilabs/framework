@@ -59,6 +59,17 @@ func (module *QueueModule) Start() error {
 func (module *QueueModule) Stop() error {
 
 	//persist configs to local store
+	//skip file sourced config
+	cfgs:=queue.GetAllConfigs()
+
+	if cfgs != nil && len(cfgs) > 0 {
+		for _, v := range cfgs {
+			if v.Id==""{
+				v.Id=v.Name
+			}
+		}
+	}
+
 
 	//persist queue information
 	return nil

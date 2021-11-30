@@ -38,12 +38,12 @@ var defaultHandler QueueAPI
 var handlers map[string]QueueAPI = map[string]QueueAPI{}
 
 type Config struct {
-	Source   string                 `config:"source"`
-	Id       string                 `config:"id"`   //uuid for each queue
-	Name     string                 `config:"name"` //unique name of each queue
-	Codec    string                 `config:"codec"`
-	Type     string                 `config:"type"`
-	Metadata map[string]interface{} `config:"metadata"`
+	Source   string                 `config:"source" json:"source"`
+	Id       string                 `config:"id" json:"id"`   //uuid for each queue
+	Name     string                 `config:"name" json:"name"` //unique name of each queue
+	Codec    string                 `config:"codec" json:"codec"`
+	Type     string                 `config:"type" json:"type"`
+	Metadata map[string]interface{} `config:"metadata" json:"metadata"`
 }
 
 func getHandler(name string) QueueAPI {
@@ -75,22 +75,24 @@ func Push(k string, v []byte) error {
 var pauseMsg = errors.New("queue was paused to read")
 
 var configs = map[string]*Config{}
+var idConfigs = map[string]*Config{}
 var cfgLock = sync.RWMutex{}
 
-func RegisterConfig(name string, cfg *Config) (*Config, error) {
+func RegisterConfig(name string, cfg *Config) (bool,*Config, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	_, ok := configs[name]
+	v, ok := configs[name]
 	if ok {
-		return nil, errors.New("config exists")
+		return true,v, errors.New("config exists")
 	} else {
 		//init empty id
 		if cfg.Id == "" {
 			cfg.Id = util.GetUUID()
 		}
+		idConfigs[cfg.Id] = cfg
 		configs[name] = cfg
-		return cfg, nil
+		return false,cfg, nil
 	}
 }
 
@@ -105,6 +107,13 @@ func GetConfig(name string) (*Config, bool) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	v, ok := configs[name]
+	return v, ok
+}
+
+func GetConfigByUUID(id string) (*Config, bool) {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	v, ok := idConfigs[id]
 	return v, ok
 }
 
