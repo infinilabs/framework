@@ -36,7 +36,7 @@ type MetricLine struct {
 	BucketSize string          `json:"bucket_size"`
 	Metric     MetricSummary   `json:"metric"`
 	Color string `json:"color"`
-	Type string `json:"type"`
+	Type GraphType `json:"type"`
 }
 
 type MetricSummary struct {
@@ -118,3 +118,8 @@ func (metricItem *MetricItem) AddAxi(title, group, position, formatType, labelFo
 	return metricItem
 }
 
+type GraphType string
+const (
+	GraphTypeLine GraphType = "Line" //default
+	GraphTypeBar GraphType = "Bar"
+)
