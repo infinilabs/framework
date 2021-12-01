@@ -32,10 +32,11 @@ type TimeRange struct {
 
 type MetricLine struct {
 	TimeRange  TimeRange       `json:"timeRange"`
-	Data       [][]interface{} `json:"data"`
+	Data       interface{} `json:"data"`
 	BucketSize string          `json:"bucket_size"`
 	Metric     MetricSummary   `json:"metric"`
 	Color string `json:"color"`
+	Type GraphType `json:"type"`
 }
 
 type MetricSummary struct {
@@ -117,3 +118,8 @@ func (metricItem *MetricItem) AddAxi(title, group, position, formatType, labelFo
 	return metricItem
 }
 
+type GraphType string
+const (
+	GraphTypeLine GraphType = "Line" //default
+	GraphTypeBar GraphType = "Bar"
+)

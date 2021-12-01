@@ -3,12 +3,9 @@ package api
 import (
 	"fmt"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
-	"runtime/debug"
 	log "src/github.com/cihub/seelog"
-	"infini.sh/framework/core/event"
 	"strings"
 )
 
@@ -102,6 +99,51 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "ratio",
 		Units: "%",
 	})
+	//swap usage
+	osSwapMetric := newMetricItem("os_used_swap", 2, SystemGroupKey)
+	osSwapMetric.AddAxi("OS Swap Used Percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "os_used_swap",
+		Field: "payload.elasticsearch.node_stats.os.swap.used_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		Field2: "payload.elasticsearch.node_stats.os.swap.total_in_bytes",
+		Calc: func(value, value2 float64) float64 {
+			return util.ToFixed((value / value2)*100, 2)
+		},
+		MetricItem: osSwapMetric,
+		FormatType: "ratio",
+		Units: "%",
+	})
+	openFileMetric := newMetricItem("open_file", 2, SystemGroupKey)
+	openFileMetric.AddAxi("Open File Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "open_file",
+		Field: "payload.elasticsearch.node_stats.process.open_file_descriptors",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: openFileMetric,
+		FormatType: "num",
+		Units: "",
+	})
+	openFilePercentMetric := newMetricItem("open_file_percent", 2, SystemGroupKey)
+	openFilePercentMetric.AddAxi("Open File Percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "open_file_percent",
+		Field: "payload.elasticsearch.node_stats.process.open_file_descriptors",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		Field2: "payload.elasticsearch.node_stats.process.max_file_descriptors",
+		Calc: func(value, value2 float64) float64 {
+			if value < 0 {
+				return value
+			}
+			return util.ToFixed((value / value2)*100, 2)
+		},
+		MetricItem: openFilePercentMetric,
+		FormatType: "ratio",
+		Units: "%",
+	})
 
 	diskMetric := newMetricItem("disk", 2, SystemGroupKey)
 	diskMetric.AddAxi("disk available percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
@@ -116,7 +158,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "%",
 		Field2: "payload.elasticsearch.node_stats.fs.total.available_in_bytes",
 		Calc: func(value, value2 float64) float64 {
-			return value2/value * 100
+			return util.ToFixed((value2 / value)*100, 2)
 		},
 	})
 	// 索引速率
@@ -153,7 +195,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: true,
 		MetricItem: queryMetric,
 		FormatType: "num",
-		Units: "doc/s",
+		Units: "requests/s",
 	})
 
 	// 查询延时
@@ -178,7 +220,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		IsDerivative: true,
 		MetricItem: fetchMetric,
 		FormatType: "num",
-		Units: "doc/s",
+		Units: "requests/s",
 	})
 
 	// fetch延时
@@ -252,6 +294,18 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: requestCacheMetric,
+		FormatType: "bytes",
+		Units: "",
+	})
+	// Fielddata内存占用大小
+	fieldDataCacheMetric:=newMetricItem("fielddata_cache", 12, CacheGroupKey)
+	fieldDataCacheMetric.AddAxi("FieldData Cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "fielddata_cache",
+		Field: "payload.elasticsearch.node_stats.indices.fielddata.memory_size_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: fieldDataCacheMetric,
 		FormatType: "bytes",
 		Units: "",
 	})
@@ -383,6 +437,31 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 
+	//JVM mem old pools used
+	oldPoolsUsedMetric:=newMetricItem("jvm_mem_old_used", 19, JVMGroupKey)
+	oldPoolsUsedMetric.AddAxi("Mem Pools Old Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "jvm_mem_old_used",
+		Field: "payload.elasticsearch.node_stats.jvm.mem.pools.old.used_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: oldPoolsUsedMetric,
+		FormatType: "bytes",
+		Units: "",
+	})
+	//JVM mem old pools peak used
+	oldPoolsUsedPeakMetric:=newMetricItem("jvm_mem_old_peak_used", 19, JVMGroupKey)
+	oldPoolsUsedPeakMetric.AddAxi("Mem Pools Old Peak Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "jvm_mem_old_peak_used",
+		Field: "payload.elasticsearch.node_stats.jvm.mem.pools.old.peak_used_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: oldPoolsUsedPeakMetric,
+		FormatType: "bytes",
+		Units: "",
+	})
+
 	//JVM used heap
 	heapUsedMetric:=newMetricItem("jvm_used_heap", 19, JVMGroupKey)
 	heapUsedMetric.AddAxi("JVM Used Heap","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
@@ -419,6 +498,81 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "num",
 		Units: "ms",
 	})
+
+	//JVM old GC Rate
+	gcOldRateMetric:=newMetricItem("jvm_old_gc_rate", 19, JVMGroupKey)
+	gcOldRateMetric.AddAxi("JVM Old GC Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "jvm_old_gc_rate",
+		Field: "payload.elasticsearch.node_stats.jvm.gc.collectors.old.collection_count",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: gcOldRateMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+	//JVM old GC Latency
+	gcOldLatencyMetric:=newMetricItem("jvm_old_gc_latency", 19, JVMGroupKey)
+	gcOldLatencyMetric.AddAxi("JVM Old GC Time","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "jvm_old_gc_latency",
+		Field: "payload.elasticsearch.node_stats.jvm.gc.collectors.old.collection_time_in_millis",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: gcOldLatencyMetric,
+		FormatType: "num",
+		Units: "ms",
+	})
+	//Transport 发送速率
+	transTxRateMetric:=newMetricItem("transport_tx_rate", 19, TransportGroupKey)
+	transTxRateMetric.AddAxi("Transport Send Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "transport_tx_rate",
+		Field: "payload.elasticsearch.node_stats.transport.tx_count",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: transTxRateMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+	//Transport 接收速率
+	transRxRateMetric:=newMetricItem("transport_rx_rate", 19, TransportGroupKey)
+	transRxRateMetric.AddAxi("Transport Receive Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "transport_rx_rate",
+		Field: "payload.elasticsearch.node_stats.transport.rx_count",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: transRxRateMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+
+	//Transport 发送流量
+	transTxBytesMetric:=newMetricItem("transport_tx_bytes", 19, TransportGroupKey)
+	transTxBytesMetric.AddAxi("Transport Send Bytes","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "transport_tx_bytes",
+		Field: "payload.elasticsearch.node_stats.transport.tx_size_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: transTxBytesMetric,
+		FormatType: "bytes",
+		Units: "s",
+	})
+	//Transport 接收流量
+	transRxBytesMetric:=newMetricItem("transport_rx_bytes", 19, TransportGroupKey)
+	transRxBytesMetric.AddAxi("Transport Receive Bytes","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "transport_rx_bytes",
+		Field: "payload.elasticsearch.node_stats.transport.rx_size_in_bytes",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: transRxBytesMetric,
+		FormatType: "bytes",
+		Units: "s",
+	})
+
 
 	aggs:=map[string]interface{}{}
 
@@ -477,17 +631,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 type MetricData map[string][][]interface{}
 
 func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem{
-	defer func() {
-		if err:= recover(); err != nil {
-			fmt.Println(err)
-			debug.PrintStack()
-		}
-	}()
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Event{}),util.MustToJSONBytes(query))
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)  //orm.GetIndexName(event.Event{})
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
-		panic(err)
 	}
 	grpMetricItemsIndex := map[string] int{}
 	for i, item := range grpMetricItems {
@@ -571,7 +718,6 @@ func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []
 		}
 		result[metricItem.Key]=metricItem.MetricItem
 	}
-
 	return result
 }
 
