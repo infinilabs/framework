@@ -20,12 +20,13 @@ type Message struct {
 }
 
 type Context struct {
-	File string  `json:"file_path"`
-	Depth int64 `json:"queue_depth"`
-	PartitionID int64 `json:"partition_id"`
-	FileNum int64 `json:"file_num"`
-	NextReadOffset int64 `json:"next_read_offset"`
-	MaxLength int64 `json:"max_length"`
+	Metadata       map[string]interface{} `json:"metadata"`
+	File           string                 `json:"file_path"`
+	Depth          int64                  `json:"queue_depth"`
+	PartitionID    int64                  `json:"partition_id"`
+	FileNum        int64                  `json:"file_num"`
+	NextReadOffset int64                  `json:"next_read_offset"`
+	MaxLength      int64                  `json:"max_length"`
 }
 
 //func AcquireMessage()*Message  {

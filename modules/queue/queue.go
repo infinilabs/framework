@@ -10,31 +10,46 @@ import (
 )
 
 type QueueModule struct {
-	configs []QueueConfig
+	configs []queue.Config
 }
 
-type QueueConfig struct {
-	Name string `config:"name"`
-	Type string `config:"type"`
-}
+
 
 func (module *QueueModule) Name() string {
 	return "queue"
 }
 
 func (module *QueueModule) Setup(cfg *config.Config) {
-	module.configs=[]QueueConfig{}
-	ok,err:=env.ParseConfig("queue", &module.configs)
-	if ok&&err!=nil{
+	configs := []queue.Config{}
+	ok, err := env.ParseConfig("queue", &module.configs)
+	if ok && err != nil {
 		panic(err)
+	}
+
+	//load configs from local metadata
+
+	//load configs from remote elasticsearch
+
+	for _,v:=range configs{
+		v.Source="file"
+		if v.Id==""{
+			v.Id=v.Name
+		}
+		queue.RegisterConfig(v.Name,&v)
 	}
 }
 
 func (module *QueueModule) Start() error {
 
-	if module.configs!=nil&&len(module.configs)>0{
-		for _,v:=range module.configs{
-			queue.IniQueue(v.Name,v.Type)
+	//load configs from local file
+	cfgs:=queue.GetAllConfigs()
+
+	if cfgs != nil && len(cfgs) > 0 {
+		for _, v := range cfgs {
+			if v.Id==""{
+				v.Id=v.Name
+			}
+			queue.IniQueue(v.Id, v.Type)
 		}
 	}
 
@@ -42,5 +57,20 @@ func (module *QueueModule) Start() error {
 }
 
 func (module *QueueModule) Stop() error {
+
+	//persist configs to local store
+	//skip file sourced config
+	cfgs:=queue.GetAllConfigs()
+
+	if cfgs != nil && len(cfgs) > 0 {
+		for _, v := range cfgs {
+			if v.Id==""{
+				v.Id=v.Name
+			}
+		}
+	}
+
+
+	//persist queue information
 	return nil
 }
