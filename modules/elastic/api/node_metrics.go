@@ -331,7 +331,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "ms",
 	})
 	// Query Cache 内存占用大小
-	queryCacheMetric:=newMetricItem("query_cache", 10, CacheGroupKey)
+	queryCacheMetric:=newMetricItem("query_cache", 1, CacheGroupKey)
 	queryCacheMetric.AddAxi("query cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_cache",
@@ -343,7 +343,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	// Request Cache 内存占用大小
-	requestCacheMetric:=newMetricItem("request_cache", 11, CacheGroupKey)
+	requestCacheMetric:=newMetricItem("request_cache", 2, CacheGroupKey)
 	requestCacheMetric.AddAxi("request cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "request_cache",
@@ -355,7 +355,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	// Request Cache Hit
-	requestCacheHitMetric:=newMetricItem("request_cache_hit", 11, CacheGroupKey)
+	requestCacheHitMetric:=newMetricItem("request_cache_hit", 6, CacheGroupKey)
 	requestCacheHitMetric.AddAxi("request cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "request_cache_hit",
@@ -367,7 +367,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "hits",
 	})
 	// Request Cache Miss
-	requestCacheMissMetric:=newMetricItem("request_cache_miss", 11, CacheGroupKey)
+	requestCacheMissMetric:=newMetricItem("request_cache_miss", 8, CacheGroupKey)
 	requestCacheMissMetric.AddAxi("request cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "request_cache_miss",
@@ -379,7 +379,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "misses",
 	})
 	// Query Cache Count
-	queryCacheCountMetric:=newMetricItem("query_cache_count", 11, CacheGroupKey)
+	queryCacheCountMetric:=newMetricItem("query_cache_count", 4, CacheGroupKey)
 	queryCacheCountMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_cache_count",
@@ -391,7 +391,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	// Query Cache Miss
-	queryCacheHitMetric:=newMetricItem("query_cache_hit", 11, CacheGroupKey)
+	queryCacheHitMetric:=newMetricItem("query_cache_hit", 5, CacheGroupKey)
 	queryCacheHitMetric.AddAxi("query cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_cache_hit",
@@ -403,21 +403,21 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "hits",
 	})
 
-	// Query Cache evictions
-	queryCacheEvictionsMetric:=newMetricItem("query_cache_evictions", 11, CacheGroupKey)
-	queryCacheEvictionsMetric.AddAxi("query cache evictions","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
-		Key: "query_cache_evictions",
-		Field: "payload.elasticsearch.node_stats.indices.query_cache.evictions",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryCacheEvictionsMetric,
-		FormatType: "num",
-		Units: "evictions",
-	})
+	//// Query Cache evictions
+	//queryCacheEvictionsMetric:=newMetricItem("query_cache_evictions", 5, CacheGroupKey)
+	//queryCacheEvictionsMetric.AddAxi("query cache evictions","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	//nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+	//	Key: "query_cache_evictions",
+	//	Field: "payload.elasticsearch.node_stats.indices.query_cache.evictions",
+	//	ID: util.GetUUID(),
+	//	IsDerivative: true,
+	//	MetricItem: queryCacheEvictionsMetric,
+	//	FormatType: "num",
+	//	Units: "evictions",
+	//})
 
 	// Query Cache Miss
-	queryCacheMissMetric:=newMetricItem("query_cache_miss", 11, CacheGroupKey)
+	queryCacheMissMetric:=newMetricItem("query_cache_miss", 7, CacheGroupKey)
 	queryCacheMissMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_cache_miss",
@@ -430,7 +430,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	// Fielddata内存占用大小
-	fieldDataCacheMetric:=newMetricItem("fielddata_cache", 12, CacheGroupKey)
+	fieldDataCacheMetric:=newMetricItem("fielddata_cache", 3, CacheGroupKey)
 	fieldDataCacheMetric.AddAxi("FieldData Cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "fielddata_cache",
@@ -605,7 +605,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	// jvm used heap
-	jvmUsedPercentMetric:=newMetricItem("jvm_heap_used_percent", 19, JVMGroupKey)
+	jvmUsedPercentMetric:=newMetricItem("jvm_heap_used_percent", 1, JVMGroupKey)
 	jvmUsedPercentMetric.AddAxi("JVM heap used percent","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_heap_used_percent",
@@ -617,7 +617,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "%",
 	})
 	//JVM mem Young pools used
-	youngPoolsUsedMetric:=newMetricItem("jvm_mem_young_used", 19, JVMGroupKey)
+	youngPoolsUsedMetric:=newMetricItem("jvm_mem_young_used", 2, JVMGroupKey)
 	youngPoolsUsedMetric.AddAxi("Mem Pools Young Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_mem_young_used",
@@ -629,7 +629,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	//JVM mem Young pools peak used
-	youngPoolsUsedPeakMetric:=newMetricItem("jvm_mem_young_peak_used", 19, JVMGroupKey)
+	youngPoolsUsedPeakMetric:=newMetricItem("jvm_mem_young_peak_used", 2, JVMGroupKey)
 	youngPoolsUsedPeakMetric.AddAxi("Mem Pools Young Peak Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_mem_young_peak_used",
@@ -642,7 +642,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	//JVM mem old pools used
-	oldPoolsUsedMetric:=newMetricItem("jvm_mem_old_used", 19, JVMGroupKey)
+	oldPoolsUsedMetric:=newMetricItem("jvm_mem_old_used", 3, JVMGroupKey)
 	oldPoolsUsedMetric.AddAxi("Mem Pools Old Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_mem_old_used",
@@ -654,7 +654,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	//JVM mem old pools peak used
-	oldPoolsUsedPeakMetric:=newMetricItem("jvm_mem_old_peak_used", 19, JVMGroupKey)
+	oldPoolsUsedPeakMetric:=newMetricItem("jvm_mem_old_peak_used", 3, JVMGroupKey)
 	oldPoolsUsedPeakMetric.AddAxi("Mem Pools Old Peak Used","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_mem_old_peak_used",
@@ -667,7 +667,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	//JVM used heap
-	heapUsedMetric:=newMetricItem("jvm_used_heap", 19, JVMGroupKey)
+	heapUsedMetric:=newMetricItem("jvm_used_heap", 1, JVMGroupKey)
 	heapUsedMetric.AddAxi("JVM Used Heap","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_used_heap",
@@ -679,7 +679,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 	//JVM Young GC Rate
-	gcYoungRateMetric:=newMetricItem("jvm_young_gc_rate", 19, JVMGroupKey)
+	gcYoungRateMetric:=newMetricItem("jvm_young_gc_rate", 2, JVMGroupKey)
 	gcYoungRateMetric.AddAxi("JVM Young GC Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_young_gc_rate",
@@ -691,7 +691,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "times/s",
 	})
 	//JVM Young GC Latency
-	gcYoungLatencyMetric:=newMetricItem("jvm_young_gc_latency", 19, JVMGroupKey)
+	gcYoungLatencyMetric:=newMetricItem("jvm_young_gc_latency", 2, JVMGroupKey)
 	gcYoungLatencyMetric.AddAxi("JVM Young GC Time","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_young_gc_latency",
@@ -704,7 +704,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	//JVM old GC Rate
-	gcOldRateMetric:=newMetricItem("jvm_old_gc_rate", 19, JVMGroupKey)
+	gcOldRateMetric:=newMetricItem("jvm_old_gc_rate", 3, JVMGroupKey)
 	gcOldRateMetric.AddAxi("JVM Old GC Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_old_gc_rate",
@@ -716,7 +716,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "times/s",
 	})
 	//JVM old GC Latency
-	gcOldLatencyMetric:=newMetricItem("jvm_old_gc_latency", 19, JVMGroupKey)
+	gcOldLatencyMetric:=newMetricItem("jvm_old_gc_latency", 3, JVMGroupKey)
 	gcOldLatencyMetric.AddAxi("JVM Old GC Time","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "jvm_old_gc_latency",

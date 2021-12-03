@@ -2,8 +2,11 @@ package api
 
 import (
 	"fmt"
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	log "src/github.com/cihub/seelog"
+	"time"
 )
 
 func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max int64, indexName string, top int) map[string]*common.MetricItem{
@@ -294,7 +297,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "ms",
 	})
 	//queryCache
-	queryCacheMetric := newMetricItem("query_cache", 12, CacheGroupKey)
+	queryCacheMetric := newMetricItem("query_cache", 1, CacheGroupKey)
 	queryCacheMetric.AddAxi("Query cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache",
@@ -306,7 +309,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "",
 	})
 	//requestCache
-	requestCacheMetric := newMetricItem("request_cache", 12, CacheGroupKey)
+	requestCacheMetric := newMetricItem("request_cache", 2, CacheGroupKey)
 	requestCacheMetric.AddAxi("request cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache",
@@ -318,7 +321,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "",
 	})
 	// Request Cache Hit
-	requestCacheHitMetric:=newMetricItem("request_cache_hit", 11, CacheGroupKey)
+	requestCacheHitMetric:=newMetricItem("request_cache_hit", 6, CacheGroupKey)
 	requestCacheHitMetric.AddAxi("request cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache_hit",
@@ -330,7 +333,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "hits",
 	})
 	// Request Cache Miss
-	requestCacheMissMetric:=newMetricItem("request_cache_miss", 11, CacheGroupKey)
+	requestCacheMissMetric:=newMetricItem("request_cache_miss", 8, CacheGroupKey)
 	requestCacheMissMetric.AddAxi("request cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache_miss",
@@ -342,7 +345,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "misses",
 	})
 	// Query Cache Count
-	queryCacheCountMetric:=newMetricItem("query_cache_count", 11, CacheGroupKey)
+	queryCacheCountMetric:=newMetricItem("query_cache_count", 4, CacheGroupKey)
 	queryCacheCountMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_count",
@@ -354,7 +357,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "",
 	})
 	// Query Cache Miss
-	queryCacheHitMetric:=newMetricItem("query_cache_hit", 11, CacheGroupKey)
+	queryCacheHitMetric:=newMetricItem("query_cache_hit", 5, CacheGroupKey)
 	queryCacheHitMetric.AddAxi("query cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_hit",
@@ -366,21 +369,21 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "hits",
 	})
 
-	// Query Cache evictions
-	queryCacheEvictionsMetric:=newMetricItem("query_cache_evictions", 11, CacheGroupKey)
-	queryCacheEvictionsMetric.AddAxi("query cache evictions","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	indexMetricItems=append(indexMetricItems, GroupMetricItem{
-		Key: "query_cache_evictions",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.evictions",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: queryCacheEvictionsMetric,
-		FormatType: "num",
-		Units: "evictions",
-	})
+	//// Query Cache evictions
+	//queryCacheEvictionsMetric:=newMetricItem("query_cache_evictions", 11, CacheGroupKey)
+	//queryCacheEvictionsMetric.AddAxi("query cache evictions","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	//indexMetricItems=append(indexMetricItems, GroupMetricItem{
+	//	Key: "query_cache_evictions",
+	//	Field: "payload.elasticsearch.index_stats.total.query_cache.evictions",
+	//	ID: util.GetUUID(),
+	//	IsDerivative: true,
+	//	MetricItem: queryCacheEvictionsMetric,
+	//	FormatType: "num",
+	//	Units: "evictions",
+	//})
 
 	// Query Cache Miss
-	queryCacheMissMetric:=newMetricItem("query_cache_miss", 11, CacheGroupKey)
+	queryCacheMissMetric:=newMetricItem("query_cache_miss", 7, CacheGroupKey)
 	queryCacheMissMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_miss",
@@ -392,7 +395,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		Units: "misses",
 	})
 	// Fielddata内存占用大小
-	fieldDataCacheMetric:=newMetricItem("fielddata_cache", 12, CacheGroupKey)
+	fieldDataCacheMetric:=newMetricItem("fielddata_cache", 3, CacheGroupKey)
 	fieldDataCacheMetric.AddAxi("FieldData Cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "fielddata_cache",
@@ -527,3 +530,159 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 
 }
 
+func (h *APIHandler) getTopIndexName(clusterID string, top int, lastMinutes int) ([]string, error){
+	var (
+		now = time.Now()
+		max = now.Unix()/1e6
+		min = now.Add(-time.Duration(lastMinutes) * time.Minute).Unix()/1e6
+	)
+	query := util.MapStr{
+		"size": 0,
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must_not": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.index_name": util.MapStr{
+								"value": "_all",
+							},
+						},
+					},
+				},
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "index_stats",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+				"aggs": util.MapStr{
+					"group_by_index": util.MapStr{
+						"terms": util.MapStr{
+							"field": "metadata.labels.index_name",
+							"size":  10000,
+						},
+						"aggs": util.MapStr{
+							"max_qps": util.MapStr{
+								"max_bucket": util.MapStr{
+									"buckets_path": "dates>search_qps",
+								},
+							},
+							"max_qps_bucket_sort": util.MapStr{
+								"bucket_sort": util.MapStr{
+									"sort": []util.MapStr{
+										{"max_qps": util.MapStr{"order": "desc"}}},
+									"size": top,
+								},
+							},
+							"dates": util.MapStr{
+								"date_histogram": util.MapStr{
+									"field":    "timestamp",
+									"interval": "60s",
+								},
+								"aggs": util.MapStr{
+									"search_query_total": util.MapStr{
+										"max": util.MapStr{
+											"field": "payload.elasticsearch.index_stats.total.search.query_total",
+										},
+									},
+									"search_qps": util.MapStr{
+										"derivative": util.MapStr{
+											"buckets_path": "search_query_total",
+										},
+									},
+								},
+							},
+						},
+					},
+					"group_by_index1": util.MapStr{
+						"terms": util.MapStr{
+							"field": "metadata.labels.index_name",
+							"size":  10000,
+						},
+						"aggs": util.MapStr{
+							"max_qps": util.MapStr{
+								"max_bucket": util.MapStr{
+									"buckets_path": "dates>index_qps",
+								},
+							},
+							"max_qps_bucket_sort": util.MapStr{
+								"bucket_sort": util.MapStr{
+									"sort": []util.MapStr{
+										{"max_qps": util.MapStr{"order": "desc"}},
+									},
+									"size": top,
+								},
+							},
+							"dates": util.MapStr{
+								"date_histogram": util.MapStr{
+									"field":    "timestamp",
+									"interval": "60s",
+								},
+								"aggs": util.MapStr{
+									"index_total": util.MapStr{
+										"max": util.MapStr{
+											"field": "payload.elasticsearch.index_stats.total.indexing.index_total",
+										},
+									},
+									"index_qps": util.MapStr{
+										"derivative": util.MapStr{
+											"buckets_path": "index_total",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
+	if err!=nil{
+		log.Error(err)
+		return nil, err
+	}
+	var counts = map[string] float64{}
+	for _, agg := range response.Aggregations {
+		for _, bk := range agg.Buckets {
+			key := bk["key"].(string)
+			if maxQps, ok := bk["max_qps"].(map[string]interface{}); ok {
+				val := maxQps["value"].(float64)
+				if _, ok = counts[key] ; ok {
+					counts[key] = counts[key] + val
+				}else{
+					counts[key] = val
+				}
+
+			}
+		}
+	}
+	return nil, nil
+}
