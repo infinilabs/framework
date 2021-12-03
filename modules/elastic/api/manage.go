@@ -265,7 +265,9 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 		return
 	}
 	if len(searchRes.Hits.Hits) > 0 {
-		status, _ := util.MapStr(searchRes.Hits.Hits[0].Source).GetValue("payload.elasticsearch.cluster_stats")
+		sourceMap := util.MapStr(searchRes.Hits.Hits[0].Source)
+		summary["timestamp"],_= sourceMap.GetValue("timestamp")
+		status, _ := sourceMap.GetValue("payload.elasticsearch.cluster_stats")
 		statusMap := util.MapStr(status.(map[string]interface{}))
 		summary["cluster_name"], _ = statusMap.GetValue("cluster_name")
 		summary["status"],_ = statusMap.GetValue("status")
@@ -305,6 +307,44 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 		summary["uptime"],_ = statusMap.GetValue("nodes.jvm.max_uptime_in_millis")
 		summary["used_jvm_bytes"],_ =  statusMap.GetValue("nodes.jvm.mem.heap_used_in_bytes")
 		summary["max_jvm_bytes"],_ = statusMap.GetValue("nodes.jvm.mem.heap_max_in_bytes")
+	}
+
+	query["query"]=util.MapStr{
+		"bool": util.MapStr{
+			"must": []util.MapStr{
+				{
+					"term":util.MapStr{
+						"metadata.labels.cluster_id":util.MapStr{
+							"value": id,
+						},
+					},
+				},
+				{
+					"term": util.MapStr{
+						"metadata.category": util.MapStr{
+							"value": "elasticsearch",
+						},
+					},
+				},
+				{
+					"term": util.MapStr{
+						"metadata.name": util.MapStr{
+							"value": "cluster_health",
+						},
+					},
+				},
+			},
+		},
+	}
+	searchRes, err = client.SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		log.Error("MetricsSummary search error: ", err)
+	}else{
+		if len(searchRes.Hits.Hits) > 0 {
+			health, _ := util.MapStr(searchRes.Hits.Hits[0].Source).GetValue("payload.elasticsearch.cluster_health")
+			healthMap := util.MapStr(health.(map[string]interface{}))
+			summary["unassigned_shards"], _ = healthMap.GetValue("unassigned_shards")
+		}
 	}
 
 	resBody["summary"] = summary
@@ -558,9 +598,8 @@ const (
 	MemoryGroupKey = "memory"
 	StorageGroupKey = "storage"
 	JVMGroupKey = "JVM"
-	ThreadPoolGroupKey = "thread_pool"
 	TransportGroupKey = "transport"
-
+	DocumentGroupKey = "document"
 )
 
 func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64) map[string]*common.MetricItem {
@@ -569,7 +608,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 
 	metricItems:=[]*common.MetricItem{}
 
-	metricItem:=newMetricItem("cluster_throughput", 1, OperationGroupKey)
+	metricItem:=newMetricItem("cluster_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
 
@@ -578,9 +617,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	metricItem.AddLine("Search Rate","Total Searching","Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!","group2","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
-
-
-	metricItem=newMetricItem("cluster_latency", 2, LatencyGroupKey)
+	metricItem=newMetricItem("cluster_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
 
@@ -592,7 +629,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	metricItems=append(metricItems,metricItem)
 
 	clusterMetricItems:=[]*common.MetricItem{}
-	metricItem=newMetricItem("cluster_storage", 5, StorageGroupKey)
+	metricItem=newMetricItem("cluster_storage", 8, StorageGroupKey)
 	metricItem.AddAxi("indices_storage","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	metricItem.AddAxi("available_storage","group2",common.PositionRight,"bytes","0.[0]","0.[0]",5,true)
 
@@ -601,14 +638,14 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
-	metricItem=newMetricItem("cluster_documents", 6, StorageGroupKey)
+	metricItem=newMetricItem("cluster_documents", 4, StorageGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddAxi("deleted","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Documents Count","Documents Count","","group1","payload.elasticsearch.cluster_stats.indices.docs.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 	metricItem.AddLine("Documents Deleted","Documents Deleted","","group2","payload.elasticsearch.cluster_stats.indices.docs.deleted","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
-	metricItem=newMetricItem("cluster_indices", 7, StorageGroupKey)
+	metricItem=newMetricItem("cluster_indices", 6, StorageGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Indices Count","Indices Count","","group1","payload.elasticsearch.cluster_stats.indices.count","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 	clusterMetricItems=append(clusterMetricItems,metricItem)
@@ -637,13 +674,20 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	//metricItem.AddLine("OS Used Percent","OS Used Percent","","group2","payload.elasticsearch.cluster_stats.nodes.os.mem.used_percent","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
 	//clusterMetricItems=append(clusterMetricItems,metricItem)
 
-	metricItem=newMetricItem("node_count", 4, MemoryGroupKey)
+	metricItem=newMetricItem("node_count", 5, MemoryGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	majorVersion := elastic.GetMetadata(id).GetMajorVersion()
+	if majorVersion < 5 {
+		metricItem.AddLine("Master Only", "Master Only", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.master_only", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+		metricItem.AddLine("Data Node", "Data Only", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.data_only", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+		metricItem.AddLine("Master Data", "Master Data", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.master_data", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+	}else {
+		metricItem.AddLine("Master Node", "Master Node", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.master", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+		metricItem.AddLine("Data Node", "Data Node", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.data", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+		metricItem.AddLine("Coordinating Node Only", "Coordinating Node Only", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.coordinating_only", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+		metricItem.AddLine("Ingest Node", "Ingest Node", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.ingest", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+	}
 
-	metricItem.AddLine("Master Node","Master Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.master","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Data Node","Data Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.data","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Coordinating Node Only","Coordinating Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.coordinating_only","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
-	metricItem.AddLine("Ingest Node","Ingest Node","","group1","payload.elasticsearch.cluster_stats.nodes.count.ingest","max",bucketSizeStr,"","num","0.[00]","0.[00]",false,false)
 
 	clusterMetricItems=append(clusterMetricItems,metricItem)
 
@@ -799,7 +843,7 @@ func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) 
 			},
 		},
 	}
-	metricItem := newMetricItem("shard_count", 4, StorageGroupKey)
+	metricItem := newMetricItem("shard_count", 7, StorageGroupKey)
 	metricItem.AddAxi("counts", "group1", common.PositionLeft, "num", "0,0", "0,0.[00]", 5, false)
 	metricItem.AddLine("Active Primary Shards", "Active Primary Shards", "", "group1", "payload.elasticsearch.cluster_health.active_primary_shards", "max", bucketSizeStr, "", "num", "0,0.[00]", "0,0.[00]", false, false)
 	metricItem.AddLine("Active Shards", "Active Shards", "", "group1", "payload.elasticsearch.cluster_health.active_shards", "max", bucketSizeStr, "", "num", "0,0.[00]", "0,0.[00]", false, false)
@@ -875,7 +919,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 	}
 	var minDate, maxDate int64
 	metricData := []interface{}{}
-	metricItem:=newMetricItem("cluster_health", 3, MemoryGroupKey)
+	metricItem:=newMetricItem("cluster_health", 1, MemoryGroupKey)
 	metricItem.AddLine("status","Status","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
 
 	if response.StatusCode == 200 {
