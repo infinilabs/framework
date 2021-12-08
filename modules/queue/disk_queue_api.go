@@ -38,10 +38,7 @@ func (module *DiskQueue) RegisterAPI()  {
 }
 
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-	include:=ps.ByName("include_config")
-
-
+	include:=module.Get(req,"metadata","true")
 	datas := map[string]util.MapStr{}
 	queues := queue1.GetQueues()
 	for t, qs := range queues {
@@ -55,7 +52,7 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 			if include!="false" {
 				cfg,ok:=queue1.GetConfigByUUID(q)
 				if ok{
-					qd["config"]=cfg
+					qd["metadata"]=cfg
 				}
 			}
 

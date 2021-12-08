@@ -43,7 +43,7 @@ type Config struct {
 	Name     string                 `config:"name" json:"name"` //unique name of each queue
 	Codec    string                 `config:"codec" json:"codec"`
 	Type     string                 `config:"type" json:"type"`
-	Metadata map[string]interface{} `config:"metadata" json:"metadata"`
+	Labels map[string]interface{} `config:"label" json:"label"`
 }
 
 func getHandler(name string) QueueAPI {
