@@ -13,6 +13,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -114,6 +115,13 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	for k, v := range conf {
 		if k == "id" {
 			continue
+		}
+		if k == "basic_auth" {
+			if authMap, ok := v.(map[string]interface{}); ok {
+				if pwd, ok := authMap["password"]; !ok || (ok && pwd =="") {
+					authMap["password"] = source[k].(map[string]interface{})["password"]
+				}
+			}
 		}
 		source[k] = v
 	}
@@ -1058,6 +1066,9 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 			status[key] = map[string]interface{}{
 				"health": meta.Health,
 				"available": meta.IsAvailable(),
+				"config": map[string]interface{}{
+					"monitored": meta.Config.Monitored,
+				},
 			}
 		}
 		return true
@@ -1206,4 +1217,81 @@ func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httpr
 
 func getAllMetricsIndex() string{
 	return fmt.Sprintf("%s*", orm.GetIndexName(event.Event{}))
+}
+
+func (h *APIHandler) HandleGetStorageMetricAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := util.MapStr{}
+	clusterID := ps.ByName("id")
+	client := elastic.GetClient(clusterID)
+	shardRes, err := client.CatShards()
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("cat shards error: %v", err)
+		log.Errorf("cat shards error: %v", err)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	var metricData = TreeMapNode{
+		Name:    fmt.Sprintf("%s:Storage", clusterID),
+		SubKeys: map[string]int{},
+	}
+	for _, shardInfo := range shardRes {
+		if shardInfo.ShardType != "p" {
+			continue
+		}
+		nodeName := fmt.Sprintf("%s:%s", shardInfo.NodeIP, shardInfo.NodeName)
+		//node level
+		if _, ok := metricData.SubKeys[nodeName]; !ok {
+			metricData.Children = append(metricData.Children, &TreeMapNode{
+				Name: nodeName,
+				SubKeys: map[string]int{
+				},
+			})
+			metricData.SubKeys[nodeName] = len(metricData.Children) - 1
+		}
+		//index level
+		nodeIdx := metricData.SubKeys[nodeName]
+		if _, ok := metricData.Children[nodeIdx].SubKeys[shardInfo.Index]; !ok {
+			metricData.Children[nodeIdx].Children = append(metricData.Children[nodeIdx].Children, &TreeMapNode{
+				Name: shardInfo.Index,
+				SubKeys: map[string]int{},
+			})
+			metricData.Children[nodeIdx].SubKeys[shardInfo.Index] = len(metricData.Children[nodeIdx].Children) - 1
+		}
+		//shard level
+		indexIdx := metricData.Children[nodeIdx].SubKeys[shardInfo.Index]
+		value, err := util.ConvertBytesFromString(shardInfo.Store)
+		if err != nil {
+			log.Error(err)
+		}
+		metricData.Children[nodeIdx].Children[indexIdx].Children = append(metricData.Children[nodeIdx].Children[indexIdx].Children, &TreeMapNode{
+			Name: fmt.Sprintf("shard %s", shardInfo.ShardID),
+			Value: value,
+		})
+	}
+	var (
+		totalStoreSize float64 = 0
+		nodeSize float64 = 0
+		indexSize float64 = 0
+	)
+	for _, node := range metricData.Children {
+		nodeSize = 0
+		for _, index := range node.Children {
+			indexSize = 0
+			for _, shard := range index.Children {
+				indexSize += shard.Value
+			}
+			index.Value =  math.Trunc(indexSize * 100)/100
+			nodeSize += indexSize
+		}
+		node.Value = math.Trunc(nodeSize * 100)/100
+		totalStoreSize += nodeSize
+	}
+	metricData.Value = math.Trunc(totalStoreSize * 100)/100
+	h.WriteJSON(w, metricData, http.StatusOK)
+}
+type TreeMapNode struct {
+	Name string `json:"name"`
+	Value float64 `json:"value,omitempty"`
+	Children []*TreeMapNode  `json:"children,omitempty"`
+	SubKeys  map[string]int `json:"-"`
 }

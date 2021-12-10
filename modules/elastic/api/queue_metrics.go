@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	log "src/github.com/cihub/seelog"
 )
 
 const (
@@ -52,6 +53,18 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 				},
 			},
 		})
+	}else{
+		nodeNames, err := h.getTopNodeName(clusterID, top, 15)
+		if err != nil {
+			log.Error(err)
+		}
+		if len(nodeNames) > 0 {
+			must = append(must, util.MapStr{
+				"terms": util.MapStr{
+					"metadata.labels.transport_address": nodeNames,
+				},
+			})
+		}
 	}
 
 	query:=map[string]interface{}{}

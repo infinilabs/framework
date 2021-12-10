@@ -95,5 +95,8 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		return client, err
 	}
 	elastic.RegisterInstance(esConfig.ID, esConfig, client)
+	v := &elastic.ElasticsearchMetadata{Config: &esConfig}
+	v.Init(elastic.GetMetadata(esConfig.ID).IsAvailable())
+	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
 }

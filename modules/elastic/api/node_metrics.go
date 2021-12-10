@@ -5,12 +5,18 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"sort"
 	log "src/github.com/cihub/seelog"
 	"strings"
+	"time"
 )
 
 func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	nodeNames, err := h.getTopNodeName(clusterID, top, 15)
+	if err != nil {
+		log.Error(err)
+	}
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
@@ -43,6 +49,14 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 				},
 			},
 		})
+	}else{
+		if len(nodeNames) > 0 {
+			must = append(must, util.MapStr{
+				"terms": util.MapStr{
+					"metadata.labels.transport_address": nodeNames,
+				},
+			})
+		}
 	}
 
 	query:=map[string]interface{}{}
@@ -162,7 +176,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		},
 	})
 	// 索引速率
-	indexMetric:=newMetricItem("indexing_rate", 3, OperationGroupKey)
+	indexMetric:=newMetricItem("indexing_rate", 1, OperationGroupKey)
 	indexMetric.AddAxi("indexing rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "indexing_rate",
@@ -174,7 +188,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "doc/s",
 	})
 	// 索引延时
-	indexLatencyMetric:=newMetricItem("indexing_latency", 4, LatencyGroupKey)
+	indexLatencyMetric:=newMetricItem("indexing_latency", 1, LatencyGroupKey)
 	indexLatencyMetric.AddAxi("indexing latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "indexing_latency",
@@ -186,7 +200,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "ms",
 	})
 
-	queryMetric:=newMetricItem("query_rate", 5, OperationGroupKey)
+	queryMetric:=newMetricItem("query_rate", 2, OperationGroupKey)
 	queryMetric.AddAxi("query rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_rate",
@@ -199,7 +213,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	// 查询延时
-	queryLatencyMetric:=newMetricItem("query_latency", 6, LatencyGroupKey)
+	queryLatencyMetric:=newMetricItem("query_latency", 2, LatencyGroupKey)
 	queryLatencyMetric.AddAxi("query latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_latency",
@@ -211,7 +225,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "ms",
 	})
 
-	fetchMetric:=newMetricItem("fetch_rate", 5, OperationGroupKey)
+	fetchMetric:=newMetricItem("fetch_rate", 3, OperationGroupKey)
 	fetchMetric.AddAxi("fetch rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "fetch_rate",
@@ -222,7 +236,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "num",
 		Units: "requests/s",
 	})
-	scrollMetric:=newMetricItem("scroll_rate", 5, OperationGroupKey)
+	scrollMetric:=newMetricItem("scroll_rate", 4, OperationGroupKey)
 	scrollMetric.AddAxi("scroll rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "scroll_rate",
@@ -245,7 +259,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "num",
 		Units: "requests/s",
 	})
-	flushMetric:=newMetricItem("flush_rate", 5, OperationGroupKey)
+	flushMetric:=newMetricItem("flush_rate", 6, OperationGroupKey)
 	flushMetric.AddAxi("flush rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "flush_rate",
@@ -256,7 +270,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "num",
 		Units: "requests/s",
 	})
-	mergeMetric:=newMetricItem("merges_rate", 5, OperationGroupKey)
+	mergeMetric:=newMetricItem("merges_rate", 7, OperationGroupKey)
 	mergeMetric.AddAxi("merges rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "merges_rate",
@@ -269,7 +283,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	// fetch延时
-	fetchLatencyMetric:=newMetricItem("fetch_latency", 6, LatencyGroupKey)
+	fetchLatencyMetric:=newMetricItem("fetch_latency", 3, LatencyGroupKey)
 	fetchLatencyMetric.AddAxi("fetch latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "fetch_latency",
@@ -281,7 +295,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "ms",
 	})
 	// scroll 延时
-	scrollLatencyMetric:=newMetricItem("scroll_latency", 6, LatencyGroupKey)
+	scrollLatencyMetric:=newMetricItem("scroll_latency", 4, LatencyGroupKey)
 	scrollLatencyMetric.AddAxi("scroll latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "scroll_latency",
@@ -307,7 +321,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	// refresh 延时
-	refreshLatencyMetric:=newMetricItem("refresh_latency", 8, LatencyGroupKey)
+	refreshLatencyMetric:=newMetricItem("refresh_latency", 5, LatencyGroupKey)
 	refreshLatencyMetric.AddAxi("refresh latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "refresh_latency",
@@ -319,7 +333,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "ms",
 	})
 	// flush 时延
-	flushLatencyMetric:=newMetricItem("flush_latency", 9, LatencyGroupKey)
+	flushLatencyMetric:=newMetricItem("flush_latency", 6, LatencyGroupKey)
 	flushLatencyMetric.AddAxi("flush latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "flush_latency",
@@ -925,3 +939,167 @@ func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []
 	return result
 }
 
+func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) ([]string, error){
+	var (
+		now = time.Now()
+		max = now.UnixNano()/1e6
+		min = now.Add(-time.Duration(lastMinutes) * time.Minute).UnixNano()/1e6
+	)
+	query := util.MapStr{
+		"size": 0,
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_stats",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+			},
+		},
+		"aggs": util.MapStr{
+			"group_by_index": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.labels.transport_address",
+					"size":  10000,
+				},
+				"aggs": util.MapStr{
+					"max_qps": util.MapStr{
+						"max_bucket": util.MapStr{
+							"buckets_path": "dates>search_qps",
+						},
+					},
+					"max_qps_bucket_sort": util.MapStr{
+						"bucket_sort": util.MapStr{
+							"sort": []util.MapStr{
+								{"max_qps": util.MapStr{"order": "desc"}}},
+							"size": top,
+						},
+					},
+					"dates": util.MapStr{
+						"date_histogram": util.MapStr{
+							"field":    "timestamp",
+							"interval": "60s",
+						},
+						"aggs": util.MapStr{
+							"search_query_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.node_stats.indices.search.query_total",
+								},
+							},
+							"search_qps": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "search_query_total",
+								},
+							},
+						},
+					},
+				},
+			},
+			"group_by_index1": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.labels.index_name",
+					"size":  10000,
+				},
+				"aggs": util.MapStr{
+					"max_qps": util.MapStr{
+						"max_bucket": util.MapStr{
+							"buckets_path": "dates>index_qps",
+						},
+					},
+					"max_qps_bucket_sort": util.MapStr{
+						"bucket_sort": util.MapStr{
+							"sort": []util.MapStr{
+								{"max_qps": util.MapStr{"order": "desc"}},
+							},
+							"size": top,
+						},
+					},
+					"dates": util.MapStr{
+						"date_histogram": util.MapStr{
+							"field":    "timestamp",
+							"interval": "60s",
+						},
+						"aggs": util.MapStr{
+							"index_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.node_stats.indices.indexing.index_total",
+								},
+							},
+							"index_qps": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_total",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
+	if err!=nil{
+		log.Error(err)
+		return nil, err
+	}
+	var maxQpsKVS = map[string] float64{}
+	for _, agg := range response.Aggregations {
+		for _, bk := range agg.Buckets {
+			key := bk["key"].(string)
+			if maxQps, ok := bk["max_qps"].(map[string]interface{}); ok {
+				val := maxQps["value"].(float64)
+				if _, ok = maxQpsKVS[key] ; ok {
+					maxQpsKVS[key] = maxQpsKVS[key] + val
+				}else{
+					maxQpsKVS[key] = val
+				}
+			}
+		}
+	}
+	var (
+		qpsValues TopTermOrder
+	)
+	for k, v := range maxQpsKVS {
+		qpsValues = append(qpsValues, TopTerm{
+			Key:   k,
+			Value: v,
+		})
+	}
+	sort.Sort(qpsValues)
+	var length = top
+	if top > len(qpsValues) {
+		length = len(qpsValues)
+	}
+	nodeNames := []string{}
+	for i := 0; i <length; i++ {
+		nodeNames = append(nodeNames, qpsValues[i].Key)
+	}
+	return nodeNames, nil
+}

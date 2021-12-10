@@ -645,34 +645,9 @@ func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, err
 	return &indexInfo, nil
 }
 
-//{
-//"index" : ".monitoring-es-7-2020.12.29",
-//"shard" : "0",
-//"prirep" : "p",
-//"state" : "STARTED",
-//"unassigned.reason" : null,
-//"docs" : "227608",
-//"store" : "132.5mb",
-//"id" : "qIgTsxtuQ8mzAGiBATkqHw",
-//"node" : "dev",
-//"ip" : "192.168.3.98"
-//}
-type CatShardResponse struct {
-	Index            string `json:"index,omitempty"`
-	ShardID          string `json:"shard,omitempty"`
-	ShardType        string `json:"prirep,omitempty"`
-	State            string `json:"state,omitempty"`
-	UnassignedReason string `json:"unassigned,omitempty"`
-	Docs             string `json:"docs,omitempty"`
-	Store            string `json:"store,omitempty"`
-	NodeID           string `json:"id,omitempty"`
-	NodeName         string `json:"node,omitempty"`
-	NodeIP           string `json:"ip,omitempty"`
-}
-
 //index:shardID -> nodesInfo
 func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, error) {
-	data := []CatShardResponse{}
+	data := []elastic.CatShardResponse{}
 
 	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -725,6 +700,21 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 		// infos[fmt.Sprintf("%v:%v", info.Index, info.ShardID)] = info
 	}
 	return &infos, nil
+}
+func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
+	data := []elastic.CatShardResponse{}
+	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.GetEndpoint())
+	resp, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	err = json.Unmarshal(resp.Body, &data)
+	return data, err
 }
 
 func (c *ESAPIV0) Bulk(data []byte) {

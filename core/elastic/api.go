@@ -80,6 +80,7 @@ type API interface {
 	SearchTemplate(body map[string]interface{}) ([]byte, error)
 	Alias(body []byte) error
 	FieldCaps(target string) ([]byte, error)
+	CatShards() ([]CatShardResponse, error)
 }
 
 type TemplateAPI interface {

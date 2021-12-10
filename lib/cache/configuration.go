@@ -33,7 +33,7 @@ func (c *Configuration) MaxSize(max int64) *Configuration {
 	return c
 }
 
-// Keys are hashed into % bucket count to provide greater concurrency (every set
+// SubKeys are hashed into % bucket count to provide greater concurrency (every set
 // requires a write lock on the bucket). Must be a power of 2 (1, 2, 4, 8, 16, ...)
 // [16]
 func (c *Configuration) Buckets(count uint32) *Configuration {

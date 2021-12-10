@@ -466,7 +466,7 @@ func (r *Raft) LastContact() time.Time {
 // Stats is used to return a map of various internal stats. This
 // should only be used for informative purposes or debugging.
 //
-// Keys are: "state", "term", "last_log_index", "last_log_term",
+// SubKeys are: "state", "term", "last_log_index", "last_log_term",
 // "commit_index", "applied_index", "fsm_pending",
 // "last_snapshot_index", "last_snapshot_term", "num_peers" and
 // "last_contact".

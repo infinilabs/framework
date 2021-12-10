@@ -419,3 +419,28 @@ type ElasticsearchConfig struct {
 	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
 }
+
+//{
+//"index" : ".monitoring-es-7-2020.12.29",
+//"shard" : "0",
+//"prirep" : "p",
+//"state" : "STARTED",
+//"unassigned.reason" : null,
+//"docs" : "227608",
+//"store" : "132.5mb",
+//"id" : "qIgTsxtuQ8mzAGiBATkqHw",
+//"node" : "dev",
+//"ip" : "192.168.3.98"
+//}
+type CatShardResponse struct {
+	Index            string `json:"index,omitempty"`
+	ShardID          string `json:"shard,omitempty"`
+	ShardType        string `json:"prirep,omitempty"`
+	State            string `json:"state,omitempty"`
+	UnassignedReason string `json:"unassigned,omitempty"`
+	Docs             string `json:"docs,omitempty"`
+	Store            string `json:"store,omitempty"`
+	NodeID           string `json:"id,omitempty"`
+	NodeName         string `json:"node,omitempty"`
+	NodeIP           string `json:"ip,omitempty"`
+}
