@@ -45,6 +45,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.HandleGetFieldCapsAction)
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.HandleEseSearchAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/search/trace_id", clusterAPI.HandleTraceIDSearchAction)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/suggestions/values/:index", clusterAPI.HandleValueSuggestionAction)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/setting", clusterAPI.HandleSettingAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.HandleGetSettingAction)

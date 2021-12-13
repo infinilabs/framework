@@ -1,10 +1,13 @@
 package api
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/util"
+	"net/http"
+	log "src/github.com/cihub/seelog"
 )
 
 func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -127,3 +130,51 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 	}
 	h.WriteJSON(w, values,http.StatusOK)
 }
+
+func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	traceID := h.GetParameterOrDefault(req, "traceID", "")
+	client := elastic.GetClient(h.Config.Elasticsearch)
+	var queryDSL = util.MapStr{
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"trace_id": traceID,
+						},
+					},
+				},
+			},
+		},
+	}
+	searchRes, err := client.SearchWithRawQueryDSL(".infini_traces", util.MustToJSONBytes(queryDSL))
+	if err != nil {
+		log.Error(err)
+		h.WriteJSON(w, util.MapStr{
+			"error": err,
+		}, http.StatusInternalServerError)
+		return
+	}
+	if searchRes.GetTotal() == 0 {
+		h.WriteJSON(w, []string{}, http.StatusOK)
+		return
+	}
+	var indexNames []string
+	for _, hit := range searchRes.Hits.Hits {
+		indexNames = append(indexNames, hit.Source["index"].(string))
+	}
+	//clusterID := ps.ByName("id")
+	//esClient := elastic.GetClient(clusterID)
+	//indexName := strings.Join(indexNames, ",")
+
+	//searchRes, err = esClient.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDSL))
+	//if err != nil {
+	//	log.Error(err)
+	//	h.WriteJSON(w, util.MapStr{
+	//		"error": err,
+	//	}, http.StatusInternalServerError)
+	//	return
+	//}
+	h.WriteJSON(w, indexNames, http.StatusOK)
+}
+
