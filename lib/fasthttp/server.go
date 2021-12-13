@@ -739,6 +739,8 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 						requestField := keys[2]
 						if requestField != "" {
 							switch requestField {
+							case "to_string":
+								return string(para.Request.String()), nil
 							case "host":
 								return string(para.Request.Host()), nil
 							case "method":
@@ -812,6 +814,8 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 						responseField :=keys[2]
 						if responseField !=""{
 							switch responseField {
+							case "to_string":
+								return para.Response.String(),nil
 							case "status":
 								return para.Response.StatusCode(),nil
 							case "status_code":
