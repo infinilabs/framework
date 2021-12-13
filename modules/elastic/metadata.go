@@ -3,11 +3,9 @@ package elastic
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 func clusterHealthCheck(force bool) {
@@ -121,7 +119,7 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 			for k, v := range *nodes {
 				v1, ok := (*meta.Nodes)[k]
 				if ok {
-					if v.Http.PublishAddress != v1.Http.PublishAddress {
+					if v.GetPublishHTTPHost() != v1.GetPublishHTTPHost() {
 						nodesChanged = true
 						break
 					}
@@ -141,16 +139,7 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 
 		//register host to do availability monitoring
 		for _, v := range *nodes {
-			if util.ContainStr(v.Http.PublishAddress,"/"){
-				if global.Env().IsDebug{
-					log.Tracef("node's public address contains `/`,try to remove prefix")
-				}
-				arr:=strings.Split(v.Http.PublishAddress,"/")
-				if len(arr)==2{
-					v.Http.PublishAddress=arr[1]
-				}
-			}
-			elastic.GetOrInitHost(v.Http.PublishAddress)
+			elastic.GetOrInitHost(v.GetPublishHTTPHost())
 		}
 	}
 	log.Trace("nodes changed:",nodesChanged,nodes)

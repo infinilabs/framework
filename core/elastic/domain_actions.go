@@ -24,8 +24,10 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	uri "net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -192,6 +194,20 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	meta.seedHosts = hosts
 	return meta.seedHosts
 }
+
+func (node *NodesInfo) GetPublishHTTPHost() string {
+	if util.ContainStr(node.Http.PublishAddress,"/"){
+		if global.Env().IsDebug{
+			log.Tracef("node's public address contains `/`,try to remove prefix")
+		}
+		arr:=strings.Split(node.Http.PublishAddress,"/")
+		if len(arr)==2{
+			return arr[1]
+		}
+	}
+	return node.Http.PublishAddress
+}
+
 
 var clients = map[string]*fasthttp.Client{}
 var clientLock sync.RWMutex
