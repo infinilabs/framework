@@ -119,7 +119,7 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 			for k, v := range *nodes {
 				v1, ok := (*meta.Nodes)[k]
 				if ok {
-					if v.GetPublishHTTPHost() != v1.GetPublishHTTPHost() {
+					if v.GetHttpPublishHost() != v1.GetHttpPublishHost() {
 						nodesChanged = true
 						break
 					}
@@ -139,7 +139,7 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 
 		//register host to do availability monitoring
 		for _, v := range *nodes {
-			elastic.GetOrInitHost(v.GetPublishHTTPHost())
+			elastic.GetOrInitHost(v.GetHttpPublishHost())
 		}
 	}
 	log.Trace("nodes changed:",nodesChanged,nodes)

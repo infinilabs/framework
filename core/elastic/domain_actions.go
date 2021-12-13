@@ -195,7 +195,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	return meta.seedHosts
 }
 
-func (node *NodesInfo) GetPublishHTTPHost() string {
+func (node *NodesInfo) GetHttpPublishHost() string {
 	if util.ContainStr(node.Http.PublishAddress,"/"){
 		if global.Env().IsDebug{
 			log.Tracef("node's public address contains `/`,try to remove prefix")
