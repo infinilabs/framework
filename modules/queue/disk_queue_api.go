@@ -39,24 +39,27 @@ func (module *DiskQueue) RegisterAPI()  {
 
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	include:=module.Get(req,"metadata","true")
+	useKey :=module.Get(req,"use_key","true")
 	datas := map[string]util.MapStr{}
 	queues := queue1.GetQueues()
 	for t, qs := range queues {
 		data := util.MapStr{}
 		for _,q:=range qs{
-
 			qd := util.MapStr{
-				"depth":queue1.Depth(q),
+				"depth":module.Depth(q),
 			}
-
+			cfg,ok:=queue1.GetConfigByUUID(q)
 			if include!="false" {
-				cfg,ok:=queue1.GetConfigByUUID(q)
 				if ok{
 					qd["metadata"]=cfg
 				}
 			}
 
-			data[q]=qd
+			if useKey =="false"{
+				data[q]=qd
+			}else{
+				data[cfg.Name]=qd
+			}
 		}
 		datas[t]=data
 	}

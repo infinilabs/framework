@@ -86,7 +86,7 @@ func updateClusterState(clusterId string) {
 				"cluster_id":clusterId,
 				"state":state,
 			}
-			queue.Push("cluster_state_change",util.MustToJSONBytes(event))
+			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 
 		}
 	}
