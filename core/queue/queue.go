@@ -239,7 +239,7 @@ func GetQueues() map[string][]string {
 	return results
 }
 
-func GetQueuesByLabel(labels map[string]interface{}) []*Config {
+func GetQueuesFilterByLabel(labels map[string]interface{}) []*Config {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	cfgs:=[]*Config{}
