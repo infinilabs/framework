@@ -44,7 +44,7 @@ type Config struct {
 	Name     string                 `config:"name" json:"name,omitempty"` //unique name of each queue
 	Codec    string                 `config:"codec" json:"codec,omitempty"`
 	Type     string                 `config:"type" json:"type,omitempty"`
-	Labels map[string]interface{} `config:"label" json:"label"`
+	Labels map[string]interface{}   `config:"label" json:"label"`
 }
 
 func getHandler(queueID string) QueueAPI {
@@ -141,6 +141,11 @@ func GetConfigByUUID(id string) (*Config, bool) {
 	return v, ok
 }
 
+func GetAllConfigBytes()[]byte {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	return util.MustToJSONBytes(configs)
+}
 func GetAllConfigs() map[string]*Config {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()

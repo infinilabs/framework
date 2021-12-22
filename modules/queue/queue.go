@@ -97,8 +97,7 @@ func persistMetadata()  {
 	defer locker.Unlock()
 
 	//persist configs to local store
-	cfgs:=queue.GetAllConfigs()
-	bytes:=util.MustToJSONBytes(cfgs)
+	bytes:=queue.GetAllConfigBytes()
 	_,err:=util.FilePutContentWithByte(getPath(),bytes)
 	if err!=nil{
 		panic(err)
