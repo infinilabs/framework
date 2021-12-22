@@ -444,3 +444,8 @@ type CatShardResponse struct {
 	NodeName         string `json:"node,omitempty"`
 	NodeIP           string `json:"ip,omitempty"`
 }
+
+type TraceMeta struct {
+	TraceID   bool     `json:"trace_id" elastic_mapping:"trace_id:{type:keyword}"`
+	Index string `json:"index" elastic_mapping:"index:{type:keyword}"`
+}

@@ -128,10 +128,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 		Key: "search_rejected",
 		Field: "payload.elasticsearch.node_stats.thread_pool.search.rejected",
 		ID: util.GetUUID(),
-		IsDerivative: false,
+		IsDerivative: true,
 		MetricItem: searchRejectedMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "rejected/s",
 	})
 
 	getThreadsMetric := newMetricItem("get_threads", 1, ThreadPool_GetGroupKey)
@@ -177,10 +177,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 		Key: "get_rejected",
 		Field: "payload.elasticsearch.node_stats.thread_pool.get.rejected",
 		ID: util.GetUUID(),
-		IsDerivative: false,
+		IsDerivative: true,
 		MetricItem: getRejectedMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "rejected/s",
 	})
 
 	flushThreadsMetric := newMetricItem("flush_threads", 1, ThreadPool_FlushGroupKey)
@@ -226,10 +226,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 		Key: "flush_rejected",
 		Field: "payload.elasticsearch.node_stats.thread_pool.flush.rejected",
 		ID: util.GetUUID(),
-		IsDerivative: false,
+		IsDerivative: true,
 		MetricItem: flushRejectedMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "rejected/s",
 	})
 
 	majorVersion := elastic.GetMetadata(clusterID).GetMajorVersion()
@@ -277,10 +277,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 			Key:          "index_rejected",
 			Field:        "payload.elasticsearch.node_stats.thread_pool.index.rejected",
 			ID:           util.GetUUID(),
-			IsDerivative: false,
+			IsDerivative: true,
 			MetricItem:   indexRejectedMetric,
 			FormatType:   "num",
-			Units:        "",
+			Units:        "rejected/s",
 		})
 
 		bulkThreadsMetric := newMetricItem("bulk_threads", 1, ThreadPool_BulkGroupKey)
@@ -326,10 +326,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 			Key:          "bulk_rejected",
 			Field:        "payload.elasticsearch.node_stats.thread_pool.bulk.rejected",
 			ID:           util.GetUUID(),
-			IsDerivative: false,
+			IsDerivative: true,
 			MetricItem:   bulkRejectedMetric,
 			FormatType:   "num",
-			Units:        "",
+			Units:        "rejected/s",
 		})
 	}else {
 		writeThreadsMetric := newMetricItem("write_threads", 1, ThreadPool_WriteGroupKey)
@@ -375,10 +375,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 			Key:          "write_rejected",
 			Field:        "payload.elasticsearch.node_stats.thread_pool.write.rejected",
 			ID:           util.GetUUID(),
-			IsDerivative: false,
+			IsDerivative: true,
 			MetricItem:   writeRejectedMetric,
 			FormatType:   "num",
-			Units:        "",
+			Units:        "rejected/s",
 		})
 	}
 	refreshThreadsMetric := newMetricItem("refresh_threads", 1, ThreadPool_RefreshGroupKey)
@@ -424,10 +424,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 		Key: "refresh_rejected",
 		Field: "payload.elasticsearch.node_stats.thread_pool.refresh.rejected",
 		ID: util.GetUUID(),
-		IsDerivative: false,
+		IsDerivative: true,
 		MetricItem: refreshRejectedMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "rejected/s",
 	})
 	forceMergeThreadsMetric := newMetricItem("force_merge_threads", 1, ThreadPool_ForceMergeGroupKey)
 	forceMergeThreadsMetric.AddAxi("Force Merge Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
@@ -472,10 +472,10 @@ func (h *APIHandler) getQueueMetrics(clusterID string, bucketSize int, min, max 
 		Key: "force_merge_rejected",
 		Field: "payload.elasticsearch.node_stats.thread_pool.force_merge.rejected",
 		ID: util.GetUUID(),
-		IsDerivative: false,
+		IsDerivative: true,
 		MetricItem: forceMergeRejectedMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "rejected/s",
 	})
 	//Get Thread Pool queue
 	aggs:=map[string]interface{}{}
