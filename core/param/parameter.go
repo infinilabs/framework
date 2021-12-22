@@ -40,24 +40,19 @@ const uuid = "PARA_INTERNAL_UUID"
 func (para *Parameters) ResetParameters() {
 	para.l.Lock()
 	para.Data = map[string]interface{}{}
+	para.inited=false
+	para.Data[uuid] = util.GetUUID()
 	para.l.Unlock()
 }
 
-var lock sync.Mutex
-
 func (para *Parameters) init() {
-	if para.inited {
-		return
-	}
-
-	lock.Lock()
-	defer lock.Unlock()
-
-	if para.inited {
-		return
-	}
-
 	para.l.Lock()
+	defer 	para.l.Unlock()
+
+	if para.inited {
+		return
+	}
+
 	if para.Data == nil {
 		para.Data = map[string]interface{}{}
 	}
@@ -66,7 +61,6 @@ func (para *Parameters) init() {
 		para.Data[uuid] = util.GetUUID()
 	}
 	para.inited = true
-	para.l.Unlock()
 }
 
 func (para *Parameters) MustGetTime(key ParaKey) time.Time {
@@ -583,20 +577,21 @@ func (para *Parameters) Get(key ParaKey) interface{} {
 	para.init()
 	s := string(key)
 	para.l.Lock()
+	d:=para.Data
 	if strings.Contains(s, ".") {
 		keys := strings.Split(s, ".")
 		for _, x := range keys {
-			y, ok := para.Data[x]
+			y, ok := d[x]
 			if ok {
 				s = x
 				z, ok := y.(map[string]interface{})
 				if ok {
-					para.Data = z
+					d = z
 				}
 			}
 		}
 	}
-	x:= para.Data[s]
+	x:= d[s]
 	para.l.Unlock()
 	return x
 }
@@ -624,7 +619,7 @@ func (para *Parameters) Set(key ParaKey, value interface{}) {
 func (para *Parameters) MustGetString(key ParaKey) string {
 	s, ok := para.GetString(key)
 	if !ok {
-		panic(fmt.Errorf("%s not found in context", key))
+		panic(fmt.Errorf("%s not found in context, %v", key,para.Data))
 	}
 	return s
 }

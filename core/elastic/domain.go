@@ -360,8 +360,8 @@ type ElasticsearchMetadata struct {
 	NodesTopologyVersion int
 
 	Nodes         *map[string]NodesInfo
-	Indices       *map[string]IndexInfo
-	PrimaryShards *map[string]map[int]ShardInfo
+	//Indices       *map[string]IndexInfo
+	//PrimaryShards *map[string]map[int]ShardInfo
 	Aliases       *map[string]AliasInfo
 	Health        *ClusterHealth
 

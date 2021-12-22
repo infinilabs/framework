@@ -52,19 +52,19 @@ type RedisQueue struct {
 }
 
 func (module *RedisQueue) Push(k string, v []byte) error {
-	module.getChannel(k)
+	module.Init(k)
 	_,err:=module.client.LPush(ctx,k,v).Result()
 	return err
 }
 
 
-func (module *RedisQueue) getChannel(k string){
+func (module *RedisQueue) Init(k string) error{
 	_,ok:= module.pubsub[k]
 	if ok{
-		return
+		return nil
 	}
 	module.pubsub[k]=1
-	return
+	return nil
 }
 
 var lock sync.RWMutex

@@ -1173,10 +1173,10 @@ func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps ht
 			m["state"]=v.ClusterState
 			m["topology_version"]=v.NodesTopologyVersion
 			m["nodes"]=v.Nodes
-			m["indices"]=v.Indices
+			//m["indices"]=v.Indices
 			m["health"]=v.Health
 			m["aliases"]=v.Aliases
-			m["primary_shards"]=v.PrimaryShards
+			//m["primary_shards"]=v.PrimaryShards
 			m["available"]=v.IsAvailable()
 			m["schema"]=v.GetSchema()
 			m["config"]=v.Config

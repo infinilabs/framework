@@ -40,7 +40,7 @@ func Save(event Event) error {
 
 	stats.Increment("metrics.save",event.Metadata.Category,event.Metadata.Name)
 
-	err:=queue.Push(getMeta().QueueName, util.MustToJSONBytes(event))
+	err:=queue.Push(queue.GetOrInitConfig(getMeta().QueueName), util.MustToJSONBytes(event))
 	if err!=nil{
 		panic(err)
 	}

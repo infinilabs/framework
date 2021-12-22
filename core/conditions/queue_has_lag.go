@@ -23,7 +23,8 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 			field=strings.TrimSpace(array[0])
 		}
 
-		depth:=queue.Depth(field)
+		cfg:=queue.GetOrInitConfig(field)
+		depth:=queue.Depth(cfg)
 		if depth>maxDepth {
 			return true
 		}

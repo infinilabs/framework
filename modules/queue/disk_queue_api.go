@@ -23,9 +23,9 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/errors"
+	queue1 "infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	queue "infini.sh/framework/modules/queue/disk_queue"
-	queue1 "infini.sh/framework/core/queue"
 	"io"
 	"net/http"
 	"os"
@@ -38,18 +38,33 @@ func (module *DiskQueue) RegisterAPI()  {
 }
 
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-	datas := map[string]map[string]int64{}
+	include:=module.Get(req,"metadata","true")
+	useKey :=module.Get(req,"use_key","true")
+	datas := map[string]util.MapStr{}
 	queues := queue1.GetQueues()
 	for t, qs := range queues {
-		data := map[string]int64{}
+		data := util.MapStr{}
 		for _,q:=range qs{
-			data[q] = queue1.Depth(q)
+			qd := util.MapStr{
+				"depth":module.Depth(q),
+			}
+			cfg,ok:=queue1.GetConfigByUUID(q)
+			if include!="false" {
+				if ok{
+					qd["metadata"]=cfg
+				}
+			}
+
+			if useKey =="false"{
+				data[q]=qd
+			}else{
+				data[cfg.Name]=qd
+			}
 		}
 		datas[t]=data
 	}
 	module.WriteJSON(w, util.MapStr{
-		"depth": datas,
+		"queue": datas,
 	}, 200)
 }
 
