@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	"os"
 	"path"
 	"sync"
 )
@@ -83,6 +84,7 @@ func (module *QueueModule) Start() error {
 }
 
 func getPath() string {
+	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
 	return path.Join(global.Env().GetDataDir(),"queue","configs")
 }
 
