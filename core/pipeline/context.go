@@ -107,6 +107,12 @@ func (ctx *Context)AddFlowProcess(str string)  {
 	}
 }
 
+func (ctx *Context)IsFailed()bool  {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.runningState==FAILED
+}
+
 func (ctx *Context)IsCanceled()bool  {
 
 	select {
