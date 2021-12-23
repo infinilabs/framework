@@ -191,6 +191,9 @@ func (module *PipeModule) Start() error {
 
 				for {
 					state:=ctx.GetRunningState()
+
+					log.Tracef("%v, state:%v",cfg.Name,state)
+
 					switch state {
 					case pipeline.STARTING:
 					RESTART:
