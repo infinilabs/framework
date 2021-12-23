@@ -411,3 +411,19 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 	}
 	return nil, errors.Errorf("routing table for index [%v] was not found",index)
 }
+
+func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardRoutingTable(index string,shard int)(*IndexShardRouting,error)  {
+	routingTable, err := metadata.GetIndexRoutingTable(index)
+	if err != nil {
+		return nil,err
+	}
+	shards,ok:=routingTable[util.ToString(shard)]
+	if ok{
+		for _,x:=range shards{
+			if x.Primary{
+				return &x,nil
+			}
+		}
+	}
+	return nil,errors.New("not found")
+}
