@@ -115,6 +115,11 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
+func (module *DiskQueue) Consume(queue,consumer string,part,offset,count int64,time time.Duration) (ctx *queue.Context,data []byte, timeout bool,err error) {
+
+	return nil, nil,false,nil
+}
+
 func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	err:= module.Init(k)
 	if err!=nil{

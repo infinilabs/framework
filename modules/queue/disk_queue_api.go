@@ -17,8 +17,6 @@ limitations under the License.
 package queue
 
 import (
-	"bufio"
-	"encoding/binary"
 	"fmt"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
@@ -26,9 +24,8 @@ import (
 	queue1 "infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	queue "infini.sh/framework/modules/queue/disk_queue"
-	"io"
 	"net/http"
-	"os"
+	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -71,10 +68,13 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params)  {
 
 	queueName:=ps.ByName("id")
-	from:= module.GetIntOrDefault(req,"from",0)
+	part:= module.GetIntOrDefault(req,"part",0)
+	offset:= module.GetIntOrDefault(req,"offset",0)
 	size:= module.GetIntOrDefault(req,"size",5)
-	var ctx queue.Context
+
+	var ctx *queue1.Context
 	var err error
+	var timeout bool
 	messages:=[]util.MapStr{}
 	defer func() {
 		result:=util.MapStr{}
@@ -85,92 +85,30 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 		}
 		if len(messages)>0{
 			result["messages"]=messages
-			result["context"]=ctx
+			if ctx!=nil{
+				result["context"]=ctx
+			}
+			result["timeout"]=timeout
+			if err!=nil{
+				result["error"]=err
+			}
 		}
 		module.WriteJSON(w,result,status)
 	}()
 
 	q,ok:=module.queues.Load(queueName)
 	if ok{
-		 ctx=(*q.(*queue.BackendQueue)).ReadContext()
+		q1:=(*q.(*queue.BackendQueue))
+		//ctx2:=q1.ReadContext()
+		//ctx2.MinFileNum
+		ctx,messages,timeout,err=q1.Consume(queueName, int64(part), int64(offset),size,0)
+		if timeout && err!=nil{
+			log.Errorf("timeout [%v] or error:%v",timeout,err)
+			return
+		}
 	}else{
 		err=errors.New(fmt.Sprintf("queue [%v] not exists",queueName))
 		return
 	}
-
-	var msgSize int32
-	readFile, err := os.OpenFile(ctx.File, os.O_RDONLY, 0600)
-	defer readFile.Close()
-	if err != nil {
-		return
-	}
-
-	var maxBytesPerFileRead int64= module.cfg.MaxBytesPerFile
-	var stat os.FileInfo
-	stat, err = readFile.Stat()
-	if err!=nil{
-		return
-	}
-	maxBytesPerFileRead = stat.Size()
-
-	var readPos int64=ctx.NextReadOffset
-
-	if readPos > 0 {
-		_, err = readFile.Seek(readPos, 0)
-		if err != nil {
-			return
-		}
-	}
-	var reader= bufio.NewReader(readFile)
-
-	var messageOffset=0
-READ_MSG:
-
-	//read message size
-	err = binary.Read(reader, binary.BigEndian, &msgSize)
-	if err != nil {
-		return
-	}
-
-	if int(msgSize) < module.cfg.MinMsgSize || int(msgSize) > module.cfg.MaxMsgSize {
-		err=errors.New("message is too big")
-		return
-	}
-
-	//read message
-	readBuf := make([]byte, msgSize)
-	_, err = io.ReadFull(reader, readBuf)
-	if err != nil {
-		return
-	}
-
-	totalBytes := int64(4 + msgSize)
-	nextReadPos := readPos + totalBytes
-	previousPos:=readPos
-	readPos=nextReadPos
-
-	if messageOffset<from{
-		messageOffset++
-		goto READ_MSG
-	}
-
-	message:=util.MapStr{
-		"offset":messageOffset,
-		"message":string(readBuf),
-		"position":previousPos,
-		"next_position":nextReadPos,
-	}
-	messages=append(messages,message)
-
-	if len(messages)>=size{
-		return
-	}
-
-	if nextReadPos >= maxBytesPerFileRead{
-		return
-	}
-
-	messageOffset++
-	goto READ_MSG
 
 }

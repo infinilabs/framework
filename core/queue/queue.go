@@ -26,10 +26,16 @@ import (
 	"time"
 )
 
+type Context struct {
+	Metadata map[string]interface{} `config:"metadata" json:"metadata"`
+}
+
 type QueueAPI interface {
 	Init(string) error
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
+	//part means the sequence id of the queue, offset is within the part, count means how many messages will be fetching
+	Consume(queue,consumer string,part,offset,count int64,timeout time.Duration) ( *Context,[]byte,bool,error)
 	Close(string) error
 	Depth(string) int64
 	GetQueues() []string
