@@ -6,16 +6,15 @@ package queue
 import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/util"
+	"os"
+	"path"
+	"sync"
 )
 
 type QueueModule struct {
-	configs []QueueConfig
-}
-
-type QueueConfig struct {
-	Name string `config:"name"`
-	Type string `config:"type"`
 }
 
 func (module *QueueModule) Name() string {
@@ -23,24 +22,86 @@ func (module *QueueModule) Name() string {
 }
 
 func (module *QueueModule) Setup(cfg *config.Config) {
-	module.configs=[]QueueConfig{}
-	ok,err:=env.ParseConfig("queue", &module.configs)
-	if ok&&err!=nil{
+	configs := []queue.Config{}
+	ok, err := env.ParseConfig("queue", &configs)
+	if ok && err != nil {
 		panic(err)
 	}
+
+	for _,v:=range configs{
+		v.Source="file"
+		if v.Id==""{
+			v.Id=v.Name
+		}
+		queue.RegisterConfig(v.Name,&v)
+	}
+
+	//load configs from local metadata
+	if util.FileExists(getPath()){
+		data,err:=util.FileGetContent(getPath())
+		if err!=nil{
+			panic(err)
+		}
+
+		cfgs:=map[string]*queue.Config{}
+		err=util.FromJSONBytes(data,&cfgs)
+		if err!=nil{
+			panic(err)
+		}
+
+		for _,v:=range cfgs{
+			if v.Id==""{
+				v.Id=v.Name
+			}
+			queue.RegisterConfig(v.Name,v)
+		}
+	}
+
+	//load configs from remote elasticsearch
+
+
+	//register listener
+	queue.RegisterConfigChangeListener(func() {
+		persistMetadata()
+	})
 }
 
 func (module *QueueModule) Start() error {
 
-	if module.configs!=nil&&len(module.configs)>0{
-		for _,v:=range module.configs{
-			queue.IniQueue(v.Name,v.Type)
+	//load configs from local file
+	cfgs:=queue.GetAllConfigs()
+
+	if cfgs != nil && len(cfgs) > 0 {
+		for _, v := range cfgs {
+			if v.Id==""{
+				v.Id=v.Name
+			}
+			queue.IniQueue(v, v.Type)
 		}
 	}
 
 	return nil
 }
 
+func getPath() string {
+	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
+	return path.Join(global.Env().GetDataDir(),"queue","configs")
+}
+
 func (module *QueueModule) Stop() error {
+	persistMetadata()
 	return nil
+}
+
+var locker sync.RWMutex
+func persistMetadata()  {
+	locker.Lock()
+	defer locker.Unlock()
+
+	//persist configs to local store
+	bytes:=queue.GetAllConfigBytes()
+	_,err:=util.FilePutContentWithByte(getPath(),bytes)
+	if err!=nil{
+		panic(err)
+	}
 }

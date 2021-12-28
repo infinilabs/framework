@@ -303,7 +303,7 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 func (app *App) Shutdown() {
 	//cleanup
 	util.ClearInstanceLock()
-
+		
 	callbacks := global.ShutdownCallback()
 	if callbacks != nil && len(callbacks) > 0 {
 		for i, v := range callbacks {

@@ -88,32 +88,34 @@ type ClusterStateNodes struct {
 }
 type ClusterRoutingTable struct {
 	Indices map[string]struct {
-		Shards map[string][]struct {
-			State          string      `json:"state"`
-			Primary        bool        `json:"primary"`
-			Node           string      `json:"node"`
-			RelocatingNode interface{} `json:"relocating_node,omitempty"`
-			Shard          int         `json:"shard"`
-			Index          string      `json:"index"`
-			Version        int         `json:"version"` //< v5.0
-
-			//v5.0+ START
-			RecoverySource *struct {
-				Type string `json:"type"`
-			} `json:"recovery_source,omitempty"`
-			UnassignedInfo *struct {
-				Reason           string    `json:"reason"`
-				At               time.Time `json:"at"`
-				Delayed          bool      `json:"delayed"`
-				AllocationStatus string    `json:"allocation_status"`
-			} `json:"unassigned_info,omitempty"`
-			//END
-
-			AllocationId *struct {
-				Id string `json:"id"`
-			} `json:"allocation_id,omitempty"`
-		} `json:"shards"`
+		Shards map[string][]IndexShardRouting`json:"shards"`
 	} `json:"indices"`
+}
+
+type IndexShardRouting struct {
+	State          string      `json:"state"`
+	Primary        bool        `json:"primary"`
+	Node           string      `json:"node"`
+	RelocatingNode interface{} `json:"relocating_node,omitempty"`
+	Shard          int         `json:"shard"`
+	Index          string      `json:"index"`
+	Version        int         `json:"version"` //< v5.0
+
+	//v5.0+ START
+	RecoverySource *struct {
+		Type string `json:"type"`
+	} `json:"recovery_source,omitempty"`
+	UnassignedInfo *struct {
+		Reason           string    `json:"reason"`
+		At               time.Time `json:"at"`
+		Delayed          bool      `json:"delayed"`
+		AllocationStatus string    `json:"allocation_status"`
+	} `json:"unassigned_info,omitempty"`
+	//END
+
+	AllocationId *struct {
+		Id string `json:"id"`
+	} `json:"allocation_id,omitempty"`
 }
 
 type ClusterStats struct {

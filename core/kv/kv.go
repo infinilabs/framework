@@ -34,6 +34,8 @@ type KVStore interface {
 
 	AddValue(bucket string, key []byte, value []byte) error
 
+	ExistsKey(bucket string, key []byte) (bool,error)
+
 	DeleteKey(bucket string, key []byte) error
 
 	DeleteBucket(bucket string) error
@@ -63,6 +65,10 @@ func AddValueCompress(bucket string, key []byte, value []byte) error {
 
 func AddValue(bucket string, key []byte, value []byte) error {
 	return getKVHandler().AddValue(bucket, key, value)
+}
+
+func ExistsKey(bucket string, key []byte) (bool,error) {
+	return getKVHandler().ExistsKey(bucket, key)
 }
 
 func DeleteKey(bucket string, key []byte) error {

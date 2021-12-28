@@ -6,7 +6,9 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/util"
 	"strings"
 	"time"
 )
@@ -104,18 +106,26 @@ func (meta *BulkActionMetadata) GetItem() *BulkIndexMetadata {
 	}
 }
 
-func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) *ShardInfo {
-	if meta.PrimaryShards != nil {
-		indexMap, ok := (*meta.PrimaryShards)[index]
-		if ok {
-			shardInfo, ok := indexMap[shardID]
-			if ok {
-				return &shardInfo
+func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) (*IndexShardRouting,error) {
+
+
+	table,err:=meta.GetIndexRoutingTable(index)
+	if err!=nil{
+		return nil,err
+	}
+
+	shards,ok:=table[util.ToString(shardID)]
+	if ok{
+		for _,v:=range shards{
+			if v.Primary{
+				return &v,nil
 			}
 		}
 	}
 
-	return nil
+
+	return nil, errors.Errorf("primary shard info for shard [%v][%v] was not found",index,shardID)
+
 }
 
 func (meta *ElasticsearchMetadata) GetActiveNodeInfo() *NodesInfo {

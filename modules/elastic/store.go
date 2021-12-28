@@ -63,6 +63,20 @@ func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte,
 	return data, nil
 }
 
+func (store ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
+	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
+	if err != nil {
+		return false, err
+	}
+	if response.Found {
+		content := response.Source["content"]
+		if content != nil {
+			return true, nil
+		}
+	}
+	return false, errors.New("not found")
+}
+
 func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
 	if err != nil {

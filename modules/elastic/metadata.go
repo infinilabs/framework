@@ -3,11 +3,9 @@ package elastic
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 func clusterHealthCheck(force bool) {
@@ -50,7 +48,7 @@ func clusterHealthCheck(force bool) {
 	})
 }
 
-//update cluster state
+//update cluster state, on state version change
 func updateClusterState(clusterId string) {
 
 	log.Trace("update cluster state:",clusterId)
@@ -88,12 +86,13 @@ func updateClusterState(clusterId string) {
 				"cluster_id":clusterId,
 				"state":state,
 			}
-			queue.Push("cluster_state_change",util.MustToJSONBytes(event))
+			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 
 		}
 	}
 }
 
+//on demand, on state version change
 func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	if !meta.IsAvailable(){
 		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
@@ -120,7 +119,7 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 			for k, v := range *nodes {
 				v1, ok := (*meta.Nodes)[k]
 				if ok {
-					if v.Http.PublishAddress != v1.Http.PublishAddress {
+					if v.GetHttpPublishHost() != v1.GetHttpPublishHost() {
 						nodesChanged = true
 						break
 					}
@@ -140,64 +139,56 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 
 		//register host to do availability monitoring
 		for _, v := range *nodes {
-			if util.ContainStr(v.Http.PublishAddress,"/"){
-				if global.Env().IsDebug{
-					log.Tracef("node's public address contains `/`,try to remove prefix")
-				}
-				arr:=strings.Split(v.Http.PublishAddress,"/")
-				if len(arr)==2{
-					v.Http.PublishAddress=arr[1]
-				}
-			}
-			elastic.GetOrInitHost(v.Http.PublishAddress)
+			elastic.GetOrInitHost(v.GetHttpPublishHost())
 		}
 	}
 	log.Trace("nodes changed:",nodesChanged,nodes)
 }
 
-func updateIndices(meta *elastic.ElasticsearchMetadata) {
+//func updateIndices(meta *elastic.ElasticsearchMetadata) {
+//
+//	if !meta.IsAvailable(){
+//		return
+//	}
+//
+//	client := elastic.GetClient(meta.Config.ID)
+//
+//	//Indices
+//	var indicesChanged bool
+//	indices, err := client.GetIndices("")
+//	if err != nil {
+//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		return
+//	}
+//
+//	if indices != nil {
+//		if meta.Indices == nil {
+//			indicesChanged = true
+//		} else {
+//			for k, v := range *indices {
+//				v1, ok := (*meta.Indices)[k]
+//				if ok {
+//					if v.ID != v1.ID {
+//						indicesChanged = true
+//						break
+//					}
+//				} else {
+//					indicesChanged = true
+//					break
+//				}
+//			}
+//		}
+//	}
+//
+//	if indicesChanged {
+//		//TOD locker
+//		meta.Indices = indices
+//
+//		log.Tracef("cluster indices [%v] updated", meta.Config.Name)
+//	}
+//}
 
-	if !meta.IsAvailable(){
-		return
-	}
-
-	client := elastic.GetClient(meta.Config.ID)
-
-	//Indices
-	var indicesChanged bool
-	indices, err := client.GetIndices("")
-	if err != nil {
-		log.Errorf("[%v], %v", meta.Config.Name, err)
-		return
-	}
-
-	if indices != nil {
-		if meta.Indices == nil {
-			indicesChanged = true
-		} else {
-			for k, v := range *indices {
-				v1, ok := (*meta.Indices)[k]
-				if ok {
-					if v.ID != v1.ID {
-						indicesChanged = true
-						break
-					}
-				} else {
-					indicesChanged = true
-					break
-				}
-			}
-		}
-	}
-
-	if indicesChanged {
-		//TOD locker
-		meta.Indices = indices
-
-		log.Tracef("cluster indices [%v] updated", meta.Config.Name)
-	}
-}
-
+//on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata) {
 
 	if !meta.IsAvailable(){
@@ -240,57 +231,57 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 	}
 }
 
-func updateShards(meta *elastic.ElasticsearchMetadata) {
-	if !meta.IsAvailable(){
-		return
-	}
-
-	client := elastic.GetClient(meta.Config.ID)
-
-	//Shards
-	var shardsChanged bool
-	shards, err := client.GetPrimaryShards()
-	if err != nil {
-		log.Errorf("[%v], %v", meta.Config.Name, err)
-		return
-	}
-
-	if meta.PrimaryShards == nil {
-		shardsChanged = true
-	} else {
-		if shards != nil {
-			for k, v := range *shards {
-				v1, ok := (*meta.PrimaryShards)[k]
-				if ok {
-					if len(v) != len(v1) {
-						shardsChanged = true
-						break
-					} else {
-						for x,y:=range v{
-							z1, ok := v1[x]
-							if ok{
-								if y.NodeID!=z1.NodeID{
-									shardsChanged = true
-									break
-								}
-							}else{
-								shardsChanged = true
-								break
-							}
-
-						}
-					}
-				} else {
-					shardsChanged = true
-					break
-				}
-			}
-		}
-	}
-
-	if shardsChanged {
-		//TOD locker
-		meta.PrimaryShards = shards
-		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
-	}
-}
+//func updateShards(meta *elastic.ElasticsearchMetadata) {
+//	if !meta.IsAvailable(){
+//		return
+//	}
+//
+//	client := elastic.GetClient(meta.Config.ID)
+//
+//	//Shards
+//	var shardsChanged bool
+//	shards, err := client.GetPrimaryShards()
+//	if err != nil {
+//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		return
+//	}
+//
+//	if meta.PrimaryShards == nil {
+//		shardsChanged = true
+//	} else {
+//		if shards != nil {
+//			for k, v := range *shards {
+//				v1, ok := (*meta.PrimaryShards)[k]
+//				if ok {
+//					if len(v) != len(v1) {
+//						shardsChanged = true
+//						break
+//					} else {
+//						for x,y:=range v{
+//							z1, ok := v1[x]
+//							if ok{
+//								if y.NodeID!=z1.NodeID{
+//									shardsChanged = true
+//									break
+//								}
+//							}else{
+//								shardsChanged = true
+//								break
+//							}
+//
+//						}
+//					}
+//				} else {
+//					shardsChanged = true
+//					break
+//				}
+//			}
+//		}
+//	}
+//
+//	if shardsChanged {
+//		//TOD locker
+//		meta.PrimaryShards = shards
+//		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
+//	}
+//}

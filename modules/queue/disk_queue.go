@@ -44,7 +44,7 @@ type DiskQueueConfig struct {
 	ReservedFreeBytes   uint64   `config:"reserved_free_bytes"`
 }
 
-func (module *DiskQueue) initQueue(name string) error {
+func (module *DiskQueue) Init(name string) error {
 	module.initLocker.Lock()
 	defer module.initLocker.Unlock()
 
@@ -88,12 +88,17 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	}
 
 	module.queues=sync.Map{}
+	//load from metadata
+	//load from directory
+
+
+
 
 	module.RegisterAPI()
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
-	module.initQueue(k)
+	module.Init(k)
 	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Put(v)
@@ -102,7 +107,7 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 }
 
 func (module *DiskQueue) ReadChan(k string) <-chan []byte{
-	module.initQueue(k)
+	module.Init(k)
 	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).ReadChan()
@@ -110,8 +115,13 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
+func (module *DiskQueue) Consume(queue,consumer string,part,offset,count int64,time time.Duration) (ctx *queue.Context,data []byte, timeout bool,err error) {
+
+	return nil, nil,false,nil
+}
+
 func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
-	err:= module.initQueue(k)
+	err:= module.Init(k)
 	if err!=nil{
 		panic(err)
 	}
@@ -142,7 +152,7 @@ func (module *DiskQueue) Close(k string) error {
 }
 
 func (module *DiskQueue) Depth(k string) int64 {
-	module.initQueue(k)
+	module.Init(k)
 	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Depth()

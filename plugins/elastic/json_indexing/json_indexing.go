@@ -189,7 +189,7 @@ READ_DOCS:
 			goto CLEAN_BUFFER
 		}
 
-		pop, _, err := queue.PopTimeout(processor.config.InputQueue, idleDuration)
+		pop, _, err := queue.PopTimeout(queue.GetOrInitConfig(processor.config.InputQueue), idleDuration)
 		if err != nil {
 			log.Error(err)
 			panic(err)
