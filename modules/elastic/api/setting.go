@@ -2,11 +2,12 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"net/http"
+	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -23,6 +24,7 @@ func (h *APIHandler) HandleSettingAction(w http.ResponseWriter, req *http.Reques
 
 	err := h.DecodeJSON(req, &reqParams)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -39,6 +41,7 @@ func (h *APIHandler) HandleSettingAction(w http.ResponseWriter, req *http.Reques
 
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -59,6 +62,7 @@ func (h *APIHandler) HandleGetSettingAction(w http.ResponseWriter, req *http.Req
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.Setting{}), []byte(queryDSL))
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return

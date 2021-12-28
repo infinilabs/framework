@@ -164,7 +164,7 @@ func StartUI(cfg *UIConfig) {
 
 		srv := &http.Server{
 			Addr:         bindAddress,
-			Handler:      context.ClearHandler(uiRouter),
+			Handler:      RecoveryHandler()(context.ClearHandler(uiRouter)),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -179,7 +179,7 @@ func StartUI(cfg *UIConfig) {
 
 	} else {
 		go func() {
-			err := http.ListenAndServe(bindAddress, context.ClearHandler(uiRouter))
+			err := http.ListenAndServe(bindAddress, RecoveryHandler()(context.ClearHandler(uiRouter)))
 			if err != nil {
 				log.Error(err)
 				panic(err)

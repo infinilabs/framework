@@ -36,6 +36,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	}
 	err := h.DecodeJSON(req, conf)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -50,6 +51,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
 	_, err = esClient.Index(index, "", id, conf)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -76,6 +78,7 @@ func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Req
 	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 	getResponse, err := h.Client().Get(indexName, "", id)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		if getResponse!=nil{
 			h.WriteJSON(w, resBody, getResponse.StatusCode)
@@ -98,6 +101,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	}
 	err := h.DecodeJSON(req, &conf)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -107,6 +111,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 	originConf, err := esClient.Get(indexName, "", id)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -135,6 +140,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	conf["updated"] = time.Now()
 	_, err = esClient.Index(indexName, "", id, source)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -165,6 +171,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		if response!=nil{
 			h.WriteJSON(w, resBody, response.StatusCode)
@@ -207,6 +214,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -368,6 +376,12 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	id := ps.ByName("id")
 
 	bucketSize, min, max, err := h.getMetricParams(req)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 
 	//fmt.Println(min," vs ",max,",",rangeFrom,rangeTo,"range hours:",hours)
 
@@ -451,12 +465,18 @@ func (h *APIHandler) getMetricParams(req *http.Request) (int, int64, int64, erro
 	} else if hours >= 30*24+1 { //>30days
 		bucketSize = 60 * 60 * 24 //daily bucket
 	}
-	return bucketSize, min, max, err
+	return bucketSize, min, max, nil
 }
 func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
 	bucketSize, min, max, err := h.getMetricParams(req)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getNodeMetrics(id, bucketSize, min, max, nodeName, top)
@@ -471,6 +491,12 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
 	bucketSize, min, max, err := h.getMetricParams(req)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getIndexMetrics(id, bucketSize, min, max, indexName, top)
@@ -484,6 +510,12 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
 	bucketSize, min, max, err := h.getMetricParams(req)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getQueueMetrics(id, bucketSize, min, max, nodeName, top)
@@ -541,6 +573,7 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 	exists,client,err:=h.GetClusterClient(id)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -548,6 +581,7 @@ func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, 
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",id)
+		log.Warn(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -1091,7 +1125,7 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("json decode error: %v", err)
 		log.Errorf("json decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusOK)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	defer req.Body.Close()
@@ -1110,8 +1144,8 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = client.Do(freq, fres)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("request error: %v", err)
-		log.Error( "test_connection", "request error: ", err)
-		h.WriteJSON(w, resBody, http.StatusOK)
+		log.Error( "test_connection ", "request error: ", err)
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	b := fres.Body()
@@ -1119,7 +1153,8 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = json.Unmarshal(b, clusterInfo)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("cluster info decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusOK)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	resBody["version"] = clusterInfo.Version.Number
@@ -1131,13 +1166,15 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = client.Do(freq, fres)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("request cluster health info error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusOK)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	var statusCode = fres.StatusCode()
 	if statusCode == http.StatusUnauthorized {
 		resBody["error"] = fmt.Sprintf("required authentication credentials")
-		h.WriteJSON(w, resBody, http.StatusOK)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 
@@ -1145,7 +1182,8 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 	err = json.Unmarshal(fres.Body(), &healthInfo)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("cluster health info decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusOK)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 	resBody["status"] = healthInfo.Status
@@ -1261,7 +1299,7 @@ func (h *APIHandler) HandleGetStorageMetricAction(w http.ResponseWriter, req *ht
 		indexIdx := metricData.Children[nodeIdx].SubKeys[shardInfo.Index]
 		value, err := util.ConvertBytesFromString(shardInfo.Store)
 		if err != nil {
-			log.Error(err)
+			log.Warn(err)
 		}
 		metricData.Children[nodeIdx].Children[indexIdx].Children = append(metricData.Children[nodeIdx].Children[indexIdx].Children, &TreeMapNode{
 			Name: fmt.Sprintf("shard %s", shardInfo.ShardID),

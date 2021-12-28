@@ -2,12 +2,13 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "src/github.com/cihub/seelog"
 )
 
 func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -18,6 +19,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -25,6 +27,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -36,6 +39,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 
 	err = h.DecodeJSON(req, &reqParams)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -65,6 +69,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 
 	searchRes, err := client.SearchWithRawQueryDSL(reqParams.Index, reqDSL)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -80,6 +85,7 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -87,6 +93,7 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -99,6 +106,7 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 
 	err = h.DecodeJSON(req, &reqParams)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -120,6 +128,7 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 
 	searchRes, err := client.SearchWithRawQueryDSL(indexName, []byte(reqDSL))
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -132,22 +141,45 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 }
 
 func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := util.MapStr{}
 	traceID := h.GetParameterOrDefault(req, "traceID", "")
-	client := elastic.GetClient(h.Config.Elasticsearch)
+	traceIndex := h.GetParameterOrDefault(req, "traceIndex", orm.GetIndexName(elastic.TraceMeta{}))
+	traceField := h.GetParameterOrDefault(req, "traceField", "trace_id")
+	targetClusterID := ps.ByName("id")
+	exists,client,err:=h.GetClusterClient(targetClusterID)
+
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	if !exists{
+		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusNotFound)
+		return
+	}
 	var queryDSL = util.MapStr{
 		"query": util.MapStr{
 			"bool": util.MapStr{
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"trace_id": traceID,
+							traceField: traceID,
+						},
+					},
+					{
+						"term": util.MapStr{
+							"cluster_id": targetClusterID,
 						},
 					},
 				},
 			},
 		},
 	}
-	searchRes, err := client.SearchWithRawQueryDSL(".infini_traces", util.MustToJSONBytes(queryDSL))
+	searchRes, err := client.SearchWithRawQueryDSL(traceIndex, util.MustToJSONBytes(queryDSL))
 	if err != nil {
 		log.Error(err)
 		h.WriteJSON(w, util.MapStr{
@@ -163,18 +195,6 @@ func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.
 	for _, hit := range searchRes.Hits.Hits {
 		indexNames = append(indexNames, hit.Source["index"].(string))
 	}
-	//clusterID := ps.ByName("id")
-	//esClient := elastic.GetClient(clusterID)
-	//indexName := strings.Join(indexNames, ",")
-
-	//searchRes, err = esClient.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDSL))
-	//if err != nil {
-	//	log.Error(err)
-	//	h.WriteJSON(w, util.MapStr{
-	//		"error": err,
-	//	}, http.StatusInternalServerError)
-	//	return
-	//}
 	h.WriteJSON(w, indexNames, http.StatusOK)
 }
 

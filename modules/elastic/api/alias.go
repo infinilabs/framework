@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
@@ -15,6 +16,7 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -22,6 +24,7 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -30,16 +33,17 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 
 	err = h.DecodeJSON(req, aliasReq)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
 
 	bodyBytes, _ := json.Marshal(aliasReq)
-	fmt.Println(string(bodyBytes))
 
 	err = client.Alias(bodyBytes)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -56,6 +60,7 @@ func (h *APIHandler) HandleGetAliasAction(w http.ResponseWriter, req *http.Reque
 	exists, client, err := h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -63,11 +68,13 @@ func (h *APIHandler) HandleGetAliasAction(w http.ResponseWriter, req *http.Reque
 
 	if !exists {
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found", targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
 	res, err := client.GetAliasesDetail()
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return

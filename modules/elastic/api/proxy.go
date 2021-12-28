@@ -3,11 +3,12 @@ package api
 import (
 	"crypto/tls"
 	"fmt"
+	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
-	"src/github.com/segmentio/encoding/json"
 	"strings"
 )
 
@@ -25,6 +26,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	exists,_,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -32,6 +34,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -47,6 +50,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	metadata := elastic.GetMetadata(targetClusterID)
 	if metadata==nil{
 		resBody["error"] = fmt.Sprintf("cluster [%s] metadata not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -69,6 +73,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return

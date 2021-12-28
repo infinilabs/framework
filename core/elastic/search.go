@@ -35,3 +35,16 @@ type AliasActionBody struct{
 type AliasRequest struct{
 	Actions []AliasAction `json:"actions"`
 }
+
+type TraceTemplate struct {
+	ID string   `json:"-" index:"id"`
+	Name string `json:"name" elastic_mapping:"name:{type:text}"`
+	MetaIndex string `json:"meta_index" elastic_mapping:"meta_index:{type:keyword}"`
+	TraceField string `json:"trace_field" elastic_mapping:"trace_field:{type:keyword}"`
+	TimestampField string `json:"timestamp_field" elastic_mapping:"timestamp_field:{type:keyword}"`
+	AggField string `json:"agg_field" elastic_mapping:"agg_field:{type:keyword}"`
+	Description string `json:"description" elastic_mapping:"description:{type:text}"`
+	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
+}

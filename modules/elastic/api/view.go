@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
@@ -22,6 +23,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 	exists,_,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -29,6 +31,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -37,6 +40,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 
 	err = h.DecodeJSON(req, viewReq)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -48,6 +52,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 	viewReq.Attributes.ClusterID = targetClusterID
 	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -80,6 +85,7 @@ func (h *APIHandler) HandleGetViewListAction(w http.ResponseWriter, req *http.Re
 
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.View{}),queryDSL)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -122,6 +128,7 @@ func (h *APIHandler) HandleDeleteViewAction(w http.ResponseWriter, req *http.Req
 
 	_, err := esClient.Delete(orm.GetIndexName(elastic.View{}), "", viewID, "wait_for")
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -142,6 +149,7 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -149,12 +157,14 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
 
 	res, err := client.GetAliasesAndIndices()
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -192,6 +202,7 @@ func (h *APIHandler) HandleBulkGetViewAction(w http.ResponseWriter, req *http.Re
 
 	err := h.DecodeJSON(req, &reqIDs)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -211,6 +222,7 @@ func (h *APIHandler) HandleBulkGetViewAction(w http.ResponseWriter, req *http.Re
 		{"match": {"cluster_id": "%s"}}]}}}`, strings.Join(strIDs, ","), targetClusterID))
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.View{}),queryDSL)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -238,6 +250,7 @@ func (h *APIHandler) HandleBulkGetViewAction(w http.ResponseWriter, req *http.Re
 	for _, indexName := range indexNames {
 		fields, err := h.getFieldCaps(targetClusterID, indexName, []string{"_source", "_id", "_type", "_index"})
 		if err != nil {
+			log.Error(err)
 			resBody["error"] = err.Error()
 			h.WriteJSON(w, resBody, http.StatusInternalServerError)
 			return
@@ -272,6 +285,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 	exists,_,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -279,6 +293,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 
 	if !exists{
 		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
@@ -287,6 +302,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 
 	err = h.DecodeJSON(req, viewReq)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -302,6 +318,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 	viewReq.Attributes.ClusterID = targetClusterID
 	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
@@ -318,6 +335,7 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	metaFields := req.URL.Query()["meta_fields"]
 	kbnFields, err := h.getFieldCaps(targetClusterID, pattern, metaFields)
 	if err != nil {
+		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return

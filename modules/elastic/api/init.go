@@ -56,4 +56,10 @@ func Init(cfg common.ModuleConfig) {
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.GetMetadata)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", clusterAPI.GetHosts)
+
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template", clusterAPI.HandleSearchTraceTemplateAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleGetTraceTemplateAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/trace_template", clusterAPI.HandleCrateTraceTemplateAction)
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleSaveTraceTemplateAction)
+	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleDeleteTraceTemplateAction)
 }

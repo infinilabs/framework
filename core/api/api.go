@@ -218,7 +218,7 @@ func StartAPI() {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       10 * time.Second,
 			Addr:              listenAddress,
-			Handler:           c.Handler(context.ClearHandler(router)),
+			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(router))) ,
 			TLSConfig:         cfg,
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
 				"spdy/3": func(s *http.Server, conn *tls.Conn, h http.Handler) {
@@ -246,7 +246,7 @@ func StartAPI() {
 	} else {
 		log.Trace("starting insecure API server")
 		go func() {
-			err := http.Serve(l, c.Handler(context.ClearHandler(router)))
+			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(router))))
 			if err != nil {
 				log.Error(err)
 				panic(err)

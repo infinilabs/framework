@@ -448,4 +448,5 @@ type CatShardResponse struct {
 type TraceMeta struct {
 	TraceID   bool     `json:"trace_id" elastic_mapping:"trace_id:{type:keyword}"`
 	Index string `json:"index" elastic_mapping:"index:{type:keyword}"`
+	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 }
