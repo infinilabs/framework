@@ -371,13 +371,11 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 	if metadata.ClusterState!=nil{
 		if metadata.ClusterState.RoutingTable!=nil{
 			table,ok:=metadata.ClusterState.RoutingTable.Indices[index]
-			if ok{
-
+			if !ok{
 				//check alias
 				if global.Env().IsDebug {
 					log.Tracef("index [%v] was not found in index settings,", index)
 				}
-
 				if metadata.Aliases!=nil{
 					alias, ok := (*metadata.Aliases)[index]
 					if ok {
@@ -404,9 +402,8 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 						}
 					}
 				}
-
-				return table.Shards,nil
 			}
+			return table.Shards,nil
 		}
 	}
 	return nil, errors.Errorf("routing table for index [%v] was not found",index)
