@@ -21,10 +21,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"github.com/segmentio/encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
@@ -366,33 +366,45 @@ func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBl
 	var str []byte
 	block:=0
 	index:=0
+	OldOffset:=0
 	hasValidBlock:=false
 	for scanner.Scan() {
 		text := scanner.Bytes()
-		//fmt.Println("scan+")
+		//fmt.Println("scan, get:",len(text),",",string(text))
 		if len(text)>0{
-			block++
+			if block>1{
+				//fmt.Println("more than one block, skip")
+				return false
+			}
 		}
+		//fmt.Println("indexNow1:",index)
+		OldOffset=index
 		index=index+len(text)
+		//fmt.Println("indexNow2:",index)
 		if len(text)>limitBlockSize{
 			text=text[0:limitBlockSize]
 		}
 
 		if len(validBlockMustContain)>0{
-			invalid:=false
+			invalid:=true
 			for _,v:=range validBlockMustContain{
-				if !bytes.Contains(text, v) {
-					//fmt.Println("valid block+")
+				if bytes.Contains(text, v) {
+					invalid=false
+				}else{
 					invalid=true
 				}
 			}
 			if !invalid{
+				//fmt.Println("valid block:",string(text))
+				block++
 				str = text
 				hasValidBlock=true
 				break
 			}
 		}else{
 			hasValidBlock=true
+			//fmt.Println("no valid block check:",string(text))
+			block++
 		}
 
 	}
@@ -401,64 +413,74 @@ func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBl
 		return false
 	}
 
+	//fmt.Println(OldOffset,"index:",index,",split:",len(blockSplit),",a:",len(str),"b:",len(matchBlockStartWith))
 	//fmt.Println("index:",index-len(str),"block:",string(str))
 	//fmt.Println("index:",index,"len(str):",len(str),",len(matchBlockStartWith):",len(matchBlockStartWith),",len(data):",len(*data),",block:",string(str))
-	globalIndex:=len(*data)-len(str)//-len(matchBlockStartWith)
-	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:]))
-	if block==1{
-		return false
-	}
-
-//TODO 处理一个 block 里面匹配多个 match 的情况，多个条件需要替换
-	if len(str) > 0 {
-		var startOffset int
-		var endOffset int
-		base:=len(matchBlockStartWith)
-		//fmt.Println("reverse:",reverse)
-		//fmt.Println("base:",base)
-		if reverse {
-			startOffset = bytes.LastIndex(str, matchBlockStartWith)
-		} else {
-			startOffset = bytes.Index(str, matchBlockStartWith)
-		}
-
-		startOffset=startOffset+base-len(matchBlockStartWith)
-
-		if matchBlocksEndWith!=nil{
-			endOffset = bytes.Index(str[startOffset:], matchBlocksEndWith)
-			endOffset=startOffset+endOffset
-		}
-
-		if endOffset<=0{
-			//fmt.Println("matchBlocksEndWith is nil:",matchBlocksEndWith)
-			endOffset=len(str)
-		}
+	globalIndex:=OldOffset+len(blockSplit)//+len(matchBlockStartWith)//len(matchBlockStartWith)//len(*data)-len(str)//
+	//globalIndex:=len(*data)-len(str)//-len(matchBlockStartWith)
+	globalEndIndex:=globalIndex+len(str)
+	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:globalEndIndex]))
+	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:globalEndIndex]))
+	//if block==1{
+	//	return false
+	//}
 
 
-		//fmt.Println("startOffset:",startOffset)
-		//fmt.Println("endOffset:",endOffset)
-
-		if endOffset<=startOffset{
-			//fmt.Println("start offset < end offset")
-			return false
-		}
-
-		//fmt.Println("span:",endOffset-startOffset)
-		if maxSpan< (endOffset-startOffset){
-			//fmt.Println("beyond max span:",endOffset-startOffset," vs ",maxSpan)
-			return false
-		}
-
-		//fmt.Println("new block:",string(str[startOffset:endOffset]))
-		//fmt.Println("new global block:",string((*data)[globalIndex+startOffset:globalIndex+endOffset]))
-
-		if startOffset > 0 && startOffset < len(str) {
-			matchedBlockProcessHandler(str[startOffset:endOffset],globalIndex+startOffset,globalIndex+endOffset)
-			return true
-		}
-	} else {
-		log.Trace("input data doesn't contain the split bytes")
-	}
+	//if globalIndex > 0 && globalEndIndex >0 {
+		matchedBlockProcessHandler(str,globalIndex,globalEndIndex)
+		return true
+	//}
+//
+////TODO 处理一个 block 里面匹配多个 match 的情况，多个条件需要替换
+//	if len(str) > 0 {
+//		var startOffset int
+//		var endOffset int
+//		base:=len(matchBlockStartWith)
+//		//fmt.Println("reverse:",reverse)
+//		//fmt.Println("base:",base)
+//		if reverse {
+//			startOffset = bytes.LastIndex(str, matchBlockStartWith)
+//		} else {
+//			startOffset = bytes.Index(str, matchBlockStartWith)
+//		}
+//
+//		startOffset=startOffset+base-len(matchBlockStartWith)
+//
+//		if matchBlocksEndWith!=nil{
+//			endOffset = bytes.Index(str[startOffset:], matchBlocksEndWith)
+//			endOffset=startOffset+endOffset
+//		}
+//
+//		if endOffset<=0{
+//			//fmt.Println("matchBlocksEndWith is nil:",matchBlocksEndWith)
+//			endOffset=len(str)
+//		}
+//
+//
+//		//fmt.Println("startOffset:",startOffset)
+//		//fmt.Println("endOffset:",endOffset)
+//
+//		if endOffset<=startOffset{
+//			//fmt.Println("start offset < end offset")
+//			return false
+//		}
+//
+//		//fmt.Println("span:",endOffset-startOffset)
+//		if maxSpan< (endOffset-startOffset){
+//			//fmt.Println("beyond max span:",endOffset-startOffset," vs ",maxSpan)
+//			return false
+//		}
+//
+//		fmt.Println("new block:",string(str[startOffset:endOffset]))
+//		fmt.Println("new global block:",string((*data)[globalIndex+startOffset:globalIndex+endOffset]))
+//
+//		if startOffset > 0 && startOffset < len(str) {
+//			matchedBlockProcessHandler(str[startOffset:endOffset],globalIndex+startOffset,globalIndex+endOffset)
+//			return true
+//		}
+//	} else {
+//		log.Trace("input data doesn't contain the split bytes")
+//	}
 	return false
 }
 
