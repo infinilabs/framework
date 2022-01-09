@@ -310,9 +310,12 @@ func (module ElasticModule) Start() error {
 					if value==nil{
 						return true
 					}
+
 					v,ok:=value.(*elastic.ElasticsearchMetadata)
 					if ok{
-						updateNodeInfo(v)
+						if v.Config.Discovery.Enabled{
+							updateNodeInfo(v)
+						}
 					}
 					return true
 				})
