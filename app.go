@@ -248,6 +248,7 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 	fmt.Println(app.environment.GetWelcomeMessage())
 
 	log.Infof("initializing %s.", app.environment.GetAppName())
+	log.Infof("using config: %s.", app.environment.GetConfigFile())
 
 	//daemon
 	if app.isDaemonMode {

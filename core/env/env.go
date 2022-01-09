@@ -274,9 +274,15 @@ func (env *Env) loadEnvFromConfigFile(filename string) (error) {
 		return err
 	}
 
+	env.SetConfigFile(filename)
+
 	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
 	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 	return nil
+}
+
+func (env *Env) GetConfigFile() string {
+	return env.configFile
 }
 
 func (env *Env) SetConfigFile(configFile string) *Env {
