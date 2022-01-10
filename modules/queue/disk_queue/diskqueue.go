@@ -131,11 +131,10 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 // Depth returns the depth of the queue
 func (d *diskQueue) ReadContext() Context {
 	ctx:=Context{}
-	ctx.Depth=d.depth
-	ctx.FileNum=d.nextReadFileNum
-	ctx.NextReadOffset=d.nextReadPos
-	ctx.MaxLength=d.maxBytesPerFileRead
-	ctx.File=d.GetFileName(ctx.FileNum)
+	//ctx.Depth=d.depth
+	ctx.WriteFileNum=d.writeFileNum
+	//ctx.MaxLength=d.maxBytesPerFileRead
+	ctx.WriteFile=d.GetFileName(ctx.WriteFileNum)
 	return ctx
 }
 

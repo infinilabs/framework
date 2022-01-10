@@ -68,14 +68,21 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params)  {
 
 	queueName:=ps.ByName("id")
-	part:= module.GetIntOrDefault(req,"part",0)
-	offset:= module.GetIntOrDefault(req,"offset",0)
+	offsetStr:= module.GetParameterOrDefault(req,"offset","0,0")
 	size:= module.GetIntOrDefault(req,"size",5)
+	dataIsString:=true
+
+	data:=strings.Split(offsetStr,",")
+	var part,offset int64
+	part,_=util.ToInt64(data[0])
+	offset,_=util.ToInt64(data[1])
+
+	consumer:="api"
 
 	var ctx *queue1.Context
 	var err error
 	var timeout bool
-	messages:=[]util.MapStr{}
+	messages:=[]queue1.Message{}
 	defer func() {
 		result:=util.MapStr{}
 		status:=200
@@ -84,7 +91,20 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 			status=500
 		}
 		if len(messages)>0{
-			result["messages"]=messages
+			if dataIsString{
+				msgs:=[]util.MapStr{}
+				for _,v:=range messages{
+					msg:=util.MapStr{}
+					msg["message"]=string(v.Data)
+					msg["offset"]=v.Offset
+					msg["size"]=v.Size
+					msgs=append(msgs,msg)
+				}
+				result["messages"]=msgs
+			}else{
+				result["messages"]=messages
+			}
+
 			if ctx!=nil{
 				result["context"]=ctx
 			}
@@ -99,9 +119,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 	q,ok:=module.queues.Load(queueName)
 	if ok{
 		q1:=(*q.(*queue.BackendQueue))
-		//ctx2:=q1.ReadContext()
-		//ctx2.MinFileNum
-		ctx,messages,timeout,err=q1.Consume(queueName, int64(part), int64(offset),size,0)
+		ctx,messages,timeout,err=q1.Consume(consumer, int64(part), int64(offset),size,0)
 		if timeout && err!=nil{
 			log.Errorf("timeout [%v] or error:%v",timeout,err)
 			return

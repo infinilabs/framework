@@ -17,9 +17,12 @@ limitations under the License.
 package queue
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"sync"
@@ -27,7 +30,15 @@ import (
 )
 
 type Context struct {
-	Metadata map[string]interface{} `config:"metadata" json:"metadata"`
+	//Metadata   map[string]interface{} `config:"metadata" json:"metadata"`
+	NextOffset string                  `config:"next_offset" json:"next_offset"`
+	InitOffset string 				   `config:"init_offset" json:"init_offset"`
+}
+
+type Message struct {
+	Offset string `config:"offset" json:"offset"`
+	Size int64    `config:"size" json:"size"`
+	Data []byte   `config:"data" json:"data"`
 }
 
 type QueueAPI interface {
@@ -35,7 +46,7 @@ type QueueAPI interface {
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
 	//part means the sequence id of the queue, offset is within the part, count means how many messages will be fetching
-	Consume(queue,consumer string,part,offset,count int64,timeout time.Duration) ( *Context,[]byte,bool,error)
+	Consume(queue,consumer,offsetStr string,count int,timeout time.Duration) ( *Context, []Message,bool,error)
 	Close(string) error
 	Depth(string) int64
 	GetQueues() []string
@@ -51,6 +62,13 @@ type Config struct {
 	Codec    string                 `config:"codec" json:"codec,omitempty"`
 	Type     string                 `config:"type" json:"type,omitempty"`
 	Labels map[string]interface{}   `config:"label" json:"label"`
+}
+
+type ConsumerConfig struct {
+	Group   string                  `config:"group" json:"group,omitempty"`
+	Name     string                 `config:"name" json:"name,omitempty"`
+	AutoReset     string       `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
+	AutoCommit     bool              `config:"auto_commit" json:"auto_commit,omitempty"`
 }
 
 func getHandler(queueID string) QueueAPI {
@@ -180,6 +198,35 @@ func Pop(k *Config) ([]byte, error) {
 	panic(errors.New("handler is not registered"))
 }
 
+func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration) ( ctx *Context, messages []Message,isTimeout bool,err error) {
+	if k==nil||k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+
+	//data:=strings.Split(offsetStr,",")
+	//var part,offset int64
+	//part,_=util.ToInt64(data[0])
+	//offset,_=util.ToInt64(data[1])
+
+	messages=[]Message{}
+	handler := getHandler(k.Id)
+	if handler != nil {
+		if pausedReadQueue.Contains(k) {
+			return ctx,messages,isTimeout, pauseMsg
+		}
+
+		ctx,messages, isTimeout,err = handler.Consume(k.Id,consumer,offsetStr,count, timeout)
+
+		if !isTimeout {
+			stats.Increment("queue."+k.Id, "pop")
+			return ctx, messages,isTimeout,err
+		}
+		stats.Increment("queue."+k.Id, "pop_timeout")
+		return ctx,messages,isTimeout, errors.New("timeout")
+	}
+	panic(errors.New("handler is not registered"))
+}
+
 func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
 	if k==nil||k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
@@ -220,6 +267,39 @@ func Close(k *Config) error {
 	}
 	stats.Increment("queue."+k.Id, "close_error")
 	panic(errors.New("handler is not closed"))
+}
+
+func getCommitKey(k *Config, consumer ConsumerConfig)string  {
+	return fmt.Sprintf("%v-%v",k.Id,consumer.Group)
+}
+
+const bucket ="queue_consumer_commit_offset"
+func GetOffset(k *Config, consumer ConsumerConfig) (string,error) {
+
+	bytes,err:=kv.GetValue(bucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)))
+	if err!=nil{
+		log.Error(err)
+	}
+
+	if bytes!=nil&&len(bytes)>0{
+		return string(bytes),nil
+	}
+
+	return "0,0",nil
+}
+
+func CommitOffset(k *Config, consumer ConsumerConfig, offset string)(bool,error) {
+
+	if global.Env().IsDebug{
+		log.Tracef("queue [%v] [%v][%v] commit offset:%v",k.Id,consumer.Group,consumer.Name,offset)
+	}
+
+	err:=kv.AddValue(bucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)),[]byte(offset))
+	if err!=nil{
+		return false, err
+	}
+
+	return true,nil
 }
 
 func Depth(k *Config) int64 {

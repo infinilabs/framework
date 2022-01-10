@@ -2,7 +2,6 @@ package queue
 
 import (
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"time"
 )
@@ -17,7 +16,7 @@ type BackendQueue interface {
 	Depth() int64
 	ReadContext() Context
 
-	Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []util.MapStr, isTimeout bool, err error)
+	Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []queue.Message, isTimeout bool, err error)
 	Empty() error
 }
 
@@ -28,13 +27,15 @@ type Message struct {
 
 type Context struct {
 	Metadata       map[string]interface{} `json:"metadata"`
-	File           string                 `json:"file_path"`
-	Depth          int64                  `json:"queue_depth"`
-	PartitionID    int64                  `json:"partition_id"`
 
-	MinFileNum        int64               `json:"min_file_num"`
-	FileNum        int64                  `json:"file_num"`
-	NextReadOffset int64                  `json:"next_read_offset"`
+	WriteFile           string             `json:"write_file_path"`
+
+	//Depth          int64                  `json:"queue_depth"`
+	//PartitionID    int64                  `json:"partition_id"`
+
+	//MinFileNum        int64               `json:"min_file_num"`
+	WriteFileNum        int64             `json:"write_file_num"`
+	//NextReadOffset int64                  `json:"next_read_offset"`
 	MaxLength      int64                  `json:"max_length"`
 }
 

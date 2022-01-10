@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
@@ -8,6 +9,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/util"
 	. "infini.sh/framework/modules/queue/disk_queue"
 	"os"
 	"path"
@@ -79,7 +81,8 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
 		WriteChanBuffer:   0,
-		ReservedFreeBytes: 1 * 1024 * 1024 * 1024,
+		WarningFreeBytes: 10 * 1024 * 1024 * 1024,
+		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
 	}
 
 	ok,err:=env.ParseConfig("disk_queue", module.cfg)
@@ -115,11 +118,6 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 
-func (module *DiskQueue) Consume(queue,consumer string,part,offset,count int64,time time.Duration) (ctx *queue.Context,data []byte, timeout bool,err error) {
-
-	return nil, nil,false,nil
-}
-
 func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	err:= module.Init(k)
 	if err!=nil{
@@ -141,6 +139,49 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 		b := <-module.ReadChan(k)
 		return b,false
 	}
+}
+
+func (module *DiskQueue) Consume(queue,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
+
+	module.Init(queue)
+	q,ok:=module.queues.Load(queue)
+	if ok{
+		data:=strings.Split(offsetStr,",")
+		if len(data)!=2{
+			panic(errors.Errorf("invalid offset: %v",offsetStr))
+		}
+		var part,offset int64
+		part,_=util.ToInt64(data[0])
+		offset,_=util.ToInt64(data[1])
+		q1:=(*q.(*BackendQueue))
+		ctx,messages,timeout,err:=q1.Consume(consumer,part,offset,count, timeDuration)
+
+		if err!=nil&&err.Error()=="EOF"{
+			//EOF error, if reach end of current file and the next file also exists then we should move to read the next file
+			ctx1:=q1.ReadContext()
+			//log.Errorf("check write file:%v vs read file: %v",ctx1.WriteFileNum,part)
+
+			if ctx1.WriteFileNum>part{
+
+				log.Debugf("reached EOF of queue, auto move to next file, init:%v,next:%v",ctx.InitOffset,ctx.NextOffset)
+
+				//wait for file exists
+				if !util.FileExists(ctx1.WriteFile){
+					time.Sleep(1*time.Second)
+				}
+
+				ctx.NextOffset=fmt.Sprintf("%v,%v",part+1,0)
+				return ctx,messages,timeout,nil
+			}else{
+				//on current file
+				log.Debugf("reached EOF of queue, still on writing file, should wait for more messages coming in, init:%v,end:%v",ctx.InitOffset,ctx.NextOffset)
+			}
+		}
+
+		return ctx,messages,timeout,err
+	}
+
+	panic(errors.Errorf("queue [%v] not found",queue))
 }
 
 func (module *DiskQueue) Close(k string) error {

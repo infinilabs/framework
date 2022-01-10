@@ -10,7 +10,6 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
-	log "src/github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -69,11 +68,9 @@ func (module *RedisQueue) Init(k string) error{
 
 var lock sync.RWMutex
 
-func (module *RedisQueue) Consume(queue,consumer string,part,offset,count int64,time time.Duration) (ctx *queue.Context,data []byte,timeout bool,err error) {
+func (module *RedisQueue) Consume(queue,consumer,offsetStr string,count int,time time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
 	//TODO
-	log.Warn("consume via offset is not support ed by redis queue")
-	data,timeout=module.Pop(queue,time)
-	return nil, data, timeout,nil
+	panic("consume is not supported in redis queue")
 }
 
 func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {

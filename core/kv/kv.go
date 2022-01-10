@@ -38,7 +38,7 @@ type KVStore interface {
 
 	DeleteKey(bucket string, key []byte) error
 
-	DeleteBucket(bucket string) error
+	//DeleteBucket(bucket string) error
 }
 
 var handler KVStore
@@ -75,9 +75,9 @@ func DeleteKey(bucket string, key []byte) error {
 	return getKVHandler().DeleteKey(bucket, key)
 }
 
-func DeleteBucket(bucket string) error {
-	return getKVHandler().DeleteBucket(bucket)
-}
+//func DeleteBucket(bucket string) error {
+//	return getKVHandler().DeleteBucket(bucket)
+//}
 
 var stores map[string]KVStore
 
