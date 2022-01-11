@@ -185,7 +185,7 @@ func (procs *Processors) Process(ctx *Context) error{
 			return nil
 		}
 		ctx.AddFlowProcess(p.Name())
-		log.Debug("start processing:",p.Name())
+		log.Trace("start processing:",p.Name())
 		err:=p.Process(ctx)
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {

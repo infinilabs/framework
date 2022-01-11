@@ -31,8 +31,12 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	RELOCATE_FILE:
 
+
+
 	log.Tracef("[%v] consumer[%v] %v,%v, fetch count:%v",d.dataPath,consumer,part,readPos,messageCount)
 	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
+	ctx.NextOffset=""
+
 	fileName:=d.GetFileName(part)
 
 	var msgSize int32
@@ -70,6 +74,18 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	err = binary.Read(reader, binary.BigEndian, &msgSize)
 	if err != nil {
 		log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
+
+		nextFile:=d.GetFileName(part+1)
+		if util.FileExists(nextFile){
+			log.Debug("EOF, continue read:",nextFile)
+			part=part+1
+			readPos=0
+			if readFile!=nil{
+				readFile.Close()
+			}
+			goto RELOCATE_FILE
+		}
+
 		return ctx,messages,false,err
 	}
 
@@ -111,7 +127,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v",ctx,len(messages),err)
 		nextFile:=d.GetFileName(part+1)
 		if util.FileExists(nextFile){
-			log.Trace("next file exists, should move to next file, send EOF error, reset offset")
+			log.Debug("EOF, continue read:",nextFile)
 			part=part+1
 			readPos=0
 			if readFile!=nil{
@@ -126,3 +142,4 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	goto READ_MSG
 
 }
+

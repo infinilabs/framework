@@ -203,7 +203,7 @@ func (module *PipeModule) Start() error {
 
 						if cfg.KeepRunning&&!ctx.IsExit(){
 							if ctx.GetRunningState()!=pipeline.STOPPED&&ctx.GetRunningState()!=pipeline.STOPPING{
-								log.Debugf("pipeline [%v] end running, restart again, [%v]",cfg.Name,cfg.RetryDelayInMs)
+								log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms",cfg.Name,cfg.RetryDelayInMs)
 								if cfg.RetryDelayInMs >0{
 									time.Sleep(time.Duration(cfg.RetryDelayInMs)*time.Millisecond)
 								}
