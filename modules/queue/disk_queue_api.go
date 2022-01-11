@@ -23,10 +23,7 @@ import (
 	"infini.sh/framework/core/errors"
 	queue1 "infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
-	queue "infini.sh/framework/modules/queue/disk_queue"
 	"net/http"
-	log "github.com/cihub/seelog"
-	"strings"
 )
 
 func (module *DiskQueue) RegisterAPI()  {
@@ -72,11 +69,6 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 	size:= module.GetIntOrDefault(req,"size",5)
 	dataIsString:=true
 
-	data:=strings.Split(offsetStr,",")
-	var part,offset int64
-	part,_=util.ToInt64(data[0])
-	offset,_=util.ToInt64(data[1])
-
 	consumer:="api"
 
 	var ctx *queue1.Context
@@ -86,8 +78,8 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 	defer func() {
 		result:=util.MapStr{}
 		status:=200
-		if err!=nil&&strings.TrimSpace(err.Error())!=""{
-			result["error"]=err
+		if err!=nil{
+			result["error"]=err.Error()
 			status=500
 		}
 		if len(messages)>0{
@@ -110,18 +102,16 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 			}
 			result["timeout"]=timeout
 			if err!=nil{
-				result["error"]=err
+				result["error"]=err.Error()
 			}
 		}
 		module.WriteJSON(w,result,status)
 	}()
 
-	q,ok:=module.queues.Load(queueName)
+	_,ok:=module.queues.Load(queueName)
 	if ok{
-		q1:=(*q.(*queue.BackendQueue))
-		ctx,messages,timeout,err=q1.Consume(consumer, int64(part), int64(offset),size,0)
-		if timeout && err!=nil{
-			log.Errorf("timeout [%v] or error:%v",timeout,err)
+		ctx,messages,timeout,err=module.Consume(queueName,consumer, offsetStr,size,0)
+		if err!=nil{
 			return
 		}
 	}else{

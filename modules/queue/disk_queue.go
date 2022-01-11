@@ -1,7 +1,6 @@
 package queue
 
 import (
-	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
@@ -141,10 +140,10 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
-func (module *DiskQueue) Consume(queue,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
+func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
 
-	module.Init(queue)
-	q,ok:=module.queues.Load(queue)
+	module.Init(queueName)
+	q,ok:=module.queues.Load(queueName)
 	if ok{
 		data:=strings.Split(offsetStr,",")
 		if len(data)!=2{
@@ -155,33 +154,10 @@ func (module *DiskQueue) Consume(queue,consumer,offsetStr string,count int, time
 		offset,_=util.ToInt64(data[1])
 		q1:=(*q.(*BackendQueue))
 		ctx,messages,timeout,err:=q1.Consume(consumer,part,offset,count, timeDuration)
-
-		if err!=nil&&err.Error()=="EOF"{
-			//EOF error, if reach end of current file and the next file also exists then we should move to read the next file
-			ctx1:=q1.ReadContext()
-			//log.Errorf("check write file:%v vs read file: %v",ctx1.WriteFileNum,part)
-
-			if ctx1.WriteFileNum>part{
-
-				log.Debugf("reached EOF of queue, auto move to next file, init:%v,next:%v",ctx.InitOffset,ctx.NextOffset)
-
-				//wait for file exists
-				if !util.FileExists(ctx1.WriteFile){
-					time.Sleep(1*time.Second)
-				}
-
-				ctx.NextOffset=fmt.Sprintf("%v,%v",part+1,0)
-				return ctx,messages,timeout,nil
-			}else{
-				//on current file
-				log.Debugf("reached EOF of queue, still on writing file, should wait for more messages coming in, init:%v,end:%v",ctx.InitOffset,ctx.NextOffset)
-			}
-		}
-
 		return ctx,messages,timeout,err
 	}
 
-	panic(errors.Errorf("queue [%v] not found",queue))
+	panic(errors.Errorf("queue [%v] not found",queueName))
 }
 
 func (module *DiskQueue) Close(k string) error {

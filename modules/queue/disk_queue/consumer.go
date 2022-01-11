@@ -9,7 +9,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/util"
 	io "io"
 	"os"
 	"time"
@@ -22,15 +24,22 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	messages=[]queue.Message{}
 	ctx=&queue.Context{}
-	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
+	initOffset:=fmt.Sprintf("%v,%v",part,readPos)
+	defer func() {
+		ctx.InitOffset=initOffset
+	}()
 
+	RELOCATE_FILE:
+
+	log.Tracef("[%v] consumer[%v] %v,%v, fetch count:%v",d.dataPath,consumer,part,readPos,messageCount)
+	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
 	fileName:=d.GetFileName(part)
 
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
 	defer readFile.Close()
 	if err != nil {
-		//log.Error(err)
+		log.Debug(err)
 		return ctx,messages,false,err
 	}
 
@@ -38,7 +47,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	var stat os.FileInfo
 	stat, err = readFile.Stat()
 	if err!=nil{
-		//log.Error(err)
+		log.Debug(err)
 		return ctx,messages,false,err
 	}
 	maxBytesPerFileRead = stat.Size()
@@ -46,7 +55,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	if readPos > 0 {
 		_, err = readFile.Seek(readPos, 0)
 		if err != nil {
-			//log.Error(err)
+			log.Debug(err)
 			return ctx,messages,false,err
 		}
 	}
@@ -60,13 +69,13 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	//read message size
 	err = binary.Read(reader, binary.BigEndian, &msgSize)
 	if err != nil {
-		//log.Errorf("err:%v,%v,%v",err,msgSize,maxBytesPerFileRead)
+		log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
 		return ctx,messages,false,err
 	}
 
 	if int32(msgSize) < d.minMsgSize || int32(msgSize) > d.maxMsgSize {
 		err=errors.New("message is too big")
-		//log.Error(err)
+		log.Error(err)
 		return ctx,messages,false,err
 	}
 
@@ -74,7 +83,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	readBuf := make([]byte, msgSize)
 	_, err = io.ReadFull(reader, readBuf)
 	if err != nil {
-		//log.Error(err)
+		log.Debug(err)
 		return ctx,messages,false,err
 	}
 
@@ -94,12 +103,22 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	messages=append(messages,message)
 
 	if len(messages)>=messageCount{
-		//log.Error("len(messages)>=messageCount")
+		log.Trace("len(messages)>=messageCount")
 		return ctx,messages,false,err
 	}
 
 	if nextReadPos >= maxBytesPerFileRead{
-		//log.Errorf("nextReadPos >= maxBytesPerFileRead,%v,%v",ctx,len(messages))
+		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v",ctx,len(messages),err)
+		nextFile:=d.GetFileName(part+1)
+		if util.FileExists(nextFile){
+			log.Trace("next file exists, should move to next file, send EOF error, reset offset")
+			part=part+1
+			readPos=0
+			if readFile!=nil{
+				readFile.Close()
+			}
+			goto RELOCATE_FILE
+		}
 		return ctx,messages,false,err
 	}
 
