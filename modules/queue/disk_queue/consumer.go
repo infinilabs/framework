@@ -73,17 +73,20 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	//read message size
 	err = binary.Read(reader, binary.BigEndian, &msgSize)
 	if err != nil {
-		log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
-
-		nextFile:=d.GetFileName(part+1)
-		if util.FileExists(nextFile){
-			log.Debug("EOF, continue read:",nextFile)
-			part=part+1
-			readPos=0
-			if readFile!=nil{
-				readFile.Close()
+		if err.Error()=="EOF"{
+			log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
+			nextFile:=d.GetFileName(part+1)
+			if util.FileExists(nextFile){
+				log.Debug("EOF, continue read:",nextFile)
+				part=part+1
+				readPos=0
+				if readFile!=nil{
+					readFile.Close()
+				}
+				goto RELOCATE_FILE
 			}
-			goto RELOCATE_FILE
+		}else{
+			log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
 		}
 
 		return ctx,messages,false,err

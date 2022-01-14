@@ -95,17 +95,18 @@ func (module *S3Module) Setup(cfg *config.Config) {
 	var err error
 	module.S3Configs=map[string]S3Config{}
 	ok,err:=env.ParseConfig("s3", &module.S3Configs)
-	if !ok||(ok&&err!=nil){
+	if ok&&err!=nil{
 		panic(err)
 	}
-
-	for k,v:=range module.S3Configs{
-		handler,err:=NewS3Uploader(&v)
-		if err!=nil{
-			log.Error(err)
-			continue
+	if ok{
+		for k,v:=range module.S3Configs{
+			handler,err:=NewS3Uploader(&v)
+			if err!=nil{
+				log.Error(err)
+				continue
+			}
+			s3.Register(k,handler)
 		}
-		s3.Register(k,handler)
 	}
 
 }
