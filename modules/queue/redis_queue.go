@@ -102,6 +102,10 @@ func (module *RedisQueue) Close(k string) error {
 	return module.client.Subscribe(ctx,k).Close()
 }
 
+func (module *RedisQueue) LatestOffset(string) string {
+	panic("consume is not supported in redis queue")
+}
+
 func (module *RedisQueue) Depth(k string) int64 {
 	c,err:=module.client.LLen(ctx,k).Result()
 	if err!=nil{

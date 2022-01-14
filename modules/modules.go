@@ -23,6 +23,7 @@ import (
 	"infini.sh/framework/modules/filter"
 	"infini.sh/framework/modules/pipeline"
 	"infini.sh/framework/modules/queue"
+	queue2 "infini.sh/framework/modules/queue/disk_queue"
 	"infini.sh/framework/modules/stats"
 	"infini.sh/framework/modules/task"
 	"infini.sh/framework/modules/ui"
@@ -34,7 +35,7 @@ func Register() {
 	module.RegisterSystemModule(elastic.ElasticModule{})
 	module.RegisterSystemModule(&filter.FilterModule{})
 	module.RegisterSystemModule(&stats.SimpleStatsModule{})
-	module.RegisterSystemModule(&queue.DiskQueue{})
+	module.RegisterSystemModule(&queue2.DiskQueue{})
 	module.RegisterSystemModule(&queue.RedisModule{})
 	module.RegisterSystemModule(&queue.QueueModule{})
 	module.RegisterSystemModule(&api.APIModule{})

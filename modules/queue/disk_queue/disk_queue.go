@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
-	. "infini.sh/framework/modules/queue/disk_queue"
 	"os"
 	"path"
 	"strings"
@@ -32,8 +31,8 @@ func (module *DiskQueue) Name() string {
 //#  disk.warning_free_bytes:  20GB #trigger warning message
 //#  disk.reserved_free_bytes: 10GB #enter readonly mode, no writes allowed
 type DiskQueueConfig struct {
-	MinMsgSize       int   `config:"min_msg_size"`
-	MaxMsgSize       int   `config:"max_msg_size"`
+	MinMsgSize       int32   `config:"min_msg_size"`
+	MaxMsgSize       int32   `config:"max_msg_size"`
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
@@ -43,6 +42,16 @@ type DiskQueueConfig struct {
 	MaxUsedBytes   uint64   `config:"max_used_bytes"`
 	WarningFreeBytes   uint64   `config:"warning_free_bytes"`
 	ReservedFreeBytes   uint64   `config:"reserved_free_bytes"`
+
+	UploadToS3   bool   `config:"upload_to_s3"`
+
+	S3 struct{
+		Sync   bool   `config:"sync"`
+		Server   string   `config:"server"`
+		Location   string   `config:"location"`
+		Bucket   string   `config:"bucket"`
+	}`config:"s3"`
+
 }
 
 func (module *DiskQueue) Init(name string) error {
@@ -57,13 +66,10 @@ func (module *DiskQueue) Init(name string) error {
 	log.Debugf("init queue: %s", name)
 
 	dataPath := path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(name))
+
 	os.MkdirAll(dataPath, 0755)
 
-	tempQueue := NewDiskQueue(strings.ToLower(name), dataPath,
-		module.cfg.MaxBytesPerFile, int32(module.cfg.MinMsgSize), int32(module.cfg.MaxMsgSize),
-		module.cfg.SyncEveryRecords, time.Duration(module.cfg.SyncTimeoutInMS),
-		module.cfg.ReadChanBuffer, module.cfg.WriteChanBuffer,module.
-		cfg.MaxUsedBytes,module.cfg.WarningFreeBytes,module.cfg.ReservedFreeBytes)
+	tempQueue := NewDiskQueueByConfig(name,dataPath,module.cfg)
 
 	module.queues.Store(name,&tempQueue)
 
@@ -73,6 +79,7 @@ func (module *DiskQueue) Init(name string) error {
 func (module *DiskQueue) Setup(config *config.Config) {
 
 	module.cfg = &DiskQueueConfig{
+		UploadToS3:       false,
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
 		MaxBytesPerFile:  1 * 1024 * 1024 * 1024, //1GB
@@ -165,6 +172,16 @@ func (module *DiskQueue) Close(k string) error {
 	if ok{
 		return (*q.(*BackendQueue)).Close()
 	}
+	panic(errors.Errorf("queue [%v] not found",k))
+}
+
+func (module *DiskQueue) LatestOffset(k string) string {
+	module.Init(k)
+	q,ok:=module.queues.Load(k)
+	if ok{
+		return (*q.(*BackendQueue)).LatestOffset()
+	}
+
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 

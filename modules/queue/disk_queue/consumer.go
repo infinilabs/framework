@@ -7,7 +7,7 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"errors"
+	"infini.sh/framework/core/errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/queue"
@@ -41,13 +41,13 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
-	defer readFile.Close()
+	//defer readFile.Close()
 	if err != nil {
 		log.Debug(err)
 		return ctx,messages,false,err
 	}
 
-	var maxBytesPerFileRead int64= d.maxBytesPerFile
+	var maxBytesPerFileRead int64= d.cfg.MaxBytesPerFile
 	var stat os.FileInfo
 	stat, err = readFile.Stat()
 	if err!=nil{
@@ -89,9 +89,8 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 		return ctx,messages,false,err
 	}
 
-	if int32(msgSize) < d.minMsgSize || int32(msgSize) > d.maxMsgSize {
-		err=errors.New("message is too big")
-		log.Error(err)
+	if int32(msgSize) < d.cfg.MinMsgSize || int32(msgSize) > d.cfg.MaxMsgSize {
+		err=errors.Errorf("message is too big, %v/%v-%v",msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
 		return ctx,messages,false,err
 	}
 

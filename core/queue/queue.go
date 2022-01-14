@@ -36,9 +36,10 @@ type Context struct {
 }
 
 type Message struct {
-	Offset string `config:"offset" json:"offset"`
-	Size int64    `config:"size" json:"size"`
-	Data []byte   `config:"data" json:"data"`
+	Timestamp int64 `config:"timestamp" json:"timestamp"`
+	Offset string   `config:"offset" json:"offset"`
+	Size int64      `config:"size" json:"size"`
+	Data []byte     `config:"data" json:"data"`
 }
 
 type QueueAPI interface {
@@ -46,9 +47,12 @@ type QueueAPI interface {
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
 	//part means the sequence id of the queue, offset is within the part, count means how many messages will be fetching
-	Consume(queue,consumer,offsetStr string,count int,timeout time.Duration) ( *Context, []Message,bool,error)
 	Close(string) error
 	Depth(string) int64
+
+	Consume(queue,consumer,offsetStr string,count int,timeout time.Duration) ( *Context, []Message,bool,error)
+	LatestOffset(string) string
+
 	GetQueues() []string
 }
 
@@ -61,14 +65,20 @@ type Config struct {
 	Name     string                 `config:"name" json:"name,omitempty"` //unique name of each queue
 	Codec    string                 `config:"codec" json:"codec,omitempty"`
 	Type     string                 `config:"type" json:"type,omitempty"`
-	Labels map[string]interface{}   `config:"label" json:"label"`
+	Labels map[string]interface{}   `config:"label" json:"label,omitempty"`
 }
 
 type ConsumerConfig struct {
+	Source   string                 `config:"source" json:"source,omitempty"`
+	Id       string                 `config:"id" json:"id,omitempty"`   //uuid for each queue
 	Group   string                  `config:"group" json:"group,omitempty"`
 	Name     string                 `config:"name" json:"name,omitempty"`
 	AutoReset     string       `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
 	AutoCommit     bool              `config:"auto_commit" json:"auto_commit,omitempty"`
+}
+
+func (cfg *ConsumerConfig) Key() string {
+	return fmt.Sprintf("%v-%v",cfg.Group,cfg.Name)
 }
 
 func getHandler(queueID string) QueueAPI {
@@ -102,6 +112,7 @@ var pauseMsg = errors.New("queue was paused to read")
 var configs = map[string]*Config{}
 var idConfigs = map[string]*Config{}
 var cfgLock = sync.RWMutex{}
+var consumerCfgLock = sync.RWMutex{}
 
 func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 	cfgLock.Lock()
@@ -120,7 +131,7 @@ func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 
 		//async notify
 		go func() {
-			for _,f:=range listener{
+			for _,f:=range queueConfigListener {
 				f()
 			}
 		}()
@@ -128,6 +139,82 @@ func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 		return false, nil
 	}
 }
+
+const consumerBucket = "queue_consumers"
+
+func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error){
+	consumerCfgLock.Lock()
+	defer consumerCfgLock.Unlock()
+
+	queueIDBytes:=util.UnsafeStringToBytes(queueID)
+	ok,err:=kv.ExistsKey(consumerBucket,queueIDBytes)
+	if err!=nil{
+		panic(err)
+	}
+
+	cfgs:=map[string]*ConsumerConfig{}
+	if ok{
+		data,err:=kv.GetValue(consumerBucket,queueIDBytes)
+		if err!=nil{
+			panic(err)
+		}
+		err=util.FromJSONBytes(data,&cfgs)
+		if err!=nil{
+			panic(err)
+		}
+	}
+
+	cfgs[consumer.Key()]=consumer
+
+	kv.AddValue(consumerBucket,queueIDBytes,util.MustToJSONBytes(cfgs))
+
+	//async notify
+	go func() {
+		for _,f:=range consumerConfigListener {
+			f(queueID,cfgs)
+		}
+	}()
+
+	return false, nil
+}
+
+func GetConsumerConfig(queueID,group,name string) (*ConsumerConfig, bool) {
+	consumerCfgLock.Lock()
+	defer consumerCfgLock.Unlock()
+
+	queueIDBytes:=util.UnsafeStringToBytes(queueID)
+	cfgs:=map[string]*ConsumerConfig{}
+	data,err:=kv.GetValue(consumerBucket,queueIDBytes)
+	if err!=nil{
+		panic(err)
+	}
+	err=util.FromJSONBytes(data,&cfgs)
+	if err!=nil{
+		panic(err)
+	}
+
+	if cfgs!=nil{
+		x,ok:=cfgs[fmt.Sprintf("%v-%v",group,name)]
+		return x,ok
+	}
+
+	return nil, false
+}
+
+
+func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
+	cfg,exists:=GetConsumerConfig(queueID,group,name)
+	if !exists{
+			cfg=&ConsumerConfig{}
+			cfg.Id=util.GetUUID()
+			cfg.Source="dynamic"
+			cfg.Group=group
+			cfg.Name= name
+			RegisterConsumer(queueID,cfg)
+	}
+	return cfg
+}
+
 
 func IsConfigExists(key string) bool {
 	cfgLock.Lock()
@@ -165,11 +252,47 @@ func GetConfigByUUID(id string) (*Config, bool) {
 	return v, ok
 }
 
+func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bool) {
+	consumerCfgLock.Lock()
+	defer consumerCfgLock.Unlock()
+
+	queueIDBytes:=util.UnsafeStringToBytes(queueID)
+	cfgs:=map[string]*ConsumerConfig{}
+	data,err:=kv.GetValue(consumerBucket,queueIDBytes)
+	if err!=nil{
+		panic(err)
+	}
+	err=util.FromJSONBytes(data,&cfgs)
+	if err!=nil{
+		panic(err)
+	}
+
+	if cfgs!=nil{
+		return cfgs,true
+	}
+
+	return nil, false
+}
+
+
+func GetConsumerConfigID(queueID,consumerID string) (*ConsumerConfig, bool) {
+	m,ok:=GetConsumerConfigsByQueueID(queueID)
+	if ok{
+		for _,v:=range m{
+			if v.Id==consumerID{
+				return v,true
+			}
+		}
+	}
+	return nil,false
+}
+
 func GetAllConfigBytes()[]byte {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	return util.MustToJSONBytes(configs)
 }
+
 func GetAllConfigs() map[string]*Config {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
@@ -269,12 +392,12 @@ func Close(k *Config) error {
 	panic(errors.New("handler is not closed"))
 }
 
-func getCommitKey(k *Config, consumer ConsumerConfig)string  {
+func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
 	return fmt.Sprintf("%v-%v",k.Id,consumer.Group)
 }
 
 const bucket ="queue_consumer_commit_offset"
-func GetOffset(k *Config, consumer ConsumerConfig) (string,error) {
+func GetOffset(k *Config, consumer *ConsumerConfig) (string,error) {
 
 	bytes,err:=kv.GetValue(bucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)))
 	if err!=nil{
@@ -288,7 +411,7 @@ func GetOffset(k *Config, consumer ConsumerConfig) (string,error) {
 	return "0,0",nil
 }
 
-func CommitOffset(k *Config, consumer ConsumerConfig, offset string)(bool,error) {
+func CommitOffset(k *Config, consumer *ConsumerConfig, offset string)(bool,error) {
 
 	if global.Env().IsDebug{
 		log.Tracef("queue [%v] [%v][%v] commit offset:%v",k.Id,consumer.Group,consumer.Name,offset)
@@ -406,9 +529,17 @@ func Register(name string, h QueueAPI) {
 	log.Debug("register queue handler: ", name)
 }
 
-var listener =[]func(){}
-func RegisterConfigChangeListener(l func()){
+//TODO only update specify event, func(queueID)
+var queueConfigListener =[]func(){}
+func RegisterQueueConfigChangeListener(l func()){
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
-	listener=append(listener,l)
+	queueConfigListener =append(queueConfigListener,l)
+}
+
+var consumerConfigListener =[]func(id string,configs map[string]*ConsumerConfig){}
+func RegisterConsumerConfigChangeListener(l func(id string,configs map[string]*ConsumerConfig)){
+	consumerCfgLock.Lock()
+	defer consumerCfgLock.Unlock()
+	consumerConfigListener =append(consumerConfigListener,l)
 }

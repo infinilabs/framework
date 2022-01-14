@@ -31,6 +31,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
 	"io"
@@ -55,12 +56,15 @@ type diskQueue struct {
 	// instantiation time metadata
 	name                string
 	dataPath            string
-	maxBytesPerFile     int64 // cannot change once created
+
+	//maxBytesPerFile     int64 // cannot change once created
+
 	maxBytesPerFileRead int64
-	minMsgSize          int32
-	maxMsgSize          int32
-	syncEvery           int64         // number of writes per fsync
-	syncTimeout         time.Duration // duration of time per fsync
+
+	//minMsgSize          int32
+	//maxMsgSize          int32
+	//syncEvery           int64         // number of writes per fsync
+	//syncTimeout         time.Duration // duration of time per fsync
 	exitFlag            int32
 	needSync            bool
 
@@ -84,24 +88,59 @@ type diskQueue struct {
 	exitChan          chan int
 	exitSyncChan      chan int
 
-	maxUsedBytes   uint64
-	warningFreeBytes   uint64
-	reservedFreeBytes   uint64
+	//maxUsedBytes   uint64
+	//warningFreeBytes   uint64
+	//reservedFreeBytes   uint64
 
 	preventRead bool//readonly or not
+
+	cfg *DiskQueueConfig
 }
 
 // NewDiskQueue instantiates a new instance of diskQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
+func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig)BackendQueue{
+	d := diskQueue{
+		name:              name,
+		dataPath:          dataPath,
+		//maxBytesPerFile:   maxBytesPerFile,
+		//minMsgSize:        minMsgSize,
+		//maxMsgSize:        maxMsgSize,
+		cfg:cfg,
+		readChan:          make(chan []byte, cfg.ReadChanBuffer),
+		depthChan:         make(chan int64),
+		writeChan:         make(chan []byte, cfg.WriteChanBuffer),
+		writeResponseChan: make(chan error),
+		emptyChan:         make(chan int),
+		emptyResponseChan: make(chan error),
+		exitChan:          make(chan int),
+		exitSyncChan:      make(chan int),
+		//syncEvery:         syncEvery,
+		//syncTimeout:       syncTimeout,
+		//maxUsedBytes:		maxUsedBytes,
+		//warningFreeBytes:	warningFreeBytes,
+		//reservedFreeBytes:	reservedFreeBytes,
+	}
+
+	// no need to lock here, nothing else could possibly be touching this instance
+	err := d.retrieveMetaData()
+	if err != nil && !os.IsNotExist(err) {
+		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
+	}
+
+	go d.ioLoop()
+	return &d
+}
+
 func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 	minMsgSize int32, maxMsgSize int32,
 	syncEvery int64, syncTimeout time.Duration, readBufferSize int, writeBufferSize int,maxUsedBytes,warningFreeBytes,reservedFreeBytes uint64) BackendQueue {
 	d := diskQueue{
 		name:              name,
 		dataPath:          dataPath,
-		maxBytesPerFile:   maxBytesPerFile,
-		minMsgSize:        minMsgSize,
-		maxMsgSize:        maxMsgSize,
+		//maxBytesPerFile:   maxBytesPerFile,
+		//minMsgSize:        minMsgSize,
+		//maxMsgSize:        maxMsgSize,
 		readChan:          make(chan []byte, readBufferSize),
 		depthChan:         make(chan int64),
 		writeChan:         make(chan []byte, writeBufferSize),
@@ -110,12 +149,12 @@ func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
 		emptyResponseChan: make(chan error),
 		exitChan:          make(chan int),
 		exitSyncChan:      make(chan int),
-		syncEvery:         syncEvery,
-		syncTimeout:       syncTimeout,
+		//syncEvery:         syncEvery,
+		//syncTimeout:       syncTimeout,
 
-		maxUsedBytes:		maxUsedBytes,
-		warningFreeBytes:	warningFreeBytes,
-		reservedFreeBytes:	reservedFreeBytes,
+		//maxUsedBytes:		maxUsedBytes,
+		//warningFreeBytes:	warningFreeBytes,
+		//reservedFreeBytes:	reservedFreeBytes,
 	}
 
 	// no need to lock here, nothing else could possibly be touching this instance
@@ -136,6 +175,10 @@ func (d *diskQueue) ReadContext() Context {
 	//ctx.MaxLength=d.maxBytesPerFileRead
 	ctx.WriteFile=d.GetFileName(ctx.WriteFileNum)
 	return ctx
+}
+
+func (d *diskQueue) LatestOffset() string {
+	return fmt.Sprintf("%v,%v",d.writeFileNum,d.writePos)
 }
 
 func (d *diskQueue) Depth() int64 {
@@ -316,7 +359,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 		// for "complete" files (i.e. not the "current" file), maxBytesPerFileRead
 		// should be initialized to the file's size, or default to maxBytesPerFile
-		d.maxBytesPerFileRead = d.maxBytesPerFile
+		d.maxBytesPerFileRead = d.cfg.MaxBytesPerFile
 		if d.readFileNum < d.writeFileNum {
 			stat, err := d.readFile.Stat()
 			if err == nil {
@@ -334,7 +377,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		return nil, err
 	}
 
-	if msgSize < d.minMsgSize || msgSize > d.maxMsgSize {
+	if msgSize < d.cfg.MinMsgSize || msgSize > d.cfg.MaxMsgSize {
 		// this file is corrupt and we have no reasonable guarantee on
 		// where a new message should begin
 		d.readFile.Close()
@@ -403,8 +446,8 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 	dataLen := int32(len(data))
 
-	if dataLen < d.minMsgSize || dataLen > d.maxMsgSize {
-		return fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.minMsgSize, d.maxMsgSize)
+	if dataLen < d.cfg.MinMsgSize || dataLen > d.cfg.MaxMsgSize {
+		return fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.cfg.MinMsgSize, d.cfg.MaxMsgSize)
 	}
 
 	//TODO, checking max storage and available storage
@@ -432,7 +475,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 	d.writePos += totalBytes
 	d.depth += 1
 
-	if d.writePos >= d.maxBytesPerFile {
+	if d.writePos >= d.cfg.MaxBytesPerFile {
 		if d.readFileNum == d.writeFileNum {
 			d.maxBytesPerFileRead = d.writePos
 		}
@@ -442,6 +485,21 @@ func (d *diskQueue) writeOne(data []byte) error {
 		//如果已有多少个文件未压缩，则新文件默认则压缩存储
 
 		d.checkCapacity()
+
+		//send s3 upload signal
+		if d.cfg.UploadToS3{
+			if d.cfg.S3.Server!=""&&d.cfg.S3.Bucket!=""{
+				fileName:=d.GetFileName(d.writeFileNum)
+				toFile:=util.TrimLeftStr(fileName,global.Env().GetDataDir())
+				if d.cfg.S3.Sync{
+					s3.SyncUpload(fileName,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,toFile)
+				}else{
+					s3.AsyncUpload(fileName,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,toFile)
+				}
+			}else{
+				log.Errorf("invalid s3 config:%v",d.cfg.S3)
+			}
+		}
 
 		d.writeFileNum++
 		d.writePos = 0
@@ -463,17 +521,17 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 func (d *diskQueue) checkCapacity() error {
 
-	if  d.warningFreeBytes>0||d.maxUsedBytes>0||d.reservedFreeBytes>0{
+	if  d.cfg.WarningFreeBytes>0||d.cfg.MaxUsedBytes>0||d.cfg.ReservedFreeBytes>0{
 		stats:=status.DiskUsage(d.dataPath)
-		if d.maxUsedBytes>0&&stats.Used>=d.maxUsedBytes{
+		if d.cfg.MaxUsedBytes>0&&stats.Used>=d.cfg.MaxUsedBytes{
 			d.preventRead=true
-			return errors.Errorf("disk usage [%v] > threshold [%v]",util.ByteSize(stats.Used),util.ByteSize(d.maxUsedBytes))
-		}else if d.reservedFreeBytes>0&&stats.Free<=uint64(d.reservedFreeBytes){
+			return errors.Errorf("disk usage [%v] > threshold [%v]",util.ByteSize(stats.Used),util.ByteSize(d.cfg.MaxUsedBytes))
+		}else if d.cfg.ReservedFreeBytes>0&&stats.Free<=uint64(d.cfg.ReservedFreeBytes){
 			d.preventRead = true
-			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.reservedFreeBytes))
-		}else if d.warningFreeBytes>0&&stats.Free<=uint64(d.warningFreeBytes){
+			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.ReservedFreeBytes))
+		}else if d.cfg.WarningFreeBytes>0&&stats.Free<=uint64(d.cfg.WarningFreeBytes){
 			if rate.GetRateLimiterPerSecond(d.name, "disk_full_warning",1).Allow() {
-				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.warningFreeBytes))
+				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.WarningFreeBytes))
 			}
 		}
 		if d.preventRead{
@@ -678,11 +736,11 @@ func (d *diskQueue) ioLoop() {
 	var count int64
 	var r chan []byte
 
-	syncTicker := time.NewTicker(time.Duration(d.syncTimeout) * time.Millisecond)
+	syncTicker := time.NewTicker(time.Duration(d.cfg.SyncTimeoutInMS) * time.Millisecond)
 
 	for {
 		// dont sync all the time :)
-		if count == d.syncEvery {
+		if count == d.cfg.SyncEveryRecords {
 			d.needSync = true
 		}
 

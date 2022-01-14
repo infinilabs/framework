@@ -14,6 +14,7 @@ type BackendQueue interface {
 	Close() error
 	Delete() error
 	Depth() int64
+	LatestOffset() string
 	ReadContext() Context
 
 	Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []queue.Message, isTimeout bool, err error)

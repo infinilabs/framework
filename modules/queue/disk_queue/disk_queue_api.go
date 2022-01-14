@@ -29,11 +29,15 @@ import (
 func (module *DiskQueue) RegisterAPI()  {
 	api.HandleAPIMethod(api.GET,"/queue/stats", module.QueueStatsAction)
 	api.HandleAPIMethod(api.GET,"/queue/:id/_scroll", module.QueueExplore)
+	api.HandleAPIMethod(api.PUT,"/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
+	api.HandleAPIMethod(api.GET,"/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 }
 
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	include:=module.Get(req,"metadata","true")
-	useKey :=module.Get(req,"use_key","true")
+	consumer:=module.Get(req,"consumers","true")
+	useKey :=module.Get(req,"use_key","false")
+
 	datas := map[string]util.MapStr{}
 	queues := queue1.GetQueues()
 	for t, qs := range queues {
@@ -41,11 +45,32 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 		for _,q:=range qs{
 			qd := util.MapStr{
 				"depth":module.Depth(q),
+				"latest_offset":module.LatestOffset(q),
 			}
 			cfg,ok:=queue1.GetConfigByUUID(q)
 			if include!="false" {
 				if ok{
 					qd["metadata"]=cfg
+				}
+			}
+
+			if consumer!="false" {
+				cfg1,ok:=queue1.GetConsumerConfigsByQueueID(q)
+				if ok{
+					maps:=[]util.MapStr{}
+					for _,v:=range cfg1{
+						m:=util.MapStr{}
+						m["source"]=v.Source
+						m["id"]=v.Id
+						m["group"]=v.Group
+						m["name"]=v.Name
+						offset,err:=queue1.GetOffset(cfg,v)
+						if err==nil{
+							m["offset"]=offset
+						}
+						maps=append(maps,m)
+					}
+					qd["consumers"]=maps
 				}
 			}
 
@@ -119,4 +144,45 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 		return
 	}
 
+}
+
+
+func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	queueID:=ps.ByName("id")
+	consumerID:=ps.ByName("consumer_id")
+	cfg,ok:=queue1.GetConfigByUUID(queueID)
+	cfg1,ok1:=queue1.GetConsumerConfigID(queueID,consumerID)
+	obj:=util.MapStr{}
+	var status =404
+	if ok&&ok1{
+		offset,err:=queue1.GetOffset(cfg,cfg1)
+		if err!=nil{
+			obj["error"]=err.Error()
+		}else{
+			obj["found"]=true
+			obj["result"]=offset
+		}
+	}else{
+		obj["found"]=false
+	}
+	module.WriteJSON(w,obj,status)
+}
+
+func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	queueID:=ps.ByName("id")
+	consumerID:=ps.ByName("consumer_id")
+	offsetStr:= module.GetParameterOrDefault(req,"offset","0,0")
+	cfg,ok:=queue1.GetConfigByUUID(queueID)
+	cfg1,ok1:=queue1.GetConsumerConfigID(queueID,consumerID)
+	var ack=false
+	var status=404
+	var obj=util.MapStr{}
+	if ok&&ok1{
+		queue1.CommitOffset(cfg,cfg1,offsetStr)
+		ack=true
+		status=200
+	}else{
+		obj["error"]="not found"
+	}
+	module.WriteAckJSON(w,ack,status,nil)
 }

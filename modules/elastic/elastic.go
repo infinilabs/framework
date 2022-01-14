@@ -217,14 +217,14 @@ func nodeAvailabilityCheck() {
 
 				v, ok := value.(*elastic.NodeAvailable)
 				if ok {
-					log.Debugf("check availability for node: " + k)
+					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
 					if avail {
 						v.ReportSuccess()
 					} else {
 						v.ReportFailure()
 					}
-					log.Debugf("node [%v], connection available: [%v] [%v]", k, avail, v.IsAvailable())
+					log.Tracef("node [%v], connection available: [%v] [%v]", k, avail, v.IsAvailable())
 				}
 				return true
 			})

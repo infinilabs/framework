@@ -7,6 +7,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"os"
@@ -37,8 +38,8 @@ func (module *QueueModule) Setup(cfg *config.Config) {
 	}
 
 	//load configs from local metadata
-	if util.FileExists(getPath()){
-		data,err:=util.FileGetContent(getPath())
+	if util.FileExists(getQueueConfigPath()){
+		data,err:=util.FileGetContent(getQueueConfigPath())
 		if err!=nil{
 			panic(err)
 		}
@@ -57,13 +58,21 @@ func (module *QueueModule) Setup(cfg *config.Config) {
 		}
 	}
 
+	
+	//load queue information from directory
+	
 	//load configs from remote elasticsearch
 
 
-	//register listener
-	queue.RegisterConfigChangeListener(func() {
-		persistMetadata()
+	//register queue listener
+	queue.RegisterQueueConfigChangeListener(func() {
+		persistQueueMetadata()
 	})
+	
+	////register consumer listener
+	//queue.RegisterConsumerConfigChangeListener(func(queueID string,configs map[string]*queue.ConsumerConfig) {
+	//	persistConsumerMetadata(queueID,configs)
+	//})
 }
 
 func (module *QueueModule) Start() error {
@@ -79,28 +88,47 @@ func (module *QueueModule) Start() error {
 			queue.IniQueue(v, v.Type)
 		}
 	}
-
+	
 	return nil
 }
 
-func getPath() string {
+func getQueueConfigPath() string {
 	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
 	return path.Join(global.Env().GetDataDir(),"queue","configs")
 }
 
+func getConsumerConfigPath(queueID string) string {
+	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
+	return path.Join(global.Env().GetDataDir(),"queue",queueID,"configs")
+}
+
 func (module *QueueModule) Stop() error {
-	persistMetadata()
+	persistQueueMetadata()
 	return nil
 }
 
 var locker sync.RWMutex
-func persistMetadata()  {
+func persistQueueMetadata()  {
 	locker.Lock()
 	defer locker.Unlock()
 
 	//persist configs to local store
 	bytes:=queue.GetAllConfigBytes()
-	_,err:=util.FilePutContentWithByte(getPath(),bytes)
+	_,err:=util.FilePutContentWithByte(getQueueConfigPath(),bytes)
+	if err!=nil{
+		panic(err)
+	}
+}
+
+const consumerBucket = "consumer_configs"
+func persistConsumerMetadata(queueID string, cfgs map[string]*queue.ConsumerConfig) {
+	locker.Lock()
+	defer locker.Unlock()
+
+	data:=util.MustToJSONBytes(cfgs)
+	kv.AddValue(consumerBucket,util.UnsafeStringToBytes(queueID),data)
+	
+	_,err:=util.FilePutContentWithByte(getConsumerConfigPath(queueID),data)
 	if err!=nil{
 		panic(err)
 	}
