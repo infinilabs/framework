@@ -54,9 +54,9 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		for _,k:=range apis{
 			v,ok:=api.APIs[k]
 			if ok{
-				w.Write([]byte(v))
+				w.Write([]byte(v.Key))
 				w.Write([]byte("\t"))
-				w.Write([]byte(k))
+				w.Write([]byte(v.Value))
 				w.Write([]byte("\n"))
 			}
 		}

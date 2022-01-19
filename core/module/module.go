@@ -92,7 +92,7 @@ func Start() {
 		}
 
 	}
-	log.Debug("all system module started")
+	log.Debug("all system module are started")
 
 	log.Trace("start to start user plugins")
 	for _, v := range m.user {
@@ -111,9 +111,9 @@ func Start() {
 		}
 
 	}
-	log.Debug("all user plugin started")
+	log.Debug("all user plugin are started")
 
-	log.Info("all modules started")
+	log.Info("all modules are started")
 }
 
 func Stop() {
@@ -128,7 +128,7 @@ func Stop() {
 			log.Debug("stopped plugin: ", v.Name())
 		}
 	}
-	log.Debug("all user module unloaded")
+	log.Debug("all user module are unloaded")
 
 	log.Trace("start to stop system module")
 	for i := len(m.system) - 1; i >= 0; i-- {
@@ -140,7 +140,7 @@ func Stop() {
 			log.Debug("stopped module: ", v.Name())
 		}
 	}
-	log.Debug("all system module stopped")
+	log.Debug("all system module are stopped")
 
-	log.Info("all modules stopped")
+	log.Info("all modules are stopped")
 }

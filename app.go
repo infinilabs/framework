@@ -355,7 +355,7 @@ func (app *App) Shutdown() {
 func (p *App) Start(s service.Service) error {
 	p.quitSignal = make(chan bool)
 	go p.run()
-	log.Infof("%s is running now.", p.environment.GetAppName())
+	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
 }
 

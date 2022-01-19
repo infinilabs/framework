@@ -33,7 +33,7 @@ var l sync.Mutex
 
 var filters []filter.Filter
 
-var APIs = map[string]string{}
+var APIs = map[string]util.KV{}
 
 // HandleAPIFunc register api handler to specify pattern
 func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
@@ -47,7 +47,7 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 	}
 
 	registeredAPIFuncHandler[pattern] = handler
-	APIs[pattern]="*"
+	APIs[pattern+"*"]=util.KV{Key: "*",Value: pattern}
 
 	log.Debugf("register custom http handler: %v", pattern)
 	mux.HandleFunc(pattern, handler)
@@ -74,7 +74,7 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	}
 
 	registeredAPIMethodHandler[m][pattern] = handler
-	APIs[pattern]=m
+	APIs[pattern+m]=util.KV{Key: m,Value: pattern}
 
 	log.Debugf("register http handler: %v %v", m, pattern)
 
