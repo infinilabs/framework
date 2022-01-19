@@ -173,10 +173,10 @@ func (module *DiskQueue) Setup(config *config.Config) {
 
 	module.cfg = &DiskQueueConfig{
 		UploadToS3:       false,
-		Retention: RetentionConfig{ MaxNumOfLocalFiles: 10},
+		Retention: 		  RetentionConfig{ MaxNumOfLocalFiles: 10},
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
-		MaxBytesPerFile:  1 * 1024 * 1024 * 1024, //1GB
+		MaxBytesPerFile:  200 * 1024 * 1024, //200MB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
