@@ -1,3 +1,6 @@
+/* ©INFINI, All Rights Reserved.
+ * mail: contact#infini.ltd */
+
 package queue
 
 import (
@@ -7,7 +10,9 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"os"
 	"path"
@@ -27,10 +32,18 @@ func (module *DiskQueue) Name() string {
 	return "disk_queue"
 }
 
+type RetentionConfig struct{
+		MaxNumOfLocalFiles int64  `config:"max_num_of_local_files"`
+		//DeleteAfterSaveToS3 bool `config:"delete_after_save_to_s3"`
+		//MaxAge int  	   `config:"max_age"`
+}
+
 //#  disk.max_used_bytes:  100GB #trigger warning message
 //#  disk.warning_free_bytes:  20GB #trigger warning message
 //#  disk.reserved_free_bytes: 10GB #enter readonly mode, no writes allowed
 type DiskQueueConfig struct {
+
+
 	MinMsgSize       int32   `config:"min_msg_size"`
 	MaxMsgSize       int32   `config:"max_msg_size"`
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
@@ -43,15 +56,51 @@ type DiskQueueConfig struct {
 	WarningFreeBytes   uint64   `config:"warning_free_bytes"`
 	ReservedFreeBytes   uint64   `config:"reserved_free_bytes"`
 
+
 	UploadToS3   bool   `config:"upload_to_s3"`
 
+	Retention RetentionConfig `config:"retention"`
+
 	S3 struct{
-		Sync   bool   `config:"sync"`
+		Async   bool   `config:"async"`
 		Server   string   `config:"server"`
 		Location   string   `config:"location"`
 		Bucket   string   `config:"bucket"`
 	}`config:"s3"`
 
+}
+
+const queueS3LastFileNum ="last_success_file_for_queue"
+
+func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
+	//send s3 upload signal
+	if module.cfg.UploadToS3{
+		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
+			fileName:= GetFileName(queueID,fileNum)
+			toFile:=util.TrimLeftStr(fileName,global.Env().GetDataDir())
+			var success=false
+			if module.cfg.S3.Async{
+				err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
+				if err==nil{
+					success=true
+				}
+			}else{
+				ok,err:=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
+				if err==nil&&ok{
+					success=true
+				}
+			}
+			//update last mark
+			if success{
+				err:=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(fileNum))
+				if err!=nil{
+					panic(err)
+				}
+			}
+		}else{
+			log.Errorf("invalid s3 config:%v",module.cfg.S3)
+		}
+	}
 }
 
 func (module *DiskQueue) Init(name string) error {
@@ -65,9 +114,11 @@ func (module *DiskQueue) Init(name string) error {
 
 	log.Debugf("init queue: %s", name)
 
-	dataPath := path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(name))
+	dataPath := GetDataPath(name)
 
-	os.MkdirAll(dataPath, 0755)
+	if !util.FileExists(dataPath){
+		os.MkdirAll(dataPath, 0755)
+	}
 
 	tempQueue := NewDiskQueueByConfig(name,dataPath,module.cfg)
 
@@ -76,10 +127,22 @@ func (module *DiskQueue) Init(name string) error {
 	return nil
 }
 
+func GetDataPath(queueID string)string  {
+	return path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(queueID))
+}
+
+func getQueueConfigPath() string {
+	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
+	return path.Join(global.Env().GetDataDir(),"queue","configs")
+}
+
+
+
 func (module *DiskQueue) Setup(config *config.Config) {
 
 	module.cfg = &DiskQueueConfig{
 		UploadToS3:       false,
+		Retention: RetentionConfig{ MaxNumOfLocalFiles: 10},
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
 		MaxBytesPerFile:  1 * 1024 * 1024 * 1024, //1GB
@@ -97,13 +160,91 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	}
 
 	module.queues=sync.Map{}
-	//load from metadata
-	//load from directory
+
+	//load configs from static config
+	configs := []queue.Config{}
+	ok, err = env.ParseConfig("queue", &configs)
+	if ok && err != nil {
+		panic(err)
+	}
+
+	for _,v:=range configs{
+		v.Source="file"
+		if v.Id==""{
+			v.Id=v.Name
+		}
+		queue.RegisterConfig(v.Name,&v)
+	}
+
+	//load configs from local metadata
+	if util.FileExists(getQueueConfigPath()){
+		data,err:=util.FileGetContent(getQueueConfigPath())
+		if err!=nil{
+			panic(err)
+		}
+
+		cfgs:=map[string]*queue.Config{}
+		err=util.FromJSONBytes(data,&cfgs)
+		if err!=nil{
+			panic(err)
+		}
+
+		for _,v:=range cfgs{
+			if v.Id==""{
+				v.Id=v.Name
+			}
+			queue.RegisterConfig(v.Name,v)
+		}
+	}
 
 
+	//load queue information from directory
+
+	//load configs from remote elasticsearch
 
 
-	module.RegisterAPI()
+	//register queue listener
+	queue.RegisterQueueConfigChangeListener(func() {
+		persistQueueMetadata()
+	})
+
+
+	RegisterEventListener(func(event Event) error {
+
+		log.Trace("received event: ",event)
+		switch event.Type {
+		case WriteComplete:
+
+			//TODO, convert to signal, move to async
+
+			//upload old file to s3
+			module.uploadToS3(event.Queue,event.FileNum)
+
+			//check capacity
+
+			//delete old unused files
+			module.deleteUnusedFiles(event.Queue,event.FileNum)
+
+			break
+		case ReadComplete:
+
+			//delete old unused files
+			module.deleteUnusedFiles(event.Queue,event.FileNum)
+
+			break;
+
+		}
+
+		return nil
+	})
+
+	////register consumer listener
+	//queue.RegisterConsumerConfigChangeListener(func(queueID string,configs map[string]*queue.ConsumerConfig) {
+	//	persistConsumerMetadata(queueID,configs)
+	//})
+
+	queue.Register("disk", module)
+	queue.RegisterDefaultHandler(module)
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
@@ -205,8 +346,21 @@ func (module *DiskQueue) GetQueues() []string {
 }
 
 func (module *DiskQueue) Start() error {
-	queue.Register("disk", module)
-	queue.RegisterDefaultHandler(module)
+
+	//load configs from local file
+	cfgs:=queue.GetAllConfigs()
+
+	if cfgs != nil && len(cfgs) > 0 {
+		for _, v := range cfgs {
+			if v.Id==""{
+				v.Id=v.Name
+			}
+			queue.IniQueue(v, v.Type)
+		}
+	}
+
+	module.RegisterAPI()
+
 	return nil
 }
 
@@ -222,5 +376,53 @@ func (module *DiskQueue) Stop() error {
 		}
 		return true
 	})
+
+	persistQueueMetadata()
+
 	return nil
+}
+
+func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
+	//check last uploaded mark
+	b,err:=kv.GetValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID))
+	if err!=nil{
+		panic(err)
+	}
+	lastFileNum:=util.BytesToInt64(b)
+	//check consumers offset
+	consumers,part,_:=queue.GetEarlierOffsetByQueueID(queueID)
+	fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
+	//no consumers or consumer/s3 already ahead of this file
+		if consumers==0||(fileStartToDelete<part&&fileStartToDelete<lastFileNum){
+			log.Trace("start to delete:",fileStartToDelete,",consumers:",consumers,",part:",part)
+			for x:=fileStartToDelete;x>=0;x--{
+				file:=GetFileName(queueID,x)
+				if util.FileExists(file){
+					log.Debug("delete queue file:",file)
+					err:=os.Remove(file)
+					if err!=nil{
+						panic(err)
+					}
+				}else{
+					//skip
+					break
+				}
+			}
+		}
+	}
+
+
+
+
+var persistentLocker sync.RWMutex
+func persistQueueMetadata()  {
+	persistentLocker.Lock()
+	defer persistentLocker.Unlock()
+
+	//persist configs to local store
+	bytes:=queue.GetAllConfigBytes()
+	_,err:=util.FilePutContentWithByte(getQueueConfigPath(),bytes)
+	if err!=nil{
+		panic(err)
+	}
 }

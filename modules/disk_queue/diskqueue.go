@@ -30,8 +30,8 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
 	"io"
@@ -99,7 +99,7 @@ type diskQueue struct {
 
 // NewDiskQueue instantiates a new instance of diskQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
-func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig)BackendQueue{
+func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQueue {
 	d := diskQueue{
 		name:              name,
 		dataPath:          dataPath,
@@ -132,44 +132,9 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig)BackendQueu
 	return &d
 }
 
-func NewDiskQueue(name string, dataPath string, maxBytesPerFile int64,
-	minMsgSize int32, maxMsgSize int32,
-	syncEvery int64, syncTimeout time.Duration, readBufferSize int, writeBufferSize int,maxUsedBytes,warningFreeBytes,reservedFreeBytes uint64) BackendQueue {
-	d := diskQueue{
-		name:              name,
-		dataPath:          dataPath,
-		//maxBytesPerFile:   maxBytesPerFile,
-		//minMsgSize:        minMsgSize,
-		//maxMsgSize:        maxMsgSize,
-		readChan:          make(chan []byte, readBufferSize),
-		depthChan:         make(chan int64),
-		writeChan:         make(chan []byte, writeBufferSize),
-		writeResponseChan: make(chan error),
-		emptyChan:         make(chan int),
-		emptyResponseChan: make(chan error),
-		exitChan:          make(chan int),
-		exitSyncChan:      make(chan int),
-		//syncEvery:         syncEvery,
-		//syncTimeout:       syncTimeout,
-
-		//maxUsedBytes:		maxUsedBytes,
-		//warningFreeBytes:	warningFreeBytes,
-		//reservedFreeBytes:	reservedFreeBytes,
-	}
-
-	// no need to lock here, nothing else could possibly be touching this instance
-	err := d.retrieveMetaData()
-	if err != nil && !os.IsNotExist(err) {
-		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
-	}
-
-	go d.ioLoop()
-	return &d
-}
-
 // Depth returns the depth of the queue
 func (d *diskQueue) ReadContext() Context {
-	ctx:=Context{}
+	ctx:= Context{}
 	//ctx.Depth=d.depth
 	ctx.WriteFileNum=d.writeFileNum
 	//ctx.MaxLength=d.maxBytesPerFileRead
@@ -291,6 +256,7 @@ func (d *diskQueue) deleteAllFiles() error {
 	return err
 }
 
+//删除中间的错误文件，跳转到最后一个可写文件
 func (d *diskQueue) skipToNextRWFile() error {
 	var err error
 
@@ -338,6 +304,11 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 		//TODO if the file was compressed, decompress it first, and decompress few files ahead, keep # files decompressed
 		//fmt.Println("opening file:",curFileName)
+
+		if !util.FileExists(curFileName){
+			//log.Error("file not exists:",curFileName)
+			return nil, errors.Errorf("file [%v] not exists",curFileName)
+		}
 
 		d.readFile, err = os.OpenFile(curFileName, os.O_RDONLY, 0600)
 		if err != nil {
@@ -418,8 +389,6 @@ func (d *diskQueue) readOne() ([]byte, error) {
 	return readBuf, nil
 }
 
-
-
 // writeOne performs a low level filesystem write for a single []byte
 // while advancing write positions and rolling files, if necessary
 func (d *diskQueue) writeOne(data []byte) error {
@@ -484,22 +453,11 @@ func (d *diskQueue) writeOne(data []byte) error {
 		//checking file list and compress file
 		//如果已有多少个文件未压缩，则新文件默认则压缩存储
 
+		//move to outside
 		d.checkCapacity()
 
-		//send s3 upload signal
-		if d.cfg.UploadToS3{
-			if d.cfg.S3.Server!=""&&d.cfg.S3.Bucket!=""{
-				fileName:=d.GetFileName(d.writeFileNum)
-				toFile:=util.TrimLeftStr(fileName,global.Env().GetDataDir())
-				if d.cfg.S3.Sync{
-					s3.SyncUpload(fileName,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,toFile)
-				}else{
-					s3.AsyncUpload(fileName,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,toFile)
-				}
-			}else{
-				log.Errorf("invalid s3 config:%v",d.cfg.S3)
-			}
-		}
+		//notify listener that we are writing to a new file
+		Notify(d.name, WriteComplete,d.writeFileNum)
 
 		d.writeFileNum++
 		d.writePos = 0
@@ -614,7 +572,7 @@ func (d *diskQueue) persistMetaData() error {
 	f.Close()
 
 	// atomically rename
-	return atomicRename(tmpFileName, fileName)
+	return util.AtomicFileRename(tmpFileName, fileName)
 }
 
 func (d *diskQueue) metaDataFileName() string {
@@ -622,7 +580,11 @@ func (d *diskQueue) metaDataFileName() string {
 }
 
 func (d *diskQueue) GetFileName(fileNum int64) string {
-	return fmt.Sprintf(path.Join(d.dataPath, "%s.diskqueue.%06d.dat"), d.name, fileNum)
+	return GetFileName(d.name,fileNum)
+}
+
+func GetFileName(queueID string,fileNum int64) string {
+	return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.diskqueue.%06d.dat",queueID , fileNum))
 }
 
 func (d *diskQueue) checkTailCorruption(depth int64) {
@@ -665,7 +627,7 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 	}
 }
 
-func (d *diskQueue) moveForward() {
+func (d *diskQueue) readMoveForward() {
 	oldReadFileNum := d.readFileNum
 	d.readFileNum = d.nextReadFileNum
 	d.readPos = d.nextReadPos
@@ -676,10 +638,13 @@ func (d *diskQueue) moveForward() {
 		// sync every time we start reading from a new file
 		d.needSync = true
 
-		fn := d.GetFileName(oldReadFileNum)
-		err := os.Remove(fn)
-		if err != nil {
-			log.Errorf("failed to Remove(%s) - %s", fn, err)
+		consumers,ok:=queue.GetConsumerConfigsByQueueID(d.name)
+		if !ok||len(consumers)==0{
+			fn := d.GetFileName(oldReadFileNum)
+			err := os.Remove(fn)
+			if err != nil {
+				log.Errorf("failed to Remove(%s) - %s", fn, err)
+			}
 		}
 	}
 
@@ -700,17 +665,20 @@ func (d *diskQueue) handleReadError() {
 	}
 
 	badFn := d.GetFileName(d.readFileNum)
-	badRenameFn := badFn + ".bad"
 
-	log.Infof(
-		"diskqueue(%s) jump to next file and saving bad file as %s",
-		d.name, badRenameFn)
+	if util.FileExists(badFn){
 
-	err := atomicRename(badFn, badRenameFn)
-	if err != nil {
-		log.Errorf(
-			"diskqueue(%s) failed to rename bad diskqueue file %s to %s",
-			d.name, badFn, badRenameFn)
+		badRenameFn := badFn + ".bad"
+		log.Infof(
+			"diskqueue(%s) jump to next file and saving bad file as %s",
+			d.name, badRenameFn)
+
+		err := util.AtomicFileRename(badFn, badRenameFn)
+		if err != nil {
+			log.Errorf(
+				"diskqueue(%s) failed to rename bad diskqueue file %s to %s",
+				d.name, badFn, badRenameFn)
+		}
 	}
 
 	d.readFileNum++
@@ -751,7 +719,6 @@ func (d *diskQueue) ioLoop() {
 			}
 			count = 0
 		}
-
 		if (d.readFileNum < d.writeFileNum) || (d.readPos < d.writePos) {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
@@ -772,8 +739,8 @@ func (d *diskQueue) ioLoop() {
 		// in a select are skipped, we set r to d.readChan only when there is data to read
 		case r <- dataRead:
 			count++
-			// moveForward sets needSync flag if a file is removed
-			d.moveForward()
+			// readMoveForward sets needSync flag if a file is removed
+			d.readMoveForward()
 		case d.depthChan <- d.depth:
 		case <-d.emptyChan:
 			d.emptyResponseChan <- d.deleteAllFiles()

@@ -1,18 +1,5 @@
-/*
-Copyright 2016 Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/* ©INFINI, All Rights Reserved.
+ * mail: contact#infini.ltd */
 
 package queue
 
@@ -25,6 +12,7 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"strings"
 	"sync"
 	"time"
 )
@@ -201,7 +189,6 @@ func GetConsumerConfig(queueID,group,name string) (*ConsumerConfig, bool) {
 	return nil, false
 }
 
-
 func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
 	cfg,exists:=GetConsumerConfig(queueID,group,name)
 	if !exists{
@@ -214,7 +201,6 @@ func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
 	}
 	return cfg
 }
-
 
 func IsConfigExists(key string) bool {
 	cfgLock.Lock()
@@ -273,7 +259,6 @@ func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bo
 
 	return nil, false
 }
-
 
 func GetConsumerConfigID(queueID,consumerID string) (*ConsumerConfig, bool) {
 	m,ok:=GetConsumerConfigsByQueueID(queueID)
@@ -396,10 +381,52 @@ func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
 	return fmt.Sprintf("%v-%v",k.Id,consumer.Group)
 }
 
-const bucket ="queue_consumer_commit_offset"
+const consumerOffsetBucket ="queue_consumer_commit_offset"
+
+func GetEarlierOffsetByQueueID(queueID string) (consumerSize int,part int64,pos int64) {
+	q,ok:=GetConfigByUUID(queueID)
+	if !ok{
+		panic(errors.Errorf("queue [%v] was not found",queueID))
+	}
+	consumers,ok:=GetConsumerConfigsByQueueID(queueID)
+	if !ok{
+		return 0,0,0
+	}
+	var iPart int64
+	var iPos int64
+	var init =true
+	for _,v:=range consumers{
+		offset,err:=GetOffset(q,v)
+		if err==nil{
+			str:=strings.Split(offset,",")
+			if len(str)==2{
+				part,err:= util.ToInt64(str[0])
+				if err==nil{
+					pos,err:= util.ToInt64(str[1])
+					if err==nil{
+						if init{
+							iPart=part
+							iPos = pos
+							init=false
+						}else{
+							if pos < iPos {
+								iPos = pos
+							}
+							if part<iPart{
+								iPart=part
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return len(consumers),iPart, iPos
+}
+
 func GetOffset(k *Config, consumer *ConsumerConfig) (string,error) {
 
-	bytes,err:=kv.GetValue(bucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)))
+	bytes,err:=kv.GetValue(consumerOffsetBucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)))
 	if err!=nil{
 		log.Error(err)
 	}
@@ -417,7 +444,7 @@ func CommitOffset(k *Config, consumer *ConsumerConfig, offset string)(bool,error
 		log.Tracef("queue [%v] [%v][%v] commit offset:%v",k.Id,consumer.Group,consumer.Name,offset)
 	}
 
-	err:=kv.AddValue(bucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)),[]byte(offset))
+	err:=kv.AddValue(consumerOffsetBucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)),[]byte(offset))
 	if err!=nil{
 		return false, err
 	}

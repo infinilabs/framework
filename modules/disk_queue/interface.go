@@ -1,8 +1,12 @@
+/* ©INFINI, All Rights Reserved.
+ * mail: contact#infini.ltd */
+
 package queue
 
 import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/lib/bytebufferpool"
+	"sync"
 	"time"
 )
 
@@ -27,7 +31,7 @@ type Message struct {
 }
 
 type Context struct {
-	Metadata       map[string]interface{} `json:"metadata"`
+	//Metadata       map[string]interface{} `json:"metadata"`
 
 	WriteFile           string             `json:"write_file_path"`
 
@@ -37,9 +41,45 @@ type Context struct {
 	//MinFileNum        int64               `json:"min_file_num"`
 	WriteFileNum        int64             `json:"write_file_num"`
 	//NextReadOffset int64                  `json:"next_read_offset"`
-	MaxLength      int64                  `json:"max_length"`
+	//MaxLength      int64                  `json:"max_length"`
 }
 
 //func AcquireMessage()*Message  {
 //
 //}
+
+type EventType string
+
+const WriteComplete = EventType("WriteComplete")
+const ReadComplete = EventType("ReadComplete")
+
+type Event struct {
+	Queue   string
+	Type    EventType
+	FileNum int64
+}
+
+type EventHandler func(event Event)error
+
+var handlers =[]EventHandler{}
+var locker =sync.RWMutex{}
+
+func RegisterEventListener(handler EventHandler){
+	locker.Lock()
+	defer locker.Unlock()
+	handlers =append(handlers,handler)
+}
+
+func Notify(queue string, eventType EventType,fileNum int64)  {
+	locker.Lock()
+	defer locker.Unlock()
+	event:= Event{
+		Queue: queue,
+		Type: eventType,
+		FileNum: fileNum,
+	}
+
+	for _,v:=range handlers {
+		v(event)
+	}
+}

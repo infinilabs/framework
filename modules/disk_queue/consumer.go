@@ -1,15 +1,14 @@
-/* Copyright © INFINI Ltd. All rights reserved.
- * web: https://infinilabs.com
- * mail: hello#infini.ltd */
+/* ©INFINI, All Rights Reserved.
+ * mail: contact#infini.ltd */
 
 package queue
 
 import (
 	"bufio"
 	"encoding/binary"
-	"infini.sh/framework/core/errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	io "io"
@@ -30,8 +29,6 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	}()
 
 	RELOCATE_FILE:
-
-
 
 	log.Tracef("[%v] consumer[%v] %v,%v, fetch count:%v",d.dataPath,consumer,part,readPos,messageCount)
 	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
@@ -78,6 +75,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 			nextFile:=d.GetFileName(part+1)
 			if util.FileExists(nextFile){
 				log.Debug("EOF, continue read:",nextFile)
+
+				Notify(d.name, ReadComplete,part)
+
 				part=part+1
 				readPos=0
 				if readFile!=nil{

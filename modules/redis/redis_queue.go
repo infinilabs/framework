@@ -1,7 +1,7 @@
 /* ©INFINI, All Rights Reserved.
  * mail: contact#infini.ltd */
 
-package queue
+package redis
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 )
 
 type RedisModule struct {
-	client  *redis.Client
+	client *redis.Client
 	config RedisConfig
 }
 
