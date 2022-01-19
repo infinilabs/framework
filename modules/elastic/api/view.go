@@ -121,8 +121,7 @@ func (h *APIHandler) HandleDeleteViewAction(w http.ResponseWriter, req *http.Req
 	resBody := map[string]interface{}{
 	}
 
-	//targetClusterID := ps.ByName("id")
-	viewID := ps.ByName("viewID")
+	viewID := ps.ByName("view_id")
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
@@ -312,7 +311,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	id := ps.ByName("viewID")
+	id := ps.ByName("view_id")
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	viewReq.Attributes.UpdatedAt = time.Now()
 	viewReq.Attributes.ClusterID = targetClusterID
