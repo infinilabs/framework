@@ -466,6 +466,19 @@ func Depth(k *Config) int64 {
 	panic(errors.New("handler is not registered"))
 }
 
+func LatestOffset(k *Config) string {
+	if k==nil||k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+
+	handler := getHandler(k.Id)
+	if handler != nil {
+		o := handler.LatestOffset(k.Id)
+		return o
+	}
+	panic(errors.New("handler is not registered"))
+}
+
 func GetQueues() map[string][]string {
 	results := map[string][]string{}
 	for q, handler := range adapters {

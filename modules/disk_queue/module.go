@@ -72,30 +72,61 @@ type DiskQueueConfig struct {
 
 const queueS3LastFileNum ="last_success_file_for_queue"
 
+func GetLastS3UploadFileNum(queueID string)int64  {
+	b,err:=kv.GetValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID))
+	if err!=nil{
+		panic(err)
+	}
+	if b==nil||len(b)==0{
+		return -1
+	}
+	//log.Errorf("bytes to int64: %v",b)
+	return util.BytesToInt64(b)
+}
+
+var s3uploaderLocker sync.RWMutex
 func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
+	//TODO move to channel, async
+	s3uploaderLocker.Lock()
+	defer s3uploaderLocker.Unlock()
+
 	//send s3 upload signal
 	if module.cfg.UploadToS3{
+
+		//skip uploaded file
+		lastFileNum:=GetLastS3UploadFileNum(queueID)
+		log.Errorf("lastupload:%v, fileNum:%v",lastFileNum, fileNum)
+		if fileNum<lastFileNum{
+			//skip old queue file, no need to upload
+			return
+		}
+
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
 			fileName:= GetFileName(queueID,fileNum)
 			toFile:=util.TrimLeftStr(fileName,global.Env().GetDataDir())
 			var success=false
+			var err error
 			if module.cfg.S3.Async{
 				err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
 				if err==nil{
 					success=true
 				}
 			}else{
-				ok,err:=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
+				var ok bool
+				ok,err=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
 				if err==nil&&ok{
 					success=true
 				}
 			}
 			//update last mark
 			if success{
-				err:=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(fileNum))
+				err=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(fileNum))
 				if err!=nil{
 					panic(err)
 				}
+				log.Debugf("queue [%v][%v] uploaded to s3",queueID,fileNum)
+			}else{
+				log.Debugf("failed to upload queue [%v][%v] to s3, %v",queueID,fileNum,err)
 			}
 		}else{
 			log.Errorf("invalid s3 config:%v",module.cfg.S3)
@@ -288,18 +319,23 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
+func ConvertOffset(offsetStr string) (int64,int64) {
+	data:=strings.Split(offsetStr,",")
+	if len(data)!=2{
+		panic(errors.Errorf("invalid offset: %v",offsetStr))
+	}
+	var part,offset int64
+	part,_=util.ToInt64(data[0])
+	offset,_=util.ToInt64(data[1])
+	return part,offset
+}
+
 func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
 
 	module.Init(queueName)
 	q,ok:=module.queues.Load(queueName)
 	if ok{
-		data:=strings.Split(offsetStr,",")
-		if len(data)!=2{
-			panic(errors.Errorf("invalid offset: %v",offsetStr))
-		}
-		var part,offset int64
-		part,_=util.ToInt64(data[0])
-		offset,_=util.ToInt64(data[1])
+		part,offset:=ConvertOffset(offsetStr)
 		q1:=(*q.(*BackendQueue))
 		ctx,messages,timeout,err:=q1.Consume(consumer,part,offset,count, timeDuration)
 		return ctx,messages,timeout,err
@@ -361,6 +397,22 @@ func (module *DiskQueue) Start() error {
 
 	module.RegisterAPI()
 
+	//trigger s3 uploading
+	//from lastUpload to current WrtieFile
+	for _, v := range cfgs {
+		last:=GetLastS3UploadFileNum(v.Id)
+		offsetStr:=queue.LatestOffset(v)
+		part,_:=ConvertOffset(offsetStr)
+		log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr,part,last)
+		if part>last{
+			for x:=last;x<part;x++{
+				if x>=0{
+					log.Tracef("upload %v/%v",v.Id,x)
+					module.uploadToS3(v.Id,x)
+				}
+			}
+		}
+	}
 	return nil
 }
 

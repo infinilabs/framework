@@ -57,7 +57,7 @@ func (uploader *S3Uploader) AsyncUpload(filePath,location,bucketName,objectName 
 
 func (uploader *S3Uploader) SyncUpload(filePath,location,bucketName,objectName string) (bool,error){
 
-	log.Debugf("s3 upload file:%v to: %v",filePath,objectName)
+	log.Tracef("s3 uploading file:%v to: %v",filePath,objectName)
 
 	log.Tracef("s3 server [%v] is online:%v\n", uploader.minioClient.EndpointURL(),uploader.minioClient.IsOnline())
 

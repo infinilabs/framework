@@ -197,7 +197,9 @@ func (module *PipeModule) Start() error {
 					switch state {
 					case pipeline.STARTING:
 					RESTART:
-						log.Debugf("pipeline [%v] start running",cfg.Name)
+						if global.Env().IsDebug{
+							log.Debugf("pipeline [%v] start running",cfg.Name)
+						}
 						ctx.Started()
 						err = p.Process(ctx)
 
