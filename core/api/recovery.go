@@ -1,11 +1,13 @@
 package api
 
 import (
-	"infini.sh/framework/core/util"
 	log "github.com/cihub/seelog"
-	"net/http"
-	"runtime/debug"
 	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
+	"net/http"
+	"runtime"
+	"runtime/debug"
 )
 
 type recoveryHandler struct {
@@ -47,18 +49,35 @@ func PrintRecoveryStack(print bool) RecoveryOption {
 
 func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
-		if err := recover(); err != nil {
+		if r := recover(); r != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+
+			var v string
+			switch r.(type) {
+			case error:
+				v = r.(error).Error()
+			case runtime.Error:
+				v = r.(runtime.Error).Error()
+			case string:
+				v = r.(string)
+			}
+
 			var payload = util.MapStr{
-				"error": err,
-				"stack": string(debug.Stack()) ,
+				"error": util.MapStr{
+					"status":http.StatusInternalServerError,
+					"reason":v,
+					"root_cause":string(debug.Stack()),
+				},
 			}
 			payloadBytes, jerr := json.Marshal(payload)
 			if jerr != nil {
 				log.Error(jerr)
 			}
 			w.Write(payloadBytes)
-			h.log(err)
+
+			if global.Env().IsDebug{
+				h.log(v)
+			}
 		}
 	}()
 

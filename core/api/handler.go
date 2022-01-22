@@ -17,9 +17,9 @@ limitations under the License.
 package api
 
 import (
-	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
 	"github.com/jmoiron/jsonq"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -139,13 +139,14 @@ func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v
 	return handler.WriteJSON(w, result, statusCode)
 }
 
-// WriteJSON output signal result with json format
-func (handler Handler) WriteJSONErrorResult(w http.ResponseWriter, msg interface{}, statusCode int) error {
-	err:=util.MapStr{
-		"message":msg,
-		"status":statusCode,
+func (handler Handler) WriteError(w http.ResponseWriter,  errMessage string, statusCode int) error {
+	err1:=util.MapStr{
+		"error": util.MapStr{
+			"status":statusCode,
+			"reason":errMessage,
+		},
 	}
-	return handler.WriteJSON(w,err,statusCode)
+	return handler.WriteJSON(w,err1,statusCode)
 }
 
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
