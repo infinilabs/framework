@@ -24,7 +24,7 @@ import (
 type ORM interface {
 	RegisterSchema(t interface{}) error
 
-	RegisterSchemaWithIndexName(t interface{},indexName string) error
+	RegisterSchemaWithIndexName(t interface{}, indexName string) error
 
 	GetIndexName(o interface{}) string
 
@@ -34,16 +34,22 @@ type ORM interface {
 
 	Delete(o interface{}) error
 
-	Search(t interface{}, to interface{}, q *Query) (error, Result)
+	Search(o interface{}, q *Query) (error, Result)
 
 	Get(o interface{}) error
 
-	GetBy(field string, value interface{}, t interface{}, to interface{}) (error, Result)
+	GetBy(field string, value interface{}, o interface{}) (error, Result)
 
 	Count(o interface{}) (int64, error)
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 }
+////include to each object, parent not supported
+//type BaseObject struct {
+//	Id      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id,: { type: keyword }"`
+//	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
+//	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+//}
 
 type Sort struct {
 	Field    string
@@ -164,12 +170,17 @@ func And(conds ...*Cond) []*Cond {
 
 type Result struct {
 	Total  int64
+	Raw []byte
 	Result interface{}
 }
 
-func GetBy(field string, value interface{}, t interface{}, to interface{}) (error, Result) {
+func Get(t interface{}) error {
+	return getHandler().Get(t)
+}
 
-	return getHandler().GetBy(field, value, t, to)
+func GetBy(field string, value interface{}, t interface{}) (error, Result) {
+
+	return getHandler().GetBy(field, value, t)
 }
 
 func GetIndexName(o interface{}) string {
@@ -193,16 +204,16 @@ func Count(o interface{}) (int64, error) {
 	return getHandler().Count(o)
 }
 
-func Search(t interface{}, to interface{}, q *Query) (error, Result) {
-	return getHandler().Search(t, to, q)
+func Search(o interface{},q *Query) (error, Result) {
+	return getHandler().Search(o, q)
 }
 
 func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
 
-func RegisterSchemaWithIndexName(t interface{},index string) error {
-	return getHandler().RegisterSchemaWithIndexName(t,index)
+func RegisterSchemaWithIndexName(t interface{}, index string) error {
+	return getHandler().RegisterSchemaWithIndexName(t, index)
 }
 
 func RegisterSchema(t interface{}) error {

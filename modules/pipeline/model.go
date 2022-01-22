@@ -49,7 +49,8 @@ func GetPipelineList(from, size int) (int64, []pipeline.PipelineConfig, error) {
 
 	query := orm.Query{From: from, Size: size}
 
-	err, r := orm.Search(pipeline.PipelineConfig{}, &configs, &query)
+	err, r := orm.Search(pipeline.PipelineConfig{}, &query)
+	//TODO configs,
 	if r.Result != nil && configs == nil || len(configs) == 0 {
 		convertPipeline(r, &configs)
 	}

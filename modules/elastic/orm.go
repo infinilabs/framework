@@ -16,31 +16,41 @@ type ElasticORM struct {
 }
 
 func (handler ElasticORM) GetIndexName(o interface{}) string {
-	indexName:=getIndexName(o)
+	indexName := getIndexName(o)
 
-	if handler.Config.IndexPrefix==""{
+	if handler.Config.IndexPrefix == "" {
 		return indexName
 	}
-	return fmt.Sprintf("%s%s",handler.Config.IndexPrefix,indexName)
+	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler ElasticORM) Get(o interface{}) error {
+func (handler ElasticORM) Get(o interface{}) (error) {
 
-	response, err := handler.Client.Get(handler.GetIndexName(o),"", getIndexID(o))
+	id:=getIndexID(o)
+	if id==""{
+		panic(errors.Errorf("id was not found in object: %v",o))
+	}
+
+	response, err := handler.Client.Get(handler.GetIndexName(o), "_doc", getIndexID(o))
 	if err != nil {
 		return err
 	}
 
-	//TODO improve performance
-	str := util.ToJson(response.Source, false)
-	return util.FromJson(str, o)
+	str,err:=response.GetBytesByJsonPath("_source")
+	if err != nil {
+		return err
+	}
+
+	err= util.FromJSONBytes(str, o)
+
+	return err
 }
 
-func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}, to interface{}) (error, api.Result) {
+func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}) (error, api.Result) {
 
 	query := api.Query{}
 	query.Conds = api.And(api.Eq(field, value))
-	return handler.Search(t, to, &query)
+	return handler.Search(t, &query)
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
@@ -92,7 +102,7 @@ func getQuery(c1 *api.Cond) interface{} {
 	panic(errors.Errorf("invalid query: %s", c1))
 }
 
-func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (error, api.Result) {
+func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result) {
 
 	var err error
 
@@ -149,12 +159,14 @@ func (handler ElasticORM) Search(t interface{}, to interface{}, q *api.Query) (e
 
 	var array []interface{}
 
+	//TODO remove
 	for _, doc := range searchResponse.Hits.Hits {
 		array = append(array, doc.Source)
 	}
 
 	result.Result = array
-	result.Total = searchResponse.GetTotal()
+	result.Raw =   searchResponse.RawResult.Body
+	result.Total = searchResponse.GetTotal()  //TODO improve performance
 
 	return err, result
 }
