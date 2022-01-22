@@ -93,7 +93,7 @@ func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 			return uDec, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil,nil
 }
 
 func (store ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
