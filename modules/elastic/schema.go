@@ -19,6 +19,7 @@ package elastic
 import (
 	"bytes"
 	"fmt"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
@@ -133,12 +134,19 @@ func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName st
 
 		log.Trace("mapping: ", json)
 
-		_, err = handler.Client.UpdateMapping(indexName, []byte(json))
+		data, err := handler.Client.UpdateMapping(indexName, []byte(json))
 		if err != nil {
 			panic(err)
 		}
 
-		log.Debugf("schema %v successful initialized", indexName)
+		x,_,_,_:= jsonparser.Get(data,"error")
+		if x!=nil{
+			log.Errorf("error on update mapping: %v",string(x))
+		}else{
+			log.Debugf("schema %v successful initialized", indexName)
+		}
+
+
 
 	}
 
