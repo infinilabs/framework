@@ -275,6 +275,7 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	}
 
 	esResp.StatusCode = resp.StatusCode
+	esResp.RawResult=resp
 
 	if global.Env().IsDebug {
 		log.Trace("get response: ", string(resp.Body))
@@ -311,6 +312,7 @@ func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*ela
 
 	esResp := &elastic.DeleteResponse{}
 	esResp.StatusCode = resp.StatusCode
+	esResp.RawResult=resp
 
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
@@ -379,6 +381,7 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 	resp, err := c.Request(util.Verb_POST, url, queryDSL)
 	if resp != nil {
 		esResp.StatusCode = resp.StatusCode
+		esResp.RawResult=resp
 		esResp.ErrorObject = err
 	}
 
@@ -436,12 +439,14 @@ func (c *ESAPIV0) GetNodesStats(node string) *elastic.NodesStats {
 		} else {
 			obj.StatusCode = 500
 		}
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
+		obj.RawResult=resp
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
 		return obj
@@ -463,12 +468,14 @@ func (c *ESAPIV0) GetIndicesStats() *elastic.IndicesStats {
 		} else {
 			obj.StatusCode = 500
 		}
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
+		obj.RawResult=resp
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
 		return obj
@@ -492,6 +499,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 		} else {
 			obj.StatusCode = 500
 		}
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj,err
 	}
@@ -499,6 +507,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj,err
 	}
@@ -523,6 +532,7 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 		} else {
 			obj.StatusCode = 500
 		}
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj,err
 	}
@@ -541,6 +551,7 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
+		obj.RawResult=resp
 		obj.ErrorObject = err
 		return obj,err
 	}
@@ -557,6 +568,7 @@ func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 
 	if resp != nil {
 		health.StatusCode = resp.StatusCode
+		health.RawResult=resp
 	} else {
 		health.StatusCode = 500
 	}
@@ -570,6 +582,7 @@ func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 
 	if err != nil {
 		health.StatusCode = resp.StatusCode
+		health.RawResult=resp
 		health.ErrorObject = err
 		return health,err
 	}

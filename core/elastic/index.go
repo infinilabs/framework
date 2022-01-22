@@ -1,8 +1,11 @@
 package elastic
 
 import (
+	"errors"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
+	"github.com/buger/jsonparser"
+	"strings"
 	"time"
 )
 
@@ -161,8 +164,45 @@ type AggregationResponse struct {
 }
 
 type ResponseBase struct {
+	RawResult 		*util.Result  `json:"-"`
 	StatusCode  int   `json:"-"`
 	ErrorObject error `json:"-"`
+}
+
+func (this *ResponseBase)GetIntByJsonPath(path string) (interface{},error) {
+	if this.RawResult.Body!=nil{
+		pathArray:=strings.Split(path,".")
+		v,err:=jsonparser.GetInt(this.RawResult.Body,pathArray...)
+		return v,err
+	}
+	return nil,errors.New("nil body")
+}
+
+func (this *ResponseBase)GetBytesByJsonPath(path string) ([]byte,error) {
+	if this.RawResult.Body!=nil{
+		pathArray:=strings.Split(path,".")
+		v,_,_,err:=jsonparser.Get(this.RawResult.Body,pathArray...)
+		return v,err
+	}
+	return nil,errors.New("nil body")
+}
+
+func (this *ResponseBase)GetStringByJsonPath(path string) (interface{},error) {
+	if this.RawResult.Body!=nil{
+		pathArray:=strings.Split(path,".")
+		v,err:=jsonparser.GetString(this.RawResult.Body,pathArray...)
+		return v,err
+	}
+	return nil,errors.New("nil body")
+}
+
+func (this *ResponseBase)GetBoolByJsonPath(path string) (interface{},error) {
+	if this.RawResult.Body!=nil{
+		pathArray:=strings.Split(path,".")
+		v,err:=jsonparser.GetBoolean(this.RawResult.Body,pathArray...)
+		return v,err
+	}
+	return nil,errors.New("nil body")
 }
 
 // InsertResponse is a index response object

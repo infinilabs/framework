@@ -109,6 +109,7 @@ func (c *ESAPIV7) Delete(indexName,docType, id string, refresh ...string) (*elas
 
 	esResp := &elastic.DeleteResponse{}
 	esResp.StatusCode=resp.StatusCode
+	esResp.RawResult=resp
 	err = json.Unmarshal(resp.Body, esResp)
 
 	if err != nil {
@@ -129,12 +130,15 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
+
 	esResp := &elastic.GetResponse{}
 	if err != nil {
 		return nil, err
 	}
 
 	esResp.StatusCode=resp.StatusCode
+	esResp.RawResult=resp
+
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
 		return esResp, err
