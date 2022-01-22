@@ -18,6 +18,7 @@ package util
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -135,7 +136,8 @@ func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) st
 		}
 	}
 
-	panic(errors.New("tag was not found"))
+	//TODO handle property in parent/inner objects
+	panic(fmt.Errorf("tag [%v][%v] was not found",tagName,tagValue))
 }
 
 func GetTypeName(any interface{}, lowercase bool) string {
