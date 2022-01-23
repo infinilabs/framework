@@ -122,36 +122,61 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) string {
 
 	t := reflect.TypeOf(any)
+	v := reflect.ValueOf(any)
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+		v = v.Elem()
+	}
+
 	if PrefixStr(t.String(), "*") {
 		t = reflect.TypeOf(any).Elem()
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		v := field.Tag.Get(tagName)
-		if v != "" {
-			if v == tagValue {
-				return reflect.Indirect(reflect.ValueOf(any)).FieldByName(field.Name).String()
+	for i := 0; i < v.NumField(); i++ {
+		switch v.Field(i).Kind() {
+		case reflect.Struct:
+			//判断是否是嵌套结构
+			if v.Field(i).Type().Kind() == reflect.Struct {
+				structField := v.Field(i).Type()
+				for j := 0; j < structField.NumField(); j++ {
+					v := structField.Field(i).Tag.Get(tagName)
+					if v != "" {
+						if ContainTags(tagValue, v) {
+							return reflect.Indirect(reflect.ValueOf(any)).FieldByName(structField.Field(i).Name).String()
+						}
+					}
+				}
+				continue
 			}
+			break
+		case reflect.String:
+			v := t.Field(i).Tag.Get(tagName)
+			if v != "" {
+				if ContainTags(tagValue, v) {
+					return reflect.Indirect(reflect.ValueOf(any)).FieldByName(t.Field(i).Name).String()
+				}
+			}
+			break
 		}
 	}
 
 	//TODO handle property in parent/inner objects
-	panic(fmt.Errorf("tag [%v][%v] was not found",tagName,tagValue))
+	panic(fmt.Errorf("tag [%v][%v] was not found", tagName, tagValue))
 }
 
 func GetTypeName(any interface{}, lowercase bool) string {
-	_,t:=GetTypeAndPackageName(any,lowercase)
+	_, t := GetTypeAndPackageName(any, lowercase)
 	return t
 }
 
-func GetTypeAndPackageName(any interface{}, lowercase bool) (string,string) {
+func GetTypeAndPackageName(any interface{}, lowercase bool) (string, string) {
 	pkg := reflect.Indirect(reflect.ValueOf(any)).Type().PkgPath()
 	name := reflect.Indirect(reflect.ValueOf(any)).Type().Name()
 	if lowercase {
 		name = strings.ToLower(name)
 	}
-	return pkg,name
+	return pkg, name
 }
 
 func TypeIsMap(any interface{}) bool {
@@ -187,4 +212,16 @@ func GetInt64Value(any interface{}) int64 {
 		return y
 	}
 	return -1
+}
+
+func ContainTags(tag string, tags string) bool {
+	if strings.Contains(tags, ",") {
+		arr := strings.Split(tags, ",")
+		for _, v := range arr {
+			if v == tag {
+				return true
+			}
+		}
+	}
+	return tag == tags
 }

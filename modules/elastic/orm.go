@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 )
 
-
 type ElasticORM struct {
 	Client elastic.API
 	Config common.ORMConfig
@@ -24,11 +23,11 @@ func (handler ElasticORM) GetIndexName(o interface{}) string {
 	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler ElasticORM) Get(o interface{}) (error) {
+func (handler ElasticORM) Get(o interface{}) error {
 
-	id:=getIndexID(o)
-	if id==""{
-		panic(errors.Errorf("id was not found in object: %v",o))
+	id := getIndexID(o)
+	if id == "" {
+		panic(errors.Errorf("id was not found in object: %v", o))
 	}
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "_doc", getIndexID(o))
@@ -36,12 +35,12 @@ func (handler ElasticORM) Get(o interface{}) (error) {
 		return err
 	}
 
-	str,err:=response.GetBytesByJsonPath("_source")
+	str, err := response.GetBytesByJsonPath("_source")
 	if err != nil {
 		return err
 	}
 
-	err= util.FromJSONBytes(str, o)
+	err = util.FromJSONBytes(str, o)
 
 	return err
 }
@@ -165,8 +164,8 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	}
 
 	result.Result = array
-	result.Raw =   searchResponse.RawResult.Body
-	result.Total = searchResponse.GetTotal()  //TODO improve performance
+	result.Raw = searchResponse.RawResult.Body
+	result.Total = searchResponse.GetTotal() //TODO improve performance
 
 	return err, result
 }

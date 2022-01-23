@@ -19,6 +19,9 @@ package orm
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
+	"reflect"
+	"time"
 )
 
 type ORM interface {
@@ -44,12 +47,12 @@ type ORM interface {
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 }
-////include to each object, parent not supported
-//type BaseObject struct {
-//	Id      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id,: { type: keyword }"`
-//	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
-//	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
-//}
+
+type ORMObjectBase struct {
+	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id,: { type: keyword }"`
+	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
+	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+}
 
 type Sort struct {
 	Field    string
@@ -170,12 +173,20 @@ func And(conds ...*Cond) []*Cond {
 
 type Result struct {
 	Total  int64
-	Raw []byte
+	Raw    []byte
 	Result interface{}
 }
 
-func Get(t interface{}) error {
-	return getHandler().Get(t)
+func Get(o interface{}) error {
+	rValue := reflect.ValueOf(o)
+
+	//check required value
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	if !idExists {
+		return errors.New("id was not found")
+	}
+
+	return getHandler().Get(o)
 }
 
 func GetBy(field string, value interface{}, t interface{}) (error, Result) {
@@ -187,13 +198,90 @@ func GetIndexName(o interface{}) string {
 	return getHandler().GetIndexName(o)
 }
 
+func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
+
+	if rValue.Kind() == reflect.Ptr {
+		rValue = reflect.Indirect(rValue)
+	}
+
+	f := rValue.FieldByName(fieldName)
+
+	if f.IsValid() && f.String() != "" {
+		return true, f.String()
+	}
+	return false, ""
+}
+
+func setFieldValue(v reflect.Value, param string, value interface{}) {
+
+	if v.Kind() == reflect.Ptr {
+		v = reflect.Indirect(v)
+	}
+
+	f := v.FieldByName(param)
+	if f.IsValid() {
+		if f.CanSet() {
+			if f.Kind() == reflect.String {
+				f.SetString(value.(string))
+				return
+			} else if f.Kind() == reflect.Struct {
+				f.Set(reflect.ValueOf(value))
+			}
+		}
+	} else {
+
+	}
+}
+
+func Create(o interface{}) error {
+	t := reflect.TypeOf(o)
+	if t.Kind() != reflect.Ptr {
+		return errors.New("only point of object is allowed")
+	}
+
+	rValue := reflect.ValueOf(o)
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	if !idExists {
+		setFieldValue(rValue, "ID", util.GetUUID())
+	}
+
+	time1 := time.Now()
+	setFieldValue(rValue, "Created", time1)
+	setFieldValue(rValue, "Updated", time1)
+
+	return Save(o)
+}
+
 func Save(o interface{}) error {
+
+	rValue := reflect.ValueOf(o)
+
+	//check required value
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	nameExists, _ := getFieldStringValue(rValue, "Name")
+
+	if !idExists {
+		return errors.New("id was not found")
+	}
+
+	if !nameExists {
+		return errors.New("name was not found")
+	}
 
 	return getHandler().Save(o)
 }
 
 func Update(o interface{}) error {
-	return getHandler().Update(o)
+	t := reflect.TypeOf(o)
+	if t.Kind() != reflect.Ptr {
+		return errors.New("only point of object is allowed")
+	}
+
+	rValue := reflect.ValueOf(o)
+
+	setFieldValue(rValue, "Updated", time.Now())
+
+	return Save(o)
 }
 
 func Delete(o interface{}) error {
@@ -204,7 +292,7 @@ func Count(o interface{}) (int64, error) {
 	return getHandler().Count(o)
 }
 
-func Search(o interface{},q *Query) (error, Result) {
+func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
 }
 

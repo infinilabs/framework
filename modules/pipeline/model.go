@@ -70,7 +70,7 @@ func CreatePipelineConfig(cfg *pipeline.PipelineConfig) error {
 	if err != nil {
 		return err
 	}
-	return orm.Save(cfg)
+	return orm.Create(cfg)
 }
 
 func UpdatePipelineConfig(id string, cfg *pipeline.PipelineConfig) error {
