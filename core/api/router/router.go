@@ -77,6 +77,7 @@
 package httprouter
 
 import (
+	"infini.sh/framework/core/errors"
 	"net/http"
 	"strings"
 )
@@ -99,11 +100,19 @@ type Params []Param
 
 // ByName returns the value of the first Param which key matches the given name.
 // If no matching Param is found, an empty string is returned.
-func (ps Params) ByName(name string) string {
-	return ps.ByNameWithDefault(name,"")
+func (ps Params) MustGetParameter(name string) string {
+	v := ps.ByName(name)
+	if v == "" {
+		panic(errors.Errorf("parameter [%v] was not set", name))
+	}
+	return v
 }
 
-func (ps Params) ByNameWithDefault(name,def string) string {
+func (ps Params) ByName(name string) string {
+	return ps.ByNameWithDefault(name, "")
+}
+
+func (ps Params) ByNameWithDefault(name, def string) string {
 	for i := range ps {
 		if ps[i].Key == name {
 			return ps[i].Value
@@ -180,7 +189,7 @@ var _ http.Handler = New(http.NewServeMux())
 // Path auto-correction, including trailing slashes, is enabled by default.
 func New(mux *http.ServeMux) *Router {
 	return &Router{
-		ResolveConflict: true,
+		ResolveConflict:        true,
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
@@ -316,26 +325,26 @@ func (r *Router) LookupTree(method, path string) (Handle, Params, bool) {
 
 func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
 
-	if r.ResolveConflict{
-		if r.hashRoute!=nil{
-			v,ok:=r.hashRoute[method]
-			if ok{
-				v1,ok:=v[path]
-				if ok{
-					return v1,nil,(path == "/")
+	if r.ResolveConflict {
+		if r.hashRoute != nil {
+			v, ok := r.hashRoute[method]
+			if ok {
+				v1, ok := v[path]
+				if ok {
+					return v1, nil, (path == "/")
 				}
 			}
 		}
 	}
 
-	return r.LookupTree(method,path)
+	return r.LookupTree(method, path)
 }
 
 func (r *Router) allowed(path, reqMethod string) (allow string) {
 	if path == "*" { // server-wide
 
-		if r.ResolveConflict{
-			for method,_:=range r.hashRoute{
+		if r.ResolveConflict {
+			for method, _ := range r.hashRoute {
 				if method == "OPTIONS" {
 					continue
 				}
@@ -415,9 +424,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	path := req.URL.Path
 
-	if r.ResolveConflict{
-		handler, ps,tsr:=r.Lookup(req.Method,path)
-		if handler!=nil{
+	if r.ResolveConflict {
+		handler, ps, tsr := r.Lookup(req.Method, path)
+		if handler != nil {
 			handler(w, req, ps)
 			return
 		} else if req.Method != "CONNECT" && path != "/" {
@@ -428,7 +437,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				code = 307
 			}
 
-			if  tsr&&r.RedirectTrailingSlash {
+			if tsr && r.RedirectTrailingSlash {
 				if len(path) > 1 && path[len(path)-1] == '/' {
 					req.URL.Path = path[:len(path)-1]
 				} else {
