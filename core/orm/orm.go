@@ -39,7 +39,7 @@ type ORM interface {
 
 	Search(o interface{}, q *Query) (error, Result)
 
-	Get(o interface{}) error
+	Get(o interface{}) (bool, error)
 
 	GetBy(field string, value interface{}, o interface{}) (error, Result)
 
@@ -177,13 +177,13 @@ type Result struct {
 	Result interface{}
 }
 
-func Get(o interface{}) error {
+func Get(o interface{}) (bool, error) {
 	rValue := reflect.ValueOf(o)
 
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
 	if !idExists {
-		return errors.New("id was not found")
+		return false, errors.New("id was not found")
 	}
 
 	return getHandler().Get(o)
@@ -274,12 +274,21 @@ func Save(o interface{}) error {
 func Update(o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
-		return errors.New("only point of object is allowed")
+		return errors.New("only point of the object is allowed")
 	}
 
 	rValue := reflect.ValueOf(o)
 
 	setFieldValue(rValue, "Updated", time.Now())
+
+	exists, err := Get(o)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return errors.New("failed to update, object was not found")
+	}
 
 	return Save(o)
 }

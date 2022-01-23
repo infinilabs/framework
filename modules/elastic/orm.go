@@ -23,7 +23,7 @@ func (handler ElasticORM) GetIndexName(o interface{}) string {
 	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler ElasticORM) Get(o interface{}) error {
+func (handler ElasticORM) Get(o interface{}) (bool, error) {
 
 	id := getIndexID(o)
 	if id == "" {
@@ -32,17 +32,20 @@ func (handler ElasticORM) Get(o interface{}) error {
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "_doc", getIndexID(o))
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	str, err := response.GetBytesByJsonPath("_source")
 	if err != nil {
-		return err
+		return false, err
+	}
+
+	if str == nil {
+		return false, nil
 	}
 
 	err = util.FromJSONBytes(str, o)
-
-	return err
+	return true, err
 }
 
 func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}) (error, api.Result) {
