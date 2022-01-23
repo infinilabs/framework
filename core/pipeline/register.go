@@ -11,12 +11,12 @@ import (
 
 type Namespace struct {
 	processorReg map[string]processorPluginer
-	filterReg map[string]filterPluginer
+	filterReg    map[string]filterPluginer
 }
 
 type processorPlugin struct {
-	name   string
-	c ProcessorConstructor
+	name string
+	c    ProcessorConstructor
 }
 
 func (p processorPlugin) ProcessorPlugin() ProcessorConstructor {
@@ -24,8 +24,8 @@ func (p processorPlugin) ProcessorPlugin() ProcessorConstructor {
 }
 
 type filterPlugin struct {
-	name   string
-	c FilterConstructor
+	name string
+	c    FilterConstructor
 }
 
 func (p filterPlugin) FilterPlugin() FilterConstructor {
@@ -36,7 +36,6 @@ type processorPluginer interface {
 	ProcessorPlugin() ProcessorConstructor
 }
 
-
 type filterPluginer interface {
 	FilterPlugin() FilterConstructor
 }
@@ -44,12 +43,12 @@ type filterPluginer interface {
 func NewNamespace() *Namespace {
 	return &Namespace{
 		processorReg: map[string]processorPluginer{},
-		filterReg: map[string]filterPluginer{},
+		filterReg:    map[string]filterPluginer{},
 	}
 }
 
 func (ns *Namespace) RegisterProcessor(name string, factory ProcessorConstructor) error {
-	p := processorPlugin{name,NewConditional(factory)}
+	p := processorPlugin{name, NewConditional(factory)}
 	names := strings.Split(name, ".")
 	if err := ns.addProcessor(names, p); err != nil {
 		return fmt.Errorf("plugin %s registration fail %v", name, err)
@@ -58,7 +57,7 @@ func (ns *Namespace) RegisterProcessor(name string, factory ProcessorConstructor
 }
 
 func (ns *Namespace) RegisterFilter(name string, factory FilterConstructor) error {
-	p := filterPlugin{name,NewFilterConditional(factory)}
+	p := filterPlugin{name, NewFilterConditional(factory)}
 	names := strings.Split(name, ".")
 	if err := ns.addFilter(names, p); err != nil {
 		return fmt.Errorf("plugin %s registration fail %v", name, err)
@@ -213,7 +212,6 @@ func (ns *Namespace) ProcessorConstructors() map[string]ProcessorConstructor {
 func (p processorPlugin) Plugin() ProcessorConstructor { return p.c }
 
 func (p filterPlugin) Plugin() FilterConstructor { return p.c }
-
 
 var pluginKey = "basic.processor"
 

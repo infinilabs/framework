@@ -1,10 +1,11 @@
 package pipeline
 
 import (
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/lib/fasthttp"
-	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -21,7 +22,7 @@ func NewFilterList() *Filters {
 	return &Filters{}
 }
 
-func NewFilter(cfg PluginConfig) (*Filters, error) {
+func NewFilter(cfg []*config.Config) (*Filters, error) {
 	procs := NewFilterList()
 
 	for _, procConfig := range cfg {
@@ -48,7 +49,7 @@ func NewFilter(cfg PluginConfig) (*Filters, error) {
 			return nil, err
 		}
 
-		log.Trace("action:",actionName,",",actionCfg)
+		log.Trace("action:", actionName, ",", actionCfg)
 
 		gen, exists := registry.filterReg[actionName]
 		if !exists {
@@ -67,11 +68,11 @@ func NewFilter(cfg PluginConfig) (*Filters, error) {
 			return nil, err
 		}
 
-		p,ok:=plugin.(Filter)
-		if ok{
+		p, ok := plugin.(Filter)
+		if ok {
 			procs.AddFilter(p)
-		}else{
-			return nil, errors.Errorf("invalid processor: [%v]",plugin.Name())
+		} else {
+			return nil, errors.Errorf("invalid processor: [%v]", plugin.Name())
 		}
 	}
 
@@ -127,9 +128,9 @@ func (procs *Filters) Close() error {
 func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 	for _, p := range procs.List {
 
-		if !ctx.ShouldContinue(){
-			if global.Env().IsDebug{
-				log.Debugf("filter [%v] not continued",p.Name())
+		if !ctx.ShouldContinue() {
+			if global.Env().IsDebug {
+				log.Debugf("filter [%v] not continued", p.Name())
 			}
 			ctx.AddFlowProcess("skipped")
 			return

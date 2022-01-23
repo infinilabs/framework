@@ -277,14 +277,15 @@ func Update(o interface{}) error {
 		return errors.New("only point of the object is allowed")
 	}
 
-	exists, err := Get(o)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		return errors.New("failed to update, object was not found")
-	}
+	////NOTICE: get will affect object after get
+	//exists, err := Get(o)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//if !exists {
+	//	return errors.New("failed to update, object was not found")
+	//}
 
 	rValue := reflect.ValueOf(o)
 	setFieldValue(rValue, "Updated", time.Now())

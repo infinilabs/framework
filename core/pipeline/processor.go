@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"runtime"
@@ -52,7 +53,7 @@ func NewPipelineList() *Processors {
 	return &Processors{}
 }
 
-func NewPipeline(cfg PluginConfig) (*Processors, error) {
+func NewPipeline(cfg []*config.Config) (*Processors, error) {
 	procs := NewPipelineList()
 
 	for _, procConfig := range cfg {
@@ -97,11 +98,11 @@ func NewPipeline(cfg PluginConfig) (*Processors, error) {
 			return nil, err
 		}
 
-		p,ok:=plugin.(Processor)
-		if ok{
+		p, ok := plugin.(Processor)
+		if ok {
 			procs.AddProcessor(p)
-		}else{
-			return nil, errors.Errorf("invalid processor: [%v]",plugin.Name())
+		} else {
+			return nil, errors.Errorf("invalid processor: [%v]", plugin.Name())
 		}
 	}
 
@@ -112,8 +113,8 @@ func NewPipeline(cfg PluginConfig) (*Processors, error) {
 }
 
 func (procs *Processors) AddProcessor(p Processor) {
-	p1,ok:=p.(Processor)
-	if !ok{
+	p1, ok := p.(Processor)
+	if !ok {
 		panic("invalid processor")
 	}
 	procs.List = append(procs.List, p1)
@@ -157,7 +158,7 @@ func (procs *Processors) Close() error {
 	return errs.Err()
 }
 
-func (procs *Processors) Process(ctx *Context) error{
+func (procs *Processors) Process(ctx *Context) error {
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -171,25 +172,25 @@ func (procs *Processors) Process(ctx *Context) error{
 				case string:
 					err = r.(string)
 				}
-				log.Errorf("error on pipeline:%v, %v",procs.String(),err)
+				log.Errorf("error on pipeline:%v, %v", procs.String(), err)
 			}
 		}
 	}()
 
 	for _, p := range procs.List {
-		if !ctx.ShouldContinue(){
-			if global.Env().IsDebug{
-				log.Debugf("filter [%v] not continued",p.Name())
+		if !ctx.ShouldContinue() {
+			if global.Env().IsDebug {
+				log.Debugf("filter [%v] not continued", p.Name())
 			}
 			ctx.AddFlowProcess("skipped")
 			return nil
 		}
 		ctx.AddFlowProcess(p.Name())
-		log.Trace("start processing:",p.Name())
-		err:=p.Process(ctx)
+		log.Trace("start processing:", p.Name())
+		err := p.Process(ctx)
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {
-			log.Error("error on processing:",p.Name(),",",err)
+			log.Error("error on processing:", p.Name(), ",", err)
 			return err
 		}
 		//if event == nil {

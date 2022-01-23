@@ -80,16 +80,16 @@ func NewFilterConditionRule(
 // Run executes this WhenFilter.
 func (r WhenFilter) Filter(ctx *fasthttp.RequestCtx) {
 
-	if !ctx.ShouldContinue(){
-		if global.Env().IsDebug{
-			log.Debugf("filter [%v] not continued",r.Name())
+	if !ctx.ShouldContinue() {
+		if global.Env().IsDebug {
+			log.Debugf("filter [%v] not continued", r.Name())
 		}
-		ctx.AddFlowProcess(r.Name()+"-skipped")
+		ctx.AddFlowProcess(r.Name() + "-skipped")
 		return
 	}
 
 	if !(r.condition).Check(ctx) {
-		ctx.AddFlowProcess(r.p.Name()+"-skipped")
+		ctx.AddFlowProcess(r.p.Name() + "-skipped")
 		return
 	}
 
@@ -153,7 +153,7 @@ func NewIfElseThenFilter(cfg *config.Config) (*IfThenElseFilter, error) {
 			return NewFilter([]*config.Config{c})
 		}
 
-		var pc PluginConfig
+		var pc []*config.Config
 		if err := c.Unpack(&pc); err != nil {
 			return nil, err
 		}
@@ -174,26 +174,26 @@ func NewIfElseThenFilter(cfg *config.Config) (*IfThenElseFilter, error) {
 // Run checks the if condition and executes the processors attached to the
 // then statement or the else statement based on the condition.
 func (p IfThenElseFilter) Filter(ctx *fasthttp.RequestCtx) {
-	if !ctx.ShouldContinue(){
-		if global.Env().IsDebug{
-			log.Debugf("filter [%v] not continued",p.Name())
+	if !ctx.ShouldContinue() {
+		if global.Env().IsDebug {
+			log.Debugf("filter [%v] not continued", p.Name())
 		}
 		ctx.AddFlowProcess("skipped")
 		return
 	}
 
 	if p.cond.Check(ctx) {
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Trace("if -> then branch")
 		}
 		ctx.AddFlowProcess("then")
-		p.then.Filter( ctx)
+		p.then.Filter(ctx)
 	} else if p.els != nil {
 		if global.Env().IsDebug {
 			log.Trace("if -> else branch")
 		}
 		ctx.AddFlowProcess("else")
-		p.els.Filter( ctx)
+		p.els.Filter(ctx)
 	}
 }
 

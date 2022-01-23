@@ -60,17 +60,17 @@ func NewConditionRule(
 }
 
 // Run executes this WhenProcessor.
-func (r WhenProcessor) Process(ctx *Context)error {
-	if !ctx.ShouldContinue(){
-		if global.Env().IsDebug{
-			log.Debugf("filter [%v] not continued",r.Name())
+func (r WhenProcessor) Process(ctx *Context) error {
+	if !ctx.ShouldContinue() {
+		if global.Env().IsDebug {
+			log.Debugf("filter [%v] not continued", r.Name())
 		}
-		ctx.AddFlowProcess(r.Name()+"-skipped")
+		ctx.AddFlowProcess(r.Name() + "-skipped")
 		return nil
 	}
 
 	if !(r.condition).Check(ctx) {
-		ctx.AddFlowProcess(r.p.Name()+"-skipped")
+		ctx.AddFlowProcess(r.p.Name() + "-skipped")
 		return nil
 	}
 	ctx.AddFlowProcess(r.p.Name())
@@ -140,7 +140,7 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 			return NewPipeline([]*config.Config{c})
 		}
 
-		var pc PluginConfig
+		var pc []*config.Config
 		if err := c.Unpack(&pc); err != nil {
 			return nil, err
 		}
@@ -160,27 +160,27 @@ func NewIfElseThenProcessor(cfg *config.Config) (*IfThenElseProcessor, error) {
 
 // Run checks the if condition and executes the processors attached to the
 // then statement or the else statement based on the condition.
-func (p IfThenElseProcessor) Process(ctx *Context)error{
-	if !ctx.ShouldContinue(){
-		if global.Env().IsDebug{
-			log.Debugf("filter [%v] not continued",p.Name())
+func (p IfThenElseProcessor) Process(ctx *Context) error {
+	if !ctx.ShouldContinue() {
+		if global.Env().IsDebug {
+			log.Debugf("filter [%v] not continued", p.Name())
 		}
 		ctx.AddFlowProcess("skipped")
 		return nil
 	}
 
 	if p.cond.Check(ctx) {
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Trace("if -> then branch")
 		}
 		ctx.AddFlowProcess("then")
-		p.then.Process( ctx)
+		p.then.Process(ctx)
 	} else if p.els != nil {
 		if global.Env().IsDebug {
 			log.Trace("if -> else branch")
 		}
 		ctx.AddFlowProcess("else")
-		p.els.Process( ctx)
+		p.els.Process(ctx)
 	}
 	return nil
 }
