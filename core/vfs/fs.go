@@ -565,7 +565,19 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs http.FileSystem, name 
 // all errors. We don't want to start leaking information in error messages.
 func toHTTPError(err error) (msg string, httpStatus int) {
 	if os.IsNotExist(err) {
-		return "404 page not found", http.StatusNotFound
+		msg += "\n\n _  _    ___  _  _                                 \n"
+		msg += "| || |  / _ \\| || |                                \n"
+		msg += "| || |_| | | | || |_                               \n"
+		msg += "|__   _| |_| |__   _|                              \n"
+		msg += "   |_|  \\___/   |_|                                \n"
+		msg += "     __  ___  _____     ___  ___           __  ___ \n"
+		msg += "  /\\ \\ \\/___\\/__   \\   / __\\/___\\/\\ /\\  /\\ \\ \\/   \\\n"
+		msg += " /  \\/ //  //  / /\\/  / _\\ //  // / \\ \\/  \\/ / /\\ /\n"
+		msg += "/ /\\  / \\_//  / /    / /  / \\_//\\ \\_/ / /\\  / /_// \n"
+		msg += "\\_\\ \\/\\___/   \\/     \\/   \\___/  \\___/\\_\\ \\/___,'  \n\n\n"
+		msg += "©INFINI, All Rights Reserved."
+
+		return msg, http.StatusNotFound
 	}
 	if os.IsPermission(err) {
 		return "403 Forbidden", http.StatusForbidden
