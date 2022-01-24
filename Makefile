@@ -1,18 +1,22 @@
 SHELL=/bin/bash
 
 # APP info
-APP_NAME := TEMPLATE-APP-NAME
-
-APP_VERSION := 1.0.0_SNAPSHOT
+APP_NAME?=${APP_NAME}
+APP_VERSION?=${APP_VERSION}
 APP_CONFIG := $(APP_NAME).yml
-APP_STATIC_FOLDER := .public
-APP_STATIC_PACKAGE := public
-APP_UI_FOLDER := ui
-APP_PLUGIN_FOLDER := plugin
+APP_EOLDate ?= "2023-12-31 10:10:10"
+APP_STATIC_FOLDER ?= .public
+APP_STATIC_PACKAGE ?= public
+APP_UI_FOLDER ?= ui
+APP_PLUGIN_FOLDER ?= plugin
 
 # Get release version from environment
 ifneq "$(VERSION)" ""
    APP_VERSION := $(VERSION)
+endif
+
+ifneq "$(EOL)" ""
+   APP_EOLDate := $(EOL)
 endif
 
 # Ensure GOPATH is set before running build process.
@@ -34,7 +38,7 @@ OUTPUT_DIR := $(CURDIR)/bin
 
 # INFINI framework
 INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh/
-FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)framework/
+FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)/framework/
 FRAMEWORK_REPO := ssh://git@git.infini.ltd:64221/infini/framework.git
 FRAMEWORK_BRANCH := master
 FRAMEWORK_VENDOR_FOLDER := $(CURDIR)/../vendor/
@@ -45,7 +49,7 @@ FRAMEWORK_VENDOR_BRANCH := master
 NEWGOPATH:= $(CURDIR):$(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -ldflags='-s -w' -gcflags "-m"  --work
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -ldflags='-s -w' -gcflags "-m" -gcflags="-G=3"  --work
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
@@ -62,22 +66,28 @@ endif
 
 .PHONY: all build update test clean
 
-default: build
+default: build-race
+
+env:
+	@echo OLDGOPATH：$(OLDGOPATH)
+	@echo GOPATH：$(GOPATH)
+	@echo NEWGOPATH：$(NEWGOPATH)
+	@echo INFINI_BASE_FOLDER：$(INFINI_BASE_FOLDER)
+	@echo FRAMEWORK_FOLDER：$(FRAMEWORK_FOLDER)
+	@echo FRAMEWORK_VENDOR_FOLDER：$(FRAMEWORK_VENDOR_FOLDER)
 
 build: config
-	@#echo $(GOPATH)
-	@echo $(NEWGOPATH)
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
 build-cmd: config
-	@$(MAKE) restore-generated-file
 	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
+	@$(MAKE) restore-generated-file
 
 
 # used to build the binary for gdb debugging
 build-race: clean config update-vfs
-	$(GOBUILD) -gcflags "-m -N -l" -race -o $(OUTPUT_DIR)/$(APP_NAME)
+	$(GOBUILDNCGO) -gcflags "-m -N -l" -race -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
 tar: build
@@ -85,36 +95,47 @@ tar: build
 
 cross-build: clean config update-vfs
 	$(GO) test
-	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows64.exe
-	GOOS=darwin  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-darwin64
-	GOOS=linux  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux64
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-amd64.exe
+	GOOS=darwin  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-amd64
+	GOOS=linux  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
 	@$(MAKE) restore-generated-file
 
 
-build-win:
-	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows64.exe
-	CC=i686-w64-mingw32-gcc   CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386         $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows32.exe
+build-win: config
+	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-amd64.exe
+	CC=i686-w64-mingw32-gcc   CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386         $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-386.exe
+	@$(MAKE) restore-generated-file
 
-build-linux:
-	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux64
-	GOOS=linux  GOARCH=386    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux32
+build-linux: config
+	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
+	GOOS=linux  GOARCH=386    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-386
+	GOOS=linux  GOARCH=mips    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips
+	GOOS=linux  GOARCH=mipsle    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mipsle
+	GOOS=linux  GOARCH=mips64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64
+	GOOS=linux  GOARCH=mips64le    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64le
+	@$(MAKE) restore-generated-file
 
-build-arm:
-	GOOS=linux  GOARCH=arm   GOARM=5    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-armv5
-	# for Raspberry Pi
-	#env GOOS=linux GOARCH=arm GOARM=5 go build
+build-arm: config
+	GOOS=linux  GOARCH=arm64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64
+	GOOS=linux  GOARCH=arm   GOARM=5    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-armv5
+	GOOS=linux  GOARCH=arm   GOARM=6    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-armv6
+	GOOS=linux  GOARCH=arm   GOARM=7    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-armv7
+	@$(MAKE) restore-generated-file
 
-build-darwin:
-	GOOS=darwin  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-darwin64
-	#GOOS=darwin  GOARCH=386       $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-darwin32
+build-darwin: config
+	GOOS=darwin  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-amd64
+# 	GOOS=darwin  GOARCH=386       $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-386
+	GOOS=darwin  GOARCH=arm64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-arm64
+	@$(MAKE) restore-generated-file
 
-build-bsd:
-	GOOS=freebsd  GOARCH=amd64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-freebsd64
-	GOOS=freebsd  GOARCH=386      $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-freebsd32
-	GOOS=netbsd  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-netbsd64
-	GOOS=netbsd  GOARCH=386       $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-netbsd32
-	GOOS=openbsd  GOARCH=amd64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-openbsd64
-	GOOS=openbsd  GOARCH=386      $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-openbsd32
+build-bsd: config
+	GOOS=freebsd  GOARCH=amd64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-freebsd-amd64
+	GOOS=freebsd  GOARCH=386      $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-freebsd-386
+	GOOS=netbsd  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-netbsd-amd64
+	GOOS=netbsd  GOARCH=386       $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-netbsd-386
+	GOOS=openbsd  GOARCH=amd64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-openbsd-amd64
+	GOOS=openbsd  GOARCH=386      $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-openbsd-386
+	@$(MAKE) restore-generated-file
 
 all: clean config update-vfs cross-build restore-generated-file
 
@@ -140,19 +161,21 @@ init:
 	@mkdir -p $(INFINI_BASE_FOLDER)
 	@echo "framework path: " $(FRAMEWORK_FOLDER)
 	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(cd $(INFINI_BASE_FOLDER)&&git clone -b $(FRAMEWORK_BRANCH) $(FRAMEWORK_REPO) framework ) fi
-	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(git clone  -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR_REPO) vendor) fi
+	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(cd $(INFINI_BASE_FOLDER)&&git clone  -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR_REPO) vendor) fi
 	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_FOLDER) && git pull origin $(FRAMEWORK_BRANCH)); fi;
 	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_VENDOR_FOLDER) && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
 
 update-generated-file:
 	@echo "update generated info"
-	@echo -e "package config\n\nconst LastCommitLog = \""`git log -1 --pretty=format:"%h, %ad, %an, %s"` "\"\nconst BuildDate = \"`date`\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \""`git log -1 --pretty=format:"%h, %ad, %an, %s"` "\"\nconst BuildDate = \"`date "+%Y-%m-%d %H:%M:%S"`\"" > config/generated.go
+	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
 	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
 
 
 restore-generated-file:
 	@echo "restore generated info"
 	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
+	@echo -e "\nconst EOLDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
 
 
@@ -175,35 +198,45 @@ dist-all-platform: all-platform package-all-platform
 
 package:
 	@echo "Packaging"
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/darwin64.tar.gz darwin64  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux64.tar.gz linux64  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/windows64.tar.gz windows64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/mac-amd64.tar.gz mac-amd64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-amd64.tar.gz linux-amd64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/windows-amd64.tar.gz windows-amd64  $(APP_CONFIG)
 
 package-all-platform: package-darwin-platform package-linux-platform package-windows-platform
 	@echo "Packaging all"
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/freebsd64.tar.gz     $(APP_NAME)-freebsd64  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/freebsd32.tar.gz     $(APP_NAME)-freebsd32  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/netbsd64.tar.gz      $(APP_NAME)-netbsd64  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/netbsd32.tar.gz      $(APP_NAME)-netbsd32  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/openbsd64.tar.gz     $(APP_NAME)-openbsd64  $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/openbsd32.tar.gz     $(APP_NAME)-openbsd32  $(APP_CONFIG)
-
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/freebsd-amd64.tar.gz     $(APP_NAME)-freebsd-amd64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/freebsd-386.tar.gz     $(APP_NAME)-freebsd-386  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/netbsd-amd64.tar.gz      $(APP_NAME)-netbsd-amd64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/netbsd-386.tar.gz      $(APP_NAME)-netbsd-386  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/openbsd-amd64.tar.gz     $(APP_NAME)-openbsd-amd64  $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/openbsd-386.tar.gz     $(APP_NAME)-openbsd-386  $(APP_CONFIG)
 
 package-darwin-platform:
 	@echo "Packaging Darwin"
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/darwin64.tar.gz      $(APP_NAME)-darwin64 $(APP_CONFIG)
-	#cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/darwin32.tar.gz      $(APP_NAME)-darwin32 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/mac-amd64.zip      $(APP_NAME)-mac-amd64 $(APP_CONFIG)
+# 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/mac-386.zip      $(APP_NAME)-mac-386 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/mac-arm64.zip      $(APP_NAME)-mac-arm64 $(APP_CONFIG)
 
 package-linux-platform:
 	@echo "Packaging Linux"
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux64.tar.gz     $(APP_NAME)-linux64 $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux32.tar.gz     $(APP_NAME)-linux32 $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/armv5.tar.gz       $(APP_NAME)-armv5   $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-amd64.tar.gz     $(APP_NAME)-linux-amd64 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips.tar.gz     $(APP_NAME)-linux-mips $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mipsle.tar.gz     $(APP_NAME)-linux-mipsle $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64.tar.gz     $(APP_NAME)-linux-mips64 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64le.tar.gz     $(APP_NAME)-linux-mips64le $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-386.tar.gz     $(APP_NAME)-linux-386 $(APP_CONFIG)
+
+package-linux-arm-platform:
+	@echo "Packaging Linux (ARM)"
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-arm64.tar.gz       $(APP_NAME)-linux-arm64   $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-armv5.tar.gz       $(APP_NAME)-linux-armv5   $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-armv6.tar.gz       $(APP_NAME)-linux-armv6   $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-armv7.tar.gz       $(APP_NAME)-linux-armv7   $(APP_CONFIG)
 
 package-windows-platform:
 	@echo "Packaging Windows"
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/windows64.tar.gz   $(APP_NAME)-windows64.exe $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/windows32.tar.gz   $(APP_NAME)-windows32.exe $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-amd64.zip   $(APP_NAME)-windows-amd64.exe $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
 
 test:
 	go get -u github.com/kardianos/govendor
