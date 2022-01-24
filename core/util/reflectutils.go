@@ -140,7 +140,7 @@ func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) st
 			if v.Field(i).Type().Kind() == reflect.Struct {
 				structField := v.Field(i).Type()
 				for j := 0; j < structField.NumField(); j++ {
-					v := structField.Field(i).Tag.Get(tagName)
+					v := structField.Field(j).Tag.Get(tagName)
 					if v != "" {
 						if ContainTags(tagValue, v) {
 							return reflect.Indirect(reflect.ValueOf(any)).FieldByName(structField.Field(i).Name).String()
@@ -150,7 +150,7 @@ func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) st
 				continue
 			}
 			break
-		case reflect.String:
+		default:
 			v := t.Field(i).Tag.Get(tagName)
 			if v != "" {
 				if ContainTags(tagValue, v) {
@@ -224,4 +224,64 @@ func ContainTags(tag string, tags string) bool {
 		}
 	}
 	return tag == tags
+}
+
+//return field and tags, field name is using key: NAME
+func GetFieldAndTags(any interface{},tags[]string) []map[string]string{
+
+	fields:=[]map[string]string{}
+
+	t := reflect.TypeOf(any)
+	v := reflect.ValueOf(any)
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+		v = v.Elem()
+	}
+
+	if PrefixStr(t.String(), "*") {
+		t = reflect.TypeOf(any).Elem()
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+
+		field:=map[string]string{}
+		field["NAME"]=t.Field(i).Name
+		field["TYPE"]=t.Field(i).Type.Name()
+		field["KIND"]=v.Field(i).Kind().String()
+
+		if v.Field(i).Kind()==reflect.Slice{
+			field["TYPE"]="array"
+			field["SUB_TYPE"]=v.Field(i).Type().Elem().String()
+		}
+
+		switch v.Field(i).Kind() {
+		case reflect.Struct:
+			//判断是否是嵌套结构
+			if v.Field(i).Type().Kind() == reflect.Struct {
+				structField := v.Field(i).Type()
+				for j := 0; j < structField.NumField(); j++ {
+					for _,tagName:=range tags{
+						v := structField.Field(j).Tag.Get(tagName)
+						if v!=""{
+							field[tagName]=v
+						}
+					}
+				}
+				continue
+			}
+			break
+		default:
+			for _,tagName:=range tags{
+				v := t.Field(i).Tag.Get(tagName)
+				if v!=""{
+					field[tagName]=v
+				}
+			}
+			break
+		}
+		fields=append(fields,field)
+	}
+
+	return fields
 }

@@ -2,10 +2,10 @@ package pipeline
 
 import (
 	"fmt"
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	p "infini.sh/framework/core/plugin"
+	"infini.sh/framework/core/util"
 	"strings"
 )
 
@@ -256,9 +256,69 @@ func RegisterFilterPlugin(name string, constructor FilterConstructor) {
 	}
 }
 
+type FilterProperty struct {
+	Type         string      `config:"type" json:"type,omitempty"`
+	SubType      string      `config:"sub_type" json:"sub_type,omitempty"`
+	DefaultValue interface{} `config:"default_value" json:"default_value,omitempty"`
+}
 
-func GetFilterMetadata(){
-	for k,_:=range registry.filterReg{
-		log.Error(k)
+var filterMetadata=map[string]map[string]FilterProperty{}
+
+func ExtractFilterMetadata(filter interface{})map[string]FilterProperty  {
+
+	//extract interface to map[string]FilterProperty{}
+	tags:=util.GetFieldAndTags(filter,[]string{"config","type","sub_type","default_value"})
+	result:=map[string]FilterProperty{}
+	for _,v:=range tags{
+		field,ok:=v["config"]
+		if ok{
+			pro:=FilterProperty{}
+			v1,ok:=v["type"]
+			if v1!=""&&ok{
+				pro.Type=v1
+			}else{
+				v1,ok:=v["TYPE"]
+				if ok{
+					pro.Type=v1
+				}
+			}
+			v1,ok=v["sub_type"]
+			if v1!=""&&ok{
+				pro.SubType=v1
+			}else{
+				v1,ok:=v["SUB_TYPE"]
+				if ok{
+					pro.SubType=v1
+				}
+			}
+			v1,ok=v["default_value"]
+			if ok{
+				pro.DefaultValue=v1
+			}
+			result[field]=pro
+		}
 	}
+
+	return result
+}
+
+func RegisterFilterConfigMetadata(name string,filter interface{})  {
+	filterMetadata[name]=  ExtractFilterMetadata(filter)
+}
+
+func RegisterFilterPluginWithConfigMetadata(name string, constructor FilterConstructor,filter interface{}) {
+	RegisterFilterPlugin(name,constructor)
+	RegisterFilterConfigMetadata(name,filter)
+}
+
+
+func GetFilterMetadata()util.MapStr{
+	result:=util.MapStr{}
+	for v,_:=range registry.filterReg{
+		x,_:=filterMetadata[v]
+		result[v]=util.MapStr{
+			"properties":x,
+		}
+	}
+	return result
 }
