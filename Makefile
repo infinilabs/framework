@@ -9,6 +9,7 @@ APP_STATIC_FOLDER ?= .public
 APP_STATIC_PACKAGE ?= public
 APP_UI_FOLDER ?= ui
 APP_PLUGIN_FOLDER ?= plugins
+APP_PLUGIN_PKG ?= $(APP_PLUGIN_FOLDER)
 
 # Get release version from environment
 ifneq "$(VERSION)" ""
@@ -87,7 +88,7 @@ build-cmd: config
 
 update-plugins:
 	(cd ~/go/src/infini.sh/framework/ && make build-cmd)
-	(~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(APP_PLUGIN_FOLDER) -pkg config -import_prefix infini.sh/$(APP_NAME) -out config/generated_plugins.go)
+	(~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(APP_PLUGIN_FOLDER) -pkg $(APP_PLUGIN_PKG) -import_prefix infini.sh/$(APP_NAME) -out $(APP_PLUGIN_FOLDER)/generated_plugins.go)
 
 # used to build the binary for gdb debugging
 build-race: clean config update-vfs
