@@ -76,7 +76,7 @@ env:
 	@echo FRAMEWORK_FOLDER：$(FRAMEWORK_FOLDER)
 	@echo FRAMEWORK_VENDOR_FOLDER：$(FRAMEWORK_VENDOR_FOLDER)
 
-build: config
+build: config update-plugins
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
