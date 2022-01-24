@@ -1,4 +1,4 @@
-# An Golang Framework #
+# INFINI Golang Framework
 
 ## CHANGES
 
