@@ -1,14 +1,14 @@
 SHELL=/bin/bash
 
 # APP info
-APP_NAME?=${APP_NAME}
-APP_VERSION?=${APP_VERSION}
+APP_NAME?= framework
+APP_VERSION?= 1.0.0_SNAPSHOT
 APP_CONFIG := $(APP_NAME).yml
 APP_EOLDate ?= "2023-12-31 10:10:10"
 APP_STATIC_FOLDER ?= .public
 APP_STATIC_PACKAGE ?= public
 APP_UI_FOLDER ?= ui
-APP_PLUGIN_FOLDER ?= plugin
+APP_PLUGIN_FOLDER ?= plugins
 
 # Get release version from environment
 ifneq "$(VERSION)" ""
@@ -84,6 +84,10 @@ build-cmd: config
 	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
 	@$(MAKE) restore-generated-file
 
+
+update-plugins:
+	(cd ~/go/src/infini.sh/framework/ && make build-cmd)
+	(~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(APP_PLUGIN_FOLDER) -pkg config -import_prefix infini.sh/$(APP_NAME) -out config/generated_plugins.go)
 
 # used to build the binary for gdb debugging
 build-race: clean config update-vfs

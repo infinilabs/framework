@@ -243,7 +243,6 @@ type Constructor func(config *config.Config) (ProcessorBase, error)
 var registry = NewNamespace()
 
 func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
-	log.Debugf("register processor: %s", name)
 	err := registry.RegisterProcessor(name, constructor)
 	if err != nil {
 		panic(err)
@@ -251,9 +250,15 @@ func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 }
 
 func RegisterFilterPlugin(name string, constructor FilterConstructor) {
-	log.Debugf("register filter: %s", name)
-	err := registry.RegisterFilter(name, constructor)
+		err := registry.RegisterFilter(name, constructor)
 	if err != nil {
 		panic(err)
+	}
+}
+
+
+func GetFilterMetadata(){
+	for k,_:=range registry.filterReg{
+		log.Error(k)
 	}
 }

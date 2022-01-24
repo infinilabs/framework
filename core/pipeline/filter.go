@@ -151,6 +151,7 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 func (procs *Filters) Name() string {
 	return "filters"
 }
+
 func (procs *Filters) String() string {
 	var s []string
 	for _, p := range procs.List {
