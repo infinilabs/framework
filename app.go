@@ -125,10 +125,13 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	showversion:=flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
-	flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
-	flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
+
+	//TODO bug fix
+	//flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
+	//flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
+
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
-	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
+	//flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 	flag.StringVar(&app.svcFlag,"service", "", "service management, options: install,uninstall,start,stop")
 
 	if options.EnableProfiling {
