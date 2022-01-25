@@ -293,7 +293,13 @@ func ExtractFilterMetadata(filter interface{})map[string]FilterProperty  {
 			}
 			v1,ok=v["default_value"]
 			if ok{
-				pro.DefaultValue=v1
+				switch pro.Type {
+				case "bool":
+					pro.DefaultValue=v1=="true"
+					break
+				default:
+					pro.DefaultValue=v1
+				}
 			}
 			result[field]=pro
 		}
