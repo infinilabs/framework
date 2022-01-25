@@ -172,6 +172,7 @@ init:
 
 update-generated-file:
 	@echo "update generated info"
+	@if [ ! -d config ]; then echo "config does not exist";(mkdir config) fi
 	@echo -e "package config\n\nconst LastCommitLog = \""`git log -1 --pretty=format:"%h, %ad, %an, %s"` "\"\nconst BuildDate = \"`date "+%Y-%m-%d %H:%M:%S"`\"" > config/generated.go
 	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
 	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
