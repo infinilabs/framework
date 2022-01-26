@@ -15,6 +15,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index_metrics", clusterAPI.HandleIndexMetricsAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/queue_metrics", clusterAPI.HandleQueueMetricsAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/storage_metrics", clusterAPI.HandleGetStorageMetricAction)
+
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.HandleGetClusterAction)
@@ -56,6 +57,8 @@ func Init(cfg common.ModuleConfig) {
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.GetMetadata)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", clusterAPI.GetHosts)
+
+	api.HandleAPIMethod(api.GET, "/elasticsearch/cluster/_search", clusterAPI.SearchClusterMetadata)
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template", clusterAPI.HandleSearchTraceTemplateAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleGetTraceTemplateAction)

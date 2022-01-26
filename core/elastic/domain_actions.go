@@ -212,6 +212,7 @@ func (node *NodesInfo) GetHttpPublishHost() string {
 var clients = map[string]*fasthttp.Client{}
 var clientLock sync.RWMutex
 
+
 func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fasthttp.Client {
 
 	//get available host

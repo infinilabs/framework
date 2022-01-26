@@ -1228,6 +1228,7 @@ func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps ht
 
 }
 
+
 func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	result:=util.MapStr{}
 

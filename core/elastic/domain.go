@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"infini.sh/framework/core/orm"
 	"sync"
 	"time"
 )
@@ -374,8 +375,10 @@ type ElasticsearchMetadata struct {
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
+
+	orm.ORMObjectBase
+
 	Source      string   `json:"source,omitempty"`
-	ID          string   `json:"id,omitempty" index:"id"`
 	Name        string   `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
 	Description string   `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled     bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
@@ -411,13 +414,28 @@ type ElasticsearchConfig struct {
 	} `json:"discovery,omitempty" config:"discovery"`
 
 	Order   int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
-	Created time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
-	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
 
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
 	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
+
+	GeoLocation struct{
+		Provider string `json:"provider,omitempty" elastic_mapping:"provider:{type:keyword}"`
+		Region string `json:"region,omitempty" elastic_mapping:"region:{type:keyword}"`
+		DC string `json:"dc,omitempty" elastic_mapping:"dc:{type:keyword}"`
+		Rack string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
+
+	}  `json:"location,omitempty" elastic_mapping:"location:{type:object}"`
+
+	Project string `json:"project,omitempty" elastic_mapping:"project:{type:keyword}"`
+
+	Owner [] struct{
+		Department string `json:"department,omitempty" elastic_mapping:"department:{type:keyword}"`
+		Name string `json:"name,omitempty" elastic_mapping:"name:{type:keyword}"`
+		ID string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
+	}  `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
+
 }
 
 //{
