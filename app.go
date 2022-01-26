@@ -21,6 +21,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
 	"infini.sh/framework/core/daemon"
@@ -32,8 +33,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
 	"sync"
-	//"infini.sh/framework/plugins"
-	defaultLog "log"
+
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -147,14 +147,8 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 		os.Exit(1)
 	}
 
-	defaultLog.SetOutput(logger.EmptyLogger{})
-
-	logger.SetLogging(env.EmptyEnv(), app.logLevel)
-
 	app.environment.IsDebug = app.isDebug
-
 	app.environment.SetConfigFile(app.configFile)
-
 	app.environment.Init()
 
 	//allow use yml to configure the log level
