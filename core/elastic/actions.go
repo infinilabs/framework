@@ -151,6 +151,19 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 	return fmt.Sprintf("%s://%s", meta.GetSchema(), meta.GetActiveHost())
 }
 
+
+func (meta *ElasticsearchMetadata) GetActivePreferredEndpoint(host string) string {
+	available := IsHostAvailable(host)
+	if !available {
+		if meta.IsAvailable() {
+			host = meta.GetActiveHost()
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
+	return fmt.Sprintf("%s://%s", meta.GetSchema(), host)
+}
+
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
 
 	hosts := meta.GetSeedHosts()

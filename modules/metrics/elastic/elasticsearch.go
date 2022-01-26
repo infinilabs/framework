@@ -81,7 +81,7 @@ func (m *Metric) Collect() error {
 			}
 
 			client := elastic.GetClient(k)
-			var clusterUUID string
+			//var clusterUUID string
 			//TODO fetch cluster_uuid?
 
 			if m.ClusterHealth{
@@ -143,41 +143,12 @@ func (m *Metric) Collect() error {
 					}
 					return true
 				}
-				for x, y := range *v.Nodes {
+				for nodeID, y := range *v.Nodes {
 					//get node level stats
-					//TODO routing request to specify host
-					stats := client.GetNodesStats(x)
+					stats := client.GetNodesStats(nodeID,y.TransportAddress)
 
-					for e,f:=range stats.Nodes{
-						//remove adaptive_selection
-						x,ok:=f.(map[string]interface{})
-						if ok{
-							delete(x,"adaptive_selection")
-							delete(x,"ingest")
-						}
+					m.SaveNodeStats(v.Config.ID,stats)
 
-						item := event.Event{
-							Metadata: event.EventMetadata{
-								Category: "elasticsearch",
-								Name:     "node_stats",
-								Datatype: "snapshot",
-								Labels: util.MapStr{
-									"cluster_id":   v.Config.ID,
-									//"cluster_uuid": stats.ClusterUUID,
-									"node_id":   e,
-									"node_name": y.Name,
-									"ip": y.Ip,
-									"transport_address":   y.TransportAddress,
-								},
-							},
-						}
-						item.Fields = util.MapStr{
-							"elasticsearch": util.MapStr{
-								"node_stats": x,
-							},
-						}
-						event.Save(item)
-					}
 				}
 			}
 
@@ -191,12 +162,12 @@ func (m *Metric) Collect() error {
 				if indexStats != nil {
 
 					if m.AllIndexStats {
-						m.saveIndexStats(v.Config.ID, clusterUUID, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total)
+						m.SaveIndexStats(v.Config.ID,  "_all", "_all", indexStats.All.Primaries, indexStats.All.Total)
 					}
 
 					if m.IndexStats {
 						for x, y := range indexStats.Indices {
-							m.saveIndexStats(v.Config.ID, clusterUUID, y.Uuid, x, y.Primaries, y.Total)
+							m.SaveIndexStats(v.Config.ID,  y.Uuid, x, y.Primaries, y.Total)
 						}
 					}
 				}else{
@@ -217,7 +188,42 @@ func (m *Metric) Collect() error {
 	return nil
 }
 
-func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, primary, total elastic.IndexLevelStats) {
+func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats){
+	for e,f:=range stats.Nodes{
+		//remove adaptive_selection
+		x,ok:=f.(map[string]interface{})
+		if ok{
+			delete(x,"adaptive_selection")
+			delete(x,"ingest")
+		}
+		nodeName:=x["name"]
+		nodeIP:=x["ip"]
+		nodeAddress:=x["transport_address"]
+		item := event.Event{
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name:     "node_stats",
+				Datatype: "snapshot",
+				Labels: util.MapStr{
+					"cluster_id":   clusterId,
+					//"cluster_uuid": stats.ClusterUUID,
+					"node_id":   e,
+					"node_name": nodeName,
+					"ip": nodeIP,
+					"transport_address":   nodeAddress,
+				},
+			},
+		}
+		item.Fields = util.MapStr{
+			"elasticsearch": util.MapStr{
+				"node_stats": x,
+			},
+		}
+		event.Save(item)
+	}
+}
+
+func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats) {
 
 	item := event.Event{
 		Metadata: event.EventMetadata{
@@ -225,11 +231,11 @@ func (m *Metric) saveIndexStats(clusterUUID, clusterId, uuid, name string, prima
 			Name:     "index_stats",
 			Datatype: "snapshot",
 			Labels: util.MapStr{
-				"cluster_id":   clusterUUID,
+				"cluster_id":   clusterId,
 				//"cluster_uuid": clusterId,
 
-				"index_id":   util.StringDefault(uuid,name),
-				"index_name": name,
+				"index_id":   util.StringDefault(indexID, indexName),
+				"index_name": indexName,
 			},
 		},
 	}

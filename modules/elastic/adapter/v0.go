@@ -43,6 +43,10 @@ type ESAPIV0 struct {
 	metaLocker sync.RWMutex
 }
 
+func (c *ESAPIV0) GetActivePreferredEndpoint( host string)string {
+	return c.GetMetadata().GetActivePreferredEndpoint(host)
+}
+
 func (c *ESAPIV0) GetEndpoint()string {
 	return c.GetMetadata().GetActiveEndpoint()
 }
@@ -424,10 +428,10 @@ func (c *ESAPIV0) ClusterVersion() string {
 	return c.Version
 }
 
-func (c *ESAPIV0) GetNodesStats(node string) *elastic.NodesStats {
+func (c *ESAPIV0) GetNodesStats(nodeID,host string) *elastic.NodesStats {
 	url := fmt.Sprintf("%s/_nodes/_all/stats", c.GetEndpoint())
-	if node!=""{
-		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetEndpoint(),node)
+	if nodeID!=""{
+		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetActivePreferredEndpoint(host),nodeID)
 	}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)

@@ -33,7 +33,7 @@ type API interface {
 
 	GetClusterStats(node string) (*ClusterStats,error)
 
-	GetNodesStats(node string) *NodesStats
+	GetNodesStats(nodeID,host string) *NodesStats
 	GetIndicesStats() *IndicesStats
 
 	ClusterVersion() string
