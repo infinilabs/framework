@@ -242,7 +242,10 @@ func ReplaceByte(str []byte, old, new []byte) []byte {
 	return []byte(strings.Replace(string(str), string(old), string(new), -1))
 }
 
-//MustToJSONBytes convert interface to json with byte array
+func MustToJSON(v interface{})string {
+	return string(MustToJSONBytes(v))
+}
+
 func MustToJSONBytes(v interface{}) []byte {
 	b, err := ToJSONBytes(v)
 	if err != nil {
