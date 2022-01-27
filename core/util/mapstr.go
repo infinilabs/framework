@@ -5,8 +5,8 @@
 package util
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
 	"strings"
 )
@@ -367,4 +367,44 @@ func GetMapKeys(m map[string]KV)[]string  {
 		keys=append(keys,k)
 	}
 	return keys
+}
+
+
+func GetMapValueByKeys(keys []string,m map[string]interface{})(interface{},bool)  {
+
+	for i,key:=range keys{
+		v,ok:=m[key]
+		if i==len(keys)-1{
+			return v,ok
+		}
+
+		if ok{
+			x,ok:=v.(map[string]interface{})
+			if ok{
+				m=x
+			}else{
+				return v,true
+			}
+		}
+	}
+	return nil,false
+}
+
+func GetValueByKeys(keys []string,m MapStr)(interface{},bool)  {
+
+	for i,key:=range keys{
+		v,ok:=m[key]
+		if i==len(keys)-1{
+			return v,ok
+		}
+		if ok{
+			x,ok:=v.(MapStr)
+			if ok{
+				m=x
+			}else{
+				return v,true
+			}
+		}
+	}
+	return nil,false
 }

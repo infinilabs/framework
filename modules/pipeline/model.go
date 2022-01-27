@@ -102,13 +102,10 @@ func convertPipeline(result orm.Result, pipelines *[]pipeline.PipelineConfig) {
 		return
 	}
 
-	t, ok := result.Result.([]interface{})
-	if ok {
-		for _, i := range t {
-			js := util.ToJson(i, false)
-			t := pipeline.PipelineConfig{}
-			util.FromJson(js, &t)
-			*pipelines = append(*pipelines, t)
-		}
+	for _, i := range result.Result{
+		js := util.ToJson(i, false)
+		t := pipeline.PipelineConfig{}
+		util.FromJson(js, &t)
+		*pipelines = append(*pipelines, t)
 	}
 }

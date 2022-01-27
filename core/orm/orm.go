@@ -72,6 +72,15 @@ type Query struct {
 	RawQuery []byte
 }
 
+func (q *Query) AddSort(field string, sortType SortType) *Query {
+	if q.Sort==nil{
+		q.Sort=&[]Sort{}
+	}
+	*q.Sort = append(*q.Sort, Sort{Field: field, SortType: sortType})
+
+	return q
+}
+
 type Cond struct {
 	Field       string
 	SQLOperator string
@@ -93,6 +102,9 @@ const RangeGte QueryType = "gte"
 const RangeLt QueryType = "lt"
 const RangeLte QueryType = "lte"
 
+const Terms QueryType = "terms"
+
+
 func Eq(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -110,6 +122,16 @@ func NotEq(field string, value interface{}) *Cond {
 	c.SQLOperator = " != "
 	c.QueryType = Match
 	c.BoolType = MustNot
+	return &c
+}
+
+func In(field string, value []interface{}) *Cond {
+	c := Cond{}
+	c.Field = field
+	c.Value = value
+	c.SQLOperator = " in "
+	c.QueryType = Terms
+	c.BoolType = Must
 	return &c
 }
 
@@ -174,7 +196,7 @@ func And(conds ...*Cond) []*Cond {
 type Result struct {
 	Total  int64
 	Raw    []byte
-	Result interface{}
+	Result []interface{}
 }
 
 func Get(o interface{}) (bool, error) {

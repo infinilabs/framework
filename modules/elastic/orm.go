@@ -84,6 +84,10 @@ func getQuery(c1 *api.Cond) interface{} {
 		q := elastic.MatchQuery{}
 		q.Set(c1.Field, c1.Value)
 		return q
+	case api.Terms:
+		q := elastic.TermsQuery{}
+		q.Set(c1.Field, c1.Value.([]interface{}))
+		return q
 	case api.RangeGt:
 		q := elastic.RangeQuery{}
 		q.Gt(c1.Field, c1.Value)

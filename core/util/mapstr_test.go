@@ -7,6 +7,7 @@
 package util
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -432,4 +433,23 @@ func TestMapstrFlatten(t *testing.T) {
 	for _, test := range tests {
 		assert.Equal(t, test.Expected, test.Event.Flatten())
 	}
+}
+
+
+func TestGetValueByKeys(t *testing.T) {
+	obj:=MapStr{
+		"obj1":MapStr{
+			"obj2":MapStr{
+				"obj3":"good",
+			},
+		},
+	}
+	va,ok:=GetValueByKeys([]string{"obj1","obj2","obj3"},obj)
+	fmt.Println(va,ok)
+	assert.Equal(t,"good" ,va)
+
+	va,ok=GetValueByKeys([]string{"obj1","obj2"},obj)
+	fmt.Println(va,ok)
+
+
 }

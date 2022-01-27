@@ -109,7 +109,7 @@ func loadESBasedElasticConfig() {
 			cfg := elastic.ElasticsearchConfig{}
 			bytes := util.MustToJSONBytes(v1.Source)
 			util.MustFromJSONBytes(bytes, &cfg)
-			cfg.ID = v1.ID.(string)
+			cfg.ID = v1.ID
 			cfg.Discovery.Enabled = true
 			configs = append(configs, cfg)
 		}

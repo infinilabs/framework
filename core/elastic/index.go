@@ -2,9 +2,9 @@ package elastic
 
 import (
 	"errors"
+	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
-	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 )
@@ -145,7 +145,7 @@ type IndicesStats struct {
 type IndexDocument struct {
 	Index     string                   `json:"_index,omitempty"`
 	Type      string                   `json:"_type,omitempty"`
-	ID        interface{}              `json:"_id,omitempty"`
+	ID        string                   `json:"_id,omitempty"`
 	Routing   string                   `json:"_routing,omitempty"`
 	Source    map[string]interface{}   `json:"_source,omitempty"`
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
@@ -315,6 +315,15 @@ func (query *RangeQuery) Lte(field string, value interface{}) {
 
 type MatchQuery struct {
 	Match map[string]interface{} `json:"match,omitempty"`
+}
+
+type TermsQuery struct {
+	Match map[string][]interface{} `json:"terms,omitempty"`
+}
+
+func (match *TermsQuery) Set(field string, v []interface{}) {
+	match.Match = map[string][]interface{}{}
+	match.Match[field] = v
 }
 
 type QueryStringQuery struct {
