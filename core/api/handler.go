@@ -200,6 +200,9 @@ func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) error {
 
 // GetParameter return query parameter with argument name
 func (handler Handler) GetParameter(r *http.Request, key string) string {
+	if r.URL==nil{
+		return ""
+	}
 	return r.URL.Query().Get(key)
 }
 
