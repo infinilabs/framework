@@ -375,11 +375,9 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
 
-	bucketSize, min, max, err := h.getMetricParams(req)
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
-		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		panic(err)
 		return
 	}
 
@@ -396,81 +394,10 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 
 }
 
-func (h *APIHandler) getMetricParams(req *http.Request) (int, int64, int64, error) {
-	bucketSize := h.GetIntOrDefault(req, "bucket_size", 10)      //默认 10，每个 bucket 的时间范围，单位秒
-	metricCount := h.GetIntOrDefault(req, "metric_count", 15*60) //默认 15分钟的区间，每分钟15个指标，也就是 15*60 个 bucket
-
-	now := time.Now()
-	//min,max are unix nanoseconds
-
-	minStr := h.Get(req, "min", "")
-	maxStr := h.Get(req, "max", "")
-
-	var min, max int64
-	var rangeFrom, rangeTo time.Time
-	var err error
-	if minStr == "" {
-		rangeFrom = now.Add(-time.Second * time.Duration(bucketSize*metricCount+1))
-	} else {
-		//try 2021-08-21T14:06:04.818Z
-		rangeFrom, err = util.ParseStandardTime(minStr)
-		if err != nil {
-			//try 1629637500000
-			v, err := util.ToInt64(minStr)
-			if err != nil {
-				log.Error("invalid timestamp:", minStr, err)
-				rangeFrom = now.Add(-time.Second * time.Duration(bucketSize*metricCount+1))
-			} else {
-				rangeFrom = util.FromUnixTimestamp(v / 1000)
-			}
-		}
-	}
-
-	if maxStr == "" {
-		rangeTo = now.Add(-time.Second * time.Duration(int(1*(float64(bucketSize)))))
-	} else {
-		rangeTo, err = util.ParseStandardTime(maxStr)
-		if err != nil {
-			v, err := util.ToInt64(maxStr)
-			if err != nil {
-				log.Error("invalid timestamp:", maxStr, err)
-				rangeTo = now.Add(-time.Second * time.Duration(int(1*(float64(bucketSize)))))
-			} else {
-				rangeTo = util.FromUnixTimestamp(int64(v) / 1000)
-			}
-		}
-	}
-
-	min = rangeFrom.UnixNano() / 1e6
-	max = rangeTo.UnixNano() / 1e6
-	hours := rangeTo.Sub(rangeFrom).Hours()
-	if hours <= 1 {
-		bucketSize = 60
-	}else if hours < 3 {
-		bucketSize = 90
-	} else if hours < 6 {
-		bucketSize = 120
-	} else if hours < 12 {
-		bucketSize = 60 * 3
-	} else if hours < 25 { //1day
-		bucketSize = 60 * 5 * 2
-	} else if hours <= 7*24+1 { //7days
-		bucketSize = 60 * 15 * 2
-	} else if hours <= 15*24+1 { //15days
-		bucketSize = 60 * 30 * 2
-	} else if hours < 30*24+1 { //<30 days
-		bucketSize = 60 * 60 //hourly
-	} else if hours <= 30*24+1 { //<30days
-		bucketSize = 12 * 60 * 60 //half daily
-	} else if hours >= 30*24+1 { //>30days
-		bucketSize = 60 * 60 * 24 //daily bucket
-	}
-	return bucketSize, min, max, nil
-}
 func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
-	bucketSize, min, max, err := h.getMetricParams(req)
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -490,7 +417,7 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
-	bucketSize, min, max, err := h.getMetricParams(req)
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -509,7 +436,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
-	bucketSize, min, max, err := h.getMetricParams(req)
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -518,7 +445,7 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	resBody["metrics"] = h.getQueueMetrics(id, bucketSize, min, max, nodeName, top)
+	resBody["metrics"] = h.getThradPoolMetrics(id, bucketSize, min, max, nodeName, top)
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
@@ -566,7 +493,6 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 	return true,client,nil
 }
 
-
 func (h *APIHandler) GetClusterHealth(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
@@ -604,33 +530,6 @@ func (h *APIHandler) HandleGetNodesAction(w http.ResponseWriter, req *http.Reque
 	h.WriteJSON(w, result,200)
 }
 
-func newMetricItem(metricKey string, order int, group string) *common.MetricItem  {
-	metricItem:=common.MetricItem{
-		Order: order,
-		Key: metricKey,
-		Group: group,
-	}
-
-	//axis
-	metricItem.Axis=[]*common.MetricAxis{}
-
-	//lines
-	metricItem.Lines=[]*common.MetricLine{}
-
-	return &metricItem
-}
-
-type GroupMetricItem struct {
-	Key string
-	Field string
-	ID string
-	IsDerivative bool
-	Units string
-	FormatType string
-	MetricItem *common.MetricItem
-	Field2 string
-	Calc func(value, value2 float64) float64
-}
 const (
 	SystemGroupKey = "system"
 	OperationGroupKey = "operations"
@@ -897,6 +796,7 @@ func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) 
 	clusterHealthMetrics = append(clusterHealthMetrics, metricItem)
 	return h.getSingleMetrics(clusterHealthMetrics, query, bucketSize)
 }
+
 func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSize int)(*common.MetricItem, error){
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 	query := util.MapStr{
@@ -995,99 +895,6 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 	metricItem.Lines[0].Data = metricData
 	metricItem.Lines[0].Type = common.GraphTypeBar
 	return metricItem, nil
-}
-
-func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
-	metricData := map[string][][]interface{}{}
-
-	aggs := map[string]interface{}{}
-
-	for _, metricItem := range metricItems {
-		for _, line := range metricItem.Lines {
-
-			metricData[line.Metric.DataKey] = [][]interface{}{}
-
-			aggs[line.Metric.ID] = util.MapStr{
-				"max": util.MapStr{
-					"field": line.Metric.Field,
-				},
-			}
-
-			if line.Metric.IsDerivative {
-				//add which metric keys to extract
-				aggs[line.Metric.ID+"_deriv"] = util.MapStr{
-					"derivative": util.MapStr{
-						"buckets_path": line.Metric.ID,
-					},
-				}
-			}
-		}
-	}
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-
-	query["size"] = 0
-	query["aggs"] = util.MapStr{
-		"dates": util.MapStr{
-			"date_histogram": util.MapStr{
-				"field":          "timestamp",
-				"fixed_interval": bucketSizeStr,
-			},
-			"aggs": aggs,
-		},
-	}
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
-	if err != nil {
-		log.Error(err)
-		panic(err)
-	}
-
-	var minDate, maxDate int64
-	if response.StatusCode == 200 {
-		for _, v := range response.Aggregations {
-			for _, bucket := range v.Buckets {
-				v, ok := bucket["key"].(float64)
-				if !ok {
-					panic("invalid bucket key")
-				}
-				dateTime := (int64(v))
-				minDate = util.MinInt64(minDate, dateTime)
-				maxDate = util.MaxInt64(maxDate, dateTime)
-				for mk1, mv1 := range metricData {
-					v1, ok := bucket[mk1]
-					if ok {
-						v2, ok := v1.(map[string]interface{})
-						if ok {
-							v3, ok := v2["value"].(float64)
-							if ok {
-								if strings.HasSuffix(mk1, "_deriv") {
-									v3 = v3 / float64(bucketSize)
-								}
-								//only keep positive value
-								if v3 < 0 {
-									continue
-								}
-								//v4:=int64(v3)/int64(bucketSize)
-								points := []interface{}{dateTime, v3}
-								metricData[mk1] = append(mv1, points)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	result := map[string]*common.MetricItem{}
-
-	for _, metricItem := range metricItems {
-		for _, line := range metricItem.Lines {
-			line.TimeRange = common.TimeRange{Min: minDate, Max: maxDate}
-			line.Data = metricData[line.Metric.DataKey]
-		}
-		result[metricItem.Key] = metricItem
-	}
-
-	return result
 }
 
 func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -1228,7 +1035,6 @@ func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps ht
 
 }
 
-
 func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	result:=util.MapStr{}
 
@@ -1327,10 +1133,4 @@ func (h *APIHandler) HandleGetStorageMetricAction(w http.ResponseWriter, req *ht
 	}
 	metricData.Value = math.Trunc(totalStoreSize * 100)/100
 	h.WriteJSON(w, metricData, http.StatusOK)
-}
-type TreeMapNode struct {
-	Name string `json:"name"`
-	Value float64 `json:"value,omitempty"`
-	Children []*TreeMapNode  `json:"children,omitempty"`
-	SubKeys  map[string]int `json:"-"`
 }

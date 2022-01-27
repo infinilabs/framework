@@ -70,6 +70,12 @@ type MetricItem struct {
 	Order int `json:"order"`
 }
 
+type BucketItem struct {
+	Key   string        `json:"key"`
+	Group string `json:"group"`
+	Order int    `json:"order"`
+}
+
 func (metricItem *MetricItem) AddLine(title, label, desc, group, field, aggsType, bucketSize, units, formatTye, format, tickFormat string, hasCalculation, isDerivative bool) *MetricItem {
 	line := MetricLine{}
 	line.BucketSize = bucketSize

@@ -2,12 +2,11 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"sort"
-	log "github.com/cihub/seelog"
-	"strings"
 	"time"
 )
 
@@ -846,98 +845,6 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 
 }
 
-type MetricData map[string][][]interface{}
-
-func (h *APIHandler) getMetrics( query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem{
-	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
-	if err!=nil{
-		log.Error(err)
-	}
-	grpMetricItemsIndex := map[string] int{}
-	for i, item := range grpMetricItems {
-		grpMetricItemsIndex[item.ID] = i
-	}
-	grpMetricData :=map[string]MetricData{}
-
-	var minDate,maxDate int64
-	if response.StatusCode==200{
-		if nodeAgg, ok :=  response.Aggregations["group_by_level"]; ok {
-			for _,bucket:=range nodeAgg.Buckets {
-				grpKey := bucket["key"].(string)
-				for _, metricItem := range grpMetricItems {
-					metricItem.MetricItem.AddLine(metricItem.Key, grpKey, "", "group1", metricItem.Field, "max",bucketSizeStr,metricItem.Units,metricItem.FormatType,"0.[00]","0.[00]",false,false)
-					dataKey := metricItem.ID
-					if metricItem.IsDerivative {
-						dataKey = dataKey+"_deriv"
-					}
-					if _, ok := grpMetricData[dataKey]; !ok{
-						grpMetricData[dataKey] = map[string][][]interface{}{}
-					}
-					grpMetricData[dataKey][grpKey]=[][]interface{}{}
-				}
-				if datesAgg, ok := bucket["dates"].(map[string]interface{}); ok {
-					if datesBuckets, ok := datesAgg["buckets"].([]interface{}); ok {
-						for _, dateBucket := range datesBuckets {
-							if bucketMap, ok := dateBucket.(map[string]interface{}); ok {
-								v,ok:=bucketMap["key"].(float64)
-								if !ok{
-									panic("invalid bucket key")
-								}
-								dateTime:=(int64(v))
-								minDate=util.MinInt64(minDate,dateTime)
-								maxDate=util.MaxInt64(maxDate,dateTime)
-
-								for mk1,mv1:=range grpMetricData {
-									v1,ok:=bucketMap[mk1]
-									if ok{
-										v2,ok:=v1.(map[string]interface{})
-										if ok{
-											v3,ok:=v2["value"].(float64)
-											if ok{
-												if strings.HasSuffix(mk1, "_deriv"){
-													v3 = v3/float64(bucketSize)
-												}
-												if field2, ok := bucketMap[mk1 + "_field2"]; ok {
-													if idx, ok := grpMetricItemsIndex[mk1]; ok {
-														if field2Map, ok := field2.(map[string]interface{}); ok {
-															v3 = grpMetricItems[idx].Calc(v3, field2Map["value"].(float64))
-														}
-													}
-												}
-												if v3<0{
-													continue
-												}
-												points:=[]interface{}{dateTime,v3}
-												mv1[grpKey]=append(mv1[grpKey],points)
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-
-				}
-			}
-		}
-	}
-
-	result:=map[string]*common.MetricItem{}
-
-	for _,metricItem:=range grpMetricItems {
-		for _,line:=range metricItem.MetricItem.Lines{
-			line.TimeRange=common.TimeRange{Min: minDate,Max: maxDate}
-			dataKey := metricItem.ID
-			if metricItem.IsDerivative {
-				dataKey = dataKey +"_deriv"
-			}
-			line.Data= grpMetricData[dataKey][line.Metric.Label]
-		}
-		result[metricItem.Key]=metricItem.MetricItem
-	}
-	return result
-}
 
 func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) ([]string, error){
 	var (
