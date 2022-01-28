@@ -145,7 +145,7 @@ func (m *Metric) Collect() error {
 				}
 				for nodeID, y := range *v.Nodes {
 					//get node level stats
-					stats := client.GetNodesStats(nodeID,y.TransportAddress)
+					stats := client.GetNodesStats(nodeID,y.GetHttpPublishHost())
 
 					m.SaveNodeStats(v.Config.ID,stats)
 
