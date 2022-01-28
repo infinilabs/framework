@@ -521,6 +521,10 @@ func (h *APIHandler) HandleGetNodesAction(w http.ResponseWriter, req *http.Reque
 	id := ps.ByName("id")
 	metaData := elastic.GetMetadata(id)
 	result := util.MapStr{}
+	if metaData==nil||metaData.Nodes==nil{
+		h.WriteError(w,"nodes metadata not found",500)
+		return
+	}
 	for k, nodeInfo := range *metaData.Nodes {
 		result[k] = util.MapStr{
 			"name": nodeInfo.Name,
