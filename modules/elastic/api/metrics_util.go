@@ -40,9 +40,9 @@ type GroupMetricItem struct {
 }
 
 type TreeMapNode struct {
-	Name string `json:"name"`
-	Value float64 `json:"value,omitempty"`
-	Children []*TreeMapNode  `json:"children,omitempty"`
+	Name     string         `json:"name"`
+	Value    float64        `json:"value,omitempty"`
+	Children []*TreeMapNode `json:"children,omitempty"`
 	SubKeys  map[string]int `json:"-"`
 }
 
@@ -320,13 +320,110 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	return result
 }
 
+//func (h *APIHandler) executeQuery(query map[string]interface{}, bucketItems *[]common.BucketItem, bucketSize int) map[string]*common.MetricItem {
+//	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 //
-func (h *APIHandler) getGroupMetrics(query map[string]interface{}) {
-	//response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+//}
 
+func (h *APIHandler) getBucketMetrics(query map[string]interface{}, bucketItems *[]common.BucketItem, bucketSize int) map[string]*common.MetricItem {
+	//bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		log.Error(err)
+	}
+	//grpMetricItemsIndex := map[string]int{}
+	for _, item := range *bucketItems {
+		//grpMetricItemsIndex[item.Key] = i
+
+		agg,ok:=response.Aggregations[item.Key]
+		if ok{
+			fmt.Println(len(agg.Buckets))
+		}
+
+	}
+	//grpMetricData := map[string]MetricData{}
+
+	//var minDate, maxDate int64
+	//if response.StatusCode == 200 {
+	//	if nodeAgg, ok := response.Aggregations["group_by_level"]; ok {
+	//		for _, bucket := range nodeAgg.Buckets {
+	//			grpKey := bucket["key"].(string)
+	//			for _, metricItem := range *bucketItems {
+	//				metricItem.MetricItem.AddLine(metricItem.Key, grpKey, "", "group1", metricItem.Field, "max", bucketSizeStr, metricItem.Units, metricItem.FormatType, "0.[00]", "0.[00]", false, false)
+	//				dataKey := metricItem.Key
+	//				if metricItem.IsDerivative {
+	//					dataKey = dataKey + "_deriv"
+	//				}
+	//				if _, ok := grpMetricData[dataKey]; !ok {
+	//					grpMetricData[dataKey] = map[string][][]interface{}{}
+	//				}
+	//				grpMetricData[dataKey][grpKey] = [][]interface{}{}
+	//			}
+	//			if datesAgg, ok := bucket["dates"].(map[string]interface{}); ok {
+	//				if datesBuckets, ok := datesAgg["buckets"].([]interface{}); ok {
+	//					for _, dateBucket := range datesBuckets {
+	//						if bucketMap, ok := dateBucket.(map[string]interface{}); ok {
+	//							v, ok := bucketMap["key"].(float64)
+	//							if !ok {
+	//								panic("invalid bucket key")
+	//							}
+	//							dateTime := (int64(v))
+	//							minDate = util.MinInt64(minDate, dateTime)
+	//							maxDate = util.MaxInt64(maxDate, dateTime)
+	//
+	//							for mk1, mv1 := range grpMetricData {
+	//								v1, ok := bucketMap[mk1]
+	//								if ok {
+	//									v2, ok := v1.(map[string]interface{})
+	//									if ok {
+	//										v3, ok := v2["value"].(float64)
+	//										if ok {
+	//											if strings.HasSuffix(mk1, "_deriv") {
+	//												v3 = v3 / float64(bucketSize)
+	//											}
+	//											if field2, ok := bucketMap[mk1+"_field2"]; ok {
+	//												if idx, ok := grpMetricItemsIndex[mk1]; ok {
+	//													if field2Map, ok := field2.(map[string]interface{}); ok {
+	//														v3 = grpMetricItems[idx].Calc(v3, field2Map["value"].(float64))
+	//													}
+	//												}
+	//											}
+	//											if v3 < 0 {
+	//												continue
+	//											}
+	//											points := []interface{}{dateTime, v3}
+	//											mv1[grpKey] = append(mv1[grpKey], points)
+	//										}
+	//									}
+	//								}
+	//							}
+	//						}
+	//					}
+	//				}
+	//
+	//			}
+	//		}
+	//	}
+	//}
+	//
+	//result := map[string]*common.MetricItem{}
+	//
+	//for _, metricItem := range grpMetricItems {
+	//	for _, line := range metricItem.MetricItem.Lines {
+	//		line.TimeRange = common.TimeRange{Min: minDate, Max: maxDate}
+	//		dataKey := metricItem.ID
+	//		if metricItem.IsDerivative {
+	//			dataKey = dataKey + "_deriv"
+	//		}
+	//		line.Data = grpMetricData[dataKey][line.Metric.Label]
+	//	}
+	//	result[metricItem.Key] = metricItem.MetricItem
+	//}
+	return nil
 }
 
-func (h *APIHandler) convertMetricItemsToAgg(metricItems []*common.MetricItem)map[string]interface{} {
+
+func ConvertMetricItemsToAggQuery(metricItems []*common.MetricItem) map[string]interface{} {
 	aggs := map[string]interface{}{}
 	for _, metricItem := range metricItems {
 		for _, line := range metricItem.Lines {
@@ -346,4 +443,209 @@ func (h *APIHandler) convertMetricItemsToAgg(metricItems []*common.MetricItem)ma
 		}
 	}
 	return aggs
+}
+
+func ConvertBucketItemsToAggQuery(bucketItems []*common.BucketItem,metricItems []*common.MetricItem) util.MapStr {
+	aggs := util.MapStr{}
+
+	var currentAgg = util.MapStr{}
+	for _,bucketItem:=range bucketItems{
+
+		bucketAgg:=util.MapStr{}
+
+		switch bucketItem.Type {
+		case "terms":
+			bucketAgg = util.MapStr{
+				"terms": bucketItem.Parameters,
+			}
+			break
+		case "date_histogram":
+			bucketAgg = util.MapStr{
+					"date_histogram": bucketItem.Parameters,
+			}
+			break
+		}
+
+		//if bucketItem.Buckets!=nil&&len(bucketItem.Buckets)>0{
+			nestedAggs:=ConvertBucketItemsToAggQuery(bucketItem.Buckets,bucketItem.Metrics)
+			if len(nestedAggs)>0{
+				util.MergeFields(bucketAgg,nestedAggs,true)
+			}
+		//}
+		currentAgg[bucketItem.Key]=bucketAgg
+	}
+
+	if metricItems!=nil&&len(metricItems)>0{
+		metricAggs:=ConvertMetricItemsToAggQuery(metricItems)
+		util.MergeFields(currentAgg,metricAggs,true)
+	}
+
+	aggs = util.MapStr{
+		"aggs": currentAgg,
+	}
+
+
+	return aggs
+}
+
+type BucketBase map[string]interface{}
+
+func (receiver BucketBase) GetChildBucket(name string)(map[string]interface{},bool)  {
+	bks,ok:=receiver[name]
+	if ok{
+		bks2,ok:= bks.(map[string]interface{})
+		return bks2,ok
+	}
+	return nil,false
+}
+
+type Bucket struct {
+	BucketBase //子 buckets
+
+	KeyAsString string `json:"key_as_string,omitempty"`
+	Key         interface{} `json:"key,omitempty"`
+	DocCount    int64       `json:"doc_count,omitempty"`
+	DocCountErrorUpperBound    int64       `json:"doc_count_error_upper_bound,omitempty"`
+	SumOtherDocCount    int64       `json:"sum_other_doc_count,omitempty"`
+
+	Buckets []Bucket `json:"buckets,omitempty"` //本 buckets
+}
+
+type SearchResponse struct {
+
+	Took     int  `json:"took"`
+	TimedOut bool `json:"timed_out"`
+	Hits     struct {
+		Total    interface{}     `json:"total"`
+		MaxScore float32         `json:"max_score"`
+	} `json:"hits"`
+	Aggregations util.MapStr `json:"aggregations,omitempty"`
+}
+
+func ParseAggregationResult(aggsData util.MapStr,groupKey,metricLabelKey,metricValueKey string)MetricData  {
+
+	metricData:=MetricData{}
+	//group bucket key: key1, 获取 key 的 buckets 作为分组的内容 map[group][]{Label，MetricValue}
+	//metric Label Key: key2, 获取其 key 作为 时间指标
+	//metric Value Key: c7qgjrqi4h92sqdaa9b0, 获取其 value 作为 point 内容
+
+	//groupKey:="key1"
+	//metricLabelKey:="key2"
+	//metricValueKey:="c7qi5hii4h935v9bs920"
+
+//fmt.Println(groupKey," => ",metricLabelKey," => ",metricValueKey)
+
+	for k,v:=range aggsData{
+		//fmt.Println("k:",k)
+		//fmt.Println("v:",v)
+
+		if k==groupKey{
+			//fmt.Println("hit group key")
+			//start to collect metric for each bucket
+			objcs,ok:=v.(map[string]interface{})
+			if ok{
+
+				bks,ok:=objcs["buckets"].([]interface{})
+				if ok{
+					for _,bk:=range bks{
+						//check each bucket, collecting metrics
+						//fmt.Println("check bucket:",bk)
+
+						bkMap,ok:=bk.(map[string]interface{})
+						if ok{
+
+
+							groupKeyValue,ok:=bkMap["key"]
+							if ok{
+								//fmt.Println("collecting bucket::",groupKeyValue)
+							}
+							bkHitMap,ok:=bkMap[metricLabelKey]
+							if ok{
+								//hit label, 说明匹配到时间范围了
+								labelMap,ok:=bkHitMap.(map[string]interface{})
+								if ok{
+									//fmt.Println("bkHitMap",bkHitMap)
+
+									labelBks,ok:=labelMap["buckets"]
+									if ok{
+
+										labelBksMap,ok:=labelBks.([]interface{})
+										//fmt.Println("get label buckets",ok)
+										if ok{
+											//fmt.Println("get label buckets",ok)
+
+											for _,labelItem:=range labelBksMap{
+												metrics,ok:=labelItem.(map[string]interface{})
+
+												//fmt.Println(labelItem)
+												labelKeyValue,ok:=metrics["key"]
+												if ok{
+													//fmt.Println("collecting metric label::",int64(labelKeyValue.(float64)))
+												}
+
+												metric,ok:= metrics[metricValueKey]
+												if ok{
+													metricMap,ok:=metric.(map[string]interface{})
+													if ok{
+														metricValue,ok:=metricMap["value"]
+														if ok{
+															//fmt.Println("collecting metric value::",metricValue.(float64))
+
+															saveMetric(&metricData,groupKeyValue.(string),labelKeyValue,metricValue)
+															continue
+														}
+													}
+												}
+											}
+										}
+
+									}
+								}
+
+							}
+						}
+					}
+				}
+			}
+
+		}
+
+	}
+
+	//for k,v:=range bucketItems{
+	//	fmt.Println("k:",k)
+	//	fmt.Println("v:",v)
+	//	aggObect:=aggsData[v.Key]
+	//	fmt.Println("",aggObect)
+	//	//fmt.Println(len(aggObect.Buckets))
+	//	//for _,bucket:=range aggObect.Buckets{
+	//	//	fmt.Println(bucket.Key)
+	//	//	fmt.Println(bucket.GetChildBucket("key2"))
+	//	//	//children,ok:=bucket.GetChildBucket()
+	//	//	//if ok{
+	//	//	//
+	//	//	//}
+	//	//}
+	//}
+
+	return metricData
+}
+
+func saveMetric(metricData *MetricData,group string, label , value interface{}) {
+
+	if value==nil{
+		return
+	}
+
+	v,ok:=(*metricData)[group]
+	if !ok{
+		v=[][]interface{}{}
+	}
+	v2:=[]interface{}{}
+	v2=append(v2,label)
+	v2=append(v2,value)
+	v=append(v,v2)
+
+	(*metricData)[group]=v
+	//fmt.Printf("save:%v, %v=%v\n",group,label,value)
 }

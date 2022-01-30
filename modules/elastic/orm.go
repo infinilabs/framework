@@ -14,6 +14,11 @@ type ElasticORM struct {
 	Config common.ORMConfig
 }
 
+func (handler ElasticORM) GetWildcardIndexName(o interface{}) string {
+	name:=handler.GetIndexName(o)
+	return fmt.Sprintf("%v*",name)
+}
+
 func (handler ElasticORM) GetIndexName(o interface{}) string {
 	indexName := getIndexName(o)
 
@@ -121,7 +126,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	result := api.Result{}
 
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.SearchWithRawQueryDSL(handler.GetIndexName(t), q.RawQuery)
+		searchResponse, err = handler.Client.SearchWithRawQueryDSL(handler.GetWildcardIndexName(t), q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
@@ -155,7 +160,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 			}
 		}
 
-		searchResponse, err = handler.Client.Search(handler.GetIndexName(t), &request)
+		searchResponse, err = handler.Client.Search(handler.GetWildcardIndexName(t), &request)
 
 	}
 

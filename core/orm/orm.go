@@ -31,6 +31,8 @@ type ORM interface {
 
 	GetIndexName(o interface{}) string
 
+	GetWildcardIndexName(o interface{}) string
+
 	Save(o interface{}) error
 
 	Update(o interface{}) error
@@ -70,6 +72,7 @@ type Query struct {
 	Size     int
 	Conds    []*Cond
 	RawQuery []byte
+	WildcardIndex bool
 }
 
 func (q *Query) AddSort(field string, sortType SortType) *Query {
@@ -214,6 +217,10 @@ func Get(o interface{}) (bool, error) {
 func GetBy(field string, value interface{}, t interface{}) (error, Result) {
 
 	return getHandler().GetBy(field, value, t)
+}
+
+func GetWildcardIndexName(o interface{}) string {
+	return getHandler().GetWildcardIndexName(o)
 }
 
 func GetIndexName(o interface{}) string {

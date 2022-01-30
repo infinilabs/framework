@@ -1065,7 +1065,7 @@ func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httpr
 }
 
 func getAllMetricsIndex() string{
-	return fmt.Sprintf("%s*", orm.GetIndexName(event.Event{}))
+	return orm.GetWildcardIndexName(event.Event{})
 }
 
 func (h *APIHandler) HandleGetStorageMetricAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

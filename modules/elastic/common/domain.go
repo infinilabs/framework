@@ -70,13 +70,39 @@ type MetricItem struct {
 	Order int `json:"order"`
 }
 
+const TermsBucket string="terms"
+const DateHistogramBucket string="date_histogram"
+
 type BucketItem struct {
-	Key   string        `json:"key"`
-	Group string `json:"group"`
-	Order int    `json:"order"`
+	Key      string        `json:"key"`
+	Group    string        `json:"group"`
+	Type    string        ` json:"type"`        //terms/date_histogram
+	Parameters    util.MapStr       ` json:"parameters"` //terms/date_histogram
+	Order    int           `json:"order"`
+	Buckets []*BucketItem  `json:"buckets"`
+	Metrics []*MetricItem  `json:"metrics"`
 }
 
-func (metricItem *MetricItem) AddLine(title, label, desc, group, field, aggsType, bucketSize, units, formatTye, format, tickFormat string, hasCalculation, isDerivative bool) *MetricItem {
+func NewBucketItem(bucketType string,parameter util.MapStr)*BucketItem  {
+	item:=BucketItem{}
+	item.Key=util.GetUUID()
+	item.Type=bucketType
+	item.Parameters=parameter
+	return &item
+}
+
+func (bucketItem *BucketItem) AddNestBucket(item  *BucketItem){
+	bucketItem.Buckets=append(bucketItem.Buckets,item)
+}
+
+func (bucketItem *BucketItem) AddMetricItems(items...  *MetricItem)(*BucketItem){
+	for _,i:=range items{
+		bucketItem.Metrics=append(bucketItem.Metrics,i)
+	}
+	return bucketItem
+}
+
+func (metricItem *MetricItem) AddLine(title, label, desc, group, field, aggsType, bucketSize, units, formatTye, format, tickFormat string, hasCalculation, isDerivative bool) *MetricLine {
 	line := MetricLine{}
 	line.BucketSize = bucketSize
 	line.Metric = MetricSummary{
@@ -103,7 +129,7 @@ func (metricItem *MetricItem) AddLine(title, label, desc, group, field, aggsType
 	}
 
 	metricItem.Lines = append(metricItem.Lines, &line)
-	return metricItem
+	return &line
 }
 
 func (metricItem *MetricItem) AddAxi(title, group, position, formatType, labelFormat, tickFormat string, ticks int, showGridLines bool) *MetricItem {
