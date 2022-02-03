@@ -192,6 +192,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "indexing_latency",
 		Field: "payload.elasticsearch.node_stats.indices.indexing.index_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.indexing.index_total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: indexLatencyMetric,
@@ -217,6 +221,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "query_latency",
 		Field: "payload.elasticsearch.node_stats.indices.search.query_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.search.query_total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryLatencyMetric,
@@ -287,6 +295,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "fetch_latency",
 		Field: "payload.elasticsearch.node_stats.indices.search.fetch_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.search.fetch_total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: fetchLatencyMetric,
@@ -299,6 +311,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "scroll_latency",
 		Field: "payload.elasticsearch.node_stats.indices.search.scroll_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.search.scroll_total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: scrollLatencyMetric,
@@ -312,6 +328,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "merge_latency",
 		Field: "payload.elasticsearch.node_stats.indices.merges.total_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.merges.total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: mergeLatencyMetric,
@@ -325,6 +345,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "refresh_latency",
 		Field: "payload.elasticsearch.node_stats.indices.refresh.total_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.refresh.total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: refreshLatencyMetric,
@@ -337,6 +361,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "flush_latency",
 		Field: "payload.elasticsearch.node_stats.indices.flush.total_time_in_millis",
+		Field2: "payload.elasticsearch.node_stats.indices.flush.total",
+		Calc: func(value, value2 float64) float64 {
+			return value/value2
+		},
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: flushLatencyMetric,
@@ -814,7 +842,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 				},
 			}
 			if metricItem.Field2 != "" {
-				aggs[metricItem.ID + "_field2_deriv"]=util.MapStr{
+				aggs[metricItem.ID + "_deriv_field2"]=util.MapStr{
 					"derivative":util.MapStr{
 						"buckets_path": metricItem.ID + "_field2",
 					},
