@@ -98,19 +98,20 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 												metricID := mk1
 												if strings.HasSuffix( mk1,"_deriv") {
 													metricID = strings.TrimSuffix(mk1, "_deriv")
-													if field2, ok := bucketMap[mk1+"_field2"]; ok {
-														if idx, ok := grpMetricItemsIndex[metricID]; ok {
-															if field2Map, ok := field2.(map[string]interface{}); ok {
-																v4 := field2Map["value"].(float64)
-																if v4 == 0 {
-																	v3 = 0
-																}else{
-																	v3 = grpMetricItems[idx].Calc(v3, v4)
-																}
+													if _, ok := bucketMap[mk1+"_field2"]; !ok {
+														v3 = v3 / float64(bucketSize)
+													}
+												}
+												if field2, ok := bucketMap[mk1+"_field2"]; ok {
+													if idx, ok := grpMetricItemsIndex[metricID]; ok {
+														if field2Map, ok := field2.(map[string]interface{}); ok {
+															v4 := field2Map["value"].(float64)
+															if v4 == 0 {
+																v3 = 0
+															}else{
+																v3 = grpMetricItems[idx].Calc(v3, v4)
 															}
 														}
-													}else{
-														v3 = v3 / float64(bucketSize)
 													}
 												}
 												if v3 < 0 {
