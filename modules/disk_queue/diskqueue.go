@@ -38,6 +38,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -699,12 +700,32 @@ func (d *diskQueue) handleReadError() {
 //
 // conveniently this also means that we're asynchronously reading from the filesystem
 func (d *diskQueue) ioLoop() {
+
 	var dataRead []byte
 	var err error
 	var count int64
 	var r chan []byte
 
 	syncTicker := time.NewTicker(time.Duration(d.cfg.SyncTimeoutInMS) * time.Millisecond)
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error to disk_queue ioLoop,", v)
+				syncTicker.Stop()
+				d.exitSyncChan <- 1
+			}
+		}
+	}()
 
 	for {
 		// dont sync all the time :)

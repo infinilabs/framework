@@ -440,12 +440,16 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 	if err!=nil{
 		panic(err)
 	}
-	lastFileNum:=util.BytesToInt64(b)
+	var lastSavedFileNum int64
+	if b!=nil&&len(b)==0{
+		lastSavedFileNum =util.BytesToInt64(b)
+	}
+
 	//check consumers offset
 	consumers,part,_:=queue.GetEarlierOffsetByQueueID(queueID)
 	fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
 	//no consumers or consumer/s3 already ahead of this file
-		if consumers==0||(fileStartToDelete<part&&fileStartToDelete<lastFileNum){
+		if consumers==0||(fileStartToDelete<part&&fileStartToDelete< lastSavedFileNum){
 			log.Trace("start to delete:",fileStartToDelete,",consumers:",consumers,",part:",part)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
@@ -461,10 +465,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 				}
 			}
 		}
-	}
-
-
-
+}
 
 var persistentLocker sync.RWMutex
 func persistQueueMetadata()  {
