@@ -49,7 +49,6 @@ type MetricSummary struct {
 	Description string `json:"description"`
 
 	ID        string `json:"-"`
-	DataKey   string `json:"-"`
 	MetricAgg string `json:"metricAgg"`
 	Field     string `json:"field"`
 
@@ -61,6 +60,15 @@ type MetricSummary struct {
 	HasCalculation bool `json:"hasCalculation"`
 	IsDerivative   bool `json:"isDerivative"`
 }
+
+func (receiver *MetricSummary) GetDataKey()string  {
+	if receiver.IsDerivative {
+		return receiver.ID + "_deriv"
+	} else {
+		return receiver.ID
+	}
+}
+
 
 type MetricItem struct {
 	Key   string        `json:"key"`
@@ -120,12 +128,6 @@ func (metricItem *MetricItem) AddLine(title, label, desc, group, field, aggsType
 		TickFormat:     tickFormat,
 		HasCalculation: hasCalculation,
 		IsDerivative:   isDerivative,
-	}
-
-	if line.Metric.IsDerivative {
-		line.Metric.DataKey = line.Metric.ID + "_deriv"
-	} else {
-		line.Metric.DataKey = line.Metric.ID
 	}
 
 	metricItem.Lines = append(metricItem.Lines, &line)
