@@ -420,13 +420,7 @@ type ElasticsearchConfig struct {
 	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
 	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
 
-	GeoLocation struct{
-		Provider string `json:"provider,omitempty" elastic_mapping:"provider:{type:keyword}"`
-		Region string `json:"region,omitempty" elastic_mapping:"region:{type:keyword}"`
-		DC string `json:"dc,omitempty" elastic_mapping:"dc:{type:keyword}"`
-		Rack string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
-
-	}  `json:"location,omitempty" elastic_mapping:"location:{type:object}"`
+	GeoLocation *GeoLocation `json:"location,omitempty" elastic_mapping:"location:{type:object}"`
 
 	Project string `json:"project,omitempty" elastic_mapping:"project:{type:keyword}"`
 
@@ -435,7 +429,13 @@ type ElasticsearchConfig struct {
 		Name string `json:"name,omitempty" elastic_mapping:"name:{type:keyword}"`
 		ID string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
 	}  `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
+}
 
+type GeoLocation struct{
+	Provider string `json:"provider,omitempty" elastic_mapping:"provider:{type:keyword}"`
+	Region string `json:"region,omitempty" elastic_mapping:"region:{type:keyword}"`
+	DC string `json:"dc,omitempty" elastic_mapping:"dc:{type:keyword}"`
+	Rack string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
 }
 
 //{
