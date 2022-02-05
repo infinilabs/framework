@@ -122,6 +122,10 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	request.From = q.From
 	request.Size = q.Size
 
+	if q.CollapseField!=""{
+		request.Collapse=&elastic.Collapse{Field: q.CollapseField}
+	}
+
 	var searchResponse *elastic.SearchResponse
 	result := api.Result{}
 

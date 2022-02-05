@@ -69,10 +69,16 @@ const DESC SortType = "desc"
 type Query struct {
 	Sort     *[]Sort
 	From     int
+	CollapseField     string
 	Size     int
 	Conds    []*Cond
 	RawQuery []byte
 	WildcardIndex bool
+}
+
+func (q *Query) Collapse(field string) *Query {
+	q.CollapseField=field
+	return q
 }
 
 func (q *Query) AddSort(field string, sortType SortType) *Query {

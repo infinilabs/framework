@@ -389,9 +389,14 @@ type Query struct {
 type SearchRequest struct {
 	Query              *Query         `json:"query,omitempty"`
 	From               int            `json:"from"`
+	Collapse           *Collapse `json:"collapse,omitempty"`
 	Size               int            `json:"size"`
 	Sort               *[]interface{} `json:"sort,omitempty"`
 	AggregationRequest `json:"aggs,omitempty"`
+}
+
+type Collapse struct {
+	Field string `json:"field,omitempty"`
 }
 
 type AggregationRequest struct {
