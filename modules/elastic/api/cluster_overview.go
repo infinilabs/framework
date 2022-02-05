@@ -68,7 +68,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	q1.Conds=orm.And(
 		orm.Eq("metadata.category","elasticsearch"),
 		orm.Eq("metadata.name","cluster_health"),
-		//orm.In("metadata.labels.cluster_id",clusterIDs)
+		orm.In("metadata.labels.cluster_id",clusterIDs),
 		)
 	q1.AddSort("timestamp",orm.DESC)
 	q1.Size=100
@@ -94,8 +94,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		panic(err)
 		return
 	}
-
-	//fmt.Println(bucketSize)
 
 
 	query:=util.MapStr{}
@@ -154,8 +152,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		"size":  top,
 	})
 
-
-
 	histgram:=common.NewBucketItem(
 		common.DateHistogramBucket,util.MapStr{
 			"field": "timestamp",
@@ -171,29 +167,17 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 
 	util.MergeFields(query,aggs,true)
 
-	//fmt.Println(string(util.MustToJSONBytes(query)))
 
-	//map[cluster_id]MetricData
 	searchR1, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err!=nil{
 		panic(err)
 	}
 
-	//fmt.Println(string(getAllMetricsIndex()))
-	//fmt.Println(string(util.MustToJSONBytes(query)))
-	//fmt.Println(string(searchR1.RawResult.Body))
-
-
 	searchResponse:=SearchResponse{}
 	util.FromJSONBytes(searchR1.RawResult.Body,&searchResponse)
 
-	m1:=ParseAggregationResult(searchResponse.Aggregations,bucketItem.Key,histgram.Key,indexLine.Metric.ID)
-	m2:=ParseAggregationResult(searchResponse.Aggregations,bucketItem.Key,histgram.Key,searchLine.Metric.ID)
-
-	//fmt.Println(m1)
-	//fmt.Println(m2)
-	//fmt.Println(searchResponse)
-
+	m1:=ParseAggregationResult(bucketSize,searchResponse.Aggregations,bucketItem.Key,histgram.Key,indexLine.Metric.GetDataKey())
+	m2:=ParseAggregationResult(bucketSize,searchResponse.Aggregations,bucketItem.Key,histgram.Key,searchLine.Metric.GetDataKey())
 
 	//fetch recent cluster health status
 	bucketItem=common.NewBucketItem(
@@ -264,9 +248,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		panic(err)
 	}
 
-	//fmt.Println(string(util.MustToJSONBytes(query)))
-	//fmt.Println(string(searchR1.RawResult.Body))
-
 	d1:=[][]interface{}{}
 	d1=append(d1,[]interface{}{1613898840000,"green"})
 	d1=append(d1,[]interface{}{1613898840000,"red"})
@@ -288,21 +269,21 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		result:=util.MapStr{}
 
 		source:=hit.Source
-		source["project"]=util.MapStr{
-			"id":"12312312",
-			"name":"统一日志云平台v1.0",
-		}
-		source["location"]=util.MapStr{
-			"provider" : "阿里云",
-			"region" : "北京",
-			"dc" : "昌平机房",
-			"rack" : "rack-1",
-		}
-		source["owner"]=[]util.MapStr{util.MapStr{
-			"department" : "运维部",
-			"name":"廖石阳",
-			"id":"123123123",
-		}}
+		//source["project"]=util.MapStr{
+		//	"id":"12312312",
+		//	"name":"统一日志云平台v1.0",
+		//}
+		//source["location"]=util.MapStr{
+		//	"provider" : "阿里云",
+		//	"region" : "北京",
+		//	"dc" : "昌平机房",
+		//	"rack" : "rack-1",
+		//}
+		//source["owner"]=[]util.MapStr{util.MapStr{
+		//	"department" : "运维部",
+		//	"name":"廖石阳",
+		//	"id":"123123123",
+		//}}
 
 		result["metadata"]=source
 		result["summary"]=healthMap[hit.ID]

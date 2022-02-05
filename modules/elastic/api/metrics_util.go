@@ -244,7 +244,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	for _, metricItem := range metricItems {
 		for _, line := range metricItem.Lines {
 
-			metricData[line.Metric.DataKey] = [][]interface{}{}
+			metricData[line.Metric.GetDataKey()] = [][]interface{}{}
 
 			aggs[line.Metric.ID] = util.MapStr{
 				"max": util.MapStr{
@@ -321,7 +321,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	for _, metricItem := range metricItems {
 		for _, line := range metricItem.Lines {
 			line.TimeRange = common.TimeRange{Min: minDate, Max: maxDate}
-			line.Data = metricData[line.Metric.DataKey]
+			line.Data = metricData[line.Metric.GetDataKey()]
 		}
 		result[metricItem.Key] = metricItem
 	}
@@ -531,7 +531,7 @@ type SearchResponse struct {
 	Aggregations util.MapStr `json:"aggregations,omitempty"`
 }
 
-func ParseAggregationResult(aggsData util.MapStr,groupKey,metricLabelKey,metricValueKey string)MetricData  {
+func ParseAggregationResult(bucketSize int,aggsData util.MapStr,groupKey,metricLabelKey,metricValueKey string)MetricData  {
 
 	metricData:=MetricData{}
 	//group bucket key: key1, 获取 key 的 buckets 作为分组的内容 map[group][]{Label，MetricValue}
@@ -600,7 +600,7 @@ func ParseAggregationResult(aggsData util.MapStr,groupKey,metricLabelKey,metricV
 														if ok{
 															//fmt.Println("collecting metric value::",metricValue.(float64))
 
-															saveMetric(&metricData,groupKeyValue.(string),labelKeyValue,metricValue)
+															saveMetric(&metricData,groupKeyValue.(string),labelKeyValue,metricValue,bucketSize)
 															continue
 														}
 													}
@@ -640,10 +640,15 @@ func ParseAggregationResult(aggsData util.MapStr,groupKey,metricLabelKey,metricV
 	return metricData
 }
 
-func saveMetric(metricData *MetricData,group string, label , value interface{}) {
+func saveMetric(metricData *MetricData,group string, label , value interface{},bucketSize int) {
 
 	if value==nil{
 		return
+	}
+
+	v3, ok := value.(float64)
+	if ok {
+		value = v3 / float64(bucketSize)
 	}
 
 	v,ok:=(*metricData)[group]
