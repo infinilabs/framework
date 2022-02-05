@@ -553,21 +553,27 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 
 	metricItems:=[]*common.MetricItem{}
 
-	metricItem:=newMetricItem("cluster_throughput", 2, OperationGroupKey)
+	metricItem:=newMetricItem("index_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
-
 	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","payload.elasticsearch.index_stats.total.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for primary shards.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Search Rate","Total Searching","Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!","group2","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
-	metricItem=newMetricItem("cluster_latency", 3, LatencyGroupKey)
+	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
+	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddLine("Search Rate","Total Searching","Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!","group1","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddAxi("searching","group2",common.PositionRight,"num","0,0","0,0.[00]",5,false)
 
 	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.index_stats.total.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.index_stats.total.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
+	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+
 	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.index_stats.total.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.index_stats.total.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.index_stats.total.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
@@ -621,7 +627,14 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 
 	metricItem=newMetricItem("node_count", 5, MemoryGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-	majorVersion := elastic.GetMetadata(id).GetMajorVersion()
+	meta := elastic.GetMetadata(id)
+	if!meta.IsAvailable(){
+
+	}
+	majorVersion:=meta.GetMajorVersion()
+	metricItem.AddLine("Total", "Total Nodes", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.total", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
+
+	//TODO check version difference
 	if majorVersion < 5 {
 		metricItem.AddLine("Master Only", "Master Only", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.master_only", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
 		metricItem.AddLine("Data Node", "Data Only", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.data_only", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
