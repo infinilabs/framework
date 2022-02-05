@@ -69,6 +69,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		orm.Eq("metadata.name", "cluster_health"),
 		orm.In("metadata.labels.cluster_id", clusterIDs),
 	)
+	q1.Collapse("metadata.labels.cluster_id")
 	q1.AddSort("timestamp", orm.DESC)
 	q1.Size = len(clusterIDs)+1
 
@@ -81,11 +82,64 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		if ok {
 			health, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_health"}, result)
 			if ok {
+				cid:=util.ToString(clusterID)
 				source := health.(map[string]interface{})
+				meta:=elastic.GetMetadata(cid)
+				if meta!=nil&&!meta.IsAvailable(){
+					source["status"]="unavailable"
+				}
+				healthMap[cid] = source
+			}
+		}
+	}
+
+
+	//fetch extra cluster status
+	q1 = orm.Query{WildcardIndex: true}
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.name", "cluster_stats"),
+		orm.In("metadata.labels.cluster_id", clusterIDs),
+	)
+	q1.Collapse("metadata.labels.cluster_id")
+	q1.AddSort("timestamp", orm.DESC)
+	q1.Size = len(clusterIDs)+1
+
+	err, results = orm.Search(&event.Event{}, &q1)
+	for _, v := range results.Result {
+		result, ok := v.(map[string]interface{})
+		if ok{
+			clusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result)
+			if ok {
+				source := healthMap[util.ToString(clusterID)].(map[string]interface{})
+				indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","count"}, result)
+				if ok {
+					source["number_of_indices"]=indicesCount
+				}
+
+				docsCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","docs","count"}, result)
+				if ok {
+					source["number_of_documents"]=docsCount
+				}
+
+				docsDeletedCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","docs","deleted"}, result)
+				if ok {
+					source["number_of_deleted_documents"]=docsDeletedCount
+				}
+				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","nodes","fs"}, result)
+				if ok {
+					source["fs"]=fs
+				}
+				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","nodes","jvm","mem"}, result)
+				if ok {
+					source["jvm"]=jvm
+				}
+
 				healthMap[util.ToString(clusterID)] = source
 			}
 		}
 	}
+
 
 	//fetch cluster metrics
 	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req, 60, (15))
