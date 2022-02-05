@@ -70,7 +70,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		orm.In("metadata.labels.cluster_id", clusterIDs),
 	)
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = 100
+	q1.Size = len(clusterIDs)+1
 
 	err, results := orm.Search(&event.Event{}, &q1)
 

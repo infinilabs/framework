@@ -567,8 +567,14 @@ func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, 
 										if ok{
 											for _,labelItem:=range labelBksMap{
 												metrics,ok:=labelItem.(map[string]interface{})
-												labelKeyValue,ok:=metrics["key"]
-												if ok{
+
+
+												labelKeyValue,ok:=metrics["to"] //TODO config
+												if !ok{
+													labelKeyValue,ok=metrics["from"] //TODO config
+												}
+												if !ok{
+													labelKeyValue,ok=metrics["key"] //TODO config
 												}
 
 												metric,ok:= metrics[resultValueKey]
@@ -587,16 +593,16 @@ func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, 
 															if ok{
 																buckets,ok:=metricValue.([]interface{})
 																if ok{
-																	var result string=""
+																	var result string="unavailable"
 																	for _,v:=range buckets{
 																		x,ok:=v.(map[string]interface{})
 																		if ok{
-																			result=x["key"].(string)
 																			if result!="red" && x["key"]=="yellow"{
 																				result="yellow"
-																			}
-																			if result!="red" && x["key"]=="red"{
+																			}else if result!="red" && x["key"]=="red"{
 																				result="red"
+																			}else{
+																				result=x["key"].(string)
 																			}
 																		}
 																	}

@@ -110,5 +110,8 @@ func (module *MetricsModule) Start() error {
 }
 
 func (module *MetricsModule) Stop() error {
+
+	//TODO cancel or stop background jobs
+
 	return nil
 }

@@ -99,6 +99,10 @@ const Must BoolType = "must"
 const MustNot BoolType = "must_not"
 const Should BoolType = "should"
 
+const Term QueryType = "term"
+const Prefix QueryType = "prefix"
+const Wildcard QueryType = "wildcard"
+const Regexp QueryType = "regexp"//TODO check
 const Match QueryType = "match"
 const RangeGt QueryType = "gt"
 const RangeGte QueryType = "gte"
