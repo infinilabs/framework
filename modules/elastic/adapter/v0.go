@@ -393,6 +393,10 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 		return nil, err
 	}
 
+	if resp.StatusCode>=400{
+		log.Error("invalid response: ", string(queryDSL), ",", string(resp.Body))
+	}
+
 	if global.Env().IsDebug {
 		log.Trace("search response: ", string(queryDSL), ",", string(resp.Body))
 	}
@@ -542,7 +546,7 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	}
 
 	//dirty fix for es 7.0.0
-	//if c.GetMajorVersion()==7{
+	//if c.ParseMajorVersion()==7{
 	v,err:=jsonparser.GetInt(resp.Body,"indices","segments","max_unsafe_auto_id_timestamp")
 	if err!=nil||v< -1{
 		d,err:=jsonparser.Set(resp.Body,[]byte("-1"),"indices","segments","max_unsafe_auto_id_timestamp")
