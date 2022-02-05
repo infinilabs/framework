@@ -186,7 +186,7 @@ restore-generated-file:
 
 
 update-vfs:
-	cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs ~/
+	@if [ ! -e ~/vfs ]; then (cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs ~/) fi
 	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && ~/vfs -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
 
 config: init update-vfs update-generated-file
