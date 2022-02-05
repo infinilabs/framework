@@ -73,7 +73,20 @@ func TestConvertBucketItemsToAggQueryParams(t *testing.T) {
 		groupKey:="key1"
 		metricLabelKey:="key2"
 		metricValueKey:="c7qi5hii4h935v9bs920"
-	data:=ParseAggregationResult(res.Aggregations,groupKey,metricLabelKey,metricValueKey)
+	data:=ParseAggregationResult(int(10),res.Aggregations,groupKey,metricLabelKey,metricValueKey)
+	fmt.Println(data)
+
+}
+
+func TestConvertBucketItems(t *testing.T) {
+	response:="{ \"took\": 8, \"timed_out\": false, \"_shards\": { \"total\": 1, \"successful\": 1, \"skipped\": 0, \"failed\": 0 }, \"hits\": { \"total\": { \"value\": 81, \"relation\": \"eq\" }, \"max_score\": null, \"hits\": [] }, \"aggregations\": { \"c7v2gm3i7638vvo4pv80\": { \"doc_count_error_upper_bound\": 0, \"sum_other_doc_count\": 0, \"buckets\": [ { \"key\": \"c7uv7p3i76360kgdmpb0\", \"doc_count\": 81, \"c7v2gm3i7638vvo4pv8g\": { \"buckets\": [ { \"key_as_string\": \"2022-02-05T00:00:00.000+08:00\", \"key\": 1643990400000, \"doc_count\": 81, \"c7v2gm3i7638vvo4pv90\": { \"doc_count_error_upper_bound\": 0, \"sum_other_doc_count\": 0, \"buckets\": [ { \"key\": \"yellow\", \"doc_count\": 81 } ] } } ] } } ] } } }"
+	res:=SearchResponse{}
+	util.FromJSONBytes([]byte(response),&res)
+
+	data:=ParseAggregationBucketResult(int(10),res.Aggregations,"c7v2gm3i7638vvo4pv80","c7v2gm3i7638vvo4pv8g","c7v2gm3i7638vvo4pv90", func() {
+
+	})
+
 	fmt.Println(data)
 
 }

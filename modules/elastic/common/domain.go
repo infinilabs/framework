@@ -80,6 +80,7 @@ type MetricItem struct {
 
 const TermsBucket string="terms"
 const DateHistogramBucket string="date_histogram"
+const DateRangeBucket string="date_range"
 
 type BucketItem struct {
 	Key      string        `json:"key"`
