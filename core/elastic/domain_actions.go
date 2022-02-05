@@ -95,7 +95,7 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
 		v:=meta.Config.ParseMajorVersion()
 		if v>0{
-			versions[meta.Config.ID] = esMajorVersion
+			versions[meta.Config.ID] = v
 			return v
 		}
 
