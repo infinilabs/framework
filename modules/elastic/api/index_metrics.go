@@ -147,7 +147,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: queryTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 
 	//Fetch次数
@@ -160,7 +160,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: fetchTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 	//scroll 次数
 	scrollTimesMetric := newMetricItem("scroll_times", 4, OperationGroupKey)
@@ -172,7 +172,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: scrollTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 	//Merge次数
 	mergeTimesMetric := newMetricItem("merge_times", 7, OperationGroupKey)
@@ -184,7 +184,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: mergeTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 	//Refresh次数
 	refreshTimesMetric := newMetricItem("refresh_times", 5, OperationGroupKey)
@@ -196,7 +196,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: refreshTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 	//flush 次数
 	flushTimesMetric := newMetricItem("flush_times", 6, OperationGroupKey)
@@ -208,7 +208,7 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 		IsDerivative: true,
 		MetricItem: flushTimesMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "requests/s",
 	})
 
 	//写入速率
@@ -216,20 +216,20 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 	indexingRateMetric.AddAxi("Indexing rate","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_rate",
-		Field: "payload.elasticsearch.index_stats.total.indexing.index_total",
+		Field: "payload.elasticsearch.index_stats.primaries.indexing.index_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: indexingRateMetric,
 		FormatType: "num",
-		Units: "",
+		Units: "doc/s",
 	})
 	//写入时延
 	indexingLatencyMetric := newMetricItem("indexing_latency", 1, LatencyGroupKey)
 	indexingLatencyMetric.AddAxi("Indexing latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_latency",
-		Field: "payload.elasticsearch.index_stats.total.indexing.index_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.indexing.index_total",
+		Field: "payload.elasticsearch.index_stats.primaries.indexing.index_time_in_millis",
+		Field2: "payload.elasticsearch.index_stats.primaries.indexing.index_total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
