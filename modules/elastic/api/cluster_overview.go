@@ -19,15 +19,17 @@ func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request
 
 func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
-		name        = h.GetParameterOrDefault(req, "name", "")
-		queryDSL    = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
+		name        = h.GetParameterOrDefault(req, "keyword", "")
+		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d}`
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
 		mustBuilder = &strings.Builder{}
 	)
 
 	if name != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf( `{"prefix":{"name.text": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
 	}
 
 	if size <= 0 {
@@ -58,7 +60,15 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	}
 
 	if len(clusterIDs) == 0 {
-		h.WriteError(w, "no cluster found", 404)
+		h.WriteJSON(w, util.MapStr{
+			"hits":util.MapStr{
+				"total":util.MapStr{
+					"value": 0,
+					"relation": "eq",
+				},
+				"hits":[]interface{}{},
+			},
+		}, 200)
 		return
 	}
 
