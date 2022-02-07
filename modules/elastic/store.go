@@ -74,7 +74,7 @@ func (store ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
 			return true, nil
 		}
 	}
-	return false, errors.New("not found")
+	return false, nil
 }
 
 func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
