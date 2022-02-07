@@ -59,6 +59,8 @@ type MetricSummary struct {
 
 	HasCalculation bool `json:"hasCalculation"`
 	IsDerivative   bool `json:"isDerivative"`
+	Field2       string `json:"-"`
+	Calc         func(value, value2 float64) float64 `json:"-"`
 }
 
 func (receiver *MetricSummary) GetDataKey()string  {

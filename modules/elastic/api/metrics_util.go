@@ -240,16 +240,24 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	metricData := map[string][][]interface{}{}
 
 	aggs := map[string]interface{}{}
+	metricItemsMap := map[string]*common.MetricLine{}
 
 	for _, metricItem := range metricItems {
 		for _, line := range metricItem.Lines {
-
+			metricItemsMap[line.Metric.GetDataKey()] = line
 			metricData[line.Metric.GetDataKey()] = [][]interface{}{}
 
 			aggs[line.Metric.ID] = util.MapStr{
 				"max": util.MapStr{
 					"field": line.Metric.Field,
 				},
+			}
+			if line.Metric.Field2 != ""{
+				aggs[line.Metric.ID + "_field2"]=util.MapStr{
+					"max":util.MapStr{
+						"field": line.Metric.Field2,
+					},
+				}
 			}
 
 			if line.Metric.IsDerivative {
@@ -258,6 +266,13 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 					"derivative": util.MapStr{
 						"buckets_path": line.Metric.ID,
 					},
+				}
+				if line.Metric.Field2 != "" {
+					aggs[line.Metric.ID + "_deriv_field2"]=util.MapStr{
+						"derivative":util.MapStr{
+							"buckets_path": line.Metric.ID + "_field2",
+						},
+					}
 				}
 			}
 		}
@@ -298,16 +313,32 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 						if ok {
 							v3, ok := v2["value"].(float64)
 							if ok {
-								if strings.HasSuffix(mk1, "_deriv") {
-									v3 = v3 / float64(bucketSize)
+								if ok {
+									if strings.HasSuffix( mk1,"_deriv") {
+										if _, ok := bucket[mk1+"_field2"]; !ok {
+											v3 = v3 / float64(bucketSize)
+										}
+									}
+									if field2, ok := bucket[mk1+"_field2"]; ok {
+										if line, ok := metricItemsMap[mk1]; ok {
+											if field2Map, ok := field2.(map[string]interface{}); ok {
+												v4 := field2Map["value"].(float64)
+												if v4 == 0 {
+													v3 = 0
+												}else{
+													v3 = line.Metric.Calc(v3, v4)
+												}
+											}
+										}
+									}
+									if v3 < 0 {
+										continue
+									}
+									points := []interface{}{dateTime, v3}
+									metricData[mk1] = append(mv1, points)
 								}
-								//only keep positive value
-								if v3 < 0 {
-									continue
-								}
-								//v4:=int64(v3)/int64(bucketSize)
-								points := []interface{}{dateTime, v3}
-								metricData[mk1] = append(mv1, points)
+
+
 							}
 						}
 					}
