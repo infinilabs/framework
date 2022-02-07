@@ -33,8 +33,8 @@ type ElasticStore struct {
 	Config common.StoreConfig
 }
 
-func (store ElasticStore) Open() error {
-	o:=Blob{}
+func (store *ElasticStore) Open() error {
+	o:=&Blob{}
 	err:=orm.RegisterSchemaWithIndexName(o,store.Config.IndexName)
 	if err!=nil{
 		panic(err)
@@ -42,14 +42,15 @@ func (store ElasticStore) Open() error {
 	if store.Config.IndexName==""{
 		store.Config.IndexName=orm.GetIndexName(o)
 	}
+	log.Trace("store index name:",store.Config.IndexName)
 	return nil
 }
 
-func (store ElasticStore) Close() error {
+func (store *ElasticStore) Close() error {
 	return nil
 }
 
-func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
+func (store *ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
 
 	data, err := store.GetValue(bucket, key)
 	if err != nil {
@@ -63,7 +64,7 @@ func (store ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte,
 	return data, nil
 }
 
-func (store ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
+func (store *ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
 	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
 	if err != nil {
 		return false, err
@@ -77,7 +78,7 @@ func (store ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
 	return false, nil
 }
 
-func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
+func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ func (store ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	return nil,nil
 }
 
-func (store ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
+func (store *ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -109,18 +110,18 @@ func getKey(bucket, key string) string {
 	return util.MD5digest(fmt.Sprintf("%s_%s", bucket, key))
 }
 
-func (store ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
+func (store *ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
 	_, err := store.Client.Index(store.Config.IndexName, "_doc", getKey(bucket, string(key)), file)
 	return err
 }
 
-func (store ElasticStore) DeleteKey(bucket string, key []byte) error {
+func (store *ElasticStore) DeleteKey(bucket string, key []byte) error {
 	_, err := store.Client.Delete(store.Config.IndexName, "_doc", getKey(bucket, string(key)))
 	return err
 }
 
-func (store ElasticStore) DeleteBucket(bucket string) error {
+func (store *ElasticStore) DeleteBucket(bucket string) error {
 	panic(errors.New("not implemented yet"))
 }

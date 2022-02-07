@@ -32,7 +32,7 @@ import (
 // RegisterSystemModule is where modules are registered
 func Register() {
 	//module.RegisterSystemModule(nsq.NSQModule{})
-	module.RegisterSystemModule(elastic.ElasticModule{})
+	module.RegisterSystemModule(&elastic.ElasticModule{})
 	module.RegisterSystemModule(&filter.FilterModule{})
 	module.RegisterSystemModule(&stats.SimpleStatsModule{})
 	module.RegisterSystemModule(&queue2.DiskQueue{})

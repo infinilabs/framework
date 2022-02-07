@@ -32,7 +32,7 @@ import (
 	. "infini.sh/framework/modules/elastic/common"
 )
 
-func (module ElasticModule) Name() string {
+func (module *ElasticModule) Name() string {
 	return "Elastic"
 }
 
@@ -155,7 +155,7 @@ func initElasticInstances() {
 
 var moduleConfig = ModuleConfig{}
 
-func (module ElasticModule) Setup(cfg *config.Config) {
+func (module *ElasticModule) Setup(cfg *config.Config) {
 
 	loadFileBasedElasticConfig()
 
@@ -190,14 +190,14 @@ func (module ElasticModule) Setup(cfg *config.Config) {
 
 	if moduleConfig.StoreConfig.Enabled {
 		client := elastic.GetClient(moduleConfig.Elasticsearch)
-		handler := ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-		kv.Register("elastic", handler)
+		module.storeHandler= &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+		kv.Register("elastic", module.storeHandler)
 	}
 
 	api.Init(moduleConfig)
 }
 
-func (module ElasticModule) Stop() error {
+func (module *ElasticModule) Stop() error {
 	return nil
 }
 
@@ -266,13 +266,20 @@ func clusterStateRefresh() {
 
 }
 
-func (module ElasticModule) Start() error {
+func (module *ElasticModule) Start() error {
 
 	if moduleConfig.RemoteConfigEnabled {
 		loadESBasedElasticConfig()
 	}
 
 	initElasticInstances()
+
+	if module.storeHandler!=nil{
+		err:=module.storeHandler.Open()
+		if err!=nil{
+			panic(err)
+		}
+	}
 
 	clusterHealthCheck(true)
 
@@ -288,7 +295,6 @@ func (module ElasticModule) Start() error {
 
 		task.RegisterScheduleTask(t)
 	}
-
 
 	if moduleConfig.NodeAvailabilityCheckConfig.Enabled {
 		nodeAvailabilityCheck()
@@ -390,4 +396,5 @@ func (module ElasticModule) Start() error {
 }
 
 type ElasticModule struct {
+	storeHandler *ElasticStore
 }
