@@ -374,8 +374,23 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 	return c.SearchWithRawQueryDSL(indexName, js)
 }
 
-func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
+
+func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
+
 	url := c.GetEndpoint() + "/" + indexName + "/_search"
+
+	if queryArgs!=nil&&len(*queryArgs)>0{
+		str:=strings.Builder{}
+		str.WriteString(url)
+		str.WriteString("?")
+		for _,v:=range *queryArgs{
+			str.WriteString(v.Key)
+			str.WriteString("=")
+			str.WriteString(v.Value)
+		}
+		url=str.String()
+	}
+
 	esResp := &elastic.SearchResponse{}
 
 	if global.Env().IsDebug {
@@ -407,6 +422,10 @@ func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*ela
 	}
 
 	return esResp, nil
+}
+
+func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
+	return c.QueryDSL(indexName,nil,queryDSL)
 }
 
 func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {

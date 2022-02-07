@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/graph"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
@@ -13,8 +14,163 @@ import (
 )
 
 func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	str := "{ \"_index\": \".infini-search-center_logs\", \"_type\": \"_doc\", \"_id\": \"c0oc4kkgq9s8qss2uk50\", \"_source\": { \"name\": \"root\", \"children\": [ { \"brand\": \"172.19.3.151\", \"name\": \"172.19.3.151\", \"value\": 50449102, \"children\": [ { \"name\": \"sales_29_v5\", \"value\": 87891, \"children\": [ { \"name\": \"0\", \"value\": 87891 } ] }, { \"name\": \"orders_219_v4\", \"value\": 782368, \"children\": [ { \"name\": \"1\", \"value\": 782368 } ] }, { \"name\": \"orders_58_v4\", \"value\": 994462, \"children\": [ { \"name\": \"0\", \"value\": 994462 } ] } ] }, { \"brand\": \"172.19.3.95\", \"name\": \"172.19.3.95\", \"value\": 18800601, \"children\": [ { \"name\": \"sales_74_v5\", \"value\": 13585101, \"children\": [ { \"name\": \"1\", \"value\": 13585101 } ] }, { \"name\": \"sales_108_v5\", \"value\": 3859386, \"children\": [ { \"name\": \"1\", \"value\": 3859386 } ] } ] } ] } }"
-	h.Write(w, []byte(str))
+
+	clusterID := "c7v11eii4h97sfkfn0dg"
+
+	queryLatency := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"indices": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.labels.index_name",
+					"size":  1000,
+				},
+				"aggs": util.MapStr{
+					"recent_15m": util.MapStr{
+						"auto_date_histogram": util.MapStr{
+							"field":            "timestamp",
+							"minimum_interval": "minute",
+							"buckets":          12,
+						},
+						"aggs": util.MapStr{
+							"max_query_count": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.primaries.search.query_total",
+								},
+							},
+							"query_count_deriv": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "max_query_count",
+								},
+							},
+							"max_query_time": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.primaries.search.query_time_in_millis",
+								},
+							},
+							"query_time_deriv": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "max_query_time",
+								},
+							},
+							"query_latency": util.MapStr{
+								"bucket_script": util.MapStr{
+									"buckets_path": util.MapStr{
+										"my_var1": "query_time_deriv",
+										"my_var2": "query_count_deriv",
+									},
+									"script": "params.my_var1 / params.my_var2",
+								},
+							},
+						},
+					},
+					"max_query_latency": util.MapStr{
+						"max_bucket": util.MapStr{
+							"buckets_path": "recent_15m>query_latency",
+						},
+					},
+					"sort": util.MapStr{
+						"bucket_sort": util.MapStr{
+							"sort": []util.MapStr{
+								{
+									"max_query_latency": util.MapStr{
+										"order": "desc",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must_not": []util.MapStr{{
+					"term": util.MapStr{
+						"metadata.labels.index_name": util.MapStr{
+							"value": "_all",
+						},
+					},
+				},
+				},
+				"must": []util.MapStr{
+					{
+						"match": util.MapStr{
+							"metadata.name": "index_stats",
+						}},
+					util.MapStr{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": "now-7d",
+								"lte": "now",
+							},
+						},
+					},
+				},
+			}},
+	}
+
+	q := orm.Query{WildcardIndex: true}
+	q.AddQueryArgs("filter_path", "aggregations.indices.buckets.key,aggregations.indices.buckets.max_query_latency")
+	q.RawQuery = util.MustToJSONBytes(queryLatency)
+	err, searchR1 := orm.Search(&event.Event{}, &q)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	searchResponse := SearchResponse{}
+	err = util.FromJSONBytes(searchR1.Raw, &searchResponse)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	root := graph.NestedNode{Name: "root"}
+
+	indices, ok := searchResponse.Aggregations["indices"].(map[string]interface{})
+	if ok {
+		buckets, ok := indices["buckets"]
+		if ok {
+			items, ok := buckets.([]interface{})
+			if ok {
+				for _, item := range items {
+					itemMap, ok := item.(map[string]interface{})
+					if ok {
+						indexName := itemMap["key"]
+						latencyObj, ok := itemMap["max_query_latency"].(map[string]interface{})
+						if ok {
+							v := latencyObj["value"]
+							date := latencyObj["keys"].([]interface{})
+							root.Add(indexName.(string), date[0].(string), v.(float64))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	result := util.MapStr{
+		"_index": ".infini-graph",
+		"_type":  "_doc",
+		"_id":    "graph-1",
+		"_source": util.MapStr{
+			"name": "Avg search latency by index",
+			"unit": "ms",
+			"data": root,
+		},
+	}
+
+	h.Write(w, util.MustToJSONBytes(result))
 }
 
 func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -27,7 +183,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	)
 
 	if name != "" {
-		mustBuilder.WriteString(fmt.Sprintf( `{"prefix":{"name.text": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
 	}
@@ -61,12 +217,12 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 
 	if len(clusterIDs) == 0 {
 		h.WriteJSON(w, util.MapStr{
-			"hits":util.MapStr{
-				"total":util.MapStr{
-					"value": 0,
+			"hits": util.MapStr{
+				"total": util.MapStr{
+					"value":    0,
 					"relation": "eq",
 				},
-				"hits":[]interface{}{},
+				"hits": []interface{}{},
 			},
 		}, 200)
 		return
@@ -81,7 +237,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	)
 	q1.Collapse("metadata.labels.cluster_id")
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(clusterIDs)+1
+	q1.Size = len(clusterIDs) + 1
 
 	err, results := orm.Search(&event.Event{}, &q1)
 
@@ -92,17 +248,16 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		if ok {
 			health, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_health"}, result)
 			if ok {
-				cid:=util.ToString(clusterID)
+				cid := util.ToString(clusterID)
 				source := health.(map[string]interface{})
-				meta:=elastic.GetMetadata(cid)
-				if meta!=nil&&!meta.IsAvailable(){
-					source["status"]="unavailable"
+				meta := elastic.GetMetadata(cid)
+				if meta != nil && !meta.IsAvailable() {
+					source["status"] = "unavailable"
 				}
 				healthMap[cid] = source
 			}
 		}
 	}
-
 
 	//fetch extra cluster status
 	q1 = orm.Query{WildcardIndex: true}
@@ -113,43 +268,42 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	)
 	q1.Collapse("metadata.labels.cluster_id")
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(clusterIDs)+1
+	q1.Size = len(clusterIDs) + 1
 
 	err, results = orm.Search(&event.Event{}, &q1)
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
-		if ok{
+		if ok {
 			clusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result)
 			if ok {
 				source := healthMap[util.ToString(clusterID)].(map[string]interface{})
-				indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","count"}, result)
+				indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "count"}, result)
 				if ok {
-					source["number_of_indices"]=indicesCount
+					source["number_of_indices"] = indicesCount
 				}
 
-				docsCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","docs","count"}, result)
+				docsCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "docs", "count"}, result)
 				if ok {
-					source["number_of_documents"]=docsCount
+					source["number_of_documents"] = docsCount
 				}
 
-				docsDeletedCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","indices","docs","deleted"}, result)
+				docsDeletedCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "docs", "deleted"}, result)
 				if ok {
-					source["number_of_deleted_documents"]=docsDeletedCount
+					source["number_of_deleted_documents"] = docsDeletedCount
 				}
-				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","nodes","fs"}, result)
+				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "fs"}, result)
 				if ok {
-					source["fs"]=fs
+					source["fs"] = fs
 				}
-				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats","nodes","jvm","mem"}, result)
+				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "jvm", "mem"}, result)
 				if ok {
-					source["jvm"]=jvm
+					source["jvm"] = jvm
 				}
 
 				healthMap[util.ToString(clusterID)] = source
 			}
 		}
 	}
-
 
 	//fetch cluster metrics
 	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req, 60, (15))
@@ -350,10 +504,10 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	util.FromJSONBytes(searchR1.RawResult.Body, &searchResponse)
 	m3 := ParseAggregationBucketResult(bucketSize, searchResponse.Aggregations, bucketItem.Key, histgram.Key, termBucket.Key, nil)
 
-
 	for i, hit := range response.Hits.Hits {
 		result := util.MapStr{}
 
+		//TODO update last active timestamp
 		source := hit.Source
 		//source["project"]=util.MapStr{
 		//	"id":"12312312",

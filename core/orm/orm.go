@@ -68,6 +68,7 @@ const DESC SortType = "desc"
 
 type Query struct {
 	Sort     *[]Sort
+	QueryArgs     *[]util.KV
 	From     int
 	CollapseField     string
 	Size     int
@@ -86,6 +87,15 @@ func (q *Query) AddSort(field string, sortType SortType) *Query {
 		q.Sort=&[]Sort{}
 	}
 	*q.Sort = append(*q.Sort, Sort{Field: field, SortType: sortType})
+
+	return q
+}
+
+func (q *Query) AddQueryArgs(name string, value string) *Query {
+	if q.QueryArgs==nil{
+		q.QueryArgs=&[]util.KV{}
+	}
+	*q.QueryArgs = append(*q.QueryArgs,util.KV{Key: name,Value: value} )
 
 	return q
 }

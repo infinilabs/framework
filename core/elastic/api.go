@@ -16,7 +16,10 @@ limitations under the License.
 
 package elastic
 
-import "infini.sh/framework/lib/fasthttp"
+import (
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/fasthttp"
+)
 
 type API interface {
 	ScrollAPI
@@ -48,6 +51,9 @@ type API interface {
 	Delete(indexName, docType, id string, refresh ...string) (*DeleteResponse, error)
 	Count(indexName string) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
+
+	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)
+
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
 
 	GetIndexSettings(indexNames string) (*Indexes, error)

@@ -130,7 +130,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	result := api.Result{}
 
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.SearchWithRawQueryDSL(handler.GetWildcardIndexName(t), q.RawQuery)
+		searchResponse, err = handler.Client.QueryDSL(handler.GetWildcardIndexName(t),q.QueryArgs, q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
