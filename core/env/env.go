@@ -196,7 +196,7 @@ var (
 			Log:    "log",
 		},
 
-		AllowMultiInstance: true,
+		AllowMultiInstance: false,
 		MaxNumOfInstance:   5,
 	}
 )
