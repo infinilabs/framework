@@ -209,7 +209,11 @@ func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucke
 
 	if useMinMax {
 
-		if hours <= 1 {
+		if hours <= 0.25 {
+			bucketSize = 10
+		} else if hours <= 0.5 {
+			bucketSize = 30
+		} else if hours <= 2 {
 			bucketSize = 60
 		} else if hours < 3 {
 			bucketSize = 90

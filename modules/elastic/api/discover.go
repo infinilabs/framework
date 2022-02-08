@@ -69,7 +69,6 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 
 	searchRes, err := client.SearchWithRawQueryDSL(reqParams.Index, reqDSL)
 	if err != nil {
-		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
