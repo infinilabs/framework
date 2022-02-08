@@ -219,6 +219,8 @@ func nodeAvailabilityCheck() {
 				if ok {
 					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
+					log.Tracef("availability for node [%v] : %v",k,avail)
+
 					if avail {
 						v.ReportSuccess()
 					} else {

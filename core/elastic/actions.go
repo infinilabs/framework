@@ -79,7 +79,7 @@ func (node *NodeAvailable) IsAvailable() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	if !meta.Config.Enabled {
+	if meta.Config==nil||!meta.Config.Enabled {
 		return false
 	}
 

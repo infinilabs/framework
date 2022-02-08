@@ -43,7 +43,7 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 }
 
 func GetOrInitHost(host string) *NodeAvailable {
-	v := NodeAvailable{Host: host, available: true}
+	v := NodeAvailable{Host: host, available: util.TestTCPAddress(host)}
 	v1, loaded := hosts.LoadOrStore(host, &v)
 	if loaded {
 		return v1.(*NodeAvailable)
