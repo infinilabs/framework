@@ -43,6 +43,8 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte(", "))
 		w.Write([]byte(global.Env().GetBuildDate()))
 		w.Write([]byte(", "))
+		w.Write([]byte(global.Env().GetEOLDate()))
+		w.Write([]byte(", "))
 		w.Write([]byte(global.Env().GetLastCommitLog()))
 		w.Write([]byte("\n\n"))
 
