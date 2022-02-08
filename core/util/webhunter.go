@@ -268,7 +268,7 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 	}
 
 	if err != nil {
-		log.Errorf("[2] error in request: %s\n", err)
+		log.Errorf("error in request: %s\n", err)
 		//panic(err)
 		return nil, err
 	}

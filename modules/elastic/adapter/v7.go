@@ -95,6 +95,8 @@ const TypeName7 = "_doc"
 
 // Delete used to delete document by id
 func (c *ESAPIV7) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
+	indexName=util.UrlEncode(indexName)
+
 	url := c.GetEndpoint() + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	if len(refresh)>0 {
@@ -126,6 +128,7 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	if docType==""{
 		docType=TypeName7
 	}
+	indexName=util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
@@ -153,6 +156,7 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 	if docType==""{
 		docType=TypeName7
 	}
+	indexName=util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.GetEndpoint(), indexName, docType, id)
 
@@ -192,6 +196,8 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 }
 
 func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+	indexName=util.UrlEncode(indexName)
+
 	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_POST, url, mappings)
 
@@ -203,6 +209,8 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 }
 
 func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( []byte, error) {
+	indexNames=util.UrlEncode(indexNames)
+
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 	var jsonBody []byte
 	if len(query) > 0 || maxSlicedCount > 0 || len(sourceFields) > 0||true {

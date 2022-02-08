@@ -93,6 +93,8 @@ func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
 const TypeName5 = "doc"
 
 func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ([]byte,  error) {
+	indexNames=util.UrlEncode(indexNames)
+
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
@@ -180,6 +182,7 @@ func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
 }
 
 func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
+	target=util.UrlEncode(target)
 	if s.Version < "5.4" {
 		return s.ESAPIV2.FieldCaps(target)
 	}
