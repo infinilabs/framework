@@ -95,7 +95,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		//skip uploaded file
 		lastFileNum:=GetLastS3UploadFileNum(queueID)
-		log.Errorf("lastupload:%v, fileNum:%v",lastFileNum, fileNum)
+		log.Tracef("lastupload:%v, fileNum:%v",lastFileNum, fileNum)
 		if fileNum<lastFileNum{
 			//skip old queue file, no need to upload
 			return
