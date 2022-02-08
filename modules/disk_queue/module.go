@@ -14,8 +14,10 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/status"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +95,12 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 	//send s3 upload signal
 	if module.cfg.UploadToS3{
 
+		consumers,_,_:=queue.GetEarlierOffsetByQueueID(queueID)
+		if consumers==0{
+			//skip upload queue without any consumers
+			return
+		}
+
 		//skip uploaded file
 		lastFileNum:=GetLastS3UploadFileNum(queueID)
 		log.Tracef("lastupload:%v, fileNum:%v",lastFileNum, fileNum)
@@ -108,13 +116,17 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 			var err error
 			if module.cfg.S3.Async{
 				err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err==nil{
+				if err!=nil{
+					log.Error(err)
+				}else{
 					success=true
 				}
 			}else{
 				var ok bool
 				ok,err=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err==nil&&ok{
+				if err!=nil{
+					log.Error(err)
+				}else if ok{
 					success=true
 				}
 			}
@@ -324,10 +336,10 @@ func ConvertOffset(offsetStr string) (int64,int64) {
 	if len(data)!=2{
 		panic(errors.Errorf("invalid offset: %v",offsetStr))
 	}
-	var part,offset int64
-	part,_=util.ToInt64(data[0])
+	var segment,offset int64
+	segment,_=util.ToInt64(data[0])
 	offset,_=util.ToInt64(data[1])
-	return part,offset
+	return segment,offset
 }
 
 func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
@@ -335,9 +347,9 @@ func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, 
 	module.Init(queueName)
 	q,ok:=module.queues.Load(queueName)
 	if ok{
-		part,offset:=ConvertOffset(offsetStr)
+		segment,offset:=ConvertOffset(offsetStr)
 		q1:=(*q.(*BackendQueue))
-		ctx,messages,timeout,err:=q1.Consume(consumer,part,offset,count, timeDuration)
+		ctx,messages,timeout,err:=q1.Consume(consumer, segment,offset,count, timeDuration)
 		return ctx,messages,timeout,err
 	}
 
@@ -348,6 +360,18 @@ func (module *DiskQueue) Close(k string) error {
 	q,ok:=module.queues.Load(k)
 	if ok{
 		return (*q.(*BackendQueue)).Close()
+	}
+	panic(errors.Errorf("queue [%v] not found",k))
+}
+
+func (module *DiskQueue) GetStorageSize(k string) uint64 {
+	module.Init(k)
+	q,ok:=module.queues.Load(k)
+	if ok{
+		ctx:= (*q.(*BackendQueue)).ReadContext()
+		folder:=filepath.Dir(ctx.WriteFile)
+		size,_:=status.DirSize(folder)
+		return size
 	}
 	panic(errors.Errorf("queue [%v] not found",k))
 }
@@ -402,10 +426,10 @@ func (module *DiskQueue) Start() error {
 	for _, v := range cfgs {
 		last:=GetLastS3UploadFileNum(v.Id)
 		offsetStr:=queue.LatestOffset(v)
-		part,_:=ConvertOffset(offsetStr)
-		log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr,part,last)
-		if part>last{
-			for x:=last;x<part;x++{
+		segment,_:=ConvertOffset(offsetStr)
+		log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
+		if segment >last{
+			for x:=last;x< segment;x++{
 				if x>=0{
 					log.Tracef("upload %v/%v",v.Id,x)
 					module.uploadToS3(v.Id,x)
@@ -446,11 +470,12 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 	}
 
 	//check consumers offset
-	consumers,part,_:=queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, segment,_:=queue.GetEarlierOffsetByQueueID(queueID)
 	fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
 	//no consumers or consumer/s3 already ahead of this file
-		if consumers==0||(fileStartToDelete<part&&fileStartToDelete< lastSavedFileNum){
-			log.Trace("start to delete:",fileStartToDelete,",consumers:",consumers,",part:",part)
+	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
+		if consumers==0||(fileStartToDelete< segment &&fileStartToDelete< lastSavedFileNum){
+			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segment)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
 				if util.FileExists(file){

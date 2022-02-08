@@ -30,9 +30,12 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 	for t, qs := range queues {
 		data := util.MapStr{}
 		for _,q:=range qs{
+			storeSize:=module.GetStorageSize(q)
 			qd := util.MapStr{
-				"depth":module.Depth(q),
-				"latest_offset":module.LatestOffset(q),
+				"storage":util.MapStr{
+					"local_usage":util.ByteSize(storeSize),
+					"local_usage_in_bytes":storeSize,
+				},
 			}
 			cfg,ok:=queue1.GetConfigByUUID(q)
 			if include!="false" {
@@ -41,6 +44,7 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 				}
 			}
 
+			var hasConsumers=false
 			if consumer!="false" {
 				cfg1,ok:=queue1.GetConsumerConfigsByQueueID(q)
 				if ok{
@@ -57,7 +61,19 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 						}
 						maps=append(maps,m)
 					}
-					qd["consumers"]=maps
+					if len(maps)>0{
+						qd["consumers"]=maps
+						hasConsumers=true
+					}
+				}
+			}
+
+			if !hasConsumers{
+				qd["depth"]=module.Depth(q)
+			}else{
+				qd["offset"]=module.LatestOffset(q)
+				qd["synchronization"]=util.MapStr{
+					"latest_segment":GetLastS3UploadFileNum(q),
 				}
 			}
 

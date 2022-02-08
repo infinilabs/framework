@@ -49,10 +49,10 @@ type diskQueue struct {
 	sync.RWMutex
 
 	// 64bit atomic vars need to be first for proper alignment on 32bit platforms
-	writePos     int64
-	writeFileNum int64
-	writeFile *os.File
-	writeBuf  bytes.Buffer
+	writePos        int64
+	writeSegmentNum int64
+	writeFile       *os.File
+	writeBuf        bytes.Buffer
 
 	// instantiation time metadata
 	name                string
@@ -70,13 +70,13 @@ type diskQueue struct {
 	needSync            bool
 
 	// read related
-	depth        int64 //TODO,separate write and read
-	readPos      int64
-	readFileNum  int64
-	nextReadPos     int64
-	nextReadFileNum int64
-	reader    *bufio.Reader
-	readFile  *os.File
+	depth              int64 //TODO,separate write and read
+	readPos            int64
+	readSegmentFileNum int64
+	nextReadPos        int64
+	nextReadFileNum    int64
+	reader             *bufio.Reader
+	readFile           *os.File
 	// exposed via ReadChan()
 	readChan chan []byte
 
@@ -137,14 +137,14 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 func (d *diskQueue) ReadContext() Context {
 	ctx:= Context{}
 	//ctx.Depth=d.depth
-	ctx.WriteFileNum=d.writeFileNum
+	ctx.WriteFileNum=d.writeSegmentNum
 	//ctx.MaxLength=d.maxBytesPerFileRead
 	ctx.WriteFile=d.GetFileName(ctx.WriteFileNum)
 	return ctx
 }
 
 func (d *diskQueue) LatestOffset() string {
-	return fmt.Sprintf("%v,%v",d.writeFileNum,d.writePos)
+	return fmt.Sprintf("%v,%v",d.writeSegmentNum,d.writePos)
 }
 
 func (d *diskQueue) Depth() int64 {
@@ -271,7 +271,7 @@ func (d *diskQueue) skipToNextRWFile() error {
 		d.writeFile = nil
 	}
 
-	for i := d.readFileNum; i <= d.writeFileNum; i++ {
+	for i := d.readSegmentFileNum; i <= d.writeSegmentNum; i++ {
 
 		//TODO, keep old files for a configure time window
 
@@ -283,11 +283,11 @@ func (d *diskQueue) skipToNextRWFile() error {
 		}
 	}
 
-	d.writeFileNum++
+	d.writeSegmentNum++
 	d.writePos = 0
-	d.readFileNum = d.writeFileNum
+	d.readSegmentFileNum = d.writeSegmentNum
 	d.readPos = 0
-	d.nextReadFileNum = d.writeFileNum
+	d.nextReadFileNum = d.writeSegmentNum
 	d.nextReadPos = 0
 	d.depth = 0
 
@@ -301,7 +301,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 	var msgSize int32
 
 	if d.readFile == nil {
-		curFileName := d.GetFileName(d.readFileNum)
+		curFileName := d.GetFileName(d.readSegmentFileNum)
 
 		//TODO if the file was compressed, decompress it first, and decompress few files ahead, keep # files decompressed
 		//fmt.Println("opening file:",curFileName)
@@ -332,7 +332,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		// for "complete" files (i.e. not the "current" file), maxBytesPerFileRead
 		// should be initialized to the file's size, or default to maxBytesPerFile
 		d.maxBytesPerFileRead = d.cfg.MaxBytesPerFile
-		if d.readFileNum < d.writeFileNum {
+		if d.readSegmentFileNum < d.writeSegmentNum {
 			stat, err := d.readFile.Stat()
 			if err == nil {
 				d.maxBytesPerFileRead = stat.Size()
@@ -367,17 +367,17 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 	totalBytes := int64(4 + msgSize)
 
-	//log.Error("position:",d.readFileNum,",",d.readPos,",",totalBytes)
+	//log.Error("position:",d.readSegmentFileNum,",",d.readPos,",",totalBytes)
 
 	// we only advance next* because we have not yet sent this to consumers
-	// (where readFileNum, readPos will actually be advanced)
+	// (where readSegmentFileNum, readPos will actually be advanced)
 	d.nextReadPos = d.readPos + totalBytes
-	d.nextReadFileNum = d.readFileNum
+	d.nextReadFileNum = d.readSegmentFileNum
 
 	// we only consider rotating if we're reading a "complete" file
 	// and since we cannot know the size at which it was rotated, we
 	// rely on maxBytesPerFileRead rather than maxBytesPerFile
-	if d.readFileNum < d.writeFileNum && d.nextReadPos >= d.maxBytesPerFileRead {
+	if d.readSegmentFileNum < d.writeSegmentNum && d.nextReadPos >= d.maxBytesPerFileRead {
 		if d.readFile != nil {
 			d.readFile.Close()
 			d.readFile = nil
@@ -396,7 +396,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 	var err error
 
 	if d.writeFile == nil {
-		curFileName := d.GetFileName(d.writeFileNum)
+		curFileName := d.GetFileName(d.writeSegmentNum)
 		d.writeFile, err = os.OpenFile(curFileName, os.O_RDWR|os.O_CREATE, 0600)
 		if err != nil {
 			return err
@@ -446,7 +446,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 	d.depth += 1
 
 	if d.writePos >= d.cfg.MaxBytesPerFile {
-		if d.readFileNum == d.writeFileNum {
+		if d.readSegmentFileNum == d.writeSegmentNum {
 			d.maxBytesPerFileRead = d.writePos
 		}
 
@@ -458,9 +458,9 @@ func (d *diskQueue) writeOne(data []byte) error {
 		d.checkCapacity()
 
 		//notify listener that we are writing to a new file
-		Notify(d.name, WriteComplete,d.writeFileNum)
+		Notify(d.name, WriteComplete,d.writeSegmentNum)
 
-		d.writeFileNum++
+		d.writeSegmentNum++
 		d.writePos = 0
 
 		// sync every time we start writing to a new file
@@ -535,13 +535,13 @@ func (d *diskQueue) retrieveMetaData() error {
 	var depth int64
 	_, err = fmt.Fscanf(f, "%d\n%d,%d\n%d,%d\n",
 		&depth,
-		&d.readFileNum, &d.readPos,
-		&d.writeFileNum, &d.writePos)
+		&d.readSegmentFileNum, &d.readPos,
+		&d.writeSegmentNum, &d.writePos)
 	if err != nil {
 		return err
 	}
 	d.depth = depth
-	d.nextReadFileNum = d.readFileNum
+	d.nextReadFileNum = d.readSegmentFileNum
 	d.nextReadPos = d.readPos
 
 	return nil
@@ -563,8 +563,8 @@ func (d *diskQueue) persistMetaData() error {
 
 	_, err = fmt.Fprintf(f, "%d\n%d,%d\n%d,%d\n",
 		d.depth,
-		d.readFileNum, d.readPos,
-		d.writeFileNum, d.writePos)
+		d.readSegmentFileNum, d.readPos,
+		d.writeSegmentNum, d.writePos)
 	if err != nil {
 		f.Close()
 		return err
@@ -589,7 +589,7 @@ func GetFileName(queueID string,fileNum int64) string {
 }
 
 func (d *diskQueue) checkTailCorruption(depth int64) {
-	if d.readFileNum < d.writeFileNum || d.readPos < d.writePos {
+	if d.readSegmentFileNum < d.writeSegmentNum || d.readPos < d.writePos {
 		return
 	}
 
@@ -610,16 +610,16 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 		d.needSync = true
 	}
 
-	if d.readFileNum != d.writeFileNum || d.readPos != d.writePos {
-		if d.readFileNum > d.writeFileNum {
+	if d.readSegmentFileNum != d.writeSegmentNum || d.readPos != d.writePos {
+		if d.readSegmentFileNum > d.writeSegmentNum {
 			log.Errorf(
-				"diskqueue(%s) readFileNum > writeFileNum (%d > %d), corruption, skipping to next writeFileNum and resetting 0...",
-				d.name, d.readFileNum, d.writeFileNum)
+				"diskqueue(%s) readSegmentFileNum > writeSegmentNum (%d > %d), corruption, skipping to next writeSegmentNum and resetting 0...",
+				d.name, d.readSegmentFileNum, d.writeSegmentNum)
 		}
 
 		if d.readPos > d.writePos {
 			log.Errorf(
-				"diskqueue(%s) readPos > writePos (%d > %d), corruption, skipping to next writeFileNum and resetting 0...",
+				"diskqueue(%s) readPos > writePos (%d > %d), corruption, skipping to next writeSegmentNum and resetting 0...",
 				d.name, d.readPos, d.writePos)
 		}
 
@@ -629,8 +629,8 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 }
 
 func (d *diskQueue) readMoveForward() {
-	oldReadFileNum := d.readFileNum
-	d.readFileNum = d.nextReadFileNum
+	oldReadFileNum := d.readSegmentFileNum
+	d.readSegmentFileNum = d.nextReadFileNum
 	d.readPos = d.nextReadPos
 	d.depth -= 1
 
@@ -654,18 +654,18 @@ func (d *diskQueue) readMoveForward() {
 
 func (d *diskQueue) handleReadError() {
 	// jump to the next read file and rename the current (bad) file
-	if d.readFileNum == d.writeFileNum {
+	if d.readSegmentFileNum == d.writeSegmentNum {
 		// if you can't properly read from the current write file it's safe to
 		// assume that something is fucked and we should skip the current file too
 		if d.writeFile != nil {
 			d.writeFile.Close()
 			d.writeFile = nil
 		}
-		d.writeFileNum++
+		d.writeSegmentNum++
 		d.writePos = 0
 	}
 
-	badFn := d.GetFileName(d.readFileNum)
+	badFn := d.GetFileName(d.readSegmentFileNum)
 
 	if util.FileExists(badFn){
 
@@ -682,9 +682,9 @@ func (d *diskQueue) handleReadError() {
 		}
 	}
 
-	d.readFileNum++
+	d.readSegmentFileNum++
 	d.readPos = 0
-	d.nextReadFileNum = d.readFileNum
+	d.nextReadFileNum = d.readSegmentFileNum
 	d.nextReadPos = 0
 
 	// significant state change, schedule a sync on the next iteration
@@ -740,12 +740,12 @@ func (d *diskQueue) ioLoop() {
 			}
 			count = 0
 		}
-		if (d.readFileNum < d.writeFileNum) || (d.readPos < d.writePos) {
+		if (d.readSegmentFileNum < d.writeSegmentNum) || (d.readPos < d.writePos) {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
 					log.Debugf("reading from diskqueue(%s) at %d of %s - %s",
-						d.name, d.readPos, d.GetFileName(d.readFileNum), err)
+						d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
 					d.handleReadError()
 					continue
 				}

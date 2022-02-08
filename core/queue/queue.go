@@ -34,7 +34,7 @@ type QueueAPI interface {
 	Init(string) error
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
-	//part means the sequence id of the queue, offset is within the part, count means how many messages will be fetching
+	//segment means the sequence id of the queue, offset is within the segment, count means how many messages will be fetching
 	Close(string) error
 	Depth(string) int64
 
@@ -383,7 +383,7 @@ func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
 
 const consumerOffsetBucket ="queue_consumer_commit_offset"
 
-func GetEarlierOffsetByQueueID(queueID string) (consumerSize int,part int64,pos int64) {
+func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,pos int64) {
 	q,ok:=GetConfigByUUID(queueID)
 	if !ok{
 		panic(errors.Errorf("queue [%v] was not found",queueID))
