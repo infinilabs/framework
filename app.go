@@ -274,9 +274,6 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 		}
 	}
 
-	//check instance lock
-	util.CheckInstanceLock(app.environment.GetDataDir())
-
 	//set path to persist id
 	util.RestorePersistID(app.environment.GetDataDir())
 
@@ -350,6 +347,10 @@ func (app *App) Shutdown() {
 
 //for service
 func (p *App) Start(s service.Service) error {
+
+	//check instance lock
+	util.CheckInstanceLock(p.environment.GetDataDir())
+
 	p.quitSignal = make(chan bool)
 	go p.run()
 	log.Infof("%s is up and running now.", p.environment.GetAppName())

@@ -15,7 +15,7 @@ var file string
 func CheckInstanceLock(p string) {
 	file = path.Join(p, ".lock")
 	if FileExists(file) {
-		log.Errorf("lock file:%s exists, if you only have one instance, please remove it", file)
+		log.Errorf("lock file:%s exists, seems one instance is already running, please remove it or set `allow_multi_instance` to `true`", file)
 		log.Flush()
 		os.Exit(1)
 	}
