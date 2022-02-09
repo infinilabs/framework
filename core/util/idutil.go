@@ -34,12 +34,16 @@ type atomicID struct {
 func (id *atomicID) Increment() int64 {
 	id.l.Lock()
 	defer id.l.Unlock()
+	if id.Sequence>=maxID{
+		id.Sequence=0
+		return 0
+	}
 	return atomic.AddInt64(&id.Sequence, 1)
 }
 
 var lock1 sync.Mutex
 var persistedPath string
-
+var maxID=int64(2^32 - 1000)
 // GetIncrementID return incremented id in specify bucket
 func GetIncrementID(bucket string) int64 {
 
@@ -59,7 +63,7 @@ func SnapshotPersistID() {
 	count.l.Lock()
 	defer count.l.Unlock()
 
-	if !FileExists(persistedPath) {
+	if persistedPath=="" {
 		return
 	}
 
