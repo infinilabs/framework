@@ -467,3 +467,33 @@ func (env *Env) GetPluginDir() string {
 
 	return env.pluginDir
 }
+
+
+//lowercase, get configs from defaults>env>config
+func (env *Env)GetConfig(key string,defaultV string)(string,bool){
+	tryEnvAgain:
+	val, ok := os.LookupEnv(key)
+	if !ok {
+
+		val, ok = os.LookupEnv(strings.ToUpper(key))
+		if ok{
+			return val,true
+		}
+
+		val, ok = os.LookupEnv(strings.ToLower(key))
+		if ok{
+			return val,true
+		}
+		if strings.Contains(key,"."){
+			key=strings.ReplaceAll(key,".","_")
+			goto tryEnvAgain
+		}
+
+		return defaultV,false
+	} else {
+		return val,true
+	}
+
+	//TODO check configs
+	//TODO cache env for period time
+}
