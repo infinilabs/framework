@@ -1931,7 +1931,20 @@ func (ctx *RequestCtx) NotModified() {
 func (ctx *RequestCtx) NotFound() {
 	ctx.Response.Reset()
 	ctx.SetStatusCode(StatusNotFound)
-	ctx.SetBodyString("404 Page not found")
+
+	msg := "\n\n _  _    ___  _  _                                 \n"
+	msg += "| || |  / _ \\| || |                                \n"
+	msg += "| || |_| | | | || |_                               \n"
+	msg += "|__   _| |_| |__   _|                              \n"
+	msg += "   |_|  \\___/   |_|                                \n"
+	msg += "     __  ___  _____     ___  ___           __  ___ \n"
+	msg += "  /\\ \\ \\/___\\/__   \\   / __\\/___\\/\\ /\\  /\\ \\ \\/   \\\n"
+	msg += " /  \\/ //  //  / /\\/  / _\\ //  // / \\ \\/  \\/ / /\\ /\n"
+	msg += "/ /\\  / \\_//  / /    / /  / \\_//\\ \\_/ / /\\  / /_// \n"
+	msg += "\\_\\ \\/\\___/   \\/     \\/   \\___/  \\___/\\_\\ \\/___,'  \n\n\n"
+	msg += "©INFINI, All Rights Reserved."
+
+	ctx.SetBodyString(msg)
 }
 
 // Write writes p into response body.
