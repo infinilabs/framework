@@ -103,7 +103,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		//skip uploaded file
 		lastFileNum:=GetLastS3UploadFileNum(queueID)
-		log.Tracef("lastupload:%v, fileNum:%v",lastFileNum, fileNum)
+		log.Tracef("last upload:%v, fileNum:%v",lastFileNum, fileNum)
 		if fileNum<lastFileNum{
 			//skip old queue file, no need to upload
 			return
@@ -423,20 +423,27 @@ func (module *DiskQueue) Start() error {
 
 	//trigger s3 uploading
 	//from lastUpload to current WrtieFile
-	for _, v := range cfgs {
-		last:=GetLastS3UploadFileNum(v.Id)
-		offsetStr:=queue.LatestOffset(v)
-		segment,_:=ConvertOffset(offsetStr)
-		log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
-		if segment >last{
-			for x:=last;x< segment;x++{
-				if x>=0{
-					log.Tracef("upload %v/%v",v.Id,x)
-					module.uploadToS3(v.Id,x)
+
+	//TODO, support cancel and safety shutdown
+	go func() {
+		for _, v := range cfgs {
+			last:=GetLastS3UploadFileNum(v.Id)
+			offsetStr:=queue.LatestOffset(v)
+			segment,_:=ConvertOffset(offsetStr)
+			log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
+			if segment >last{
+				for x:=last;x< segment;x++{
+					if x>=0{
+						if global.Env().IsDebug{
+							log.Tracef("try to upload %v/%v",v.Id,x)
+						}
+						module.uploadToS3(v.Id,x)
+					}
 				}
 			}
 		}
-	}
+	}()
+
 	return nil
 }
 
