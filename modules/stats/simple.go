@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"src/github.com/struCoder/pidusage"
 	"strings"
 	"sync"
 )
@@ -150,6 +151,16 @@ func (s *Stats) Stat(category, key string) int64 {
 func (s *Stats) StatsAll() *[]byte {
 	s.l.RLock()
 	defer s.l.RUnlock()
+
+	//update system metrics
+	sysInfo, err := pidusage.GetStat(os.Getpid())
+	if err==nil{
+		(*s.Data)["system"]=map[string]int64{
+			"cpu":int64(sysInfo.CPU),
+			"mem":int64(sysInfo.Memory),
+		}
+	}
+
 	b, _ := json.MarshalIndent((*s.Data), "", " ")
 	return &b
 }
