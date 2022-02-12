@@ -29,7 +29,7 @@ func (filter *NutsdbKVFilter) Open() error {
 		StartFileLoadingMode: nutsdb.FileIO,
 	}
 
-	opt.Dir = path.Join(global.Env().GetDataDir(),"filter")
+	opt.Dir = path.Join(global.Env().GetDataDir(),"kvdb")
 	var err error
 	h, err := nutsdb.Open(opt)
 	if err != nil {
