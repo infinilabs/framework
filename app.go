@@ -21,6 +21,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/errors"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
@@ -148,7 +149,13 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 
 	app.environment.IsDebug = app.isDebug
-	app.environment.SetConfigFile(app.configFile)
+	if app.configFile!=""{
+		if !util.FileExists(app.configFile){
+			fmt.Println(errors.Errorf("config file [%v] not exists",app.configFile))
+			os.Exit(1)
+		}
+		app.environment.SetConfigFile(app.configFile)
+	}
 	app.environment.Init()
 
 	//allow use yml to configure the log level
