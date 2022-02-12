@@ -144,6 +144,7 @@ func (env *Env) Init() *Env {
 	if err != nil {
 		panic(err)
 	}
+
 	os.MkdirAll(env.GetDataDir(), 0755)
 	os.MkdirAll(env.GetLogDir(), 0755)
 
@@ -186,10 +187,11 @@ var (
 				},
 			},
 		},
+
 		NodeConfig: config.NodeConfig{
-			ID: util.GetUUID(),
-			Name: util.PickRandomName(),
+
 		},
+
 		PathConfig: config.PathConfig{
 			Plugin: "plugins",
 			Data:   "data",
@@ -259,6 +261,7 @@ func (env *Env) loadConfig() error {
 			return errors.Errorf("config not found: %s", filename)
 		}
 	}
+
 	return nil
 }
 
@@ -382,13 +385,12 @@ func GetStartTime() time.Time {
 	return startTime
 }
 
-
 // GetDataDir returns root working dir of app instance
 func (env *Env) GetDataDir() string {
 	if env.workingDataDir!=""{
 		return env.workingDataDir
 	}
-	env.workingDataDir,env.workingLogDir=env.getWorkingDir()
+	env.workingDataDir,env.workingLogDir=env.findWorkingDir()
 	return env.workingDataDir
 }
 
@@ -396,62 +398,104 @@ func (env *Env) GetLogDir() string {
 	if env.workingLogDir!=""{
 		return env.workingLogDir
 	}
-	env.workingDataDir,env.workingLogDir=env.getWorkingDir()
+	env.workingDataDir,env.workingLogDir=env.findWorkingDir()
 	return env.workingLogDir
 }
 
-func (env *Env) getWorkingDir() (string,string) {
+func (env *Env) findWorkingDir() (string,string) {
 
-	if !env.SystemConfig.AllowMultiInstance {
-		env.workingDataDir = path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
-		env.workingLogDir = path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", "0")
-		return env.workingDataDir,env.workingLogDir
+
+	//check data folder
+	//check if exists lock file
+	//if no lock, use it
+	//have lock，check if it is a dead instance
+	//dead instance, use it
+	//alive instance, skip to next folder
+	//no folder exists, generate new id and name
+	//persist metadata to folder
+
+	baseDir := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes")
+
+	if !util.FileExists(baseDir) {
+		if env.SystemConfig.NodeConfig.ID == "" {
+			env.SystemConfig.NodeConfig.ID = util.GetUUID()
+			env.SystemConfig.NodeConfig.Name = util.PickRandomName()
+		}
+		return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
 	}
 
-	//auto select next nodes folder, eg: nodes/1 nodes/2
-	i := 0
-	if env.SystemConfig.MaxNumOfInstance < 1 {
-		env.SystemConfig.MaxNumOfInstance = 5
+	//try load instance id from existing data folder
+	files, err := ioutil.ReadDir(baseDir)
+	if err != nil {
+		panic(err)
 	}
-	for j := 0; j < env.SystemConfig.MaxNumOfInstance; j++ {
-		p := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", util.IntToString(i))
-		p1 := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", util.IntToString(i))
-		lockFile := path.Join(p, ".lock")
-		if !util.FileExists(lockFile) {
-			env.workingDataDir = p
-			env.workingLogDir = p1
-			return env.workingDataDir,env.workingLogDir
-		}
 
-		//check if pid is alive
-		b, err := ioutil.ReadFile(lockFile)
-		if err != nil {
-			panic(err)
-		}
-		pid, err := util.ToInt(string(b))
-		if err != nil {
-			panic(err)
-		}
-		if pid <= 0 {
-			panic(errors.New("invalid pid"))
-		}
+	log.Trace("finding files in working dir:",files)
 
-		procExists := util.CheckProcessExists(pid)
-		if !procExists {
-			err := util.FileDelete(lockFile)
+	var instance = 0
+	for _, f := range files {
+		log.Trace("checking dir: ",f.Name(),",",f.IsDir())
+		if f.IsDir() {
+			instance++
+			lockFile := path.Join(baseDir,f.Name(), ".lock")
+
+			log.Tracef("lock found [%v] in dir: %v",util.FileExists(lockFile),f.Name())
+
+			if !util.FileExists(lockFile) {
+				env.SystemConfig.NodeConfig.ID = f.Name()
+				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
+				return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
+			}
+
+			//check if pid is alive
+			b, err := ioutil.ReadFile(lockFile)
 			if err != nil {
 				panic(err)
 			}
-			log.Debug("dead process with broken lock file, removed: ", lockFile)
-			env.workingDataDir = p
-			env.workingLogDir = p1
-			return p,p1
+			pid, err := util.ToInt(string(b))
+			if err != nil {
+				panic(err)
+			}
+			if pid <= 0 {
+				panic(errors.New("invalid pid"))
+			}
+
+			procExists := util.CheckProcessExists(pid)
+
+			log.Tracef("process [%v] exists: ",pid, procExists)
+
+			if !procExists {
+
+				err := util.FileDelete(lockFile)
+				if err != nil {
+					panic(err)
+				}
+				log.Debug("dead process with broken lock file, removed: ", lockFile)
+				env.SystemConfig.NodeConfig.ID = f.Name()
+				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
+				return env.getNodeWorkingDir(f.Name())
+			}
+
+			log.Tracef("data folder [%v] is in used by [%v], continue",f.Name(),pid)
+
+			//current folder is in use
+			if !env.SystemConfig.AllowMultiInstance {
+				break
+			}
+
+			if instance>=env.SystemConfig.MaxNumOfInstance{
+				panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
+			}
 		}
-
-		i++
 	}
-	panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
 
+	//final check
+	if env.SystemConfig.NodeConfig.ID == "" {
+		env.SystemConfig.NodeConfig.ID = util.GetUUID()
+		env.SystemConfig.NodeConfig.Name = util.PickRandomName()
+	}
+
+	return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
 }
 
 func (env *Env) GetPluginDir() string {
@@ -467,7 +511,6 @@ func (env *Env) GetPluginDir() string {
 
 	return env.pluginDir
 }
-
 
 //lowercase, get configs from defaults>env>config
 func (env *Env)GetConfig(key string,defaultV string)(string,bool){
@@ -496,4 +539,10 @@ func (env *Env)GetConfig(key string,defaultV string)(string,bool){
 
 	//TODO check configs
 	//TODO cache env for period time
+}
+
+func (env *Env) getNodeWorkingDir(nodeID string)(string,string)  {
+	dir1:= path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	dir2:= path.Join(env.SystemConfig.PathConfig.Log,  env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	return dir1,dir2
 }
