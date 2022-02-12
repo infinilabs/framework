@@ -111,7 +111,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
 			fileName:= GetFileName(queueID,fileNum)
-			toFile:=util.TrimLeftStr(fileName,global.Env().GetDataDir())
+			toFile:=path.Join(global.Env().SystemConfig.NodeConfig.ID,util.TrimLeftStr(fileName,global.Env().GetDataDir()))
 			var success=false
 			var err error
 			if module.cfg.S3.Async{

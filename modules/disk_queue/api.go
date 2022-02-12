@@ -15,11 +15,33 @@ import (
 
 func (module *DiskQueue) RegisterAPI()  {
 	api.HandleAPIMethod(api.GET,"/queue/stats", module.QueueStatsAction)
+	api.HandleAPIMethod(api.GET,"/queue/:id/stats", module.SingleQueueStatsAction)
 	api.HandleAPIMethod(api.GET,"/queue/:id/_scroll", module.QueueExplore)
+
+	//api.HandleAPIMethod(api.DELETE,"/queue/:id", module.DeleteQueue)
+
+	//create consumer
+	//api.HandleAPIMethod(api.POST,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
+	//delete consumer
+	//api.HandleAPIMethod(api.DELETE,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
+
+	//reset consumer offset
 	api.HandleAPIMethod(api.PUT,"/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
+	//get consumer offset
 	api.HandleAPIMethod(api.GET,"/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 }
 
+func (module *DiskQueue) SingleQueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	include := module.Get(req, "metadata", "true")
+	consumer := module.Get(req, "consumers", "true")
+	useKey := module.Get(req, "use_key", "false")
+
+	data := util.MapStr{}
+	module.getQueueStats(ps.ByName("id"), include, consumer, useKey, data)
+	module.WriteJSON(w, data, 200)
+
+}
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	include:=module.Get(req,"metadata","true")
 	consumer:=module.Get(req,"consumers","true")
@@ -30,64 +52,68 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 	for t, qs := range queues {
 		data := util.MapStr{}
 		for _,q:=range qs{
-			storeSize:=module.GetStorageSize(q)
-			qd := util.MapStr{
-				"storage":util.MapStr{
-					"local_usage":util.ByteSize(storeSize),
-					"local_usage_in_bytes":storeSize,
-				},
-			}
-			cfg,ok:=queue1.GetConfigByUUID(q)
-			if include!="false" {
-				if ok{
-					qd["metadata"]=cfg
-				}
-			}
-
-			var hasConsumers=false
-			if consumer!="false" {
-				cfg1,ok:=queue1.GetConsumerConfigsByQueueID(q)
-				if ok{
-					maps:=[]util.MapStr{}
-					for _,v:=range cfg1{
-						m:=util.MapStr{}
-						m["source"]=v.Source
-						m["id"]=v.Id
-						m["group"]=v.Group
-						m["name"]=v.Name
-						offset,err:=queue1.GetOffset(cfg,v)
-						if err==nil{
-							m["offset"]=offset
-						}
-						maps=append(maps,m)
-					}
-					if len(maps)>0{
-						qd["consumers"]=maps
-						hasConsumers=true
-					}
-				}
-			}
-
-			if !hasConsumers{
-				qd["depth"]=module.Depth(q)
-			}else{
-				qd["offset"]=module.LatestOffset(q)
-				qd["synchronization"]=util.MapStr{
-					"latest_segment":GetLastS3UploadFileNum(q),
-				}
-			}
-
-			if useKey =="false"{
-				data[q]=qd
-			}else{
-				data[cfg.Name]=qd
-			}
+			module.getQueueStats(q, include, consumer, useKey, data)
 		}
-		datas[t]=data
+		datas[t] = data
 	}
 	module.WriteJSON(w, util.MapStr{
 		"queue": datas,
 	}, 200)
+}
+
+func (module *DiskQueue) getQueueStats(q string, include string, consumer string, useKey string, data util.MapStr) {
+	storeSize := module.GetStorageSize(q)
+	qd := util.MapStr{
+		"storage": util.MapStr{
+			"local_usage":          util.ByteSize(storeSize),
+			"local_usage_in_bytes": storeSize,
+		},
+	}
+	cfg, ok := queue1.GetConfigByUUID(q)
+	if include != "false" {
+		if ok {
+			qd["metadata"] = cfg
+		}
+	}
+
+	var hasConsumers = false
+	if consumer != "false" {
+		cfg1, ok := queue1.GetConsumerConfigsByQueueID(q)
+		if ok {
+			maps := []util.MapStr{}
+			for _, v := range cfg1 {
+				m := util.MapStr{}
+				m["source"] = v.Source
+				m["id"] = v.Id
+				m["group"] = v.Group
+				m["name"] = v.Name
+				offset, err := queue1.GetOffset(cfg, v)
+				if err == nil {
+					m["offset"] = offset
+				}
+				maps = append(maps, m)
+			}
+			if len(maps) > 0 {
+				qd["consumers"] = maps
+				hasConsumers = true
+			}
+		}
+	}
+
+	if !hasConsumers {
+		qd["depth"] = module.Depth(q)
+	} else {
+		qd["offset"] = module.LatestOffset(q)
+		qd["synchronization"] = util.MapStr{
+			"latest_segment": GetLastS3UploadFileNum(q),
+		}
+	}
+
+	if useKey == "false" {
+		data[q] = qd
+	} else {
+		data[cfg.Name] = qd
+	}
 }
 
 func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params)  {
@@ -148,7 +174,6 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 	}
 
 }
-
 
 func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID:=ps.ByName("id")
