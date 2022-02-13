@@ -78,8 +78,8 @@ func (module *APIModule) Setup(cfg *config.Config) {
 	})
 	api.HandleAPIMethod(api.GET, infoAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		obj:=util.MapStr{
-			"instance_id":global.Env().SystemConfig.NodeConfig.ID,
-			"instance_name":global.Env().SystemConfig.NodeConfig.Name,
+			"id":global.Env().SystemConfig.NodeConfig.ID,
+			"name":global.Env().SystemConfig.NodeConfig.Name,
 			"tagline":global.Env().GetAppDesc(),
 			"version":util.MapStr{
 				"number":global.Env().GetVersion(),
