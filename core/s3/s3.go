@@ -9,6 +9,7 @@ import (
 )
 
 type S3 interface {
+	SyncDownload(filePath,location,bucketName,objectName string)(bool,error)
 	SyncUpload(filePath,location,bucketName,objectName string)(bool,error)
 	AsyncUpload(filePath,location,bucketName,objectName string) error
 }
@@ -31,6 +32,15 @@ func AsyncUpload(filePath,serverID,location,bucketName,objectName string) error 
 	handler, ok := s3Uploader[serverID]
 	if ok {
 		return handler.AsyncUpload(filePath,location,bucketName,objectName)
+	}
+	panic(errors.Errorf("s3 server [%v] was not found",serverID))
+}
+
+
+func SyncDownload(filePath,serverID,location,bucketName,objectName string)(bool,error){
+	handler, ok := s3Uploader[serverID]
+	if ok {
+		return handler.SyncDownload(filePath,location,bucketName,objectName)
 	}
 	panic(errors.Errorf("s3 server [%v] was not found",serverID))
 }

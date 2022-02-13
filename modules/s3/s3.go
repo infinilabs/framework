@@ -11,6 +11,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/s3"
 )
 
@@ -67,22 +68,51 @@ func (uploader *S3Uploader) SyncUpload(filePath,location,bucketName,objectName s
 	if err != nil {
 		exists, errBucketExists := uploader.minioClient.BucketExists(ctx, bucketName)
 		if errBucketExists == nil && exists {
-			log.Tracef("We already own %s\n", bucketName)
+			log.Tracef("we already own %s", bucketName)
 		} else {
 			return false,err
 		}
 	} else {
-		log.Tracef("Successfully created %s\n", bucketName)
+		log.Tracef("successfully created %s", bucketName)
 	}
 
 	contentType := "application/zip"
 
 	info, err := uploader.minioClient.FPutObject(ctx, bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
+		log.Error(info,err)
 		return false,err
 	}
 
-	log.Debugf("Successfully uploaded %s of size %d\n", objectName, info.Size)
+	log.Debugf("successfully uploaded %s of size %d", objectName, info.Size)
+
+	return true, nil
+}
+
+func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName string) (bool,error){
+
+	log.Tracef("s3 downloading file:%v to: %v",objectName,filePath)
+
+	if !uploader.minioClient.IsOnline(){
+		log.Tracef("s3 server [%v] is online:%v\n", uploader.minioClient.EndpointURL(),uploader.minioClient.IsOnline())
+		return false,errors.New("s3 server is offline")
+	}
+
+	var err error
+	ctx := context.Background()
+	exists, errBucketExists := uploader.minioClient.BucketExists(ctx, bucketName)
+	if errBucketExists != nil || !exists {
+		log.Tracef("bucket not exists %s, %v", bucketName,errBucketExists)
+		return false,err
+	}
+
+	err = uploader.minioClient.FGetObject(ctx, bucketName, objectName, filePath, minio.GetObjectOptions{})
+	if err != nil {
+		log.Error(err)
+		return false,err
+	}
+
+	log.Debugf("successfully downloaded %s", objectName)
 
 	return true, nil
 }

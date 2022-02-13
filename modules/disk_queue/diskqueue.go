@@ -580,12 +580,10 @@ func (d *diskQueue) metaDataFileName() string {
 	return fmt.Sprintf(path.Join(d.dataPath, "%s.diskqueue.meta.dat"), d.name)
 }
 
-func (d *diskQueue) GetFileName(fileNum int64) string {
-	return GetFileName(d.name,fileNum)
-}
 
-func GetFileName(queueID string,fileNum int64) string {
-	return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.diskqueue.%06d.dat",queueID , fileNum))
+
+func (d *diskQueue) GetFileName(segmentID int64) string {
+	return GetFileName(d.name,segmentID)
 }
 
 func (d *diskQueue) checkTailCorruption(depth int64) {

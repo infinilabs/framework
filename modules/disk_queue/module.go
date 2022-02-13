@@ -4,6 +4,7 @@
 package queue
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
@@ -86,6 +87,10 @@ func GetLastS3UploadFileNum(queueID string)int64  {
 	return util.BytesToInt64(b)
 }
 
+func getS3FileLocation(fileName string) string {
+	return path.Join(global.Env().SystemConfig.NodeConfig.ID,util.TrimLeftStr(fileName,global.Env().GetDataDir()))
+}
+
 var s3uploaderLocker sync.RWMutex
 func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 	//TODO move to channel, async
@@ -111,7 +116,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
 			fileName:= GetFileName(queueID,fileNum)
-			toFile:=path.Join(global.Env().SystemConfig.NodeConfig.ID,util.TrimLeftStr(fileName,global.Env().GetDataDir()))
+			toFile:=getS3FileLocation(fileName)
 			var success=false
 			var err error
 			if module.cfg.S3.Async{
@@ -179,6 +184,10 @@ func getQueueConfigPath() string {
 	return path.Join(global.Env().GetDataDir(),"queue","configs")
 }
 
+func GetFileName(queueID string,segmentID int64) string {
+	//return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.segment.%06d.dat",queueID , segmentID))
+	return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.diskqueue.%06d.dat",queueID , segmentID))
+}
 
 
 func (module *DiskQueue) Setup(config *config.Config) {
@@ -188,7 +197,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		Retention: 		  RetentionConfig{ MaxNumOfLocalFiles: 10},
 		MinMsgSize:       1,
 		MaxMsgSize:       104857600, //100MB
-		MaxBytesPerFile:  200 * 1024 * 1024, //200MB
+		MaxBytesPerFile:  100 * 1024 * 1024, //100MB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
 		ReadChanBuffer:   0,
@@ -467,22 +476,24 @@ func (module *DiskQueue) Stop() error {
 
 func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 	//check last uploaded mark
-	b,err:=kv.GetValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID))
-	if err!=nil{
-		panic(err)
-	}
-	var lastSavedFileNum int64
-	if b!=nil&&len(b)==0{
-		lastSavedFileNum =util.BytesToInt64(b)
-	}
+	var lastSavedFileNum=GetLastS3UploadFileNum(queueID)
 
 	//check consumers offset
-	consumers, segment,_:=queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, segmentNum,_:=queue.GetEarlierOffsetByQueueID(queueID)
 	fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
+
+	if fileStartToDelete<0{
+		return
+	}
+
+	if global.Env().IsDebug{
+		log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v",fileStartToDelete,segmentNum,lastSavedFileNum)
+	}
+
 	//no consumers or consumer/s3 already ahead of this file
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
-		if consumers==0||(fileStartToDelete< segment &&fileStartToDelete< lastSavedFileNum){
-			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segment)
+		if consumers==0||(fileStartToDelete< segmentNum &&fileStartToDelete< lastSavedFileNum){
+			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
 				if util.FileExists(file){

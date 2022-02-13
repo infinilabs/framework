@@ -10,13 +10,26 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	io "io"
 	"os"
 	"time"
 )
 
-//queue context cache
+//if local file not found, try to download from s3
+func (d *diskQueue)SmartGetFileName(queueID string,segmentID int64) string {
+	filePath:=GetFileName(queueID,segmentID)
+	if !util.FileExists(filePath){
+		//download from s3 if that is possible
+		lastFileNum:=GetLastS3UploadFileNum(queueID)
+		if lastFileNum>=segmentID{
+			s3Object:=getS3FileLocation(filePath)
+			s3.SyncDownload(filePath,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,s3Object)
+		}
+	}
+	return filePath
+}
 
 //每个 consumer 维护自己的元数据，part 自动切换，offset 表示文件级别的读取偏移，messageCount 表示消息的返回条数
 func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []queue.Message, isTimeout bool, err error) {
@@ -34,7 +47,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
 	ctx.NextOffset=""
 
-	fileName:=d.GetFileName(part)
+	fileName:= d.SmartGetFileName(d.name,part)
 
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
@@ -72,7 +85,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	if err != nil {
 		if err.Error()=="EOF"{
 			log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
-			nextFile:=d.GetFileName(part+1)
+			nextFile:= d.SmartGetFileName(d.name,part+1)
 			if util.FileExists(nextFile){
 				log.Debug("EOF, continue read:",nextFile)
 
@@ -127,7 +140,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	if nextReadPos >= maxBytesPerFileRead{
 		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v",ctx,len(messages),err)
-		nextFile:=d.GetFileName(part+1)
+		nextFile:= d.SmartGetFileName(d.name,part+1)
 		if util.FileExists(nextFile){
 			log.Debug("EOF, continue read:",nextFile)
 			part=part+1
