@@ -33,6 +33,7 @@ func (module *APIModule) Name() string {
 
 const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
+const infoAPI = "/_framework/api/_info"
 
 // Start api server
 func (module *APIModule) Setup(cfg *config.Config) {
@@ -75,7 +76,23 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte("\n"))
 		w.WriteHeader(200)
 	})
+	api.HandleAPIMethod(api.GET, infoAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		obj:=util.MapStr{
+			"instance_id":global.Env().SystemConfig.NodeConfig.ID,
+			"instance_name":global.Env().SystemConfig.NodeConfig.Name,
+			"tagline":global.Env().GetAppDesc(),
+			"version":util.MapStr{
+				"number":global.Env().GetVersion(),
+				"build_date":global.Env().GetBuildDate(),
+				"build_hash":global.Env().GetLastCommitHash(),
+				"eol_date":global.Env().GetEOLDate(),
+			},
+		}
+		module.WriteJSON(w,obj,200)
+	})
+
 }
+
 func (module *APIModule) Start() error {
 
 	//API server
@@ -91,4 +108,5 @@ func (module *APIModule) Stop() error {
 
 // APIModule is used to start API server
 type APIModule struct {
+	api.Handler
 }
