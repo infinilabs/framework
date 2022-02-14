@@ -307,15 +307,15 @@ func Save(o interface{}) error {
 
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
-	nameExists, _ := getFieldStringValue(rValue, "Name")
+	//nameExists, _ := getFieldStringValue(rValue, "Name")
 
 	if !idExists {
 		return errors.New("id was not found")
 	}
 
-	if !nameExists {
-		return errors.New("name was not found")
-	}
+	//if !nameExists {
+	//	return errors.New("name was not found")
+	//}
 
 	return getHandler().Save(o)
 }

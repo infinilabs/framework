@@ -599,7 +599,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	indexingPressureMemMetric.AddAxi("indexing pressure memory","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "indexing_pressure_memory",
-		Field: "payload.elasticsearch.node_stats.indexing_pressure.memory.total.all_in_bytes",
+		Field: "payload.elasticsearch.node_stats.indexing_pressure.memory.current.all_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: indexingPressureMemMetric,
