@@ -442,6 +442,7 @@ func (app *App) Run() {
 	svcOptions := make(service.KeyValue)
 	svcOptions["Restart"] = "on-success"
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
+	svcOptions["LimitNOFILE"]=1024000
 
 	workdir,err:=os.Getwd()
 	if err!=nil{
