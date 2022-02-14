@@ -74,6 +74,18 @@ func (handler ElasticORM) Delete(o interface{}) error {
 	return err
 }
 
+func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
+	var (
+		queryBody []byte
+		ok bool
+	)
+	if queryBody, ok =  query.([]byte); !ok {
+		return errors.New("type of param query should be byte array")
+	}
+	_, err := handler.Client.DeleteByQuery(handler.GetIndexName(o), queryBody)
+	return err
+}
+
 func (handler ElasticORM) Count(o interface{}) (int64, error) {
 	countResponse, err := handler.Client.Count(handler.GetIndexName(o))
 	if err != nil {
@@ -129,8 +141,12 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	var searchResponse *elastic.SearchResponse
 	result := api.Result{}
 
+	var indexName = handler.GetIndexName(t)
+	if q.WildcardIndex {
+		indexName = handler.GetWildcardIndexName(t)
+	}
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.QueryDSL(handler.GetWildcardIndexName(t),q.QueryArgs, q.RawQuery)
+		searchResponse, err = handler.Client.QueryDSL(indexName ,q.QueryArgs, q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
@@ -164,7 +180,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 			}
 		}
 
-		searchResponse, err = handler.Client.Search(handler.GetWildcardIndexName(t), &request)
+		searchResponse, err = handler.Client.Search(indexName, &request)
 
 	}
 
