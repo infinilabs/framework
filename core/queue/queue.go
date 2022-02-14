@@ -101,14 +101,16 @@ var configs = map[string]*Config{}
 var idConfigs = map[string]*Config{}
 var cfgLock = sync.RWMutex{}
 var consumerCfgLock = sync.RWMutex{}
+var existsErr=errors.New("config exists")
 
+//TODO do not lock here
 func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
 	_, ok := configs[queueKey]
 	if ok {
-		return true, errors.New("config exists")
+		return true, existsErr
 	} else {
 		//init empty id
 		if cfg.Id == "" {
