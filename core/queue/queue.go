@@ -135,10 +135,7 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error){
 	defer consumerCfgLock.Unlock()
 
 	queueIDBytes:=util.UnsafeStringToBytes(queueID)
-	ok,err:=kv.ExistsKey(consumerBucket,queueIDBytes)
-	if err!=nil{
-		panic(err)
-	}
+	ok,_:=kv.ExistsKey(consumerBucket,queueIDBytes)
 
 	cfgs:=map[string]*ConsumerConfig{}
 	if ok{
