@@ -108,6 +108,7 @@ type PathConfig struct {
 
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply
 type SystemConfig struct {
+
 	ClusterConfig ClusterConfig `config:"cluster"`
 
 	APIConfig APIConfig `config:"api"`
