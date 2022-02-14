@@ -583,7 +583,7 @@ type RequestCtx struct {
 	hijackNoResponse bool
 
 	finished bool
-	SequenceID       int64
+	//SequenceID       int64
 	flowProcess []string
 	destination []string
 
@@ -3194,7 +3194,7 @@ func releaseWriter(s *Server, w *bufio.Writer) {
 var ctxPool = &sync.Pool{
 	New: func() interface{} {
 		c:=RequestCtx{
-			SequenceID: util.GetIncrementID("ctx"),
+			//SequenceID: util.GetIncrementID("ctx"),
 		}
 		return &c
 	},
@@ -3204,7 +3204,7 @@ func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 
 	x1:=ctxPool.Get().(*RequestCtx)
 	x1.s=s
-	x1.SequenceID=util.GetIncrementID("ctx")
+	//x1.SequenceID=util.GetIncrementID("ctx")
 	x1.c=c
 	x1.Reset()
 	return x1

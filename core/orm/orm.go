@@ -48,6 +48,7 @@ type ORM interface {
 	Count(o interface{}) (int64, error)
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
+	DeleteBy(o interface{}, query interface{}) error
 }
 
 type ORMObjectBase struct {
@@ -307,15 +308,15 @@ func Save(o interface{}) error {
 
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
-	nameExists, _ := getFieldStringValue(rValue, "Name")
+	//nameExists, _ := getFieldStringValue(rValue, "Name")
 
 	if !idExists {
 		return errors.New("id was not found")
 	}
 
-	if !nameExists {
-		return errors.New("name was not found")
-	}
+	//if !nameExists {
+	//	return errors.New("name was not found")
+	//}
 
 	return getHandler().Save(o)
 }
@@ -344,6 +345,9 @@ func Update(o interface{}) error {
 
 func Delete(o interface{}) error {
 	return getHandler().Delete(o)
+}
+func DeleteBy(o interface{}, query interface{}) error {
+	return getHandler().DeleteBy(o, query)
 }
 
 func Count(o interface{}) (int64, error) {

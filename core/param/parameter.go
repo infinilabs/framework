@@ -35,13 +35,13 @@ type Parameters struct {
 	inited bool
 }
 
-const uuid = "PARA_INTERNAL_UUID"
+//const uuid = "PARA_INTERNAL_UUID"
 
 func (para *Parameters) ResetParameters() {
 	para.l.Lock()
 	para.Data = map[string]interface{}{}
 	para.inited=false
-	para.Data[uuid] = util.GetUUID()
+	//para.Data[uuid] = util.GetUUID()
 	para.l.Unlock()
 }
 
@@ -56,10 +56,10 @@ func (para *Parameters) init() {
 	if para.Data == nil {
 		para.Data = map[string]interface{}{}
 	}
-	_,ok:=para.Data[uuid]
-	if !ok{
-		para.Data[uuid] = util.GetUUID()
-	}
+	//_,ok:=para.Data[uuid]
+	//if !ok{
+	//	para.Data[uuid] = util.GetUUID()
+	//}
 	para.inited = true
 }
 
@@ -80,9 +80,9 @@ func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 	return s, ok
 }
 
-func (para *Parameters) UUID() (string) {
-	return para.MustGetString(uuid)
-}
+//func (para *Parameters) UUID() (string) {
+//	return para.MustGetString(uuid)
+//}
 
 func (para *Parameters) GetString(key ParaKey) (string, bool) {
 	v := para.Get(key)
@@ -608,6 +608,7 @@ func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	return v
 }
 
+//TODO remove lock async, channel
 func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
 	s := string(key)
