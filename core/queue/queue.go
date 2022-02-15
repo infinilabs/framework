@@ -101,14 +101,16 @@ var configs = map[string]*Config{}
 var idConfigs = map[string]*Config{}
 var cfgLock = sync.RWMutex{}
 var consumerCfgLock = sync.RWMutex{}
+var existsErr=errors.New("config exists")
 
+//TODO do not lock here
 func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
 	_, ok := configs[queueKey]
 	if ok {
-		return true, errors.New("config exists")
+		return true, existsErr
 	} else {
 		//init empty id
 		if cfg.Id == "" {
@@ -135,10 +137,7 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error){
 	defer consumerCfgLock.Unlock()
 
 	queueIDBytes:=util.UnsafeStringToBytes(queueID)
-	ok,err:=kv.ExistsKey(consumerBucket,queueIDBytes)
-	if err!=nil{
-		panic(err)
-	}
+	ok,_:=kv.ExistsKey(consumerBucket,queueIDBytes)
 
 	cfgs:=map[string]*ConsumerConfig{}
 	if ok{

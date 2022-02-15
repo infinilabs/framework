@@ -286,7 +286,7 @@ func (module *PipeModule) Stop() error {
 					log.Error("pipeline framework failure to stop tasks, quiting")
 					return errors.New("pipeline framework failure to stop tasks, quiting")
 				}
-				log.Debugf("retry pipeline [%v] closing", v.UUID())
+				//log.Debugf("retry pipeline [%v] closing", v.UUID())
 				goto CLOSING
 			} else {
 				progress.IncreaseWithTotal("pipeline", "shutdown", 1, len(module.contexts))
