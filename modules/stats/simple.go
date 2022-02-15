@@ -3,6 +3,7 @@ package stats
 import (
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
+	"github.com/struCoder/pidusage"
 	"infini.sh/framework/core/api"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"src/github.com/struCoder/pidusage"
 	"strings"
 	"sync"
 )
@@ -21,64 +21,98 @@ func (module SimpleStatsModule) Name() string {
 	return "Stats"
 }
 
-var data *Stats
-var dataPath string
-var config *SimpleStatsConfig
+
 
 type SimpleStatsConfig struct {
 	Persist bool `config:"persist"`
+	BufferSize int `config:"buffer_size"`
 }
 
 func (module *SimpleStatsModule) Setup(cfg *Config) {
 
-	config = &SimpleStatsConfig{
+	module.config = &SimpleStatsConfig{
 		Persist: true,
+		BufferSize: 1000,
 	}
-	env.ParseConfig("stats", config)
+	env.ParseConfig("stats", module.config)
 
-	if config.Persist {
-		dataPath = path.Join(global.Env().GetDataDir(), "stats")
-		os.MkdirAll(dataPath, 0755)
+	if module.config.Persist {
+		module.dataPath = path.Join(global.Env().GetDataDir(), "stats")
+		os.MkdirAll(module.dataPath, 0755)
 	}
 
-	data = &Stats{}
-	data.initStats("simple")
-	stats.Register(data)
+	module.data = &Stats{}
+	module.initStats("simple")
+	module.data.buffer=make(chan StatItem,module.config.BufferSize)
+	stats.Register(module.data)
 
 	//register api
 	api.HandleAPIMethod(api.GET,"/stats", module.StatsAction)
 }
 
 func (module *SimpleStatsModule) Start() error {
-
+	go func() {
+		for x := range module.data.buffer{
+			module.data.initData(x.Category,x.Key)
+			switch x.Op {
+			case Incr:
+				module.data.l.Lock()
+				(*module.data.Data)[x.Category][x.Key] += x.Value
+				module.data.l.Unlock()
+				break
+			case Decr:
+				module.data.l.Lock()
+				(*module.data.Data)[x.Category][x.Key] -= x.Value
+				module.data.l.Unlock()
+				break
+			}
+		}
+	}()
 	return nil
 }
 
 func (module *SimpleStatsModule) Stop() error {
-
-	if config.Persist {
-		data.l.Lock()
-		defer data.l.Unlock()
-		v, _ := json.Marshal(data.Data)
-		_, err := util.FilePutContentWithByte(path.Join(dataPath, strings.ToLower(data.ID)), v)
+	module.data.closed=true
+	close(module.data.buffer)
+	if module.config.Persist {
+		module.data.l.Lock()
+		defer module.data.l.Unlock()
+		v, _ := json.Marshal(module.data.Data)
+		_, err := util.FilePutContentWithByte(path.Join(module.dataPath, strings.ToLower(module.data.ID)), v)
 		if err != nil {
 			log.Error(err)
 		}
-		log.Trace("save stats db,", data.ID)
+		log.Trace("save stats db,", module.data.ID)
 	}
 
 	return nil
 }
 
 type SimpleStatsModule struct {
-	config *SimpleStatsConfig
 	api.Handler
+	config *SimpleStatsConfig
+	data *Stats
+	dataPath string
 }
+
+const Incr ="incr"
+const Decr ="decr"
+
+type StatItem struct {
+	Op string
+	Category string
+	Key string
+	Value int64
+}
+
+
 
 type Stats struct {
 	l    sync.RWMutex
 	ID   string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
 	Data *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
+	closed bool
+	buffer chan StatItem
 }
 
 func (s *Stats) initData(category, key string) {
@@ -101,11 +135,11 @@ func (s *Stats) Increment(category, key string) {
 }
 
 func (s *Stats) IncrementBy(category, key string, value int64) {
-	s.initData(category, key)
-	s.l.Lock()
-	(*s.Data)[category][key] += value
-	s.l.Unlock()
-	runtime.Gosched()
+	if s.closed{
+		return
+	}
+
+	s.buffer <- StatItem{Op: Incr,Category: category,Key: key,Value: value}
 }
 
 func (s *Stats) Absolute(category, key string, value int64) {
@@ -121,11 +155,11 @@ func (s *Stats) Decrement(category, key string) {
 }
 
 func (s *Stats) DecrementBy(category, key string, value int64) {
-	s.initData(category, key)
-	s.l.Lock()
-	(*s.Data)[category][key] -= value
-	s.l.Unlock()
-	runtime.Gosched()
+	if s.closed{
+		return
+	}
+
+	s.buffer <- StatItem{Op: Decr,Category: category,Key: key,Value: value}
 }
 
 func (s *Stats) Timing(category, key string, v int64) {
@@ -165,14 +199,14 @@ func (s *Stats) StatsAll() *[]byte {
 	return &b
 }
 
-func (s *Stats) initStats(id string) {
-	s.l.Lock()
-	defer s.l.Unlock()
+func (module *SimpleStatsModule) initStats(id string) {
+	module.data.l.Lock()
+	defer module.data.l.Unlock()
 
-	s.ID = id
+	module.data.ID = id
 
-	if config.Persist {
-		v, err := util.FileGetContent(path.Join(dataPath, strings.ToLower(data.ID)))
+	if module.config.Persist {
+		v, err := util.FileGetContent(path.Join(module.dataPath, strings.ToLower(module.data.ID)))
 
 		if err == nil && v != nil {
 			d := map[string]map[string]int64{}
@@ -180,12 +214,12 @@ func (s *Stats) initStats(id string) {
 			if err != nil {
 				log.Error(err)
 			}
-			s.Data = &d
+			module.data.Data = &d
 		}
 	}
 
-	if s.Data == nil {
-		s.Data = &map[string]map[string]int64{}
+	if module.data.Data == nil {
+		module.data.Data = &map[string]map[string]int64{}
 		log.Trace("inited stats map")
 	}
 }

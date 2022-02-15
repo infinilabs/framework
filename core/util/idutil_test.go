@@ -17,12 +17,15 @@ limitations under the License.
 package util
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 )
 
 func BenchmarkGetIncrementID(b *testing.B) {
+	fmt.Println(GetIncrementID("a"))
+	fmt.Println(GetIncrementID("a"))
 
 	for i := 0; i < b.N; i++ {
 		GetIncrementID("a")

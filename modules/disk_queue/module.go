@@ -300,8 +300,12 @@ func (module *DiskQueue) Setup(config *config.Config) {
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
-	module.Init(k)
 	q,ok:=module.queues.Load(k)
+	if !ok{
+		//try init
+		module.Init(k)
+		q,ok=module.queues.Load(k)
+	}
 	if ok{
 		return (*q.(*BackendQueue)).Put(v)
 	}
@@ -309,8 +313,12 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 }
 
 func (module *DiskQueue) ReadChan(k string) <-chan []byte{
-	module.Init(k)
 	q,ok:=module.queues.Load(k)
+	if !ok{
+		//try init
+		module.Init(k)
+		q,ok=module.queues.Load(k)
+	}
 	if ok{
 		return (*q.(*BackendQueue)).ReadChan()
 	}
@@ -318,11 +326,6 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 }
 
 func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
-	err:= module.Init(k)
-	if err!=nil{
-		panic(err)
-	}
-
 	if timeoutDuration > 0 {
 		to := time.NewTimer(timeoutDuration)
 		for {
@@ -353,8 +356,12 @@ func ConvertOffset(offsetStr string) (int64,int64) {
 
 func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
 
-	module.Init(queueName)
 	q,ok:=module.queues.Load(queueName)
+	if !ok{
+		//try init
+		module.Init(queueName)
+		q,ok=module.queues.Load(queueName)
+	}
 	if ok{
 		segment,offset:=ConvertOffset(offsetStr)
 		q1:=(*q.(*BackendQueue))
@@ -374,8 +381,12 @@ func (module *DiskQueue) Close(k string) error {
 }
 
 func (module *DiskQueue) GetStorageSize(k string) uint64 {
-	module.Init(k)
 	q,ok:=module.queues.Load(k)
+	if !ok{
+		//try init
+		module.Init(k)
+		q,ok=module.queues.Load(k)
+	}
 	if ok{
 		ctx:= (*q.(*BackendQueue)).ReadContext()
 		folder:=filepath.Dir(ctx.WriteFile)
@@ -386,8 +397,12 @@ func (module *DiskQueue) GetStorageSize(k string) uint64 {
 }
 
 func (module *DiskQueue) LatestOffset(k string) string {
-	module.Init(k)
 	q,ok:=module.queues.Load(k)
+	if !ok{
+		//try init
+		module.Init(k)
+		q,ok=module.queues.Load(k)
+	}
 	if ok{
 		return (*q.(*BackendQueue)).LatestOffset()
 	}
@@ -396,11 +411,16 @@ func (module *DiskQueue) LatestOffset(k string) string {
 }
 
 func (module *DiskQueue) Depth(k string) int64 {
-	module.Init(k)
 	q,ok:=module.queues.Load(k)
+	if !ok{
+		//try init
+		module.Init(k)
+		q,ok=module.queues.Load(k)
+	}
 	if ok{
 		return (*q.(*BackendQueue)).Depth()
 	}
+
 	panic(errors.Errorf("queue [%v] not found",k))
 }
 

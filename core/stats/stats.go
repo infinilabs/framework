@@ -18,7 +18,6 @@ package stats
 
 import (
 	"infini.sh/framework/core/util"
-	"sync"
 )
 
 type StatsInterface interface {
@@ -45,12 +44,14 @@ type StatsInterface interface {
 var handlers = []StatsInterface{}
 
 func Increment(category string, key ... string) {
-	IncrementBy(category, util.JoinArray(key,"."), 1)
+	if len(key)>0{
+		IncrementBy(category, util.JoinArray(key,"."), 1)
+	}else{
+		IncrementBy(category, key[0], 1)
+	}
 }
 
 func IncrementBy(category, key string, value int64) {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		v.IncrementBy(category, key, value)
 	}
@@ -61,40 +62,30 @@ func Decrement(category, key string) {
 }
 
 func DecrementBy(category, key string, value int64) {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		v.DecrementBy(category, key, value)
 	}
 }
 
 func Absolute(category, key string, value int64) {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		v.Absolute(category, key, value)
 	}
 }
 
 func Timing(category, key string, value int64) {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		v.Timing(category, key, value)
 	}
 }
 
 func Gauge(category, key string, value int64) {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		v.Gauge(category, key, value)
 	}
 }
 
 func Stat(category, key string) int64 {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		b := v.Stat(category, key)
 		if b > 0 {
@@ -105,8 +96,6 @@ func Stat(category, key string) int64 {
 }
 
 func StatsAll() *[]byte {
-	lock.RLock()
-	defer lock.RUnlock()
 	for _, v := range handlers {
 		b := v.StatsAll()
 		if b != nil {
@@ -116,10 +105,7 @@ func StatsAll() *[]byte {
 	return &[]byte{}
 }
 
-var lock sync.RWMutex
 
 func Register(h StatsInterface) {
-	lock.Lock()
 	handlers = append(handlers, h)
-	lock.Unlock()
 }
