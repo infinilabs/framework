@@ -364,7 +364,7 @@ func MD5digestString(b []byte) string {
 }
 
 func JoinArray(array []string, delimiter string) string {
-	buffer := bytes.NewBuffer([]byte{})
+	buffer := bytes.Buffer{}
 	x := len(array) - 1
 	for i, v := range array {
 		buffer.WriteString(v)

@@ -8,7 +8,6 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
 	"strings"
 	"time"
 )
@@ -106,7 +105,7 @@ func (meta *BulkActionMetadata) GetItem() *BulkIndexMetadata {
 	}
 }
 
-func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int) (*IndexShardRouting,error) {
+func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID string) (*IndexShardRouting,error) {
 
 
 	table,err:=meta.GetIndexRoutingTable(index)
@@ -114,7 +113,7 @@ func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID int
 		return nil,err
 	}
 
-	shards,ok:=table[util.ToString(shardID)]
+	shards,ok:=table[shardID]
 	if ok{
 		for _,v:=range shards{
 			if v.Primary{
