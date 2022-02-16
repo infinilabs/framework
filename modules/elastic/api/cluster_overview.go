@@ -15,7 +15,7 @@ import (
 
 func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	clusterID := "c7v11eii4h97sfkfn0dg"
+	clusterID := ps.ByName("id")
 
 	queryLatency := util.MapStr{
 		"size": 0,
