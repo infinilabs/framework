@@ -13,10 +13,18 @@ import (
 )
 
 func (node *NodeAvailable) ReportFailure() {
+	node.lastCheck = time.Now()
+
 	node.configLock.Lock()
 	defer node.configLock.Unlock()
 
 	if !node.available {
+		if !node.isDead{
+			if time.Since(node.lastSuccess)>1*time.Hour{
+				node.isDead=true
+				log.Infof("node is dead: %v, last active >1 hour: %v",node.Host,node.lastSuccess)
+			}
+		}
 		return
 	}
 
@@ -44,6 +52,7 @@ func (node *NodeAvailable) ReportFailure() {
 func (node *NodeAvailable) ReportSuccess() {
 
 	node.lastSuccess = time.Now()
+	node.lastCheck = time.Now()
 
 	if node.available {
 		return
@@ -66,6 +75,11 @@ func (node *NodeAvailable) ReportSuccess() {
 func (node *NodeAvailable) LastSuccess() time.Time {
 	return node.lastSuccess
 }
+
+func (node *NodeAvailable) LastCheck() time.Time {
+	return node.lastCheck
+}
+
 func (node *NodeAvailable) FailureTickets() int {
 	return node.ticket
 }
@@ -75,6 +89,12 @@ func (node *NodeAvailable) IsAvailable() bool {
 	defer node.configLock.RUnlock()
 
 	return node.available
+}
+
+func (node *NodeAvailable) IsDead() bool {
+	node.configLock.RLock()
+	defer node.configLock.RUnlock()
+	return node.isDead
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
