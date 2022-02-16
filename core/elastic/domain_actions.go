@@ -43,6 +43,10 @@ func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
 }
 
 func GetOrInitHost(host string) *NodeAvailable {
+	if host==""{
+		return nil
+	}
+
 	v1, loaded := hosts.Load(host)
 	if loaded {
 		return v1.(*NodeAvailable)
@@ -167,6 +171,14 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas.Store(k, v)
 }
 
+func IsHostDead(host string) bool {
+	info, ok := hosts.Load(host)
+	if ok {
+		return info.(*NodeAvailable).IsDead()
+	}
+	log.Debugf("no available info for host [%v]", host)
+	return false
+}
 func IsHostAvailable(host string) bool {
 	info, ok := hosts.Load(host)
 	if ok {

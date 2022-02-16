@@ -1070,6 +1070,8 @@ func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httpr
 			result[k]=util.MapStr{
 				"host":v.Host,
 				"available":v.IsAvailable(),
+				"dead":v.IsDead(),
+				"last_check":v.LastCheck(),
 				"last_success":v.LastSuccess(),
 				"failure_tickets":v.FailureTickets(),
 			}

@@ -210,6 +210,8 @@ type NodeAvailable struct {
 	ticket      int
 	onFailure   bool
 	available   bool
+	isDead bool
+	lastCheck time.Time
 	lastSuccess time.Time
 	configLock  sync.RWMutex
 }
