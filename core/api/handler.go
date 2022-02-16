@@ -76,7 +76,7 @@ type Handler struct {
 // WriteHeader write status code to http header
 func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
 
-	if apiConfig.TLSConfig.TLSEnabled {
+	if apiConfig != nil && apiConfig.TLSConfig.TLSEnabled {
 		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 	}
 

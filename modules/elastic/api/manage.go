@@ -391,7 +391,7 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	}else{
 		metrics = h.GetClusterMetrics(id, bucketSize, min, max)
 	}
-	
+
 	resBody["metrics"] = metrics
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
