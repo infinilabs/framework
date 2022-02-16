@@ -7,7 +7,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
 	"time"

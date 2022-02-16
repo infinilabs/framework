@@ -4,8 +4,8 @@ import (
 	"github.com/xujiajun/nutsdb"
 	"infini.sh/framework/core/global"
 	"path"
-	"src/github.com/bkaradzic/go-lz4"
-	log "src/github.com/cihub/seelog"
+	"github.com/bkaradzic/go-lz4"
+	log "github.com/cihub/seelog"
 	"sync"
 )
 
