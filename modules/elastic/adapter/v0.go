@@ -417,11 +417,11 @@ func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []by
 	}
 
 	if resp.StatusCode>=400&&resp.StatusCode!=404{
-		log.Error("invalid response: ", string(queryDSL), ",", string(resp.Body))
+		log.Error("invalid response: ", url, ",",string(queryDSL), ",", string(resp.Body))
 	}
 
 	if global.Env().IsDebug {
-		log.Trace("search response: ", string(queryDSL), ",", string(resp.Body))
+		log.Trace("search response: ", url, ",",string(queryDSL), ",", string(resp.Body))
 	}
 
 	err = json.Unmarshal(resp.Body, esResp)
@@ -1213,9 +1213,12 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
+
 	data := map[string]AliasesResponse{}
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
+		log.Error(string(resp.Body),err)
 		return nil, err
 	}
 

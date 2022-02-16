@@ -73,7 +73,6 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {
-		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
