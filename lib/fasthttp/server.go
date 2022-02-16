@@ -266,6 +266,11 @@ type Server struct {
 	// Deprecated: Use IdleTimeout instead.
 	MaxKeepaliveDuration time.Duration
 
+	// MaxIdleWorkerDuration is the maximum idle time of a single worker in the underlying
+	// worker pool of the Server. Idle workers beyond this time will be cleared.
+	MaxIdleWorkerDuration time.Duration
+
+
 	// Whether to enable tcp keep-alive connections.
 	//
 	// Whether the operating system should send tcp keep-alive messages on the tcp connection.
@@ -400,6 +405,9 @@ type Server struct {
 
 	// We need to know our listeners so we can close them in Shutdown().
 	ln []net.Listener
+
+	idleConns   map[net.Conn]struct{}
+	idleConnsMu sync.Mutex
 
 	mu   sync.Mutex
 	open int32
@@ -2330,6 +2338,7 @@ func (s *Server) Serve(ln net.Listener) error {
 	wp := &workerPool{
 		WorkerFunc:      s.serveConn,
 		MaxWorkersCount: maxWorkersCount,
+		MaxIdleWorkerDuration: s.MaxIdleWorkerDuration,
 		LogAllErrors:    s.LogAllErrors,
 		connState:       s.setState,
 	}
@@ -2412,6 +2421,9 @@ func (s *Server) Shutdown() error {
 	if s.done != nil {
 		close(s.done)
 	}
+
+	s.closeIdleConns()
+
 
 	log.Tracef("closed: s.done")
 
@@ -3028,7 +3040,32 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	return
 }
 
+func (s *Server) trackConn(c net.Conn, state ConnState) {
+	s.idleConnsMu.Lock()
+	switch state {
+	case StateIdle:
+		if s.idleConns == nil {
+			s.idleConns = make(map[net.Conn]struct{})
+		}
+		s.idleConns[c] = struct{}{}
+
+	default:
+		delete(s.idleConns, c)
+	}
+	s.idleConnsMu.Unlock()
+}
+
+func (s *Server) closeIdleConns() {
+	s.idleConnsMu.Lock()
+	for c := range s.idleConns {
+		_ = c.Close()
+	}
+	s.idleConns = nil
+	s.idleConnsMu.Unlock()
+}
+
 func (s *Server) setState(nc net.Conn, state ConnState) {
+	s.trackConn(nc, state)
 	if hook := s.ConnState; hook != nil {
 		hook(nc, state)
 	}
