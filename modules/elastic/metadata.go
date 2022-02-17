@@ -141,8 +141,9 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 		for _, v := range *nodes {
 			elastic.GetOrInitHost(v.GetHttpPublishHost())
 		}
+		//TODO　save to es metadata
 	}
-	log.Trace("nodes changed:",nodesChanged,nodes)
+	log.Trace(meta.Config.Name,"nodes changed:",nodesChanged)
 }
 
 //func updateIndices(meta *elastic.ElasticsearchMetadata) {
