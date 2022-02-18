@@ -312,6 +312,7 @@ type BulkActionMetadata struct {
 	Delete *BulkIndexMetadata `json:"delete,omitempty"`
 	Create *BulkIndexMetadata `json:"create,omitempty"`
 	Update *BulkIndexMetadata `json:"update,omitempty"`
+	Stats int `json:"-,omitempty"`
 }
 
 type BulkIndexMetadata struct {
