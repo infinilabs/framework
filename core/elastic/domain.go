@@ -470,3 +470,31 @@ type TraceMeta struct {
 	Index string `json:"index" elastic_mapping:"index:{type:keyword}"`
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 }
+
+type NodeMetadata struct {
+	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
+	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata NodesInfo `json:"metadata" elastic_mapping:"metadata:{type:object,enabled:false}"`
+}
+
+type HostMetadata struct {
+	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
+	Metadata struct {
+		Host string `json:"host" elastic_mapping:"host:{type:keyword}"`
+		IPs []string `json:"ips" elastic_mapping:"ips:{type:keyword}"`
+		OS map[string]interface{} `json:"os" elastic_mapping:"os:{type:object,enabled:false}"`
+	} `json:"metadata" elastic_mapping:"metadata:{type:object}"`
+}
+
+type IndexMetadata struct {
+	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword}"`
+	Metadata map[string]interface{} `json:"metadata" elastic_mapping:"metadata:{type:object, enabled:false}"`
+}

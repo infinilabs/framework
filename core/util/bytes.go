@@ -75,6 +75,9 @@ func Int64ToBytes(i int64) []byte {
 }
 
 func BytesToInt64(buf []byte) int64 {
+	if len(buf) == 0{
+		return 0
+	}
 	return int64(binary.BigEndian.Uint64(buf))
 }
 

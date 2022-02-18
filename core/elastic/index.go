@@ -79,6 +79,9 @@ type ClusterState struct {
 	RoutingTable *ClusterRoutingTable `json:"routing_table,omitempty"`
 
 	CompressedSizeInBytes int `json:"compressed_size_in_bytes"` //v6.0+
+	Metadata *struct{
+		Indices map[string] interface{} `json:"indices"`
+	} `json:"metadata,omitempty"`
 }
 
 type ClusterStateNodes struct {

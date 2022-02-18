@@ -525,7 +525,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
-	url := fmt.Sprintf("%s/_cluster/state/version,master_node,routing_table", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cluster/state/version,master_node,routing_table,metadata/*", c.GetEndpoint())
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
