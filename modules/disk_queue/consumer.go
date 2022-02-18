@@ -49,6 +49,11 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	fileName:= d.SmartGetFileName(d.name,part)
 
+	if !util.FileExists(fileName){
+		time.Sleep(10*time.Second)
+		return ctx,messages,true,err
+	}
+
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
 	//defer readFile.Close()
@@ -97,6 +102,11 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 					readFile.Close()
 				}
 				goto RELOCATE_FILE
+			}else{
+				log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
+				if len(messages)==0{
+					time.Sleep(10*time.Second)
+				}
 			}
 		}else{
 			log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
@@ -127,6 +137,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 		Data:readBuf,
 		Size:totalBytes,
 		Offset:fmt.Sprintf("%v,%v",part,previousPos),
+		NextOffset:fmt.Sprintf("%v,%v",part,nextReadPos),
 	}
 
 	ctx.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
