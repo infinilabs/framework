@@ -54,7 +54,7 @@ func clusterHealthCheck(force bool) {
 }
 
 //update cluster state, on state version change
-func updateClusterState(clusterId string) {
+func (module *ElasticModule)updateClusterState(clusterId string) {
 
 	log.Trace("update cluster state:",clusterId)
 
@@ -86,21 +86,24 @@ func updateClusterState(clusterId string) {
 
 		if stateChanged {
 			//TODO locker
-			saveIndexMetadata(state, clusterId)
-			state.Metadata = nil
-			meta.ClusterState = state
-			event:=util.MapStr{
-				"cluster_id":clusterId,
-				"state":state,
-			}
-			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
+			if moduleConfig.ORMConfig.Enabled{
 
+				module.saveIndexMetadata(state, clusterId)
+
+				state.Metadata = nil
+				event:=util.MapStr{
+					"cluster_id":clusterId,
+					"state":state,
+				}
+				queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
+			}
+			meta.ClusterState = state
 		}
 	}
 }
 
 var saveIndexMetadataMutex = sync.Mutex{}
-func saveIndexMetadata(state *elastic.ClusterState, clusterID string){
+func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
 	saveIndexMetadataMutex.Lock()
 	defer saveIndexMetadataMutex.Unlock()
 	queryDslTpl := `{
@@ -178,7 +181,7 @@ func saveIndexMetadata(state *elastic.ClusterState, clusterID string){
 }
 
 //on demand, on state version change
-func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
+func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	if !meta.IsAvailable(){
 		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
 		return
@@ -218,14 +221,17 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 
 	if nodesChanged {
 		//TODO locker
-		for k, v := range *nodes {
-			err = saveNodeMetadata(k, &v, meta.Config.ID)
-			if err != nil {
-				if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
-					log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
+		if moduleConfig.ORMConfig.Enabled{
+			for k, v := range *nodes {
+				err = saveNodeMetadata(k, &v, meta.Config.ID)
+				if err != nil {
+					if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
+						log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
+					}
 				}
 			}
 		}
+
 		meta.Nodes = nodes
 		meta.NodesTopologyVersion++
 		log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
