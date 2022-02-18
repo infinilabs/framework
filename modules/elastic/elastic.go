@@ -181,6 +181,18 @@ func (module *ElasticModule) Setup(cfg *config.Config) {
 		if err != nil {
 			panic(err)
 		}
+		err = orm.RegisterSchemaWithIndexName(elastic.NodeMetadata{}, "metadata-node")
+		if err != nil {
+			panic(err)
+		}
+		err = orm.RegisterSchemaWithIndexName(elastic.HostMetadata{}, "metadata-host")
+		if err != nil {
+			panic(err)
+		}
+		err = orm.RegisterSchemaWithIndexName(elastic.IndexMetadata{}, "metadata-index")
+		if err != nil {
+			panic(err)
+		}
 
 		err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
 		if err != nil {

@@ -1,11 +1,16 @@
 package elastic
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
+	"strings"
+	"sync"
+	"time"
 )
 
 func clusterHealthCheck(force bool) {
@@ -81,6 +86,8 @@ func updateClusterState(clusterId string) {
 
 		if stateChanged {
 			//TODO locker
+			saveIndexMetadata(state, clusterId)
+			state.Metadata = nil
 			meta.ClusterState = state
 			event:=util.MapStr{
 				"cluster_id":clusterId,
@@ -88,6 +95,84 @@ func updateClusterState(clusterId string) {
 			}
 			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 
+		}
+	}
+}
+
+var saveIndexMetadataMutex = sync.Mutex{}
+func saveIndexMetadata(state *elastic.ClusterState, clusterID string){
+	saveIndexMetadataMutex.Lock()
+	defer saveIndexMetadataMutex.Unlock()
+	queryDslTpl := `{
+  "size": 1, 
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {
+          "cluster_id": {
+            "value": "%s"
+          }
+        }},
+        {"term": {
+          "index_name": {
+            "value": "%s"
+          }
+        }}
+      ]
+    }
+  },
+  "sort": [
+    {
+      "timestamp": {
+        "order": "desc"
+      }
+    }
+  ]
+}`
+
+	for indexName, indexMetadata := range state.Metadata.Indices {
+		queryDsl := fmt.Sprintf(queryDslTpl, clusterID, indexName)
+		q := &orm.Query{}
+		q.RawQuery = []byte(queryDsl)
+		err, result := orm.Search(&elastic.IndexMetadata{}, q)
+		if err != nil {
+			if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
+				log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
+			}
+			continue
+		}
+
+		newIndexMetadata := &elastic.IndexMetadata{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			ClusterID: clusterID,
+			IndexName: indexName,
+			Metadata: indexMetadata.(map[string]interface{}),
+		}
+		if len(result.Result) > 0 {
+			if info, ok := result.Result[0].(map[string]interface{}); ok {
+				if v, err := util.MapStr(info).GetValue("metadata.version"); err == nil {
+					if newInfo, ok := indexMetadata.(map[string]interface{}); ok {
+						if v.(float64) >= newInfo["version"].(float64) {
+							continue
+						}
+					}
+				}else{
+					//compare metadata for lower elasticsearch version
+					oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
+					newMetadata := util.MapStr(indexMetadata.(map[string]interface{}))
+					if oldMetadata.Equals(newMetadata) {
+						continue
+					}
+				}
+			}
+
+		}
+		err = orm.Save(newIndexMetadata)
+		if err != nil {
+			if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
+				log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
+			}
 		}
 	}
 }
@@ -133,6 +218,14 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 
 	if nodesChanged {
 		//TODO locker
+		for k, v := range *nodes {
+			err = saveNodeMetadata(k, &v, meta.Config.ID)
+			if err != nil {
+				if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
+					log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
+				}
+			}
+		}
 		meta.Nodes = nodes
 		meta.NodesTopologyVersion++
 		log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
@@ -145,6 +238,92 @@ func updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	}
 	log.Trace(meta.Config.Name,"nodes changed:",nodesChanged)
 }
+
+var saveNodeMetadataMutex = sync.Mutex{}
+func saveNodeMetadata(nodeID string, nodeInfo *elastic.NodesInfo, clusterID string) error {
+	saveNodeMetadataMutex.Lock()
+	defer saveNodeMetadataMutex.Unlock()
+	queryDslTpl := `{
+  "size": 1, 
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {
+          "cluster_id": {
+            "value": "%s"
+          }
+        }},
+        {"term": {
+          "node_id": {
+            "value": "%s"
+          }
+        }}
+      ]
+    }
+  },
+  "sort": [
+    {
+      "timestamp": {
+        "order": "desc"
+      }
+    }
+  ]
+}`
+	queryDsl := fmt.Sprintf(queryDslTpl, clusterID, nodeID)
+	q := &orm.Query{}
+	q.RawQuery = []byte(queryDsl)
+	err, result := orm.Search(&elastic.NodeMetadata{}, q)
+	if err != nil {
+		return err
+	}
+	isStateChange := true
+	if len(result.Result) > 0 {
+		if info, ok := result.Result[0].(map[string]interface{}); ok {
+			if v, err := util.MapStr(info).GetValue("metadata.http.publish_address"); err == nil {
+				if nodeInfo.Http.PublishAddress == v.(string) {
+					isStateChange = false
+				}
+			}
+		}
+
+	}
+	nodeMetadata := &elastic.NodeMetadata{
+		Metadata: *nodeInfo,
+		ClusterID: clusterID,
+		ID:  util.GetUUID(),
+		NodeID: nodeID,
+		Timestamp: time.Now(),
+	}
+
+	if isStateChange {
+		transportIP := strings.Split(nodeInfo.TransportAddress, ":")[0]
+		tempIps := util.MapStr{
+			nodeInfo.Ip : struct{}{},
+			nodeInfo.Host: struct{}{},
+			transportIP: struct {}{},
+		}
+		ips := make([]string, 0, len(tempIps))
+		for k, _ := range tempIps {
+			ips = append(ips, k)
+		}
+		hostMetadata := &elastic.HostMetadata{
+			ClusterID: clusterID,
+			NodeID: nodeID,
+			ID:  util.GetUUID(),
+			Timestamp: time.Now(),
+		}
+		hostMetadata.Metadata.Host = nodeInfo.Host
+		hostMetadata.Metadata.OS = nodeInfo.Os
+		hostMetadata.Metadata.IPs = ips
+		err := orm.Save(hostMetadata)
+		if err != nil {
+			return err
+		}
+		return orm.Save(nodeMetadata)
+	}
+	return nil
+}
+
 
 //func updateIndices(meta *elastic.ElasticsearchMetadata) {
 //

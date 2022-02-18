@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
+	"reflect"
 	"strings"
 )
 
@@ -415,4 +416,18 @@ func GetValueByKeys(keys []string,m MapStr)(interface{},bool)  {
 		}
 	}
 	return nil,false
+}
+
+func (m MapStr) Equals(dst MapStr) bool {
+	a := m.Flatten()
+	b := dst.Flatten()
+	if len(a) != len(b){
+		return false
+	}
+	for k, v := range a {
+		if !reflect.DeepEqual(v, b[k]) {
+			return false
+		}
+	}
+	return true
 }
