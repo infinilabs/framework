@@ -70,6 +70,9 @@ func (module *DiskQueue) getQueueStats(q string, include string, consumer string
 		},
 	}
 	cfg, ok := queue1.GetConfigByUUID(q)
+	if !ok{
+		panic(errors.Errorf("queue [%v] was not found",q))
+	}
 	if include != "false" {
 		if ok {
 			qd["metadata"] = cfg

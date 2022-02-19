@@ -2,8 +2,10 @@ package conditions
 
 import (
 	"fmt"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -24,10 +26,46 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 		}
 
 		cfg:=queue.GetOrInitConfig(field)
+
+		consumers,ok:=queue.GetConsumerConfigsByQueueID(cfg.Id)
+
+		if global.Env().IsDebug{
+			if ok{
+				for k,v:=range consumers{
+					log.Trace(k,v.Id,v.Group,v.Name)
+				}
+			}
+			log.Trace(field,len(consumers),ok)
+		}
+
+		if ok &&len(consumers)>0{
+			//check
+			latestProduceOffset:=queue.LatestOffset(cfg)
+			_,seg,pos:=queue.GetEarlierOffsetByQueueID(field)
+			offset:=fmt.Sprintf("%v,%v",seg,pos)
+			if global.Env().IsDebug {
+				log.Trace(field,offset, " vs ", latestProduceOffset)
+			}
+			//log.Error(field," offset:",latestProduceOffset==offset,",",latestProduceOffset,",",offset)
+			if latestProduceOffset==offset {
+				return false
+			}else{
+				return true
+			}
+		}
+
 		depth:=queue.Depth(cfg)
+
+		if global.Env().IsDebug {
+			log.Trace(field, ",depth:", depth, ",", maxDepth)
+		}
+
+		//log.Error(field," depth:",depth>maxDepth,",",depth,",",maxDepth)
+
 		if depth>maxDepth {
 			return true
 		}
+
 	}
 	return false
 }

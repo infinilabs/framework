@@ -183,6 +183,13 @@ func IsHostAvailable(host string) bool {
 	info, ok := hosts.Load(host)
 	if ok {
 		return info.(*NodeAvailable).IsAvailable()
+	}else{
+		arry:=strings.Split(host,":")
+		if len(arry)==2{
+			if !util.TestTCPPort(arry[0],arry[1]){
+				return false
+			}
+		}
 	}
 	log.Debugf("no available info for host [%v]", host)
 	return true
