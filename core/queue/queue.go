@@ -25,7 +25,8 @@ type Context struct {
 
 type Message struct {
 	Timestamp int64 `config:"timestamp" json:"timestamp"`
-	Offset string   `config:"offset" json:"offset"`
+	Offset string   `config:"offset" json:"offset"` //current offset
+	NextOffset string   `config:"next_offset" json:"next_offset"` //offset for next message
 	Size int64      `config:"size" json:"size"`
 	Data []byte     `config:"data" json:"data"`
 }
@@ -325,10 +326,10 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 		ctx,messages, isTimeout,err = handler.Consume(k.Id,consumer,offsetStr,count, timeout)
 
 		if !isTimeout {
-			stats.Increment("queue."+k.Id, "pop")
+			stats.Increment("queue."+k.Id, "consume")
 			return ctx, messages,isTimeout,err
 		}
-		stats.Increment("queue."+k.Id, "pop_timeout")
+		stats.Increment("queue."+k.Id, "consume_timeout")
 		return ctx,messages,isTimeout, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
@@ -385,7 +386,13 @@ const consumerOffsetBucket ="queue_consumer_commit_offset"
 func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,pos int64) {
 	q,ok:=GetConfigByUUID(queueID)
 	if !ok{
-		panic(errors.Errorf("queue [%v] was not found",queueID))
+		q,ok=GetConfig(queueID)
+		oldID:=queueID
+		queueID=q.Id
+		if !ok{
+			panic(errors.Errorf("queue [%v] was not found",queueID))
+		}
+		log.Debug("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
 	}
 	consumers,ok:=GetConsumerConfigsByQueueID(queueID)
 	if !ok{

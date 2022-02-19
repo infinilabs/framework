@@ -83,6 +83,14 @@ func (m MapStr) Clone() MapStr {
 
 // HasKey returns true if the key exist. If an error occurs then false is
 // returned with a non-nil error.
+func (m MapStr) SafetyHasKey(key string) (bool) {
+	ok,err:=m.HasKey(key)
+	if err!=nil{
+		return false
+	}
+	return ok
+}
+
 func (m MapStr) HasKey(key string) (bool, error) {
 	hasKey, err := walkMap(key, m, opHasKey)
 	if err != nil {

@@ -247,7 +247,7 @@ func nodeAvailabilityCheck() {
 	task.RegisterScheduleTask(task2)
 }
 
-func clusterStateRefresh() {
+func (module *ElasticModule)clusterStateRefresh() {
 
 	elastic.WalkConfigs(func(key, value interface{}) bool {
 
@@ -270,7 +270,7 @@ func clusterStateRefresh() {
 				Type:        "interval",
 				Interval:    "10s",
 				Task: func() {
-					updateClusterState(v.ID)
+					module.updateClusterState(v.ID)
 				},
 			}
 			task.RegisterScheduleTask(task2)
@@ -318,7 +318,7 @@ func (module *ElasticModule) Start() error {
 
 	if moduleConfig.MetadataRefresh.Enabled {
 		//refresh cluster state
-		clusterStateRefresh()
+		module.clusterStateRefresh()
 
 		//refresh nodes
 		task2 := task.ScheduleTask{
@@ -334,7 +334,7 @@ func (module *ElasticModule) Start() error {
 					v,ok:=value.(*elastic.ElasticsearchMetadata)
 					if ok{
 						if v.Config.Discovery.Enabled{
-							updateNodeInfo(v)
+							module.updateNodeInfo(v)
 						}
 					}
 					return true

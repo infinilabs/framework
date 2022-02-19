@@ -29,6 +29,7 @@ type Config struct {
 	Regexp           *Fields                `config:"regexp"`
 	Range            *Fields                `config:"range"`
 	QueueHasLag      []string               `config:"queue_has_lag"`
+	ConsumerHasLag   *Fields                `config:"consumer_has_lag"`
 	ClusterAvailable []string               `config:"cluster_available"`
 	HasFields        []string               `config:"has_fields"`
 	Network          map[string]interface{} `config:"network"`
@@ -75,6 +76,8 @@ func NewCondition(config *Config) (Condition, error) {
 		condition = NewHasFieldsCondition(config.HasFields)
 	case config.QueueHasLag != nil:
 		condition = NewQueueHasLagCondition(config.QueueHasLag)
+	case config.ConsumerHasLag != nil:
+		condition = NewConsumerHasLagCondition(config.ConsumerHasLag.fields)
 	case config.ClusterAvailable != nil:
 		condition = NewClusterAvailableCondition(config.ClusterAvailable)
 	case config.Network != nil && len(config.Network) > 0:
