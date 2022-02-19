@@ -106,8 +106,12 @@ var saveIndexMetadataMutex = sync.Mutex{}
 func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
 	saveIndexMetadataMutex.Lock()
 	defer saveIndexMetadataMutex.Unlock()
+	//indexNames := make([]string, 0, len(state.Metadata.Indices))
+	//for indexName, _ := range state.Metadata.Indices {
+	//	indexNames = append(indexNames, indexName)
+	//}
 	queryDslTpl := `{
-  "size": 1, 
+  "size": 5000, 
   "query": {
     "bool": {
       "must": [
@@ -115,14 +119,12 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
           "cluster_id": {
             "value": "%s"
           }
-        }},
-        {"term": {
-          "index_name": {
-            "value": "%s"
-          }
         }}
       ]
     }
+  },
+ "collapse": {
+    "field": "index_name"
   },
   "sort": [
     {
@@ -132,19 +134,40 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
     }
   ]
 }`
+	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
+	q := &orm.Query{}
+	q.RawQuery = []byte(queryDsl)
+	err, result := orm.Search(&elastic.IndexMetadata{}, q)
+	if err != nil {
+		if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
+			log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
+		}
+		return
+	}
+	notChanges := util.MapStr{}
+	var indexName string
+	for _, item := range result.Result {
+		if info, ok := item.(map[string]interface{}); ok {
+			infoMap := util.MapStr(info)
+			indexName = info["index_name"].(string)
+			if v, err := infoMap.GetValue("metadata.version"); err == nil {
+				if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
+					if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
+						notChanges[indexName] = true
+					}
+				}
+			}else{
+				//compare metadata for lower elasticsearch version
+				oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
+				newMetadata := util.MapStr(state.Metadata.Indices[indexName].(map[string]interface{}))
+				if oldMetadata.Equals(newMetadata) {
+					notChanges[indexName] = true
+				}
+			}
+		}
+	}
 
 	for indexName, indexMetadata := range state.Metadata.Indices {
-		queryDsl := fmt.Sprintf(queryDslTpl, clusterID, indexName)
-		q := &orm.Query{}
-		q.RawQuery = []byte(queryDsl)
-		err, result := orm.Search(&elastic.IndexMetadata{}, q)
-		if err != nil {
-			if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
-				log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
-			}
-			continue
-		}
-
 		newIndexMetadata := &elastic.IndexMetadata{
 			ID: util.GetUUID(),
 			Timestamp: time.Now(),
@@ -152,24 +175,8 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			IndexName: indexName,
 			Metadata: indexMetadata.(map[string]interface{}),
 		}
-		if len(result.Result) > 0 {
-			if info, ok := result.Result[0].(map[string]interface{}); ok {
-				if v, err := util.MapStr(info).GetValue("metadata.version"); err == nil {
-					if newInfo, ok := indexMetadata.(map[string]interface{}); ok {
-						if v.(float64) >= newInfo["version"].(float64) {
-							continue
-						}
-					}
-				}else{
-					//compare metadata for lower elasticsearch version
-					oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
-					newMetadata := util.MapStr(indexMetadata.(map[string]interface{}))
-					if oldMetadata.Equals(newMetadata) {
-						continue
-					}
-				}
-			}
-
+		if _, ok := notChanges[indexName]; ok {
+			continue
 		}
 		err = orm.Save(newIndexMetadata)
 		if err != nil {
