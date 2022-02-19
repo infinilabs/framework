@@ -378,7 +378,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 		orm.Eq("metadata.labels.node_id", nodeID),
 	)
 	q1.Collapse("metadata.labels.node_id")
-	q.AddSort("timestamp", orm.DESC)
+	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	kvs := util.MapStr{}
 	if len(result.Result) > 0 {
@@ -451,7 +451,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	kvs["shards_count"] = len(shards)
 	kvs["indices_count"] = len(indices)
 	if meta := elastic.GetMetadata(clusterID); meta != nil && meta.ClusterState != nil {
-		kvs["master_node"] = meta.ClusterState.MasterNode
+		kvs["is_master_node"] = meta.ClusterState.MasterNode == nodeID
 	}
 	h.WriteJSON(w, kvs, http.StatusOK)
 }
