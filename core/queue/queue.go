@@ -248,6 +248,7 @@ func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bo
 	if err!=nil{
 		panic(err)
 	}
+	//TODO optimize performance
 	err=util.FromJSONBytes(data,&cfgs)
 	if err!=nil{
 		panic(err)
