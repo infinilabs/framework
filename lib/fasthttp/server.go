@@ -621,6 +621,33 @@ func (r *RequestCtx) Context() context.Context {
 	return context.Background()
 }
 
+
+const tagsKey param.ParaKey ="CONTEXT_TAGS"
+func (para *RequestCtx) GetTags()(map[string]string,bool){
+	return para.GetStringMap(tagsKey)
+}
+func (para *RequestCtx) UpdateTags(addTags,removeTags []string){
+	temp,ok:=para.GetStringMap(tagsKey)
+	if!ok{
+		temp=map[string]string{}
+	}
+
+	if addTags!=nil{
+		for _,v:=range addTags{
+			temp[v]=v
+		}
+	}
+
+	if removeTags!=nil{
+		for _,v:=range removeTags{
+			delete(temp,v)
+		}
+	}
+
+	para.Set(tagsKey,temp)
+}
+
+
 func (para *RequestCtx) SetValue(s string,value string) (error){
 
 	if util.PrefixStr(s,"_ctx."){
