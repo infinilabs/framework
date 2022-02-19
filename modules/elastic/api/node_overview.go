@@ -139,7 +139,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 						log.Error( result["timestamp"], err)
 						source["status"] = "online"
 					}else{
-						if time.Now().Sub(lastTime).Seconds() > 15 {
+						if time.Now().Sub(lastTime).Seconds() > 30 {
 							source["status"] = "offline"
 						}else{
 							source["status"] = "online"
@@ -151,23 +151,18 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 					source["uptime"] = uptime
 				}
 
-				storeAvailableInBytes, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "available_in_bytes"}, result)
+				fsTotal, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, result)
 				if ok {
-					source["available_store_bytes"] = storeAvailableInBytes
+					source["fs"] = util.MapStr{
+						"total": fsTotal,
+					}
 				}
 
-				storeTotalInBytes, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "total_in_bytes"}, result)
+				jvmMem, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem"}, result)
 				if ok {
-					source["max_store_bytes"] = storeTotalInBytes
-				}
-				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs"}, result)
-				if ok {
-					source["fs"] = fs
-				}
-
-				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm"}, result)
-				if ok {
-					source["jvm"] = jvm
+					source["jvm"] = util.MapStr{
+						"mem": jvmMem,
+					}
 				}
 
 				statusMap[util.ToString(nodeID)] = source
@@ -297,6 +292,27 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 
 		source := hit.Source
 		nodeID := source["node_id"].(string)
+		if clusterID, ok := source["cluster_id"].(string); ok {
+			if data :=  elastic.GetMetadata(clusterID); data != nil {
+				source["cluster_name"] = data.Config.Name
+			}
+		}
+		innerMetaData := source["metadata"]
+		delete(source, "metadata")
+		if mp, ok := innerMetaData.(map[string]interface{}); ok {
+			source["roles"] = mp["roles"]
+			source["os"] = mp["os"]
+			source["ip"] = mp["ip"]
+			source["version"] = mp["version"]
+			source["transport"] = mp["transport"]
+			if ma, ok := mp["modules"].([]interface{}); ok {
+				if len(ma) > 0 {
+					if mi, ok := ma[0].(map[string]interface{}); ok {
+						source["java_version"] = mi["java_version"]
+					}
+				}
+			}
+		}
 
 		result["metadata"] = source
 		result["summary"] = statusMap[nodeID]
@@ -327,6 +343,117 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	}
 
 	h.WriteJSON(w, response, http.StatusOK)
+}
+
+func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterID := ps.MustGetParameter("id")
+	nodeID := ps.MustGetParameter("node_id")
+
+	q := orm.Query{
+		Size: 1,
+	}
+	q.Conds = orm.And(orm.Eq("node_id", nodeID))
+	q.Collapse("node_id")
+	q.AddSort("timestamp", orm.DESC)
+
+	err, res := orm.Search(&elastic.NodeMetadata{}, &q)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := elastic.SearchResponse{}
+	util.FromJSONBytes(res.Raw, &response)
+	if len(response.Hits.Hits) == 0 {
+		h.WriteError(w, "", http.StatusNotFound)
+		return
+	}
+	q1 := orm.Query{
+		Size: 1,
+		WildcardIndex: true,
+	}
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.name", "node_stats"),
+		orm.Eq("metadata.labels.node_id", nodeID),
+	)
+	q1.Collapse("metadata.labels.node_id")
+	q1.AddSort("timestamp", orm.DESC)
+	err, result := orm.Search(&event.Event{}, &q1)
+	kvs := util.MapStr{}
+	if len(result.Result) > 0 {
+		vresult, ok := result.Result[0].(map[string]interface{})
+		if ok {
+			timestamp, ok := vresult["timestamp"].(string)
+			if ok {
+				lastTime, err := time.Parse("2006-01-02T15:04:05.99999Z07:00", timestamp)
+
+				if err != nil {
+					log.Error(vresult["timestamp"], err)
+					kvs["status"] = "online"
+				} else {
+					if time.Now().Sub(lastTime).Seconds() > 30 {
+						kvs["status"] = "offline"
+					} else {
+						kvs["status"] = "online"
+					}
+				}
+			}
+			fsTotal, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, vresult)
+			if ok {
+				kvs["fs"] = util.MapStr{
+					"total": fsTotal,
+				}
+			}
+
+			jvmMem, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem"}, vresult)
+			if ok {
+				kvs["jvm"] = util.MapStr{
+					"mem": jvmMem,
+				}
+			}
+			indices := util.MapStr{}
+			docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "indices", "docs"}, vresult)
+			if ok {
+				indices["docs"] = docs
+			}
+			store, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "indices", "store"}, vresult)
+			if ok {
+				indices["store"] = store
+			}
+			kvs["indices"] = indices
+		}
+	}
+	hit := response.Hits.Hits[0]
+	innerMetaData := hit.Source["metadata"]
+	if mp, ok := innerMetaData.(map[string]interface{}); ok {
+		kvs["transport_address"] = mp["transport_address"]
+		kvs["roles"] = mp["roles"]
+	}
+	esclient := elastic.GetClient(clusterID)
+	indices := util.MapStr{}
+	shards := util.MapStr{}
+	if esclient != nil {
+		shardRes, err := esclient.CatShards()
+		if err != nil {
+			h.WriteJSON(w, util.MapStr{
+				"error": err.Error(),
+			}, http.StatusInternalServerError)
+			return
+		}
+		for _, item := range shardRes {
+			if item.NodeID == nodeID {
+				indices[item.Index] = true
+				shards[item.Index + item.ShardID] = true
+			}
+		}
+	}
+	kvs["shards_count"] = len(shards)
+	kvs["indices_count"] = len(indices)
+	if meta := elastic.GetMetadata(clusterID); meta != nil && meta.ClusterState != nil {
+		kvs["is_master_node"] = meta.ClusterState.MasterNode == nodeID
+	}
+	h.WriteJSON(w, kvs, http.StatusOK)
 }
 
 func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string][]interface{}, error){
