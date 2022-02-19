@@ -159,9 +159,11 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			}else{
 				//compare metadata for lower elasticsearch version
 				oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
-				newMetadata := util.MapStr(state.Metadata.Indices[indexName].(map[string]interface{}))
-				if oldMetadata.Equals(newMetadata) {
-					notChanges[indexName] = true
+				if newData, ok :=  state.Metadata.Indices[indexName]; ok {
+					newMetadata := util.MapStr(newData.(map[string]interface{}))
+					if oldMetadata.Equals(newMetadata) {
+						notChanges[indexName] = true
+					}
 				}
 			}
 		}
