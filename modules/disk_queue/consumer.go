@@ -50,7 +50,6 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	fileName:= d.SmartGetFileName(d.name,part)
 
 	if !util.FileExists(fileName){
-		time.Sleep(1*time.Second)
 		return ctx,messages,false,err
 	}
 
