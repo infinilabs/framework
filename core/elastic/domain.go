@@ -496,6 +496,7 @@ type IndexMetadata struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"`
 	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword}"`
 	Metadata map[string]interface{} `json:"metadata" elastic_mapping:"metadata:{type:object, enabled:false}"`
 }

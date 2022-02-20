@@ -456,6 +456,115 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	h.WriteJSON(w, kvs, http.StatusOK)
 }
 
+func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterID := ps.MustGetParameter("id")
+	nodeID := ps.MustGetParameter("node_id")
+	var must = []util.MapStr{
+		{
+			"term":util.MapStr{
+				"metadata.labels.cluster_id":util.MapStr{
+					"value": clusterID,
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.category": util.MapStr{
+					"value": "elasticsearch",
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.name": util.MapStr{
+					"value": "node_stats",
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.labels.node_id": util.MapStr{
+					"value": nodeID,
+				},
+			},
+		},
+	}
+	resBody := map[string]interface{}{}
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,60)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	query:=map[string]interface{}{}
+	query["query"]=util.MapStr{
+		"bool": util.MapStr{
+			"must": must,
+			"filter": []util.MapStr{
+				{
+					"range": util.MapStr{
+						"timestamp": util.MapStr{
+							"gte": min,
+							"lte": max,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	metricItems:=[]*common.MetricItem{}
+	metricItem:=newMetricItem("index_throughput", 2, OperationGroupKey)
+	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	metricItem.AddLine("Indexing Rate","Total Shards","Number of documents being indexed for node.","group1","payload.elasticsearch.node_stats.indices.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
+	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+	metricItem.AddLine("Search Rate","Total Shards",
+		"Number of search requests being executed.",
+		"group1","payload.elasticsearch.node_stats.indices.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
+	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+
+	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.node_stats.indices.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.node_stats.indices.indexing.index_total"
+	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
+		return value/value2
+	}
+	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.node_stats.indices.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.node_stats.indices.indexing.delete_total"
+	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
+		return value/value2
+	}
+	metricItems=append(metricItems,metricItem)
+
+	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
+	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
+
+	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.node_stats.indices.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.query_total"
+	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
+		return value/value2
+	}
+	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.node_stats.indices.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.fetch_total"
+	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
+		return value/value2
+	}
+	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.node_stats.indices.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[2].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.scroll_total"
+	metricItem.Lines[2].Metric.Calc = func(value, value2 float64) float64 {
+		return value/value2
+	}
+	metricItems=append(metricItems,metricItem)
+	resBody["metrics"] = h.getSingleMetrics(metricItems,query, bucketSize)
+	h.WriteJSON(w, resBody, http.StatusOK)
+}
+
 func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
