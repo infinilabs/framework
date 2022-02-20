@@ -379,7 +379,7 @@ func Close(k *Config) error {
 }
 
 func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
-	return fmt.Sprintf("%v-%v",k.Id,consumer.Group)
+	return fmt.Sprintf("%v-%v",k.Id,consumer.Id)
 }
 
 const consumerOffsetBucket ="queue_consumer_commit_offset"
