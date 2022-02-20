@@ -742,7 +742,7 @@ func (d *diskQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					log.Error(err)
+					log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
 					log.Debugf("reading from diskqueue(%s) at %d of %s - %s",
 						d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
 					d.handleReadError()
