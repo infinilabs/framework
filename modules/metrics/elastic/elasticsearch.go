@@ -164,10 +164,20 @@ func (m *Metric) Collect() error {
 					log.Error(v.Config.Name, " get indices info error: ", err)
 					return true
 				}
-				shardInfos, err := client.GetPrimaryShards()
+				shards, err := client.CatShards()
 				if err != nil {
 					log.Error(v.Config.Name, " get shards info error: ", err)
 					return true
+				}
+				shardInfos := map[string] []elastic.CatShardResponse{}
+				for _, item := range shards {
+					if _, ok := shardInfos[item.Index]; !ok {
+						shardInfos[item.Index] = []elastic.CatShardResponse{
+							item,
+						}
+					}else{
+						shardInfos[item.Index] = append(shardInfos[item.Index], item)
+					}
 				}
 				if indexStats != nil {
 
@@ -178,7 +188,7 @@ func (m *Metric) Collect() error {
 					if m.IndexStats {
 						for x, y := range indexStats.Indices {
 							indexInfo :=  (*indexInfos)[x]
-							shardInfo := (*shardInfos)[x]
+							shardInfo := shardInfos[x]
 							m.SaveIndexStats(v.Config.ID,  y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
 						}
 					}
@@ -235,7 +245,7 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats){
 	}
 }
 
-func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo map[int]elastic.ShardInfo) {
+func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
 
 	item := event.Event{
 		Metadata: event.EventMetadata{

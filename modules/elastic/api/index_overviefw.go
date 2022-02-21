@@ -103,7 +103,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 					summary["index_info"] = indexInfo
 				}
 				if shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, result); ok {
-					if sinfo, ok := shardInfo.(map[string]interface{}); ok {
+					if sinfo, ok := shardInfo.([]interface{}); ok {
 						unassignedCount := 0
 						for _, item := range sinfo {
 							if itemMap, ok := item.(map[string]interface{}); ok{
