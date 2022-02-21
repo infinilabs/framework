@@ -333,12 +333,12 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
 		summary["aliases"] = aliases
 	}
-	if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
-		summary["mappings"] = mappings
-	}
-	if settings, ok := util.GetMapValueByKeys([]string{"metadata", "settings"}, hit); ok {
-		summary["settings"] = settings
-	}
+	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
+	//	summary["mappings"] = mappings
+	//}
+	//if settings, ok := util.GetMapValueByKeys([]string{"metadata", "settings"}, hit); ok {
+	//	summary["settings"] = settings
+	//}
 	if len(result.Result) > 0 {
 		result, ok := result.Result[0].(map[string]interface{})
 		if ok {
