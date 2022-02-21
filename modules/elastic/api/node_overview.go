@@ -6,6 +6,7 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -13,7 +14,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )
@@ -27,7 +27,15 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
         "order": "desc"
       }
     }
-  ], "collapse": {"field": "node_id"}}`
+  ], 
+"aggs": {
+    "total": {
+      "cardinality": {
+        "field": "node_id"
+      }
+    }
+  },
+"collapse": {"field": "node_id"}}`
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
 		mustBuilder = &strings.Builder{}
@@ -342,6 +350,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		}
 		response.Hits.Hits[i].Source = result
 	}
+	response.Hits.Total = response.Aggregations["total"]
 
 	h.WriteJSON(w, response, http.StatusOK)
 }
