@@ -20,7 +20,7 @@ import (
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d, "sort": [
+		queryDSL    = `{"query":{"bool":{"should":[%s],"must_not":[{"term":{"cluster_id":{"value":"%s"}}}]}}, "size": %d, "from": %d, "sort": [
     {
       "timestamp": {
         "order": "desc"
@@ -55,7 +55,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	}
 
 	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), h.Config.Elasticsearch, size, from)
 	q.RawQuery = []byte(queryDSL)
 
 	err, res := orm.Search(&elastic.IndexMetadata{}, &q)
