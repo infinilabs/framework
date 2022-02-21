@@ -305,6 +305,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			source["ip"] = mp["ip"]
 			source["version"] = mp["version"]
 			source["transport"] = mp["transport"]
+			source["name"] = mp["name"]
 			if ma, ok := mp["modules"].([]interface{}); ok {
 				if len(ma) > 0 {
 					if mi, ok := ma[0].(map[string]interface{}); ok {

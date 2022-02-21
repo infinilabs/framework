@@ -172,7 +172,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	for indexName, indexMetadata := range state.Metadata.Indices {
 		data := indexMetadata.(map[string]interface{})
 		var indexID interface{} = nil
-		indexID, _ = util.GetMapValueByKeys([]string{"settings", "uuid"}, data)
+		indexID, _ = util.GetMapValueByKeys([]string{"settings","index", "uuid"}, data)
 		if indexID == nil {
 			indexID = ""
 		}
