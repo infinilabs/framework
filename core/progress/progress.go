@@ -40,10 +40,12 @@ func IncreaseWithTotal(category, key string, count, total int) {
 		}
 	}
 
+
 	statsMap[statsKey] = sumCount
 	if ShowProgress() {
 		barsMap[statsKey].Reset(total)
 		barsMap[statsKey].Set(sumCount)
+		barsMap[statsKey].Update()
 	}
 	stats.Gauge(category,key,int64(sumCount*100/(total)))
 }
