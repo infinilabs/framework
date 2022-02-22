@@ -659,7 +659,7 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string]
 					if bkVal, ok := bkItem.(map[string]interface{}); ok {
 						if minUptime, ok := util.GetMapValueByKeys([]string{"min_uptime", "value"}, bkVal); ok {
 							//mark node status as offline when uptime less than 10m
-							if minUptime.(float64) < 600000 {
+							if v, ok := minUptime.(float64); ok && v < 600000 {
 								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "offline"})
 							}
 							recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "online"})
