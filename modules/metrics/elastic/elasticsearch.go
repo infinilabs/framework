@@ -134,6 +134,17 @@ func (m *Metric) Collect() error {
 				}
 				event.Save(item)
 			}
+			var (
+				shards []elastic.CatShardResponse
+				err error
+			)
+			if m.NodeStats || m.IndexStats {
+				shards, err = client.CatShards()
+				if err != nil {
+					log.Error(v.Config.Name, " get shards info error: ", err)
+					return true
+				}
+			}
 
 			//nodes stats
 			if m.NodeStats {
@@ -143,11 +154,34 @@ func (m *Metric) Collect() error {
 					}
 					return true
 				}
+				shardInfos := map[string]map[string]int{}
+				indexInfos := map[string]map[string]bool{}
+				for _, item := range shards {
+					if _, ok := shardInfos[item.NodeID]; !ok {
+						shardInfos[item.NodeID] = map[string] int{
+							"shard_count": 0,
+							"replicas_count": 0,
+							"indices_count": 0,
+						}
+					}
+					if _, ok := indexInfos[item.NodeID]; !ok {
+						indexInfos[item.NodeID] = map[string]bool {}
+					}
+					if item.ShardType == "p" {
+						shardInfos[item.NodeID]["shard_count"]++
+					}else{
+						shardInfos[item.NodeID]["replicas_count"]++
+					}
+					indexInfos[item.NodeID][item.Index] = true
+				}
 				for nodeID, y := range *v.Nodes {
 					//get node level stats
 					stats := client.GetNodesStats(nodeID,y.GetHttpPublishHost())
+					if _, ok := shardInfos[nodeID]; ok {
+						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+					}
 
-					m.SaveNodeStats(v.Config.ID,stats)
+					m.SaveNodeStats(v.Config.ID,stats, shardInfos[nodeID])
 
 				}
 			}
@@ -164,11 +198,7 @@ func (m *Metric) Collect() error {
 					log.Error(v.Config.Name, " get indices info error: ", err)
 					return true
 				}
-				shards, err := client.CatShards()
-				if err != nil {
-					log.Error(v.Config.Name, " get shards info error: ", err)
-					return true
-				}
+
 				shardInfos := map[string] []elastic.CatShardResponse{}
 				for _, item := range shards {
 					if _, ok := shardInfos[item.Index]; !ok {
@@ -210,13 +240,14 @@ func (m *Metric) Collect() error {
 	return nil
 }
 
-func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats){
+func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, shardInfo interface{}){
 	for e,f:=range stats.Nodes{
 		//remove adaptive_selection
 		x,ok:=f.(map[string]interface{})
 		if ok{
 			delete(x,"adaptive_selection")
 			delete(x,"ingest")
+			x["shard_info"] = shardInfo
 		}
 		nodeName:=x["name"]
 		nodeIP:=x["ip"]

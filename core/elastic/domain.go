@@ -298,6 +298,19 @@ type CatIndexResponse struct {
 	//SegmentFixedBitsetMemory string `json:"segments.fixed_bitset_memory,omitempty"`
 }
 
+type CatNodeResponse struct {
+	Ip          string      `json:"ip"`
+	HeapPercent string      `json:"heap.percent"`
+	RamPercent  string      `json:"ram.percent"`
+	Cpu         string      `json:"cpu"`
+	Load1M      string      `json:"load_1m"`
+	Load5M      interface{} `json:"load_5m"`
+	Load15M     interface{} `json:"load_15m"`
+	NodeRole    string      `json:"node.role"`
+	Master      string      `json:"master"`
+	Name        string      `json:"name"`
+}
+
 type ReindexResponse struct {
 	Task string `json:"task"`
 }
