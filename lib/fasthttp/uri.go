@@ -209,6 +209,7 @@ func (u *URI) SetScheme(scheme string) {
 
 // SetSchemeBytes sets URI scheme, i.e. http, https, ftp, etc.
 func (u *URI) SetSchemeBytes(scheme []byte) {
+	//u.scheme = scheme
 	u.scheme = append(u.scheme[:0], scheme...)
 	lowercaseBytes(u.scheme)
 }

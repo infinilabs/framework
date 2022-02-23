@@ -457,13 +457,13 @@ func TimeoutWithCodeHandler(h RequestHandler, timeout time.Duration, msg string,
 			ch <- struct{}{}
 			<-concurrencyCh
 		}()
-		ctx.timeoutTimer = initTimer(ctx.timeoutTimer, timeout)
+		ctx.timeoutTimer = util.AcquireTimer(timeout)
 		select {
 		case <-ch:
 		case <-ctx.timeoutTimer.C:
 			ctx.TimeoutErrorWithCode(msg, statusCode)
 		}
-		stopTimer(ctx.timeoutTimer)
+		util.ReleaseTimer(ctx.timeoutTimer)
 	}
 }
 
@@ -923,6 +923,7 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
+	//headerBuffer:=req.AcquireBuffer()
 	headerBuffer:=bytes.Buffer{}
 
 	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
@@ -958,6 +959,7 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 
 	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
+	//data:=req.AcquireBuffer()
 	data:=bytes.Buffer{}
 
 	//schema
@@ -1012,16 +1014,11 @@ func readBytes(reader io.Reader,length uint32)[]byte  {
 	return bytes
 }
 
-//TODO optimize memmove issue, buffer read
 func (req *Request)Decode(data []byte) error {
 	req.decodeLocker.Lock()
 	defer req.decodeLocker.Unlock()
 
-	req.Reset()
-
-	//reader:=bytesReaderPool.Get().(*bytes.Reader)
-	//defer bytesReaderPool.Put(reader)
-
+	//reader:=req.AcquireBytesReader()
 	reader:=&bytes.Reader{}
 	reader.Reset(data)
 
@@ -1085,6 +1082,7 @@ func (res *Response)Encode() []byte {
 	res.encodeLocker.Lock()
 	defer res.encodeLocker.Unlock()
 
+	//buffer:=res.AcquireBuffer()
 	buffer:=bytes.Buffer{}
 	res.Header.VisitAll(func(key, value []byte) {
 		buffer.Write(key)
@@ -1106,6 +1104,7 @@ func (res *Response)Encode() []byte {
 	util.Uint32toBytes(status,uint32(res.StatusCode()))
 
 	data:=bytes.Buffer{}
+	//data:=res.AcquireBuffer()
 
 	//header
 	data.Write(headerLength)
@@ -1129,7 +1128,8 @@ func (res *Response)Decode(data []byte) error {
 	res.decodeLocker.Lock()
 	defer res.decodeLocker.Unlock()
 
-	reader:=bytes.Reader{}
+	reader:=&bytes.Reader{}
+	//reader:=res.AcquireBytesReader()
 	reader.Reset(data)
 
 	readerHeaderLengthBytes := make([]byte, 4)
@@ -3299,6 +3299,7 @@ func (ctx *RequestCtx) Reset(){
 	if ctx.Data==nil||len(ctx.Data)>0{
 		ctx.ResetParameters()
 	}
+
 	ctx.finished=false
 	ctx.flowProcess=[]string{}
 	ctx.destination=ctx.destination[0:0]
@@ -3426,6 +3427,7 @@ func (s *Server) ReleaseCtx(ctx *RequestCtx) {
 	ctx.c=nil
 	ctx.fbr.c=nil
 	ctx.Reset()
+	//ctx.BufferObject.Reset()
 	ctxPool.Put(ctx)
 
 	return
