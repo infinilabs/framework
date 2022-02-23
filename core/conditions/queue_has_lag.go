@@ -41,10 +41,9 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 		if ok &&len(consumers)>0{
 			//check
 			latestProduceOffset:=queue.LatestOffset(cfg)
-			_,seg,pos:=queue.GetEarlierOffsetByQueueID(field)
-			offset:=fmt.Sprintf("%v,%v",seg,pos)
+			offset:=queue.GetEarlierOffsetStrByQueueID(field)
 			if global.Env().IsDebug {
-				log.Trace(field,offset, " vs ", latestProduceOffset)
+				log.Trace(field,", ",offset, " vs ", latestProduceOffset)
 			}
 			//log.Error(field," offset:",latestProduceOffset==offset,",",latestProduceOffset,",",offset)
 			if latestProduceOffset==offset {
