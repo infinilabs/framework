@@ -47,8 +47,8 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	if client.ClusterVersion() < "7.2" {
 		if aggs, ok := reqParams.Body["aggs"]; ok {
 			if maggs, ok := aggs.(map[string]interface{}); ok {
-				if aggs2, ok := maggs["2"].(map[string]interface{}); ok {
-					if aggVals, ok := aggs2["date_histogram"].(map[string]interface{}); ok {
+				if aggsCounts, ok := maggs["counts"].(map[string]interface{}); ok {
+					if aggVals, ok := aggsCounts["date_histogram"].(map[string]interface{}); ok {
 						var interval interface{}
 						if calendarInterval, ok := aggVals["calendar_interval"]; ok {
 							interval = calendarInterval
