@@ -62,8 +62,13 @@ type ConsumerConfig struct {
 	Id       string                 `config:"id" json:"id,omitempty"`   //uuid for each queue
 	Group   string                  `config:"group" json:"group,omitempty"`
 	Name     string                 `config:"name" json:"name,omitempty"`
-	AutoReset     string       `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
-	AutoCommit     bool              `config:"auto_commit" json:"auto_commit,omitempty"`
+	AutoReset     string       		`config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
+	AutoCommit     bool             `config:"auto_commit" json:"auto_commit,omitempty"`
+
+	FetchMinBytes    int `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
+	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
+	FetchMaxMessages int `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
+	FetchMaxWaitMs   int `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
 }
 
 func (cfg *ConsumerConfig) Key() string {
@@ -123,7 +128,7 @@ func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
 		//async notify
 		go func() {
 			for _,f:=range queueConfigListener {
-				f()
+				f(cfg)
 			}
 		}()
 
@@ -192,7 +197,11 @@ func GetConsumerConfig(queueID,group,name string) (*ConsumerConfig, bool) {
 func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
 	cfg,exists:=GetConsumerConfig(queueID,group,name)
 	if !exists{
-			cfg=&ConsumerConfig{}
+			cfg=&ConsumerConfig{
+				FetchMinBytes:   	1,
+				FetchMaxMessages:   100,
+				FetchMaxWaitMs:   10000,
+			}
 			cfg.Id=util.GetUUID()
 			cfg.Source="dynamic"
 			cfg.Group=group
@@ -384,6 +393,11 @@ func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
 
 const consumerOffsetBucket ="queue_consumer_commit_offset"
 
+func GetEarlierOffsetStrByQueueID(queueID string) (string) {
+	_,seg,pos:=GetEarlierOffsetByQueueID(queueID)
+	offset:=fmt.Sprintf("%v,%v",seg,pos)
+	return offset
+}
 func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,pos int64) {
 	q,ok:=GetConfigByUUID(queueID)
 	if !ok{
@@ -393,7 +407,7 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 		if !ok{
 			panic(errors.Errorf("queue [%v] was not found",queueID))
 		}
-		log.Debug("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
+		log.Debugf("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
 	}
 	consumers,ok:=GetConsumerConfigsByQueueID(queueID)
 	if !ok{
@@ -470,6 +484,29 @@ func Depth(k *Config) int64 {
 		stats.Increment("queue."+k.Id, "call_depth")
 		return o
 	}
+	panic(errors.New("handler is not registered"))
+}
+
+func HasLag(k *Config) bool {
+	if k==nil||k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+
+	handler := getHandler(k.Id)
+
+	if handler != nil {
+
+		latestProduceOffset:=LatestOffset(k)
+		offset:=GetEarlierOffsetStrByQueueID(k.Id)
+
+		if latestProduceOffset!=offset{
+			return true
+		}
+
+		stats.Increment("queue."+k.Id, "check_lag")
+		return false
+	}
+
 	panic(errors.New("handler is not registered"))
 }
 
@@ -577,8 +614,8 @@ func Register(name string, h QueueAPI) {
 }
 
 //TODO only update specify event, func(queueID)
-var queueConfigListener =[]func(){}
-func RegisterQueueConfigChangeListener(l func()){
+var queueConfigListener =[]func(cfg *Config){}
+func RegisterQueueConfigChangeListener(l func(cfg *Config)){
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	queueConfigListener =append(queueConfigListener,l)
