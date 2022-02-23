@@ -164,6 +164,7 @@ type Bucket struct {
 
 type AggregationResponse struct {
 	Buckets []BucketBase `json:"buckets,omitempty"`
+	Value interface{} `json:"value,omitempty"`
 }
 
 type ResponseBase struct {
