@@ -198,6 +198,10 @@ func (module *ElasticModule) Setup(cfg *config.Config) {
 		if err != nil {
 			panic(err)
 		}
+		err = orm.RegisterSchemaWithIndexName(event.Activity{}, "activities")
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if moduleConfig.StoreConfig.Enabled {

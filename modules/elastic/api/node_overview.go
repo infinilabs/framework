@@ -27,15 +27,10 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
         "order": "desc"
       }
     }
-  ], 
-"aggs": {
-    "total": {
-      "cardinality": {
-        "field": "node_id"
-      }
-    }
-  },
-"collapse": {"field": "node_id"}}`
+  ]}`
+		//"collapse":{
+		//			"field": "node_id"
+		//		}}
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
 		mustBuilder = &strings.Builder{}
@@ -177,7 +172,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			}
 		}
 	}
-	statusMetric, err := getNodeOnlineStatusOfRecentDay(nodeIDs, 14)
+	statusMetric, err := getNodeOnlineStatusOfRecentDay(nodeIDs)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -350,7 +345,6 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		}
 		response.Hits.Hits[i].Source = result
 	}
-	response.Hits.Total = response.Aggregations["total"]
 
 	h.WriteJSON(w, response, http.StatusOK)
 }
@@ -573,7 +567,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	h.WriteJSON(w, resBody, http.StatusOK)
 }
 
-func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string][]interface{}, error){
+func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{})(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
 	}
@@ -586,9 +580,48 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string]
 				},
 				"aggs": util.MapStr{
 					"uptime_histogram": util.MapStr{
-						"date_histogram": util.MapStr{
-							"field": "timestamp",
-								"interval": "1d",
+						 "date_range": util.MapStr{
+							"field":     "timestamp",
+							"format":    "yyyy-MM-dd",
+							"time_zone": "+08:00",
+							"ranges": []util.MapStr{
+								{
+									"to": "now-13d/d",
+								}, {
+									"to": "now-12d/d",
+								},
+								{
+									"to": "now-11d/d",
+								},
+								{
+									"to": "now-10d/d",
+								}, {
+									"to": "now-9d/d",
+								},
+								{
+									"to": "now-8d/d",
+								},
+								{
+									"to": "now-7d/d",
+								},
+								{
+									"to": "now-6d/d",
+								}, {
+									"to": "now-5d/d",
+								},
+								{
+									"to": "now-4d/d",
+								},{
+									"to": "now-3d/d",
+								}, {
+									"to": "now-2d/d",
+								}, {
+									"to": "now-1d/d",
+								},
+								{
+									"from": "now/d",
+								},
+							},
 						},
 						"aggs": util.MapStr{
 							"min_uptime": util.MapStr{
@@ -615,7 +648,7 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string]
 					{
 						"range": util.MapStr{
 							"timestamp": util.MapStr{
-								"gte": fmt.Sprintf("now-%dd", days),
+								"gte":"now-15d",
 								"lte": "now",
 							},
 						},
@@ -659,8 +692,9 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{}, days int)(map[string]
 							//mark node status as offline when uptime less than 10m
 							if v, ok := minUptime.(float64); ok && v < 600000 {
 								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "offline"})
+							}else{
+								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "online"})
 							}
-							recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "online"})
 						}
 					}
 				}

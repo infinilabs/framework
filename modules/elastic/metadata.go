@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
@@ -237,15 +238,16 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 
 	if nodesChanged {
 		//TODO locker
-		if moduleConfig.ORMConfig.Enabled{
-			for k, v := range *nodes {
-				err = saveNodeMetadata(k, &v, meta.Config.ID)
+		if moduleConfig.ORMConfig.Enabled {
+			if meta.Config.Source != "file"{
+				err = saveNodeMetadata(*nodes, meta.Config.ID)
 				if err != nil {
 					if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
 						log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
 					}
 				}
 			}
+
 		}
 
 		meta.Nodes = nodes
@@ -262,21 +264,16 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 }
 
 var saveNodeMetadataMutex = sync.Mutex{}
-func saveNodeMetadata(nodeID string, nodeInfo *elastic.NodesInfo, clusterID string) error {
+func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
 	saveNodeMetadataMutex.Lock()
 	defer saveNodeMetadataMutex.Unlock()
 	queryDslTpl := `{
-  "size": 1, 
+	"size": 1000,
   "query": {
     "bool": {
       "must": [
         {"term": {
           "cluster_id": {
-            "value": "%s"
-          }
-        }},
-        {"term": {
-          "node_id": {
             "value": "%s"
           }
         }}
@@ -291,7 +288,7 @@ func saveNodeMetadata(nodeID string, nodeInfo *elastic.NodesInfo, clusterID stri
     }
   ]
 }`
-	queryDsl := fmt.Sprintf(queryDslTpl, clusterID, nodeID)
+	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
 	q := &orm.Query{}
 	q.RawQuery = []byte(queryDsl)
 	err, result := orm.Search(&elastic.NodeMetadata{}, q)
@@ -299,49 +296,189 @@ func saveNodeMetadata(nodeID string, nodeInfo *elastic.NodesInfo, clusterID stri
 		return err
 	}
 	isStateChange := true
-	if len(result.Result) > 0 {
-		if info, ok := result.Result[0].(map[string]interface{}); ok {
-			if v, err := util.MapStr(info).GetValue("metadata.http.publish_address"); err == nil {
-				if nodeInfo.Http.PublishAddress == v.(string) {
-					isStateChange = false
+	//nodeMetadatas := map[string] util.MapStr{}
+	nodeIDMap := map[string]interface{}{}
+	innerNodeIds := make([]interface{}, 0, len(result.Result)) // for fetch history data
+	for _, nodeItem := range result.Result {
+		if nodeInfo, ok := nodeItem.(map[string]interface{}); ok {
+			if nodeID, ok := nodeInfo["node_id"].(string); ok {
+				//nodeMetadatas[nodeID] = nodeInfo
+				if id, ok := nodeInfo["id"]; ok  {
+					nodeIDMap[nodeID] = id
+					if _, ok = nodes[nodeID]; ok {
+						innerNodeIds = append(innerNodeIds, id)
+					}
 				}
 			}
 		}
-
 	}
-	nodeMetadata := &elastic.NodeMetadata{
-		Metadata: *nodeInfo,
-		ClusterID: clusterID,
-		ID:  util.GetUUID(),
-		NodeID: nodeID,
-		Timestamp: time.Now(),
+	//fetch history data of recent 1 hour
+	q = &orm.Query{}
+	query := util.MapStr{
+		"size": 1000,
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
+		"collapse": util.MapStr{
+			"field": "metadata.labels.node_id",
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": []util.MapStr{
+					{"range": util.MapStr{
+						"timestamp": util.MapStr{
+							"gte": "now-1h",
+							"lte": "now",
+						},
+					}},
+				},
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.group": util.MapStr{
+								"value": "metadata",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_metadata",
+							},
+						},
+					},
+					{
+						"terms": util.MapStr{
+							"metadata.labels.node_id": innerNodeIds,
+						},
+					},
+				},
+			},
+		},
+	}
+	q.RawQuery = util.MustToJSONBytes(query)
+	err, result = orm.Search(&event.Activity{}, q)
+	if err != nil && !strings.Contains(err.Error(), "no mapping found") {
+		return err
+	}
+
+	historyNodeMetadata := map[string] interface{}{}
+	for _, item := range result.Result {
+		if info, ok := item.(map[string]interface{}); ok {
+			infoMap := util.MapStr(info)
+			if v, err := infoMap.GetValue("payload.metadata"); err == nil {
+				if nodeId, err := infoMap.GetValue("metadata.labels.node_id"); err == nil {
+					if nid, ok := nodeId.(string); ok {
+						historyNodeMetadata[nid] = v
+					}
+				}
+			}
+		}
+	}
+	for rawIndexID, nodeInfo := range nodes {
+		rawBytes := util.MustToJSONBytes(nodeInfo)
+		currentNodeInfo := util.MapStr{}
+		util.MustFromJSONBytes(rawBytes, &currentNodeInfo)
+		var innerID interface{}
+		var typ string
+		if rowID, ok := nodeIDMap[rawIndexID]; !ok {
+			//new
+			newID := util.GetUUID()
+			typ = "create"
+			innerID = newID
+			nodeMetadata := &elastic.NodeMetadata{
+				Metadata: util.MapStr{
+					"name": nodeInfo.Name,
+					"transport_address": nodeInfo.TransportAddress,
+					"host": nodeInfo.Host,
+					"ip": nodeInfo.Ip,
+					"version": nodeInfo.Version,
+					"build_flavor": nodeInfo.BuildFlavor,
+					"build_type": nodeInfo.BuildType,
+					"build_hash": nodeInfo.BuildHash,
+					"os": nodeInfo.Os,
+				},
+				ClusterID: clusterID,
+				ID:  newID,
+				NodeID: rawIndexID,
+				Timestamp: time.Now(),
+			}
+			err = orm.Save(nodeMetadata)
+			if err != nil {
+				log.Error(err)
+			}
+		}else {
+			innerID = rowID
+			typ = "update"
+			if rid, ok := rowID.(string); ok {
+				if historyM, ok := historyNodeMetadata[rid].(map[string]interface{}); ok {
+					if currentNodeInfo.Equals(historyM) {
+						continue
+					}
+				}
+			}
+
+		}
+		activityInfo := &event.Activity{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			Metadata: event.ActivityMetadata{
+				Category: "elasticsearch",
+				Group: "metadata",
+				Name: "metadata_node",
+				Type: typ,
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"node_id": innerID,
+				},
+			},
+			Fields: util.MapStr{
+				"metadata": nodeInfo,
+			},
+		}
+		err = orm.Save(activityInfo)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 
 	if isStateChange {
-		transportIP := strings.Split(nodeInfo.TransportAddress, ":")[0]
-		tempIps := util.MapStr{
-			nodeInfo.Ip : struct{}{},
-			nodeInfo.Host: struct{}{},
-			transportIP: struct {}{},
-		}
-		ips := make([]string, 0, len(tempIps))
-		for k, _ := range tempIps {
-			ips = append(ips, k)
-		}
-		hostMetadata := &elastic.HostMetadata{
-			ClusterID: clusterID,
-			NodeID: nodeID,
-			ID:  util.GetUUID(),
-			Timestamp: time.Now(),
-		}
-		hostMetadata.Metadata.Host = nodeInfo.Host
-		hostMetadata.Metadata.OS = nodeInfo.Os
-		hostMetadata.Metadata.IPs = ips
-		err := orm.Save(hostMetadata)
-		if err != nil {
-			return err
-		}
-		return orm.Save(nodeMetadata)
+
+		//transportIP := strings.Split(nodeInfo.TransportAddress, ":")[0]
+		//tempIps := util.MapStr{
+		//	nodeInfo.Ip : struct{}{},
+		//	nodeInfo.Host: struct{}{},
+		//	transportIP: struct {}{},
+		//}
+		//ips := make([]string, 0, len(tempIps))
+		//for k, _ := range tempIps {
+		//	ips = append(ips, k)
+		//}
+		//hostMetadata := &elastic.HostMetadata{
+		//	ClusterID: clusterID,
+		//	NodeID: nodeID,
+		//	ID:  util.GetUUID(),
+		//	Timestamp: time.Now(),
+		//}
+		//hostMetadata.Metadata.Host = nodeInfo.Host
+		//hostMetadata.Metadata.OS = nodeInfo.Os
+		//hostMetadata.Metadata.IPs = ips
+		//err := orm.Save(hostMetadata)
+		//if err != nil {
+		//	return err
+		//}
+
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package elastic
 
 import (
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"sync"
 	"time"
 )
@@ -490,7 +491,7 @@ type NodeMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata NodesInfo `json:"metadata" elastic_mapping:"metadata:{type:object,enabled:false}"`
+	Metadata util.MapStr `json:"metadata" elastic_mapping:"metadata:{type:object,enabled:false}"`
 }
 
 type HostMetadata struct {
