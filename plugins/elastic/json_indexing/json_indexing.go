@@ -245,7 +245,7 @@ CLEAN_BUFFER:
 		client.Bulk(mainBuf.Bytes())
 
 		stats.IncrementBy("json_indexing", "bytes_processed", int64(mainBuf.Len()))
-		
+
 		mainBuf.Reset()
 		//TODO handle retry and fallback/over, dead letter queue
 		//set services to failure, need manual restart

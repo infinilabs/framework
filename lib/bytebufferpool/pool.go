@@ -66,7 +66,10 @@ func (p *Pool) Get() *ByteBuffer {
 //
 // ByteBuffer.B mustn't be touched after returning it to the pool.
 // Otherwise data races will occur.
-func Put(b *ByteBuffer) { defaultPool.Put(b) }
+func Put(b *ByteBuffer) {
+	b.Reset()
+	defaultPool.Put(b)
+}
 
 // Put releases byte buffer obtained via Get to the pool.
 //

@@ -17,29 +17,73 @@ limitations under the License.
 package param
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/bytebufferpool"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 )
 
+type BufferObject struct {
+	bytesBuffer []*bytebufferpool.ByteBuffer
+	byteReader []*bytes.Reader
+}
+
 type Parameters struct {
 	Data   map[string]interface{} `json:"data,omitempty"`
 	l      sync.RWMutex
+
 	inited bool
 }
 
-//const uuid = "PARA_INTERNAL_UUID"
+var byteReaderPool = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Reader)
+	},
+}
+
+func (r *BufferObject) AcquireBytesReader() *bytes.Reader {
+	buffer:=byteReaderPool.Get().(*bytes.Reader)
+	r.byteReader=append(r.byteReader,buffer)
+	return buffer
+}
+
+func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer{
+	stats.Increment("BufferObject","AcquireBuffer+1")
+	buffer:=bytebufferpool.Get()
+	buffer.Reset()
+	r.bytesBuffer=append(r.bytesBuffer,buffer)
+	return buffer
+}
+
+func (para *BufferObject) Reset() {
+	stats.Increment("BufferObject","Reset+1")
+
+	if para.bytesBuffer!=nil&&len(para.bytesBuffer)>0{
+		for _,v:=range para.bytesBuffer{
+			bytebufferpool.Put(v)
+		}
+	}
+
+	if para.byteReader!=nil&&len(para.byteReader)>0{
+		for _,v:=range para.byteReader{
+			byteReaderPool.Put(v)
+		}
+	}
+}
 
 func (para *Parameters) ResetParameters() {
 	para.l.Lock()
 	para.Data = map[string]interface{}{}
+
 	para.inited=false
 	//para.Data[uuid] = util.GetUUID()
 	para.l.Unlock()

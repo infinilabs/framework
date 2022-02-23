@@ -32,7 +32,6 @@ func (node *NodeAvailable) ReportFailure() {
 		return
 	}
 
-	node.onFailure = true
 	if rate.GetRateLimiter("node_failure", node.Host, 1, 1, time.Second*1).Allow() {
 		log.Debugf("vote failure ticket++ for elasticsearch [%v]", node.Host)
 
@@ -61,10 +60,10 @@ func (node *NodeAvailable) ReportSuccess() {
 	node.configLock.Lock()
 	defer node.configLock.Unlock()
 
-	if node.onFailure && !node.available {
+	if  !node.available {
 		if rate.GetRateLimiter("node_available", node.Host, 1, 1, time.Second*1).Allow() {
 			log.Debugf("vote success ticket++ for elasticsearch [%v]", node.Host)
-			node.onFailure = false
+			node.isDead = false
 			node.available = true
 			node.ticket = 0
 			log.Infof("node [%v] is available", node.Host)

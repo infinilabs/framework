@@ -892,6 +892,10 @@ func (ctx *RequestCtx)GetRequestProcess()[]string  {
 	return ctx.flowProcess
 }
 
+func (ctx *RequestCtx)GetFlowProcess()[]string  {
+	return ctx.flowProcess
+}
+
 func (ctx *RequestCtx)AddFlowProcess(str string)  {
 	if str!=""{
 		ctx.flowProcess=append(ctx.flowProcess,str)
