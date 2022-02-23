@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"strings"
 )
@@ -130,7 +131,7 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 
 		if !ctx.ShouldContinue() {
 			if global.Env().IsDebug {
-				log.Debugf("filter [%v] not continued", p.Name())
+				log.Debugf("filter [%v] not continued, position: [%v]", p.Name(),util.JoinArray(ctx.GetRequestProcess(),"->"))
 			}
 			ctx.AddFlowProcess("skipped")
 			return

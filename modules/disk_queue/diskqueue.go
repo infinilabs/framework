@@ -742,6 +742,11 @@ func (d *diskQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
+					//skip queue with consumers
+					_,ok:=queue.GetConsumerConfigsByQueueID(d.name)
+					if ok{
+						continue
+					}
 					log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
 					log.Debugf("reading from diskqueue(%s) at %d of %s - %s",
 						d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)

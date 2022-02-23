@@ -196,7 +196,8 @@ READ_DOCS:
 		}
 
 		if len(pop) > 0 {
-			stats.IncrementBy("bulk", "bytes_received", int64(mainBuf.Len()))
+
+			stats.IncrementBy("json_indexing", "bytes_received", int64(mainBuf.Len()))
 
 			if processor.config.IndexName==""{
 				panic("index name is empty")
@@ -242,12 +243,14 @@ CLEAN_BUFFER:
 		//TODO merge into bulk services
 		mainBuf.WriteByte('\n')
 		client.Bulk(mainBuf.Bytes())
+
+		stats.IncrementBy("json_indexing", "bytes_processed", int64(mainBuf.Len()))
+
 		mainBuf.Reset()
 		//TODO handle retry and fallback/over, dead letter queue
 		//set services to failure, need manual restart
 		//process dead letter queue first next round
 
-		stats.IncrementBy("bulk", "bytes_processed", int64(mainBuf.Len()))
 		log.Trace("clean buffer, and execute bulk insert")
 	}
 

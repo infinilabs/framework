@@ -23,7 +23,9 @@ import (
 //
 // Request instance MUST NOT be used from concurrently running goroutines.
 type Request struct {
+
 	noCopy noCopy //nolint:unused,structcheck
+
 
 	// Request header
 	//
@@ -981,6 +983,7 @@ func readMultipartForm(r io.Reader, boundary string, size, maxInMemoryFileSize i
 func (req *Request) Reset() {
 	req.Header.Reset()
 	req.resetSkipHeader()
+
 	req.timeout = 0
 	req.bodyLength = -1
 }
@@ -1025,6 +1028,7 @@ func (req *Request) RemoveMultipartFormFiles() {
 
 // Reset clears response contents.
 func (resp *Response) Reset() {
+
 	resp.Header.Reset()
 	resp.resetSkipHeader()
 	resp.SkipBody = false

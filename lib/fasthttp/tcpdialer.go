@@ -3,6 +3,7 @@ package fasthttp
 import (
 	"context"
 	"errors"
+	"infini.sh/framework/core/util"
 	"net"
 	"strconv"
 	"sync"
@@ -312,14 +313,14 @@ func (d *TCPDialer) tryDial(network string, addr *net.TCPAddr, deadline time.Tim
 		select {
 		case concurrencyCh <- struct{}{}:
 		default:
-			tc := AcquireTimer(timeout)
+			tc := util.AcquireTimer(timeout)
 			isTimeout := false
 			select {
 			case concurrencyCh <- struct{}{}:
 			case <-tc.C:
 				isTimeout = true
 			}
-			ReleaseTimer(tc)
+			util.ReleaseTimer(tc)
 			if isTimeout {
 				return nil, ErrDialTimeout
 			}
@@ -345,7 +346,7 @@ func (d *TCPDialer) tryDial(network string, addr *net.TCPAddr, deadline time.Tim
 		err  error
 	)
 
-	tc := AcquireTimer(timeout)
+	tc := util.AcquireTimer(timeout)
 	select {
 	case dr := <-ch:
 		conn = dr.conn
@@ -354,7 +355,7 @@ func (d *TCPDialer) tryDial(network string, addr *net.TCPAddr, deadline time.Tim
 	case <-tc.C:
 		err = ErrDialTimeout
 	}
-	ReleaseTimer(tc)
+	util.ReleaseTimer(tc)
 
 	return conn, err
 }

@@ -209,7 +209,6 @@ type NodesInfo struct {
 type NodeAvailable struct {
 	Host        string
 	ticket      int
-	onFailure   bool
 	available   bool
 	isDead bool
 	lastCheck time.Time

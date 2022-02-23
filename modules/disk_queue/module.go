@@ -256,7 +256,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 
 
 	//register queue listener
-	queue.RegisterQueueConfigChangeListener(func() {
+	queue.RegisterQueueConfigChangeListener(func(v *queue.Config) {
 		persistQueueMetadata()
 	})
 
@@ -327,7 +327,8 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte{
 
 func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
 	if timeoutDuration > 0 {
-		to := time.NewTimer(timeoutDuration)
+		to := util.AcquireTimer(timeoutDuration)
+		defer util.ReleaseTimer(to)
 		for {
 			to.Reset(timeoutDuration)
 			select {

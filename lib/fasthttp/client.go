@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"infini.sh/framework/core/util"
 	"io"
 	"net"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 
 type ClientAPI interface {
 	Do(req *Request, resp *Response) error
+	DoTimeout(req *Request, resp *Response, timeout time.Duration) error
 }
 
 // Do performs the given http request and fills the given http response.
@@ -864,7 +866,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 		}
 	}()
 
-	tc := AcquireTimer(timeout)
+	tc := util.AcquireTimer(timeout)
 	select {
 	case resp := <-ch:
 		ReleaseRequest(req)
@@ -876,7 +878,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 		body = dst
 		err = ErrTimeout
 	}
-	ReleaseTimer(tc)
+	util.ReleaseTimer(tc)
 
 	return statusCode, body, err
 }
@@ -1166,7 +1168,7 @@ func clientDoDeadline(req *Request, resp *Response, deadline time.Time, c client
 		ReleaseRequest(reqCopy)
 	}()
 
-	tc := AcquireTimer(timeout)
+	tc := util.AcquireTimer(timeout)
 	var err error
 	select {
 	case err = <-ch:
@@ -1178,7 +1180,7 @@ func clientDoDeadline(req *Request, resp *Response, deadline time.Time, c client
 		}
 		mu.Unlock()
 	}
-	ReleaseTimer(tc)
+	util.ReleaseTimer(tc)
 
 	select {
 	case <-ch:
@@ -1486,8 +1488,8 @@ func (c *HostClient) acquireConn(reqTimeout time.Duration) (cc *clientConn, err 
 		}
 
 		// wait for a free connection
-		tc := AcquireTimer(timeout)
-		defer ReleaseTimer(tc)
+		tc := util.AcquireTimer(timeout)
+		defer util.ReleaseTimer(tc)
 
 		w := &wantConn{
 			ready: make(chan struct{}, 1),
@@ -1827,8 +1829,8 @@ var ErrTLSHandshakeTimeout = errors.New("tls handshake timed out")
 var timeoutErrorChPool sync.Pool
 
 func tlsClientHandshake(rawConn net.Conn, tlsConfig *tls.Config, timeout time.Duration) (net.Conn, error) {
-	tc := AcquireTimer(timeout)
-	defer ReleaseTimer(tc)
+	tc := util.AcquireTimer(timeout)
+	defer util.ReleaseTimer(tc)
 
 	var ch chan error
 	chv := timeoutErrorChPool.Get()

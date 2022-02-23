@@ -106,6 +106,10 @@ func (module *DiskQueue) getQueueStats(q string, include string, consumer string
 	if !hasConsumers {
 		qd["depth"] = module.Depth(q)
 	} else {
+
+		qd["messages"] = module.Depth(q)
+
+		qd["earliest_consumer_offset"] = queue1.GetEarlierOffsetStrByQueueID(q)
 		qd["offset"] = module.LatestOffset(q)
 		qd["synchronization"] = util.MapStr{
 			"latest_segment": GetLastS3UploadFileNum(q),

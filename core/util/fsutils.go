@@ -18,6 +18,7 @@ package util
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"io"
@@ -63,6 +64,9 @@ func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
 	}
 	if os.IsNotExist(err) {
 		return false
