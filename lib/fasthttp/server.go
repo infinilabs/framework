@@ -928,7 +928,6 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	defer req.encodeLocker.Unlock()
 
 	//headerBuffer:=req.AcquireBuffer()
-	headerBuffer:=bytes.Buffer{}
 
 	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
 
@@ -942,6 +941,8 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	req.Header.Del(HeaderContentType2)
 
 	req.Header.Del("content-length") //TODO check issue
+
+	headerBuffer:=bytes.Buffer{}
 	req.Header.VisitAll(func(key, value []byte) {
 		key1:=util.UnsafeBytesToString(key)
 		if removeCompressHeader && (key1==HeaderContentEncoding||key1==HeaderContentEncoding2){
@@ -954,14 +955,6 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	})
 
 	headerBytes:=headerBuffer.Bytes()
-	headerBytesLen:=uint32(len(headerBytes))
-	headerLength := make([]byte, 4)
-	binary.LittleEndian.PutUint32(headerLength, headerBytesLen)
-
-	bodyLength := make([]byte, 4)
-	bodyL:=len(body)
-
-	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
 	//data:=req.AcquireBuffer()
 	data:=bytes.Buffer{}
@@ -982,8 +975,7 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	data.Write(uri)
 
 	//header
-	header:=headerBytes
-	data.Write(getLengthBytes(header))
+	data.Write(getLengthBytes(headerBytes))
 	data.Write(headerBytes)
 
 	data.Write(getLengthBytes(body))
@@ -992,6 +984,7 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	}
 
 	b:= data.Bytes()
+
 	return b
 }
 
@@ -1036,6 +1029,9 @@ func (req *Request)Decode(data []byte) error {
 	}else{
 		req.isTLS=false
 	}
+
+	//reset header
+	req.Header.resetSkipNormalize()
 
 	//method
 	methodLengthBytes := readBytesLength(reader)
@@ -3274,6 +3270,8 @@ func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 	x1.s=s
 	//x1.SequenceID=util.GetIncrementID("ctx")
 	x1.c=c
+	x1.Request.Reset()
+	x1.Response.Reset()
 	x1.Reset()
 	return x1
 
@@ -3303,7 +3301,6 @@ func (ctx *RequestCtx) Reset(){
 	if ctx.Data==nil||len(ctx.Data)>0{
 		ctx.ResetParameters()
 	}
-
 	ctx.finished=false
 	ctx.flowProcess=[]string{}
 	ctx.destination=ctx.destination[0:0]
