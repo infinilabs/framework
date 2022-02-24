@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
-	"strings"
 	"sync"
 	"time"
 )
@@ -88,9 +87,9 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		if stateChanged {
 			//TODO locker
 			if moduleConfig.ORMConfig.Enabled{
-
-				module.saveIndexMetadata(state, clusterId)
-
+				if meta.Config.Source != "file"{
+					module.saveIndexMetadata(state, clusterId)
+				}
 				state.Metadata = nil
 				event:=util.MapStr{
 					"cluster_id":clusterId,
@@ -105,14 +104,14 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 
 var saveIndexMetadataMutex = sync.Mutex{}
 func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
-	var indexNameToID = map[string] interface{}{}
+	var indexIDToName = map[string] interface{}{}
 	for indexName, indexMetadata := range state.Metadata.Indices {
 		if data, ok := indexMetadata.(map[string]interface{}); ok {
 			indexID, _ := util.GetMapValueByKeys([]string{"settings", "index", "uuid"}, data)
 			if indexID == nil {
 				continue
 			}
-			indexNameToID[indexName] = indexID
+			indexIDToName[indexID.(string)] = indexName
 		}
 
 	}
@@ -135,9 +134,6 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
       ]
     }
   },
- "collapse": {
-    "field": "index_name"
-  },
   "sort": [
     {
       "timestamp": {
@@ -159,18 +155,29 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	notChanges := util.MapStr{}
 	var (
 		indexName string
+		indexIDMap = map[string]string{}
 	)
 
+	deletedInnerIDs := []interface{}{}
+	oldMetadataMap := map[string]util.MapStr{}
 	for _, item := range result.Result {
 		if info, ok := item.(map[string]interface{}); ok {
 			infoMap := util.MapStr(info)
+			indexID := info["index_id"].(string)
+			indexIDMap[indexID] = info["id"].(string)
 			indexName = info["index_name"].(string)
+			oldMetadataMap[indexIDMap[indexID]] = info
+			if indexIDToName[indexID] == nil {
+				//deleted
+				deletedInnerIDs = append(deletedInnerIDs, info["id"])
+				continue
+			}
 			if v, err := infoMap.GetValue("metadata.version"); err == nil {
-				if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
-					if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
-						notChanges[indexName] = true
+					if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
+						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
+							notChanges[indexName] = true
+						}
 					}
-				}
 			}else{
 				//compare metadata for lower elasticsearch version
 				oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
@@ -185,28 +192,72 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	}
 
 	for indexName, indexMetadata := range state.Metadata.Indices {
-		data := indexMetadata.(map[string]interface{})
+		if _, ok := notChanges[indexName]; ok {
+			continue
+		}
 		var indexID interface{} = nil
+		data := indexMetadata.(map[string]interface{})
 		indexID, _ = util.GetMapValueByKeys([]string{"settings","index", "uuid"}, data)
 		if indexID == nil {
 			indexID = ""
 		}
-		newIndexMetadata := &elastic.IndexMetadata{
-			ID: util.GetUUID(),
-			Timestamp: time.Now(),
-			ClusterID: clusterID,
-			IndexID: indexID.(string),
-			IndexName: indexName,
-			Metadata: data,
+		var typ = ""
+		var newIndexMetadata *elastic.IndexMetadata
+		var innerIndexID = ""
+		if innerID, ok := indexIDMap[indexID.(string)]; ok {
+			//update
+			typ = "update"
+			innerIndexID = innerID
+			newIndexMetadata = &elastic.IndexMetadata{
+				ID:        innerID,
+				Timestamp: time.Now(),
+				ClusterID: clusterID,
+				IndexID:   indexID.(string),
+				IndexName: indexName,
+				Metadata:  data,
+				CustomData: oldMetadataMap[innerID]["custom_data"],
+			}
+		}else{
+			//new
+			typ = "create"
+			innerIndexID = util.GetUUID()
+			newIndexMetadata = &elastic.IndexMetadata{
+				ID: innerIndexID,
+				Timestamp: time.Now(),
+				ClusterID: clusterID,
+				IndexID: indexID.(string),
+				IndexName: indexName,
+				Metadata: data,
+			}
 		}
-		if _, ok := notChanges[indexName]; ok {
-			continue
-		}
+
 		err = orm.Save(newIndexMetadata)
 		if err != nil {
 			if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
 				log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
 			}
+		}
+
+		activityInfo := &event.Activity{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			Metadata: event.ActivityMetadata{
+				Category: "elasticsearch",
+				Group: "metadata",
+				Name: "metadata_index",
+				Type: typ,
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"index_id": innerIndexID,
+				},
+			},
+			Fields: util.MapStr{
+				"metadata": indexMetadata,
+			},
+		}
+		err = orm.Save(activityInfo)
+		if err != nil {
+			log.Error(err)
 		}
 	}
 }
@@ -311,94 +362,19 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	}
 	//nodeMetadatas := map[string] util.MapStr{}
 	nodeIDMap := map[string]interface{}{}
-	innerNodeIds := make([]interface{}, 0, len(result.Result)) // for fetch history data
+	historyNodeMetadata := map[string] util.MapStr{}
 	for _, nodeItem := range result.Result {
 		if nodeInfo, ok := nodeItem.(map[string]interface{}); ok {
 			if nodeID, ok := nodeInfo["node_id"].(string); ok {
 				//nodeMetadatas[nodeID] = nodeInfo
 				if id, ok := nodeInfo["id"]; ok  {
 					nodeIDMap[nodeID] = id
-					if _, ok = nodes[nodeID]; ok {
-						innerNodeIds = append(innerNodeIds, id)
-					}
 				}
+				historyNodeMetadata[nodeID] = nodeInfo
 			}
 		}
-	}
-	//fetch history data of recent 1 hour
-	q = &orm.Query{}
-	query := util.MapStr{
-		"size": 1000,
-		"sort": []util.MapStr{
-			{
-				"timestamp": util.MapStr{
-					"order": "desc",
-				},
-			},
-		},
-		"collapse": util.MapStr{
-			"field": "metadata.labels.node_id",
-		},
-		"query": util.MapStr{
-			"bool": util.MapStr{
-				"filter": []util.MapStr{
-					{"range": util.MapStr{
-						"timestamp": util.MapStr{
-							"gte": "now-1h",
-							"lte": "now",
-						},
-					}},
-				},
-				"must": []util.MapStr{
-					{
-						"term": util.MapStr{
-							"metadata.category": util.MapStr{
-								"value": "elasticsearch",
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.group": util.MapStr{
-								"value": "metadata",
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.name": util.MapStr{
-								"value": "metadata_node",
-							},
-						},
-					},
-					{
-						"terms": util.MapStr{
-							"metadata.labels.node_id": innerNodeIds,
-						},
-					},
-				},
-			},
-		},
-	}
-	q.RawQuery = util.MustToJSONBytes(query)
-	err, result = orm.Search(&event.Activity{}, q)
-	if err != nil && !strings.Contains(err.Error(), "no mapping found") {
-		return err
 	}
 
-	historyNodeMetadata := map[string] interface{}{}
-	for _, item := range result.Result {
-		if info, ok := item.(map[string]interface{}); ok {
-			infoMap := util.MapStr(info)
-			if v, err := infoMap.GetValue("payload.metadata"); err == nil {
-				if nodeId, err := infoMap.GetValue("metadata.labels.node_id"); err == nil {
-					if nid, ok := nodeId.(string); ok {
-						historyNodeMetadata[nid] = v
-					}
-				}
-			}
-		}
-	}
 	for rawIndexID, nodeInfo := range nodes {
 		rawBytes := util.MustToJSONBytes(nodeInfo)
 		currentNodeInfo := util.MapStr{}
@@ -411,17 +387,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			typ = "create"
 			innerID = newID
 			nodeMetadata := &elastic.NodeMetadata{
-				Metadata: util.MapStr{
-					"name": nodeInfo.Name,
-					"transport_address": nodeInfo.TransportAddress,
-					"host": nodeInfo.Host,
-					"ip": nodeInfo.Ip,
-					"version": nodeInfo.Version,
-					"build_flavor": nodeInfo.BuildFlavor,
-					"build_type": nodeInfo.BuildType,
-					"build_hash": nodeInfo.BuildHash,
-					"os": nodeInfo.Os,
-				},
+				Metadata: nodeInfo,
 				ClusterID: clusterID,
 				ID:  newID,
 				NodeID: rawIndexID,
@@ -435,12 +401,25 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			innerID = rowID
 			typ = "update"
 			if rid, ok := rowID.(string); ok {
-				if historyM, ok := historyNodeMetadata[rid].(map[string]interface{}); ok {
-					if currentNodeInfo.Equals(historyM) {
+				if historyM, ok := historyNodeMetadata[rawIndexID]; ok {
+					if oldMetadata, ok := historyM["metadata"].(map[string]interface{}); ok && currentNodeInfo.Equals(oldMetadata) {
 						continue
+					}
+					nodeMetadata := &elastic.NodeMetadata{
+						Metadata: nodeInfo,
+						ClusterID: clusterID,
+						ID:  rid,
+						NodeID: rawIndexID,
+						Timestamp: time.Now(),
+						CustomData: historyM["custom_data"],
+					}
+					err = orm.Save(nodeMetadata)
+					if err != nil {
+						log.Error(err)
 					}
 				}
 			}
+
 
 		}
 		activityInfo := &event.Activity{

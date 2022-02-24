@@ -26,15 +26,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
         "order": "desc"
       }
     }
-  ], 
-"aggs": {
-    "total": {
-      "cardinality": {
-        "field": "index_id"
-      }
-    }
-  },
-"collapse": {"field": "index_id"}}`
+  ]}`
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
 		mustBuilder = &strings.Builder{}
@@ -129,7 +121,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 	}
 
-	statusMetric, err := getIndexStatusOfRecentDay(indexIDs, 14, "1d")
+	statusMetric, err := getIndexStatusOfRecentDay(indexIDs)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -287,7 +279,6 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 		response.Hits.Hits[i].Source = result
 	}
-	response.Hits.Total = response.Aggregations["total"]
 	h.WriteJSON(w, response, http.StatusOK)
 
 }
@@ -479,7 +470,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 }
 
 
-func getIndexStatusOfRecentDay(indexIDs []interface{}, days int, interval string)(map[string][]interface{}, error){
+func getIndexStatusOfRecentDay(indexIDs []interface{})(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
 	}
@@ -492,9 +483,48 @@ func getIndexStatusOfRecentDay(indexIDs []interface{}, days int, interval string
 				},
 				"aggs": util.MapStr{
 					"time_histogram": util.MapStr{
-						"date_histogram": util.MapStr{
-							"field": "timestamp",
-							"interval": interval,
+						"date_range": util.MapStr{
+							"field":     "timestamp",
+							"format":    "yyyy-MM-dd",
+							"time_zone": "+08:00",
+							"ranges": []util.MapStr{
+								{
+									"to": "now-13d/d",
+								}, {
+									"to": "now-12d/d",
+								},
+								{
+									"to": "now-11d/d",
+								},
+								{
+									"to": "now-10d/d",
+								}, {
+									"to": "now-9d/d",
+								},
+								{
+									"to": "now-8d/d",
+								},
+								{
+									"to": "now-7d/d",
+								},
+								{
+									"to": "now-6d/d",
+								}, {
+									"to": "now-5d/d",
+								},
+								{
+									"to": "now-4d/d",
+								},{
+									"to": "now-3d/d",
+								}, {
+									"to": "now-2d/d",
+								}, {
+									"to": "now-1d/d",
+								},
+								{
+									"from": "now/d",
+								},
+							},
 						},
 						"aggs": util.MapStr{
 							"term_health": util.MapStr{
@@ -521,7 +551,7 @@ func getIndexStatusOfRecentDay(indexIDs []interface{}, days int, interval string
 					{
 						"range": util.MapStr{
 							"timestamp": util.MapStr{
-								"gte": fmt.Sprintf("now-%dd", days),
+								"gte": "now-15d",
 								"lte": "now",
 							},
 						},
