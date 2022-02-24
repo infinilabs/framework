@@ -105,6 +105,17 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 
 var saveIndexMetadataMutex = sync.Mutex{}
 func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
+	var indexNameToID = map[string] interface{}{}
+	for indexName, indexMetadata := range state.Metadata.Indices {
+		if data, ok := indexMetadata.(map[string]interface{}); ok {
+			indexID, _ := util.GetMapValueByKeys([]string{"settings", "index", "uuid"}, data)
+			if indexID == nil {
+				continue
+			}
+			indexNameToID[indexName] = indexID
+		}
+
+	}
 	saveIndexMetadataMutex.Lock()
 	defer saveIndexMetadataMutex.Unlock()
 	//indexNames := make([]string, 0, len(state.Metadata.Indices))
@@ -146,7 +157,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		return
 	}
 	notChanges := util.MapStr{}
-	var indexName string
+	var (
+		indexName string
+	)
+
 	for _, item := range result.Result {
 		if info, ok := item.(map[string]interface{}); ok {
 			infoMap := util.MapStr(info)
@@ -295,7 +309,6 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	if err != nil {
 		return err
 	}
-	isStateChange := true
 	//nodeMetadatas := map[string] util.MapStr{}
 	nodeIDMap := map[string]interface{}{}
 	innerNodeIds := make([]interface{}, 0, len(result.Result)) // for fetch history data
@@ -354,7 +367,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					{
 						"term": util.MapStr{
 							"metadata.name": util.MapStr{
-								"value": "node_metadata",
+								"value": "metadata_node",
 							},
 						},
 					},
@@ -451,34 +464,6 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		if err != nil {
 			log.Error(err)
 		}
-	}
-
-	if isStateChange {
-
-		//transportIP := strings.Split(nodeInfo.TransportAddress, ":")[0]
-		//tempIps := util.MapStr{
-		//	nodeInfo.Ip : struct{}{},
-		//	nodeInfo.Host: struct{}{},
-		//	transportIP: struct {}{},
-		//}
-		//ips := make([]string, 0, len(tempIps))
-		//for k, _ := range tempIps {
-		//	ips = append(ips, k)
-		//}
-		//hostMetadata := &elastic.HostMetadata{
-		//	ClusterID: clusterID,
-		//	NodeID: nodeID,
-		//	ID:  util.GetUUID(),
-		//	Timestamp: time.Now(),
-		//}
-		//hostMetadata.Metadata.Host = nodeInfo.Host
-		//hostMetadata.Metadata.OS = nodeInfo.Os
-		//hostMetadata.Metadata.IPs = ips
-		//err := orm.Save(hostMetadata)
-		//if err != nil {
-		//	return err
-		//}
-
 	}
 	return nil
 }
