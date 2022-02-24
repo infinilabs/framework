@@ -663,6 +663,14 @@ func (d *diskQueue) handleReadError() {
 		d.writePos = 0
 	}
 
+	//skip queue with consumers
+	_,ok:=queue.GetConsumerConfigsByQueueID(d.name)
+	if ok{
+		d.readSegmentFileNum=d.writeSegmentNum
+		d.readPos=d.writePos
+		return
+	}
+
 	badFn := d.GetFileName(d.readSegmentFileNum)
 
 	if util.FileExists(badFn){
@@ -719,9 +727,9 @@ func (d *diskQueue) ioLoop() {
 					v = r.(string)
 				}
 				log.Error("error to disk_queue ioLoop,", v)
-				syncTicker.Stop()
-				d.exitSyncChan <- 1
 			}
+			syncTicker.Stop()
+			d.exitSyncChan <- 1
 		}
 	}()
 
@@ -742,12 +750,7 @@ func (d *diskQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					//skip queue with consumers
-					_,ok:=queue.GetConsumerConfigsByQueueID(d.name)
-					if ok{
-						continue
-					}
-					log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
+					//log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
 					log.Debugf("reading from diskqueue(%s) at %d of %s - %s",
 						d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
 					d.handleReadError()
