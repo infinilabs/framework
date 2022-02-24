@@ -270,11 +270,13 @@ func (module *PipeModule) Stop() error {
 	CLOSING:
 
 		for k, v := range module.contexts {
-			progress.RegisterBar("pipeline", "shutdown", 1)
-			log.Trace("start shutting down pipeline:", k)
-			v.CancelTask()
-			v.Exit()
-			log.Trace("finished shutting down pipeline:", k)
+			if v.GetRunningState()==pipeline.FINISHED||v.GetRunningState()==pipeline.STARTED||v.GetRunningState()==pipeline.STARTED{
+				progress.RegisterBar("pipeline", "shutdown", 1)
+				log.Trace("start shutting down pipeline:", k)
+				v.CancelTask()
+				v.Exit()
+				log.Trace("finished shutting down pipeline:", k)
+			}
 		}
 
 		progress.Start()
