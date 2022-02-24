@@ -136,7 +136,7 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 			ctx.AddFlowProcess("skipped")
 			return
 		}
-		
+
 		ctx.AddFlowProcess(p.Name())
 
 		if global.Env().IsDebug{

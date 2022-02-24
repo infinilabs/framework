@@ -193,13 +193,10 @@ func (ctx *Context) Resume() {
 
 //pause and wait signal to resume
 func (ctx *Context) Pause() {
-	ctx.stateLock.Lock()
 	if ctx.isPaused{
 		return
 	}
 	ctx.isPaused=true
-	ctx.stateLock.Unlock()
-
 	ctx.pause.Add(1)
 	ctx.pause.Wait()
 }
