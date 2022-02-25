@@ -25,6 +25,12 @@ func (d *diskQueue)SmartGetFileName(queueID string,segmentID int64) string {
 		lastFileNum:=GetLastS3UploadFileNum(queueID)
 		if lastFileNum>=segmentID{
 			s3Object:=getS3FileLocation(filePath)
+
+			//TODO download compressed segments, check config, un-compress and rename
+			if d.cfg.CompressOnSegment.Enabled{
+
+			}
+
 			s3.SyncDownload(filePath,d.cfg.S3.Server,d.cfg.S3.Location,d.cfg.S3.Bucket,s3Object)
 		}
 	}
@@ -131,6 +137,15 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	nextReadPos := readPos + totalBytes
 	previousPos:=readPos
 	readPos=nextReadPos
+
+	if d.cfg.CompressOnMessagePayload.Enabled{
+		newData,err:=util.ZSTDDecompress(nil,readBuf)
+		if err!=nil{
+			log.Debug(err)
+			return ctx,messages,false,err
+		}
+		readBuf=newData
+	}
 
 	message:=queue.Message{
 		Data:readBuf,

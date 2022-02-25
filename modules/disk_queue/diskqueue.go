@@ -121,6 +121,7 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 		//maxUsedBytes:		maxUsedBytes,
 		//warningFreeBytes:	warningFreeBytes,
 		//reservedFreeBytes:	reservedFreeBytes,
+
 	}
 
 	// no need to lock here, nothing else could possibly be touching this instance
@@ -387,6 +388,14 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		d.nextReadPos = 0
 	}
 
+	if d.cfg.CompressOnMessagePayload.Enabled{
+		newData,err:=util.ZSTDDecompress(nil,readBuf)
+		if err!=nil{
+			return nil,err
+		}
+		return newData,nil
+	}
+
 	return readBuf, nil
 }
 
@@ -413,6 +422,16 @@ func (d *diskQueue) writeOne(data []byte) error {
 			}
 		}
 	}
+
+	//compress data
+	if d.cfg.CompressOnMessagePayload.Enabled{
+		newData,err:=util.ZSTDCompress(nil,data,d.cfg.CompressOnMessagePayload.Level)
+		if err!=nil{
+			return err
+		}
+		data=newData
+	}
+
 
 	dataLen := int32(len(data))
 
