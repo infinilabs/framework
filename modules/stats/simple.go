@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 func (module SimpleStatsModule) Name() string {
@@ -190,6 +191,7 @@ func (s *Stats) StatsAll() *[]byte {
 	sysInfo, err := pidusage.GetStat(os.Getpid())
 	if err==nil{
 		(*s.Data)["system"]=map[string]int64{
+			"uptime_in_ms":time.Since(env.GetStartTime()).Milliseconds(),
 			"cpu":int64(sysInfo.CPU),
 			"mem":int64(sysInfo.Memory),
 		}
