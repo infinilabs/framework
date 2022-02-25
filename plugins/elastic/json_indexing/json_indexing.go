@@ -25,7 +25,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"runtime"
@@ -197,7 +196,7 @@ READ_DOCS:
 
 		if len(pop) > 0 {
 
-			stats.IncrementBy("json_indexing", "bytes_received", int64(mainBuf.Len()))
+			//stats.IncrementBy("json_indexing", "bytes_received", int64(mainBuf.Len()))
 
 			if processor.config.IndexName==""{
 				panic("index name is empty")
@@ -244,7 +243,7 @@ CLEAN_BUFFER:
 		mainBuf.WriteByte('\n')
 		client.Bulk(mainBuf.Bytes())
 
-		stats.IncrementBy("json_indexing", "bytes_processed", int64(mainBuf.Len()))
+		//stats.IncrementBy("json_indexing", "bytes_processed", int64(mainBuf.Len()))
 
 		mainBuf.Reset()
 		//TODO handle retry and fallback/over, dead letter queue
