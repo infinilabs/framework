@@ -20,7 +20,7 @@ import (
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s],"must_not":[{"term":{"cluster_id":{"value":"%s"}}}]}}, "size": %d, "from": %d, "sort": [
+		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d, "sort": [
     {
       "timestamp": {
         "order": "desc"
@@ -33,7 +33,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	)
 
 	if keyword != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"index_name": "%s"}}`, keyword))
+		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"metadata.index_name": "%s"}}`, keyword))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, keyword))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, keyword))
 	}
@@ -47,10 +47,10 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	}
 
 	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), h.Config.Elasticsearch, size, from)
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
 	q.RawQuery = []byte(queryDSL)
 
-	err, res := orm.Search(&elastic.IndexMetadata{}, &q)
+	err, res := orm.Search(&elastic.IndexConfig{}, &q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -62,7 +62,9 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	var indexIDs []interface{}
 
 	for _, hit := range response.Hits.Hits {
-		indexIDs = append(indexIDs, hit.Source["index_id"])
+		if indexID, ok := util.GetMapValueByKeys([]string{"metadata", "index_id"}, hit.Source); ok {
+			indexIDs = append(indexIDs, indexID)
+		}
 	}
 
 	if len(indexIDs) == 0 {
@@ -245,10 +247,23 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		result := util.MapStr{}
 
 		source := hit.Source
-		indexID := source["index_id"].(string)
-		innerMetaData := source["metadata"]
+		tempIndexID, _ := util.GetMapValueByKeys([]string{"metadata", "index_id"}, source)
+		indexID := tempIndexID.(string)
+		source["index_id"] =  indexID
+		indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, source)
+		if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
+			if clusterID, ok :=  tempClusterID.(string); ok {
+				if data :=  elastic.GetMetadata(clusterID); data != nil {
+					source["cluster_name"] = data.Config.Name
+					source["cluster_id"] = clusterID
+				}
+			}
+		}
 		delete(source, "metadata")
-		if mp, ok := innerMetaData.(map[string]interface{}); ok {
+		delete(source, "payload")
+		source["index_name"] = indexName
+		labels, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, source)
+		if mp, ok := labels.(map[string]interface{}); ok {
 			source["aliases"] = mp["aliases"]
 		}
 
@@ -290,11 +305,10 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	q := orm.Query{
 		Size: 1,
 	}
-	q.Conds = orm.And(orm.Eq("index_id", indexID))
-	q.Collapse("index_id")
+	q.Conds = orm.And(orm.Eq("metadata.index_id", indexID))
 	q.AddSort("timestamp", orm.DESC)
 
-	err, res := orm.Search(&elastic.IndexMetadata{}, &q)
+	err, res := orm.Search(&elastic.IndexConfig{}, &q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -321,7 +335,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	err, result := orm.Search(&event.Event{}, &q1)
 	summary := util.MapStr{}
 	hit := response.Hits.Hits[0].Source
-	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
+	if aliases, ok := util.GetMapValueByKeys([]string{"metadata","labels", "aliases"}, hit); ok {
 		summary["aliases"] = aliases
 	}
 	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
