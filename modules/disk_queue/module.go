@@ -62,6 +62,9 @@ type DiskQueueConfig struct {
 
 	UploadToS3   bool   `config:"upload_to_s3"`
 
+	CompressOnSegment   CompressConfig   `config:"compress_on_segment"`
+	CompressOnMessagePayload   CompressConfig   `config:"compress_on_message_payload"`
+
 	Retention RetentionConfig `config:"retention"`
 
 	S3 struct{
@@ -71,6 +74,11 @@ type DiskQueueConfig struct {
 		Bucket   string   `config:"bucket"`
 	}`config:"s3"`
 
+}
+
+type CompressConfig struct {
+	Enabled bool  `config:"enabled"`
+	Level   int  `config:"level"`
 }
 
 const queueS3LastFileNum ="last_success_file_for_queue"
@@ -204,6 +212,10 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		WriteChanBuffer:   0,
 		WarningFreeBytes: 10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
+		CompressOnMessagePayload: CompressConfig{
+			Enabled: false,
+			Level: 11,
+		},
 	}
 
 	ok,err:=env.ParseConfig("disk_queue", module.cfg)
