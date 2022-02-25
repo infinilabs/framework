@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
@@ -15,6 +14,7 @@ import (
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/errors"
 	"io"
 	"mime/multipart"
 	"net"
@@ -993,13 +993,21 @@ func (req *Request)Encode() []byte {
 	return req.OverrideBodyEncode(body,false)
 }
 
+const maxMesageLength = 100*1024*1024
 func readBytesLength(reader io.Reader)uint32  {
 	lengthBytes := make([]byte, 4)
 	_, err := reader.Read(lengthBytes)
 	if err != nil {
 		panic(err)
 	}
-	return binary.LittleEndian.Uint32(lengthBytes)
+
+
+
+	l:= binary.LittleEndian.Uint32(lengthBytes)
+	if l>maxMesageLength{
+		panic(errors.Errorf("invalid byte length(>100MB): [%v] [%v] ",lengthBytes,l))
+	}
+	return l
 }
 
 func readBytes(reader io.Reader,length uint32)[]byte  {
@@ -3390,6 +3398,20 @@ func (ctx *RequestCtx) Value(key interface{}) interface{} {
 // return elapsed time sine request start till now
 func (ctx *RequestCtx) GetElapsedTime() time.Duration {
 	return time.Since(ctx.time)
+}
+
+const FLOWNAME = "_internal.flow_name"
+
+func (r *RequestCtx) SetFlowID(name string) {
+	r.Set(FLOWNAME,name)
+}
+
+func (r *RequestCtx) GetFlowID()(string,bool) {
+	return r.GetString(FLOWNAME)
+}
+
+func (r *RequestCtx) GetFlowIDOrDefault(d string)(string) {
+	return r.GetStringOrDefault(FLOWNAME,d)
 }
 
 var fakeServer = &Server{
