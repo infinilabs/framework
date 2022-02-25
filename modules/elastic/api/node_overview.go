@@ -37,7 +37,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	)
 
 	if name != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
+		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"metadata.labels.node_name": "%s"}}`, name))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
 		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
 	}
@@ -54,7 +54,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
 	q.RawQuery = []byte(queryDSL)
 
-	err, res := orm.Search(&elastic.NodeMetadata{}, &q)
+	err, res := orm.Search(&elastic.NodeConfig{}, &q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -66,7 +66,9 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	var nodeIDs []interface{}
 
 	for _, hit := range response.Hits.Hits {
-		nodeIDs = append(nodeIDs, hit.Source["node_id"])
+		if nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "node_id"}, hit.Source); ok {
+			nodeIDs = append(nodeIDs, nodeID)
+		}
 	}
 
 	if len(nodeIDs) == 0 {
@@ -294,28 +296,34 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		result := util.MapStr{}
 
 		source := hit.Source
-		nodeID := source["node_id"].(string)
-		if clusterID, ok := source["cluster_id"].(string); ok {
-			if data :=  elastic.GetMetadata(clusterID); data != nil {
-				source["cluster_name"] = data.Config.Name
+		tempNodeID, _ := util.GetMapValueByKeys([]string{"metadata", "node_id"}, source)
+		nodeID := tempNodeID.(string)
+		source["node_id"] = nodeID
+		if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
+			if clusterID, ok :=  tempClusterID.(string); ok {
+				if data :=  elastic.GetMetadata(clusterID); data != nil {
+					source["cluster_name"] = data.Config.Name
+					source["cluster_id"] = clusterID
+				}
 			}
 		}
-		innerMetaData := source["metadata"]
+		labels, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, source)
 		delete(source, "metadata")
-		if mp, ok := innerMetaData.(map[string]interface{}); ok {
+		delete(source, "payload")
+		if mp, ok := labels.(map[string]interface{}); ok {
 			source["roles"] = mp["roles"]
 			source["os"] = mp["os"]
 			source["ip"] = mp["ip"]
 			source["version"] = mp["version"]
-			source["transport"] = mp["transport"]
-			source["name"] = mp["name"]
-			if ma, ok := mp["modules"].([]interface{}); ok {
-				if len(ma) > 0 {
-					if mi, ok := ma[0].(map[string]interface{}); ok {
-						source["java_version"] = mi["java_version"]
-					}
-				}
-			}
+			source["transport"] = mp["transport_address"]
+			source["name"] = mp["node_name"]
+			//if ma, ok := mp["modules"].([]interface{}); ok {
+			//	if len(ma) > 0 {
+			//		if mi, ok := ma[0].(map[string]interface{}); ok {
+			//			source["java_version"] = mi["java_version"]
+			//		}
+			//	}
+			//}
 		}
 
 		result["metadata"] = source
@@ -356,11 +364,9 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	q := orm.Query{
 		Size: 1,
 	}
-	q.Conds = orm.And(orm.Eq("node_id", nodeID))
-	q.Collapse("node_id")
-	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(orm.Eq("metadata.node_id", nodeID))
 
-	err, res := orm.Search(&elastic.NodeMetadata{}, &q)
+	err, res := orm.Search(&elastic.NodeConfig{}, &q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -437,7 +443,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 		}
 	}
 	hit := response.Hits.Hits[0]
-	innerMetaData := hit.Source["metadata"]
+	innerMetaData, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, hit.Source)
 	if mp, ok := innerMetaData.(map[string]interface{}); ok {
 		kvs["transport_address"] = mp["transport_address"]
 		kvs["roles"] = mp["roles"]

@@ -104,6 +104,13 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 
 var saveIndexMetadataMutex = sync.Mutex{}
 func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
+	saveIndexMetadataMutex.Lock()
+	defer func() {
+		saveIndexMetadataMutex.Unlock()
+		if err := recover(); err != nil {
+			log.Error(err)
+		}
+	}()
 	var indexIDToName = map[string] interface{}{}
 	for indexName, indexMetadata := range state.Metadata.Indices {
 		if data, ok := indexMetadata.(map[string]interface{}); ok {
@@ -115,19 +122,13 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		}
 
 	}
-	saveIndexMetadataMutex.Lock()
-	defer saveIndexMetadataMutex.Unlock()
-	//indexNames := make([]string, 0, len(state.Metadata.Indices))
-	//for indexName, _ := range state.Metadata.Indices {
-	//	indexNames = append(indexNames, indexName)
-	//}
 	queryDslTpl := `{
   "size": 5000, 
   "query": {
     "bool": {
       "must": [
         {"term": {
-          "cluster_id": {
+          "metadata.cluster_id": {
             "value": "%s"
           }
         }}
@@ -145,7 +146,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
 	q := &orm.Query{}
 	q.RawQuery = []byte(queryDsl)
-	err, result := orm.Search(&elastic.IndexMetadata{}, q)
+	err, result := orm.Search(&elastic.IndexConfig{}, q)
 	if err != nil {
 		if rate.GetRateLimiterPerSecond(clusterID, "save_index_metadata_failure_on_error", 1).Allow() {
 			log.Errorf("elasticsearch [%v] failed to save index metadata: %v",clusterID, err)
@@ -163,16 +164,21 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	for _, item := range result.Result {
 		if info, ok := item.(map[string]interface{}); ok {
 			infoMap := util.MapStr(info)
-			indexID := info["index_id"].(string)
+			tempIndexID, _ := infoMap.GetValue("metadata.index_id")
+			if tempIndexID == nil {
+				continue
+			}
+			indexID := tempIndexID.(string)
 			indexIDMap[indexID] = info["id"].(string)
-			indexName = info["index_name"].(string)
+			tempIndexName, _ := infoMap.GetValue("metadata.index_name")
+			indexName = tempIndexName.(string)
 			oldMetadataMap[indexIDMap[indexID]] = info
 			if indexIDToName[indexID] == nil {
 				//deleted
 				deletedInnerIDs = append(deletedInnerIDs, info["id"])
 				continue
 			}
-			if v, err := infoMap.GetValue("metadata.version"); err == nil {
+			if v, err := infoMap.GetValue("payload.index_state.version"); err == nil {
 					if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
 						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
 							notChanges[indexName] = true
@@ -180,11 +186,13 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					}
 			}else{
 				//compare metadata for lower elasticsearch version
-				oldMetadata := util.MapStr(info["metadata"].(map[string]interface{}))
-				if newData, ok :=  state.Metadata.Indices[indexName]; ok {
-					newMetadata := util.MapStr(newData.(map[string]interface{}))
-					if oldMetadata.Equals(newMetadata) {
-						notChanges[indexName] = true
+				tempOldMetadata, _ := infoMap.GetValue("payload.index_state")
+				if oldMetadata, ok := tempOldMetadata.(map[string]interface{}); ok {
+					if newData, ok :=  state.Metadata.Indices[indexName]; ok {
+						newMetadata := util.MapStr(newData.(map[string]interface{}))
+						if newMetadata.Equals(oldMetadata) {
+							notChanges[indexName] = true
+						}
 					}
 				}
 			}
@@ -202,32 +210,58 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			indexID = ""
 		}
 		var typ = ""
-		var newIndexMetadata *elastic.IndexMetadata
+		var newIndexMetadata *elastic.IndexConfig
 		var innerIndexID = ""
 		if innerID, ok := indexIDMap[indexID.(string)]; ok {
 			//update
 			typ = "update"
 			innerIndexID = innerID
-			newIndexMetadata = &elastic.IndexMetadata{
+			//only overwrite follow labels
+			newLabels := util.MapStr{
+				"version": data["version"],
+				"aliases": data["aliases"],
+			}
+			if labels, err := oldMetadataMap[innerID].GetValue("metadata.labels"); err == nil {
+				if labelsM, ok := labels.(map[string]interface{}); ok {
+					for k, v := range labelsM {
+						if _, ok := newLabels[k]; !ok {
+							newLabels[k] = v
+						}
+					}
+				}
+			}
+			newIndexMetadata = &elastic.IndexConfig{
 				ID:        innerID,
 				Timestamp: time.Now(),
-				ClusterID: clusterID,
-				IndexID:   indexID.(string),
-				IndexName: indexName,
-				Metadata:  data,
-				CustomData: oldMetadataMap[innerID]["custom_data"],
+				Metadata:  elastic.IndexMetadata{
+					IndexID: indexID.(string),
+					IndexName: indexName,
+					ClusterID: clusterID,
+					Labels: newLabels,
+				},
+				Fields: util.MapStr{
+					"index_state": indexMetadata,
+				},
 			}
 		}else{
 			//new
 			typ = "create"
 			innerIndexID = util.GetUUID()
-			newIndexMetadata = &elastic.IndexMetadata{
+			newIndexMetadata = &elastic.IndexConfig{
 				ID: innerIndexID,
 				Timestamp: time.Now(),
-				ClusterID: clusterID,
-				IndexID: indexID.(string),
-				IndexName: indexName,
-				Metadata: data,
+				Metadata:  elastic.IndexMetadata{
+					IndexID: indexID.(string),
+					IndexName: indexName,
+					ClusterID: clusterID,
+					Labels: util.MapStr{
+						"version": data["version"],
+						"aliases": data["aliases"],
+					},
+				},
+				Fields: util.MapStr{
+					"index_state": indexMetadata,
+				},
 			}
 		}
 
@@ -331,14 +365,20 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 var saveNodeMetadataMutex = sync.Mutex{}
 func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
 	saveNodeMetadataMutex.Lock()
-	defer saveNodeMetadataMutex.Unlock()
+	defer func() {
+		saveNodeMetadataMutex.Unlock()
+		if err := recover(); err != nil {
+			log.Error(err)
+		}
+	}()
+
 	queryDslTpl := `{
 	"size": 1000,
   "query": {
     "bool": {
       "must": [
         {"term": {
-          "cluster_id": {
+          "metadata.cluster_id": {
             "value": "%s"
           }
         }}
@@ -356,7 +396,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
 	q := &orm.Query{}
 	q.RawQuery = []byte(queryDsl)
-	err, result := orm.Search(&elastic.NodeMetadata{}, q)
+	err, result := orm.Search(&elastic.NodeConfig{}, q)
 	if err != nil {
 		return err
 	}
@@ -365,33 +405,47 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	historyNodeMetadata := map[string] util.MapStr{}
 	for _, nodeItem := range result.Result {
 		if nodeInfo, ok := nodeItem.(map[string]interface{}); ok {
-			if nodeID, ok := nodeInfo["node_id"].(string); ok {
+			if nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "node_id"}, nodeInfo); ok {
 				//nodeMetadatas[nodeID] = nodeInfo
-				if id, ok := nodeInfo["id"]; ok  {
-					nodeIDMap[nodeID] = id
+				if nid, ok := nodeID.(string); ok {
+					if id, ok := nodeInfo["id"]; ok {
+						nodeIDMap[nid] = id
+					}
+					historyNodeMetadata[nid] = nodeInfo
 				}
-				historyNodeMetadata[nodeID] = nodeInfo
 			}
 		}
 	}
 
-	for rawIndexID, nodeInfo := range nodes {
+	for rawNodeID, nodeInfo := range nodes {
 		rawBytes := util.MustToJSONBytes(nodeInfo)
 		currentNodeInfo := util.MapStr{}
 		util.MustFromJSONBytes(rawBytes, &currentNodeInfo)
 		var innerID interface{}
 		var typ string
-		if rowID, ok := nodeIDMap[rawIndexID]; !ok {
+		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
 			newID := util.GetUUID()
 			typ = "create"
 			innerID = newID
-			nodeMetadata := &elastic.NodeMetadata{
-				Metadata: nodeInfo,
-				ClusterID: clusterID,
+			nodeMetadata := &elastic.NodeConfig{
+				Metadata: elastic.NodeMetadata{
+					ClusterID: clusterID,
+					NodeID:    rawNodeID,
+					Labels: util.MapStr{
+						"node_name": nodeInfo.Name,
+						"transport_address": nodeInfo.TransportAddress,
+						"host": nodeInfo.Host,
+						"ip": nodeInfo.Ip,
+						"version": nodeInfo.Version,
+						"roles": nodeInfo.Roles,
+					},
+				},
 				ID:  newID,
-				NodeID: rawIndexID,
 				Timestamp: time.Now(),
+				Fields: util.MapStr{
+					"node_state": nodeInfo,
+				},
 			}
 			err = orm.Save(nodeMetadata)
 			if err != nil {
@@ -401,17 +455,42 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			innerID = rowID
 			typ = "update"
 			if rid, ok := rowID.(string); ok {
-				if historyM, ok := historyNodeMetadata[rawIndexID]; ok {
-					if oldMetadata, ok := historyM["metadata"].(map[string]interface{}); ok && currentNodeInfo.Equals(oldMetadata) {
-						continue
+				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
+					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil  {
+						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok && currentNodeInfo.Equals(oldMetadataM) {
+							continue
+						}
 					}
-					nodeMetadata := &elastic.NodeMetadata{
-						Metadata: nodeInfo,
-						ClusterID: clusterID,
+					//only overwrite follow labels
+					newLabels := util.MapStr{
+						"node_name": nodeInfo.Name,
+						"transport_address": nodeInfo.TransportAddress,
+						"host": nodeInfo.Host,
+						"ip": nodeInfo.Ip,
+						"version": nodeInfo.Version,
+						"roles": nodeInfo.Roles,
+					}
+					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
+						if labelsM, ok := labels.(map[string]interface{}); ok {
+							for k, v := range labelsM {
+								if _, ok := newLabels[k]; !ok {
+									newLabels[k] = v
+ 								}
+							}
+
+						}
+					}
+					nodeMetadata := &elastic.NodeConfig{
+						Metadata: elastic.NodeMetadata{
+							ClusterID: clusterID,
+							NodeID: rawNodeID,
+							Labels: newLabels,
+						},
 						ID:  rid,
-						NodeID: rawIndexID,
 						Timestamp: time.Now(),
-						CustomData: historyM["custom_data"],
+						Fields: util.MapStr{
+							"node_state": nodeInfo,
+						},
 					}
 					err = orm.Save(nodeMetadata)
 					if err != nil {

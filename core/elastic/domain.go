@@ -2,6 +2,7 @@ package elastic
 
 import (
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"sync"
 	"time"
 )
@@ -484,33 +485,40 @@ type TraceMeta struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 }
 
-type NodeMetadata struct {
+type NodeConfig struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata  NodeMetadata `json:"metadata"`
+	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+}
+type NodeMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
-	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata NodesInfo `json:"metadata" elastic_mapping:"metadata:{type:object,enabled:false}"`
-	CustomData interface{} `json:"custom_data,omitempty"`
+	Labels util.MapStr `json:"labels,omitempty"`
 }
 
 type HostMetadata struct {
-	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
-	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
-	Metadata struct {
-		Host string `json:"host" elastic_mapping:"host:{type:keyword}"`
-		IPs []string `json:"ips" elastic_mapping:"ips:{type:keyword}"`
-		OS map[string]interface{} `json:"os" elastic_mapping:"os:{type:object,enabled:false}"`
+	ID        string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp time.Time `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	ClusterID string    `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	NodeID    string    `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
+	Metadata  struct {
+		Host string                 `json:"host" elastic_mapping:"host:{type:keyword}"`
+		IPs  []string               `json:"ips" elastic_mapping:"ips:{type:keyword}"`
+		OS   map[string]interface{} `json:"os" elastic_mapping:"os:{type:object,enabled:false}"`
 	} `json:"metadata" elastic_mapping:"metadata:{type:object}"`
 }
 
-type IndexMetadata struct {
+type IndexConfig struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata  IndexMetadata `json:"metadata"`
+	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+}
+
+type IndexMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"`
 	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword}"`
-	Metadata map[string]interface{} `json:"metadata" elastic_mapping:"metadata:{type:object, enabled:false}"`
-	CustomData interface{} `json:"custom_data,omitempty"`
+	Labels util.MapStr `json:"labels,omitempty"`
 }
