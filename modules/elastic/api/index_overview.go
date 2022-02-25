@@ -20,7 +20,9 @@ import (
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d, "sort": [
+		queryDSL    = `{"query":{"bool":{"should":[%s],"must_not":[{"term":{"metadata.labels.index_status": {
+        "value": "deleted"
+      }}}]}}, "size": %d, "from": %d, "sort": [
     {
       "timestamp": {
         "order": "desc"
@@ -59,15 +61,15 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	response := elastic.SearchResponse{}
 	util.FromJSONBytes(res.Raw, &response)
 
-	var indexIDs []interface{}
+	var indexNames []interface{}
 
 	for _, hit := range response.Hits.Hits {
-		if indexID, ok := util.GetMapValueByKeys([]string{"metadata", "index_id"}, hit.Source); ok {
-			indexIDs = append(indexIDs, indexID)
+		if indexName, ok := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hit.Source); ok {
+			indexNames = append(indexNames, indexName)
 		}
 	}
 
-	if len(indexIDs) == 0 {
+	if len(indexNames) == 0 {
 		h.WriteJSON(w, util.MapStr{
 			"hits": util.MapStr{
 				"total": util.MapStr{
@@ -84,11 +86,11 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
 		orm.Eq("metadata.name", "index_stats"),
-		orm.In("metadata.labels.index_id", indexIDs),
+		orm.In("metadata.labels.index_name", indexNames),
 	)
-	q1.Collapse("metadata.labels.index_id")
+	q1.Collapse("metadata.labels.index_name")
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(indexIDs) + 1
+	q1.Size = len(indexNames) + 1
 
 	err, results := orm.Search(&event.Event{}, &q1)
 
@@ -96,7 +98,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
 		if ok {
-			if indexID, ok :=  util.GetMapValueByKeys([]string{"metadata", "labels", "index_id"}, result); ok {
+			if indexName, ok :=  util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, result); ok {
 				summary := map[string]interface{}{}
 				if docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "total", "docs"}, result); ok {
 					summary["docs"] = docs
@@ -118,12 +120,12 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 						summary["unassigned_shards"] = unassignedCount
 					}
 				}
-				summaryMap[indexID.(string)] = summary
+				summaryMap[indexName.(string)] = summary
 			}
 		}
 	}
 
-	statusMetric, err := getIndexStatusOfRecentDay(indexIDs)
+	statusMetric, err := getIndexStatusOfRecentDay(indexNames)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -181,7 +183,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 				},
 				{
 					"terms": util.MapStr{
-						"metadata.labels.index_id": indexIDs,
+						"metadata.labels.index_id": indexNames,
 					},
 				},
 			},
@@ -217,7 +219,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	query["aggs"]= util.MapStr{
 		"group_by_level": util.MapStr{
 			"terms": util.MapStr{
-				"field": "metadata.labels.index_id",
+				"field": "metadata.labels.index_name",
 				"size":  100,
 			},
 			"aggs": util.MapStr{
@@ -250,7 +252,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		tempIndexID, _ := util.GetMapValueByKeys([]string{"metadata", "index_id"}, source)
 		indexID := tempIndexID.(string)
 		source["index_id"] =  indexID
-		indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, source)
+		tempIndexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, source)
 		if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
 			if clusterID, ok :=  tempClusterID.(string); ok {
 				if data :=  elastic.GetMetadata(clusterID); data != nil {
@@ -259,6 +261,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 				}
 			}
 		}
+		indexName := tempIndexName.(string)
 		delete(source, "metadata")
 		delete(source, "payload")
 		source["index_name"] = indexName
@@ -268,28 +271,28 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 
 		result["metadata"] = source
-		result["summary"] = summaryMap[indexID]
+		result["summary"] = summaryMap[indexName]
 		result["metrics"] = util.MapStr{
 			"status": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Recent Index Status",
 					"units": "day",
 				},
-				"data": statusMetric[indexID],
+				"data": statusMetric[indexName],
 			},
 			"indexing": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Indexing",
 					"units": "s",
 				},
-				"data": indexMetrics[indexID]["indexing"],
+				"data": indexMetrics[indexName]["indexing"],
 			},
 			"search": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Search",
 					"units": "s",
 				},
-				"data": indexMetrics[indexID]["search"],
+				"data": indexMetrics[indexName]["search"],
 			},
 		}
 		response.Hits.Hits[i].Source = result
@@ -376,6 +379,14 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
 	indexID := ps.MustGetParameter("index")
+	indexConfig := &elastic.IndexConfig{
+		ID: indexID,
+	}
+	exists, err := orm.Get(indexConfig)
+	if !exists {
+		h.WriteError(w, fmt.Sprintf("index id %s not found", indexID), http.StatusNotFound)
+		return
+	}
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -400,8 +411,8 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		},
 		{
 			"term": util.MapStr{
-				"metadata.labels.index_id": util.MapStr{
-					"value": indexID,
+				"metadata.labels.index_name": util.MapStr{
+					"value": indexConfig.Metadata.IndexName,
 				},
 			},
 		},
@@ -484,7 +495,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 }
 
 
-func getIndexStatusOfRecentDay(indexIDs []interface{})(map[string][]interface{}, error){
+func getIndexStatusOfRecentDay(indexNames []interface{})(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
 	}
@@ -581,7 +592,7 @@ func getIndexStatusOfRecentDay(indexIDs []interface{})(map[string][]interface{},
 					},
 					{
 						"terms": util.MapStr{
-							"metadata.labels.index_id": indexIDs,
+							"metadata.labels.index_name": indexNames,
 						},
 					},
 				},

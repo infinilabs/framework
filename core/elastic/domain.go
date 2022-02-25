@@ -495,6 +495,7 @@ type NodeMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
 	Labels util.MapStr `json:"labels,omitempty"`
+	Category string `json:"category,omitempty"`
 }
 
 type HostMetadata struct {
@@ -521,4 +522,5 @@ type IndexMetadata struct {
 	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"`
 	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword}"`
 	Labels util.MapStr `json:"labels,omitempty"`
+	Category string `json:"category,omitempty"`
 }

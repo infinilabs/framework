@@ -131,17 +131,22 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
           "metadata.cluster_id": {
             "value": "%s"
           }
+        }},
+		 {"term": {
+          "metadata.category": {
+            "value": "elasticsearch"
+          }
+        }}
+      ],
+		"must_not": [
+        {"term": {
+          "metadata.labels.index_status": {
+            "value": "deleted"
+          }
         }}
       ]
     }
-  },
-  "sort": [
-    {
-      "timestamp": {
-        "order": "desc"
-      }
-    }
-  ]
+  }
 }`
 	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
 	q := &orm.Query{}
@@ -159,7 +164,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		indexIDMap = map[string]string{}
 	)
 
-	deletedInnerIDs := []interface{}{}
+	deletedConfigMap := map[string]util.MapStr{}
 	oldMetadataMap := map[string]util.MapStr{}
 	for _, item := range result.Result {
 		if info, ok := item.(map[string]interface{}); ok {
@@ -175,7 +180,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			oldMetadataMap[indexIDMap[indexID]] = info
 			if indexIDToName[indexID] == nil {
 				//deleted
-				deletedInnerIDs = append(deletedInnerIDs, info["id"])
+				deletedConfigMap[info["id"].(string)] = infoMap
 				continue
 			}
 			if v, err := infoMap.GetValue("payload.index_state.version"); err == nil {
@@ -220,6 +225,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			newLabels := util.MapStr{
 				"version": data["version"],
 				"aliases": data["aliases"],
+				"state": data["state"],
 			}
 			if labels, err := oldMetadataMap[innerID].GetValue("metadata.labels"); err == nil {
 				if labelsM, ok := labels.(map[string]interface{}); ok {
@@ -238,6 +244,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					IndexName: indexName,
 					ClusterID: clusterID,
 					Labels: newLabels,
+					Category: "elasticsearch",
 				},
 				Fields: util.MapStr{
 					"index_state": indexMetadata,
@@ -254,6 +261,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					IndexID: indexID.(string),
 					IndexName: indexName,
 					ClusterID: clusterID,
+					Category: "elasticsearch",
 					Labels: util.MapStr{
 						"version": data["version"],
 						"aliases": data["aliases"],
@@ -288,6 +296,42 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			Fields: util.MapStr{
 				"metadata": indexMetadata,
 			},
+		}
+		err = orm.Save(activityInfo)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+	//update deleted index
+	for innerIndexID, configInfo := range deletedConfigMap {
+		if indexStatus, err := configInfo.GetValue("metadata.labels.index_status"); err == nil {
+			if indexStatus == "deleted" {
+				continue
+			}
+		}
+		configInfo.Put("metadata.labels.index_status", "deleted")
+		buf := util.MustToJSONBytes(configInfo)
+		configObj := &elastic.IndexConfig{}
+		util.MustFromJSONBytes(buf, configObj)
+		err = orm.Save(configObj)
+		if err != nil {
+			log.Error(err)
+		}
+
+		activityInfo := &event.Activity{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			Metadata: event.ActivityMetadata{
+				Category: "elasticsearch",
+				Group: "metadata",
+				Name: "metadata_index",
+				Type: "deleted",
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"index_id": innerIndexID,
+				},
+			},
+			Fields: util.MapStr{},
 		}
 		err = orm.Save(activityInfo)
 		if err != nil {
@@ -381,6 +425,11 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
           "metadata.cluster_id": {
             "value": "%s"
           }
+        }},
+		 {"term": {
+          "metadata.category": {
+            "value": "elasticsearch"
+          }
         }}
       ]
     }
@@ -432,6 +481,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				Metadata: elastic.NodeMetadata{
 					ClusterID: clusterID,
 					NodeID:    rawNodeID,
+					Category: "elasticsearch",
 					Labels: util.MapStr{
 						"node_name": nodeInfo.Name,
 						"transport_address": nodeInfo.TransportAddress,
@@ -485,6 +535,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 							ClusterID: clusterID,
 							NodeID: rawNodeID,
 							Labels: newLabels,
+							Category: "elasticsearch",
 						},
 						ID:  rid,
 						Timestamp: time.Now(),
