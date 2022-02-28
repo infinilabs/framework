@@ -515,7 +515,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 	metricItems:=[]*common.MetricItem{}
-	metricItem:=newMetricItem("cpu", 2, SystemGroupKey)
+	metricItem:=newMetricItem("cpu", 1, SystemGroupKey)
 	metricItem.AddAxi("cpu","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
 	metricItem.AddLine("CPU","CPU","process cpu used percent of node.","group1","payload.elasticsearch.node_stats.process.cpu.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems=append(metricItems,metricItem)
@@ -524,18 +524,18 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	metricItem.AddLine("Max Heap","Max Heap","JVM max Heap of node.","group1","payload.elasticsearch.node_stats.jvm.mem.heap_max_in_bytes","max",bucketSizeStr,"bytes","num","0,0.[00]","0,0.[00]",false,false)
 	metricItem.AddLine("Used Heap","Used Heap","JVM used Heap of node.","group1","payload.elasticsearch.node_stats.jvm.mem.heap_used_in_bytes","max",bucketSizeStr,"bytes","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems=append(metricItems,metricItem)
-	metricItem=newMetricItem("index_throughput", 2, OperationGroupKey)
+	metricItem=newMetricItem("index_throughput", 3, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	metricItem.AddLine("Indexing Rate","Total Shards","Number of documents being indexed for node.","group1","payload.elasticsearch.node_stats.indices.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
-	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
+	metricItem=newMetricItem("search_throughput", 4, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Search Rate","Total Shards",
 		"Number of search requests being executed.",
 		"group1","payload.elasticsearch.node_stats.indices.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
-	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
+	metricItem=newMetricItem("index_latency", 5, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 
 	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.node_stats.indices.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
@@ -550,7 +550,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	}
 	metricItems=append(metricItems,metricItem)
 
-	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
+	metricItem=newMetricItem("search_latency", 6, LatencyGroupKey)
 	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 
 	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.node_stats.indices.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
@@ -592,40 +592,54 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{})(map[string][]interfac
 							"time_zone": "+08:00",
 							"ranges": []util.MapStr{
 								{
-									"to": "now-13d/d",
-								}, {
+									"from": "now-13d/d",
 									"to": "now-12d/d",
-								},
-								{
+								}, {
+									"from": "now-12d/d",
 									"to": "now-11d/d",
 								},
 								{
+									"from": "now-11d/d",
 									"to": "now-10d/d",
-								}, {
-									"to": "now-9d/d",
 								},
 								{
+									"from": "now-10d/d",
+									"to": "now-9d/d",
+								}, {
+									"from": "now-9d/d",
 									"to": "now-8d/d",
 								},
 								{
+									"from": "now-8d/d",
 									"to": "now-7d/d",
 								},
 								{
+									"from": "now-7d/d",
 									"to": "now-6d/d",
-								}, {
-									"to": "now-5d/d",
 								},
 								{
-									"to": "now-4d/d",
-								},{
-									"to": "now-3d/d",
+									"from": "now-6d/d",
+									"to": "now-5d/d",
 								}, {
+									"from": "now-5d/d",
+									"to": "now-4d/d",
+								},
+								{
+									"from": "now-4d/d",
+									"to": "now-3d/d",
+								},{
+									"from": "now-3d/d",
 									"to": "now-2d/d",
 								}, {
+									"from": "now-2d/d",
 									"to": "now-1d/d",
+								}, {
+									"from": "now-1d/d",
+									"to": "now/d",
 								},
 								{
 									"from": "now/d",
+									"to": "now",
 								},
 							},
 						},
@@ -696,10 +710,10 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{})(map[string][]interfac
 					if bkVal, ok := bkItem.(map[string]interface{}); ok {
 						if minUptime, ok := util.GetMapValueByKeys([]string{"min_uptime", "value"}, bkVal); ok {
 							//mark node status as offline when uptime less than 10m
-							if v, ok := minUptime.(float64); ok && v < 600000 {
-								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "offline"})
-							}else{
+							if v, ok := minUptime.(float64); ok && v >= 600000 {
 								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "online"})
+							}else{
+								recentStatus[nodeKey] = append(recentStatus[nodeKey], []interface{}{bkVal["key"], "offline"})
 							}
 						}
 					}

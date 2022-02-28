@@ -444,14 +444,14 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 
 	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
 	metricItems := []*common.MetricItem{}
-	metricItem:=newMetricItem("index_throughput", 2, OperationGroupKey)
+	metricItem:=newMetricItem("index_throughput", 1, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Primary Shards","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Deleting Rate","Primary Shards","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Rate","Indexing Rate","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Deleting Rate","Deleting Rate","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
-	metricItem.AddLine("Search Rate","Total Shards",
+	metricItem.AddLine("Search Rate","Search Rate",
 		"Number of search requests being executed.",
 		"group1","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
@@ -471,7 +471,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 	}
 	metricItems=append(metricItems,metricItem)
 
-	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
+	metricItem=newMetricItem("search_latency", 4, LatencyGroupKey)
 	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 
 	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.index_stats.total.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
@@ -514,40 +514,54 @@ func getIndexStatusOfRecentDay(indexNames []interface{})(map[string][]interface{
 							"time_zone": "+08:00",
 							"ranges": []util.MapStr{
 								{
-									"to": "now-13d/d",
-								}, {
+									"from": "now-13d/d",
 									"to": "now-12d/d",
-								},
-								{
+								}, {
+									"from": "now-12d/d",
 									"to": "now-11d/d",
 								},
 								{
+									"from": "now-11d/d",
 									"to": "now-10d/d",
-								}, {
-									"to": "now-9d/d",
 								},
 								{
+									"from": "now-10d/d",
+									"to": "now-9d/d",
+								}, {
+									"from": "now-9d/d",
 									"to": "now-8d/d",
 								},
 								{
+									"from": "now-8d/d",
 									"to": "now-7d/d",
 								},
 								{
+									"from": "now-7d/d",
 									"to": "now-6d/d",
-								}, {
-									"to": "now-5d/d",
 								},
 								{
-									"to": "now-4d/d",
-								},{
-									"to": "now-3d/d",
+									"from": "now-6d/d",
+									"to": "now-5d/d",
 								}, {
+									"from": "now-5d/d",
+									"to": "now-4d/d",
+								},
+								{
+									"from": "now-4d/d",
+									"to": "now-3d/d",
+								},{
+									"from": "now-3d/d",
 									"to": "now-2d/d",
 								}, {
+									"from": "now-2d/d",
 									"to": "now-1d/d",
+								}, {
+									"from": "now-1d/d",
+									"to": "now/d",
 								},
 								{
 									"from": "now/d",
+									"to": "now",
 								},
 							},
 						},
