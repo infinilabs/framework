@@ -145,9 +145,6 @@ func (env *Env) Init() *Env {
 		panic(err)
 	}
 
-	os.MkdirAll(env.GetDataDir(), 0755)
-	os.MkdirAll(env.GetLogDir(), 0755)
-
 	if env.IsDebug {
 		log.Debug(util.ToJson(env, true))
 	}
@@ -196,6 +193,7 @@ var (
 			Plugin: "plugins",
 			Data:   "data",
 			Log:    "log",
+			Config:  "configs",
 		},
 
 		AllowMultiInstance: false,
@@ -404,9 +402,8 @@ func (env *Env) GetLogDir() string {
 
 func (env *Env) findWorkingDir() (string,string) {
 
-
 	//check data folder
-	//check if exists lock file
+	//check if lock file exists
 	//if no lock, use it
 	//have lock，check if it is a dead instance
 	//dead instance, use it

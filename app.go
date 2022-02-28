@@ -158,6 +158,15 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 	app.environment.Init()
 
+	if app.svcFlag==""{
+		if !util.FileExists(app.environment.GetDataDir()){
+			os.MkdirAll(app.environment.GetDataDir(), 0755)
+		}
+		if !util.FileExists(app.environment.GetLogDir()) {
+			os.MkdirAll(app.environment.GetLogDir(), 0755)
+		}
+	}
+
 	//allow use yml to configure the log level
 	if app.environment.SystemConfig.LoggingConfig.LogLevel!=""{
 		app.logLevel=app.environment.SystemConfig.LoggingConfig.LogLevel
