@@ -407,41 +407,55 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 			"format":    "yyyy-MM-dd",
 			"time_zone": "+08:00",
 			"ranges": []util.MapStr{
-				util.MapStr{
-					"to": "now-13d/d",
-				}, util.MapStr{
+				{
+					"from": "now-13d/d",
 					"to": "now-12d/d",
-				},
-				util.MapStr{
+				}, {
+					"from": "now-12d/d",
 					"to": "now-11d/d",
 				},
-				util.MapStr{
+				{
+					"from": "now-11d/d",
 					"to": "now-10d/d",
-				}, util.MapStr{
-					"to": "now-9d/d",
 				},
-				util.MapStr{
+				{
+					"from": "now-10d/d",
+					"to": "now-9d/d",
+				}, {
+					"from": "now-9d/d",
 					"to": "now-8d/d",
 				},
-				util.MapStr{
+				{
+					"from": "now-8d/d",
 					"to": "now-7d/d",
 				},
-				util.MapStr{
+				{
+					"from": "now-7d/d",
 					"to": "now-6d/d",
-				}, util.MapStr{
+				},
+				{
+					"from": "now-6d/d",
 					"to": "now-5d/d",
-				},
-				util.MapStr{
+				}, {
+					"from": "now-5d/d",
 					"to": "now-4d/d",
-				}, util.MapStr{
-					"to": "now-3d/d",
-				}, util.MapStr{
-					"to": "now-2d/d",
-				}, util.MapStr{
-					"to": "now-1d/d",
 				},
-				util.MapStr{
+				{
+					"from": "now-4d/d",
+					"to": "now-3d/d",
+				},{
+					"from": "now-3d/d",
+					"to": "now-2d/d",
+				}, {
+					"from": "now-2d/d",
+					"to": "now-1d/d",
+				}, {
+					"from": "now-1d/d",
+					"to": "now/d",
+				},
+				{
 					"from": "now/d",
+					"to": "now",
 				},
 			},
 		})
@@ -559,4 +573,30 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 
 func getClusterMetrics(id string, data MetricData) [][]interface{} {
 	return data[id]
+}
+
+func (h *APIHandler) GetClusterInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	q := &orm.Query{WildcardIndex: true, Size: 1}
+	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.name", "cluster_health"),
+		orm.Eq("metadata.labels.cluster_id", id),
+		)
+
+	err, result := orm.Search(event.Event{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	var healthInfo interface{} = util.MapStr{}
+	if len(result.Result) > 0 {
+		if rowM, ok := result.Result[0].(map[string]interface{}); ok {
+			healthInfo, _ = util.MapStr(rowM).GetValue("payload.elasticsearch.cluster_health")
+		}
+	}
+
+	h.WriteJSON(w, healthInfo,200)
 }
