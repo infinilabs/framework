@@ -21,6 +21,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
@@ -243,6 +244,11 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	if customFunc != nil {
 		customFunc()
 	}
+
+	global.RegisterShutdownCallback(func() {
+		config.StopWatchers()
+	})
+
 }
 
 func (app *App) Setup(setup func(), start func(), stop func())(allowContinue bool) {

@@ -127,7 +127,7 @@ type SystemConfig struct {
 
 	MaxNumOfInstance int `config:"max_num_of_instances"`
 
-	AutoReloadConfig bool `config:"auto_reload_configs"`
+	ConfigsAutoReload bool `config:"configs_auto_reload"`
 
 	//dynamic config enabled
 	Modules []*Config `config:"modules"`
