@@ -82,7 +82,7 @@ func (cfg NetworkConfig) GetBindingAddr() string {
 		return cfg.Binding
 	}
 	if cfg.Host != "" && cfg.Port >0 {
-		return fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
+		return fmt.Sprintf("%s:%v", cfg.Host, cfg.Port)
 	}
 	panic(errors.Errorf("invalid network config, %v", cfg))
 }
@@ -101,6 +101,7 @@ func (config *NodeConfig) ToString() string {
 // PathConfig stores path settings
 type PathConfig struct {
 	Plugin string `config:"plugins"`
+	Config   string `config:"configs"`
 	Data   string `config:"data"`
 	Log    string `config:"logs"`
 	Cert   string `config:"certs"`
@@ -109,6 +110,7 @@ type PathConfig struct {
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply
 type SystemConfig struct {
 
+	//reserved config
 	ClusterConfig ClusterConfig `config:"cluster"`
 
 	APIConfig APIConfig `config:"api"`
@@ -125,6 +127,9 @@ type SystemConfig struct {
 
 	MaxNumOfInstance int `config:"max_num_of_instances"`
 
+	AutoReloadConfig bool `config:"auto_reload_configs"`
+
+	//dynamic config enabled
 	Modules []*Config `config:"modules"`
 
 	Plugins []*Config `config:"plugins"`
