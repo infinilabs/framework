@@ -446,12 +446,12 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 	metricItems := []*common.MetricItem{}
 	metricItem:=newMetricItem("index_throughput", 1, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Primary Shards","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Deleting Rate","Primary Shards","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Rate","Indexing Rate","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Deleting Rate","Deleting Rate","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
-	metricItem.AddLine("Search Rate","Total Shards",
+	metricItem.AddLine("Search Rate","Search Rate",
 		"Number of search requests being executed.",
 		"group1","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
