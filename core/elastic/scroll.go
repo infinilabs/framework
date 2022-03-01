@@ -15,7 +15,9 @@ type ScrollResponse struct {
 }
 
 type ScrollResponseV7 struct {
-	ScrollResponse
+	Took     int    `json:"took,omitempty"`
+	ScrollId string `json:"_scroll_id,omitempty,nocopy"`
+	TimedOut bool   `json:"timed_out,omitempty"`
 	Hits struct {
 		MaxScore float32 `json:"max_score,omitempty"`
 		Total    struct {
@@ -24,6 +26,7 @@ type ScrollResponseV7 struct {
 		} `json:"total,omitempty"`
 		Docs []IndexDocument `json:"hits,omitempty"`
 	} `json:"hits"`
+	Shards ShardResponse `json:"_shards,omitempty"`
 }
 
 func (scroll *ScrollResponse) GetHitsTotal() int64 {

@@ -18,18 +18,18 @@ type ShardResponse struct {
 	Failed     int `json:"failed,omitempty"`
 	Failures   []struct {
 		Shard  int             `json:"shard,omitempty"`
-		Index  string          `json:"index,omitempty,nocopy,intern"`
+		Index  string          `json:"index,omitempty,intern"`
 		Status int             `json:"status,omitempty"`
 		Reason json.RawMessage `json:"reason,omitempty,nocopy"`
 	} `json:"failures,omitempty"`
 }
 
 type ClusterInformation struct {
-	Name        string `json:"name,nocopy,intern"`
-	ClusterName string `json:"cluster_name,nocopy,intern"`
+	Name        string `json:"name,intern"`
+	ClusterName string `json:"cluster_name,intern"`
 	Version     struct {
-		Number        string `json:"number,nocopy,intern"`
-		LuceneVersion string `json:"lucene_version,nocopy,intern"`
+		Number        string `json:"number,intern"`
+		LuceneVersion string `json:"lucene_version,intern"`
 	} `json:"version"`
 }
 
