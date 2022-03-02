@@ -23,6 +23,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
 		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
+		nodeID = h.GetParameterOrDefault(req, "node_id", "")
 	)
 
 	var should []interface{}
@@ -43,6 +44,15 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			"term": util.MapStr{
 				"metadata.cluster_id": util.MapStr{
 					"value": clusterID,
+				} ,
+			},
+		})
+	}
+	if nodeID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.node_id": util.MapStr{
+					"value": nodeID,
 				} ,
 			},
 		})
@@ -743,4 +753,51 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{})(map[string][]interfac
 		}
 	}
 	return recentStatus, nil
+}
+
+func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	//var (
+	//	size        = h.GetIntOrDefault(req, "size", 20)
+	//	from        = h.GetIntOrDefault(req, "from", 0)
+	//)
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	nodeUUID := ps.ByName("node_id")
+	q := &orm.Query{ Size: 1}
+	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.labels.cluster_id", id),
+		orm.Eq("metadata.labels.node_id", nodeUUID),
+		orm.Eq("metadata.name", "node_routing_table"),
+	)
+
+	err, result := orm.Search(event.Event{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	namesM := util.MapStr{}
+	if len(result.Result) > 0 {
+		if data, ok := result.Result[0].(map[string]interface{}); ok {
+			if routingTable, exists := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_routing_table"}, data); exists {
+				if rows, ok := routingTable.([]interface{}); ok{
+					for _, row := range rows {
+						if v, ok := row.(map[string]interface{}); ok {
+							if indexName, ok := v["index"].(string); ok{
+								namesM[indexName] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	indexNames := make([]string, 0, len(namesM) )
+	for name, _ := range namesM {
+		indexNames = append(indexNames, name)
+	}
+
+	h.WriteJSON(w, indexNames, http.StatusOK)
 }

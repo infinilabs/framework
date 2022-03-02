@@ -688,3 +688,68 @@ func getIndexStatusOfRecentDay(indexIDs []interface{})(map[string][]interface{},
 	}
 	return recentStatus, nil
 }
+
+func (h *APIHandler) getIndexNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	indexName := ps.ByName("index")
+	q := &orm.Query{ Size: 1}
+	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.labels.cluster_id", id),
+		orm.Eq("metadata.labels.index_name", indexName),
+		orm.Eq("metadata.name", "index_routing_table"),
+	)
+
+	err, result := orm.Search(event.Event{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	namesM := util.MapStr{}
+	if len(result.Result) > 0 {
+		if data, ok := result.Result[0].(map[string]interface{}); ok {
+			if routingTable, exists := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_routing_table"}, data); exists {
+				if table, ok := routingTable.(map[string]interface{}); ok{
+					if shardsM, ok := table["shards"].(map[string]interface{}); ok {
+						for _, rows := range shardsM {
+							if rowsArr, ok := rows.([]interface{}); ok {
+								for _, rowsInner := range rowsArr {
+									if rowsInnerM, ok := rowsInner.(map[string]interface{}); ok {
+										if v, ok := rowsInnerM["node"].(string); ok {
+											namesM[v] = true
+										}
+									}
+								}
+							}
+
+						}
+					}
+
+				}
+			}
+		}
+	}
+
+	//node uuid
+	nodeIds := make([]interface{}, 0, len(namesM) )
+	for name, _ := range namesM {
+		nodeIds = append(nodeIds, name)
+	}
+
+	q1 := &orm.Query{ Size: 100}
+	q1.AddSort("timestamp", orm.DESC)
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.cluster_id", id),
+		orm.In("metadata.node_id", nodeIds),
+	)
+	err, result = orm.Search(elastic.NodeConfig{}, q1)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+
+	h.Write(w, result.Raw)
+}
