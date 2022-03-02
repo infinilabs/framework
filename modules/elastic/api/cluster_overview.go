@@ -600,3 +600,21 @@ func (h *APIHandler) GetClusterInfo(w http.ResponseWriter, req *http.Request, ps
 
 	h.WriteJSON(w, healthInfo,200)
 }
+
+func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	q := &orm.Query{ Size: 10000}
+	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.cluster_id", id),
+	)
+
+	err, result := orm.Search(elastic.NodeConfig{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	h.Write(w, result.Raw)
+}
