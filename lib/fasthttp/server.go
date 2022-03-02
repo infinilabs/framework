@@ -164,6 +164,7 @@ type Server struct {
 	// Take into account that no `panic` recovery is done by `fasthttp` (thus any `panic` will take down the entire server).
 	// Instead the user should use `recover` to handle these situations.
 	Handler RequestHandler
+
 	TraceHandler RequestHandler
 
 	// ErrorHandler for returning a response in case of an error while receiving or parsing the request.

@@ -1015,44 +1015,42 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
 	var jsonBody []byte
-	if len(query) > 0 || len(sourceFields) > 0 || true {
-		queryBody := map[string]interface{}{}
-		if len(sourceFields) > 0 {
-			if !strings.Contains(sourceFields, ",") {
-				panic(errors.New("The source fields shoud be seraprated by ,"))
-			} else {
-				queryBody["_source"] = strings.Split(sourceFields, ",")
-			}
-		}
-
-		if len(sortField) > 0 {
-			if len(sortType) == 0 {
-				sortType = "asc"
-			}
-			sort := []map[string]interface{}{}
-			sort = append(sort, util.MapStr{
-				sortField: util.MapStr{
-					"order": sortType,
-				},
-			})
-			queryBody["sort"] = sort
-		}
-
-		if len(query) > 0 {
-			queryBody["query"] = map[string]interface{}{}
-			queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
-			queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
-		}
-
-		jsonArray, err := json.Marshal(queryBody)
-		if err != nil {
-			panic(err)
-
+	queryBody := map[string]interface{}{}
+	if len(sourceFields) > 0 {
+		if !strings.Contains(sourceFields, ",") {
+			queryBody["_source"]=sourceFields
 		} else {
-			jsonBody = jsonArray
+			queryBody["_source"] = strings.Split(sourceFields, ",")
 		}
-
 	}
+
+	if len(sortField) > 0 {
+		if len(sortType) == 0 {
+			sortType = "asc"
+		}
+		sort := []map[string]interface{}{}
+		sort = append(sort, util.MapStr{
+			sortField: util.MapStr{
+				"order": sortType,
+			},
+		})
+		queryBody["sort"] = sort
+	}
+
+	if len(query) > 0 {
+		queryBody["query"] = map[string]interface{}{}
+		queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
+		queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
+	}
+
+	jsonArray, err := json.Marshal(queryBody)
+	if err != nil {
+		panic(err)
+
+	} else {
+		jsonBody = jsonArray
+	}
+
 	resp, err := s.Request(util.Verb_POST, url, jsonBody)
 
 	if err != nil {

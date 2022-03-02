@@ -145,9 +145,6 @@ func (env *Env) Init() *Env {
 		panic(err)
 	}
 
-	os.MkdirAll(env.GetDataDir(), 0755)
-	os.MkdirAll(env.GetLogDir(), 0755)
-
 	if env.IsDebug {
 		log.Debug(util.ToJson(env, true))
 	}
@@ -196,6 +193,7 @@ var (
 			Plugin: "plugins",
 			Data:   "data",
 			Log:    "log",
+			Config:  "configs",
 		},
 
 		AllowMultiInstance: false,
@@ -279,8 +277,31 @@ func (env *Env) loadEnvFromConfigFile(filename string) (error) {
 
 	env.SetConfigFile(filename)
 
+	//load configs from config folder
+	if env.SystemConfig.PathConfig.Config!=""{
+		cfgPath,_:=filepath.Abs(env.SystemConfig.PathConfig.Config)
+		log.Trace("loading configs from:",cfgPath)
+		v,err:=config.LoadPath(env.SystemConfig.PathConfig.Config)
+		if err!=nil{
+			log.Error(err)
+			return err
+		}
+
+		err=configObject.Merge(v)
+		if err!=nil{
+			log.Error(err)
+			return err
+		}
+
+		if env.SystemConfig.ConfigsAutoReload{
+			config.EnableWatcher(env.SystemConfig.PathConfig.Config)
+		}
+	}
+
 	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
 	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
+
+
 	return nil
 }
 
@@ -318,8 +339,12 @@ func GetPluginConfig(name string) *config.Config {
 }
 
 func ParseConfig(configKey string, configInstance interface{}) (exist bool, err error) {
-	if configObject != nil {
-		childConfig, err := configObject.Child(configKey, -1)
+	return ParseConfigSection(configObject,configKey,configInstance)
+}
+
+func ParseConfigSection(cfg *config.Config,configKey string, configInstance interface{}) (exist bool, err error) {
+	if cfg != nil {
+		childConfig, err := cfg.Child(configKey, -1)
 		if err != nil {
 			return exist, err
 		}
@@ -404,9 +429,8 @@ func (env *Env) GetLogDir() string {
 
 func (env *Env) findWorkingDir() (string,string) {
 
-
 	//check data folder
-	//check if exists lock file
+	//check if lock file exists
 	//if no lock, use it
 	//have lock，check if it is a dead instance
 	//dead instance, use it

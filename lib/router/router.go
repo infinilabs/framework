@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"infini.sh/gateway/common"
 	"strings"
 
 	"github.com/savsgio/gotils/bytes"
@@ -459,7 +460,10 @@ func (r *Router) Handler(ctx *fasthttp.RequestCtx) {
 	}
 
 	// Handle 404
-	if r.NotFound != nil {
+	if r.DefaultFlow!=""{
+		common.GetFlowProcess(r.DefaultFlow)(ctx)
+		return
+	}else if r.NotFound != nil {
 		r.NotFound(ctx)
 	} else {
 		ctx.Error(fasthttp.StatusMessage(fasthttp.StatusNotFound), fasthttp.StatusNotFound)

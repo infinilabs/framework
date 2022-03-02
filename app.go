@@ -21,6 +21,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
@@ -158,6 +159,15 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	}
 	app.environment.Init()
 
+	if app.svcFlag==""{
+		if !util.FileExists(app.environment.GetDataDir()){
+			os.MkdirAll(app.environment.GetDataDir(), 0755)
+		}
+		if !util.FileExists(app.environment.GetLogDir()) {
+			os.MkdirAll(app.environment.GetLogDir(), 0755)
+		}
+	}
+
 	//allow use yml to configure the log level
 	if app.environment.SystemConfig.LoggingConfig.LogLevel!=""{
 		app.logLevel=app.environment.SystemConfig.LoggingConfig.LogLevel
@@ -234,6 +244,11 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	if customFunc != nil {
 		customFunc()
 	}
+
+	global.RegisterShutdownCallback(func() {
+		config.StopWatchers()
+	})
+
 }
 
 func (app *App) Setup(setup func(), start func(), stop func())(allowContinue bool) {

@@ -59,6 +59,10 @@ type Router struct {
 	// found. If it is not set, default NotFound is used.
 	NotFound fasthttp.RequestHandler
 
+	DefaultFlow string
+
+	TracingFlow string
+
 	// Configurable fasthttp.RequestHandler which is called when a request
 	// cannot be routed and HandleMethodNotAllowed is true.
 	// If it is not set, ctx.Error with fasthttp.StatusMethodNotAllowed is used.

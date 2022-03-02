@@ -583,7 +583,7 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	metricItem=newMetricItem("node_count", 5, MemoryGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	meta := elastic.GetMetadata(id)
-	if!meta.IsAvailable(){
+	if meta!=nil&& !meta.IsAvailable(){
 
 	}
 	majorVersion:=meta.GetMajorVersion()

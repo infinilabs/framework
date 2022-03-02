@@ -9,6 +9,9 @@ import (
 	"github.com/elastic/go-ucfg/cfgutil"
 	cfgflag "github.com/elastic/go-ucfg/flag"
 	"github.com/elastic/go-ucfg/yaml"
+	"infini.sh/framework/core/util"
+	"os"
+	"path/filepath"
 )
 
 // Config object to store hierarchical configurations into.
@@ -122,6 +125,20 @@ func NewFlagOverwrite(
 	}
 
 	return &f.value
+}
+
+
+func LoadPath(folder string) (*Config, error) {
+	files:=[]string{}
+	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if info!=nil&&!info.IsDir(){
+			if util.SuffixStr(path,".yml")||util.SuffixStr(path,".yaml"){
+				files=append(files,path)
+			}
+		}
+		return nil
+	})
+	return LoadFiles(files...)
 }
 
 // LoadFile will load config from specify file
