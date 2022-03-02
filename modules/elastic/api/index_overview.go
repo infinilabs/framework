@@ -14,30 +14,37 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	log "src/github.com/cihub/seelog"
-	"strings"
 )
 
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s],"must_not":[{"term":{"metadata.labels.index_status": {
-        "value": "deleted"
-      }}}]}}, "size": %d, "from": %d, "sort": [
-    {
-      "timestamp": {
-        "order": "desc"
-      }
-    }
-  ]}`
+		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
-		mustBuilder = &strings.Builder{}
 	)
 
+	var should []interface{}
 	if keyword != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"metadata.index_name": "%s"}}`, keyword))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, keyword))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, keyword))
+		should = append(should, util.MapStr{
+			"prefix": util.MapStr{
+				"metadata.index_name": keyword,
+			},
+		}, util.MapStr{
+			"query_string": util.MapStr{"query": keyword},
+		}, util.MapStr{
+			"query_string": util.MapStr{"query": keyword+"*"},
+		})
+	}
+	var must  []interface{}
+	if clusterID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.cluster_id": util.MapStr{
+					"value": clusterID,
+				} ,
+			},
+		})
 	}
 
 	if size <= 0 {
@@ -48,9 +55,31 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		from = 0
 	}
 
+	query := util.MapStr{
+		"size": size,
+		"from": from,
+		"sort": []util.MapStr{
+			{"timestamp":util.MapStr{
+				"order": "desc",
+			}},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"should": should,
+				"must": must,
+				"must_not": []util.MapStr{
+					{"term":util.MapStr{
+						"metadata.labels.index_status": util.MapStr{
+							"value": "deleted",
+						},
+					}},
+				},
+			},
+		},
+	}
+
 	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
-	q.RawQuery = []byte(queryDSL)
+	q.RawQuery = util.MustToJSONBytes(query)
 
 	err, res := orm.Search(&elastic.IndexConfig{}, &q)
 	if err != nil {
@@ -61,15 +90,15 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	response := elastic.SearchResponse{}
 	util.FromJSONBytes(res.Raw, &response)
 
-	var indexNames []interface{}
+	var indexIDs []interface{}
 
 	for _, hit := range response.Hits.Hits {
-		if indexName, ok := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hit.Source); ok {
-			indexNames = append(indexNames, indexName)
+		if indexID, ok := util.GetMapValueByKeys([]string{"metadata", "index_id"}, hit.Source); ok {
+			indexIDs = append(indexIDs, indexID)
 		}
 	}
 
-	if len(indexNames) == 0 {
+	if len(indexIDs) == 0 {
 		h.WriteJSON(w, util.MapStr{
 			"hits": util.MapStr{
 				"total": util.MapStr{
@@ -86,11 +115,11 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
 		orm.Eq("metadata.name", "index_stats"),
-		orm.In("metadata.labels.index_name", indexNames),
+		orm.In("metadata.labels.index_id", indexIDs),
 	)
-	q1.Collapse("metadata.labels.index_name")
+	q1.Collapse("metadata.labels.index_id")
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(indexNames) + 1
+	q1.Size = len(indexIDs) + 1
 
 	err, results := orm.Search(&event.Event{}, &q1)
 
@@ -98,7 +127,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
 		if ok {
-			if indexName, ok :=  util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, result); ok {
+			if indexID, ok :=  util.GetMapValueByKeys([]string{"metadata", "labels", "index_id"}, result); ok {
 				summary := map[string]interface{}{}
 				if docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "total", "docs"}, result); ok {
 					summary["docs"] = docs
@@ -120,12 +149,12 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 						summary["unassigned_shards"] = unassignedCount
 					}
 				}
-				summaryMap[indexName.(string)] = summary
+				summaryMap[indexID.(string)] = summary
 			}
 		}
 	}
 
-	statusMetric, err := getIndexStatusOfRecentDay(indexNames)
+	statusMetric, err := getIndexStatusOfRecentDay(indexIDs)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -163,7 +192,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	})
 
 	aggs:=map[string]interface{}{}
-	query:=map[string]interface{}{}
+	query =map[string]interface{}{}
 	query["query"]=util.MapStr{
 		"bool": util.MapStr{
 			"must":  []util.MapStr{
@@ -183,7 +212,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 				},
 				{
 					"terms": util.MapStr{
-						"metadata.labels.index_id": indexNames,
+						"metadata.labels.index_id": indexIDs,
 					},
 				},
 			},
@@ -219,7 +248,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	query["aggs"]= util.MapStr{
 		"group_by_level": util.MapStr{
 			"terms": util.MapStr{
-				"field": "metadata.labels.index_name",
+				"field": "metadata.labels.index_id",
 				"size":  100,
 			},
 			"aggs": util.MapStr{
@@ -271,28 +300,28 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 
 		result["metadata"] = source
-		result["summary"] = summaryMap[indexName]
+		result["summary"] = summaryMap[indexID]
 		result["metrics"] = util.MapStr{
 			"status": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Recent Index Status",
 					"units": "day",
 				},
-				"data": statusMetric[indexName],
+				"data": statusMetric[indexID],
 			},
 			"indexing": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Indexing",
 					"units": "s",
 				},
-				"data": indexMetrics[indexName]["indexing"],
+				"data": indexMetrics[indexID]["indexing"],
 			},
 			"search": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Search",
 					"units": "s",
 				},
-				"data": indexMetrics[indexName]["search"],
+				"data": indexMetrics[indexID]["search"],
 			},
 		}
 		response.Hits.Hits[i].Source = result
@@ -495,7 +524,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 }
 
 
-func getIndexStatusOfRecentDay(indexNames []interface{})(map[string][]interface{}, error){
+func getIndexStatusOfRecentDay(indexIDs []interface{})(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
 	}
@@ -606,7 +635,7 @@ func getIndexStatusOfRecentDay(indexNames []interface{})(map[string][]interface{
 					},
 					{
 						"terms": util.MapStr{
-							"metadata.labels.index_name": indexNames,
+							"metadata.labels.index_id": indexIDs,
 						},
 					},
 				},

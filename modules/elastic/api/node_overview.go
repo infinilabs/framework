@@ -14,32 +14,38 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	"strings"
 	"time"
 )
 
 func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		name        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d, "sort": [
-    {
-      "timestamp": {
-        "order": "desc"
-      }
-    }
-  ]}`
-		//"collapse":{
-		//			"field": "node_id"
-		//		}}
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
-		mustBuilder = &strings.Builder{}
+		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
 	)
 
+	var should []interface{}
 	if name != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"metadata.labels.node_name": "%s"}}`, name))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
+		should = append(should, util.MapStr{
+			"prefix": util.MapStr{
+				"metadata.labels.node_name": name,
+			},
+		}, util.MapStr{
+			"query_string": util.MapStr{"query": name},
+		}, util.MapStr{
+			"query_string": util.MapStr{"query": name+"*"},
+		})
+	}
+	var must  []interface{}
+	if clusterID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.cluster_id": util.MapStr{
+					"value": clusterID,
+				} ,
+			},
+		})
 	}
 
 	if size <= 0 {
@@ -50,9 +56,24 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		from = 0
 	}
 
+	query := util.MapStr{
+		"size": size,
+		"from": from,
+		"sort": []util.MapStr{
+			{"timestamp":util.MapStr{
+				"order": "desc",
+			}},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"should": should,
+				"must": must,
+			},
+		},
+	}
+
 	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
-	q.RawQuery = []byte(queryDSL)
+	q.RawQuery = util.MustToJSONBytes(query)
 
 	err, res := orm.Search(&elastic.NodeConfig{}, &q)
 	if err != nil {
@@ -84,7 +105,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		return
 	}
 	q1 := orm.Query{WildcardIndex: true}
-	query := util.MapStr{
+	query = util.MapStr{
 			"sort": []util.MapStr{
 				{
 					"timestamp": util.MapStr{

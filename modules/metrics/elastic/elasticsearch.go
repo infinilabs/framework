@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
@@ -277,7 +278,10 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, sha
 }
 
 func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
-
+	newIndexID := fmt.Sprintf("%s:%s", clusterId, indexName)
+	if indexID == "_all" {
+		newIndexID = indexID
+	}
 	item := event.Event{
 		Metadata: event.EventMetadata{
 			Category: "elasticsearch",
@@ -287,7 +291,8 @@ func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, t
 				"cluster_id":   clusterId,
 				//"cluster_uuid": clusterId,
 
-				"index_id":   util.StringDefault(indexID, indexName),
+				"index_id": newIndexID,
+				"index_uuid": indexID,
 				"index_name": indexName,
 			},
 		},
