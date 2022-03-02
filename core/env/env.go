@@ -504,6 +504,8 @@ func (env *Env) findWorkingDir() (string,string) {
 
 			//current folder is in use
 			if !env.SystemConfig.AllowMultiInstance {
+				env.SystemConfig.NodeConfig.ID = f.Name()
+				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 				break
 			}
 
