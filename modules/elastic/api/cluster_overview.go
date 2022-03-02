@@ -602,9 +602,13 @@ func (h *APIHandler) GetClusterInfo(w http.ResponseWriter, req *http.Request, ps
 }
 
 func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var (
+		size        = h.GetIntOrDefault(req, "size", 20)
+		from        = h.GetIntOrDefault(req, "from", 0)
+	)
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
-	q := &orm.Query{ Size: 10000}
+	q := &orm.Query{ Size: size, From: from}
 	q.AddSort("timestamp", orm.DESC)
 	q.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
@@ -612,6 +616,29 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 	)
 
 	err, result := orm.Search(elastic.NodeConfig{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	h.Write(w, result.Raw)
+}
+
+func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var (
+		size        = h.GetIntOrDefault(req, "size", 20)
+		from        = h.GetIntOrDefault(req, "from", 0)
+	)
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	q := &orm.Query{ Size: size, From: from}
+	q.AddSort("timestamp", orm.DESC)
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.cluster_id", id),
+		orm.NotEq("metadata.labels.index_status", "deleted"),
+	)
+
+	err, result := orm.Search(elastic.IndexConfig{}, q)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )

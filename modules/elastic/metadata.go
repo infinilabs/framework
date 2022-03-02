@@ -97,8 +97,69 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 				}
 				queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 			}
+			if meta.Config.Source != "file"{
+				module.saveRoutingTable(state, clusterId)
+			}
 			meta.ClusterState = state
 		}
+	}
+}
+
+func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, clusterID string) {
+	nodesRouting := map[string][]elastic.IndexShardRouting{}
+	for indexName, routing := range state.RoutingTable.Indices {
+		err := event.Save(event.Event{
+			Timestamp: time.Now(),
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name:     "index_routing_table",
+				Datatype: "snapshot",
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"index_name": indexName,
+				},
+			},
+			Fields: util.MapStr{
+				"elasticsearch": util.MapStr{
+					"index_routing_table": routing,
+				},
+			},
+		})
+		if err != nil {
+			log.Error(err)
+		}
+		for _, routeData := range routing.Shards {
+			for _, rd := range routeData {
+				if _, ok := nodesRouting[rd.Node]; !ok {
+					if rd.Node == ""{
+						continue
+					}
+					nodesRouting[rd.Node] = []elastic.IndexShardRouting{}
+				}
+				nodesRouting[rd.Node] = append(nodesRouting[rd.Node], rd)
+			}
+		}
+
+	}
+	for nodeID, routing := range nodesRouting {
+		event.Save(event.Event{
+			Timestamp: time.Now(),
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name: "node_routing_table",
+				Datatype: "snapshot",
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"node_id": nodeID,
+				},
+			},
+			Fields: util.MapStr{
+				"elasticsearch": util.MapStr{
+					"node_routing_table": routing,
+				},
+			},
+		})
+
 	}
 }
 
