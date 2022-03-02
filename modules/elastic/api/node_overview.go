@@ -51,7 +51,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	if nodeID != "" {
 		must = append(must, util.MapStr{
 			"term": util.MapStr{
-				"metadata.node_id": util.MapStr{
+				"_id": util.MapStr{
 					"value": nodeID,
 				} ,
 			},
