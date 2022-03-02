@@ -14,9 +14,10 @@ var statsMap map[string]int = map[string]int{}
 
 func RegisterBar(category, key string, total int) {
 	if ShowProgress() {
-		statsKey := fmt.Sprintf("%v-%v", category, key)
-		var bar *pb.ProgressBar = pb.New(total).Prefix(fmt.Sprintf("[%v][%v]:", category, key))
-		barsMap[statsKey] = bar
+		statsKey := fmt.Sprintf("[%v][%v]:", category, key)
+		statsLock.Lock()
+		defer statsLock.Unlock()
+		statsMap[statsKey]=0
 	}
 }
 
@@ -26,26 +27,28 @@ func IncreaseWithTotal(category, key string, count, total int) {
 		return
 	}
 
-	statsKey := fmt.Sprintf("%v-%v", category, key)
+	statsKey := fmt.Sprintf("[%v][%v]:", category, key)
 	statsLock.Lock()
 	defer statsLock.Unlock()
 	v, ok := statsMap[statsKey]
 	var sumCount = count
 	if ok {
 		sumCount = count + v
-	} else {
-		if ShowProgress() {
-			var bar *pb.ProgressBar = pb.New(total).Prefix(fmt.Sprintf("[%v][%v]:", category, key))
-			barsMap[statsKey] = bar
-		}
 	}
-
 
 	statsMap[statsKey] = sumCount
 	if ShowProgress() {
-		barsMap[statsKey].Reset(total)
-		barsMap[statsKey].Set(sumCount)
-		barsMap[statsKey].Update()
+		bar,ok:=barsMap[statsKey]
+		if !ok{
+			bar=pb.New(total).Prefix(fmt.Sprintf("[%v][%v]:", category, key))
+			barsMap[statsKey] = bar
+		}
+		if bar.Total!=int64(total){
+			bar.SetTotal(total)
+		}
+
+		bar.Set(sumCount)
+		bar.Update()
 	}
 	stats.Gauge(category,key,int64(sumCount*100/(total)))
 }
@@ -55,16 +58,34 @@ var err error
 var started bool
 
 func Start() {
-	if ShowProgress()&&!started {
-		ar:=[]*pb.ProgressBar{}
-		for _,v:=range barsMap {
-			ar=append(ar,v)
+
+
+	if ShowProgress(){
+
+		statsLock.Lock()
+		defer statsLock.Unlock()
+
+		if !started{
+			ar:=[]*pb.ProgressBar{}
+			for _,v:=range barsMap {
+				ar=append(ar,v)
+			}
+			pool, err = pb.StartPool(ar...)
+			if err != nil {
+				panic(err)
+			}
+			started=true
+		}else{
+			for k,_:=range statsMap{
+				_,ok:=barsMap[k]
+				if !ok{
+					var bar *pb.ProgressBar = pb.New(100).Prefix(k)
+					barsMap[k] = bar
+					pool.Add(bar)
+				}
+			}
 		}
-		pool, err = pb.StartPool(ar...)
-		if err != nil {
-			panic(err)
-		}
-		started=true
+
 	}
 }
 
