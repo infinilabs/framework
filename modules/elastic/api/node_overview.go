@@ -794,10 +794,25 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 		}
 	}
 
-	indexNames := make([]string, 0, len(namesM) )
+	indexNames := make([]interface{}, 0, len(namesM) )
 	for name, _ := range namesM {
 		indexNames = append(indexNames, name)
 	}
 
-	h.WriteJSON(w, indexNames, http.StatusOK)
+	q1 := &orm.Query{ Size: 100}
+	q1.AddSort("timestamp", orm.DESC)
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.cluster_id", id),
+		orm.In("metadata.index_name", indexNames),
+		orm.NotEq("metadata.labels.index_status", "deleted"),
+	)
+	err, result = orm.Search(elastic.IndexConfig{}, q1)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+
+	//h.WriteJSON(w, indexNames, http.StatusOK)
+	h.Write(w, result.Raw)
 }
