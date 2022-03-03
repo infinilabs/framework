@@ -17,6 +17,7 @@ limitations under the License.
 package elastic
 
 import (
+	"context"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 )
@@ -101,7 +102,14 @@ type MappingAPI interface {
 
 type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) ([]byte, error)
-	NextScroll(req *fasthttp.Request,res *fasthttp.Response,scrollTime string, scrollId string) ([]byte, error)
+	NextScroll(ctx *APIContext,scrollTime string, scrollId string) ([]byte, error)
+}
+
+type APIContext struct {
+	context.Context `json:"-"`
+	Client *fasthttp.Client
+	Request *fasthttp.Request
+	Response *fasthttp.Response
 }
 
 
