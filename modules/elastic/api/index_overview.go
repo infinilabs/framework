@@ -22,6 +22,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
 		size        = h.GetIntOrDefault(req, "size", 20)
 		from        = h.GetIntOrDefault(req, "from", 0)
+		indexID = h.GetParameterOrDefault(req, "index_id", "")
 	)
 
 	var should []interface{}
@@ -42,6 +43,15 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			"term": util.MapStr{
 				"metadata.cluster_id": util.MapStr{
 					"value": clusterID,
+				} ,
+			},
+		})
+	}
+	if indexID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"_id": util.MapStr{
+					"value": indexID,
 				} ,
 			},
 		})
