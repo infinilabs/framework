@@ -18,6 +18,8 @@ func RegisterBar(category, key string, total int) {
 		statsLock.Lock()
 		defer statsLock.Unlock()
 		statsMap[statsKey]=0
+		bar:=pb.New(total).Prefix(statsKey)
+		barsMap[statsKey] = bar
 	}
 }
 
@@ -122,7 +124,7 @@ func Stop() {
 					x.Finish()
 				}
 			}else{
-				return
+				continue
 			}
 		}
 		pool.Stop()
