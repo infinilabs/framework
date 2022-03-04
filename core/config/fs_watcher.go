@@ -37,6 +37,10 @@ func loadConfigFile(file string)*Config  {
 }
 
 func EnableWatcher(path string)  {
+	if !util.FileExists(path){
+		log.Debugf("path: %v not exists, skip watcher",path)
+		return
+	}
 	AddPathToWatch(path, func(file string,op fsnotify.Op) {
 		loadConfigFile(file)
 	})
