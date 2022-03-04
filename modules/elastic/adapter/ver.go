@@ -35,6 +35,7 @@ func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata)(string, error)  {
 	return esVersion.Version.Number, nil
 }
 
+var timeout=30*time.Second
 func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterInformation, error) {
 	url := fmt.Sprintf("%v://%v", metadata.GetSchema(), metadata.GetActiveHost())
 
@@ -46,7 +47,20 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(res)
 
-	result, err := RequestTimeout(req,res,"GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout) * time.Second)
+
+	ctx:=elastic.APIContext{
+		Client:  &fasthttp.Client{
+			MaxConnsPerHost: 1000,
+			TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+			MaxConnWaitTimeout: timeout,
+			MaxIdleConnDuration: timeout,
+			WriteTimeout: timeout,
+			ReadTimeout: timeout,
+		},
+		Request: req,
+		Response: res,
+	}
+	result, err := RequestTimeout(&ctx,"GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -63,77 +77,59 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	return &version, nil
 }
 
-func RequestTimeout(req *fasthttp.Request,res *fasthttp.Response,method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
+func RequestTimeout(ctx *elastic.APIContext,method, url string, body []byte, metadata *elastic.ElasticsearchMetadata, timeout time.Duration) (result *util.Result, err error) {
 
-	//var (
-	//	req = fasthttp.AcquireRequest()
-	//	res = fasthttp.AcquireResponse()
-	//)
-	//defer func() {
-	//	fasthttp.ReleaseRequest(req)
-	//	fasthttp.ReleaseResponse(res)
-	//}()
+	ctx.Request.Header.SetMethod(method)
+	ctx.Request.SetRequestURI(url)
+	ctx.Request.Header.SetContentType(util.ContentTypeJson)
 
-	client := &fasthttp.Client{
-		MaxConnsPerHost: 1000,
-		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-		MaxConnWaitTimeout: timeout,
-		MaxIdleConnDuration: timeout,
-		WriteTimeout: timeout,
-		ReadTimeout: timeout,
-	}
-
-	req.Header.SetMethod(method)
-	req.SetRequestURI(url)
-	req.Header.SetContentType(util.ContentTypeJson)
-
-	acceptGzipped:=req.AcceptGzippedResponse()
+	acceptGzipped:=ctx.Request.AcceptGzippedResponse()
 	compressed:=false
 
 	//gzip request body
 	if len(body)>0{
-		if !req.IsGzipped() && metadata.Config.RequestCompress {
-			_, err := fasthttp.WriteGzipLevel(req.BodyWriter(), body, fasthttp.CompressBestSpeed)
+		if !ctx.Request.IsGzipped() && metadata.Config.RequestCompress {
+			_, err := fasthttp.WriteGzipLevel(ctx.Request.BodyWriter(), body, fasthttp.CompressBestSpeed)
 			if err != nil {
 				panic(err)
 			}
-			req.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
+			ctx.Request.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
 			//compressed=true
 		} else {
-			req.SetBody(body)
+			ctx.Request.SetBody(body)
 		}
 	}
 
 	//allow to receive gzipped response
 	if metadata.Config.RequestCompress{
-		req.Header.Set(fasthttp.HeaderAcceptEncoding, "gzip")
+		ctx.Request.Header.Set(fasthttp.HeaderAcceptEncoding, "gzip")
 		compressed=true
 	}
 
 	if metadata.Config != nil && metadata.Config.BasicAuth != nil {
-		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
+		ctx.Request.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(req.Header.Host()),1,req.GetRequestLength(),0)
+	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(ctx.Request.Header.Host()),1,ctx.Request.GetRequestLength(),0)
 
-	err = client.DoTimeout(req, res, timeout)
+	err = ctx.Client.DoTimeout(ctx.Request, ctx.Response, timeout)
 	if err != nil {
 		return nil, err
 	}
 
-	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(req.Header.Host()),0,res.GetResponseLength(),0)
+	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(ctx.Request.Header.Host()),0,ctx.Response.GetResponseLength(),0)
 
 	//restore body and header
 	if !acceptGzipped&&compressed{
-		body:=res.GetRawBody()
-		res.SwapBody(body)
-		res.Header.Del(fasthttp.HeaderContentEncoding)
-		res.Header.Del(fasthttp.HeaderContentEncoding2)
+		body:=ctx.Response.GetRawBody()
+		ctx.Response.SwapBody(body)
+		ctx.Response.Header.Del(fasthttp.HeaderContentEncoding)
+		ctx.Response.Header.Del(fasthttp.HeaderContentEncoding2)
 	}
 
 	result = &util.Result{
-		Body: res.Body(),
-		StatusCode: res.StatusCode(),
+		Body: ctx.Response.Body(),
+		StatusCode: ctx.Response.StatusCode(),
 	}
 
 	return result, nil
