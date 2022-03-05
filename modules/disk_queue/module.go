@@ -528,7 +528,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 
 	//no consumers or consumer/s3 already ahead of this file
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
-		if consumers==0||(fileStartToDelete< segmentNum &&fileStartToDelete< lastSavedFileNum){
+		if consumers==0||(fileStartToDelete< segmentNum &&(!module.cfg.UploadToS3||fileStartToDelete< lastSavedFileNum)){
 			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
