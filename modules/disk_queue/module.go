@@ -29,6 +29,8 @@ type DiskQueue struct {
 	initLocker sync.Mutex
 	api.Handler
 	queues sync.Map
+	messages chan Event
+
 }
 
 func (module *DiskQueue) Name() string {
@@ -52,6 +54,7 @@ type DiskQueueConfig struct {
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
+	NotifyChanBuffer   int   `config:"notify_chan_buffer_size"`
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
 
@@ -209,6 +212,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		MaxBytesPerFile:  100 * 1024 * 1024, //100MB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
+		NotifyChanBuffer:   100,
 		ReadChanBuffer:   0,
 		WriteChanBuffer:   0,
 		WarningFreeBytes: 10 * 1024 * 1024 * 1024,
@@ -273,32 +277,11 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		persistQueueMetadata()
 	})
 
+	module.messages = make(chan Event,module.cfg.NotifyChanBuffer)
 
 	RegisterEventListener(func(event Event) error {
 
-		log.Trace("received event: ",event)
-		switch event.Type {
-		case WriteComplete:
-
-			//TODO, convert to signal, move to async
-
-			//upload old file to s3
-			module.uploadToS3(event.Queue,event.FileNum)
-
-			//check capacity
-
-			//delete old unused files
-			module.deleteUnusedFiles(event.Queue,event.FileNum)
-
-			break
-		case ReadComplete:
-
-			//delete old unused files
-			module.deleteUnusedFiles(event.Queue,event.FileNum)
-
-			break;
-
-		}
+		module.messages<-event
 
 		return nil
 	})
@@ -491,6 +474,39 @@ func (module *DiskQueue) Start() error {
 		}()
 	}
 
+	go func() {
+
+		for {
+			evt := <-module.messages
+
+			log.Debug("received event from channel: ",evt)
+
+			switch evt.Type {
+			case WriteComplete:
+
+				//TODO, convert to signal, move to async
+
+				//upload old file to s3
+				module.uploadToS3(evt.Queue,evt.FileNum)
+
+				//check capacity
+
+				//delete old unused files
+				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+
+				break
+			case ReadComplete:
+
+				//delete old unused files
+				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+
+				break;
+
+			}
+		}
+
+	}()
+
 	return nil
 }
 
@@ -508,7 +524,7 @@ func (module *DiskQueue) Stop() error {
 	})
 
 	persistQueueMetadata()
-
+	close(module.messages)
 	return nil
 }
 
