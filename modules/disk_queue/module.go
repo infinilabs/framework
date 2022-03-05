@@ -180,6 +180,7 @@ func (module *DiskQueue) Init(name string) error {
 
 	module.queues.Store(name,&tempQueue)
 
+	module.deleteUnusedFiles(name,tempQueue.ReadContext().WriteFileNum)
 	return nil
 }
 
@@ -468,26 +469,27 @@ func (module *DiskQueue) Start() error {
 
 	//trigger s3 uploading
 	//from lastUpload to current WrtieFile
-
-	//TODO, support cancel and safety shutdown
-	go func() {
-		for _, v := range cfgs {
-			last:=GetLastS3UploadFileNum(v.Id)
-			offsetStr:=queue.LatestOffset(v)
-			segment,_:=ConvertOffset(offsetStr)
-			log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
-			if segment >last{
-				for x:=last;x< segment;x++{
-					if x>=0{
-						if global.Env().IsDebug{
-							log.Tracef("try to upload %v/%v",v.Id,x)
+	if module.cfg.UploadToS3{
+		//TODO, support cancel and safety shutdown
+		go func() {
+			for _, v := range cfgs {
+				last:=GetLastS3UploadFileNum(v.Id)
+				offsetStr:=queue.LatestOffset(v)
+				segment,_:=ConvertOffset(offsetStr)
+				log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
+				if segment >last{
+					for x:=last;x< segment;x++{
+						if x>=0{
+							if global.Env().IsDebug{
+								log.Tracef("try to upload %v/%v",v.Id,x)
+							}
+							module.uploadToS3(v.Id,x)
 						}
-						module.uploadToS3(v.Id,x)
 					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	return nil
 }
