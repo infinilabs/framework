@@ -258,7 +258,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 		if ok {
 			clusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result)
 			if ok {
-				source := healthMap[util.ToString(clusterID)].(map[string]interface{})
+				source := map[string]interface{}{}
 				indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "count"}, result)
 				if ok {
 					source["number_of_indices"] = indicesCount
@@ -630,13 +630,88 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 
 func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody:=util.MapStr{}
-	dsl, err := h.GetRawBody(req)
+	reqBody := struct{
+		Keyword string `json:"keyword"`
+		Size int `json:"size"`
+		From int `json:"from"`
+		Aggregations []elastic.SearchAggParam `json:"aggs"`
+		Highlight elastic.SearchHighlightParam `json:"highlight"`
+		Filter elastic.SearchFilterParam `json:"filter"`
+	}{}
+	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
-
+	query := util.MapStr{
+		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
+		"size":      reqBody.Size,
+		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
+				"should": []util.MapStr{
+					{
+						"prefix": util.MapStr{
+							"name": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 20,
+							},
+						},
+					},
+					{
+						"prefix": util.MapStr{
+							"host": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 20,
+							},
+						},
+					},
+					{
+						"prefix": util.MapStr{
+							"version": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 15,
+							},
+						},
+					},
+					{
+						"match_phrase_prefix": util.MapStr{
+							"name.text": util.MapStr{
+								"query": reqBody.Keyword,
+								"boost": 6,
+							},
+						},
+					},
+					{
+						"match": util.MapStr{
+							"search_text": util.MapStr{
+								"query":                reqBody.Keyword,
+								"fuzziness":            "AUTO",
+								"max_expansions":       10,
+								"prefix_length":        2,
+								"fuzzy_transpositions": true,
+								"boost":                2,
+							},
+						},
+					},
+					{
+						"query_string": util.MapStr{
+							"fields":                 []string{"*"},
+							"query":                  reqBody.Keyword,
+							"fuzziness":              "AUTO",
+							"fuzzy_prefix_length":    2,
+							"fuzzy_max_expansions":   10,
+							"fuzzy_transpositions":   true,
+							"allow_leading_wildcard": false,
+						},
+					},
+				},
+			},
+		},
+	}
+	dsl := util.MustToJSONBytes(query)
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
