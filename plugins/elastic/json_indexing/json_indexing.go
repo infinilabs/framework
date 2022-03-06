@@ -55,6 +55,10 @@ type Config struct {
 	InputQueue           string `config:"input_queue"`
 }
 
+func init()  {
+	pipeline.RegisterProcessorPlugin("json_indexing", New)
+}
+
 func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
 		BulkSizeInMB:         10,
