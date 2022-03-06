@@ -238,39 +238,11 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 	for _, clusterID := range clusterIDs {
 		cids = append(cids, clusterID)
 	}
-	//fetch cluster status
-	q1 := orm.Query{WildcardIndex: true}
-	q1.Conds = orm.And(
-		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "cluster_health"),
-		orm.In("metadata.labels.cluster_id", cids),
-	)
-	q1.Collapse("metadata.labels.cluster_id")
-	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(clusterIDs) + 1
-
-	err, results := orm.Search(&event.Event{}, &q1)
-
 	healthMap := map[string]interface{}{}
-	for _, v := range results.Result {
-		result, ok := v.(map[string]interface{})
-		clusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result)
-		if ok {
-			health, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_health"}, result)
-			if ok {
-				cid := util.ToString(clusterID)
-				source := health.(map[string]interface{})
-				meta := elastic.GetMetadata(cid)
-				if meta != nil && !meta.IsAvailable() {
-					source["status"] = "unavailable"
-				}
-				healthMap[cid] = source
-			}
-		}
-	}
+
 
 	//fetch extra cluster status
-	q1 = orm.Query{WildcardIndex: true}
+	q1 := orm.Query{WildcardIndex: true}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
 		orm.Eq("metadata.name", "cluster_stats"),
@@ -280,7 +252,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 	q1.AddSort("timestamp", orm.DESC)
 	q1.Size = len(clusterIDs) + 1
 
-	err, results = orm.Search(&event.Event{}, &q1)
+	err, results := orm.Search(&event.Event{}, &q1)
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
 		if ok {
