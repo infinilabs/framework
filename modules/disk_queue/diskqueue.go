@@ -33,6 +33,7 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/util/zstd"
 	"infini.sh/framework/lib/status"
 	"io"
 	"math/rand"
@@ -389,7 +390,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 	}
 
 	if d.cfg.CompressOnMessagePayload.Enabled{
-		newData,err:=util.ZSTDDecompress(nil,readBuf)
+		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
 			return nil,err
 		}
@@ -425,7 +426,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 	//compress data
 	if d.cfg.CompressOnMessagePayload.Enabled{
-		newData,err:=util.ZSTDCompress(nil,data,d.cfg.CompressOnMessagePayload.Level)
+		newData,err:= zstd.ZSTDCompress(nil,data,d.cfg.CompressOnMessagePayload.Level)
 		if err!=nil{
 			return err
 		}
