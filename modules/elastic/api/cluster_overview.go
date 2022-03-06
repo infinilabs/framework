@@ -10,7 +10,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	"strings"
 )
 
 func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -173,104 +172,87 @@ func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request
 	h.Write(w, util.MustToJSONBytes(result))
 }
 
-func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var (
-		name        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d}`
-		size        = h.GetIntOrDefault(req, "size", 20)
-		from        = h.GetIntOrDefault(req, "from", 0)
-		mustBuilder = &strings.Builder{}
-	)
+func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	//var (
+	//	name        = h.GetParameterOrDefault(req, "keyword", "")
+	//	queryDSL    = `{"query":{"bool":{"should":[%s]}}, "size": %d, "from": %d}`
+	//	size        = h.GetIntOrDefault(req, "size", 20)
+	//	from        = h.GetIntOrDefault(req, "from", 0)
+	//	mustBuilder = &strings.Builder{}
+	//)
+	//
+	//if name != "" {
+	//	mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
+	//	mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
+	//	mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
+	//}
+	//
+	//if size <= 0 {
+	//	size = 20
+	//}
+	//
+	//if from < 0 {
+	//	from = 0
+	//}
+	//
+	//q := orm.Query{}
+	//queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
+	//q.RawQuery = []byte(queryDSL)
+	//
+	//err, res := orm.Search(&elastic.ElasticsearchConfig{}, &q)
+	//if err != nil {
+	//	h.WriteError(w, err.Error(), http.StatusInternalServerError)
+	//	return
+	//}
+	//
+	//response := elastic.SearchResponse{}
+	//util.FromJSONBytes(res.Raw, &response)
 
-	if name != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s"}}`, name))
-		mustBuilder.WriteString(fmt.Sprintf(`,{"query_string":{"query": "%s*"}}`, name))
-	}
-
-	if size <= 0 {
-		size = 20
-	}
-
-	if from < 0 {
-		from = 0
-	}
-
-	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
-	q.RawQuery = []byte(queryDSL)
-
-	err, res := orm.Search(&elastic.ElasticsearchConfig{}, &q)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := elastic.SearchResponse{}
-	util.FromJSONBytes(res.Raw, &response)
-
-	var clusterIDs []interface{}
-
-	for _, hit := range response.Hits.Hits {
-		clusterIDs = append(clusterIDs, hit.ID)
-	}
+	//var clusterIDs []interface{}
+	//
+	//for _, hit := range response.Hits.Hits {
+	//	clusterIDs = append(clusterIDs, hit.ID)
+	//}
+	//
+	//if len(clusterIDs) == 0 {
+	//	h.WriteJSON(w, util.MapStr{
+	//		"hits": util.MapStr{
+	//			"total": util.MapStr{
+	//				"value":    0,
+	//				"relation": "eq",
+	//			},
+	//			"hits": []interface{}{},
+	//		},
+	//	}, 200)
+	//	return
+	//}
+	var clusterIDs = []string{}
+	h.DecodeJSON(req, &clusterIDs)
 
 	if len(clusterIDs) == 0 {
-		h.WriteJSON(w, util.MapStr{
-			"hits": util.MapStr{
-				"total": util.MapStr{
-					"value":    0,
-					"relation": "eq",
-				},
-				"hits": []interface{}{},
-			},
-		}, 200)
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
 
-	//fetch cluster status
+	cids := make([]interface{}, 0, len(clusterIDs))
+	for _, clusterID := range clusterIDs {
+		cids = append(cids, clusterID)
+	}
+	healthMap := map[string]interface{}{}
+
+
+	//fetch extra cluster status
 	q1 := orm.Query{WildcardIndex: true}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "cluster_health"),
-		orm.In("metadata.labels.cluster_id", clusterIDs),
+		orm.Eq("metadata.name", "cluster_stats"),
+		orm.In("metadata.labels.cluster_id", cids),
 	)
 	q1.Collapse("metadata.labels.cluster_id")
 	q1.AddSort("timestamp", orm.DESC)
 	q1.Size = len(clusterIDs) + 1
 
 	err, results := orm.Search(&event.Event{}, &q1)
-
-	healthMap := map[string]interface{}{}
-	for _, v := range results.Result {
-		result, ok := v.(map[string]interface{})
-		clusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result)
-		if ok {
-			health, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_health"}, result)
-			if ok {
-				cid := util.ToString(clusterID)
-				source := health.(map[string]interface{})
-				meta := elastic.GetMetadata(cid)
-				if meta != nil && !meta.IsAvailable() {
-					source["status"] = "unavailable"
-				}
-				healthMap[cid] = source
-			}
-		}
-	}
-
-	//fetch extra cluster status
-	q1 = orm.Query{WildcardIndex: true}
-	q1.Conds = orm.And(
-		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "cluster_stats"),
-		orm.In("metadata.labels.cluster_id", clusterIDs),
-	)
-	q1.Collapse("metadata.labels.cluster_id")
-	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(clusterIDs) + 1
-
-	err, results = orm.Search(&event.Event{}, &q1)
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
 		if ok {
@@ -518,11 +500,12 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	util.FromJSONBytes(searchR1.RawResult.Body, &searchResponse)
 	m3 := ParseAggregationBucketResult(bucketSize, searchResponse.Aggregations, bucketItem.Key, histgram.Key, termBucket.Key, nil)
 
-	for i, hit := range response.Hits.Hits {
+	infos := util.MapStr{}
+	for _, clusterID := range clusterIDs {
 		result := util.MapStr{}
 
 		//TODO update last active timestamp
-		source := hit.Source
+		//source := hit.Source
 		//source["project"]=util.MapStr{
 		//	"id":"12312312",
 		//	"name":"统一日志云平台v1.0",
@@ -539,36 +522,35 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		//	"id":"123123123",
 		//}}
 
-		result["metadata"] = source
-		result["summary"] = healthMap[hit.ID]
+		//result["metadata"] = source
+		result["summary"] = healthMap[clusterID]
 		result["metrics"] = util.MapStr{
 			"status": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Recent Cluster Status",
 					"units": "day",
 				},
-				"data": getClusterMetrics(hit.ID, m3),
+				"data": getClusterMetrics(clusterID, m3),
 			},
 			"indexing": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Indexing",
 					"units": "s",
 				},
-				"data": getClusterMetrics(hit.ID, m1),
+				"data": getClusterMetrics(clusterID, m1),
 			},
 			"search": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Search",
 					"units": "s",
 				},
-				"data": getClusterMetrics(hit.ID, m2),
+				"data": getClusterMetrics(clusterID, m2),
 			},
 		}
-		response.Hits.Hits[i].Source = result
-		clusterIDs = append(clusterIDs, hit.ID)
+		infos[clusterID]= result
 	}
 
-	h.WriteJSON(w, response, 200)
+	h.WriteJSON(w, infos , 200)
 }
 
 func getClusterMetrics(id string, data MetricData) [][]interface{} {
@@ -644,4 +626,22 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
 	h.Write(w, result.Raw)
+}
+
+func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody:=util.MapStr{}
+	dsl, err := h.GetRawBody(req)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
+	}
+
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), dsl)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
+	}
+	w.Write(util.MustToJSONBytes(response))
 }

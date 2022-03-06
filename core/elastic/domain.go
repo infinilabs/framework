@@ -402,7 +402,7 @@ type ElasticsearchConfig struct {
 	HttpProxy   string   `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint    string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
-	Version     string   `json:"version,omitempty" config:"version"`
+	Version     string   `json:"version,omitempty" config:"version" elastic_mapping:"version:{type:keyword,copy_to:search_text}"`
 	ClientMode  string   `json:"client_mode,omitempty" config:"client_mode"`
 
 	RequestTimeout  int  `json:"request_timeout,omitempty" config:"request_timeout"`
@@ -433,18 +433,21 @@ type ElasticsearchConfig struct {
 
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
-	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword}"`
+	Host  string   `json:"host,omitempty" elastic_mapping:"host:{type:keyword,copy_to:search_text}"`
 	Hosts []string `json:"hosts,omitempty" elastic_mapping:"hosts:{type:keyword}"`
 
 	GeoLocation *GeoLocation `json:"location,omitempty" elastic_mapping:"location:{type:object}"`
 
-	Project string `json:"project,omitempty" elastic_mapping:"project:{type:keyword}"`
+	Project string `json:"project,omitempty" elastic_mapping:"project:{type:keyword,copy_to:search_text}"`
 
 	Owner [] struct{
-		Department string `json:"department,omitempty" elastic_mapping:"department:{type:keyword}"`
-		Name string `json:"name,omitempty" elastic_mapping:"name:{type:keyword}"`
+		Department string `json:"department,omitempty" elastic_mapping:"department:{type:keyword,copy_to:search_text}"`
+		Name string `json:"name,omitempty" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
 		ID string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
 	}  `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
+	Labels util.MapStr  `json:"labels,omitempty"`
+	Tags []string `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
+	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
 type GeoLocation struct{

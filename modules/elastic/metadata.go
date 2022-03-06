@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -39,10 +40,16 @@ func clusterHealthCheck(force bool) {
 					health,err := client.ClusterHealth()
 					if err!=nil||health==nil||health.StatusCode!=200{
 						metadata.ReportFailure()
+						if metadata.Config.Source != "file" {
+							updateClusterHealthStatus(clusterID, "unavailable")
+						}
 					}else{
 						metadata.ReportSuccess()
 						if metadata.Health==nil|| metadata.Health.Status!=health.Status{
 							metadata.Health=health
+							if metadata.Config.Source != "file" {
+								updateClusterHealthStatus(clusterID, health.Status)
+							}
 							log.Tracef("cluster [%v] health [%v] updated", clusterID,metadata.Health)
 						}
 					}
@@ -51,6 +58,67 @@ func clusterHealthCheck(force bool) {
 		}
 		return true
 	})
+}
+
+func updateClusterHealthStatus(clusterID string, healthStatus string){
+	client := elastic.GetClient(moduleConfig.Elasticsearch)
+	if client == nil {
+		log.Errorf("cluster %s not found", moduleConfig.Elasticsearch)
+	}
+	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
+	getRes, err := client.Get(indexName,"", clusterID)
+	if err != nil {
+		return
+	}
+	if !getRes.Found {
+		log.Errorf("cluster %s not found", clusterID)
+		return
+	}
+	var (
+		labels map[string]interface{}
+		ok bool
+		oldHealthStatus interface{}
+	)
+	if labels, ok =  getRes.Source["labels"].(map[string]interface{}); ok {
+		if !reflect.DeepEqual(labels["health_status"], healthStatus) {
+			oldHealthStatus = labels["health_status"]
+			labels["health_status"] = healthStatus
+		}else{
+			return
+		}
+	}else{
+		oldHealthStatus = "unknown"
+		labels = util.MapStr{
+			"health_status": healthStatus,
+		}
+	}
+	getRes.Source["labels"] = labels
+
+	_, err = client.Index(indexName, "", getRes.ID, getRes.Source)
+	if err != nil {
+		log.Errorf("save cluster health status error: %v", err)
+	}
+
+	activityInfo := &event.Activity{
+		ID: util.GetUUID(),
+		Timestamp: time.Now(),
+		Metadata: event.ActivityMetadata{
+			Category: "elasticsearch",
+			Group: "health",
+			Name: "cluster_health",
+			Type: "update",
+			Labels: util.MapStr{
+				"cluster_id": clusterID,
+				"from_status": oldHealthStatus,
+				"to_status": healthStatus,
+			},
+		},
+	}
+	_, err = client.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
+	if err != nil {
+		log.Error(err)
+	}
+
 }
 
 //update cluster state, on state version change

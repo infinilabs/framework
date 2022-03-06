@@ -45,7 +45,17 @@ func (c *ESAPIV7) getDefaultTemplate(indexPrefix string) string {
 "settings": {
     "number_of_shards": %v,
     "index.mapping.total_fields.limit": 20000,
-    "index.max_result_window":10000000
+    "index.max_result_window":10000000,
+	 "analysis": {
+		  "analyzer": {
+			"suggest_text_search": {
+			  "tokenizer": "classic",
+			  "filter": [
+				"word_delimiter"
+			  ]
+			}
+		  }
+		}
   },
   "mappings": {
       "dynamic_templates": [

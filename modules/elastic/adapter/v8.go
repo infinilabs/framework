@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -30,7 +30,17 @@ func (c *ESAPIV8) getDefaultTemplate(indexPrefix string) string {
 "settings": {
     "number_of_shards": %v,
     "index.mapping.total_fields.limit": 20000,
-    "index.max_result_window":10000000
+    "index.max_result_window":10000000,
+	 "analysis": {
+		  "analyzer": {
+			"suggest_text_search": {
+			  "tokenizer": "classic",
+			  "filter": [
+				"word_delimiter"
+			  ]
+			}
+		  }
+		}
   },
   "mappings": {
       "dynamic_templates": [
