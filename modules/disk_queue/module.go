@@ -29,6 +29,8 @@ type DiskQueue struct {
 	initLocker sync.Mutex
 	api.Handler
 	queues sync.Map
+	messages chan Event
+
 }
 
 func (module *DiskQueue) Name() string {
@@ -52,6 +54,7 @@ type DiskQueueConfig struct {
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
+	NotifyChanBuffer   int   `config:"notify_chan_buffer_size"`
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
 
@@ -180,6 +183,7 @@ func (module *DiskQueue) Init(name string) error {
 
 	module.queues.Store(name,&tempQueue)
 
+	module.deleteUnusedFiles(name,tempQueue.ReadContext().WriteFileNum)
 	return nil
 }
 
@@ -208,6 +212,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		MaxBytesPerFile:  100 * 1024 * 1024, //100MB
 		SyncEveryRecords: 1000,
 		SyncTimeoutInMS:  1000,
+		NotifyChanBuffer:   100,
 		ReadChanBuffer:   0,
 		WriteChanBuffer:   0,
 		WarningFreeBytes: 10 * 1024 * 1024 * 1024,
@@ -272,32 +277,11 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		persistQueueMetadata()
 	})
 
+	module.messages = make(chan Event,module.cfg.NotifyChanBuffer)
 
 	RegisterEventListener(func(event Event) error {
 
-		log.Trace("received event: ",event)
-		switch event.Type {
-		case WriteComplete:
-
-			//TODO, convert to signal, move to async
-
-			//upload old file to s3
-			module.uploadToS3(event.Queue,event.FileNum)
-
-			//check capacity
-
-			//delete old unused files
-			module.deleteUnusedFiles(event.Queue,event.FileNum)
-
-			break
-		case ReadComplete:
-
-			//delete old unused files
-			module.deleteUnusedFiles(event.Queue,event.FileNum)
-
-			break;
-
-		}
+		module.messages<-event
 
 		return nil
 	})
@@ -468,25 +452,59 @@ func (module *DiskQueue) Start() error {
 
 	//trigger s3 uploading
 	//from lastUpload to current WrtieFile
-
-	//TODO, support cancel and safety shutdown
-	go func() {
-		for _, v := range cfgs {
-			last:=GetLastS3UploadFileNum(v.Id)
-			offsetStr:=queue.LatestOffset(v)
-			segment,_:=ConvertOffset(offsetStr)
-			log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
-			if segment >last{
-				for x:=last;x< segment;x++{
-					if x>=0{
-						if global.Env().IsDebug{
-							log.Tracef("try to upload %v/%v",v.Id,x)
+	if module.cfg.UploadToS3{
+		//TODO, support cancel and safety shutdown
+		go func() {
+			for _, v := range cfgs {
+				last:=GetLastS3UploadFileNum(v.Id)
+				offsetStr:=queue.LatestOffset(v)
+				segment,_:=ConvertOffset(offsetStr)
+				log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
+				if segment >last{
+					for x:=last;x< segment;x++{
+						if x>=0{
+							if global.Env().IsDebug{
+								log.Tracef("try to upload %v/%v",v.Id,x)
+							}
+							module.uploadToS3(v.Id,x)
 						}
-						module.uploadToS3(v.Id,x)
 					}
 				}
 			}
+		}()
+	}
+
+	go func() {
+
+		for {
+			evt := <-module.messages
+
+			log.Debug("received event from channel: ",evt)
+
+			switch evt.Type {
+			case WriteComplete:
+
+				//TODO, convert to signal, move to async
+
+				//upload old file to s3
+				module.uploadToS3(evt.Queue,evt.FileNum)
+
+				//check capacity
+
+				//delete old unused files
+				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+
+				break
+			case ReadComplete:
+
+				//delete old unused files
+				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+
+				break;
+
+			}
 		}
+
 	}()
 
 	return nil
@@ -506,7 +524,7 @@ func (module *DiskQueue) Stop() error {
 	})
 
 	persistQueueMetadata()
-
+	close(module.messages)
 	return nil
 }
 
@@ -528,7 +546,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 
 	//no consumers or consumer/s3 already ahead of this file
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
-		if consumers==0||(fileStartToDelete< segmentNum &&fileStartToDelete< lastSavedFileNum){
+		if consumers==0||(fileStartToDelete< segmentNum &&(!module.cfg.UploadToS3||fileStartToDelete< lastSavedFileNum)){
 			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)

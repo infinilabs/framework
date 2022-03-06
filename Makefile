@@ -85,10 +85,11 @@ build-cmd: config
 	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
 	@$(MAKE) restore-generated-file
 
-
 update-plugins:
-	(cd ~/go/src/infini.sh/framework/ && make build-cmd)
-	(~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(APP_PLUGIN_FOLDER) -pkg $(APP_PLUGIN_PKG) -import_prefix infini.sh/$(APP_NAME) -out $(APP_PLUGIN_FOLDER)/generated_plugins.go)
+	@if [ ! -e ~/go/src/infini.sh/framework/bin/plugin-discovery ]; then ( cd ~/go/src/infini.sh/framework/ && make build-cmd ) fi
+	@$(foreach var,$(APP_PLUGIN_FOLDER),\
+        ( ~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(var) -pkg $(var) -import_prefix infini.sh/$(APP_NAME) -out $(var)/generated_plugins.go); \
+    )
 
 # used to build the binary for gdb debugging
 build-race: clean config update-vfs

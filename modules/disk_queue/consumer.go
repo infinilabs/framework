@@ -97,8 +97,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 			log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
 			nextFile:= d.SmartGetFileName(d.name,part+1)
 			if util.FileExists(nextFile){
-				log.Debug("EOF, continue read:",nextFile)
-
+				log.Trace("EOF, continue read:",nextFile)
 				Notify(d.name, ReadComplete,part)
 
 				part=part+1
@@ -167,7 +166,8 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v",ctx,len(messages),err)
 		nextFile:= d.SmartGetFileName(d.name,part+1)
 		if util.FileExists(nextFile){
-			log.Debug("EOF, continue read:",nextFile)
+			log.Trace("EOF, continue read:",nextFile)
+			Notify(d.name, ReadComplete,part)
 			part=part+1
 			readPos=0
 			if readFile!=nil{

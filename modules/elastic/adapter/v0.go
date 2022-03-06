@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/lib/fasthttp"
 	"regexp"
 	"strings"
 	"sync"
@@ -1073,12 +1072,12 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	return resp.Body, err
 }
 
-func (s *ESAPIV0) NextScroll(req *fasthttp.Request,res *fasthttp.Response,scrollTime string, scrollId string) ([]byte, error) {
+func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext,scrollTime string, scrollId string) ([]byte, error) {
 
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
 
 
-	resp, err :=RequestTimeout(req,res,util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
+	resp, err :=RequestTimeout(ctx,util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
 	if err != nil {
 		return nil, err
 	}
