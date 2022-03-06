@@ -58,7 +58,8 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.GetMetadata)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", clusterAPI.GetHosts)
 
-	api.HandleAPIMethod(api.GET, "/elasticsearch/cluster/_search", clusterAPI.SearchClusterMetadata)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/_search", clusterAPI.SearchClusterMetadata)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/info", clusterAPI.FetchClusterInfo)
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/overview/treemap", clusterAPI.ClusterOverTreeMap)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/info", clusterAPI.GetClusterInfo)
