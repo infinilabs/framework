@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/util/zstd"
 	io "io"
 	"os"
 	"time"
@@ -138,12 +139,27 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	readPos=nextReadPos
 
 	if d.cfg.CompressOnMessagePayload.Enabled{
-		newData,err:=util.ZSTDDecompress(nil,readBuf)
+		//option 1
+		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
 			log.Debug(err)
 			return ctx,messages,false,err
 		}
 		readBuf=newData
+
+		//option 2
+		////TODO release buffer in after context released
+		//dataReader:=bytes.Reader{}
+		//dataReader.Reset(readBuf)
+		//dataWriter:=bytebufferpool.Get()
+		//
+		//err:= zstd.ZSTDReusedDecompress(dataWriter,&dataReader)
+		//if err!=nil{
+		//	log.Debug(err)
+		//	return ctx,messages,false,err
+		//}
+		//readBuf=dataWriter.Bytes()
+
 	}
 
 	message:=queue.Message{

@@ -3,10 +3,11 @@
  * mail: hello#infini.ltd */
 
 //https://github.com/dgraph-io/badger/pull/1706/files
-package util
+package zstd
 
 import (
 	"github.com/klauspost/compress/zstd"
+	"io"
 	"sync"
 )
 
@@ -53,4 +54,30 @@ func ZSTDCompressBound(srcSize int) int {
 	}
 	return srcSize + (srcSize >> 8) + margin
 
+}
+
+
+// Create a sync.Pool which returns wrapped *zstd.Decoder's.
+var decoderPool = NewDecoderPoolWrapper(zstd.WithDecoderConcurrency(1))
+var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+
+// ZSTDDecompress decompresses a block using ZSTD algorithm.
+func ZSTDReusedDecompress(uncompressedDataWriter io.Writer, compressedDataReader io.Reader) (error) {
+
+	decoder := decoderPool.Get(compressedDataReader)
+	defer decoderPool.Put(decoder)
+
+	_, err := io.Copy(uncompressedDataWriter, decoder)
+	return err
+}
+
+
+func ZSTDReusedCompress(compressedDataWriter io.Writer, uncompressedDataReader io.Reader) (err error) {
+
+	encoder := encoderPool.Get(compressedDataWriter)
+	defer encoderPool.Put(encoder)
+
+	_, err = io.Copy(encoder, uncompressedDataReader)
+
+	return err
 }
