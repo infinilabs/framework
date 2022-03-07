@@ -1,6 +1,9 @@
 package elastic
 
-import "time"
+import (
+	"infini.sh/framework/core/util"
+	"time"
+)
 
 type SearchTemplate struct {
 	ID string   `json:"-" index:"id"`
@@ -47,4 +50,67 @@ type TraceTemplate struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 	Updated     time.Time `json:"updated,omitempty" elastic_mapping:"updated:{type:date}"`
+}
+
+type SearchAggParam struct {
+	Field string `json:"field"`
+	TermsAggParams util.MapStr `json:"params"`
+}
+
+func BuildSearchTermAggregations(params []SearchAggParam) util.MapStr {
+	var aggregations = util.MapStr{}
+	for _, param := range params {
+		if param.TermsAggParams["field"] == nil {
+			param.TermsAggParams["field"] = param.Field
+		}
+		aggregations[param.Field] = util.MapStr{
+			"terms": param.TermsAggParams,
+		}
+	}
+	return aggregations
+}
+
+type SearchHighlightParam struct {
+	Fields []string `json:"fields"`
+	FragmentSize int `json:"fragment_size"`
+	NumberOfFragment int `json:"number_of_fragment"`
+}
+func BuildSearchHighlight(highlightParam *SearchHighlightParam) util.MapStr{
+	if highlightParam == nil {
+		return util.MapStr{}
+	}
+	esFields := util.MapStr{}
+	for _, field := range highlightParam.Fields {
+		esFields[field] = util.MapStr{}
+	}
+	return util.MapStr{
+		"fields": esFields,
+		"fragment_size": highlightParam.FragmentSize,
+		"number_of_fragments": highlightParam.NumberOfFragment,
+	}
+}
+
+type SearchFilterParam map[string][]string
+func BuildSearchTermFilter(filterParam SearchFilterParam) []util.MapStr{
+	var filter []util.MapStr
+	if filterParam == nil {
+		return filter
+	}
+	for k, v := range filterParam {
+		terms := make([]interface{},0, len(v))
+		for _, vitem := range v {
+			terms = append(terms, util.MapStr{
+				"term": util.MapStr{
+					k: vitem,
+				},
+			})
+		}
+		filter = append(filter, util.MapStr{
+			"bool": util.MapStr{
+				"minimum_should_match": 1,
+				"should": terms,
+			},
+		})
+	}
+	return filter
 }
