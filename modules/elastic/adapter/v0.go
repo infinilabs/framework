@@ -18,7 +18,6 @@ package adapter
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
@@ -29,7 +28,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
-	errors2 "infini.sh/framework/core/errors"
+	 "infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
@@ -127,7 +126,7 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 			RETRY:
 				if count > 10 {
 					log.Errorf("still have error in request, after retry [%v] times\n", err)
-					return resp, errors2.Errorf("still have error in request, after retry [%v] times\n", err)
+					return resp, errors.Errorf("still have error in request, after retry [%v] times\n", err)
 				}
 				count++
 				log.Errorf("error in request, sleep 10s and retry [%v]: %s\n", count, err)
@@ -1490,6 +1489,13 @@ func (c *ESAPIV0) Open(name string) ([]byte, error) {
 	url := fmt.Sprintf("%s/%s/_open",c.GetEndpoint(), name)
 	openRes, err := c.Request(util.Verb_POST, url, nil)
 	return openRes.Body, err
+}
+
+func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.IndexShardRouting,error) {
+
+	//fetch routing table in realtime
+
+	return nil, errors.Errorf("routing table for index [%v] was not found",index)
 }
 
 func (c *ESAPIV0) CatNodes(pattern string) (*map[string]elastic.IndexInfo, error) {

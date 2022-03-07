@@ -38,6 +38,7 @@ type API interface {
 	GetClusterStats(node string) (*ClusterStats,error)
 
 	GetNodesStats(nodeID,host string) *NodesStats
+
 	GetIndicesStats() *IndicesStats
 
 	ClusterVersion() string
@@ -61,6 +62,7 @@ type API interface {
 	UpdateIndexSettings(indexName string, settings map[string]interface{}) error
 
 	IndexExists(indexName string) (bool, error)
+
 	DeleteIndex(name string) error
 
 	Refresh(name string) (err error)
@@ -88,6 +90,10 @@ type API interface {
 	Alias(body []byte) error
 	FieldCaps(target string) ([]byte, error)
 	CatShards() ([]CatShardResponse, error)
+
+
+	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error)
+
 }
 
 type TemplateAPI interface {

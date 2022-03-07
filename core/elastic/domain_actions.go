@@ -409,6 +409,7 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req 
 
 
 func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error) {
+
 	if metadata.ClusterState!=nil{
 		if metadata.ClusterState.RoutingTable!=nil{
 			table,ok:=metadata.ClusterState.RoutingTable.Indices[index]
@@ -447,7 +448,27 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 			return table.Shards,nil
 		}
 	}
-	return nil, errors.Errorf("routing table for index [%v] was not found",index)
+
+	return GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
+}
+
+func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string)([]*IndexShardRouting,error)  {
+	routingTable, err := metadata.GetIndexRoutingTable(index)
+	if err != nil {
+		return nil,err
+	}
+
+	primaryShards:=[]*IndexShardRouting{}
+
+	for _,shards:=range routingTable{
+		for _,x:=range shards{
+			if x.Primary{
+				primaryShards=append(primaryShards,&x)
+			}
+		}
+	}
+
+	return primaryShards,nil
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardRoutingTable(index string,shard int)(*IndexShardRouting,error)  {
