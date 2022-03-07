@@ -30,7 +30,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	if name != "" {
 		should = append(should, util.MapStr{
 			"prefix": util.MapStr{
-				"metadata.labels.node_name": name,
+				"metadata.node_name": name,
 			},
 		}, util.MapStr{
 			"query_string": util.MapStr{"query": name},
@@ -91,65 +91,55 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	response := elastic.SearchResponse{}
-	util.FromJSONBytes(res.Raw, &response)
 
-	var nodeIDs []interface{}
 
-	for _, hit := range response.Hits.Hits {
-		if nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "node_id"}, hit.Source); ok {
-			nodeIDs = append(nodeIDs, nodeID)
-		}
-	}
+	h.Write(w, res.Raw)
+}
+func (h *APIHandler) FetchNodeInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var nodeIDs = []string{}
+	h.DecodeJSON(req, &nodeIDs)
 
 	if len(nodeIDs) == 0 {
-		h.WriteJSON(w, util.MapStr{
-			"hits": util.MapStr{
-				"total": util.MapStr{
-					"value":    0,
-					"relation": "eq",
-				},
-				"hits": []interface{}{},
-			},
-		}, 200)
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
+
 	q1 := orm.Query{WildcardIndex: true}
-	query = util.MapStr{
-			"sort": []util.MapStr{
-				{
-					"timestamp": util.MapStr{
-						"order": "desc",
-					},
+	query := util.MapStr{
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
 				},
 			},
-			"collapse": util.MapStr{
+		},
+		"collapse": util.MapStr{
 			"field": "metadata.labels.node_id",
 		},
-			"query": util.MapStr{
+		"query": util.MapStr{
 			"bool": util.MapStr{
-			"must": []util.MapStr{
-				{
-					"term": util.MapStr{
-						"metadata.category": util.MapStr{
-							"value": "elasticsearch",
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
 						},
 					},
-				},
-				{
-					"term": util.MapStr{
-						"metadata.name": util.MapStr{
-							"value": "node_stats",
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_stats",
+							},
 						},
 					},
-				},
-				{
-					"terms": util.MapStr{
-						"metadata.labels.node_id": nodeIDs,
+					{
+						"terms": util.MapStr{
+							"metadata.labels.node_id": nodeIDs,
+						},
 					},
 				},
 			},
-		},
 		},
 	}
 	q1.RawQuery = util.MustToJSONBytes(query)
@@ -167,21 +157,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "node_id"}, result)
 			if ok {
 				source := map[string]interface{}{}
-				timestamp, ok := result["timestamp"].(string)
-				if ok {
-					lastTime, err := time.Parse("2006-01-02T15:04:05.99999Z07:00", timestamp)
-
-					if err != nil {
-						log.Error( result["timestamp"], err)
-						source["status"] = "online"
-					}else{
-						if time.Now().Sub(lastTime).Seconds() > 600 {
-							source["status"] = "offline"
-						}else{
-							source["status"] = "online"
-						}
-					}
-				}
+				//timestamp, ok := result["timestamp"].(string)
 				uptime, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "uptime_in_millis"}, result)
 				if ok {
 					source["uptime"] = uptime
@@ -323,43 +299,21 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			indexMetrics[line.Metric.Label][key] = line.Data
 		}
 	}
-	for i, hit := range response.Hits.Hits {
-		result := util.MapStr{}
+	result := util.MapStr{}
+	for _, nodeID := range nodeIDs {
+		source := util.MapStr{}
 
-		source := hit.Source
-		tempNodeID, _ := util.GetMapValueByKeys([]string{"metadata", "node_id"}, source)
-		nodeID := tempNodeID.(string)
-		source["node_id"] = nodeID
-		if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
-			if clusterID, ok :=  tempClusterID.(string); ok {
-				if data :=  elastic.GetMetadata(clusterID); data != nil {
-					source["cluster_name"] = data.Config.Name
-					source["cluster_id"] = clusterID
-				}
-			}
-		}
-		labels, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, source)
-		delete(source, "metadata")
-		delete(source, "payload")
-		if mp, ok := labels.(map[string]interface{}); ok {
-			source["roles"] = mp["roles"]
-			source["os"] = mp["os"]
-			source["ip"] = mp["ip"]
-			source["version"] = mp["version"]
-			source["transport"] = mp["transport_address"]
-			source["name"] = mp["node_name"]
-			//if ma, ok := mp["modules"].([]interface{}); ok {
-			//	if len(ma) > 0 {
-			//		if mi, ok := ma[0].(map[string]interface{}); ok {
-			//			source["java_version"] = mi["java_version"]
-			//		}
-			//	}
-			//}
-		}
+		//if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
+		//	if clusterID, ok :=  tempClusterID.(string); ok {
+		//		if data :=  elastic.GetMetadata(clusterID); data != nil {
+		//			source["cluster_name"] = data.Config.Name
+		//			source["cluster_id"] = clusterID
+		//		}
+		//	}
+		//}
 
-		result["metadata"] = source
-		result["summary"] = statusMap[nodeID]
-		result["metrics"] = util.MapStr{
+		source["summary"] = statusMap[nodeID]
+		source["metrics"] = util.MapStr{
 			"status": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Recent Node Status",
@@ -382,10 +336,9 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 				"data": indexMetrics[nodeID]["search"],
 			},
 		}
-		response.Hits.Hits[i].Source = result
+		result[nodeID] = source
 	}
-
-	h.WriteJSON(w, response, http.StatusOK)
+	h.WriteJSON(w, result, http.StatusOK)
 }
 
 func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -604,7 +557,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	h.WriteJSON(w, resBody, http.StatusOK)
 }
 
-func getNodeOnlineStatusOfRecentDay(nodeIDs []interface{})(map[string][]interface{}, error){
+func getNodeOnlineStatusOfRecentDay(nodeIDs []string)(map[string][]interface{}, error){
 	q := orm.Query{
 		WildcardIndex: true,
 	}

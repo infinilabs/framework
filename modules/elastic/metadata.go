@@ -93,6 +93,7 @@ func updateClusterHealthStatus(clusterID string, healthStatus string){
 		}
 	}
 	getRes.Source["labels"] = labels
+	getRes.Source["updated"] = time.Now()
 
 	_, err = client.Index(indexName, "", getRes.ID, getRes.Source)
 	if err != nil {
@@ -566,14 +567,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
         }}
       ]
     }
-  },
-  "sort": [
-    {
-      "timestamp": {
-        "order": "desc"
-      }
-    }
-  ]
+  }
 }`
 	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
 	q := &orm.Query{}
@@ -585,6 +579,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	//nodeMetadatas := map[string] util.MapStr{}
 	nodeIDMap := map[string]interface{}{}
 	historyNodeMetadata := map[string] util.MapStr{}
+	unavailableNodeIDs := map[string]bool {}
 	for _, nodeItem := range result.Result {
 		if nodeInfo, ok := nodeItem.(map[string]interface{}); ok {
 			if nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "node_id"}, nodeInfo); ok {
@@ -594,6 +589,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						nodeIDMap[nid] = id
 					}
 					historyNodeMetadata[nid] = nodeInfo
+					if _, ok = nodes[nid]; !ok {
+						unavailableNodeIDs[nid] = true
+					}
 				}
 			}
 		}
@@ -622,6 +620,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						"ip": nodeInfo.Ip,
 						"version": nodeInfo.Version,
 						"roles": nodeInfo.Roles,
+						"status": "available",
 					},
 				},
 				ID:  newID,
@@ -652,6 +651,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						"ip": nodeInfo.Ip,
 						"version": nodeInfo.Version,
 						"roles": nodeInfo.Roles,
+						"status": "available",
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
@@ -700,6 +700,38 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			},
 			Fields: util.MapStr{
 				"node_state": nodeInfo,
+			},
+		}
+		err = orm.Save(activityInfo)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	//update unavailable node
+	for nodeID, _ := range unavailableNodeIDs {
+		oldMetadata := historyNodeMetadata[nodeID]
+		oldBytes := util.MustToJSONBytes(oldMetadata)
+		oldConfig := elastic.NodeConfig{}
+		util.MustFromJSONBytes(oldBytes, &oldConfig)
+		oldConfig.Metadata.Labels["status"] = "unavailable"
+
+		err = orm.Save(oldConfig)
+		if err != nil {
+			log.Error(err)
+		}
+		activityInfo := &event.Activity{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			Metadata: event.ActivityMetadata{
+				Category: "elasticsearch",
+				Group: "health",
+				Name: "node_health",
+				Type: "update",
+				Labels: util.MapStr{
+					"cluster_id": clusterID,
+					"status": "unavailable",
+				},
 			},
 		}
 		err = orm.Save(activityInfo)
