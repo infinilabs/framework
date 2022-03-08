@@ -7,8 +7,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/util/zstd"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 func main() {
@@ -18,11 +21,30 @@ func main() {
 	if err!=nil{
 		panic(err)
 	}
-	newBytes,err:=util.ZSTDCompress(nil,rawBytes,11)
+	newBytes,err:= zstd.ZSTDCompress(nil,rawBytes,11)
 	if err!=nil{
 		panic(err)
 	}
 	fmt.Println(len(rawBytes))
 	fmt.Println(len(newBytes))
+
+	fmt.Println("compression ratio:",len(rawBytes)/len(newBytes))
+
+	//decompress
+	r:=bytes.Reader{}
+	r.Reset(newBytes)
+	writer:=bytebufferpool.Get()
+	zstd.ZSTDReusedDecompress(writer,&r)
+
+	fmt.Println("decompressed:",len(writer.Bytes()))
+
+	r=bytes.Reader{}
+	r.Reset(rawBytes)
+	writer=bytebufferpool.Get()
+	zstd.ZSTDReusedCompress(writer,&r)
+	fmt.Println("compressed:",len(writer.Bytes()))
+
+	fmt.Println("compression ratio:",len(rawBytes)/len(writer.Bytes()))
+
 }
 

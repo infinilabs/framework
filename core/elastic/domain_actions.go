@@ -452,18 +452,18 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 	return GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
 }
 
-func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string)([]*IndexShardRouting,error)  {
+func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string)([]IndexShardRouting,error)  {
 	routingTable, err := metadata.GetIndexRoutingTable(index)
 	if err != nil {
 		return nil,err
 	}
 
-	primaryShards:=[]*IndexShardRouting{}
+	primaryShards:=[]IndexShardRouting{}
 
 	for _,shards:=range routingTable{
 		for _,x:=range shards{
 			if x.Primary{
-				primaryShards=append(primaryShards,&x)
+				primaryShards=append(primaryShards,x)
 			}
 		}
 	}

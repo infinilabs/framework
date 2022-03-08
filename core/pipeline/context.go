@@ -46,6 +46,7 @@ type Context struct {
 	endTime   *time.Time `json:"end_time,omitempty"`
 	runningState    RunningState `json:"state"`
 	processHistory  []string     `json:"-"`
+
 	context.Context `json:"-"`
 	cancelFunc context.CancelFunc
 	isPaused bool

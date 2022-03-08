@@ -647,6 +647,29 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 	return &node.Nodes, nil
 }
 
+func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
+
+	url := fmt.Sprintf("%s/_nodes/%v", c.GetEndpoint(),nodeID)
+	resp, err := c.Request(util.Verb_GET, url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	node := elastic.NodesResponse{}
+
+	err=node.UnmarshalJSON(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	nodeInfo,_:=node.Nodes[nodeID]
+	return &nodeInfo, nil
+}
+
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
 
 	url := fmt.Sprintf("%s/_cat/indices?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.GetEndpoint())

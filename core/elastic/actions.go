@@ -162,7 +162,10 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 			return &info
 		}
 	}
-	return nil
+
+	info,_:=GetClient(meta.Config.ID).GetNodeInfo(nodeID)
+
+	return info
 }
 
 func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
