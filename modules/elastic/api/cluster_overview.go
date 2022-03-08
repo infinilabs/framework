@@ -637,6 +637,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		Aggregations []elastic.SearchAggParam `json:"aggs"`
 		Highlight elastic.SearchHighlightParam `json:"highlight"`
 		Filter elastic.SearchFilterParam `json:"filter"`
+		Sort []string `json:"sort"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
@@ -647,6 +648,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	query := util.MapStr{
 		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
 		"size":      reqBody.Size,
+		"from": reqBody.From,
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
 			"bool": util.MapStr{
@@ -710,6 +712,15 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 				},
 			},
 		},
+	}
+	if len(reqBody.Sort) > 1 {
+		query["sort"] =  []util.MapStr{
+			{
+				reqBody.Sort[0]: util.MapStr{
+					"order": reqBody.Sort[1],
+				},
+			},
+		}
 	}
 	dsl := util.MustToJSONBytes(query)
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), dsl)

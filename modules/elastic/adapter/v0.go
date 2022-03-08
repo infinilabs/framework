@@ -1515,9 +1515,17 @@ func (c *ESAPIV0) Open(name string) ([]byte, error) {
 }
 
 func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.IndexShardRouting,error) {
-
 	//fetch routing table in realtime
-
+	url := fmt.Sprintf("%s/_cluster/state/routing_table/%s",c.GetEndpoint(), index)
+	res, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resObj := &elastic.ClusterState{}
+	util.MustFromJSONBytes(res.Body, resObj)
+	if v, ok := resObj.RoutingTable.Indices[index]; ok {
+		return v.Shards, nil
+	}
 	return nil, errors.Errorf("routing table for index [%v] was not found",index)
 }
 
