@@ -73,6 +73,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	stat, err = readFile.Stat()
 	if err!=nil{
 		log.Debug(err)
+		if err.Error()=="EOF" {
+			err=nil
+		}
 		return ctx,messages,false,err
 	}
 	maxBytesPerFileRead = stat.Size()
@@ -113,6 +116,8 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 					time.Sleep(10*time.Second)
 				}
 			}
+			//No error for EOF error
+			err=nil
 		}else{
 			log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
 		}
@@ -121,7 +126,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	}
 
 	if int32(msgSize) < d.cfg.MinMsgSize || int32(msgSize) > d.cfg.MaxMsgSize {
-		err=errors.Errorf("message is too big, %v/%v-%v",msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
+		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v",d.name,part,readPos,msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
 		return ctx,messages,false,err
 	}
 
@@ -130,6 +135,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 	_, err = io.ReadFull(reader, readBuf)
 	if err != nil {
 		log.Debug(err)
+		if err.Error()=="EOF" {
+			err=nil
+		}
 		return ctx,messages,false,err
 	}
 
