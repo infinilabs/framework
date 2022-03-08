@@ -52,7 +52,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	log.Tracef("[%v] consumer[%v] %v,%v, fetch count:%v",d.dataPath,consumer,part,readPos,messageCount)
 	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
-	ctx.NextOffset=""
+	ctx.NextOffset=ctx.InitOffset
 
 	fileName:= d.SmartGetFileName(d.name,part)
 
@@ -151,6 +151,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
 			log.Debug(err)
+			ctx.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
 			return ctx,messages,false,err
 		}
 		readBuf=newData
