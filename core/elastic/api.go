@@ -69,6 +69,9 @@ type API interface {
 
 	GetNodes() (*map[string]NodesInfo, error)
 
+	GetNodeInfo(nodeID string) (*NodesInfo, error)
+
+
 	GetIndices(pattern string) (*map[string]IndexInfo, error)
 
 	GetPrimaryShards() (*map[string]map[int]ShardInfo, error)

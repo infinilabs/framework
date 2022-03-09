@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -455,6 +456,23 @@ func (module *DiskQueue) Start() error {
 	if module.cfg.UploadToS3{
 		//TODO, support cancel and safety shutdown
 		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Errorf("error in disk_module [%v]", v)
+					}
+				}
+			}()
+
 			for _, v := range cfgs {
 				last:=GetLastS3UploadFileNum(v.Id)
 				offsetStr:=queue.LatestOffset(v)
@@ -475,11 +493,29 @@ func (module *DiskQueue) Start() error {
 	}
 
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Errorf("error in disk_module [%v]", v)
+				}
+			}
+		}()
 
 		for {
 			evt := <-module.messages
 
-			log.Debug("received event from channel: ",evt)
+			if global.Env().IsDebug{
+				log.Trace("received event from channel: ",evt)
+			}
 
 			switch evt.Type {
 			case WriteComplete:

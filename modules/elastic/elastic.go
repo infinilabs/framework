@@ -265,6 +265,8 @@ func (module *ElasticModule)clusterStateRefresh() {
 				return true
 			}
 
+			module.updateClusterState(v.ID)
+
 			task2 := task.ScheduleTask{
 				Description: fmt.Sprintf("elasticsearch [%v] state refresh",v.Name),
 				Type:        "interval",
