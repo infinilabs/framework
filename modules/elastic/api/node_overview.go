@@ -504,7 +504,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	metricItem.AddLine("CPU","CPU","process cpu used percent of node.","group1","payload.elasticsearch.node_stats.process.cpu.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems=append(metricItems,metricItem)
 	metricItem =newMetricItem("jvm", 2, SystemGroupKey)
-	metricItem.AddAxi("JVM Heap","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
+	metricItem.AddAxi("JVM Heap","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	metricItem.AddLine("Max Heap","Max Heap","JVM max Heap of node.","group1","payload.elasticsearch.node_stats.jvm.mem.heap_max_in_bytes","max",bucketSizeStr,"bytes","num","0,0.[00]","0,0.[00]",false,false)
 	metricItem.AddLine("Used Heap","Used Heap","JVM used Heap of node.","group1","payload.elasticsearch.node_stats.jvm.mem.heap_used_in_bytes","max",bucketSizeStr,"bytes","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems=append(metricItems,metricItem)
