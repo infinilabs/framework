@@ -319,6 +319,11 @@ type DeleteByQueryResponse struct {
 	Deleted int64 `json:"deleted"`
 	Total   int64 `json:"total"`
 }
+type UpdateByQueryResponse struct {
+	Updated int64 `json:"updated"`
+	Total   int64 `json:"total"`
+	Failures []interface{} `json:"failures"`
+}
 
 type BulkActionMetadata struct {
 	Index  *BulkIndexMetadata `json:"index,omitempty"`

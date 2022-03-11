@@ -1375,6 +1375,23 @@ func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteB
 	return delResponse, nil
 }
 
+func (c *ESAPIV0) UpdateByQuery(indexName string, body []byte) (*elastic.UpdateByQueryResponse, error) {
+	indexName=util.UrlEncode(indexName)
+
+	url := fmt.Sprintf("%s/%s/_update_by_query", c.GetEndpoint(), indexName)
+	resp, err := c.Request(util.Verb_POST, url, body)
+	if err != nil {
+		return nil, err
+	}
+	var upResponse = &elastic.UpdateByQueryResponse{}
+	err = json.Unmarshal(resp.Body, upResponse)
+	if err != nil {
+		return nil, err
+	}
+	return upResponse, nil
+}
+
+
 func (c *ESAPIV0) SetSearchTemplate(templateID string, body []byte) error {
 	url := fmt.Sprintf("%s/_search/template/%s", c.GetEndpoint(), templateID)
 	_, err := c.Request(util.Verb_POST, url, body)

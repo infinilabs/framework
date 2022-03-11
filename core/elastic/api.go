@@ -82,6 +82,7 @@ type API interface {
 	SearchTasksByIds(ids []string) (*SearchResponse, error)
 	Reindex(body []byte) (*ReindexResponse, error)
 	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
+	UpdateByQuery(indexName string, body []byte) (*UpdateByQueryResponse, error)
 
 	GetIndexStats(indexName string) (*IndexStats, error)
 	GetStats() (*Stats, error)
