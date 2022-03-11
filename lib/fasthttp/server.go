@@ -2452,23 +2452,17 @@ func (s *Server) Shutdown() error {
 		}
 	}
 
-	log.Tracef("closed: s.ln")
-
 	if s.done != nil {
 		close(s.done)
 	}
 
 	s.closeIdleConns()
 
-
-	log.Tracef("closed: s.done")
-
 	// Closing the listener will make Serve() call Stop on the worker pool.
 	// Setting .stop to 1 will make serveConn() break out of its loop.
 	// Now we just have to wait until all workers are done.
 	for {
 		if open := atomic.LoadInt32(&s.open); open == 0 {
-			log.Tracef("closed: s.open, %v",open)
 			break
 		}
 		// This is not an optimal solution but using a sync.WaitGroup
@@ -2476,8 +2470,6 @@ func (s *Server) Shutdown() error {
 		// while Wait() is waiting.
 		time.Sleep(time.Millisecond * 100)
 	}
-	log.Tracef("closed: for")
-
 	s.done = nil
 	s.ln = nil
 	return nil
@@ -3004,7 +2996,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//fmt.Println("old:",ctx1.Request.URI().String())
 			//fmt.Println("new:",ctx.Request.URI().String())
 
-			go func() {
+			go func(ctx1 *RequestCtx) {
 
 				defer func() {
 					if !global.Env().IsDebug {
@@ -3032,7 +3024,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				ctx1.Request.Reset()
 				ctx1.Response.Reset()
 				s.ReleaseCtx(ctx1)
-			}()
+			}(ctx1)
 			//TODO improve performance
 		}
 

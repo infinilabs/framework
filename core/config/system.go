@@ -59,7 +59,7 @@ func (cfg NetworkConfig) GetBindingPort() int {
 		return cfg.Port
 	}
 	if cfg.Binding != "" {
-		array := strings.Split(cfg.Binding, ":")
+		array := strings.Split(strings.TrimSpace(cfg.Binding), ":")
 		port,err:=util.ToInt(array[1])
 		if err!=nil{
 			panic(err)
@@ -72,7 +72,7 @@ func (cfg NetworkConfig) GetBindingPort() int {
 
 func (cfg NetworkConfig) GetBindingAddr() string {
 	if cfg.Binding != "" {
-		array := strings.Split(cfg.Binding, ":")
+		array := strings.Split(strings.TrimSpace(cfg.Binding), ":")
 		cfg.Host = array[0]
 		port,err:=util.ToInt(array[1])
 		if err!=nil{

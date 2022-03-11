@@ -999,7 +999,9 @@ func AcquireRequest() *Request {
 	if v == nil {
 		return &Request{}
 	}
-	return v.(*Request)
+	x:= v.(*Request)
+	x.Reset()
+	return x
 }
 
 // ReleaseRequest returns req acquired via AcquireRequest to request pool.
