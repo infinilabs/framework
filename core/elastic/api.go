@@ -94,6 +94,7 @@ type API interface {
 	Alias(body []byte) error
 	FieldCaps(target string) ([]byte, error)
 	CatShards() ([]CatShardResponse, error)
+	CatNodes(colStr string) ([]CatNodeResponse, error)
 
 
 	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error)

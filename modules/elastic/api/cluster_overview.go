@@ -605,6 +605,46 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 	h.Write(w, result.Raw)
 }
 
+func (h *APIHandler) CatClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+	esClient := elastic.GetClient(id)
+	if esClient == nil {
+		h.WriteJSON(w, util.MapStr{
+			"error": "cluster not found",
+		}, http.StatusNotFound)
+		return
+	}
+	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,diskAvail,cpu,load_1m")
+	if err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"error": err.Error(),
+		}, http.StatusNotFound)
+		return
+	}
+	catShardsInfo, err := esClient.CatShards()
+	if err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"error": err.Error(),
+		}, http.StatusNotFound)
+		return
+	}
+	shardCounts := map[string]int{}
+	for _, shardInfo := range catShardsInfo {
+		if c, ok := shardCounts[shardInfo.NodeName]; ok {
+			shardCounts[shardInfo.NodeName] = c +1
+		}else{
+			shardCounts[shardInfo.NodeName] = 1
+		}
+	}
+
+	for i, nodeInfo := range catNodesInfo {
+		if c, ok := shardCounts[nodeInfo.Name]; ok {
+			catNodesInfo[i].Shards = c
+		}
+	}
+	h.WriteJSON(w, catNodesInfo, http.StatusOK)
+}
+
 func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
 		size        = h.GetIntOrDefault(req, "size", 20)

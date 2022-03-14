@@ -1546,15 +1546,12 @@ func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.Index
 	return nil, errors.Errorf("routing table for index [%v] was not found",index)
 }
 
-func (c *ESAPIV0) CatNodes(pattern string) (*map[string]elastic.IndexInfo, error) {
-
-	url := fmt.Sprintf("%s/_cat/indices?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.GetEndpoint())
-	if pattern != "" {
-		url = fmt.Sprintf("%s/_cat/indices/%s?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.GetEndpoint(), pattern)
+func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
+	url := fmt.Sprintf("%s/_cat/nodes?format=json", c.GetEndpoint())
+	if colStr != "" {
+		url = fmt.Sprintf("%s/_cat/nodes?format=json&h=%s", c.GetEndpoint(), colStr)
 	}
-
 	resp, err := c.Request(util.Verb_GET, url, nil)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1563,31 +1560,7 @@ func (c *ESAPIV0) CatNodes(pattern string) (*map[string]elastic.IndexInfo, error
 		return nil, errors.New(string(resp.Body))
 	}
 
-	data := []elastic.CatIndexResponse{}
+	data := []elastic.CatNodeResponse{}
 	err = json.Unmarshal(resp.Body, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	indexInfo := map[string]elastic.IndexInfo{}
-	for _, v := range data {
-		info := elastic.IndexInfo{}
-		info.ID = v.Uuid
-		info.Index = v.Index
-		info.Status = v.Status
-		info.Health = v.Health
-
-		info.Shards, _ = util.ToInt(v.Pri)
-		info.Replicas, _ = util.ToInt(v.Rep)
-		info.DocsCount, _ = util.ToInt64(v.DocsCount)
-		info.DocsDeleted, _ = util.ToInt64(v.DocsDeleted)
-		info.SegmentsCount, _ = util.ToInt64(v.SegmentCount)
-
-		info.StoreSize = v.StoreSize
-		info.PriStoreSize = v.PriStoreSize
-
-		indexInfo[v.Index] = info
-	}
-
-	return &indexInfo, nil
+	return data, err
 }
