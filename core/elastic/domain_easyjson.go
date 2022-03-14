@@ -7533,7 +7533,7 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic26(in *jlexer.Lexer, out 
 			out.Master = string(in.String())
 		case "name":
 			out.Name = string(in.String())
-		case "diskAvail":
+		case "disk.avail":
 			out.DiskAvail = string(in.String())
 		case "shards":
 			out.Shards = int(in.Int())
@@ -7624,7 +7624,7 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic26(out *jwriter.Writer, i
 		out.String(string(in.Name))
 	}
 	{
-		const prefix string = ",\"diskAvail\":"
+		const prefix string = ",\"disk.avail\":"
 		out.RawString(prefix)
 		out.String(string(in.DiskAvail))
 	}

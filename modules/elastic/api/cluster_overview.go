@@ -614,7 +614,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 		}, http.StatusNotFound)
 		return
 	}
-	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,diskAvail,cpu,load_1m")
+	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,disk.avail,cpu,load_1m")
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),

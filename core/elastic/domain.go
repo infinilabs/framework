@@ -311,7 +311,7 @@ type CatNodeResponse struct {
 	NodeRole    string      `json:"node.role"`
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
-	DiskAvail string `json:"diskAvail"`
+	DiskAvail string `json:"disk.avail"`
 	Shards int `json:"shards,omitempty"`
 }
 
