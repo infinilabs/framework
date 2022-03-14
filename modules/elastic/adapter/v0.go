@@ -1547,9 +1547,9 @@ func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.Index
 }
 
 func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
-	url := fmt.Sprintf("%s/_cat/nodes?format=json", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cat/nodes?format=json&full_id", c.GetEndpoint())
 	if colStr != "" {
-		url = fmt.Sprintf("%s/_cat/nodes?format=json&h=%s", c.GetEndpoint(), colStr)
+		url = fmt.Sprintf("%s/_cat/nodes?format=json&h=%s&full_id", c.GetEndpoint(), colStr)
 	}
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
