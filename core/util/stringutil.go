@@ -386,24 +386,52 @@ func JoinArray(array []string, delimiter string) string {
 
 func JoinMapString(array map[string]string, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
+	x := len(array) - 1
+	i:=0
 	for k, v := range array {
 		buffer.WriteString(k)
 		buffer.WriteString(delimiter)
 		buffer.WriteString(ToString(v))
+		if i < x {
+			buffer.WriteString(objDelimiter)
+		}
+		i++
+	}
+	return buffer.String()
+}
+
+func JoinMapInt(array map[string]int, delimiter string) string {
+	buffer := bytes.NewBuffer([]byte{})
+	x := len(array) - 1
+	i:=0
+	for k, v := range array {
+		buffer.WriteString(k)
+		buffer.WriteString(delimiter)
+		buffer.WriteString(ToString(v))
+		if i < x {
+			buffer.WriteString(objDelimiter)
+		}
+		i++
 	}
 	return buffer.String()
 }
 
 func JoinMap(array map[string]interface{}, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
+	x := len(array) - 1
+	i:=0
 	for k, v := range array {
 		buffer.WriteString(k)
 		buffer.WriteString(delimiter)
 		buffer.WriteString(ToString(v))
+		if i < x {
+			buffer.WriteString(objDelimiter)
+		}
+		i++
 	}
 	return buffer.String()
 }
-
+var objDelimiter=";"
 var strCRLF = []byte("\r\n")
 var strCRLF1 = []byte("\n")
 var escapedStrCRLF = []byte("\\n")
