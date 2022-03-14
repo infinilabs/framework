@@ -542,6 +542,7 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 
 var saveNodeMetadataMutex = sync.Mutex{}
 func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
+	esConfig := elastic.GetConfig(clusterID)
 	saveNodeMetadataMutex.Lock()
 	defer func() {
 		saveNodeMetadataMutex.Unlock()
@@ -613,10 +614,11 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					ClusterID: clusterID,
 					NodeID:    rawNodeID,
 					Category: "elasticsearch",
+					ClusterName: esConfig.Name,
+					NodeName: nodeInfo.Name,
+					Host: nodeInfo.Host,
 					Labels: util.MapStr{
-						"node_name": nodeInfo.Name,
 						"transport_address": nodeInfo.TransportAddress,
-						"host": nodeInfo.Host,
 						"ip": nodeInfo.Ip,
 						"version": nodeInfo.Version,
 						"roles": nodeInfo.Roles,
@@ -645,9 +647,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					}
 					//only overwrite follow labels
 					newLabels := util.MapStr{
-						"node_name": nodeInfo.Name,
 						"transport_address": nodeInfo.TransportAddress,
-						"host": nodeInfo.Host,
 						"ip": nodeInfo.Ip,
 						"version": nodeInfo.Version,
 						"roles": nodeInfo.Roles,
@@ -667,6 +667,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						Metadata: elastic.NodeMetadata{
 							ClusterID: clusterID,
 							NodeID: rawNodeID,
+							ClusterName: esConfig.Name,
+							NodeName: nodeInfo.Name,
+							Host: nodeInfo.Host,
 							Labels: newLabels,
 							Category: "elasticsearch",
 						},
@@ -696,6 +699,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
 					"node_id": innerID,
+					"cluster_name": esConfig.Name,
 				},
 			},
 			Fields: util.MapStr{
@@ -731,6 +735,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
 					"status": "unavailable",
+					"cluster_name": esConfig.Name,
 				},
 			},
 		}

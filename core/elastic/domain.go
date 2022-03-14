@@ -496,12 +496,17 @@ type TraceMeta struct {
 type NodeConfig struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata  NodeMetadata `json:"metadata"`
+	Metadata  NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
 	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 type NodeMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	ClusterName string `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
+	Host string `json:"host" elastic_mapping:"host:{type:keyword,copy_to:search_text}"`
 	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
+	NodeName string `json:"node_name" elastic_mapping:"node_name:{type:keyword,copy_to:search_text}"`
+	Tags []string `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 	Labels util.MapStr `json:"labels,omitempty"`
 	Category string `json:"category,omitempty"`
 }

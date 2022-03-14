@@ -18,83 +18,167 @@ import (
 )
 
 func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var (
-		name        = h.GetParameterOrDefault(req, "keyword", "")
-		size        = h.GetIntOrDefault(req, "size", 20)
-		from        = h.GetIntOrDefault(req, "from", 0)
-		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
-		nodeID = h.GetParameterOrDefault(req, "node_id", "")
-	)
-
-	var should []interface{}
-	if name != "" {
-		should = append(should, util.MapStr{
-			"prefix": util.MapStr{
-				"metadata.node_name": name,
-			},
-		}, util.MapStr{
-			"query_string": util.MapStr{"query": name},
-		}, util.MapStr{
-			"query_string": util.MapStr{"query": name+"*"},
-		})
-	}
-	var must  []interface{}
-	if clusterID != "" {
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.cluster_id": util.MapStr{
-					"value": clusterID,
-				} ,
-			},
-		})
-	}
-	if nodeID != "" {
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"_id": util.MapStr{
-					"value": nodeID,
-				} ,
-			},
-		})
-	}
-
-	if size <= 0 {
-		size = 20
-	}
-
-	if from < 0 {
-		from = 0
-	}
-
-	query := util.MapStr{
-		"size": size,
-		"from": from,
-		"sort": []util.MapStr{
-			{"timestamp":util.MapStr{
-				"order": "desc",
-			}},
-		},
-		"query": util.MapStr{
-			"bool": util.MapStr{
-				"should": should,
-				"must": must,
-			},
-		},
-	}
-
-	q := orm.Query{}
-	q.RawQuery = util.MustToJSONBytes(query)
-
-	err, res := orm.Search(&elastic.NodeConfig{}, &q)
+	resBody:=util.MapStr{}
+	reqBody := struct{
+		Keyword string `json:"keyword"`
+		Size int `json:"size"`
+		From int `json:"from"`
+		Aggregations []elastic.SearchAggParam `json:"aggs"`
+		Highlight elastic.SearchHighlightParam `json:"highlight"`
+		Filter elastic.SearchFilterParam `json:"filter"`
+		Sort []string `json:"sort"`
+	}{}
+	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
-
-
-
-	h.Write(w, res.Raw)
+	query := util.MapStr{
+		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
+		"size":      reqBody.Size,
+		"from": reqBody.From,
+		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
+				"should": []util.MapStr{
+					{
+						"prefix": util.MapStr{
+							"metadata.node_name": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 20,
+							},
+						},
+					},
+					{
+						"prefix": util.MapStr{
+							"metadata.host": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 20,
+							},
+						},
+					},
+					{
+						"prefix": util.MapStr{
+							"metadata.cluster_name": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 15,
+							},
+						},
+					},
+					{
+						"match": util.MapStr{
+							"search_text": util.MapStr{
+								"query":                reqBody.Keyword,
+								"fuzziness":            "AUTO",
+								"max_expansions":       10,
+								"prefix_length":        2,
+								"fuzzy_transpositions": true,
+								"boost":                2,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if len(reqBody.Sort) > 1 {
+		query["sort"] =  []util.MapStr{
+			{
+				reqBody.Sort[0]: util.MapStr{
+					"order": reqBody.Sort[1],
+				},
+			},
+		}
+	}
+	dsl := util.MustToJSONBytes(query)
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.NodeConfig{}), dsl)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
+	}
+	w.Write(util.MustToJSONBytes(response))
 }
+//func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+//	var (
+//		name        = h.GetParameterOrDefault(req, "keyword", "")
+//		size        = h.GetIntOrDefault(req, "size", 20)
+//		from        = h.GetIntOrDefault(req, "from", 0)
+//		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
+//		nodeID = h.GetParameterOrDefault(req, "node_id", "")
+//	)
+//
+//	var should []interface{}
+//	if name != "" {
+//		should = append(should, util.MapStr{
+//			"prefix": util.MapStr{
+//				"metadata.node_name": name,
+//			},
+//		}, util.MapStr{
+//			"query_string": util.MapStr{"query": name},
+//		}, util.MapStr{
+//			"query_string": util.MapStr{"query": name+"*"},
+//		})
+//	}
+//	var must  []interface{}
+//	if clusterID != "" {
+//		must = append(must, util.MapStr{
+//			"term": util.MapStr{
+//				"metadata.cluster_id": util.MapStr{
+//					"value": clusterID,
+//				} ,
+//			},
+//		})
+//	}
+//	if nodeID != "" {
+//		must = append(must, util.MapStr{
+//			"term": util.MapStr{
+//				"_id": util.MapStr{
+//					"value": nodeID,
+//				} ,
+//			},
+//		})
+//	}
+//
+//	if size <= 0 {
+//		size = 20
+//	}
+//
+//	if from < 0 {
+//		from = 0
+//	}
+//
+//	query := util.MapStr{
+//		"size": size,
+//		"from": from,
+//		"sort": []util.MapStr{
+//			{"timestamp":util.MapStr{
+//				"order": "desc",
+//			}},
+//		},
+//		"query": util.MapStr{
+//			"bool": util.MapStr{
+//				"should": should,
+//				"must": must,
+//			},
+//		},
+//	}
+//
+//	q := orm.Query{}
+//	q.RawQuery = util.MustToJSONBytes(query)
+//
+//	err, res := orm.Search(&elastic.NodeConfig{}, &q)
+//	if err != nil {
+//		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+//		return
+//	}
+//
+//
+//
+//	h.Write(w, res.Raw)
+//}
 func (h *APIHandler) FetchNodeInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var nodeIDs = []string{}
 	h.DecodeJSON(req, &nodeIDs)
