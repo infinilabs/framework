@@ -605,7 +605,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 	h.Write(w, result.Raw)
 }
 
-func (h *APIHandler) CatClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	esClient := elastic.GetClient(id)
 	if esClient == nil {
