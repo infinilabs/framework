@@ -70,6 +70,9 @@ type diskQueue struct {
 	exitFlag            int32
 	needSync            bool
 
+	consumerMode        bool
+
+
 	// read related
 	depth              int64 //TODO,separate write and read
 	readPos            int64
@@ -130,6 +133,11 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 	if err != nil && !os.IsNotExist(err) {
 		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
 	}
+
+   _,ok:=	queue.GetConsumerConfigsByQueueID(d.name)
+   if ok{
+	   d.consumerMode=true
+   }
 
 	go d.ioLoop()
 	return &d
@@ -278,6 +286,7 @@ func (d *diskQueue) skipToNextRWFile() error {
 		//TODO, keep old files for a configure time window
 
 		fn := d.GetFileName(i)
+		log.Error("delete:",fn)
 		innerErr := os.Remove(fn)
 		if innerErr != nil && !os.IsNotExist(innerErr) {
 			log.Errorf("diskqueue(%s) failed to remove data file - %s", d.name, innerErr)
@@ -306,12 +315,11 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		curFileName := d.GetFileName(d.readSegmentFileNum)
 
 		//TODO if the file was compressed, decompress it first, and decompress few files ahead, keep # files decompressed
-		//fmt.Println("opening file:",curFileName)
 
-		if !util.FileExists(curFileName){
-			//log.Error("file not exists:",curFileName)
-			return nil, errors.Errorf("file [%v] not exists",curFileName)
-		}
+		//if !util.FileExists(curFileName){
+		//	//log.Error("file not exists:",curFileName)
+		//	return nil, errors.Errorf("file [%v] not exists",curFileName)
+		//}
 
 		d.readFile, err = os.OpenFile(curFileName, os.O_RDONLY, 0600)
 		if err != nil {
@@ -547,10 +555,13 @@ func (d *diskQueue) retrieveMetaData() error {
 
 	fileName := d.metaDataFileName()
 	f, err = os.OpenFile(fileName, os.O_RDONLY, 0600)
+	if f!=nil{
+		defer f.Close()
+	}
+
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	var depth int64
 	_, err = fmt.Fscanf(f, "%d\n%d,%d\n%d,%d\n",
@@ -578,6 +589,9 @@ func (d *diskQueue) persistMetaData() error {
 	// write to tmp file
 	f, err = os.OpenFile(tmpFileName, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
+		if f!=nil{
+			f.Close()
+		}
 		return err
 	}
 
@@ -629,6 +643,9 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 	}
 
 	if d.readSegmentFileNum != d.writeSegmentNum || d.readPos != d.writePos {
+
+		//log.Errorf("read: %v, write: %v, readPos:%v, writePos:%v",d.readSegmentFileNum,d.writeSegmentNum,d.readPos,d.writePos )
+
 		if d.readSegmentFileNum > d.writeSegmentNum {
 			log.Errorf(
 				"diskqueue(%s) readSegmentFileNum > writeSegmentNum (%d > %d), corruption, skipping to next writeSegmentNum and resetting 0...",
@@ -657,12 +674,21 @@ func (d *diskQueue) readMoveForward() {
 		// sync every time we start reading from a new file
 		d.needSync = true
 
+		if global.Env().IsDebug{
+			log.Tracef("queue:%v old file:%v, new file:%v",d.name,oldReadFileNum,d.nextReadFileNum)
+		}
+
 		consumers,ok:=queue.GetConsumerConfigsByQueueID(d.name)
 		if !ok||len(consumers)==0{
 			fn := d.GetFileName(oldReadFileNum)
-			err := os.Remove(fn)
-			if err != nil {
-				log.Errorf("failed to Remove(%s) - %s", fn, err)
+			if util.FileExists(fn){
+				if global.Env().IsDebug {
+					log.Debugf("queue:%v delete old file:%v, new file:%v", d.name, oldReadFileNum, d.nextReadFileNum)
+				}
+				err := os.Remove(fn)
+				if err != nil {
+					log.Errorf("failed to Remove(%s) - %s", fn, err)
+				}
 			}
 		}
 	}
@@ -686,8 +712,12 @@ func (d *diskQueue) handleReadError() {
 	//skip queue with consumers
 	_,ok:=queue.GetConsumerConfigsByQueueID(d.name)
 	if ok{
-		d.readSegmentFileNum=d.writeSegmentNum
-		d.readPos=d.writePos
+		if !d.consumerMode{
+			d.consumerMode=true
+		}
+		//Consumer mode, the first file is deleted, no need fetch to read channel
+		//d.readSegmentFileNum=d.writeSegmentNum
+		//d.readPos=d.writePos
 		return
 	}
 
@@ -766,13 +796,14 @@ func (d *diskQueue) ioLoop() {
 			}
 			count = 0
 		}
-		if (d.readSegmentFileNum < d.writeSegmentNum) || (d.readPos < d.writePos) {
+		if !d.consumerMode && ((d.readSegmentFileNum < d.writeSegmentNum) || (d.readPos < d.writePos)) {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
+					time.Sleep(500*time.Millisecond)
 					//log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
-					log.Debugf("reading from diskqueue(%s) at %d of %s - %s",
-						d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
+					//log.Infof("reading from diskqueue(%s) at %d of %s - %s",
+					//	d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
 					d.handleReadError()
 					continue
 				}

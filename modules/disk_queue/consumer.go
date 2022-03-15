@@ -62,7 +62,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
-	//defer readFile.Close()
+	if readFile!=nil{
+		defer readFile.Close()
+	}
 	if err != nil {
 		log.Debug(err)
 		return ctx,messages,false,err
