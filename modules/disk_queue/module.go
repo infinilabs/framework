@@ -547,7 +547,7 @@ func (module *DiskQueue) Start() error {
 }
 
 func (module *DiskQueue) Stop() error {
-
+	close(module.messages)
 	module.queues.Range(func(key, value interface{}) bool {
 		q,ok:=module.queues.Load(key)
 		if ok{
@@ -560,7 +560,6 @@ func (module *DiskQueue) Stop() error {
 	})
 
 	persistQueueMetadata()
-	close(module.messages)
 	return nil
 }
 
@@ -595,8 +594,9 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 			log.Tracef("files start to delete:%v, consumer_on:%v",fileStartToDelete,segmentNum)
 		}
 
+		//has consumers
 		if consumers>0 &&fileStartToDelete< segmentNum{
-			log.Debug(queueID," start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
+			log.Trace(queueID," start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
 				if util.FileExists(file){
@@ -610,6 +610,10 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 					break
 				}
 			}
+		}else{
+			//FIFO queue, need to delete old files
+			//log.Errorf("queue:%v, fileID:%v, file start to delete:%v , segment num:%v",queueID,fileNum,fileStartToDelete,segmentNum)
+			//check current read depth and file num
 		}
 
 }
