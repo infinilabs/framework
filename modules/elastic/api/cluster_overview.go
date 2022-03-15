@@ -668,6 +668,54 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 	h.Write(w, result.Raw)
 }
 
+func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	resBody := map[string] interface{}{}
+	id := ps.ByName("id")
+	q := &orm.Query{ Size: 10000}
+	q.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.cluster_id", id),
+		orm.NotEq("metadata.labels.index_status", "deleted"),
+	)
+
+	err, result := orm.Search(elastic.IndexConfig{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
+	}
+	esClient := elastic.GetClient(id)
+	indexInfos, err := esClient.GetIndices("")
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
+	}
+	type IndexInfo elastic.IndexInfo
+	type RealtimeIndexInfo struct{
+		IndexInfo
+		InnerID interface{} `json:"id"`
+		IndexID string `json:"index_uuid"`
+	}
+	var indices []RealtimeIndexInfo
+	for _, item := range result.Result {
+		if vitem, ok := item.(map[string]interface{}); ok {
+			if name, exists := util.GetMapValueByKeys([]string{"metadata", "index_name"}, vitem); exists {
+				if vname, ok := name.(string); ok {
+					if info, ok := (*indexInfos)[vname]; ok {
+						indices = append(indices, RealtimeIndexInfo{
+							IndexInfo(info),
+							vitem["id"],
+							info.ID,
+						})
+					}
+				}
+			}
+		}
+	}
+	h.WriteJSON(w, indices, http.StatusOK)
+}
+
 func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody:=util.MapStr{}
 	reqBody := struct{
