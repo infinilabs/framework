@@ -241,6 +241,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			log.Error(err)
 		}
 	}()
+	esConfig := elastic.GetConfig(clusterID)
 	var indexIDToName = map[string] interface{}{}
 	for indexName, indexMetadata := range state.Metadata.Indices {
 		if data, ok := indexMetadata.(map[string]interface{}); ok {
@@ -354,7 +355,6 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			//only overwrite follow labels
 			newLabels := util.MapStr{
 				"version": data["version"],
-				"aliases": data["aliases"],
 				"state": data["state"],
 				"index_uuid": indexID,
 			}
@@ -367,12 +367,15 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					}
 				}
 			}
+
 			newIndexMetadata = &elastic.IndexConfig{
 				ID:        innerID,
 				Timestamp: time.Now(),
 				Metadata:  elastic.IndexMetadata{
 					IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
 					IndexName: indexName,
+					ClusterName: esConfig.Name,
+					Aliases:  data["aliases"],
 					ClusterID: clusterID,
 					Labels: newLabels,
 					Category: "elasticsearch",
@@ -380,6 +383,11 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				Fields: util.MapStr{
 					"index_state": indexMetadata,
 				},
+			}
+			if tags, err := oldMetadataMap[innerID].GetValue("metadata.tags"); err == nil {
+				if vtags, ok := tags.([]interface{}); ok {
+					newIndexMetadata.Metadata.Tags = vtags
+				}
 			}
 		}else{
 			//new
@@ -391,11 +399,13 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				Metadata:  elastic.IndexMetadata{
 					IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
 					IndexName: indexName,
+					ClusterName: esConfig.Name,
 					ClusterID: clusterID,
+					Aliases: data["aliases"],
 					Category: "elasticsearch",
 					Labels: util.MapStr{
 						"version": data["version"],
-						"aliases": data["aliases"],
+						"state": data["state"],
 						"index_uuid": indexID,
 					},
 				},
@@ -424,6 +434,8 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					"cluster_id": clusterID,
 					"index_id": innerIndexID,
 					"index_uuid": indexID,
+					"cluster_name": esConfig.Name,
+					"index_name": indexName,
 				},
 			},
 			Fields: util.MapStr{
@@ -463,6 +475,8 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					"cluster_id": clusterID,
 					"index_id": innerIndexID,
 					"index_uuid": indexUUID,
+					"cluster_name": esConfig.Name,
+					"index_name": configObj.Metadata.IndexName,
 				},
 			},
 			Fields: util.MapStr{},

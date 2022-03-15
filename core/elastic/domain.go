@@ -299,7 +299,9 @@ type CatIndexResponse struct {
 }
 
 type CatNodeResponse struct {
+	Id string `json:"id"`
 	Ip          string      `json:"ip"`
+	Port string `json:"port"`
 	HeapPercent string      `json:"heap.percent"`
 	RamPercent  string      `json:"ram.percent"`
 	Cpu         string      `json:"cpu"`
@@ -309,6 +311,8 @@ type CatNodeResponse struct {
 	NodeRole    string      `json:"node.role"`
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
+	DiskAvail string `json:"disk.avail"`
+	Shards int `json:"shards,omitempty"`
 }
 
 type ReindexResponse struct {
@@ -528,12 +532,16 @@ type IndexConfig struct {
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata  IndexMetadata `json:"metadata"`
 	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
 type IndexMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"`
-	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword}"`
+	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword,copy_to:search_text}"`
+	ClusterName string `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
 	Labels util.MapStr `json:"labels,omitempty"`
+	Aliases interface{} `json:"aliases,omitempty" elastic_mapping:"aliases:{type:keyword,copy_to:search_text}"`
 	Category string `json:"category,omitempty"`
+	Tags []interface{} `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 }
