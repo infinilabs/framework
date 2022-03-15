@@ -286,7 +286,7 @@ func (d *diskQueue) skipToNextRWFile() error {
 		//TODO, keep old files for a configure time window
 
 		fn := d.GetFileName(i)
-		log.Error("delete:",fn)
+		//log.Error("delete:",fn)
 		innerErr := os.Remove(fn)
 		if innerErr != nil && !os.IsNotExist(innerErr) {
 			log.Errorf("diskqueue(%s) failed to remove data file - %s", d.name, innerErr)

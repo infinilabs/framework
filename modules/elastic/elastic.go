@@ -24,6 +24,7 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
@@ -231,7 +232,9 @@ func nodeAvailabilityCheck() {
 				if ok {
 					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
-					log.Debugf("availability for node [%v] : %v",k,avail)
+					if global.Env().IsDebug{
+						log.Debugf("availability for node [%v] : %v",k,avail)
+					}
 
 					if avail {
 						v.ReportSuccess()
