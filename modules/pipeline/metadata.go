@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
@@ -176,9 +177,8 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 						return
 					}
 
-					log.Tracef("inflight queues: %v",util.MapLength(&processor.inFlightQueueConfigs))
-
 					if global.Env().IsDebug{
+						log.Tracef("inflight queues: %v",util.MapLength(&processor.inFlightQueueConfigs))
 						processor.inFlightQueueConfigs.Range(func(key, value interface{}) bool {
 							log.Tracef("inflight queue:%v",key)
 							return true
@@ -288,15 +288,46 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 	processor.inFlightQueueConfigs.Store(key,workerID)
 	log.Debugf("starting worker:[%v], queue:[%v]",workerID, qConfig.Name)
 	var consumer=queue.GetOrInitConsumerConfig(qConfig.Id,processor.config.Consumer.Group,processor.config.Consumer.Name)
-	//initOffset,_:=queue.GetOffset(qConfig,consumer)
-	//offset:= initOffset
-	_ = consumer
-
-
+	initOffset,_:=queue.GetOffset(qConfig,consumer)
+	offset:= initOffset
+	defer func() {
+		log.Debugf("worker:[%v] start consume queue:[%v] offset:%v",workerID,qConfig.Id,offset)
+	}()
 
 	for {
 		if ctx.IsCanceled() {
 			return
+		}
+
+		ctx1,messages,timeout,err:=queue.Consume(qConfig,consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs))
+
+		if timeout{
+			log.Tracef("timeout on queue:[%v]",qConfig.Name)
+			ctx.Failed()
+			return
+		}
+
+		if err != nil {
+			log.Tracef("error on queue:[%v]",qConfig.Name)
+			if err.Error()=="EOF" {
+				if len(messages)>0{
+					goto HANDLE_MESSAGE
+				}
+				return
+			}
+			panic(err)
+		}
+
+	HANDLE_MESSAGE:
+
+		//update temp offset, not committed, continued reading
+		offset=ctx1.NextOffset
+
+		if len(messages) > 0 {
+			for _, pop := range messages {
+				ev := event.Event{}
+				util.MustFromJSONBytes(pop.Data, &ev)
+			}
 		}
 	}
 }

@@ -291,43 +291,38 @@ func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, t
 	if statusBytes != nil {
 		lastHealthStatus = string(statusBytes)
 	}
-	if err == nil  && info != nil{
-		if !bytes.Equal([]byte(info.Health ), statusBytes) {
-			kv.AddValue(elastic.KVElasticIndexHealthStatus, indexIDKey, statusBytes)
-			queueConfig := &queue.Config{
-				Name: elastic.QueueElasticIndexHealthStatus,
+	if err == nil  && info != nil { //&& lastHealthStatus != ""
+		newStatusBytes := []byte(info.Health )
+		if !bytes.Equal(newStatusBytes, statusBytes) {
+			kv.AddValue(elastic.KVElasticIndexHealthStatus, indexIDKey, newStatusBytes)
+			queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexHealthStatus)
+			if queueConfig.Labels == nil {
+				queueConfig.Labels = map[string]interface{}{
+					"type": "metadata",
+					"name": "index_health_change",
+					"category": "elasticsearch",
+				}
 			}
-			_ = queueConfig
-			_ = lastHealthStatus
-			//queueConfig.Source = "dynamic"
-			//queueConfig.Labels = map[string]interface{}{}
-			//queueConfig.Labels["type"] = "metadata"
-			//queueConfig.Labels["name"] = "index_health_change"
-			//queueConfig.Labels["category"] = "elasticsearch"
-			//exists, err := queue.RegisterConfig(queueConfig.Name, queueConfig)
-			//if !exists && err != nil {
-			//	panic(err)
-			//}
-			//ev := event.Event{
-			//	Metadata: event.EventMetadata{
-			//		Category: "elasticsearch",
-			//		Name:     "index_health_change",
-			//		Datatype: "snapshot",
-			//		Labels: util.MapStr{
-			//			"cluster_id":   clusterId,
-			//			"index_id": newIndexID,
-			//			"index_uuid": indexID,
-			//			"index_name": indexName,
-			//			"type": "metadata",
-			//			"from": lastHealthStatus,
-			//			"to": info.Health,
-			//		},
-			//	},
-			//}
-			//err = queue.Push(queueConfig, util.MustToJSONBytes(ev))
-			//if err != nil {
-			//	panic(err)
-			//}
+			ev := event.Event{
+				Metadata: event.EventMetadata{
+					Category: "elasticsearch",
+					Name:     "index_health_change",
+					Datatype: "snapshot",
+					Labels: util.MapStr{
+						"cluster_id":   clusterId,
+						"index_id": newIndexID,
+						"index_uuid": indexID,
+						"index_name": indexName,
+						"type": "metadata",
+						"from": lastHealthStatus,
+						"to": info.Health,
+					},
+				},
+			}
+			err = queue.Push(queueConfig, util.MustToJSONBytes(ev))
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 	item := event.Event{
