@@ -796,6 +796,8 @@ func (d *diskQueue) ioLoop() {
 			}
 			count = 0
 		}
+		//time.Sleep(1*time.Second)
+		//log.Error(d.name,",",d.consumerMode,",",d.readSegmentFileNum,",",d.writeSegmentNum,",",d.readPos,",",d.writePos)
 		if !d.consumerMode && ((d.readSegmentFileNum < d.writeSegmentNum) || (d.readPos < d.writePos)) {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
