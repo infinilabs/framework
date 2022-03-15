@@ -264,7 +264,7 @@ func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bo
 	}
 
 	if cfgs!=nil{
-		return cfgs,true
+		return cfgs,len(cfgs)>0
 	}
 
 	return nil, false
