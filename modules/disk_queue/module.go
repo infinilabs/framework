@@ -565,25 +565,38 @@ func (module *DiskQueue) Stop() error {
 }
 
 func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
-	//check last uploaded mark
-	var lastSavedFileNum=GetLastS3UploadFileNum(queueID)
-
-	//check consumers offset
-	consumers, segmentNum,_:=queue.GetEarlierOffsetByQueueID(queueID)
-	fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
-
-	if fileStartToDelete<0{
-		return
-	}
-
-	if global.Env().IsDebug{
-		log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v",fileStartToDelete,segmentNum,lastSavedFileNum)
-	}
 
 	//no consumers or consumer/s3 already ahead of this file
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
-		if consumers==0||(fileStartToDelete< segmentNum &&(!module.cfg.UploadToS3||fileStartToDelete< lastSavedFileNum)){
-			log.Debug("start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
+
+
+		//check consumers offset
+		consumers, segmentNum,_:=queue.GetEarlierOffsetByQueueID(queueID)
+		fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
+
+		if fileStartToDelete<=0||consumers<=0{
+			return
+		}
+
+		if module.cfg.UploadToS3 {
+			//check last uploaded mark
+			var lastSavedFileNum=GetLastS3UploadFileNum(queueID)
+
+			if global.Env().IsDebug{
+				log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v",fileStartToDelete,segmentNum,lastSavedFileNum)
+			}
+
+			if fileStartToDelete>= lastSavedFileNum{
+				return
+			}
+		}
+
+		if global.Env().IsDebug{
+			log.Tracef("files start to delete:%v, consumer_on:%v",fileStartToDelete,segmentNum)
+		}
+
+		if consumers>0 &&fileStartToDelete< segmentNum{
+			log.Debug(queueID," start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
 				file:=GetFileName(queueID,x)
 				if util.FileExists(file){
@@ -598,6 +611,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 				}
 			}
 		}
+
 }
 
 var persistentLocker sync.RWMutex
