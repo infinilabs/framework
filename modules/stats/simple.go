@@ -25,6 +25,7 @@ func (module SimpleStatsModule) Name() string {
 
 
 type SimpleStatsConfig struct {
+	Enabled bool `config:"enabled"`
 	Persist bool `config:"persist"`
 	BufferSize int `config:"buffer_size"`
 }
@@ -32,10 +33,15 @@ type SimpleStatsConfig struct {
 func (module *SimpleStatsModule) Setup(cfg *Config) {
 
 	module.config = &SimpleStatsConfig{
+		Enabled: true,
 		Persist: true,
 		BufferSize: 1000,
 	}
 	env.ParseConfig("stats", module.config)
+
+	if !module.config.Enabled{
+		return
+	}
 
 	if module.config.Persist {
 		module.dataPath = path.Join(global.Env().GetDataDir(), "stats")
@@ -52,6 +58,10 @@ func (module *SimpleStatsModule) Setup(cfg *Config) {
 }
 
 func (module *SimpleStatsModule) Start() error {
+	if !module.config.Enabled{
+		return nil
+	}
+
 	go func() {
 		for x := range module.data.buffer{
 			module.data.initData(x.Category,x.Key)
@@ -73,6 +83,10 @@ func (module *SimpleStatsModule) Start() error {
 }
 
 func (module *SimpleStatsModule) Stop() error {
+	if !module.config.Enabled{
+		return nil
+	}
+
 	module.data.closed=true
 	close(module.data.buffer)
 	if module.config.Persist {
