@@ -2985,8 +2985,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			break
 		}
 
-		ctx1:=ctx
-		ctx=s.AcquireCtx(c)
+		//ctx1:=ctx
+		//ctx=s.AcquireCtx(c)
 
 		//logging and reset
 		if s.TraceHandler!=nil{
@@ -2996,44 +2996,44 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//fmt.Println("old:",ctx1.Request.URI().String())
 			//fmt.Println("new:",ctx.Request.URI().String())
 
-			go func(ctx1 *RequestCtx) {
-
-				defer func() {
-					if !global.Env().IsDebug {
-						if r := recover(); r != nil {
-							var v string
-							switch r.(type) {
-							case error:
-								v = r.(error).Error()
-							case runtime.Error:
-								v = r.(runtime.Error).Error()
-							case string:
-								v = r.(string)
-							}
-							log.Error("error on handling tracing flow,", v)
-						}
-					}
-				}()
+			//go func(ctx1 *RequestCtx) {
+			//
+			//	defer func() {
+			//		if !global.Env().IsDebug {
+			//			if r := recover(); r != nil {
+			//				var v string
+			//				switch r.(type) {
+			//				case error:
+			//					v = r.(error).Error()
+			//				case runtime.Error:
+			//					v = r.(runtime.Error).Error()
+			//				case string:
+			//					v = r.(string)
+			//				}
+			//				log.Error("error on handling tracing flow,", v)
+			//			}
+			//		}
+			//	}()
 
 				//process tracing handler
-				ctx1.Resume()
-				s.TraceHandler(ctx1)
+				ctx.Resume()
+				s.TraceHandler(ctx)
 
-				//release ctx
-				ctx1.Reset()
-				ctx1.Request.Reset()
-				ctx1.Response.Reset()
-				s.ReleaseCtx(ctx1)
-			}(ctx1)
+				////release ctx
+				//ctx1.Reset()
+				//ctx1.Request.Reset()
+				//ctx1.Response.Reset()
+				//s.ReleaseCtx(ctx1)
+			//}(ctx1)
 			//TODO improve performance
 		}
 
 		//acquire a new ctx
-		reqReset = true
 		//TODO reset?
 		ctx.Reset()
 		ctx.Response.Reset()
 		ctx.Request.Reset()
+		reqReset = true
 
 		//ctx2:=s.AcquireCtx(c)
 		//ctx=ctx2
