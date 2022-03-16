@@ -198,8 +198,8 @@ func (s *Stats) Stat(category, key string) int64 {
 }
 
 func (s *Stats) StatsAll() *[]byte {
-	s.l.RLock()
-	defer s.l.RUnlock()
+	s.l.Lock()
+	defer s.l.Unlock()
 
 	//update system metrics
 	sysInfo, err := pidusage.GetStat(os.Getpid())
