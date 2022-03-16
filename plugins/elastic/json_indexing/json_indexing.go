@@ -53,6 +53,7 @@ type Config struct {
 	TypeName             string `config:"type_name"`
 	Elasticsearch        string `config:"elasticsearch"`
 	InputQueue           string `config:"input_queue"`
+	CheckESAvailable        bool `config:"check_available"`
 }
 
 func init()  {
@@ -166,14 +167,16 @@ CHECK_AVAIABLE:
 		panic(errors.Errorf("cluster metadata [%v] not ready", processor.config.Elasticsearch))
 	}
 
-	if !metadata.IsAvailable() {
-		checkCount++
-		if checkCount > 5 {
-			panic(errors.Errorf("cluster [%v] is not available", processor.config.Elasticsearch))
+	if processor.config.CheckESAvailable{
+		if !metadata.IsAvailable() {
+			checkCount++
+			if checkCount > 5 {
+				panic(errors.Errorf("cluster [%v] is not available", processor.config.Elasticsearch))
+			}
+			time.Sleep(1 * time.Second)
+			log.Tracef("%v is not available, recheck now", metadata.Config.Name)
+			goto CHECK_AVAIABLE
 		}
-		time.Sleep(1 * time.Second)
-		log.Tracef("%v is not available, recheck now", metadata.Config.Name)
-		goto CHECK_AVAIABLE
 	}
 
 	if processor.config.TypeName == "" {
