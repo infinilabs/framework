@@ -327,7 +327,15 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 			for _, pop := range messages {
 				ev := event.Event{}
 				util.MustFromJSONBytes(pop.Data, &ev)
+				switch ev.Metadata.Name {
+				case "index_health_change":
+					err = processor.HandleIndexHealthChange(&ev)
+				}
 			}
 		}
 	}
+}
+
+func (processor *MetadataProcessor) HandleIndexHealthChange(ev *event.Event) error{
+	return nil
 }
