@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rotate"
@@ -333,9 +334,73 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 				}
 			}
 		}
+		if err == nil {
+			if offset!=""&& initOffset !=offset{
+				ok,err:=queue.CommitOffset(qConfig,consumer,offset)
+				if !ok||err!=nil{
+					panic(err)
+				}
+			}
+		}
 	}
 }
 
 func (processor *MetadataProcessor) HandleIndexHealthChange(ev *event.Event) error{
-	return nil
+	// save activity
+	activityInfo := &event.Activity{
+		ID: util.GetUUID(),
+		Timestamp: ev.Timestamp,
+		Metadata: event.ActivityMetadata{
+			Category: ev.Metadata.Category,
+			Group: "metadata",
+			Name: "index_health_change",
+			Type: "update",
+			Labels: ev.Metadata.Labels,
+		},
+	}
+	esClient := elastic.GetClient(processor.config.Elasticsearch)
+	_, err := esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
+	if err != nil {
+		return err
+	}
+	// update index health status
+	queryDslTpl := `{
+  "size": 1, 
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {
+          "metadata.index_id": {
+            "value": "%s"
+          }
+        }},
+		 {"term": {
+          "metadata.category": {
+            "value": "elasticsearch"
+          }
+        }}
+      ],
+		"must_not": [
+        {"term": {
+          "metadata.labels.index_status": {
+            "value": "deleted"
+          }
+        }}
+      ]
+    }
+  }
+}`
+	queryDsl := fmt.Sprintf(queryDslTpl, ev.Metadata.Labels["index_id"])
+	indexName := orm.GetIndexName(elastic.IndexConfig{})
+	searchRes, err := esClient.SearchWithRawQueryDSL( indexName, []byte(queryDsl))
+	if err != nil {
+		return err
+	}
+	if searchRes.GetTotal()  == 0 {
+		return nil
+	}
+	source := util.MapStr(searchRes.Hits.Hits[0].Source)
+	source.Put("metadata.labels.health_status", ev.Metadata.Labels["to"])
+	_, err = esClient.Index(indexName, "", searchRes.Hits.Hits[0].ID, source)
+	return err
 }
