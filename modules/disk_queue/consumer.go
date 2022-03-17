@@ -9,6 +9,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
@@ -113,7 +114,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 				}
 				goto RELOCATE_FILE
 			}else{
-				log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
+				if global.Env().IsDebug{
+					log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
+				}
 				if len(messages)==0{
 					time.Sleep(10*time.Second)
 				}
