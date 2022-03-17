@@ -38,7 +38,6 @@ func testWorkerPoolStartStop(t *testing.T) {
 	wp := &workerPool{
 		WorkerFunc:      func(conn net.Conn) error { return nil },
 		MaxWorkersCount: 10,
-		Logger:          defaultLogger,
 	}
 	for i := 0; i < 10; i++ {
 		wp.Start()
@@ -100,7 +99,6 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 			return nil
 		},
 		MaxWorkersCount: 10,
-		Logger:          defaultLogger,
 		connState:       func(net.Conn, ConnState) {},
 	}
 	wp.Start()
