@@ -281,6 +281,14 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				if ok {
 					source["jvm"] = jvm
 				}
+				nodeCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "count", "total"}, result)
+				if ok {
+					source["number_of_nodes"] = nodeCount
+				}
+				shardCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "shards", "total"}, result)
+				if ok {
+					source["number_of_shards"] = shardCount
+				}
 
 				healthMap[util.ToString(clusterID)] = source
 			}
