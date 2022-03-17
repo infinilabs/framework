@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/errors"
 	"io"
 	"mime/multipart"
 	"net"
@@ -271,7 +272,6 @@ type Server struct {
 	// worker pool of the Server. Idle workers beyond this time will be cleared.
 	MaxIdleWorkerDuration time.Duration
 
-
 	// Whether to enable tcp keep-alive connections.
 	//
 	// Whether the operating system should send tcp keep-alive messages on the tcp connection.
@@ -410,10 +410,18 @@ type Server struct {
 	idleConns   map[net.Conn]struct{}
 	idleConnsMu sync.Mutex
 
-	mu   sync.Mutex
-	open int32
-	stop int32
-	done chan struct{}
+	mu          sync.Mutex
+	open        int32
+	stop        int32
+	done        chan struct{}
+	blackIPList *hashset.Set
+}
+
+func (this *Server) AddBlackIPList(ip string) {
+	if this.blackIPList == nil {
+		this.blackIPList = hashset.New()
+	}
+	this.blackIPList.Add(ip)
 }
 
 // TimeoutHandler creates RequestHandler, which returns StatusRequestTimeout
@@ -603,7 +611,6 @@ type RequestCtx struct {
 	ctx context.Context
 }
 
-
 // Context returns the request's context. To change the context, use
 // WithContext.
 //
@@ -622,43 +629,42 @@ func (r *RequestCtx) Context() context.Context {
 	return context.Background()
 }
 
+const tagsKey param.ParaKey = "CONTEXT_TAGS"
 
-const tagsKey param.ParaKey ="CONTEXT_TAGS"
-func (para *RequestCtx) GetTags()(map[string]string,bool){
+func (para *RequestCtx) GetTags() (map[string]string, bool) {
 	return para.GetStringMap(tagsKey)
 }
-func (para *RequestCtx) UpdateTags(addTags,removeTags []string){
-	temp,ok:=para.GetStringMap(tagsKey)
-	if!ok{
-		temp=map[string]string{}
+func (para *RequestCtx) UpdateTags(addTags, removeTags []string) {
+	temp, ok := para.GetStringMap(tagsKey)
+	if !ok {
+		temp = map[string]string{}
 	}
 
-	if addTags!=nil{
-		for _,v:=range addTags{
-			temp[v]=v
+	if addTags != nil {
+		for _, v := range addTags {
+			temp[v] = v
 		}
 	}
 
-	if removeTags!=nil{
-		for _,v:=range removeTags{
-			delete(temp,v)
+	if removeTags != nil {
+		for _, v := range removeTags {
+			delete(temp, v)
 		}
 	}
 
-	para.Set(tagsKey,temp)
+	para.Set(tagsKey, temp)
 }
 
+func (para *RequestCtx) SetValue(s string, value string) error {
 
-func (para *RequestCtx) SetValue(s string,value string) (error){
-
-	if util.PrefixStr(s,"_ctx."){
-		keys:=strings.Split(s,".")
-		if len(keys)>=2{
-			rootFied:=keys[1]
-			if rootFied!=""{
+	if util.PrefixStr(s, "_ctx.") {
+		keys := strings.Split(s, ".")
+		if len(keys) >= 2 {
+			rootFied := keys[1]
+			if rootFied != "" {
 				switch rootFied {
 				case "request":
-					if len(keys)>=3 {
+					if len(keys) >= 3 {
 						requestField := keys[2]
 						if requestField != "" {
 							switch requestField {
@@ -673,21 +679,21 @@ func (para *RequestCtx) SetValue(s string,value string) (error){
 							case "body":
 								para.Request.SetBodyString(value)
 							case "body_json":
-								keys:=keys[3:]
-								if len(keys)==0{
-									return errors.New("invalid json key:"+s)
+								keys := keys[3:]
+								if len(keys) == 0 {
+									return errors.New("invalid json key:" + s)
 								}
-								body:=para.Request.GetRawBody()
-								body,err:=jsonparser.Set(body,[]byte(value),keys...)
+								body := para.Request.GetRawBody()
+								body, err := jsonparser.Set(body, []byte(value), keys...)
 								para.Request.SetRawBody(body)
-								if err!=nil{
+								if err != nil {
 									return err
 								}
 							case "query_args":
 								if len(keys) == 4 { //TODO notify
 									argsField := keys[3]
 									if argsField != "" {
-										para.Request.URI().QueryArgs().Set(argsField,value)
+										para.Request.URI().QueryArgs().Set(argsField, value)
 										return nil
 									}
 								}
@@ -695,7 +701,7 @@ func (para *RequestCtx) SetValue(s string,value string) (error){
 								if len(keys) == 4 { //TODO notify
 									headerKey := keys[3]
 									if headerKey != "" {
-										para.Request.Header.Set(headerKey,value)
+										para.Request.Header.Set(headerKey, value)
 										return nil
 									}
 								}
@@ -705,37 +711,37 @@ func (para *RequestCtx) SetValue(s string,value string) (error){
 					}
 					break
 				case "response":
-					if len(keys)>=3{
-						responseField :=keys[2]
-						if responseField !=""{
+					if len(keys) >= 3 {
+						responseField := keys[2]
+						if responseField != "" {
 							switch responseField {
 							case "status":
-								status,err:=util.ToInt(value)
-								if err!=nil{
+								status, err := util.ToInt(value)
+								if err != nil {
 									return err
 								}
 								para.Response.SetStatusCode(status)
 							case "content_type":
 								para.Response.Header.SetContentType(value)
 							case "header":
-								if len(keys)==4{ //TODO notify
-									headerKey:=keys[3]
-									if headerKey!=""{
-										para.Response.Header.Set(headerKey,value)
+								if len(keys) == 4 { //TODO notify
+									headerKey := keys[3]
+									if headerKey != "" {
+										para.Response.Header.Set(headerKey, value)
 										return nil
 									}
 								}
 							case "body":
 								para.Response.SetBodyString(value)
 							case "body_json":
-								keys:=keys[3:]
-								if len(keys)==0{
-									return errors.New("invalid json key:"+s)
+								keys := keys[3:]
+								if len(keys) == 0 {
+									return errors.New("invalid json key:" + s)
 								}
-								body:=para.Response.GetRawBody()
-								body,err:=jsonparser.Set(body,[]byte(value),keys...)
+								body := para.Response.GetRawBody()
+								body, err := jsonparser.Set(body, []byte(value), keys...)
 								para.Response.SetRawBody(body)
-								if err!=nil{
+								if err != nil {
 									return err
 								}
 							}
@@ -747,31 +753,31 @@ func (para *RequestCtx) SetValue(s string,value string) (error){
 		}
 	}
 
-	para.Set(param.ParaKey(s),value)
+	para.Set(param.ParaKey(s), value)
 
 	return nil
 }
 
-func (para *RequestCtx) GetValue(s string) (interface{}, error){
+func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 
-	if util.PrefixStr(s,"_ctx."){
-		keys:=strings.Split(s,".")
-		if len(keys)>=2{
-			rootFied:=keys[1]
-			if rootFied!=""{
+	if util.PrefixStr(s, "_ctx.") {
+		keys := strings.Split(s, ".")
+		if len(keys) >= 2 {
+			rootFied := keys[1]
+			if rootFied != "" {
 				switch rootFied {
 				case "id":
-					return para.ID(),nil
+					return para.ID(), nil
 				case "tls":
-					return para.IsTLS(),nil
+					return para.IsTLS(), nil
 				case "remote_addr":
-					return para.RemoteAddr().String(),nil
+					return para.RemoteAddr().String(), nil
 				case "local_addr":
-					return para.LocalAddr().String(),nil
+					return para.LocalAddr().String(), nil
 				case "elapsed":
-					return para.GetElapsedTime().Milliseconds(),nil
+					return para.GetElapsedTime().Milliseconds(), nil
 				case "request":
-					if len(keys)>=3 {
+					if len(keys) >= 3 {
 						requestField := keys[2]
 						if requestField != "" {
 							switch requestField {
@@ -788,31 +794,31 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 							case "body":
 								return string(para.Request.GetRawBody()), nil
 							case "body_json":
-								keys:=keys[3:]
-								if len(keys)==0{
-									return nil,errors.New("invalid json key:"+s)
+								keys := keys[3:]
+								if len(keys) == 0 {
+									return nil, errors.New("invalid json key:" + s)
 								}
-								v,t,_,err:=jsonparser.Get(para.Request.GetRawBody(),keys...)
-								if err!=nil{
+								v, t, _, err := jsonparser.Get(para.Request.GetRawBody(), keys...)
+								if err != nil {
 									//log.Error(s,err)
-									return nil,err
+									return nil, err
 								}
 
 								switch t {
 								case jsonparser.NotExist:
-									return nil,errors.New("key not found:"+s)
+									return nil, errors.New("key not found:" + s)
 								case jsonparser.String:
-									return string(v),nil
+									return string(v), nil
 								case jsonparser.Boolean:
 									return jsonparser.ParseBoolean(v)
 								case jsonparser.Number:
-									i,err:=jsonparser.ParseInt(v)
-									if err!=nil{
+									i, err := jsonparser.ParseInt(v)
+									if err != nil {
 										return jsonparser.ParseFloat(v)
 									}
-									return i,err
+									return i, err
 								default:
-									log.Error("json type not handled:",s,v,t,err)
+									log.Error("json type not handled:", s, v, t, err)
 								}
 
 							case "body_length":
@@ -846,30 +852,30 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 					}
 					break
 				case "response":
-					if len(keys)>=3{
-						responseField :=keys[2]
-						if responseField !=""{
+					if len(keys) >= 3 {
+						responseField := keys[2]
+						if responseField != "" {
 							switch responseField {
 							case "to_string":
-								return para.Response.String(),nil
+								return para.Response.String(), nil
 							case "status":
-								return para.Response.StatusCode(),nil
+								return para.Response.StatusCode(), nil
 							case "status_code":
-								return para.Response.StatusCode(),nil
+								return para.Response.StatusCode(), nil
 							case "body":
-								return string(para.Response.GetRawBody()),nil
+								return string(para.Response.GetRawBody()), nil
 							case "content_type":
-								return string(para.Response.Header.ContentType()),nil
+								return string(para.Response.Header.ContentType()), nil
 							case "body_length":
-								return para.Response.GetBodyLength(),nil
+								return para.Response.GetBodyLength(), nil
 							case "body_size":
-								return para.Response.GetBodyLength(),nil
+								return para.Response.GetBodyLength(), nil
 							case "header":
-								if len(keys)==4{ //TODO notify
-									headerKey:=keys[3]
-									if headerKey!=""{
-										v:= para.Response.Header.Peek(headerKey)
-										return string(v),nil
+								if len(keys) == 4 { //TODO notify
+									headerKey := keys[3]
+									if headerKey != "" {
+										v := para.Response.Header.Peek(headerKey)
+										return string(v), nil
 									}
 								}
 							}
@@ -881,30 +887,30 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error){
 		}
 	}
 
-	v:=para.Get(param.ParaKey(s))
-	if v!=nil{
-		return v,nil
-	}else{
-		return nil,errors.New("key not found:"+s)
+	v := para.Get(param.ParaKey(s))
+	if v != nil {
+		return v, nil
+	} else {
+		return nil, errors.New("key not found:" + s)
 	}
 }
 
-func (ctx *RequestCtx)GetRequestProcess()[]string  {
+func (ctx *RequestCtx) GetRequestProcess() []string {
 	return ctx.flowProcess
 }
 
-func (ctx *RequestCtx)GetFlowProcess()[]string  {
+func (ctx *RequestCtx) GetFlowProcess() []string {
 	return ctx.flowProcess
 }
 
-func (ctx *RequestCtx)AddFlowProcess(str string)  {
-	if str!=""{
-		ctx.flowProcess=append(ctx.flowProcess,str)
+func (ctx *RequestCtx) AddFlowProcess(str string) {
+	if str != "" {
+		ctx.flowProcess = append(ctx.flowProcess, str)
 	}
 }
 
 func (ctx *RequestCtx) SetDestination(str string) {
-	ctx.destination=append(ctx.destination,str)
+	ctx.destination = append(ctx.destination, str)
 }
 
 func (ctx *RequestCtx) Destination() []string {
@@ -914,17 +920,17 @@ func (ctx *RequestCtx) Destination() []string {
 var colon = []byte(": ")
 var newLine = []byte("\n")
 
-func getLengthBytes(data []byte)[]byte  {
-	l:=len(data)
+func getLengthBytes(data []byte) []byte {
+	l := len(data)
 	bytesLength := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bytesLength, uint32(l))
 	return bytesLength
 }
 
-var contentTypes=[]string{HeaderContentType2,HeaderContentType}
+var contentTypes = []string{HeaderContentType2, HeaderContentType}
 
 //TODO pass in bytes buffer, reuse outside
-func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []byte {
+func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) []byte {
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
@@ -934,19 +940,19 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 
 	//req.Header.Del("content-type")
 
-	t:=req.Header.PeekAny(contentTypes)
-	if t==nil||len(t)==0{
-		t=strJsonContentType
+	t := req.Header.PeekAny(contentTypes)
+	if t == nil || len(t) == 0 {
+		t = strJsonContentType
 	}
 	req.Header.Del(HeaderContentType)
 	req.Header.Del(HeaderContentType2)
 
 	req.Header.Del("content-length") //TODO check issue
 
-	headerBuffer:=bytes.Buffer{}
+	headerBuffer := bytes.Buffer{}
 	req.Header.VisitAll(func(key, value []byte) {
-		key1:=util.UnsafeBytesToString(key)
-		if removeCompressHeader && (key1==HeaderContentEncoding||key1==HeaderContentEncoding2){
+		key1 := util.UnsafeBytesToString(key)
+		if removeCompressHeader && (key1 == HeaderContentEncoding || key1 == HeaderContentEncoding2) {
 			return
 		}
 		headerBuffer.Write(key)
@@ -955,23 +961,23 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 		headerBuffer.Write(newLine)
 	})
 
-	headerBytes:=headerBuffer.Bytes()
+	headerBytes := headerBuffer.Bytes()
 
 	//data:=req.AcquireBuffer()
-	data:=bytes.Buffer{}
+	data := bytes.Buffer{}
 
 	//schema
-	schema:=req.URI().Scheme()
+	schema := req.URI().Scheme()
 	data.Write(getLengthBytes(schema))
 	data.Write(schema)
 
 	//method
-	methd:=req.Header.Method()
+	methd := req.Header.Method()
 	data.Write(getLengthBytes(methd))
 	data.Write(methd)
 
 	//uri
-	uri:=req.RequestURI()
+	uri := req.RequestURI()
 	data.Write(getLengthBytes(uri))
 	data.Write(uri)
 
@@ -980,38 +986,37 @@ func (req *Request)OverrideBodyEncode(body []byte,removeCompressHeader bool) []b
 	data.Write(headerBytes)
 
 	data.Write(getLengthBytes(body))
-	if len(body)>0{
+	if len(body) > 0 {
 		data.Write(body)
 	}
 
-	b:= data.Bytes()
+	b := data.Bytes()
 
 	return b
 }
 
-func (req *Request)Encode() []byte {
-	body:=req.Body()
-	return req.OverrideBodyEncode(body,false)
+func (req *Request) Encode() []byte {
+	body := req.Body()
+	return req.OverrideBodyEncode(body, false)
 }
 
-const maxMesageLength = 100*1024*1024
-func readBytesLength(reader io.Reader)uint32  {
+const maxMesageLength = 100 * 1024 * 1024
+
+func readBytesLength(reader io.Reader) uint32 {
 	lengthBytes := make([]byte, 4)
 	_, err := reader.Read(lengthBytes)
 	if err != nil {
 		panic(err)
 	}
 
-
-
-	l:= binary.LittleEndian.Uint32(lengthBytes)
-	if l>maxMesageLength{
-		panic(errors.Errorf("invalid byte length(>100MB): [%v] [%v] ",lengthBytes,l))
+	l := binary.LittleEndian.Uint32(lengthBytes)
+	if l > maxMesageLength {
+		panic(errors.Errorf("invalid byte length(>100MB): [%v] [%v] ", lengthBytes, l))
 	}
 	return l
 }
 
-func readBytes(reader io.Reader,length uint32)[]byte  {
+func readBytes(reader io.Reader, length uint32) []byte {
 	bytes := make([]byte, length)
 	_, err := reader.Read(bytes)
 	if err != nil {
@@ -1020,23 +1025,23 @@ func readBytes(reader io.Reader,length uint32)[]byte  {
 	return bytes
 }
 
-func (req *Request)Decode(data []byte) error {
+func (req *Request) Decode(data []byte) error {
 	req.decodeLocker.Lock()
 	defer req.decodeLocker.Unlock()
 
 	//reader:=req.AcquireBytesReader()
-	reader:=&bytes.Reader{}
+	reader := &bytes.Reader{}
 	reader.Reset(data)
 
 	//schema
-	schemaLength:=readBytesLength(reader)
-	schema:=readBytes(reader,schemaLength)
+	schemaLength := readBytesLength(reader)
+	schema := readBytes(reader, schemaLength)
 	req.URI().SetSchemeBytes(schema)
 
-	if string(schema)=="https"{
-		req.isTLS=true
-	}else{
-		req.isTLS=false
+	if string(schema) == "https" {
+		req.isTLS = true
+	} else {
+		req.isTLS = false
 	}
 
 	//reset header
@@ -1044,18 +1049,17 @@ func (req *Request)Decode(data []byte) error {
 
 	//method
 	methodLengthBytes := readBytesLength(reader)
-	method:=readBytes(reader,methodLengthBytes)
+	method := readBytes(reader, methodLengthBytes)
 	req.Header.SetMethodBytes(method)
-
 
 	//uri
 	uriLengthBytes := readBytesLength(reader)
-	readerUri:=readBytes(reader,uriLengthBytes)
+	readerUri := readBytes(reader, uriLengthBytes)
 	req.SetRequestURIBytes(readerUri)
 
 	//headers
 	readerHeaderLengthBytes := readBytesLength(reader)
-	readerHeader:=readBytes(reader,readerHeaderLengthBytes)
+	readerHeader := readBytes(reader, readerHeaderLengthBytes)
 
 	line := bytes.Split(readerHeader, newLine)
 	for _, l := range line {
@@ -1073,7 +1077,7 @@ func (req *Request)Decode(data []byte) error {
 		return err
 	}
 	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
-	if readerBodyLength>0{
+	if readerBodyLength > 0 {
 		readerBody := make([]byte, readerBodyLength)
 		_, err = reader.Read(readerBody)
 		if err != nil {
@@ -1086,13 +1090,13 @@ func (req *Request)Decode(data []byte) error {
 	return nil
 }
 
-func (res *Response)Encode() []byte {
+func (res *Response) Encode() []byte {
 
 	res.encodeLocker.Lock()
 	defer res.encodeLocker.Unlock()
 
 	//buffer:=res.AcquireBuffer()
-	buffer:=bytes.Buffer{}
+	buffer := bytes.Buffer{}
 	res.Header.VisitAll(func(key, value []byte) {
 		buffer.Write(key)
 		buffer.Write(colon)
@@ -1106,13 +1110,13 @@ func (res *Response)Encode() []byte {
 	binary.LittleEndian.PutUint32(headerLength, uint32(buffer.Len()))
 
 	bodyLength := make([]byte, 4)
-	bodyL:=len(body)
+	bodyL := len(body)
 	binary.LittleEndian.PutUint32(bodyLength, uint32(bodyL))
 
 	status := make([]byte, 4)
-	util.Uint32toBytes(status,uint32(res.StatusCode()))
+	util.Uint32toBytes(status, uint32(res.StatusCode()))
 
-	data:=bytes.Buffer{}
+	data := bytes.Buffer{}
 	//data:=res.AcquireBuffer()
 
 	//header
@@ -1121,7 +1125,7 @@ func (res *Response)Encode() []byte {
 
 	//body
 	data.Write(bodyLength)
-	if bodyL>0{
+	if bodyL > 0 {
 		data.Write(body)
 	}
 
@@ -1132,12 +1136,12 @@ func (res *Response)Encode() []byte {
 }
 
 //TODO optimize memmove issue, buffer read
-func (res *Response)Decode(data []byte) error {
+func (res *Response) Decode(data []byte) error {
 
 	res.decodeLocker.Lock()
 	defer res.decodeLocker.Unlock()
 
-	reader:=&bytes.Reader{}
+	reader := &bytes.Reader{}
 	//reader:=res.AcquireBytesReader()
 	reader.Reset(data)
 
@@ -1169,7 +1173,7 @@ func (res *Response)Decode(data []byte) error {
 	}
 
 	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
-	if readerBodyLength>0{
+	if readerBodyLength > 0 {
 		readerBody := make([]byte, readerBodyLength)
 		_, err = reader.Read(readerBody)
 		if err != nil {
@@ -1244,7 +1248,7 @@ func (ctx *RequestCtx) Hijacked() bool {
 
 //is all process finished
 func (ctx *RequestCtx) Finished() {
-	ctx.finished=true
+	ctx.finished = true
 }
 
 //should filters continue to process
@@ -1252,54 +1256,54 @@ func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
 
-func (ctx *Request) ParseBasicAuth()(exists bool,user,pass []byte) {
-	username:=ctx.URI().Username()
-	if username!=nil&&len(username)>0{
-		return true,username,ctx.URI().Password()
+func (ctx *Request) ParseBasicAuth() (exists bool, user, pass []byte) {
+	username := ctx.URI().Username()
+	if username != nil && len(username) > 0 {
+		return true, username, ctx.URI().Password()
 	}
 
 	ctx.ParseAuthorization()
 
-	return len(ctx.URI().Username())>0,ctx.URI().Username(),ctx.URI().Password()
+	return len(ctx.URI().Username()) > 0, ctx.URI().Username(), ctx.URI().Password()
 
 }
 
-func (ctx *RequestCtx) ParseAPIKey()(exists bool,apiID,apiKey []byte) {
-	api:=ctx.Request.URI().apiID
-	if len(api)>0{
-		return true,api,ctx.Request.URI().apiKey
+func (ctx *RequestCtx) ParseAPIKey() (exists bool, apiID, apiKey []byte) {
+	api := ctx.Request.URI().apiID
+	if len(api) > 0 {
+		return true, api, ctx.Request.URI().apiKey
 	}
 
 	ctx.Request.ParseAuthorization()
 
-	return len(ctx.Request.URI().apiID)>0,ctx.Request.URI().apiID,ctx.Request.URI().apiKey
+	return len(ctx.Request.URI().apiID) > 0, ctx.Request.URI().apiID, ctx.Request.URI().apiKey
 }
 
-func (ctx *Request) ParseAuthorization()() {
+func (ctx *Request) ParseAuthorization() {
 
-	key:=ctx.Header.PeekAny(AuthHeaderKeys)
-	if len(key)>0{
-		kvPair:=strings.Split(string(key)," ")
-		if len(kvPair)==2{
-			if kvPair[0]=="Basic"{
-				decoded,err := base64.StdEncoding.DecodeString(kvPair[1])
-				if err!=nil{
-					log.Errorf("parse basic auth [%v] error: %v",kvPair[1],err)
+	key := ctx.Header.PeekAny(AuthHeaderKeys)
+	if len(key) > 0 {
+		kvPair := strings.Split(string(key), " ")
+		if len(kvPair) == 2 {
+			if kvPair[0] == "Basic" {
+				decoded, err := base64.StdEncoding.DecodeString(kvPair[1])
+				if err != nil {
+					log.Errorf("parse basic auth [%v] error: %v", kvPair[1], err)
 				}
-				info:=bytes.Split(decoded,[]byte(":"))
-				if len(info)==2{
-					ctx.uri.username=info[0]
-					ctx.uri.password=info[1]
+				info := bytes.Split(decoded, []byte(":"))
+				if len(info) == 2 {
+					ctx.uri.username = info[0]
+					ctx.uri.password = info[1]
 				}
-			}else if kvPair[0]=="ApiKey"{
-				decoded,err := base64.StdEncoding.DecodeString(kvPair[1])
-				if err!=nil{
-					log.Errorf("parse apiKey [%v] error: %v",kvPair[1],err)
+			} else if kvPair[0] == "ApiKey" {
+				decoded, err := base64.StdEncoding.DecodeString(kvPair[1])
+				if err != nil {
+					log.Errorf("parse apiKey [%v] error: %v", kvPair[1], err)
 				}
-				info:=bytes.Split(decoded,[]byte(":"))
-				if len(info)==2{
-					ctx.uri.apiID=info[0]
-					ctx.uri.apiKey=info[1]
+				info := bytes.Split(decoded, []byte(":"))
+				if len(info) == 2 {
+					ctx.uri.apiID = info[0]
+					ctx.uri.apiKey = info[1]
 				}
 			}
 		}
@@ -1308,7 +1312,7 @@ func (ctx *Request) ParseAuthorization()() {
 
 //resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
-	ctx.finished=false
+	ctx.finished = false
 	ctx.AddFlowProcess("||")
 }
 
@@ -1546,6 +1550,7 @@ func (ctx *RequestCtx) UserAgent() []byte {
 func (ctx *RequestCtx) Path() []byte {
 	return ctx.URI().Path()
 }
+
 //
 //func (ctx *RequestCtx) PathStr() string {
 //
@@ -2372,11 +2377,11 @@ func (s *Server) Serve(ln net.Listener) error {
 	s.mu.Unlock()
 
 	wp := &workerPool{
-		WorkerFunc:      s.serveConn,
-		MaxWorkersCount: maxWorkersCount,
+		WorkerFunc:            s.serveConn,
+		MaxWorkersCount:       maxWorkersCount,
 		MaxIdleWorkerDuration: s.MaxIdleWorkerDuration,
-		LogAllErrors:    s.LogAllErrors,
-		connState:       s.setState,
+		LogAllErrors:          s.LogAllErrors,
+		connState:             s.setState,
 	}
 	wp.Start()
 
@@ -2388,6 +2393,7 @@ func (s *Server) Serve(ln net.Listener) error {
 	defer atomic.AddInt32(&s.open, -1)
 
 	for {
+
 		if c, err = acceptConn(s, ln, &lastPerIPErrorTime); err != nil {
 			wp.Stop()
 			if err == io.EOF {
@@ -2444,35 +2450,45 @@ func (s *Server) Shutdown() error {
 		return nil
 	}
 
-	for _, ln := range s.ln {
-		log.Tracef("closing:%v",ln.Addr())
+	for i, ln := range s.ln {
+		log.Tracef("closing:%v, %v/%v", ln.Addr(), i+1, len(s.ln))
 		if err := ln.Close(); err != nil {
 			log.Error(err)
 			//return err
 		}
 	}
+	log.Tracef("all listener closed")
 
 	if s.done != nil {
 		close(s.done)
 	}
+	log.Tracef("all idle connection closed")
 
 	s.closeIdleConns()
 
 	// Closing the listener will make Serve() call Stop on the worker pool.
 	// Setting .stop to 1 will make serveConn() break out of its loop.
 	// Now we just have to wait until all workers are done.
+	timer := util.AcquireTimer(time.Second * 60)
+	defer util.ReleaseTimer(timer)
 	for {
-		if open := atomic.LoadInt32(&s.open); open == 0 {
-			break
+		select {
+		case <-timer.C:
+			s.done = nil
+			s.ln = nil
+			return nil
+		default:
+			if open := atomic.LoadInt32(&s.open); open == 0 {
+				s.done = nil
+				s.ln = nil
+				return nil
+			}
+			// This is not an optimal solution but using a sync.WaitGroup
+			// here causes data races as it's hard to prevent Add() to be called
+			// while Wait() is waiting.
+			time.Sleep(time.Millisecond * 100)
 		}
-		// This is not an optimal solution but using a sync.WaitGroup
-		// here causes data races as it's hard to prevent Add() to be called
-		// while Wait() is waiting.
-		time.Sleep(time.Millisecond * 100)
 	}
-	s.done = nil
-	s.ln = nil
-	return nil
 }
 
 func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.Conn, error) {
@@ -2639,6 +2655,18 @@ func (s *Server) serveConnCleanup() {
 	atomic.AddUint32(&s.concurrency, ^uint32(0))
 }
 
+const deniedMsg = "Access Forbidden.\n"
+
+var deniedMsgBytes = []byte(
+	fmt.Sprintf(
+		"HTTP/1.1 403 Forbidden\r\n"+
+			"Content-Type: text/plain\r\n"+
+			"Content-Length: %d\r\n"+
+			"Connection: keep-alive\r\n"+
+			"\r\n"+
+			"%s",
+		len(deniedMsg), deniedMsg))
+
 func (s *Server) serveConn(c net.Conn) (err error) {
 
 	defer func() {
@@ -2653,13 +2681,28 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				case string:
 					v = r.(string)
 				}
-				log.Debug("error in serveConn, ", v,",",r)
+				log.Debug("error in serveConn, ", v, ",", r)
 			}
 		}
 	}()
 
 	defer s.serveConnCleanup()
 	atomic.AddUint32(&s.concurrency, 1)
+
+	if s.blackIPList != nil {
+		ip := c.RemoteAddr().String()
+		if strings.Contains(ip, ":") {
+			ips := strings.Split(ip, ":")
+			if s.blackIPList.Contains(ips[0]) {
+				stats.Increment("request", "denied")
+				c.Write(deniedMsgBytes)
+				time.Sleep(500 * time.Millisecond)
+				c.Close()
+
+				return nil
+			}
+		}
+	}
 
 	var proto string
 	if proto, err = s.getNextProto(c); err != nil {
@@ -2872,9 +2915,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			ctx.Reset()
 			//ctx.Request.resetSkipHeader() //will reset request body
 			ctx.Response.Reset()
-			stats.Increment("request","received")
+			stats.Increment("request", "received")
 			s.Handler(ctx)
-			stats.Increment("request","finished")
+			stats.Increment("request", "finished")
 		}
 
 		timeoutResponse = ctx.timeoutResponse
@@ -2899,7 +2942,6 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		ctx.hijackHandler = nil
 		hijackNoResponse = ctx.hijackNoResponse && hijackHandler != nil
 		ctx.hijackNoResponse = false
-
 
 		if s.MaxRequestsPerConn > 0 && connRequestNum >= uint64(s.MaxRequestsPerConn) {
 			ctx.SetConnectionClose()
@@ -2930,7 +2972,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 			//TODO
-			ctx.Response.Header.Set("X-Filters",util.JoinArray(ctx.flowProcess,"->"))
+			ctx.Response.Header.Set("X-Filters", util.JoinArray(ctx.flowProcess, "->"))
 			if err = writeResponse(ctx, bw); err != nil {
 				break
 			}
@@ -2989,7 +3031,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		//ctx=s.AcquireCtx(c)
 
 		//logging and reset
-		if s.TraceHandler!=nil{
+		if s.TraceHandler != nil {
 			//TODO, may send to another chan and processing
 
 			//ctx.Request.SetRequestURI("/this-test")
@@ -3015,15 +3057,15 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//		}
 			//	}()
 
-				//process tracing handler
-				ctx.Resume()
-				s.TraceHandler(ctx)
+			//process tracing handler
+			ctx.Resume()
+			s.TraceHandler(ctx)
 
-				////release ctx
-				//ctx1.Reset()
-				//ctx1.Request.Reset()
-				//ctx1.Response.Reset()
-				//s.ReleaseCtx(ctx1)
+			////release ctx
+			//ctx1.Reset()
+			//ctx1.Request.Reset()
+			//ctx1.Response.Reset()
+			//s.ReleaseCtx(ctx1)
 			//}(ctx1)
 			//TODO improve performance
 		}
@@ -3178,8 +3220,8 @@ func writeResponse(ctx *RequestCtx, w *bufio.Writer) error {
 }
 
 const (
-	defaultReadBufferSize  = 4096*4
-	defaultWriteBufferSize = 4096*4
+	defaultReadBufferSize  = 4096 * 4
+	defaultWriteBufferSize = 4096 * 4
 )
 
 func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
@@ -3255,10 +3297,9 @@ func releaseWriter(s *Server, w *bufio.Writer) {
 	s.writerPool.Put(w)
 }
 
-
 var ctxPool = &sync.Pool{
 	New: func() interface{} {
-		c:=RequestCtx{
+		c := RequestCtx{
 			//SequenceID: util.GetIncrementID("ctx"),
 		}
 		return &c
@@ -3267,10 +3308,10 @@ var ctxPool = &sync.Pool{
 
 func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 
-	x1:=ctxPool.Get().(*RequestCtx)
-	x1.s=s
+	x1 := ctxPool.Get().(*RequestCtx)
+	x1.s = s
 	//x1.SequenceID=util.GetIncrementID("ctx")
-	x1.c=c
+	x1.c = c
 	x1.Request.Reset()
 	x1.Response.Reset()
 	x1.Reset()
@@ -3297,14 +3338,14 @@ func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 	//return
 }
 
-func (ctx *RequestCtx) Reset(){
+func (ctx *RequestCtx) Reset() {
 	//reset flags and metadata
-	if ctx.Data==nil||len(ctx.Data)>0{
+	if ctx.Data == nil || len(ctx.Data) > 0 {
 		ctx.ResetParameters()
 	}
-	ctx.finished=false
-	ctx.flowProcess=[]string{}
-	ctx.destination=ctx.destination[0:0]
+	ctx.finished = false
+	ctx.flowProcess = []string{}
+	ctx.destination = ctx.destination[0:0]
 	ctx.userValues.Reset()
 }
 
@@ -3396,15 +3437,15 @@ func (ctx *RequestCtx) GetElapsedTime() time.Duration {
 const FLOWNAME = "_internal.flow_name"
 
 func (r *RequestCtx) SetFlowID(name string) {
-	r.Set(FLOWNAME,name)
+	r.Set(FLOWNAME, name)
 }
 
-func (r *RequestCtx) GetFlowID()(string,bool) {
+func (r *RequestCtx) GetFlowID() (string, bool) {
 	return r.GetString(FLOWNAME)
 }
 
-func (r *RequestCtx) GetFlowIDOrDefault(d string)(string) {
-	return r.GetStringOrDefault(FLOWNAME,d)
+func (r *RequestCtx) GetFlowIDOrDefault(d string) string {
+	return r.GetStringOrDefault(FLOWNAME, d)
 }
 
 var fakeServer = &Server{
@@ -3440,8 +3481,8 @@ func (fa *fakeAddrer) Close() error {
 
 func (s *Server) ReleaseCtx(ctx *RequestCtx) {
 
-	ctx.c=nil
-	ctx.fbr.c=nil
+	ctx.c = nil
+	ctx.fbr.c = nil
 	ctx.Reset()
 	//ctx.BufferObject.Reset()
 	ctxPool.Put(ctx)

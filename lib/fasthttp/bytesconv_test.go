@@ -267,6 +267,12 @@ func testParseUintError(t *testing.T, s string) {
 	}
 }
 
+func TestParseLongUint(t *testing.T) {
+	s := "9999999999999999999999999999999999999999999999"
+	n, err := ParseUint([]byte(s))
+	fmt.Println(n, err)
+}
+
 func testParseUintSuccess(t *testing.T, s string, expectedN int) {
 	n, err := ParseUint([]byte(s))
 	if err != nil {
