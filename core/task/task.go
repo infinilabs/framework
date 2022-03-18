@@ -53,7 +53,7 @@ func RunTasks() {
 					if global.Env().IsDebug {
 						log.Tracef("task: %s, %v, %v", task.Description, task.Type, task.Interval)
 					}
-					go func() {
+					go func(task ScheduleTask) {
 						defer func() {
 							if !global.Env().IsDebug {
 								if r := recover(); r != nil {
@@ -71,7 +71,7 @@ func RunTasks() {
 							}
 						}()
 						task.Task()
-					}()
+					}(task)
 				}
 				taskLock.RUnlock()
 			case <-quit:
