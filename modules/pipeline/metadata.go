@@ -331,7 +331,10 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 				switch ev.Metadata.Name {
 				case "index_health_change":
 					err = processor.HandleIndexHealthChange(&ev)
+				case "index_state_change":
+					err = processor.HandleIndexStateChange(&ev)
 				}
+
 			}
 		}
 		if err == nil {
@@ -343,6 +346,153 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 			}
 		}
 	}
+}
+func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) error{
+	typ := ev.Metadata.Labels["type"].(string)
+	// save activity
+	activityInfo := &event.Activity{
+		ID: util.GetUUID(),
+		Timestamp: ev.Timestamp,
+		Metadata: event.ActivityMetadata{
+			Category: ev.Metadata.Category,
+			Group: "metadata",
+			Name: "index_state_change",
+			Type: typ,
+			Labels: ev.Metadata.Labels,
+		},
+		Fields: ev.Fields,
+	}
+	esClient := elastic.GetClient(processor.config.Elasticsearch)
+	_, err := esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
+	if err != nil {
+		return err
+	}
+	// save index metadata
+	var indexConfig *elastic.IndexConfig
+	clusterID := ev.Metadata.Labels["cluster_id"].(string)
+	clusterName := ev.Metadata.Labels["cluster_name"].(string)
+	indexName := ev.Metadata.Labels["index_name"].(string)
+	health := ev.Metadata.Labels["health"].(string)
+	indexID := fmt.Sprintf("%s:%s", clusterID, indexName)
+	queryDsl := `{
+	"size": 1,
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "metadata.index_id": {
+              "value": "%s"
+            }
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "term": {
+            "metadata.labels.index_status": {
+              "value": "deleted"
+            }
+          }
+        }
+      ]
+    }
+  }
+}`
+	queryDsl = fmt.Sprintf(queryDsl, indexID)
+	storeIndexName := orm.GetIndexName(elastic.IndexConfig{})
+	searchRes, err := esClient.SearchWithRawQueryDSL(storeIndexName, []byte(queryDsl))
+	if err != nil {
+		return err
+	}
+	aliases, _ := ev.Fields.GetValue("index_state.aliases")
+	state, _ := ev.Fields.GetValue("index_state.state")
+	version, _ := ev.Fields.GetValue("index_state.version")
+	indexUUID, _ :=  ev.Fields.GetValue("index_state.settings.index.uuid")
+	indexConfig = &elastic.IndexConfig{
+		ID:        util.GetUUID(),
+		Timestamp: time.Now(),
+		Metadata:  elastic.IndexMetadata{
+			IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
+			IndexName: indexName,
+			ClusterName: clusterName,
+			Aliases:  aliases,
+			ClusterID: clusterID,
+			Labels: util.MapStr{
+				"version": version,
+				"state": state,
+				"index_uuid": indexUUID,
+				"health_status": health,
+			},
+			Category: "elasticsearch",
+		},
+		Fields: ev.Fields,
+	}
+	switch typ {
+	case "update":
+		if searchRes.GetTotal() == 0 {
+			return fmt.Errorf("index id %s can not be found", indexID)
+		}
+		indexConfig.ID = searchRes.Hits.Hits[0].ID
+		oldConfig := util.MapStr(searchRes.Hits.Hits[0].Source)
+		if labels, err := oldConfig.GetValue("metadata.labels"); err == nil {
+			if labelsM, ok := labels.(map[string]interface{}); ok {
+				for k, v := range labelsM {
+					if _, ok := indexConfig.Metadata.Labels[k]; !ok {
+						indexConfig.Metadata.Labels[k] = v
+					}
+				}
+			}
+		}
+		if tags, err := oldConfig.GetValue("metadata.tags"); err == nil {
+			if vtags, ok := tags.([]interface{}); ok {
+				indexConfig.Metadata.Tags = vtags
+			}
+		}
+		if healthStatus, err := oldConfig.GetValue("metadata.labels.health_status"); err == nil {
+			if v, ok := healthStatus.(string); ok && v != health {
+				// health status change
+				activityInfo = &event.Activity{
+					ID: util.GetUUID(),
+					Timestamp: ev.Timestamp,
+					Metadata: event.ActivityMetadata{
+						Category: ev.Metadata.Category,
+						Group: "metadata",
+						Name: "index_health_change",
+						Type: "update",
+						Labels: util.MapStr{
+							"cluster_id": clusterID,
+							"index_id":   indexID,
+							"index_uuid": indexUUID,
+							"index_name": indexName,
+							"from":       v,
+							"to":         health,
+						},
+					},
+				}
+				_, err = esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	case "create":
+		if searchRes.GetTotal() > 0 {
+			return fmt.Errorf("index id %s already exists", indexID)
+		}
+	case "delete":
+		if searchRes.GetTotal() == 0 {
+			return fmt.Errorf("index id %s can not be found", indexID)
+		}
+		_, err = util.MapStr(searchRes.Hits.Hits[0].Source).Put("metadata.labels.index_status", "deleted")
+		if err != nil {
+			return err
+		}
+		_, err = esClient.Index(storeIndexName, "",  searchRes.Hits.Hits[0].ID, searchRes.Hits.Hits[0].Source)
+		return err
+	}
+	_, err = esClient.Index(storeIndexName, "",  indexConfig.ID, indexConfig)
+	return err
 }
 
 func (processor *MetadataProcessor) HandleIndexHealthChange(ev *event.Event) error{
