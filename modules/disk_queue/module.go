@@ -263,6 +263,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 			if v.Id==""{
 				v.Id=v.Name
 			}
+			log.Debugf("init config:%v, type:%v",v.Name,v.Type)
 			queue.RegisterConfig(v.Name,v)
 		}
 	}
@@ -437,6 +438,8 @@ func (module *DiskQueue) GetQueues() []string {
 
 func (module *DiskQueue) Start() error {
 
+	//TODO move to dedicated queue module
+
 	//load configs from local file
 	cfgs:=queue.GetAllConfigs()
 
@@ -445,7 +448,10 @@ func (module *DiskQueue) Start() error {
 			if v.Id==""{
 				v.Id=v.Name
 			}
-			queue.IniQueue(v, v.Type)
+			if v.Type!=""&&v.Type!="disk"{
+				continue
+			}
+			queue.IniQueue(v)
 		}
 	}
 

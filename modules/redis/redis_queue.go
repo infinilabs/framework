@@ -51,6 +51,10 @@ type RedisQueue struct {
 	pubsub map[string]int
 }
 
+func (module *RedisQueue) Name() string {
+	return "redis_queue"
+}
+
 func (module *RedisQueue) Push(k string, v []byte) error {
 	module.Init(k)
 	_,err:=module.client.LPush(ctx,k,v).Result()

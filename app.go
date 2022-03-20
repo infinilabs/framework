@@ -34,6 +34,7 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
+	"github.com/arl/statsviz"
 	"sync"
 
 	"net/http"
@@ -206,6 +207,9 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 
 				log.Infof("pprof listen at: http://%s/debug/pprof/", app.httpprof)
 				mux := http.NewServeMux()
+
+				// http://localhost:6060/debug/statsviz/
+				statsviz.Register(mux)
 
 				// register pprof handler
 				mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {

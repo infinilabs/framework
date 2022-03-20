@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/lock_free/queue"
 	"os"
 	"path"
 	"runtime"
@@ -27,7 +28,9 @@ func (module SimpleStatsModule) Name() string {
 type SimpleStatsConfig struct {
 	Enabled bool `config:"enabled"`
 	Persist bool `config:"persist"`
+	NoBuffer bool `config:"no_buffer"`
 	BufferSize int `config:"buffer_size"`
+	FlushIntervalInMs int `config:"flush_interval_ms"`
 }
 
 func (module *SimpleStatsModule) Setup(cfg *Config) {
@@ -36,6 +39,7 @@ func (module *SimpleStatsModule) Setup(cfg *Config) {
 		Enabled: true,
 		Persist: true,
 		BufferSize: 1000,
+		FlushIntervalInMs: 1000,
 	}
 	env.ParseConfig("stats", module.config)
 
@@ -48,9 +52,13 @@ func (module *SimpleStatsModule) Setup(cfg *Config) {
 		os.MkdirAll(module.dataPath, 0755)
 	}
 
-	module.data = &Stats{}
+	module.data = &Stats{
+		raw: module.config.NoBuffer,
+	}
 	module.initStats("simple")
-	module.data.buffer=make(chan StatItem,module.config.BufferSize)
+
+	module.data.q= queue.NewQueue(uint32(module.config.BufferSize))
+
 	stats.Register(module.data)
 
 	//register api
@@ -63,19 +71,29 @@ func (module *SimpleStatsModule) Start() error {
 	}
 
 	go func() {
-		for x := range module.data.buffer{
-			module.data.initData(x.Category,x.Key)
-			switch x.Op {
-			case Incr:
-				module.data.l.Lock()
-				(*module.data.Data)[x.Category][x.Key] += x.Value
-				module.data.l.Unlock()
-				break
-			case Decr:
-				module.data.l.Lock()
-				(*module.data.Data)[x.Category][x.Key] -= x.Value
-				module.data.l.Unlock()
-				break
+
+		for{
+			v,ok,n:=module.data.q.Get()
+			if ok{
+				x,ok:=v.(StatItem)
+				if ok{
+					module.data.initData(x.Category,x.Key)
+					switch x.Op {
+					case Incr:
+						module.data.l.Lock()
+						(*module.data.Data)[x.Category][x.Key] += x.Value
+						module.data.l.Unlock()
+						break
+					case Decr:
+						module.data.l.Lock()
+						(*module.data.Data)[x.Category][x.Key] -= x.Value
+						module.data.l.Unlock()
+						break
+					}
+				}
+			}
+			if n==0{
+				time.Sleep(time.Duration(module.config.FlushIntervalInMs)*time.Millisecond)
 			}
 		}
 	}()
@@ -88,7 +106,6 @@ func (module *SimpleStatsModule) Stop() error {
 	}
 
 	module.data.closed=true
-	close(module.data.buffer)
 	if module.config.Persist {
 		module.data.l.Lock()
 		defer module.data.l.Unlock()
@@ -127,7 +144,8 @@ type Stats struct {
 	ID   string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
 	Data *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
 	closed bool
-	buffer chan StatItem
+	raw bool
+	q *queue.EsQueue
 }
 
 func (s *Stats) initData(category, key string) {
@@ -154,7 +172,16 @@ func (s *Stats) IncrementBy(category, key string, value int64) {
 		return
 	}
 
-	s.buffer <- StatItem{Op: Incr,Category: category,Key: key,Value: value}
+	if s.raw{
+		s.initData(category, key)
+		s.l.Lock()
+		(*s.Data)[category][key] += value
+		s.l.Unlock()
+	}else{
+		s.q.Put(StatItem{Op: Incr,Category: category,Key: key,Value: value})
+	}
+
+	runtime.Gosched()
 }
 
 func (s *Stats) Absolute(category, key string, value int64) {
@@ -174,7 +201,15 @@ func (s *Stats) DecrementBy(category, key string, value int64) {
 		return
 	}
 
-	s.buffer <- StatItem{Op: Decr,Category: category,Key: key,Value: value}
+	if s.raw{
+		s.initData(category, key)
+		s.l.Lock()
+		(*s.Data)[category][key] -= value
+		s.l.Unlock()
+	}else{
+		s.q.Put(StatItem{Op: Decr,Category: category,Key: key,Value: value})
+	}
+	runtime.Gosched()
 }
 
 func (s *Stats) Timing(category, key string, v int64) {

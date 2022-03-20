@@ -372,6 +372,19 @@ func MD5digestString(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func PrintStringByteLines(array [][]byte) string {
+	buffer := bytes.Buffer{}
+	x := len(array) - 1
+	for i, v := range array {
+		buffer.WriteString(fmt.Sprintf("%v:",i))
+		buffer.Write(v)
+		if i < x {
+			buffer.WriteString("\n")
+		}
+	}
+	return buffer.String()
+}
+
 func JoinArray(array []string, delimiter string) string {
 	buffer := bytes.Buffer{}
 	x := len(array) - 1

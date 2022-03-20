@@ -131,7 +131,7 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 
 		if !ctx.ShouldContinue() {
 			if global.Env().IsDebug {
-				log.Debugf("filter [%v] not continued, position: [%v]", p.Name(),util.JoinArray(ctx.GetRequestProcess(),"->"))
+				log.Tracef("filter [%v] not continued, position: [%v]", p.Name(),util.JoinArray(ctx.GetRequestProcess(),"->"))
 			}
 			ctx.AddFlowProcess("skipped")
 			return
@@ -140,7 +140,7 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 		ctx.AddFlowProcess(p.Name())
 
 		if global.Env().IsDebug{
-			log.Debug("processing:",p.Name()," OF ",ctx.GetFlowProcess())
+			log.Trace("processing:",p.Name()," OF ",ctx.GetFlowProcess())
 		}
 
 		p.Filter(ctx)

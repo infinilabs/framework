@@ -62,17 +62,21 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 }
 
 func (module *DiskQueue) getQueueStats(q string, include string, consumer string, useKey string, data util.MapStr) {
-	storeSize := module.GetStorageSize(q)
-	qd := util.MapStr{
-		"storage": util.MapStr{
-			"local_usage":          util.ByteSize(storeSize),
-			"local_usage_in_bytes": storeSize,
-		},
-	}
 	cfg, ok := queue1.GetConfigByUUID(q)
 	if !ok{
 		panic(errors.Errorf("queue [%v] was not found",q))
 	}
+
+	qd := util.MapStr{}
+	if cfg.Type=="disk"|| cfg.Type==""{
+		storeSize := module.GetStorageSize(q)
+		qd["storage"]= util.MapStr{
+			"local_usage":          util.ByteSize(storeSize),
+			"local_usage_in_bytes": storeSize,
+		}
+	}
+
+
 	if include != "false" {
 		if ok {
 			qd["metadata"] = cfg
@@ -104,13 +108,13 @@ func (module *DiskQueue) getQueueStats(q string, include string, consumer string
 	}
 
 	if !hasConsumers {
-		qd["depth"] = module.Depth(q)
+		qd["depth"] = queue1.Depth(cfg)
 	} else {
 
-		qd["messages"] = module.Depth(q)
+		qd["messages"] = queue1.Depth(cfg)
 
 		qd["earliest_consumer_offset"] = queue1.GetEarlierOffsetStrByQueueID(q)
-		qd["offset"] = module.LatestOffset(q)
+		qd["offset"] = queue1.LatestOffset(cfg)
 		qd["synchronization"] = util.MapStr{
 			"latest_segment": GetLastS3UploadFileNum(q),
 		}

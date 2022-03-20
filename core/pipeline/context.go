@@ -116,6 +116,10 @@ func (ctx *Context)IsFailed()bool  {
 
 func (ctx *Context)IsCanceled()bool  {
 
+	if ctx.runningState==STOPPING||ctx.runningState==STOPPED{
+		return true
+	}
+
 	select {
 	case <-ctx.Context.Done():
 		return true

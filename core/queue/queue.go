@@ -32,6 +32,7 @@ type Message struct {
 }
 
 type QueueAPI interface {
+	Name()string
 	Init(string) error
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
@@ -75,9 +76,13 @@ func (cfg *ConsumerConfig) Key() string {
 	return fmt.Sprintf("%v-%v",cfg.Group,cfg.Name)
 }
 
-func getHandler(queueID string) QueueAPI {
-	handler, ok := handlers[queueID]
-	if ok {
+func getHandler(k *Config) QueueAPI {
+	handler, ok := handlers[k.Id]
+	if handler!=nil && ok {
+		return handler
+	}
+	handler,ok=adapters[k.Type]
+	if ok&&handler!=nil{
 		return handler
 	}
 	return defaultHandler
@@ -88,7 +93,7 @@ func Push(k *Config, v []byte) error {
 	if k==nil||k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		err = handler.Push(k.Id, v)
 		if err == nil {
@@ -299,7 +304,7 @@ func Pop(k *Config) ([]byte, error) {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			return nil, pauseMsg
@@ -327,7 +332,7 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 	//offset,_=util.ToInt64(data[1])
 
 	messages=[]Message{}
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		if pausedReadQueue.Contains(k) {
 			return ctx,messages,isTimeout, pauseMsg
@@ -354,10 +359,9 @@ func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout
 		timeoutInSeconds = 5
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 
 	if handler != nil {
-
 		if pausedReadQueue.Contains(k) {
 			return nil, false, pauseMsg
 		}
@@ -377,7 +381,7 @@ func Close(k *Config) error {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Close(k.Id)
 		stats.Increment("queue."+k.Id, "close")
@@ -478,7 +482,7 @@ func Depth(k *Config) int64 {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
 		stats.Increment("queue."+k.Id, "call_depth")
@@ -492,7 +496,7 @@ func HasLag(k *Config) bool {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 
 	if handler != nil {
 
@@ -515,7 +519,7 @@ func LatestOffset(k *Config) string {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	handler := getHandler(k.Id)
+	handler := getHandler(k)
 	if handler != nil {
 		o := handler.LatestOffset(k.Id)
 		return o
@@ -591,12 +595,13 @@ func RegisterDefaultHandler(h QueueAPI) {
 	defaultHandler = h
 }
 
-func IniQueue(k *Config, typeOfAdaptor string) {
+func IniQueue(k *Config) {
 	if k==nil||k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
-	handler:=getHandler(typeOfAdaptor)
+	handler:=getHandler(k)
 	handlers[k.Id] = handler
+	log.Errorf("queue:%v, adapter:%v",k.Id,handler.Name())
 	err:=handler.Init(k.Id)
 	if err!=nil{
 		panic(err)
@@ -606,11 +611,11 @@ func IniQueue(k *Config, typeOfAdaptor string) {
 func Register(name string, h QueueAPI) {
 	_, ok := adapters[name]
 	if ok {
-		panic(errors.Errorf("queue handler with same name: %v already exists", name))
+		panic(errors.Errorf("queue adapter with same name: %v already exists", name))
 	}
 
 	adapters[name] = h
-	log.Debug("register queue handler: ", name)
+	log.Debug("register queue adapter: ", name)
 }
 
 //TODO only update specify event, func(queueID)
