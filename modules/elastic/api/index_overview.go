@@ -17,110 +17,108 @@ import (
 )
 
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var (
-		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		clusterID = h.GetParameterOrDefault(req, "cluster_id", "")
-		size        = h.GetIntOrDefault(req, "size", 20)
-		from        = h.GetIntOrDefault(req, "from", 0)
-		indexID = h.GetParameterOrDefault(req, "index_id", "")
-	)
-
-	var should []interface{}
-	if keyword != "" {
-		should = append(should, util.MapStr{
-			"prefix": util.MapStr{
-				"metadata.index_name": keyword,
-			},
-		}, util.MapStr{
-			"query_string": util.MapStr{"query": keyword},
-		}, util.MapStr{
-			"query_string": util.MapStr{"query": keyword+"*"},
-		})
+	resBody:=util.MapStr{}
+	reqBody := struct{
+		Keyword string `json:"keyword"`
+		Size int `json:"size"`
+		From int `json:"from"`
+		Aggregations []elastic.SearchAggParam `json:"aggs"`
+		Highlight elastic.SearchHighlightParam `json:"highlight"`
+		Filter elastic.SearchFilterParam `json:"filter"`
+		Sort []string `json:"sort"`
+	}{}
+	err := h.DecodeJSON(req, &reqBody)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+		return
 	}
-	var must  []interface{}
-	if clusterID != "" {
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.cluster_id": util.MapStr{
-					"value": clusterID,
-				} ,
-			},
-		})
-	}
-	if indexID != "" {
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"_id": util.MapStr{
-					"value": indexID,
-				} ,
-			},
-		})
-	}
-
-	if size <= 0 {
-		size = 20
-	}
-
-	if from < 0 {
-		from = 0
-	}
-
 	query := util.MapStr{
-		"size": size,
-		"from": from,
-		"sort": []util.MapStr{
-			{"timestamp":util.MapStr{
-				"order": "desc",
-			}},
-		},
+		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
+		"size":      reqBody.Size,
+		"from": reqBody.From,
+		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
 			"bool": util.MapStr{
-				"should": should,
-				"must": must,
-				"must_not": []util.MapStr{
-					{"term":util.MapStr{
-						"metadata.labels.index_status": util.MapStr{
-							"value": "deleted",
+				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
+				"should": []util.MapStr{
+					{
+						"prefix": util.MapStr{
+							"metadata.index_name": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 30,
+							},
 						},
-					}},
+					},
+					{
+						"prefix": util.MapStr{
+							"metadata.aliases": util.MapStr{
+								"value": reqBody.Keyword,
+								"boost": 20,
+							},
+						},
+					},
+					{
+						"match": util.MapStr{
+							"search_text": util.MapStr{
+								"query":                reqBody.Keyword,
+								"fuzziness":            "AUTO",
+								"max_expansions":       10,
+								"prefix_length":        2,
+								"fuzzy_transpositions": true,
+								"boost":                2,
+							},
+						},
+					},
+					{
+						"query_string": util.MapStr{
+							"fields":                 []string{"*"},
+							"query":                  reqBody.Keyword,
+							"fuzziness":              "AUTO",
+							"fuzzy_prefix_length":    2,
+							"fuzzy_max_expansions":   10,
+							"fuzzy_transpositions":   true,
+							"allow_leading_wildcard": false,
+						},
+					},
 				},
 			},
 		},
 	}
-
-	q := orm.Query{}
-	q.RawQuery = util.MustToJSONBytes(query)
-
-	err, res := orm.Search(&elastic.IndexConfig{}, &q)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := elastic.SearchResponse{}
-	util.FromJSONBytes(res.Raw, &response)
-
-	var indexIDs []interface{}
-
-	for _, hit := range response.Hits.Hits {
-		if indexID, ok := util.GetMapValueByKeys([]string{"metadata", "index_id"}, hit.Source); ok {
-			indexIDs = append(indexIDs, indexID)
+	if len(reqBody.Sort) > 1 {
+		query["sort"] =  []util.MapStr{
+			{
+				reqBody.Sort[0]: util.MapStr{
+					"order": reqBody.Sort[1],
+				},
+			},
 		}
 	}
-
-	if len(indexIDs) == 0 {
-		h.WriteJSON(w, util.MapStr{
-			"hits": util.MapStr{
-				"total": util.MapStr{
-					"value":    0,
-					"relation": "eq",
-				},
-				"hits": []interface{}{},
-			},
-		}, 200)
+	dsl := util.MustToJSONBytes(query)
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), dsl)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
+	w.Write(util.MustToJSONBytes(response))
 
+}
+func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, ps httprouter.Params) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error(err)
+		}
+	}()
+	var indexIDs []interface{}
+
+
+	h.DecodeJSON(req, &indexIDs)
+
+	if len(indexIDs) == 0 {
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
+		return
+	}
 	q1 := orm.Query{WildcardIndex: true}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
@@ -132,6 +130,11 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	q1.Size = len(indexIDs) + 1
 
 	err, results := orm.Search(&event.Event{}, &q1)
+	if err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"error": err.Error(),
+		}, http.StatusInternalServerError)
+	}
 
 	summaryMap := util.MapStr{}
 	for _, v := range results.Result {
@@ -202,7 +205,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	})
 
 	aggs:=map[string]interface{}{}
-	query =map[string]interface{}{}
+	query :=map[string]interface{}{}
 	query["query"]=util.MapStr{
 		"bool": util.MapStr{
 			"must":  []util.MapStr{
@@ -283,33 +286,12 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			indexMetrics[line.Metric.Label][key] = line.Data
 		}
 	}
-
-	for i, hit := range response.Hits.Hits {
+	infos := util.MapStr{}
+	for _, tempIndexID := range indexIDs {
 		result := util.MapStr{}
 
-		source := hit.Source
-		tempIndexID, _ := util.GetMapValueByKeys([]string{"metadata", "index_id"}, source)
 		indexID := tempIndexID.(string)
-		source["index_id"] =  indexID
-		tempIndexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, source)
-		if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
-			if clusterID, ok :=  tempClusterID.(string); ok {
-				if data :=  elastic.GetMetadata(clusterID); data != nil {
-					source["cluster_name"] = data.Config.Name
-					source["cluster_id"] = clusterID
-				}
-			}
-		}
-		indexName := tempIndexName.(string)
-		delete(source, "metadata")
-		delete(source, "payload")
-		source["index_name"] = indexName
-		labels, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, source)
-		if mp, ok := labels.(map[string]interface{}); ok {
-			source["aliases"] = mp["aliases"]
-		}
 
-		result["metadata"] = source
 		result["summary"] = summaryMap[indexID]
 		result["metrics"] = util.MapStr{
 			"status": util.MapStr{
@@ -334,10 +316,9 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 				"data": indexMetrics[indexID]["search"],
 			},
 		}
-		response.Hits.Hits[i].Source = result
+		infos[indexID] = result
 	}
-	h.WriteJSON(w, response, http.StatusOK)
-
+	h.WriteJSON(w, infos, http.StatusOK)
 }
 
 func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

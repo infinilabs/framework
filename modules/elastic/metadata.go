@@ -324,12 +324,6 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		if _, ok := notChanges[indexName]; ok {
 			continue
 		}
-		//var indexID interface{} = nil
-		//data := indexMetadata.(map[string]interface{})
-		//indexID, _ = util.GetMapValueByKeys([]string{"settings","index", "uuid"}, data)
-		//if indexID == nil {
-		//	indexID = ""
-		//}
 		isIndicesStateChange = true
 		metadataEvent := event.Event{
 			Timestamp: time.Now(),
@@ -350,45 +344,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		}
 		if oldIndexMetadata[indexName] != nil {
 			metadataEvent.Metadata.Labels["type"] = "update"
-			//typ = "update"
-			//only overwrite follow labels
-			//newLabels := util.MapStr{
-			//	"version": data["version"],
-			//	"state": data["state"],
-			//	"index_uuid": indexID,
-			//	"health_status": indexInfo.Health,
-			//}
-			//if labels, err := oldMetadataMap[innerID].GetValue("metadata.labels"); err == nil {
-			//	if labelsM, ok := labels.(map[string]interface{}); ok {
-			//		for k, v := range labelsM {
-			//			if _, ok := newLabels[k]; !ok {
-			//				newLabels[k] = v
-			//			}
-			//		}
-			//	}
-			//}
 
-			//newIndexMetadata = &elastic.IndexConfig{
-			//	ID:        innerID,
-			//	Timestamp: time.Now(),
-			//	Metadata:  elastic.IndexMetadata{
-			//		IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
-			//		IndexName: indexName,
-			//		ClusterName: esConfig.Name,
-			//		Aliases:  data["aliases"],
-			//		ClusterID: clusterID,
-			//		Labels: newLabels,
-			//		Category: "elasticsearch",
-			//	},
-			//	Fields: util.MapStr{
-			//		"index_state": indexMetadata,
-			//	},
-			//}
-			//if tags, err := oldMetadataMap[innerID].GetValue("metadata.tags"); err == nil {
-			//	if vtags, ok := tags.([]interface{}); ok {
-			//		newIndexMetadata.Metadata.Tags = vtags
-			//	}
-			//}
 		}else{
 			//new
 			metadataEvent.Metadata.Labels["type"] = "create"
@@ -409,45 +365,6 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	if isIndicesStateChange {
 		kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(state.Metadata.Indices))
 	}
-	//update deleted index
-	//for innerIndexID, configInfo := range deletedConfigMap {
-	//	if indexStatus, err := configInfo.GetValue("metadata.labels.index_status"); err == nil {
-	//		if indexStatus == "deleted" {
-	//			continue
-	//		}
-	//	}
-	//	configInfo.Put("metadata.labels.index_status", "deleted")
-	//	buf := util.MustToJSONBytes(configInfo)
-	//	configObj := &elastic.IndexConfig{}
-	//	util.MustFromJSONBytes(buf, configObj)
-	//	err = orm.Save(configObj)
-	//	if err != nil {
-	//		log.Error(err)
-	//	}
-	//	indexUUID, _ :=  configInfo.GetValue("metadata.labels.index_uuid")
-	//	activityInfo := &event.Activity{
-	//		ID: util.GetUUID(),
-	//		Timestamp: time.Now(),
-	//		Metadata: event.ActivityMetadata{
-	//			Category: "elasticsearch",
-	//			Group: "metadata",
-	//			Name: "index_state",
-	//			Type: "deleted",
-	//			Labels: util.MapStr{
-	//				"cluster_id": clusterID,
-	//				"index_id": innerIndexID,
-	//				"index_uuid": indexUUID,
-	//				"cluster_name": esConfig.Name,
-	//				"index_name": configObj.Metadata.IndexName,
-	//			},
-	//		},
-	//		Fields: util.MapStr{},
-	//	}
-	//	err = orm.Save(activityInfo)
-	//	if err != nil {
-	//		log.Error(err)
-	//	}
-	//}
 }
 
 //on demand, on state version change
