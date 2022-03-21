@@ -2,10 +2,10 @@ package conditions
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 	"strings"
 )
 

@@ -537,7 +537,7 @@ type IndexConfig struct {
 
 type IndexMetadata struct {
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
-	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"`
+	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"` //cluster_id:index_name (some metrics not return index uuid of lower es version )
 	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword,copy_to:search_text}"`
 	ClusterName string `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
 	Labels util.MapStr `json:"labels,omitempty"`
