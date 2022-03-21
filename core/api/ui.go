@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"infini.sh/framework/core/api/router"
