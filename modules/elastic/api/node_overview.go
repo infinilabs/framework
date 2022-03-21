@@ -423,9 +423,9 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 				indices["store"] = store
 			}
 			kvs["indices"] = indices
-			shardCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "shard_count"}, vresult)
+			shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info"}, vresult)
 			if ok {
-				kvs["shards_count"] = shardCount
+				kvs["shards_count"] = shardInfo
 			}
 			indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "indices_count"}, vresult)
 			if ok {
