@@ -601,7 +601,6 @@ func IniQueue(k *Config) {
 	}
 	handler:=getHandler(k)
 	handlers[k.Id] = handler
-	log.Errorf("queue:%v, adapter:%v",k.Id,handler.Name())
 	err:=handler.Init(k.Id)
 	if err!=nil{
 		panic(err)
