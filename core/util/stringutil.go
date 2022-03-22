@@ -30,6 +30,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"src/github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
@@ -475,4 +476,16 @@ func RegexPatternMatch(pattern, value string)bool {
 		panic(err)
 	}
 	return reg.MatchString(value)
+}
+
+func VersionCompare(v1, v2 string) (int ,error){
+	version1, err := version.NewVersion(v1)
+	if err != nil {
+		return -2, err
+	}
+	version2, err := version.NewVersion(v2)
+	if err != nil {
+		return -2, err
+	}
+	return version1.Compare(version2), nil
 }
