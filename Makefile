@@ -4,7 +4,7 @@ SHELL=/bin/bash
 APP_NAME?= framework
 APP_VERSION?= 1.0.0_SNAPSHOT
 APP_CONFIG := $(APP_NAME).yml
-APP_EOLDate ?= "2023-12-31 10:10:10"
+APP_EOLDate ?= "2023-12-31T10:10:10Z"
 APP_STATIC_FOLDER ?= .public
 APP_STATIC_PACKAGE ?= public
 APP_UI_FOLDER ?= ui
@@ -12,11 +12,11 @@ APP_PLUGIN_FOLDER ?= plugins
 APP_PLUGIN_PKG ?= $(APP_PLUGIN_FOLDER)
 
 # Get release version from environment
-ifneq "$(VERSION)" ""
+ifneq '$(VERSION)' ''
    APP_VERSION := $(VERSION)
 endif
 
-ifneq "$(EOL)" ""
+ifneq '$(EOL)' ''
    APP_EOLDate := $(EOL)
 endif
 
@@ -26,6 +26,12 @@ ifeq "$(GOPATH)" ""
   #$(error Please set the environment variable GOPATH before running `make`)
 endif
 
+# COMMIT_ID=$(shell git log -1 --pretty=format:"%h, %ad, %an, %s")
+COMMIT_ID=$(shell git rev-parse HEAD)
+NOW=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+BUILD_NUMBER ?= 001
+
+GOBUILD_FLAGS?=-ldflags "-X infini.sh/framework/core/env.version=$(APP_VERSION)  -X infini.sh/framework/core/env.buildDate=$(NOW)   -X infini.sh/framework/core/env.commit=$(COMMIT_ID) -X infini.sh/framework/core/env.eolDate=$(APP_EOLDate)  -X infini.sh/framework/core/env.buildNumber=$(BUILD_NUMBER)"
 
 PATH := $(PATH):$(GOPATH)/bin
 
@@ -50,8 +56,8 @@ FRAMEWORK_VENDOR_BRANCH := master
 NEWGOPATH:= $(CURDIR):$(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -ldflags='-s -w' -gcflags "-m"  --work
-GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
 ARCH      := "`uname -s`"
