@@ -113,7 +113,7 @@ func (env *Env) GetWelcomeMessage() string {
 	//	message = " " + env.GetLastCommitLog()
 	//}
 
-	message =fmt.Sprintf("%s, %s, %s",env.GetBuildDate(),env.GetEOLDate(),env.GetLastCommitHash())
+	message =fmt.Sprintf("%s, %s, %s",util.FormatTime(env.GetBuildDate()),util.FormatTime(env.GetEOLDate()),env.GetLastCommitHash())
 
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
 	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + ", " + message + ""
