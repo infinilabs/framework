@@ -33,8 +33,23 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
+	aggs := elastic.BuildSearchTermAggregations(reqBody.Aggregations)
+	aggs["term_cluster_id"] = util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.cluster_id",
+			"size": 1000,
+		},
+		"aggs": util.MapStr{
+			"term_cluster_name": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.cluster_name",
+					"size": 1,
+				},
+			},
+		},
+	}
 	query := util.MapStr{
-		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
+		"aggs":      aggs,
 		"size":      reqBody.Size,
 		"from": reqBody.From,
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),

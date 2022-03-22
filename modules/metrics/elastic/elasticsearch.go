@@ -158,6 +158,9 @@ func (m *Metric) Collect() error {
 				shardInfos := map[string]map[string]int{}
 				indexInfos := map[string]map[string]bool{}
 				for _, item := range shards {
+					if item.State == "UNASSIGNED" {
+						continue
+					}
 					if _, ok := shardInfos[item.NodeID]; !ok {
 						shardInfos[item.NodeID] = map[string] int{
 							"shard_count": 0,

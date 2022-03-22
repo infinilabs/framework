@@ -34,8 +34,23 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
+	aggs := elastic.BuildSearchTermAggregations(reqBody.Aggregations)
+	aggs["term_cluster_id"] = util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.cluster_id",
+				"size": 1000,
+		},
+		"aggs": util.MapStr{
+			"term_cluster_name": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.cluster_name",
+						"size": 1,
+				},
+			},
+		},
+	}
 	query := util.MapStr{
-		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
+		"aggs":      aggs,
 		"size":      reqBody.Size,
 		"from": reqBody.From,
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
@@ -423,13 +438,9 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 				indices["store"] = store
 			}
 			kvs["indices"] = indices
-			shardCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "shard_count"}, vresult)
+			shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info"}, vresult)
 			if ok {
-				kvs["shards_count"] = shardCount
-			}
-			indicesCount, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "indices_count"}, vresult)
-			if ok {
-				kvs["indices_count"] = indicesCount
+				kvs["shard_info"] = shardInfo
 			}
 		}
 	}
@@ -508,7 +519,8 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 	metricItems:=[]*common.MetricItem{}
 	metricItem:=newMetricItem("cpu", 1, SystemGroupKey)
 	metricItem.AddAxi("cpu","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("CPU","CPU","process cpu used percent of node.","group1","payload.elasticsearch.node_stats.process.cpu.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Process CPU","Process CPU","process cpu used percent of node.","group1","payload.elasticsearch.node_stats.process.cpu.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("OS CPU","OS CPU","process cpu used percent of node.","group1","payload.elasticsearch.node_stats.os.cpu.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems=append(metricItems,metricItem)
 	metricItem =newMetricItem("jvm", 2, SystemGroupKey)
 	metricItem.AddAxi("JVM Heap","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)

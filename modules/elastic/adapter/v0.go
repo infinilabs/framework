@@ -523,7 +523,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
-	url := fmt.Sprintf("%s/_cluster/state/version,master_node,routing_table,metadata/*", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cluster/state/version,master_node,routing_table,metadata/*?expand_wildcards=all", c.GetEndpoint())
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
@@ -671,11 +671,14 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 }
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
-
-	url := fmt.Sprintf("%s/_cat/indices?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.GetEndpoint())
-	if pattern != "" {
-		url = fmt.Sprintf("%s/_cat/indices/%s?v&h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json", c.GetEndpoint(), pattern)
+	format := "%s/_cat/indices%s?h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json"
+	if c.Version >= "7.7" {
+		format += "&expand_wildcards=all"
 	}
+	if pattern != "" {
+		pattern = "/"+pattern
+	}
+	url := fmt.Sprintf(format, c.GetEndpoint(), pattern)
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
