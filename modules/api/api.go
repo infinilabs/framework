@@ -42,11 +42,13 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		w.Write([]byte(", "))
 		w.Write([]byte(global.Env().GetVersion()))
 		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetBuildDate()))
+		w.Write([]byte(global.Env().GetBuildNumber()))
 		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetEOLDate()))
+		w.Write([]byte(util.FormatTime(global.Env().GetBuildDate())))
 		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetLastCommitLog()))
+		w.Write([]byte(util.FormatTime(global.Env().GetEOLDate())))
+		w.Write([]byte(", "))
+		w.Write([]byte(global.Env().GetLastCommitHash()))
 		w.Write([]byte("\n\n"))
 
 		w.Write([]byte("API Directory:\n"))
@@ -85,6 +87,7 @@ func (module *APIModule) Setup(cfg *config.Config) {
 				"number":global.Env().GetVersion(),
 				"build_date":global.Env().GetBuildDate(),
 				"build_hash":global.Env().GetLastCommitHash(),
+				"build_number":global.Env().GetBuildNumber(),
 				"eol_date":global.Env().GetEOLDate(),
 			},
 		}

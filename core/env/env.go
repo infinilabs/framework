@@ -38,10 +38,6 @@ type Env struct {
 	uppercaseName string
 	lowercaseName string
 	desc          string
-	version       string
-	commit        string
-	buildDate     string
-	eolDate     string
 
 	configFile string
 
@@ -58,38 +54,39 @@ type Env struct {
 
 	init bool
 
-
 	 workingDataDir string
 	 workingLogDir string
 	 pluginDir string
 }
 
-// GetLastCommitLog returns last commit information of source code
-func (env *Env) GetLastCommitLog() string {
-	return env.commit
-}
-
 func (env *Env) GetLastCommitHash() string {
-	log := env.GetLastCommitLog()
-	array := strings.Split(log, ",")
-	if len(array) == 0 {
-		return "N/A"
-	}
-	return array[0]
+	return util.TrimSpaces(commit)
 }
 
 // GetBuildDate returns the build datetime of current package
-func (env *Env) GetBuildDate() string {
-	return env.buildDate
+func (env *Env) GetBuildDate() time.Time {
+	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(buildDate))
+	if err!=nil{
+		return time.Time{}
+	}
+	return t
+}
+
+func (env *Env) GetBuildNumber() string {
+	return util.TrimSpaces(buildNumber)
 }
 
 // GetVersion returns the version of this build
 func (env *Env) GetVersion() string {
-	return env.version
+	return util.TrimSpaces(version)
 }
 
-func (env *Env) GetEOLDate() string {
-	return env.eolDate
+func (env *Env) GetEOLDate() time.Time {
+	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(eolDate))
+	if err!=nil{
+		return time.Time{}
+	}
+	return t
 }
 
 func (env *Env) GetAppName() string {
@@ -116,7 +113,7 @@ func (env *Env) GetWelcomeMessage() string {
 	//	message = " " + env.GetLastCommitLog()
 	//}
 
-	message =fmt.Sprintf("%s, %s, %s",env.GetBuildDate(),env.GetEOLDate(),env.GetLastCommitHash())
+	message =fmt.Sprintf("%s, %s, %s",util.FormatTime(env.GetBuildDate()),util.FormatTime(env.GetEOLDate()),env.GetLastCommitHash())
 
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
 	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + ", " + message + ""
@@ -388,10 +385,6 @@ func NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminal
 		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
 		lowercaseName:  strings.ToLower(util.TrimSpaces(name)),
 		desc:           util.TrimSpaces(desc),
-		version:        util.TrimSpaces(ver),
-		commit:         util.TrimSpaces(commit),
-		buildDate:      buildDate,
-		eolDate:      eolDate,
 		terminalHeader: terminalHeader,
 		terminalFooter: terminalFooter,
 	}
