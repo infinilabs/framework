@@ -252,36 +252,34 @@ func nodeAvailabilityCheck() {
 
 func (module *ElasticModule)clusterStateRefresh() {
 
-	elastic.WalkConfigs(func(key, value interface{}) bool {
+	task2 := task.ScheduleTask{
+		Description: "elasticsearch state refresh",
+		Type:        "interval",
+		Interval:    "10s",
+		Task: func() {
+			elastic.WalkConfigs(func(key, value interface{}) bool {
+				log.Trace("walk metadata: ",key)
 
-		log.Trace("walk metadata: ",key)
+				if value == nil {
+					return true
+				}
+				v, ok := value.(*elastic.ElasticsearchConfig)
+				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
 
-		if value == nil {
-			return true
-		}
-		v, ok := value.(*elastic.ElasticsearchConfig)
+				if ok {
+					if !v.Enabled{
+						return true
+					}
 
-		log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
-
-		if ok {
-			if !v.Enabled{
+					go func(clusterID string) {
+						module.updateClusterState(clusterID)
+					}(v.ID)
+				}
 				return true
-			}
-
-			module.updateClusterState(v.ID)
-
-			task2 := task.ScheduleTask{
-				Description: fmt.Sprintf("elasticsearch [%v] state refresh",v.Name),
-				Type:        "interval",
-				Interval:    "10s",
-				Task: func() {
-					module.updateClusterState(v.ID)
-				},
-			}
-			task.RegisterScheduleTask(task2)
-		}
-		return true
-	})
+			})
+		},
+	}
+	task.RegisterScheduleTask(task2)
 
 }
 

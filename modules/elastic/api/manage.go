@@ -180,6 +180,21 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 		}
 		return
 	}
+	delDsl := util.MapStr{
+		"query": util.MapStr{
+			"match": util.MapStr{
+				"metadata.cluster_id": id,
+			},
+		},
+	}
+	_, err = esClient.DeleteByQuery(orm.GetIndexName(elastic.NodeConfig{}), util.MustToJSONBytes(delDsl))
+	if err != nil {
+		log.Error(err)
+	}
+	_, err = esClient.DeleteByQuery(orm.GetIndexName(elastic.IndexConfig{}), util.MustToJSONBytes(delDsl))
+	if err != nil {
+		log.Error(err)
+	}
 
 	elastic.RemoveInstance(id)
 	resBody["_id"] = id
