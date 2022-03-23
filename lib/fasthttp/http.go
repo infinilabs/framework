@@ -486,33 +486,6 @@ func gunzipData(p []byte) ([]byte, error) {
 	return bb.B, nil
 }
 
-// BodyUnbrotli returns un-brotlied body data.
-//
-// This method may be used if the request header contains
-// 'Content-Encoding: br' for reading un-brotlied body.
-// Use Body for reading brotlied request body.
-func (req *Request) BodyUnbrotli() ([]byte, error) {
-	return unBrotliData(req.Body())
-}
-
-// BodyUnbrotli returns un-brotlied body data.
-//
-// This method may be used if the response header contains
-// 'Content-Encoding: br' for reading un-brotlied body.
-// Use Body for reading brotlied response body.
-func (resp *Response) BodyUnbrotli() ([]byte, error) {
-	return unBrotliData(resp.Body())
-}
-
-func unBrotliData(p []byte) ([]byte, error) {
-	var bb bytebufferpool.ByteBuffer
-	_, err := WriteUnbrotli(&bb, p)
-	if err != nil {
-		return nil, err
-	}
-	return bb.B, nil
-}
-
 // BodyInflate returns inflated body data.
 //
 // This method may be used if the response header contains
@@ -1429,61 +1402,6 @@ func (resp *Response) WriteDeflateLevel(w *bufio.Writer, level int) error {
 		return err
 	}
 	return resp.Write(w)
-}
-
-func (resp *Response) brotliBody(level int) error {
-	if len(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})) > 0 {
-		// It looks like the body is already compressed.
-		// Do not compress it again.
-		return nil
-	}
-
-	if !resp.Header.isCompressibleContentType() {
-		// The content-type cannot be compressed.
-		return nil
-	}
-
-	if resp.bodyStream != nil {
-		// Reset Content-Length to -1, since it is impossible
-		// to determine body size beforehand of streamed compression.
-		// For https://github.com/valyala/fasthttp/issues/176 .
-		resp.Header.SetContentLength(-1)
-
-		// Do not care about memory allocations here, since brotli is slow
-		// and allocates a lot of memory by itself.
-		bs := resp.bodyStream
-		resp.bodyStream = NewStreamReader(func(sw *bufio.Writer) {
-			zw := acquireStacklessBrotliWriter(sw, level)
-			fw := &flushWriter{
-				wf: zw,
-				bw: sw,
-			}
-			copyZeroAlloc(fw, bs) //nolint:errcheck
-			releaseStacklessBrotliWriter(zw, level)
-			if bsc, ok := bs.(io.Closer); ok {
-				bsc.Close()
-			}
-		})
-	} else {
-		bodyBytes := resp.bodyBytes()
-		if len(bodyBytes) < minCompressLen {
-			// There is no sense in spending CPU time on small body compression,
-			// since there is a very high probability that the compressed
-			// body size will be bigger than the original body size.
-			return nil
-		}
-		w := responseBodyPool.Get()
-		w.B = AppendBrotliBytesLevel(w.B, bodyBytes, level)
-
-		// Hack: swap resp.body with w.
-		if resp.body != nil {
-			responseBodyPool.Put(resp.body)
-		}
-		resp.body = w
-		resp.bodyRaw = nil
-	}
-	resp.Header.SetCanonical(strContentEncoding, strBr)
-	return nil
 }
 
 func (resp *Response) gzipBody(level int) error {
