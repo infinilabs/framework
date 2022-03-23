@@ -249,10 +249,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		log.Error(err)
 		return
 	}
-	indexHealths := map[string]string{}
-	for iname, info := range *indexInfos {
-		indexHealths[iname] = info.Health
-	}
+	//indexHealths := map[string]string{}
+	//for iname, info := range *indexInfos {
+	//	indexHealths[iname] = info.Health
+	//}
 
 	oldIndexBytes, err := kv.GetValue(elastic.KVElasticIndexMetadata, []byte(clusterID))
 	if err != nil {
@@ -335,7 +335,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					"cluster_id": clusterID,
 					"index_name": indexName,
 					"cluster_name": esConfig.Name,
-					"health": indexHealths[indexName],
+					"health": (*indexInfos)[indexName].Health,
 				},
 			},
 			Fields: util.MapStr{
