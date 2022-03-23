@@ -39,6 +39,14 @@ type Env struct {
 	lowercaseName string
 	desc          string
 
+	//generated
+	version       string
+	commit        string
+	buildDate     string
+	buildNumber   string
+	eolDate       string
+	//generated
+
 	configFile string
 
 	terminalHeader string
@@ -60,12 +68,12 @@ type Env struct {
 }
 
 func (env *Env) GetLastCommitHash() string {
-	return util.TrimSpaces(commit)
+	return util.TrimSpaces(env.commit)
 }
 
 // GetBuildDate returns the build datetime of current package
 func (env *Env) GetBuildDate() time.Time {
-	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(buildDate))
+	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(env.buildDate))
 	if err!=nil{
 		return time.Time{}
 	}
@@ -73,16 +81,16 @@ func (env *Env) GetBuildDate() time.Time {
 }
 
 func (env *Env) GetBuildNumber() string {
-	return util.TrimSpaces(buildNumber)
+	return util.TrimSpaces(env.buildNumber)
 }
 
 // GetVersion returns the version of this build
 func (env *Env) GetVersion() string {
-	return util.TrimSpaces(version)
+	return util.TrimSpaces(env.version)
 }
 
 func (env *Env) GetEOLDate() time.Time {
-	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(eolDate))
+	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(env.eolDate))
 	if err!=nil{
 		return time.Time{}
 	}
@@ -379,12 +387,17 @@ func getModuleName(c *config.Config) string {
 }
 
 // EmptyEnv return a empty env instance
-func NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *Env {
+func NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *Env {
 	return &Env{
 		name:           util.TrimSpaces(name),
 		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
 		lowercaseName:  strings.ToLower(util.TrimSpaces(name)),
 		desc:           util.TrimSpaces(desc),
+		version:        util.TrimSpaces(ver),
+		commit:         util.TrimSpaces(commit),
+		buildDate:      buildDate,
+		buildNumber:    buildNumber,
+		eolDate:      	eolDate,
 		terminalHeader: terminalHeader,
 		terminalFooter: terminalFooter,
 	}

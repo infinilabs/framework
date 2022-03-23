@@ -17,32 +17,25 @@ limitations under the License.
 package framework
 
 import (
-	"expvar"
-	_ "expvar"
 	"flag"
 	"fmt"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/daemon"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	_ "infini.sh/framework/core/log"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
-	"github.com/arl/statsviz"
 	"sync"
-
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/pprof"
 	"syscall"
 )
 
@@ -56,9 +49,6 @@ type App struct {
 	pidFile      string
 	configFile   string
 	logLevel     string
-	cpuproFile   string
-	memproFile   string
-	httpprof     string
 
 	setup func()
 	start func()
@@ -70,7 +60,7 @@ type App struct {
 	svcFlag string
 }
 
-func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
+func NewApp(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
 	if terminalFooter==""{
 		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
 		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
@@ -78,43 +68,19 @@ func NewApp(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminal
 		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/   \n\n")
 		terminalFooter += ("©INFINI.LTD, All Rights Reserved.\n")
 	}
-	return &App{environment: env.NewEnv(name, desc, ver, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
+	return &App{environment: env.NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
 }
 
-// report expvar and all metrics
-func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	first := true
-	report := func(key string, value interface{}) {
-		if !first {
-			fmt.Fprintf(w, ",\n")
-		}
-		first = false
-		if str, ok := value.(string); ok {
-			fmt.Fprintf(w, "%q: %q", key, str)
-		} else {
-			fmt.Fprintf(w, "%q: %v", key, value)
-		}
-	}
-
-	fmt.Fprintf(w, "{\n")
-	expvar.Do(func(kv expvar.KeyValue) {
-		report(kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
-}
-
-type Options struct {
-	EnableProfiling bool
-}
+var debugFlagInitFunc func()
+var debugInitFunc func()
 
 func (app *App) Init(customFunc func()) {
 
-	options := Options{
-		EnableProfiling: true,
+	app.InitWithFlags(customFunc)
+
+	if debugInitFunc!=nil{
+		debugInitFunc()
 	}
-	app.InitWithOptions(options, customFunc)
 
 	//init license
 	license.Init()
@@ -123,7 +89,7 @@ func (app *App) Init(customFunc func()) {
 
 }
 
-func (app *App) InitWithOptions(options Options, customFunc func()) {
+func (app *App) InitWithFlags(customFunc func()) {
 
 	showversion:=flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
@@ -137,10 +103,8 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	//flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 	flag.StringVar(&app.svcFlag,"service", "", "service management, options: install,uninstall,start,stop")
 
-	if options.EnableProfiling {
-		flag.StringVar(&app.cpuproFile, "cpuprofile", "", "write cpu profile to this file")
-		flag.StringVar(&app.memproFile, "memprofile", "", "write memory profile to this file")
-		flag.StringVar(&app.httpprof, "pprof", "", "enable and setup pprof/expvar service, eg: localhost:6060 , the endpoint will be: http://localhost:6060/debug/pprof/ and http://localhost:6060/debug/vars")
+	if debugFlagInitFunc!=nil{
+		debugFlagInitFunc()
 	}
 
 	flag.Parse()
@@ -181,69 +145,6 @@ func (app *App) InitWithOptions(options Options, customFunc func()) {
 	global.RegisterEnv(app.environment)
 
 	logger.SetLogging(app.environment, app.logLevel)
-
-	if options.EnableProfiling {
-
-		//profile options
-		if app.httpprof != "" {
-			go func() {
-
-				defer func() {
-					if !global.Env().IsDebug {
-						if r := recover(); r != nil {
-							var v string
-							switch r.(type) {
-							case error:
-								v = r.(error).Error()
-							case runtime.Error:
-								v = r.(runtime.Error).Error()
-							case string:
-								v = r.(string)
-							}
-							log.Error("error to serve httpprof,", v)
-						}
-					}
-				}()
-
-				log.Infof("pprof listen at: http://%s/debug/pprof/", app.httpprof)
-				mux := http.NewServeMux()
-
-				// http://localhost:6060/debug/statsviz/
-				statsviz.Register(mux)
-
-				// register pprof handler
-				mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
-					http.DefaultServeMux.ServeHTTP(w, r)
-				})
-
-				// register metrics handler
-				mux.HandleFunc("/debug/vars", app.metricsHandler)
-
-				endpoint := http.ListenAndServe(app.httpprof, mux)
-				log.Debug("stop pprof server: %v", endpoint)
-			}()
-		}
-
-		if app.cpuproFile != "" {
-			f, err := os.Create(app.cpuproFile)
-			if err != nil {
-				panic(err)
-			}
-			pprof.StartCPUProfile(f)
-			defer pprof.StopCPUProfile()
-		}
-
-		if app.memproFile != "" {
-			if app.memproFile != "" {
-				f, err := os.Create(app.memproFile)
-				if err != nil {
-					panic(err)
-				}
-				pprof.WriteHeapProfile(f)
-				f.Close()
-			}
-		}
-	}
 
 	if customFunc != nil {
 		customFunc()

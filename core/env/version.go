@@ -5,9 +5,9 @@
 package env
 
 var (
-	version       string="N/A"
-	commit        string="N/A"
-	buildDate     string="N/A"
-	buildNumber   string="N/A"
-	eolDate       string="N/A"
+	//version       string="N/A"
+	//commit        string="N/A"
+	//buildDate     string="N/A"
+	//buildNumber   string="N/A"
+	//eolDate       string="N/A"
 )

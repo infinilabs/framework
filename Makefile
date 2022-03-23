@@ -31,7 +31,8 @@ COMMIT_ID=$(shell git rev-parse HEAD)
 NOW=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_NUMBER ?= 001
 
-GOBUILD_FLAGS?=-ldflags "-X infini.sh/framework/core/env.version=$(APP_VERSION)  -X infini.sh/framework/core/env.buildDate=$(NOW)   -X infini.sh/framework/core/env.commit=$(COMMIT_ID) -X infini.sh/framework/core/env.eolDate=$(APP_EOLDate)  -X infini.sh/framework/core/env.buildNumber=$(BUILD_NUMBER)"
+## this will grow the binary size
+# GOBUILD_FLAGS?=-ldflags "-X infini.sh/framework/core/env.version=$(APP_VERSION)  -X infini.sh/framework/core/env.buildDate=$(NOW)   -X infini.sh/framework/core/env.commit=$(COMMIT_ID) -X infini.sh/framework/core/env.eolDate=$(APP_EOLDate)  -X infini.sh/framework/core/env.buildNumber=$(BUILD_NUMBER)"
 
 PATH := $(PATH):$(GOPATH)/bin
 
@@ -56,7 +57,7 @@ FRAMEWORK_VENDOR_BRANCH := master
 NEWGOPATH:= $(CURDIR):$(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
@@ -99,7 +100,7 @@ update-plugins:
 
 # used to build the binary for gdb debugging
 build-race: clean config update-vfs
-	$(GOBUILDNCGO) -gcflags "-m -N -l" -race -o $(OUTPUT_DIR)/$(APP_NAME)
+	$(GOBUILDNCGO) -tags dev -gcflags "-m -N -l" -race -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
 tar: build
@@ -184,9 +185,10 @@ init:
 update-generated-file:
 	@echo "update generated info"
 	@if [ ! -d config ]; then echo "config does not exist";(mkdir config) fi
-	@echo -e "package config\n\nconst LastCommitLog = \""`git log -1 --pretty=format:"%h, %ad, %an, %s"` "\"\nconst BuildDate = \"`date "+%Y-%m-%d %H:%M:%S"`\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"\nconst BuildDate = \"$(NOW)\"" > config/generated.go
 	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
 	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
+	@echo -e "\nconst BuildNumber  = \"$(BUILD_NUMBER)\"" >> config/generated.go
 
 
 restore-generated-file:
@@ -194,6 +196,7 @@ restore-generated-file:
 	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
 	@echo -e "\nconst EOLDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
+	@echo -e "\nconst BuildNumber = \"001\"" >> config/generated.go
 
 
 update-vfs:
