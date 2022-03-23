@@ -48,7 +48,9 @@ var (
 func ServeConn(c net.Conn, handler RequestHandler) error {
 	v := serverPool.Get()
 	if v == nil {
-		v = &Server{}
+		v = &Server{
+			mu:sync.Mutex{},
+		}
 	}
 	s := v.(*Server)
 	s.Handler = handler
@@ -66,6 +68,7 @@ var serverPool sync.Pool
 // Serve blocks until the given listener returns permanent error.
 func Serve(ln net.Listener, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.Serve(ln)
@@ -77,6 +80,7 @@ func Serve(ln net.Listener, handler RequestHandler) error {
 // certFile and keyFile are paths to TLS certificate and key files.
 func ServeTLS(ln net.Listener, certFile, keyFile string, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ServeTLS(ln, certFile, keyFile)
@@ -88,6 +92,7 @@ func ServeTLS(ln net.Listener, certFile, keyFile string, handler RequestHandler)
 // certData and keyData must contain valid TLS certificate and key data.
 func ServeTLSEmbed(ln net.Listener, certData, keyData []byte, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ServeTLSEmbed(ln, certData, keyData)
@@ -97,6 +102,7 @@ func ServeTLSEmbed(ln net.Listener, certData, keyData []byte, handler RequestHan
 // using the given handler.
 func ListenAndServe(addr string, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ListenAndServe(addr)
@@ -110,6 +116,7 @@ func ListenAndServe(addr string, handler RequestHandler) error {
 // The server sets the given file mode for the UNIX addr.
 func ListenAndServeUNIX(addr string, mode os.FileMode, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ListenAndServeUNIX(addr, mode)
@@ -121,6 +128,7 @@ func ListenAndServeUNIX(addr string, mode os.FileMode, handler RequestHandler) e
 // certFile and keyFile are paths to TLS certificate and key files.
 func ListenAndServeTLS(addr, certFile, keyFile string, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ListenAndServeTLS(addr, certFile, keyFile)
@@ -132,6 +140,7 @@ func ListenAndServeTLS(addr, certFile, keyFile string, handler RequestHandler) e
 // certData and keyData must contain valid TLS certificate and key data.
 func ListenAndServeTLSEmbed(addr string, certData, keyData []byte, handler RequestHandler) error {
 	s := &Server{
+		mu:sync.Mutex{},
 		Handler: handler,
 	}
 	return s.ListenAndServeTLSEmbed(addr, certData, keyData)
@@ -3450,6 +3459,7 @@ func (r *RequestCtx) GetFlowIDOrDefault(d string) string {
 
 var fakeServer = &Server{
 	// Initialize concurrencyCh for TimeoutHandler
+	mu:sync.Mutex{},
 	concurrencyCh: make(chan struct{}, DefaultConcurrency),
 }
 
