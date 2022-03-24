@@ -48,6 +48,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			},
 		},
 	}
+	filter := elastic.BuildSearchTermFilter(reqBody.Filter)
 	query := util.MapStr{
 		"aggs":      aggs,
 		"size":      reqBody.Size,
@@ -55,7 +56,14 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
 			"bool": util.MapStr{
-				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
+				"must_not": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.index_status": "deleted",
+						},
+					},
+				},
+				"filter": filter,
 				"should": []util.MapStr{
 					{
 						"prefix": util.MapStr{

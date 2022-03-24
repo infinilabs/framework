@@ -387,8 +387,10 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 	if indexName, ok = ev.Metadata.Labels["index_name"].(string); !ok {
 		return fmt.Errorf("process cluster %s: empty index name", clusterName)
 	}
-	if health, ok  = ev.Metadata.Labels["health"].(string); !ok {
-		return fmt.Errorf("process cluster %s: empty health", clusterName)
+	if typ != "delete" {
+		if health, ok = ev.Metadata.Labels["health"].(string); !ok {
+			return fmt.Errorf("process cluster %s: empty health", clusterName)
+		}
 	}
 	indexID := fmt.Sprintf("%s:%s", clusterID, indexName)
 	queryDsl := `{
