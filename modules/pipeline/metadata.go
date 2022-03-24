@@ -344,6 +344,8 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 					panic(err)
 				}
 			}
+		}else{
+			log.Error(err)
 		}
 	}
 }
@@ -368,11 +370,26 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 		return err
 	}
 	// save index metadata
-	var indexConfig *elastic.IndexConfig
-	clusterID := ev.Metadata.Labels["cluster_id"].(string)
-	clusterName := ev.Metadata.Labels["cluster_name"].(string)
-	indexName := ev.Metadata.Labels["index_name"].(string)
-	health := ev.Metadata.Labels["health"].(string)
+	var (
+		indexConfig *elastic.IndexConfig
+		clusterID string
+		clusterName string
+		indexName string
+		health string
+		ok bool
+	)
+	if clusterName, ok = ev.Metadata.Labels["cluster_name"].(string); !ok {
+		return fmt.Errorf("empty cluster name")
+	}
+	if clusterID, ok = ev.Metadata.Labels["cluster_id"].(string); !ok {
+		return fmt.Errorf("process cluster %s: empty cluster id", clusterName)
+	}
+	if indexName, ok = ev.Metadata.Labels["index_name"].(string); !ok {
+		return fmt.Errorf("process cluster %s: empty index name", clusterName)
+	}
+	if health, ok  = ev.Metadata.Labels["health"].(string); !ok {
+		return fmt.Errorf("process cluster %s: empty health", clusterName)
+	}
 	indexID := fmt.Sprintf("%s:%s", clusterID, indexName)
 	queryDsl := `{
 	"size": 1,
