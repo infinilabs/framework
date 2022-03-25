@@ -164,11 +164,6 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		}
 		if stateChanged {
 			state.Metadata = nil
-			event:=util.MapStr{
-				"cluster_id":clusterId,
-				"state":state,
-			}
-			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 			if meta.Config.Source != "file"{
 				module.saveRoutingTable(state, clusterId)
 			}
