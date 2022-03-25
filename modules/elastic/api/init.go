@@ -83,4 +83,6 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/trace_template", clusterAPI.HandleCrateTraceTemplateAction)
 	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleSaveTraceTemplateAction)
 	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleDeleteTraceTemplateAction)
+
+	api.HandleAPIMethod(api.DELETE, "/_framework/api/local_state/elasticsearch/:type/:target", clusterAPI.HandleRemoveLocalState)
 }

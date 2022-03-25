@@ -154,19 +154,21 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 			log.Tracef("cluster state updated from version [%v] to [%v]", meta.ClusterState.Version, state.Version)
 		}
 
-		if stateChanged {
-			//TODO locker
-			if moduleConfig.ORMConfig.Enabled{
-				if meta.Config.Source != "file"{
-					module.saveIndexMetadata(state, clusterId)
-				}
-				state.Metadata = nil
-				event:=util.MapStr{
-					"cluster_id":clusterId,
-					"state":state,
-				}
-				queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
+		oldIndexState, err := kv.GetValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
+
+		//TODO locker
+		if stateChanged || (err == nil && oldIndexState == nil){
+			if meta.Config.Source != "file"{
+				module.saveIndexMetadata(state, clusterId)
 			}
+		}
+		if stateChanged {
+			state.Metadata = nil
+			event:=util.MapStr{
+				"cluster_id":clusterId,
+				"state":state,
+			}
+			queue.Push(queue.GetOrInitConfig("cluster_state_change"),util.MustToJSONBytes(event))
 			if meta.Config.Source != "file"{
 				module.saveRoutingTable(state, clusterId)
 			}

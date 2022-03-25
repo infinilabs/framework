@@ -181,6 +181,10 @@ func (m *Metric) Collect() error {
 				for nodeID, y := range *v.Nodes {
 					//get node level stats
 					stats := client.GetNodesStats(nodeID,y.GetHttpPublishHost())
+					if stats.ErrorObject != nil {
+						log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
+						continue
+					}
 					if _, ok := shardInfos[nodeID]; ok {
 						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 					}
