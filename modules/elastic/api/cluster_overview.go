@@ -704,12 +704,96 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		Highlight elastic.SearchHighlightParam `json:"highlight"`
 		Filter elastic.SearchFilterParam `json:"filter"`
 		Sort []string `json:"sort"`
+		SearchField string `json:"search_field"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
+	}
+	var should []util.MapStr
+	if reqBody.SearchField != "" {
+		should =  []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+		}
+	}else {
+		should = []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					"name": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"prefix": util.MapStr{
+					"host": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"prefix": util.MapStr{
+					"version": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 15,
+					},
+				},
+			},
+			{
+				"match_phrase_prefix": util.MapStr{
+					"name.text": util.MapStr{
+						"query": reqBody.Keyword,
+						"boost": 6,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					"search_text": util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+			{
+				"query_string": util.MapStr{
+					"fields":                 []string{"*"},
+					"query":                  reqBody.Keyword,
+					"fuzziness":              "AUTO",
+					"fuzzy_prefix_length":    2,
+					"fuzzy_max_expansions":   10,
+					"fuzzy_transpositions":   true,
+					"allow_leading_wildcard": false,
+				},
+			},
+		}
 	}
 	query := util.MapStr{
 		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
@@ -719,63 +803,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		"query": util.MapStr{
 			"bool": util.MapStr{
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
-				"should": []util.MapStr{
-					{
-						"prefix": util.MapStr{
-							"name": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"host": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"version": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 15,
-							},
-						},
-					},
-					{
-						"match_phrase_prefix": util.MapStr{
-							"name.text": util.MapStr{
-								"query": reqBody.Keyword,
-								"boost": 6,
-							},
-						},
-					},
-					{
-						"match": util.MapStr{
-							"search_text": util.MapStr{
-								"query":                reqBody.Keyword,
-								"fuzziness":            "AUTO",
-								"max_expansions":       10,
-								"prefix_length":        2,
-								"fuzzy_transpositions": true,
-								"boost":                2,
-							},
-						},
-					},
-					{
-						"query_string": util.MapStr{
-							"fields":                 []string{"*"},
-							"query":                  reqBody.Keyword,
-							"fuzziness":              "AUTO",
-							"fuzzy_prefix_length":    2,
-							"fuzzy_max_expansions":   10,
-							"fuzzy_transpositions":   true,
-							"allow_leading_wildcard": false,
-						},
-					},
-				},
+				"should": should,
 			},
 		},
 	}

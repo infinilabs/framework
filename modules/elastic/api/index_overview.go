@@ -26,6 +26,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		Highlight elastic.SearchHighlightParam `json:"highlight"`
 		Filter elastic.SearchFilterParam `json:"filter"`
 		Sort []string `json:"sort"`
+		SearchField string `json:"search_field"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
@@ -49,6 +50,73 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		},
 	}
 	filter := elastic.BuildSearchTermFilter(reqBody.Filter)
+	var should []util.MapStr
+	if reqBody.SearchField != ""{
+		should = []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+		}
+	}else{
+		should = []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					"metadata.index_name": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 30,
+					},
+				},
+			},
+			{
+				"prefix": util.MapStr{
+					"metadata.aliases": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					"search_text": util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+			{
+				"query_string": util.MapStr{
+					"fields":                 []string{"*"},
+					"query":                  reqBody.Keyword,
+					"fuzziness":              "AUTO",
+					"fuzzy_prefix_length":    2,
+					"fuzzy_max_expansions":   10,
+					"fuzzy_transpositions":   true,
+					"allow_leading_wildcard": false,
+				},
+			},
+		}
+	}
 	query := util.MapStr{
 		"aggs":      aggs,
 		"size":      reqBody.Size,
@@ -64,47 +132,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 					},
 				},
 				"filter": filter,
-				"should": []util.MapStr{
-					{
-						"prefix": util.MapStr{
-							"metadata.index_name": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 30,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"metadata.aliases": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"match": util.MapStr{
-							"search_text": util.MapStr{
-								"query":                reqBody.Keyword,
-								"fuzziness":            "AUTO",
-								"max_expansions":       10,
-								"prefix_length":        2,
-								"fuzzy_transpositions": true,
-								"boost":                2,
-							},
-						},
-					},
-					{
-						"query_string": util.MapStr{
-							"fields":                 []string{"*"},
-							"query":                  reqBody.Keyword,
-							"fuzziness":              "AUTO",
-							"fuzzy_prefix_length":    2,
-							"fuzzy_max_expansions":   10,
-							"fuzzy_transpositions":   true,
-							"allow_leading_wildcard": false,
-						},
-					},
-				},
+				"should": should,
 			},
 		},
 	}
