@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"reflect"
+	"github.com/r3labs/diff/v2"
 	"sync"
 	"time"
 )
@@ -107,12 +108,13 @@ func updateClusterHealthStatus(clusterID string, healthStatus string){
 		Metadata: event.ActivityMetadata{
 			Category: "elasticsearch",
 			Group: "health",
-			Name: "cluster_health",
+			Name: "cluster_health_change",
 			Type: "update",
 			Labels: util.MapStr{
 				"cluster_id": clusterID,
-				"from_status": oldHealthStatus,
-				"to_status": healthStatus,
+				"cluster_name": getRes.Source["name"],
+				"from": oldHealthStatus,
+				"to": healthStatus,
 			},
 		},
 	}
@@ -159,6 +161,9 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		//TODO locker
 		if stateChanged || (err == nil && oldIndexState == nil){
 			if meta.Config.Source != "file"{
+				if meta.ClusterState == nil {
+					//todo check whether store elasticsearch change or not
+				}
 				module.saveIndexMetadata(state, clusterId)
 			}
 		}
@@ -173,6 +178,9 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 }
 
 func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, clusterID string) {
+	if state == nil || state.RoutingTable == nil{
+		return
+	}
 	nodesRouting := map[string][]elastic.IndexShardRouting{}
 	for indexName, routing := range state.RoutingTable.Indices {
 		err := event.Save(event.Event{
@@ -340,6 +348,8 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			},
 		}
 		if oldIndexMetadata[indexName] != nil {
+			changeLog, _ := util.DiffTwoObject(oldIndexMetadata[indexName], indexMetadata)
+			metadataEvent.Fields["diff"] = changeLog
 			metadataEvent.Metadata.Labels["type"] = "update"
 
 		}else{
@@ -494,6 +504,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		util.MustFromJSONBytes(rawBytes, &currentNodeInfo)
 		var innerID interface{}
 		var typ string
+		var changeLog diff.Changelog
 		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
 			newID := util.GetUUID()
@@ -531,8 +542,11 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			if rid, ok := rowID.(string); ok {
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
 					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil  {
-						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok && currentNodeInfo.Equals(oldMetadataM) {
-							continue
+						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok { // && currentNodeInfo.Equals(oldMetadataM)
+							changeLog, _ = util.DiffTwoObject(oldMetadataM, currentNodeInfo)
+							if len(changeLog) == 0 {
+								continue
+							}
 						}
 					}
 					//only overwrite follow labels
@@ -545,6 +559,29 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
+							if st, ok := labelsM["status"].(string); ok && st == "unavailable" {
+								activityInfo := &event.Activity{
+									ID: util.GetUUID(),
+									Timestamp: time.Now(),
+									Metadata: event.ActivityMetadata{
+										Category: "elasticsearch",
+										Group: "health",
+										Name: "node_health_change",
+										Type: "update",
+										Labels: util.MapStr{
+											"cluster_id": clusterID,
+											"to": "available",
+											"node_id": rawNodeID,
+											"node_name": nodeInfo.Name,
+											"cluster_name": esConfig.Name,
+										},
+									},
+								}
+								err = orm.Save(activityInfo)
+								if err != nil {
+									log.Error(err)
+								}
+							}
 							for k, v := range labelsM {
 								if _, ok := newLabels[k]; !ok {
 									newLabels[k] = v
@@ -578,23 +615,28 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 
 
 		}
+
 		activityInfo := &event.Activity{
 			ID: util.GetUUID(),
 			Timestamp: time.Now(),
 			Metadata: event.ActivityMetadata{
 				Category: "elasticsearch",
 				Group: "metadata",
-				Name: "node_state",
+				Name: "node_state_change",
 				Type: typ,
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
 					"node_id": innerID,
+					"node_name": nodeInfo.Name,
 					"cluster_name": esConfig.Name,
 				},
 			},
 			Fields: util.MapStr{
 				"node_state": nodeInfo,
 			},
+		}
+		if typ == "update"{
+			activityInfo.Fields["diff"] = changeLog
 		}
 		err = orm.Save(activityInfo)
 		if err != nil {
@@ -620,11 +662,13 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			Metadata: event.ActivityMetadata{
 				Category: "elasticsearch",
 				Group: "health",
-				Name: "node_health",
+				Name: "node_health_change",
 				Type: "update",
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
-					"status": "unavailable",
+					"to": "unavailable",
+					"node_id": oldConfig.Metadata.NodeID,
+					"node_name": oldConfig.Metadata.NodeName,
 					"cluster_name": esConfig.Name,
 				},
 			},
