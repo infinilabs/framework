@@ -421,15 +421,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 
 func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
-	indexID := ps.MustGetParameter("index")
-	indexConfig := &elastic.IndexConfig{
-		ID: indexID,
-	}
-	exists, err := orm.Get(indexConfig)
-	if !exists {
-		h.WriteError(w, fmt.Sprintf("index id %s not found", indexID), http.StatusNotFound)
-		return
-	}
+	indexName := ps.MustGetParameter("index")
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -455,7 +447,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		{
 			"term": util.MapStr{
 				"metadata.labels.index_name": util.MapStr{
-					"value": indexConfig.Metadata.IndexName,
+					"value": indexName,
 				},
 			},
 		},
