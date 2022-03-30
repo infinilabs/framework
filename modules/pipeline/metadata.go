@@ -18,7 +18,7 @@ import (
 	"infini.sh/framework/lib/bytebufferpool"
 	elastic2 "infini.sh/gateway/proxy/filters/elastic"
 	"runtime"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 
 	"sync"
 	"time"
@@ -344,6 +344,8 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 					panic(err)
 				}
 			}
+		}else{
+			log.Error(err)
 		}
 	}
 }
@@ -362,17 +364,40 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 		},
 		Fields: ev.Fields,
 	}
+	if typ =="update" {
+		if changelog, ok := activityInfo.Fields["changelog"]; ok {
+			activityInfo.Changelog = changelog
+			delete(activityInfo.Fields, "changelog")
+		}
+	}
 	esClient := elastic.GetClient(processor.config.Elasticsearch)
 	_, err := esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
 	if err != nil {
 		return err
 	}
 	// save index metadata
-	var indexConfig *elastic.IndexConfig
-	clusterID := ev.Metadata.Labels["cluster_id"].(string)
-	clusterName := ev.Metadata.Labels["cluster_name"].(string)
-	indexName := ev.Metadata.Labels["index_name"].(string)
-	health := ev.Metadata.Labels["health"].(string)
+	var (
+		indexConfig *elastic.IndexConfig
+		clusterID string
+		clusterName string
+		indexName string
+		health string
+		ok bool
+	)
+	if clusterName, ok = ev.Metadata.Labels["cluster_name"].(string); !ok {
+		return fmt.Errorf("empty cluster name")
+	}
+	if clusterID, ok = ev.Metadata.Labels["cluster_id"].(string); !ok {
+		return fmt.Errorf("process cluster %s: empty cluster id", clusterName)
+	}
+	if indexName, ok = ev.Metadata.Labels["index_name"].(string); !ok {
+		return fmt.Errorf("process cluster %s: empty index name", clusterName)
+	}
+	if typ != "delete" {
+		if health, ok = ev.Metadata.Labels["health"].(string); !ok {
+			return fmt.Errorf("process cluster %s: empty health", clusterName)
+		}
+	}
 	indexID := fmt.Sprintf("%s:%s", clusterID, indexName)
 	queryDsl := `{
 	"size": 1,
@@ -430,6 +455,7 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 	}
 	switch typ {
 	case "update":
+		//todo skip version lower than old state
 		if searchRes.GetTotal() == 0 {
 			return fmt.Errorf("index id %s can not be found", indexID)
 		}

@@ -626,14 +626,14 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
-		}, http.StatusNotFound)
+		}, http.StatusInternalServerError)
 		return
 	}
 	catShardsInfo, err := esClient.CatShards()
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
-		}, http.StatusNotFound)
+		}, http.StatusInternalServerError)
 		return
 	}
 	shardCounts := map[string]int{}
@@ -679,19 +679,6 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
-	q := &orm.Query{ Size: 10000}
-	q.Conds = orm.And(
-		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.cluster_id", id),
-		orm.NotEq("metadata.labels.index_status", "deleted"),
-	)
-
-	err, result := orm.Search(elastic.IndexConfig{}, q)
-	if err != nil {
-		resBody["error"] = err.Error()
-		h.WriteJSON(w,resBody, http.StatusInternalServerError )
-		return
-	}
 	esClient := elastic.GetClient(id)
 	indexInfos, err := esClient.GetIndices("")
 	if err != nil {
@@ -699,27 +686,10 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
 	}
-	type IndexInfo elastic.IndexInfo
-	type RealtimeIndexInfo struct{
-		IndexInfo
-		InnerID interface{} `json:"id"`
-		IndexID string `json:"index_uuid"`
-	}
-	var indices []RealtimeIndexInfo
-	for _, item := range result.Result {
-		if vitem, ok := item.(map[string]interface{}); ok {
-			if name, exists := util.GetMapValueByKeys([]string{"metadata", "index_name"}, vitem); exists {
-				if vname, ok := name.(string); ok {
-					if info, ok := (*indexInfos)[vname]; ok {
-						indices = append(indices, RealtimeIndexInfo{
-							IndexInfo(info),
-							vitem["id"],
-							info.ID,
-						})
-					}
-				}
-			}
-		}
+
+	var indices []elastic.IndexInfo
+	for _, item := range *indexInfos {
+		indices = append(indices, item)
 	}
 	h.WriteJSON(w, indices, http.StatusOK)
 }
@@ -734,12 +704,96 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		Highlight elastic.SearchHighlightParam `json:"highlight"`
 		Filter elastic.SearchFilterParam `json:"filter"`
 		Sort []string `json:"sort"`
+		SearchField string `json:"search_field"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
+	}
+	var should []util.MapStr
+	if reqBody.SearchField != "" {
+		should =  []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+		}
+	}else {
+		should = []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					"name": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"prefix": util.MapStr{
+					"host": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"prefix": util.MapStr{
+					"version": util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 15,
+					},
+				},
+			},
+			{
+				"match_phrase_prefix": util.MapStr{
+					"name.text": util.MapStr{
+						"query": reqBody.Keyword,
+						"boost": 6,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					"search_text": util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+			{
+				"query_string": util.MapStr{
+					"fields":                 []string{"*"},
+					"query":                  reqBody.Keyword,
+					"fuzziness":              "AUTO",
+					"fuzzy_prefix_length":    2,
+					"fuzzy_max_expansions":   10,
+					"fuzzy_transpositions":   true,
+					"allow_leading_wildcard": false,
+				},
+			},
+		}
 	}
 	query := util.MapStr{
 		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
@@ -749,63 +803,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		"query": util.MapStr{
 			"bool": util.MapStr{
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
-				"should": []util.MapStr{
-					{
-						"prefix": util.MapStr{
-							"name": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"host": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"version": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 15,
-							},
-						},
-					},
-					{
-						"match_phrase_prefix": util.MapStr{
-							"name.text": util.MapStr{
-								"query": reqBody.Keyword,
-								"boost": 6,
-							},
-						},
-					},
-					{
-						"match": util.MapStr{
-							"search_text": util.MapStr{
-								"query":                reqBody.Keyword,
-								"fuzziness":            "AUTO",
-								"max_expansions":       10,
-								"prefix_length":        2,
-								"fuzzy_transpositions": true,
-								"boost":                2,
-							},
-						},
-					},
-					{
-						"query_string": util.MapStr{
-							"fields":                 []string{"*"},
-							"query":                  reqBody.Keyword,
-							"fuzziness":              "AUTO",
-							"fuzzy_prefix_length":    2,
-							"fuzzy_max_expansions":   10,
-							"fuzzy_transpositions":   true,
-							"allow_leading_wildcard": false,
-						},
-					},
-				},
+				"should": should,
 			},
 		},
 	}

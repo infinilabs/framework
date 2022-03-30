@@ -317,7 +317,6 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 						if ok {
 							v3, ok := v2["value"].(float64)
 							if ok {
-								if ok {
 									if strings.HasSuffix( mk1,"_deriv") {
 										if _, ok := bucket[mk1+"_field2"]; !ok {
 											v3 = v3 / float64(bucketSize)
@@ -340,10 +339,8 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 									}
 									points := []interface{}{dateTime, v3}
 									metricData[mk1] = append(mv1, points)
-								}
-
-
 							}
+
 						}
 					}
 				}

@@ -26,6 +26,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		Highlight elastic.SearchHighlightParam `json:"highlight"`
 		Filter elastic.SearchFilterParam `json:"filter"`
 		Sort []string `json:"sort"`
+		SearchField string `json:"search_field"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
@@ -48,56 +49,97 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			},
 		},
 	}
+	filter := elastic.BuildSearchTermFilter(reqBody.Filter)
+	var should []util.MapStr
+	if reqBody.SearchField != ""{
+		should = []util.MapStr{
+			{
+				"prefix": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"value": reqBody.Keyword,
+						"boost": 20,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					reqBody.SearchField: util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                2,
+					},
+				},
+			},
+		}
+	}else{
+		if reqBody.Keyword != ""{
+			should = []util.MapStr{
+				{
+					"prefix": util.MapStr{
+						"metadata.index_name": util.MapStr{
+							"value": reqBody.Keyword,
+							"boost": 30,
+						},
+					},
+				},
+				{
+					"prefix": util.MapStr{
+						"metadata.aliases": util.MapStr{
+							"value": reqBody.Keyword,
+							"boost": 20,
+						},
+					},
+				},
+				{
+					"match": util.MapStr{
+						"search_text": util.MapStr{
+							"query":                reqBody.Keyword,
+							"fuzziness":            "AUTO",
+							"max_expansions":       10,
+							"prefix_length":        2,
+							"fuzzy_transpositions": true,
+							"boost":                2,
+						},
+					},
+				},
+				{
+					"query_string": util.MapStr{
+						"fields":                 []string{"*"},
+						"query":                  reqBody.Keyword,
+						"fuzziness":              "AUTO",
+						"fuzzy_prefix_length":    2,
+						"fuzzy_max_expansions":   10,
+						"fuzzy_transpositions":   true,
+						"allow_leading_wildcard": false,
+					},
+				},
+			}
+		}
+	}
+	boolQuery := util.MapStr{
+		"must_not": []util.MapStr{
+			{
+				"term": util.MapStr{
+					"metadata.labels.index_status": "deleted",
+				},
+			},
+		},
+		"filter": filter,
+	}
+	if len(should) > 0 {
+		boolQuery["should"] = should
+		boolQuery["minimum_should_match"] = 1
+	}
 	query := util.MapStr{
 		"aggs":      aggs,
 		"size":      reqBody.Size,
 		"from": reqBody.From,
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
-			"bool": util.MapStr{
-				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
-				"should": []util.MapStr{
-					{
-						"prefix": util.MapStr{
-							"metadata.index_name": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 30,
-							},
-						},
-					},
-					{
-						"prefix": util.MapStr{
-							"metadata.aliases": util.MapStr{
-								"value": reqBody.Keyword,
-								"boost": 20,
-							},
-						},
-					},
-					{
-						"match": util.MapStr{
-							"search_text": util.MapStr{
-								"query":                reqBody.Keyword,
-								"fuzziness":            "AUTO",
-								"max_expansions":       10,
-								"prefix_length":        2,
-								"fuzzy_transpositions": true,
-								"boost":                2,
-							},
-						},
-					},
-					{
-						"query_string": util.MapStr{
-							"fields":                 []string{"*"},
-							"query":                  reqBody.Keyword,
-							"fuzziness":              "AUTO",
-							"fuzzy_prefix_length":    2,
-							"fuzzy_max_expansions":   10,
-							"fuzzy_transpositions":   true,
-							"allow_leading_wildcard": false,
-						},
-					},
-				},
-			},
+			"bool": boolQuery,
 		},
 	}
 	if len(reqBody.Sort) > 1 {
@@ -368,7 +410,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 		orm.Eq("metadata.labels.index_id", indexID),
 		orm.Eq("metadata.labels.cluster_id", clusterID),
 	)
-	q1.Collapse("metadata.labels.node_id")
+	q1.Collapse("metadata.labels.index_id")
 	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	summary := util.MapStr{}
@@ -413,15 +455,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 
 func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
-	indexID := ps.MustGetParameter("index")
-	indexConfig := &elastic.IndexConfig{
-		ID: indexID,
-	}
-	exists, err := orm.Get(indexConfig)
-	if !exists {
-		h.WriteError(w, fmt.Sprintf("index id %s not found", indexID), http.StatusNotFound)
-		return
-	}
+	indexName := ps.MustGetParameter("index")
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -447,7 +481,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		{
 			"term": util.MapStr{
 				"metadata.labels.index_name": util.MapStr{
-					"value": indexConfig.Metadata.IndexName,
+					"value": indexName,
 				},
 			},
 		},
