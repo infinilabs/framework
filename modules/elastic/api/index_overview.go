@@ -75,47 +75,63 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			},
 		}
 	}else{
-		should = []util.MapStr{
-			{
-				"prefix": util.MapStr{
-					"metadata.index_name": util.MapStr{
-						"value": reqBody.Keyword,
-						"boost": 30,
+		if reqBody.Keyword != ""{
+			should = []util.MapStr{
+				{
+					"prefix": util.MapStr{
+						"metadata.index_name": util.MapStr{
+							"value": reqBody.Keyword,
+							"boost": 30,
+						},
 					},
 				},
-			},
-			{
-				"prefix": util.MapStr{
-					"metadata.aliases": util.MapStr{
-						"value": reqBody.Keyword,
-						"boost": 20,
+				{
+					"prefix": util.MapStr{
+						"metadata.aliases": util.MapStr{
+							"value": reqBody.Keyword,
+							"boost": 20,
+						},
 					},
 				},
-			},
-			{
-				"match": util.MapStr{
-					"search_text": util.MapStr{
-						"query":                reqBody.Keyword,
-						"fuzziness":            "AUTO",
-						"max_expansions":       10,
-						"prefix_length":        2,
-						"fuzzy_transpositions": true,
-						"boost":                2,
+				{
+					"match": util.MapStr{
+						"search_text": util.MapStr{
+							"query":                reqBody.Keyword,
+							"fuzziness":            "AUTO",
+							"max_expansions":       10,
+							"prefix_length":        2,
+							"fuzzy_transpositions": true,
+							"boost":                2,
+						},
 					},
 				},
-			},
-			{
-				"query_string": util.MapStr{
-					"fields":                 []string{"*"},
-					"query":                  reqBody.Keyword,
-					"fuzziness":              "AUTO",
-					"fuzzy_prefix_length":    2,
-					"fuzzy_max_expansions":   10,
-					"fuzzy_transpositions":   true,
-					"allow_leading_wildcard": false,
+				{
+					"query_string": util.MapStr{
+						"fields":                 []string{"*"},
+						"query":                  reqBody.Keyword,
+						"fuzziness":              "AUTO",
+						"fuzzy_prefix_length":    2,
+						"fuzzy_max_expansions":   10,
+						"fuzzy_transpositions":   true,
+						"allow_leading_wildcard": false,
+					},
 				},
-			},
+			}
 		}
+	}
+	boolQuery := util.MapStr{
+		"must_not": []util.MapStr{
+			{
+				"term": util.MapStr{
+					"metadata.labels.index_status": "deleted",
+				},
+			},
+		},
+		"filter": filter,
+	}
+	if len(should) > 0 {
+		boolQuery["should"] = should
+		boolQuery["minimum_should_match"] = 1
 	}
 	query := util.MapStr{
 		"aggs":      aggs,
@@ -123,17 +139,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		"from": reqBody.From,
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
-			"bool": util.MapStr{
-				"must_not": []util.MapStr{
-					{
-						"term": util.MapStr{
-							"metadata.labels.index_status": "deleted",
-						},
-					},
-				},
-				"filter": filter,
-				"should": should,
-			},
+			"bool": boolQuery,
 		},
 	}
 	if len(reqBody.Sort) > 1 {
@@ -404,7 +410,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 		orm.Eq("metadata.labels.index_id", indexID),
 		orm.Eq("metadata.labels.cluster_id", clusterID),
 	)
-	q1.Collapse("metadata.labels.node_id")
+	q1.Collapse("metadata.labels.index_id")
 	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	summary := util.MapStr{}

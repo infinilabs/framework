@@ -18,7 +18,7 @@ import (
 	"infini.sh/framework/lib/bytebufferpool"
 	elastic2 "infini.sh/gateway/proxy/filters/elastic"
 	"runtime"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 
 	"sync"
 	"time"
@@ -364,6 +364,12 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 		},
 		Fields: ev.Fields,
 	}
+	if typ =="update" {
+		if changelog, ok := activityInfo.Fields["changelog"]; ok {
+			activityInfo.Changelog = changelog
+			delete(activityInfo.Fields, "changelog")
+		}
+	}
 	esClient := elastic.GetClient(processor.config.Elasticsearch)
 	_, err := esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
 	if err != nil {
@@ -449,6 +455,7 @@ func (processor *MetadataProcessor) HandleIndexStateChange(ev *event.Event) erro
 	}
 	switch typ {
 	case "update":
+		//todo skip version lower than old state
 		if searchRes.GetTotal() == 0 {
 			return fmt.Errorf("index id %s can not be found", indexID)
 		}

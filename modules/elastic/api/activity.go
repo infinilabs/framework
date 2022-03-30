@@ -63,7 +63,7 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 		should = []util.MapStr{
 			{
 				"prefix": util.MapStr{
-					"metadata.labels.node_name": util.MapStr{
+					"metadata.labels": util.MapStr{
 						"value": reqBody.Keyword,
 						"boost": 15,
 					},
@@ -71,33 +71,53 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 			},
 			{
 				"prefix": util.MapStr{
-					"metadata.labels.cluster_name": util.MapStr{
+					"changelog": util.MapStr{
 						"value": reqBody.Keyword,
 						"boost": 10,
 					},
 				},
 			},
 			{
-				"prefix": util.MapStr{
-					"metadata.labels.index_name": util.MapStr{
-						"value": reqBody.Keyword,
-						"boost": 20,
+				"match": util.MapStr{
+					"metadata.labels": util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                5,
+					},
+				},
+			},
+			{
+				"match": util.MapStr{
+					"changelog": util.MapStr{
+						"query":                reqBody.Keyword,
+						"fuzziness":            "AUTO",
+						"max_expansions":       10,
+						"prefix_length":        2,
+						"fuzzy_transpositions": true,
+						"boost":                5,
 					},
 				},
 			},
 		}
 	}
+	var boolQuery = util.MapStr{
+		"filter": filter,
+	}
+	if len(should) >0 {
+		boolQuery["should"] = should
+		boolQuery["minimum_should_match"] = 1
+	}
 	query := util.MapStr{
 		"aggs":      aggs,
 		"size":      reqBody.Size,
 		"from": reqBody.From,
-		"_source": []string{"payload.diff", "id", "metadata", "timestamp"},
+		"_source": []string{"changelog", "id", "metadata", "timestamp"},
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
-			"bool": util.MapStr{
-				"filter": filter,
-				"should": should,
-			},
+			"bool": boolQuery,
 		},
 	}
 	if len(reqBody.Sort) == 0 {

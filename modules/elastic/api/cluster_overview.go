@@ -626,14 +626,14 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
-		}, http.StatusNotFound)
+		}, http.StatusInternalServerError)
 		return
 	}
 	catShardsInfo, err := esClient.CatShards()
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
-		}, http.StatusNotFound)
+		}, http.StatusInternalServerError)
 		return
 	}
 	shardCounts := map[string]int{}

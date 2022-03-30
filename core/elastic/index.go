@@ -74,6 +74,7 @@ type ClusterState struct {
 	ClusterName string `json:"cluster_name"`
 	Version     int64  `json:"version"`
 	StateUUID   string `json:"state_uuid"`
+	ClusterUUID string `json:"cluster_uuid"`
 	MasterNode  string `json:"master_node"`
 	//Nodes        map[string]ClusterStateNodes `json:"nodes"`
 	RoutingTable *ClusterRoutingTable `json:"routing_table,omitempty"`
