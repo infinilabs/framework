@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
 	"sync"
@@ -35,9 +36,12 @@ func RunTasks() {
 	defer taskLock.RUnlock()
 
 	for _, task := range scheduleTasks {
+		if global.Env().IsDebug{
+			log.Debug("scheduled task:",task.Type,",",task.Interval,",",task.Description)
+		}
 		_, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval,defaultInterval))
-		if err == nil {
-			log.Error("Task has been scheduled successfully.",task.Type,",",task.Interval,",",task.Description)
+		if err != nil {
+			log.Error("failed to scheduled task:",task.Type,",",task.Interval,",",task.Description)
 		}
 	}
 }
