@@ -105,6 +105,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 			nextFile:= d.SmartGetFileName(d.name,part+1)
 			if util.FileExists(nextFile){
 				log.Trace("EOF, continue read:",nextFile)
+
 				Notify(d.name, ReadComplete,part)
 
 				part=part+1
@@ -118,7 +119,8 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 					log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
 				}
 				if len(messages)==0{
-					time.Sleep(10*time.Second)
+					log.Debugf("no message found, sleep 1s")
+					time.Sleep(1*time.Second)
 				}
 			}
 			//No error for EOF error
