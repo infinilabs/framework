@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -75,7 +76,7 @@ func (module *MetricsModule) Start() error {
 				Description: "fetch network metrics",
 				Type:        "schedule",
 				Interval:    "10s",
-				Task: func() {
+				Task: func(ctx context.Context) {
 					log.Debug("collecting network metrics")
 					net.Collect()
 				},
@@ -96,7 +97,7 @@ func (module *MetricsModule) Start() error {
 				Description: "monitoring for elasticsearch clusters",
 				Type:        "interval",
 				Interval:    "10s",
-				Task: func() {
+				Task: func(ctx context.Context) {
 					log.Debug("collecting elasticsearch metrics")
 					es.Collect()
 				},

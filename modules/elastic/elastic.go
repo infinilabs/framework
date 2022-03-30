@@ -17,6 +17,7 @@ limitations under the License.
 package elastic
 
 import (
+	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
@@ -220,7 +221,7 @@ func nodeAvailabilityCheck() {
 		Description: "check for elasticsearch node availability",
 		Type:        "interval",
 		Interval:    "10s",
-		Task: func() {
+		Task: func(ctx context.Context) {
 			elastic.WalkHosts(func(key, value interface{}) bool {
 				k := key.(string)
 
@@ -256,7 +257,7 @@ func (module *ElasticModule)clusterStateRefresh() {
 		Description: "elasticsearch state refresh",
 		Type:        "interval",
 		Interval:    "10s",
-		Task: func() {
+		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
 				log.Trace("walk metadata: ",key)
 
@@ -305,7 +306,7 @@ func (module *ElasticModule) Start() error {
 			Description: "cluster health check",
 			Type:        "interval",
 			Interval:    "10s",
-			Task: func() {
+			Task: func(ctx context.Context) {
 				clusterHealthCheck(false)
 			},
 		}
@@ -328,7 +329,7 @@ func (module *ElasticModule) Start() error {
 			Description: fmt.Sprintf("elasticsearch nodes discovery"),
 			Type:        "interval",
 			Interval:    "60s",
-			Task: func() {
+			Task: func(ctx context.Context) {
 				elastic.WalkMetadata(func(key, value interface{}) bool {
 					if value==nil{
 						return true
@@ -372,7 +373,7 @@ func (module *ElasticModule) Start() error {
 			Description: fmt.Sprintf("elasticsearch alias discovery"),
 			Type:        "interval",
 			Interval:    "30s",
-			Task: func() {
+			Task: func(ctx context.Context) {
 				elastic.WalkMetadata(func(key, value interface{}) bool {
 					if value==nil{
 						return true
