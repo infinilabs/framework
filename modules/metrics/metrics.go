@@ -44,14 +44,11 @@ func (module *MetricsModule) Setup(cfg *Config) {
 	if err != nil {
 		panic(err)
 	}
-
-}
-
-func (module *MetricsModule) Start() error {
-
+	
 	if !module.config.Enabled{
-		return nil
+		return
 	}
+
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
 	meta := event.AgentMeta{
@@ -106,6 +103,10 @@ func (module *MetricsModule) Start() error {
 		}
 	}
 
+
+}
+
+func (module *MetricsModule) Start() error {
 
 	return nil
 }

@@ -415,7 +415,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	err, result := orm.Search(&event.Event{}, &q1)
 	summary := util.MapStr{}
 	hit := response.Hits.Hits[0].Source
-	if aliases, ok := util.GetMapValueByKeys([]string{"metadata","labels", "aliases"}, hit); ok {
+	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
 		summary["aliases"] = aliases
 	}
 	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
