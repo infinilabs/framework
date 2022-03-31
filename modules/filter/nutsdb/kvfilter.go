@@ -2,14 +2,13 @@ package nutsdb
 
 import (
 	"github.com/xujiajun/nutsdb"
-	"infini.sh/framework/core/global"
-	"path"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
 	"sync"
 )
 
 type NutsdbKVFilter struct {
+	Options nutsdb.Options
 }
 
 var v = []byte("true")
@@ -20,18 +19,8 @@ func (filter *NutsdbKVFilter) Open() error {
 	l.Lock()
 	defer l.Unlock()
 
-	opt := nutsdb.Options{
-		EntryIdxMode:         nutsdb.HintKeyValAndRAMIdxMode,
-		SegmentSize:          8 * 1024 * 1024,
-		NodeNum:              1,
-		RWMode:               nutsdb.FileIO,
-		SyncEnable:           true,
-		StartFileLoadingMode: nutsdb.FileIO,
-	}
-
-	opt.Dir = path.Join(global.Env().GetDataDir(),"kvdb")
 	var err error
-	h, err := nutsdb.Open(opt)
+	h, err := nutsdb.Open(filter.Options)
 	if err != nil {
 		panic(err)
 	}
