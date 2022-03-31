@@ -53,11 +53,14 @@ FRAMEWORK_VENDOR_FOLDER := $(CURDIR)/../vendor/
 FRAMEWORK_VENDOR_REPO :=  ssh://git@git.infini.ltd:64221/infini/framework-vendor.git
 FRAMEWORK_VENDOR_BRANCH := master
 
+ifneq "$(DEV)" ""
+   FRAMEWORK_DEVEL_BUILD := -tags dev
+endif
 
 NEWGOPATH:= $(CURDIR):$(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
@@ -71,6 +74,7 @@ FRAMEWORK_OFFLINE_BUILD := ""
 ifneq "$(OFFLINE_BUILD)" ""
    FRAMEWORK_OFFLINE_BUILD := $(OFFLINE_BUILD)
 endif
+
 
 .PHONY: all build update test clean
 

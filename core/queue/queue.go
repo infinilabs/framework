@@ -411,7 +411,9 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 		if !ok{
 			panic(errors.Errorf("queue [%v] was not found",queueID))
 		}
-		log.Debugf("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
+		if global.Env().IsDebug{
+			log.Tracef("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
+		}
 	}
 	consumers,ok:=GetConsumerConfigsByQueueID(queueID)
 	if !ok{

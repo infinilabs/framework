@@ -1,9 +1,11 @@
 package task
 
 import (
+	"context"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
-	"runtime"
+	"infini.sh/framework/core/task/chrono"
+	"infini.sh/framework/core/util"
 	"sync"
 	"time"
 )
@@ -15,7 +17,7 @@ type ScheduleTask struct {
 	Description string
 	Type        string
 	Interval    string
-	Task        func()
+	Task        func(ctx context.Context)
 }
 
 func RegisterScheduleTask(task ScheduleTask) {
@@ -25,64 +27,33 @@ func RegisterScheduleTask(task ScheduleTask) {
 }
 
 var quit = make(chan struct{})
+var taskScheduler = chrono.NewDefaultTaskScheduler()
 
 func RunTasks() {
-	go func() {
-		defer func() {
-			if !global.Env().IsDebug {
-				if r := recover(); r != nil {
-					var v string
-					switch r.(type) {
-					case error:
-						v = r.(error).Error()
-					case runtime.Error:
-						v = r.(runtime.Error).Error()
-					case string:
-						v = r.(string)
-					}
-					log.Error("error on run tasks,", v)
-				}
-			}
-		}()
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				taskLock.RLock()
-				for _, task := range scheduleTasks {
-					if global.Env().IsDebug {
-						log.Tracef("task: %s, %v, %v", task.Description, task.Type, task.Interval)
-					}
-					go func(task ScheduleTask) {
-						defer func() {
-							if !global.Env().IsDebug {
-								if r := recover(); r != nil {
-									var v string
-									switch r.(type) {
-									case error:
-										v = r.(error).Error()
-									case runtime.Error:
-										v = r.(runtime.Error).Error()
-									case string:
-										v = r.(string)
-									}
-									log.Error("error on run task,", v)
-								}
-							}
-						}()
-						task.Task()
-					}(task)
-				}
-				taskLock.RUnlock()
-			case <-quit:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
 
+	var defaultInterval=time.Duration(10) * time.Second
+	taskLock.RLock()
+	defer taskLock.RUnlock()
+
+	for _, task := range scheduleTasks {
+		if global.Env().IsDebug{
+			log.Debug("scheduled task:",task.Type,",",task.Interval,",",task.Description)
+		}
+		_, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval,defaultInterval))
+		if err != nil {
+			log.Error("failed to scheduled task:",task.Type,",",task.Interval,",",task.Description)
+		}
+	}
 }
 
 func StopTasks() {
+	shutdownChannel := taskScheduler.Shutdown()
+	<- shutdownChannel
+
 	close(quit)
 }
+
+func ReceiveTask(task func())  {
+
+}
+
