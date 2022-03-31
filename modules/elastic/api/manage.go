@@ -49,7 +49,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	conf.Updated = conf.Created
 	conf.Endpoint = fmt.Sprintf("%s://%s", conf.Schema, conf.Host)
 	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
-	_, err = esClient.Index(index, "", id, conf)
+	_, err = esClient.Index(index, "", id, conf, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -138,7 +138,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	}
 
 	conf["updated"] = time.Now()
-	_, err = esClient.Index(indexName, "", id, source)
+	_, err = esClient.Index(indexName, "", id, source, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()

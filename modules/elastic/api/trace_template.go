@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +49,7 @@ func (h *APIHandler) HandleCrateTraceTemplateAction(w http.ResponseWriter, req *
 	traceReq.ClusterID = targetClusterID
 
 	var id = util.GetUUID()
-	insertRes, err := client.Index(orm.GetIndexName(elastic.TraceTemplate{}), "", id, traceReq)
+	insertRes, err := client.Index(orm.GetIndexName(elastic.TraceTemplate{}), "", id, traceReq, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()
@@ -116,7 +116,7 @@ func (h *APIHandler) HandleSaveTraceTemplateAction(w http.ResponseWriter, req *h
 	reqParams.ID = ps.ByName("template_id")
 	reqParams.Updated = time.Now()
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
-	_, err = esClient.Index(orm.GetIndexName(reqParams),"", reqParams.ID, reqParams)
+	_, err = esClient.Index(orm.GetIndexName(reqParams),"", reqParams.ID, reqParams, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()

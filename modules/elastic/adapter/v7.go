@@ -161,20 +161,30 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 }
 
 // IndexDoc index a document into elasticsearch
-func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
+func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
 	if docType==""{
 		docType=TypeName7
 	}
 	indexName=util.UrlEncode(indexName)
 
-	url := fmt.Sprintf("%s/%s/%s/%s?refresh=wait_for", c.GetEndpoint(), indexName, docType, id)
+	url := fmt.Sprintf("%s/%s/%s/%s", c.GetEndpoint(), indexName, docType, id)
 
 	if id==""{
 		url = fmt.Sprintf("%s/%s/%s/", c.GetEndpoint(), indexName, docType)
 	}
-
-	js, err := json.Marshal(data)
+	if refresh != "" {
+		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
+	}
+	var (
+		js []byte
+		err error
+	)
+	if dataBytes, ok := data.([]byte); ok {
+		js = dataBytes
+	}else{
+		js, err = json.Marshal(data)
+	}
 
 	if global.Env().IsDebug {
 		log.Debug("indexing doc: ", url, ",", string(js))

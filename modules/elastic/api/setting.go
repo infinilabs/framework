@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -33,10 +33,10 @@ func (h *APIHandler) HandleSettingAction(w http.ResponseWriter, req *http.Reques
 	queryDSL := fmt.Sprintf(`{"size":1,"query":{"bool":{"must":[{"match":{"key":"%s"}},{"match":{"cluster_id":"%s"}}]}}}`, reqParams.Key, targetClusterID)
 	searchRes, err := esClient.SearchWithRawQueryDSL(indexName, []byte(queryDSL))
 	if len(searchRes.Hits.Hits) > 0 {
-		_, err = esClient.Index(indexName, "", searchRes.Hits.Hits[0].ID, reqParams)
+		_, err = esClient.Index(indexName, "", searchRes.Hits.Hits[0].ID, reqParams, "wait_for")
 	}else{
 		reqParams.ID = util.GetUUID()
-		_, err = esClient.Index(indexName, "", reqParams.ID, reqParams)
+		_, err = esClient.Index(indexName, "", reqParams.ID, reqParams, "wait_for")
 	}
 
 

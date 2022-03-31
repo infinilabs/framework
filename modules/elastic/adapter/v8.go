@@ -143,7 +143,7 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 }
 
 // IndexDoc index a document into elasticsearch
-func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interface{}) (*elastic.InsertResponse, error) {
+func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
 	indexName=util.UrlEncode(indexName)
 
@@ -152,8 +152,18 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 	if id==""{
 		url = fmt.Sprintf("%s/%s/", c.GetEndpoint(), indexName)
 	}
-
-	js, err := json.Marshal(data)
+	if refresh != "" {
+		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
+	}
+	var (
+		js []byte
+		err error
+	)
+	if dataBytes, ok := data.([]byte); ok {
+		js = dataBytes
+	}else{
+		js, err = json.Marshal(data)
+	}
 
 	if global.Env().IsDebug {
 		log.Debug("indexing doc: ", url, ",", string(js))

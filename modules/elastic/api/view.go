@@ -50,7 +50,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 	id := util.GetUUID()
 	viewReq.Attributes.UpdatedAt = time.Now()
 	viewReq.Attributes.ClusterID = targetClusterID
-	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
+	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -315,7 +315,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	viewReq.Attributes.UpdatedAt = time.Now()
 	viewReq.Attributes.ClusterID = targetClusterID
-	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes)
+	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err

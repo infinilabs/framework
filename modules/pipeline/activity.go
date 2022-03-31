@@ -6,7 +6,6 @@ package pipeline
 
 import (
 	"fmt"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
@@ -20,12 +19,14 @@ import (
 	"runtime"
 	log "github.com/cihub/seelog"
 	"github.com/buger/jsonparser"
+	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/config"
 
 	"sync"
 	"time"
 )
 
-type MetadataProcessor struct {
+type ActivityProcessor struct {
 	bufferPool     *bytebufferpool.Pool
 	config         *Config
 	runningConfigs map[string]*queue.Config
@@ -36,43 +37,14 @@ type MetadataProcessor struct {
 	id string
 }
 
-type Config struct {
-	NumOfWorkers         int    `config:"worker_size"`
-
-	IdleTimeoutInSecond  int    `config:"idle_timeout_in_seconds"`
-	MaxConnectionPerHost int    `config:"max_connection_per_node"`
-
-	BulkSizeInKb         int    `config:"bulk_size_in_kb,omitempty"`
-	BulkSizeInMb         int    `config:"bulk_size_in_mb,omitempty"`
-	BulkMaxDocsCount     int    `config:"bulk_max_docs_count,omitempty"`
-
-	Queues          map[string]interface{} `config:"queues,omitempty"`
-
-	Consumer   queue.ConsumerConfig `config:"consumer"`
-
-	MaxWorkers int      `config:"max_worker_size"`
-
-	DetectActiveQueue bool     `config:"detect_active_queue"`
-	DetectIntervalInMs   int         `config:"detect_interval"`
-
-	ValidateRequest bool     `config:"valid_request"`
-	SkipEmptyQueue bool     `config:"skip_empty_queue"`
-	SkipOnMissingInfo bool  `config:"skip_info_missing"`
-
-	RotateConfig rotate.RotateConfig          `config:"rotate"`
-	BulkConfig   elastic2.BulkProcessorConfig `config:"bulk"`
-
-	Elasticsearch     string    `config:"elasticsearch,omitempty"`
-
-	WaitingAfter        []string `config:"waiting_after"`
-
-}
 
 func init()  {
-	pipeline.RegisterProcessorPlugin("metadata", New)
+	pipeline.RegisterProcessorPlugin("activity", NewActivityProcessor)
 }
 
-func New(c *config.Config) (pipeline.Processor, error) {
+
+
+func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
 		NumOfWorkers:         1,
 		MaxWorkers:           10,
@@ -83,8 +55,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		Queues: map[string]interface{}{},
 
 		Consumer: queue.ConsumerConfig{
-			Group: "metadata-001",
-			Name: "metadata-001",
+			Group: "activity-001",
+			Name: "activity-001",
 			FetchMinBytes:   	1,
 			FetchMaxMessages:   100,
 			FetchMaxWaitMs:   10000,
@@ -103,7 +75,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		return nil, fmt.Errorf("failed to unpack the configuration of flow_runner processor: %s", err)
 	}
 
-	runner := MetadataProcessor{
+	runner := ActivityProcessor{
 		id:util.GetUUID(),
 		config: &cfg,
 		runningConfigs: map[string]*queue.Config{},
@@ -123,11 +95,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	return &runner, nil
 }
 
-func (processor *MetadataProcessor) Name() string {
-	return "metadata"
+func (processor *ActivityProcessor) Name() string {
+	return "activity"
 }
 
-func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
+func (processor *ActivityProcessor) Process(c *pipeline.Context) error {
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -140,10 +112,10 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 				case string:
 					v = r.(string)
 				}
-				log.Error("error in metadata processor,", v)
+				log.Error("error in activity processor,", v)
 			}
 		}
-		log.Trace("exit metadata processor")
+		log.Trace("exit activity processor")
 	}()
 
 	//handle updates
@@ -166,7 +138,7 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 							case string:
 								v = r.(string)
 							}
-							log.Error("error in metadata processor,", v)
+							log.Error("error in activity processor,", v)
 						}
 					}
 					processor.detectorRunning=false
@@ -221,7 +193,7 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
-func (processor *MetadataProcessor) HandleQueueConfig(v *queue.Config,c *pipeline.Context){
+func (processor *ActivityProcessor) HandleQueueConfig(v *queue.Config,c *pipeline.Context){
 
 	if processor.config.SkipEmptyQueue{
 		if !queue.HasLag(v){
@@ -234,7 +206,7 @@ func (processor *MetadataProcessor) HandleQueueConfig(v *queue.Config,c *pipelin
 
 	elasticsearch := processor.config.Elasticsearch
 	if elasticsearch==""{
-		log.Error("elasticsearch config was not found in metadata processor" )
+		log.Error("elasticsearch config was not found in activity processor" )
 		return
 	}
 
@@ -253,7 +225,7 @@ func (processor *MetadataProcessor) HandleQueueConfig(v *queue.Config,c *pipelin
 
 }
 
-func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig *queue.Config){
+func (processor *ActivityProcessor) HandleMessage(ctx *pipeline.Context, qConfig *queue.Config){
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -300,7 +272,9 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 		if ctx.IsCanceled() {
 			return
 		}
+
 		ctx1,messages,timeout,err:=queue.Consume(qConfig,consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs))
+
 		if timeout{
 			log.Tracef("timeout on queue:[%v]",qConfig.Name)
 			ctx.Failed()
@@ -325,21 +299,20 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 
 		if len(messages) > 0 {
 			for _, pop := range messages {
-
 				typ, err := jsonparser.GetString(pop.Data, "metadata", "name")
 				if err != nil {
 					panic(err)
 				}
 				switch typ {
-				case "index_health_change":
-					//err = processor.HandleIndexHealthChange(&ev)
-				case "index_state_change":
-					indexState, _, _, err := jsonparser.Get(pop.Data, "payload", "index_state")
+				case "activity":
+					activity, _, _, err := jsonparser.Get(pop.Data, "payload", "activity")
 					if err != nil {
 						panic(err)
 					}
-					err = processor.HandleIndexStateChange(indexState)
+
+					err = processor.HandleActivity(activity)
 				}
+
 			}
 		}
 		if err == nil {
@@ -354,75 +327,11 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 		}
 	}
 }
-func (processor *MetadataProcessor) HandleIndexStateChange(indexState []byte) error{
-	esClient := elastic.GetClient(processor.config.Elasticsearch)
-	// save index metadata
-	id, err  := jsonparser.GetString(indexState, "id")
-	if err != nil {
-		return err
-	}
-	storeIndexName := orm.GetIndexName(elastic.IndexConfig{})
-
-	_, err = esClient.Index(storeIndexName, "",  id, indexState, "")
-	return err
-}
-
-func (processor *MetadataProcessor) HandleIndexHealthChange(ev *event.Event) error{
+func (processor *ActivityProcessor) HandleActivity(activityByte []byte) error{
 	// save activity
-	activityInfo := &event.Activity{
-		ID: util.GetUUID(),
-		Timestamp: ev.Timestamp,
-		Metadata: event.ActivityMetadata{
-			Category: ev.Metadata.Category,
-			Group: "metadata",
-			Name: "index_health_change",
-			Type: "update",
-			Labels: ev.Metadata.Labels,
-		},
-	}
+	activityInfo := &event.Activity{}
+	json.Unmarshal(activityByte, activityInfo)
 	esClient := elastic.GetClient(processor.config.Elasticsearch)
 	_, err := esClient.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo, "")
-	if err != nil {
-		return err
-	}
-	// update index health status
-	queryDslTpl := `{
-  "size": 1, 
-  "query": {
-    "bool": {
-      "must": [
-        {"term": {
-          "metadata.index_id": {
-            "value": "%s"
-          }
-        }},
-		 {"term": {
-          "metadata.category": {
-            "value": "elasticsearch"
-          }
-        }}
-      ],
-		"must_not": [
-        {"term": {
-          "metadata.labels.index_status": {
-            "value": "deleted"
-          }
-        }}
-      ]
-    }
-  }
-}`
-	queryDsl := fmt.Sprintf(queryDslTpl, ev.Metadata.Labels["index_id"])
-	indexName := orm.GetIndexName(elastic.IndexConfig{})
-	searchRes, err := esClient.SearchWithRawQueryDSL( indexName, []byte(queryDsl))
-	if err != nil {
-		return err
-	}
-	if searchRes.GetTotal()  == 0 {
-		return nil
-	}
-	source := util.MapStr(searchRes.Hits.Hits[0].Source)
-	source.Put("metadata.labels.health_status", ev.Metadata.Labels["to"])
-	_, err = esClient.Index(indexName, "", searchRes.Hits.Hits[0].ID, source, "")
 	return err
 }

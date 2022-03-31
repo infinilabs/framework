@@ -45,7 +45,7 @@ type API interface {
 
 	CreateIndex(name string, settings map[string]interface{}) error
 
-	Index(indexName, docType string, id interface{}, data interface{}) (*InsertResponse, error)
+	Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
 
 	Bulk(data []byte)
 

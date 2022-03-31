@@ -97,7 +97,7 @@ func updateClusterHealthStatus(clusterID string, healthStatus string){
 	getRes.Source["labels"] = labels
 	getRes.Source["updated"] = time.Now()
 
-	_, err = client.Index(indexName, "", getRes.ID, getRes.Source)
+	_, err = client.Index(indexName, "", getRes.ID, getRes.Source, "")
 	if err != nil {
 		log.Errorf("save cluster health status error: %v", err)
 	}
@@ -118,7 +118,7 @@ func updateClusterHealthStatus(clusterID string, healthStatus string){
 			},
 		},
 	}
-	_, err = client.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo)
+	_, err = client.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo, "")
 	if err != nil {
 		log.Error(err)
 	}
@@ -215,8 +215,13 @@ func (module *ElasticModule) loadIndexMetadataFromES( clusterID string)([]byte, 
 	 for _, hit := range searchRes.Hits.Hits {
 		 indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hit.Source)
 		 indexState, _ := util.GetMapValueByKeys([]string{"payload", "index_state"}, hit.Source)
+		 health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit.Source)
 		 if v, ok := indexName.(string); ok {
-			 states[v] = indexState
+			 states[v] = util.MapStr{
+				 "index_state": indexState,
+				 "health": health,
+				 "id": hit.ID,
+			 }
 		 }
 	 }
 	 return util.ToJSONBytes(states)
@@ -316,7 +321,16 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 
 	notChanges := util.MapStr{}
 	isIndicesStateChange := false
-
+	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
+	if queueConfig.Labels == nil {
+		queueConfig.Labels = map[string]interface{}{
+			"type":     "metadata",
+			"name":     "index_state_change",
+			"category": "elasticsearch",
+			"activity": true,
+		}
+	}
+	newIndexMetadata := util.MapStr{}
 	for indexName, item := range oldIndexMetadata {
 		if info, ok := item.(map[string]interface{}); ok {
 			infoMap := util.MapStr(info)
@@ -324,50 +338,101 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 
 			if state.Metadata.Indices[indexName] == nil {
 				isIndicesStateChange = true
-				metadataEvent := event.Event{
+				var (
+					state interface{}
+					version interface{}
+					indexUUID interface{}
+					aliases interface{}
+				)
+				if mp, ok := infoMap["index_state"].(map[string]interface{}); ok {
+					mps := util.MapStr(mp)
+					state = mps["state"]
+					version = mps["version"]
+					aliases = mps["aliases"]
+					indexUUID, _ = mps.GetValue("settings.index.uuid")
+				}
+				indexConfig := &elastic.IndexConfig{
+					ID:       infoMap["id"].(string),
 					Timestamp: time.Now(),
-					Metadata: event.EventMetadata{
-						Name: "index_state_change",
+					Metadata:  elastic.IndexMetadata{
+						IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
+						IndexName: indexName,
+						ClusterName: esConfig.Name,
 						Category: "elasticsearch",
-						Datatype: "snapshot",
+						Aliases: aliases,
+						Labels: util.MapStr{
+							"version": version,
+							"state": state,
+							"index_uuid": indexUUID,
+							"health_status": infoMap["health"],
+							"index_status": "deleted",
+						},
+					},
+
+				}
+				activityInfo := &event.Activity{
+					ID: util.GetUUID(),
+					Timestamp: time.Now(),
+					Metadata: event.ActivityMetadata{
+						Category: "elasticsearch",
+						Group: "metadata",
+						Name: "index_state_change",
+						Type: "delete",
 						Labels: util.MapStr{
 							"cluster_id": clusterID,
 							"index_name": indexName,
 							"cluster_name": esConfig.Name,
-							"type": "delete",
 						},
 					},
 				}
-				queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
-				if queueConfig.Labels == nil {
-					queueConfig.Labels = map[string]interface{}{
-						"type":     "metadata",
-						"name":     "index_state_change",
-						"category": "elasticsearch",
-					}
+
+				err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+					Timestamp: time.Now(),
+					Metadata: event.EventMetadata{
+						Category: "elasticsearch",
+						Name: "index_state_change",
+						Labels: util.MapStr{
+							"operation": "delete",
+						},
+					},
+					Fields: util.MapStr{
+						"index_state": indexConfig,
+					}}))
+				if err != nil {
+					panic(err)
 				}
-				err = queue.Push(queueConfig, util.MustToJSONBytes(metadataEvent))
+				err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+					Timestamp: time.Now(),
+					Metadata: event.EventMetadata{
+						Category: "elasticsearch",
+						Name: "activity",
+					},
+					Fields: util.MapStr{
+						"activity": activityInfo,
+					}}))
 				if err != nil {
 					panic(err)
 				}
 				continue
 			}
 
-			if v, err := infoMap.GetValue("version"); err == nil {
+			if v, err := infoMap.GetValue("index_state.version"); err == nil {
 					if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
 						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
+							newIndexMetadata[indexName] = infoMap
 							notChanges[indexName] = true
 						}
 					}
-			}else {
-				//compare metadata for lower elasticsearch version
-				if newData, ok := state.Metadata.Indices[indexName]; ok {
-					newMetadata := util.MapStr(newData.(map[string]interface{}))
-					if newMetadata.Equals(info) {
-						notChanges[indexName] = true
-					}
-				}
 			}
+			//else {
+			//	//compare metadata for lower elasticsearch version
+			//	if newData, ok := state.Metadata.Indices[indexName]; ok {
+			//		newMetadata := util.MapStr(newData.(map[string]interface{}))
+			//		if newMetadata.Equals(info) {
+			//			notChanges[indexName] = true
+			//		}
+			//	}
+			//}
 		}
 	}
 
@@ -376,25 +441,75 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			continue
 		}
 		isIndicesStateChange = true
-		metadataEvent := event.Event{
+		health :=  (*indexInfos)[indexName].Health
+
+		var (
+			state interface{}
+			version interface{}
+			indexUUID interface{}
+			aliases interface{}
+		)
+		if mp, ok := indexMetadata.(map[string]interface{}); ok {
+			mps := util.MapStr(mp)
+			state = mps["state"]
+			version = mps["version"]
+			aliases = mps["aliases"]
+			indexUUID, _ = mps.GetValue("settings.index.uuid")
+		}
+
+		indexConfig := &elastic.IndexConfig{
+			ID:  util.GetUUID()    ,
 			Timestamp: time.Now(),
-			Metadata: event.EventMetadata{
-				Name: "index_state_change",
+			Metadata:  elastic.IndexMetadata{
+				IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
+				IndexName: indexName,
+				ClusterName: esConfig.Name,
+				Aliases:  aliases,
+				ClusterID: clusterID,
+				Labels: util.MapStr{
+					"version": version,
+					"state": state,
+					"index_uuid": indexUUID,
+					"health_status": health,
+				},
 				Category: "elasticsearch",
-				Datatype: "snapshot",
+			},
+			Fields: util.MapStr{
+				"index_state": indexMetadata,
+			},
+		}
+
+		activityInfo := &event.Activity{
+			ID: util.GetUUID(),
+			Timestamp: time.Now(),
+			Metadata: event.ActivityMetadata{
+				Category: "elasticsearch",
+				Group: "metadata",
+				Name: "index_state_change",
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
 					"index_name": indexName,
 					"cluster_name": esConfig.Name,
-					"health": (*indexInfos)[indexName].Health,
 				},
 			},
 			Fields: util.MapStr{
 				"index_state": indexMetadata,
 			},
 		}
+
 		if oldIndexMetadata[indexName] != nil {
-			changeLog, _ := util.DiffTwoObject(oldIndexMetadata[indexName], indexMetadata)
+			//compare metadata for lower elasticsearch version
+			oldConfig := oldIndexMetadata[indexName].(map[string]interface{})
+			newIndexMetadata[indexName] = util.MapStr{
+				"id": oldConfig["id"].(string),
+				"index_state": indexMetadata,
+				"health": health,
+			}
+			changeLog, _ := util.DiffTwoObject(oldConfig["index_state"], indexMetadata)
+			var length = len(changeLog)
+			if length == 0 {
+				continue
+			}
 			//skip only version and primary_terms.0 change
 			if len(changeLog) == 1 {
 				if changeLog[0].Path[0] == "version" {
@@ -405,28 +520,81 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					continue
 				}
 			}
-			metadataEvent.Fields["changelog"] = changeLog
-			metadataEvent.Metadata.Labels["type"] = "update"
+			if oldHealth, ok := oldConfig["health"].(string); ok && oldHealth != health {
+				actInfo := event.Activity{
+					ID: util.GetUUID(),
+					Timestamp: time.Now(),
+					Metadata: event.ActivityMetadata{
+						Category: "elasticsearch",
+						Group: "metadata",
+						Name: "index_health_change",
+						Type: "update",
+						Labels: util.MapStr{
+							"cluster_id": clusterID,
+							"index_name": indexName,
+							"cluster_name": esConfig.Name,
+							"from": oldHealth,
+							"to": health,
+						},
+					},
+				}
+				err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+					Timestamp: time.Now(),
+					Metadata: event.EventMetadata{
+						Category: "elasticsearch",
+						Name: "activity",
+					},
+					Fields: util.MapStr{
+						"activity": actInfo,
+					}}))
+				if err != nil {
+					panic(err)
+				}
+			}
+			indexConfig.ID = oldConfig["id"].(string)
+			activityInfo.Metadata.Type = "update"
+			activityInfo.Changelog = changeLog
 
 		}else{
 			//new
-			metadataEvent.Metadata.Labels["type"] = "create"
-		}
-		queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
-		if queueConfig.Labels == nil {
-			queueConfig.Labels = map[string]interface{}{
-				"type":     "metadata",
-				"name":     "index_state_change",
-				"category": "elasticsearch",
+			activityInfo.Metadata.Type = "create"
+			newIndexMetadata[indexName] = util.MapStr{
+				"id": indexConfig.ID,
+				"index_state": indexMetadata,
+				"health": health,
 			}
 		}
-		err = queue.Push(queueConfig, util.MustToJSONBytes(metadataEvent))
+		err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+			Timestamp: time.Now(),
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name: "index_state_change",
+				Labels: util.MapStr{
+					"operation": activityInfo.Metadata.Type,
+				},
+			},
+			Fields: util.MapStr{
+				"index_state": indexConfig,
+			}}))
 		if err != nil {
 			panic(err)
 		}
+		err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+			Timestamp: time.Now(),
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name: "activity",
+			},
+			Fields: util.MapStr{
+				"activity": activityInfo,
+			}}))
+		if err != nil {
+			panic(err)
+		}
+
 	}
 	if isIndicesStateChange {
-		kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(state.Metadata.Indices))
+		kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata))
 	}
 }
 

@@ -61,7 +61,7 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}) 
 }
 
 func (handler ElasticORM) Save(o interface{}) error {
-	_, err := handler.Client.Index(handler.GetIndexName(o), "_doc", getIndexID(o), o)
+	_, err := handler.Client.Index(handler.GetIndexName(o), "_doc", getIndexID(o), o, "wait_for")
 	return err
 }
 

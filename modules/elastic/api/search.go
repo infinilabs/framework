@@ -2,13 +2,13 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
 	"time"
@@ -66,7 +66,7 @@ func (h *APIHandler) HandleCreateSearchTemplateAction(w http.ResponseWriter, req
 	template.Updated = template.Created
 	template.ClusterID = targetClusterID
 	index:=orm.GetIndexName(elastic.SearchTemplate{})
-	insertRes, err := esClient.Index(index, "", id, template)
+	insertRes, err := esClient.Index(index, "", id, template, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -163,7 +163,7 @@ func (h *APIHandler) HandleUpdateSearchTemplateAction(w http.ResponseWriter, req
 	}
 
 	targetTemplate["updated"] = time.Now()
-	insertRes, err := esClient.Index(index, "", templateID, targetTemplate)
+	insertRes, err := esClient.Index(index, "", templateID, targetTemplate, "wait_for")
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err
@@ -177,7 +177,7 @@ func (h *APIHandler) HandleUpdateSearchTemplateAction(w http.ResponseWriter, req
 		Content: originTemplate,
 		Created: time.Now(),
 	}
-	esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht)
+	esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht, "")
 
 	resBody["_source"] = originTemplate
 	resBody["_id"] = templateID
@@ -238,7 +238,7 @@ func (h *APIHandler) HandleDeleteSearchTemplateAction(w http.ResponseWriter, req
 		Content: res.Source,
 		Created: time.Now(),
 	}
-	_, err = esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht)
+	_, err = esClient.Index(orm.GetIndexName(ht), "", util.GetUUID(), ht, "wait_for")
 	if err != nil {
 		log.Error(err)
 	}

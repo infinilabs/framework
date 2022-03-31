@@ -113,7 +113,7 @@ func getKey(bucket, key string) string {
 func (store *ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
-	_, err := store.Client.Index(store.Config.IndexName, "_doc", getKey(bucket, string(key)), file)
+	_, err := store.Client.Index(store.Config.IndexName, "_doc", getKey(bucket, string(key)), file, "")
 	return err
 }
 
