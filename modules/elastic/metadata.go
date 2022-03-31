@@ -161,7 +161,7 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		//TODO locker
 		if stateChanged || (err == nil && oldIndexState == nil){
 			if meta.Config.Source != "file"{
-				if meta.ClusterState == nil {
+				if meta.ClusterState == nil || oldIndexState == nil{
 					//load init state from es when console start
 					oldIndexState, err = module.loadIndexMetadataFromES(clusterId)
 					kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState)
