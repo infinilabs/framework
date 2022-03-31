@@ -44,7 +44,7 @@ func (module *MetricsModule) Setup(cfg *Config) {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	if !module.config.Enabled{
 		return
 	}

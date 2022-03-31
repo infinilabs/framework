@@ -112,8 +112,19 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "ratio",
 		Units: "%",
 	})
+	osLoadMetric := newMetricItem("os_load_average_1m", 2, SystemGroupKey)
+	osLoadMetric.AddAxi("OS Load 1m Average","group1",common.PositionLeft,"","0.[0]","0.[0]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "os_load_average_1m",
+		Field: "payload.elasticsearch.node_stats.os.cpu.load_average.1m",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: osLoadMetric,
+		FormatType: "num",
+		Units: "",
+	})
 	//swap usage
-	osSwapMetric := newMetricItem("os_used_swap", 2, SystemGroupKey)
+	osSwapMetric := newMetricItem("os_used_swap", 3, SystemGroupKey)
 	osSwapMetric.AddAxi("OS Swap Used Percent","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "os_used_swap",

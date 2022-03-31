@@ -313,6 +313,7 @@ type CatNodeResponse struct {
 	Name        string      `json:"name"`
 	DiskAvail string `json:"disk.avail"`
 	Shards int `json:"shards,omitempty"`
+	Uptime string `json:"uptime"`
 }
 
 type ReindexResponse struct {
