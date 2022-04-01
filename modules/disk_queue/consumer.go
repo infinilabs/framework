@@ -119,7 +119,9 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 					log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
 				}
 				if len(messages)==0{
-					log.Debugf("no message found, sleep 1s")
+					if global.Env().IsDebug{
+						log.Debugf("no message found in queue: %v, sleep 1s",d.name)
+					}
 					time.Sleep(1*time.Second)
 				}
 			}
