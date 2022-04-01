@@ -4,6 +4,7 @@
 package queue
 
 import (
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/lib/bytebufferpool"
 	log "github.com/cihub/seelog"
@@ -70,12 +71,13 @@ func RegisterEventListener(handler EventHandler){
 	defer locker.Unlock()
 	handlers =append(handlers,handler)
 }
+
 func Notify(queue string, eventType EventType,fileNum int64)  {
 
-	log.Tracef("notify on queue: %v, type: %v, segment: %v",queue,eventType,fileNum)
+	if global.Env().IsDebug{
+		log.Tracef("notify on queue: %v, type: %v, segment: %v",queue,eventType,fileNum)
+	}
 
-	locker.Lock()
-	defer locker.Unlock()
 	event:= Event{
 		Queue: queue,
 		Type: eventType,
@@ -86,3 +88,4 @@ func Notify(queue string, eventType EventType,fileNum int64)  {
 		v(event)
 	}
 }
+
