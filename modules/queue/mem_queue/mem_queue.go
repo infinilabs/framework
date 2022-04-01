@@ -78,7 +78,7 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 		}else{
 			retryTimes++
 			//runtime.Gosched()
-			time.Sleep(100*time.Millisecond)
+			time.Sleep(1000*time.Millisecond)
 			stats.Increment("mem_queue","retry")
 			goto RETRY
 		}
@@ -118,8 +118,12 @@ func (this *MemoryQueue)Depth(q string) int64{
 	return int64(this.q[q].Quantity())
 }
 
-func (this *MemoryQueue)Consume(queue,consumer,offsetStr string,count int,timeout time.Duration) ( *queue.Context, []queue.Message,bool,error){
-	return nil, nil, false, nil
+func (this *MemoryQueue)Consume(q,consumer,offsetStr string,count int,timeout time.Duration) ( *queue.Context, []queue.Message,bool,error){
+	ctx:=&queue.Context{}
+	d,t:=this.Pop(q,timeout)
+	msg:=queue.Message{Data: d}
+	msgs:=[]queue.Message{msg}
+	return ctx, msgs, t, nil
 }
 
 func (this *MemoryQueue)LatestOffset(string) string{
