@@ -338,6 +338,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			//tempIndexID, _ := infoMap.GetValue("settings.index.uuid")
 
 			if state.Metadata.Indices[indexName] == nil {
+				if infoMap["health"] == nil { //already deleted
+					newIndexMetadata[indexName] = item
+					continue
+				}
 				isIndicesStateChange = true
 				var (
 					version interface{}
@@ -368,7 +372,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 						},
 					},
 					Fields: util.MapStr{
-						"index_state": item,
+						"index_state": infoMap["index_state"],
 					},
 
 				}
@@ -387,7 +391,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 						},
 					},
 					Fields: util.MapStr{
-						"index_state": item,
+						"index_state": infoMap["index_state"],
 					},
 				}
 
@@ -622,6 +626,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 //on demand, on state version change
 func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
 	if !meta.IsAvailable(){
+		setNodeUnknown(meta.Config.ID)
 		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
 		return
 	}
@@ -629,11 +634,14 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 	client := elastic.GetClient(meta.Config.ID)
 	nodes, err := client.GetNodes()
 	if err != nil || nodes == nil || len(*nodes) <= 0 {
+
 		if rate.GetRateLimiterPerSecond(meta.Config.ID, "get_nodes_failure_on_error", 1).Allow() {
 			log.Errorf("elasticsearch [%v] failed to get nodes info", meta.Config.Name)
 		}
+		setNodeUnknown(meta.Config.ID)
 		return
 	}
+	delete(nodeAlreadyUnknown, meta.Config.ID)
 
 	var nodesChanged = false
 
@@ -687,6 +695,39 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 }
 
 var saveNodeMetadataMutex = sync.Mutex{}
+var nodeAlreadyUnknown = map[string]bool{}
+func setNodeUnknown(clusterID string) {
+	if v, ok := nodeAlreadyUnknown[clusterID]; ok && v {
+		return
+	}
+	esClient := elastic.GetClient(moduleConfig.Elasticsearch)
+	queryDslTpl := `{"script": {
+    "source": "ctx._source.metadata.labels.status='N/A'",
+    "lang": "painless"
+  },
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {
+          "metadata.cluster_id": {
+            "value": "%s"
+          }
+        }},
+		 {"term": {
+          "metadata.category": {
+            "value": "elasticsearch"
+          }
+        }}
+      ]
+    }
+  }}`
+	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
+	_, err := esClient.UpdateByQuery(orm.GetIndexName(elastic.NodeConfig{}), []byte(queryDsl))
+	if err != nil {
+		log.Error(err)
+	}
+	nodeAlreadyUnknown[clusterID] = true
+}
 func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
 	esConfig := elastic.GetConfig(clusterID)
 	saveNodeMetadataMutex.Lock()
@@ -1072,3 +1113,122 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 //		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
 //	}
 //}
+
+func (module *ElasticModule) updateClusterSettings(clusterId string) {
+	meta := elastic.GetMetadata(clusterId)
+	if meta==nil{
+		return
+	}
+	if !meta.IsAvailable(){
+		return
+	}
+	if meta.Config.Source == "file"{
+		return
+	}
+	log.Trace("update cluster settings:",clusterId)
+
+	client := elastic.GetClient(clusterId)
+	settings,err := client.GetClusterSettings()
+	if err!=nil{
+		log.Errorf("failed to get [%v] settings: %v",clusterId,err)
+		return
+	}
+
+	if settings != nil {
+		oldClusterSettings, err := kv.GetValue(elastic.KVElasticClusterSettings, []byte(clusterId))
+		if err != nil {
+			log.Errorf("failed to get kv %s of [%v] : %v",elastic.KVElasticClusterSettings, clusterId,err)
+		}
+		if oldClusterSettings == nil {
+			oldClusterSettings, err = module.loadClusterSettingsFromES(clusterId)
+			if err != nil {
+				log.Errorf("failed to load cluster settings from es [%v] : %v", clusterId,err)
+			}
+		}
+		oldClusterSettingsM := util.MapStr{}
+		util.MustFromJSONBytes(oldClusterSettings, &oldClusterSettingsM)
+		if oldClusterSettingsM != nil {
+			changeLog, _ := diff.Diff(oldClusterSettingsM, settings)
+			if len(changeLog) == 0 {
+				return
+			}
+			queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
+			if queueConfig.Labels == nil {
+				queueConfig.Labels = map[string]interface{}{
+					"type":     "metadata",
+					"name":     "index_state_change",
+					"category": "elasticsearch",
+					"activity": true,
+				}
+			}
+			activityInfo := &event.Activity{
+				ID: util.GetUUID(),
+				Timestamp: time.Now(),
+				Metadata: event.ActivityMetadata{
+					Category: "elasticsearch",
+					Group: "metadata",
+					Name: "cluster_settings_change",
+					Labels: util.MapStr{
+						"cluster_id": clusterId,
+						"cluster_name": meta.Config.Name,
+					},
+					Type: "update",
+				},
+				Changelog: changeLog,
+				Fields: util.MapStr{
+					"settings": settings,
+				},
+			}
+			err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+				Timestamp: time.Now(),
+				Metadata: event.EventMetadata{
+					Category: "elasticsearch",
+					Name: "activity",
+				},
+				Fields: util.MapStr{
+					"activity": activityInfo,
+				}}))
+			if err != nil {
+				panic(err)
+			}
+		}
+		kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+	}
+}
+
+func (module *ElasticModule) loadClusterSettingsFromES( clusterID string)([]byte, error){
+	esClient := elastic.GetClient(moduleConfig.Elasticsearch)
+	queryDsl := `{
+	"size": 1,
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "metadata.cluster_id": {
+              "value": "%s"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "sort": [
+    {
+      "timestamp": {
+        "order": "desc"
+      }
+    }
+  ]
+}`
+	queryDsl = fmt.Sprintf(queryDsl, clusterID)
+	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(event.Activity{}), []byte(queryDsl))
+	if err != nil {
+		return nil, err
+	}
+	if searchRes.GetTotal() == 0 {
+		return nil, nil
+	}
+	clusterSettings, _ := util.GetMapValueByKeys([]string{"payload", "settings"}, searchRes.Hits.Hits[0].Source)
+	return util.ToJSONBytes(clusterSettings)
+}

@@ -32,6 +32,7 @@ type ModuleConfig struct {
 	HealthCheckConfig           CheckConfig `config:"health_check"`
 	NodeAvailabilityCheckConfig CheckConfig `config:"availability_check"`
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
+	ClusterSettingsCheckConfig           CheckConfig `config:"cluster_settings_check"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {

@@ -62,6 +62,10 @@ var (
 		StoreConfig: StoreConfig{
 			Enabled: false,
 		},
+		ClusterSettingsCheckConfig: CheckConfig{
+			Enabled: true,
+			Interval: "20s",
+		},
 	}
 )
 
@@ -409,7 +413,42 @@ func (module *ElasticModule) Start() error {
 		//task.RegisterScheduleTask(task2)
 	}
 
+	if moduleConfig.ClusterSettingsCheckConfig.Enabled {
+		module.clusterSettingsRefresh()
+	}
 	return nil
+
+}
+
+func (module *ElasticModule)clusterSettingsRefresh() {
+	task2 := task.ScheduleTask{
+		Description: "elasticsearch settings refresh",
+		Type:        "interval",
+		Interval:    moduleConfig.ClusterSettingsCheckConfig.Interval,
+		Task: func(ctx context.Context) {
+			elastic.WalkConfigs(func(key, value interface{}) bool {
+				log.Trace("walk metadata: ",key)
+
+				if value == nil {
+					return true
+				}
+				v, ok := value.(*elastic.ElasticsearchConfig)
+				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
+
+				if ok {
+					if !v.Enabled{
+						return true
+					}
+
+					go func(clusterID string) {
+						module.updateClusterSettings(clusterID)
+					}(v.ID)
+				}
+				return true
+			})
+		},
+	}
+	task.RegisterScheduleTask(task2)
 
 }
 
