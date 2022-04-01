@@ -98,6 +98,7 @@ type API interface {
 
 
 	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error)
+	GetClusterSettings() (map[string]interface{}, error)
 
 }
 

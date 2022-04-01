@@ -1597,3 +1597,19 @@ func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	err = json.Unmarshal(resp.Body, &data)
 	return data, err
 }
+
+func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error){
+	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
+	resp, err := c.Request(util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	data := map[string]interface{}{}
+	err = json.Unmarshal(resp.Body, &data)
+	return data, err
+}
