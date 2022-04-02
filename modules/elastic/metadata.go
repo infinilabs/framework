@@ -532,10 +532,16 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				var filterChangeLog diff.Changelog
 				for _, logItem := range changeLog {
 					//skip only version and primary_terms.x change
+					if strings.HasPrefix(logItem.Path[0], "in_sync_allocations.") {
+						continue
+					}
 					if strings.HasPrefix(logItem.Path[0], "primary_terms.") {
 						continue
 					}
 					filterChangeLog = append(filterChangeLog, logItem)
+				}
+				if len(filterChangeLog) == 0 {
+					continue
 				}
 				if len(filterChangeLog) == 1 {
 					if changeLog[0].Path[0] == "version" {
@@ -830,8 +836,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
 					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil  {
 						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok { // && currentNodeInfo.Equals(oldMetadataM)
+							healthStatus, _ := historyM.GetValue("metadata.labels.status")
 							changeLog, _ = util.DiffTwoObject(oldMetadataM, currentNodeInfo)
-							if len(changeLog) == 0 {
+							if len(changeLog) == 0 && healthStatus != "N/A" {
 								continue
 							}
 						}

@@ -593,12 +593,12 @@ func (h *APIHandler) GetClusterInfo(w http.ResponseWriter, req *http.Request, ps
 
 func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var (
-		size        = h.GetIntOrDefault(req, "size", 20)
-		from        = h.GetIntOrDefault(req, "from", 0)
+		min = h.GetParameterOrDefault(req, "min", "now-15m")
+		max = h.GetParameterOrDefault(req, "max", "now")
 	)
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
-	q := &orm.Query{ Size: size, From: from}
+	q := &orm.Query{ Size: 1000}
 	q.AddSort("timestamp", orm.DESC)
 	q.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
@@ -610,7 +610,125 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
-	h.Write(w, result.Raw)
+	query := util.MapStr{
+		"size": 1000,
+		"collapse": util.MapStr{
+			"field": "metadata.labels.node_name",
+		},
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": id,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_stats",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	q = &orm.Query{ RawQuery: util.MustToJSONBytes(query),WildcardIndex: true}
+	err, searchResult := orm.Search(event.Event{}, q)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+	nodeInfos := map[string]util.MapStr{}
+	for _, hit := range searchResult.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			shardInfo, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info"}, hitM)
+			var totalShards float64
+			if v, ok := shardInfo.(map[string]interface{}); ok {
+				shardCount := v["shard_count"]
+				replicasCount := v["replicas_count"]
+				if v1, ok := shardCount.(float64); ok {
+					totalShards += v1
+				}
+				if v1, ok := replicasCount.(float64); ok {
+					totalShards += v1
+				}
+			}
+			cpu, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "percent"}, hitM)
+			load, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "load_average", "1m"}, hitM)
+			heapUsage, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem", "heap_used_percent"}, hitM)
+			freeDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "free_in_bytes"}, hitM)
+			nodeID, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "node_id"}, hitM)
+			if v, ok := freeDisk.(float64); ok {
+				freeDisk = util.ByteSize(uint64(v))
+			}
+
+			if v, ok := nodeID.(string); ok {
+				nodeInfos[v] = util.MapStr{
+					"timestamp": hitM["timestamp"],
+					"shards": totalShards,
+					"cpu": cpu,
+					"load_1m": load,
+					"heap.percent": heapUsage,
+					"disk.avail": freeDisk,
+				}
+
+			}
+		}
+	}
+	nodes := []interface{}{}
+	for _, hit := range result.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			nodeId, _ := util.GetMapValueByKeys([]string{"metadata", "node_id"}, hitM)
+			nodeName, _ := util.GetMapValueByKeys([]string{"metadata", "node_name"}, hitM)
+			status, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "status"}, hitM)
+			ip, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "ip"}, hitM)
+			port, _ := util.GetMapValueByKeys([]string{"payload", "node_state", "settings", "transport", "port"}, hitM)
+			if v, ok := nodeId.(string); ok {
+				ninfo := util.MapStr{
+					"id": v,
+					"name": nodeName,
+					"ip": ip,
+					"port": port,
+					"status": status,
+				}
+				if nodeInfos[v] != nil {
+					util.MergeFields(ninfo, nodeInfos[v], true)
+				}else{
+					ninfo["timestamp"] = hitM["timestamp"]
+				}
+				nodes = append(nodes, ninfo)
+			}
+		}
+	}
+	h.WriteJSON(w, nodes, http.StatusOK)
 }
 
 func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -654,10 +772,12 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 }
 
 func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	//var (
-	//	size        = h.GetIntOrDefault(req, "size", 20)
-	//	from        = h.GetIntOrDefault(req, "from", 0)
-	//)
+	var (
+		//size        = h.GetIntOrDefault(req, "size", 20)
+		//from        = h.GetIntOrDefault(req, "from", 0)
+		min = h.GetParameterOrDefault(req, "min", "now-15m")
+		max = h.GetParameterOrDefault(req, "max", "now")
+	)
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
 	q := &orm.Query{ Size: 2000}
@@ -665,7 +785,7 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 	q.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
 		orm.Eq("metadata.cluster_id", id),
-		orm.NotEq("metadata.labels.state", "delete"),
+		//orm.NotEq("metadata.labels.state", "delete"),
 	)
 
 	err, result := orm.Search(elastic.IndexConfig{}, q)
@@ -692,7 +812,8 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 					{
 						"range": util.MapStr{
 							"timestamp": util.MapStr{
-								"gte": "now-15m",
+								"gte": min,
+								"lte": max,
 							},
 						},
 					},
@@ -746,12 +867,15 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 	for _, hit := range result.Result {
 		if hitM, ok := hit.(map[string]interface{}); ok {
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
+			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
 			if v, ok := indexName.(string); ok {
 				if indexInfos[v] != nil {
 					indices = append(indices, indexInfos[v])
 				}else{
 					indices = append(indices, util.MapStr{
 						"index": v,
+						"status": state,
+						"timestamp": hitM["timestamp"],
 					})
 				}
 			}
