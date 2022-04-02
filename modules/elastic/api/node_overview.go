@@ -14,7 +14,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	"time"
 )
 
 func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -429,21 +428,6 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	if len(result.Result) > 0 {
 		vresult, ok := result.Result[0].(map[string]interface{})
 		if ok {
-			timestamp, ok := vresult["timestamp"].(string)
-			if ok {
-				lastTime, err := time.Parse("2006-01-02T15:04:05.99999Z07:00", timestamp)
-
-				if err != nil {
-					log.Error(vresult["timestamp"], err)
-					kvs["status"] = "online"
-				} else {
-					if time.Now().Sub(lastTime).Seconds() > 30 {
-						kvs["status"] = "offline"
-					} else {
-						kvs["status"] = "online"
-					}
-				}
-			}
 			fsTotal, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, vresult)
 			if ok {
 				kvs["fs"] = util.MapStr{
@@ -478,6 +462,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	if mp, ok := innerMetaData.(map[string]interface{}); ok {
 		kvs["transport_address"] = mp["transport_address"]
 		kvs["roles"] = mp["roles"]
+		kvs["status"] = mp["status"]
 	}
 
 	if meta := elastic.GetMetadata(clusterID); meta != nil && meta.ClusterState != nil {
