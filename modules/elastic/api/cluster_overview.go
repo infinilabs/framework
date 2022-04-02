@@ -10,6 +10,8 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	log "src/github.com/cihub/seelog"
+	"strings"
 )
 
 func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -710,7 +712,15 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 			nodeName, _ := util.GetMapValueByKeys([]string{"metadata", "node_name"}, hitM)
 			status, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "status"}, hitM)
 			ip, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "ip"}, hitM)
-			port, _ := util.GetMapValueByKeys([]string{"payload", "node_state", "settings", "transport", "port"}, hitM)
+			transportAddress, _ := util.GetMapValueByKeys([]string{"payload", "node_state", "transport_address"}, hitM)
+			var port string
+			if v, ok := transportAddress.(string); ok {
+				parts := strings.Split(v, ":")
+				if len(parts) > 1 {
+					port = parts[1]
+				}
+			}
+
 			if v, ok := nodeId.(string); ok {
 				ninfo := util.MapStr{
 					"id": v,
@@ -733,6 +743,12 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 
 func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	meta := elastic.GetMetadata(id)
+	if meta == nil || !meta.IsAvailable() {
+		log.Warn("cluster %s is not available")
+		h.WriteJSON(w, util.MapStr{} , http.StatusOK)
+		return
+	}
 	esClient := elastic.GetClient(id)
 	if esClient == nil {
 		h.WriteJSON(w, util.MapStr{
@@ -889,6 +905,12 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
+	meta := elastic.GetMetadata(id)
+	if meta == nil || !meta.IsAvailable() {
+		log.Warn("cluster %s is not available")
+		h.WriteJSON(w, []interface{}{} , http.StatusOK)
+		return
+	}
 	esClient := elastic.GetClient(id)
 	indexInfos, err := esClient.GetIndices("")
 	if err != nil {

@@ -397,7 +397,8 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	response := elastic.SearchResponse{}
 	util.FromJSONBytes(res.Raw, &response)
 	if len(response.Hits.Hits) == 0 {
-		h.WriteError(w, "", http.StatusNotFound)
+		log.Warn("index not found, may be you should wait several seconds")
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
 	q1 := orm.Query{
