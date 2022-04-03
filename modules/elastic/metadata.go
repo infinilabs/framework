@@ -703,35 +703,41 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 var saveNodeMetadataMutex = sync.Mutex{}
 var nodeAlreadyUnknown = map[string]bool{}
 func setNodeUnknown(clusterID string) {
+	meta := elastic.GetMetadata(clusterID)
+	if meta == nil {
+		return
+	}
+	if meta.Config.Source == "file" {
+		return
+	}
 	if v, ok := nodeAlreadyUnknown[clusterID]; ok && v {
 		return
 	}
-	esClient := elastic.GetClient(moduleConfig.Elasticsearch)
-	queryDslTpl := `{"script": {
-    "source": "ctx._source.metadata.labels.status='N/A'",
-    "lang": "painless"
-  },
-  "query": {
-    "bool": {
-      "must": [
-        {"term": {
-          "metadata.cluster_id": {
-            "value": "%s"
-          }
-        }},
-		 {"term": {
-          "metadata.category": {
-            "value": "elasticsearch"
-          }
-        }}
-      ]
-    }
-  }}`
-	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
-	_, err := esClient.UpdateByQuery(orm.GetIndexName(elastic.NodeConfig{}), []byte(queryDsl))
-	if err != nil {
-		log.Error(err)
+	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
+	if queueConfig.Labels == nil {
+		queueConfig.Labels = map[string]interface{}{
+			"type":     "metadata",
+			"name":     "index_state_change",
+			"category": "elasticsearch",
+			"activity": true,
+		}
 	}
+	err := queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
+		Timestamp: time.Now(),
+		Metadata: event.EventMetadata{
+			Category: "elasticsearch",
+			Name: "unknown_node_status",
+			Labels: util.MapStr{
+				"operation": "update",
+			},
+		},
+		Fields: util.MapStr{
+			"cluster_id": clusterID,
+		}}))
+	if err != nil {
+		panic(err)
+	}
+
 	nodeAlreadyUnknown[clusterID] = true
 }
 func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {

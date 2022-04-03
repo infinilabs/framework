@@ -339,7 +339,10 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 						panic(err)
 					}
 					err = processor.HandleIndexStateChange(indexState)
+				case "unknown_node_status":
+					processor.HandleUnknownNodeStatus(pop.Data)
 				}
+
 			}
 		}
 		if err == nil {
@@ -364,6 +367,37 @@ func (processor *MetadataProcessor) HandleIndexStateChange(indexState []byte) er
 	storeIndexName := orm.GetIndexName(elastic.IndexConfig{})
 
 	_, err = esClient.Index(storeIndexName, "",  id, indexState, "")
+	return err
+}
+
+func (processor *MetadataProcessor) HandleUnknownNodeStatus(ev []byte) error{
+	clusterID, err := jsonparser.GetString(ev, "payload", "cluster_id")
+	if err != nil {
+		return  err
+	}
+	esClient := elastic.GetClient(processor.config.Elasticsearch)
+	queryDslTpl := `{"script": {
+    "source": "ctx._source.metadata.labels.status='N/A'",
+    "lang": "painless"
+  },
+  "query": {
+    "bool": {
+      "must": [
+        {"term": {
+          "metadata.cluster_id": {
+            "value": "%s"
+          }
+        }},
+		 {"term": {
+          "metadata.category": {
+            "value": "elasticsearch"
+          }
+        }}
+      ]
+    }
+  }}`
+	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
+	_, err = esClient.UpdateByQuery(orm.GetIndexName(elastic.NodeConfig{}), []byte(queryDsl))
 	return err
 }
 
