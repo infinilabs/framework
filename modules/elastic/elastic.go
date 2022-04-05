@@ -40,7 +40,6 @@ func (module *ElasticModule) Name() string {
 
 var (
 	defaultConfig = ModuleConfig{
-		Elasticsearch:       "default",
 		RemoteConfigEnabled: false,
 		HealthCheckConfig: CheckConfig{
 			Enabled:  true,

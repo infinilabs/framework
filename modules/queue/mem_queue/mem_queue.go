@@ -11,6 +11,8 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
 	memQueue "infini.sh/framework/lib/lock_free/queue"
+	"runtime"
+	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -60,13 +62,13 @@ func (this *MemoryQueue)Init(q string) error{
 }
 
 func (this *MemoryQueue)Push(q string,data []byte) error{
-	_,ok:=this.q[q]
+	q1,ok:=this.q[q]
 	if !ok{
 		this.Init(q)
+		this.locker.Lock()
+		q1=this.q[q]
+		this.locker.Unlock()
 	}
-	this.locker.Lock()
-	q1:=this.q[q]
-	this.locker.Unlock()
 	retryTimes:=0
 	da:=[]byte(string(data)) //TODO memory copy
 	RETRY:
@@ -77,7 +79,8 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 			return capacityFull
 		}else{
 			retryTimes++
-			//runtime.Gosched()
+			runtime.Gosched()
+			log.Debugf("memory_queue full, sleep 1s")
 			time.Sleep(1000*time.Millisecond)
 			stats.Increment("mem_queue","retry")
 			goto RETRY
@@ -98,8 +101,6 @@ func (this *MemoryQueue)Pop(q string, t time.Duration) (data []byte, timeout boo
 		return nil, true
 	}
 
-	this.locker.Lock()
-	defer this.locker.Unlock()
 	v,ok,_:=queue.Get()
 	if ok&&v!=nil{
 		d,ok:=v.([]byte)
