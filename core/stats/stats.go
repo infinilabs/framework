@@ -44,6 +44,10 @@ type StatsInterface interface {
 var handlers = []StatsInterface{}
 
 func Increment(category string, key ... string) {
+	if len(handlers)==0{
+		return
+	}
+
 	if len(key)>0{
 		IncrementBy(category, util.JoinArray(key,"."), 1)
 	}else{
@@ -58,6 +62,10 @@ func IncrementBy(category, key string, value int64) {
 }
 
 func Decrement(category, key string) {
+	if len(handlers)==0{
+		return
+	}
+	
 	DecrementBy(category, key, 1)
 }
 

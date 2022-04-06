@@ -25,12 +25,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"net/url"
 	"reflect"
 	"regexp"
 	"runtime"
-	"src/github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
@@ -387,7 +388,12 @@ func PrintStringByteLines(array [][]byte) string {
 }
 
 func JoinArray(array []string, delimiter string) string {
-	buffer := bytes.Buffer{}
+	if len(array)<100{
+		return Join(array,delimiter)
+	}
+
+	buffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(buffer)
 	x := len(array) - 1
 	for i, v := range array {
 		buffer.WriteString(v)
