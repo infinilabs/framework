@@ -62,6 +62,7 @@ func NewCounterService() *CounterFilter {
 	counter := &CounterFilter{}
 	go func() {
 		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
 			<-ticker.C
 			counter.Lock.Lock()

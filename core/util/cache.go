@@ -239,9 +239,11 @@ func (c *Cache) Size() int {
 // StartJanitor starts a goroutine that will periodically invoke the cache's
 // CleanUp() method.
 func (c *Cache) StartJanitor(interval time.Duration) {
-	ticker := time.NewTicker(interval)
+
 	c.janitorQuit = make(chan struct{})
 	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:

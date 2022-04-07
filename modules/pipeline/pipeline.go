@@ -283,12 +283,10 @@ func (module *PipeModule) Stop() error {
 
 		for _, v := range module.contexts {
 			if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
-				time.Sleep(100 * time.Millisecond)
 				if time.Now().Sub(start).Minutes() > 5 {
 					log.Error("pipeline framework failure to stop tasks, quiting")
 					return errors.New("pipeline framework failure to stop tasks, quiting")
 				}
-				//log.Debugf("retry pipeline [%v] closing", v.UUID())
 				goto CLOSING
 			} else {
 				progress.IncreaseWithTotal("pipeline", "shutdown", 1, len(module.contexts))

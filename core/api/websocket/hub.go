@@ -76,6 +76,7 @@ func (h *Hub) runHub() {
 
 		go func() {
 			t := time.NewTicker(time.Duration(30) * time.Second)
+			defer t.Stop()
 			for {
 				select {
 				case <-t.C:
