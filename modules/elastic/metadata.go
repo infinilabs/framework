@@ -532,10 +532,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				var filterChangeLog diff.Changelog
 				for _, logItem := range changeLog {
 					//skip only version and primary_terms.x change
-					if strings.HasPrefix(logItem.Path[0], "in_sync_allocations.") {
+					if strings.HasPrefix(logItem.Path[0], "in_sync_allocations") {
 						continue
 					}
-					if strings.HasPrefix(logItem.Path[0], "primary_terms.") {
+					if strings.HasPrefix(logItem.Path[0], "primary_terms") {
 						continue
 					}
 					filterChangeLog = append(filterChangeLog, logItem)
@@ -647,9 +647,12 @@ func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) 
 		setNodeUnknown(meta.Config.ID)
 		return
 	}
-	delete(nodeAlreadyUnknown, meta.Config.ID)
 
 	var nodesChanged = false
+	if _, ok := nodeAlreadyUnknown[meta.Config.ID]; ok && meta.Config.Source != "file"{
+		delete(nodeAlreadyUnknown, meta.Config.ID)
+		nodesChanged = true
+	}
 
 	if meta.Nodes == nil {
 		nodesChanged = true
@@ -859,7 +862,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
-							if st, ok := labelsM["status"].(string); ok && st == "unavailable" {
+							if st, ok := labelsM["status"].(string); ok && st == "unavailable" || st == "N/A" {
 								activityInfo := &event.Activity{
 									ID: util.GetUUID(),
 									Timestamp: time.Now(),
@@ -936,6 +939,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			},
 		}
 		if typ == "update"{
+			if len(changeLog) == 0 {
+				continue
+			}
 			activityInfo.Changelog = changeLog
 		}
 		err = orm.Save(activityInfo)
@@ -1158,9 +1164,10 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 				log.Errorf("failed to load cluster settings from es [%v] : %v", clusterId,err)
 			}
 		}
-		oldClusterSettingsM := util.MapStr{}
-		util.MustFromJSONBytes(oldClusterSettings, &oldClusterSettingsM)
-		if oldClusterSettingsM != nil {
+
+		if oldClusterSettings != nil {
+			oldClusterSettingsM := util.MapStr{}
+			util.MustFromJSONBytes(oldClusterSettings, &oldClusterSettingsM)
 			changeLog, _ := diff.Diff(oldClusterSettingsM, settings)
 			if len(changeLog) == 0 {
 				return
@@ -1204,8 +1211,11 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 			if err != nil {
 				panic(err)
 			}
+			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+		}else{
+			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
 		}
-		kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+
 	}
 }
 
