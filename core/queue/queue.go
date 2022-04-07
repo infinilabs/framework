@@ -306,9 +306,9 @@ func Pop(k *Config) ([]byte, error) {
 
 	handler := getHandler(k)
 	if handler != nil {
-		if pausedReadQueue.Contains(k) {
-			return nil, pauseMsg
-		}
+		//if pausedReadQueue.Contains(k) {
+		//	return nil, pauseMsg
+		//}
 
 		o, timeout := handler.Pop(k.Id, -1)
 		if !timeout {
@@ -326,17 +326,12 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	//data:=strings.Split(offsetStr,",")
-	//var part,offset int64
-	//part,_=util.ToInt64(data[0])
-	//offset,_=util.ToInt64(data[1])
-
 	messages=[]Message{}
 	handler := getHandler(k)
 	if handler != nil {
-		if pausedReadQueue.Contains(k) {
-			return ctx,messages,isTimeout, pauseMsg
-		}
+		//if pausedReadQueue.Contains(k) {
+		//	return ctx,messages,isTimeout, pauseMsg
+		//}
 
 		ctx,messages, isTimeout,err = handler.Consume(k.Id,consumer,offsetStr,count, timeout)
 
@@ -362,9 +357,9 @@ func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout
 	handler := getHandler(k)
 
 	if handler != nil {
-		if pausedReadQueue.Contains(k) {
-			return nil, false, pauseMsg
-		}
+		//if pausedReadQueue.Contains(k) {
+		//	return nil, false, pauseMsg
+		//}
 
 		o, timeout := handler.Pop(k.Id, timeoutInSeconds)
 		if !timeout {

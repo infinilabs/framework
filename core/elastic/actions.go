@@ -84,15 +84,10 @@ func (node *NodeAvailable) FailureTickets() int {
 }
 
 func (node *NodeAvailable) IsAvailable() bool {
-	node.configLock.RLock()
-	defer node.configLock.RUnlock()
-
 	return node.available
 }
 
 func (node *NodeAvailable) IsDead() bool {
-	node.configLock.RLock()
-	defer node.configLock.RUnlock()
 	return node.isDead
 }
 
