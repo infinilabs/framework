@@ -10,20 +10,25 @@ import (
 	"time"
 )
 
-var scheduleTasks = []ScheduleTask{}
-var taskLock sync.RWMutex
+var Tasks = sync.Map{}
 
 type ScheduleTask struct {
-	Description string
-	Type        string
-	Interval    string
+
+	ID string  `config:"id" json:"id,omitempty"`
+	Description string  `config:"description" json:"description,omitempty"`
+	Type        string  `config:"type" json:"type,omitempty"`
+	Interval    string  `config:"interval" json:"interval,omitempty"`
+	Crontab    string  `config:"crontab" json:"crontab,omitempty"`
+
 	Task        func(ctx context.Context)
+	taskItem chrono.ScheduledTask
 }
 
 func RegisterScheduleTask(task ScheduleTask) {
-	taskLock.Lock()
-	scheduleTasks = append(scheduleTasks, task)
-	taskLock.Unlock()
+	if task.ID==""{
+		task.ID=util.GetUUID()
+	}
+	Tasks.Store(task.ID,task)
 }
 
 var quit = make(chan struct{})
@@ -32,16 +37,41 @@ var taskScheduler = chrono.NewDefaultTaskScheduler()
 func RunTasks() {
 
 	var defaultInterval=time.Duration(10) * time.Second
-	taskLock.RLock()
-	defer taskLock.RUnlock()
+	Tasks.Range(func(key, value any) bool {
+		task,ok:=value.(ScheduleTask)
+		//log.Error(task,ok)
+		if ok{
+			if global.Env().IsDebug{
+				log.Debug("scheduled task:",task.ID,",",task.Type,",",task.Interval,",",task.Crontab,",",task.Description)
+			}
 
-	for _, task := range scheduleTasks {
-		if global.Env().IsDebug{
-			log.Debug("scheduled task:",task.Type,",",task.Interval,",",task.Description)
+			switch task.Type {
+			case "interval":
+				task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval,defaultInterval))
+				if err != nil {
+					log.Error("failed to scheduled interval task:",task.Type,",",task.Interval,",",task.Description)
+				}
+				task.taskItem=task1
+				break
+			case "crontab":
+				task1, err := taskScheduler.ScheduleWithCron(task.Task, task.Crontab)
+				if err != nil {
+					log.Error("failed to scheduled crontab task:",task.Type,",",task.Interval,",",task.Description)
+				}
+				task.taskItem=task1
+				break
+			}
 		}
-		_, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval,defaultInterval))
-		if err != nil {
-			log.Error("failed to scheduled task:",task.Type,",",task.Interval,",",task.Description)
+		return true
+	})
+}
+
+func StopTask(id string) {
+	task,ok:=Tasks.Load(id)
+	if ok{
+		item,ok:=task.(ScheduleTask)
+		if ok{
+			item.taskItem.Cancel()
 		}
 	}
 }
@@ -52,8 +82,3 @@ func StopTasks() {
 
 	close(quit)
 }
-
-func ReceiveTask(task func())  {
-
-}
-
