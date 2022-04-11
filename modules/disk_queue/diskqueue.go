@@ -796,16 +796,11 @@ func (d *diskQueue) ioLoop() {
 			}
 			count = 0
 		}
-		//time.Sleep(1*time.Second)
-		//log.Error(d.name,",",d.consumerMode,",",d.readSegmentFileNum,",",d.writeSegmentNum,",",d.readPos,",",d.writePos)
 		if !d.consumerMode && ((d.readSegmentFileNum < d.writeSegmentNum) || (d.readPos < d.writePos)) {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					time.Sleep(500*time.Millisecond)
-					//log.Error(err,",",d.readSegmentFileNum < d.writeSegmentNum,",",d.readSegmentFileNum,",", d.writeSegmentNum,",",d.readPos < d.writePos,",",d.readPos ,",", d.writePos)
-					//log.Infof("reading from diskqueue(%s) at %d of %s - %s",
-					//	d.name, d.readPos, d.GetFileName(d.readSegmentFileNum), err)
+					time.Sleep(1*time.Second)
 					d.handleReadError()
 					continue
 				}

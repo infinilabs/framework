@@ -93,6 +93,9 @@ func (module *SimpleStatsModule) Start() error {
 				}
 			}
 			if n==0{
+				if module.config.FlushIntervalInMs<100{
+					module.config.FlushIntervalInMs=1000
+				}
 				time.Sleep(time.Duration(module.config.FlushIntervalInMs)*time.Millisecond)
 			}
 		}

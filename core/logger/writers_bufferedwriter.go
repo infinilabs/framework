@@ -151,6 +151,7 @@ func (bufWriter *BufferedWriter) flushBuffer() {
 func (bufWriter *BufferedWriter) flushPeriodically() {
 	if bufWriter.flushPeriod > 0 {
 		ticker := time.NewTicker(bufWriter.flushPeriod)
+		defer ticker.Stop()
 		for {
 			<-ticker.C
 			bufWriter.flushBuffer()

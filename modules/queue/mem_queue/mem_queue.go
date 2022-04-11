@@ -5,6 +5,7 @@
 package mem_queue
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
@@ -12,7 +13,6 @@ import (
 	"infini.sh/framework/core/stats"
 	memQueue "infini.sh/framework/lib/lock_free/queue"
 	"runtime"
-	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -69,6 +69,7 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 		q1=this.q[q]
 		this.locker.Unlock()
 	}
+
 	retryTimes:=0
 	da:=[]byte(string(data)) //TODO memory copy
 	RETRY:
@@ -80,7 +81,7 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 		}else{
 			retryTimes++
 			runtime.Gosched()
-			log.Debugf("memory_queue full, sleep 1s")
+			log.Debugf("memory_queue %v of %v, sleep 1s",q1.Quantity(),q1.Capaciity())
 			time.Sleep(1000*time.Millisecond)
 			stats.Increment("mem_queue","retry")
 			goto RETRY

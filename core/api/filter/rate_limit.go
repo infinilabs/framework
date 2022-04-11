@@ -40,6 +40,7 @@ func NewRequestLimitService(interval time.Duration, maxCnt int) *RateLimitFilter
 
 	go func() {
 		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
 			<-ticker.C
 			reqLimit.Lock.Lock()

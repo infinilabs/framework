@@ -328,7 +328,7 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req 
 					if global.Env().IsDebug {
 						log.Debugf("request qps throttle on node [%v]", node)
 					}
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(1 * time.Second)
 					goto RetryRateLimit
 				}
 			}
@@ -340,7 +340,7 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req 
 					if global.Env().IsDebug {
 						log.Debugf("request traffic throttle on node [%v]", node)
 					}
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(1 * time.Second)
 					goto RetryRateLimit
 				}
 			}

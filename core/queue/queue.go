@@ -97,16 +97,16 @@ func Push(k *Config, v []byte) error {
 	if handler != nil {
 		err = handler.Push(k.Id, v)
 		if err == nil {
-			stats.Increment("queue."+k.Id, "push")
+			stats.Increment("queue",k.Id, "push")
 			return nil
 		}
-		stats.Increment("queue."+k.Id, "push_error")
+		stats.Increment("queue",k.Id, "push_error")
 		return err
 	}
 	panic(errors.New("handler is not registered"))
 }
 
-var pauseMsg = errors.New("queue was paused to read")
+//var pauseMsg = errors.New("queue was paused to read")
 
 var configs = map[string]*Config{}
 var idConfigs = map[string]*Config{}
@@ -312,10 +312,10 @@ func Pop(k *Config) ([]byte, error) {
 
 		o, timeout := handler.Pop(k.Id, -1)
 		if !timeout {
-			stats.Increment("queue."+k.Id, "pop")
+			stats.Increment("queue",k.Id, "pop")
 			return o, nil
 		}
-		stats.Increment("queue."+k.Id, "pop_timeout")
+		stats.Increment("queue",k.Id, "pop_timeout")
 		return o, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
@@ -336,10 +336,10 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 		ctx,messages, isTimeout,err = handler.Consume(k.Id,consumer,offsetStr,count, timeout)
 
 		if !isTimeout {
-			stats.Increment("queue."+k.Id, "consume")
+			stats.Increment("queue",k.Id, "consume")
 			return ctx, messages,isTimeout,err
 		}
-		stats.Increment("queue."+k.Id, "consume_timeout")
+		stats.Increment("queue",k.Id, "consume_timeout")
 		return ctx,messages,isTimeout, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
@@ -363,9 +363,9 @@ func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout
 
 		o, timeout := handler.Pop(k.Id, timeoutInSeconds)
 		if !timeout {
-			stats.Increment("queue."+k.Id, "pop")
+			stats.Increment("queue",k.Id, "pop")
 		}
-		stats.Increment("queue."+k.Id, "pop_timeout")
+		stats.Increment("queue,",k.Id, "pop_timeout")
 		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
@@ -379,10 +379,10 @@ func Close(k *Config) error {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Close(k.Id)
-		stats.Increment("queue."+k.Id, "close")
+		stats.Increment("queue",k.Id, "close")
 		return o
 	}
-	stats.Increment("queue."+k.Id, "close_error")
+	stats.Increment("queue",k.Id, "close_error")
 	panic(errors.New("handler is not closed"))
 }
 
@@ -482,7 +482,7 @@ func Depth(k *Config) int64 {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		stats.Increment("queue."+k.Id, "call_depth")
+		stats.Increment("queue,",k.Id, "call_depth")
 		return o
 	}
 	panic(errors.New("handler is not registered"))
@@ -504,7 +504,7 @@ func HasLag(k *Config) bool {
 			return true
 		}
 
-		stats.Increment("queue."+k.Id, "check_lag")
+		stats.Increment("queue",k.Id, "check_lag")
 		return false
 	}
 
@@ -530,7 +530,7 @@ func GetQueues() map[string][]string {
 		result := []string{}
 		if handler != nil {
 			o := handler.GetQueues()
-			stats.Increment("queue."+q, "get_queues")
+			stats.Increment("queue",q, "get_queues")
 			result = append(result, o...)
 			results[q] = result
 		}
