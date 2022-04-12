@@ -17,13 +17,8 @@ import (
 	"time"
 )
 
-func clusterHealthCheck(force bool) {
-	elastic.WalkConfigs(func(key, value interface{}) bool {
-		cfg1, ok := value.(*elastic.ElasticsearchConfig)
-		if ok && cfg1 != nil {
-			log.Tracef("init task walk configs: %v",cfg1.Name)
+func clusterHealthCheck(clusterID string, force bool) {
 
-			go func(clusterID string) {
 				log.Tracef("execute task walk configs: %v",clusterID)
 				cfg:=elastic.GetConfig(clusterID)
 				metadata := elastic.GetOrInitMetadata(cfg)
@@ -57,10 +52,7 @@ func clusterHealthCheck(force bool) {
 						}
 					}
 				}
-			}(cfg1.ID)
-		}
-		return true
-	})
+
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string){

@@ -32,6 +32,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
+	"sync"
 )
 
 func (module *ElasticModule) Name() string {
@@ -65,6 +66,7 @@ var (
 			Enabled: true,
 			Interval: "20s",
 		},
+		ClientTimeout: "60s",
 	}
 )
 
@@ -255,11 +257,11 @@ func nodeAvailabilityCheck() {
 }
 
 func (module *ElasticModule)clusterStateRefresh() {
-
+	var mutexMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch state refresh",
 		Type:        "interval",
-		Interval:    "10s",
+		Interval:    moduleConfig.MetadataRefresh.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
 				log.Trace("walk metadata: ",key)
@@ -274,9 +276,14 @@ func (module *ElasticModule)clusterStateRefresh() {
 					if !v.Enabled{
 						return true
 					}
-
+					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
+						log.Warnf("cluster state refresh of cluster %s is busy", v.Name)
+						return true
+					}
+					mutexMap.Store(v.ID, true)
 					go func(clusterID string) {
 						module.updateClusterState(clusterID)
+						mutexMap.Store(clusterID, false)
 					}(v.ID)
 				}
 				return true
@@ -301,16 +308,40 @@ func (module *ElasticModule) Start() error {
 			panic(err)
 		}
 	}
+	elastic.WalkConfigs(func(key, value interface{}) bool {
+		cfg1, ok := value.(*elastic.ElasticsearchConfig)
+		if ok && cfg1 != nil {
+			log.Tracef("init task walk configs: %v", cfg1.Name)
 
-	clusterHealthCheck(true)
+			go clusterHealthCheck( cfg1.ID, true)
+		}
+		return true
+	})
 
 	if moduleConfig.HealthCheckConfig.Enabled {
+		healthCheckLoading := sync.Map{}
 		t := task.ScheduleTask{
 			Description: "cluster health check",
 			Type:        "interval",
-			Interval:    "10s",
+			Interval:    moduleConfig.HealthCheckConfig.Interval,
 			Task: func(ctx context.Context) {
-				clusterHealthCheck(false)
+				elastic.WalkConfigs(func(key, value interface{}) bool {
+					cfg1, ok := value.(*elastic.ElasticsearchConfig)
+					if ok && cfg1 != nil {
+						log.Tracef("init task walk configs: %v", cfg1.Name)
+
+						if busy, ok := healthCheckLoading.Load(cfg1.ID); ok && busy == true{
+							log.Warnf("cluster health check of cluster %s is busy", cfg1.Name)
+							return true
+						}
+						healthCheckLoading.Store(cfg1.ID, true)
+						go func(clusterID string) {
+							clusterHealthCheck( clusterID, false)
+							healthCheckLoading.Store(clusterID, false)
+						}(cfg1.ID)
+					}
+					return true
+				})
 			},
 		}
 
@@ -420,6 +451,7 @@ func (module *ElasticModule) Start() error {
 }
 
 func (module *ElasticModule)clusterSettingsRefresh() {
+	var mutexMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch settings refresh",
 		Type:        "interval",
@@ -438,9 +470,14 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 					if !v.Enabled{
 						return true
 					}
-
+					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
+						log.Warnf("cluster settings refresh of cluster %s is busy", v.Name)
+						return true
+					}
+					mutexMap.Store(v.ID, true)
 					go func(clusterID string) {
 						module.updateClusterSettings(clusterID)
+						mutexMap.Store(clusterID, false)
 					}(v.ID)
 				}
 				return true
