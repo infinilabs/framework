@@ -398,7 +398,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	q := orm.Query{
 		Size: 1,
 	}
-	q.Conds = orm.And(orm.Eq("metadata.node_id", nodeID))
+	q.Conds = orm.And(orm.Eq("metadata.node_id", nodeID), orm.Eq("metadata.cluster_id", clusterID))
 
 	err, res := orm.Search(&elastic.NodeConfig{}, &q)
 	if err != nil {
