@@ -818,7 +818,7 @@ func (c *ESAPIV0) Bulk(data []byte) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/_bulk", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_bulk?filter_path=items.*.error", c.GetEndpoint())
 	result, err := c.Request(util.Verb_POST, url, data)
 
 	if global.Env().IsDebug{
@@ -828,6 +828,9 @@ func (c *ESAPIV0) Bulk(data []byte) {
 	if err != nil {
 		panic(err)
 		return
+	}
+	if v := string(result.Body); v != "{}" {
+		log.Warn(v)
 	}
 
 }
