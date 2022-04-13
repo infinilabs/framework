@@ -107,6 +107,10 @@ func StopTask(id string) {
 		}
 	}
 }
+func DeleteTask(id string) {
+	StopTask(id)
+	Tasks.Delete(id)
+}
 
 func StopTasks() {
 	shutdownChannel := taskScheduler.Shutdown()
