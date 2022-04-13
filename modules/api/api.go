@@ -35,6 +35,18 @@ const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 const infoAPI = "/_framework/api/_info"
 
+func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
+	w.Write([]byte("\n"))
+	w.WriteHeader(200)
+}
+
+func versionAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	w.Write([]byte(global.Env().GetVersion()))
+	w.Write([]byte("\n"))
+	w.WriteHeader(200)
+}
+
 // Start api server
 func (module *APIModule) Setup(cfg *config.Config) {
 	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -68,16 +80,8 @@ func (module *APIModule) Setup(cfg *config.Config) {
 
 		w.WriteHeader(200)
 	})
-	api.HandleAPIMethod(api.GET, whoisAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
-		w.Write([]byte("\n"))
-		w.WriteHeader(200)
-	})
-	api.HandleAPIMethod(api.GET, versionAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		w.Write([]byte(global.Env().GetVersion()))
-		w.Write([]byte("\n"))
-		w.WriteHeader(200)
-	})
+	api.HandleAPIMethod(api.GET, whoisAPI, whoisAPIHandler)
+	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
 	api.HandleAPIMethod(api.GET, infoAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		obj:=util.MapStr{
 			"id":global.Env().SystemConfig.NodeConfig.ID,
