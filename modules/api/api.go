@@ -35,6 +35,7 @@ const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 const infoAPI = "/_framework/api/_info"
 
+
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
 	w.Write([]byte("\n"))
@@ -45,6 +46,28 @@ func versionAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	w.Write([]byte(global.Env().GetVersion()))
 	w.Write([]byte("\n"))
 	w.WriteHeader(200)
+}
+
+func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	obj:=util.MapStr{
+		"id":global.Env().SystemConfig.NodeConfig.ID,
+		"name":global.Env().SystemConfig.NodeConfig.Name,
+		"tagline":global.Env().GetAppDesc(),
+		"version":util.MapStr{
+			"number":global.Env().GetVersion(),
+			"build_date":global.Env().GetBuildDate(),
+			"build_hash":global.Env().GetLastCommitHash(),
+			"build_number":global.Env().GetBuildNumber(),
+			"eol_date":global.Env().GetEOLDate(),
+		},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(util.MustToJSONBytes(obj))
+	w.WriteHeader(200)
+}
+func init()  {
+	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
+	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
 }
 
 // Start api server
@@ -81,23 +104,6 @@ func (module *APIModule) Setup(cfg *config.Config) {
 		w.WriteHeader(200)
 	})
 	api.HandleAPIMethod(api.GET, whoisAPI, whoisAPIHandler)
-	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
-	api.HandleAPIMethod(api.GET, infoAPI, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		obj:=util.MapStr{
-			"id":global.Env().SystemConfig.NodeConfig.ID,
-			"name":global.Env().SystemConfig.NodeConfig.Name,
-			"tagline":global.Env().GetAppDesc(),
-			"version":util.MapStr{
-				"number":global.Env().GetVersion(),
-				"build_date":global.Env().GetBuildDate(),
-				"build_hash":global.Env().GetLastCommitHash(),
-				"build_number":global.Env().GetBuildNumber(),
-				"eol_date":global.Env().GetEOLDate(),
-			},
-		}
-		module.WriteJSON(w,obj,200)
-	})
-
 }
 
 func (module *APIModule) Start() error {
