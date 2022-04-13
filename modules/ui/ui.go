@@ -17,6 +17,7 @@ limitations under the License.
 package ui
 
 import (
+	"compress/gzip"
 	log "github.com/cihub/seelog"
 	uis "infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/websocket"
@@ -44,7 +45,12 @@ func (module *UIModule) Name() string {
 func (module *UIModule) Setup(cfg *Config) {
 
 
-	module.uiConfig = &uis.UIConfig{}
+	module.uiConfig = &uis.UIConfig{
+		Gzip: uis.GzipConfig{
+			Enabled: true,
+			Level: gzip.BestCompression,
+		},
+	}
 	//cfg.Unpack(&uiConfig)
 
 	env.ParseConfig("web", module.uiConfig)

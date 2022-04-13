@@ -130,7 +130,8 @@ func StartUI(cfg *UIConfig) {
 	handler := context.ClearHandler(uiRouter)
 	if uiConfig.Gzip.Enabled {
 		log.Debug("gzip enabled")
-		handler = gzip.GzipHandler(handler)
+		wrapper, _ := gzip.NewGzipLevelHandler(uiConfig.Gzip.Level)
+		handler = wrapper(handler)
 	}
 	if uiConfig.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
