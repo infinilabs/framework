@@ -8,6 +8,7 @@ import (
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"sync"
 )
 
 type Metric struct {
@@ -26,6 +27,7 @@ type Metric struct {
 
 	ClusterState bool `config:"cluster_state"`
 	NodeInfo bool `config:"node_info"`
+	Interval string `config:"interval"`
 }
 
 //元数据定期快照
@@ -48,6 +50,7 @@ func New(cfg *config.Config) (*Metric, error) {
 		IndexPrimaryStats: true,
 		IndexTotalStats:   true,
 		ClusterState:      true,
+		Interval: "10s",
 	}
 
 	err := cfg.Unpack(&me)
@@ -58,6 +61,7 @@ func New(cfg *config.Config) (*Metric, error) {
 	return me, nil
 }
 
+var collectLoadingMap = sync.Map{}
 func (m *Metric) Collect() error {
 
 	if !m.Enabled {
@@ -80,6 +84,12 @@ func (m *Metric) Collect() error {
 			if global.Env().IsDebug{
 				log.Debugf("run monitoring task for elasticsearch: %v - %v",k,v.Config.Name)
 			}
+			if busy, ok := collectLoadingMap.Load(key); ok && busy == true {
+				log.Warnf("collect metrics data of cluster %s is busy", v.Config.Name)
+				return true
+			}
+			collectLoadingMap.Store(key, true)
+			defer collectLoadingMap.Store(key, false)
 
 			client := elastic.GetClient(k)
 			//var clusterUUID string
@@ -181,6 +191,7 @@ func (m *Metric) Collect() error {
 				for nodeID, y := range *v.Nodes {
 					//get node level stats
 					stats := client.GetNodesStats(nodeID,y.GetHttpPublishHost())
+
 					if stats.ErrorObject != nil {
 						log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
 						continue
@@ -188,7 +199,6 @@ func (m *Metric) Collect() error {
 					if _, ok := shardInfos[nodeID]; ok {
 						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 					}
-
 					m.SaveNodeStats(v.Config.ID,stats, shardInfos[nodeID])
 
 				}
@@ -255,6 +265,7 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, sha
 		if ok{
 			delete(x,"adaptive_selection")
 			delete(x,"ingest")
+			util.MapStr(x).Delete("indices.segments.max_unsafe_auto_id_timestamp")
 			x["shard_info"] = shardInfo
 		}
 		nodeName:=x["name"]
@@ -280,7 +291,10 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, sha
 				"node_stats": x,
 			},
 		}
-		event.Save(item)
+		err := event.Save(item)
+		if err !=nil {
+			log.Error(err)
+		}
 	}
 }
 

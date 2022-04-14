@@ -907,7 +907,7 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 	id := ps.ByName("id")
 	meta := elastic.GetMetadata(id)
 	if meta == nil || !meta.IsAvailable() {
-		log.Warn("cluster %s is not available")
+		log.Warnf("cluster %s is not available", id)
 		h.WriteJSON(w, []interface{}{} , http.StatusOK)
 		return
 	}

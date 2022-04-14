@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"infini.sh/framework/core/api/gzip"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
@@ -126,6 +127,12 @@ func StartUI(cfg *UIConfig) {
 		bindAddress = uiConfig.NetworkConfig.GetBindingAddr()
 	}
 
+	handler := context.ClearHandler(uiRouter)
+	if uiConfig.Gzip.Enabled {
+		log.Debug("gzip enabled")
+		wrapper, _ := gzip.NewGzipLevelHandler(uiConfig.Gzip.Level)
+		handler = wrapper(handler)
+	}
 	if uiConfig.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
@@ -163,9 +170,10 @@ func StartUI(cfg *UIConfig) {
 			},
 		}
 
+
 		srv := &http.Server{
 			Addr:         bindAddress,
-			Handler:      RecoveryHandler()(context.ClearHandler(uiRouter)),
+			Handler:      RecoveryHandler()(handler),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -179,8 +187,9 @@ func StartUI(cfg *UIConfig) {
 		}()
 
 	} else {
+
 		go func() {
-			err := http.ListenAndServe(bindAddress, RecoveryHandler()(context.ClearHandler(uiRouter)))
+			err := http.ListenAndServe(bindAddress, RecoveryHandler()(handler))
 			if err != nil {
 				log.Error(err)
 				panic(err)

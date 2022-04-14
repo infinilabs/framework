@@ -25,6 +25,7 @@ type UIConfig struct {
 	NetworkConfig config.NetworkConfig `config:"network"`
 	BasePath      string               `config:"base_path"`
 	EmbeddingAPI  bool                 `config:"embedding_api"`
+	Gzip GzipConfig `config:"gzip"`
 }
 
 type AuthConfig struct {
@@ -36,4 +37,9 @@ type AuthConfig struct {
 	AuthorizedAdmins  []string `config:"authorized_admin"`
 	ClientSecret      string   `config:"client_secret"`
 	ClientID          string   `config:"client_id"`
+}
+
+type GzipConfig struct {
+	Enabled           bool     `config:"enabled"`
+	Level int `config:"level"`
 }

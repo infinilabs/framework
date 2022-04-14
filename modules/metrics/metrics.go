@@ -93,7 +93,7 @@ func (module *MetricsModule) Setup(cfg *Config) {
 			var task1 = task.ScheduleTask{
 				Description: "monitoring for elasticsearch clusters",
 				Type:        "interval",
-				Interval:    "10s",
+				Interval:    es.Interval,
 				Task: func(ctx context.Context) {
 					log.Debug("collecting elasticsearch metrics")
 					es.Collect()

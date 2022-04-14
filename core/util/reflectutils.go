@@ -90,6 +90,9 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			v := TrimSpaces(field.Tag.Get(tagName))
+			if v == "-" {
+				continue
+			}
 			a := Annotation{Field: field.Name, Type: field.Type.Name(), Tag: v}
 
 			//fmt.Println(field.Name)

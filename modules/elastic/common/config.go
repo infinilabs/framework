@@ -33,6 +33,7 @@ type ModuleConfig struct {
 	NodeAvailabilityCheckConfig CheckConfig `config:"availability_check"`
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
 	ClusterSettingsCheckConfig           CheckConfig `config:"cluster_settings_check"`
+	ClientTimeout string `config:"client_timeout"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {

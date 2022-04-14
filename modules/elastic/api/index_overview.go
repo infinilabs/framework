@@ -432,6 +432,13 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 				summary["docs"] = docs
 			}
 			if indexInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, result); ok {
+				if infoM, ok := indexInfo.(map[string]interface{}); ok {
+					state, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, response.Hits.Hits[0].Source)
+					if state == "delete" {
+						infoM["status"] = "deleted"
+						infoM["health"] = "N/A"
+					}
+				}
 				summary["index_info"] = indexInfo
 			}
 			if shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, result); ok {
@@ -449,6 +456,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 				}
 			}
 		}
+		summary["timestamp"] = result["timestamp"]
 	}
 
 	h.WriteJSON(w, summary, http.StatusOK)
