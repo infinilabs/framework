@@ -78,7 +78,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		client = api
 	} else {
 		api := new(adapter.ESAPIV0)
-		api.Elasticsearch = esConfig.Name
+		api.Elasticsearch = esConfig.ID
 		api.Version = ver
 		client = api
 	}

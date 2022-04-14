@@ -56,6 +56,9 @@ func (c *ESAPIV0) GetMetadata()*elastic.ElasticsearchMetadata {
 		return c.metadata
 	}
 	c.metadata= elastic.GetMetadata(c.Elasticsearch)
+	if c.metadata==nil{
+		panic(errors.Errorf("metadata not found for [%v]",c.Elasticsearch))
+	}
 	return c.metadata
 }
 
