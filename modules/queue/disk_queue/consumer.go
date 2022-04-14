@@ -21,12 +21,12 @@ import (
 
 //if local file not found, try to download from s3
 func (d *diskQueue)SmartGetFileName(queueID string,segmentID int64) string {
-	filePath:=GetFileName(queueID,segmentID)
+	filePath:= GetFileName(queueID,segmentID)
 	if !util.FileExists(filePath){
 		//download from s3 if that is possible
-		lastFileNum:=GetLastS3UploadFileNum(queueID)
+		lastFileNum:= GetLastS3UploadFileNum(queueID)
 		if lastFileNum>=segmentID{
-			s3Object:=getS3FileLocation(filePath)
+			s3Object:= getS3FileLocation(filePath)
 
 			//TODO download compressed segments, check config, un-compress and rename
 			if d.cfg.CompressOnSegment.Enabled{

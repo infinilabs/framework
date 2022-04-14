@@ -4,10 +4,10 @@
 package queue
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/lib/bytebufferpool"
-	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )

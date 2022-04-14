@@ -66,8 +66,12 @@ type DiskQueueConfig struct {
 
 	UploadToS3   bool   `config:"upload_to_s3"`
 
-	CompressOnSegment   CompressConfig   `config:"compress_on_segment"`
-	CompressOnMessagePayload   CompressConfig   `config:"compress_on_message_payload"`
+	//default queue adaptor
+	Default bool `config:"default"`
+	Enabled bool `config:"enabled"`
+
+	CompressOnSegment        CompressConfig `config:"compress_on_segment"`
+	CompressOnMessagePayload CompressConfig `config:"compress_on_message_payload"`
 
 	Retention RetentionConfig `config:"retention"`
 
@@ -119,7 +123,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 		}
 
 		//skip uploaded file
-		lastFileNum:=GetLastS3UploadFileNum(queueID)
+		lastFileNum:= GetLastS3UploadFileNum(queueID)
 		log.Tracef("last upload:%v, fileNum:%v",lastFileNum, fileNum)
 		if fileNum<=lastFileNum{
 			//skip old queue file, no need to upload
@@ -128,7 +132,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
 			fileName:= GetFileName(queueID,fileNum)
-			toFile:=getS3FileLocation(fileName)
+			toFile:= getS3FileLocation(fileName)
 			var success=false
 			var err error
 			if module.cfg.S3.Async{
@@ -206,17 +210,19 @@ func GetFileName(queueID string,segmentID int64) string {
 func (module *DiskQueue) Setup(config *config.Config) {
 
 	module.cfg = &DiskQueueConfig{
-		UploadToS3:       false,
-		Retention: 		  RetentionConfig{ MaxNumOfLocalFiles: 10},
-		MinMsgSize:       1,
-		MaxMsgSize:       104857600, //100MB
-		MaxBytesPerFile:  100 * 1024 * 1024, //100MB
-		SyncEveryRecords: 1000,
-		SyncTimeoutInMS:  1000,
-		NotifyChanBuffer:   100,
-		ReadChanBuffer:   0,
+		Enabled:           true,
+		Default:           true,
+		UploadToS3:        false,
+		Retention:         RetentionConfig{ MaxNumOfLocalFiles: 10},
+		MinMsgSize:        1,
+		MaxMsgSize:        104857600, //100MB
+		MaxBytesPerFile:   100 * 1024 * 1024, //100MB
+		SyncEveryRecords:  1000,
+		SyncTimeoutInMS:   1000,
+		NotifyChanBuffer:  100,
+		ReadChanBuffer:    0,
 		WriteChanBuffer:   0,
-		WarningFreeBytes: 10 * 1024 * 1024 * 1024,
+		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
 		CompressOnMessagePayload: CompressConfig{
 			Enabled: false,
@@ -227,6 +233,10 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	ok,err:=env.ParseConfig("disk_queue", module.cfg)
 	if ok&&err!=nil{
 		panic(err)
+	}
+
+	if !module.cfg.Enabled{
+		return
 	}
 
 	module.queues=sync.Map{}
@@ -294,7 +304,9 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	//})
 
 	queue.Register("disk", module)
-	queue.RegisterDefaultHandler(module)
+	if module.cfg.Default{
+		queue.RegisterDefaultHandler(module)
+	}
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
@@ -362,7 +374,7 @@ func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, 
 		q,ok=module.queues.Load(queueName)
 	}
 	if ok{
-		segment,offset:=ConvertOffset(offsetStr)
+		segment,offset:= ConvertOffset(offsetStr)
 		q1:=(*q.(*BackendQueue))
 		ctx,messages,timeout,err:=q1.Consume(consumer, segment,offset,count, timeDuration)
 
@@ -437,6 +449,9 @@ func (module *DiskQueue) GetQueues() []string {
 }
 
 func (module *DiskQueue) Start() error {
+	if !module.cfg.Enabled{
+		return nil
+	}
 
 	//TODO move to dedicated queue module
 
@@ -451,6 +466,11 @@ func (module *DiskQueue) Start() error {
 			if v.Type!=""&&v.Type!="disk"{
 				continue
 			}
+
+			if v.Type==""&&!module.cfg.Default{
+				continue
+			}
+
 			queue.IniQueue(v)
 		}
 	}
@@ -480,9 +500,9 @@ func (module *DiskQueue) Start() error {
 			}()
 
 			for _, v := range cfgs {
-				last:=GetLastS3UploadFileNum(v.Id)
+				last:= GetLastS3UploadFileNum(v.Id)
 				offsetStr:=queue.LatestOffset(v)
-				segment,_:=ConvertOffset(offsetStr)
+				segment,_:= ConvertOffset(offsetStr)
 				log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
 				if segment >last{
 					for x:=last;x< segment;x++{
@@ -553,6 +573,10 @@ func (module *DiskQueue) Start() error {
 }
 
 func (module *DiskQueue) Stop() error {
+	if !module.cfg.Enabled{
+		return nil
+	}
+
 	close(module.messages)
 	module.queues.Range(func(key, value interface{}) bool {
 		q,ok:=module.queues.Load(key)
@@ -585,7 +609,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 
 		if module.cfg.UploadToS3 {
 			//check last uploaded mark
-			var lastSavedFileNum=GetLastS3UploadFileNum(queueID)
+			var lastSavedFileNum= GetLastS3UploadFileNum(queueID)
 
 			if global.Env().IsDebug{
 				log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v",fileStartToDelete,segmentNum,lastSavedFileNum)
@@ -604,7 +628,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 		if consumers>0 &&fileStartToDelete< segmentNum{
 			log.Trace(queueID," start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
 			for x:=fileStartToDelete;x>=0;x--{
-				file:=GetFileName(queueID,x)
+				file:= GetFileName(queueID,x)
 				if util.FileExists(file){
 					log.Debug("delete queue file:",file)
 					err:=os.Remove(file)

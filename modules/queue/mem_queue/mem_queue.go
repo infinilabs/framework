@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	memQueue "infini.sh/framework/lib/lock_free/queue"
 	"runtime"
 	"sync"
@@ -20,15 +21,18 @@ import (
 type MemoryQueue struct {
 
 	Capacity uint32 `config:"capacity"`
+	Default bool `config:"default"`
+	Enabled bool `config:"enabled"`
 
 	MemorySize int `config:"total_memory_size"`
-	q          map[string]*memQueue.EsQueue
+	q          sync.Map
 	locker     sync.RWMutex
 }
 
 func (this *MemoryQueue) Setup(config *config.Config) {
 
-	this.q= map[string]*memQueue.EsQueue{}
+	this.q=sync.Map{}
+	this.Enabled=true
 	this.MemorySize=2*1024*1024
 	this.Capacity=10000
 	ok, err := env.ParseConfig("memory_queue", &this)
@@ -36,6 +40,10 @@ func (this *MemoryQueue) Setup(config *config.Config) {
 		panic(err)
 	}
 	queue.Register("memory",this)
+	if this.Default{
+		queue.RegisterDefaultHandler(this)
+	}
+
 }
 
 func (this *MemoryQueue) Start() error {
@@ -51,29 +59,30 @@ func (this *MemoryQueue) Name() string {
 }
 
 func (this *MemoryQueue)Init(q string) error{
-	_,ok:=this.q[q]
-	if !ok{
-		this.locker.Lock()
-		q1:= memQueue.NewQueue(this.Capacity)
-		this.q[q]=q1
-		this.locker.Unlock()
-	}
+	q1:= memQueue.NewQueue(this.Capacity)
+	this.q.Store(q,q1)
 	return nil
 }
 
 func (this *MemoryQueue)Push(q string,data []byte) error{
-	q1,ok:=this.q[q]
+	q1,ok:=this.q.Load(q)
 	if !ok{
-		this.Init(q)
-		this.locker.Lock()
-		q1=this.q[q]
-		this.locker.Unlock()
+		err:=this.Init(q)
+		if err!=nil{
+			panic(err)
+		}
+		q1,_=this.q.Load(q)
 	}
 
 	retryTimes:=0
 	da:=[]byte(string(data)) //TODO memory copy
+	mq,ok:=q1.(*memQueue.EsQueue)
+	if !ok{
+		panic("invalid memory queue")
+	}
+
 	RETRY:
-	ok,_=q1.Put(da)
+	ok,_=mq.Put(da)
 	if !ok{
 		if retryTimes>10{
 			stats.Increment("mem_queue","dead_retry")
@@ -81,7 +90,7 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 		}else{
 			retryTimes++
 			runtime.Gosched()
-			log.Debugf("memory_queue %v of %v, sleep 1s",q1.Quantity(),q1.Capaciity())
+			log.Debugf("memory_queue %v of %v, sleep 1s",mq.Quantity(),mq.Capaciity())
 			time.Sleep(1000*time.Millisecond)
 			stats.Increment("mem_queue","retry")
 			goto RETRY
@@ -93,16 +102,17 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 var capacityFull =errors.New("memory capacity full")
 
 func (this *MemoryQueue)Pop(q string, t time.Duration) (data []byte, timeout bool){
-	if this.q==nil{
-		return nil, true
-	}
-
-	queue,ok:=this.q[q]
+	queue,ok:=this.q.Load(q)
 	if !ok||queue==nil{
 		return nil, true
 	}
 
-	v,ok,_:=queue.Get()
+	mq,ok:=queue.(*memQueue.EsQueue)
+	if !ok{
+		panic("invalid memory queue")
+	}
+
+	v,ok,_:=mq.Get()
 	if ok&&v!=nil{
 		d,ok:=v.([]byte)
 		if ok{
@@ -117,7 +127,15 @@ func (this *MemoryQueue)Close(string) error{
 }
 
 func (this *MemoryQueue)Depth(q string) int64{
-	return int64(this.q[q].Quantity())
+	q1,ok:=this.q.Load(q)
+	if ok{
+		mq,ok:=q1.(*memQueue.EsQueue)
+		if !ok{
+			panic("invalid memory queue")
+		}
+		return int64(mq.Quantity())
+	}
+	return 0
 }
 
 func (this *MemoryQueue)Consume(q,consumer,offsetStr string,count int,timeout time.Duration) ( *queue.Context, []queue.Message,bool,error){
@@ -134,10 +152,9 @@ func (this *MemoryQueue)LatestOffset(string) string{
 
 func (this *MemoryQueue)GetQueues() []string{
 	q:=[]string{}
-	if this.q!=nil{
-		for k,_:=range this.q{
-			q=append(q,k)
-		}
-	}
+	this.q.Range(func(key, value interface{}) bool {
+		q=append(q,util.ToString(key))
+		return true
+	})
 	return q
 }
