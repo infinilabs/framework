@@ -4,7 +4,7 @@
 
 package elastic
 
-const KVElasticIndexHealthStatus = "kv_elastic_index_health_status"
+const KVElasticNodeMetadata = "kv_elastic_node_metadata"
 const QueueElasticIndexHealthStatus = "elasticsearch##metadata##index_health_change"
 const QueueElasticIndexState = "elasticsearch##metadata##index_state_change_v1"
 const KVElasticIndexMetadata = "kv_elastic_index_metadata"

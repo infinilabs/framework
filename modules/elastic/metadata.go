@@ -535,7 +535,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					continue
 				}
 				if len(filterChangeLog) == 1 {
-					if changeLog[0].Path[0] == "version" {
+					if filterChangeLog[0].Path[0] == "version" {
 						continue
 					}
 				}
