@@ -331,6 +331,10 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	targetClusterID := ps.ByName("id")
 
 	pattern := h.GetParameterOrDefault(req, "pattern", "*")
+	keyword := h.GetParameterOrDefault(req, "keyword", "")
+	aggregatable := h.GetParameterOrDefault(req, "aggregatable", "true")
+	size := h.GetIntOrDefault(req, "size", 0)
+	typ := h.GetParameterOrDefault(req, "type", "")
 	metaFields := req.URL.Query()["meta_fields"]
 	kbnFields, err := h.getFieldCaps(targetClusterID, pattern, metaFields)
 	if err != nil {
@@ -339,9 +343,32 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	if keyword != "" {
+		var filteredFields []KbnField
+		var count = 0
+		for _, field := range kbnFields {
+			if !strings.Contains(field.Name, keyword){
+				continue
+			}
+			if aggregatable == "true" && !field.Aggregatable {
+				continue
+			}
+			if typ != "" && field.Type != typ{
+				continue
+			}
+			count++
+			if size > 0  && count > size {
+				break
+			}
+			filteredFields = append(filteredFields, field)
+		}
+		kbnFields = filteredFields
+	}
+
 	resBody["fields"] = kbnFields
 	h.WriteJSON(w,resBody ,http.StatusOK)
 }
+
 
 func (h *APIHandler) getFieldCaps(clusterID string, pattern string, metaFields []string) ([]KbnField, error){
 	exists,client,err:=h.GetClusterClient(clusterID)
