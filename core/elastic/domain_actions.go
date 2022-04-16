@@ -173,16 +173,25 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 
 func IsHostDead(host string) bool {
 	info, ok := hosts.Load(host)
-	if ok {
+	if info!=nil&&ok {
 		return info.(*NodeAvailable).IsDead()
 	}
 	log.Debugf("no available info for host [%v]", host)
 	return false
 }
+
+func GetHostAvailableInfo(host string) (*NodeAvailable,bool) {
+	info, ok :=hosts.Load(host)
+	if ok&&info!=nil{
+		return info.(*NodeAvailable),ok
+	}
+	return nil, false
+}
+
 func IsHostAvailable(host string) bool {
-	info, ok := hosts.Load(host)
-	if ok {
-		return info.(*NodeAvailable).IsAvailable()
+	info, ok := GetHostAvailableInfo(host)
+	if ok && info!=nil{
+		return info.IsAvailable()
 	}else{
 		arry:=strings.Split(host,":")
 		if len(arry)==2{

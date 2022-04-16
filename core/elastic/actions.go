@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/rate"
+	"github.com/emirpasic/gods/sets/hashset"
 	"strings"
 	"time"
 )
@@ -92,13 +93,9 @@ func (node *NodeAvailable) IsDead() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	if meta.Config==nil||!meta.Config.Enabled {
-		return false
-	}
-
-	meta.configLock.RLock()
-	defer meta.configLock.RUnlock()
-
+	//if meta.Config==nil||!meta.Config.Enabled {
+	//	return false
+	//}
 	return meta.clusterAvailable
 }
 
@@ -180,14 +177,69 @@ func (meta *ElasticsearchMetadata) GetActivePreferredEndpoint(host string) strin
 	return fmt.Sprintf("%s://%s", meta.GetSchema(), host)
 }
 
-func (meta *ElasticsearchMetadata) GetActiveHost() string {
-
+func (meta *ElasticsearchMetadata) GetActiveHosts() int {
+	hash:=hashset.New()
 	hosts := meta.GetSeedHosts()
 	for _, v := range hosts {
 		if IsHostAvailable(v) {
+			hash.Add(v)
+		}
+	}
+
+	if meta.Nodes!=nil{
+		for _,v1:=range *meta.Nodes{
+			v:=v1.GetHttpPublishHost()
+			if IsHostAvailable(v){
+				//add to cache
+				info,ok:= GetHostAvailableInfo(v)
+				if ok&&info!=nil{
+					hash.Add(v)
+				}
+			}
+		}
+	}
+
+	return hash.Size()
+}
+
+func (meta *ElasticsearchMetadata) GetActiveHost() string {
+
+	if meta.activeHost!=nil{
+		if meta.activeHost.IsAvailable(){
+			return meta.activeHost.Host
+		}
+	}
+
+	hosts := meta.GetSeedHosts()
+	for _, v := range hosts {
+		if IsHostAvailable(v){
+			//add to cache
+			info,ok:= GetHostAvailableInfo(v)
+			if ok&&info!=nil{
+				if info.IsAvailable(){
+					meta.activeHost=info
+				}
+			}
 			return v
 		}
 	}
+
+	if meta.Nodes!=nil{
+		for _,v1:=range *meta.Nodes{
+			v:=v1.GetHttpPublishHost()
+			if IsHostAvailable(v){
+				//add to cache
+				info,ok:= GetHostAvailableInfo(v)
+				if ok&&info!=nil{
+					if info.IsAvailable(){
+						meta.activeHost=info
+					}
+				}
+				return v
+			}
+		}
+	}
+
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
 		log.Debug("no hosts available, choose: ", hosts[0])
 	}
@@ -230,6 +282,10 @@ func (meta *ElasticsearchMetadata) GetSchema() string {
 }
 
 func (meta *ElasticsearchMetadata) ReportFailure() bool {
+
+	//Handle master_not_discovered_exception
+	//{"error":{"root_cause":[{"type":"master_not_discovered_exception","reason":null}],"type":"master_not_discovered_exception","reason":null},"status":503}json: cannot unmarshal "503}" into Go struct field map[string]adapter.AliasesResponse{}.status of type adapter.AliasesResponse
+
 	log.Tracef("report failure for elasticsearch [%v]", meta.Config.Name)
 
 	meta.configLock.Lock()
@@ -246,6 +302,13 @@ func (meta *ElasticsearchMetadata) ReportFailure() bool {
 		meta.clusterFailureTicket++
 		//if the target host is not available for 10s, mark it down
 		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess) > 5*time.Second) || time.Since(meta.lastSuccess) > 10*time.Second {
+			num:=meta.GetActiveHosts()
+			log.Tracef("%v has active hosts: %v",meta.Config.Name,num)
+			if num>0{
+				log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name,num)
+				return false
+			}
+
 			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down", meta.Config.Name)
 			meta.clusterAvailable = false
 			meta.clusterFailureTicket = 0

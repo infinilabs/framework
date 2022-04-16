@@ -331,7 +331,7 @@ func (module *ElasticModule) Start() error {
 						log.Tracef("init task walk configs: %v", cfg1.Name)
 
 						if busy, ok := healthCheckLoading.Load(cfg1.ID); ok && busy == true{
-							log.Warnf("cluster health check of cluster %s is busy", cfg1.Name)
+							log.Debugf("previous health check of cluster %v is still running", cfg1.Name)
 							return true
 						}
 						healthCheckLoading.Store(cfg1.ID, true)

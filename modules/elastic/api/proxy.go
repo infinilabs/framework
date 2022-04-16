@@ -58,7 +58,11 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	if metadata.Config.BasicAuth != nil {
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
-	freq.SetRequestURI(fmt.Sprintf("%s/%s", metadata.GetActiveEndpoint(), path))
+
+	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActiveEndpoint(), path)
+
+	freq.SetRequestURI(endpoint)
+
 	method = strings.ToUpper(method)
 	if method == http.MethodGet && req.ContentLength > 0 {
 		method = http.MethodPost

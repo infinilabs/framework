@@ -397,6 +397,7 @@ type ElasticsearchMetadata struct {
 	lastSuccess          time.Time
 	configLock           sync.RWMutex
 	seedHosts            []string
+	activeHost			 *NodeAvailable
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch

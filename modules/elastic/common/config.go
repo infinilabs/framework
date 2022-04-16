@@ -98,6 +98,7 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	}
 	elastic.RegisterInstance(esConfig.ID, esConfig, client)
 	v := &elastic.ElasticsearchMetadata{Config: &esConfig}
+
 	originMeta := elastic.GetMetadata(esConfig.ID)
 	initHealth := true
 	if originMeta != nil{
