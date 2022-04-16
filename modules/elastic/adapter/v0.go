@@ -1277,6 +1277,7 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
 		log.Error(url,string(resp.Body),err)
+		c.GetMetadata().ReportFailure(err)
 		return nil, err
 	}
 

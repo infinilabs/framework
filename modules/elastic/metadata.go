@@ -36,7 +36,7 @@ func clusterHealthCheck(clusterID string, force bool) {
 					//check cluster health status
 					health,err := client.ClusterHealth()
 					if err!=nil||health==nil||health.StatusCode!=200{
-						metadata.ReportFailure()
+						metadata.ReportFailure(err)
 						if metadata.Config.Source != "file" {
 							updateClusterHealthStatus(clusterID, "unavailable")
 						}
@@ -1141,6 +1141,7 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	settings,err := client.GetClusterSettings()
 	if err!=nil{
 		log.Errorf("failed to get [%v] settings: %v",clusterId,err)
+		meta.ReportFailure(err)
 		return
 	}
 

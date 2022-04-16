@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/rate"
 	"github.com/emirpasic/gods/sets/hashset"
+	"infini.sh/framework/core/util"
 	"strings"
 	"time"
 )
@@ -93,9 +94,9 @@ func (node *NodeAvailable) IsDead() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	//if meta.Config==nil||!meta.Config.Enabled {
-	//	return false
-	//}
+	if meta.Config==nil||!meta.Config.Enabled {
+		return false
+	}
 	return meta.clusterAvailable
 }
 
@@ -243,7 +244,7 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
 		log.Debug("no hosts available, choose: ", hosts[0])
 	}
-	meta.ReportFailure()
+	meta.ReportFailure(nil)
 	return hosts[0]
 }
 
@@ -281,7 +282,9 @@ func (meta *ElasticsearchMetadata) GetSchema() string {
 	return meta.Config.Schema
 }
 
-func (meta *ElasticsearchMetadata) ReportFailure() bool {
+var masterNotFoundErrors = []string{"master_not_discovered_exception"}
+
+func (meta *ElasticsearchMetadata) ReportFailure(errorMessage error) bool {
 
 	//Handle master_not_discovered_exception
 	//{"error":{"root_cause":[{"type":"master_not_discovered_exception","reason":null}],"type":"master_not_discovered_exception","reason":null},"status":503}json: cannot unmarshal "503}" into Go struct field map[string]adapter.AliasesResponse{}.status of type adapter.AliasesResponse
@@ -302,6 +305,14 @@ func (meta *ElasticsearchMetadata) ReportFailure() bool {
 		meta.clusterFailureTicket++
 		//if the target host is not available for 10s, mark it down
 		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess) > 5*time.Second) || time.Since(meta.lastSuccess) > 10*time.Second {
+
+			if errorMessage!=nil&&util.ContainsAnyInArray(errorMessage.Error(),masterNotFoundErrors){
+				log.Warnf("master_not_discovered_exception found for [%v], mark it down",meta.Config.Name)
+				meta.clusterAvailable = false
+				meta.clusterFailureTicket = 0
+				return true
+			}
+
 			num:=meta.GetActiveHosts()
 			log.Tracef("%v has active hosts: %v",meta.Config.Name,num)
 			if num>0{
