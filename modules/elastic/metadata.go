@@ -37,7 +37,7 @@ func clusterHealthCheck(clusterID string, force bool) {
 					health,err := client.ClusterHealth()
 					if err!=nil||health==nil||health.StatusCode!=200{
 						metadata.ReportFailure()
-						if metadata.Config.Source != "file" {
+						if metadata.Config.Source != "file" && !metadata.IsAvailable() {
 							updateClusterHealthStatus(clusterID, "unavailable")
 						}
 					}else{
