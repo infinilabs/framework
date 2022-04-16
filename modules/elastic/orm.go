@@ -7,7 +7,10 @@ import (
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"net/http"
 )
+
+var ErrNotFound = errors.New("record not found")
 
 type ElasticORM struct {
 	Client elastic.API
@@ -15,8 +18,8 @@ type ElasticORM struct {
 }
 
 func (handler ElasticORM) GetWildcardIndexName(o interface{}) string {
-	name:=handler.GetIndexName(o)
-	return fmt.Sprintf("%v*",name)
+	name := handler.GetIndexName(o)
+	return fmt.Sprintf("%v*", name)
 }
 
 func (handler ElasticORM) GetIndexName(o interface{}) string {
@@ -32,14 +35,16 @@ func (handler ElasticORM) Get(o interface{}) (bool, error) {
 
 	id := getIndexID(o)
 	if id == "" {
-		panic(errors.Errorf("id was not found in object: %v", o))
+		return false, errors.Errorf("id was not found in object: %v", o)
 	}
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "_doc", getIndexID(o))
 	if err != nil {
 		return false, err
 	}
-
+	if response.RawResult.StatusCode == http.StatusNotFound {
+		return false, ErrNotFound
+	}
 	str, err := response.GetBytesByJsonPath("_source")
 	if err != nil {
 		return false, err
@@ -77,9 +82,9 @@ func (handler ElasticORM) Delete(o interface{}) error {
 func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
 	var (
 		queryBody []byte
-		ok bool
+		ok        bool
 	)
-	if queryBody, ok =  query.([]byte); !ok {
+	if queryBody, ok = query.([]byte); !ok {
 		return errors.New("type of param query should be byte array")
 	}
 	_, err := handler.Client.DeleteByQuery(handler.GetIndexName(o), queryBody)
@@ -134,8 +139,8 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	request.From = q.From
 	request.Size = q.Size
 
-	if q.CollapseField!=""{
-		request.Collapse=&elastic.Collapse{Field: q.CollapseField}
+	if q.CollapseField != "" {
+		request.Collapse = &elastic.Collapse{Field: q.CollapseField}
 	}
 
 	var searchResponse *elastic.SearchResponse
@@ -146,7 +151,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 		indexName = handler.GetWildcardIndexName(t)
 	}
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.QueryDSL(indexName ,q.QueryArgs, q.RawQuery)
+		searchResponse, err = handler.Client.QueryDSL(indexName, q.QueryArgs, q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
