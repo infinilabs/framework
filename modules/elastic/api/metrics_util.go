@@ -629,12 +629,16 @@ func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, 
 																	for _,v:=range buckets{
 																		x,ok:=v.(map[string]interface{})
 																		if ok{
-																			if result!="red" && x["key"]=="yellow"{
-																				result="yellow"
-																			}else if result!="red" && x["key"]=="red"{
-																				result="red"
-																			}else{
-																				result=x["key"].(string)
+																			if x["key"] == "red" {
+																				result = "red"
+																				break
+																			}
+																			if x["key"] == "yellow" {
+																				result = "yellow"
+																			}else {
+																				if result != "yellow" {
+																					result = x["key"].(string)
+																				}
 																			}
 																		}
 																	}
