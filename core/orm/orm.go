@@ -49,6 +49,7 @@ type ORM interface {
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 	DeleteBy(o interface{}, query interface{}) error
+	UpdateBy(o interface{}, query interface{}) error
 }
 
 type ORMObjectBase struct {
@@ -348,6 +349,9 @@ func Delete(o interface{}) error {
 }
 func DeleteBy(o interface{}, query interface{}) error {
 	return getHandler().DeleteBy(o, query)
+}
+func UpdateBy(o interface{}, query interface{}) error {
+	return getHandler().UpdateBy(o, query)
 }
 
 func Count(o interface{}) (int64, error) {
