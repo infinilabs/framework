@@ -127,7 +127,7 @@ func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
 
 // Result is a general json result
 type Result struct {
-	Total  int64         `json:"total"`
+	Total  int64       `json:"total"`
 	Result interface{} `json:"result"`
 }
 
@@ -139,14 +139,14 @@ func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v
 	return handler.WriteJSON(w, result, statusCode)
 }
 
-func (handler Handler) WriteError(w http.ResponseWriter,  errMessage string, statusCode int) error {
-	err1:=util.MapStr{
+func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
+	err1 := util.MapStr{
 		"error": util.MapStr{
-			"status":statusCode,
-			"reason":errMessage,
+			"status": statusCode,
+			"reason": errMessage,
 		},
 	}
-	return handler.WriteJSON(w,err1,statusCode)
+	return handler.WriteJSON(w, err1, statusCode)
 }
 
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
@@ -167,7 +167,7 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 	return nil
 }
 
-func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool,status int,obj map[string]interface{}) error {
+func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) error {
 	if !handler.wroteHeader {
 		handler.WriteJSONHeader(w)
 		w.WriteHeader(status)
@@ -176,9 +176,9 @@ func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool,status int,o
 	v := map[string]interface{}{}
 	v["acknowledged"] = ack
 
-	if obj!=nil{
-		for k,v1:=range obj{
-			v[k]=v1
+	if obj != nil {
+		for k, v1 := range obj {
+			v[k] = v1
 		}
 	}
 
@@ -195,12 +195,12 @@ func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool,status int,o
 }
 
 func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) error {
-	return handler.WriteAckJSON(w,true,200,nil)
+	return handler.WriteAckJSON(w, true, 200, nil)
 }
 
 // GetParameter return query parameter with argument name
 func (handler Handler) GetParameter(r *http.Request, key string) string {
-	if r.URL==nil{
+	if r.URL == nil {
 		return ""
 	}
 	return r.URL.Query().Get(key)
@@ -393,4 +393,7 @@ func CheckPermissions(w http.ResponseWriter, r *http.Request, requiredPermission
 
 	log.Trace("user not logged in, ", user, ",", role, ",", requiredPermissions)
 	return false
+}
+func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) error {
+	return handler.WriteJSON(w, v, http.StatusOK)
 }
