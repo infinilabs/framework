@@ -239,7 +239,7 @@ func nodeAvailabilityCheck() {
 					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
 					if global.Env().IsDebug{
-						log.Debugf("availability for node [%v] : %v",k,avail)
+						log.Tracef("availability for node [%v] : %v",k,avail)
 					}
 
 					if avail {
@@ -471,7 +471,7 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 						return true
 					}
 					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
-						log.Warnf("cluster settings refresh of cluster %s is busy", v.Name)
+						log.Warnf("cluster settings collecting for cluster %s is still running", v.Name)
 						return true
 					}
 					mutexMap.Store(v.ID, true)

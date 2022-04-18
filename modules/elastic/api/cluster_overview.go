@@ -809,95 +809,11 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
-	query := util.MapStr{
-		"size": 2000,
-		"_source": []string{"metadata","payload.elasticsearch.index_stats.index_info", "timestamp"},
-		"collapse": util.MapStr{
-			"field": "metadata.labels.index_name",
-		},
-		"sort": []util.MapStr{
-			{
-				"timestamp": util.MapStr{
-					"order": "desc",
-				},
-			},
-		},
-		"query": util.MapStr{
-			"bool": util.MapStr{
-				"filter": []util.MapStr{
-					{
-						"range": util.MapStr{
-							"timestamp": util.MapStr{
-								"gte": min,
-								"lte": max,
-							},
-						},
-					},
-				},
-				"must": []util.MapStr{
-					{
-						"term": util.MapStr{
-							"metadata.category": util.MapStr{
-								"value": "elasticsearch",
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": id,
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.name": util.MapStr{
-								"value": "index_stats",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	q = &orm.Query{ RawQuery: util.MustToJSONBytes(query),WildcardIndex: true}
-	err, searchResult := orm.Search(event.Event{}, q)
+	indices, err := h.getLatestIndices(min, max, id, &result)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
-	indexInfos := map[string]util.MapStr{}
-	for _, hit := range searchResult.Result {
-		if hitM, ok := hit.(map[string]interface{}); ok {
-			indexInfo, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, hitM)
-			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
-			if v, ok := indexName.(string); ok {
-				if infoM, ok := indexInfo.(map[string]interface{}); ok {
-					infoM["timestamp"] = hitM["timestamp"]
-					indexInfos[v] = infoM
-				}
-			}
-		}
-	}
-	indices := []interface{}{}
-	for _, hit := range result.Result {
-		if hitM, ok := hit.(map[string]interface{}); ok {
-			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
-			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
-			if v, ok := indexName.(string); ok {
-				if indexInfos[v] != nil {
-					indices = append(indices, indexInfos[v])
-				}else{
-					indices = append(indices, util.MapStr{
-						"index": v,
-						"status": state,
-						"timestamp": hitM["timestamp"],
-					})
-				}
-			}
-		}
-	}
-
 
 	h.WriteJSON(w, indices, http.StatusOK)
 }

@@ -19,11 +19,10 @@ package param
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"reflect"
@@ -38,9 +37,10 @@ type BufferObject struct {
 }
 
 type Parameters struct {
-	Data   map[string]interface{} `json:"data,omitempty"`
+	Timestamp  time.Time
+	Data   util.MapStr `json:"data,omitempty"`
+	Meta   util.MapStr `json:"-"`
 	l      sync.RWMutex
-
 	inited bool
 }
 
@@ -57,7 +57,6 @@ func (r *BufferObject) AcquireBytesReader() *bytes.Reader {
 }
 
 func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer{
-	stats.Increment("BufferObject","AcquireBuffer+1")
 	buffer:=bytebufferpool.Get()
 	buffer.Reset()
 	r.bytesBuffer=append(r.bytesBuffer,buffer)
@@ -65,8 +64,6 @@ func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer{
 }
 
 func (para *BufferObject) Reset() {
-	stats.Increment("BufferObject","Reset+1")
-
 	if para.bytesBuffer!=nil&&len(para.bytesBuffer)>0{
 		for _,v:=range para.bytesBuffer{
 			bytebufferpool.Put(v)
@@ -82,8 +79,9 @@ func (para *BufferObject) Reset() {
 
 func (para *Parameters) ResetParameters() {
 	para.l.Lock()
-	para.Data = map[string]interface{}{}
-
+	para.Data = util.MapStr{}
+	para.Meta = util.MapStr{}
+	para.Timestamp=time.Now()
 	para.inited=false
 	//para.Data[uuid] = util.GetUUID()
 	para.l.Unlock()
@@ -98,7 +96,11 @@ func (para *Parameters) init() {
 	}
 
 	if para.Data == nil {
-		para.Data = map[string]interface{}{}
+		para.Data = util.MapStr{}
+	}
+
+	if para.Meta == nil {
+		para.Meta = util.MapStr{}
 	}
 	//_,ok:=para.Data[uuid]
 	//if !ok{
@@ -127,6 +129,8 @@ func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 //func (para *Parameters) UUID() (string) {
 //	return para.MustGetString(uuid)
 //}
+
+
 
 func (para *Parameters) GetString(key ParaKey) (string, bool) {
 	v := para.Get(key)
@@ -607,38 +611,45 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 	return s
 }
 
-
-func (para *Parameters) GetValue(s string) (interface{}, error){
-	v:=para.Get(ParaKey(s))
-	if v!=nil{
-		return v,nil
-	}else{
-		return nil,errors.New("key not found")
-	}
-}
+//func (para *Parameters) GetValue(s string) (interface{}, error){
+//	v:=para.Get(ParaKey(s))
+//	if v!=nil{
+//		return v,nil
+//	}else{
+//		return nil,errors.New("key not found")
+//	}
+//}
 
 func (para *Parameters) Get(key ParaKey) interface{} {
-	para.init()
-	s := string(key)
-	para.l.Lock()
-	d:=para.Data
-	if strings.Contains(s, ".") {
-		keys := strings.Split(s, ".")
-		for _, x := range keys {
-			y, ok := d[x]
-			if ok {
-				s = x
-				z, ok := y.(map[string]interface{})
-				if ok {
-					d = z
-				}
-			}
+		v,err:=para.GetValue(string(key))
+		if err!=nil{
+			panic(errors.Errorf("error on get:%v, %v",key,err))
 		}
-	}
-	x:= d[s]
-	para.l.Unlock()
-	return x
+		return v
 }
+
+//func (para *Parameters) Get(key ParaKey) interface{} {
+//	para.init()
+//	s := string(key)
+//	para.l.Lock()
+//	d:=para.Data
+//	if strings.Contains(s, ".") {
+//		keys := strings.Split(s, ".")
+//		for _, x := range keys {
+//			y, ok := d[x]
+//			if ok {
+//				s = x
+//				z, ok := y.(map[string]interface{})
+//				if ok {
+//					d = z
+//				}
+//			}
+//		}
+//	}
+//	x:= d[s]
+//	para.l.Unlock()
+//	return x
+//}
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
@@ -660,6 +671,7 @@ func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.Data[s] = value
 	para.l.Unlock()
 }
+
 
 func (para *Parameters) MustGetString(key ParaKey) string {
 	s, ok := para.GetString(key)
@@ -708,4 +720,240 @@ func (para *Parameters) MustGetMap(key ParaKey) map[string]interface{} {
 		panic(fmt.Errorf("%s not found in context", key))
 	}
 	return s
+}
+
+
+const (
+	FieldsKey = "fields"
+	TagsKey   = "tags"
+	timestampFieldKey = "@timestamp"
+	metadataFieldKey  = "@metadata"
+)
+
+var (
+	errNoTimestamp = errors.New("value is no timestamp")
+	errNoMapStr    = errors.New("value is no map[string]interface{} type")
+	ErrKeyNotFound = errors.New("key not found")
+)
+
+
+func (e *Parameters) setTimestamp(v interface{}) error {
+	switch ts := v.(type) {
+	case time.Time:
+		e.Timestamp = ts
+	case util.Time:
+		e.Timestamp = time.Time(ts)
+	default:
+		return errNoTimestamp
+	}
+	return nil
+}
+
+
+func (e *Parameters) GetValue(key string) (interface{}, error) {
+	if key == timestampFieldKey {
+		return e.Timestamp, nil
+	} else if subKey, ok := metadataKey(key); ok {
+		if subKey == "" || e.Meta == nil {
+			return e.Meta, nil
+		}
+		return e.Meta.GetValue(subKey)
+	}
+	return e.Data.GetValue(key)
+}
+
+func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {
+	if key == timestampFieldKey {
+		err := e.setTimestamp(v)
+		return nil, err
+	} else if subKey, ok := metadataKey(key); ok {
+		if subKey == "" {
+			switch meta := v.(type) {
+			case util.MapStr:
+				e.Meta = meta
+			case map[string]interface{}:
+				e.Meta = meta
+			default:
+				return nil, errNoMapStr
+			}
+		} else if e.Meta == nil {
+			e.Meta = util.MapStr{}
+		}
+		return e.Meta.Put(subKey, v)
+	}
+
+	return e.Data.Put(key, v)
+}
+
+func (e *Parameters) Delete(key string) error {
+	if subKey, ok := metadataKey(key); ok {
+		if subKey == "" {
+			e.Meta = nil
+			return nil
+		}
+		if e.Meta == nil {
+			return nil
+		}
+		return e.Meta.Delete(subKey)
+	}
+	return e.Data.Delete(key)
+}
+
+func metadataKey(key string) (string, bool) {
+	if !strings.HasPrefix(key, metadataFieldKey) {
+		return "", false
+	}
+
+	subKey := key[len(metadataFieldKey):]
+	if subKey == "" {
+		return "", true
+	}
+	if subKey[0] == '.' {
+		return subKey[1:], true
+	}
+	return "", false
+}
+
+// SetErrorWithOption sets jsonErr value in the event fields according to addErrKey value.
+func (e *Parameters) SetErrorWithOption(jsonErr util.MapStr, addErrKey bool) {
+	if addErrKey {
+		e.Data["error"] = jsonErr
+	}
+}
+
+// AddTags appends a tag to the tags field of ms. If the tags field does not
+// exist then it will be created. If the tags field exists and is not a []string
+// then an error will be returned. It does not deduplicate the list of tags.
+func (para *Parameters)AddTags(tags []string) error {
+	return para.AddTagsWithKey(TagsKey, tags)
+}
+
+func (para *Parameters) GetTags() (map[string]string, bool) {
+	return para.GetStringMap(TagsKey)
+}
+
+func (para *Parameters) UpdateTags(addTags, removeTags []string) {
+	temp, ok := para.GetStringMap(TagsKey)
+	if !ok {
+		temp = map[string]string{}
+	}
+
+	if addTags != nil {
+		for _, v := range addTags {
+			temp[v] = v
+		}
+	}
+
+	if removeTags != nil {
+		for _, v := range removeTags {
+			delete(temp, v)
+		}
+	}
+
+	para.Set(TagsKey, temp)
+}
+
+
+// AddTagsWithKey appends a tag to the key field of ms. If the field does not
+// exist then it will be created. If the field exists and is not a []string
+// then an error will be returned. It does not deduplicate the list.
+func (para *Parameters)AddTagsWithKey(key string, tags []string) error {
+	if para == nil || len(tags) == 0 {
+		return nil
+	}
+
+	k, subMap, oldTags, present, err := mapFind(key, para.Data, true)
+	if err != nil {
+		return err
+	}
+
+	if !present {
+		subMap[k] = tags
+		return nil
+	}
+
+	switch arr := oldTags.(type) {
+	case []string:
+		subMap[k] = append(arr, tags...)
+	case []interface{}:
+		for _, tag := range tags {
+			arr = append(arr, tag)
+		}
+		subMap[k] = arr
+	default:
+		return errors.Errorf("expected string array by type is %T", oldTags)
+
+	}
+	return nil
+}
+
+
+// mapFind iterates a MapStr based on a the given dotted key, finding the final
+// subMap and subKey to operate on.
+// An error is returned if some intermediate is no map or the key doesn't exist.
+// If createMissing is set to true, intermediate maps are created.
+// The final map and un-dotted key to run further operations on are returned in
+// subKey and subMap. The subMap already contains a value for subKey, the
+// present flag is set to true and the oldValue return will hold
+// the original value.
+func mapFind(
+	key string,
+	data util.MapStr,
+	createMissing bool,
+) (subKey string, subMap util.MapStr, oldValue interface{}, present bool, err error) {
+	// XXX `safemapstr.mapFind` mimics this implementation, both should be updated to have similar behavior
+
+	for {
+		// Fast path, key is present as is.
+		if v, exists := data[key]; exists {
+			return key, data, v, true, nil
+		}
+
+		idx := strings.IndexRune(key, '.')
+		if idx < 0 {
+			return key, data, nil, false, nil
+		}
+
+		k := key[:idx]
+		d, exists := data[k]
+		if !exists {
+			if createMissing {
+				d = util.MapStr{}
+				data[k] = d
+			} else {
+				return "", nil, nil, false, ErrKeyNotFound
+			}
+		}
+
+		v, err := toMapStr(d)
+		if err != nil {
+			return "", nil, nil, false, err
+		}
+
+		// advance to sub-map
+		key = key[idx+1:]
+		data = v
+	}
+}
+
+// toMapStr performs a type assertion on v and returns a MapStr. v can be either
+// a MapStr or a map[string]interface{}. If it's any other type or nil then
+// an error is returned.
+func toMapStr(v interface{}) (util.MapStr, error) {
+	m, ok := tryToMapStr(v)
+	if !ok {
+		return nil, errors.Errorf("expected map but type is %T", v)
+	}
+	return m, nil
+}
+
+func tryToMapStr(v interface{}) (util.MapStr, bool) {
+	switch m := v.(type) {
+	case util.MapStr:
+		return m, true
+	case map[string]interface{}:
+		return util.MapStr(m), true
+	default:
+		return nil, false
+	}
 }
