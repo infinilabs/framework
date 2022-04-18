@@ -742,10 +742,11 @@ func getNodeOnlineStatusOfRecentDay(nodeIDs []string)(map[string][]interface{}, 
 }
 
 func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	//var (
-	//	size        = h.GetIntOrDefault(req, "size", 20)
-	//	from        = h.GetIntOrDefault(req, "from", 0)
-	//)
+	var (
+		min = h.GetParameterOrDefault(req, "min", "now-15m")
+		max = h.GetParameterOrDefault(req, "max", "now")
+	)
+
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
 	nodeUUID := ps.ByName("node_id")
@@ -799,6 +800,102 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
 
-	//h.WriteJSON(w, indexNames, http.StatusOK)
-	h.Write(w, result.Raw)
+	indices, err := h.getLatestIndices(min, max, id, &result)
+	if err != nil {
+		resBody["error"] = err.Error()
+		h.WriteJSON(w,resBody, http.StatusInternalServerError )
+	}
+
+	h.WriteJSON(w, indices, http.StatusOK)
+}
+
+func (h *APIHandler) getLatestIndices( min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
+	query := util.MapStr{
+		"size":    2000,
+		"_source": []string{"metadata", "payload.elasticsearch.index_stats.index_info", "timestamp"},
+		"collapse": util.MapStr{
+			"field": "metadata.labels.index_name",
+		},
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "index_stats",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	q := &orm.Query{RawQuery: util.MustToJSONBytes(query), WildcardIndex: true}
+	err, searchResult := orm.Search(event.Event{}, q)
+	if err != nil {
+		return nil, err
+	}
+	indexInfos := map[string]util.MapStr{}
+	for _, hit := range searchResult.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			indexInfo, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, hitM)
+			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
+			if v, ok := indexName.(string); ok {
+				if infoM, ok := indexInfo.(map[string]interface{}); ok {
+					infoM["timestamp"] = hitM["timestamp"]
+					indexInfos[v] = infoM
+				}
+			}
+		}
+	}
+	indices := []interface{}{}
+	for _, hit := range result.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
+			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
+			if v, ok := indexName.(string); ok {
+				if indexInfos[v] != nil {
+					indices = append(indices, indexInfos[v])
+				} else {
+					indices = append(indices, util.MapStr{
+						"index":     v,
+						"status":    state,
+						"timestamp": hitM["timestamp"],
+					})
+				}
+			}
+		}
+	}
+	return indices, nil
 }
