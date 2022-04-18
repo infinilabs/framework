@@ -471,7 +471,7 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 						return true
 					}
 					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
-						log.Warnf("cluster settings refresh of cluster %s is busy", v.Name)
+						log.Warnf("cluster settings collecting for cluster %s is still running", v.Name)
 						return true
 					}
 					mutexMap.Store(v.ID, true)

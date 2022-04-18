@@ -85,7 +85,7 @@ func (m *Metric) Collect() error {
 				log.Debugf("run monitoring task for elasticsearch: %v - %v",k,v.Config.Name)
 			}
 			if busy, ok := collectLoadingMap.Load(key); ok && busy == true {
-				log.Warnf("collect metrics data of cluster %s is busy", v.Config.Name)
+				log.Warnf("metrics collecting for cluster %s is still running", v.Config.Name)
 				return true
 			}
 			collectLoadingMap.Store(key, true)
