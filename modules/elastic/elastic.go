@@ -239,7 +239,7 @@ func nodeAvailabilityCheck() {
 					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
 					if global.Env().IsDebug{
-						log.Debugf("availability for node [%v] : %v",k,avail)
+						log.Tracef("availability for node [%v] : %v",k,avail)
 					}
 
 					if avail {

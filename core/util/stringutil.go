@@ -464,6 +464,10 @@ func EscapeNewLine(input []byte) []byte {
 }
 
 func ToString(obj interface{}) string {
+	str,ok:=obj.(string)
+	if ok{
+		return str
+	}
 	return fmt.Sprintf("%v", obj)
 }
 
