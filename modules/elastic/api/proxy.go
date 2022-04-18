@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -74,6 +75,8 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+		ReadTimeout: 5 *time.Second,
+		WriteTimeout: 5 *time.Second,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {

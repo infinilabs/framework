@@ -91,6 +91,18 @@ func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
 	return err
 }
 
+func (handler ElasticORM) UpdateBy(o interface{}, query interface{}) error {
+	var (
+		queryBody []byte
+		ok bool
+	)
+	if queryBody, ok =  query.([]byte); !ok {
+		return errors.New("type of param query should be byte array")
+	}
+	_, err := handler.Client.UpdateByQuery(handler.GetIndexName(o), queryBody)
+	return err
+}
+
 func (handler ElasticORM) Count(o interface{}) (int64, error) {
 	countResponse, err := handler.Client.Count(handler.GetIndexName(o))
 	if err != nil {
