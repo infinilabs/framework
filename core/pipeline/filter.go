@@ -65,7 +65,7 @@ func NewFilter(cfg []*config.Config) (*Filters, error) {
 		//actionCfg.PrintDebugf("Configure processor action '%v' with:", actionName)
 		constructor := gen.FilterPlugin()
 		plugin, err := constructor(actionCfg)
-		if err != nil {
+		if err != nil||plugin==nil {
 			return nil, err
 		}
 
