@@ -119,6 +119,10 @@ func (para *Parameters) MustGetTime(key ParaKey) time.Time {
 
 func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return time.Time{}, false
+	}
+
 	s, ok := v.(time.Time)
 	if ok {
 		return s, ok
@@ -134,6 +138,10 @@ func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 
 func (para *Parameters) GetString(key ParaKey) (string, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return "", false
+	}
+
 	s, ok := v.(string)
 	if ok {
 		return s, ok
@@ -143,9 +151,11 @@ func (para *Parameters) GetString(key ParaKey) (string, bool) {
 
 func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
 	v := para.Get(key)
-	s, ok := v.(bool)
-	if ok {
-		return s
+	if v!=nil{
+		s, ok := v.(bool)
+		if ok {
+			return s
+		}
 	}
 	return defaultV
 }
@@ -208,6 +218,9 @@ func (para *Parameters) GetFloat32OrDefault(key ParaKey, defaultV float32) float
 
 func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return defaultV, false
+	}
 
 	s, ok := v.(float64)
 	if ok {
@@ -223,6 +236,9 @@ func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64, bool
 }
 func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return defaultV,false
+	}
 
 	s1, ok := v.(float32)
 	if ok {
@@ -264,6 +280,9 @@ func GetInt64OrDefault(v interface{}, defaultV int64) (int64, bool) {
 
 func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return defaultV, false
+	}
 	return GetInt64OrDefault(v, defaultV)
 }
 
@@ -294,6 +313,9 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 
 	//try map string string
 	f := para.Get(key)
+	if f==nil{
+		return nil, false
+	}
 	result, ok = f.(map[string]string)
 	if ok {
 		return result, ok
@@ -316,6 +338,10 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 
 func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return nil, false
+	}
+
 	s, ok := v.([]interface{})
 	f := []map[string]interface{}{}
 	for _, m := range s {
@@ -329,12 +355,19 @@ func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool
 
 func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return nil, false
+	}
 	s, ok := v.(map[string]interface{})
 	return s, ok
 }
 
 func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return nil, false
+	}
+
 	s, ok := v.(map[string]int)
 	if !ok {
 		v = map[string]int{}
@@ -471,6 +504,10 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 
 func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 	v := para.Get(key)
+	if v==nil{
+		return nil, false
+	}
+
 	if reflect.TypeOf(v).Kind() == reflect.String {
 		str := v.(string)
 		s, err := base64.StdEncoding.DecodeString(str)
@@ -621,10 +658,7 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 //}
 
 func (para *Parameters) Get(key ParaKey) interface{} {
-		v,err:=para.GetValue(string(key))
-		if err!=nil{
-			panic(errors.Errorf("error on get:%v, %v",key,err))
-		}
+		v,_:=para.GetValue(string(key))
 		return v
 }
 
@@ -666,10 +700,7 @@ func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 //TODO remove lock async, channel
 func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
-	s := string(key)
-	para.l.Lock()
-	para.Data[s] = value
-	para.l.Unlock()
+	para.PutValue(string(key),value)
 }
 
 
