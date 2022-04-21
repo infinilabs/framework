@@ -397,3 +397,6 @@ func CheckPermissions(w http.ResponseWriter, r *http.Request, requiredPermission
 func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) error {
 	return handler.WriteJSON(w, v, http.StatusOK)
 }
+func (handler Handler) Error400(w http.ResponseWriter, msg string) {
+	handler.WriteJSON(w, map[string]interface{}{"error": msg}, http.StatusBadRequest)
+}
