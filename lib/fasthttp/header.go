@@ -50,6 +50,8 @@ type ResponseHeader struct {
 type RequestHeader struct {
 	noCopy noCopy //nolint:unused,structcheck
 
+	useAppendForHeaders bool //use append for header bytes join
+
 	disableNormalizing bool
 	noHTTP11           bool
 	connectionClose    bool
@@ -1551,7 +1553,10 @@ func (h *RequestHeader) WriteTo(w io.Writer) (int64, error) {
 //
 // The returned representation is valid until the next call to RequestHeader methods.
 func (h *RequestHeader) Header() []byte {
+
+	//TODO improve performance
 	h.bufKV.value = h.AppendBytes(h.bufKV.value[:0])
+
 	return h.bufKV.value
 }
 
@@ -1574,9 +1579,76 @@ func (h *RequestHeader) String() string {
 	return string(h.Header())
 }
 
+var headerPool = sync.Pool{
+	New: func() interface{} {
+		b := bytes.Buffer{}
+		return &b
+	},
+}
+
+var BlankInHeader =[]byte(" ")
 // AppendBytes appends request header representation to dst and returns
 // the extended dst.
 func (h *RequestHeader) AppendBytes(dst []byte) []byte {
+
+	if !h.useAppendForHeaders{
+		headerBuffer := headerPool.Get().(*bytes.Buffer)
+		headerBuffer.Reset()
+		defer headerPool.Put(headerBuffer)
+
+		headerBuffer.Write(h.Method())
+		headerBuffer.Write(BlankInHeader)
+		headerBuffer.Write(h.RequestURI())
+		headerBuffer.Write(BlankInHeader)
+		headerBuffer.Write(strHTTP11)
+		headerBuffer.Write(strCRLF)
+
+		userAgent := h.UserAgent()
+		if len(userAgent) > 0 {
+			bufferAppendHeaderLine(headerBuffer,strUserAgent, userAgent)
+		}
+
+		host := h.Host()
+		if len(host) > 0 {
+			bufferAppendHeaderLine(headerBuffer, strHost, host)
+		}
+
+		contentType := h.ContentType()
+
+		if len(contentType) == 0 && !h.ignoreBody() {
+			contentType = strJsonContentType
+		}
+		if len(contentType) > 0 {
+			bufferAppendHeaderLine(headerBuffer, strContentType, contentType)
+		}
+		if len(h.contentLengthBytes) > 0 {
+			bufferAppendHeaderLine(headerBuffer, strContentLength, h.contentLengthBytes)
+		}
+
+		for i, n := 0, len(h.h); i < n; i++ {
+			kv := &h.h[i]
+			bufferAppendHeaderLine(headerBuffer, kv.key, kv.value)
+		}
+
+		// there is no need in h.collectCookies() here, since if cookies aren't collected yet,
+		// they all are located in h.h.
+		n := len(h.cookies)
+		if n > 0 {
+			headerBuffer.Write(strCookie)
+			headerBuffer.Write(strColonSpace)
+			bufferAppendRequestCookieBytes(headerBuffer, h.cookies)
+			headerBuffer.Write(strCRLF)
+		}
+
+		if h.ConnectionClose() {
+			bufferAppendHeaderLine(headerBuffer, strConnection, strClose)
+		}
+
+		headerBuffer.Write(strCRLF)
+		return headerBuffer.Bytes()
+	}
+
+	//old way
 	dst = append(dst, h.Method()...)
 	dst = append(dst, ' ')
 	dst = append(dst, h.RequestURI()...)
@@ -1626,6 +1698,13 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	}
 
 	return append(dst, strCRLF...)
+}
+
+func bufferAppendHeaderLine(buffer *bytes.Buffer, key, value []byte) {
+	buffer.Write(key)
+	buffer.Write(strColonSpace)
+	buffer.Write(value)
+	buffer.Write(strCRLF)
 }
 
 func appendHeaderLine(dst, key, value []byte) []byte {

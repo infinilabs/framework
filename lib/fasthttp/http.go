@@ -751,6 +751,20 @@ func (req *Request) CopyTo(dst *Request) {
 	}
 }
 
+const HTTPS ="https"
+const HTTP ="http"
+func (req *Request) GetSchema()string {
+	if req.isTLS{
+		return HTTPS
+	}	else {
+		return HTTP
+	}
+}
+
+func (req *Request) IsTLS()bool {
+	return req.isTLS
+}
+
 func (req *Request) copyToSkipBody(dst *Request) {
 	dst.Reset()
 	req.Header.CopyTo(&dst.Header)
@@ -1331,6 +1345,7 @@ func (req *Request) Write(w *bufio.Writer) error {
 		hasBody = true
 		req.Header.SetContentLength(len(body))
 	}
+
 	if err = req.Header.Write(w); err != nil {
 		return err
 	}

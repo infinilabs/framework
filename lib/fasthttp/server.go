@@ -414,8 +414,8 @@ type Server struct {
 	// We need to know our listeners so we can close them in Shutdown().
 	ln []net.Listener
 
-	idleConns   map[net.Conn]struct{}
-	idleConnsMu sync.Mutex
+	//idleConns   map[net.Conn]struct{}
+	idleConns   sync.Map
 
 	mu          sync.Mutex
 	open        int32
@@ -2173,6 +2173,7 @@ var (
 //
 // ServeConn closes c before returning.
 func (s *Server) ServeConn(c net.Conn) error {
+
 	if s.MaxConnsPerIP > 0 {
 		pic := wrapPerIPConn(s, c)
 		if pic == nil {
@@ -2188,6 +2189,7 @@ func (s *Server) ServeConn(c net.Conn) error {
 		c.Close()
 		return ErrConcurrencyLimit
 	}
+	s.idleConns = sync.Map{}
 
 	atomic.AddInt32(&s.open, 1)
 
@@ -2581,8 +2583,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			if bw == nil {
 				bw = acquireWriter(ctx)
 			}
-			//TODO
-			ctx.Response.Header.Set("X-Filters", util.JoinArray(ctx.flowProcess, "->"))
+
+			if ctx.EnrichedMetadata {
+				ctx.Response.Header.Set("X-Filters", util.JoinArray(ctx.flowProcess, "->"))
+			}
+
 			if err = writeResponse(ctx, bw); err != nil {
 				break
 			}
@@ -2721,27 +2726,25 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 }
 
 func (s *Server) trackConn(c net.Conn, state ConnState) {
-	s.idleConnsMu.Lock()
 	switch state {
 	case StateIdle:
-		if s.idleConns == nil {
-			s.idleConns = make(map[net.Conn]struct{})
-		}
-		s.idleConns[c] = struct{}{}
+		s.idleConns.Store(c, struct {}{})
 
 	default:
-		delete(s.idleConns, c)
+		s.idleConns.Delete(c)
 	}
-	s.idleConnsMu.Unlock()
 }
 
 func (s *Server) closeIdleConns() {
-	s.idleConnsMu.Lock()
-	for c := range s.idleConns {
-		_ = c.Close()
-	}
-	s.idleConns = nil
-	s.idleConnsMu.Unlock()
+	s.idleConns.Range(func(key, value interface{}) bool {
+		c,ok:=key.(net.Conn)
+		if ok{
+			_ = c.Close()
+		}
+		return true
+	})
+
+	s.idleConns = sync.Map{}
 }
 
 func (s *Server) setState(nc net.Conn, state ConnState) {

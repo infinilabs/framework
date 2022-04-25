@@ -440,6 +440,22 @@ func getCookieKey(dst, src []byte) []byte {
 	}
 	return decodeCookieArg(dst, src, false)
 }
+var equalStrBytes=[]byte("=")
+var cookieEndStrBytes=[]byte("; ")
+func bufferAppendRequestCookieBytes(buffer *bytes.Buffer, cookies []argsKV) {
+
+	for i, n := 0, len(cookies); i < n; i++ {
+		kv := &cookies[i]
+		if len(kv.key) > 0 {
+			buffer.Write(kv.key)
+			buffer.Write(equalStrBytes)
+		}
+		buffer.Write(kv.value)
+		if i+1 < n {
+			buffer.Write(cookieEndStrBytes)
+		}
+	}
+}
 
 func appendRequestCookieBytes(dst []byte, cookies []argsKV) []byte {
 	for i, n := 0, len(cookies); i < n; i++ {

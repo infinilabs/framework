@@ -2,7 +2,6 @@ package router
 
 import (
 	"fmt"
-	"infini.sh/gateway/common"
 	"strings"
 
 	"github.com/savsgio/gotils/bytes"
@@ -405,7 +404,13 @@ func (r *Router) Handler(ctx *fasthttp.RequestCtx) {
 		defer r.recv(ctx)
 	}
 
-	path := strconv.B2S(ctx.Request.URI().PathOriginal())
+	var path string
+	if ctx.Request.Header.RequestURI()==nil{
+		path = strconv.B2S(ctx.Request.URI().PathOriginal())
+	}else{
+		path = strconv.B2S(ctx.Request.Header.RequestURI())
+	}
+
 	method := strconv.B2S(ctx.Request.Header.Method())
 	methodIndex := r.methodIndexOf(method)
 
@@ -459,11 +464,8 @@ func (r *Router) Handler(ctx *fasthttp.RequestCtx) {
 		}
 	}
 
-	// Handle 404
-	if r.DefaultFlow!=""{
-		common.GetFlowProcess(r.DefaultFlow)(ctx)
-		return
-	}else if r.NotFound != nil {
+	// Handle default requests
+	if r.NotFound != nil {
 		r.NotFound(ctx)
 	} else {
 		ctx.Error(fasthttp.StatusMessage(fasthttp.StatusNotFound), fasthttp.StatusNotFound)

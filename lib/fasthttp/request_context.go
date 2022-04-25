@@ -69,6 +69,8 @@ type RequestCtx struct {
 	flowProcess []string
 	destination []string
 
+	EnrichedMetadata bool
+
 	// ctx is either the client or server context. It should only
 	// be modified via copying the whole Request using WithContext.
 	// It is unexported to prevent people from using Context wrong
@@ -344,6 +346,10 @@ func (ctx *RequestCtx) GetFlowProcess() []string {
 }
 
 func (ctx *RequestCtx) AddFlowProcess(str string) {
+	if ctx.EnrichedMetadata {
+		return
+	}
+
 	if str != "" {
 		ctx.flowProcess = append(ctx.flowProcess, str)
 	}
