@@ -24,17 +24,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
+	"math/rand"
 	"net/url"
 	"reflect"
 	"regexp"
 	"runtime"
-	"github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
+	"time"
 	"unicode"
 	"unicode/utf16"
 )
@@ -378,7 +380,7 @@ func PrintStringByteLines(array [][]byte) string {
 	buffer := bytes.Buffer{}
 	x := len(array) - 1
 	for i, v := range array {
-		buffer.WriteString(fmt.Sprintf("%v:",i))
+		buffer.WriteString(fmt.Sprintf("%v:", i))
 		buffer.Write(v)
 		if i < x {
 			buffer.WriteString("\n")
@@ -388,8 +390,8 @@ func PrintStringByteLines(array [][]byte) string {
 }
 
 func JoinArray(array []string, delimiter string) string {
-	if len(array)<100{
-		return Join(array,delimiter)
+	if len(array) < 100 {
+		return Join(array, delimiter)
 	}
 
 	buffer := bytebufferpool.Get()
@@ -407,7 +409,7 @@ func JoinArray(array []string, delimiter string) string {
 func JoinMapString(array map[string]string, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
-	i:=0
+	i := 0
 	for k, v := range array {
 		buffer.WriteString(k)
 		buffer.WriteString(delimiter)
@@ -423,7 +425,7 @@ func JoinMapString(array map[string]string, delimiter string) string {
 func JoinMapInt(array map[string]int, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
-	i:=0
+	i := 0
 	for k, v := range array {
 		buffer.WriteString(k)
 		buffer.WriteString(delimiter)
@@ -439,7 +441,7 @@ func JoinMapInt(array map[string]int, delimiter string) string {
 func JoinMap(array map[string]interface{}, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
-	i:=0
+	i := 0
 	for k, v := range array {
 		buffer.WriteString(k)
 		buffer.WriteString(delimiter)
@@ -451,7 +453,8 @@ func JoinMap(array map[string]interface{}, delimiter string) string {
 	}
 	return buffer.String()
 }
-var objDelimiter=";"
+
+var objDelimiter = ";"
 var strCRLF = []byte("\r\n")
 var strCRLF1 = []byte("\n")
 var escapedStrCRLF = []byte("\\n")
@@ -464,8 +467,8 @@ func EscapeNewLine(input []byte) []byte {
 }
 
 func ToString(obj interface{}) string {
-	str,ok:=obj.(string)
-	if ok{
+	str, ok := obj.(string)
+	if ok {
 		return str
 	}
 	return fmt.Sprintf("%v", obj)
@@ -480,7 +483,7 @@ func ConvertStringToMap(str string, splitter string) (k, v string, err error) {
 	return "", "", errors.New("invalid format")
 }
 
-func RegexPatternMatch(pattern, value string)bool {
+func RegexPatternMatch(pattern, value string) bool {
 	reg, err := regexp.Compile(pattern)
 	if err != nil {
 		panic(err)
@@ -488,7 +491,7 @@ func RegexPatternMatch(pattern, value string)bool {
 	return reg.MatchString(value)
 }
 
-func VersionCompare(v1, v2 string) (int ,error){
+func VersionCompare(v1, v2 string) (int, error) {
 	version1, err := version.NewVersion(v1)
 	if err != nil {
 		return -2, err
@@ -498,4 +501,15 @@ func VersionCompare(v1, v2 string) (int ,error){
 		return -2, err
 	}
 	return version1.Compare(version2), nil
+}
+func GenerateRandomString(cnum int) string {
+	str := "0123456789abcdefghijklmnopqrstuvwxyz"
+	bytes := []byte(str)
+	result := []byte{}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < cnum; i++ {
+		result = append(result, bytes[r.Intn(len(bytes))])
+	}
+
+	return string(result)
 }
