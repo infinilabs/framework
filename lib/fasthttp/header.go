@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,8 @@ import (
 // goroutines.
 type ResponseHeader struct {
 	noCopy noCopy //nolint:unused,structcheck
+
+	useBufferAppendForHeaders bool
 
 	disableNormalizing   bool
 	noHTTP11             bool
@@ -50,7 +53,7 @@ type ResponseHeader struct {
 type RequestHeader struct {
 	noCopy noCopy //nolint:unused,structcheck
 
-	useAppendForHeaders bool //use append for header bytes join
+	useBufferAppendForHeaders bool //use append for header bytes join
 
 	disableNormalizing bool
 	noHTTP11           bool
@@ -1483,6 +1486,65 @@ func (h *ResponseHeader) String() string {
 // AppendBytes appends response header representation to dst and returns
 // the extended dst.
 func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
+
+	if h.useBufferAppendForHeaders{
+		headerBuffer := headerPool.Get()
+		headerBuffer.Reset()
+		defer headerPool.Put(headerBuffer)
+
+		statusCode := h.StatusCode()
+		if statusCode < 0 {
+			statusCode = StatusOK
+		}
+		headerBuffer.Write(statusLine(statusCode))
+		server := h.Server()
+		if len(server) != 0 {
+			bufferAppendHeaderLine(headerBuffer, strServer, server)
+		}
+
+		if !h.noDefaultDate {
+			serverDateOnce.Do(updateServerDate)
+			bufferAppendHeaderLine(headerBuffer, strDate, serverDate.Load().([]byte))
+		}
+
+		// Append Content-Type only for non-zero responses
+		// or if it is explicitly set.
+		// See https://github.com/valyala/fasthttp/issues/28 .
+		if h.ContentLength() != 0 || len(h.contentType) > 0 {
+			contentType := h.ContentType()
+			if len(contentType) > 0 {
+				bufferAppendHeaderLine(headerBuffer, strContentType, contentType)
+			}
+		}
+
+		if len(h.contentLengthBytes) > 0 {
+			bufferAppendHeaderLine(headerBuffer,strContentLength, h.contentLengthBytes)
+		}
+
+		for i, n := 0, len(h.h); i < n; i++ {
+			kv := &h.h[i]
+			if h.noDefaultDate || !bytes.Equal(kv.key, strDate) {
+				bufferAppendHeaderLine(headerBuffer,kv.key, kv.value)
+			}
+		}
+
+		n := len(h.cookies)
+		if n > 0 {
+			for i := 0; i < n; i++ {
+				kv := &h.cookies[i]
+				bufferAppendHeaderLine(headerBuffer,strSetCookie, kv.value)
+			}
+		}
+
+		if h.ConnectionClose() {
+			bufferAppendHeaderLine(headerBuffer,strConnection, strClose)
+		}
+
+		headerBuffer.Write(strCRLF)
+
+		return headerBuffer.Bytes()
+	}
+
 	statusCode := h.StatusCode()
 	if statusCode < 0 {
 		statusCode = StatusOK
@@ -1579,20 +1641,15 @@ func (h *RequestHeader) String() string {
 	return string(h.Header())
 }
 
-var headerPool = sync.Pool{
-	New: func() interface{} {
-		b := bytes.Buffer{}
-		return &b
-	},
-}
+var headerPool = bytebufferpool.NewPool(1024,1024*48)
 
 var BlankInHeader =[]byte(" ")
 // AppendBytes appends request header representation to dst and returns
 // the extended dst.
 func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 
-	if !h.useAppendForHeaders{
-		headerBuffer := headerPool.Get().(*bytes.Buffer)
+	if h.useBufferAppendForHeaders{
+		headerBuffer := headerPool.Get()
 		headerBuffer.Reset()
 		defer headerPool.Put(headerBuffer)
 
@@ -1700,7 +1757,7 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 	return append(dst, strCRLF...)
 }
 
-func bufferAppendHeaderLine(buffer *bytes.Buffer, key, value []byte) {
+func bufferAppendHeaderLine(buffer *bytebufferpool.ByteBuffer, key, value []byte) {
 	buffer.Write(key)
 	buffer.Write(strColonSpace)
 	buffer.Write(value)

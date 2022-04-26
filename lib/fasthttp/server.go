@@ -1723,13 +1723,13 @@ func (s *Server) NextProto(key string, nph ServeHandler) {
 func (s *Server) getNextProto(c net.Conn) (proto string, err error) {
 	if tlsConn, ok := c.(connTLSer); ok {
 		if s.ReadTimeout > 0 {
-			if err := c.SetReadDeadline(time.Now().Add(s.ReadTimeout)); err != nil {
+			if err := c.SetReadDeadline(util.GetLowPrecisionCurrentTime().Add(s.ReadTimeout)); err != nil {
 				panic(fmt.Sprintf("BUG: error in SetReadDeadline(%s): %s", s.ReadTimeout, err))
 			}
 		}
 
 		if s.WriteTimeout > 0 {
-			if err := c.SetWriteDeadline(time.Now().Add(s.WriteTimeout)); err != nil {
+			if err := c.SetWriteDeadline(util.GetLowPrecisionCurrentTime().Add(s.WriteTimeout)); err != nil {
 				panic(fmt.Sprintf("BUG: error in SetWriteDeadline(%s): %s", s.WriteTimeout, err))
 			}
 		}
@@ -2023,7 +2023,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			if time.Since(lastOverflowErrorTime) > time.Minute {
 				log.Errorf("The incoming connection cannot be served, because %d concurrent connections are served. "+
 					"Try increasing entry.max_concurrency", maxWorkersCount)
-				lastOverflowErrorTime = time.Now()
+				lastOverflowErrorTime = util.GetLowPrecisionCurrentTime()
 			}
 
 			// The current server reached concurrency limit,
@@ -2128,7 +2128,7 @@ func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.
 				if time.Since(*lastPerIPErrorTime) > time.Minute {
 					log.Errorf("The number of connections from %s exceeds MaxConnsPerIP=%d",
 						getConnIP4(c), s.MaxConnsPerIP)
-					*lastPerIPErrorTime = time.Now()
+					*lastPerIPErrorTime = util.GetLowPrecisionCurrentTime()
 				}
 				continue
 			}
@@ -2330,7 +2330,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	}
 	connRequestNum := uint64(0)
 	connID := nextConnID()
-	connTime := time.Now()
+	connTime := util.GetLowPrecisionCurrentTime()
 	maxRequestBodySize := s.MaxRequestBodySize
 	if maxRequestBodySize <= 0 {
 		maxRequestBodySize = DefaultMaxRequestBodySize
@@ -2363,7 +2363,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		// If this is a keep-alive connection set the idle timeout.
 		if connRequestNum > 1 {
 			if d := s.idleTimeout(); d > 0 {
-				if err := c.SetReadDeadline(time.Now().Add(d)); err != nil {
+				if err := c.SetReadDeadline(util.GetLowPrecisionCurrentTime().Add(d)); err != nil {
 					panic(fmt.Sprintf("BUG: error in SetReadDeadline(%s): %s", d, err))
 				}
 			}
@@ -2399,7 +2399,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 		if err == nil {
 			if s.ReadTimeout > 0 {
-				if err := c.SetReadDeadline(time.Now().Add(s.ReadTimeout)); err != nil {
+				if err := c.SetReadDeadline(util.GetLowPrecisionCurrentTime().Add(s.ReadTimeout)); err != nil {
 					panic(fmt.Sprintf("BUG: error in SetReadDeadline(%s): %s", s.ReadTimeout, err))
 				}
 			}
@@ -2412,7 +2412,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				if onHdrRecv := s.HeaderReceived; onHdrRecv != nil {
 					reqConf := onHdrRecv(&ctx.Request.Header)
 					if reqConf.ReadTimeout > 0 {
-						deadline := time.Now().Add(reqConf.ReadTimeout)
+						deadline := util.GetLowPrecisionCurrentTime().Add(reqConf.ReadTimeout)
 						if err := c.SetReadDeadline(deadline); err != nil {
 							panic(fmt.Sprintf("BUG: error in SetReadDeadline(%s): %s", deadline, err))
 						}
@@ -2520,7 +2520,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 		ctx.connID = connID
 		ctx.connRequestNum = connRequestNum
-		ctx.time = time.Now()
+		ctx.time = util.GetLowPrecisionCurrentTime()
 
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
@@ -2560,7 +2560,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		if writeTimeout > 0 {
-			if err := c.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+			if err := c.SetWriteDeadline(util.GetLowPrecisionCurrentTime().Add(writeTimeout)); err != nil {
 				panic(fmt.Sprintf("BUG: error in SetWriteDeadline(%s): %s", writeTimeout, err))
 			}
 		}
@@ -2973,7 +2973,7 @@ func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage boo
 	ctx.connID = nextConnID()
 	ctx.s = fakeServer
 	ctx.connRequestNum = 0
-	ctx.connTime = time.Now()
+	ctx.connTime = util.GetLowPrecisionCurrentTime()
 
 	keepBodyBuffer := !reduceMemoryUsage
 	ctx.Request.keepBodyBuffer = keepBodyBuffer

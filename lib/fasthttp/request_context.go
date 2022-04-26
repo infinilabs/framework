@@ -346,7 +346,7 @@ func (ctx *RequestCtx) GetFlowProcess() []string {
 }
 
 func (ctx *RequestCtx) AddFlowProcess(str string) {
-	if ctx.EnrichedMetadata {
+	if !ctx.EnrichedMetadata {
 		return
 	}
 

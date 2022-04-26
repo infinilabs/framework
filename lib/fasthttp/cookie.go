@@ -3,6 +3,7 @@ package fasthttp
 import (
 	"bytes"
 	"errors"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"sync"
 	"time"
@@ -442,7 +443,7 @@ func getCookieKey(dst, src []byte) []byte {
 }
 var equalStrBytes=[]byte("=")
 var cookieEndStrBytes=[]byte("; ")
-func bufferAppendRequestCookieBytes(buffer *bytes.Buffer, cookies []argsKV) {
+func bufferAppendRequestCookieBytes(buffer *bytebufferpool.ByteBuffer, cookies []argsKV) {
 
 	for i, n := 0, len(cookies); i < n; i++ {
 		kv := &cookies[i]
