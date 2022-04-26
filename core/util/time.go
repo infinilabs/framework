@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/segmentio/encoding/json"
 	"hash"
+	"sync"
 	"time"
 )
 
@@ -137,4 +138,30 @@ func GetDurationOrDefault(str string,defaultV time.Duration)time.Duration{
 		return defaultV
 	}
 	return t
+}
+
+var now *time.Time
+var refreshRunning bool
+var setupLock sync.RWMutex
+func GetLowPrecisionCurrentTime()time.Time  {
+	if now==nil{
+		SetupTimeNowRefresh()
+		t:=time.Now()
+		return t
+	}
+	return time.Unix(now.Unix(), now.UnixNano())
+}
+func SetupTimeNowRefresh()  {
+	setupLock.Lock()
+	defer setupLock.Unlock()
+	if !refreshRunning{
+		go func(*time.Time) {
+			for{
+				t:=time.Now()
+				now= &t
+				time.Sleep(500*time.Millisecond)
+			}
+		}(now)
+		refreshRunning=true
+	}
 }
