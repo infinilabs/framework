@@ -1299,7 +1299,7 @@ func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error)
 		return false, ErrHostClientRedirectToDifferentScheme
 	}
 
-	atomic.StoreUint32(&c.lastUseTime, uint32(time.Now().Unix()-startTimeUnix))
+	atomic.StoreUint32(&c.lastUseTime, uint32(util.GetLowPrecisionCurrentTime().Unix()-startTimeUnix))
 
 	// Free up resources occupied by response before sending the request,
 	// so the GC may reclaim these resources (e.g. response body).
@@ -1665,7 +1665,7 @@ func releaseClientConn(cc *clientConn) {
 var clientConnPool sync.Pool
 
 func (c *HostClient) releaseConn(cc *clientConn) {
-	cc.lastUseTime = time.Now()
+	cc.lastUseTime = util.GetLowPrecisionCurrentTime()
 	if c.MaxConnWaitTimeout <= 0 {
 		c.connsLock.Lock()
 		c.conns = append(c.conns, cc)

@@ -44,6 +44,9 @@ func EnableWatcher(path string)  {
 	AddPathToWatch(path, func(file string,op fsnotify.Op) {
 		loadConfigFile(file)
 	})
+
+	log.Debugf("enable watcher on path: %v",path)
+
 }
 
 func AddPathToWatch(path string,callback CallbackFunc) {
