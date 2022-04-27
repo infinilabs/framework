@@ -513,3 +513,11 @@ func GenerateRandomString(cnum int) string {
 
 	return string(result)
 }
+func StringInArray(s []string, element string) bool {
+	for _, v := range s {
+		if v == element {
+			return true
+		}
+	}
+	return false
+}

@@ -399,7 +399,9 @@ func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) error {
 }
 func (handler Handler) Error400(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusBadRequest)
+	return
 }
 func (handler Handler) ErrorInternalServer(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusInternalServerError)
+	return
 }
