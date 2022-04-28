@@ -332,9 +332,11 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 
 	pattern := h.GetParameterOrDefault(req, "pattern", "*")
 	keyword := h.GetParameterOrDefault(req, "keyword", "")
-	aggregatable := h.GetParameterOrDefault(req, "aggregatable", "true")
+	aggregatable := h.GetParameterOrDefault(req, "aggregatable", "")
 	size := h.GetIntOrDefault(req, "size", 0)
 	typ := h.GetParameterOrDefault(req, "type", "")
+	esType := h.GetParameterOrDefault(req, "es_type", "")
+
 	metaFields := req.URL.Query()["meta_fields"]
 	kbnFields, err := h.getFieldCaps(targetClusterID, pattern, metaFields)
 	if err != nil {
@@ -343,17 +345,20 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	if keyword != "" {
+	if keyword != "" || aggregatable !="" || typ != "" || esType != ""  {
 		var filteredFields []KbnField
 		var count = 0
 		for _, field := range kbnFields {
-			if !strings.Contains(field.Name, keyword){
+			if  keyword != "" && !strings.Contains(field.Name, keyword){
 				continue
 			}
 			if aggregatable == "true" && !field.Aggregatable {
 				continue
 			}
 			if typ != "" && field.Type != typ{
+				continue
+			}
+			if esType != "" && field.ESTypes[0] != esType{
 				continue
 			}
 			count++
