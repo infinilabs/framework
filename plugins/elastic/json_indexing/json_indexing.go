@@ -157,6 +157,7 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 
 	client := elastic.GetClient(processor.config.Elasticsearch)
+	clientMajorVersion := client.GetMajorVersion()
 
 	var checkCount = 0
 
@@ -180,7 +181,7 @@ CHECK_AVAIABLE:
 	}
 
 	if processor.config.TypeName == "" {
-		if client.GetMajorVersion() < 7 {
+		if clientMajorVersion < 7 {
 			processor.config.TypeName = "doc"
 		} else {
 			processor.config.TypeName = "_doc"
@@ -209,7 +210,12 @@ READ_DOCS:
 				panic("index name is empty")
 			}
 
-			docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
+			if clientMajorVersion < 8 {
+				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
+			}else{
+				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))
+			}
+
 			docBuf.Write(pop)
 			docBuf.WriteString("\n")
 

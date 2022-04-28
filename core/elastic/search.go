@@ -114,3 +114,14 @@ func BuildSearchTermFilter(filterParam SearchFilterParam) []util.MapStr{
 	}
 	return filter
 }
+
+func GetDateHistogramIntervalField(version string) (string, error){
+	cr, err := util.VersionCompare(version, "7.2")
+	if err != nil {
+		return "", err
+	}
+	if cr > -1 {
+		return "fixed_interval", nil
+	}
+	return "interval", nil
+}

@@ -880,7 +880,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 			"dates": util.MapStr{
 				"date_histogram": util.MapStr{
 					"field": "timestamp",
-					"interval": bucketSizeStr,
+					"fixed_interval": bucketSizeStr,
 				},
 				"aggs": util.MapStr{
 					"group_status": util.MapStr{

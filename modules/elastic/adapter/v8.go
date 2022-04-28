@@ -122,7 +122,7 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 
 	indexName=util.UrlEncode(indexName)
 
-	url := c.GetEndpoint() + "/" + indexName + "/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
@@ -147,10 +147,10 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 
 	indexName=util.UrlEncode(indexName)
 
-	url := fmt.Sprintf("%s/%s/%s", c.GetEndpoint(), indexName, id)
+	url := fmt.Sprintf("%s/%s/_doc/%s", c.GetEndpoint(), indexName, id)
 
 	if id==""{
-		url = fmt.Sprintf("%s/%s/", c.GetEndpoint(), indexName)
+		url = fmt.Sprintf("%s/%s/_doc", c.GetEndpoint(), indexName)
 	}
 	if refresh != "" {
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)

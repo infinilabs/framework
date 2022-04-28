@@ -62,6 +62,7 @@ func updateClusterHealthStatus(clusterID string, healthStatus string){
 	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
 	getRes, err := client.Get(indexName,"", clusterID)
 	if err != nil {
+		log.Errorf("get cluster %s error: %v", clusterID, err)
 		return
 	}
 	if !getRes.Found {
