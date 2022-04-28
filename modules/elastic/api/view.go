@@ -345,7 +345,7 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	if keyword != "" || aggregatable !="" || typ != "" || esType != ""  {
+	if keyword != "" || aggregatable !="" || typ != "" || esType != "" || size > 0 {
 		var filteredFields []KbnField
 		var count = 0
 		for _, field := range kbnFields {
