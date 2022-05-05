@@ -35,6 +35,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	var reqParams = struct{
 		Index string `json:"index"`
 		Body map[string]interface{} `json:"body"`
+		DistinctByField map[string]interface{} `json:"distinct_by_field"`
 	}{}
 
 	err = h.DecodeJSON(req, &reqParams)
@@ -44,7 +45,13 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	if df, ok := reqParams.Body["distinct_by_field"]; ok {
+	if _, ok := reqParams.Body["track_total_hits"]; ok {
+		vr, _ := util.VersionCompare(client.ClusterVersion(), "7.0")
+		if vr < 0 {
+			delete(reqParams.Body, "track_total_hits")
+		}
+	}
+	if reqParams.DistinctByField != nil {
 		if query, ok := reqParams.Body["query"]; ok {
 			if qm, ok := query.(map[string]interface{}); ok {
 				filter, _ := util.MapStr(qm).GetValue("bool.filter")
@@ -54,16 +61,22 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 							"script": util.MapStr{
 								"source": "distinct_by_field",
 								"lang": "infini",
-								"params": df,
+								"params": reqParams.DistinctByField,
 							},
 						},
 					})
 				}
 			}
 		}
-		delete(reqParams.Body, "distinct_by_field")
 	}
-	if client.ClusterVersion() < "7.2" {
+	vr, err := util.VersionCompare(client.ClusterVersion(), "7.2")
+	if err != nil {
+		resBody["error"] = fmt.Sprintf("version compare error: %v",err)
+		log.Error(resBody["error"])
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	if vr < 0 {
 		if aggs, ok := reqParams.Body["aggs"]; ok {
 			if maggs, ok := aggs.(map[string]interface{}); ok {
 				if aggsCounts, ok := maggs["counts"].(map[string]interface{}); ok {
