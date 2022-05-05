@@ -139,15 +139,6 @@ func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID str
 
 }
 
-func (meta *ElasticsearchMetadata) GetActiveNodeInfo() *NodesInfo {
-	if meta.Nodes != nil {
-		for _, v := range *meta.Nodes {
-			return &v
-		}
-	}
-	return nil
-}
-
 func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 	if meta.Nodes != nil {
 		info, ok := (*meta.Nodes)[nodeID]
@@ -182,7 +173,7 @@ func (meta *ElasticsearchMetadata) GetActivePreferredEndpoints(hosts []string) s
 	if len(hosts)==0{
 		panic(errors.New("hosts is empty"))
 	}
-	
+
 	for _,v:=range hosts{
 		available := IsHostAvailable(v)
 		if available {
@@ -201,15 +192,16 @@ func (meta *ElasticsearchMetadata) GetActiveHosts() int {
 			hash.Add(v)
 		}
 	}
-
-	if meta.Nodes!=nil{
-		for _,v1:=range *meta.Nodes{
-			v:=v1.GetHttpPublishHost()
-			if IsHostAvailable(v){
-				//add to cache
-				info,ok:= GetHostAvailableInfo(v)
-				if ok&&info!=nil{
-					hash.Add(v)
+	if meta.Config.Discovery.Enabled{
+		if meta.Nodes!=nil{
+			for _,v1:=range *meta.Nodes{
+				v:=v1.GetHttpPublishHost()
+				if IsHostAvailable(v){
+					//add to cache
+					info,ok:= GetHostAvailableInfo(v)
+					if ok&&info!=nil{
+						hash.Add(v)
+					}
 				}
 			}
 		}
@@ -240,18 +232,20 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 		}
 	}
 
-	if meta.Nodes!=nil{
-		for _,v1:=range *meta.Nodes{
-			v:=v1.GetHttpPublishHost()
-			if IsHostAvailable(v){
-				//add to cache
-				info,ok:= GetHostAvailableInfo(v)
-				if ok&&info!=nil{
-					if info.IsAvailable(){
-						meta.activeHost=info
+	if meta.Config.Discovery.Enabled{
+		if meta.Nodes!=nil{
+			for _,v1:=range *meta.Nodes{
+				v:=v1.GetHttpPublishHost()
+				if IsHostAvailable(v){
+					//add to cache
+					info,ok:= GetHostAvailableInfo(v)
+					if ok&&info!=nil{
+						if info.IsAvailable(){
+							meta.activeHost=info
+						}
 					}
+					return v
 				}
-				return v
 			}
 		}
 	}
