@@ -60,7 +60,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActiveEndpoint(), path)
+	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActivePreferredSeedEndpoint(), path)
 
 	freq.SetRequestURI(endpoint)
 
