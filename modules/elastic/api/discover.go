@@ -54,6 +54,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	if reqParams.DistinctByField != nil {
 		if query, ok := reqParams.Body["query"]; ok {
 			if qm, ok := query.(map[string]interface{}); ok {
+
 				filter, _ := util.MapStr(qm).GetValue("bool.filter")
 				if fv, ok := filter.([]interface{}); ok{
 					fv = append(fv, util.MapStr{
@@ -65,7 +66,9 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 							},
 						},
 					})
+					util.MapStr(qm).Put("bool.filter", fv)
 				}
+
 			}
 		}
 	}
