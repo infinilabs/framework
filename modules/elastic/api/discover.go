@@ -44,6 +44,25 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	if df, ok := reqParams.Body["distinct_by_field"]; ok {
+		if query, ok := reqParams.Body["query"]; ok {
+			if qm, ok := query.(map[string]interface{}); ok {
+				filter, _ := util.MapStr(qm).GetValue("bool.filter")
+				if fv, ok := filter.([]interface{}); ok{
+					fv = append(fv, util.MapStr{
+						"script": util.MapStr{
+							"script": util.MapStr{
+								"source": "distinct_by_field",
+								"lang": "infini",
+								"params": df,
+							},
+						},
+					})
+				}
+			}
+		}
+		delete(reqParams.Body, "distinct_by_field")
+	}
 	if client.ClusterVersion() < "7.2" {
 		if aggs, ok := reqParams.Body["aggs"]; ok {
 			if maggs, ok := aggs.(map[string]interface{}); ok {
