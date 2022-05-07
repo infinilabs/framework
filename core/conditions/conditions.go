@@ -26,6 +26,8 @@ import (
 type Config struct {
 	Equals           *Fields                `config:"equals"`
 	Contains         *Fields                `config:"contains"`
+	Prefix           map[string]interface{} 	`config:"prefix"`
+	Suffix           map[string]interface{}     `config:"suffix"`
 	Regexp           *Fields                `config:"regexp"`
 	Range            *Fields                `config:"range"`
 	QueueHasLag      []string               `config:"queue_has_lag"`
@@ -68,6 +70,10 @@ func NewCondition(config *Config) (Condition, error) {
 		condition, err = NewInArrayCondition(config.IN)
 	case config.Contains != nil:
 		condition, err = NewMatcherCondition("contains", config.Contains.fields, match.CompileString)
+	case config.Prefix != nil:
+		condition, err = NewPrefixCondition(config.Prefix)
+	case config.Suffix != nil:
+		condition, err = NewSuffixCondition(config.Suffix)
 	case config.Regexp != nil:
 		condition, err = NewMatcherCondition("regexp", config.Regexp.fields, match.Compile)
 	case config.Range != nil:
