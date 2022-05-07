@@ -157,8 +157,6 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
-	newConf.Discovery.Enabled = true
-	newConf.Enabled = true
 	_, err = common.InitElasticInstance(*newConf)
 	if err != nil {
 		log.Warn("error on init elasticsearch:", err)
@@ -483,6 +481,7 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 var clusters = map[string]elastic.ElasticsearchConfig{}
 var clustersMutex = &sync.RWMutex{}
 
+//TODO use prefered client
 func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 	clustersMutex.RLock()
 	config,ok:=clusters[id]

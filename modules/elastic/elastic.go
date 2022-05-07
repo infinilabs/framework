@@ -117,7 +117,6 @@ func loadESBasedElasticConfig() {
 			bytes := util.MustToJSONBytes(v1.Source)
 			util.MustFromJSONBytes(bytes, &cfg)
 			cfg.ID = v1.ID
-			cfg.Discovery.Enabled = true
 			configs = append(configs, cfg)
 		}
 
