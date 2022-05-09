@@ -159,7 +159,7 @@ func (m *Metric) Collect() error {
 
 			//nodes stats
 			if m.NodeStats {
-				if v.Nodes == nil {
+				if v.Config.Discovery.Enabled &&  v.Nodes == nil {
 					if global.Env().IsDebug{
 						log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect",k,v.Config.Name)
 					}
@@ -188,19 +188,36 @@ func (m *Metric) Collect() error {
 					}
 					indexInfos[item.NodeID][item.Index] = true
 				}
-				for nodeID, y := range *v.Nodes {
-					//get node level stats
-					stats := client.GetNodesStats(nodeID,y.GetHttpPublishHost())
 
+				if v.Nodes!=nil{
+					for nodeID, y := range *v.Nodes {
+						//get node level stats
+						host:=v.GetActivePreferredHost(y.GetHttpPublishHost())
+						stats := client.GetNodesStats(nodeID,host)
+
+						if stats.ErrorObject != nil {
+							log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
+							continue
+						}
+						if _, ok := shardInfos[nodeID]; ok {
+							shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+						}
+						m.SaveNodeStats(v.Config.ID,nodeID,stats.Nodes[nodeID], shardInfos[nodeID])
+
+					}
+				}else{
+					host:=v.GetActivePreferredSeedEndpoint()
+					stats := client.GetNodesStats("",host)
 					if stats.ErrorObject != nil {
-						log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
-						continue
+						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
+					}else{
+						for nodeID,nodeStats:=range stats.Nodes{
+							if _, ok := shardInfos[nodeID]; ok {
+								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+							}
+							m.SaveNodeStats(v.Config.ID,nodeID,nodeStats, shardInfos[nodeID])
+						}
 					}
-					if _, ok := shardInfos[nodeID]; ok {
-						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
-					}
-					m.SaveNodeStats(v.Config.ID,stats, shardInfos[nodeID])
-
 				}
 			}
 
@@ -258,10 +275,14 @@ func (m *Metric) Collect() error {
 	return nil
 }
 
-func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, shardInfo interface{}){
-	for e,f:=range stats.Nodes{
+func (m *Metric) SaveNodeStats( clusterId,nodeID string, f interface{}, shardInfo interface{}){
 		//remove adaptive_selection
 		x,ok:=f.(map[string]interface{})
+		if !ok{
+			log.Error("invalid node stats for [%v] [%v]",clusterId,nodeID)
+			return
+		}
+
 		if ok{
 			delete(x,"adaptive_selection")
 			delete(x,"ingest")
@@ -279,7 +300,7 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, sha
 				Labels: util.MapStr{
 					"cluster_id":   clusterId,
 					//"cluster_uuid": stats.ClusterUUID,
-					"node_id":   e,
+					"node_id":   nodeID,
 					"node_name": nodeName,
 					"ip": nodeIP,
 					"transport_address":   nodeAddress,
@@ -295,7 +316,6 @@ func (m *Metric) SaveNodeStats( clusterId string, stats *elastic.NodesStats, sha
 		if err !=nil {
 			log.Error(err)
 		}
-	}
 }
 
 func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
