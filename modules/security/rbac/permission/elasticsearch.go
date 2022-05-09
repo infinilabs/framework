@@ -33,9 +33,10 @@ func loadJsonConfig() interface{} {
 	}
 	delete(apis, "indices")
 	permissions["cluster_privileges"] = apis
+	return permissions
 }
 
-func init() {
+func Init() {
 	permissions := loadJsonConfig()
 	rbac.RegisterPermission(rbac.Elasticsearch, permissions)
 }

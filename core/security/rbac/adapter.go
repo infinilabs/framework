@@ -19,6 +19,7 @@ type IRole interface {
 
 type IUser interface {
 	Get(id string) (User, error)
+	GetBy(field string, value interface{}) (User, error)
 	Update(user *User) error
 	Create(user *User) (string, error)
 	Delete(id string) error

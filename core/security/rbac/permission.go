@@ -7,7 +7,7 @@ package rbac
 import "sync"
 
 var permissionsMap = map[string]interface{}{}
-var permissionsLocker = sync.RWMutex{}
+var permissionsLocker = sync.Mutex{}
 
 func RegisterPermission(typ string, permissions interface{}){
 	permissionsLocker.Lock()
@@ -16,7 +16,17 @@ func RegisterPermission(typ string, permissions interface{}){
 }
 
 func GetPermissions(typ string) interface{}{
-	permissionsLocker.RLocker()
-	defer permissionsLocker.RUnlock()
+	permissionsLocker.Lock()
+	defer permissionsLocker.Unlock()
 	return  permissionsMap[typ]
 }
+
+var RoleMap = make(map[string]Role)
+
+type Token struct {
+	JwtStr   string `json:"jwt_str"`
+	Value    string `json:"value"`
+	ExpireIn int64  `json:"expire_in"`
+}
+
+var TokenMap = make(map[string]Token)

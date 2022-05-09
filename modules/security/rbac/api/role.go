@@ -13,6 +13,7 @@ import (
 	"infini.sh/framework/core/security/rbac/enum"
 	"infini.sh/framework/core/util"
 	"net/http"
+	"src/github.com/mitchellh/mapstructure"
 	"time"
 )
 
@@ -51,7 +52,7 @@ func (h APIHandler) CreateRole(w http.ResponseWriter, r *http.Request, ps httpro
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
-	RoleMap[role.Name] = *role
+	rbac.RoleMap[role.Name] = *role
 	_ = h.WriteOKJSON(w, api.CreateResponse(id))
 	return
 
@@ -132,7 +133,7 @@ func (h APIHandler) DeleteRole(w http.ResponseWriter, r *http.Request, ps httpro
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
-	delete(RoleMap, oldRole.Name)
+	delete(rbac.RoleMap, oldRole.Name)
 	_ = h.WriteOKJSON(w, api.DeleteResponse(id))
 	return
 }
@@ -162,7 +163,7 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 	role.Updated = time.Now()
 	role.Created = oldRole.Created
 	err = h.Role.Update(role)
-	RoleMap[role.Name] = *role
+	rbac.RoleMap[role.Name] = *role
 
 	if err != nil {
 		_ = log.Error(err.Error())
@@ -171,4 +172,36 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	_ = h.WriteOKJSON(w, api.UpdateResponse(id))
 	return
+}
+
+func (h APIHandler) loadRolePermission() {
+	log.Trace("start loading roles from adapter")
+	rbac.RoleMap = make(map[string]rbac.Role)
+
+	rbac.RoleMap["admin"] = rbac.Role{
+		Privilege: rbac.RolePrivilege{
+			Platform: enum.AdminPrivilege,
+		},
+	}
+
+	res, err := h.Role.Search("", 0, 1000)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	response := elastic.SearchResponse{}
+	util.FromJSONBytes(res.Raw, &response)
+
+	for _, v := range response.Hits.Hits {
+		var role rbac.Role
+		delete(v.Source, "created")
+		delete(v.Source, "updated")
+		err = mapstructure.Decode(v.Source, &role)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		rbac.RoleMap[role.Name] = role
+	}
+
 }

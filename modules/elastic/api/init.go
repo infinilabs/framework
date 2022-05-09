@@ -17,6 +17,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/storage_metrics", clusterAPI.HandleGetStorageMetricAction)
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.ListIndex)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.HandleGetClusterAction)
 	//api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/kv", clusterAPI.HandleGetNodesAction)

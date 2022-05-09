@@ -13,7 +13,8 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
+	"strings"
 )
 
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -801,4 +802,72 @@ func (h *APIHandler) getIndexNodes(w http.ResponseWriter, req *http.Request, ps 
 	}
 
 	h.Write(w, result.Raw)
+}
+
+func (h APIHandler) ListIndex(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterIds := h.GetParameterOrDefault(req, "ids", "")
+	keyword := h.GetParameterOrDefault(req, "keyword", "")
+	ids := strings.Split(clusterIds, ",")
+	if len(ids) == 0 {
+		h.Error400(w, "id is required")
+		return
+	}
+	var must = []util.MapStr{}
+	if !util.StringInArray(ids, "*") {
+		must = append(must, util.MapStr{
+			"terms": util.MapStr{
+				"metadata.cluster_id": ids,
+			},
+		})
+	}
+	if keyword != "" {
+		must = append(must, util.MapStr{
+			"wildcard":util.MapStr{
+				"metadata.index_name":
+				util.MapStr{"value": fmt.Sprintf("*%s*", keyword)},
+			},
+		})
+	}
+	var dsl = util.MapStr{
+		"_source": []string{"metadata.index_name"},
+		"collapse": util.MapStr{
+			"field": "metadata.index_name",
+		},
+		"size": 100,
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": must,
+				"must_not": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.state": util.MapStr{
+								"value": "delete",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+
+	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	indexName := orm.GetIndexName(elastic.IndexConfig{})
+	resp, err := esClient.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(dsl))
+	if err != nil {
+
+		return
+	}
+	list := resp.Hits.Hits
+	var indexNames []string
+	for _, v := range list {
+		m := v.Source["metadata"].(map[string]interface{})
+		indexNames = append(indexNames, m["index_name"].(string))
+
+	}
+	m := make(map[string]interface{})
+	m["indexnames"] = indexNames
+	h.WriteOKJSON(w, m)
+
+	return
 }

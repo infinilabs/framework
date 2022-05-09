@@ -21,6 +21,7 @@ type ShortUser struct {
 	UserId   string   `json:"user_id"`
 	Roles    []string `json:"roles"`
 }
+const Secret = "console"
 
 func NewUserContext(ctx context.Context, clam *UserClaims) context.Context {
 	return context.WithValue(ctx, ctxUserKey, clam)

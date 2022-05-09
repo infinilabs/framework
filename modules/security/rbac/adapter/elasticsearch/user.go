@@ -9,7 +9,9 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security/rbac"
 	"infini.sh/framework/core/util"
+	"src/github.com/mitchellh/mapstructure"
 	"strings"
+	"errors"
 )
 
 type User struct {
@@ -20,6 +22,25 @@ func (dal *User) Get(id string) (rbac.User, error){
 		ID: id,
 	}
 	_, err := orm.Get(&user)
+	return user, err
+}
+
+func (dal *User) GetBy(field string, value interface{}) (rbac.User, error){
+	user := rbac.User{
+	}
+	err, result := orm.GetBy(field, value, rbac.User{})
+	if err != nil {
+		return user, err
+	}
+	if result.Total == 0 {
+		return user, errors.New("user not found")
+	}
+	if row, ok := result.Result[0].(map[string]interface{}); ok {
+		delete(row, "created")
+		delete(row, "updated")
+	}
+
+	err = mapstructure.Decode(result.Result[0], &user)
 	return user, err
 }
 
