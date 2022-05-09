@@ -45,6 +45,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+
 	if _, ok := reqParams.Body["track_total_hits"]; ok {
 		vr, _ := util.VersionCompare(client.ClusterVersion(), "7.0")
 		if vr < 0 {
