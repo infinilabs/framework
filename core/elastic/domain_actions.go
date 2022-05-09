@@ -262,7 +262,7 @@ var clients = map[string]*fasthttp.Client{}
 var clientLock sync.RWMutex
 
 
-func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fasthttp.Client {
+func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) string {
 
 	//get available host
 	available := IsHostAvailable(host)
@@ -276,6 +276,11 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) *fast
 			time.Sleep(1 * time.Second)
 		}
 	}
+
+	return host
+}
+
+func (metadata *ElasticsearchMetadata)GetHttpClient(host string) *fasthttp.Client {
 
 	clientLock.RLock()
 	client, ok := clients[host]
