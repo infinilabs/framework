@@ -541,7 +541,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
 	format := "%s/_cluster/state/version,master_node,routing_table,metadata/*"
-	cr, err := util.VersionCompare(c.Version, "7.3")
+	cr, err := util.VersionCompare(c.GetVersion(), "7.3")
 	if err != nil {
 		return nil, err
 	}
@@ -1449,7 +1449,11 @@ func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
 }
 
 func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
+	if err != nil {
+		return nil, err
+	}
+	if cr == -1 {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")
@@ -1465,7 +1469,11 @@ func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
 }
 
 func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
+	if err != nil {
+		return nil, err
+	}
+	if cr == -1 {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")

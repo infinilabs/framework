@@ -160,28 +160,40 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 }
 
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
-	if s.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(s.GetVersion(), "5.6")
+	if err != nil {
+		return  err
+	}
+	if cr == -1 {
 		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV2.SetSearchTemplate(templateID, body)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err := s.Request(util.Verb_PUT, url, body)
+	_, err = s.Request(util.Verb_PUT, url, body)
 	return err
 }
 
 func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
-	if s.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(s.GetVersion(), "5.6")
+	if err != nil {
+		return  err
+	}
+	if cr == -1{
 		//fmt.Println(s.Version, templateID)
 		return s.ESAPIV2.DeleteSearchTemplate(templateID)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err := s.Request(util.Verb_DELETE, url, nil)
+	_, err = s.Request(util.Verb_DELETE, url, nil)
 	return err
 }
 
 func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
 	target=util.UrlEncode(target)
-	if s.GetVersion() < "5.4" {
+	cr, err := util.VersionCompare(s.GetVersion(), "5.4")
+	if err != nil {
+		return nil, err
+	}
+	if cr == -1 {
 		return s.ESAPIV2.FieldCaps(target)
 	}
 	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.GetEndpoint(), target)
