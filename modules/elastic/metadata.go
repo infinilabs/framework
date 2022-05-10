@@ -1239,12 +1239,17 @@ func (module *ElasticModule) loadClusterSettingsFromES( clusterID string)([]byte
 }`
 	queryDsl = fmt.Sprintf(queryDsl, clusterID)
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(event.Activity{}), []byte(queryDsl))
-	if err != nil {
+	if err != nil||searchRes==nil {
 		return nil, err
 	}
 	if searchRes.GetTotal() == 0 {
 		return nil, nil
 	}
-	clusterSettings, _ := util.GetMapValueByKeys([]string{"payload", "settings"}, searchRes.Hits.Hits[0].Source)
-	return util.ToJSONBytes(clusterSettings)
+
+	if len(searchRes.Hits.Hits)>0{
+		clusterSettings, _ := util.GetMapValueByKeys([]string{"payload", "settings"}, searchRes.Hits.Hits[0].Source)
+		return util.ToJSONBytes(clusterSettings)
+	}
+
+	return nil, nil
 }
