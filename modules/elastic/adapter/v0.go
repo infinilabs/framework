@@ -52,14 +52,21 @@ func (c *ESAPIV0) GetMetadata()*elastic.ElasticsearchMetadata {
 	c.metaLocker.Lock()
 	c.metaLocker.Unlock()
 
-	if c.metadata!=nil{
+	if c.metadata != nil {
 		return c.metadata
 	}
-	c.metadata= elastic.GetMetadata(c.Elasticsearch)
-	if c.metadata==nil{
-		panic(errors.Errorf("metadata not found for [%v]",c.Elasticsearch))
+	c.metadata = elastic.GetMetadata(c.Elasticsearch)
+	if c.metadata == nil {
+		panic(errors.Errorf("metadata not found for [%v]", c.Elasticsearch))
 	}
 	return c.metadata
+}
+
+func (c *ESAPIV0) GetVersion() string {
+	if c.Version == "" && c.GetEndpoint() != "" {
+		c.Version, _ = GetMajorVersion(c.GetMetadata())
+	}
+	return c.Version
 }
 
 func (c *ESAPIV0) GetMajorVersion() int {
@@ -67,12 +74,10 @@ func (c *ESAPIV0) GetMajorVersion() int {
 		return c.majorVersion
 	}
 
-	if c.Version == "" && c.GetEndpoint() != "" {
-		c.Version, _ = GetMajorVersion(c.GetMetadata())
-	}
+	ver := c.GetVersion()
 
-	if c.Version != "" {
-		vs := strings.Split(c.Version, ".")
+	if ver != "" {
+		vs := strings.Split(ver, ".")
 		n, err := util.ToInt(vs[0])
 		if err != nil {
 			panic(err)
@@ -81,8 +86,7 @@ func (c *ESAPIV0) GetMajorVersion() int {
 		return n
 	}
 
-	log.Debugf("failed to get the major version of elasticsearch [%v], fallback to v0",c.GetMetadata().Config.Name)
-
+	log.Debugf("failed to get the major version of elasticsearch [%v], fallback to v0", c.GetMetadata().Config.Name)
 	return 0
 }
 
@@ -693,7 +697,7 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
 	format := "%s/_cat/indices%s?h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json"
-	cr, err := util.VersionCompare(c.Version, "7.7")
+	cr, err := util.VersionCompare(c.GetVersion(), "7.7")
 	if err != nil {
 		return nil, err
 	}
@@ -1221,7 +1225,7 @@ func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
 }
 
 func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
-	cr, err := util.VersionCompare(c.Version, "7.3")
+	cr, err := util.VersionCompare(c.GetVersion(), "7.3")
 	if err != nil {
 		return nil, err
 	}
@@ -1445,7 +1449,7 @@ func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
 }
 
 func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.Version < "5.6" {
+	if c.GetVersion() < "5.6" {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")
@@ -1461,7 +1465,7 @@ func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
 }
 
 func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.Version < "5.6" {
+	if c.GetVersion() < "5.6" {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")
