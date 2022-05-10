@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"sync"
+	"time"
 )
 
 type Metric struct {
@@ -78,25 +79,30 @@ func (m *Metric) Collect() error {
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
 			if !v.Config.Monitored || !v.Config.Enabled || !v.IsAvailable() {
-				log.Debugf("cluster [%v] not enabled[%v] or monitored[%v] or not available[%v], skip collect",v.Config.Name,v.Config.Enabled,v.Config.Monitored,v.IsAvailable())
+				log.Debugf("cluster [%v] not enabled[%v] or monitored[%v] or not available[%v], skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.IsAvailable())
 				return true
 			}
-			if global.Env().IsDebug{
-				log.Debugf("run monitoring task for elasticsearch: %v - %v",k,v.Config.Name)
+			if global.Env().IsDebug {
+				log.Debugf("run monitoring task for elasticsearch: %v - %v", k, v.Config.Name)
 			}
-			if busy, ok := collectLoadingMap.Load(key); ok && busy == true {
-				log.Warnf("metrics collecting for cluster %s is still running", v.Config.Name)
-				return true
+			if startTime, ok := collectLoadingMap.Load(key); ok {
+				elapsed := time.Since(startTime.(time.Time))
+				if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(m.Interval, 10*time.Second)*2 {
+					log.Warnf("collect metrics for cluster %s is still running, elapsed: %v, skip waiting", v.Config.Name, elapsed.String())
+				} else {
+					log.Warnf("collect metrics for cluster %s is still running, elapsed: %v", v.Config.Name, elapsed.String())
+					return true
+				}
 			}
-			collectLoadingMap.Store(key, true)
-			defer collectLoadingMap.Store(key, false)
+			collectLoadingMap.Store(key, time.Now())
+			defer collectLoadingMap.Delete(key)
 
 			client := elastic.GetClient(k)
 			//var clusterUUID string
 			//TODO fetch cluster_uuid?
 
-			if m.ClusterHealth{
-				health,err:=client.ClusterHealth()
+			if m.ClusterHealth {
+				health, err := client.ClusterHealth()
 				if err != nil {
 					log.Error(v.Config.Name, " get cluster health error: ", err)
 					return true

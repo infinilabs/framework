@@ -1,4 +1,4 @@
-package enum
+package common
 
 import (
 	"time"
@@ -141,11 +141,11 @@ func init() {
 
 	BuildRoles["admin"] = map[string]interface{}{
 		"id":          "admin",
-		"name":        "管理员",
+		"name":        "Administrator",
 		"type":        "platform",
 		"platform":    AdminPrivilege,
 		"builtin":     true,
-		"description": "is admin",
+		"description": "Administrator is a super man.",
 		"created":     time.Now(),
 	}
 	PermissionMap = map[string][]string{

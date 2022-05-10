@@ -33,6 +33,7 @@ import (
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
 	"sync"
+	"time"
 )
 
 func (module *ElasticModule) Name() string {
@@ -256,7 +257,7 @@ func nodeAvailabilityCheck() {
 }
 
 func (module *ElasticModule)clusterStateRefresh() {
-	var mutexMap = sync.Map{}
+	module.stateMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch state refresh",
 		Type:        "interval",
@@ -272,17 +273,23 @@ func (module *ElasticModule)clusterStateRefresh() {
 				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
 
 				if ok {
-					if !v.Enabled{
+					if !v.Enabled {
 						return true
 					}
-					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
-						log.Warnf("cluster state refresh of cluster %s is busy", v.Name)
-						return true
+
+					if startTime, ok := module.stateMap.Load(v.ID); ok {
+						elapsed := time.Since(startTime.(time.Time))
+						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
+							log.Warnf("refresh cluster state for cluster %s is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+						} else {
+							log.Warnf("refresh cluster state for cluster %s is still running, elapsed: %v", v.Name, elapsed.String())
+							return true
+						}
 					}
-					mutexMap.Store(v.ID, true)
+					module.stateMap.Store(v.ID, time.Now())
 					go func(clusterID string) {
 						module.updateClusterState(clusterID)
-						mutexMap.Store(clusterID, false)
+						module.stateMap.Delete(clusterID)
 					}(v.ID)
 				}
 				return true
@@ -290,7 +297,6 @@ func (module *ElasticModule)clusterStateRefresh() {
 		},
 	}
 	task.RegisterScheduleTask(task2)
-
 }
 
 func (module *ElasticModule) Start() error {
@@ -318,7 +324,7 @@ func (module *ElasticModule) Start() error {
 	})
 
 	if moduleConfig.HealthCheckConfig.Enabled {
-		healthCheckLoading := sync.Map{}
+		module.healthMap = sync.Map{}
 		t := task.ScheduleTask{
 			Description: "cluster health check",
 			Type:        "interval",
@@ -329,14 +335,19 @@ func (module *ElasticModule) Start() error {
 					if ok && cfg1 != nil {
 						log.Tracef("init task walk configs: %v", cfg1.Name)
 
-						if busy, ok := healthCheckLoading.Load(cfg1.ID); ok && busy == true{
-							log.Debugf("previous health check of cluster %v is still running", cfg1.Name)
-							return true
+						if startTime, ok := module.healthMap.Load(cfg1.ID); ok {
+							elapsed := time.Since(startTime.(time.Time))
+							if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
+								log.Warnf("health check for cluster %s is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
+							} else {
+								log.Warnf("health check for cluster %s is still running, elapsed: %v", cfg1.Name, elapsed.String())
+								return true
+							}
 						}
-						healthCheckLoading.Store(cfg1.ID, true)
+						module.healthMap.Store(cfg1.ID, time.Now())
 						go func(clusterID string) {
-							clusterHealthCheck( clusterID, false)
-							healthCheckLoading.Store(clusterID, false)
+							clusterHealthCheck(clusterID, false)
+							module.healthMap.Delete(clusterID)
 						}(cfg1.ID)
 					}
 					return true
@@ -450,7 +461,7 @@ func (module *ElasticModule) Start() error {
 }
 
 func (module *ElasticModule)clusterSettingsRefresh() {
-	var mutexMap = sync.Map{}
+	module.settingsMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch settings refresh",
 		Type:        "interval",
@@ -466,17 +477,22 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
 
 				if ok {
-					if !v.Enabled{
+					if !v.Enabled {
 						return true
 					}
-					if busy, ok := mutexMap.Load(v.ID); ok && busy == true{
-						log.Warnf("cluster settings collecting for cluster %s is still running", v.Name)
-						return true
+					if startTime, ok := module.settingsMap.Load(v.ID); ok {
+						elapsed := time.Since(startTime.(time.Time))
+						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
+							log.Warnf("collect cluster settings for cluster %s is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+						} else {
+							log.Warnf("collect cluster settings for cluster %s is still running, elapsed: %v", v.Name, elapsed.String())
+							return true
+						}
 					}
-					mutexMap.Store(v.ID, true)
+					module.settingsMap.Store(v.ID, time.Now())
 					go func(clusterID string) {
 						module.updateClusterSettings(clusterID)
-						mutexMap.Store(clusterID, false)
+						module.settingsMap.Delete(clusterID)
 					}(v.ID)
 				}
 				return true
@@ -489,4 +505,7 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 
 type ElasticModule struct {
 	storeHandler *ElasticStore
+	settingsMap  sync.Map
+	stateMap     sync.Map
+	healthMap    sync.Map
 }
