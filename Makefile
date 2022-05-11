@@ -96,6 +96,11 @@ build-cmd: config
 	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
 	@$(MAKE) restore-generated-file
 
+cross-build-cmd: config
+	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && GOOS=windows  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$${f}-windows-amd64.exe); done
+	@for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && GOOS=linux  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$${f}-linux-amd64); done
+	@$(MAKE) restore-generated-file
+
 update-plugins:
 	@if [ ! -e ~/go/src/infini.sh/framework/bin/plugin-discovery ]; then ( cd ~/go/src/infini.sh/framework/ && make build-cmd ) fi
 	@$(foreach var,$(APP_PLUGIN_FOLDER),\
