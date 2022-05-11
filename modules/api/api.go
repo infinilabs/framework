@@ -18,10 +18,14 @@ package api
 
 import (
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/auth/native"
+	napi "infini.sh/framework/modules/auth/native/api"
 	"net/http"
 	"sort"
 )
@@ -54,20 +58,32 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 		"name":global.Env().SystemConfig.NodeConfig.Name,
 		"tagline":global.Env().GetAppDesc(),
 		"version":util.MapStr{
-			"number":global.Env().GetVersion(),
-			"build_date":global.Env().GetBuildDate(),
-			"build_hash":global.Env().GetLastCommitHash(),
-			"build_number":global.Env().GetBuildNumber(),
-			"eol_date":global.Env().GetEOLDate(),
+			"number":       global.Env().GetVersion(),
+			"build_date":   global.Env().GetBuildDate(),
+			"build_hash":   global.Env().GetLastCommitHash(),
+			"build_number": global.Env().GetBuildNumber(),
+			"eol_date":     global.Env().GetEOLDate(),
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(util.MustToJSONBytes(obj))
 	w.WriteHeader(200)
 }
-func init()  {
+
+func init() {
 	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
 	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
+
+	if global.Env().SystemConfig.APIConfig.AuthConfig.Enabled {
+		InitSecurity()
+	}
+}
+
+func InitSecurity() {
+	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
+	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
+	native.Init()
+	napi.Init()
 }
 
 // Start api server

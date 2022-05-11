@@ -20,26 +20,10 @@ import "infini.sh/framework/core/config"
 
 type UIConfig struct {
 	Enabled       bool                 `config:"enabled"`
-	AuthConfig    AuthConfig           `config:"auth"`
+	AuthConfig    config.AuthConfig    `config:"auth"`
 	TLSConfig     config.TLSConfig     `config:"tls"`
 	NetworkConfig config.NetworkConfig `config:"network"`
 	BasePath      string               `config:"base_path"`
 	EmbeddingAPI  bool                 `config:"embedding_api"`
-	Gzip GzipConfig `config:"gzip"`
-}
-
-type AuthConfig struct {
-	Enabled           bool     `config:"enabled"`
-	OAuthProvider     string   `config:"oauth_provider"`
-	oauthAuthorizeUrl string   `config:"oauth_authorize_url"`
-	oauthTokenUrl     string   `config:"oauth_token_url"`
-	oauthRedirectUrl  string   `config:"oauth_redirect_url"`
-	AuthorizedAdmins  []string `config:"authorized_admin"`
-	ClientSecret      string   `config:"client_secret"`
-	ClientID          string   `config:"client_id"`
-}
-
-type GzipConfig struct {
-	Enabled           bool     `config:"enabled"`
-	Level int `config:"level"`
+	Gzip          config.GzipConfig    `config:"gzip"`
 }

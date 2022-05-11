@@ -2,25 +2,24 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package elasticsearch
+package native
 
 import (
-	"fmt"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/security/rbac"
-	"infini.sh/framework/core/util"
-	"src/github.com/mitchellh/mapstructure"
-	"strings"
 	"errors"
+	"fmt"
+	"github.com/mitchellh/mapstructure"
+	"infini.sh/framework/core/api/rbac"
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
+	"strings"
 )
 
 type User struct {
 }
 
-func (dal *User) Get(id string) (rbac.User, error){
-	user := rbac.User{
-		ID: id,
-	}
+func (dal *User) Get(id string) (rbac.User, error) {
+	user := rbac.User{}
+	user.ID = id
 	_, err := orm.Get(&user)
 	return user, err
 }
@@ -45,6 +44,7 @@ func (dal *User) GetBy(field string, value interface{}) (rbac.User, error){
 }
 
 func (dal *User) Update(user *rbac.User) error {
+
 	return orm.Save(user)
 }
 
@@ -53,10 +53,9 @@ func (dal *User) Create(user *rbac.User) (string, error){
 	return user.ID, orm.Save(user)
 }
 
-func (dal *User) Delete(id string) error{
-	user := rbac.User{
-		ID: id,
-	}
+func (dal *User) Delete(id string) error {
+	user := rbac.User{}
+	user.ID = id
 	return orm.Delete(user)
 }
 

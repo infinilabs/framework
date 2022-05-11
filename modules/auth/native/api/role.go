@@ -6,17 +6,16 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/mitchellh/mapstructure"
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/rbac"
+	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/security/rbac"
-	"infini.sh/framework/core/security/rbac/enum"
 	"infini.sh/framework/core/util"
 	"net/http"
-	"src/github.com/mitchellh/mapstructure"
 	"time"
 )
-
 
 func (h APIHandler) CreateRole(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	roleType := ps.MustGetParameter("type")

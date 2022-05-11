@@ -16,16 +16,19 @@ type UserClaims struct {
 	*jwt.RegisteredClaims
 	*ShortUser
 }
+
 type ShortUser struct {
 	Username string   `json:"username"`
 	UserId   string   `json:"user_id"`
 	Roles    []string `json:"roles"`
 }
+
 const Secret = "console"
 
 func NewUserContext(ctx context.Context, clam *UserClaims) context.Context {
 	return context.WithValue(ctx, ctxUserKey, clam)
 }
+
 func FromUserContext(ctx context.Context) (*ShortUser, error) {
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {

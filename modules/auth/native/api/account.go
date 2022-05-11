@@ -9,9 +9,9 @@ import (
 	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/security/rbac"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"time"
@@ -27,12 +27,12 @@ func (h APIHandler) authenticateUser(username string, password string) (user rba
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
-		err = errors.New("password incorrect")
+		err = errors.New("incorrect password")
 		return
 	}
-
 	return
 }
+
 func authenticateAdmin(username string, password string) (user rbac.User, err error) {
 
 	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
@@ -171,6 +171,7 @@ func (h APIHandler) CurrentUser(w http.ResponseWriter, req *http.Request, ps htt
 		h.WriteJSON(w, data, 403)
 	}
 }
+
 func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {
@@ -183,6 +184,7 @@ func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter
 		"status": "ok",
 	})
 }
+
 func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {
@@ -218,6 +220,7 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 
 	return
 }
+
 func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {
@@ -258,6 +261,7 @@ func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps ht
 	h.WriteOKJSON(w, api.UpdateResponse(reqUser.UserId))
 	return
 }
+
 func (h APIHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {

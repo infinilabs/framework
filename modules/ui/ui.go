@@ -24,8 +24,7 @@ import (
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/logger"
-	"infini.sh/framework/modules/ui/admin"
-	"infini.sh/framework/modules/ui/public"
+	"infini.sh/framework/modules/api"
 	_ "net/http/pprof"
 )
 
@@ -46,12 +45,11 @@ func (module *UIModule) Setup(cfg *Config) {
 
 
 	module.uiConfig = &uis.UIConfig{
-		Gzip: uis.GzipConfig{
+		Gzip: GzipConfig{
 			Enabled: true,
-			Level: gzip.BestCompression,
+			Level:   gzip.BestCompression,
 		},
 	}
-	//cfg.Unpack(&uiConfig)
 
 	env.ParseConfig("web", module.uiConfig)
 
@@ -59,11 +57,15 @@ func (module *UIModule) Setup(cfg *Config) {
 
 		uis.EnableAuth(module.uiConfig.AuthConfig.Enabled)
 
+		if module.uiConfig.AuthConfig.Enabled {
+			api.InitSecurity()
+		}
+
 		//init admin ui
-		admin.InitUI()
+		//admin.InitUI()
 
 		//init public ui
-		public.InitUI(module.uiConfig.AuthConfig)
+		//public.InitUI(module.uiConfig.AuthConfig)
 
 		//register websocket logger
 		logger.RegisterWebsocketHandler(LoggerReceiver)

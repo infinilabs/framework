@@ -1,4 +1,4 @@
-package common
+package enum
 
 import (
 	"time"
@@ -82,7 +82,7 @@ const (
 
 var (
 	UserReadPermission = []string{PermissionUserRead}
-	UserAllPermission  = []string{PermissionUserRead, PermissionUserWrite,PermissionRoleRead}
+	UserAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead}
 
 	RoleReadPermission = []string{PermissionRoleRead}
 	RoleAllPermission  = []string{PermissionRoleRead, PermissionRoleWrite}
@@ -94,7 +94,7 @@ var (
 	CommandAllPermission  = []string{PermissionCommandRead, PermissionCommandWrite}
 
 	InstanceReadPermission = []string{PermissionGatewayInstanceRead}
-	InstanceAllPermission  = []string{PermissionGatewayInstanceRead,PermissionGatewayInstanceWrite}
+	InstanceAllPermission  = []string{PermissionGatewayInstanceRead, PermissionGatewayInstanceWrite}
 
 	EntryReadPermission = []string{PermissionGatewayEntryRead}
 	EntryAllPermission  = []string{PermissionGatewayEntryRead, PermissionGatewayEntryWrite}
@@ -138,16 +138,16 @@ var AdminPrivilege = []string{
 var BuildRoles = make(map[string]map[string]interface{}, 0)
 
 func init() {
-
 	BuildRoles["admin"] = map[string]interface{}{
 		"id":          "admin",
 		"name":        "Administrator",
 		"type":        "platform",
 		"platform":    AdminPrivilege,
 		"builtin":     true,
-		"description": "Administrator is a super man.",
+		"description": "Administrator is a super user.",
 		"created":     time.Now(),
 	}
+
 	PermissionMap = map[string][]string{
 		UserRead:    UserReadPermission,
 		UserAll:     UserAllPermission,
@@ -183,8 +183,8 @@ func init() {
 
 		ClusterOverviewRead: ClusterOverviewReadPermission,
 		ClusterOverviewAll:  ClusterOverviewAllPermission,
-		MonitoringAll:    MonitoringReadPermission,
-		MonitoringRead:   MonitoringReadPermission,
+		MonitoringAll:       MonitoringReadPermission,
+		MonitoringRead:      MonitoringReadPermission,
 		ActivitiesAll:       ActivitiesAllPermission,
 		ActivitiesRead:      ActivitiesReadPermission,
 	}

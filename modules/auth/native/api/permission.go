@@ -6,8 +6,8 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/security/rbac"
 	"net/http"
 )
 

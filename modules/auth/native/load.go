@@ -2,12 +2,12 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package permission
+package native
 
 import (
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/security/rbac"
+	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/util"
 	"os"
 	"path"

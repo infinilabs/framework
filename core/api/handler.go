@@ -17,10 +17,8 @@ limitations under the License.
 package api
 
 import (
-	log "github.com/cihub/seelog"
 	"github.com/jmoiron/jsonq"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"io/ioutil"
@@ -66,10 +64,6 @@ func (method Method) String() string {
 // Handler is the object of http handler
 type Handler struct {
 	wroteHeader bool
-
-	//w http.ResponseWriter
-	//req *http.Request
-	//
 	formParsed bool
 }
 
@@ -301,106 +295,15 @@ func (handler Handler) Flush(w http.ResponseWriter) {
 	flusher.Flush()
 }
 
-// BasicAuth register api with basic auth
-func BasicAuth(h httprouter.Handle, requiredUser, requiredPassword string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// Get the Basic Authentication credentials
-		user, password, hasAuth := r.BasicAuth()
-
-		if hasAuth && user == requiredUser && password == requiredPassword {
-			// Delegate request to the given handle
-			h(w, r, ps)
-		} else {
-			// Request Basic Authentication otherwise
-			w.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		}
-	}
-}
-
-var authEnabled = false
-
-func NeedPermission(permission string, h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		if !authEnabled || CheckPermission(w, r, permission) {
-			// Delegate request to the given handle
-			h(w, r, ps)
-		} else {
-			//TODO redirect url configurable
-			http.Redirect(w, r, "/auth/login/?redirect_url="+util.UrlEncode(r.URL.String()), 302)
-		}
-	}
-}
-
-func EnableAuth(enable bool) {
-	authEnabled = enable
-}
-
-func IsAuthEnable() bool {
-	return authEnabled
-}
-
-func Login(w http.ResponseWriter, r *http.Request, user, role string) {
-	SetSession(w, r, "user", user)
-	SetSession(w, r, "role", role)
-}
-
-func Logout(w http.ResponseWriter, r *http.Request) {
-	SetSession(w, r, "user", "")
-	SetSession(w, r, "role", "")
-}
-
-func GetLoginInfo(w http.ResponseWriter, r *http.Request) (user, role string) {
-	ok1, u := GetSession(w, r, "user")
-	ok2, v := GetSession(w, r, "role")
-	if !(ok1 && ok2) {
-		return "", ""
-	}
-	return u.(string), v.(string)
-}
-
-func CheckPermission(w http.ResponseWriter, r *http.Request, requiredPermission string) bool {
-	permissions := []string{}
-	permissions = append(permissions, requiredPermission)
-	return CheckPermissions(w, r, permissions)
-}
-
-func CheckPermissions(w http.ResponseWriter, r *http.Request, requiredPermissions []string) bool {
-	user, role := GetLoginInfo(w, r)
-	log.Trace("check user, ", user, ",", role, ",", requiredPermissions)
-	if user != "" && role != "" {
-		//TODO remove hard-coded permission check
-		if role == ROLE_ADMIN {
-			return true
-		}
-
-		perms, err := GetPermissionsByRole(role)
-		if err != nil {
-			log.Error(err)
-			return false
-		}
-
-		for _, v := range requiredPermissions {
-			if v != "" && !perms.Contains(v) {
-				log.Tracef("user %s with role: %s do not have permission: %s", user, role, v)
-				return false
-			}
-		}
-
-		log.Trace("user logged in, ", user, ",", role, ",", requiredPermissions)
-		return true
-	}
-
-	log.Trace("user not logged in, ", user, ",", role, ",", requiredPermissions)
-	return false
-}
 func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) error {
 	return handler.WriteJSON(w, v, http.StatusOK)
 }
+
 func (handler Handler) Error400(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusBadRequest)
 	return
 }
+
 func (handler Handler) ErrorInternalServer(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusInternalServerError)
 	return

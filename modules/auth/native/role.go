@@ -2,12 +2,12 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package elasticsearch
+package native
 
 import (
 	"fmt"
+	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/security/rbac"
 	"infini.sh/framework/core/util"
 	"strings"
 )
@@ -15,10 +15,9 @@ import (
 type Role struct {
 }
 
-func (dal *Role) Get(id string) (rbac.Role, error){
-	role := rbac.Role{
-		ID: id,
-	}
+func (dal *Role) Get(id string) (rbac.Role, error) {
+	role := rbac.Role{}
+	role.ID = id
 	_, err := orm.Get(&role)
 	return role, err
 }
@@ -32,10 +31,9 @@ func (dal *Role) Create(role *rbac.Role) (string, error){
 	return role.ID, orm.Save(role)
 }
 
-func (dal *Role) Delete(id string) error{
-	role := rbac.Role{
-		ID: id,
-	}
+func (dal *Role) Delete(id string) error {
+	role := rbac.Role{}
+	role.ID = id
 	return orm.Delete(role)
 }
 

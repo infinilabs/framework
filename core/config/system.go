@@ -127,7 +127,9 @@ type SystemConfig struct {
 
 	MaxNumOfInstance int `config:"max_num_of_instances"`
 
-	ConfigsAutoReload bool `config:"configs_auto_reload"`
+	Configs struct {
+		AutoReload bool `config:"auto_reload"`
+	} `config:"configs"`
 
 	//dynamic config enabled
 	Modules []*Config `config:"modules"`
@@ -137,9 +139,11 @@ type SystemConfig struct {
 
 type APIConfig struct {
 	Enabled       bool          `config:"enabled"`
+	AuthConfig    AuthConfig    `config:"auth"`
 	TLSConfig     TLSConfig     `config:"tls"`
 	NetworkConfig NetworkConfig `config:"network"`
-	CrossDomain   struct {
+
+	CrossDomain struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
 }
@@ -156,4 +160,20 @@ type TLSConfig struct {
 	TLSCertFile           string `config:"cert_file" json:"cert_file,omitempty" elastic_mapping:"cert_file: { type: keyword }"`
 	TLSKeyFile            string `config:"key_file" json:"key_file,omitempty" elastic_mapping:"key_file: { type: keyword }"`
 	TLSInsecureSkipVerify bool   `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty" elastic_mapping:"skip_insecure_verify: { type: boolean }"`
+}
+
+type AuthConfig struct {
+	Enabled           bool     `config:"enabled"`
+	OAuthProvider     string   `config:"oauth_provider"`
+	oauthAuthorizeUrl string   `config:"oauth_authorize_url"`
+	oauthTokenUrl     string   `config:"oauth_token_url"`
+	oauthRedirectUrl  string   `config:"oauth_redirect_url"`
+	AuthorizedAdmins  []string `config:"authorized_admin"`
+	ClientSecret      string   `config:"client_secret"`
+	ClientID          string   `config:"client_id"`
+}
+
+type GzipConfig struct {
+	Enabled bool `config:"enabled"`
+	Level   int  `config:"level"`
 }

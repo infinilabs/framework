@@ -298,7 +298,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) (error) {
 			return err
 		}
 
-		if env.SystemConfig.ConfigsAutoReload{
+		if env.SystemConfig.Configs.AutoReload{
 			log.Info("config auto reload enabled")
 			config.EnableWatcher(env.SystemConfig.PathConfig.Config)
 		}

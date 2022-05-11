@@ -2,9 +2,9 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package elasticsearch
+package native
 
-import "infini.sh/framework/core/security/rbac"
+import "infini.sh/framework/core/api/rbac"
 
 func init() {
 	handler := rbac.Adapter{

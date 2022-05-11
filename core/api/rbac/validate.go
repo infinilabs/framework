@@ -2,20 +2,18 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package middleware
+package rbac
 
 import (
 	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt"
+	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/security/rbac"
-	"infini.sh/framework/core/security/rbac/enum"
 	"infini.sh/framework/core/util"
 	"strings"
 	"time"
 )
-
 
 type EsRequest struct {
 	Doc       string `json:"doc"`
@@ -23,10 +21,12 @@ type EsRequest struct {
 	ClusterRequest
 	IndexRequest
 }
+
 type ClusterRequest struct {
 	Cluster   []string `json:"cluster"`
 	Privilege []string `json:"privilege"`
 }
+
 type IndexRequest struct {
 	Cluster   []string `json:"cluster"`
 	Index     []string `json:"index"`
@@ -50,6 +50,7 @@ func NewIndexRequest(ps httprouter.Params, privilege []string) IndexRequest {
 		Privilege: privilege,
 	}
 }
+
 func NewClusterRequest(ps httprouter.Params, privilege []string) ClusterRequest {
 	clusterId := ps.ByName("id")
 	return ClusterRequest{
@@ -96,6 +97,7 @@ func ValidateIndex(req IndexRequest, userRole RolePermission) (err error) {
 
 	return nil
 }
+
 func ValidateCluster(req ClusterRequest, roleNames []string) (err error) {
 	userClusterMap := GetRoleClusterMap(roleNames)
 	for _, v := range req.Cluster {
@@ -128,7 +130,7 @@ func CombineUserRoles(roleNames []string) RolePermission {
 	newRole := RolePermission{}
 	m := make(map[string][]string)
 	for _, val := range roleNames {
-		role := rbac.RoleMap[val]
+		role := RoleMap[val]
 		for _, v := range role.Privilege.Elasticsearch.Cluster.Resources {
 			newRole.Cluster = append(newRole.Cluster, v.ID)
 		}
@@ -154,10 +156,11 @@ func CombineUserRoles(roleNames []string) RolePermission {
 	newRole.IndexPrivilege = m
 	return newRole
 }
+
 func GetRoleClusterMap(roles []string) map[string][]string {
 	userClusterMap := make(map[string][]string, 0)
 	for _, roleName := range roles {
-		role, ok := rbac.RoleMap[roleName]
+		role, ok := RoleMap[roleName]
 		if ok {
 			for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
 				userClusterMap[ic.ID] = append(userClusterMap[ic.ID], role.Privilege.Elasticsearch.Cluster.Permissions...)
@@ -166,6 +169,7 @@ func GetRoleClusterMap(roles []string) map[string][]string {
 	}
 	return userClusterMap
 }
+
 func GetRoleCluster(roles []string) []string {
 	userClusterMap := GetRoleClusterMap(roles)
 	realCluster := make([]string, 0, len(userClusterMap))
@@ -174,6 +178,7 @@ func GetRoleCluster(roles []string) []string {
 	}
 	return realCluster
 }
+
 func GetRoleIndex(roles, clusterIDs []string) map[string][]string {
 	userClusterMap := make(map[string]struct{}, len(clusterIDs))
 	for _, clusterID := range clusterIDs {
@@ -181,7 +186,7 @@ func GetRoleIndex(roles, clusterIDs []string) map[string][]string {
 	}
 	realIndex := map[string][]string{}
 	for _, roleName := range roles {
-		role, ok := rbac.RoleMap[roleName]
+		role, ok := RoleMap[roleName]
 		if ok {
 			for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
 				if _, ok = userClusterMap[ic.ID]; !ok {
@@ -195,7 +200,8 @@ func GetRoleIndex(roles, clusterIDs []string) map[string][]string {
 	}
 	return realIndex
 }
-func ValidateLogin(authorizationHeader string) (clams *rbac.UserClaims, err error) {
+
+func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
 
 	if authorizationHeader == "" {
 		err = errors.New("authorization header is empty")
@@ -208,30 +214,30 @@ func ValidateLogin(authorizationHeader string) (clams *rbac.UserClaims, err erro
 	}
 	tokenString := fields[1]
 
-	token, err := jwt.ParseWithClaims(tokenString, &rbac.UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(rbac.Secret), nil
+		return []byte(Secret), nil
 	})
 	if err != nil {
 		return
 	}
-	clams, ok := token.Claims.(*rbac.UserClaims)
+	clams, ok := token.Claims.(*UserClaims)
 
 	if clams.UserId == "" {
 		err = errors.New("user id is empty")
 		return
 	}
 	//fmt.Println("user token", clams.UserId, TokenMap[clams.UserId])
-	tokenVal, ok := rbac.TokenMap[clams.UserId]
+	tokenVal, ok := TokenMap[clams.UserId]
 	if !ok {
 		err = errors.New("token is invalid")
 		return
 	}
 	if tokenVal.ExpireIn < time.Now().Unix() {
 		err = errors.New("token is expire in")
-		delete(rbac.TokenMap, clams.UserId)
+		delete(TokenMap, clams.UserId)
 		return
 	}
 	if ok && token.Valid {
@@ -240,7 +246,8 @@ func ValidateLogin(authorizationHeader string) (clams *rbac.UserClaims, err erro
 	return
 
 }
-func ValidatePermission(claims *rbac.UserClaims, permissions []string) (err error) {
+
+func ValidatePermission(claims *UserClaims, permissions []string) (err error) {
 
 	user := claims.ShortUser
 
@@ -256,8 +263,8 @@ func ValidatePermission(claims *rbac.UserClaims, permissions []string) (err erro
 	// 权限校验
 	userPermissions := make([]string, 0)
 	for _, role := range user.Roles {
-		if _, ok := rbac.RoleMap[role]; ok {
-			for _, v := range rbac.RoleMap[role].Privilege.Platform {
+		if _, ok := RoleMap[role]; ok {
+			for _, v := range RoleMap[role].Privilege.Platform {
 				userPermissions = append(userPermissions, v)
 			}
 		}
