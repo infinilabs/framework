@@ -212,8 +212,8 @@ func (m *Metric) Collect() error {
 
 					}
 				}else{
-					host:=v.GetActivePreferredSeedEndpoint()
-					stats := client.GetNodesStats("",host)
+					host := v.GetActiveHost()
+					stats := client.GetNodesStats("", host)
 					if stats.ErrorObject != nil {
 						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
 					}else{

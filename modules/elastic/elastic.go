@@ -280,9 +280,9 @@ func (module *ElasticModule)clusterStateRefresh() {
 					if startTime, ok := module.stateMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
-							log.Warnf("refresh cluster state for cluster %s is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
 						} else {
-							log.Warnf("refresh cluster state for cluster %s is still running, elapsed: %v", v.Name, elapsed.String())
+							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
 							return true
 						}
 					}
@@ -307,18 +307,23 @@ func (module *ElasticModule) Start() error {
 
 	initElasticInstances()
 
-	if module.storeHandler!=nil{
-		err:=module.storeHandler.Open()
-		if err!=nil{
+	if module.storeHandler != nil {
+		err := module.storeHandler.Open()
+		if err != nil {
 			panic(err)
 		}
 	}
+
+	//init elasticsearch
 	elastic.WalkConfigs(func(key, value interface{}) bool {
 		cfg1, ok := value.(*elastic.ElasticsearchConfig)
 		if ok && cfg1 != nil {
-			log.Tracef("init task walk configs: %v", cfg1.Name)
-
-			go clusterHealthCheck( cfg1.ID, true)
+			log.Tracef("init elasticsearch config: %v", cfg1.Name)
+			metadata := elastic.GetMetadata(cfg1.ID)
+			if metadata != nil {
+				module.updateNodeInfo(metadata, true)
+			}
+			go clusterHealthCheck(cfg1.ID, true)
 		}
 		return true
 	})
@@ -338,9 +343,9 @@ func (module *ElasticModule) Start() error {
 						if startTime, ok := module.healthMap.Load(cfg1.ID); ok {
 							elapsed := time.Since(startTime.(time.Time))
 							if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
-								log.Warnf("health check for cluster %s is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
+								log.Warnf("health check for cluster [%s] is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
 							} else {
-								log.Warnf("health check for cluster %s is still running, elapsed: %v", cfg1.Name, elapsed.String())
+								log.Warnf("health check for cluster [%s] is still running, elapsed: %v", cfg1.Name, elapsed.String())
 								return true
 							}
 						}
@@ -382,7 +387,7 @@ func (module *ElasticModule) Start() error {
 					v,ok:=value.(*elastic.ElasticsearchMetadata)
 					if ok{
 						if v.Config.Discovery.Enabled{
-							module.updateNodeInfo(v)
+							module.updateNodeInfo(v, false)
 						}
 					}
 					return true
@@ -390,8 +395,7 @@ func (module *ElasticModule) Start() error {
 			},
 		}
 		task.RegisterScheduleTask(task2)
-
-
+		
 		////refresh indices
 		//task2 = task.ScheduleTask{
 		//	Description: fmt.Sprintf("elasticsearch indices discovery"),
@@ -483,9 +487,9 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(moduleConfig.ClusterSettingsCheckConfig.Interval, 10*time.Second)*2 {
-							log.Warnf("collect cluster settings for cluster %s is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
 						} else {
-							log.Warnf("collect cluster settings for cluster %s is still running, elapsed: %v", v.Name, elapsed.String())
+							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
 							return true
 						}
 					}

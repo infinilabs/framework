@@ -280,14 +280,14 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) strin
 	return host
 }
 
-func (metadata *ElasticsearchMetadata)GetHttpClient(host string) *fasthttp.Client {
+func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Client {
 
 	clientLock.RLock()
 	client, ok := clients[host]
 	clientLock.RUnlock()
 
 	//TODO configureable
-	if !ok{
+	if !ok {
 		clientLock.Lock()
 		defer clientLock.Unlock()
 

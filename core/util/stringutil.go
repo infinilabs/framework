@@ -389,6 +389,18 @@ func PrintStringByteLines(array [][]byte) string {
 	return buffer.String()
 }
 
+func JoinInterfaceArray(array []interface{}, delimiter string,valueFunc func(str string)(string)) string {
+	strs:=[]string{}
+	for _,v:=range array{
+		v1:=ToString(v)
+		if valueFunc!=nil{
+			v1=valueFunc(v1)
+		}
+		strs=append(strs,v1)
+	}
+	return JoinArray(strs,delimiter)
+}
+
 func JoinArray(array []string, delimiter string) string {
 	if len(array) < 100 {
 		return Join(array, delimiter)

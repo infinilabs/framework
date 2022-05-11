@@ -3,6 +3,7 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/r3labs/diff/v2"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/kv"
@@ -11,7 +12,6 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"reflect"
-	"github.com/r3labs/diff/v2"
 	"strings"
 	"sync"
 	"time"
@@ -31,27 +31,26 @@ func clusterHealthCheck(clusterID string, force bool) {
 							elastic.GetOrInitHost(host)
 						}
 					}
-
+					//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
 					client := elastic.GetClient(cfg.ID)
 					//check cluster health status
-					health,err := client.ClusterHealth()
-					if err!=nil||health==nil||health.StatusCode!=200{
+					health, err := client.ClusterHealth()
+					if err != nil || health == nil || health.StatusCode != 200 {
 						metadata.ReportFailure(err)
 						if metadata.Config.Source != "file" && !metadata.IsAvailable() {
 							updateClusterHealthStatus(clusterID, "unavailable")
 						}
-					}else{
+					} else {
 						metadata.ReportSuccess()
-						if metadata.Health==nil|| metadata.Health.Status!=health.Status{
-							metadata.Health=health
+						if metadata.Health == nil || metadata.Health.Status != health.Status {
+							metadata.Health = health
 							if metadata.Config.Source != "file" {
 								updateClusterHealthStatus(clusterID, health.Status)
 							}
-							log.Tracef("cluster [%v] health [%v] updated", clusterID,metadata.Health)
+							log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 						}
 					}
 				}
-
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string){
@@ -622,17 +621,16 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 }
 
 //on demand, on state version change
-func (module *ElasticModule)updateNodeInfo(meta *elastic.ElasticsearchMetadata) {
-	if !meta.IsAvailable(){
+func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool) {
+	if !force && !meta.IsAvailable() {
 		setNodeUnknown(meta.Config.ID)
-		log.Debugf("elasticsearch [%v] is not available, skip update node info",meta.Config.Name)
+		log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
 		return
 	}
 
 	client := elastic.GetClient(meta.Config.ID)
 	nodes, err := client.GetNodes()
 	if err != nil || nodes == nil || len(*nodes) <= 0 {
-
 		if rate.GetRateLimiterPerSecond(meta.Config.ID, "get_nodes_failure_on_error", 1).Allow() {
 			log.Errorf("elasticsearch [%v] failed to get nodes info", meta.Config.Name)
 		}
