@@ -1449,7 +1449,11 @@ func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
 }
 
 func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
+	if err != nil {
+		return nil, err
+	}
+	if cr == -1 {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")
@@ -1465,7 +1469,11 @@ func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
 }
 
 func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
-	if c.GetVersion() < "5.6" {
+	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
+	if err != nil {
+		return nil, err
+	}
+	if cr == -1 {
 		if source, ok := body["source"]; ok {
 			body["inline"] = source
 			delete(body, "source")
