@@ -47,7 +47,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	}
 
 	if _, ok := reqParams.Body["track_total_hits"]; ok {
-		vr, _ := util.VersionCompare(client.ClusterVersion(), "7.0")
+		vr, _ := util.VersionCompare(client.GetVersion(), "7.0")
 		if vr < 0 {
 			delete(reqParams.Body, "track_total_hits")
 		}
@@ -73,7 +73,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 			}
 		}
 	}
-	vr, err := util.VersionCompare(client.ClusterVersion(), "7.2")
+	vr, err := util.VersionCompare(client.GetVersion(), "7.2")
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("version compare error: %v",err)
 		log.Error(resBody["error"])

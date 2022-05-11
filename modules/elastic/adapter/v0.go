@@ -473,7 +473,7 @@ func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
 }
 
 func (c *ESAPIV0) ClusterVersion() string {
-	return c.Version
+	return c.GetVersion()
 }
 
 func (c *ESAPIV0) GetNodesStats(nodeID,host string) *elastic.NodesStats {
@@ -541,7 +541,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
 	format := "%s/_cluster/state/version,master_node,routing_table,metadata/*"
-	cr, err := util.VersionCompare(c.Version, "7.3")
+	cr, err := util.VersionCompare(c.GetVersion(), "7.3")
 	if err != nil {
 		return nil, err
 	}

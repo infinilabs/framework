@@ -41,7 +41,7 @@ type API interface {
 
 	GetIndicesStats() *IndicesStats
 
-	ClusterVersion() string
+	GetVersion() string
 
 	CreateIndex(name string, settings map[string]interface{}) error
 
