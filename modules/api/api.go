@@ -38,6 +38,7 @@ func (module *APIModule) Name() string {
 const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 const infoAPI = "/_framework/api/_info"
+const authAPI = "/_framework/api/_auth"
 
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -70,9 +71,19 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	w.WriteHeader(200)
 }
 
+func authAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	obj := util.MapStr{
+		"enabled": api.IsAuthEnable(),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(util.MustToJSONBytes(obj))
+	w.WriteHeader(200)
+}
+
 func init() {
 	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
 	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
+	api.HandleAPIMethod(api.GET, authAPI, authAPIHandler)
 
 	if global.Env().SystemConfig.APIConfig.AuthConfig.Enabled {
 		InitSecurity()
