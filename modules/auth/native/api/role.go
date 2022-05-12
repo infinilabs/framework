@@ -39,6 +39,10 @@ func (h APIHandler) CreateRole(w http.ResponseWriter, r *http.Request, ps httpro
 		h.Error400(w, err.Error())
 		return
 	}
+	if _, ok := rbac.RoleMap[role.Name]; ok {
+		h.ErrorInternalServer(w, "role name already exists")
+		return
+	}
 
 	role.Created = time.Now()
 	role.Updated = role.Created
@@ -177,7 +181,7 @@ func (h APIHandler) loadRolePermission() {
 	log.Trace("start loading roles from adapter")
 	rbac.RoleMap = make(map[string]rbac.Role)
 
-	rbac.RoleMap["admin"] = rbac.Role{
+	rbac.RoleMap[roleAdminName] = rbac.Role{
 		Privilege: rbac.RolePrivilege{
 			Platform: enum.AdminPrivilege,
 		},

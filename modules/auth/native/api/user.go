@@ -35,6 +35,9 @@ func (h APIHandler) CreateUser(w http.ResponseWriter, r *http.Request, ps httpro
 	//	h.ErrorInternalServer(w, err.Error())
 	//	return
 	//}
+	if h.userNameExists(w, user.Name) {
+		return
+	}
 	randStr := util.GenerateRandomString(8)
 	hash, err := bcrypt.GenerateFromPassword([]byte(randStr), bcrypt.DefaultCost)
 	if err != nil {
@@ -59,6 +62,20 @@ func (h APIHandler) CreateUser(w http.ResponseWriter, r *http.Request, ps httpro
 	})
 	return
 
+}
+
+func (h APIHandler) userNameExists(w http.ResponseWriter, name string) bool {
+	u, err := h.User.GetBy("name", name)
+	if err != nil {
+		_ = log.Error(err.Error())
+		h.ErrorInternalServer(w, err.Error())
+		return true
+	}
+	if u.ID != "" || name == "admin" {
+		h.ErrorInternalServer(w, "user name already exists")
+		return true
+	}
+	return false
 }
 
 func (h APIHandler) GetUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -97,6 +114,9 @@ func (h APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httpro
 	if err != nil {
 		_ = log.Error(err.Error())
 		h.ErrorInternalServer(w, err.Error())
+		return
+	}
+	if user.Name != oldUser.Name && h.userNameExists(w, user.Name) {
 		return
 	}
 	user.Updated = time.Now()

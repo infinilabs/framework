@@ -11,6 +11,7 @@ import (
 
 type IRole interface {
 	Get(id string) (Role, error)
+	GetBy(field string, value interface{}) (Role, error)
 	Update(role *Role) error
 	Create(role *Role) (string, error)
 	Delete(id string) error

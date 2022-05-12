@@ -22,6 +22,12 @@ func (dal *Role) Get(id string) (rbac.Role, error) {
 	return role, err
 }
 
+func (dal *Role) GetBy(field string, value interface{}) (rbac.Role, error) {
+	role := rbac.Role{}
+	err, _ := orm.GetBy(field, value, &role)
+	return role, err
+}
+
 func (dal *Role) Update(role *rbac.Role) error {
 	return orm.Save(role)
 }
