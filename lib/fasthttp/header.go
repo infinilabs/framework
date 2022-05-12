@@ -1599,6 +1599,7 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
 // Write writes request header to w.
 func (h *RequestHeader) Write(w *bufio.Writer) error {
+
 	_, err := w.Write(h.Header())
 	return err
 }
