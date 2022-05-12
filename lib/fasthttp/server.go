@@ -889,13 +889,15 @@ func (ctx *RequestCtx) ParseAPIKey() (exists bool, apiID, apiKey []byte) {
 	return len(ctx.Request.URI().apiID) > 0, ctx.Request.URI().apiID, ctx.Request.URI().apiKey
 }
 
-func (ctx *Request) ParseAuthorization() {
+func (ctx *Request) ParseAuthorization() (authType string) {
 
 	key := ctx.Header.PeekAny(AuthHeaderKeys)
 	if len(key) > 0 {
 		kvPair := strings.Split(string(key), " ")
 		if len(kvPair) == 2 {
 			if kvPair[0] == "Basic" {
+				authType = "Basic"
+
 				decoded, err := base64.StdEncoding.DecodeString(kvPair[1])
 				if err != nil {
 					log.Errorf("parse basic auth [%v] error: %v", kvPair[1], err)
@@ -906,6 +908,8 @@ func (ctx *Request) ParseAuthorization() {
 					ctx.uri.password = info[1]
 				}
 			} else if kvPair[0] == "ApiKey" {
+				authType = "ApiKey"
+
 				decoded, err := base64.StdEncoding.DecodeString(kvPair[1])
 				if err != nil {
 					log.Errorf("parse apiKey [%v] error: %v", kvPair[1], err)
@@ -918,6 +922,7 @@ func (ctx *Request) ParseAuthorization() {
 			}
 		}
 	}
+	return authType
 }
 
 //resume processing pipeline, allow filters continue
@@ -2960,6 +2965,7 @@ func (ctx *RequestCtx) Reset() {
 	ctx.flowProcess = []string{}
 	ctx.destination = ctx.destination[0:0]
 	ctx.userValues.Reset()
+
 }
 
 // Init2 prepares ctx for passing to RequestHandler.

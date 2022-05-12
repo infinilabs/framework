@@ -1292,9 +1292,10 @@ func (req *Request) onlyMultipartForm() bool {
 // See also WriteTo.
 func (req *Request) Write(w *bufio.Writer) error {
 
-	req.rawBody=nil
+	req.rawBody = nil
 
 	if len(req.Header.Host()) == 0 || req.parsedURI {
+
 		uri := req.URI()
 		host := uri.Host()
 		if len(host) == 0 {
@@ -1304,6 +1305,7 @@ func (req *Request) Write(w *bufio.Writer) error {
 		req.Header.SetRequestURIBytes(uri.RequestURI())
 
 		if len(uri.username) > 0 {
+
 			// RequestHeader.SetBytesKV only uses RequestHeader.bufKV.key
 			// So we are free to use RequestHeader.bufKV.value as a scratch pad for
 			// the base64 encoding.
@@ -1718,7 +1720,9 @@ func GetBasicAuthHeader(user string, password string) string {
 }
 
 func (req *Request) SetBasicAuth(username string, password string) {
-	req.Header.Add("Authorization", GetBasicAuthHeader(username, password))
+	req.Header.Del("Authorization")
+	req.Header.Set("Authorization", GetBasicAuthHeader(username, password))
+	req.URI().ResetUser()
 }
 
 func (resp *Response) ResetBodyLength(size int) {

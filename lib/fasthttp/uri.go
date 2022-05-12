@@ -88,6 +88,11 @@ func (u *URI) CopyTo(dst *URI) {
 	// from scratch on each FullURI() and RequestURI() call.
 }
 
+func (u *URI) ResetUser() {
+	u.username = u.username[:0]
+	u.password = u.password[:0]
+}
+
 // Hash returns URI hash, i.e. qwe of http://aaa.com/foo/bar?baz=123#qwe .
 //
 // The returned value is valid until the next URI method call.
