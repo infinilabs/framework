@@ -160,16 +160,20 @@ func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucke
 	bucketSize := h.GetIntOrDefault(req, "bucket_size", defaultBucketSize)    //默认 10，每个 bucket 的时间范围，单位秒
 	metricCount := h.GetIntOrDefault(req, "metric_count", defaultMetricCount) //默认 15分钟的区间，每分钟15个指标，也就是 15*6 个 bucket //90
 
-	now := time.Now()
 	//min,max are unix nanoseconds
 
 	minStr := h.Get(req, "min", "")
 	maxStr := h.Get(req, "max", "")
 
+	return GetMetricRangeAndBucketSize(minStr, maxStr, bucketSize, metricCount)
+}
+
+func GetMetricRangeAndBucketSize(minStr string, maxStr string, bucketSize int, metricCount int) (int, int64, int64, error) {
 	var min, max int64
 	var rangeFrom, rangeTo time.Time
 	var err error
 	var useMinMax bool
+	now := time.Now()
 	if minStr == "" {
 		rangeFrom = now.Add(-time.Second * time.Duration(bucketSize*metricCount+1))
 	} else {
