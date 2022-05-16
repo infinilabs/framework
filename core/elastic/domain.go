@@ -372,8 +372,9 @@ type BulkResponse struct {
 }
 
 type ErrorResponse struct {
-	Status int `json:"status,omitempty"`
-	Error  *struct {
+	Status    int         `json:"status,omitempty"`
+	RootCause interface{} `json:"root_cause,omitempty"`
+	Error     *struct {
 		Type   string `json:"type,omitempty"`
 		Reason string `json:"reason,omitempty"`
 	} `json:"error,omitempty"`

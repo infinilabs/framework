@@ -6,6 +6,7 @@ package api
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -13,7 +14,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strings"
 )
 
@@ -398,7 +398,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	response := elastic.SearchResponse{}
 	util.FromJSONBytes(res.Raw, &response)
 	if len(response.Hits.Hits) == 0 {
-		log.Warn("index not found, may be you should wait several seconds")
+		log.Warnf("index [%v][%v] not found, may be you should wait several seconds", clusterID, indexID)
 		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}

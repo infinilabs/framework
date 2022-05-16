@@ -169,9 +169,9 @@ type AggregationResponse struct {
 }
 
 type ResponseBase struct {
-	RawResult 		*util.Result  `json:"-"`
-	StatusCode  int   `json:"-"`
-	ErrorObject error `json:"-"`
+	RawResult   *util.Result `json:"-"`
+	StatusCode  int          `json:"-"`
+	ErrorObject error        `json:"-"`
 }
 
 func (this *ResponseBase)GetIntByJsonPath(path string) (interface{},error) {
