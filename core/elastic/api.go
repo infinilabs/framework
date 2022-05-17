@@ -47,7 +47,7 @@ type API interface {
 
 	Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
 
-	Bulk(data []byte)
+	Bulk(data []byte) (*util.Result, error)
 
 	Get(indexName, docType, id string) (*GetResponse, error)
 	Delete(indexName, docType, id string, refresh ...string) (*DeleteResponse, error)

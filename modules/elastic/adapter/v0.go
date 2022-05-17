@@ -826,26 +826,31 @@ func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
 	return data, err
 }
 
-func (c *ESAPIV0) Bulk(data []byte) {
+func (c *ESAPIV0) Bulk(data []byte) (*util.Result, error) {
 	if data == nil || len(data) == 0 {
-		return
+		return nil, errors.New("data is empty")
 	}
 
 	url := fmt.Sprintf("%s/_bulk?filter_path=items.*.error", c.GetEndpoint())
 	result, err := c.Request(util.Verb_POST, url, data)
 
-	if global.Env().IsDebug{
-		log.Trace(string(result.Body),err)
+	if global.Env().IsDebug {
+		log.Trace(string(result.Body), err)
 	}
 
 	if err != nil {
-		panic(err)
-		return
+		return result, err
 	}
 	if v := string(result.Body); v != "{}" {
 		log.Warn(v)
 	}
 
+	containError := util.LimitedBytesSearch(result.Body, []byte("\"errors\":true"), 64)
+	if containError {
+		return result, errors.New("bulk partial failure")
+	}
+
+	return result, nil
 }
 
 func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) {

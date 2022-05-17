@@ -6,6 +6,10 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/buger/jsonparser"
+	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
@@ -15,12 +19,7 @@ import (
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
-	elastic2 "infini.sh/gateway/proxy/filters/elastic"
 	"runtime"
-	log "github.com/cihub/seelog"
-	"github.com/buger/jsonparser"
-	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/config"
 
 	"sync"
 	"time"
@@ -52,22 +51,22 @@ func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 		IdleTimeoutInSecond:  5,
 		BulkSizeInMb:         10,
 		DetectIntervalInMs:   10000,
-		Queues: map[string]interface{}{},
+		Queues:               map[string]interface{}{},
 
 		Consumer: queue.ConsumerConfig{
-			Group: "activity-001",
-			Name: "activity-001",
-			FetchMinBytes:   	1,
-			FetchMaxMessages:   100,
+			Group:            "activity-001",
+			Name:             "activity-001",
+			FetchMinBytes:    1,
+			FetchMaxMessages: 100,
 			FetchMaxWaitMs:   10000,
 		},
 
-		DetectActiveQueue:    true,
-		ValidateRequest:      false,
-		SkipEmptyQueue:      true,
-		SkipOnMissingInfo:   false,
-		RotateConfig:         rotate.DefaultConfig,
-		BulkConfig:           elastic2.DefaultBulkProcessorConfig,
+		DetectActiveQueue: true,
+		ValidateRequest:   false,
+		SkipEmptyQueue:    true,
+		SkipOnMissingInfo: false,
+		RotateConfig:      rotate.DefaultConfig,
+		BulkConfig:        elastic.DefaultBulkProcessorConfig,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {

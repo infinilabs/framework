@@ -943,7 +943,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		}
 		err = orm.Save(activityInfo)
 		if err != nil {
-			log.Error(err)
+			log.Error(err, activityInfo)
 		}
 	}
 

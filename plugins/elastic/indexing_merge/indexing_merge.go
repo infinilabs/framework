@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package json_indexing
+package indexing_merge
 
 import (
 	"fmt"
@@ -34,33 +34,41 @@ import (
 )
 
 type IndexingMergeProcessor struct {
-	bufferPool *bytebufferpool.Pool
-	initLocker sync.RWMutex
-	config     Config
+	bufferPool        *bytebufferpool.Pool
+	initLocker        sync.RWMutex
+	config            Config
+	outputQueueConfig *queue.Config
 }
 
 //处理纯 json 格式的消息索引
 func (processor *IndexingMergeProcessor) Name() string {
-	return "json_indexing"
+	return "indexing_merge"
 }
 
 type Config struct {
-	NumOfWorkers         int    `config:"worker_size"`
-	IdleTimeoutInSeconds int    `config:"idle_timeout_in_seconds"`
-	BulkSizeInKB         int    `config:"bulk_size_in_kb"`
-	BulkSizeInMB         int    `config:"bulk_size_in_mb"`
-	IndexPrefix          string `config:"index_prefix"`
-	IndexName            string `config:"index_name"`
-	TypeName             string `config:"type_name"`
-	Elasticsearch        string `config:"elasticsearch"`
-	InputQueue           string `config:"input_queue"`
-	FailureQueue         string `config:"failure_queue"`
-	InvalidQueue         string `config:"invalid_queue"`
-	CheckESAvailable     bool   `config:"check_available"`
+	NumOfWorkers         int `config:"worker_size"`
+	IdleTimeoutInSeconds int `config:"idle_timeout_in_seconds"`
+	BulkSizeInKB         int `config:"bulk_size_in_kb"`
+	BulkSizeInMB         int `config:"bulk_size_in_mb"`
+
+	IndexName     string `config:"index_name"`
+	TypeName      string `config:"type_name"`
+
+	Elasticsearch string `config:"elasticsearch"`
+
+	InputQueue    string `config:"input_queue"`
+
+	OutputQueue struct {
+		Name   string                 `config:"name"`
+		Labels map[string]interface{} `config:"label" json:"label,omitempty"`
+	} `config:"output_queue"`
+
+	FailureQueue string `config:"failure_queue"`
+	InvalidQueue string `config:"invalid_queue"`
 }
 
-func init()  {
-	pipeline.RegisterProcessorPlugin("json_indexing", New)
+func init() {
+	pipeline.RegisterProcessorPlugin("indexing_merge", New)
 }
 
 func New(c *config.Config) (pipeline.Processor, error) {
@@ -77,6 +85,13 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	if cfg.InputQueue == "" {
 		panic(errors.New("input_queue can't be nil"))
 	}
+	if cfg.OutputQueue.Name == "" {
+		panic(errors.New("name of output_queue can't be nil"))
+	}
+
+	if cfg.IndexName == "" {
+		panic(errors.New("index name can't be nil"))
+	}
 
 	if cfg.FailureQueue == "" {
 		cfg.FailureQueue = cfg.InputQueue + "_failure"
@@ -90,11 +105,33 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		config: cfg,
 	}
 
+	queueConfig:=queue.GetOrInitConfig(cfg.OutputQueue.Name)
+	queueConfig.Labels = map[string]interface{}{}
+	queueConfig.Labels["type"] = "indexing_merge"
+
+	if cfg.IndexName!=""{
+		queueConfig.Labels["_index"] = cfg.IndexName
+	}
+
+	if cfg.TypeName!=""{
+		queueConfig.Labels["_type"] = cfg.TypeName
+	}
+
+	for k,v:=range cfg.OutputQueue.Labels{
+		queueConfig.Labels[k]=v
+	}
+
+	if cfg.Elasticsearch!=""{
+		queueConfig.Labels["elasticsearch"] = cfg.Elasticsearch
+	}
+
+	diff.outputQueueConfig=queueConfig
+
 	return diff, nil
 
 }
 
-//TODO 合并批量处理的操作，这里只用来合并请求和构造 bulk 请求。
+//合并批量处理的操作，这里只用来合并请求和构造 bulk 请求。
 //TODO 重启子进程，当子进程挂了之后
 func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 	defer func() {
@@ -174,25 +211,9 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 	client := elastic.GetClient(processor.config.Elasticsearch)
 	clientMajorVersion := client.GetMajorVersion()
 
-	var checkCount = 0
-
-CHECK_AVAIABLE:
 	metadata := elastic.GetMetadata(processor.config.Elasticsearch)
-
-	if metadata==nil{
+	if metadata == nil {
 		panic(errors.Errorf("cluster metadata [%v] not ready", processor.config.Elasticsearch))
-	}
-
-	if processor.config.CheckESAvailable{
-		if !metadata.IsAvailable() {
-			checkCount++
-			if checkCount > 5 {
-				panic(errors.Errorf("cluster [%v] is not available", processor.config.Elasticsearch))
-			}
-			time.Sleep(1 * time.Second)
-			log.Tracef("%v is not available, recheck now", metadata.Config.Name)
-			goto CHECK_AVAIABLE
-		}
 	}
 
 	if processor.config.TypeName == "" {
@@ -219,15 +240,13 @@ READ_DOCS:
 
 		if len(pop) > 0 {
 
-			//stats.IncrementBy("json_indexing", "bytes_received", int64(mainBuf.Len()))
-
-			if processor.config.IndexName==""{
+			if processor.config.IndexName == "" {
 				panic("index name is empty")
 			}
 
 			if clientMajorVersion < 8 {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
-			}else{
+			} else {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))
 			}
 
@@ -265,23 +284,21 @@ CLEAN_BUFFER:
 		mainBuf.Write(docBuf.Bytes())
 	}
 
+	//merge into bulk services
 	if mainBuf.Len() > 0 {
-
-		//TODO merge into bulk services
 		mainBuf.WriteByte('\n')
-		result, err := client.Bulk(mainBuf.Bytes())
+		//push to output queue
+		err:=queue.Push(processor.outputQueueConfig,mainBuf.Bytes())
+
+		//result, err := client.Bulk(mainBuf.Bytes())
 		if err != nil {
-			log.Error(err, util.SubString(string(result.Body), 0, 200))
+			log.Error(err, util.SubString(string(mainBuf.Bytes()), 0, 200))
 			stats.Increment("json_indexing", "error")
 			queue.Push(queue.GetOrInitConfig(processor.config.FailureQueue), mainBuf.Bytes())
 		}
 
 		mainBuf.Reset()
-		//TODO handle retry and fallback/over, dead letter queue
-		//set services to failure, need manual restart
-		//process dead letter queue first next round
-
-		log.Trace("clean buffer, and execute bulk insert")
+		log.Trace("clean buffer")
 	}
 
 	if ctx.IsCanceled() {

@@ -6,6 +6,8 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/buger/jsonparser"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -16,10 +18,7 @@ import (
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
-	elastic2 "infini.sh/gateway/proxy/filters/elastic"
 	"runtime"
-	log "github.com/cihub/seelog"
-	"github.com/buger/jsonparser"
 
 	"sync"
 	"time"
@@ -50,22 +49,21 @@ type Config struct {
 
 	Consumer   queue.ConsumerConfig `config:"consumer"`
 
-	MaxWorkers int      `config:"max_worker_size"`
+	MaxWorkers int `config:"max_worker_size"`
 
-	DetectActiveQueue bool     `config:"detect_active_queue"`
-	DetectIntervalInMs   int         `config:"detect_interval"`
+	DetectActiveQueue  bool `config:"detect_active_queue"`
+	DetectIntervalInMs int  `config:"detect_interval"`
 
-	ValidateRequest bool     `config:"valid_request"`
-	SkipEmptyQueue bool     `config:"skip_empty_queue"`
-	SkipOnMissingInfo bool  `config:"skip_info_missing"`
+	ValidateRequest   bool `config:"valid_request"`
+	SkipEmptyQueue    bool `config:"skip_empty_queue"`
+	SkipOnMissingInfo bool `config:"skip_info_missing"`
 
-	RotateConfig rotate.RotateConfig          `config:"rotate"`
-	BulkConfig   elastic2.BulkProcessorConfig `config:"bulk"`
+	RotateConfig rotate.RotateConfig         `config:"rotate"`
+	BulkConfig   elastic.BulkProcessorConfig `config:"bulk"`
 
-	Elasticsearch     string    `config:"elasticsearch,omitempty"`
+	Elasticsearch string `config:"elasticsearch,omitempty"`
 
-	WaitingAfter        []string `config:"waiting_after"`
-
+	WaitingAfter []string `config:"waiting_after"`
 }
 
 func init()  {
@@ -80,22 +78,22 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		IdleTimeoutInSecond:  5,
 		BulkSizeInMb:         10,
 		DetectIntervalInMs:   10000,
-		Queues: map[string]interface{}{},
+		Queues:               map[string]interface{}{},
 
 		Consumer: queue.ConsumerConfig{
-			Group: "metadata-001",
-			Name: "metadata-001",
-			FetchMinBytes:   	1,
-			FetchMaxMessages:   100,
+			Group:            "metadata-001",
+			Name:             "metadata-001",
+			FetchMinBytes:    1,
+			FetchMaxMessages: 100,
 			FetchMaxWaitMs:   10000,
 		},
 
-		DetectActiveQueue:    true,
-		ValidateRequest:      false,
-		SkipEmptyQueue:      true,
-		SkipOnMissingInfo:   false,
-		RotateConfig:         rotate.DefaultConfig,
-		BulkConfig:           elastic2.DefaultBulkProcessorConfig,
+		DetectActiveQueue: true,
+		ValidateRequest:   false,
+		SkipEmptyQueue:    true,
+		SkipOnMissingInfo: false,
+		RotateConfig:      rotate.DefaultConfig,
+		BulkConfig:        elastic.DefaultBulkProcessorConfig,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {
