@@ -630,6 +630,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					totalShards += v1
 				}
 			}
+			uptime, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "uptime_in_millis"}, hitM)
 			cpu, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "percent"}, hitM)
 			load, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "load_average", "1m"}, hitM)
 			heapUsage, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem", "heap_used_percent"}, hitM)
@@ -647,6 +648,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					"load_1m": load,
 					"heap.percent": heapUsage,
 					"disk.avail": freeDisk,
+					"uptime": uptime,
 				}
 
 			}
