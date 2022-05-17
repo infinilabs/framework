@@ -192,15 +192,6 @@ func (module *ElasticModule) loadIndexMetadataFromES( clusterID string)([]byte, 
             }
           }
         }
-      ],
-      "must_not": [
-        {
-          "term": {
-            "metadata.labels.index_status": {
-              "value": "deleted"
-            }
-          }
-        }
       ]
     }
   }
@@ -336,7 +327,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			//tempIndexID, _ := infoMap.GetValue("settings.index.uuid")
 
 			if state.Metadata.Indices[indexName] == nil {
-				if infoMap["health"] == nil { //already deleted
+				if infoMap["health"] == nil || infoMap["health"] == "unavailable" { //already deleted
 					newIndexMetadata[indexName] = item
 					continue
 				}
@@ -366,7 +357,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 							"version": version,
 							"state": "delete",
 							"index_uuid": indexUUID,
-							//"health_status": infoMap["health"],
+							"health_status": "unavailable",
 						},
 					},
 					Fields: util.MapStr{
