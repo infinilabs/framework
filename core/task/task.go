@@ -107,12 +107,25 @@ func StopTask(id string) {
 		}
 	}
 }
+
+func StopAllTasks() {
+
+	Tasks.Range(func(key, value any) bool {
+		task, ok := value.(*ScheduleTask)
+		if ok {
+			go StopTask(task.ID)
+		}
+		return true
+	})
+}
+
 func DeleteTask(id string) {
 	StopTask(id)
 	Tasks.Delete(id)
 }
 
 func StopTasks() {
+	StopAllTasks()
 	shutdownChannel := taskScheduler.Shutdown()
 	<-shutdownChannel
 
