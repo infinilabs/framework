@@ -727,13 +727,29 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 			shardCounts[shardInfo.NodeName] = 1
 		}
 	}
-
-	for i, nodeInfo := range catNodesInfo {
-		if c, ok := shardCounts[nodeInfo.Name]; ok {
-			catNodesInfo[i].Shards = c
-		}
+	qps, err := h.getNodeQPS(id)
+	if err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"error": err.Error(),
+		}, http.StatusInternalServerError)
+		return
 	}
-	h.WriteJSON(w, catNodesInfo, http.StatusOK)
+
+	nodeInfos := []RealtimeNodeInfo{}
+	for _, nodeInfo := range catNodesInfo {
+		if c, ok := shardCounts[nodeInfo.Name]; ok {
+			nodeInfo.Shards = c
+		}
+		info := RealtimeNodeInfo{
+			CatNodeResponse: CatNodeResponse(nodeInfo) ,
+		}
+		if _, ok := qps[nodeInfo.Id]; ok {
+			info.IndexQPS = qps[nodeInfo.Id]["index"]
+			info.QueryQPS = qps[nodeInfo.Id]["query"]
+		}
+		nodeInfos = append(nodeInfos, info)
+	}
+	h.WriteJSON(w, nodeInfos, http.StatusOK)
 }
 
 func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -790,9 +806,14 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 	}
 	var indices []RealtimeIndexInfo
 	for _, item := range *indexInfos {
-		indices = append(indices, RealtimeIndexInfo{
-			IndexInfo: IndexInfo(item), IndexQPS: qps[item.Index]["index"], QueryQPS: qps[item.Index]["query"],
-		})
+		info := RealtimeIndexInfo{
+			IndexInfo: IndexInfo(item),
+		}
+		if _, ok := qps[item.Index]; ok {
+			info.IndexQPS = qps[item.Index]["index"]
+			info.QueryQPS = qps[item.Index]["query"]
+		}
+		indices = append(indices, info)
 	}
 	h.WriteJSON(w, indices, http.StatusOK)
 }
@@ -801,6 +822,12 @@ type RealtimeIndexInfo struct{
 	IndexQPS interface{} `json:"index_qps"`
 	QueryQPS interface{} `json:"query_qps"`
 	IndexInfo
+}
+type CatNodeResponse elastic.CatNodeResponse
+type RealtimeNodeInfo struct {
+	IndexQPS interface{} `json:"index_qps"`
+	QueryQPS interface{} `json:"query_qps"`
+	CatNodeResponse
 }
 
 func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, error){
@@ -875,12 +902,91 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 			},
 		},
 	}
+	return h.queryQPS(query)
+}
+
+func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error){
+	query := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"term_node": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.labels.node_id",
+					"size":  1000,
+				},
+				"aggs": util.MapStr{
+					"date": util.MapStr{
+						"date_histogram": util.MapStr{
+							"field":    "timestamp",
+							"interval": "10s",
+						},
+						"aggs": util.MapStr{
+							"index_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.node_stats.indices.indexing.index_total",
+								},
+							},
+							"query_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.node_stats.indices.search.query_total",
+								},
+							},
+							"index_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_total",
+								},
+							},
+							"query_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "query_total",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": "now-1m",
+								"lte": "now",
+							},
+						},
+					},
+				},
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_stats",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return h.queryQPS(query)
+}
+
+func (h *APIHandler) queryQPS(query util.MapStr) (map[string]util.MapStr, error) {
 	esClient := h.Client()
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetWildcardIndexName(event.Event{}), util.MustToJSONBytes(query))
 	if err != nil {
 		return nil, err
 	}
-	indexQPS := map[string] util.MapStr{}
+	indexQPS := map[string]util.MapStr{}
 	for _, agg := range searchRes.Aggregations {
 		for _, bk := range agg.Buckets {
 			if k, ok := bk["key"].(string); ok {
@@ -892,7 +998,7 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 							maxQueryRate float64
 						)
 						for _, dateBk := range bks {
-							if dateBkVal,ok := dateBk.(map[string]interface{}); ok {
+							if dateBkVal, ok := dateBk.(map[string]interface{}); ok {
 								if indexRate, ok := dateBkVal["index_rate"].(map[string]interface{}); ok {
 									if indexRateVal, ok := indexRate["value"].(float64); ok && indexRateVal > maxIndexRate {
 										maxIndexRate = indexRateVal
