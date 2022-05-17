@@ -6,9 +6,9 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/rate"
-	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/util"
 	"strings"
 	"time"

@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/r3labs/diff/v2"
@@ -19,38 +20,44 @@ import (
 
 func clusterHealthCheck(clusterID string, force bool) {
 
-				log.Tracef("execute task walk configs: %v",clusterID)
-				cfg:=elastic.GetConfig(clusterID)
-				metadata := elastic.GetOrInitMetadata(cfg)
-				if cfg.Enabled || force {
-					//check seeds' availability
-					if force {
-						//add seeds to host for health check
-						hosts := metadata.GetSeedHosts()
-						for _, host := range hosts {
-							elastic.GetOrInitHost(host)
-						}
-					}
-					//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
-					client := elastic.GetClient(cfg.ID)
-					//check cluster health status
-					health, err := client.ClusterHealth()
-					if err != nil || health == nil || health.StatusCode != 200 {
-						metadata.ReportFailure(err)
-						if metadata.Config.Source != "file" && !metadata.IsAvailable() {
-							updateClusterHealthStatus(clusterID, "unavailable")
-						}
-					} else {
-						metadata.ReportSuccess()
-						if metadata.Health == nil || metadata.Health.Status != health.Status {
-							metadata.Health = health
-							if metadata.Config.Source != "file" {
-								updateClusterHealthStatus(clusterID, health.Status)
-							}
-							log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
-						}
-					}
+	log.Tracef("execute health check for: %v", clusterID)
+
+	cfg := elastic.GetConfig(clusterID)
+	metadata := elastic.GetOrInitMetadata(cfg)
+	if cfg.Enabled || force {
+		//check seeds' availability
+		if force {
+			//add seeds to host for health check
+			hosts := metadata.GetSeedHosts()
+			for _, host := range hosts {
+				elastic.GetOrInitHost(host)
+			}
+		}
+		//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
+		client := elastic.GetClient(cfg.ID)
+		//check cluster health status
+		health, err := client.ClusterHealth()
+		if err != nil || health == nil || health.StatusCode != 200 {
+			if util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
+				metadata.ReportFailure(errors.New("master_not_discovered_exception"))
+			} else {
+				metadata.ReportFailure(err)
+			}
+
+			if metadata.Config.Source != "file" && !metadata.IsAvailable() {
+				updateClusterHealthStatus(clusterID, "unavailable")
+			}
+		} else {
+			metadata.ReportSuccess()
+			if metadata.Health == nil || metadata.Health.Status != health.Status {
+				metadata.Health = health
+				if metadata.Config.Source != "file" {
+					updateClusterHealthStatus(clusterID, health.Status)
 				}
+				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
+			}
+		}
+	}
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string){

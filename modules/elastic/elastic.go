@@ -338,7 +338,8 @@ func (module *ElasticModule) Start() error {
 				elastic.WalkConfigs(func(key, value interface{}) bool {
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
-						log.Tracef("init task walk configs: %v", cfg1.Name)
+
+						log.Tracef("init cluster health check for: %v", cfg1.Name)
 
 						if startTime, ok := module.healthMap.Load(cfg1.ID); ok {
 							elapsed := time.Since(startTime.(time.Time))

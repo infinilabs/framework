@@ -477,9 +477,12 @@ func (c *ESAPIV0) ClusterVersion() string {
 }
 
 func (c *ESAPIV0) GetNodesStats(nodeID,host string) *elastic.NodesStats {
+
+	log.Tracef("get stats for node: %v-%v", nodeID, host)
+
 	url := fmt.Sprintf("%s/_nodes/_all/stats", c.GetEndpoint())
-	if nodeID!=""{
-		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetActivePreferredEndpoint(host),nodeID)
+	if nodeID != "" {
+		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetActivePreferredEndpoint(host), nodeID)
 	}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -621,7 +624,7 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 
 func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 
-	url := fmt.Sprintf("%s/_cluster/health", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cluster/health?timeout=1s", c.GetEndpoint())
 	health := &elastic.ClusterHealth{}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -634,19 +637,22 @@ func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 	}
 
 	if err != nil {
+		log.Error(err, string(resp.Body))
 		health.ErrorObject = err
-		return health,err
+		return health, err
 	}
 
-	err = json.Unmarshal(resp.Body, health)
-
-	if err != nil {
-		health.StatusCode = resp.StatusCode
-		health.RawResult=resp
-		health.ErrorObject = err
-		return health,err
+	if resp.StatusCode == 200 {
+		err = json.Unmarshal(resp.Body, health)
+		if err != nil {
+			health.ErrorObject = err
+			health.RawResult = resp
+			health.StatusCode = resp.StatusCode
+			return health, err
+		}
 	}
-	return health,err
+
+	return health, err
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
@@ -1272,10 +1278,9 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	url := fmt.Sprintf("%s/_alias", c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
-	if err != nil {
+	if err != nil || resp.StatusCode != 200 {
 		return nil, err
 	}
-
 
 	data := map[string]AliasesResponse{}
 	err = json.Unmarshal(resp.Body, &data)

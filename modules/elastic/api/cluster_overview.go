@@ -745,8 +745,8 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 	id := ps.ByName("id")
 	meta := elastic.GetMetadata(id)
 	if meta == nil || !meta.IsAvailable() {
-		log.Warnf("cluster %s is not available",meta.Config.Name)
-		h.WriteJSON(w, util.MapStr{} , http.StatusOK)
+		log.Debugf("cluster %s is not available", meta.Config.Name)
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
 	esClient := elastic.GetClient(id)
@@ -823,7 +823,6 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 	id := ps.ByName("id")
 	meta := elastic.GetMetadata(id)
 	if meta == nil || !meta.IsAvailable() {
-		log.Warnf("cluster %s is not available", id)
 		h.WriteJSON(w, []interface{}{} , http.StatusOK)
 		return
 	}
