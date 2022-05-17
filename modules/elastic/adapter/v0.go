@@ -1361,7 +1361,7 @@ func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, erro
 	url := fmt.Sprintf("%s/_alias", c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
-	if err != nil {
+	if err != nil || resp.StatusCode != 200 {
 		return nil, err
 	}
 	data := map[string]AliasesResponse{}

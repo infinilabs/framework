@@ -1146,7 +1146,7 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	client := elastic.GetClient(clusterId)
 	settings,err := client.GetClusterSettings()
 	if err!=nil{
-		log.Errorf("failed to get [%v] settings: %v",clusterId,err)
+		log.Errorf("failed to get cluster settings for [%v], err: %v", clusterId, err)
 		meta.ReportFailure(err)
 		return
 	}
