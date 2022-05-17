@@ -204,22 +204,28 @@ func (m *Metric) Collect() error {
 					}
 				}else{
 					host := v.GetActiveHost()
-					stats := client.GetNodesStats("", host)
-					if stats.ErrorObject != nil {
-						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
-					}else{
-						for nodeID,nodeStats:=range stats.Nodes{
-							if _, ok := shardInfos[nodeID]; ok {
-								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+					//published host is not a valid host
+					if !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
+						//host not dead and is not available, skip collecting
+						stats := client.GetNodesStats("", host)
+						if stats.ErrorObject != nil {
+							log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
+						} else {
+							for nodeID, nodeStats := range stats.Nodes {
+								if _, ok := shardInfos[nodeID]; ok {
+									shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+								}
+								m.SaveNodeStats(v.Config.ID, nodeID, nodeStats, shardInfos[nodeID])
 							}
-							m.SaveNodeStats(v.Config.ID,nodeID,nodeStats, shardInfos[nodeID])
 						}
+					} else {
+						log.Debugf("host [%v] is not available, skip metrics collecting", host)
 					}
 				}
 			}
 
 			//indices stats
-			if m.AllIndexStats || m.IndexStats {
+			if v.IsAvailable() && (m.AllIndexStats || m.IndexStats) {
 				indexStats, err := client.GetStats()
 				if err != nil {
 					log.Error(v.Config.Name, " get indices stats error: ", err)
