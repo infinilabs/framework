@@ -873,8 +873,10 @@ func (h *APIHandler) getLatestIndices( min string, max string, clusterID string,
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
 			if v, ok := indexName.(string); ok {
 				if infoM, ok := indexInfo.(map[string]interface{}); ok {
-					infoM["timestamp"] = hitM["timestamp"]
-					indexInfos[v] = infoM
+					if _, ok = infoM["index"].(string); ok {
+						infoM["timestamp"] = hitM["timestamp"]
+						indexInfos[v] = infoM
+					}
 				}
 			}
 		}
