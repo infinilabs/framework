@@ -435,10 +435,13 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 				}
 			}
 
-			jvmMem, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem"}, vresult)
+			jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm"}, vresult)
 			if ok {
-				kvs["jvm"] = util.MapStr{
-					"mem": jvmMem,
+				if jvmVal, ok := jvm.(map[string]interface{});ok {
+					kvs["jvm"] = util.MapStr{
+						"mem": jvmVal["mem"],
+						"uptime": jvmVal["uptime_in_millis"],
+					}
 				}
 			}
 			indices := util.MapStr{}

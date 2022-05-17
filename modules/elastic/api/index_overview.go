@@ -525,8 +525,8 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 	metricItems := []*common.MetricItem{}
 	metricItem:=newMetricItem("index_throughput", 1, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Indexing Rate","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Deleting Rate","Deleting Rate","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Deleting Rate","Primary Deleting","Number of documents being deleted for node.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
@@ -538,12 +538,12 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 
-	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Latency","Primary Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.index_stats.primaries.indexing.index_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Deleting Latency","Primary Deleting Latency","Average latency for delete documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.index_stats.primaries.indexing.delete_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
@@ -800,8 +800,37 @@ func (h *APIHandler) getIndexNodes(w http.ResponseWriter, req *http.Request, ps 
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
+	nodes := []interface{}{}
+	for _, hit := range result.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			nodeId, _ := util.GetMapValueByKeys([]string{"metadata", "node_id"}, hitM)
+			nodeName, _ := util.GetMapValueByKeys([]string{"metadata", "node_name"}, hitM)
+			status, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "status"}, hitM)
+			ip, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "ip"}, hitM)
+			transportAddress, _ := util.GetMapValueByKeys([]string{"payload", "node_state", "transport_address"}, hitM)
+			var port string
+			if v, ok := transportAddress.(string); ok {
+				parts := strings.Split(v, ":")
+				if len(parts) > 1 {
+					port = parts[1]
+				}
+			}
 
-	h.Write(w, result.Raw)
+			if v, ok := nodeId.(string); ok {
+				ninfo := util.MapStr{
+					"id": v,
+					"name": nodeName,
+					"ip": ip,
+					"port": port,
+					"status": status,
+					"timestamp": hitM["timestamp"],
+				}
+				nodes = append(nodes, ninfo)
+			}
+		}
+	}
+
+	h.WriteJSON(w, nodes, http.StatusOK)
 }
 
 func (h APIHandler) ListIndex(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

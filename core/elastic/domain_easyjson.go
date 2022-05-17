@@ -5048,6 +5048,14 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic17(in *jlexer.Lexer, out 
 		switch key {
 		case "status":
 			out.Status = int(in.Int())
+		case "root_cause":
+			if m, ok := out.RootCause.(easyjson.Unmarshaler); ok {
+				m.UnmarshalEasyJSON(in)
+			} else if m, ok := out.RootCause.(json.Unmarshaler); ok {
+				_ = m.UnmarshalJSON(in.Raw())
+			} else {
+				out.RootCause = in.Interface()
+			}
 		case "error":
 			if in.IsNull() {
 				in.Skip()
@@ -5080,6 +5088,22 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic17(out *jwriter.Writer, i
 		first = false
 		out.RawString(prefix[1:])
 		out.Int(int(in.Status))
+	}
+	if in.RootCause != nil {
+		const prefix string = ",\"root_cause\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		if m, ok := in.RootCause.(easyjson.Marshaler); ok {
+			m.MarshalEasyJSON(out)
+		} else if m, ok := in.RootCause.(json.Marshaler); ok {
+			out.Raw(m.MarshalJSON())
+		} else {
+			out.Raw(json.Marshal(in.RootCause))
+		}
 	}
 	if in.Error != nil {
 		const prefix string = ",\"error\":"
@@ -5564,6 +5588,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic19(in *jlexer.Lexer, out 
 			out.Version = int64(in.Int64())
 		case "state_uuid":
 			out.StateUUID = string(in.String())
+		case "cluster_uuid":
+			out.ClusterUUID = string(in.String())
 		case "master_node":
 			out.MasterNode = string(in.String())
 		case "routing_table":
@@ -5618,6 +5644,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic19(out *jwriter.Writer, i
 		const prefix string = ",\"state_uuid\":"
 		out.RawString(prefix)
 		out.String(string(in.StateUUID))
+	}
+	{
+		const prefix string = ",\"cluster_uuid\":"
+		out.RawString(prefix)
+		out.String(string(in.ClusterUUID))
 	}
 	{
 		const prefix string = ",\"master_node\":"
@@ -7537,6 +7568,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic26(in *jlexer.Lexer, out 
 			out.DiskAvail = string(in.String())
 		case "shards":
 			out.Shards = int(in.Int())
+		case "uptime":
+			out.Uptime = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -7632,6 +7665,11 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic26(out *jwriter.Writer, i
 		const prefix string = ",\"shards\":"
 		out.RawString(prefix)
 		out.Int(int(in.Shards))
+	}
+	{
+		const prefix string = ",\"uptime\":"
+		out.RawString(prefix)
+		out.String(string(in.Uptime))
 	}
 	out.RawByte('}')
 }
@@ -8093,6 +8131,14 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic29(in *jlexer.Lexer, out 
 			}
 		case "status":
 			out.Status = int(in.Int())
+		case "root_cause":
+			if m, ok := out.RootCause.(easyjson.Unmarshaler); ok {
+				m.UnmarshalEasyJSON(in)
+			} else if m, ok := out.RootCause.(json.Unmarshaler); ok {
+				_ = m.UnmarshalJSON(in.Raw())
+			} else {
+				out.RootCause = in.Interface()
+			}
 		case "error":
 			if in.IsNull() {
 				in.Skip()
@@ -8391,6 +8437,22 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic29(out *jwriter.Writer, i
 			out.RawString(prefix)
 		}
 		out.Int(int(in.Status))
+	}
+	if in.RootCause != nil {
+		const prefix string = ",\"root_cause\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		if m, ok := in.RootCause.(easyjson.Marshaler); ok {
+			m.MarshalEasyJSON(out)
+		} else if m, ok := in.RootCause.(json.Marshaler); ok {
+			out.Raw(m.MarshalJSON())
+		} else {
+			out.Raw(json.Marshal(in.RootCause))
+		}
 	}
 	if in.Error != nil {
 		const prefix string = ",\"error\":"
