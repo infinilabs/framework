@@ -115,14 +115,28 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 				}
 				goto RELOCATE_FILE
 			}else{
-				if global.Env().IsDebug{
-					log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data",nextFile)
+				if global.Env().IsDebug {
+					log.Debugf("EOF, next file [%v] not exists, pause and waiting for new data", nextFile)
 				}
-				if len(messages)==0{
-					if global.Env().IsDebug{
-						log.Debugf("no message found in queue: %v, sleep 1s",d.name)
+
+				if part < d.writeSegmentNum {
+					oldPart := part
+					Notify(d.name, ReadComplete, part)
+					part = part + 1
+					readPos = 0
+					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, part)
+					if readFile != nil {
+						readFile.Close()
 					}
-					time.Sleep(1*time.Second)
+					ctx.NextOffset = fmt.Sprintf("%v,%v", part, readPos)
+					return ctx, messages, false, err
+				}
+
+				if len(messages) == 0 {
+					if global.Env().IsDebug {
+						log.Debugf("no message found in queue: %v, sleep 1s", d.name)
+					}
+					time.Sleep(1 * time.Second)
 				}
 			}
 			//No error for EOF error
