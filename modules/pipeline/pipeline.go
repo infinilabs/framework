@@ -95,6 +95,10 @@ func (module *PipeModule) startTask(w http.ResponseWriter, req *http.Request, ps
 			ctx.Resume()
 		}
 
+		if ctx.IsExit() {
+			ctx.Resume()
+		}
+
 		if ctx.GetRunningState() != pipeline.STARTED {
 			ctx.Starting()
 		}
@@ -112,6 +116,7 @@ func (module *PipeModule) stopTask(w http.ResponseWriter, req *http.Request, ps 
 	if ok {
 		if ctx.GetRunningState() == pipeline.STARTED || ctx.GetRunningState() == pipeline.STARTING {
 			ctx.CancelTask()
+			ctx.Exit()
 		}
 		module.WriteAckOKJSON(w)
 	} else {
@@ -201,7 +206,6 @@ func (module *PipeModule) Start() error {
 						}
 						ctx.Started()
 						err = p.Process(ctx)
-
 						if cfg.KeepRunning && !ctx.IsExit() {
 							if ctx.GetRunningState() != pipeline.STOPPED && ctx.GetRunningState() != pipeline.STOPPING {
 								log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, cfg.RetryDelayInMs)

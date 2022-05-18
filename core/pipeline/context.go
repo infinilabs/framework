@@ -190,9 +190,9 @@ func (context *Context) Cancelled() {
 //resume pipeline, set to start mode
 func (ctx *Context) Resume() {
 	ctx.stateLock.Lock()
-	ctx.isPaused=false
+	ctx.isPaused = false
+	ctx.isQuit = false
 	ctx.stateLock.Unlock()
-
 	ctx.pause.Done()
 }
 
