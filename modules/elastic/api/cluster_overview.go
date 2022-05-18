@@ -12,6 +12,7 @@ import (
 	"net/http"
 	log "src/github.com/cihub/seelog"
 	"strings"
+	"time"
 )
 
 func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -679,6 +680,14 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					"status": status,
 				}
 				if nodeInfos[v] != nil {
+					if nodeInfos[v]["timestamp"] != nil {
+						if ts, ok := nodeInfos[v]["timestamp"].(string); ok {
+							tt, _ := time.Parse(time.RFC3339, ts)
+							if time.Now().Sub(tt).Seconds() > 30 {
+								ninfo["status"] = "N/A"
+							}
+						}
+					}
 					util.MergeFields(ninfo, nodeInfos[v], true)
 				}else{
 					ninfo["timestamp"] = hitM["timestamp"]
