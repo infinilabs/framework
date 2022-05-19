@@ -184,6 +184,17 @@ func (h APIHandler) loadRolePermission() {
 	rbac.RoleMap[roleAdminName] = rbac.Role{
 		Privilege: rbac.RolePrivilege{
 			Platform: enum.AdminPrivilege,
+			Elasticsearch: rbac.ElasticsearchPrivilege{
+				Cluster: rbac.ClusterPrivilege{
+					Resources: []rbac.InnerCluster{{"*", "*"}},
+					Permissions: []string{"*"},
+				},
+				Index: []rbac.IndexPrivilege{
+					{Name: []string{"*"},
+						Permissions: []string{"*"},
+					},
+				},
+			},
 		},
 	}
 

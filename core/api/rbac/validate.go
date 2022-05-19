@@ -172,6 +172,9 @@ func GetRoleClusterMap(roles []string) map[string][]string {
 
 func GetRoleCluster(roles []string) []string {
 	userClusterMap := GetRoleClusterMap(roles)
+	if _, ok := userClusterMap["*"]; ok {
+		return []string{"*"}
+	}
 	realCluster := make([]string, 0, len(userClusterMap))
 	for k, _ := range userClusterMap {
 		realCluster = append(realCluster, k)
@@ -179,21 +182,20 @@ func GetRoleCluster(roles []string) []string {
 	return realCluster
 }
 
-func GetRoleIndex(roles, clusterIDs []string) map[string][]string {
-	userClusterMap := make(map[string]struct{}, len(clusterIDs))
-	for _, clusterID := range clusterIDs {
-		userClusterMap[clusterID] = struct{}{}
-	}
-	realIndex := map[string][]string{}
+func GetRoleIndex(roles []string, clusterID string) []string {
+	var realIndex []string
 	for _, roleName := range roles {
 		role, ok := RoleMap[roleName]
 		if ok {
 			for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
-				if _, ok = userClusterMap[ic.ID]; !ok {
+				if ic.ID != "*" && ic.ID != clusterID {
 					continue
 				}
 				for _, ip := range role.Privilege.Elasticsearch.Index {
-					realIndex[ic.ID] = append(realIndex[ic.ID], ip.Name...)
+					if util.StringInArray(ip.Name, "*"){
+						return []string{"*"}
+					}
+					realIndex = append(realIndex, ip.Name...)
 				}
 			}
 		}

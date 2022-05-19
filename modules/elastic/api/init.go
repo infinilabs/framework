@@ -2,6 +2,7 @@ package api
 
 import (
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/rbac/enum"
 	"infini.sh/framework/modules/elastic/common"
 )
 
@@ -16,15 +17,15 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/queue_metrics", clusterAPI.HandleQueueMetricsAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/storage_metrics", clusterAPI.HandleGetStorageMetricAction)
 
-	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.HandleCreateClusterAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.RequirePermission(clusterAPI.HandleCreateClusterAction, enum.PermissionElasticsearchClusterWrite))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.ListIndex)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.HandleGetClusterAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.RequirePermission(clusterAPI.HandleGetClusterAction, enum.PermissionElasticsearchClusterRead))
 	//api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/kv", clusterAPI.HandleGetNodesAction)
-	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.HandleUpdateClusterAction)
-	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id", clusterAPI.HandleDeleteClusterAction)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/_search", clusterAPI.HandleSearchClusterAction)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/_search", clusterAPI.HandleSearchClusterAction)
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.RequirePermission(clusterAPI.HandleUpdateClusterAction, enum.PermissionElasticsearchClusterWrite))
+	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id", clusterAPI.RequirePermission(clusterAPI.HandleDeleteClusterAction, enum.PermissionElasticsearchClusterWrite))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchClusterAction, enum.PermissionElasticsearchClusterRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchClusterAction, enum.PermissionElasticsearchClusterRead))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search_template", clusterAPI.HandleCreateSearchTemplateAction)
 	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/search_template/:template_id", clusterAPI.HandleUpdateSearchTemplateAction)
@@ -38,12 +39,12 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/alias", clusterAPI.HandleAliasAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/alias", clusterAPI.HandleGetAliasAction)
 
-	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/view", clusterAPI.HandleCreateViewAction)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.HandleGetViewListAction)
-	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.HandleDeleteViewAction)
-	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.HandleUpdateViewAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/view", clusterAPI.RequirePermission(clusterAPI.HandleCreateViewAction, enum.PermissionViewWrite))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.RequirePermission(clusterAPI.HandleGetViewListAction, enum.PermissionViewRead))
+	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.RequirePermission(clusterAPI.HandleDeleteViewAction, enum.PermissionViewWrite))
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.RequirePermission(clusterAPI.HandleUpdateViewAction, enum.PermissionViewWrite))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/internal/view-management/resolve_index/:wild", clusterAPI.HandleResolveIndexAction)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.HandleBulkGetViewAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.RequirePermission(clusterAPI.HandleBulkGetViewAction, enum.PermissionViewRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.HandleGetFieldCapsAction)
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.HandleEseSearchAction)
@@ -59,25 +60,25 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.GetMetadata)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", clusterAPI.GetHosts)
 
-	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/_search", clusterAPI.SearchClusterMetadata)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/info", clusterAPI.FetchClusterInfo)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/_search", clusterAPI.RequirePermission(clusterAPI.SearchClusterMetadata, enum.PermissionElasticsearchClusterRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/info", clusterAPI.RequirePermission(clusterAPI.FetchClusterInfo, enum.PermissionElasticsearchMetricRead))
 
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/overview/treemap", clusterAPI.ClusterOverTreeMap)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/info", clusterAPI.GetClusterInfo)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/node/_search", clusterAPI.SearchNodeMetadata)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes", clusterAPI.GetClusterNodes)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/realtime", clusterAPI.GetRealtimeClusterNodes)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/node/info", clusterAPI.FetchNodeInfo)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices", clusterAPI.GetClusterIndices)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices/realtime", clusterAPI.GetRealtimeClusterIndices)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/info", clusterAPI.GetNodeInfo)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/metrics", clusterAPI.GetSingleNodeMetrics)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/indices", clusterAPI.getNodeIndices)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/index/_search", clusterAPI.SearchIndexMetadata)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/metrics", clusterAPI.GetSingleIndexMetrics)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/info", clusterAPI.GetIndexInfo)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/nodes", clusterAPI.getIndexNodes)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/index/info", clusterAPI.FetchIndexInfo)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/overview/treemap", clusterAPI.RequirePermission(clusterAPI.ClusterOverTreeMap, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/info", clusterAPI.RequirePermission(clusterAPI.GetClusterInfo, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/node/_search", clusterAPI.RequirePermission(clusterAPI.SearchNodeMetadata, enum.PermissionElasticsearchNodeRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes", clusterAPI.RequirePermission(clusterAPI.GetClusterNodes, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchNodeRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/realtime", clusterAPI.RequirePermission(clusterAPI.GetRealtimeClusterNodes, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/node/info", clusterAPI.RequirePermission(clusterAPI.FetchNodeInfo, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices", clusterAPI.RequirePermission(clusterAPI.GetClusterIndices, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchIndexRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices/realtime", clusterAPI.RequirePermission(clusterAPI.GetRealtimeClusterIndices, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/info", clusterAPI.RequirePermission(clusterAPI.GetNodeInfo, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchNodeRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/metrics", clusterAPI.RequirePermission(clusterAPI.GetSingleNodeMetrics, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/indices", clusterAPI.RequirePermission(clusterAPI.getNodeIndices, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchIndexRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/index/_search", clusterAPI.RequirePermission(clusterAPI.SearchIndexMetadata, enum.PermissionElasticsearchIndexRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/metrics", clusterAPI.RequirePermission(clusterAPI.GetSingleIndexMetrics, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/info", clusterAPI.RequirePermission(clusterAPI.GetIndexInfo,enum.PermissionElasticsearchIndexRead, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/nodes", clusterAPI.RequirePermission(clusterAPI.getIndexNodes, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchNodeRead))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/index/info", clusterAPI.RequirePermission(clusterAPI.FetchIndexInfo, enum.PermissionElasticsearchMetricRead))
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template", clusterAPI.HandleSearchTraceTemplateAction)
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleGetTraceTemplateAction)
@@ -86,5 +87,5 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleDeleteTraceTemplateAction)
 
 	api.HandleAPIMethod(api.DELETE, "/_framework/api/local_state/elasticsearch/:type/:target", clusterAPI.HandleRemoveLocalState)
-	api.HandleAPIMethod(api.POST, "/elasticsearch/activity/_search", clusterAPI.HandleSearchActivityAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/activity/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchActivityAction, enum.PermissionActivityRead))
 }
