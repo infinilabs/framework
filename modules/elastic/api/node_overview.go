@@ -14,6 +14,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	"time"
 )
 
 func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -408,10 +409,10 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 
 	response := elastic.SearchResponse{}
 	util.FromJSONBytes(res.Raw, &response)
-	if len(response.Hits.Hits) == 0 {
-		h.WriteError(w, "", http.StatusNotFound)
-		return
-	}
+	//if len(response.Hits.Hits) == 0 {
+	//	h.WriteError(w, "", http.StatusNotFound)
+	//	return
+	//}
 	q1 := orm.Query{
 		Size: 1,
 		WildcardIndex: true,
@@ -428,6 +429,24 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 	if len(result.Result) > 0 {
 		vresult, ok := result.Result[0].(map[string]interface{})
 		if ok {
+			transportAddress, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "transport_address"}, vresult)
+			if ok {
+				kvs["transport_address"] = transportAddress
+			}
+			if vresult["timestamp"] != nil {
+				if ts, ok := vresult["timestamp"].(string); ok {
+					tt, _ := time.Parse(time.RFC3339, ts)
+					if time.Now().Sub(tt).Seconds() > 30 {
+						kvs["status"] = "unavailable"
+					}else{
+						kvs["status"] = "available"
+					}
+				}
+			}
+			roles, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "roles"}, vresult)
+			if ok {
+				kvs["roles"] = roles
+			}
 			fsTotal, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, vresult)
 			if ok {
 				kvs["fs"] = util.MapStr{
@@ -460,12 +479,14 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 			}
 		}
 	}
-	hit := response.Hits.Hits[0]
-	innerMetaData, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, hit.Source)
-	if mp, ok := innerMetaData.(map[string]interface{}); ok {
-		kvs["transport_address"] = mp["transport_address"]
-		kvs["roles"] = mp["roles"]
-		kvs["status"] = mp["status"]
+	if len( response.Hits.Hits) > 0 {
+		hit := response.Hits.Hits[0]
+		innerMetaData, _ := util.GetMapValueByKeys([]string{"metadata", "labels"}, hit.Source)
+		if mp, ok := innerMetaData.(map[string]interface{}); ok {
+			kvs["transport_address"] = mp["transport_address"]
+			kvs["roles"] = mp["roles"]
+			kvs["status"] = mp["status"]
+		}
 	}
 
 	if meta := elastic.GetMetadata(clusterID); meta != nil && meta.ClusterState != nil {
