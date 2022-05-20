@@ -36,6 +36,8 @@ const (
 	RuleAll     = "alerting.rule:all"
 	AlertRead   = "alerting.alert:read"
 	AlertAll    = "alerting.alert:all"
+	AlertMessageRead   = "alerting.message:read"
+	AlertMessageAll    = "alerting.message:all"
 	ChannelRead = "alerting.channel:read"
 	ChannelAll  = "alerting.channel:all"
 
@@ -65,6 +67,7 @@ const (
 	PermissionAlertRuleWrite = "alert.rule:write"
 	PermissionAlertHistoryRead = "alert.history:read"
 	PermissionAlertHistoryWrite = "alert.history:write"
+	PermissionAlertMessageRead = "alert.message:read"
 	PermissionAlertChannelRead = "alert.channel:read"
 	PermissionAlertChannelWrite = "alert.channel:write"
 	PermissionViewRead = "view:read"
@@ -116,6 +119,8 @@ var (
 	RuleAllPermission     = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite}
 	AlertReadPermission   = []string{PermissionAlertHistoryRead}
 	AlertAllPermission    = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
+	AlertMessageReadPermission   = []string{PermissionAlertMessageRead}
+	AlertMessageAllPermission   = []string{PermissionAlertMessageRead}
 	ChannelReadPermission = []string{PermissionAlertChannelRead}
 	ChannelAllPermission  = []string{PermissionAlertChannelRead, PermissionAlertChannelWrite}
 
@@ -132,6 +137,7 @@ var AdminPrivilege = []string{
 	InstanceAll, EntryAll, RouterAll, FlowAll,
 	IndexAll, ViewsAll, DiscoverAll,
 	RuleAll, AlertAll, ChannelAll,
+	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 }
 
@@ -180,6 +186,8 @@ func init() {
 		AlertAll:    AlertAllPermission,
 		ChannelRead: ChannelReadPermission,
 		ChannelAll:  ChannelAllPermission,
+		AlertMessageRead: AlertMessageReadPermission,
+		AlertMessageAll: AlertMessageAllPermission,
 
 		ClusterOverviewRead: ClusterOverviewReadPermission,
 		ClusterOverviewAll:  ClusterOverviewAllPermission,
