@@ -145,7 +145,7 @@ func loadESBasedElasticConfig() {
 func initElasticInstances() {
 	for k, esConfig := range m {
 
-		log.Trace("init elasticsearch ", esConfig.Name,esConfig.Enabled)
+		log.Trace("init elasticsearch ", esConfig.Name, ", enabled:", esConfig.Enabled)
 
 		if !esConfig.Enabled {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
