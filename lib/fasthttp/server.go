@@ -2084,7 +2084,7 @@ func (s *Server) Shutdown() error {
 	// Closing the listener will make Serve() call Stop on the worker pool.
 	// Setting .stop to 1 will make serveConn() break out of its loop.
 	// Now we just have to wait until all workers are done.
-	timer := util.AcquireTimer(time.Second * 60)
+	timer := util.AcquireTimer(time.Second * 10)
 	defer util.ReleaseTimer(timer)
 	for {
 		select {
