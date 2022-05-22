@@ -35,6 +35,7 @@ type flagOverwrite struct {
 var configOpts = []ucfg.Option{
 	ucfg.PathSep("."),
 	ucfg.ResolveEnv,
+	ucfg.AppendValues,
 	ucfg.VarExp,
 }
 
