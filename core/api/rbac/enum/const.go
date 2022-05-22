@@ -68,6 +68,7 @@ const (
 	PermissionAlertHistoryRead = "alert.history:read"
 	PermissionAlertHistoryWrite = "alert.history:write"
 	PermissionAlertMessageRead = "alert.message:read"
+	PermissionAlertMessageWrite = "alert.message:write"
 	PermissionAlertChannelRead = "alert.channel:read"
 	PermissionAlertChannelWrite = "alert.channel:write"
 	PermissionViewRead = "view:read"
@@ -120,7 +121,7 @@ var (
 	AlertReadPermission   = []string{PermissionAlertHistoryRead}
 	AlertAllPermission    = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
 	AlertMessageReadPermission   = []string{PermissionAlertMessageRead}
-	AlertMessageAllPermission   = []string{PermissionAlertMessageRead}
+	AlertMessageAllPermission   = []string{PermissionAlertMessageRead, PermissionAlertMessageWrite}
 	ChannelReadPermission = []string{PermissionAlertChannelRead}
 	ChannelAllPermission  = []string{PermissionAlertChannelRead, PermissionAlertChannelWrite}
 
