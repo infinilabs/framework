@@ -511,8 +511,8 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 		config = cfg
 	}
 
-	client, _:=common.InitClientWithConfig(config)
-	elastic.RegisterInstance(id, config, client)
+	client, _ := common.InitClientWithConfig(config)
+	elastic.RegisterInstance(config, client)
 
 	return true,client,nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/elastic/go-ucfg/yaml"
 	"github.com/magiconair/properties/assert"
 	"github.com/spf13/viper"
+	"infini.sh/framework/core/util"
 	"os"
 	"testing"
 )
@@ -160,6 +161,39 @@ func TestMergeCfg(t *testing.T) {
 	result := map[string]interface{}{}
 	err = c.Unpack(&result)
 	t.Logf("merge %v %v", result, err)
+}
+
+func TestMergeCfg1(t *testing.T) {
+	a1 := map[string]interface{}{
+		"arr": []map[string]interface{}{
+			map[string]interface{}{
+				"abc": "efg",
+			},
+		},
+	}
+	a2 := map[string]interface{}{
+		"arr": []interface{}{map[string]interface{}{
+			"efg": "hij",
+		}},
+	}
+	t.Logf("a1 %v", util.ToJson(a1, true))
+	t.Logf("a2 %v", util.ToJson(a2, true))
+
+	c := ucfg.New()
+	opts := []ucfg.Option{
+		//ucfg.PathSep("."),
+		ucfg.AppendValues,
+		//ucfg.FieldAppendValues("arr"),
+	}
+	err := c.Merge(a1, opts...)
+	t.Logf("err %v", err)
+
+	err = c.Merge(a2, opts...)
+	t.Logf("err %v", err)
+
+	result := map[string]interface{}{}
+	err = c.Unpack(&result)
+	t.Logf("merge %v %v", util.ToJson(result, true), err)
 }
 
 type node map[string]interface{}

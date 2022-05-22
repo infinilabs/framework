@@ -319,18 +319,34 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 	env.SetConfigFile(filename)
 
+	log.Trace(env.SystemConfig.PathConfig.Config)
+
 	//load configs from config folder
-	if env.SystemConfig.PathConfig.Config!=""{
-		cfgPath,_:=filepath.Abs(env.SystemConfig.PathConfig.Config)
-		log.Trace("loading configs from:",cfgPath)
-		v,err:=config.LoadPath(env.SystemConfig.PathConfig.Config)
-		if err!=nil{
-			return err
+	if env.SystemConfig.PathConfig.Config != "" {
+		cfgPath := TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
+		log.Debug("loading configs from:", cfgPath)
+		if util.FileExists(cfgPath) {
+
+			v, err := config.LoadPath(env.SystemConfig.PathConfig.Config)
+			if err != nil {
+				return err
+			}
+			if env.IsDebug {
+				obj := map[string]interface{}{}
+				v.Unpack(&obj)
+				log.Trace(util.ToJson(obj, true))
+			}
+
+			err = configObject.Merge(v)
+			if err != nil {
+				return err
+			}
 		}
 
-		err=configObject.Merge(v)
-		if err != nil {
-			return err
+		if env.IsDebug {
+			obj := map[string]interface{}{}
+			configObject.Unpack(&obj)
+			log.Trace(util.ToJson(obj, true))
 		}
 
 		if env.SystemConfig.Configs.AutoReload {
