@@ -22,6 +22,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -812,7 +813,7 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 }
 func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
 	data := []elastic.CatShardResponse{}
-	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json&bytes=b", c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
@@ -823,7 +824,14 @@ func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
 	}
 
 	err = json.Unmarshal(resp.Body, &data)
-	return data, err
+	if err != nil {
+		return nil, err
+	}
+	for i, catRes := range data {
+		data[i].StoreInBytes, _ = strconv.ParseInt(catRes.Store, 10, 64)
+		data[i].Store = util.FormatBytes(float64(data[i].StoreInBytes), 2)
+	}
+	return data, nil
 }
 
 func (c *ESAPIV0) Bulk(data []byte) (*util.Result, error) {
