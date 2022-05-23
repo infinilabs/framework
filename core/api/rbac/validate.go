@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -169,20 +170,32 @@ func GetRoleClusterMap(roles []string) map[string][]string {
 	}
 	return userClusterMap
 }
-
-func GetRoleCluster(roles []string) []string {
+//GetRoleCluster get cluster id by given role names
+//return true when has all cluster privilege, otherwise return cluster id list
+func GetRoleCluster(roles []string) (bool, []string) {
 	userClusterMap := GetRoleClusterMap(roles)
 	if _, ok := userClusterMap["*"]; ok {
-		return []string{"*"}
+		return true, nil
 	}
 	realCluster := make([]string, 0, len(userClusterMap))
 	for k, _ := range userClusterMap {
 		realCluster = append(realCluster, k)
 	}
-	return realCluster
+	return false, realCluster
 }
 
-func GetRoleIndex(roles []string, clusterID string) []string {
+//GetCurrentUserCluster get cluster id by current login user
+//return true when has all cluster privilege, otherwise return cluster id list
+func GetCurrentUserCluster(req *http.Request) (bool, []string){
+	ctxVal := req.Context().Value("user")
+	if userClaims, ok := ctxVal.(*UserClaims); ok {
+		return GetRoleCluster(userClaims.Roles)
+	}else{
+		panic("user context value not found")
+	}
+}
+
+func GetRoleIndex(roles []string, clusterID string) []string{
 	var realIndex []string
 	for _, roleName := range roles {
 		role, ok := RoleMap[roleName]

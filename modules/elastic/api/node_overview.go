@@ -113,6 +113,18 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			},
 		}
 	}
+	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "metadata.cluster_id")
+	if !hasPrivilege {
+		h.WriteJSON(w, elastic.SearchResponse{
+
+		}, http.StatusOK)
+		return
+	}
+	must := []interface{}{
+	}
+	if clusterFilter != nil {
+		must = append(must, clusterFilter)
+	}
 
 	query := util.MapStr{
 		"aggs":      aggs,
@@ -123,6 +135,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			"bool": util.MapStr{
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
 				"should": should,
+				"must": must,
 			},
 		},
 	}

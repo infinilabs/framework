@@ -3,6 +3,7 @@ package api
 import (
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/util"
 	"net/http"
 )
 
@@ -51,4 +52,22 @@ func (handler Handler) ClusterRequired(h httprouter.Handle, route ...string) htt
 
 		h(w, r, ps)
 	}
+}
+
+func (handler Handler) GetClusterFilter(r *http.Request, field string) (util.MapStr, bool) {
+	if !IsAuthEnable(){
+		return nil, true
+	}
+	hasAllPrivilege, clusterIds := rbac.GetCurrentUserCluster(r)
+	if hasAllPrivilege {
+		return nil, true
+	}
+	if len(clusterIds) == 0 {
+		return nil, false
+	}
+	return util.MapStr{
+		"terms": util.MapStr{
+			field: clusterIds,
+		},
+	}, true
 }

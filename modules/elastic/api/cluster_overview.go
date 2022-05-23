@@ -1132,6 +1132,19 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 			},
 		}
 	}
+
+	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "_id")
+	if !hasPrivilege {
+		h.WriteJSON(w, elastic.SearchResponse{
+
+		}, http.StatusOK)
+		return
+	}
+	must := []interface{}{
+	}
+	if clusterFilter != nil {
+		must = append(must, clusterFilter)
+	}
 	query := util.MapStr{
 		"aggs":      elastic.BuildSearchTermAggregations(reqBody.Aggregations),
 		"size":      reqBody.Size,
@@ -1141,6 +1154,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 			"bool": util.MapStr{
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
 				"should": should,
+				"must": must,
 			},
 		},
 	}

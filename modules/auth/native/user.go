@@ -7,7 +7,6 @@ package native
 import (
 	"errors"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
@@ -34,12 +33,11 @@ func (dal *User) GetBy(field string, value interface{}) (rbac.User, error){
 	if result.Total == 0 {
 		return user, errors.New("user not found")
 	}
-	if row, ok := result.Result[0].(map[string]interface{}); ok {
-		delete(row, "created")
-		delete(row, "updated")
+	userBytes, err := util.ToJSONBytes(result.Result[0])
+	if err != nil {
+		return user, err
 	}
-
-	err = mapstructure.Decode(result.Result[0], &user)
+	util.FromJSONBytes(userBytes, &user)
 	return user, err
 }
 
