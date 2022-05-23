@@ -148,6 +148,8 @@ func (module *ElasticModule) Setup(cfg *config.Config) {
 	if exists && err != nil {
 		panic(err)
 	}
+	m := loadFileBasedElasticConfig()
+	initElasticInstances(m, "file")
 
 	if moduleConfig.ORMConfig.Enabled {
 		client := elastic.GetClient(moduleConfig.Elasticsearch)
@@ -249,14 +251,6 @@ func (module *ElasticModule) clusterStateRefresh() {
 
 func (module *ElasticModule) Start() error {
 
-	m := loadFileBasedElasticConfig()
-	initElasticInstances(m, "file")
-
-	if moduleConfig.RemoteConfigEnabled {
-		m := loadESBasedElasticConfig()
-		initElasticInstances(m, "elastic")
-	}
-
 	if moduleConfig.ORMConfig.Enabled {
 		if moduleConfig.ORMConfig.InitTemplate {
 			client := elastic.GetClient(moduleConfig.Elasticsearch)
@@ -284,6 +278,10 @@ func (module *ElasticModule) Start() error {
 		if err != nil {
 			panic(err)
 		}
+	}
+	if moduleConfig.RemoteConfigEnabled {
+		m := loadESBasedElasticConfig()
+		initElasticInstances(m, "elastic")
 	}
 
 	if module.storeHandler != nil {
