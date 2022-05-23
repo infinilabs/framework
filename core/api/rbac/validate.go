@@ -195,7 +195,7 @@ func GetCurrentUserCluster(req *http.Request) (bool, []string){
 	}
 }
 
-func GetRoleIndex(roles []string, clusterID string) []string{
+func GetRoleIndex(roles []string, clusterID string) (bool, []string){
 	var realIndex []string
 	for _, roleName := range roles {
 		role, ok := RoleMap[roleName]
@@ -206,14 +206,14 @@ func GetRoleIndex(roles []string, clusterID string) []string{
 				}
 				for _, ip := range role.Privilege.Elasticsearch.Index {
 					if util.StringInArray(ip.Name, "*"){
-						return []string{"*"}
+						return true, nil
 					}
 					realIndex = append(realIndex, ip.Name...)
 				}
 			}
 		}
 	}
-	return realIndex
+	return false, realIndex
 }
 
 func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
