@@ -216,6 +216,15 @@ func GetRoleIndex(roles []string, clusterID string) (bool, []string){
 	return false, realIndex
 }
 
+func GetCurrentUserIndex(req *http.Request, clusterID string) (bool, []string){
+	ctxVal := req.Context().Value("user")
+	if userClaims, ok := ctxVal.(*UserClaims); ok {
+		return GetRoleIndex(userClaims.Roles, clusterID)
+	}else{
+		panic("user context value not found")
+	}
+}
+
 func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
 
 	if authorizationHeader == "" {
