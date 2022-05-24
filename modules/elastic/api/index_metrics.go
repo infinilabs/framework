@@ -4,18 +4,16 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"net/http"
 	"sort"
 	"time"
 )
 
-func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max int64, indexName string, top int) map[string]*common.MetricItem{
+func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucketSize int, min, max int64, indexName string, top int) map[string]*common.MetricItem{
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	indexNames, err := h.getTopIndexName(clusterID, top, 15)
-	if err != nil {
-		log.Error(err)
-	}
 
 	var must = []util.MapStr{
 		{
@@ -40,23 +38,44 @@ func (h *APIHandler) getIndexMetrics(clusterID string, bucketSize int, min, max 
 			},
 		},
 	}
+	var (
+		indexNames []string
+		err error
+	)
 	if indexName != "" {
 		top = 1
+		indexNames = []string{indexName}
+	}else{
+		indexNames, err = h.getTopIndexName(clusterID, top, 15)
+		if err != nil {
+			log.Error(err)
+		}
+
+	}
+	if len(indexNames) > 0 {
+		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
+		if !hasAllPrivilege && len(allowedIndices) == 0 {
+			return nil
+		}
+		var indexPattern *radix.Pattern
+		var filterNames []string
+		if !hasAllPrivilege {
+			indexPattern = radix.Compile(allowedIndices...)
+			for _, name := range indexNames {
+				if indexPattern.Match(name) {
+					filterNames = append(filterNames, name)
+				}
+			}
+		}
+
+		if len(filterNames) == 0 {
+			return nil
+		}
 		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.labels.index_name": util.MapStr{
-					"value": indexName,
-				},
+			"terms": util.MapStr{
+				"metadata.labels.index_name": filterNames,
 			},
 		})
-	}else{
-		if len(indexNames) > 0 {
-			must = append(must, util.MapStr{
-				"terms": util.MapStr{
-					"metadata.labels.index_name": indexNames,
-				},
-			})
-		}
 	}
 
 	query:=map[string]interface{}{}

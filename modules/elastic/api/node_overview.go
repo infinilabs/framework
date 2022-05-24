@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
@@ -816,7 +817,7 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
 
-	indices, err := h.getLatestIndices(min, max, id, &result)
+	indices, err := h.getLatestIndices(req, min, max, id, &result)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
@@ -825,7 +826,13 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 	h.WriteJSON(w, indices, http.StatusOK)
 }
 
-func (h *APIHandler) getLatestIndices( min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
+func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
+	//filter indices
+	allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
+	if !hasAllPrivilege && len(allowedIndices) == 0 {
+		return []interface{}{}, nil
+	}
+
 	query := util.MapStr{
 		"size":    2000,
 		"_source": []string{"metadata", "payload.elasticsearch.index_stats.index_info", "timestamp"},
@@ -898,11 +905,21 @@ func (h *APIHandler) getLatestIndices( min string, max string, clusterID string,
 		}
 	}
 	indices := []interface{}{}
+	var indexPattern *radix.Pattern
+	if !hasAllPrivilege{
+		indexPattern = radix.Compile(allowedIndices...)
+	}
+
 	for _, hit := range result.Result {
 		if hitM, ok := hit.(map[string]interface{}); ok {
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
 			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
 			if v, ok := indexName.(string); ok {
+				if indexPattern != nil {
+					if !indexPattern.Match(v) {
+						continue
+					}
+				}
 				if indexInfos[v] != nil {
 					indices = append(indices, indexInfos[v])
 				} else {

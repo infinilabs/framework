@@ -783,7 +783,7 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 	}
-	indices, err := h.getLatestIndices(min, max, id, &result)
+	indices, err := h.getLatestIndices(req,min, max, id, &result)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
@@ -800,8 +800,19 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 		h.WriteJSON(w, []interface{}{} , http.StatusOK)
 		return
 	}
+	//filter indices
+	allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, id)
+	if !hasAllPrivilege && len(allowedIndices) == 0 {
+		h.WriteJSON(w, []interface{}{} , http.StatusOK)
+		return
+	}
+	strIndices := ""
+	if !hasAllPrivilege {
+		strIndices = strings.Join(allowedIndices, ",")
+	}
+
 	esClient := elastic.GetClient(id)
-	indexInfos, err := esClient.GetIndices("")
+	indexInfos, err := esClient.GetIndices(strIndices)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )

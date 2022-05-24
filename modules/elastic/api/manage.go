@@ -216,6 +216,19 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	if name != ""{
 		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
 	}
+	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "_id")
+	if !hasPrivilege {
+		h.WriteJSON(w, elastic.SearchResponse{
+		}, http.StatusOK)
+		return
+	}
+	if  clusterFilter != nil {
+		if mustBuilder.String() != "" {
+			mustBuilder.WriteString(",")
+		}
+		mustBuilder.Write(util.MustToJSONBytes(clusterFilter))
+	}
+
 	size, _ := strconv.Atoi(strSize)
 	if size <= 0 {
 		size = 20
@@ -449,7 +462,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	resBody["metrics"] = h.getIndexMetrics(id, bucketSize, min, max, indexName, top)
+	resBody["metrics"] = h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {

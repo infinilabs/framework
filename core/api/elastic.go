@@ -71,3 +71,14 @@ func (handler Handler) GetClusterFilter(r *http.Request, field string) (util.Map
 		},
 	}, true
 }
+
+func (handler Handler) GetAllowedIndices(r *http.Request, clusterID string) ([]string, bool) {
+	if !IsAuthEnable(){
+		return nil, true
+	}
+	hasAllPrivilege, indices := rbac.GetCurrentUserIndex(r, clusterID)
+	if hasAllPrivilege {
+		return nil, true
+	}
+	return indices, false
+}
