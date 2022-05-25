@@ -5,7 +5,6 @@
 package native
 
 import (
-	"errors"
 	"fmt"
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/orm"
@@ -23,19 +22,19 @@ func (dal *User) Get(id string) (rbac.User, error) {
 	return user, err
 }
 
-func (dal *User) GetBy(field string, value interface{}) (rbac.User, error){
-	user := rbac.User{
+func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error){
+	user := &rbac.User{
 	}
 	err, result := orm.GetBy(field, value, rbac.User{})
 	if err != nil {
-		return user, err
+		return nil, err
 	}
 	if result.Total == 0 {
-		return user, errors.New("user not found")
+		return nil, nil
 	}
 	userBytes, err := util.ToJSONBytes(result.Result[0])
 	if err != nil {
-		return user, err
+		return nil, err
 	}
 	util.FromJSONBytes(userBytes, &user)
 	return user, err

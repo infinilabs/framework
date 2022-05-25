@@ -19,7 +19,7 @@ import (
 
 const userInSession = "user_session:"
 
-func (h APIHandler) authenticateUser(username string, password string) (user rbac.User, err error) {
+func (h APIHandler) authenticateUser(username string, password string) (user *rbac.User, err error) {
 
 	user, err = h.User.GetBy("name", username)
 	if err != nil {
@@ -34,7 +34,7 @@ func (h APIHandler) authenticateUser(username string, password string) (user rba
 }
 
 const roleAdminName = "_admin"
-func authenticateAdmin(username string, password string) (user rbac.User, err error) {
+func authenticateAdmin(username string, password string) (user *rbac.User, err error) {
 
 	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
 	p, _ := global.Env().GetConfig("bootstrap.password", "admin")
@@ -42,6 +42,8 @@ func authenticateAdmin(username string, password string) (user rbac.User, err er
 	if u != username || p != password {
 		err = errors.New("invalid username or password")
 		return
+	}
+	user = &rbac.User{
 	}
 	user.ID = username
 	user.Name = username
@@ -97,7 +99,7 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 		return
 	}
 
-	var user rbac.User
+	var user *rbac.User
 	if req.Username == "admin" {
 		user, err = authenticateAdmin(req.Username, req.Password)
 		if err != nil {
@@ -113,7 +115,7 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 		}
 	}
 
-	data, err := authorize(user)
+	data, err := authorize(*user)
 	if err != nil {
 		h.ErrorInternalServer(w, err.Error())
 		return

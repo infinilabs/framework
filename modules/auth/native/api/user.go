@@ -25,8 +25,7 @@ func (h APIHandler) CreateUser(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 	if user.Name == ""  {
-
-		h.Error400(w, "username and phone and email is require")
+		h.Error400(w, "username is require")
 		return
 	}
 	//localUser, err := biz.FromUserContext(r.Context())
@@ -71,7 +70,7 @@ func (h APIHandler) userNameExists(w http.ResponseWriter, name string) bool {
 		h.ErrorInternalServer(w, err.Error())
 		return true
 	}
-	if u.ID != "" || name == "admin" {
+	if  name == "admin" || u != nil {
 		h.ErrorInternalServer(w, "user name already exists")
 		return true
 	}
