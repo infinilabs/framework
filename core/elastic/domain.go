@@ -489,6 +489,7 @@ type CatShardResponse struct {
 	UnassignedReason string `json:"unassigned,omitempty"`
 	Docs             string `json:"docs,omitempty"`
 	Store            string `json:"store,omitempty"`
+	StoreInBytes int64 `json:"store_in_bytes,omitempty"`
 	NodeID           string `json:"id,omitempty"`
 	NodeName         string `json:"node,omitempty"`
 	NodeIP           string `json:"ip,omitempty"`

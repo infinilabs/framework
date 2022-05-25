@@ -23,7 +23,6 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
@@ -32,6 +31,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -64,7 +64,7 @@ var (
 			Enabled: false,
 		},
 		ClusterSettingsCheckConfig: CheckConfig{
-			Enabled: true,
+			Enabled:  true,
 			Interval: "20s",
 		},
 		ClientTimeout: "60s",
@@ -75,9 +75,7 @@ func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
 
-var m = map[string]elastic.ElasticsearchConfig{}
-
-func loadFileBasedElasticConfig() {
+func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
 	if exist && err != nil {
@@ -86,30 +84,23 @@ func loadFileBasedElasticConfig() {
 
 	if exist {
 		for _, v := range configs {
+			v.Source = "file"
 			if !v.Enabled {
 				log.Debug("elasticsearch ", v.Name, " is not enabled")
 				continue
 			}
-			v.Source = "file"
-			if v.ID == "" {
-				if v.Name == "" {
-					panic(errors.Errorf("invalid elasticsearch config, %v", v))
-				}
-				v.ID = v.Name
-			}
-			m[v.ID] = v
 		}
 	}
+	return configs
 }
 
-func loadESBasedElasticConfig() {
+func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
 	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
-	//log.Errorf("%v %v",query,result)
 	if err != nil {
 		log.Error(err)
-		return
+		return configs
 	}
 
 	if len(result.Hits.Hits) > 0 {
@@ -120,33 +111,19 @@ func loadESBasedElasticConfig() {
 			cfg.ID = v1.ID
 			configs = append(configs, cfg)
 		}
-
-		for _, v := range configs {
-			if !v.Enabled {
-				log.Debug("elasticsearch ", v.Name, " is not enabled")
-				continue
-			}
-			v.Source = "elastic"
-			if v.ID == "" {
-				if v.Name == "" {
-					log.Errorf("invalid elasticsearch config, %v", v)
-					continue
-				}
-				v.ID = v.Name
-			}
-			m[v.ID] = v
-		}
 	}
 
-	log.Infof("loading [%v] remote elasticsearch configs",len(result.Hits.Hits) )
-
+	log.Infof("loading [%v] remote elasticsearch configs", len(result.Hits.Hits))
+	return configs
 }
 
-func initElasticInstances() {
-	for k, esConfig := range m {
-
-		log.Trace("init elasticsearch ", esConfig.Name,esConfig.Enabled)
-
+func initElasticInstances(m []elastic.ElasticsearchConfig, source string) {
+	for _, esConfig := range m {
+		esConfig.Source = source
+		if esConfig.ID == "" && esConfig.Name != "" {
+			esConfig.ID = esConfig.Name
+		}
+		log.Trace("init elasticsearch ", esConfig.Name, ", enabled:", esConfig.Enabled)
 		if !esConfig.Enabled {
 			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 			continue
@@ -156,17 +133,13 @@ func initElasticInstances() {
 			log.Error("elasticsearch ", esConfig.Name, err)
 			continue
 		}
-		elastic.RegisterInstance(k, esConfig, client)
+		elastic.RegisterInstance(esConfig, client)
 	}
 }
 
 var moduleConfig = ModuleConfig{}
 
 func (module *ElasticModule) Setup(cfg *config.Config) {
-
-	loadFileBasedElasticConfig()
-
-	initElasticInstances()
 
 	moduleConfig = getDefaultConfig()
 
@@ -175,41 +148,18 @@ func (module *ElasticModule) Setup(cfg *config.Config) {
 	if exists && err != nil {
 		panic(err)
 	}
+	m := loadFileBasedElasticConfig()
+	initElasticInstances(m, "file")
 
 	if moduleConfig.ORMConfig.Enabled {
 		client := elastic.GetClient(moduleConfig.Elasticsearch)
-		if moduleConfig.ORMConfig.InitTemplate {
-			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
-		}
 		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
 		orm.Register("elastic", handler)
-
-		err = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(elastic.IndexConfig{}, "index")
-		if err != nil {
-			panic(err)
-		}
-
-		err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(event.Activity{}, "activities")
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
 		client := elastic.GetClient(moduleConfig.Elasticsearch)
-		module.storeHandler= &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
 		kv.Register("elastic", module.storeHandler)
 	}
 
@@ -238,8 +188,8 @@ func nodeAvailabilityCheck() {
 				if ok {
 					log.Trace("check availability for node: " + k)
 					avail := util.TestTCPAddress(k)
-					if global.Env().IsDebug{
-						log.Tracef("availability for node [%v] : %v",k,avail)
+					if global.Env().IsDebug {
+						log.Tracef("availability for node [%v] : %v", k, avail)
 					}
 
 					if avail {
@@ -256,7 +206,7 @@ func nodeAvailabilityCheck() {
 	task.RegisterScheduleTask(task2)
 }
 
-func (module *ElasticModule)clusterStateRefresh() {
+func (module *ElasticModule) clusterStateRefresh() {
 	module.stateMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch state refresh",
@@ -264,13 +214,13 @@ func (module *ElasticModule)clusterStateRefresh() {
 		Interval:    moduleConfig.MetadataRefresh.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
-				log.Trace("walk metadata: ",key)
+				log.Trace("walk metadata: ", key)
 
 				if value == nil {
 					return true
 				}
 				v, ok := value.(*elastic.ElasticsearchConfig)
-				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
+				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
 					if !v.Enabled {
@@ -301,11 +251,38 @@ func (module *ElasticModule)clusterStateRefresh() {
 
 func (module *ElasticModule) Start() error {
 
-	if moduleConfig.RemoteConfigEnabled {
-		loadESBasedElasticConfig()
-	}
+	if moduleConfig.ORMConfig.Enabled {
+		if moduleConfig.ORMConfig.InitTemplate {
+			client := elastic.GetClient(moduleConfig.Elasticsearch)
+			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
+		}
 
-	initElasticInstances()
+		err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+		if err != nil {
+			panic(err)
+		}
+		err = orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
+		if err != nil {
+			panic(err)
+		}
+		err = orm.RegisterSchemaWithIndexName(elastic.IndexConfig{}, "index")
+		if err != nil {
+			panic(err)
+		}
+
+		err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
+		if err != nil {
+			panic(err)
+		}
+		err = orm.RegisterSchemaWithIndexName(event.Activity{}, "activities")
+		if err != nil {
+			panic(err)
+		}
+	}
+	if moduleConfig.RemoteConfigEnabled {
+		m := loadESBasedElasticConfig()
+		initElasticInstances(m, "elastic")
+	}
 
 	if module.storeHandler != nil {
 		err := module.storeHandler.Open()
@@ -323,7 +300,7 @@ func (module *ElasticModule) Start() error {
 			if metadata != nil {
 				module.updateNodeInfo(metadata, true)
 			}
-			go clusterHealthCheck(cfg1.ID, true)
+			go module.clusterHealthCheck(cfg1.ID, true)
 		}
 		return true
 	})
@@ -352,7 +329,7 @@ func (module *ElasticModule) Start() error {
 						}
 						module.healthMap.Store(cfg1.ID, time.Now())
 						go func(clusterID string) {
-							clusterHealthCheck(clusterID, false)
+							module.clusterHealthCheck(clusterID, false)
 							module.healthMap.Delete(clusterID)
 						}(cfg1.ID)
 					}
@@ -368,7 +345,7 @@ func (module *ElasticModule) Start() error {
 		nodeAvailabilityCheck()
 	}
 
-	log.Tracef("metadata refresh enabled:%v",moduleConfig.MetadataRefresh.Enabled)
+	log.Tracef("metadata refresh enabled:%v", moduleConfig.MetadataRefresh.Enabled)
 
 	if moduleConfig.MetadataRefresh.Enabled {
 		//refresh cluster state
@@ -381,13 +358,13 @@ func (module *ElasticModule) Start() error {
 			Interval:    "60s",
 			Task: func(ctx context.Context) {
 				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value==nil{
+					if value == nil {
 						return true
 					}
 
-					v,ok:=value.(*elastic.ElasticsearchMetadata)
-					if ok{
-						if v.Config.Discovery.Enabled{
+					v, ok := value.(*elastic.ElasticsearchMetadata)
+					if ok {
+						if v.Config.Discovery.Enabled {
 							module.updateNodeInfo(v, false)
 						}
 					}
@@ -396,7 +373,7 @@ func (module *ElasticModule) Start() error {
 			},
 		}
 		task.RegisterScheduleTask(task2)
-		
+
 		////refresh indices
 		//task2 = task.ScheduleTask{
 		//	Description: fmt.Sprintf("elasticsearch indices discovery"),
@@ -424,11 +401,11 @@ func (module *ElasticModule) Start() error {
 			Interval:    "30s",
 			Task: func(ctx context.Context) {
 				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value==nil{
+					if value == nil {
 						return true
 					}
-					v,ok:=value.(*elastic.ElasticsearchMetadata)
-					if ok{
+					v, ok := value.(*elastic.ElasticsearchMetadata)
+					if ok {
 						updateAliases(v)
 					}
 					return true
@@ -461,11 +438,43 @@ func (module *ElasticModule) Start() error {
 	if moduleConfig.ClusterSettingsCheckConfig.Enabled {
 		module.clusterSettingsRefresh()
 	}
+
+	config.NotifyOnConfigSectionChange("elasticsearch", func(pCfg, cCfg *config.Config) {
+
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on apply config change,", v)
+				}
+			}
+		}()
+
+		if cCfg != nil {
+			//TODO diff previous and current config
+			var newConfig []elastic.ElasticsearchConfig
+			err := cCfg.Unpack(&newConfig)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			initElasticInstances(newConfig, "file")
+		}
+	})
+
 	return nil
 
 }
 
-func (module *ElasticModule)clusterSettingsRefresh() {
+func (module *ElasticModule) clusterSettingsRefresh() {
 	module.settingsMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch settings refresh",
@@ -473,13 +482,13 @@ func (module *ElasticModule)clusterSettingsRefresh() {
 		Interval:    moduleConfig.ClusterSettingsCheckConfig.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
-				log.Trace("walk metadata: ",key)
+				log.Trace("walk metadata: ", key)
 
 				if value == nil {
 					return true
 				}
 				v, ok := value.(*elastic.ElasticsearchConfig)
-				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]",key,v.ID,v.Name,v.Enabled)
+				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
 					if !v.Enabled {

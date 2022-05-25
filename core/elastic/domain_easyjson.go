@@ -7367,6 +7367,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic25(in *jlexer.Lexer, out 
 			out.Docs = string(in.String())
 		case "store":
 			out.Store = string(in.String())
+		case "store_in_bytes":
+			out.StoreInBytes = int64(in.Int64())
 		case "id":
 			out.NodeID = string(in.String())
 		case "node":
@@ -7452,6 +7454,16 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic25(out *jwriter.Writer, i
 			out.RawString(prefix)
 		}
 		out.String(string(in.Store))
+	}
+	if in.StoreInBytes != 0 {
+		const prefix string = ",\"store_in_bytes\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int64(int64(in.StoreInBytes))
 	}
 	if in.NodeID != "" {
 		const prefix string = ",\"id\":"

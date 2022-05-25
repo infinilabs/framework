@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func clusterHealthCheck(clusterID string, force bool) {
+func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 
 	log.Tracef("execute health check for: %v", clusterID)
 
@@ -60,13 +60,18 @@ func clusterHealthCheck(clusterID string, force bool) {
 	}
 }
 
-func updateClusterHealthStatus(clusterID string, healthStatus string){
+func updateClusterHealthStatus(clusterID string, healthStatus string) {
+	if moduleConfig.Elasticsearch == "" {
+		log.Error("trying access the system cluster but it is not set")
+		return
+	}
+
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
 	if client == nil {
 		log.Errorf("cluster %s not found", moduleConfig.Elasticsearch)
 	}
 	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
-	getRes, err := client.Get(indexName,"", clusterID)
+	getRes, err := client.Get(indexName, "", clusterID)
 	if err != nil {
 		log.Errorf("get cluster %s error: %v", clusterID, err)
 		return

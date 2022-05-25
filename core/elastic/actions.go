@@ -24,7 +24,7 @@ func (node *NodeAvailable) ReportFailure() {
 		if !node.isDead{
 			if time.Since(node.lastSuccess)>1*time.Hour{
 				node.isDead=true
-				log.Infof("node [%v] is dead, lost >1 hour: %v",node.Host,node.lastSuccess)
+				log.Debugf("node [%v] is dead, lost >1 hour: %v", node.Host, node.lastSuccess)
 			}
 		}
 		return

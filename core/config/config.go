@@ -7,7 +7,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/elastic/go-ucfg"
-	"github.com/elastic/go-ucfg/cfgutil"
 	cfgflag "github.com/elastic/go-ucfg/flag"
 	"github.com/elastic/go-ucfg/yaml"
 	"infini.sh/framework/core/util"
@@ -35,6 +34,7 @@ type flagOverwrite struct {
 var configOpts = []ucfg.Option{
 	ucfg.PathSep("."),
 	ucfg.ResolveEnv,
+	ucfg.AppendValues,
 	ucfg.VarExp,
 }
 
@@ -131,12 +131,12 @@ func NewFlagOverwrite(
 }
 
 
-func LoadPath(folder string) (*Config, error) {
-	files:=[]string{}
+func LoadPath(folder string) (*ucfg.Config, error) {
+	files := []string{}
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		if info!=nil&&!info.IsDir(){
-			if util.SuffixStr(path,".yml")||util.SuffixStr(path,".yaml"){
-				files=append(files,path)
+		if info != nil && !info.IsDir() {
+			if util.SuffixStr(path, ".yml") || util.SuffixStr(path, ".yaml") {
+				files = append(files, path)
 			}
 		}
 		return nil
@@ -159,15 +159,29 @@ func LoadFile(path string) (*Config, error) {
 }
 
 // LoadFiles will load configs from specify files
-func LoadFiles(paths ...string) (*Config, error) {
-	merger := cfgutil.NewCollector(nil, configOpts...)
+func LoadFiles(paths ...string) (*ucfg.Config, error) {
+
+	c := ucfg.New()
+	opts := []ucfg.Option{
+		ucfg.AppendValues,
+	}
+
+	var err error
+	cfg := &Config{}
+
 	for _, path := range paths {
-		cfg, err := LoadFile(path)
-		if err := merger.Add(cfg.access(), err); err != nil {
-			return nil, err
+		cfg, err = LoadFile(path)
+		if err != nil {
+			return c, err
+		}
+
+		err = c.Merge(cfg, opts...)
+		if err != nil {
+			return c, err
 		}
 	}
-	return fromConfig(merger.Config()), nil
+
+	return c, err
 }
 
 // Merge a map, a slice, a struct or another Config object into c.

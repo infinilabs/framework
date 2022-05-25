@@ -99,7 +99,7 @@ func StopTask(id string) {
 	if ok {
 		item, ok := task.(*ScheduleTask)
 		if ok {
-			if item != nil {
+			if item != nil && item.taskItem != nil {
 				item.taskItem.Cancel()
 			} else {
 				log.Error("invalid task:", item)

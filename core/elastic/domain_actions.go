@@ -37,9 +37,21 @@ var cfgs = sync.Map{}
 var metas = sync.Map{}
 var hosts = sync.Map{}
 
-func RegisterInstance(elastic string, cfg ElasticsearchConfig, handler API) {
-	apis.Store(elastic, handler)
-	cfgs.Store(elastic, &cfg)
+func RegisterInstance(cfg ElasticsearchConfig, handler API) {
+
+	if cfg.ID == "" {
+		if cfg.Name == "" {
+			panic(errors.Errorf("invalid elasticsearch config, id and name is not set, %v", cfg))
+		}
+		cfg.ID = cfg.Name
+	}
+	_, exists := cfgs.Load(cfg.ID)
+	apis.Store(cfg.ID, handler)
+	cfgs.Store(cfg.ID, &cfg)
+	if exists {
+		v := &ElasticsearchMetadata{Config: &cfg}
+		SetMetadata(cfg.ID, v)
+	}
 }
 
 func GetOrInitHost(host string) *NodeAvailable {
@@ -126,7 +138,7 @@ func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 
 func GetMetadata(k string) *ElasticsearchMetadata {
 	if k == "" {
-		panic(fmt.Errorf("elasticsearch metata undefined"))
+		panic(fmt.Errorf("elasticsearch id is nil"))
 	}
 
 	v, ok := metas.Load(k)
@@ -140,7 +152,7 @@ func GetMetadata(k string) *ElasticsearchMetadata {
 
 func GetClient(k string) API {
 	if k == "" {
-		panic(fmt.Errorf("elasticsearch config undefined"))
+		panic(fmt.Errorf("elasticsearch id is nil"))
 	}
 
 	v, ok := apis.Load(k)

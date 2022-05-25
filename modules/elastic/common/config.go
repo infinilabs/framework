@@ -96,7 +96,7 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		log.Error("elasticsearch ", esConfig.Name, err)
 		return client, err
 	}
-	elastic.RegisterInstance(esConfig.ID, esConfig, client)
+	elastic.RegisterInstance(esConfig, client)
 	v := &elastic.ElasticsearchMetadata{Config: &esConfig}
 
 	originMeta := elastic.GetMetadata(esConfig.ID)
