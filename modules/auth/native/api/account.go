@@ -120,7 +120,8 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
-	rbac.TokenMap[user.ID] = rbac.Token{ExpireIn: time.Now().Unix() + 86400}
+	token := rbac.Token{ExpireIn: time.Now().Unix() + 86400}
+	rbac.SetUserToken(user.ID, token)
 	if err != nil {
 		h.ErrorInternalServer(w, err.Error())
 		return
@@ -182,7 +183,7 @@ func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter
 		return
 	}
 
-	delete(rbac.TokenMap, reqUser.UserId)
+	rbac.DeleteUserToken(reqUser.UserId)
 	h.WriteOKJSON(w, util.MapStr{
 		"status": "ok",
 	})

@@ -4,7 +4,12 @@
 
 package rbac
 
-import "sync"
+import (
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/util"
+	"sync"
+)
 
 var permissionsMap = map[string]interface{}{}
 var permissionsLocker = sync.Mutex{}
@@ -28,5 +33,38 @@ type Token struct {
 	Value    string `json:"value"`
 	ExpireIn int64  `json:"expire_in"`
 }
+var userTokenLocker = sync.RWMutex{}
+var tokenMap = make(map[string]Token)
+const KVUserToken = "user_token"
 
-var TokenMap = make(map[string]Token)
+func SetUserToken(key string, token Token){
+	userTokenLocker.Lock()
+	tokenMap[key] = token
+	userTokenLocker.Unlock()
+	_ = kv.AddValue(KVUserToken, []byte(key), util.MustToJSONBytes(token))
+}
+func GetUserToken(key string) *Token{
+	userTokenLocker.RLock()
+	defer userTokenLocker.RUnlock()
+	if token, ok :=  tokenMap[key]; ok {
+		return &token
+	}
+	tokenBytes, err := kv.GetValue(KVUserToken, []byte(key))
+	if err != nil {
+		log.Errorf("get user token from kv error: %v" ,err)
+		return nil
+	}
+	if tokenBytes == nil {
+		return nil
+	}
+	token := Token{}
+	util.MustFromJSONBytes(tokenBytes, &token)
+	return &token
+}
+
+func DeleteUserToken(key string){
+	userTokenLocker.Lock()
+	delete(tokenMap, key)
+	userTokenLocker.Unlock()
+	_ = kv.DeleteKey(KVUserToken, []byte(key))
+}

@@ -254,14 +254,14 @@ func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
 		return
 	}
 	//fmt.Println("user token", clams.UserId, TokenMap[clams.UserId])
-	tokenVal, ok := TokenMap[clams.UserId]
-	if !ok {
+	tokenVal := GetUserToken(clams.UserId)
+	if tokenVal == nil {
 		err = errors.New("token is invalid")
 		return
 	}
 	if tokenVal.ExpireIn < time.Now().Unix() {
 		err = errors.New("token is expire in")
-		delete(TokenMap, clams.UserId)
+		DeleteUserToken(clams.UserId)
 		return
 	}
 	if ok && token.Valid {
