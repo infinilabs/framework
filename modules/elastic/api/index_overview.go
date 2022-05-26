@@ -122,7 +122,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	}
 
 	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "metadata.cluster_id")
-	if !hasPrivilege {
+	if !hasPrivilege && clusterFilter == nil {
 		h.WriteJSON(w, elastic.SearchResponse{
 
 		}, http.StatusOK)
@@ -130,7 +130,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	}
 	must := []interface{}{
 	}
-	if clusterFilter != nil {
+	if !hasPrivilege && clusterFilter != nil {
 		must = append(must, clusterFilter)
 	}
 	boolQuery := util.MapStr{

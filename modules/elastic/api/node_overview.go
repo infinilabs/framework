@@ -116,7 +116,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		}
 	}
 	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "metadata.cluster_id")
-	if !hasPrivilege {
+	if !hasPrivilege && clusterFilter == nil {
 		h.WriteJSON(w, elastic.SearchResponse{
 
 		}, http.StatusOK)
@@ -124,7 +124,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	}
 	must := []interface{}{
 	}
-	if clusterFilter != nil {
+	if !hasPrivilege && clusterFilter != nil {
 		must = append(must, clusterFilter)
 	}
 

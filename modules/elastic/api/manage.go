@@ -216,13 +216,13 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	if name != ""{
 		mustBuilder.WriteString(fmt.Sprintf(`{"prefix":{"name.text": "%s"}}`, name))
 	}
-	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "_id")
-	if !hasPrivilege {
+	clusterFilter, hasAllPrivilege := h.GetClusterFilter(req, "_id")
+	if !hasAllPrivilege && clusterFilter == nil {
 		h.WriteJSON(w, elastic.SearchResponse{
 		}, http.StatusOK)
 		return
 	}
-	if  clusterFilter != nil {
+	if !hasAllPrivilege {
 		if mustBuilder.String() != "" {
 			mustBuilder.WriteString(",")
 		}

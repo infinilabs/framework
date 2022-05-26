@@ -76,12 +76,12 @@ func (h *APIHandler) HandleGetViewListAction(w http.ResponseWriter, req *http.Re
 	size, _ := strconv.Atoi(strSize)
 	search := h.GetParameterOrDefault(req, "search", "")
 	if search != "" {
-		search = fmt.Sprintf(`,{"match":{"title":"%s"}}`, search)
+		search = fmt.Sprintf(`,{"match":{"title":%s}}`, search)
 	}
 
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 
-	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title","viewName", "updated_at"],"size": %d, "query":{"bool":{"must":{"match":{"cluster_id":"%s"}}%s}}}`, size, targetClusterID, search))
+	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title","viewName", "updated_at"],"size": %d, "query":{"bool":{"must":[{"match":{"cluster_id":"%s"}}%s]}}}`, size, targetClusterID, search))
 
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.View{}),queryDSL)
 	if err != nil {

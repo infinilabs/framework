@@ -111,8 +111,8 @@ var (
 
 	IndexAllPermission     = []string{"index:read"}
 	IndexReadPermission    = []string{"index:read", "index:write"}
-	ViewsAllPermission     = []string{PermissionViewRead}
-	ViewsReadPermission    = []string{PermissionViewRead, PermissionViewWrite}
+	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite}
+	ViewsReadPermission    = []string{PermissionViewRead}
 	DiscoverReadPermission = []string{PermissionViewRead}
 	DiscoverAllPermission  = []string{PermissionViewRead}
 
@@ -120,8 +120,8 @@ var (
 	RuleAllPermission     = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite, PermissionAlertHistoryRead}
 	AlertReadPermission   = []string{PermissionAlertHistoryRead}
 	AlertAllPermission    = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
-	AlertMessageReadPermission   = []string{PermissionAlertMessageRead}
-	AlertMessageAllPermission   = []string{PermissionAlertMessageRead, PermissionAlertMessageWrite}
+	AlertMessageReadPermission   = []string{PermissionAlertMessageRead, PermissionAlertHistoryRead}
+	AlertMessageAllPermission   = []string{PermissionAlertMessageRead, PermissionAlertMessageWrite, PermissionAlertHistoryRead}
 	ChannelReadPermission = []string{PermissionAlertChannelRead}
 	ChannelAllPermission  = []string{PermissionAlertChannelRead, PermissionAlertChannelWrite}
 

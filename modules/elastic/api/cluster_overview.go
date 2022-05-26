@@ -1144,8 +1144,8 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "_id")
-	if !hasPrivilege {
+	clusterFilter, hasAllPrivilege := h.GetClusterFilter(req, "_id")
+	if !hasAllPrivilege && clusterFilter == nil {
 		h.WriteJSON(w, elastic.SearchResponse{
 
 		}, http.StatusOK)
@@ -1153,7 +1153,7 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 	}
 	must := []interface{}{
 	}
-	if clusterFilter != nil {
+	if !hasAllPrivilege && clusterFilter != nil {
 		must = append(must, clusterFilter)
 	}
 	query := util.MapStr{

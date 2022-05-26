@@ -69,7 +69,7 @@ func (handler Handler) GetClusterFilter(r *http.Request, field string) (util.Map
 		"terms": util.MapStr{
 			field: clusterIds,
 		},
-	}, true
+	}, false
 }
 
 func (handler Handler) GetAllowedIndices(r *http.Request, clusterID string) ([]string, bool) {
