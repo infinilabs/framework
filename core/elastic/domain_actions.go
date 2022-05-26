@@ -45,12 +45,13 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 		}
 		cfg.ID = cfg.Name
 	}
-	_, exists := cfgs.Load(cfg.ID)
+	meta, exists := cfgs.Load(cfg.ID)
 	apis.Store(cfg.ID, handler)
 	cfgs.Store(cfg.ID, &cfg)
-	if exists {
-		v := &ElasticsearchMetadata{Config: &cfg}
-		SetMetadata(cfg.ID, v)
+	if exists && meta != nil {
+		if v, ok := meta.(*ElasticsearchMetadata); ok {
+			v.Config = &cfg
+		}
 	}
 }
 
