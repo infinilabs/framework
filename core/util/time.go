@@ -9,6 +9,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	"hash"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -132,36 +133,41 @@ func GetLocalZone() string {
 	return zone
 }
 
-func GetDurationOrDefault(str string,defaultV time.Duration)time.Duration{
-	t,err:=time.ParseDuration(str)
-	if err!=nil{
+func GetDurationOrDefault(str string, defaultV time.Duration) time.Duration {
+	t, err := time.ParseDuration(str)
+	if err != nil {
 		return defaultV
 	}
 	return t
 }
 
-var now *time.Time
+var nowNano int64
 var refreshRunning bool
 var setupLock sync.RWMutex
-func GetLowPrecisionCurrentTime()time.Time  {
-	if now==nil{
+
+func GetLowPrecisionCurrentTime() time.Time {
+	if nowNano <= 0 {
 		SetupTimeNowRefresh()
-		t:=time.Now()
+		t := time.Now()
 		return t
 	}
-	return time.Unix(now.Unix(), now.UnixNano())
+	return time.Unix(0, atomic.LoadInt64(&nowNano))
 }
-func SetupTimeNowRefresh()  {
+
+func SetupTimeNowRefresh() {
 	setupLock.Lock()
 	defer setupLock.Unlock()
-	if !refreshRunning{
-		go func(*time.Time) {
-			for{
-				t:=time.Now()
-				now= &t
-				time.Sleep(500*time.Millisecond)
-			}
-		}(now)
-		refreshRunning=true
+	if !refreshRunning {
+		once := sync.Once{}
+		once.Do(func() {
+			go func(nowNano int64) {
+				for {
+					t := time.Now()
+					atomic.StoreInt64(&nowNano, t.UnixNano())
+					time.Sleep(500 * time.Millisecond)
+				}
+			}(nowNano)
+			refreshRunning = true
+		})
 	}
 }
