@@ -49,7 +49,7 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	apis.Store(cfg.ID, handler)
 	cfgs.Store(cfg.ID, &cfg)
 	if exists && meta != nil {
-		InitMetadata(&cfg)
+		InitMetadata(&cfg, true)
 	}
 }
 
@@ -125,9 +125,9 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 	return esMajorVersion
 }
 
-func InitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
+func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
-	v.Init(false)
+	v.Init(defaultHealth)
 	SetMetadata(cfg.ID, v)
 	return v
 }
@@ -135,7 +135,7 @@ func InitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
 	v := GetMetadata(cfg.ID)
 	if v == nil {
-		v = InitMetadata(cfg)
+		v = InitMetadata(cfg, false)
 	}
 	return v
 }
