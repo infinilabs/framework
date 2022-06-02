@@ -497,7 +497,7 @@ READ_DOCS:
 
 		//each message is complete bulk message, must be end with \n
 		if global.Env().IsDebug {
-			log.Debugf("worker:[%v] start consume queue:[%v] offset:%v", workerID, qConfig.Id, offset)
+			log.Tracef("worker:[%v] start consume queue:[%v] offset:%v", workerID, qConfig.Id, offset)
 		}
 
 		//runnintCtx:=pipeline.AcquireContext()
@@ -508,7 +508,7 @@ READ_DOCS:
 		//log.Errorf("max fetch messages:%v, fetched:%v",processor.config.Consumer.FetchMaxMessages,len(messages))
 
 		if global.Env().IsDebug {
-			log.Debugf("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)
+			log.Tracef("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)
 		}
 
 		if timeout {
