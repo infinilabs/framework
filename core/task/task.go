@@ -101,8 +101,6 @@ func StopTask(id string) {
 		if ok {
 			if item != nil && item.taskItem != nil {
 				item.taskItem.Cancel()
-			} else {
-				log.Error("invalid task:", item)
 			}
 		}
 	}
