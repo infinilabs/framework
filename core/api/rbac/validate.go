@@ -25,27 +25,42 @@ type EsRequest struct {
 }
 
 type ClusterRequest struct {
-	Cluster   []string `json:"cluster"`
+	Cluster   string `json:"cluster"`
 	Privilege []string `json:"privilege"`
 }
 
 type IndexRequest struct {
-	Cluster   []string `json:"cluster"`
-	Index     []string `json:"index"`
+	Cluster   string `json:"cluster"`
+	Index    string `json:"index"`
 	Privilege []string `json:"privilege"`
 }
 
+type ElasticsearchAPIPrivilege map[string]map[string]struct{}
+func (ep ElasticsearchAPIPrivilege) Merge(epa ElasticsearchAPIPrivilege){
+	for k, permissions := range epa {
+		if _, ok := ep[k]; ok {
+			for permission := range permissions {
+				ep[k][permission] = struct{}{}
+			}
+		}else{
+			ep[k] = permissions
+		}
+	}
+}
 type RolePermission struct {
 	Platform         []string `json:"platform,omitempty"`
-	ElasticPrivilege []ElasticsearchPrivilege
+	ElasticPrivilege struct{
+		Cluster ElasticsearchAPIPrivilege
+		Index map[string]ElasticsearchAPIPrivilege
+	}
 }
 
 func NewIndexRequest(ps httprouter.Params, privilege []string) IndexRequest {
 	index := ps.ByName("index")
 	clusterId := ps.ByName("id")
 	return IndexRequest{
-		Cluster:   []string{clusterId},
-		Index:     []string{index},
+		Cluster:   clusterId,
+		Index:     index,
 		Privilege: privilege,
 	}
 }
@@ -53,105 +68,117 @@ func NewIndexRequest(ps httprouter.Params, privilege []string) IndexRequest {
 func NewClusterRequest(ps httprouter.Params, privilege []string) ClusterRequest {
 	clusterId := ps.ByName("id")
 	return ClusterRequest{
-		Cluster:   []string{clusterId},
+		Cluster:   clusterId,
 		Privilege: privilege,
 	}
 }
 
-func ValidateIndex(req IndexRequest, userRole RolePermission) (err error) {
-	var (
-		clusterErr error
-		indexErr error
-		indexApiErr error
-	)
-	for _, elasticPrivilege := range userRole.ElasticPrivilege{
-		clusterErr = nil
-		userClusterMap := make(map[string]struct{})
-		for _, v := range elasticPrivilege.Cluster.Resources {
-			userClusterMap[v.ID] = struct{}{}
+func validateApiPermission(apiPrivileges map[string]struct{}, permissions map[string]struct{}){
+	if _, ok := permissions["*"]; ok {
+		for privilege := range apiPrivileges {
+			delete(apiPrivileges, privilege)
 		}
-		for _, v := range req.Cluster {
-			if _, ok := userClusterMap["*"]; ok {
-				break
-			}
-			if _, ok := userClusterMap[v]; !ok{
-				clusterErr = fmt.Errorf("no permission of cluster [%s]", v)
-				continue
-			}
-		}
-		for _, roleIndex := range elasticPrivilege.Index {
-			indexPattern := radix.Compile(roleIndex.Name...)
-			for _, reqIndex := range req.Index {
-				indexErr = nil
-				indexApiErr = nil
-				if indexPattern.Match(reqIndex) {
-					if util.StringInArray(roleIndex.Permissions, "*") {
-						continue
-					}
-					for _, val := range req.Privilege {
-						position := strings.Index(val, ".")
-						if position == -1 {
-							err = errors.New("invalid privilege parameter")
-							return err
-						}
-						prefix := val[:position]
-
-						if util.StringInArray(roleIndex.Permissions, prefix+".*") {
-							continue
-						}
-						if util.StringInArray(roleIndex.Permissions, val) {
-							continue
-						}
-						indexApiErr =  fmt.Errorf("no index api permission: %s", val)
-					}
-				}else{
-					indexErr = fmt.Errorf("no permission of index: %s", reqIndex)
-				}
-			}
+		return
+	}
+	for permission := range permissions {
+		if _, ok := apiPrivileges[permission]; ok {
+			delete(apiPrivileges, permission)
 		}
 	}
-	if clusterErr != nil {
-		return clusterErr
-	}
-	if indexErr != nil {
-		return indexErr
-	}
-	if indexApiErr != nil {
-		return indexApiErr
-	}
-	return nil
-}
-
-func ValidateCluster(req ClusterRequest, roleNames []string) (err error) {
-	userClusterMap := GetRoleClusterMap(roleNames)
-	for _, v := range req.Cluster {
-		userClusterPermissions, ok := userClusterMap[v]
-		if !ok && userClusterMap["*"] == nil{
-			err = fmt.Errorf("no cluster[%s] permission", v)
-			return
-		}
-		if util.StringInArray(userClusterPermissions, "*") {
+	for privilege := range apiPrivileges {
+		position := strings.Index(privilege, ".")
+		if position == -1 {
 			continue
 		}
-		// if include api.*  for example: cat.* , return nil
-		for _, privilege := range req.Privilege {
-			prefix := privilege[:strings.Index(privilege, ".")]
+		prefix := privilege[:position]
 
-			if util.StringInArray(userClusterPermissions, prefix+".*") {
-				continue
-			}
-			if util.StringInArray(userClusterPermissions, privilege) {
-				continue
-			}
-			return fmt.Errorf("no cluster api permission: %s", privilege)
+		if _, ok := permissions[prefix+".*"]; ok {
+			delete(apiPrivileges, privilege)
 		}
 	}
-	return nil
+}
+func validateIndexPermission(indexName string, apiPrivileges map[string]struct{}, privilege ElasticsearchAPIPrivilege) bool{
+	permissions, hasAll := privilege["*"]
+	if hasAll {
+		 validateApiPermission(apiPrivileges, permissions)
+	}
+	for indexPattern, v :=  range privilege {
+		if radix.Match(indexPattern, indexName) {
+			validateApiPermission(apiPrivileges, v)
+		}
+	}
 
+	return len(apiPrivileges) == 0
+}
+
+func ValidateIndex(req IndexRequest, userRole RolePermission) (err error) {
+	var (
+		apiPrivileges = map[string]struct{}{}
+		allowed bool
+	)
+
+	for _, privilege := range req.Privilege {
+		apiPrivileges[privilege] = struct{}{}
+	}
+
+	indexPermissions, hasAllCluster := userRole.ElasticPrivilege.Index["*"]
+	if hasAllCluster {
+		allowed = validateIndexPermission(req.Index, apiPrivileges, indexPermissions)
+		if allowed {
+			return nil
+		}
+	}
+	if _, ok := userRole.ElasticPrivilege.Index[req.Cluster]; !ok{
+		return fmt.Errorf("no permission of cluster [%s]", req.Cluster)
+	}
+	allowed = validateIndexPermission(req.Index, apiPrivileges, userRole.ElasticPrivilege.Index[req.Cluster])
+	if allowed {
+		return nil
+	}
+	var apiPermission string
+	for k := range apiPrivileges {
+		apiPermission = k
+	}
+
+	return fmt.Errorf("no index api permission: %s", apiPermission)
+
+}
+
+func ValidateCluster(req ClusterRequest,  userRole RolePermission) (err error) {
+	var (
+		apiPrivileges = map[string]struct{}{}
+	)
+
+	for _, privilege := range req.Privilege {
+		apiPrivileges[privilege] = struct{}{}
+	}
+
+	clusterPermissions, hasAllCluster := userRole.ElasticPrivilege.Cluster["*"]
+	if hasAllCluster {
+		validateApiPermission(apiPrivileges, clusterPermissions)
+		if len(apiPrivileges) == 0 {
+			return nil
+		}
+	}
+	if _, ok := userRole.ElasticPrivilege.Cluster[req.Cluster]; !ok && !hasAllCluster{
+		return fmt.Errorf("no permission of cluster [%s]", req.Cluster)
+	}
+	validateApiPermission(apiPrivileges, userRole.ElasticPrivilege.Cluster[req.Cluster])
+	if len(apiPrivileges) == 0 {
+		return nil
+	}
+	var apiPermission string
+	for k := range apiPrivileges {
+		apiPermission = k
+	}
+
+	return fmt.Errorf("no index api permission: %s", apiPermission)
 }
 
 func CombineUserRoles(roleNames []string) RolePermission {
 	newRole := RolePermission{}
+	clusterPrivilege := ElasticsearchAPIPrivilege{}
+	indexPrivilege := map[string]ElasticsearchAPIPrivilege{}
 	platformM := map[string] struct{}{}
 	for _, val := range roleNames {
 		role := RoleMap[val]
@@ -162,9 +189,41 @@ func CombineUserRoles(roleNames []string) RolePermission {
 			}
 
 		}
-		newRole.ElasticPrivilege = append(newRole.ElasticPrivilege, role.Privilege.Elasticsearch)
+
+		singleIndexPrivileges :=  ElasticsearchAPIPrivilege{}
+		for _, ip := range role.Privilege.Elasticsearch.Index {
+			for _, indexName := range ip.Name {
+				if _, ok := singleIndexPrivileges[indexName]; !ok {
+					singleIndexPrivileges[indexName] = map[string]struct{}{}
+				}
+				for _, permission := range ip.Permissions {
+					singleIndexPrivileges[indexName][permission] = struct{}{}
+				}
+			}
+		}
+
+		for _, cp := range role.Privilege.Elasticsearch.Cluster.Resources {
+			if _, ok := indexPrivilege[cp.ID]; ok {
+				indexPrivilege[cp.ID].Merge(singleIndexPrivileges)
+			}else{
+				indexPrivilege[cp.ID] = singleIndexPrivileges
+			}
+			var (
+				privileges map[string]struct{}
+				ok bool
+			)
+			if privileges, ok = clusterPrivilege[cp.ID]; !ok {
+				privileges = map[string]struct{}{}
+			}
+			for _, permission := range role.Privilege.Elasticsearch.Cluster.Permissions {
+				privileges[permission] = struct{}{}
+			}
+			clusterPrivilege[cp.ID] = privileges
+		}
 
 	}
+	newRole.ElasticPrivilege.Cluster = clusterPrivilege
+	newRole.ElasticPrivilege.Index = indexPrivilege
 	return newRole
 }
 

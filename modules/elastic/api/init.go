@@ -19,7 +19,7 @@ func Init(cfg common.ModuleConfig) {
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.RequirePermission(clusterAPI.HandleCreateClusterAction, enum.PermissionElasticsearchClusterWrite))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.ListIndex)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.GetClusterStatusAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.RequireLogin(clusterAPI.GetClusterStatusAction))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleGetClusterAction, enum.PermissionElasticsearchClusterRead)))
 	//api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/kv", clusterAPI.HandleGetNodesAction)
 	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleUpdateClusterAction, enum.PermissionElasticsearchClusterWrite)))

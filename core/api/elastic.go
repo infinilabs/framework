@@ -44,7 +44,8 @@ func (handler Handler) ClusterRequired(h httprouter.Handle, route ...string) htt
 			}
 			//newRole := biz.CombineUserRoles(claims.Roles)
 			clusterReq := rbac.NewClusterRequest(ps, route)
-			err = rbac.ValidateCluster(clusterReq, claims.Roles)
+			newRole := rbac.CombineUserRoles(claims.Roles)
+			err = rbac.ValidateCluster(clusterReq, newRole)
 			if err != nil {
 				handler.WriteError(w, err.Error(), http.StatusForbidden)
 				return
@@ -71,6 +72,13 @@ func (handler Handler) GetClusterFilter(r *http.Request, field string) (util.Map
 			field: clusterIds,
 		},
 	}, false
+}
+func (handler Handler) GetAllowedClusters(r *http.Request) ([]string, bool) {
+	if !IsAuthEnable(){
+		return nil, true
+	}
+	hasAllPrivilege, clusterIds := rbac.GetCurrentUserCluster(r)
+	return clusterIds, hasAllPrivilege
 }
 
 func (handler Handler) GetAllowedIndices(r *http.Request, clusterID string) ([]string, bool) {
