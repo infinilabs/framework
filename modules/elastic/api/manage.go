@@ -525,7 +525,6 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 	}
 
 	client, _ := common.InitClientWithConfig(config)
-	elastic.RegisterInstance(config, client)
 
 	return true,client,nil
 }
@@ -1065,28 +1064,28 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	result:=util.MapStr{}
 	elastic.WalkMetadata(func(key, value interface{}) bool {
-		m:=util.MapStr{}
-		k:=key.(string)
-		if value==nil{
+		m := util.MapStr{}
+		k := key.(string)
+		if value == nil {
 			return true
 		}
 
-		v,ok:=value.(*elastic.ElasticsearchMetadata)
-		if ok{
-			m["major_version"]=v.GetMajorVersion()
-			m["seed_hosts"]=v.GetSeedHosts()
-			m["state"]=v.ClusterState
-			m["topology_version"]=v.NodesTopologyVersion
-			m["nodes"]=v.Nodes
+		v, ok := value.(*elastic.ElasticsearchMetadata)
+		if ok {
+			m["major_version"] = v.GetMajorVersion()
+			m["seed_hosts"] = v.GetSeedHosts()
+			m["state"] = v.ClusterState
+			m["topology_version"] = v.NodesTopologyVersion
+			m["nodes"] = v.Nodes
 			//m["indices"]=v.Indices
-			m["health"]=v.Health
-			m["aliases"]=v.Aliases
+			m["health"] = v.Health
+			m["aliases"] = v.Aliases
 			//m["primary_shards"]=v.PrimaryShards
-			m["available"]=v.IsAvailable()
-			m["schema"]=v.GetSchema()
-			m["config"]=v.Config
-			m["last_success"]=v.LastSuccess()
-			result[k]=m
+			m["available"] = v.IsAvailable()
+			m["schema"] = v.GetSchema()
+			m["config"] = v.Config
+			m["last_success"] = v.LastSuccess()
+			result[k] = m
 		}
 		return true
 	})
@@ -1095,8 +1094,36 @@ func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps ht
 
 }
 
+func (h *APIHandler) GetMetadataByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	result := util.MapStr{}
+
+	id := ps.MustGetParameter("id")
+
+	v := elastic.GetMetadata(id)
+	m := util.MapStr{}
+	if v != nil {
+		m["major_version"] = v.GetMajorVersion()
+		m["seed_hosts"] = v.GetSeedHosts()
+		m["state"] = v.ClusterState
+		m["topology_version"] = v.NodesTopologyVersion
+		m["nodes"] = v.Nodes
+		//m["indices"]=v.Indices
+		m["health"] = v.Health
+		m["aliases"] = v.Aliases
+		//m["primary_shards"]=v.PrimaryShards
+		m["available"] = v.IsAvailable()
+		m["schema"] = v.GetSchema()
+		m["config"] = v.Config
+		m["last_success"] = v.LastSuccess()
+		result[id] = m
+	}
+
+	h.WriteJSON(w, result, http.StatusOK)
+
+}
+
 func (h *APIHandler) GetHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	result:=util.MapStr{}
+	result := util.MapStr{}
 
 	elastic.WalkHosts(func(key, value interface{}) bool {
 		k := key.(string)
