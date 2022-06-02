@@ -7,6 +7,7 @@ package api
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -121,17 +122,46 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 	}
 
-	clusterFilter, hasPrivilege := h.GetClusterFilter(req, "metadata.cluster_id")
-	if !hasPrivilege && clusterFilter == nil {
+	must := []interface{}{
+	}
+	hasAllPrivilege, indexPrivilege := rbac.GetCurrentUserIndex(req)
+	if !hasAllPrivilege && len(indexPrivilege) == 0 {
 		h.WriteJSON(w, elastic.SearchResponse{
 
 		}, http.StatusOK)
 		return
 	}
-	must := []interface{}{
-	}
-	if !hasPrivilege && clusterFilter != nil {
-		must = append(must, clusterFilter)
+	if !hasAllPrivilege {
+		indexShould := make([]interface{}, 0, len(indexPrivilege))
+		for clusterID, indices := range indexPrivilege {
+			indexShould = append(indexShould, util.MapStr{
+				"bool": util.MapStr{
+					"must": []util.MapStr{
+						{
+							"wildcard": util.MapStr{
+								"metadata.cluster_id": util.MapStr{
+									"value": clusterID,
+								},
+							},
+						},
+						{
+							"query_string": util.MapStr{
+								"query": strings.Join(indices, " "),
+								"fields": []string{"metadata.index_name"},
+								"default_operator": "OR",
+							},
+						},
+					},
+				},
+			})
+		}
+		indexFilter := util.MapStr{
+			"bool": util.MapStr{
+				"minimum_should_match": 1,
+				"should": indexShould,
+			},
+		}
+		must = append(must, indexFilter)
 	}
 	boolQuery := util.MapStr{
 		"must_not": []util.MapStr{
@@ -167,6 +197,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 	}
 	dsl := util.MustToJSONBytes(query)
+	log.Error(string(dsl))
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -396,6 +427,13 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
 	indexID := ps.MustGetParameter("index")
+	parts := strings.Split(indexID, ":")
+	if len(parts) > 1 && !h.IsIndexAllowed(req, clusterID, parts[1]) {
+		h.WriteJSON(w, util.MapStr{
+			"error": http.StatusText(http.StatusForbidden),
+		}, http.StatusForbidden)
+		return
+	}
 
 	q := orm.Query{
 		Size: 1,
@@ -480,6 +518,12 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
 	indexName := ps.MustGetParameter("index")
+	if !h.IsIndexAllowed(req, clusterID, indexName) {
+		h.WriteJSON(w, util.MapStr{
+			"error": http.StatusText(http.StatusForbidden),
+		}, http.StatusForbidden)
+		return
+	}
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -757,6 +801,12 @@ func (h *APIHandler) getIndexNodes(w http.ResponseWriter, req *http.Request, ps 
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
 	indexName := ps.ByName("index")
+	if !h.IsIndexAllowed(req, id, indexName) {
+		h.WriteJSON(w, util.MapStr{
+			"error": http.StatusText(http.StatusForbidden),
+		}, http.StatusForbidden)
+		return
+	}
 	q := &orm.Query{ Size: 1}
 	q.AddSort("timestamp", orm.DESC)
 	q.Conds = orm.And(

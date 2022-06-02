@@ -3,6 +3,7 @@ package api
 import (
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
 	"net/http"
 )
@@ -76,9 +77,23 @@ func (handler Handler) GetAllowedIndices(r *http.Request, clusterID string) ([]s
 	if !IsAuthEnable(){
 		return nil, true
 	}
-	hasAllPrivilege, indices := rbac.GetCurrentUserIndex(r, clusterID)
+	hasAllPrivilege, indices := rbac.GetCurrentUserClusterIndex(r, clusterID)
 	if hasAllPrivilege {
 		return nil, true
 	}
 	return indices, false
+}
+
+func (handler Handler) IsIndexAllowed(r *http.Request, clusterID string, indexName string) bool {
+	if !IsAuthEnable() {
+		return true
+	}
+	hasAllPrivilege, indices := rbac.GetCurrentUserClusterIndex(r, clusterID)
+	if hasAllPrivilege {
+		return true
+	}
+	if len(indices) == 0 {
+		return false
+	}
+	return radix.Compile(indices...).Match(indexName)
 }

@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -45,35 +46,25 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	if indexName != "" {
 		top = 1
 		indexNames = []string{indexName}
+		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
+		if !hasAllPrivilege && len(allowedIndices) == 0 {
+			return nil
+		}
+		if !hasAllPrivilege && !radix.Compile(allowedIndices...).Match(indexName){
+			return nil
+		}
+
 	}else{
-		indexNames, err = h.getTopIndexName(clusterID, top, 15)
+		indexNames, err = h.getTopIndexName(req, clusterID, top, 15)
 		if err != nil {
 			log.Error(err)
 		}
 
 	}
 	if len(indexNames) > 0 {
-		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
-		if !hasAllPrivilege && len(allowedIndices) == 0 {
-			return nil
-		}
-		var indexPattern *radix.Pattern
-		var filterNames []string
-		if !hasAllPrivilege {
-			indexPattern = radix.Compile(allowedIndices...)
-			for _, name := range indexNames {
-				if indexPattern.Match(name) {
-					filterNames = append(filterNames, name)
-				}
-			}
-		}
-
-		if len(filterNames) == 0 {
-			return nil
-		}
 		must = append(must, util.MapStr{
 			"terms": util.MapStr{
-				"metadata.labels.index_name": filterNames,
+				"metadata.labels.index_name": indexNames,
 			},
 		})
 	}
@@ -605,12 +596,49 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 }
 
-func (h *APIHandler) getTopIndexName(clusterID string, top int, lastMinutes int) ([]string, error){
+func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top int, lastMinutes int) ([]string, error){
 	var (
 		now = time.Now()
 		max = now.UnixNano()/1e6
 		min = now.Add(-time.Duration(lastMinutes) * time.Minute).UnixNano()/1e6
 	)
+	var must = []util.MapStr{
+		{
+			"term": util.MapStr{
+				"metadata.category": util.MapStr{
+					"value": "elasticsearch",
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.name": util.MapStr{
+					"value": "index_stats",
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.labels.cluster_id": util.MapStr{
+					"value": clusterID,
+				},
+			},
+		},
+	}
+	allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
+	if !hasAllPrivilege && len(allowedIndices) == 0 {
+		return nil, fmt.Errorf("no index permission")
+	}
+	if !hasAllPrivilege {
+		must = append(must, util.MapStr{
+			"query_string": util.MapStr{
+				"query": strings.Join(allowedIndices, " "),
+				"fields": []string{"metadata.labels.index_name"},
+				"default_operator": "OR",
+			},
+		})
+	}
+
 	query := util.MapStr{
 		"size": 0,
 		"query": util.MapStr{
@@ -624,29 +652,7 @@ func (h *APIHandler) getTopIndexName(clusterID string, top int, lastMinutes int)
 						},
 					},
 				},
-				"must": []util.MapStr{
-					{
-						"term": util.MapStr{
-							"metadata.category": util.MapStr{
-								"value": "elasticsearch",
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.name": util.MapStr{
-								"value": "index_stats",
-							},
-						},
-					},
-					{
-						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": clusterID,
-							},
-						},
-					},
-				},
+				"must": must,
 				"filter": []util.MapStr{
 					{
 						"range": util.MapStr{
