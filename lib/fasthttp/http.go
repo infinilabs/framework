@@ -127,12 +127,22 @@ func (req *Request) Host() []byte {
 func (req *Request) SetRequestURI(requestURI string) {
 	req.Header.SetRequestURI(requestURI)
 	req.parsedURI = false
+
+	//reset host after reset uri
+	if len(req.Header.host) > 0 {
+		req.Header.host = req.Header.host[:0]
+	}
 }
 
 // SetRequestURIBytes sets RequestURI.
 func (req *Request) SetRequestURIBytes(requestURI []byte) {
 	req.Header.SetRequestURIBytes(requestURI)
 	req.parsedURI = false
+
+	//reset host after reset uri
+	if len(req.Header.host) > 0 {
+		req.Header.host = req.Header.host[:0]
+	}
 }
 
 // RequestURI returns request's URI.
@@ -828,7 +838,6 @@ func (req *Request) parseURI() error {
 		return nil
 	}
 	req.parsedURI = true
-
 	return req.uri.parse(req.Header.Host(), req.Header.RequestURI(), req.isTLS)
 }
 
@@ -1294,7 +1303,8 @@ func (req *Request) Write(w *bufio.Writer) error {
 
 	req.rawBody = nil
 
-	if len(req.Header.Host()) == 0 || req.parsedURI {
+	//if len(req.Header.Host()) == 0 || req.parsedURI {
+	if len(req.Header.Host()) == 0 {
 
 		uri := req.URI()
 		host := uri.Host()
