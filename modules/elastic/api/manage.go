@@ -950,8 +950,17 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 
 func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var status = map[string]interface{}{}
+	 clusterIDs, hasAllPrivilege := h.GetAllowedClusters(req)
+	if !hasAllPrivilege && len(clusterIDs) == 0 {
+		h.WriteJSON(w, status, http.StatusOK)
+		return
+	}
+
 	elastic.WalkConfigs(func(k, value interface{}) bool {
 		key:=k.(string)
+		if !hasAllPrivilege && !util.StringInArray(clusterIDs, key) {
+			return  true
+		}
 		cfg,ok:=value.(*elastic.ElasticsearchConfig)
 		if ok&&cfg!=nil{
 			meta := elastic.GetOrInitMetadata(cfg)
