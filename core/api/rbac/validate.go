@@ -171,7 +171,7 @@ func ValidateCluster(req ClusterRequest,  userRole RolePermission) (err error) {
 		apiPermission = k
 	}
 
-	return fmt.Errorf("no index api permission: %s", apiPermission)
+	return fmt.Errorf("no cluster api permission: %s", apiPermission)
 }
 
 func CombineUserRoles(roleNames []string) RolePermission {
@@ -411,4 +411,3 @@ func SearchAPIPermission(typ string, method, path string) (permission string, pa
 	}
 	return router.Search(method, path)
 }
-

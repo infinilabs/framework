@@ -1,12 +1,11 @@
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
@@ -42,51 +41,30 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
-	if api.IsAuthEnable() {
-		authPath, _ := url.PathUnescape(path)
-		reqUrl, err := url.Parse(authPath)
-		if err != nil {
-			log.Error(err)
-			resBody["error"] = err.Error()
-			h.WriteJSON(w, resBody, http.StatusInternalServerError)
-			return
-		}
 
-		permission, params, matched := rbac.SearchAPIPermission("elasticsearch", method, reqUrl.Path)
-		if matched && permission != "" {
-			claims, err := rbac.ValidateLogin(req.Header.Get("Authorization"))
-			if err != nil {
-				h.WriteError(w, err.Error(), http.StatusUnauthorized)
-				return
-			}
-			newRole := rbac.CombineUserRoles(claims.Roles)
-			if indexName, ok := params["index_name"]; ok {
-
-				indexReq := rbac.IndexRequest{
-					Cluster: targetClusterID,
-					Index: indexName,
-					Privilege: []string{permission},
-				}
-
-				err = rbac.ValidateIndex(indexReq, newRole)
-				if err != nil {
-					h.WriteError(w, err.Error(), http.StatusForbidden)
-					return
-				}
-			}else{
-				clusterReq := rbac.ClusterRequest{
-					Cluster: targetClusterID,
-					Privilege: []string{permission},
-				}
-				err = rbac.ValidateCluster(clusterReq, newRole)
-				if err != nil {
-					h.WriteError(w, err.Error(), http.StatusForbidden)
-					return
-				}
-			}
-
-		}
+	authPath, _ := url.PathUnescape(path)
+	reqUrl, err := url.Parse(authPath)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
 	}
+	newReq := req.Clone(context.Background())
+	newReq.URL = reqUrl
+	newReq.Method = method
+	_, err = h.ValidateProxyRequest(newReq, targetClusterID)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusForbidden)
+		return
+	}
+	//if permission != "" {
+	//	if permission == "cat.indices" || permission == "cat.shards" {
+	//		reqUrl.Path
+	//	}
+	//}
 
 
 	var (

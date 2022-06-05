@@ -105,3 +105,41 @@ func (handler Handler) IsIndexAllowed(r *http.Request, clusterID string, indexNa
 	}
 	return radix.Compile(indices...).Match(indexName)
 }
+
+func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string) (string, error) {
+	if !IsAuthEnable() {
+		return "", nil
+	}
+
+	permission, params, matched := rbac.SearchAPIPermission("elasticsearch", req.Method, req.URL.Path)
+	if matched && permission != "" {
+		claims, err := rbac.ValidateLogin(req.Header.Get("Authorization"))
+		if err != nil {
+			return permission, err
+		}
+		newRole := rbac.CombineUserRoles(claims.Roles)
+		if indexName, ok := params["index_name"]; ok {
+
+			indexReq := rbac.IndexRequest{
+				Cluster: clusterID,
+				Index: indexName,
+				Privilege: []string{permission},
+			}
+
+			err = rbac.ValidateIndex(indexReq, newRole)
+			if err != nil {
+				return permission, err
+			}
+		}else{
+			clusterReq := rbac.ClusterRequest{
+				Cluster: clusterID,
+				Privilege: []string{permission},
+			}
+			err = rbac.ValidateCluster(clusterReq, newRole)
+			if err != nil {
+				return permission, err
+			}
+		}
+	}
+	return permission, nil
+}
