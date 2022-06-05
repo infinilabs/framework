@@ -120,7 +120,6 @@ func ValidateIndex(req IndexRequest, userRole RolePermission) (err error) {
 	for _, privilege := range req.Privilege {
 		apiPrivileges[privilege] = struct{}{}
 	}
-
 	indexPermissions, hasAllCluster := userRole.ElasticPrivilege.Index["*"]
 	if hasAllCluster {
 		allowed = validateIndexPermission(req.Index, apiPrivileges, indexPermissions)
@@ -402,5 +401,14 @@ func ValidatePermission(claims *UserClaims, permissions []string) (err error) {
 	}
 	return nil
 
+}
+
+func SearchAPIPermission(typ string, method, path string) (permission string, params map[string]string, matched bool){
+	method = strings.ToLower(method)
+	router := GetAPIPermissionRouter(typ)
+	if router == nil {
+		panic( fmt.Errorf("can not found api permission router of %s", typ))
+	}
+	return router.Search(method, path)
 }
 

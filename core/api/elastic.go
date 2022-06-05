@@ -11,7 +11,6 @@ import (
 func (handler Handler) IndexRequired(h httprouter.Handle, route ...string) httprouter.Handle {
 
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-
 		if authEnabled {
 			claims, err := rbac.ValidateLogin(r.Header.Get("Authorization"))
 			if err != nil {
@@ -28,6 +27,7 @@ func (handler Handler) IndexRequired(h httprouter.Handle, route ...string) httpr
 				return
 			}
 		}
+
 		h(w, r, ps)
 	}
 }
