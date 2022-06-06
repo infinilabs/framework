@@ -284,38 +284,6 @@ func GetRoleIndex(roles []string, clusterID string) (bool, []string){
 	return false, realIndex
 }
 
-func GetCurrentUserClusterIndex(req *http.Request, clusterID string) (bool, []string){
-	ctxVal := req.Context().Value("user")
-	if userClaims, ok := ctxVal.(*UserClaims); ok {
-		return GetRoleIndex(userClaims.Roles, clusterID)
-	}else{
-		panic("user context value not found")
-	}
-}
-
-func GetCurrentUserIndex(req *http.Request) (bool, map[string][]string){
-	ctxVal := req.Context().Value("user")
-	if userClaims, ok := ctxVal.(*UserClaims); ok {
-		roles := userClaims.Roles
-		var realIndex = map[string][]string{}
-		for _, roleName := range roles {
-			role, ok := RoleMap[roleName]
-			if ok {
-				for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
-					for _, ip := range role.Privilege.Elasticsearch.Index {
-						if ic.ID == "*" && util.StringInArray(ip.Name, "*"){
-							return true, nil
-						}
-						realIndex[ic.ID] = append(realIndex[ic.ID], ip.Name...)
-					}
-				}
-			}
-		}
-		return false, realIndex
-	}
-	return false, nil
-}
-
 
 func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
 

@@ -7,7 +7,6 @@ package api
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -124,7 +123,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 
 	must := []interface{}{
 	}
-	hasAllPrivilege, indexPrivilege := rbac.GetCurrentUserIndex(req)
+	hasAllPrivilege, indexPrivilege := h.GetCurrentUserIndex(req)
 	if !hasAllPrivilege && len(indexPrivilege) == 0 {
 		h.WriteJSON(w, elastic.SearchResponse{
 
