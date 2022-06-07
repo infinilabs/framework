@@ -24,7 +24,9 @@ type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
 func (list ElasticsearchAPIMetadataList) GetNames() []string{
 	var names []string
 	for _, md := range list {
-		names = append(names, md.Name)
+		if !util.StringInArray(names, md.Name){
+			names = append(names, md.Name)
+		}
 	}
 	return names
 }
