@@ -351,7 +351,7 @@ func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*ela
 }
 
 // Count used to count how many docs in one index
-func (c *ESAPIV0) Count(indexName string) (*elastic.CountResponse, error) {
+func (c *ESAPIV0) Count(indexName string, body []byte) (*elastic.CountResponse, error) {
 	indexName=util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_count"
@@ -360,7 +360,7 @@ func (c *ESAPIV0) Count(indexName string) (*elastic.CountResponse, error) {
 		log.Debug("doc count: ", url)
 	}
 
-	resp, err := c.Request(util.Verb_GET, url, nil)
+	resp, err := c.Request(util.Verb_GET, url, body)
 
 	if err != nil {
 		return nil, err
