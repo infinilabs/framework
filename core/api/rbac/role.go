@@ -6,7 +6,9 @@ package rbac
 
 import (
 	"fmt"
+	"infini.sh/framework/core/api/rbac/enum"
 	"infini.sh/framework/core/orm"
+	"time"
 )
 
 type Role struct {
@@ -57,4 +59,33 @@ func IsAllowRoleType(roleType string) (err error) {
 		return
 	}
 	return
+}
+
+var BuildRoles = make(map[string]Role, 0)
+const RoleAdminName = "Administrator"
+func init(){
+	BuildRoles[RoleAdminName] = Role{
+		ORMObjectBase: orm.ORMObjectBase{
+			ID: RoleAdminName,
+			Created:  time.Now(),
+		},
+		Name:      RoleAdminName,
+		Type:     "platform",
+		Privilege: RolePrivilege{
+			Platform: enum.AdminPrivilege,
+			Elasticsearch: ElasticsearchPrivilege{
+				Cluster: ClusterPrivilege{
+					Resources: []InnerCluster{{"*", "*"}},
+					Permissions: []string{"*"},
+				},
+				Index: []IndexPrivilege{
+					{Name: []string{"*"},
+						Permissions: []string{"*"},
+					},
+				},
+			},
+		},
+		Builtin:    true,
+		Description: "Administrator is a super role.",
+	}
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
-	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
@@ -85,12 +84,15 @@ func (h APIHandler) SearchRole(w http.ResponseWriter, r *http.Request, ps httpro
 	for _, v := range hits {
 		index = v.Index
 	}
-	for k, v := range enum.BuildRoles {
+	for k, v := range rbac.BuildRoles {
+		mval := map[string]interface{}{}
+		vbytes := util.MustToJSONBytes(v)
+		util.MustFromJSONBytes(vbytes, &mval)
 		list = append(list, elastic.IndexDocument{
 			ID:     k,
 			Index:  index,
 			Type:   "_doc",
-			Source: v,
+			Source: mval,
 		})
 		total++
 	}
@@ -181,22 +183,10 @@ func (h APIHandler) loadRolePermission() {
 	log.Trace("start loading roles from adapter")
 	rbac.RoleMap = make(map[string]rbac.Role)
 
-	rbac.RoleMap[roleAdminName] = rbac.Role{
-		Privilege: rbac.RolePrivilege{
-			Platform: enum.AdminPrivilege,
-			Elasticsearch: rbac.ElasticsearchPrivilege{
-				Cluster: rbac.ClusterPrivilege{
-					Resources: []rbac.InnerCluster{{"*", "*"}},
-					Permissions: []string{"*"},
-				},
-				Index: []rbac.IndexPrivilege{
-					{Name: []string{"*"},
-						Permissions: []string{"*"},
-					},
-				},
-			},
-		},
+	for k, role := range rbac.BuildRoles {
+		rbac.RoleMap[k] = role
 	}
+
 
 	res, err := h.Role.Search("", 0, 1000)
 	if err != nil {

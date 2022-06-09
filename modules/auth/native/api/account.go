@@ -33,7 +33,7 @@ func (h APIHandler) authenticateUser(username string, password string) (user *rb
 	return
 }
 
-const roleAdminName = "_admin"
+
 func authenticateAdmin(username string, password string) (user *rbac.User, err error) {
 
 	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
@@ -48,7 +48,7 @@ func authenticateAdmin(username string, password string) (user *rbac.User, err e
 	user.ID = username
 	user.Name = username
 	user.Roles = []rbac.UserRole{{
-		ID: roleAdminName, Name: roleAdminName,
+		ID: rbac.RoleAdminName, Name: rbac.RoleAdminName,
 	}}
 	return user, nil
 }
