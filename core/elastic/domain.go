@@ -420,6 +420,8 @@ type ElasticsearchConfig struct {
 	RequestTimeout  int  `json:"request_timeout,omitempty" config:"request_timeout"`
 	RequestCompress bool `json:"request_compress,omitempty" config:"request_compress"`
 
+	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
+
 	BasicAuth *struct {
 		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
 		Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
