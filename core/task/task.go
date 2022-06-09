@@ -13,11 +13,13 @@ import (
 var Tasks = sync.Map{}
 
 type ScheduleTask struct {
-	ID          string `config:"id" json:"id,omitempty"`
-	Description string `config:"description" json:"description,omitempty"`
-	Type        string `config:"type" json:"type,omitempty"`
-	Interval    string `config:"interval" json:"interval,omitempty"`
-	Crontab     string `config:"crontab" json:"crontab,omitempty"`
+	ID          string     `config:"id" json:"id,omitempty"`
+	Description string     `config:"description" json:"description,omitempty"`
+	Type        string     `config:"type" json:"type,omitempty"`
+	Interval    string     `config:"interval" json:"interval,omitempty"`
+	Crontab     string     `config:"crontab" json:"crontab,omitempty"`
+	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
+	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
 
 	Task     func(ctx context.Context) `config:"-" json:"-"`
 	taskItem chrono.ScheduledTask
@@ -35,6 +37,19 @@ func RegisterScheduleTask(task ScheduleTask) {
 		task.Type = Interval
 	} else if task.Type == "" && task.Crontab != "" {
 		task.Type = Crontab
+	}
+
+	tempTask := task.Task
+	task.Task = func(ctx context.Context) {
+		t := time.Now()
+		task.StartTime = &t
+		task.EndTime = nil
+
+		tempTask(ctx)
+
+		t = time.Now()
+		task.EndTime = &t
+
 	}
 
 	_, ok := Tasks.Load(task.ID)
