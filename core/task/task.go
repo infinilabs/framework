@@ -37,15 +37,26 @@ func RegisterScheduleTask(task ScheduleTask) {
 		task.Type = Crontab
 	}
 
+	_, ok := Tasks.Load(task.ID)
+	if ok {
+		StopTask(task.ID)
+	}
+
 	Tasks.Store(task.ID, &task)
+
+	//start after register
+	if started {
+		runTask(&task)
+	}
+
 }
 
 var quit = make(chan struct{})
 var taskScheduler = chrono.NewDefaultTaskScheduler()
 var defaultInterval = time.Duration(10) * time.Second
-
+var started bool
 func RunTasks() {
-
+	started = true
 	Tasks.Range(func(key, value any) bool {
 		task, ok := value.(*ScheduleTask)
 		if ok {
@@ -123,6 +134,7 @@ func DeleteTask(id string) {
 }
 
 func StopTasks() {
+	started = false
 	StopAllTasks()
 	shutdownChannel := taskScheduler.Shutdown()
 	<-shutdownChannel
