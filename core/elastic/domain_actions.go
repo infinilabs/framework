@@ -45,10 +45,19 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 		}
 		cfg.ID = cfg.Name
 	}
-	meta, exists := cfgs.Load(cfg.ID)
+	oldCfg, exists := cfgs.Load(cfg.ID)
+
+	if exists {
+		//if config no change, skip init
+		if util.ToJson(cfg, false) == util.ToJson(oldCfg, false) {
+			log.Trace("cfg no change, skip init")
+			return
+		}
+	}
+
 	apis.Store(cfg.ID, handler)
 	cfgs.Store(cfg.ID, &cfg)
-	if exists && meta != nil {
+	if exists && oldCfg != nil {
 		InitMetadata(&cfg, true)
 	}
 }
