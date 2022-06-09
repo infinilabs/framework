@@ -1,9 +1,5 @@
 package enum
 
-import (
-	"time"
-)
-
 var PermissionMap = make(map[string][]string)
 
 const (
@@ -11,6 +7,8 @@ const (
 	UserAll     = "system.user:all"
 	RoleRead    = "system.role:read"
 	RoleAll     = "system.role:all"
+	SecurityRead    = "system.security:read"
+	SecurityAll     = "system.security:all"
 	ClusterAll  = "system.cluster:all"
 	ClusterRead = "system.cluster:read"
 	CommandAll  = "system.command:all"
@@ -90,6 +88,8 @@ var (
 
 	RoleReadPermission = []string{PermissionRoleRead}
 	RoleAllPermission  = []string{PermissionRoleRead, PermissionRoleWrite}
+	SecurityReadPermission = []string{PermissionUserRead, PermissionRoleRead}
+	SecurityAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead, PermissionRoleWrite}
 
 	ClusterReadPermission = []string{PermissionElasticsearchClusterRead}
 	ClusterAllPermission  = []string{PermissionElasticsearchClusterRead, PermissionElasticsearchClusterWrite}
@@ -134,7 +134,7 @@ var (
 )
 
 var AdminPrivilege = []string{
-	UserAll, RoleAll, ClusterAll, CommandAll,
+	SecurityAll, ClusterAll, CommandAll,
 	InstanceAll, EntryAll, RouterAll, FlowAll,
 	IndexAll, ViewsAll, DiscoverAll,
 	RuleAll, AlertAll, ChannelAll,
@@ -142,24 +142,16 @@ var AdminPrivilege = []string{
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 }
 
-var BuildRoles = make(map[string]map[string]interface{}, 0)
-
 func init() {
-	BuildRoles["admin"] = map[string]interface{}{
-		"id":          "admin",
-		"name":        "Administrator",
-		"type":        "platform",
-		"platform":    AdminPrivilege,
-		"builtin":     true,
-		"description": "Administrator is a super user.",
-		"created":     time.Now(),
-	}
 
 	PermissionMap = map[string][]string{
 		UserRead:    UserReadPermission,
 		UserAll:     UserAllPermission,
 		RoleRead:    RoleReadPermission,
 		RoleAll:     RoleAllPermission,
+		SecurityAll: SecurityAllPermission,
+		SecurityRead: SecurityReadPermission,
+
 		ClusterRead: ClusterReadPermission,
 		ClusterAll:  ClusterAllPermission,
 		CommandRead: CommandReadPermission,
