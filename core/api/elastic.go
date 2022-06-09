@@ -11,7 +11,6 @@ import (
 func (handler Handler) IndexRequired(h httprouter.Handle, route ...string) httprouter.Handle {
 
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-
 		if authEnabled {
 			claims, err := rbac.ValidateLogin(r.Header.Get("Authorization"))
 			if err != nil {
@@ -28,6 +27,7 @@ func (handler Handler) IndexRequired(h httprouter.Handle, route ...string) httpr
 				return
 			}
 		}
+
 		h(w, r, ps)
 	}
 }
@@ -85,7 +85,7 @@ func (handler Handler) GetAllowedIndices(r *http.Request, clusterID string) ([]s
 	if !IsAuthEnable(){
 		return nil, true
 	}
-	hasAllPrivilege, indices := rbac.GetCurrentUserClusterIndex(r, clusterID)
+	hasAllPrivilege, indices := handler.GetCurrentUserClusterIndex(r, clusterID)
 	if hasAllPrivilege {
 		return nil, true
 	}
@@ -96,7 +96,7 @@ func (handler Handler) IsIndexAllowed(r *http.Request, clusterID string, indexNa
 	if !IsAuthEnable() {
 		return true
 	}
-	hasAllPrivilege, indices := rbac.GetCurrentUserClusterIndex(r, clusterID)
+	hasAllPrivilege, indices := handler.GetCurrentUserClusterIndex(r, clusterID)
 	if hasAllPrivilege {
 		return true
 	}
@@ -104,4 +104,77 @@ func (handler Handler) IsIndexAllowed(r *http.Request, clusterID string, indexNa
 		return false
 	}
 	return radix.Compile(indices...).Match(indexName)
+}
+
+func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string) (string, error) {
+	if !IsAuthEnable() {
+		return "", nil
+	}
+
+	permission, params, matched := rbac.SearchAPIPermission("elasticsearch", req.Method, req.URL.Path)
+	if matched && permission != "" {
+		claims, err := rbac.ValidateLogin(req.Header.Get("Authorization"))
+		if err != nil {
+			return permission, err
+		}
+		newRole := rbac.CombineUserRoles(claims.Roles)
+		if indexName, ok := params["index_name"]; ok {
+
+			indexReq := rbac.IndexRequest{
+				Cluster: clusterID,
+				Index: indexName,
+				Privilege: []string{permission},
+			}
+
+			err = rbac.ValidateIndex(indexReq, newRole)
+			if err != nil {
+				return permission, err
+			}
+		}else{
+			clusterReq := rbac.ClusterRequest{
+				Cluster: clusterID,
+				Privilege: []string{permission},
+			}
+			err = rbac.ValidateCluster(clusterReq, newRole)
+			if err != nil {
+				return permission, err
+			}
+		}
+	}
+	return permission, nil
+}
+
+func  (handler Handler)  GetCurrentUserIndex(req *http.Request) (bool, map[string][]string){
+	if !IsAuthEnable(){
+		return true, nil
+	}
+	ctxVal := req.Context().Value("user")
+	if userClaims, ok := ctxVal.(*rbac.UserClaims); ok {
+		roles := userClaims.Roles
+		var realIndex = map[string][]string{}
+		for _, roleName := range roles {
+			role, ok := rbac.RoleMap[roleName]
+			if ok {
+				for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
+					for _, ip := range role.Privilege.Elasticsearch.Index {
+						if ic.ID == "*" && util.StringInArray(ip.Name, "*"){
+							return true, nil
+						}
+						realIndex[ic.ID] = append(realIndex[ic.ID], ip.Name...)
+					}
+				}
+			}
+		}
+		return false, realIndex
+	}
+	return false, nil
+}
+
+func (handler Handler) GetCurrentUserClusterIndex(req *http.Request, clusterID string) (bool, []string){
+	ctxVal := req.Context().Value("user")
+	if userClaims, ok := ctxVal.(*rbac.UserClaims); ok {
+		return rbac.GetRoleIndex(userClaims.Roles, clusterID)
+	}else{
+		panic("user context value not found")
+	}
 }

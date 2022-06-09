@@ -6,6 +6,7 @@ package rbac
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api/routetree"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/util"
 	"sync"
@@ -67,4 +68,19 @@ func DeleteUserToken(key string){
 	delete(tokenMap, key)
 	userTokenLocker.Unlock()
 	_ = kv.DeleteKey(KVUserToken, []byte(key))
+}
+
+var apiPermissionRouter = map[string]*routetree.Router{}
+var apiPermissionLocker = sync.Mutex{}
+
+func RegisterAPIPermissionRouter(typ string, router *routetree.Router){
+	apiPermissionLocker.Lock()
+	defer apiPermissionLocker.Unlock()
+	apiPermissionRouter[typ] = router
+}
+
+func GetAPIPermissionRouter(typ string) *routetree.Router{
+	apiPermissionLocker.Lock()
+	defer apiPermissionLocker.Unlock()
+	return  apiPermissionRouter[typ]
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -9,6 +10,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -39,6 +41,31 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
 	}
+
+	authPath, _ := url.PathUnescape(path)
+	reqUrl, err := url.Parse(authPath)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	newReq := req.Clone(context.Background())
+	newReq.URL = reqUrl
+	newReq.Method = method
+	_, err = h.ValidateProxyRequest(newReq, targetClusterID)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusForbidden)
+		return
+	}
+	//if permission != "" {
+	//	if permission == "cat.indices" || permission == "cat.shards" {
+	//		reqUrl.Path
+	//	}
+	//}
+
 
 	var (
 		freq = fasthttp.AcquireRequest()

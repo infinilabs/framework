@@ -117,7 +117,7 @@ var (
 	DiscoverAllPermission  = []string{PermissionViewRead}
 
 	RuleReadPermission    = []string{PermissionAlertRuleRead, PermissionAlertHistoryRead}
-	RuleAllPermission     = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite, PermissionAlertHistoryRead}
+	RuleAllPermission     = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite, PermissionAlertHistoryRead,PermissionElasticsearchClusterRead}
 	AlertReadPermission   = []string{PermissionAlertHistoryRead}
 	AlertAllPermission    = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
 	AlertMessageReadPermission   = []string{PermissionAlertMessageRead, PermissionAlertHistoryRead}

@@ -120,7 +120,6 @@ func ValidateIndex(req IndexRequest, userRole RolePermission) (err error) {
 	for _, privilege := range req.Privilege {
 		apiPrivileges[privilege] = struct{}{}
 	}
-
 	indexPermissions, hasAllCluster := userRole.ElasticPrivilege.Index["*"]
 	if hasAllCluster {
 		allowed = validateIndexPermission(req.Index, apiPrivileges, indexPermissions)
@@ -172,7 +171,7 @@ func ValidateCluster(req ClusterRequest,  userRole RolePermission) (err error) {
 		apiPermission = k
 	}
 
-	return fmt.Errorf("no index api permission: %s", apiPermission)
+	return fmt.Errorf("no cluster api permission: %s", apiPermission)
 }
 
 func CombineUserRoles(roleNames []string) RolePermission {
@@ -285,38 +284,6 @@ func GetRoleIndex(roles []string, clusterID string) (bool, []string){
 	return false, realIndex
 }
 
-func GetCurrentUserClusterIndex(req *http.Request, clusterID string) (bool, []string){
-	ctxVal := req.Context().Value("user")
-	if userClaims, ok := ctxVal.(*UserClaims); ok {
-		return GetRoleIndex(userClaims.Roles, clusterID)
-	}else{
-		panic("user context value not found")
-	}
-}
-
-func GetCurrentUserIndex(req *http.Request) (bool, map[string][]string){
-	ctxVal := req.Context().Value("user")
-	if userClaims, ok := ctxVal.(*UserClaims); ok {
-		roles := userClaims.Roles
-		var realIndex = map[string][]string{}
-		for _, roleName := range roles {
-			role, ok := RoleMap[roleName]
-			if ok {
-				for _, ic := range role.Privilege.Elasticsearch.Cluster.Resources {
-					for _, ip := range role.Privilege.Elasticsearch.Index {
-						if ic.ID == "*" && util.StringInArray(ip.Name, "*"){
-							return true, nil
-						}
-						realIndex[ic.ID] = append(realIndex[ic.ID], ip.Name...)
-					}
-				}
-			}
-		}
-		return false, realIndex
-	}
-	return false, nil
-}
-
 
 func ValidateLogin(authorizationHeader string) (clams *UserClaims, err error) {
 
@@ -404,3 +371,11 @@ func ValidatePermission(claims *UserClaims, permissions []string) (err error) {
 
 }
 
+func SearchAPIPermission(typ string, method, path string) (permission string, params map[string]string, matched bool){
+	method = strings.ToLower(method)
+	router := GetAPIPermissionRouter(typ)
+	if router == nil {
+		panic( fmt.Errorf("can not found api permission router of %s", typ))
+	}
+	return router.Search(method, path)
+}
