@@ -7,15 +7,13 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"sort"
+	"strings"
 	"time"
 )
 
 func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
-	nodeNames, err := h.getTopNodeName(clusterID, top, 15)
-	if err != nil {
-		log.Error(err)
-	}
+
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
@@ -39,23 +37,25 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 			},
 		},
 	}
+	var (
+		nodeNames []string
+		err error
+	)
 	if nodeName != "" {
 		top = 1
+		nodeNames = strings.Split(nodeName, ",")
+	}else{
+		nodeNames, err = h.getTopNodeName(clusterID, top, 15)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+	if len(nodeNames) > 0 {
 		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.labels.transport_address": util.MapStr{
-					"value": nodeName,
-				},
+			"terms": util.MapStr{
+				"metadata.labels.transport_address": nodeNames,
 			},
 		})
-	}else{
-		if len(nodeNames) > 0 {
-			must = append(must, util.MapStr{
-				"terms": util.MapStr{
-					"metadata.labels.transport_address": nodeNames,
-				},
-			})
-		}
 	}
 
 	query:=map[string]interface{}{}
