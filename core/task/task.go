@@ -12,6 +12,12 @@ import (
 
 var Tasks = sync.Map{}
 
+type State string
+const (
+	Running State = "running"
+	Canceled = "canceled"
+)
+
 type ScheduleTask struct {
 	ID          string     `config:"id" json:"id,omitempty"`
 	Description string     `config:"description" json:"description,omitempty"`
@@ -23,6 +29,7 @@ type ScheduleTask struct {
 
 	Task     func(ctx context.Context) `config:"-" json:"-"`
 	taskItem chrono.ScheduledTask
+	state State
 }
 
 const Interval = "interval"
@@ -82,6 +89,9 @@ func RunTasks() {
 }
 
 func runTask(task *ScheduleTask) {
+	if task.state == Running {
+		return
+	}
 	if global.Env().IsDebug {
 		log.Debug("scheduled task:", task.ID, ",", task.Type, ",", task.Interval, ",", task.Crontab, ",", task.Description)
 	}
@@ -92,6 +102,7 @@ func runTask(task *ScheduleTask) {
 		if err != nil {
 			log.Error("failed to scheduled interval task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
+		task.state = Running
 		task.taskItem = task1
 		break
 	case Crontab:
@@ -99,6 +110,7 @@ func runTask(task *ScheduleTask) {
 		if err != nil {
 			log.Error("failed to scheduled crontab task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
+		task.state = Running
 		task.taskItem = task1
 		break
 	default:
@@ -127,6 +139,7 @@ func StopTask(id string) {
 		if ok {
 			if item != nil && item.taskItem != nil {
 				item.taskItem.Cancel()
+				item.state = Canceled
 			}
 		}
 	}
