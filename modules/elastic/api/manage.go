@@ -1063,9 +1063,18 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 
 func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	result:=util.MapStr{}
+	clusterIDs, hasAllPrivilege := h.GetAllowedClusters(req)
+	if !hasAllPrivilege && len(clusterIDs) == 0 {
+		h.WriteJSON(w, result, http.StatusOK)
+		return
+	}
+
 	elastic.WalkMetadata(func(key, value interface{}) bool {
 		m := util.MapStr{}
 		k := key.(string)
+		if !hasAllPrivilege && !util.StringInArray(clusterIDs, k) {
+			return  true
+		}
 		if value == nil {
 			return true
 		}
