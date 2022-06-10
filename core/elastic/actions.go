@@ -315,8 +315,8 @@ func (meta *ElasticsearchMetadata) ReportFailure(errorMessage error) bool {
 		//if the target host is not available for 10s, mark it down
 		if (meta.clusterFailureTicket >= 10 && time.Since(meta.lastSuccess) > 5*time.Second) || time.Since(meta.lastSuccess) > 10*time.Second {
 
-			if errorMessage!=nil&&util.ContainsAnyInArray(errorMessage.Error(),masterNotFoundErrors){
-				log.Warnf("master_not_discovered_exception found for [%v], mark it down",meta.Config.Name)
+			if errorMessage != nil && util.ContainsAnyInArray(errorMessage.Error(), masterNotFoundErrors) && !meta.Config.AllowAccessWhenMasterNotFound {
+				log.Warnf("master_not_discovered_exception found for [%v], mark it down", meta.Config.Name)
 				meta.clusterAvailable = false
 				meta.clusterFailureTicket = 0
 				return true
