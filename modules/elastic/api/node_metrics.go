@@ -42,8 +42,8 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		err error
 	)
 	if nodeName != "" {
-		top = 1
 		nodeNames = strings.Split(nodeName, ",")
+		top = len(nodeNames)
 	}else{
 		nodeNames, err = h.getTopNodeName(clusterID, top, 15)
 		if err != nil {

@@ -44,7 +44,6 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		err error
 	)
 	if indexName != "" {
-		top = 1
 		indexNames = strings.Split(indexName, ",")
 		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
 		if !hasAllPrivilege && len(allowedIndices) == 0 {
@@ -63,6 +62,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 			}
 			indexNames = filterNames
 		}
+		top = len(indexNames)
 
 	}else{
 		indexNames, err = h.getTopIndexName(req, clusterID, top, 15)
