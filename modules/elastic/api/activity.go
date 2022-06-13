@@ -58,6 +58,18 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 			},
 		})
 	}
+
+	clusterFilter, hasAllPrivilege := h.GetClusterFilter(req, "metadata.labels.cluster_id")
+	if !hasAllPrivilege && clusterFilter == nil {
+		h.WriteJSON(w, elastic.SearchResponse{
+
+		}, http.StatusOK)
+		return
+	}
+	if !hasAllPrivilege && clusterFilter != nil {
+		filter = append(filter, clusterFilter)
+	}
+
 	var should = []util.MapStr{}
 	if reqBody.Keyword != "" {
 		should = []util.MapStr{
