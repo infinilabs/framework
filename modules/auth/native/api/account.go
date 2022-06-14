@@ -6,6 +6,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
@@ -24,6 +25,9 @@ func (h APIHandler) authenticateUser(username string, password string) (user *rb
 	user, err = h.User.GetBy("name", username)
 	if err != nil {
 		return user, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user account [%s] not found", username)
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
