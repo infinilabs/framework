@@ -532,15 +532,13 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					if strings.HasPrefix(logItem.Path[0], "primary_terms") {
 						continue
 					}
+					if logItem.Path[0] == "version" {
+						continue
+					}
 					filterChangeLog = append(filterChangeLog, logItem)
 				}
 				if len(filterChangeLog) == 0 {
 					continue
-				}
-				if len(filterChangeLog) == 1 {
-					if filterChangeLog[0].Path[0] == "version" {
-						continue
-					}
 				}
 				if oldHealth, ok := oldConfig["health"].(string); ok && oldHealth != health {
 					actInfo := event.Activity{
@@ -574,7 +572,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					}
 				}
 				activityInfo.Metadata.Type = "update"
-				activityInfo.Changelog = changeLog
+				activityInfo.Changelog = filterChangeLog
 			}else{
 				activityInfo.Metadata.Type = "create"
 			}
