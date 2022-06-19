@@ -45,6 +45,7 @@ func (module *TaskModule) Setup(cfg *config.Config) {
 	api.HandleAPIMethod(api.GET, "/tasks/", module.GetTaskList)
 	api.HandleAPIMethod(api.POST, "/task/:id/_start", module.StartTask)
 	api.HandleAPIMethod(api.POST, "/task/:id/_stop", module.StopTask)
+	api.HandleAPIMethod(api.DELETE, "/task/:id", module.DeleteTask)
 
 }
 
@@ -73,5 +74,10 @@ func (module *TaskModule) StartTask(w http.ResponseWriter, req *http.Request, ps
 
 func (module *TaskModule) StopTask(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	task.StopTask(ps.ByName("id"))
+	module.WriteAckOKJSON(w)
+}
+
+func (module *TaskModule) DeleteTask(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	task.DeleteTask(ps.ByName("id"))
 	module.WriteAckOKJSON(w)
 }
