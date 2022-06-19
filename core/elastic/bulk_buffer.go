@@ -12,10 +12,12 @@ type BulkBuffer struct {
 	StatusCode map[int]int
 }
 
+var pool1 = bytebufferpool.NewPool(5*1024*1024, 50*1024*1024)
+
 var bulkBufferPool = &sync.Pool{
 	New: func() interface{} {
 		v := new(BulkBuffer)
-		v.Buffer = bytebufferpool.Get()
+		v.Buffer = pool1.Get()
 		v.Reset()
 		return v
 	},
