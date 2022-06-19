@@ -58,7 +58,7 @@ type API interface {
 
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
 
-	GetIndexSettings(indexNames string) (*Indexes, error)
+	GetIndexSettings(indexNames string) (*util.MapStr, error)
 	UpdateIndexSettings(indexName string, settings map[string]interface{}) error
 
 	IndexExists(indexName string) (bool, error)
@@ -84,7 +84,7 @@ type API interface {
 	DeleteByQuery(indexName string, body []byte) (*DeleteByQueryResponse, error)
 	UpdateByQuery(indexName string, body []byte) (*UpdateByQueryResponse, error)
 
-	GetIndexStats(indexName string) (*IndexStats, error)
+	GetIndexStats(indexName string) (*util.MapStr, error)
 	GetStats() (*Stats, error)
 	Forcemerge(indexName string, maxCount int) error
 	SetSearchTemplate(templateID string, body []byte) error
@@ -108,7 +108,7 @@ type TemplateAPI interface {
 }
 
 type MappingAPI interface {
-	GetMapping(copyAllIndexes bool, indexNames string) (string, int, *Indexes, error)
+	GetMapping(copyAllIndexes bool, indexNames string) (string, int, *util.MapStr, error)
 	UpdateMapping(indexName string, mappings []byte) ([]byte, error)
 }
 

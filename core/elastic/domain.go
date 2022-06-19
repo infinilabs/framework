@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"sync"
@@ -387,23 +388,26 @@ type ElasticsearchMetadata struct {
 
 	NodesTopologyVersion int
 
-	Nodes         *map[string]NodesInfo
-	//Indices       *map[string]IndexInfo
+	Nodes *map[string]NodesInfo
+
+	IndexSettings map[string]*util.MapStr
+
 	//PrimaryShards *map[string]map[int]ShardInfo
-	Aliases       *map[string]AliasInfo
-	Health        *ClusterHealth
+	Aliases *map[string]AliasInfo
+	Health  *ClusterHealth
 
 	clusterFailureTicket int
 	clusterAvailable     bool
 	lastSuccess          time.Time
 	configLock           sync.RWMutex
 	seedHosts            []string
-	activeHost			 *NodeAvailable
+	activeHost           *NodeAvailable
+
+	cache *ristretto.Cache
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
-
 	orm.ORMObjectBase
 
 	Source      string   `json:"source,omitempty"`
@@ -443,7 +447,7 @@ type ElasticsearchConfig struct {
 		} `json:"refresh,omitempty" config:"refresh"`
 	} `json:"discovery,omitempty" config:"discovery"`
 
-	Order   int       `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
+	Order int `json:"order,omitempty" elastic_mapping:"order:{type:integer}"`
 
 	Schema string `json:"schema,omitempty" elastic_mapping:"schema:{type:keyword}"`
 
@@ -454,14 +458,15 @@ type ElasticsearchConfig struct {
 
 	Project string `json:"project,omitempty" elastic_mapping:"project:{type:keyword,copy_to:search_text}"`
 
-	Owner [] struct{
+	Owner []struct {
 		Department string `json:"department,omitempty" elastic_mapping:"department:{type:keyword,copy_to:search_text}"`
-		Name string `json:"name,omitempty" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
-		ID string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
-	}  `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
-	Labels util.MapStr  `json:"labels,omitempty"`
-	Tags []string `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
-	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+		Name       string `json:"name,omitempty" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
+		ID         string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
+	} `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
+	Labels        util.MapStr `json:"labels,omitempty"`
+	Tags          []string    `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
+	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	MaxCachedSize int64       `json:"max_cached_size,omitempty" elastic_mapping:"max_cached_size:{type:integer}"`
 }
 
 type GeoLocation struct{

@@ -318,7 +318,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	isIndicesStateChange := false
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
-		queueConfig.Labels = map[string]interface{}{
+		queueConfig.Labels = util.MapStr{
 			"type":     "metadata",
 			"name":     "index_state_change",
 			"category": "elasticsearch",
@@ -711,7 +711,7 @@ func setNodeUnknown(clusterID string) {
 	}
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
-		queueConfig.Labels = map[string]interface{}{
+		queueConfig.Labels = util.MapStr{
 			"type":     "metadata",
 			"name":     "index_state_change",
 			"category": "elasticsearch",
@@ -1168,7 +1168,7 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 			}
 			queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 			if queueConfig.Labels == nil {
-				queueConfig.Labels = map[string]interface{}{
+				queueConfig.Labels = util.MapStr{
 					"type":     "metadata",
 					"name":     "index_state_change",
 					"category": "elasticsearch",

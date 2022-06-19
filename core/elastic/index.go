@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-type Indexes map[string]interface{}
-
 type ShardResponse struct {
 	Total      int `json:"total,omitempty"`
 	Successful int `json:"successful,omitempty"`

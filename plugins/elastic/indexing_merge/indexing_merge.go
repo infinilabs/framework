@@ -106,7 +106,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	queueConfig:=queue.GetOrInitConfig(cfg.OutputQueue.Name)
-	queueConfig.Labels = map[string]interface{}{}
+	queueConfig.Labels = util.MapStr{}
 	queueConfig.Labels["type"] = "indexing_merge"
 
 	if cfg.IndexName!=""{

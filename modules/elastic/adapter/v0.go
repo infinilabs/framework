@@ -861,11 +861,11 @@ func (c *ESAPIV0) Bulk(data []byte) (*util.Result, error) {
 	return result, nil
 }
 
-func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) {
-	indexNames=util.UrlEncode(indexNames)
+func (c *ESAPIV0) GetIndexSettings(indexNames string) (*util.MapStr, error) {
+	indexNames = util.UrlEncode(indexNames)
 
 	// get all settings
-	allSettings := &elastic.Indexes{}
+	allSettings := &util.MapStr{}
 
 	url := fmt.Sprintf("%s/%s/_settings?include_defaults", c.GetEndpoint(), indexNames)
 
@@ -887,8 +887,8 @@ func (c *ESAPIV0) GetIndexSettings(indexNames string) (*elastic.Indexes, error) 
 	return allSettings, nil
 }
 
-func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, int, *elastic.Indexes, error) {
-	indexNames=util.UrlEncode(indexNames)
+func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, int, *util.MapStr, error) {
+	indexNames = util.UrlEncode(indexNames)
 
 	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexNames)
 
@@ -898,7 +898,7 @@ func (c *ESAPIV0) GetMapping(copyAllIndexes bool, indexNames string) (string, in
 		return "", 0, nil, err
 	}
 
-	idxs := elastic.Indexes{}
+	idxs := util.MapStr{}
 	er := json.Unmarshal(resp.Body, &idxs)
 
 	if er != nil {
@@ -1227,15 +1227,15 @@ func (c *ESAPIV0) Reindex(body []byte) (*elastic.ReindexResponse, error) {
 	return reindexResponse, nil
 }
 
-func (c *ESAPIV0) GetIndexStats(indexName string) (*elastic.IndexStats, error) {
-	indexName=util.UrlEncode(indexName)
+func (c *ESAPIV0) GetIndexStats(indexName string) (*util.MapStr, error) {
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_stats", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	var response = &elastic.IndexStats{}
+	var response = &util.MapStr{}
 	err = json.Unmarshal(resp.Body, response)
 	if err != nil {
 		return nil, err
