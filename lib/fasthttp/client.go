@@ -300,7 +300,7 @@ type Client struct {
 	// By default will use isIdempotent function
 	RetryIf RetryIfFunc
 
-	mLock sync.Mutex
+	sync.Mutex
 	m     map[string]*HostClient
 	ms    map[string]*HostClient
 }
@@ -473,7 +473,7 @@ func (c *Client) Do(req *Request, resp *Response) error {
 
 	startCleaner := false
 
-	c.mLock.Lock()
+	c.Lock()
 	m := c.m
 	if isTLS {
 		m = c.ms
@@ -515,7 +515,7 @@ func (c *Client) Do(req *Request, resp *Response) error {
 			startCleaner = true
 		}
 	}
-	c.mLock.Unlock()
+	c.Unlock()
 
 	if startCleaner {
 		go c.mCleaner(m)
@@ -528,7 +528,7 @@ func (c *Client) mCleaner(m map[string]*HostClient) {
 	mustStop := false
 
 	for {
-		c.mLock.Lock()
+		c.Lock()
 		for k, v := range m {
 			v.connsLock.Lock()
 			shouldRemove := v.connsCount == 0
@@ -541,7 +541,7 @@ func (c *Client) mCleaner(m map[string]*HostClient) {
 		if len(m) == 0 {
 			mustStop = true
 		}
-		c.mLock.Unlock()
+		c.Unlock()
 
 		if mustStop {
 			break
@@ -1147,7 +1147,7 @@ func clientDoDeadline(req *Request, resp *Response, deadline time.Time, c client
 	// concurrent requests, since timed out requests on client side
 	// usually continue execution on the host.
 
-	var mu sync.Mutex
+	var mu = sync.Mutex{}
 	var timedout bool
 
 	go func() {
