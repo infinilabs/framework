@@ -44,15 +44,25 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		err error
 	)
 	if indexName != "" {
-		top = 1
-		indexNames = []string{indexName}
+		indexNames = strings.Split(indexName, ",")
 		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
 		if !hasAllPrivilege && len(allowedIndices) == 0 {
 			return nil
 		}
-		if !hasAllPrivilege && !radix.Compile(allowedIndices...).Match(indexName){
-			return nil
+		if !hasAllPrivilege{
+			namePattern := radix.Compile(allowedIndices...)
+			var filterNames []string
+			for _, name := range indexNames {
+				if namePattern.Match(name){
+					filterNames = append(filterNames, name)
+				}
+			}
+			if len(filterNames) == 0 {
+				return nil
+			}
+			indexNames = filterNames
 		}
+		top = len(indexNames)
 
 	}else{
 		indexNames, err = h.getTopIndexName(req, clusterID, top, 15)

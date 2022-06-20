@@ -563,7 +563,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 	query := util.MapStr{
 		"size": 1000,
 		"collapse": util.MapStr{
-			"field": "metadata.labels.node_name",
+			"field": "metadata.labels.node_id",
 		},
 		"sort": []util.MapStr{
 			{

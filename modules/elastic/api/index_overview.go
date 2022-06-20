@@ -900,17 +900,20 @@ func (h APIHandler) ListIndex(w http.ResponseWriter, req *http.Request, ps httpr
 	keyword := h.GetParameterOrDefault(req, "keyword", "")
 	ids := strings.Split(clusterIds, ",")
 	if len(ids) == 0 {
-		h.Error400(w, "id is required")
+		h.Error400(w, "cluster id is required")
 		return
 	}
 	var must = []util.MapStr{}
-	if !util.StringInArray(ids, "*") {
+
+	if !util.StringInArray(ids, "*"){
+
 		must = append(must, util.MapStr{
 			"terms": util.MapStr{
 				"metadata.cluster_id": ids,
 			},
 		})
 	}
+
 	if keyword != "" {
 		must = append(must, util.MapStr{
 			"wildcard":util.MapStr{

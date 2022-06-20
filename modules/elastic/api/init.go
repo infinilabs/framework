@@ -18,7 +18,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/storage_metrics", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetStorageMetricAction))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/", clusterAPI.RequirePermission(clusterAPI.HandleCreateClusterAction, enum.PermissionElasticsearchClusterWrite))
-	api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.ListIndex)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.RequireLogin(clusterAPI.ListIndex))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.RequireLogin(clusterAPI.GetClusterStatusAction))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleGetClusterAction, enum.PermissionElasticsearchClusterRead)))
 	//api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/kv", clusterAPI.HandleGetNodesAction)
@@ -57,8 +57,8 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.HandleTestConnectionAction)
 
 
-	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.GetMetadata)
-	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts", clusterAPI.GetHosts)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts",  clusterAPI.RequireLogin(clusterAPI.GetHosts))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/_search", clusterAPI.RequirePermission(clusterAPI.SearchClusterMetadata, enum.PermissionElasticsearchClusterRead))
 	api.HandleAPIMethod(api.POST, "/elasticsearch/cluster/info", clusterAPI.RequirePermission(clusterAPI.FetchClusterInfo, enum.PermissionElasticsearchMetricRead))

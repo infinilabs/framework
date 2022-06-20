@@ -165,3 +165,13 @@ func (handler Handler) RequireClusterPermission(h httprouter.Handle, permissions
 		h(w, r, ps)
 	}
 }
+
+func (handler Handler) GetCurrentUser(req *http.Request) string {
+	if authEnabled {
+		claims, ok := req.Context().Value("user").(*rbac.UserClaims)
+		if ok {
+			return claims.Username
+		}
+	}
+	return ""
+}
