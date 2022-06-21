@@ -223,13 +223,9 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				if ok {
 					source["number_of_deleted_documents"] = docsDeletedCount
 				}
-				totalInBytes, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "fs", "total_in_bytes"}, result)
+				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "fs"}, result)
 				if ok {
-					usedInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "store", "size_in_bytes"}, result)
-					source["fs"] = util.MapStr{
-						"total_in_bytes": totalInBytes,
-						"used_in_bytes": usedInBytes,
-					}
+					source["fs"] = fs
 				}
 				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "jvm", "mem"}, result)
 				if ok {
