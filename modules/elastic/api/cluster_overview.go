@@ -223,9 +223,13 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				if ok {
 					source["number_of_deleted_documents"] = docsDeletedCount
 				}
-				fs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "fs"}, result)
+				totalInBytes, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "fs", "total_in_bytes"}, result)
 				if ok {
-					source["fs"] = fs
+					usedInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "indices", "store", "size_in_bytes"}, result)
+					source["fs"] = util.MapStr{
+						"total_in_bytes": totalInBytes,
+						"used_in_bytes": usedInBytes,
+					}
 				}
 				jvm, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "cluster_stats", "nodes", "jvm", "mem"}, result)
 				if ok {
@@ -239,6 +243,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				if ok {
 					source["number_of_shards"] = shardCount
 				}
+				source["timestamp"] = result["timestamp"]
 
 				healthMap[util.ToString(clusterID)] = source
 			}
@@ -1166,6 +1171,13 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
 				"should": should,
 				"must": must,
+			},
+		},
+		"sort": []util.MapStr{
+			{
+				"updated": util.MapStr{
+					"order": "desc",
+				},
 			},
 		},
 	}

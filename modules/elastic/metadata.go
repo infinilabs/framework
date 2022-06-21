@@ -427,7 +427,9 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			if infoMap["health"] != nil && infoMap["health"] != "unavailable" {
 				if v, err := infoMap.GetValue("index_state.version"); err == nil {
 					if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
-						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) {
+						indexUUID, _ := infoMap.GetValue("index_state.settings.index.uuid")
+						newIndexUUID, _ := util.MapStr(newInfo).GetValue("settings.index.uuid")
+						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) && indexUUID == newIndexUUID{
 							newIndexMetadata[indexName] = infoMap
 							notChanges[indexName] = true
 						}
@@ -448,6 +450,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	}
 
 	for indexName, indexMetadata := range state.Metadata.Indices {
+
 		if _, ok := notChanges[indexName]; ok {
 			continue
 		}
