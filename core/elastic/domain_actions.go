@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rate"
@@ -136,6 +137,17 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
 func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
+	cache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 1e7,       // Num keys to track frequency of (10M).
+		MaxCost:     100000000, //cfg.MaxCachedSize, // Maximum cost of cache (1GB).
+		BufferItems: 64,        // Number of keys per Get buffer.
+		Metrics:     false,
+	})
+	if err != nil {
+		panic(err)
+	}
+	v.cache = cache
+
 	v.Init(defaultHealth)
 	SetMetadata(cfg.ID, v)
 	return v
@@ -311,47 +323,47 @@ func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Clie
 	client, ok := clients[host]
 	clientLock.RUnlock()
 
-	//TODO configureable
 	if !ok {
 		clientLock.Lock()
 		defer clientLock.Unlock()
-
-		client = &fasthttp.Client{
-			MaxConnsPerHost: 5000,
-			MaxConnDuration:               0,
-			MaxIdleConnDuration:           0,
-			ReadTimeout:                   0,
-			WriteTimeout:                  0,
-			DisableHeaderNamesNormalizing: true,
-			DisablePathNormalizing:        true,
-			MaxConnWaitTimeout:            0,
-			TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
-		}
-
-		if metadata.Config.TrafficControl != nil &&metadata.Config.TrafficControl.MaxConnectionPerNode>0 {
-			client.MaxConnsPerHost = metadata.Config.TrafficControl.MaxConnectionPerNode
-		}
-
+		client = metadata.NewHttpClient(host)
 		clients[host] = client
-
 	}
 
 	return client
 }
 
+func (metadata *ElasticsearchMetadata) NewHttpClient(host string) *fasthttp.Client {
+	client := &fasthttp.Client{
+		MaxConnsPerHost:               5000,
+		MaxConnDuration:               0,
+		MaxIdleConnDuration:           0,
+		ReadTimeout:                   0,
+		WriteTimeout:                  0,
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		MaxConnWaitTimeout:            0,
+		TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
+	}
 
-func (metadata *ElasticsearchMetadata) LastSuccess()time.Time{
+	if metadata.Config.TrafficControl != nil && metadata.Config.TrafficControl.MaxConnectionPerNode > 0 {
+		client.MaxConnsPerHost = metadata.Config.TrafficControl.MaxConnectionPerNode
+	}
+	return client
+}
+
+func (metadata *ElasticsearchMetadata) LastSuccess() time.Time {
 	return metadata.lastSuccess
 }
 
-func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req , dataSize ,maxWaitInMS int){
+func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string, req, dataSize, maxWaitInMS int) {
 	if metadata.Config.TrafficControl != nil {
 
 		if metadata.Config.TrafficControl.MaxWaitTimeInMs <= 0 {
 			metadata.Config.TrafficControl.MaxWaitTimeInMs = 10 * 1000
 		}
 
-		if maxWaitInMS>0 {
+		if maxWaitInMS > 0 {
 			metadata.Config.TrafficControl.MaxWaitTimeInMs = maxWaitInMS
 		}
 
@@ -390,74 +402,179 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string,req 
 	}
 }
 
-//func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string,*IndexInfo, error) {
-//	if metadata.Indices==nil{
-//		return index,nil,errors.Errorf("index [%v] setting not found,", index)
-//	}
-//
-//	indexSettings, ok := (*metadata.Indices)[index]
-//
-//	if !ok {
-//		if global.Env().IsDebug {
-//			log.Tracef("index [%v] was not found in index settings,", index)
-//		}
-//
-//		if metadata.Aliases!=nil{
-//			alias, ok := (*metadata.Aliases)[index]
-//			if ok {
-//				if global.Env().IsDebug {
-//					log.Tracef("found index [%v] in alias settings,", index)
-//				}
-//				newIndex := alias.WriteIndex
-//				if alias.WriteIndex == "" {
-//					if len(alias.Index) == 1 {
-//						newIndex = alias.Index[0]
-//						if global.Env().IsDebug {
-//							log.Trace("found index [%v] in alias settings, no write_index, but only have one index, will use it,", index)
-//						}
-//					} else {
-//						log.Warnf("writer_index [%v] was not found in alias [%v] settings,", index, alias)
-//						return index,nil,errors.Error("writer_index was not found in alias settings,", index, ",", alias)
-//					}
-//				}
-//				indexSettings, ok = (*metadata.Indices)[newIndex]
-//				if ok {
-//					if global.Env().IsDebug {
-//						log.Trace("index was found in index settings, ", index, "=>", newIndex, ",", indexSettings)
-//					}
-//					index = newIndex
-//					return index,&indexSettings,nil
-//
-//				} else {
-//					if global.Env().IsDebug {
-//						log.Tracef("writer_index [%v] was not found in index settings,", index)
-//					}
-//				}
-//			} else {
-//				if global.Env().IsDebug {
-//					log.Tracef("index [%v] was not found in alias settings,", index)
-//				}
-//			}
-//		}
-//
-//		return index,nil,errors.Errorf("index [%v] setting not found,", index)
-//	}
-//
-//	return index,&indexSettings,nil
-//}
+func (metadata *ElasticsearchMetadata) GetValue(s string) (interface{}, error) {
+	if util.PrefixStr(s, "_meta.") {
+		keys := strings.Split(s, ".")
+		if len(keys) >= 2 {
+			rootFied := keys[1]
+			if rootFied != "" {
+				switch rootFied {
+				case "elasticsearch":
+					if len(keys) > 3 {
+						clusterID := keys[2]
+						if clusterID != "" {
+							meta := GetMetadata(clusterID)
+							if meta != nil {
+								if len(keys) > 3 {
+									objKey := keys[3]
+									switch objKey {
+									case "index":
+										if len(keys) > 5 {
+											indexName := keys[4]
+											indexOp := keys[5]
+											switch indexOp {
+											case "settings":
+												_, indexSettings, err := meta.GetIndexSetting(indexName)
+												if err == nil && len(keys) > 6 {
+													keys := keys[4:]
+													v, err := indexSettings.GetValue(util.JoinArray(keys, "."))
+													if global.Env().IsDebug {
+														log.Trace("cluster:", clusterID, "index:", indexName, ",settings key:", util.JoinArray(keys, "."), ",", v)
+													}
+													return v, err
+												}
+												break
+											case "stats":
+												s, err := meta.GetIndexStats(indexName)
+												if err == nil && len(keys) > 6 {
+													keys := keys[6:]
+													v, err := s.GetValue(util.JoinArray(keys, "."))
+													if global.Env().IsDebug {
+														log.Trace("cluster:", clusterID, "index:", indexName, ",settings key:", util.JoinArray(keys, "."), ",", v)
+													}
+													return v, err
+												}
+												break
+											}
+										}
+										break
+									}
+								}
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+	}
 
+	return nil, errors.New("key not found:" + s)
+}
 
-func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error) {
+func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.MapStr, error) {
+	if metadata.cache != nil {
+		o, found := metadata.cache.Get("index_stats" + indexName)
+		if found {
+			return o.(*util.MapStr), nil
+		}
+	}
 
-	if metadata.ClusterState!=nil{
-		if metadata.ClusterState.RoutingTable!=nil{
-			table,ok:=metadata.ClusterState.RoutingTable.Indices[index]
-			if !ok{
+	s, err := GetClient(metadata.Config.ID).GetIndexStats(indexName)
+	if err == nil {
+		if metadata.cache != nil {
+			metadata.cache.SetWithTTL("index_stats"+indexName, s, 1, 10*time.Second)
+		}
+	}
+	return s, err
+}
+
+func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *util.MapStr, error) {
+
+	if metadata.cache != nil {
+		o, found := metadata.cache.Get("index_settings" + index)
+		if found {
+			return index, o.(*util.MapStr), nil
+		}
+	}
+
+	//access local memory cache
+	//access local kv store
+	//access remote es API
+	//if data is out of 30s, re-fetch from API
+
+	if metadata.IndexSettings == nil {
+		//fetch index settings and set cache with 30s TTL
+		metadata.IndexSettings = map[string]*util.MapStr{}
+		return index, nil, errors.Errorf("index [%v] setting not found", index)
+	}
+
+	indexSettings, ok := (metadata.IndexSettings)[index]
+	if !ok {
+		if global.Env().IsDebug {
+			log.Tracef("index [%v] was not found in index settings", index)
+		}
+
+		if metadata.Aliases != nil {
+			alias, ok := (*metadata.Aliases)[index]
+			if ok {
+				if global.Env().IsDebug {
+					log.Tracef("found index [%v] in alias settings", index)
+				}
+				newIndex := alias.WriteIndex
+				if alias.WriteIndex == "" {
+					if len(alias.Index) == 1 {
+						newIndex = alias.Index[0]
+						if global.Env().IsDebug {
+							log.Trace("found index [%v] in alias settings, no write_index, but only have one index, will use it", index)
+						}
+					} else {
+						log.Warnf("writer_index [%v] was not found in alias [%v] settings", index, alias)
+						return index, nil, errors.Error("writer_index was not found in alias settings", index, ",", alias)
+					}
+				}
+
+				indexSettings, ok = (metadata.IndexSettings)[newIndex]
+				if ok {
+					if global.Env().IsDebug {
+						log.Trace("index was found in index settings, ", index, "=>", newIndex, ",", indexSettings)
+					}
+					index = newIndex
+					return index, indexSettings, nil
+
+				} else {
+					if global.Env().IsDebug {
+						log.Tracef("writer_index [%v] was not found in index settings,", index)
+					}
+				}
+			} else {
+				if global.Env().IsDebug {
+					log.Tracef("index [%v] was not found in alias settings", index)
+				}
+			}
+		}
+
+		if indexSettings == nil {
+			//fetch single index settings
+			settings, err := GetClient(metadata.Config.ID).GetIndexSettings(index)
+			if err == nil && settings != nil {
+				//TODO set cache
+				//metadata.IndexSettings[index] = settings
+
+				if metadata.cache != nil {
+					metadata.cache.SetWithTTL("index_settings"+index, settings, 1, 10*time.Second)
+				}
+
+				return index, settings, nil
+			}
+		}
+
+		return index, nil, errors.Errorf("index [%v] setting not found", index)
+	}
+	return index, indexSettings, nil
+}
+
+func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error) {
+
+	if metadata.ClusterState != nil {
+		if metadata.ClusterState.RoutingTable != nil {
+			table, ok := metadata.ClusterState.RoutingTable.Indices[index]
+			if !ok {
 				//check alias
 				if global.Env().IsDebug {
 					log.Tracef("index [%v] was not found in index settings,", index)
 				}
-				if metadata.Aliases!=nil{
+				if metadata.Aliases != nil {
 					alias, ok := (*metadata.Aliases)[index]
 					if ok {
 						if global.Env().IsDebug {

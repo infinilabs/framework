@@ -2,7 +2,7 @@ package common
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic"
+	elastic "infini.sh/framework/core/elastic"
 	"infini.sh/framework/modules/elastic/adapter"
 	"strings"
 )
@@ -97,14 +97,14 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		return client, err
 	}
 	elastic.RegisterInstance(esConfig, client)
-	v := &elastic.ElasticsearchMetadata{Config: &esConfig}
 
 	originMeta := elastic.GetMetadata(esConfig.ID)
 	initHealth := true
-	if originMeta != nil{
+	if originMeta != nil {
 		initHealth = originMeta.IsAvailable()
 	}
-	v.Init(initHealth)
+
+	v := elastic.InitMetadata(&esConfig, initHealth)
 	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
 }

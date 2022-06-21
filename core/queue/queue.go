@@ -50,12 +50,12 @@ var defaultHandler QueueAPI
 var handlers map[string]QueueAPI = map[string]QueueAPI{}
 
 type Config struct {
-	Source   string                 `config:"source" json:"source,omitempty"`
-	Id       string                 `config:"id" json:"id,omitempty"`   //uuid for each queue
-	Name     string                 `config:"name" json:"name,omitempty"` //unique name of each queue
-	Codec    string                 `config:"codec" json:"codec,omitempty"`
-	Type     string                 `config:"type" json:"type,omitempty"`
-	Labels map[string]interface{}   `config:"label" json:"label,omitempty"`
+	Source string      `config:"source" json:"source,omitempty"`
+	Id     string      `config:"id" json:"id,omitempty"`   //uuid for each queue
+	Name   string      `config:"name" json:"name,omitempty"` //unique name of each queue
+	Codec  string      `config:"codec" json:"codec,omitempty"`
+	Type   string      `config:"type" json:"type,omitempty"`
+	Labels util.MapStr `config:"label" json:"label,omitempty"`
 }
 
 type ConsumerConfig struct {
