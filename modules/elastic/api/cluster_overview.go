@@ -239,6 +239,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				if ok {
 					source["number_of_shards"] = shardCount
 				}
+				source["timestamp"] = result["timestamp"]
 
 				healthMap[util.ToString(clusterID)] = source
 			}
@@ -1166,6 +1167,13 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
 				"should": should,
 				"must": must,
+			},
+		},
+		"sort": []util.MapStr{
+			{
+				"updated": util.MapStr{
+					"order": "desc",
+				},
 			},
 		},
 	}

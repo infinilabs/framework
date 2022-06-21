@@ -15,6 +15,7 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -484,6 +485,13 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 			}
 			if indexInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, result); ok {
 				if infoM, ok := indexInfo.(map[string]interface{}); ok {
+					if tm, ok := result["timestamp"].(string); ok {
+						issueTime, _ := time.Parse(time.RFC3339, tm)
+						if time.Now().Sub(issueTime).Seconds() > 30 {
+							health, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, response.Hits.Hits[0].Source)
+							infoM["health"] = health
+						}
+					}
 					state, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, response.Hits.Hits[0].Source)
 					if state == "delete" {
 						infoM["status"] = "deleted"
