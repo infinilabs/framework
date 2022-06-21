@@ -84,7 +84,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		MaxWorkers:           10,
 		MaxConnectionPerHost: 1,
 		IdleTimeoutInSecond:  5,
-		DetectIntervalInMs:   10000,
+		DetectIntervalInMs:   1000,
 		Queues:               map[string]interface{}{},
 
 		Consumer: queue.ConsumerConfig{
