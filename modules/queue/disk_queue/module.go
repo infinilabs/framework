@@ -374,13 +374,18 @@ func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, 
 		q,ok=module.queues.Load(queueName)
 	}
 	if ok{
-		segment,offset:= ConvertOffset(offsetStr)
-		q1:=(*q.(*BackendQueue))
-		ctx,messages,timeout,err:=q1.Consume(consumer, segment,offset,count, timeDuration)
+		segment, offset := ConvertOffset(offsetStr)
+		q1 := (*q.(*BackendQueue))
+		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset, count, timeDuration)
+
+		//no new message found
+		if len(messages) == 0 && ctx.NextOffset == ctx.InitOffset {
+			timeout = true
+		}
 
 		//log.Infof("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v",queueName,consumer, segment,offset,count, len(messages),timeout,ctx.NextOffset)
 
-		return ctx,messages,timeout,err
+		return ctx, messages, timeout, err
 	}
 
 	panic(errors.Errorf("queue [%v] not found",queueName))
