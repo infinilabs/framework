@@ -77,6 +77,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/index/_search", clusterAPI.RequirePermission(clusterAPI.SearchIndexMetadata, enum.PermissionElasticsearchIndexRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/metrics", clusterAPI.RequirePermission(clusterAPI.GetSingleIndexMetrics, enum.PermissionElasticsearchMetricRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/info", clusterAPI.RequirePermission(clusterAPI.GetIndexInfo,enum.PermissionElasticsearchIndexRead, enum.PermissionElasticsearchMetricRead))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/shards",clusterAPI.RequirePermission(clusterAPI.GetIndexShards,enum.PermissionElasticsearchIndexRead, enum.PermissionElasticsearchMetricRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/index/:index/nodes", clusterAPI.RequirePermission(clusterAPI.getIndexNodes, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchNodeRead))
 	api.HandleAPIMethod(api.POST, "/elasticsearch/index/info", clusterAPI.RequirePermission(clusterAPI.FetchIndexInfo, enum.PermissionElasticsearchMetricRead))
 
