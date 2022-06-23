@@ -84,7 +84,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		MaxWorkers:           10,
 		MaxConnectionPerHost: 1,
 		IdleTimeoutInSecond:  5,
-		DetectIntervalInMs:   10000,
+		DetectIntervalInMs:   1000,
 		Queues:               map[string]interface{}{},
 
 		Consumer: queue.ConsumerConfig{
@@ -352,7 +352,6 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 
 	if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
 		log.Debugf("reached max num of workers, skip init [%v]", qConfig.Name)
-		time.Sleep(500 * time.Millisecond)
 		return
 	}
 
@@ -514,6 +513,12 @@ READ_DOCS:
 		if timeout {
 			log.Tracef("timeout on queue:[%v]", qConfig.Name)
 			ctx.Failed()
+
+			//exit after timeout
+			if mainBuf.GetMessageCount() == 0 {
+				return
+			}
+
 			goto CLEAN_BUFFER
 		}
 

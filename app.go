@@ -32,10 +32,11 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
-	"sync"
+	//"github.com/uber-go/automaxprocs"
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 )
 
@@ -91,7 +92,7 @@ func (app *App) Init(customFunc func()) {
 
 func (app *App) InitWithFlags(customFunc func()) {
 
-	showversion:=flag.Bool("v", false, "version")
+	showversion := flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
 
@@ -100,17 +101,17 @@ func (app *App) InitWithFlags(customFunc func()) {
 	//flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
 
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
-	//flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
-	flag.StringVar(&app.svcFlag,"service", "", "service management, options: install,uninstall,start,stop")
+	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
+	flag.StringVar(&app.svcFlag, "service", "", "service management, options: install,uninstall,start,stop")
 
-	if debugFlagInitFunc!=nil{
+	if debugFlagInitFunc != nil {
 		debugFlagInitFunc()
 	}
 
 	flag.Parse()
 
-	if *showversion{
-		fmt.Println(app.environment.GetAppName(),app.environment.GetVersion(),app.environment.GetBuildNumber(),app.environment.GetBuildDate(),app.environment.GetEOLDate(),app.environment.GetLastCommitHash())
+	if *showversion {
+		fmt.Println(app.environment.GetAppName(), app.environment.GetVersion(), app.environment.GetBuildNumber(), app.environment.GetBuildDate(), app.environment.GetEOLDate(), app.environment.GetLastCommitHash())
 		os.Exit(1)
 	}
 
