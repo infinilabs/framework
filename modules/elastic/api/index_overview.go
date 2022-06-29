@@ -186,6 +186,13 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		"query": util.MapStr{
 			"bool": boolQuery,
 		},
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
 	}
 	if len(reqBody.Sort) > 1 {
 		query["sort"] =  []util.MapStr{
@@ -469,7 +476,12 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	summary := util.MapStr{}
 	hit := response.Hits.Hits[0].Source
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
+		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit)
 		summary["aliases"] = aliases
+		summary["timestamp"] = hit["timestamp"]
+		summary["index_info"] = util.MapStr{
+			"health":health,
+		}
 	}
 	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
 	//	summary["mappings"] = mappings
