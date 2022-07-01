@@ -1248,9 +1248,9 @@ func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	format := "%s/_stats"
+	format := "%s/_stats?ignore_unavailable=true"
 	if cr > -1 {
-		format += "?expand_wildcards=all"
+		format += "&expand_wildcards=all"
 	}
 	url := fmt.Sprintf(format, c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
