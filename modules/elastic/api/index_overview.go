@@ -186,6 +186,13 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		"query": util.MapStr{
 			"bool": boolQuery,
 		},
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
 	}
 	if len(reqBody.Sort) > 1 {
 		query["sort"] =  []util.MapStr{
@@ -469,7 +476,12 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	summary := util.MapStr{}
 	hit := response.Hits.Hits[0].Source
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
+		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit)
 		summary["aliases"] = aliases
+		summary["timestamp"] = hit["timestamp"]
+		summary["index_info"] = util.MapStr{
+			"health":health,
+		}
 	}
 	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
 	//	summary["mappings"] = mappings
@@ -519,6 +531,39 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	}
 
 	h.WriteJSON(w, summary, http.StatusOK)
+}
+
+func (h *APIHandler) GetIndexShards(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterID := ps.MustGetParameter("id")
+	indexName := ps.MustGetParameter("index")
+	q1 := orm.Query{
+		Size: 1,
+		WildcardIndex: true,
+	}
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.name", "index_stats"),
+		orm.Eq("metadata.labels.index_name", indexName),
+		orm.Eq("metadata.labels.cluster_id", clusterID),
+	)
+	q1.Collapse("metadata.labels.index_id")
+	q1.AddSort("timestamp", orm.DESC)
+	err, result := orm.Search(&event.Event{}, &q1)
+	if err != nil {
+		h.WriteJSON(w,util.MapStr{
+			"error": err.Error(),
+		}, http.StatusInternalServerError )
+		return
+	}
+	var shardInfo interface{} = []interface{}{}
+	if len(result.Result) > 0 {
+		row, ok := result.Result[0].(map[string]interface{})
+		if ok {
+			shardInfo, ok = util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, row)
+		}
+	}
+
+	h.WriteJSON(w, shardInfo, http.StatusOK)
 }
 
 func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

@@ -140,6 +140,13 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 				"must": must,
 			},
 		},
+		"sort": []util.MapStr{
+			{
+				"timestamp": util.MapStr{
+					"order": "desc",
+				},
+			},
+		},
 	}
 	if len(reqBody.Sort) > 1 {
 		query["sort"] =  []util.MapStr{

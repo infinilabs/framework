@@ -131,8 +131,8 @@ func (m *Metric) Collect() error {
 				log.Trace("time of CatShards:", time.Since(t1).String())
 
 				if err != nil {
-					log.Error(v.Config.Name, " get shards info error: ", err)
-					return true
+					log.Debug(v.Config.Name, " get shards info error: ", err)
+					//return true
 				}
 			}
 
@@ -333,51 +333,6 @@ func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, t
 	if indexID == "_all" {
 		newIndexID = indexID
 	}
-	//indexIDKey := []byte(newIndexID)
-	//statusBytes, err := kv.GetValue(elastic.KVElasticIndexHealthStatus, indexIDKey)
-	//var lastHealthStatus string
-	//if statusBytes != nil {
-	//	lastHealthStatus = string(statusBytes)
-	//}
-	//
-	//if err == nil  && info != nil  {
-	//	newStatusBytes := []byte(info.Health )
-	//	if lastHealthStatus != "" {
-	//		if !bytes.Equal(newStatusBytes, statusBytes) {
-	//			kv.AddValue(elastic.KVElasticIndexHealthStatus, indexIDKey, newStatusBytes)
-	//			queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexHealthStatus)
-	//			if queueConfig.Labels == nil {
-	//				queueConfig.Labels = map[string]interface{}{
-	//					"type":     "metadata",
-	//					"name":     "index_health_change",
-	//					"category": "elasticsearch",
-	//				}
-	//			}
-	//			ev := event.Event{
-	//				Metadata: event.EventMetadata{
-	//					Category: "elasticsearch",
-	//					Name:     "index_health_change",
-	//					Datatype: "snapshot",
-	//					Labels: util.MapStr{
-	//						"cluster_id": clusterId,
-	//						"index_id":   newIndexID,
-	//						"index_uuid": indexID,
-	//						"index_name": indexName,
-	//						"type":       "metadata",
-	//						"from":       lastHealthStatus,
-	//						"to":         info.Health,
-	//					},
-	//				},
-	//			}
-	//			err = queue.Push(queueConfig, util.MustToJSONBytes(ev))
-	//			if err != nil {
-	//				panic(err)
-	//			}
-	//		}
-	//	}else{
-	//		kv.AddValue(elastic.KVElasticIndexHealthStatus, indexIDKey, newStatusBytes)
-	//	}
-	//}
 	item := event.Event{
 		Metadata: event.EventMetadata{
 			Category: "elasticsearch",
