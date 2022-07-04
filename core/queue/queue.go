@@ -224,7 +224,7 @@ func IsConfigExists(key string) bool {
 }
 
 func GetOrInitConfig(key string) (*Config) {
-	cfg,exists:=GetConfig(key)
+	cfg, exists := GetConfigByKey(key)
 	if !exists{
 		_, ok := configs[key]
 		if !ok{
@@ -238,7 +238,7 @@ func GetOrInitConfig(key string) (*Config) {
 	return cfg
 }
 
-func GetConfig(key string) (*Config, bool) {
+func GetConfigByKey(key string) (*Config, bool) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	v, ok := configs[key]
@@ -340,7 +340,7 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 			return ctx, messages,isTimeout,err
 		}
 		stats.Increment("queue",k.Id, "consume_timeout")
-		return ctx,messages,isTimeout, errors.New("timeout")
+		return ctx, messages, isTimeout, err
 	}
 	panic(errors.New("handler is not registered"))
 }
@@ -397,10 +397,11 @@ func GetEarlierOffsetStrByQueueID(queueID string) (string) {
 	offset:=fmt.Sprintf("%v,%v",seg,pos)
 	return offset
 }
+
 func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,pos int64) {
 	q,ok:=GetConfigByUUID(queueID)
 	if !ok{
-		q,ok=GetConfig(queueID)
+		q, ok = GetConfigByKey(queueID)
 		oldID:=queueID
 		queueID=q.Id
 		if !ok{
@@ -530,7 +531,7 @@ func GetQueues() map[string][]string {
 		result := []string{}
 		if handler != nil {
 			o := handler.GetQueues()
-			stats.Increment("queue",q, "get_queues")
+			stats.Increment("queue", q, "get_queues")
 			result = append(result, o...)
 			results[q] = result
 		}
@@ -538,25 +539,66 @@ func GetQueues() map[string][]string {
 	return results
 }
 
-func GetQueuesFilterByLabel(labels map[string]interface{}) []*Config {
-	cfgLock.Lock()
-	defer cfgLock.Unlock()
-	cfgs:=[]*Config{}
+type QueueSelector struct {
+	Labels map[string]interface{} `config:"labels,omitempty"`
+	Ids    []string               `config:"ids,omitempty"`
+	Keys   []string               `config:"keys,omitempty"`
+}
 
-	for _,v:=range configs{
-		notMatch:=false
-		for x,y:=range labels{
-			z,ok:=v.Labels[x]
-			if ok{
-				if util.ToString(z)!=util.ToString(y){
-					notMatch=true
+func (s *QueueSelector) ToString() string {
+	return fmt.Sprintf("ids:%v, keys:%v, labels:%v", s.Ids, s.Keys, s.Labels)
+}
+
+func GetConfigBySelector(selector *QueueSelector) []*Config {
+	cfgs := []*Config{}
+	if selector != nil {
+		if len(selector.Ids) > 0 {
+			for _, id := range selector.Ids {
+				cfg, ok := GetConfigByUUID(id)
+				if ok {
+					cfgs = append(cfgs, cfg)
 				}
-			}else{
-				notMatch=true
 			}
 		}
-		if !notMatch{
-			cfgs=append(cfgs,v)
+
+		if len(selector.Keys) > 0 {
+			for _, key := range selector.Keys {
+				cfg, ok := GetConfigByKey(key)
+				if ok {
+					cfgs = append(cfgs, cfg)
+				}
+			}
+		}
+
+		if len(selector.Labels) > 0 {
+			cfgs1 := GetConfigByLabels(selector.Labels)
+			if cfgs1 != nil {
+				cfgs = append(cfgs, cfgs1...)
+			}
+		}
+	}
+	return cfgs
+}
+
+func GetConfigByLabels(labels map[string]interface{}) []*Config {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	cfgs := []*Config{}
+
+	for _, v := range configs {
+		notMatch := false
+		for x, y := range labels {
+			z, ok := v.Labels[x]
+			if ok {
+				if util.ToString(z) != util.ToString(y) {
+					notMatch = true
+				}
+			} else {
+				notMatch = true
+			}
+		}
+		if !notMatch {
+			cfgs = append(cfgs, v)
 		}
 	}
 	return cfgs

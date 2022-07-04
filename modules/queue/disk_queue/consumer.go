@@ -115,9 +115,7 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 				}
 				goto RELOCATE_FILE
 			}else{
-				if global.Env().IsDebug {
-					log.Tracef("EOF, next file [%v] not exists, pause and waiting for new data", nextFile)
-				}
+				log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages:%v, newFile:%v", nextFile, len(messages), part < d.writeSegmentNum)
 
 				if part < d.writeSegmentNum {
 					oldPart := part

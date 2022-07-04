@@ -31,7 +31,7 @@ func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLa
 func (c ConsumerHasLag) Check(event ValuesMap) bool {
 
 	if c.Queue!=""{
-		qConfig,ok:=queue.GetConfig(c.Queue)
+		qConfig, ok := queue.GetConfigByKey(c.Queue)
 		if ok{
 			latestProduceOffset:=queue.LatestOffset(qConfig)
 			if c.Group!=""&&c.Consumer!=""{

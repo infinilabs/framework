@@ -378,12 +378,12 @@ func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, 
 		q1 := (*q.(*BackendQueue))
 		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset, count, timeDuration)
 
-		//no new message found
-		if len(messages) == 0 && ctx.NextOffset == ctx.InitOffset {
-			timeout = true
-		}
+		////no new message found
+		//if len(messages) == 0 && ctx.NextOffset == ctx.InitOffset {
+		//	err = errors.New("EOF")
+		//}
 
-		//log.Infof("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v",queueName,consumer, segment,offset,count, len(messages),timeout,ctx.NextOffset)
+		log.Debugf("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", queueName, consumer, segment, offset, count, len(messages), timeout, ctx.NextOffset, err)
 
 		return ctx, messages, timeout, err
 	}
@@ -543,11 +543,6 @@ func (module *DiskQueue) Start() error {
 
 		for {
 			evt := <-module.messages
-
-			if global.Env().IsDebug{
-				log.Trace("received event from channel: ",evt)
-			}
-
 			switch evt.Type {
 			case WriteComplete:
 
@@ -568,7 +563,6 @@ func (module *DiskQueue) Start() error {
 				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
 
 				break;
-
 			}
 		}
 

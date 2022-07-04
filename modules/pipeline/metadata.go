@@ -185,7 +185,7 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 						})
 					}
 
-					cfgs:=queue.GetQueuesFilterByLabel(processor.config.Queues)
+					cfgs := queue.GetConfigByLabels(processor.config.Queues)
 					for _,v:=range cfgs{
 						if c.IsCanceled() {
 							return
@@ -206,8 +206,8 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 			}(c)
 		}
 	}else{
-		cfgs:=queue.GetQueuesFilterByLabel(processor.config.Queues)
-		log.Debugf("filter queue by:%v, num of queues:%v",processor.config.Queues,len(cfgs))
+		cfgs := queue.GetConfigByLabels(processor.config.Queues)
+		log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Queues, len(cfgs))
 		for _,v:=range cfgs{
 			log.Tracef("checking queue: %v",v)
 			processor.HandleQueueConfig(v,c)
