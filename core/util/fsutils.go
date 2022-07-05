@@ -38,7 +38,7 @@ func JoinPath(filenames ...string) string {
 		if len(result) > 0 {
 			currentHasSlash = strings.HasPrefix(str, "/")
 			if hasSlash && currentHasSlash {
-				str = strings.TrimLeft(str, "/")
+				str = strings.TrimPrefix(str, "/")
 			}
 			if !(hasSlash || currentHasSlash) {
 				str = "/" + str
