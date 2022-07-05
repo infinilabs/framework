@@ -144,27 +144,29 @@ func (m *Metric) Collect() error {
 					}
 					return true
 				}
-				shardInfos := map[string]map[string]int{}
+				shardInfos := map[string]map[string]interface{}{}
 				indexInfos := map[string]map[string]bool{}
 				for _, item := range shards {
 					if item.State == "UNASSIGNED" {
 						continue
 					}
 					if _, ok := shardInfos[item.NodeID]; !ok {
-						shardInfos[item.NodeID] = map[string] int{
+						shardInfos[item.NodeID] = map[string]interface{}{
 							"shard_count": 0,
 							"replicas_count": 0,
 							"indices_count": 0,
+							"shards": []interface{}{},
 						}
 					}
 					if _, ok := indexInfos[item.NodeID]; !ok {
 						indexInfos[item.NodeID] = map[string]bool {}
 					}
 					if item.ShardType == "p" {
-						shardInfos[item.NodeID]["shard_count"]++
+						shardInfos[item.NodeID]["shard_count"] = shardInfos[item.NodeID]["shard_count"].(int) + 1
 					}else{
-						shardInfos[item.NodeID]["replicas_count"]++
+						shardInfos[item.NodeID]["replicas_count"] = shardInfos[item.NodeID]["replicas_count"].(int) + 1
 					}
+					shardInfos[item.NodeID]["shards"] = append(shardInfos[item.NodeID]["shards"].([]interface{}), item)
 					indexInfos[item.NodeID][item.Index] = true
 				}
 

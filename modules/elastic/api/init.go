@@ -71,6 +71,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.POST, "/elasticsearch/node/info", clusterAPI.RequirePermission(clusterAPI.FetchNodeInfo, enum.PermissionElasticsearchMetricRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices", clusterAPI.RequirePermission(clusterAPI.GetClusterIndices, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchIndexRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/indices/realtime", clusterAPI.RequireLogin(clusterAPI.GetRealtimeClusterIndices))
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/shards", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.GetNodeShards, enum.PermissionElasticsearchMetricRead)))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/info", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.GetNodeInfo, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchNodeRead)))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/metrics", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.GetSingleNodeMetrics, enum.PermissionElasticsearchMetricRead)))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/node/:node_id/indices", clusterAPI.RequirePermission(clusterAPI.getNodeIndices, enum.PermissionElasticsearchMetricRead, enum.PermissionElasticsearchIndexRead))

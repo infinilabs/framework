@@ -962,3 +962,39 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 	}
 	return indices, nil
 }
+
+
+func (h *APIHandler) GetNodeShards(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterID := ps.MustGetParameter("id")
+	nodeID := ps.MustGetParameter("node_id")
+	q1 := orm.Query{
+		Size: 1,
+		WildcardIndex: true,
+	}
+	q1.Conds = orm.And(
+		orm.Eq("metadata.category", "elasticsearch"),
+		orm.Eq("metadata.name", "node_stats"),
+		orm.Eq("metadata.labels.node_id", nodeID),
+		orm.Eq("metadata.labels.cluster_id", clusterID),
+	)
+	q1.AddSort("timestamp", orm.DESC)
+	err, result := orm.Search(&event.Event{}, &q1)
+	if err != nil {
+		h.WriteJSON(w,util.MapStr{
+			"error": err.Error(),
+		}, http.StatusInternalServerError )
+		return
+	}
+	var shardInfo interface{} = []interface{}{}
+	if len(result.Result) > 0 {
+		row, ok := result.Result[0].(map[string]interface{})
+		if ok {
+			shardInfo, ok = util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "shards"}, row)
+		}
+	}
+	if shardInfo == nil {
+		shardInfo = []interface{}{}
+	}
+
+	h.WriteJSON(w, shardInfo, http.StatusOK)
+}
