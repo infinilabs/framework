@@ -46,7 +46,7 @@ const (
 func GetHost(url string) string {
 
 	if strings.HasPrefix(url, "//") {
-		url = strings.TrimLeft(url, "//")
+		url = strings.TrimPrefix(url, "//")
 	}
 
 	array := strings.Split(url, ".")
