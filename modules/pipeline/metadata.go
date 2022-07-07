@@ -381,7 +381,7 @@ func (processor *MetadataProcessor) HandleUnknownNodeStatus(ev []byte) error{
 	}
 	esClient := elastic.GetClient(processor.config.Elasticsearch)
 	queryDslTpl := `{"script": {
-    "source": "ctx._source.metadata.labels.status='N/A'",
+    "source": "ctx._source.metadata.labels.status='unavailable'",
     "lang": "painless"
   },
   "query": {

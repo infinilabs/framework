@@ -38,11 +38,14 @@ func Init() {
 
 	api.HandleAPIMethod(api.POST, "/account/login", apiHandler.Login)
 
-	api.HandleAPIMethod(api.GET, "/account/current_user", apiHandler.CurrentUser)
+	api.HandleAPIMethod(api.GET, "/account/current_user", apiHandler.RequireLogin(apiHandler.CurrentUser))
 
 	api.HandleAPIMethod(api.DELETE, "/account/logout", apiHandler.Logout)
 	api.HandleAPIMethod(api.GET, "/account/profile", apiHandler.RequireLogin(apiHandler.Profile))
 	api.HandleAPIMethod(api.PUT, "/account/password", apiHandler.RequireLogin(apiHandler.UpdatePassword))
+	api.HandleAPIMethod(api.GET, "/user/admin_disabled", apiHandler.RequirePermission(apiHandler.SetBuiltinUserAdminDisabled, enum.PermissionDisableBuiltinAdmin))
+
+	api.HandleAPIMethod(api.GET, "/user/security/settings", apiHandler.RequireLogin(apiHandler.GetSecuritySettings))
 
 	//load role from store
 	apiHandler.loadRolePermission()

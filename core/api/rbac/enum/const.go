@@ -50,6 +50,7 @@ const (
 const (
 	PermissionUserRead string = "user:read"
 	PermissionUserWrite = "user:write"
+	PermissionDisableBuiltinAdmin = "user:disable_builtin_admin"
 	PermissionRoleRead = "role:read"
 	PermissionRoleWrite = "role:write"
 	PermissionCommandRead = "command:read"
@@ -89,7 +90,7 @@ var (
 	RoleReadPermission = []string{PermissionRoleRead}
 	RoleAllPermission  = []string{PermissionRoleRead, PermissionRoleWrite}
 	SecurityReadPermission = []string{PermissionUserRead, PermissionRoleRead}
-	SecurityAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead, PermissionRoleWrite}
+	SecurityAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead, PermissionRoleWrite, PermissionDisableBuiltinAdmin}
 
 	ClusterReadPermission = []string{PermissionElasticsearchClusterRead}
 	ClusterAllPermission  = []string{PermissionElasticsearchClusterRead, PermissionElasticsearchClusterWrite}

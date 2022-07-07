@@ -841,7 +841,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok { // && currentNodeInfo.Equals(oldMetadataM)
 							healthStatus, _ := historyM.GetValue("metadata.labels.status")
 							changeLog, _ = util.DiffTwoObject(oldMetadataM, currentNodeInfo)
-							if len(changeLog) == 0 && healthStatus != "N/A" {
+							if len(changeLog) == 0 && (healthStatus == "unavailable" || healthStatus == "N/A") {
 								continue
 							}
 						}
