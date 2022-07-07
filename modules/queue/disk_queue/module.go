@@ -242,7 +242,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	module.queues=sync.Map{}
 
 	//load configs from static config
-	configs := []queue.Config{}
+	configs := []queue.QueueConfig{}
 	ok, err = env.ParseConfig("queue", &configs)
 	if ok && err != nil {
 		panic(err)
@@ -263,7 +263,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 			panic(err)
 		}
 
-		cfgs:=map[string]*queue.Config{}
+		cfgs := map[string]*queue.QueueConfig{}
 		err=util.FromJSONBytes(data,&cfgs)
 		if err!=nil{
 			panic(err)
@@ -285,7 +285,7 @@ func (module *DiskQueue) Setup(config *config.Config) {
 
 
 	//register queue listener
-	queue.RegisterQueueConfigChangeListener(func(v *queue.Config) {
+	queue.RegisterQueueConfigChangeListener(func(v *queue.QueueConfig) {
 		persistQueueMetadata()
 	})
 
@@ -365,30 +365,30 @@ func ConvertOffset(offsetStr string) (int64,int64) {
 	return segment,offset
 }
 
-func (module *DiskQueue) Consume(queueName,consumer,offsetStr string,count int, timeDuration time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
+func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (ctx *queue.Context, messages []queue.Message, timeout bool, err error) {
 
-	q,ok:=module.queues.Load(queueName)
-	if !ok{
+	q, ok := module.queues.Load(qconfig.Id)
+	if !ok {
 		//try init
-		module.Init(queueName)
-		q,ok=module.queues.Load(queueName)
+		module.Init(qconfig.Id)
+		q, ok = module.queues.Load(qconfig.Id)
 	}
-	if ok{
+	if ok {
 		segment, offset := ConvertOffset(offsetStr)
 		q1 := (*q.(*BackendQueue))
-		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset, count, timeDuration)
+		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset)
 
 		////no new message found
 		//if len(messages) == 0 && ctx.NextOffset == ctx.InitOffset {
 		//	err = errors.New("EOF")
 		//}
 
-		log.Debugf("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", queueName, consumer, segment, offset, count, len(messages), timeout, ctx.NextOffset, err)
+		log.Debugf("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
 
 		return ctx, messages, timeout, err
 	}
 
-	panic(errors.Errorf("queue [%v] not found",queueName))
+	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
 }
 
 func (module *DiskQueue) Close(k string) error {

@@ -992,13 +992,13 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 //		return
 //	}
 //
-//	client := elastic.GetClient(meta.Config.ID)
+//	client := elastic.GetClient(meta.QueueConfig.ID)
 //
 //	//Indices
 //	var indicesChanged bool
 //	indices, err := client.GetIndices("")
 //	if err != nil {
-//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		log.Errorf("[%v], %v", meta.QueueConfig.Name, err)
 //		return
 //	}
 //
@@ -1025,7 +1025,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 //		//TOD locker
 //		meta.Indices = indices
 //
-//		log.Tracef("cluster indices [%v] updated", meta.Config.Name)
+//		log.Tracef("cluster indices [%v] updated", meta.QueueConfig.Name)
 //	}
 //}
 
@@ -1077,13 +1077,13 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 //		return
 //	}
 //
-//	client := elastic.GetClient(meta.Config.ID)
+//	client := elastic.GetClient(meta.QueueConfig.ID)
 //
 //	//Shards
 //	var shardsChanged bool
 //	shards, err := client.GetPrimaryShards()
 //	if err != nil {
-//		log.Errorf("[%v], %v", meta.Config.Name, err)
+//		log.Errorf("[%v], %v", meta.QueueConfig.Name, err)
 //		return
 //	}
 //
@@ -1123,7 +1123,7 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 //	if shardsChanged {
 //		//TOD locker
 //		meta.PrimaryShards = shards
-//		log.Tracef("cluster shards [%v] updated", meta.Config.Name)
+//		log.Tracef("cluster shards [%v] updated", meta.QueueConfig.Name)
 //	}
 //}
 

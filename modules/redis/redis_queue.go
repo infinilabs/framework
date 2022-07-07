@@ -72,7 +72,7 @@ func (module *RedisQueue) Init(k string) error{
 
 var lock sync.RWMutex
 
-func (module *RedisQueue) Consume(queue,consumer,offsetStr string,count int,time time.Duration) (ctx *queue.Context,messages []queue.Message,timeout bool,err error) {
+func (module *RedisQueue) Consume(q *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (ctx *queue.Context, messages []queue.Message, timeout bool, err error) {
 	//TODO
 	panic("consume is not supported in redis queue")
 }

@@ -37,7 +37,7 @@ type IndexingMergeProcessor struct {
 	bufferPool        *bytebufferpool.Pool
 	initLocker        sync.RWMutex
 	config            Config
-	outputQueueConfig *queue.Config
+	outputQueueConfig *queue.QueueConfig
 }
 
 //处理纯 json 格式的消息索引

@@ -40,35 +40,36 @@ func (d *diskQueue)SmartGetFileName(queueID string,segmentID int64) string {
 }
 
 //每个 consumer 维护自己的元数据，part 自动切换，offset 表示文件级别的读取偏移，messageCount 表示消息的返回条数
-func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []queue.Message, isTimeout bool, err error) {
+func (d *diskQueue) Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error) {
 
-	messages=[]queue.Message{}
-	ctx=&queue.Context{}
-	initOffset:=fmt.Sprintf("%v,%v",part,readPos)
+	messages = []queue.Message{}
+	var totalMessageSize int64 = 0
+	ctx = &queue.Context{}
+	initOffset := fmt.Sprintf("%v,%v", part, readPos)
 	defer func() {
-		ctx.InitOffset=initOffset
+		ctx.InitOffset = initOffset
 	}()
 
-	RELOCATE_FILE:
+RELOCATE_FILE:
 
-	log.Tracef("[%v] consumer[%v] %v,%v, fetch count:%v",d.dataPath,consumer,part,readPos,messageCount)
-	ctx.InitOffset=fmt.Sprintf("%v,%v",part,readPos)
-	ctx.NextOffset=ctx.InitOffset
+	log.Tracef("[%v] consumer[%v] %v,%v, max fetch count:%v", d.dataPath, consumer.Name, part, readPos, consumer.FetchMaxMessages)
+	ctx.InitOffset = fmt.Sprintf("%v,%v", part, readPos)
+	ctx.NextOffset = ctx.InitOffset
 
-	fileName:= d.SmartGetFileName(d.name,part)
+	fileName := d.SmartGetFileName(d.name, part)
 
-	if !util.FileExists(fileName){
-		return ctx,messages,false,err
+	if !util.FileExists(fileName) {
+		return ctx, messages, false, err
 	}
 
 	var msgSize int32
 	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
-	if readFile!=nil{
+	if readFile != nil {
 		defer readFile.Close()
 	}
 	if err != nil {
 		log.Debug(err)
-		return ctx,messages,false,err
+		return ctx, messages, false, err
 	}
 
 	var maxBytesPerFileRead int64= d.cfg.MaxBytesPerFile
@@ -192,36 +193,42 @@ func  (d *diskQueue)Consume(consumer string,part,readPos int64,messageCount int,
 
 	}
 
-	message:=queue.Message{
-		Data:readBuf,
-		Size:totalBytes,
-		Offset:fmt.Sprintf("%v,%v",part,previousPos),
-		NextOffset:fmt.Sprintf("%v,%v",part,nextReadPos),
+	message := queue.Message{
+		Data:       readBuf,
+		Size:       totalBytes,
+		Offset:     fmt.Sprintf("%v,%v", part, previousPos),
+		NextOffset: fmt.Sprintf("%v,%v", part, nextReadPos),
 	}
 
-	ctx.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
+	ctx.NextOffset = fmt.Sprintf("%v,%v", part, nextReadPos)
 
-	messages=append(messages,message)
+	messages = append(messages, message)
+	totalMessageSize += message.Size
 
-	if len(messages)>=messageCount{
-		log.Trace("len(messages)>=messageCount")
-		return ctx,messages,false,err
+	if len(messages) >= consumer.FetchMaxMessages {
+		log.Debugf("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.name, consumer.Name, len(messages), consumer.FetchMaxMessages)
+		return ctx, messages, false, err
 	}
 
-	if nextReadPos >= maxBytesPerFileRead{
-		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v",ctx,len(messages),err)
-		nextFile:= d.SmartGetFileName(d.name,part+1)
-		if util.FileExists(nextFile){
-			log.Trace("EOF, continue read:",nextFile)
-			Notify(d.name, ReadComplete,part)
-			part=part+1
-			readPos=0
-			if readFile!=nil{
+	if totalMessageSize > consumer.FetchMaxBytes && consumer.FetchMaxBytes > 0 {
+		log.Debugf("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.name, consumer.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(consumer.FetchMaxBytes)))
+		return ctx, messages, false, err
+	}
+
+	if nextReadPos >= maxBytesPerFileRead {
+		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v", ctx, len(messages), err)
+		nextFile := d.SmartGetFileName(d.name, part+1)
+		if util.FileExists(nextFile) {
+			log.Trace("EOF, continue read:", nextFile)
+			Notify(d.name, ReadComplete, part)
+			part = part + 1
+			readPos = 0
+			if readFile != nil {
 				readFile.Close()
 			}
 			goto RELOCATE_FILE
 		}
-		return ctx,messages,false,err
+		return ctx, messages, false, err
 	}
 
 	messageOffset++

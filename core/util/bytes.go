@@ -328,6 +328,7 @@ func ExtractFieldFromJson(data *[]byte, fieldStartWith []byte, fieldEndWith []by
 
 func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith []byte, leftMustContain []byte, reverse bool) (bool, []byte) {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
+	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
 	scanner.Split(GetSplitFunc(fieldEndWith))
 	var str []byte
 	for scanner.Scan() {
@@ -368,6 +369,7 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 //匹配位置的处理函数
 func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBlockMustContain [][]byte, reverse bool,  matchBlockStartWith []byte, matchBlocksEndWith []byte,maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
+	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
 	scanner.Split(GetSplitFunc(blockSplit))
 	var str []byte
 	block:=0

@@ -25,14 +25,14 @@ import (
 )
 
 type MetadataProcessor struct {
-	bufferPool     *bytebufferpool.Pool
-	config         *Config
-	runningConfigs map[string]*queue.Config
-	bulkSizeInByte int
-	wg             sync.WaitGroup
+	bufferPool           *bytebufferpool.Pool
+	config               *Config
+	runningConfigs       map[string]*queue.QueueConfig
+	bulkSizeInByte       int
+	wg                   sync.WaitGroup
 	inFlightQueueConfigs sync.Map
-	detectorRunning bool
-	id string
+	detectorRunning      bool
+	id                   string
 }
 
 type Config struct {
@@ -84,8 +84,9 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			Group:            "metadata-001",
 			Name:             "metadata-001",
 			FetchMinBytes:    1,
-			FetchMaxMessages: 100,
-			FetchMaxWaitMs:   10000,
+			FetchMaxBytes:    20 * 1024 * 1024,
+			FetchMaxMessages: 10,
+			FetchMaxWaitMs:   1000,
 		},
 
 		DetectActiveQueue: true,
@@ -102,10 +103,10 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner := MetadataProcessor{
-		id:util.GetUUID(),
-		config: &cfg,
-		runningConfigs: map[string]*queue.Config{},
-		inFlightQueueConfigs:sync.Map{},
+		id:                   util.GetUUID(),
+		config:               &cfg,
+		runningConfigs:       map[string]*queue.QueueConfig{},
+		inFlightQueueConfigs: sync.Map{},
 	}
 
 	runner.bulkSizeInByte= 1048576 * runner.config.BulkSizeInMb
@@ -219,26 +220,26 @@ func (processor *MetadataProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
-func (processor *MetadataProcessor) HandleQueueConfig(v *queue.Config,c *pipeline.Context){
+func (processor *MetadataProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
 
-	if processor.config.SkipEmptyQueue{
-		if !queue.HasLag(v){
-			if global.Env().IsDebug{
-				log.Tracef("skip empty queue:[%v]",v.Name)
+	if processor.config.SkipEmptyQueue {
+		if !queue.HasLag(v) {
+			if global.Env().IsDebug {
+				log.Tracef("skip empty queue:[%v]", v.Name)
 			}
 			return
 		}
 	}
 
 	elasticsearch := processor.config.Elasticsearch
-	if elasticsearch==""{
-		log.Error("elasticsearch config was not found in metadata processor" )
+	if elasticsearch == "" {
+		log.Error("elasticsearch config was not found in metadata processor")
 		return
 	}
 
 	meta := elastic.GetMetadata(util.ToString(elasticsearch))
 	if meta == nil {
-		log.Debugf("metadata for [%v] is nil",elasticsearch)
+		log.Debugf("metadata for [%v] is nil", elasticsearch)
 		return
 	}
 
@@ -251,7 +252,7 @@ func (processor *MetadataProcessor) HandleQueueConfig(v *queue.Config,c *pipelin
 
 }
 
-func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig *queue.Config){
+func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig *queue.QueueConfig) {
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -298,7 +299,7 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 		if ctx.IsCanceled() {
 			return
 		}
-		ctx1,messages,isTimeout,err:=queue.Consume(qConfig,consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs))
+		ctx1, messages, isTimeout, err := queue.Consume(qConfig, consumer, offset)
 		//if timeout{
 		//	log.Tracef("timeout on queue:[%v]",qConfig.Name)
 		//	ctx.Failed()
