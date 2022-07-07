@@ -507,12 +507,10 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 		if mp, ok := innerMetaData.(map[string]interface{}); ok {
 			kvs["transport_address"] = mp["transport_address"]
 			kvs["roles"] = mp["roles"]
-			if kvs["status"] == nil {
+			if kvs["status"] != "available" {
 				kvs["status"] = mp["status"]
+				kvs["timestamp"] = hit.Source["timestamp"]
 			}
-		}
-		if kvs["timestamp"] == nil {
-			kvs["timestamp"] = hit.Source["timestamp"]
 		}
 	}
 
