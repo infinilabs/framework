@@ -43,9 +43,9 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/_find", clusterAPI.RequirePermission(clusterAPI.HandleGetViewListAction, enum.PermissionViewRead))
 	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/saved_objects/view/:view_id",clusterAPI.RequirePermission(clusterAPI.HandleDeleteViewAction, enum.PermissionViewWrite))
 	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.RequirePermission(clusterAPI.HandleUpdateViewAction, enum.PermissionViewWrite))
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/internal/view-management/resolve_index/:wild", clusterAPI.HandleResolveIndexAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/internal/view-management/resolve_index/:wild",  clusterAPI.RequireLogin(clusterAPI.HandleResolveIndexAction))
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.RequirePermission(clusterAPI.HandleBulkGetViewAction, enum.PermissionViewRead))
-	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.HandleGetFieldCapsAction)
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetFieldCapsAction) )
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.RequireClusterPermission(clusterAPI.HandleEseSearchAction))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/search/trace_id", clusterAPI.HandleTraceIDSearchAction)
@@ -54,7 +54,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetSettingAction))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/_proxy", clusterAPI.RequireClusterPermission(clusterAPI.HandleProxyAction))
-	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.HandleTestConnectionAction)
+	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.RequireLogin(clusterAPI.HandleTestConnectionAction))
 
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))

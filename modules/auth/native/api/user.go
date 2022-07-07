@@ -214,3 +214,35 @@ func (h APIHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request, p
 
 }
 
+func (h APIHandler) SetBuiltinUserAdminDisabled(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	disabled :=  h.GetParameter(r, "disabled")
+	var err error
+	if disabled == "true" {
+		err = api.DisableBuiltinUserAdmin()
+	}else{
+		err = api.EnableBuiltinUserAdmin()
+	}
+	if err != nil {
+		_ = log.Error(err.Error())
+		h.ErrorInternalServer(w, err.Error())
+		return
+	}
+	reqUser, err := rbac.FromUserContext(r.Context())
+	if err != nil {
+		h.ErrorInternalServer(w, err.Error())
+		return
+	}
+
+	if reqUser.UserId == "admin" {
+		rbac.DeleteUserToken(reqUser.UserId)
+	}
+	h.WriteJSON(w, util.MapStr{
+		"result": "updated",
+	}, http.StatusOK)
+}
+
+func (h APIHandler) GetSecuritySettings(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	h.WriteJSON(w, util.MapStr{
+		"admin_disabled": api.IsBuiltinUserAdminDisabled(),
+	}, http.StatusOK)
+}
