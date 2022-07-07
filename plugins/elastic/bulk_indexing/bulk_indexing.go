@@ -418,7 +418,13 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	var meta *elastic.ElasticsearchMetadata
 	var initOffset string
 	var offset string
-	var consumer = queue.GetOrInitConsumerConfig(qConfig.Id, fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID), processor.config.Consumer.Name)
+	var groupName = processor.config.Consumer.Group
+	if maxSlices > 1 {
+		fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
+	}
+
+	var consumer = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
+
 	var skipFinalDocsProcess bool
 
 	//TODO check lag
