@@ -196,23 +196,28 @@ func FileLinesWalk(filePath string,f func([]byte))error  {
 	}
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
+	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
 	for scanner.Scan() {
 		f(scanner.Bytes())
 	}
 	return file.Close()
 }
 
-func FileGetLines(filePath string)[]string  {
+func FileGetLines(filePath string) []string {
 	file, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
 	}
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
+
+	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
+
 	var text []string
 	for scanner.Scan() {
 		text = append(text, scanner.Text())
 	}
+
 	file.Close()
 	return text
 }

@@ -40,7 +40,7 @@ import (
 type BulkIndexingProcessor struct {
 	bufferPool           *bytebufferpool.Pool
 	config               *Config
-	runningConfigs       map[string]*queue.Config
+	runningConfigs       map[string]*queue.QueueConfig
 	wg                   sync.WaitGroup
 	inFlightQueueConfigs sync.Map
 	detectorRunning      bool
@@ -101,8 +101,9 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			Group:            "group-001",
 			Name:             "consumer-001",
 			FetchMinBytes:    1,
-			FetchMaxMessages: 100,
-			FetchMaxWaitMs:   10000,
+			FetchMaxBytes:    20 * 1024 * 1024,
+			FetchMaxMessages: 10,
+			FetchMaxWaitMs:   1000,
 		},
 
 		DetectActiveQueue: true,
@@ -138,7 +139,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	runner := BulkIndexingProcessor{
 		id:                   util.GetUUID(),
 		config:               &cfg,
-		runningConfigs:       map[string]*queue.Config{},
+		runningConfigs:       map[string]*queue.QueueConfig{},
 		inFlightQueueConfigs: sync.Map{},
 	}
 
@@ -251,7 +252,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
-func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.Config, c *pipeline.Context) {
+func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
 
 	if processor.config.SkipEmptyQueue {
 		if !queue.HasLag(v) {
@@ -347,7 +348,7 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.Config, c *pi
 	processor.NewBulkWorker("bulk_indexing_"+host, c, processor.config.BulkConfig.GetBulkSizeInBytes(), v, host)
 }
 
-func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.Config, host string) {
+func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
 
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
@@ -387,7 +388,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 	}
 }
 
-func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string, sliceID, maxSlices int, tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.Config, host string) {
+func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string, sliceID, maxSlices int, tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -550,7 +551,7 @@ READ_DOCS:
 		}
 
 		log.Debugf("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
-		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer.Name, offset, processor.config.Consumer.FetchMaxMessages, time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs))
+		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer, offset)
 
 		if global.Env().IsDebug {
 			log.Tracef("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)

@@ -130,58 +130,67 @@ func (module *DiskQueue) getQueueStats(q string, include string, consumer string
 
 func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params)  {
 
-	queueName:=ps.ByName("id")
-	offsetStr:= module.GetParameterOrDefault(req,"offset","0,0")
-	size:= module.GetIntOrDefault(req,"size",5)
-	dataIsString:=true
+	queueID := ps.ByName("id")
+	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
+	size := module.GetIntOrDefault(req, "size", 5)
 
-	consumer:="api"
+	group := module.GetParameterOrDefault(req, "group", "api")
+	name := module.GetParameterOrDefault(req, "name", "api")
+
+	dataIsString := true
 
 	var ctx *queue1.Context
 	var err error
 	var timeout bool
-	messages:=[]queue1.Message{}
+	messages := []queue1.Message{}
 	defer func() {
-		result:=util.MapStr{}
-		status:=200
-		if err!=nil{
-			result["error"]=err.Error()
-			status=500
+		result := util.MapStr{}
+		status := 200
+		if err != nil {
+			result["error"] = err.Error()
+			status = 500
 		}
-		if len(messages)>0{
-			if dataIsString{
-				msgs:=[]util.MapStr{}
-				for _,v:=range messages{
-					msg:=util.MapStr{}
-					msg["message"]=string(v.Data)
-					msg["offset"]=v.Offset
-					msg["size"]=v.Size
-					msgs=append(msgs,msg)
+		if len(messages) > 0 {
+			if dataIsString {
+				msgs := []util.MapStr{}
+				for _, v := range messages {
+					msg := util.MapStr{}
+					msg["message"] = string(v.Data)
+					msg["offset"] = v.Offset
+					msg["size"] = v.Size
+					msgs = append(msgs, msg)
 				}
-				result["messages"]=msgs
-			}else{
-				result["messages"]=messages
+				result["messages"] = msgs
+			} else {
+				result["messages"] = messages
 			}
 
-			if ctx!=nil{
-				result["context"]=ctx
+			if ctx != nil {
+				result["context"] = ctx
 			}
-			result["timeout"]=timeout
-			if err!=nil{
-				result["error"]=err.Error()
+			result["timeout"] = timeout
+			if err != nil {
+				result["error"] = err.Error()
 			}
 		}
-		module.WriteJSON(w,result,status)
+		module.WriteJSON(w, result, status)
 	}()
 
-	_,ok:=module.queues.Load(queueName)
-	if ok{
-		ctx,messages,timeout,err=module.Consume(queueName,consumer, offsetStr,size,0)
-		if err!=nil{
-			return
+	_, ok := module.queues.Load(queueID)
+	if ok {
+		consumer := queue1.GetOrInitConsumerConfig(queueID, group, name)
+		consumer.FetchMaxMessages = size
+		qConfig, ok := queue1.GetConfigByUUID(queueID)
+		if ok {
+			ctx, messages, timeout, err = module.Consume(qConfig, consumer, offsetStr)
+			if err != nil {
+				return
+			}
+		} else {
+			err = errors.New(fmt.Sprintf("queue [%v] not exists", queueID))
 		}
-	}else{
-		err=errors.New(fmt.Sprintf("queue [%v] not exists",queueName))
+	} else {
+		err = errors.New(fmt.Sprintf("queue [%v] not exists", queueID))
 		return
 	}
 

@@ -40,7 +40,7 @@ type QueueAPI interface {
 	Close(string) error
 	Depth(string) int64
 
-	Consume(queue,consumer,offsetStr string,count int,timeout time.Duration) ( *Context, []Message,bool,error)
+	Consume(queue *QueueConfig, consumer *ConsumerConfig, offset string) (*Context, []Message, bool, error)
 	LatestOffset(string) string
 
 	GetQueues() []string
@@ -49,9 +49,9 @@ type QueueAPI interface {
 var defaultHandler QueueAPI
 var handlers map[string]QueueAPI = map[string]QueueAPI{}
 
-type Config struct {
+type QueueConfig struct {
 	Source string      `config:"source" json:"source,omitempty"`
-	Id     string      `config:"id" json:"id,omitempty"`   //uuid for each queue
+	Id     string      `config:"id" json:"id,omitempty"`     //uuid for each queue
 	Name   string      `config:"name" json:"name,omitempty"` //unique name of each queue
 	Codec  string      `config:"codec" json:"codec,omitempty"`
 	Type   string      `config:"type" json:"type,omitempty"`
@@ -59,48 +59,58 @@ type Config struct {
 }
 
 type ConsumerConfig struct {
-	Source   string                 `config:"source" json:"source,omitempty"`
-	Id       string                 `config:"id" json:"id,omitempty"`   //uuid for each queue
-	Group   string                  `config:"group" json:"group,omitempty"`
-	Name     string                 `config:"name" json:"name,omitempty"`
-	AutoReset     string       		`config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
-	AutoCommit     bool             `config:"auto_commit" json:"auto_commit,omitempty"`
+	Source     string `config:"source" json:"source,omitempty"`
+	Id         string `config:"id" json:"id,omitempty"` //uuid for each queue
+	Group      string `config:"group" json:"group,omitempty"`
+	Name       string `config:"name" json:"name,omitempty"`
+	AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
+	AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
 
-	FetchMinBytes    int `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
-	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
-	FetchMaxMessages int `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
-	FetchMaxWaitMs   int `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	FetchMinBytes    int64 `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
+	FetchMaxBytes    int64 `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
+	FetchMaxMessages int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
+	FetchMaxWaitMs   int   `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	fetchMaxWaitMs   time.Duration
 }
 
 func (cfg *ConsumerConfig) Key() string {
-	return fmt.Sprintf("%v-%v",cfg.Group,cfg.Name)
+	return fmt.Sprintf("%v-%v", cfg.Group, cfg.Name)
 }
 
-func getHandler(k *Config) QueueAPI {
+func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
+	if cfg.fetchMaxWaitMs.Milliseconds() > 0 {
+		return cfg.fetchMaxWaitMs
+	}
+
+	cfg.fetchMaxWaitMs = time.Duration(cfg.FetchMaxWaitMs) * time.Millisecond
+	return cfg.fetchMaxWaitMs
+}
+
+func getHandler(k *QueueConfig) QueueAPI {
 	handler, ok := handlers[k.Id]
-	if handler!=nil && ok {
+	if handler != nil && ok {
 		return handler
 	}
-	handler,ok=adapters[k.Type]
-	if ok&&handler!=nil{
+	handler, ok = adapters[k.Type]
+	if ok && handler != nil {
 		return handler
 	}
 	return defaultHandler
 }
 
-func Push(k *Config, v []byte) error {
+func Push(k *QueueConfig, v []byte) error {
 	var err error = nil
-	if k==nil||k.Id == "" {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 	handler := getHandler(k)
 	if handler != nil {
 		err = handler.Push(k.Id, v)
 		if err == nil {
-			stats.Increment("queue",k.Id, "push")
+			stats.Increment("queue", k.Id, "push")
 			return nil
 		}
-		stats.Increment("queue",k.Id, "push_error")
+		stats.Increment("queue", k.Id, "push_error")
 		return err
 	}
 	panic(errors.New("handler is not registered"))
@@ -108,14 +118,14 @@ func Push(k *Config, v []byte) error {
 
 //var pauseMsg = errors.New("queue was paused to read")
 
-var configs = map[string]*Config{}
-var idConfigs = map[string]*Config{}
+var configs = map[string]*QueueConfig{}
+var idConfigs = map[string]*QueueConfig{}
 var cfgLock = sync.RWMutex{}
 var consumerCfgLock = sync.RWMutex{}
-var existsErr=errors.New("config exists")
+var existsErr = errors.New("config exists")
 
 //TODO do not lock here
-func RegisterConfig(queueKey string, cfg *Config) (bool, error) {
+func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
@@ -203,9 +213,10 @@ func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
 	cfg,exists:=GetConsumerConfig(queueID,group,name)
 	if !exists{
 			cfg=&ConsumerConfig{
-				FetchMinBytes:   	1,
-				FetchMaxMessages:   100,
-				FetchMaxWaitMs:   10000,
+				FetchMinBytes:    1,
+				FetchMaxBytes:    20 * 1024 * 1024,
+				FetchMaxMessages: 10,
+				FetchMaxWaitMs:   1000,
 			}
 			cfg.Id=util.GetUUID()
 			cfg.Source="dynamic"
@@ -223,29 +234,29 @@ func IsConfigExists(key string) bool {
 	return ok
 }
 
-func GetOrInitConfig(key string) (*Config) {
+func GetOrInitConfig(key string) *QueueConfig {
 	cfg, exists := GetConfigByKey(key)
-	if !exists{
+	if !exists {
 		_, ok := configs[key]
-		if !ok{
-			cfg=&Config{}
-			cfg.Id=util.GetUUID()
-			cfg.Name= key
-			cfg.Source="dynamic"
-			RegisterConfig(key,cfg)
+		if !ok {
+			cfg = &QueueConfig{}
+			cfg.Id = util.GetUUID()
+			cfg.Name = key
+			cfg.Source = "dynamic"
+			RegisterConfig(key, cfg)
 		}
 	}
 	return cfg
 }
 
-func GetConfigByKey(key string) (*Config, bool) {
+func GetConfigByKey(key string) (*QueueConfig, bool) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	v, ok := configs[key]
 	return v, ok
 }
 
-func GetConfigByUUID(id string) (*Config, bool) {
+func GetConfigByUUID(id string) (*QueueConfig, bool) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	v, ok := idConfigs[id]
@@ -293,14 +304,14 @@ func GetAllConfigBytes()[]byte {
 	return util.MustToJSONBytes(configs)
 }
 
-func GetAllConfigs() map[string]*Config {
+func GetAllConfigs() map[string]*QueueConfig {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	return configs
 }
 
-func Pop(k *Config) ([]byte, error) {
-	if k==nil||k.Id == "" {
+func Pop(k *QueueConfig) ([]byte, error) {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
@@ -312,28 +323,30 @@ func Pop(k *Config) ([]byte, error) {
 
 		o, timeout := handler.Pop(k.Id, -1)
 		if !timeout {
-			stats.Increment("queue",k.Id, "pop")
+			stats.Increment("queue", k.Id, "pop")
 			return o, nil
 		}
-		stats.Increment("queue",k.Id, "pop_timeout")
+		stats.Increment("queue", k.Id, "pop_timeout")
 		return o, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
 }
 
-func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration) ( ctx *Context, messages []Message,isTimeout bool,err error) {
-	if k==nil||k.Id == "" {
+//consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs)
+func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Context, messages []Message, isTimeout bool, err error) {
+	//,offsetStr string,count int,timeout time.Duration
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
-	messages=[]Message{}
+	messages = []Message{}
 	handler := getHandler(k)
 	if handler != nil {
 		//if pausedReadQueue.Contains(k) {
 		//	return ctx,messages,isTimeout, pauseMsg
 		//}
 
-		ctx,messages, isTimeout,err = handler.Consume(k.Id,consumer,offsetStr,count, timeout)
+		ctx, messages, isTimeout, err = handler.Consume(k, consumer, offset)
 
 		if !isTimeout {
 			stats.Increment("queue",k.Id, "consume")
@@ -345,8 +358,8 @@ func Consume(k *Config,consumer,offsetStr string,count int,timeout time.Duration
 	panic(errors.New("handler is not registered"))
 }
 
-func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
-	if k==nil||k.Id == "" {
+func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
@@ -371,23 +384,23 @@ func PopTimeout(k *Config, timeoutInSeconds time.Duration) (data []byte, timeout
 	panic(errors.New("handler is not registered"))
 }
 
-func Close(k *Config) error {
-	if k==nil||k.Id == "" {
+func Close(k *QueueConfig) error {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Close(k.Id)
-		stats.Increment("queue",k.Id, "close")
+		stats.Increment("queue", k.Id, "close")
 		return o
 	}
-	stats.Increment("queue",k.Id, "close_error")
+	stats.Increment("queue", k.Id, "close_error")
 	panic(errors.New("handler is not closed"))
 }
 
-func getCommitKey(k *Config, consumer *ConsumerConfig)string  {
-	return fmt.Sprintf("%v-%v",k.Id,consumer.Id)
+func getCommitKey(k *QueueConfig, consumer *ConsumerConfig) string {
+	return fmt.Sprintf("%v-%v", k.Id, consumer.Id)
 }
 
 const consumerOffsetBucket ="queue_consumer_commit_offset"
@@ -447,50 +460,50 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 	return len(consumers),iPart, iPos
 }
 
-func GetOffset(k *Config, consumer *ConsumerConfig) (string,error) {
+func GetOffset(k *QueueConfig, consumer *ConsumerConfig) (string, error) {
 
-	bytes,err:=kv.GetValue(consumerOffsetBucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)))
-	if err!=nil{
+	bytes, err := kv.GetValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
+	if err != nil {
 		log.Error(err)
 	}
 
-	if bytes!=nil&&len(bytes)>0{
-		return string(bytes),nil
+	if bytes != nil && len(bytes) > 0 {
+		return string(bytes), nil
 	}
 
-	return "0,0",nil
+	return "0,0", nil
 }
 
-func CommitOffset(k *Config, consumer *ConsumerConfig, offset string)(bool,error) {
+func CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset string) (bool, error) {
 
-	if global.Env().IsDebug{
-		log.Tracef("queue [%v] [%v][%v] commit offset:%v",k.Id,consumer.Group,consumer.Name,offset)
+	if global.Env().IsDebug {
+		log.Tracef("queue [%v] [%v][%v] commit offset:%v", k.Id, consumer.Group, consumer.Name, offset)
 	}
 
-	err:=kv.AddValue(consumerOffsetBucket,util.UnsafeStringToBytes(getCommitKey(k,consumer)),[]byte(offset))
-	if err!=nil{
+	err := kv.AddValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(offset))
+	if err != nil {
 		return false, err
 	}
 
-	return true,nil
+	return true, nil
 }
 
-func Depth(k *Config) int64 {
-	if k==nil||k.Id == "" {
+func Depth(k *QueueConfig) int64 {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		stats.Increment("queue,",k.Id, "call_depth")
+		stats.Increment("queue,", k.Id, "call_depth")
 		return o
 	}
 	panic(errors.New("handler is not registered"))
 }
 
-func HasLag(k *Config) bool {
-	if k==nil||k.Id == "" {
+func HasLag(k *QueueConfig) bool {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
@@ -498,22 +511,22 @@ func HasLag(k *Config) bool {
 
 	if handler != nil {
 
-		latestProduceOffset:=LatestOffset(k)
-		offset:=GetEarlierOffsetStrByQueueID(k.Id)
+		latestProduceOffset := LatestOffset(k)
+		offset := GetEarlierOffsetStrByQueueID(k.Id)
 
-		if latestProduceOffset!=offset{
+		if latestProduceOffset != offset {
 			return true
 		}
 
-		stats.Increment("queue",k.Id, "check_lag")
+		stats.Increment("queue", k.Id, "check_lag")
 		return false
 	}
 
 	panic(errors.New("handler is not registered"))
 }
 
-func LatestOffset(k *Config) string {
-	if k==nil||k.Id == "" {
+func LatestOffset(k *QueueConfig) string {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
@@ -549,8 +562,8 @@ func (s *QueueSelector) ToString() string {
 	return fmt.Sprintf("ids:%v, keys:%v, labels:%v", s.Ids, s.Keys, s.Labels)
 }
 
-func GetConfigBySelector(selector *QueueSelector) []*Config {
-	cfgs := []*Config{}
+func GetConfigBySelector(selector *QueueSelector) []*QueueConfig {
+	cfgs := []*QueueConfig{}
 	if selector != nil {
 		if len(selector.Ids) > 0 {
 			for _, id := range selector.Ids {
@@ -580,10 +593,10 @@ func GetConfigBySelector(selector *QueueSelector) []*Config {
 	return cfgs
 }
 
-func GetConfigByLabels(labels map[string]interface{}) []*Config {
+func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
-	cfgs := []*Config{}
+	cfgs := []*QueueConfig{}
 
 	for _, v := range configs {
 		notMatch := false
@@ -634,14 +647,14 @@ func RegisterDefaultHandler(h QueueAPI) {
 	defaultHandler = h
 }
 
-func IniQueue(k *Config) {
-	if k==nil||k.Id == "" {
+func IniQueue(k *QueueConfig) {
+	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
-	handler:=getHandler(k)
+	handler := getHandler(k)
 	handlers[k.Id] = handler
-	err:=handler.Init(k.Id)
-	if err!=nil{
+	err := handler.Init(k.Id)
+	if err != nil {
 		panic(err)
 	}
 }
@@ -657,16 +670,18 @@ func Register(name string, h QueueAPI) {
 }
 
 //TODO only update specify event, func(queueID)
-var queueConfigListener =[]func(cfg *Config){}
-func RegisterQueueConfigChangeListener(l func(cfg *Config)){
+var queueConfigListener = []func(cfg *QueueConfig){}
+
+func RegisterQueueConfigChangeListener(l func(cfg *QueueConfig)) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
-	queueConfigListener =append(queueConfigListener,l)
+	queueConfigListener = append(queueConfigListener, l)
 }
 
-var consumerConfigListener =[]func(id string,configs map[string]*ConsumerConfig){}
-func RegisterConsumerConfigChangeListener(l func(id string,configs map[string]*ConsumerConfig)){
+var consumerConfigListener = []func(id string, configs map[string]*ConsumerConfig){}
+
+func RegisterConsumerConfigChangeListener(l func(id string, configs map[string]*ConsumerConfig)) {
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
-	consumerConfigListener =append(consumerConfigListener,l)
+	consumerConfigListener = append(consumerConfigListener, l)
 }

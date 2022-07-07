@@ -467,8 +467,8 @@ DO:
 
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 
-		//if joint.Config.SaveFailure {
-		//	queue.Push(queue.GetOrInitConfig(joint.Config.FailureRequestsQueue), data)
+		//if joint.QueueConfig.SaveFailure {
+		//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
 		//}
 		if global.Env().IsDebug {
 			log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))

@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/lib/bytebufferpool"
 	"sync"
-	"time"
 )
 
 // BackendQueue represents the behavior for the secondary message
@@ -23,7 +22,7 @@ type BackendQueue interface {
 	LatestOffset() string
 	ReadContext() Context
 
-	Consume(consumer string,part,readPos int64,messageCount int,timeout time.Duration) (ctx *queue.Context,messages []queue.Message, isTimeout bool, err error)
+	Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error)
 	Empty() error
 }
 
