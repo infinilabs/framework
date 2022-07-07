@@ -177,10 +177,10 @@ func (handler Handler) GetCurrentUser(req *http.Request) string {
 	return ""
 }
 
-const UserAdminLockFilePath = "/data/console/user_admin_lock"
+const DisableBuiltinUsersLockFilePath = "/data/console/.disable_builtin_users"
 func IsBuiltinUserAdminDisabled() bool{
 	currentDir, _ := os.Getwd()
-	targetPath := util.JoinPath(currentDir, UserAdminLockFilePath)
+	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
 	return util.FileExists(targetPath)
 }
 func DisableBuiltinUserAdmin() error{
@@ -188,7 +188,7 @@ func DisableBuiltinUserAdmin() error{
 	if err != nil {
 		return err
 	}
-	targetPath := util.JoinPath(currentDir, UserAdminLockFilePath)
+	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
 	if !util.FileExists(targetPath){
 		_, err = util.FilePutContent(targetPath, "")
 		if err != nil {
@@ -203,7 +203,7 @@ func EnableBuiltinUserAdmin() error{
 	if err != nil {
 		return err
 	}
-	targetPath := util.JoinPath(currentDir, UserAdminLockFilePath)
+	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
 	if util.FileExists(targetPath){
 		return util.FileDelete(targetPath)
 	}

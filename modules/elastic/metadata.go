@@ -839,11 +839,11 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
 					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil  {
 						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok { // && currentNodeInfo.Equals(oldMetadataM)
-							healthStatus, _ := historyM.GetValue("metadata.labels.status")
+							//healthStatus, _ := historyM.GetValue("metadata.labels.status")
 							changeLog, _ = util.DiffTwoObject(oldMetadataM, currentNodeInfo)
-							if len(changeLog) == 0 && (healthStatus == "unavailable" || healthStatus == "N/A") {
-								continue
-							}
+							//if len(changeLog) == 0 && (healthStatus == "unavailable" || healthStatus == "N/A") {
+							//	continue
+							//}
 						}
 					}
 					//only overwrite follow labels

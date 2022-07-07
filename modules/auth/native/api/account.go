@@ -104,9 +104,10 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 	}
 
 	var user *rbac.User
-	if req.Username == "admin" {
+	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
+	if req.Username == u {
 		if api.IsBuiltinUserAdminDisabled() {
-			h.ErrorInternalServer(w, "builtin user admin was disabled")
+			h.ErrorInternalServer(w, fmt.Sprintf("builtin user %s was disabled", u))
 			return
 		}
 		user, err = authenticateAdmin(req.Username, req.Password)

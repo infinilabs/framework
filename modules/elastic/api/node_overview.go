@@ -454,6 +454,7 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 			if ok {
 				kvs["transport_address"] = transportAddress
 			}
+			kvs["timestamp"] = vresult["timestamp"]
 			if vresult["timestamp"] != nil {
 				if ts, ok := vresult["timestamp"].(string); ok {
 					tt, _ := time.Parse(time.RFC3339, ts)
@@ -506,7 +507,12 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 		if mp, ok := innerMetaData.(map[string]interface{}); ok {
 			kvs["transport_address"] = mp["transport_address"]
 			kvs["roles"] = mp["roles"]
-			kvs["status"] = mp["status"]
+			if kvs["status"] == nil {
+				kvs["status"] = mp["status"]
+			}
+		}
+		if kvs["timestamp"] == nil {
+			kvs["timestamp"] = hit.Source["timestamp"]
 		}
 	}
 
