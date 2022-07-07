@@ -462,7 +462,53 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	resBody["metrics"] = h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
+	metrics := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
+	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil {
+		metricA := metrics["doc_count"]
+		metricB := metrics["docs_deleted"]
+		if dataA, ok := metricA.Lines[0].Data.([][]interface{}); ok {
+			if dataB, ok := metricB.Lines[0].Data.([][]interface{}); ok{
+				data := make([]map[string]interface{},0, len(dataA)*2)
+				var (
+					x1 float64
+					x2 float64
+				)
+				for i := 0; i < len(dataA); i++ {
+					x1 = dataA[i][1].(float64)
+					x2 = dataB[i][1].(float64)
+					if x1+x2 == 0 {
+						continue
+					}
+					data  = append(data, map[string]interface{}{
+						"x": dataA[i][0],
+						"y": x1/(x1+x2)*100,
+						"g": "Doc Count",
+					})
+					data = append(data, map[string]interface{}{
+						"x": dataA[i][0],
+						"y": x2/(x1+x2)*100,
+						"g": "Doc Deleted",
+					})
+				}
+				metricDocPercent := &common.MetricItem{
+					Axis: []*common.MetricAxis{},
+					Key: "doc_percent",
+					Group: metricA.Group,
+					Order: 18,
+					Lines: []*common.MetricLine{
+						{
+							TimeRange: metricA.Lines[0].TimeRange,
+							Data: data,
+							Type: common.GraphTypeBar,
+						},
+					},
+				}
+				metrics["doc_percent"] = metricDocPercent
+			}
+		}
+
+	}
+	resBody["metrics"] = metrics
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
