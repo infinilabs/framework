@@ -57,8 +57,8 @@ func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 			Group:            "activity-001",
 			Name:             "activity-001",
 			FetchMinBytes:    1,
-			FetchMaxBytes:    20 * 1024 * 1024,
-			FetchMaxMessages: 10,
+			FetchMaxBytes:    10 * 1024 * 1024,
+			FetchMaxMessages: 500,
 			FetchMaxWaitMs:   1000,
 		},
 

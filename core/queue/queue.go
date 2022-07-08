@@ -214,8 +214,8 @@ func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
 	if !exists{
 			cfg=&ConsumerConfig{
 				FetchMinBytes:    1,
-				FetchMaxBytes:    20 * 1024 * 1024,
-				FetchMaxMessages: 10,
+				FetchMaxBytes:    10 * 1024 * 1024,
+				FetchMaxMessages: 500,
 				FetchMaxWaitMs:   1000,
 			}
 			cfg.Id=util.GetUUID()
