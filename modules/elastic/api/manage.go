@@ -208,7 +208,9 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	}
 	var (
 		name          = h.GetParameterOrDefault(req, "name", "")
-		queryDSL      = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
+		sortField     = h.GetParameterOrDefault(req, "sort_field", "")
+		sortOrder     = h.GetParameterOrDefault(req, "sort_order", "")
+		queryDSL      = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d, %s}`
 		strSize       = h.GetParameterOrDefault(req, "size", "20")
 		strFrom     = h.GetParameterOrDefault(req, "from", "0")
 		mustBuilder = &strings.Builder{}
@@ -237,8 +239,13 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	if from < 0 {
 		from = 0
 	}
+	var sort = ""
+	if sortField !="" && sortOrder != ""{
+		sort =  fmt.Sprintf(`[{"%s":{"order":"%s"}}]`, sortField, sortOrder)
+	}
 
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
+
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from, sort)
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
