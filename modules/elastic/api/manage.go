@@ -241,7 +241,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	}
 	var sort = ""
 	if sortField !="" && sortOrder != ""{
-		sort =  fmt.Sprintf(`,[{"%s":{"order":"%s"}}]`, sortField, sortOrder)
+		sort =  fmt.Sprintf(`,"sort":[{"%s":{"order":"%s"}}]`, sortField, sortOrder)
 	}
 
 
