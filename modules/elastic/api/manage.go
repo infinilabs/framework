@@ -470,7 +470,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	metrics := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
-	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil {
+	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil && len(metrics["doc_count"].Lines) > 0 && len(metrics["docs_deleted"].Lines) > 0  {
 		metricA := metrics["doc_count"]
 		metricB := metrics["docs_deleted"]
 		if dataA, ok := metricA.Lines[0].Data.([][]interface{}); ok {
