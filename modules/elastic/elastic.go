@@ -298,7 +298,7 @@ func (module *ElasticModule) Start() error {
 			log.Tracef("init elasticsearch config: %v", cfg1.Name)
 			metadata := elastic.GetMetadata(cfg1.ID)
 			if metadata != nil {
-				module.updateNodeInfo(metadata, true)
+				module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
 			}
 			go module.clusterHealthCheck(cfg1.ID, true)
 		}
@@ -364,9 +364,7 @@ func (module *ElasticModule) Start() error {
 
 					v, ok := value.(*elastic.ElasticsearchMetadata)
 					if ok {
-						if v.Config.Discovery.Enabled {
-							module.updateNodeInfo(v, false)
-						}
+						module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
 					}
 					return true
 				})

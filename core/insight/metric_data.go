@@ -20,6 +20,8 @@ type Metric struct {
 	Formula string `json:"formula,omitempty"`
 	Items []MetricItem `json:"items"`
 	FormatType string `json:"format_type,omitempty"`
+	TimeFilter interface{} `json:"time_filter,omitempty"`
+	TimeBeforeGroup bool `json:"time_before_group,omitempty"`
 }
 
 type MetricGroupItem struct {

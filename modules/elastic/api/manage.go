@@ -208,7 +208,9 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	}
 	var (
 		name          = h.GetParameterOrDefault(req, "name", "")
-		queryDSL      = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
+		sortField     = h.GetParameterOrDefault(req, "sort_field", "")
+		sortOrder     = h.GetParameterOrDefault(req, "sort_order", "")
+		queryDSL      = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d%s}`
 		strSize       = h.GetParameterOrDefault(req, "size", "20")
 		strFrom     = h.GetParameterOrDefault(req, "from", "0")
 		mustBuilder = &strings.Builder{}
@@ -237,8 +239,13 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 	if from < 0 {
 		from = 0
 	}
+	var sort = ""
+	if sortField !="" && sortOrder != ""{
+		sort =  fmt.Sprintf(`,"sort":[{"%s":{"order":"%s"}}]`, sortField, sortOrder)
+	}
 
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
+
+	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from, sort)
 	esClient := elastic.GetClient(h.Config.Elasticsearch)
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
@@ -463,7 +470,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	metrics := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
-	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil {
+	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil && len(metrics["doc_count"].Lines) > 0 && len(metrics["docs_deleted"].Lines) > 0  {
 		metricA := metrics["doc_count"]
 		metricB := metrics["docs_deleted"]
 		if dataA, ok := metricA.Lines[0].Data.([][]interface{}); ok {

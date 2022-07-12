@@ -625,7 +625,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 }
 
 //on demand, on state version change
-func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool) {
+func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool, discovery bool) {
 	if !force && !meta.IsAvailable() {
 		setNodeUnknown(meta.Config.ID)
 		log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
@@ -647,15 +647,27 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		delete(nodeAlreadyUnknown, meta.Config.ID)
 		nodesChanged = true
 	}
+	var oldNodes = meta.Nodes
+	if !discovery {
+		buf, err := kv.GetValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID))
+		if  err != nil{
+			log.Errorf("read node metadata error: %v", err)
+			return
+		}
+		if len(buf) > 0 {
+			oldNodes = &map[string]elastic.NodesInfo{}
+			util.MustFromJSONBytes(buf, oldNodes)
+		}
+	}
 
-	if meta.Nodes == nil {
+	if oldNodes == nil {
 		nodesChanged = true
 	} else {
-		if len(*meta.Nodes) != len(*nodes) {
+		if len(*oldNodes) != len(*nodes) {
 			nodesChanged = true
 		} else {
 			for k, v := range *nodes {
-				v1, ok := (*meta.Nodes)[k]
+				v1, ok := (*oldNodes)[k]
 				if ok {
 					if v.GetHttpPublishHost() != v1.GetHttpPublishHost() {
 						nodesChanged = true
@@ -684,13 +696,17 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 		}
 
-		meta.Nodes = nodes
-		meta.NodesTopologyVersion++
-		log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
+		if discovery || force{
+			meta.Nodes = nodes
+			meta.NodesTopologyVersion++
+			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
-		//register host to do availability monitoring
-		for _, v := range *nodes {
-			elastic.GetOrInitHost(v.GetHttpPublishHost())
+			//register host to do availability monitoring
+			for _, v := range *nodes {
+				elastic.GetOrInitHost(v.GetHttpPublishHost())
+			}
+		}else{
+			kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(nodes))
 		}
 		//TODO　save to es metadata
 	}

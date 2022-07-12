@@ -477,10 +477,12 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	hit := response.Hits.Hits[0].Source
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
 		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit)
+		state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hit)
 		summary["aliases"] = aliases
 		summary["timestamp"] = hit["timestamp"]
 		summary["index_info"] = util.MapStr{
 			"health":health,
+			"status": state,
 		}
 	}
 	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
@@ -506,7 +508,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 					}
 					state, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, response.Hits.Hits[0].Source)
 					if state == "delete" {
-						infoM["status"] = "deleted"
+						infoM["status"] = "delete"
 						infoM["health"] = "N/A"
 					}
 				}

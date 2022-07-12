@@ -953,6 +953,10 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 					}
 				}
 				if indexInfos[v] != nil {
+					if state == "delete" {
+						indexInfos[v]["status"] = "delete"
+						indexInfos[v]["health"] = "N/A"
+					}
 					indices = append(indices, indexInfos[v])
 				} else {
 					indices = append(indices, util.MapStr{

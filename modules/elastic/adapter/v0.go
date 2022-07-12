@@ -1015,7 +1015,11 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	body := bytes.Buffer{}
 	enc := json.NewEncoder(&body)
 	enc.Encode(settings)
-	_, err := s.Request(util.Verb_PUT, url, body.Bytes())
+	result, err := s.Request(util.Verb_PUT, url, body.Bytes())
+	errReason, _ := jsonparser.GetString(result.Body, "error", "reason")
+	if errReason != ""{
+		return fmt.Errorf(errReason)
+	}
 
 	return err
 }
