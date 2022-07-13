@@ -405,6 +405,16 @@ type ElasticsearchMetadata struct {
 
 	cache *ristretto.Cache
 }
+type MonitorConfig struct {
+	Enabled bool `json:"enabled"`
+	Interval string `json:"interval"`
+}
+type Monitor struct{
+	ClusterHealth MonitorConfig `json:"cluster_health"`
+	ClusterStats MonitorConfig `json:"cluster_stats"`
+	NodeStats MonitorConfig `json:"node_stats"`
+	IndexStats MonitorConfig `json:"index_stats"`
+}
 
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
@@ -415,6 +425,7 @@ type ElasticsearchConfig struct {
 	Description string   `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled     bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
 	Monitored   bool     `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	MonitorConfigs *Monitor `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`
 	HttpProxy   string   `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint    string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`

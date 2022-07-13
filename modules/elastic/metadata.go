@@ -402,7 +402,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 						"index_state": indexConfig,
 					}}))
 				if err != nil {
-					panic(err)
+					log.Error(err)
 				}
 				err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
 					Timestamp: time.Now(),
@@ -414,11 +414,11 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 						"activity": activityInfo,
 					}}))
 				if err != nil {
-					panic(err)
+					log.Error(err)
 				}
 				newIndexMetadata[indexName] = util.MapStr{
 					"id": indexConfig.ID,
-					"index_state": item,
+					"index_state": infoMap["index_state"],
 					"health": "unavailable",
 				}
 				continue
@@ -603,7 +603,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				"index_state": indexConfig,
 			}}))
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
 		err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
 			Timestamp: time.Now(),
@@ -615,7 +615,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				"activity": activityInfo,
 			}}))
 		if err != nil {
-			panic(err)
+			log.Error(err)
 		}
 
 	}
