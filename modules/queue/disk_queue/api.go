@@ -16,19 +16,20 @@ import (
 func (module *DiskQueue) RegisterAPI()  {
 	api.HandleAPIMethod(api.GET,"/queue/stats", module.QueueStatsAction)
 	api.HandleAPIMethod(api.GET,"/queue/:id/stats", module.SingleQueueStatsAction)
-	api.HandleAPIMethod(api.GET,"/queue/:id/_scroll", module.QueueExplore)
+	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
 
 	//api.HandleAPIMethod(api.DELETE,"/queue/:id", module.DeleteQueue)
 
 	//create consumer
 	//api.HandleAPIMethod(api.POST,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
-	//delete consumer
-	//api.HandleAPIMethod(api.DELETE,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
 
 	//reset consumer offset
-	api.HandleAPIMethod(api.PUT,"/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
+	api.HandleAPIMethod(api.PUT, "/queue/:id/consumer/:consumer_id/offset", module.QueueResetConsumerOffset)
 	//get consumer offset
-	api.HandleAPIMethod(api.GET,"/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
+	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
+
+	//delete consumer
+	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerOffset)
 }
 
 func (module *DiskQueue) SingleQueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -178,7 +179,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 
 	_, ok := module.queues.Load(queueID)
 	if ok {
-		consumer := queue1.GetOrInitConsumerConfig(queueID, group, name)
+		consumer := queue1.NewConsumerConfig(group, name)
 		consumer.FetchMaxMessages = size
 		qConfig, ok := queue1.GetConfigByUUID(queueID)
 		if ok {
@@ -197,41 +198,63 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 }
 
 func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queueID:=ps.ByName("id")
-	consumerID:=ps.ByName("consumer_id")
-	cfg,ok:=queue1.GetConfigByUUID(queueID)
-	cfg1,ok1:=queue1.GetConsumerConfigID(queueID,consumerID)
-	obj:=util.MapStr{}
-	var status =404
-	if ok&&ok1{
-		offset,err:=queue1.GetOffset(cfg,cfg1)
-		if err!=nil{
-			obj["error"]=err.Error()
-		}else{
-			obj["found"]=true
-			obj["result"]=offset
+	queueID := ps.ByName("id")
+	consumerID := ps.ByName("consumer_id")
+	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
+	obj := util.MapStr{}
+	var status = 404
+	if ok && ok1 {
+		offset, err := queue1.GetOffset(cfg, cfg1)
+		if err != nil {
+			obj["error"] = err.Error()
+		} else {
+			obj["found"] = true
+			obj["result"] = offset
+			status = 200
 		}
-	}else{
-		obj["found"]=false
+	} else {
+		obj["found"] = false
 	}
-	module.WriteJSON(w,obj,status)
+	module.WriteJSON(w, obj, status)
+}
+
+func (module *DiskQueue) QueueDeleteConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	queueID := ps.ByName("id")
+	consumerID := ps.ByName("consumer_id")
+	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
+	obj := util.MapStr{}
+	var status = 404
+	if ok && ok1 {
+		err := queue1.DeleteOffset(cfg, cfg1)
+		if err != nil {
+			obj["error"] = err.Error()
+		} else {
+			obj["result"] = "deleted"
+		}
+		status = 200
+	} else {
+		obj["result"] = "not_found"
+	}
+	module.WriteJSON(w, obj, status)
 }
 
 func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queueID:=ps.ByName("id")
-	consumerID:=ps.ByName("consumer_id")
-	offsetStr:= module.GetParameterOrDefault(req,"offset","0,0")
-	cfg,ok:=queue1.GetConfigByUUID(queueID)
-	cfg1,ok1:=queue1.GetConsumerConfigID(queueID,consumerID)
-	var ack=false
-	var status=404
-	var obj=util.MapStr{}
-	if ok&&ok1{
-		queue1.CommitOffset(cfg,cfg1,offsetStr)
-		ack=true
-		status=200
-	}else{
-		obj["error"]="not found"
+	queueID := ps.ByName("id")
+	consumerID := ps.ByName("consumer_id")
+	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
+	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
+	var ack = false
+	var status = 404
+	var obj = util.MapStr{}
+	if ok && ok1 {
+		queue1.CommitOffset(cfg, cfg1, offsetStr)
+		ack = true
+		status = 200
+	} else {
+		obj["error"] = "not found"
 	}
-	module.WriteAckJSON(w,ack,status,nil)
+	module.WriteAckJSON(w, ack, status, nil)
 }

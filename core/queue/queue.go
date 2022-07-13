@@ -191,38 +191,52 @@ func GetConsumerConfig(queueID,group,name string) (*ConsumerConfig, bool) {
 	defer consumerCfgLock.Unlock()
 
 	queueIDBytes:=util.UnsafeStringToBytes(queueID)
-	cfgs:=map[string]*ConsumerConfig{}
-	data,err:=kv.GetValue(consumerBucket,queueIDBytes)
-	if err!=nil{
+	cfgs := map[string]*ConsumerConfig{}
+	data, err := kv.GetValue(consumerBucket, queueIDBytes)
+	if err != nil {
 		panic(err)
 	}
-	err=util.FromJSONBytes(data,&cfgs)
-	if err!=nil{
+	err = util.FromJSONBytes(data, &cfgs)
+	if err != nil {
 		panic(err)
 	}
 
-	if cfgs!=nil{
-		x,ok:=cfgs[fmt.Sprintf("%v-%v",group,name)]
-		return x,ok
+	if cfgs != nil {
+		x, ok := cfgs[fmt.Sprintf("%v-%v", group, name)]
+		return x, ok
 	}
 
 	return nil, false
 }
 
-func GetOrInitConsumerConfig(queueID,group,name string) (*ConsumerConfig) {
-	cfg,exists:=GetConsumerConfig(queueID,group,name)
-	if !exists{
-			cfg=&ConsumerConfig{
-				FetchMinBytes:    1,
-				FetchMaxBytes:    10 * 1024 * 1024,
-				FetchMaxMessages: 500,
-				FetchMaxWaitMs:   1000,
-			}
-			cfg.Id=util.GetUUID()
-			cfg.Source="dynamic"
-			cfg.Group=group
-			cfg.Name= name
-			RegisterConsumer(queueID,cfg)
+func NewConsumerConfig(group, name string) *ConsumerConfig {
+	cfg := &ConsumerConfig{
+		FetchMinBytes:    1,
+		FetchMaxBytes:    10 * 1024 * 1024,
+		FetchMaxMessages: 500,
+		FetchMaxWaitMs:   1000,
+	}
+	cfg.Id = util.GetUUID()
+	cfg.Source = "dynamic"
+	cfg.Group = group
+	cfg.Name = name
+	return cfg
+}
+
+func GetOrInitConsumerConfig(queueID, group, name string) *ConsumerConfig {
+	cfg, exists := GetConsumerConfig(queueID, group, name)
+	if !exists {
+		cfg = &ConsumerConfig{
+			FetchMinBytes:    1,
+			FetchMaxBytes:    10 * 1024 * 1024,
+			FetchMaxMessages: 500,
+			FetchMaxWaitMs:   1000,
+		}
+		cfg.Id = util.GetUUID()
+		cfg.Source = "dynamic"
+		cfg.Group = group
+		cfg.Name = name
+		RegisterConsumer(queueID, cfg)
 	}
 	return cfg
 }
@@ -472,6 +486,10 @@ func GetOffset(k *QueueConfig, consumer *ConsumerConfig) (string, error) {
 	}
 
 	return "0,0", nil
+}
+
+func DeleteOffset(k *QueueConfig, consumer *ConsumerConfig) error {
+	return kv.DeleteKey(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
 }
 
 func CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset string) (bool, error) {
