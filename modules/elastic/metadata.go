@@ -941,6 +941,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
 					"node_id": innerID,
+					"node_uuid": rawNodeID,
 					"node_name": nodeInfo.Name,
 					"cluster_name": esConfig.Name,
 				},
@@ -989,6 +990,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					"cluster_id": clusterID,
 					"to": "unavailable",
 					"node_id": oldConfig.Metadata.NodeID,
+					"node_uuid": nodeID,
 					"node_name": oldConfig.Metadata.NodeName,
 					"cluster_name": esConfig.Name,
 				},
