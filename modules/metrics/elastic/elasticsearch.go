@@ -107,22 +107,22 @@ func setLastMonitorTime(key string, subKey string, lastTime time.Time) {
 		subKey: lastTime,
 	})
 }
-func getMonitorConfigs(v *elastic.ElasticsearchMetadata) *elastic.Monitor{
+func getMonitorConfigs(v *elastic.ElasticsearchMetadata) *elastic.MonitorConfig {
 	if v.Config.MonitorConfigs == nil {
-		return &elastic.Monitor{
-			ClusterStats: elastic.MonitorConfig{
+		return &elastic.MonitorConfig{
+			ClusterStats: elastic.TaskConfig{
 				Enabled: true,
 				Interval: "10s",
 			},
-			NodeStats: elastic.MonitorConfig{
+			NodeStats: elastic.TaskConfig{
 				Enabled: true,
 				Interval: "10s",
 			},
-			ClusterHealth: elastic.MonitorConfig{
+			ClusterHealth: elastic.TaskConfig{
 				Enabled: true,
 				Interval: "10s",
 			},
-			IndexStats: elastic.MonitorConfig{
+			IndexStats: elastic.TaskConfig{
 				Enabled: true,
 				Interval: "10s",
 			},
@@ -135,7 +135,7 @@ func getMonitorConfigs(v *elastic.ElasticsearchMetadata) *elastic.Monitor{
 
 	return v.Config.MonitorConfigs
 }
-func validateMonitorConfig(monitorConfig *elastic.MonitorConfig){
+func validateMonitorConfig(monitorConfig *elastic.TaskConfig){
 	if monitorConfig.Enabled {
 		duration, _ := time.ParseDuration(monitorConfig.Interval)
 		if duration < time.Second * 10 {

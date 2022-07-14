@@ -188,15 +188,15 @@ func nodeAvailabilityCheck() {
 				v, ok := value.(*elastic.NodeAvailable)
 				if ok {
 					cfg := elastic.GetConfig(v.ClusterID)
-					if !cfg.Enabled || (cfg.MonitorConfigs !=nil && !cfg.MonitorConfigs.NodeAvailabilityCheck.Enabled){
+					if !cfg.Enabled || (cfg.MetadataConfigs !=nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled){
 						return true
 					}
 
 					if startTime, ok := availabilityMap.Load(k); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.NodeAvailabilityCheckConfig.Interval
-						if cfg.MonitorConfigs != nil && cfg.MonitorConfigs.NodeAvailabilityCheck.Interval != "" {
-							interval = cfg.MonitorConfigs.NodeAvailabilityCheck.Interval
+						if cfg.MonitorConfigs != nil && cfg.MetadataConfigs.NodeAvailabilityCheck.Interval != "" {
+							interval = cfg.MetadataConfigs.NodeAvailabilityCheck.Interval
 						}
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("check availability for node [%s] is still running, elapsed: %v, skip waiting", v.Host, elapsed.String())
@@ -245,15 +245,15 @@ func (module *ElasticModule) clusterStateRefresh() {
 				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MonitorConfigs !=nil && !v.MonitorConfigs.MetadataRefresh.Enabled){
+					if !v.Enabled || (v.MetadataConfigs !=nil && !v.MetadataConfigs.MetadataRefresh.Enabled){
 						return true
 					}
 
 					if startTime, ok := module.stateMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.MetadataRefresh.Interval
-						if v.MonitorConfigs != nil && v.MonitorConfigs.MetadataRefresh.Interval != "" {
-							interval = v.MonitorConfigs.MetadataRefresh.Interval
+						if v.MonitorConfigs != nil && v.MetadataConfigs.MetadataRefresh.Interval != "" {
+							interval = v.MetadataConfigs.MetadataRefresh.Interval
 						}
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
@@ -341,7 +341,7 @@ func (module *ElasticModule) Start() error {
 				elastic.WalkConfigs(func(key, value interface{}) bool {
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
-						if !cfg1.Enabled || (cfg1.MonitorConfigs !=nil && !cfg1.MonitorConfigs.HealthCheck.Enabled){
+						if !cfg1.Enabled || (cfg1.MetadataConfigs !=nil && !cfg1.MetadataConfigs.HealthCheck.Enabled){
 							return true
 						}
 
@@ -350,8 +350,8 @@ func (module *ElasticModule) Start() error {
 						if startTime, ok := module.healthMap.Load(cfg1.ID); ok {
 							elapsed := time.Since(startTime.(time.Time))
 							interval := moduleConfig.HealthCheckConfig.Interval
-							if cfg1.MonitorConfigs != nil && cfg1.MonitorConfigs.HealthCheck.Interval != "" {
-								interval = cfg1.MonitorConfigs.HealthCheck.Interval
+							if cfg1.MonitorConfigs != nil && cfg1.MetadataConfigs.HealthCheck.Interval != "" {
+								interval = cfg1.MetadataConfigs.HealthCheck.Interval
 							}
 							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
 							if elapsed > tinterval*2 {
@@ -523,14 +523,14 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MonitorConfigs !=nil && !v.MonitorConfigs.ClusterSettingsCheck.Enabled) {
+					if !v.Enabled || (v.MetadataConfigs !=nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
 						return true
 					}
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.ClusterSettingsCheckConfig.Interval
-						if v.MonitorConfigs != nil && v.MonitorConfigs.ClusterSettingsCheck.Interval != "" {
-							interval = v.MonitorConfigs.ClusterSettingsCheck.Interval
+						if v.MonitorConfigs != nil && v.MetadataConfigs.ClusterSettingsCheck.Interval != "" {
+							interval = v.MetadataConfigs.ClusterSettingsCheck.Interval
 						}
 
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {

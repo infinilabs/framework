@@ -406,19 +406,21 @@ type ElasticsearchMetadata struct {
 
 	cache *ristretto.Cache
 }
-type MonitorConfig struct {
+type TaskConfig struct {
 	Enabled bool `json:"enabled"`
 	Interval string `json:"interval"`
 }
-type Monitor struct{
-	ClusterHealth MonitorConfig `json:"cluster_health"`
-	ClusterStats MonitorConfig `json:"cluster_stats"`
-	NodeStats MonitorConfig `json:"node_stats"`
-	IndexStats MonitorConfig `json:"index_stats"`
-	HealthCheck MonitorConfig `json:"health_check"`
-	ClusterSettingsCheck MonitorConfig `json:"cluster_settings_check"`
-	MetadataRefresh MonitorConfig `json:"metadata_refresh"`
-	NodeAvailabilityCheck MonitorConfig `json:"node_availability_check"`
+type MonitorConfig struct{
+	ClusterHealth TaskConfig `json:"cluster_health"`
+	ClusterStats  TaskConfig `json:"cluster_stats"`
+	NodeStats     TaskConfig `json:"node_stats"`
+	IndexStats    TaskConfig `json:"index_stats"`
+}
+type MetadataConfig struct {
+	HealthCheck           TaskConfig `json:"health_check"`
+	ClusterSettingsCheck  TaskConfig `json:"cluster_settings_check"`
+	MetadataRefresh       TaskConfig `json:"metadata_refresh"`
+	NodeAvailabilityCheck TaskConfig `json:"node_availability_check"`
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch
@@ -429,9 +431,9 @@ type ElasticsearchConfig struct {
 	Name        string   `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
 	Description string   `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 	Enabled     bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
-	Monitored   bool     `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
-	MonitorConfigs *Monitor `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`
-	HttpProxy   string   `json:"http_proxy,omitempty" config:"http_proxy"`
+	Monitored   bool              `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	MonitorConfigs *MonitorConfig `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`
+	HttpProxy   string            `json:"http_proxy,omitempty" config:"http_proxy"`
 	Endpoint    string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
 	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
 	Version     string   `json:"version,omitempty" config:"version" elastic_mapping:"version:{type:keyword,copy_to:search_text}"`
@@ -483,6 +485,7 @@ type ElasticsearchConfig struct {
 	Tags          []string    `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 	MaxCachedSize int64       `json:"max_cached_size,omitempty" elastic_mapping:"max_cached_size:{type:integer}"`
+	MetadataConfigs *MetadataConfig `config:"metadata_configs" json:"metadata_configs,omitempty" elastic_mapping:"metadata_configs:{type:object}"`
 }
 
 type GeoLocation struct{
