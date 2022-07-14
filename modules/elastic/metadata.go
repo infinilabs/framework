@@ -30,7 +30,7 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 			//add seeds to host for health check
 			hosts := metadata.GetSeedHosts()
 			for _, host := range hosts {
-				elastic.GetOrInitHost(host)
+				elastic.GetOrInitHost(host, clusterID)
 			}
 		}
 		//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
@@ -703,7 +703,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 			//register host to do availability monitoring
 			for _, v := range *nodes {
-				elastic.GetOrInitHost(v.GetHttpPublishHost())
+				elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
 			}
 		}else{
 			kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(nodes))

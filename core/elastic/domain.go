@@ -208,6 +208,7 @@ type NodesInfo struct {
 }
 
 type NodeAvailable struct {
+	ClusterID string
 	Host        string
 	ticket      int
 	available   bool
@@ -414,6 +415,10 @@ type Monitor struct{
 	ClusterStats MonitorConfig `json:"cluster_stats"`
 	NodeStats MonitorConfig `json:"node_stats"`
 	IndexStats MonitorConfig `json:"index_stats"`
+	HealthCheck MonitorConfig `json:"health_check"`
+	ClusterSettingsCheck MonitorConfig `json:"cluster_settings_check"`
+	MetadataRefresh MonitorConfig `json:"metadata_refresh"`
+	NodeAvailabilityCheck MonitorConfig `json:"node_availability_check"`
 }
 
 // ElasticsearchConfig contains common settings for elasticsearch

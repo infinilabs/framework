@@ -63,7 +63,7 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	}
 }
 
-func GetOrInitHost(host string) *NodeAvailable {
+func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 	if host==""{
 		return nil
 	}
@@ -72,7 +72,7 @@ func GetOrInitHost(host string) *NodeAvailable {
 	if loaded {
 		return v1.(*NodeAvailable)
 	}else{
-		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host)}
+		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host),ClusterID: clusterID}
 		hosts.Store(host,v1)
 	}
 	return v1.(*NodeAvailable)

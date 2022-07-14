@@ -2155,6 +2155,8 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic9(in *jlexer.Lexer, out *
 			continue
 		}
 		switch key {
+		case "ClusterID":
+			out.ClusterID = string(in.String())
 		case "Host":
 			out.Host = string(in.String())
 		default:
@@ -2172,8 +2174,13 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic9(out *jwriter.Writer, in
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"Host\":"
+		const prefix string = ",\"ClusterID\":"
 		out.RawString(prefix[1:])
+		out.String(string(in.ClusterID))
+	}
+	{
+		const prefix string = ",\"Host\":"
+		out.RawString(prefix)
 		out.String(string(in.Host))
 	}
 	out.RawByte('}')
@@ -2302,6 +2309,14 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic11(in *jlexer.Lexer, out 
 			(out.NodeStats).UnmarshalEasyJSON(in)
 		case "index_stats":
 			(out.IndexStats).UnmarshalEasyJSON(in)
+		case "health_check":
+			(out.HealthCheck).UnmarshalEasyJSON(in)
+		case "cluster_settings_check":
+			(out.ClusterSettingsCheck).UnmarshalEasyJSON(in)
+		case "metadata_refresh":
+			(out.MetadataRefresh).UnmarshalEasyJSON(in)
+		case "node_availability_check":
+			(out.NodeAvailabilityCheck).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -2335,6 +2350,26 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic11(out *jwriter.Writer, i
 		const prefix string = ",\"index_stats\":"
 		out.RawString(prefix)
 		(in.IndexStats).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"health_check\":"
+		out.RawString(prefix)
+		(in.HealthCheck).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"cluster_settings_check\":"
+		out.RawString(prefix)
+		(in.ClusterSettingsCheck).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"metadata_refresh\":"
+		out.RawString(prefix)
+		(in.MetadataRefresh).MarshalEasyJSON(out)
+	}
+	{
+		const prefix string = ",\"node_availability_check\":"
+		out.RawString(prefix)
+		(in.NodeAvailabilityCheck).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
