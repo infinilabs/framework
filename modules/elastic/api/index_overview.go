@@ -231,7 +231,6 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 	}
 	dsl := util.MustToJSONBytes(query)
-	log.Error(string(dsl))
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
