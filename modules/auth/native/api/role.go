@@ -159,10 +159,15 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	role.ID = id
 
-
 	oldRole, err := h.Role.Get(id)
 	if err != nil {
+		log.Error(err)
 		h.ErrorInternalServer(w, err.Error())
+		return
+	}
+	if role.Name != oldRole.Name {
+		h.ErrorInternalServer(w, "Changing role name is not allowed")
+		return
 	}
 	role.Type = oldRole.Type
 	role.Updated = time.Now()
