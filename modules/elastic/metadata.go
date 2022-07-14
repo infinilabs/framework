@@ -48,14 +48,15 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
 		} else {
-			metadata.ReportSuccess()
-			if metadata.Health == nil || metadata.Health.Status != health.Status {
+			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable(){
 				metadata.Health = health
 				if metadata.Config.Source != "file" {
 					updateClusterHealthStatus(clusterID, health.Status)
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
+			metadata.ReportSuccess()
+
 		}
 	}
 }

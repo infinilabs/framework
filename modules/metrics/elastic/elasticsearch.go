@@ -220,7 +220,7 @@ func (m *Metric) Collect() error {
 			}
 
 			//nodes stats
-			if m.NodeStats && monitorConfigs.NodeStats.Enabled {
+			if m.NodeStats && monitorConfigs.NodeStats.Enabled  && v.IsAvailable() {
 				if v.Config.Discovery.Enabled &&  v.Nodes == nil {
 					if global.Env().IsDebug{
 						log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect",k,v.Config.Name)

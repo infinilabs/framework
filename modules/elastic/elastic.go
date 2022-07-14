@@ -31,6 +31,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
 	. "infini.sh/framework/modules/elastic/common"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -352,9 +353,10 @@ func (module *ElasticModule) Start() error {
 							if cfg1.MonitorConfigs != nil && cfg1.MonitorConfigs.HealthCheck.Interval != "" {
 								interval = cfg1.MonitorConfigs.HealthCheck.Interval
 							}
-							if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
+							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
+							if elapsed > tinterval*2 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
-							} else {
+							} else if math.Abs((elapsed - tinterval).Seconds()) > 3{
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v", cfg1.Name, elapsed.String())
 								return true
 							}
