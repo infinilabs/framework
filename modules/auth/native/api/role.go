@@ -168,6 +168,7 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 	role.Updated = time.Now()
 	role.Created = oldRole.Created
 	err = h.Role.Update(role)
+	delete(rbac.RoleMap, oldRole.Name)
 	rbac.RoleMap[role.Name] = *role
 
 	if err != nil {

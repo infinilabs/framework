@@ -7,6 +7,7 @@ import (
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/graph"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
@@ -808,17 +809,23 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 		h.WriteJSON(w, []interface{}{} , http.StatusOK)
 		return
 	}
-	strIndices := ""
-	if !hasAllPrivilege {
-		strIndices = strings.Join(allowedIndices, ",")
-	}
 
 	esClient := elastic.GetClient(id)
-	indexInfos, err := esClient.GetIndices(strIndices)
+	indexInfos, err := esClient.GetIndices("")
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
 		return
+	}
+	if !hasAllPrivilege {
+		filterIndices := map[string]elastic.IndexInfo{}
+		pattern := radix.Compile(allowedIndices...)
+		for indexName, indexInfo := range *indexInfos {
+			if pattern.Match(indexName){
+				filterIndices[indexName] = indexInfo
+			}
+		}
+		indexInfos = &filterIndices
 	}
 
 	qps, err := h.getIndexQPS(id)

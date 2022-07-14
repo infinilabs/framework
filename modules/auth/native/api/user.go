@@ -15,6 +15,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -119,6 +120,7 @@ func (h APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httpro
 	if user.Name != oldUser.Name && h.userNameExists(w, user.Name) {
 		return
 	}
+
 	user.Updated = time.Now()
 	user.Created = oldUser.Created
 	user.ID = id
@@ -128,6 +130,17 @@ func (h APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httpro
 		_ = log.Error(err.Error())
 		h.ErrorInternalServer(w, err.Error())
 		return
+	}
+	//let user relogin after roles changed
+	sort.Slice(user.Roles, func(i, j int) bool {
+		return user.Roles[i].ID < user.Roles[j].ID
+	})
+	sort.Slice(oldUser.Roles, func(i, j int) bool {
+		return oldUser.Roles[i].ID < oldUser.Roles[j].ID
+	})
+	changeLog, _ := util.DiffTwoObject(user.Roles, oldUser.Roles)
+	if len(changeLog) > 0 {
+		rbac.DeleteUserToken(id)
 	}
 	_ = h.WriteOKJSON(w, api.UpdateResponse(id))
 	return
@@ -152,6 +165,7 @@ func (h APIHandler) DeleteUser(w http.ResponseWriter, r *http.Request, ps httpro
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
+	rbac.DeleteUserToken(id)
 	_ = h.WriteOKJSON(w, api.DeleteResponse(id))
 	return
 }
@@ -209,6 +223,8 @@ func (h APIHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request, p
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
+	//disable old token to let user login
+	rbac.DeleteUserToken(id)
 
 	_ = h.WriteOKJSON(w, api.UpdateResponse(id))
 	return

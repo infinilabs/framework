@@ -134,6 +134,34 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 	if !hasAllPrivilege {
 		indexShould := make([]interface{}, 0, len(indexPrivilege))
 		for clusterID, indices := range indexPrivilege {
+			var (
+				wildcardIndices []string
+				normalIndices []string
+			)
+			for _, index := range indices {
+				if strings.Contains(index,"*") {
+					wildcardIndices = append(wildcardIndices)
+					continue
+				}
+				normalIndices = append(normalIndices, index)
+			}
+			subShould := []util.MapStr{}
+			if len(wildcardIndices) > 0 {
+				subShould = append(subShould, util.MapStr{
+					"query_string": util.MapStr{
+						"query": strings.Join(wildcardIndices, " "),
+						"fields": []string{"metadata.index_name"},
+						"default_operator": "OR",
+					},
+				})
+			}
+			if len(normalIndices) > 0 {
+				subShould = append(subShould, util.MapStr{
+					"terms": util.MapStr{
+						"metadata.index_name": normalIndices,
+					},
+				})
+			}
 			indexShould = append(indexShould, util.MapStr{
 				"bool": util.MapStr{
 					"must": []util.MapStr{
@@ -145,10 +173,9 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 							},
 						},
 						{
-							"query_string": util.MapStr{
-								"query": strings.Join(indices, " "),
-								"fields": []string{"metadata.index_name"},
-								"default_operator": "OR",
+							"bool": util.MapStr{
+								"minimum_should_match": 1,
+								"should": subShould,
 							},
 						},
 					},
@@ -204,6 +231,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 		}
 	}
 	dsl := util.MustToJSONBytes(query)
+	log.Error(string(dsl))
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
