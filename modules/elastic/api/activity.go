@@ -145,7 +145,7 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 	}
 
 	dsl := util.MustToJSONBytes(query)
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(event.Activity{}), dsl)
+	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetWildcardIndexName(event.Activity{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )
