@@ -190,7 +190,7 @@ func (m *Metric) Collect() error {
 
 			//cluster stats
 			if m.ClusterStats && v.IsAvailable() && monitorConfigs.ClusterStats.Enabled{
-				if canDoMonitor(k, "cluster_stats", monitorConfigs.ClusterHealth.Interval, v.Config.Name){
+				if canDoMonitor(k, "cluster_stats", monitorConfigs.ClusterStats.Interval, v.Config.Name){
 					t1 := time.Now()
 					setLastMonitorTime(k, "cluster_stats", collectStartTime)
 					err = m.CollectClusterState(k, v)
@@ -316,7 +316,7 @@ func (m *Metric) Collect() error {
 
 			//indices stats
 			if v.IsAvailable() && (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
-				if canDoMonitor(k, "index_stats", monitorConfigs.NodeStats.Interval, v.Config.Name){
+				if canDoMonitor(k, "index_stats", monitorConfigs.IndexStats.Interval, v.Config.Name){
 					setLastMonitorTime(k, "index_stats", collectStartTime)
 					indexStats, err := client.GetStats()
 					if err != nil {

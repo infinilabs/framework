@@ -19,7 +19,7 @@ const (
 	ThreadPool_BulkGroupKey = "thread_pool_bulk"
 )
 
-func (h *APIHandler) getThradPoolMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
+func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 	var must = []util.MapStr{
 		{

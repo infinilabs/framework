@@ -416,6 +416,13 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 		panic(err)
 		return
 	}
+	meta := elastic.GetMetadata(id)
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Enabled && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
+		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.IndexStats.Interval)
+		if bucketSize < int(du.Seconds()) {
+			bucketSize = int(du.Seconds())
+		}
+	}
 
 	//fmt.Println(min," vs ",max,",",rangeFrom,rangeTo,"range hours:",hours)
 
@@ -425,6 +432,18 @@ func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http
 	if isOverview == 1 {
 		metrics = h.GetClusterIndexMetrics(id, bucketSize, min, max)
 	}else{
+		if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.ClusterStats.Enabled && meta.Config.MonitorConfigs.ClusterStats.Interval != "" {
+			du, _ := time.ParseDuration(meta.Config.MonitorConfigs.ClusterStats.Interval)
+			if bucketSize < int(du.Seconds()) {
+				bucketSize = int(du.Seconds())
+			}
+		}
+		if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.ClusterHealth.Enabled && meta.Config.MonitorConfigs.ClusterHealth.Interval != "" {
+			du, _ := time.ParseDuration(meta.Config.MonitorConfigs.ClusterStats.Interval)
+			if bucketSize < int(du.Seconds()) {
+				bucketSize = int(du.Seconds())
+			}
+		}
 		metrics = h.GetClusterMetrics(id, bucketSize, min, max)
 	}
 
@@ -447,6 +466,13 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	meta := elastic.GetMetadata(id)
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
+		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.NodeStats.Interval)
+		if bucketSize < int(du.Seconds()) {
+			bucketSize = int(du.Seconds())
+		}
+	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getNodeMetrics(id, bucketSize, min, max, nodeName, top)
@@ -466,6 +492,13 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
+	}
+	meta := elastic.GetMetadata(id)
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
+		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.IndexStats.Interval)
+		if bucketSize < int(du.Seconds()) {
+			bucketSize = int(du.Seconds())
+		}
 	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
@@ -534,7 +567,14 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	resBody["metrics"] = h.getThradPoolMetrics(id, bucketSize, min, max, nodeName, top)
+	meta := elastic.GetMetadata(id)
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
+		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.NodeStats.Interval)
+		if bucketSize < int(du.Seconds()) {
+			bucketSize = int(du.Seconds())
+		}
+	}
+	resBody["metrics"] = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
