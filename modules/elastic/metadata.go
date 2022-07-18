@@ -973,6 +973,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			continue
 		}
 		oldConfig.Metadata.Labels["status"] = "unavailable"
+		oldConfig.Timestamp = time.Now()
 
 		err = orm.Save(oldConfig)
 		if err != nil {
