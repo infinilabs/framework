@@ -656,8 +656,15 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 			return
 		}
 		if len(buf) > 0 {
-			oldNodes = &map[string]elastic.NodesInfo{}
-			util.MustFromJSONBytes(buf, oldNodes)
+			cacheNodes := struct {
+				Nodes *map[string]elastic.NodesInfo `json:"nodes"`
+				Timestamp time.Time `json:"timestamp"`
+			}{}
+			//oldNodes = &map[string]elastic.NodesInfo{}
+			util.MustFromJSONBytes(buf, &cacheNodes)
+			if cacheNodes.Nodes != nil && time.Since(cacheNodes.Timestamp).Seconds() <= 60 {
+				oldNodes = cacheNodes.Nodes
+			}
 		}
 	}
 
@@ -707,7 +714,11 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 				elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
 			}
 		}else{
-			kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(nodes))
+			cacheNodeInfo := util.MapStr{
+				"nodes": nodes,
+				"timestamp": time.Now(),
+			}
+			kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
 		}
 		//TODO　save to es metadata
 	}
@@ -717,6 +728,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 var saveNodeMetadataMutex = sync.Mutex{}
 var nodeAlreadyUnknown = map[string]bool{}
 func setNodeUnknown(clusterID string) {
+	kv.DeleteKey(elastic.KVElasticNodeMetadata,[]byte(clusterID))
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
 		return

@@ -205,13 +205,14 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	if reqUser.UserId == "admin" {
+	uname, _ := global.Env().GetConfig("bootstrap.username", "admin")
+	if reqUser.UserId == uname {
 
 		u := util.MapStr{
-			"user_id":  "admin",
-			"name": "admin",
+			"user_id":  uname,
+			"name": uname,
 			"email":    "admin@infini.ltd",
-			"nick_name":     "admin",
+			"nick_name":     uname,
 			"phone":    "13011111111",
 		}
 		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))

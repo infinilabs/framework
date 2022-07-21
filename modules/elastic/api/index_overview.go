@@ -140,7 +140,7 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 			)
 			for _, index := range indices {
 				if strings.Contains(index,"*") {
-					wildcardIndices = append(wildcardIndices)
+					wildcardIndices = append(wildcardIndices, index)
 					continue
 				}
 				normalIndices = append(normalIndices, index)
