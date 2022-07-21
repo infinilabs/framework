@@ -59,7 +59,7 @@ type Config struct {
 	CheckESAvailable     bool   `config:"check_available"`
 }
 
-func init()  {
+func init() {
 	pipeline.RegisterProcessorPlugin("json_indexing", New)
 }
 
@@ -164,10 +164,10 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 
 	log.Trace("start bulk worker")
 
-	mainBuf := processor.bufferPool.Get()
-	defer processor.bufferPool.Put(mainBuf)
-	docBuf := processor.bufferPool.Get()
-	defer processor.bufferPool.Put(docBuf)
+	mainBuf := processor.bufferPool.Get("json_indexing")
+	defer processor.bufferPool.Put("json_indexing", mainBuf)
+	docBuf := processor.bufferPool.Get("json_indexing")
+	defer processor.bufferPool.Put("json_indexing", docBuf)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 
@@ -179,11 +179,11 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 CHECK_AVAIABLE:
 	metadata := elastic.GetMetadata(processor.config.Elasticsearch)
 
-	if metadata==nil{
+	if metadata == nil {
 		panic(errors.Errorf("cluster metadata [%v] not ready", processor.config.Elasticsearch))
 	}
 
-	if processor.config.CheckESAvailable{
+	if processor.config.CheckESAvailable {
 		if !metadata.IsAvailable() {
 			checkCount++
 			if checkCount > 5 {
@@ -221,13 +221,13 @@ READ_DOCS:
 
 			//stats.IncrementBy("json_indexing", "bytes_received", int64(mainBuf.Len()))
 
-			if processor.config.IndexName==""{
+			if processor.config.IndexName == "" {
 				panic("index name is empty")
 			}
 
 			if clientMajorVersion < 8 {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
-			}else{
+			} else {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))
 			}
 
@@ -271,7 +271,7 @@ CLEAN_BUFFER:
 		mainBuf.WriteByte('\n')
 		result, err := client.Bulk(mainBuf.Bytes())
 		if err != nil {
-			log.Error(err, util.SubString(string(result.Body), 0, 200))
+			log.Error(err, util.SubString(util.UnsafeBytesToString(result.Body), 0, 200))
 			stats.Increment("json_indexing", "error")
 			queue.Push(queue.GetOrInitConfig(processor.config.FailureQueue), mainBuf.Bytes())
 		}

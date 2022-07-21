@@ -145,12 +145,12 @@ func NewVHostPathRewriter(slashesCount int) PathRewriteFunc {
 		if len(host) == 0 {
 			host = strInvalidHost
 		}
-		b := bytebufferpool.Get()
+		b := bytebufferpool.Get("fasthttp_fs")
 		b.B = append(b.B, '/')
 		b.B = append(b.B, host...)
 		b.B = append(b.B, path...)
 		ctx.URI().SetPathBytes(b.B)
-		bytebufferpool.Put(b)
+		bytebufferpool.Put("fasthttp_fs", b)
 
 		return ctx.Path()
 	}

@@ -1152,11 +1152,10 @@ func (h *ResponseHeader) Peek(key string) []byte {
 	return h.peek(k)
 }
 
-
 func (h *ResponseHeader) PeekAny(keys []string) []byte {
-	for _,k:=range keys{
-		v:=h.Peek(k)
-		if len(v)>0{
+	for _, k := range keys {
+		v := h.Peek(k)
+		if len(v) > 0 {
 			return v
 		}
 	}
@@ -1183,21 +1182,21 @@ func (h *RequestHeader) Peek(key string) []byte {
 }
 
 //peak value
-func (h *RequestHeader) PeekAnyKey(keys []string)(key string,value []byte) {
-	for _,k:=range keys{
-		v:=h.Peek(k)
-		if len(v)>0{
-			return k,v
+func (h *RequestHeader) PeekAnyKey(keys []string) (key string, value []byte) {
+	for _, k := range keys {
+		v := h.Peek(k)
+		if len(v) > 0 {
+			return k, v
 		}
 	}
-	return "",nil
+	return "", nil
 }
 
 //peak value
 func (h *RequestHeader) PeekAny(keys []string) []byte {
-	for _,k:=range keys{
-		v:=h.Peek(k)
-		if len(v)>0{
+	for _, k := range keys {
+		v := h.Peek(k)
+		if len(v) > 0 {
 			return v
 		}
 	}
@@ -1487,10 +1486,10 @@ func (h *ResponseHeader) String() string {
 // the extended dst.
 func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
-	if h.useBufferAppendForHeaders{
-		headerBuffer := headerPool.Get()
+	if h.useBufferAppendForHeaders {
+		headerBuffer := headerPool.Get("fasthttp_header")
 		headerBuffer.Reset()
-		defer headerPool.Put(headerBuffer)
+		defer headerPool.Put("fasthttp_header", headerBuffer)
 
 		statusCode := h.StatusCode()
 		if statusCode < 0 {
@@ -1518,13 +1517,13 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 		}
 
 		if len(h.contentLengthBytes) > 0 {
-			bufferAppendHeaderLine(headerBuffer,strContentLength, h.contentLengthBytes)
+			bufferAppendHeaderLine(headerBuffer, strContentLength, h.contentLengthBytes)
 		}
 
 		for i, n := 0, len(h.h); i < n; i++ {
 			kv := &h.h[i]
 			if h.noDefaultDate || !bytes.Equal(kv.key, strDate) {
-				bufferAppendHeaderLine(headerBuffer,kv.key, kv.value)
+				bufferAppendHeaderLine(headerBuffer, kv.key, kv.value)
 			}
 		}
 
@@ -1532,12 +1531,12 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 		if n > 0 {
 			for i := 0; i < n; i++ {
 				kv := &h.cookies[i]
-				bufferAppendHeaderLine(headerBuffer,strSetCookie, kv.value)
+				bufferAppendHeaderLine(headerBuffer, strSetCookie, kv.value)
 			}
 		}
 
 		if h.ConnectionClose() {
-			bufferAppendHeaderLine(headerBuffer,strConnection, strClose)
+			bufferAppendHeaderLine(headerBuffer, strConnection, strClose)
 		}
 
 		headerBuffer.Write(strCRLF)
@@ -1642,17 +1641,18 @@ func (h *RequestHeader) String() string {
 	return string(h.Header())
 }
 
-var headerPool = bytebufferpool.NewPool(1024,1024*48)
+var headerPool = bytebufferpool.NewPool(1024, 1024*48)
 
-var BlankInHeader =[]byte(" ")
+var BlankInHeader = []byte(" ")
+
 // AppendBytes appends request header representation to dst and returns
 // the extended dst.
 func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 
-	if h.useBufferAppendForHeaders{
-		headerBuffer := headerPool.Get()
+	if h.useBufferAppendForHeaders {
+		headerBuffer := headerPool.Get("fasthttp_header")
 		headerBuffer.Reset()
-		defer headerPool.Put(headerBuffer)
+		defer headerPool.Put("fasthttp_header", headerBuffer)
 
 		headerBuffer.Write(h.Method())
 		headerBuffer.Write(BlankInHeader)
@@ -1663,7 +1663,7 @@ func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 
 		userAgent := h.UserAgent()
 		if len(userAgent) > 0 {
-			bufferAppendHeaderLine(headerBuffer,strUserAgent, userAgent)
+			bufferAppendHeaderLine(headerBuffer, strUserAgent, userAgent)
 		}
 
 		host := h.Host()

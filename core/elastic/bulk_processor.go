@@ -331,7 +331,7 @@ DO:
 	if err != nil {
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		if rate.GetRateLimiterPerSecond(metadata.Config.ID, host+"5xx_on_error", 1).Allow() {
-			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(string(util.EscapeNewLine(resp.GetRawBody())), 0, 256))
+			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(util.EscapeNewLine(resp.GetRawBody())), 0, 256))
 			time.Sleep(1 * time.Second)
 		}
 		return false, err
@@ -367,8 +367,10 @@ DO:
 
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.RequestURI()), "_bulk") {
-			nonRetryableItems := bytebufferpool.Get()
-			retryableItems := bytebufferpool.Get()
+			nonRetryableItems := bytebufferpool.Get("bulk_processor")
+			retryableItems := bytebufferpool.Get("bulk_processor")
+			defer bytebufferpool.Put("bulk_processor", nonRetryableItems)
+			defer bytebufferpool.Put("bulk_processor", retryableItems)
 			nonRetryableItems.Reset()
 			retryableItems.Reset()
 
@@ -416,14 +418,14 @@ DO:
 						"queue":      buffer.Queue,
 						"request": util.MapStr{
 							"uri":  req.URI().String(),
-							"body": util.SubString(string(req.GetRawBody()), 0, 1024*4),
+							"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, 1024*4),
 						},
 						"response": util.MapStr{
 							"status": failureStatusStr,
-							"body":   util.SubString(string(resbody), 0, 1024*4),
+							"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, 1024*4),
 						},
 					}))
-					log.Errorf("bulk requests failure,host:%v,status:%v,invalid:%v,failure:%v,res:%v", host, statsCodeStats, nonRetryableItems.Len(), retryableItems.Len(), util.SubString(string(resbody), 0, 1024))
+					log.Errorf("bulk requests failure,host:%v,status:%v,invalid:%v,failure:%v,res:%v", host, statsCodeStats, nonRetryableItems.Len(), retryableItems.Len(), util.SubString(util.UnsafeBytesToString(resbody), 0, 1024))
 				}
 
 				//skip all failure messages

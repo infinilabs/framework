@@ -33,15 +33,15 @@ import (
 
 type BufferObject struct {
 	bytesBuffer []*bytebufferpool.ByteBuffer
-	byteReader []*bytes.Reader
+	byteReader  []*bytes.Reader
 }
 
 type Parameters struct {
-	Timestamp  time.Time
-	Data   util.MapStr `json:"data,omitempty"`
-	Meta   util.MapStr `json:"-"`
-	l      sync.RWMutex
-	inited bool
+	Timestamp time.Time
+	Data      util.MapStr `json:"data,omitempty"`
+	Meta      util.MapStr `json:"-"`
+	l         sync.RWMutex
+	inited    bool
 }
 
 var byteReaderPool = &sync.Pool{
@@ -51,27 +51,27 @@ var byteReaderPool = &sync.Pool{
 }
 
 func (r *BufferObject) AcquireBytesReader() *bytes.Reader {
-	buffer:=byteReaderPool.Get().(*bytes.Reader)
-	r.byteReader=append(r.byteReader,buffer)
+	buffer := byteReaderPool.Get().(*bytes.Reader)
+	r.byteReader = append(r.byteReader, buffer)
 	return buffer
 }
 
-func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer{
-	buffer:=bytebufferpool.Get()
+func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer {
+	buffer := bytebufferpool.Get("parameter_buffer")
 	buffer.Reset()
-	r.bytesBuffer=append(r.bytesBuffer,buffer)
+	r.bytesBuffer = append(r.bytesBuffer, buffer)
 	return buffer
 }
 
 func (para *BufferObject) Reset() {
-	if para.bytesBuffer!=nil&&len(para.bytesBuffer)>0{
-		for _,v:=range para.bytesBuffer{
-			bytebufferpool.Put(v)
+	if para.bytesBuffer != nil && len(para.bytesBuffer) > 0 {
+		for _, v := range para.bytesBuffer {
+			bytebufferpool.Put("parameter_buffer", v)
 		}
 	}
 
-	if para.byteReader!=nil&&len(para.byteReader)>0{
-		for _,v:=range para.byteReader{
+	if para.byteReader != nil && len(para.byteReader) > 0 {
+		for _, v := range para.byteReader {
 			byteReaderPool.Put(v)
 		}
 	}
@@ -81,15 +81,15 @@ func (para *Parameters) ResetParameters() {
 	para.l.Lock()
 	para.Data = util.MapStr{}
 	para.Meta = util.MapStr{}
-	para.Timestamp=time.Now()
-	para.inited=false
+	para.Timestamp = time.Now()
+	para.inited = false
 	//para.Data[uuid] = util.GetUUID()
 	para.l.Unlock()
 }
 
 func (para *Parameters) init() {
 	para.l.Lock()
-	defer 	para.l.Unlock()
+	defer para.l.Unlock()
 
 	if para.inited {
 		return
@@ -119,7 +119,7 @@ func (para *Parameters) MustGetTime(key ParaKey) time.Time {
 
 func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return time.Time{}, false
 	}
 
@@ -134,11 +134,9 @@ func (para *Parameters) GetTime(key ParaKey) (time.Time, bool) {
 //	return para.MustGetString(uuid)
 //}
 
-
-
 func (para *Parameters) GetString(key ParaKey) (string, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return "", false
 	}
 
@@ -151,7 +149,7 @@ func (para *Parameters) GetString(key ParaKey) (string, bool) {
 
 func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
 	v := para.Get(key)
-	if v!=nil{
+	if v != nil {
 		s, ok := v.(bool)
 		if ok {
 			return s
@@ -218,7 +216,7 @@ func (para *Parameters) GetFloat32OrDefault(key ParaKey, defaultV float32) float
 
 func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return defaultV, false
 	}
 
@@ -236,8 +234,8 @@ func (para *Parameters) GetFloat64(key ParaKey, defaultV float64) (float64, bool
 }
 func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32, bool) {
 	v := para.Get(key)
-	if v==nil{
-		return defaultV,false
+	if v == nil {
+		return defaultV, false
 	}
 
 	s1, ok := v.(float32)
@@ -280,7 +278,7 @@ func GetInt64OrDefault(v interface{}, defaultV int64) (int64, bool) {
 
 func (para *Parameters) GetInt64(key ParaKey, defaultV int64) (int64, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return defaultV, false
 	}
 	return GetInt64OrDefault(v, defaultV)
@@ -313,7 +311,7 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 
 	//try map string string
 	f := para.Get(key)
-	if f==nil{
+	if f == nil {
 		return nil, false
 	}
 	result, ok = f.(map[string]string)
@@ -326,11 +324,11 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 	if ok {
 		result = map[string]string{}
 		for _, v := range array {
-			k1,v1,err:=util.ConvertStringToMap(v,"->")
-			if err!=nil{
+			k1, v1, err := util.ConvertStringToMap(v, "->")
+			if err != nil {
 				panic(err)
 			}
-			result[k1]=v1
+			result[k1] = v1
 		}
 	}
 	return result, ok
@@ -338,7 +336,7 @@ func (para *Parameters) GetStringMap(key ParaKey) (result map[string]string, ok 
 
 func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return nil, false
 	}
 
@@ -355,7 +353,7 @@ func (para *Parameters) GetMapArray(key ParaKey) ([]map[string]interface{}, bool
 
 func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return nil, false
 	}
 	s, ok := v.(map[string]interface{})
@@ -364,7 +362,7 @@ func (para *Parameters) GetMap(key ParaKey) (map[string]interface{}, bool) {
 
 func (para *Parameters) GetIntMapOrInit(key ParaKey) (map[string]int, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return nil, false
 	}
 
@@ -391,9 +389,9 @@ func (para *Parameters) Config(key ParaKey, obj interface{}) {
 	rt := objType.Elem()
 	newPara := Parameters{Data: paraObj}
 	mutable := reflect.ValueOf(obj).Elem()
-	newPara.ConfigBinding(key,rt,&mutable)
+	newPara.ConfigBinding(key, rt, &mutable)
 }
-func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *reflect.Value) {
+func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type, mutable *reflect.Value) {
 
 	if !mutable.IsValid() {
 		log.Errorf("invalid config [%v] %v", key)
@@ -408,8 +406,8 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 		key := ParaKey(tag)
 		//fmt.Println("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
 
-		if global.Env().IsDebug{
-			log.Trace("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
+		if global.Env().IsDebug {
+			log.Trace("tag: ", tag, " key: ", key, " has para: ", newPara.Has(key), newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
 		}
 
 		if newPara.Has(key) {
@@ -463,7 +461,7 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 				paraObj, ok := newPara.GetMap(key)
 				if ok {
 					field.Set(reflect.MakeMap(field.Type()))
-					for k,v:=range paraObj{
+					for k, v := range paraObj {
 						field.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(v))
 					}
 				}
@@ -471,9 +469,9 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 			case reflect.Struct:
 				paraObj, ok := newPara.GetMap(key)
 				if ok {
-					v2:=reflect.New(field.Type()).Elem()
+					v2 := reflect.New(field.Type()).Elem()
 					newPara := Parameters{Data: paraObj}
-					newPara.ConfigBinding(key,field.Type(),&v2)
+					newPara.ConfigBinding(key, field.Type(), &v2)
 					field.Set(v2)
 				}
 				break
@@ -504,7 +502,7 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type ,mutable *
 
 func (para *Parameters) GetBytes(key ParaKey) ([]byte, bool) {
 	v := para.Get(key)
-	if v==nil{
+	if v == nil {
 		return nil, false
 	}
 
@@ -542,7 +540,6 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	return result, ok
 }
 
-
 func (para *Parameters) GetInt64Array(key ParaKey) ([]int64, bool) {
 	array, ok := para.GetArray(key)
 	//fmt.Println(array,ok)
@@ -551,7 +548,7 @@ func (para *Parameters) GetInt64Array(key ParaKey) ([]int64, bool) {
 	if ok {
 		result = []int64{}
 		for _, v := range array {
-			x, ok := GetInt64OrDefault(v,0)
+			x, ok := GetInt64OrDefault(v, 0)
 			//fmt.Println(x,ok,reflect.TypeOf(v))
 			if ok {
 				result = append(result, x)
@@ -568,74 +565,74 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 
 	v := para.Get(key)
 
-	if v==nil{
-		return []interface{}{},false
+	if v == nil {
+		return []interface{}{}, false
 	}
 
 	s, ok := v.([]interface{})
 	if ok {
-		return s,ok
+		return s, ok
 	}
 
 	s1, ok := v.([]string)
-	if ok{
-		for _,v1:=range s1{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s1 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s2, ok := v.([]int)
-	if ok{
-		for _,v1:=range s2{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s2 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s3, ok := v.([]int32)
-	if ok{
-		for _,v1:=range s3{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s3 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s4, ok := v.([]int64)
-	if ok{
-		for _,v1:=range s4{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s4 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s5, ok := v.([]float32)
-	if ok{
-		for _,v1:=range s5{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s5 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s6, ok := v.([]float64)
-	if ok{
-		for _,v1:=range s6{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s6 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	s7, ok := v.([]uint64)
-	if ok{
-		for _,v1:=range s7{
-			s=append(s,v1)
+	if ok {
+		for _, v1 := range s7 {
+			s = append(s, v1)
 		}
-		return s,ok
+		return s, ok
 	}
 
 	//TODO handle rest types
-	if global.Env().IsDebug{
-		log.Warnf("parameters failed to GetArray, key: %v, type: %v",key,reflect.TypeOf(v))
+	if global.Env().IsDebug {
+		log.Warnf("parameters failed to GetArray, key: %v, type: %v", key, reflect.TypeOf(v))
 	}
 	return s, ok
 }
@@ -658,8 +655,8 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 //}
 
 func (para *Parameters) Get(key ParaKey) interface{} {
-		v,_:=para.GetValue(string(key))
-		return v
+	v, _ := para.GetValue(string(key))
+	return v
 }
 
 //func (para *Parameters) Get(key ParaKey) interface{} {
@@ -700,14 +697,13 @@ func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 //TODO remove lock async, channel
 func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
-	para.PutValue(string(key),value)
+	para.PutValue(string(key), value)
 }
-
 
 func (para *Parameters) MustGetString(key ParaKey) string {
 	s, ok := para.GetString(key)
 	if !ok {
-		panic(fmt.Errorf("%s not found in context, %v", key,para.Data))
+		panic(fmt.Errorf("%s not found in context, %v", key, para.Data))
 	}
 	return s
 }
@@ -753,10 +749,9 @@ func (para *Parameters) MustGetMap(key ParaKey) map[string]interface{} {
 	return s
 }
 
-
 const (
-	FieldsKey = "fields"
-	TagsKey   = "tags"
+	FieldsKey         = "fields"
+	TagsKey           = "tags"
 	timestampFieldKey = "@timestamp"
 	metadataFieldKey  = "@metadata"
 )
@@ -766,7 +761,6 @@ var (
 	errNoMapStr    = errors.New("value is no map[string]interface{} type")
 	ErrKeyNotFound = errors.New("key not found")
 )
-
 
 func (e *Parameters) setTimestamp(v interface{}) error {
 	switch ts := v.(type) {
@@ -779,7 +773,6 @@ func (e *Parameters) setTimestamp(v interface{}) error {
 	}
 	return nil
 }
-
 
 func (e *Parameters) GetValue(key string) (interface{}, error) {
 	if key == timestampFieldKey {
@@ -855,7 +848,7 @@ func (e *Parameters) SetErrorWithOption(jsonErr util.MapStr, addErrKey bool) {
 // AddTags appends a tag to the tags field of ms. If the tags field does not
 // exist then it will be created. If the tags field exists and is not a []string
 // then an error will be returned. It does not deduplicate the list of tags.
-func (para *Parameters)AddTags(tags []string) error {
+func (para *Parameters) AddTags(tags []string) error {
 	return para.AddTagsWithKey(TagsKey, tags)
 }
 
@@ -884,11 +877,10 @@ func (para *Parameters) UpdateTags(addTags, removeTags []string) {
 	para.Set(TagsKey, temp)
 }
 
-
 // AddTagsWithKey appends a tag to the key field of ms. If the field does not
 // exist then it will be created. If the field exists and is not a []string
 // then an error will be returned. It does not deduplicate the list.
-func (para *Parameters)AddTagsWithKey(key string, tags []string) error {
+func (para *Parameters) AddTagsWithKey(key string, tags []string) error {
 	if para == nil || len(tags) == 0 {
 		return nil
 	}
@@ -917,7 +909,6 @@ func (para *Parameters)AddTagsWithKey(key string, tags []string) error {
 	}
 	return nil
 }
-
 
 // mapFind iterates a MapStr based on a the given dotted key, finding the final
 // subMap and subKey to operate on.

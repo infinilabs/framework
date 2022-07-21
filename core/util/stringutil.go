@@ -24,7 +24,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-version"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
@@ -33,6 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"src/github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
@@ -389,16 +389,16 @@ func PrintStringByteLines(array [][]byte) string {
 	return buffer.String()
 }
 
-func JoinInterfaceArray(array []interface{}, delimiter string,valueFunc func(str string)(string)) string {
-	strs:=[]string{}
-	for _,v:=range array{
-		v1:=ToString(v)
-		if valueFunc!=nil{
-			v1=valueFunc(v1)
+func JoinInterfaceArray(array []interface{}, delimiter string, valueFunc func(str string) string) string {
+	strs := []string{}
+	for _, v := range array {
+		v1 := ToString(v)
+		if valueFunc != nil {
+			v1 = valueFunc(v1)
 		}
-		strs=append(strs,v1)
+		strs = append(strs, v1)
 	}
-	return JoinArray(strs,delimiter)
+	return JoinArray(strs, delimiter)
 }
 
 func JoinArray(array []string, delimiter string) string {
@@ -406,8 +406,8 @@ func JoinArray(array []string, delimiter string) string {
 		return Join(array, delimiter)
 	}
 
-	buffer := bytebufferpool.Get()
-	defer bytebufferpool.Put(buffer)
+	buffer := bytebufferpool.Get("array_join")
+	defer bytebufferpool.Put("array_join", buffer)
 	x := len(array) - 1
 	for i, v := range array {
 		buffer.WriteString(v)

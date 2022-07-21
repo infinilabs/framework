@@ -1,11 +1,13 @@
 package elastic
 
 import (
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"sync"
 )
 
 type BulkBuffer struct {
+	ID         string
 	Queue      string
 	Buffer     *bytebufferpool.ByteBuffer
 	MessageIDs []string
@@ -17,18 +19,22 @@ var pool1 = bytebufferpool.NewPool(5*1024*1024, 50*1024*1024)
 var bulkBufferPool = &sync.Pool{
 	New: func() interface{} {
 		v := new(BulkBuffer)
-		v.Buffer = pool1.Get()
+		v.ID = util.GetUUID()
 		v.Reset()
 		return v
 	},
 }
 
 func AcquireBulkBuffer() *BulkBuffer {
-	return bulkBufferPool.Get().(*BulkBuffer)
+	buff := bulkBufferPool.Get().(*BulkBuffer)
+	buff.Buffer = pool1.Get("bulk_buffer")
+	buff.Reset()
+	return buff
 }
 
 func ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
+	pool1.Put("bulk_buffer", item.Buffer)
 	bulkBufferPool.Put(item)
 }
 
@@ -77,7 +83,9 @@ func (receiver *BulkBuffer) GetMessageStatus(non2xxOnly bool) map[string]int {
 }
 
 func (receiver *BulkBuffer) Reset() {
-	receiver.Buffer.Reset()
+	if receiver.Buffer != nil {
+		receiver.Buffer.Reset()
+	}
 	receiver.Queue = ""
 	receiver.MessageIDs = receiver.MessageIDs[:0]
 	receiver.StatusCode = map[int]int{}

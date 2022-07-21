@@ -16,35 +16,34 @@ import (
 
 func main() {
 
-	file:="/Users/medcl/Downloads/c8boc1hu46lgcqap7jq0.diskqueue.000200.dat"
-	rawBytes,err:=util.FileGetContent(file)
-	if err!=nil{
+	file := "/Users/medcl/Downloads/c8boc1hu46lgcqap7jq0.diskqueue.000200.dat"
+	rawBytes, err := util.FileGetContent(file)
+	if err != nil {
 		panic(err)
 	}
-	newBytes,err:= zstd.ZSTDCompress(nil,rawBytes,11)
-	if err!=nil{
+	newBytes, err := zstd.ZSTDCompress(nil, rawBytes, 11)
+	if err != nil {
 		panic(err)
 	}
 	fmt.Println(len(rawBytes))
 	fmt.Println(len(newBytes))
 
-	fmt.Println("compression ratio:",len(rawBytes)/len(newBytes))
+	fmt.Println("compression ratio:", len(rawBytes)/len(newBytes))
 
 	//decompress
-	r:=bytes.Reader{}
+	r := bytes.Reader{}
 	r.Reset(newBytes)
-	writer:=bytebufferpool.Get()
-	zstd.ZSTDReusedDecompress(writer,&r)
+	writer := bytebufferpool.Get("zstd")
+	zstd.ZSTDReusedDecompress(writer, &r)
 
-	fmt.Println("decompressed:",len(writer.Bytes()))
+	fmt.Println("decompressed:", len(writer.Bytes()))
 
-	r=bytes.Reader{}
+	r = bytes.Reader{}
 	r.Reset(rawBytes)
-	writer=bytebufferpool.Get()
-	zstd.ZSTDReusedCompress(writer,&r)
-	fmt.Println("compressed:",len(writer.Bytes()))
+	writer = bytebufferpool.Get("zstd")
+	zstd.ZSTDReusedCompress(writer, &r)
+	fmt.Println("compressed:", len(writer.Bytes()))
 
-	fmt.Println("compression ratio:",len(rawBytes)/len(writer.Bytes()))
+	fmt.Println("compression ratio:", len(rawBytes)/len(writer.Bytes()))
 
 }
-

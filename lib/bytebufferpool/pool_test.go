@@ -77,12 +77,12 @@ func testPoolVariousSizes(t *testing.T) {
 }
 
 func testGetPut(t *testing.T, n int) {
-	bb := Get()
+	bb := Get("test")
 	if len(bb.B) > 0 {
 		t.Fatalf("non-empty byte buffer returned from acquire")
 	}
 	bb.B = allocNBytes(bb.B, n)
-	Put(bb)
+	Put("test", bb)
 }
 
 func allocNBytes(dst []byte, n int) []byte {

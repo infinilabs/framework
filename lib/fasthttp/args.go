@@ -293,10 +293,10 @@ func (a *Args) GetUint(key string) (int, error) {
 
 // SetUint sets uint value for the given key.
 func (a *Args) SetUint(key string, value int) {
-	bb := bytebufferpool.Get()
+	bb := bytebufferpool.Get("fasthttp_args")
 	bb.B = AppendUint(bb.B[:0], value)
 	a.SetBytesV(key, bb.B)
-	bytebufferpool.Put(bb)
+	bytebufferpool.Put("fasthttp_args", bb)
 }
 
 // SetUintBytes sets uint value for the given key.

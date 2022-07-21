@@ -347,7 +347,7 @@ func (r *Router) tryRedirect(ctx *fasthttp.RequestCtx, tree *radix.Tree, tsr boo
 	}
 
 	if tsr && r.RedirectTrailingSlash {
-		uri := bytebufferpool.Get()
+		uri := bytebufferpool.Get("fasthttp_router")
 
 		if len(path) > 1 && path[len(path)-1] == '/' {
 			uri.SetString(path[:len(path)-1])
@@ -364,7 +364,7 @@ func (r *Router) tryRedirect(ctx *fasthttp.RequestCtx, tree *radix.Tree, tsr boo
 
 		ctx.Redirect(uri.String(), code)
 
-		bytebufferpool.Put(uri)
+		bytebufferpool.Put("fasthttp_router", uri)
 
 		return true
 	}
@@ -373,7 +373,8 @@ func (r *Router) tryRedirect(ctx *fasthttp.RequestCtx, tree *radix.Tree, tsr boo
 	if r.RedirectFixedPath {
 		path := strconv.B2S(ctx.Request.URI().Path())
 
-		uri := bytebufferpool.Get()
+		uri := bytebufferpool.Get("fasthttp_router")
+		defer bytebufferpool.Put("fasthttp_router", uri)
 		found := tree.FindCaseInsensitivePath(
 			cleanPath(path),
 			r.RedirectTrailingSlash,
@@ -389,8 +390,6 @@ func (r *Router) tryRedirect(ctx *fasthttp.RequestCtx, tree *radix.Tree, tsr boo
 
 			ctx.RedirectBytes(uri.Bytes(), code)
 
-			bytebufferpool.Put(uri)
-
 			return true
 		}
 	}
@@ -405,9 +404,9 @@ func (r *Router) Handler(ctx *fasthttp.RequestCtx) {
 	}
 
 	var path string
-	if ctx.Request.Header.RequestURI()==nil{
+	if ctx.Request.Header.RequestURI() == nil {
 		path = strconv.B2S(ctx.Request.URI().PathOriginal())
-	}else{
+	} else {
 		path = strconv.B2S(ctx.Request.Header.RequestURI())
 	}
 

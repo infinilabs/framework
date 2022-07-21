@@ -92,25 +92,25 @@ func TestByteBufferGetPutConcurrent(t *testing.T) {
 func testByteBufferGetPut(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		expectedS := fmt.Sprintf("num %d", i)
-		b := Get()
+		b := Get("test")
 		b.B = append(b.B, "num "...)
 		b.B = append(b.B, fmt.Sprintf("%d", i)...)
 		if string(b.B) != expectedS {
 			t.Fatalf("unexpected result: %q. Expecting %q", b.B, expectedS)
 		}
-		Put(b)
+		Put("test", b)
 	}
 }
 
 func testByteBufferGetString(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		expectedS := fmt.Sprintf("num %d", i)
-		b := Get()
+		b := Get("test")
 		b.SetString(expectedS)
 		if b.String() != expectedS {
 			t.Fatalf("unexpected result: %q. Expecting %q", b.B, expectedS)
 		}
-		Put(b)
+		Put("test", b)
 	}
 }
 

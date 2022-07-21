@@ -17,11 +17,10 @@ limitations under the License.
 package stats
 
 import (
-	"infini.sh/framework/core/util"
+	"strings"
 )
 
 type StatsInterface interface {
-
 	Increment(category, key string)
 
 	IncrementBy(category, key string, value int64)
@@ -43,14 +42,30 @@ type StatsInterface interface {
 
 var handlers = []StatsInterface{}
 
-func Increment(category string, key ... string) {
-	if len(handlers)==0{
+func JoinArray(array []string, delimiter string) string {
+	if len(array) > 10 {
+		return strings.Join(array, delimiter)
+	}
+
+	var str string
+	x := len(array) - 1
+	for i, v := range array {
+		str += v
+		if i < x {
+			str += delimiter
+		}
+	}
+	return str
+}
+
+func Increment(category string, key ...string) {
+	if len(handlers) == 0 {
 		return
 	}
 
-	if len(key)>0{
-		IncrementBy(category, util.JoinArray(key,"."), 1)
-	}else{
+	if len(key) > 0 {
+		IncrementBy(category, JoinArray(key, "."), 1)
+	} else {
 		IncrementBy(category, key[0], 1)
 	}
 }
@@ -62,10 +77,10 @@ func IncrementBy(category, key string, value int64) {
 }
 
 func Decrement(category, key string) {
-	if len(handlers)==0{
+	if len(handlers) == 0 {
 		return
 	}
-	
+
 	DecrementBy(category, key, 1)
 }
 
@@ -112,7 +127,6 @@ func StatsAll() *[]byte {
 	}
 	return &[]byte{}
 }
-
 
 func Register(h StatsInterface) {
 	handlers = append(handlers, h)

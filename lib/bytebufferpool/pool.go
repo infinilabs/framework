@@ -1,9 +1,12 @@
 package bytebufferpool
 
 import (
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -32,8 +35,8 @@ type Pool struct {
 	pool sync.Pool
 }
 
-func NewPool(defaultSize,maxSize uint64) *Pool {
-	p:=Pool{defaultSize: defaultSize,maxSize: maxSize}
+func NewPool(defaultSize, maxSize uint64) *Pool {
+	p := Pool{defaultSize: defaultSize, maxSize: maxSize}
 	return &p
 }
 
@@ -44,37 +47,92 @@ var defaultPool Pool
 // Got byte buffer may be returned to the pool via Put call.
 // This reduces the number of memory allocations required for byte buffer
 // management.
-func Get() *ByteBuffer { return defaultPool.Get() }
+func Get(tag string) *ByteBuffer { return defaultPool.Get(tag) }
 
 // Get returns new byte buffer with zero length.
 //
 // The byte buffer may be returned to the pool via Put after the use
 // in order to minimize GC overhead.
-func (p *Pool) Get() *ByteBuffer {
+func (p *Pool) Get(tag string) *ByteBuffer {
+
+	atomic.AddInt64(&get, 1)
+
+	if global.Env().IsDebug() {
+		stats.Increment("buffer_"+tag, "get")
+	}
+
 	v := p.pool.Get()
 	if v != nil {
-		x:= v.(*ByteBuffer)
+		x := v.(*ByteBuffer)
 		x.Reset()
 		return x
 	}
-	return &ByteBuffer{
+
+	if new > maxBufferCount {
+		time.Sleep(1 * time.Second)
+		atomic.AddInt64(&throttle, 1)
+		if global.Env().IsDebug() {
+			stats.Increment("buffer_"+tag, "throttle")
+		}
+		return p.Get(tag)
+	}
+
+	x := &ByteBuffer{
 		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
 	}
+
+	//add obj to stats
+	if global.Env().IsDebug() {
+		stats.Increment("buffer_"+tag, "new")
+	}
+	atomic.AddInt64(&new, 1)
+	buffers = append(buffers, x)
+	return x
+}
+
+var buffers = []*ByteBuffer{}
+var new, get, put, throttle int64
+
+var maxBufferCount int64 = 5000
+var maxBufferSize int64
+
+func SetMaxBufferCount(size int64) {
+	atomic.StoreInt64(&maxBufferCount, size)
+}
+func SetMaxBufferSize(size int64) {
+	atomic.StoreInt64(&maxBufferSize, size)
+}
+
+func BuffStats() (int64, int64, int64, int64, int, int) {
+	size := 0
+	count := 0
+	for _, v := range buffers {
+		count++
+		size += v.Len()
+	}
+	return new, get, put, throttle, count, size
 }
 
 // Put returns byte buffer to the pool.
 //
 // ByteBuffer.B mustn't be touched after returning it to the pool.
 // Otherwise data races will occur.
-func Put(b *ByteBuffer) {
+func Put(tag string, b *ByteBuffer) {
 	b.Reset()
-	defaultPool.Put(b)
+	defaultPool.Put(tag, b)
 }
 
 // Put releases byte buffer obtained via Get to the pool.
 //
 // The buffer mustn't be accessed after returning to the pool.
-func (p *Pool) Put(b *ByteBuffer) {
+func (p *Pool) Put(tag string, b *ByteBuffer) {
+
+	if global.Env().IsDebug() {
+		stats.Increment("buffer_"+tag, "put")
+	}
+
+	atomic.AddInt64(&put, 1)
+
 	idx := index(len(b.B))
 
 	if atomic.AddUint64(&p.calls[idx], 1) > calibrateCallsThreshold {

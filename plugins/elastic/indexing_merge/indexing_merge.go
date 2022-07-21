@@ -51,12 +51,12 @@ type Config struct {
 	BulkSizeInKB         int `config:"bulk_size_in_kb"`
 	BulkSizeInMB         int `config:"bulk_size_in_mb"`
 
-	IndexName     string `config:"index_name"`
-	TypeName      string `config:"type_name"`
+	IndexName string `config:"index_name"`
+	TypeName  string `config:"type_name"`
 
 	Elasticsearch string `config:"elasticsearch"`
 
-	InputQueue    string `config:"input_queue"`
+	InputQueue string `config:"input_queue"`
 
 	OutputQueue struct {
 		Name   string                 `config:"name"`
@@ -105,27 +105,27 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		config: cfg,
 	}
 
-	queueConfig:=queue.GetOrInitConfig(cfg.OutputQueue.Name)
+	queueConfig := queue.GetOrInitConfig(cfg.OutputQueue.Name)
 	queueConfig.Labels = util.MapStr{}
 	queueConfig.Labels["type"] = "indexing_merge"
 
-	if cfg.IndexName!=""{
+	if cfg.IndexName != "" {
 		queueConfig.Labels["_index"] = cfg.IndexName
 	}
 
-	if cfg.TypeName!=""{
+	if cfg.TypeName != "" {
 		queueConfig.Labels["_type"] = cfg.TypeName
 	}
 
-	for k,v:=range cfg.OutputQueue.Labels{
-		queueConfig.Labels[k]=v
+	for k, v := range cfg.OutputQueue.Labels {
+		queueConfig.Labels[k] = v
 	}
 
-	if cfg.Elasticsearch!=""{
+	if cfg.Elasticsearch != "" {
 		queueConfig.Labels["elasticsearch"] = cfg.Elasticsearch
 	}
 
-	diff.outputQueueConfig=queueConfig
+	diff.outputQueueConfig = queueConfig
 
 	return diff, nil
 
@@ -201,10 +201,10 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 
 	log.Trace("start bulk worker")
 
-	mainBuf := processor.bufferPool.Get()
-	defer processor.bufferPool.Put(mainBuf)
-	docBuf := processor.bufferPool.Get()
-	defer processor.bufferPool.Put(docBuf)
+	mainBuf := processor.bufferPool.Get("index_merge")
+	defer processor.bufferPool.Put("index_merge", mainBuf)
+	docBuf := processor.bufferPool.Get("index_merge")
+	defer processor.bufferPool.Put("index_merge", docBuf)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 
@@ -288,11 +288,11 @@ CLEAN_BUFFER:
 	if mainBuf.Len() > 0 {
 		mainBuf.WriteByte('\n')
 		//push to output queue
-		err:=queue.Push(processor.outputQueueConfig,mainBuf.Bytes())
+		err := queue.Push(processor.outputQueueConfig, mainBuf.Bytes())
 
 		//result, err := client.Bulk(mainBuf.Bytes())
 		if err != nil {
-			log.Error(err, util.SubString(string(mainBuf.Bytes()), 0, 200))
+			log.Error(err, util.SubString(util.UnsafeBytesToString(mainBuf.Bytes()), 0, 200))
 			stats.Increment("json_indexing", "error")
 			queue.Push(queue.GetOrInitConfig(processor.config.FailureQueue), mainBuf.Bytes())
 		}

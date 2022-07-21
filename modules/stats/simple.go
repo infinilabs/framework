@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/lock_free/queue"
 	"os"
 	"path"
@@ -23,27 +24,25 @@ func (module SimpleStatsModule) Name() string {
 	return "Stats"
 }
 
-
-
 type SimpleStatsConfig struct {
-	Enabled bool `config:"enabled"`
-	Persist bool `config:"persist"`
-	NoBuffer bool `config:"no_buffer"`
-	BufferSize int `config:"buffer_size"`
-	FlushIntervalInMs int `config:"flush_interval_ms"`
+	Enabled           bool `config:"enabled"`
+	Persist           bool `config:"persist"`
+	NoBuffer          bool `config:"no_buffer"`
+	BufferSize        int  `config:"buffer_size"`
+	FlushIntervalInMs int  `config:"flush_interval_ms"`
 }
 
 func (module *SimpleStatsModule) Setup(cfg *Config) {
 
 	module.config = &SimpleStatsConfig{
-		Enabled: true,
-		Persist: true,
-		BufferSize: 1000,
+		Enabled:           true,
+		Persist:           true,
+		BufferSize:        1000,
 		FlushIntervalInMs: 1000,
 	}
 	env.ParseConfig("stats", module.config)
 
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return
 	}
 
@@ -57,27 +56,27 @@ func (module *SimpleStatsModule) Setup(cfg *Config) {
 	}
 	module.initStats("simple")
 
-	module.data.q= queue.NewQueue(uint32(module.config.BufferSize))
+	module.data.q = queue.NewQueue(uint32(module.config.BufferSize))
 
 	stats.Register(module.data)
 
 	//register api
-	api.HandleAPIMethod(api.GET,"/stats", module.StatsAction)
+	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
 }
 
 func (module *SimpleStatsModule) Start() error {
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return nil
 	}
 
 	go func() {
 
-		for{
-			v,ok,n:=module.data.q.Get()
-			if ok{
-				x,ok:=v.(StatItem)
-				if ok{
-					module.data.initData(x.Category,x.Key)
+		for {
+			v, ok, n := module.data.q.Get()
+			if ok {
+				x, ok := v.(StatItem)
+				if ok {
+					module.data.initData(x.Category, x.Key)
 					switch x.Op {
 					case Incr:
 						module.data.l.Lock()
@@ -92,11 +91,11 @@ func (module *SimpleStatsModule) Start() error {
 					}
 				}
 			}
-			if n==0{
-				if module.config.FlushIntervalInMs<100{
-					module.config.FlushIntervalInMs=1000
+			if n == 0 {
+				if module.config.FlushIntervalInMs < 100 {
+					module.config.FlushIntervalInMs = 1000
 				}
-				time.Sleep(time.Duration(module.config.FlushIntervalInMs)*time.Millisecond)
+				time.Sleep(time.Duration(module.config.FlushIntervalInMs) * time.Millisecond)
 			}
 		}
 	}()
@@ -104,11 +103,11 @@ func (module *SimpleStatsModule) Start() error {
 }
 
 func (module *SimpleStatsModule) Stop() error {
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return nil
 	}
 
-	module.data.closed=true
+	module.data.closed = true
 	if module.config.Persist {
 		module.data.l.Lock()
 		defer module.data.l.Unlock()
@@ -125,30 +124,28 @@ func (module *SimpleStatsModule) Stop() error {
 
 type SimpleStatsModule struct {
 	api.Handler
-	config *SimpleStatsConfig
-	data *Stats
+	config   *SimpleStatsConfig
+	data     *Stats
 	dataPath string
 }
 
-const Incr ="incr"
-const Decr ="decr"
+const Incr = "incr"
+const Decr = "decr"
 
 type StatItem struct {
-	Op string
+	Op       string
 	Category string
-	Key string
-	Value int64
+	Key      string
+	Value    int64
 }
 
-
-
 type Stats struct {
-	l    sync.RWMutex
-	ID   string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
-	Data *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
+	l      sync.RWMutex
+	ID     string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
+	Data   *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
 	closed bool
-	raw bool
-	q *queue.EsQueue
+	raw    bool
+	q      *queue.EsQueue
 }
 
 func (s *Stats) initData(category, key string) {
@@ -171,17 +168,17 @@ func (s *Stats) Increment(category, key string) {
 }
 
 func (s *Stats) IncrementBy(category, key string, value int64) {
-	if s.closed{
+	if s.closed {
 		return
 	}
 
-	if s.raw{
+	if s.raw {
 		s.initData(category, key)
 		s.l.Lock()
 		(*s.Data)[category][key] += value
 		s.l.Unlock()
-	}else{
-		s.q.Put(StatItem{Op: Incr,Category: category,Key: key,Value: value})
+	} else {
+		s.q.Put(StatItem{Op: Incr, Category: category, Key: key, Value: value})
 	}
 
 	runtime.Gosched()
@@ -200,17 +197,17 @@ func (s *Stats) Decrement(category, key string) {
 }
 
 func (s *Stats) DecrementBy(category, key string, value int64) {
-	if s.closed{
+	if s.closed {
 		return
 	}
 
-	if s.raw{
+	if s.raw {
 		s.initData(category, key)
 		s.l.Lock()
 		(*s.Data)[category][key] -= value
 		s.l.Unlock()
-	}else{
-		s.q.Put(StatItem{Op: Decr,Category: category,Key: key,Value: value})
+	} else {
+		s.q.Put(StatItem{Op: Decr, Category: category, Key: key, Value: value})
 	}
 	runtime.Gosched()
 }
@@ -241,14 +238,24 @@ func (s *Stats) StatsAll() *[]byte {
 
 	//update system metrics
 	sysInfo, err := pidusage.GetStat(os.Getpid())
-	if err==nil{
-		(*s.Data)["system"]=map[string]int64{
-			"uptime_in_ms":time.Since(env.GetStartTime()).Milliseconds(),
-			"cpu":int64(sysInfo.CPU),
-			"mem":int64(sysInfo.Memory),
+	if err == nil {
+		(*s.Data)["system"] = map[string]int64{
+			"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
+			"cpu":          int64(sysInfo.CPU),
+			"mem":          int64(sysInfo.Memory),
 		}
 	}
 
+	//buffer stats
+	new1, get, put, throttle, count, size := bytebufferpool.BuffStats()
+	(*s.Data)["buffer"] = map[string]int64{
+		"count":    int64(count),
+		"size":     int64(size),
+		"new":      int64(new1),
+		"get":      int64(get),
+		"put":      int64(put),
+		"throttle": int64(throttle),
+	}
 	b, _ := json.MarshalIndent((*s.Data), "", " ")
 	return &b
 }

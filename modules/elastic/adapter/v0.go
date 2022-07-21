@@ -29,27 +29,27 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
-	 "infini.sh/framework/core/errors"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
 type ESAPIV0 struct {
-	Elasticsearch      string
-	Version      string
-	majorVersion int
-	metadata *elastic.ElasticsearchMetadata
-	metaLocker sync.RWMutex
+	Elasticsearch string
+	Version       string
+	majorVersion  int
+	metadata      *elastic.ElasticsearchMetadata
+	metaLocker    sync.RWMutex
 }
 
-func (c *ESAPIV0) GetActivePreferredEndpoint( host string)string {
+func (c *ESAPIV0) GetActivePreferredEndpoint(host string) string {
 	return c.GetMetadata().GetActivePreferredEndpoint(host)
 }
 
-func (c *ESAPIV0) GetEndpoint()string {
+func (c *ESAPIV0) GetEndpoint() string {
 	return c.GetMetadata().GetActiveEndpoint()
 }
-func (c *ESAPIV0) GetMetadata()*elastic.ElasticsearchMetadata {
+func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	c.metaLocker.Lock()
 	c.metaLocker.Unlock()
 
@@ -96,7 +96,7 @@ const TypeName0 = "doc"
 func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result, err error) {
 
 	if global.Env().IsDebug {
-		log.Trace(method, ",", url, ",", util.SubString(string(body), 0, 3000))
+		log.Trace(method, ",", url, ",", util.SubString(util.UnsafeBytesToString(body), 0, 3000))
 	}
 
 	var req *util.Request
@@ -230,7 +230,7 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 		docType = TypeName0
 	}
 
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/%s/%s", c.GetEndpoint(), indexName, docType, id)
 
@@ -241,12 +241,12 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
 	}
 	var (
-		js []byte
+		js  []byte
 		err error
 	)
 	if dataBytes, ok := data.([]byte); ok {
 		js = dataBytes
-	}else{
+	} else {
 		js, err = json.Marshal(data)
 	}
 
@@ -287,7 +287,7 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	if docType == "" {
 		docType = TypeName0
 	}
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
@@ -298,7 +298,7 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	}
 
 	esResp.StatusCode = resp.StatusCode
-	esResp.RawResult=resp
+	esResp.RawResult = resp
 
 	if global.Env().IsDebug {
 		log.Trace("get response: ", string(resp.Body))
@@ -314,14 +314,14 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 
 // Delete used to delete document by id
 func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
 	if global.Env().IsDebug {
 		log.Debug("delete doc: ", url)
 	}
-	if len(refresh)>0 {
+	if len(refresh) > 0 {
 		url = url + "?refresh=" + refresh[0]
 	}
 
@@ -337,7 +337,7 @@ func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*ela
 
 	esResp := &elastic.DeleteResponse{}
 	esResp.StatusCode = resp.StatusCode
-	esResp.RawResult=resp
+	esResp.RawResult = resp
 
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
@@ -352,7 +352,7 @@ func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*ela
 
 // Count used to count how many docs in one index
 func (c *ESAPIV0) Count(indexName string, body []byte) (*elastic.CountResponse, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_count"
 
@@ -397,22 +397,21 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 	return c.SearchWithRawQueryDSL(indexName, js)
 }
 
-
-func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
-	indexName=util.UrlEncode(indexName)
+func (c *ESAPIV0) QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_search"
 
-	if queryArgs!=nil&&len(*queryArgs)>0{
-		str:=strings.Builder{}
+	if queryArgs != nil && len(*queryArgs) > 0 {
+		str := strings.Builder{}
 		str.WriteString(url)
 		str.WriteString("?")
-		for _,v:=range *queryArgs{
+		for _, v := range *queryArgs {
 			str.WriteString(v.Key)
 			str.WriteString("=")
 			str.WriteString(v.Value)
 		}
-		url=str.String()
+		url = str.String()
 	}
 
 	esResp := &elastic.SearchResponse{}
@@ -424,7 +423,7 @@ func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []by
 	resp, err := c.Request(util.Verb_POST, url, queryDSL)
 	if resp != nil {
 		esResp.StatusCode = resp.StatusCode
-		esResp.RawResult=resp
+		esResp.RawResult = resp
 		esResp.ErrorObject = err
 	}
 
@@ -432,12 +431,12 @@ func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []by
 		return nil, err
 	}
 
-	if resp.StatusCode>=400&&resp.StatusCode!=404{
-		log.Error("invalid response: ", url, ",",string(queryDSL), ",", string(resp.Body))
+	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
+		log.Error("invalid response: ", url, ",", string(queryDSL), ",", string(resp.Body))
 	}
 
 	if global.Env().IsDebug {
-		log.Trace("search response: ", url, ",",string(queryDSL), ",", string(resp.Body))
+		log.Trace("search response: ", url, ",", string(queryDSL), ",", string(resp.Body))
 	}
 
 	err = json.Unmarshal(resp.Body, esResp)
@@ -449,11 +448,11 @@ func (c *ESAPIV0) 	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []by
 }
 
 func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
-	return c.QueryDSL(indexName,nil,queryDSL)
+	return c.QueryDSL(indexName, nil, queryDSL)
 }
 
 func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -477,7 +476,7 @@ func (c *ESAPIV0) ClusterVersion() string {
 	return c.GetVersion()
 }
 
-func (c *ESAPIV0) GetNodesStats(nodeID,host string) *elastic.NodesStats {
+func (c *ESAPIV0) GetNodesStats(nodeID, host string) *elastic.NodesStats {
 
 	log.Tracef("get stats for node: %v-%v", nodeID, host)
 
@@ -495,14 +494,14 @@ func (c *ESAPIV0) GetNodesStats(nodeID,host string) *elastic.NodesStats {
 		} else {
 			obj.StatusCode = 500
 		}
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
 		return obj
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
 		return obj
@@ -524,14 +523,14 @@ func (c *ESAPIV0) GetIndicesStats() *elastic.IndicesStats {
 		} else {
 			obj.StatusCode = 500
 		}
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
 		return obj
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.StatusCode = resp.StatusCode
 		obj.ErrorObject = err
 		return obj
@@ -540,7 +539,7 @@ func (c *ESAPIV0) GetIndicesStats() *elastic.IndicesStats {
 	return obj
 }
 
-func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
+func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState, error) {
 
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
@@ -563,28 +562,28 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState,error) {
 		} else {
 			obj.StatusCode = 500
 		}
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
-		return obj,err
+		return obj, err
 	}
 
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
-		return obj,err
+		return obj, err
 	}
 
-	return obj,nil
+	return obj, nil
 }
 
-func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
+func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
 	//_cluster/stats
 	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
 
-	if node!=""{
-		url = fmt.Sprintf("%s/_cluster/stats/nodes/%v", c.GetEndpoint(),node)
+	if node != "" {
+		url = fmt.Sprintf("%s/_cluster/stats/nodes/%v", c.GetEndpoint(), node)
 	}
 
 	resp, err := c.Request(util.Verb_GET, url, nil)
@@ -596,18 +595,18 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 		} else {
 			obj.StatusCode = 500
 		}
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
-		return obj,err
+		return obj, err
 	}
 
 	//dirty fix for es 7.0.0
 	//if c.ParseMajorVersion()==7{
-	v,err:=jsonparser.GetInt(resp.Body,"indices","segments","max_unsafe_auto_id_timestamp")
-	if err!=nil||v< -1{
-		d,err:=jsonparser.Set(resp.Body,[]byte("-1"),"indices","segments","max_unsafe_auto_id_timestamp")
-		if err==nil{
-			resp.Body=d
+	v, err := jsonparser.GetInt(resp.Body, "indices", "segments", "max_unsafe_auto_id_timestamp")
+	if err != nil || v < -1 {
+		d, err := jsonparser.Set(resp.Body, []byte("-1"), "indices", "segments", "max_unsafe_auto_id_timestamp")
+		if err == nil {
+			resp.Body = d
 		}
 	}
 	//}
@@ -615,15 +614,15 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats,error) {
 	err = json.Unmarshal(resp.Body, obj)
 	if err != nil {
 		obj.StatusCode = resp.StatusCode
-		obj.RawResult=resp
+		obj.RawResult = resp
 		obj.ErrorObject = err
-		return obj,err
+		return obj, err
 	}
 
-	return obj,nil
+	return obj, nil
 }
 
-func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
+func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
 
 	url := fmt.Sprintf("%s/_cluster/health?timeout=1s", c.GetEndpoint())
 	health := &elastic.ClusterHealth{}
@@ -632,7 +631,7 @@ func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth,error) {
 
 	if resp != nil {
 		health.StatusCode = resp.StatusCode
-		health.RawResult=resp
+		health.RawResult = resp
 	} else {
 		health.StatusCode = 500
 	}
@@ -671,7 +670,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 
 	node := elastic.NodesResponse{}
 
-	err=node.UnmarshalJSON(resp.Body)
+	err = node.UnmarshalJSON(resp.Body)
 
 	if err != nil {
 		return nil, err
@@ -681,7 +680,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 
 func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 
-	url := fmt.Sprintf("%s/_nodes/%v", c.GetEndpoint(),nodeID)
+	url := fmt.Sprintf("%s/_nodes/%v", c.GetEndpoint(), nodeID)
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if err != nil {
@@ -694,11 +693,11 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 
 	node := elastic.NodesResponse{}
 
-	err=node.UnmarshalJSON(resp.Body)
+	err = node.UnmarshalJSON(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	nodeInfo,_:=node.Nodes[nodeID]
+	nodeInfo, _ := node.Nodes[nodeID]
 	return &nodeInfo, nil
 }
 
@@ -712,7 +711,7 @@ func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, err
 		format += "&expand_wildcards=all"
 	}
 	if pattern != "" {
-		pattern = "/"+pattern
+		pattern = "/" + pattern
 	}
 	url := fmt.Sprintf(format, c.GetEndpoint(), pattern)
 
@@ -799,9 +798,9 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 		if !ok {
 			indexMap = map[int]elastic.ShardInfo{}
 		}
-		id,err:=util.ToInt(v.ShardID)
-		if err!=nil{
-			log.Error("invalid shard id, it should be number,",string(resp.Body))
+		id, err := util.ToInt(v.ShardID)
+		if err != nil {
+			log.Error("invalid shard id, it should be number,", string(resp.Body))
 			return nil, err
 		}
 		indexMap[id] = info
@@ -982,7 +981,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	if global.Env().IsDebug {
 		log.Trace("update index: ", name, ", ", settings)
 	}
-	name=util.UrlEncode(name)
+	name = util.UrlEncode(name)
 
 	//cleanSettings(settings)
 	url := fmt.Sprintf("%s/%s/_settings", s.GetEndpoint(), name)
@@ -1017,7 +1016,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	enc.Encode(settings)
 	result, err := s.Request(util.Verb_PUT, url, body.Bytes())
 	errReason, _ := jsonparser.GetString(result.Body, "error", "reason")
-	if errReason != ""{
+	if errReason != "" {
 		return fmt.Errorf(errReason)
 	}
 
@@ -1025,7 +1024,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 }
 
 func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, TypeName0)
 
@@ -1042,7 +1041,7 @@ func (c *ESAPIV0) DeleteIndex(indexName string) (err error) {
 	if global.Env().IsDebug {
 		log.Trace("start delete index: ", indexName)
 	}
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
 
@@ -1064,7 +1063,7 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 	if global.Env().IsDebug {
 		log.Trace("start create index: ", indexName, ",", settings, ",", string(body.Bytes()))
 	}
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
 
@@ -1078,7 +1077,7 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 }
 
 func (s *ESAPIV0) Refresh(name string) (err error) {
-	name=util.UrlEncode(name)
+	name = util.UrlEncode(name)
 
 	url := fmt.Sprintf("%s/%s/_refresh", s.GetEndpoint(), name)
 
@@ -1087,8 +1086,8 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ( []byte,  error) {
-	indexNames=util.UrlEncode(indexNames)
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ([]byte, error) {
+	indexNames = util.UrlEncode(indexNames)
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
@@ -1097,7 +1096,7 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	queryBody := map[string]interface{}{}
 	if len(sourceFields) > 0 {
 		if !strings.Contains(sourceFields, ",") {
-			queryBody["_source"]=sourceFields
+			queryBody["_source"] = sourceFields
 		} else {
 			queryBody["_source"] = strings.Split(sourceFields, ",")
 		}
@@ -1145,19 +1144,18 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	if resp.StatusCode != 200 {
-		log.Error("response status:",resp.StatusCode)
+		log.Error("response status:", resp.StatusCode)
 		return nil, errors.New(string(resp.Body))
 	}
 
 	return resp.Body, err
 }
 
-func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext,scrollTime string, scrollId string) ([]byte, error) {
+func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollId string) ([]byte, error) {
 
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
 
-
-	resp, err :=RequestTimeout(ctx,util.Verb_GET,url,nil,s.metadata,time.Duration(s.metadata.Config.RequestTimeout) * time.Second)
+	resp, err := RequestTimeout(ctx, util.Verb_GET, url, nil, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -1302,7 +1300,7 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	data := map[string]AliasesResponse{}
 	err = json.Unmarshal(resp.Body, &data)
 	if err != nil {
-		log.Error(url,string(resp.Body),err)
+		log.Error(url, string(resp.Body), err)
 		c.GetMetadata().ReportFailure(err)
 		return nil, err
 	}
@@ -1330,7 +1328,6 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 
 	return &aliasInfo, nil
 }
-
 
 func (c *ESAPIV0) GetAliasesDetail() (*map[string]elastic.AliasDetailInfo, error) {
 
@@ -1390,14 +1387,14 @@ func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, erro
 	resInfo := elastic.AliasAndIndicesResponse{}
 	aliasInfo := map[string]elastic.AAIR_Alias{}
 	for index, v := range data {
-		idxItem :=  elastic.AAIR_Indices{
+		idxItem := elastic.AAIR_Indices{
 			Name:       index,
 			Attributes: []string{"open"},
 		}
-		for alias,_ :=range v.Aliases{
+		for alias, _ := range v.Aliases {
 			idxItem.Aliases = append(idxItem.Aliases, alias)
-			info,ok:=aliasInfo[alias]
-			if !ok{
+			info, ok := aliasInfo[alias]
+			if !ok {
 				info = elastic.AAIR_Alias{
 					Name: alias,
 				}
@@ -1415,7 +1412,7 @@ func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, erro
 }
 
 func (c *ESAPIV0) Forcemerge(indexName string, maxCount int) error {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_forcemerge?max_num_segments=%v", c.GetEndpoint(), indexName, maxCount)
 	_, err := c.Request(util.Verb_POST, url, nil)
@@ -1426,7 +1423,7 @@ func (c *ESAPIV0) Forcemerge(indexName string, maxCount int) error {
 }
 
 func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteByQueryResponse, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_delete_by_query", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_POST, url, body)
@@ -1442,7 +1439,7 @@ func (c *ESAPIV0) DeleteByQuery(indexName string, body []byte) (*elastic.DeleteB
 }
 
 func (c *ESAPIV0) UpdateByQuery(indexName string, body []byte) (*elastic.UpdateByQueryResponse, error) {
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_update_by_query", c.GetEndpoint(), indexName)
 	resp, err := c.Request(util.Verb_POST, url, body)
@@ -1456,7 +1453,6 @@ func (c *ESAPIV0) UpdateByQuery(indexName string, body []byte) (*elastic.UpdateB
 	}
 	return upResponse, nil
 }
-
 
 func (c *ESAPIV0) SetSearchTemplate(templateID string, body []byte) error {
 	url := fmt.Sprintf("%s/_search/template/%s", c.GetEndpoint(), templateID)
@@ -1511,20 +1507,20 @@ func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
 }
 
 func (c *ESAPIV0) Alias(body []byte) error {
-	url := fmt.Sprintf("%s/_aliases",c.GetEndpoint())
+	url := fmt.Sprintf("%s/_aliases", c.GetEndpoint())
 	_, err := c.Request(util.Verb_POST, url, body)
 	return err
 }
 
 func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
-	target=util.UrlEncode(target)
+	target = util.UrlEncode(target)
 
 	url := fmt.Sprintf("%s/%s/_mappings", c.GetEndpoint(), target)
 	res, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	mappingsRes := map[string] interface{}{}
+	mappingsRes := map[string]interface{}{}
 	err = json.Unmarshal(res.Body, &mappingsRes)
 
 	if err != nil {
@@ -1533,7 +1529,7 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 
 	var (
 		indices []string
-		fields = map[string]interface{}{}
+		fields  = map[string]interface{}{}
 	)
 
 	for indexName, mappingsInterface := range mappingsRes {
@@ -1554,7 +1550,7 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 	}
 	result := map[string]interface{}{
 		"indices": indices,
-		"fields": fields,
+		"fields":  fields,
 	}
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
@@ -1563,24 +1559,24 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 	return resultBytes, nil
 }
 
- func walkProperties(fields, properties map[string]interface{}, prefix string){
+func walkProperties(fields, properties map[string]interface{}, prefix string) {
 	var dotFieldName string
 	for fieldName, fieldInterface := range properties {
-		if prefix != ""{
+		if prefix != "" {
 			dotFieldName = fmt.Sprintf("%s.%s", prefix, fieldName)
-		}else{
+		} else {
 			dotFieldName = fieldName
 		}
 		if field, ok := fieldInterface.(map[string]interface{}); ok {
 			if esType, ok := field["type"].(string); ok {
 				fields[dotFieldName] = map[string]interface{}{
 					esType: map[string]interface{}{
-						"type": field["type"],
-						"searchable":true,
+						"type":         field["type"],
+						"searchable":   true,
 						"aggregatable": true,
 					},
 				}
-			}else if propertiesInterface, ok := field["properties"]; ok {
+			} else if propertiesInterface, ok := field["properties"]; ok {
 				if subProperties, ok := propertiesInterface.(map[string]interface{}); ok {
 					walkProperties(fields, subProperties, dotFieldName)
 				}
@@ -1590,24 +1586,24 @@ func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
 }
 
 func (c *ESAPIV0) Close(name string) ([]byte, error) {
-	name=util.UrlEncode(name)
+	name = util.UrlEncode(name)
 
-	url := fmt.Sprintf("%s/%s/_close",c.GetEndpoint(), name)
+	url := fmt.Sprintf("%s/%s/_close", c.GetEndpoint(), name)
 	closeRes, err := c.Request(util.Verb_POST, url, nil)
 	return closeRes.Body, err
 }
 
 func (c *ESAPIV0) Open(name string) ([]byte, error) {
-	name=util.UrlEncode(name)
+	name = util.UrlEncode(name)
 
-	url := fmt.Sprintf("%s/%s/_open",c.GetEndpoint(), name)
+	url := fmt.Sprintf("%s/%s/_open", c.GetEndpoint(), name)
 	openRes, err := c.Request(util.Verb_POST, url, nil)
 	return openRes.Body, err
 }
 
-func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.IndexShardRouting,error) {
+func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.IndexShardRouting, error) {
 	//fetch routing table in realtime
-	url := fmt.Sprintf("%s/_cluster/state/routing_table/%s",c.GetEndpoint(), index)
+	url := fmt.Sprintf("%s/_cluster/state/routing_table/%s", c.GetEndpoint(), index)
 	res, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
@@ -1617,7 +1613,7 @@ func (c *ESAPIV0) GetIndexRoutingTable(index string) (map[string][]elastic.Index
 	if v, ok := resObj.RoutingTable.Indices[index]; ok {
 		return v.Shards, nil
 	}
-	return nil, errors.Errorf("routing table for index [%v] was not found",index)
+	return nil, errors.Errorf("routing table for index [%v] was not found", index)
 }
 
 func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
@@ -1639,7 +1635,7 @@ func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	return data, err
 }
 
-func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error){
+func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {

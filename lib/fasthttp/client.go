@@ -301,8 +301,8 @@ type Client struct {
 	RetryIf RetryIfFunc
 
 	sync.Mutex
-	m     map[string]*HostClient
-	ms    map[string]*HostClient
+	m  map[string]*HostClient
+	ms map[string]*HostClient
 }
 
 // Get returns the status code and body of url.
@@ -489,17 +489,17 @@ func (c *Client) Do(req *Request, resp *Response) error {
 	hc := m[string(host)]
 	if hc == nil {
 		hc = &HostClient{
-			Addr:                      addMissingPort(string(host), isTLS),
-			Name:                      c.Name,
-			NoDefaultUserAgentHeader:  c.NoDefaultUserAgentHeader,
-			Dial:                      c.Dial,
-			DialDualStack:             c.DialDualStack,
-			IsTLS:                     isTLS,
-			TLSConfig:                 c.TLSConfig,
-			MaxConns:                  c.MaxConnsPerHost,
-			MaxIdleConnDuration:       c.MaxIdleConnDuration,
-			MaxConnDuration:           c.MaxConnDuration,
-			MaxIdemponentCallAttempts: c.MaxIdemponentCallAttempts,
+			Addr:                          addMissingPort(string(host), isTLS),
+			Name:                          c.Name,
+			NoDefaultUserAgentHeader:      c.NoDefaultUserAgentHeader,
+			Dial:                          c.Dial,
+			DialDualStack:                 c.DialDualStack,
+			IsTLS:                         isTLS,
+			TLSConfig:                     c.TLSConfig,
+			MaxConns:                      c.MaxConnsPerHost,
+			MaxIdleConnDuration:           c.MaxIdleConnDuration,
+			MaxConnDuration:               c.MaxConnDuration,
+			MaxIdemponentCallAttempts:     c.MaxIdemponentCallAttempts,
 			ReadBufferSize:                c.ReadBufferSize,
 			WriteBufferSize:               c.WriteBufferSize,
 			ReadTimeout:                   c.ReadTimeout,
@@ -999,7 +999,8 @@ func AcquireRequest() *Request {
 	if v == nil {
 		return &Request{}
 	}
-	x:= v.(*Request)
+	x := v.(*Request)
+	x.body = requestBodyPool.Get("fasthttp_reqbody_buffer")
 	x.Reset()
 	return x
 }

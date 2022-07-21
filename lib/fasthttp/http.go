@@ -6,14 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	pool "github.com/libp2p/go-buffer-pool"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"mime/multipart"
 	"net"
 	"os"
 	"sync"
 	"time"
-
-	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Request represents HTTP request.
@@ -23,9 +23,7 @@ import (
 //
 // Request instance MUST NOT be used from concurrently running goroutines.
 type Request struct {
-
 	noCopy noCopy //nolint:unused,structcheck
-
 
 	// Request header
 	//
@@ -358,14 +356,14 @@ func (resp *Response) Body() []byte {
 //返回的没有压缩过的 body
 //TODO cache
 func (resp *Response) GetRawBody() []byte {
-	if resp.GetBodyLength()<=0{
+	if resp.GetBodyLength() <= 0 {
 		return nil
 	}
 
 	ce := string(resp.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		body, err := resp.BodyGunzip()
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 		return body
@@ -379,7 +377,6 @@ func (resp *Response) GetRawBody() []byte {
 		return resp.Body()
 	}
 }
-
 
 func (req *Request) AcceptGzippedResponse() bool {
 	ce := string(req.Header.PeekAny([]string{HeaderAcceptEncoding, HeaderAcceptEncoding2}))
@@ -400,18 +397,18 @@ func (req *Request) IsGzipped() bool {
 //TODO cache
 func (req *Request) GetRawBody() []byte {
 	var err error
-	if req.GetBodyLength()<=0{
+	if req.GetBodyLength() <= 0 {
 		return nil
 	}
 
-	if len(req.rawBody)>0{
+	if len(req.rawBody) > 0 {
 		return req.rawBody
 	}
 
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
 		req.rawBody, err = req.BodyGunzip()
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 		return req.rawBody
@@ -422,7 +419,7 @@ func (req *Request) GetRawBody() []byte {
 		}
 		return req.rawBody
 	} else {
-		req.rawBody= req.Body()
+		req.rawBody = req.Body()
 		return req.rawBody
 	}
 }
@@ -446,7 +443,7 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		resp.body = responseBodyPool.Get()
+		resp.body = responseBodyPool.Get("fasthttp_resbody_buffer")
 	}
 	resp.bodyRaw = nil
 	return resp.body
@@ -454,7 +451,7 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		req.body = requestBodyPool.Get()
+		req.body = requestBodyPool.Get("fasthttp_reqbody_buffer")
 	}
 	return req.body
 }
@@ -584,7 +581,7 @@ func (resp *Response) ResetBody() {
 		if resp.keepBodyBuffer {
 			resp.body.Reset()
 		} else {
-			responseBodyPool.Put(resp.body)
+			responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
 			resp.body = nil
 		}
 	}
@@ -609,6 +606,7 @@ func (resp *Response) ReleaseBody(size int) {
 	resp.bodyRaw = nil
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
+		responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
 		resp.body = nil
 	}
 }
@@ -621,10 +619,12 @@ func (resp *Response) ReleaseBody(size int) {
 // Use this method only if you really understand how it works.
 // The majority of workloads don't need this method.
 func (req *Request) ReleaseBody(size int) {
-	req.rawBody=nil
+	req.rawBody = nil
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
+		requestBodyPool.Put("fasthttp_reqbody_buffer", req.body)
 		req.body = nil
+
 	}
 }
 
@@ -659,7 +659,7 @@ func (resp *Response) SwapBody(body []byte) []byte {
 // It is forbidden to use the body passed to SwapBody after
 // the function returns.
 func (req *Request) SwapBody(body []byte) []byte {
-	req.rawBody=nil
+	req.rawBody = nil
 
 	bb := req.bodyBuffer()
 
@@ -729,7 +729,7 @@ func (req *Request) SetBody(body []byte) {
 
 // SetBodyString sets request body.
 func (req *Request) SetBodyString(body string) {
-	req.rawBody=nil
+	req.rawBody = nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
 	req.bodyBuffer().Set(s2b(body))
@@ -737,15 +737,14 @@ func (req *Request) SetBodyString(body string) {
 
 // ResetBody resets request body.
 func (req *Request) ResetBody() {
-	req.rawBody=nil
+	req.rawBody = nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
-	req.bodyBuffer().Reset()
 	if req.body != nil {
 		if req.keepBodyBuffer {
 			req.body.Reset()
 		} else {
-			requestBodyPool.Put(req.body)
+			requestBodyPool.Put("fasthttp_reqbody_buffer", req.body)
 			req.body = nil
 		}
 	}
@@ -761,17 +760,18 @@ func (req *Request) CopyTo(dst *Request) {
 	}
 }
 
-const HTTPS ="https"
-const HTTP ="http"
-func (req *Request) GetSchema()string {
-	if req.isTLS{
+const HTTPS = "https"
+const HTTP = "http"
+
+func (req *Request) GetSchema() string {
+	if req.isTLS {
 		return HTTPS
-	}	else {
+	} else {
 		return HTTP
 	}
 }
 
-func (req *Request) IsTLS()bool {
+func (req *Request) IsTLS() bool {
 	return req.isTLS
 }
 
@@ -814,8 +814,8 @@ func (resp *Response) copyToSkipBody(dst *Response) {
 }
 
 func swapRequestBody(a, b *Request) {
-	a.rawBody=nil
-	b.rawBody=nil
+	a.rawBody = nil
+	b.rawBody = nil
 
 	a.body, b.body = b.body, a.body
 	a.bodyStream, b.bodyStream = b.bodyStream, a.bodyStream
@@ -1165,6 +1165,7 @@ func (req *Request) ContinueReadBody(r *bufio.Reader, maxBodySize int, preParseM
 	bodyBuf := req.bodyBuffer()
 	bodyBuf.Reset()
 	bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
+	//err = readBodyWithBuffer(r, contentLength, maxBodySize, bodyBuf)
 	if err != nil {
 		req.Reset()
 		return err
@@ -1472,12 +1473,13 @@ func (resp *Response) gzipBody(level int) error {
 			// body size will be bigger than the original body size.
 			return nil
 		}
-		w := responseBodyPool.Get()
+		w := responseBodyPool.Get("fasthttp_resbody_buffer")
+		defer responseBodyPool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			responseBodyPool.Put(resp.body)
+			//responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
@@ -1527,12 +1529,13 @@ func (resp *Response) deflateBody(level int) error {
 			// body size will be bigger than the original body size.
 			return nil
 		}
-		w := responseBodyPool.Get()
+		w := responseBodyPool.Get("fasthttp_resbody_buffer")
+		defer responseBodyPool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			responseBodyPool.Put(resp.body)
+			//responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
@@ -1684,7 +1687,7 @@ func (resp *Response) writeBodyStream(w *bufio.Writer, sendBody bool) (err error
 }
 
 func (req *Request) closeBodyStream() error {
-	req.rawBody=nil
+	req.rawBody = nil
 	if req.bodyStream == nil {
 		return nil
 	}
@@ -1772,7 +1775,7 @@ func (resp *Response) GetResponseLength() int {
 }
 
 func getHTTPString(hw httpWriter) string {
-	w := bytebufferpool.Get()
+	w := bytebufferpool.Get("fasthttp_http_writer")
 	bw := bufio.NewWriter(w)
 	if err := hw.Write(bw); err != nil {
 		return err.Error()
@@ -1781,7 +1784,7 @@ func getHTTPString(hw httpWriter) string {
 		return err.Error()
 	}
 	s := string(w.B)
-	bytebufferpool.Put(w)
+	bytebufferpool.Put("fasthttp_http_writer", w)
 	return s
 }
 
@@ -2016,6 +2019,53 @@ func appendBodyFixedSize(r *bufio.Reader, dst []byte, n int) ([]byte, error) {
 			return dst, nil
 		}
 	}
+}
+
+func readBodyWithBuffer(r *bufio.Reader, contentLength int, maxBodySize int, buffer *bytebufferpool.ByteBuffer) (err error) {
+	if contentLength >= 0 {
+		if maxBodySize > 0 && contentLength > maxBodySize {
+			return ErrBodyTooLarge
+		}
+		_, err = appendBodyFixedSize(r, buffer.B, contentLength)
+		//return appendBodyFixedSizeWithBuffer(r, buffer, contentLength)
+	}
+	if contentLength == -1 {
+		_, err = readBodyChunked(r, maxBodySize, buffer.B)
+		return err
+	}
+	_, err = readBodyIdentity(r, maxBodySize, buffer.B)
+	return err
+}
+
+var bodyPool pool.BufferPool
+
+func appendBodyFixedSizeWithBuffer(r *bufio.Reader, buffer *bytebufferpool.ByteBuffer, n int) error {
+	if n == 0 {
+		return nil
+	}
+	var bodyBuff []byte
+	var offset = 0
+	bodyBuff = bodyPool.Get(round2(n))
+	//defer bodyPool.Put(bodyBuff)
+	for {
+		nn, err := r.Read(bodyBuff)
+		if nn <= 0 {
+			if err != nil {
+				if err == io.EOF {
+					err = io.ErrUnexpectedEOF
+				}
+				return err
+			}
+			panic(fmt.Sprintf("BUG: bufio.Read() returned (%d, nil)", nn))
+		}
+		offset += int(nn)
+		if offset == n {
+			break
+		}
+	}
+	_, err := buffer.Write(bodyBuff[0:n])
+	return err
+
 }
 
 // ErrBrokenChunk is returned when server receives a broken chunked body (Transfer-Encoding: chunked).
