@@ -1,8 +1,6 @@
 package bytebufferpool
 
 import (
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -32,7 +30,8 @@ type Pool struct {
 	defaultSize uint64
 	maxSize     uint64
 
-	pool sync.Pool
+	//pool sync.Pool
+	pools sync.Map
 }
 
 func NewPool(defaultSize, maxSize uint64) *Pool {
@@ -57,23 +56,29 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 
 	atomic.AddInt64(&get, 1)
 
-	if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "get")
+	//if global.Env().IsDebug {
+	//	stats.Increment("buffer_"+tag, "get")
+	//}
+
+	if pool, ok := p.pools.Load(tag); ok {
+		v := pool.(*sync.Pool).Get()
+		if v != nil {
+			x := v.(*ByteBuffer)
+			x.Reset()
+			return x
+		}
+	}else{
+		newPool := &sync.Pool{}
+		p.pools.Store(tag, newPool)
 	}
 
-	v := p.pool.Get()
-	if v != nil {
-		x := v.(*ByteBuffer)
-		x.Reset()
-		return x
-	}
 
-	if new > maxBufferCount {
+	if atomic.LoadInt64(&new) > maxBufferCount {
 		time.Sleep(1 * time.Second)
 		atomic.AddInt64(&throttle, 1)
-		if global.Env().IsDebug() {
-			stats.Increment("buffer_"+tag, "throttle")
-		}
+		//if global.Env().IsDebug {
+		//	stats.Increment("buffer_"+tag, "throttle")
+		//}
 		return p.Get(tag)
 	}
 
@@ -82,9 +87,9 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 	}
 
 	//add obj to stats
-	if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "new")
-	}
+	//if global.Env().IsDebug {
+	//	stats.Increment("buffer_"+tag, "new")
+	//}
 	atomic.AddInt64(&new, 1)
 	buffers = append(buffers, x)
 	return x
@@ -127,9 +132,9 @@ func Put(tag string, b *ByteBuffer) {
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(tag string, b *ByteBuffer) {
 
-	if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "put")
-	}
+	//if global.Env().IsDebug {
+	//	stats.Increment("buffer_"+tag, "put")
+	//}
 
 	atomic.AddInt64(&put, 1)
 
@@ -142,7 +147,13 @@ func (p *Pool) Put(tag string, b *ByteBuffer) {
 	maxSize := int(atomic.LoadUint64(&p.maxSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
 		b.Reset()
-		p.pool.Put(b)
+		if pool, ok := p.pools.Load(tag); ok {
+			pool.(*sync.Pool).Put(b)
+		}else{
+			newPool := &sync.Pool{}
+			newPool.Put(b)
+			p.pools.Store(tag, newPool)
+		}
 	}
 }
 
