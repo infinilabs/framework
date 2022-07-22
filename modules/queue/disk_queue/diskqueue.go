@@ -119,7 +119,7 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 		emptyChan:         make(chan int),
 		emptyResponseChan: make(chan error),
 		exitChan:          make(chan int),
-		exitSyncChan:      make(chan int),
+		exitSyncChan:      make(chan int,2),
 		//syncEvery:         syncEvery,
 		//syncTimeout:       syncTimeout,
 		//maxUsedBytes:		maxUsedBytes,
@@ -780,6 +780,7 @@ func (d *diskQueue) ioLoop() {
 			}
 			syncTicker.Stop()
 			d.exitSyncChan <- 1
+			return
 		}
 	}()
 
