@@ -198,6 +198,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	}
 
 	elastic.RemoveInstance(id)
+	elastic.RemoveHostsByClusterID(id)
 	resBody["_id"] = id
 	resBody["result"] = response.Result
 	h.WriteJSON(w, resBody, response.StatusCode)

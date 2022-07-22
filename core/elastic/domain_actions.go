@@ -204,6 +204,15 @@ func WalkHosts(walkFunc func(key, value interface{}) bool) {
 	hosts.Range(walkFunc)
 }
 
+func RemoveHostsByClusterID(clusterID string) {
+	hosts.Range(func(key, value any) bool {
+		if v, ok := value.(*NodeAvailable); ok && v.ClusterID == clusterID {
+			hosts.Delete(key)
+		}
+		return true
+	})
+}
+
 func SetMetadata(k string, v *ElasticsearchMetadata) {
 	metas.Store(k, v)
 }
