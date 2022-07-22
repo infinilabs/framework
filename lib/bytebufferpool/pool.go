@@ -1,7 +1,6 @@
 package bytebufferpool
 
 import (
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
@@ -51,8 +50,8 @@ func getPoolByTag(tag string)(pool *Pool){
 			return pool
 		}
 	}else{
-		pool=NewPool(defaultSize,maxSize)
-		pools.Store(tag, newPool)
+		pool=&Pool{}
+		pools.Store(tag, pool)
 	}
 
 	return pool
@@ -73,9 +72,9 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 
 	atomic.AddInt64(&get, 1)
 
-	if global.Env().IsDebug() {
+	//if global.Env().IsDebug() {
 		stats.Increment("buffer_"+tag, "get")
-	}
+	//}
 
 	v := p.pool.Get()
 	if v != nil {
@@ -87,9 +86,9 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 	if new > maxBufferCount {
 		time.Sleep(1 * time.Second)
 		atomic.AddInt64(&throttle, 1)
-		if global.Env().IsDebug() {
+		//if global.Env().IsDebug() {
 			stats.Increment("buffer_"+tag, "throttle")
-		}
+		//}
 		return p.Get(tag)
 	}
 
@@ -98,9 +97,9 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 	}
 
 	//add obj to stats
-	if global.Env().IsDebug() {
+	//if global.Env().IsDebug() {
 		stats.Increment("buffer_"+tag, "new")
-	}
+	//}
 	atomic.AddInt64(&new, 1)
 	buffers = append(buffers, x)
 	return x
@@ -143,9 +142,9 @@ func Put(tag string, b *ByteBuffer) {
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(tag string, b *ByteBuffer) {
 
-	if global.Env().IsDebug() {
+	//if global.Env().IsDebug() {
 		stats.Increment("buffer_"+tag, "put")
-	}
+	//}
 
 	atomic.AddInt64(&put, 1)
 
