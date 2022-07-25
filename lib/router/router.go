@@ -403,12 +403,12 @@ func (r *Router) Handler(ctx *fasthttp.RequestCtx) {
 		defer r.recv(ctx)
 	}
 
-	var path string
-	if ctx.Request.Header.RequestURI() == nil {
-		path = strconv.B2S(ctx.Request.URI().PathOriginal())
-	} else {
-		path = strconv.B2S(ctx.Request.Header.RequestURI())
-	}
+	var path = strconv.B2S(ctx.Request.URI().PathOriginal())
+	//if ctx.Request.Header.RequestURI() == nil {
+	//	path = strconv.B2S(ctx.Request.URI().PathOriginal())
+	//} else {
+	//	path = strconv.B2S(ctx.Request.Header.RequestURI())
+	//}
 
 	method := strconv.B2S(ctx.Request.Header.Method())
 	methodIndex := r.methodIndexOf(method)
