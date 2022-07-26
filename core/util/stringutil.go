@@ -533,3 +533,17 @@ func StringInArray(s []string, element string) bool {
 	}
 	return false
 }
+
+func StringArrayIntersection(arr1 []string, arr2 []string) []string{
+	strM := make(map[string]struct{}, len(arr1))
+	for _, key := range arr1 {
+		strM[key] = struct{}{}
+	}
+	var resultArr []string
+	for _, key := range arr2 {
+		if _, ok := strM[key]; ok {
+			resultArr = append(resultArr, key)
+		}
+	}
+	return resultArr
+}
