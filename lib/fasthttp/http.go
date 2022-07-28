@@ -1298,15 +1298,22 @@ func (req *Request) Write(w *bufio.Writer) error {
 
 	req.rawBody = nil
 
-	//if len(req.Header.Host()) == 0 || req.parsedURI {
-	if len(req.Header.Host()) == 0 {
+	//log.Error(len(req.Header.Host()) == 0, req.parsedURI)
+	//log.Error("host in header:", string(req.Header.Host()))
+	//log.Error("host in uri:", string(req.URI().Host()))
 
+	hostInHeader := req.Header.Host()
+
+	if len(hostInHeader) == 0 || req.parsedURI {
 		uri := req.URI()
-		host := uri.Host()
-		if len(host) == 0 {
-			return errRequestHostRequired
+		if len(hostInHeader) == 0 {
+			host := uri.Host()
+			if len(host) == 0 {
+				return errRequestHostRequired
+			}
+			req.Header.SetHostBytes(host)
 		}
-		req.Header.SetHostBytes(host)
+
 		req.Header.SetRequestURIBytes(uri.RequestURI())
 
 		if len(uri.username) > 0 {
