@@ -443,7 +443,7 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		resp.body = responseBodyPool.Get("fasthttp_resbody_buffer")
+		resp.body = bytebufferpool.Get("fasthttp_resbody_buffer")
 	}
 	resp.bodyRaw = nil
 	return resp.body
@@ -451,16 +451,10 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		req.body = requestBodyPool.Get("fasthttp_reqbody_buffer")
+		req.body = bytebufferpool.Get("fasthttp_reqbody_buffer")
 	}
 	return req.body
 }
-
-var (
-	responseBodyPool bytebufferpool.Pool
-	requestBodyPool  bytebufferpool.Pool
-	gunzipDataPool   bytebufferpool.Pool
-)
 
 // BodyGunzip returns un-gzipped body data.
 //
@@ -581,7 +575,7 @@ func (resp *Response) ResetBody() {
 		if resp.keepBodyBuffer {
 			resp.body.Reset()
 		} else {
-			responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
+			bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 			resp.body = nil
 		}
 	}
@@ -606,7 +600,7 @@ func (resp *Response) ReleaseBody(size int) {
 	resp.bodyRaw = nil
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
-		responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
+		bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 		resp.body = nil
 	}
 }
@@ -622,7 +616,7 @@ func (req *Request) ReleaseBody(size int) {
 	req.rawBody = nil
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
-		requestBodyPool.Put("fasthttp_reqbody_buffer", req.body)
+		bytebufferpool.Put("fasthttp_reqbody_buffer", req.body)
 		req.body = nil
 
 	}
@@ -744,7 +738,7 @@ func (req *Request) ResetBody() {
 		if req.keepBodyBuffer {
 			req.body.Reset()
 		} else {
-			requestBodyPool.Put("fasthttp_reqbody_buffer", req.body)
+			bytebufferpool.Put("fasthttp_reqbody_buffer", req.body)
 			req.body = nil
 		}
 	}
@@ -1473,13 +1467,13 @@ func (resp *Response) gzipBody(level int) error {
 			// body size will be bigger than the original body size.
 			return nil
 		}
-		w := responseBodyPool.Get("fasthttp_resbody_buffer")
-		defer responseBodyPool.Put("fasthttp_resbody_buffer", w)
+		w := bytebufferpool.Get("fasthttp_resbody_buffer")
+		defer bytebufferpool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			//responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
+			//bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
@@ -1529,13 +1523,13 @@ func (resp *Response) deflateBody(level int) error {
 			// body size will be bigger than the original body size.
 			return nil
 		}
-		w := responseBodyPool.Get("fasthttp_resbody_buffer")
-		defer responseBodyPool.Put("fasthttp_resbody_buffer", w)
+		w := bytebufferpool.Get("fasthttp_resbody_buffer")
+		defer bytebufferpool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			//responseBodyPool.Put("fasthttp_resbody_buffer", resp.body)
+			//bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
@@ -2047,6 +2041,7 @@ func appendBodyFixedSizeWithBuffer(r *bufio.Reader, buffer *bytebufferpool.ByteB
 	var offset = 0
 	bodyBuff = bodyPool.Get(round2(n))
 	//defer bodyPool.Put(bodyBuff)
+
 	for {
 		nn, err := r.Read(bodyBuff)
 		if nn <= 0 {

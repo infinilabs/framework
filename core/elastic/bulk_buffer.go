@@ -14,8 +14,6 @@ type BulkBuffer struct {
 	StatusCode map[int]int
 }
 
-var pool1 = bytebufferpool.NewPool(5*1024*1024, 50*1024*1024)
-
 var bulkBufferPool = &sync.Pool{
 	New: func() interface{} {
 		v := new(BulkBuffer)
@@ -27,14 +25,14 @@ var bulkBufferPool = &sync.Pool{
 
 func AcquireBulkBuffer() *BulkBuffer {
 	buff := bulkBufferPool.Get().(*BulkBuffer)
-	buff.Buffer = pool1.Get("bulk_buffer")
+	buff.Buffer = bytebufferpool.Get("bulk_buffer")
 	buff.Reset()
 	return buff
 }
 
 func ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
-	pool1.Put("bulk_buffer", item.Buffer)
+	bytebufferpool.Put("bulk_buffer", item.Buffer)
 	bulkBufferPool.Put(item)
 }
 

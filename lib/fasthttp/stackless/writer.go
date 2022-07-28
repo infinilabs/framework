@@ -123,16 +123,14 @@ type xWriter struct {
 
 func (w *xWriter) Write(p []byte) (int, error) {
 	if w.bb == nil {
-		w.bb = bufferPool.Get("fasthttp_writer")
+		w.bb = bytebufferpool.Get("fasthttp_writer")
 	}
 	return w.bb.Write(p)
 }
 
 func (w *xWriter) Reset() {
 	if w.bb != nil {
-		bufferPool.Put("fasthttp_writer", w.bb)
+		bytebufferpool.Put("fasthttp_writer", w.bb)
 		w.bb = nil
 	}
 }
-
-var bufferPool bytebufferpool.Pool

@@ -1487,9 +1487,9 @@ func (h *ResponseHeader) String() string {
 func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
 	if h.useBufferAppendForHeaders {
-		headerBuffer := headerPool.Get("fasthttp_header")
+		headerBuffer := bytebufferpool.Get("fasthttp_header")
 		headerBuffer.Reset()
-		defer headerPool.Put("fasthttp_header", headerBuffer)
+		defer bytebufferpool.Put("fasthttp_header", headerBuffer)
 
 		statusCode := h.StatusCode()
 		if statusCode < 0 {
@@ -1641,8 +1641,6 @@ func (h *RequestHeader) String() string {
 	return string(h.Header())
 }
 
-var headerPool = bytebufferpool.NewPool(1024, 1024*48)
-
 var BlankInHeader = []byte(" ")
 
 // AppendBytes appends request header representation to dst and returns
@@ -1650,9 +1648,9 @@ var BlankInHeader = []byte(" ")
 func (h *RequestHeader) AppendBytes(dst []byte) []byte {
 
 	if h.useBufferAppendForHeaders {
-		headerBuffer := headerPool.Get("fasthttp_header")
+		headerBuffer := bytebufferpool.Get("fasthttp_header")
 		headerBuffer.Reset()
-		defer headerPool.Put("fasthttp_header", headerBuffer)
+		defer bytebufferpool.Put("fasthttp_header", headerBuffer)
 
 		headerBuffer.Write(h.Method())
 		headerBuffer.Write(BlankInHeader)

@@ -34,7 +34,6 @@ import (
 )
 
 type IndexingMergeProcessor struct {
-	bufferPool        *bytebufferpool.Pool
 	initLocker        sync.RWMutex
 	config            Config
 	outputQueueConfig *queue.QueueConfig
@@ -156,16 +155,6 @@ func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 		bulkSizeInByte = 1024 * processor.config.BulkSizeInKB
 	}
 
-	if processor.bufferPool == nil {
-		processor.initLocker.Lock()
-		if processor.bufferPool == nil {
-			estimatedBulkSizeInByte := bulkSizeInByte + (bulkSizeInByte / 3)
-			log.Debug("buffer size:", util.ByteSize(uint64(estimatedBulkSizeInByte)), ", max:", util.ByteSize(uint64(bulkSizeInByte*2)))
-			processor.bufferPool = bytebufferpool.NewPool(uint64(estimatedBulkSizeInByte), uint64(bulkSizeInByte*2))
-		}
-		processor.initLocker.Unlock()
-	}
-
 	wg := sync.WaitGroup{}
 	totalSize := 0
 	for i := 0; i < processor.config.NumOfWorkers; i++ {
@@ -201,10 +190,10 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 
 	log.Trace("start bulk worker")
 
-	mainBuf := processor.bufferPool.Get("index_merge")
-	defer processor.bufferPool.Put("index_merge", mainBuf)
-	docBuf := processor.bufferPool.Get("index_merge")
-	defer processor.bufferPool.Put("index_merge", docBuf)
+	mainBuf := bytebufferpool.Get("index_merge_main")
+	defer bytebufferpool.Put("index_merge_main", mainBuf)
+	docBuf := bytebufferpool.Get("index_merge_docs")
+	defer bytebufferpool.Put("index_merge_docs", docBuf)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 

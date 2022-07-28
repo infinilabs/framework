@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"net"
 	"strconv"
@@ -1000,7 +1001,7 @@ func AcquireRequest() *Request {
 		return &Request{}
 	}
 	x := v.(*Request)
-	x.body = requestBodyPool.Get("fasthttp_reqbody_buffer")
+	x.body = bytebufferpool.Get("fasthttp_reqbody_buffer")
 	x.Reset()
 	return x
 }

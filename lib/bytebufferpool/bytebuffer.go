@@ -21,6 +21,10 @@ func (b *ByteBuffer) Len() int {
 	return len(b.B)
 }
 
+func (b *ByteBuffer) Cap() int {
+	return cap(b.B)
+}
+
 // ReadFrom implements io.ReaderFrom.
 //
 // The function appends all the data read from r to b.
@@ -68,15 +72,15 @@ func (b *ByteBuffer) Bytes() []byte {
 	return b.B
 }
 
-func (b *ByteBuffer) WriteBytesArray(ps ...[]byte)(count int, err error) {
-	for _,p:=range ps{
-		v,err:=b.Write(p)
-		count+=v
-		if err!=nil{
+func (b *ByteBuffer) WriteBytesArray(ps ...[]byte) (count int, err error) {
+	for _, p := range ps {
+		v, err := b.Write(p)
+		count += v
+		if err != nil {
 			break
 		}
 	}
-	return count,err
+	return count, err
 }
 
 // Write implements io.Writer - it appends p to ByteBuffer.B
