@@ -153,10 +153,10 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 
 	log.Trace("start bulk worker")
 
-	mainBuf := bytebufferpool.Get("json_indexing_main")
-	defer bytebufferpool.Put("json_indexing_main", mainBuf)
-	docBuf := bytebufferpool.Get("json_indexing_docs")
-	defer bytebufferpool.Put("json_indexing_docs", docBuf)
+	mainBuf := bytebufferpool.Get("bulk_request_batch")
+	defer bytebufferpool.Put("bulk_request_batch", mainBuf)
+	docBuf := bytebufferpool.Get("bulk_request_docs")
+	defer bytebufferpool.Put("bulk_request_docs", docBuf)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 
