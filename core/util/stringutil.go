@@ -193,8 +193,7 @@ func UnicodeIndex(str, substr string) int {
 }
 
 func SubString(str string, begin, length int) (substr string) {
-	rs := []rune(str)
-	lth := len(rs)
+	lth := len(str)
 
 	if begin < 0 {
 		begin = 0
@@ -207,7 +206,16 @@ func SubString(str string, begin, length int) (substr string) {
 		end = lth
 	}
 
-	return string(rs[begin:end])
+	//safety for double characters
+	safety := false
+	if safety {
+		rs := []rune(str)
+
+		return string(rs[begin:end])
+	} else {
+		return str[begin:end]
+	}
+
 }
 
 func NoWordBreak(in string) string {
@@ -534,7 +542,7 @@ func StringInArray(s []string, element string) bool {
 	return false
 }
 
-func StringArrayIntersection(arr1 []string, arr2 []string) []string{
+func StringArrayIntersection(arr1 []string, arr2 []string) []string {
 	strM := make(map[string]struct{}, len(arr1))
 	for _, key := range arr1 {
 		strM[key] = struct{}{}

@@ -330,8 +330,8 @@ DO:
 
 	if err != nil {
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
-		if rate.GetRateLimiterPerSecond(metadata.Config.ID, host+"5xx_on_error", 1).Allow() {
-			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(util.EscapeNewLine(resp.GetRawBody())), 0, 256))
+		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
+			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
 			time.Sleep(1 * time.Second)
 		}
 		return false, err
@@ -360,7 +360,7 @@ DO:
 	// Do we need to decompress the response?
 	var resbody = resp.GetRawBody()
 	if global.Env().IsDebug {
-		log.Trace(resp.StatusCode(), string(util.EscapeNewLine(data)), string(util.EscapeNewLine(resbody)))
+		log.Trace(resp.StatusCode(), util.UnsafeBytesToString(util.EscapeNewLine(data)), util.UnsafeBytesToString(util.EscapeNewLine(resbody)))
 	}
 
 	if resp.StatusCode() == http.StatusOK || resp.StatusCode() == http.StatusCreated {

@@ -75,7 +75,7 @@ func Int64ToBytes(i int64) []byte {
 }
 
 func BytesToInt64(buf []byte) int64 {
-	if len(buf) == 0{
+	if len(buf) == 0 {
 		return 0
 	}
 	return int64(binary.BigEndian.Uint64(buf))
@@ -242,10 +242,10 @@ func ToUppercase(str []byte) []byte {
 //TODO optimize performance
 //ReplaceByte simply replace old bytes to new bytes, the two bytes should have same length
 func ReplaceByte(str []byte, old, new []byte) []byte {
-	return []byte(strings.Replace(string(str), string(old), string(new), -1))
+	return UnsafeStringToBytes(strings.Replace(UnsafeBytesToString(str), UnsafeBytesToString(old), UnsafeBytesToString(new), -1))
 }
 
-func MustToJSON(v interface{})string {
+func MustToJSON(v interface{}) string {
 	return string(MustToJSONBytes(v))
 }
 
@@ -257,21 +257,21 @@ func MustToJSONBytes(v interface{}) []byte {
 	return b
 }
 
-func ToJSONBytes(v interface{}) ([]byte,error) {
+func ToJSONBytes(v interface{}) ([]byte, error) {
 	return json.Marshal(v)
 }
 
 //MustFromJSONBytes simply do json unmarshal
 func MustFromJSONBytes(b []byte, v interface{}) {
 	var err error
-	err=FromJSONBytes(b,v)
+	err = FromJSONBytes(b, v)
 	if err != nil {
 		log.Error("data:", string(b))
 		panic(err)
 	}
 }
 
-func FromJSONBytes(b []byte, v interface{})(err error) {
+func FromJSONBytes(b []byte, v interface{}) (err error) {
 	if b == nil || len(b) == 0 {
 		return
 	}
@@ -292,8 +292,6 @@ func EncodeToBytes(key interface{}) ([]byte, error) {
 func GetBytes(key interface{}) []byte {
 	return []byte(fmt.Sprintf("%v", key.(interface{})))
 }
-
-
 
 func GetSplitFunc(split []byte) func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
@@ -367,56 +365,56 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 //processBlockEndWithBlock 从什么地方结束处理
 //maxSpan 开始和结束位置的最大间隔，约束范围
 //匹配位置的处理函数
-func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBlockMustContain [][]byte, reverse bool,  matchBlockStartWith []byte, matchBlocksEndWith []byte,maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
+func ProcessJsonData(data *[]byte, blockSplit []byte, limitBlockSize int, validBlockMustContain [][]byte, reverse bool, matchBlockStartWith []byte, matchBlocksEndWith []byte, maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
 	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
 	scanner.Split(GetSplitFunc(blockSplit))
 	var str []byte
-	block:=0
-	index:=0
-	OldOffset:=0
-	hasValidBlock:=false
+	block := 0
+	index := 0
+	OldOffset := 0
+	hasValidBlock := false
 	for scanner.Scan() {
 		text := scanner.Bytes()
 		//fmt.Println("scan, get:",len(text),",",string(text))
-		if len(text)>0{
-			if block>1{
+		if len(text) > 0 {
+			if block > 1 {
 				//fmt.Println("more than one block, skip")
 				return false
 			}
 		}
 		//fmt.Println("indexNow1:",index)
-		OldOffset=index
-		index=index+len(text)
+		OldOffset = index
+		index = index + len(text)
 		//fmt.Println("indexNow2:",index)
-		if len(text)>limitBlockSize{
-			text=text[0:limitBlockSize]
+		if len(text) > limitBlockSize {
+			text = text[0:limitBlockSize]
 		}
 
-		if len(validBlockMustContain)>0{
-			invalid:=true
-			for _,v:=range validBlockMustContain{
+		if len(validBlockMustContain) > 0 {
+			invalid := true
+			for _, v := range validBlockMustContain {
 				if bytes.Contains(text, v) {
-					invalid=false
-				}else{
-					invalid=true
+					invalid = false
+				} else {
+					invalid = true
 				}
 			}
-			if !invalid{
+			if !invalid {
 				//fmt.Println("valid block:",string(text))
 				block++
 				str = text
-				hasValidBlock=true
+				hasValidBlock = true
 				break
 			}
-		}else{
-			hasValidBlock=true
+		} else {
+			hasValidBlock = true
 			//fmt.Println("no valid block check:",string(text))
 			block++
 		}
 
 	}
-	if!hasValidBlock{
+	if !hasValidBlock {
 		//fmt.Println("none valid block+")
 		return false
 	}
@@ -424,71 +422,70 @@ func ProcessJsonData(data *[]byte, blockSplit []byte,limitBlockSize int, validBl
 	//fmt.Println(OldOffset,"index:",index,",split:",len(blockSplit),",a:",len(str),"b:",len(matchBlockStartWith))
 	//fmt.Println("index:",index-len(str),"block:",string(str))
 	//fmt.Println("index:",index,"len(str):",len(str),",len(matchBlockStartWith):",len(matchBlockStartWith),",len(data):",len(*data),",block:",string(str))
-	globalIndex:=OldOffset+len(blockSplit)//+len(matchBlockStartWith)//len(matchBlockStartWith)//len(*data)-len(str)//
+	globalIndex := OldOffset + len(blockSplit) //+len(matchBlockStartWith)//len(matchBlockStartWith)//len(*data)-len(str)//
 	//globalIndex:=len(*data)-len(str)//-len(matchBlockStartWith)
-	globalEndIndex:=globalIndex+len(str)
+	globalEndIndex := globalIndex + len(str)
 	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:globalEndIndex]))
 	//fmt.Println("global index:",globalIndex,",",string((*data)[globalIndex:globalEndIndex]))
 	//if block==1{
 	//	return false
 	//}
 
-
 	//if globalIndex > 0 && globalEndIndex >0 {
-		matchedBlockProcessHandler(str,globalIndex,globalEndIndex)
-		return true
+	matchedBlockProcessHandler(str, globalIndex, globalEndIndex)
+	return true
 	//}
-//
-////TODO 处理一个 block 里面匹配多个 match 的情况，多个条件需要替换
-//	if len(str) > 0 {
-//		var startOffset int
-//		var endOffset int
-//		base:=len(matchBlockStartWith)
-//		//fmt.Println("reverse:",reverse)
-//		//fmt.Println("base:",base)
-//		if reverse {
-//			startOffset = bytes.LastIndex(str, matchBlockStartWith)
-//		} else {
-//			startOffset = bytes.Index(str, matchBlockStartWith)
-//		}
-//
-//		startOffset=startOffset+base-len(matchBlockStartWith)
-//
-//		if matchBlocksEndWith!=nil{
-//			endOffset = bytes.Index(str[startOffset:], matchBlocksEndWith)
-//			endOffset=startOffset+endOffset
-//		}
-//
-//		if endOffset<=0{
-//			//fmt.Println("matchBlocksEndWith is nil:",matchBlocksEndWith)
-//			endOffset=len(str)
-//		}
-//
-//
-//		//fmt.Println("startOffset:",startOffset)
-//		//fmt.Println("endOffset:",endOffset)
-//
-//		if endOffset<=startOffset{
-//			//fmt.Println("start offset < end offset")
-//			return false
-//		}
-//
-//		//fmt.Println("span:",endOffset-startOffset)
-//		if maxSpan< (endOffset-startOffset){
-//			//fmt.Println("beyond max span:",endOffset-startOffset," vs ",maxSpan)
-//			return false
-//		}
-//
-//		fmt.Println("new block:",string(str[startOffset:endOffset]))
-//		fmt.Println("new global block:",string((*data)[globalIndex+startOffset:globalIndex+endOffset]))
-//
-//		if startOffset > 0 && startOffset < len(str) {
-//			matchedBlockProcessHandler(str[startOffset:endOffset],globalIndex+startOffset,globalIndex+endOffset)
-//			return true
-//		}
-//	} else {
-//		log.Trace("input data doesn't contain the split bytes")
-//	}
+	//
+	////TODO 处理一个 block 里面匹配多个 match 的情况，多个条件需要替换
+	//	if len(str) > 0 {
+	//		var startOffset int
+	//		var endOffset int
+	//		base:=len(matchBlockStartWith)
+	//		//fmt.Println("reverse:",reverse)
+	//		//fmt.Println("base:",base)
+	//		if reverse {
+	//			startOffset = bytes.LastIndex(str, matchBlockStartWith)
+	//		} else {
+	//			startOffset = bytes.Index(str, matchBlockStartWith)
+	//		}
+	//
+	//		startOffset=startOffset+base-len(matchBlockStartWith)
+	//
+	//		if matchBlocksEndWith!=nil{
+	//			endOffset = bytes.Index(str[startOffset:], matchBlocksEndWith)
+	//			endOffset=startOffset+endOffset
+	//		}
+	//
+	//		if endOffset<=0{
+	//			//fmt.Println("matchBlocksEndWith is nil:",matchBlocksEndWith)
+	//			endOffset=len(str)
+	//		}
+	//
+	//
+	//		//fmt.Println("startOffset:",startOffset)
+	//		//fmt.Println("endOffset:",endOffset)
+	//
+	//		if endOffset<=startOffset{
+	//			//fmt.Println("start offset < end offset")
+	//			return false
+	//		}
+	//
+	//		//fmt.Println("span:",endOffset-startOffset)
+	//		if maxSpan< (endOffset-startOffset){
+	//			//fmt.Println("beyond max span:",endOffset-startOffset," vs ",maxSpan)
+	//			return false
+	//		}
+	//
+	//		fmt.Println("new block:",string(str[startOffset:endOffset]))
+	//		fmt.Println("new global block:",string((*data)[globalIndex+startOffset:globalIndex+endOffset]))
+	//
+	//		if startOffset > 0 && startOffset < len(str) {
+	//			matchedBlockProcessHandler(str[startOffset:endOffset],globalIndex+startOffset,globalIndex+endOffset)
+	//			return true
+	//		}
+	//	} else {
+	//		log.Trace("input data doesn't contain the split bytes")
+	//	}
 	return false
 }
 
@@ -526,9 +523,9 @@ var bufferPool *sync.Pool = &sync.Pool{
 	},
 }
 
-func BytesHasSuffix(left,right []byte) bool {
+func BytesHasSuffix(left, right []byte) bool {
 
-	if len(left)==0||len(right)==0{
+	if len(left) == 0 || len(right) == 0 {
 		return false
 	}
 
@@ -536,17 +533,17 @@ func BytesHasSuffix(left,right []byte) bool {
 	//fmt.Println(len(right))
 	//fmt.Println(string(left[len(left)-1]))
 
-	if len(right)==1{
-		if right[0]==left[len(left)-1]{
+	if len(right) == 1 {
+		if right[0] == left[len(left)-1] {
 			return true
-		}else{
+		} else {
 			return false
 		}
 	}
 	return bytes.HasSuffix(left, right)
 }
 
-func InsertBytesAfterField(data *[]byte, start,toBeSkipedBytes, end []byte, bytesToInsert []byte) []byte {
+func InsertBytesAfterField(data *[]byte, start, toBeSkipedBytes, end []byte, bytesToInsert []byte) []byte {
 
 	matchStart := false
 	matchEnd := false
@@ -564,9 +561,9 @@ func InsertBytesAfterField(data *[]byte, start,toBeSkipedBytes, end []byte, byte
 
 		if matchStart && !matchEnd {
 			//skip unwanted bytes
-			if toBeSkipedBytes!=nil&&len(toBeSkipedBytes)>0{
+			if toBeSkipedBytes != nil && len(toBeSkipedBytes) > 0 {
 				if BytesHasSuffix(toBeMachedBuffer.Bytes(), toBeSkipedBytes) {
-					toBeSkipedBytes=nil
+					toBeSkipedBytes = nil
 					toBeMachedBuffer.Reset()
 					continue
 				}
@@ -577,19 +574,19 @@ func InsertBytesAfterField(data *[]byte, start,toBeSkipedBytes, end []byte, byte
 			if BytesHasSuffix(toBeMachedBuffer.Bytes(), end) {
 				//fmt.Println("mateched end")
 				matchEnd = true
-				offset:=i+1
-				start:=(*data)[:offset]
-				left:=(*data)[offset:]
+				offset := i + 1
+				start := (*data)[:offset]
+				left := (*data)[offset:]
 				//fmt.Println(string(""))
 				//fmt.Println(string(start))
 				//fmt.Println(string(bytesToInsert))
 				//fmt.Println(string(left))
 				if bytesToInsert != nil && len(bytesToInsert) > 0 {
-					newbuf:=bufferPool.Get().(*bytes.Buffer)
+					newbuf := bufferPool.Get().(*bytes.Buffer)
 					newbuf.Write(start)
 					newbuf.Write(bytesToInsert)
 					newbuf.Write(left)
-					data:= newbuf.Bytes()
+					data := newbuf.Bytes()
 					newbuf.Reset()
 					bufferPool.Put(newbuf)
 					return data
@@ -614,9 +611,9 @@ func InsertBytesAfterField(data *[]byte, start,toBeSkipedBytes, end []byte, byte
 }
 
 func ExtractFieldFromBytes(data *[]byte, start, end []byte, removedFromValue []byte) []byte {
-	return ExtractFieldFromBytesWitSkipBytes(data,start,nil,end,removedFromValue)
+	return ExtractFieldFromBytesWitSkipBytes(data, start, nil, end, removedFromValue)
 }
-func ExtractFieldFromBytesWitSkipBytes(data *[]byte, start,toBeSkipedBytes, end []byte, removedFromValue []byte) []byte {
+func ExtractFieldFromBytesWitSkipBytes(data *[]byte, start, toBeSkipedBytes, end []byte, removedFromValue []byte) []byte {
 
 	matchStart := false
 	matchEnd := false
@@ -642,15 +639,15 @@ func ExtractFieldFromBytesWitSkipBytes(data *[]byte, start,toBeSkipedBytes, end 
 		if matchStart && !matchEnd {
 
 			//skip unwanted bytes
-			if toBeSkipedBytes!=nil&&len(toBeSkipedBytes)>0{
+			if toBeSkipedBytes != nil && len(toBeSkipedBytes) > 0 {
 				if BytesHasSuffix(toBeMachedBuffer.Bytes(), toBeSkipedBytes) {
-					toBeSkipedBytes=nil
+					toBeSkipedBytes = nil
 					toBeMachedBuffer.Reset()
 					continue
 				}
 			}
 
-				//collecting data
+			//collecting data
 			//check whether matched end
 			if BytesHasSuffix(toBeMachedBuffer.Bytes(), end) {
 				matchEnd = true
@@ -696,37 +693,36 @@ func CompareStringAndBytes(b []byte, s string) bool {
 	return true
 }
 
-func LimitedBytesSearch(data []byte, term []byte,limit int) bool {
-	buffer:=make([]byte,len(term))
-	start:=false
-	bufferOffset:=0
-	for i,v:=range data{
-		if i>limit{
+func LimitedBytesSearch(data []byte, term []byte, limit int) bool {
+	buffer := make([]byte, len(term))
+	start := false
+	bufferOffset := 0
+	for i, v := range data {
+		if i > limit {
 			return false
 		}
-		if!start{
-			if term[0]==v{
-				start=true
-				bufferOffset=0
-				buffer=append(buffer,v)
+		if !start {
+			if term[0] == v {
+				start = true
+				bufferOffset = 0
+				buffer = append(buffer, v)
 			}
-		}else{
-			if  len(buffer)==len(term){
+		} else {
+			if len(buffer) == len(term) {
 				return true
 			}
 
 			bufferOffset++
-			if term[bufferOffset]==v{
-				buffer=append(buffer,v)
-			}else{
-				start=false
-				buffer=[]byte{}
+			if term[bufferOffset] == v {
+				buffer = append(buffer, v)
+			} else {
+				start = false
+				buffer = []byte{}
 			}
 		}
 	}
 	return false
 }
-
 
 type ByteValue struct {
 	Size float64
