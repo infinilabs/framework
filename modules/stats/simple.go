@@ -233,30 +233,29 @@ func (s *Stats) Stat(category, key string) int64 {
 }
 
 func (s *Stats) StatsAll() *[]byte {
-	s.l.Lock()
-	defer s.l.Unlock()
+	s.l.RLock()
+	defer s.l.RUnlock()
 
+	result := map[string]interface{}{}
+	result["stats"] = *s.Data
 	//update system metrics
 	sysInfo, err := pidusage.GetStat(os.Getpid())
 	if err == nil {
-		(*s.Data)["system"] = map[string]int64{
+		result["system"] = map[string]int64{
 			"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 			"cpu":          int64(sysInfo.CPU),
 			"mem":          int64(sysInfo.Memory),
 		}
 	}
 
-	//buffer stats
-	new1, get, put, throttle, count, size := bytebufferpool.BuffStats()
-	(*s.Data)["buffer"] = map[string]int64{
-		"count":    int64(count),
-		"size":     int64(size),
-		"new":      int64(new1),
-		"get":      int64(get),
-		"put":      int64(put),
-		"throttle": int64(throttle),
+	result["buffer"] = bytebufferpool.BuffStats()
+
+	b, err := json.MarshalIndent(result, "", " ")
+	if err != nil {
+		log.Error(err)
+		return nil
 	}
-	b, _ := json.MarshalIndent((*s.Data), "", " ")
+
 	return &b
 }
 

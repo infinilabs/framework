@@ -56,8 +56,8 @@ type diskQueue struct {
 	writeBuf        bytes.Buffer
 
 	// instantiation time metadata
-	name                string
-	dataPath            string
+	name     string
+	dataPath string
 
 	//maxBytesPerFile     int64 // cannot change once created
 
@@ -67,11 +67,10 @@ type diskQueue struct {
 	//maxMsgSize          int32
 	//syncEvery           int64         // number of writes per fsync
 	//syncTimeout         time.Duration // duration of time per fsync
-	exitFlag            int32
-	needSync            bool
+	exitFlag int32
+	needSync bool
 
-	consumerMode        bool
-
+	consumerMode bool
 
 	// read related
 	depth              int64 //TODO,separate write and read
@@ -97,21 +96,21 @@ type diskQueue struct {
 	//warningFreeBytes   uint64
 	//reservedFreeBytes   uint64
 
-	preventRead bool//readonly or not
+	preventRead bool //readonly or not
 
 	cfg *DiskQueueConfig
 }
 
 // NewDiskQueue instantiates a new instance of diskQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
-func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQueue {
+func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) BackendQueue {
 	d := diskQueue{
-		name:              name,
-		dataPath:          dataPath,
+		name:     name,
+		dataPath: dataPath,
 		//maxBytesPerFile:   maxBytesPerFile,
 		//minMsgSize:        minMsgSize,
 		//maxMsgSize:        maxMsgSize,
-		cfg:cfg,
+		cfg:               cfg,
 		readChan:          make(chan []byte, cfg.ReadChanBuffer),
 		depthChan:         make(chan int64),
 		writeChan:         make(chan []byte, cfg.WriteChanBuffer),
@@ -119,7 +118,7 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 		emptyChan:         make(chan int),
 		emptyResponseChan: make(chan error),
 		exitChan:          make(chan int),
-		exitSyncChan:      make(chan int,2),
+		exitSyncChan:      make(chan int, 10),
 		//syncEvery:         syncEvery,
 		//syncTimeout:       syncTimeout,
 		//maxUsedBytes:		maxUsedBytes,
@@ -134,10 +133,10 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
 	}
 
-   _,ok:=	queue.GetConsumerConfigsByQueueID(d.name)
-   if ok{
-	   d.consumerMode=true
-   }
+	_, ok := queue.GetConsumerConfigsByQueueID(d.name)
+	if ok {
+		d.consumerMode = true
+	}
 
 	go d.ioLoop()
 	return &d
@@ -145,16 +144,16 @@ func NewDiskQueueByConfig(name, dataPath string,cfg *DiskQueueConfig) BackendQue
 
 // Depth returns the depth of the queue
 func (d *diskQueue) ReadContext() Context {
-	ctx:= Context{}
+	ctx := Context{}
 	//ctx.Depth=d.depth
-	ctx.WriteFileNum=d.writeSegmentNum
+	ctx.WriteFileNum = d.writeSegmentNum
 	//ctx.MaxLength=d.maxBytesPerFileRead
-	ctx.WriteFile=d.GetFileName(ctx.WriteFileNum)
+	ctx.WriteFile = d.GetFileName(ctx.WriteFileNum)
 	return ctx
 }
 
 func (d *diskQueue) LatestOffset() string {
-	return fmt.Sprintf("%v,%v",d.writeSegmentNum,d.writePos)
+	return fmt.Sprintf("%v,%v", d.writeSegmentNum, d.writePos)
 }
 
 func (d *diskQueue) Depth() int64 {
@@ -177,15 +176,15 @@ func (d *diskQueue) Put(data []byte) error {
 	defer d.RUnlock()
 
 	if d.exitFlag == 1 {
-		log.Errorf("queue [%v] exiting, data maybe lost",d.name)
+		log.Errorf("queue [%v] exiting, data maybe lost", d.name)
 		return errors.New("exiting")
 	}
 
-	if d.preventRead{
-		err:=d.checkCapacity()
-		if err!=nil{
-			if rate.GetRateLimiterPerSecond(d.name, "disk_full_failure",1).Allow() {
-				log.Errorf("queue [%v] is readonly, %v",d.name,err)
+	if d.preventRead {
+		err := d.checkCapacity()
+		if err != nil {
+			if rate.GetRateLimiterPerSecond(d.name, "disk_full_failure", 1).Allow() {
+				log.Errorf("queue [%v] is readonly, %v", d.name, err)
 			}
 		}
 		return errors.New("readonly")
@@ -326,7 +325,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 			return nil, err
 		}
 
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Tracef("disk_queue(%s): readOne() opened %s", d.name, curFileName)
 		}
 
@@ -397,12 +396,12 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		d.nextReadPos = 0
 	}
 
-	if d.cfg.CompressOnMessagePayload.Enabled{
-		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
-		if err!=nil{
-			return nil,err
+	if d.cfg.CompressOnMessagePayload.Enabled {
+		newData, err := zstd.ZSTDDecompress(nil, readBuf)
+		if err != nil {
+			return nil, err
 		}
-		return newData,nil
+		return newData, nil
 	}
 
 	return readBuf, nil
@@ -433,14 +432,13 @@ func (d *diskQueue) writeOne(data []byte) error {
 	}
 
 	//compress data
-	if d.cfg.CompressOnMessagePayload.Enabled{
-		newData,err:= zstd.ZSTDCompress(nil,data,d.cfg.CompressOnMessagePayload.Level)
-		if err!=nil{
+	if d.cfg.CompressOnMessagePayload.Enabled {
+		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.CompressOnMessagePayload.Level)
+		if err != nil {
 			return err
 		}
-		data=newData
+		data = newData
 	}
-
 
 	dataLen := int32(len(data))
 
@@ -486,7 +484,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 		d.checkCapacity()
 
 		//notify listener that we are writing to a new file
-		Notify(d.name, WriteComplete,d.writeSegmentNum)
+		Notify(d.name, WriteComplete, d.writeSegmentNum)
 
 		d.writeSegmentNum++
 		d.writePos = 0
@@ -508,21 +506,21 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 func (d *diskQueue) checkCapacity() error {
 
-	if  d.cfg.WarningFreeBytes>0||d.cfg.MaxUsedBytes>0||d.cfg.ReservedFreeBytes>0{
-		stats:=status.DiskUsage(d.dataPath)
-		if d.cfg.MaxUsedBytes>0&&stats.Used>=d.cfg.MaxUsedBytes{
-			d.preventRead=true
-			return errors.Errorf("disk usage [%v] > threshold [%v]",util.ByteSize(stats.Used),util.ByteSize(d.cfg.MaxUsedBytes))
-		}else if d.cfg.ReservedFreeBytes>0&&stats.Free<=uint64(d.cfg.ReservedFreeBytes){
+	if d.cfg.WarningFreeBytes > 0 || d.cfg.MaxUsedBytes > 0 || d.cfg.ReservedFreeBytes > 0 {
+		stats := status.DiskUsage(d.dataPath)
+		if d.cfg.MaxUsedBytes > 0 && stats.Used >= d.cfg.MaxUsedBytes {
+			d.preventRead = true
+			return errors.Errorf("disk usage [%v] > threshold [%v]", util.ByteSize(stats.Used), util.ByteSize(d.cfg.MaxUsedBytes))
+		} else if d.cfg.ReservedFreeBytes > 0 && stats.Free <= uint64(d.cfg.ReservedFreeBytes) {
 			d.preventRead = true
 			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.ReservedFreeBytes))
-		}else if d.cfg.WarningFreeBytes>0&&stats.Free<=uint64(d.cfg.WarningFreeBytes){
-			if rate.GetRateLimiterPerSecond(d.name, "disk_full_warning",1).Allow() {
+		} else if d.cfg.WarningFreeBytes > 0 && stats.Free <= uint64(d.cfg.WarningFreeBytes) {
+			if rate.GetRateLimiterPerSecond(d.name, "disk_full_warning", 1).Allow() {
 				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.WarningFreeBytes))
 			}
 		}
-		if d.preventRead{
-			d.preventRead=false
+		if d.preventRead {
+			d.preventRead = false
 		}
 	}
 	return nil
@@ -555,7 +553,7 @@ func (d *diskQueue) retrieveMetaData() error {
 
 	fileName := d.metaDataFileName()
 	f, err = os.OpenFile(fileName, os.O_RDONLY, 0600)
-	if f!=nil{
+	if f != nil {
 		defer f.Close()
 	}
 
@@ -589,7 +587,7 @@ func (d *diskQueue) persistMetaData() error {
 	// write to tmp file
 	f, err = os.OpenFile(tmpFileName, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		if f!=nil{
+		if f != nil {
 			f.Close()
 		}
 		return err
@@ -614,10 +612,8 @@ func (d *diskQueue) metaDataFileName() string {
 	return fmt.Sprintf(path.Join(d.dataPath, "%s.diskqueue.meta.dat"), d.name)
 }
 
-
-
 func (d *diskQueue) GetFileName(segmentID int64) string {
-	return GetFileName(d.name,segmentID)
+	return GetFileName(d.name, segmentID)
 }
 
 func (d *diskQueue) checkTailCorruption(depth int64) {
@@ -674,14 +670,14 @@ func (d *diskQueue) readMoveForward() {
 		// sync every time we start reading from a new file
 		d.needSync = true
 
-		if global.Env().IsDebug{
-			log.Tracef("queue:%v old file:%v, new file:%v",d.name,oldReadFileNum,d.nextReadFileNum)
+		if global.Env().IsDebug {
+			log.Tracef("queue:%v old file:%v, new file:%v", d.name, oldReadFileNum, d.nextReadFileNum)
 		}
 
-		consumers,ok:=queue.GetConsumerConfigsByQueueID(d.name)
-		if !ok||len(consumers)==0{
+		consumers, ok := queue.GetConsumerConfigsByQueueID(d.name)
+		if !ok || len(consumers) == 0 {
 			fn := d.GetFileName(oldReadFileNum)
-			if util.FileExists(fn){
+			if util.FileExists(fn) {
 				if global.Env().IsDebug {
 					log.Debugf("queue:%v delete old file:%v, new file:%v", d.name, oldReadFileNum, d.nextReadFileNum)
 				}
@@ -710,10 +706,10 @@ func (d *diskQueue) handleReadError() {
 	}
 
 	//skip queue with consumers
-	_,ok:=queue.GetConsumerConfigsByQueueID(d.name)
-	if ok{
-		if !d.consumerMode{
-			d.consumerMode=true
+	_, ok := queue.GetConsumerConfigsByQueueID(d.name)
+	if ok {
+		if !d.consumerMode {
+			d.consumerMode = true
 		}
 		//Consumer mode, the first file is deleted, no need fetch to read channel
 		//d.readSegmentFileNum=d.writeSegmentNum
@@ -723,7 +719,7 @@ func (d *diskQueue) handleReadError() {
 
 	badFn := d.GetFileName(d.readSegmentFileNum)
 
-	if util.FileExists(badFn){
+	if util.FileExists(badFn) {
 
 		badRenameFn := badFn + ".bad"
 		log.Infof(
@@ -801,7 +797,7 @@ func (d *diskQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					time.Sleep(1*time.Second)
+					time.Sleep(1 * time.Second)
 					d.handleReadError()
 					continue
 				}

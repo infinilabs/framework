@@ -5,7 +5,6 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/rotate"
-	"infini.sh/framework/lib/bytebufferpool"
 	"runtime"
 	"sync"
 	"time"
@@ -38,7 +37,6 @@ import (
 
 //处理 bulk 格式的数据索引。
 type BulkIndexingProcessor struct {
-	bufferPool           *bytebufferpool.Pool
 	config               *Config
 	runningConfigs       map[string]*queue.QueueConfig
 	wg                   sync.WaitGroup
@@ -143,10 +141,6 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		inFlightQueueConfigs: sync.Map{},
 	}
 
-	bulkSizeInByte := runner.config.BulkConfig.GetBulkSizeInBytes()
-	estimatedBulkSizeInByte := bulkSizeInByte + (bulkSizeInByte / 3)
-	runner.bufferPool = bytebufferpool.NewPool(uint64(estimatedBulkSizeInByte), uint64(bulkSizeInByte*2))
-
 	runner.wg = sync.WaitGroup{}
 
 	return &runner, nil
@@ -225,11 +219,11 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						}
 						//if have depth and not in in flight
 						//if queue.HasLag(v) {
-							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
-							if !ok {
-								log.Tracef("detecting new queue: %v", v.Name)
-								processor.HandleQueueConfig(v, c)
-							}
+						_, ok := processor.inFlightQueueConfigs.Load(v.Id)
+						if !ok {
+							log.Tracef("detecting new queue: %v", v.Name)
+							processor.HandleQueueConfig(v, c)
+						}
 						//}
 					}
 					if processor.config.DetectIntervalInMs > 0 {

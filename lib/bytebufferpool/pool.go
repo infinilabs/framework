@@ -1,7 +1,7 @@
 package bytebufferpool
 
 import (
-	"infini.sh/framework/core/stats"
+	log "github.com/cihub/seelog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -28,29 +28,35 @@ type Pool struct {
 	calls       [steps]uint64
 	calibrating uint64
 
-	defaultSize uint64
-	maxSize     uint64
+	defaultSize     uint64
+	maxDataByteSize uint64
+
+	maxItemCount uint64
+
+	//stats
+	allocate, get, put, throttle uint64
 
 	pool sync.Pool
 }
 
 func NewPool(defaultSize, maxSize uint64) *Pool {
-	p := Pool{defaultSize: defaultSize, maxSize: maxSize}
+	p := Pool{defaultSize: defaultSize, maxDataByteSize: maxSize}
 	return &p
 }
 
 //var defaultPool Pool
 
 var pools = sync.Map{}
-func getPoolByTag(tag string)(pool *Pool){
+
+func getPoolByTag(tag string) (pool *Pool) {
 
 	if x, ok := pools.Load(tag); ok {
-		pool= x.(*Pool)
+		pool = x.(*Pool)
 		if pool != nil {
 			return pool
 		}
-	}else{
-		pool=&Pool{}
+	} else {
+		pool = &Pool{}
 		pools.Store(tag, pool)
 	}
 
@@ -70,11 +76,7 @@ func Get(tag string) *ByteBuffer { return getPoolByTag(tag).Get(tag) }
 // in order to minimize GC overhead.
 func (p *Pool) Get(tag string) *ByteBuffer {
 
-	atomic.AddInt64(&get, 1)
-
-	//if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "get")
-	//}
+	atomic.AddUint64(&p.get, 1)
 
 	v := p.pool.Get()
 	if v != nil {
@@ -83,12 +85,9 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 		return x
 	}
 
-	if new > maxBufferCount {
+	if p.maxItemCount > 0 && p.allocate > p.maxItemCount {
 		time.Sleep(1 * time.Second)
-		atomic.AddInt64(&throttle, 1)
-		//if global.Env().IsDebug() {
-			stats.Increment("buffer_"+tag, "throttle")
-		//}
+		atomic.AddUint64(&p.throttle, 1)
 		return p.Get(tag)
 	}
 
@@ -96,36 +95,47 @@ func (p *Pool) Get(tag string) *ByteBuffer {
 		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
 	}
 
-	//add obj to stats
-	//if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "new")
-	//}
-	atomic.AddInt64(&new, 1)
-	buffers = append(buffers, x)
+	atomic.AddUint64(&p.allocate, 1)
 	return x
 }
 
-var buffers = []*ByteBuffer{}
-var new, get, put, throttle int64
-
-var maxBufferCount int64 = 5000
-var maxBufferSize int64
-
-func SetMaxBufferCount(size int64) {
-	atomic.StoreInt64(&maxBufferCount, size)
-}
-func SetMaxBufferSize(size int64) {
-	atomic.StoreInt64(&maxBufferSize, size)
+func SetMaxBufferCount(tag string, size uint64) {
+	atomic.StoreUint64(&getPoolByTag(tag).maxItemCount, size)
 }
 
-func BuffStats() (int64, int64, int64, int64, int, int) {
-	size := 0
-	count := 0
-	for _, v := range buffers {
-		count++
-		size += v.Len()
-	}
-	return new, get, put, throttle, count, size
+func SetMaxBufferSize(tag string, size uint64) {
+	atomic.StoreUint64(&getPoolByTag(tag).maxDataByteSize, size)
+}
+
+func BuffStats() map[string]interface{} {
+
+	var result = map[string]interface{}{}
+	var pool *Pool
+	pools.Range(func(key, value any) bool {
+		pool = value.(*Pool)
+		if pool == nil {
+			return false
+		}
+
+		item := map[string]interface{}{}
+		item["allocate"] = pool.allocate
+		item["get"] = pool.get
+		item["put"] = pool.put
+		item["throttle"] = pool.throttle
+
+		result[key.(string)] = item
+
+		//size := 0
+		//count := 0
+		//for _, v := range pool. {
+		//	count++
+		//	size += v.Cap()
+		//}
+
+		return true
+	})
+
+	return result
 }
 
 // Put returns byte buffer to the pool.
@@ -142,11 +152,7 @@ func Put(tag string, b *ByteBuffer) {
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(tag string, b *ByteBuffer) {
 
-	//if global.Env().IsDebug() {
-		stats.Increment("buffer_"+tag, "put")
-	//}
-
-	atomic.AddInt64(&put, 1)
+	atomic.AddUint64(&p.put, 1)
 
 	idx := index(len(b.B))
 
@@ -154,7 +160,7 @@ func (p *Pool) Put(tag string, b *ByteBuffer) {
 		p.calibrate()
 	}
 
-	maxSize := int(atomic.LoadUint64(&p.maxSize))
+	maxSize := int(atomic.LoadUint64(&p.maxDataByteSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
 		b.Reset()
 		p.pool.Put(b)
@@ -162,6 +168,9 @@ func (p *Pool) Put(tag string, b *ByteBuffer) {
 }
 
 func (p *Pool) calibrate() {
+
+	log.Debug("call calibrate")
+
 	if !atomic.CompareAndSwapUint64(&p.calibrating, 0, 1) {
 		return
 	}
@@ -195,7 +204,9 @@ func (p *Pool) calibrate() {
 	}
 
 	atomic.StoreUint64(&p.defaultSize, defaultSize)
-	atomic.StoreUint64(&p.maxSize, maxSize)
+	atomic.StoreUint64(&p.maxDataByteSize, maxSize)
+
+	log.Debug("max size:", maxSize)
 
 	atomic.StoreUint64(&p.calibrating, 0)
 }

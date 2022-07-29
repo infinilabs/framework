@@ -18,7 +18,6 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
 	"runtime"
 
 	"sync"
@@ -26,7 +25,6 @@ import (
 )
 
 type ActivityProcessor struct {
-	bufferPool           *bytebufferpool.Pool
 	config               *Config
 	runningConfigs       map[string]*queue.QueueConfig
 	bulkSizeInByte       int
@@ -36,12 +34,9 @@ type ActivityProcessor struct {
 	id                   string
 }
 
-
-func init()  {
+func init() {
 	pipeline.RegisterProcessorPlugin("activity", NewActivityProcessor)
 }
-
-
 
 func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
@@ -82,13 +77,10 @@ func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 		inFlightQueueConfigs: sync.Map{},
 	}
 
-	runner.bulkSizeInByte= 1048576 * runner.config.BulkSizeInMb
+	runner.bulkSizeInByte = 1048576 * runner.config.BulkSizeInMb
 	if runner.config.BulkSizeInKb > 0 {
 		runner.bulkSizeInByte = 1024 * runner.config.BulkSizeInKb
 	}
-
-	estimatedBulkSizeInByte := runner.bulkSizeInByte + (runner.bulkSizeInByte / 3)
-	runner.bufferPool = bytebufferpool.NewPool(uint64(estimatedBulkSizeInByte), uint64(runner.bulkSizeInByte*2))
 
 	runner.wg = sync.WaitGroup{}
 
@@ -119,13 +111,13 @@ func (processor *ActivityProcessor) Process(c *pipeline.Context) error {
 	}()
 
 	//handle updates
-	if processor.config.DetectActiveQueue{
-		log.Tracef("detector running [%v]",processor.detectorRunning)
-		if !processor.detectorRunning{
-			processor.detectorRunning=true
+	if processor.config.DetectActiveQueue {
+		log.Tracef("detector running [%v]", processor.detectorRunning)
+		if !processor.detectorRunning {
+			processor.detectorRunning = true
 			processor.wg.Add(1)
 			go func(c *pipeline.Context) {
-				log.Tracef("init detector for active queue [%v] ",processor.id)
+				log.Tracef("init detector for active queue [%v] ", processor.id)
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
@@ -141,7 +133,7 @@ func (processor *ActivityProcessor) Process(c *pipeline.Context) error {
 							log.Error("error in activity processor,", v)
 						}
 					}
-					processor.detectorRunning=false
+					processor.detectorRunning = false
 					log.Debug("exit detector for active queue")
 					processor.wg.Done()
 				}()
@@ -151,40 +143,40 @@ func (processor *ActivityProcessor) Process(c *pipeline.Context) error {
 						return
 					}
 
-					if global.Env().IsDebug{
-						log.Tracef("inflight queues: %v",util.MapLength(&processor.inFlightQueueConfigs))
+					if global.Env().IsDebug {
+						log.Tracef("inflight queues: %v", util.MapLength(&processor.inFlightQueueConfigs))
 						processor.inFlightQueueConfigs.Range(func(key, value interface{}) bool {
-							log.Tracef("inflight queue:%v",key)
+							log.Tracef("inflight queue:%v", key)
 							return true
 						})
 					}
 
 					cfgs := queue.GetConfigByLabels(processor.config.Queues)
-					for _,v:=range cfgs{
+					for _, v := range cfgs {
 						if c.IsCanceled() {
 							return
 						}
 						//if have depth and not in in flight
-						if queue.HasLag(v){
-							_,ok:=processor.inFlightQueueConfigs.Load(v.Id)
-							if !ok{
-								log.Tracef("detecting new queue: %v",v.Name)
-								processor.HandleQueueConfig(v,c)
+						if queue.HasLag(v) {
+							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
+							if !ok {
+								log.Tracef("detecting new queue: %v", v.Name)
+								processor.HandleQueueConfig(v, c)
 							}
 						}
 					}
-					if processor.config.DetectIntervalInMs>0{
-						time.Sleep(time.Millisecond*time.Duration(processor.config.DetectIntervalInMs))
+					if processor.config.DetectIntervalInMs > 0 {
+						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
 					}
 				}
 			}(c)
 		}
-	}else{
+	} else {
 		cfgs := queue.GetConfigByLabels(processor.config.Queues)
 		log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Queues, len(cfgs))
-		for _,v:=range cfgs{
-			log.Tracef("checking queue: %v",v)
-			processor.HandleQueueConfig(v,c)
+		for _, v := range cfgs {
+			log.Tracef("checking queue: %v", v)
+			processor.HandleQueueConfig(v, c)
 		}
 	}
 
@@ -212,12 +204,12 @@ func (processor *ActivityProcessor) HandleQueueConfig(v *queue.QueueConfig, c *p
 
 	meta := elastic.GetMetadata(util.ToString(elasticsearch))
 	if meta == nil {
-		log.Debugf("metadata for [%v] is nil",elasticsearch)
+		log.Debugf("metadata for [%v] is nil", elasticsearch)
 		return
 	}
 
 	host := meta.GetActiveHost()
-	log.Debugf("random choose node [%v] to consume queue [%v]",host,v.Id)
+	log.Debugf("random choose node [%v] to consume queue [%v]", host, v.Id)
 	processor.wg.Add(1)
 
 	//go processor.NewBulkWorker("bulk_indexing_"+host,c, processor.bulkSizeInByte, v, host)
@@ -245,27 +237,27 @@ func (processor *ActivityProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 		log.Tracef("exit %s processor", processor.Name())
 	}()
 
-	key:=qConfig.Id
+	key := qConfig.Id
 
-	if processor.config.MaxWorkers>0&&util.MapLength(&processor.inFlightQueueConfigs)>processor.config.MaxWorkers{
-		log.Debugf("reached max num of workers, skip init [%v]",qConfig.Name)
+	if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
+		log.Debugf("reached max num of workers, skip init [%v]", qConfig.Name)
 		return
 	}
 
-	var workerID=util.GetUUID()
-	_,exists:= processor.inFlightQueueConfigs.Load(key)
-	if exists{
-		log.Errorf("queue [%v] has more then one consumer",qConfig.Id)
+	var workerID = util.GetUUID()
+	_, exists := processor.inFlightQueueConfigs.Load(key)
+	if exists {
+		log.Errorf("queue [%v] has more then one consumer", qConfig.Id)
 		return
 	}
 
-	processor.inFlightQueueConfigs.Store(key,workerID)
-	log.Debugf("starting worker:[%v], queue:[%v]",workerID, qConfig.Name)
-	var consumer=queue.GetOrInitConsumerConfig(qConfig.Id,processor.config.Consumer.Group,processor.config.Consumer.Name)
-	initOffset,_:=queue.GetOffset(qConfig,consumer)
-	offset:= initOffset
+	processor.inFlightQueueConfigs.Store(key, workerID)
+	log.Debugf("starting worker:[%v], queue:[%v]", workerID, qConfig.Name)
+	var consumer = queue.GetOrInitConsumerConfig(qConfig.Id, processor.config.Consumer.Group, processor.config.Consumer.Name)
+	initOffset, _ := queue.GetOffset(qConfig, consumer)
+	offset := initOffset
 	defer func() {
-		log.Debugf("worker:[%v] start consume queue:[%v] offset:%v",workerID,qConfig.Id,offset)
+		log.Debugf("worker:[%v] start consume queue:[%v] offset:%v", workerID, qConfig.Id, offset)
 	}()
 
 	for {
@@ -275,16 +267,16 @@ func (processor *ActivityProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 
 		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer, offset)
 
-		if timeout{
-			log.Tracef("timeout on queue:[%v]",qConfig.Name)
+		if timeout {
+			log.Tracef("timeout on queue:[%v]", qConfig.Name)
 			ctx.Failed()
 			return
 		}
 
 		if err != nil {
-			log.Tracef("error on queue:[%v]",qConfig.Name)
-			if err.Error()=="EOF" {
-				if len(messages)>0{
+			log.Tracef("error on queue:[%v]", qConfig.Name)
+			if err.Error() == "EOF" {
+				if len(messages) > 0 {
 					goto HANDLE_MESSAGE
 				}
 				return
@@ -295,7 +287,7 @@ func (processor *ActivityProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 	HANDLE_MESSAGE:
 
 		//update temp offset, not committed, continued reading
-		offset=ctx1.NextOffset
+		offset = ctx1.NextOffset
 
 		if len(messages) > 0 {
 			for _, pop := range messages {
@@ -316,18 +308,18 @@ func (processor *ActivityProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 			}
 		}
 		if err == nil {
-			if offset!=""&& initOffset !=offset{
-				ok,err:=queue.CommitOffset(qConfig,consumer,offset)
-				if !ok||err!=nil{
+			if offset != "" && initOffset != offset {
+				ok, err := queue.CommitOffset(qConfig, consumer, offset)
+				if !ok || err != nil {
 					panic(err)
 				}
 			}
-		}else{
+		} else {
 			log.Error(err)
 		}
 	}
 }
-func (processor *ActivityProcessor) HandleActivity(activityByte []byte) error{
+func (processor *ActivityProcessor) HandleActivity(activityByte []byte) error {
 	// save activity
 	activityInfo := &event.Activity{}
 	json.Unmarshal(activityByte, activityInfo)
