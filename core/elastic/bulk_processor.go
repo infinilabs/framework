@@ -452,8 +452,8 @@ DO:
 
 		return true, nil
 	} else if resp.StatusCode() == 429 {
+		time.Sleep(1 * time.Second)
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "429_requests")
-
 		return false, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
 	} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
 
