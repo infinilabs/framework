@@ -88,7 +88,7 @@ env:
 	@echo FRAMEWORK_FOLDER：$(FRAMEWORK_FOLDER)
 	@echo FRAMEWORK_VENDOR_FOLDER：$(FRAMEWORK_VENDOR_FOLDER)
 
-build: config update-plugins
+build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
@@ -212,7 +212,7 @@ update-vfs:
 	@if [ ! -e ~/vfs ]; then (cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs ~/) fi
 	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && ~/vfs -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
 
-config: init update-vfs update-generated-file
+config: init update-vfs update-generated-file update-plugins
 	@echo "update configs"
 	@# $(GO) env
 	@mkdir -p $(OUTPUT_DIR)
