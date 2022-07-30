@@ -19,20 +19,20 @@ import (
 
 type Context struct {
 	//Metadata   map[string]interface{} `config:"metadata" json:"metadata"`
-	NextOffset string                  `config:"next_offset" json:"next_offset"`
-	InitOffset string 				   `config:"init_offset" json:"init_offset"`
+	NextOffset string `config:"next_offset" json:"next_offset"`
+	InitOffset string `config:"init_offset" json:"init_offset"`
 }
 
 type Message struct {
-	Timestamp int64 `config:"timestamp" json:"timestamp"`
-	Offset string   `config:"offset" json:"offset"` //current offset
-	NextOffset string   `config:"next_offset" json:"next_offset"` //offset for next message
-	Size int64      `config:"size" json:"size"`
-	Data []byte     `config:"data" json:"data"`
+	Timestamp  int64  `config:"timestamp" json:"timestamp"`
+	Offset     string `config:"offset" json:"offset"`           //current offset
+	NextOffset string `config:"next_offset" json:"next_offset"` //offset for next message
+	Size       int64  `config:"size" json:"size"`
+	Data       []byte `config:"data" json:"data"`
 }
 
 type QueueAPI interface {
-	Name()string
+	Name() string
 	Init(string) error
 	Push(string, []byte) error
 	Pop(string, time.Duration) (data []byte, timeout bool)
@@ -56,6 +56,34 @@ type QueueConfig struct {
 	Codec  string      `config:"codec" json:"codec,omitempty"`
 	Type   string      `config:"type" json:"type,omitempty"`
 	Labels util.MapStr `config:"label" json:"label,omitempty"`
+}
+
+var queueConfigPool = sync.Pool{
+	New: func() interface{} {
+		return new(QueueConfig)
+	},
+}
+
+func AcquireQueueConfig() *QueueConfig {
+
+	cfg := queueConfigPool.Get().(*QueueConfig)
+	cfg.Id = ""
+	cfg.Name = ""
+	cfg.Type = ""
+	cfg.Codec = ""
+	cfg.Source = ""
+	cfg.Labels = util.MapStr{}
+	return cfg
+}
+
+func ReturnQueueConfig(cfg *QueueConfig) {
+	cfg.Id = ""
+	cfg.Name = ""
+	cfg.Type = ""
+	cfg.Codec = ""
+	cfg.Source = ""
+	cfg.Labels = nil
+	queueConfigPool.Put(cfg)
 }
 
 type ConsumerConfig struct {
@@ -142,7 +170,7 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 
 		//async notify
 		go func() {
-			for _,f:=range queueConfigListener {
+			for _, f := range queueConfigListener {
 				f(cfg)
 			}
 		}()
@@ -153,44 +181,44 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 
 const consumerBucket = "queue_consumers"
 
-func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error){
+func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
 
-	queueIDBytes:=util.UnsafeStringToBytes(queueID)
-	ok,_:=kv.ExistsKey(consumerBucket,queueIDBytes)
+	queueIDBytes := util.UnsafeStringToBytes(queueID)
+	ok, _ := kv.ExistsKey(consumerBucket, queueIDBytes)
 
-	cfgs:=map[string]*ConsumerConfig{}
-	if ok{
-		data,err:=kv.GetValue(consumerBucket,queueIDBytes)
-		if err!=nil{
+	cfgs := map[string]*ConsumerConfig{}
+	if ok {
+		data, err := kv.GetValue(consumerBucket, queueIDBytes)
+		if err != nil {
 			panic(err)
 		}
-		err=util.FromJSONBytes(data,&cfgs)
-		if err!=nil{
+		err = util.FromJSONBytes(data, &cfgs)
+		if err != nil {
 			panic(err)
 		}
 	}
 
-	cfgs[consumer.Key()]=consumer
+	cfgs[consumer.Key()] = consumer
 
-	kv.AddValue(consumerBucket,queueIDBytes,util.MustToJSONBytes(cfgs))
+	kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 
 	//async notify
 	go func() {
-		for _,f:=range consumerConfigListener {
-			f(queueID,cfgs)
+		for _, f := range consumerConfigListener {
+			f(queueID, cfgs)
 		}
 	}()
 
 	return false, nil
 }
 
-func GetConsumerConfig(queueID,group,name string) (*ConsumerConfig, bool) {
+func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
 
-	queueIDBytes:=util.UnsafeStringToBytes(queueID)
+	queueIDBytes := util.UnsafeStringToBytes(queueID)
 	cfgs := map[string]*ConsumerConfig{}
 	data, err := kv.GetValue(consumerBucket, queueIDBytes)
 	if err != nil {
@@ -281,38 +309,38 @@ func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bo
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
 
-	queueIDBytes:=util.UnsafeStringToBytes(queueID)
-	cfgs:=map[string]*ConsumerConfig{}
-	data,err:=kv.GetValue(consumerBucket,queueIDBytes)
-	if err!=nil{
+	queueIDBytes := util.UnsafeStringToBytes(queueID)
+	cfgs := map[string]*ConsumerConfig{}
+	data, err := kv.GetValue(consumerBucket, queueIDBytes)
+	if err != nil {
 		panic(err)
 	}
 	//TODO optimize performance
-	err=util.FromJSONBytes(data,&cfgs)
-	if err!=nil{
+	err = util.FromJSONBytes(data, &cfgs)
+	if err != nil {
 		panic(err)
 	}
 
-	if cfgs!=nil{
-		return cfgs,len(cfgs)>0
+	if cfgs != nil {
+		return cfgs, len(cfgs) > 0
 	}
 
 	return nil, false
 }
 
-func GetConsumerConfigID(queueID,consumerID string) (*ConsumerConfig, bool) {
-	m,ok:=GetConsumerConfigsByQueueID(queueID)
-	if ok{
-		for _,v:=range m{
-			if v.Id==consumerID{
-				return v,true
+func GetConsumerConfigID(queueID, consumerID string) (*ConsumerConfig, bool) {
+	m, ok := GetConsumerConfigsByQueueID(queueID)
+	if ok {
+		for _, v := range m {
+			if v.Id == consumerID {
+				return v, true
 			}
 		}
 	}
-	return nil,false
+	return nil, false
 }
 
-func GetAllConfigBytes()[]byte {
+func GetAllConfigBytes() []byte {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 	return util.MustToJSONBytes(configs)
@@ -363,10 +391,10 @@ func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Cont
 		ctx, messages, isTimeout, err = handler.Consume(k, consumer, offset)
 
 		if !isTimeout {
-			stats.Increment("queue",k.Id, "consume")
-			return ctx, messages,isTimeout,err
+			stats.Increment("queue", k.Id, "consume")
+			return ctx, messages, isTimeout, err
 		}
-		stats.Increment("queue",k.Id, "consume_timeout")
+		stats.Increment("queue", k.Id, "consume_timeout")
 		return ctx, messages, isTimeout, err
 	}
 	panic(errors.New("handler is not registered"))
@@ -390,9 +418,9 @@ func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, ti
 
 		o, timeout := handler.Pop(k.Id, timeoutInSeconds)
 		if !timeout {
-			stats.Increment("queue",k.Id, "pop")
+			stats.Increment("queue", k.Id, "pop")
 		}
-		stats.Increment("queue,",k.Id, "pop_timeout")
+		stats.Increment("queue,", k.Id, "pop_timeout")
 		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
@@ -417,53 +445,53 @@ func getCommitKey(k *QueueConfig, consumer *ConsumerConfig) string {
 	return fmt.Sprintf("%v-%v", k.Id, consumer.Id)
 }
 
-const consumerOffsetBucket ="queue_consumer_commit_offset"
+const consumerOffsetBucket = "queue_consumer_commit_offset"
 
-func GetEarlierOffsetStrByQueueID(queueID string) (string) {
-	_,seg,pos:=GetEarlierOffsetByQueueID(queueID)
-	offset:=fmt.Sprintf("%v,%v",seg,pos)
+func GetEarlierOffsetStrByQueueID(queueID string) string {
+	_, seg, pos := GetEarlierOffsetByQueueID(queueID)
+	offset := fmt.Sprintf("%v,%v", seg, pos)
 	return offset
 }
 
-func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,pos int64) {
-	q,ok:=GetConfigByUUID(queueID)
-	if !ok{
+func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {
+	q, ok := GetConfigByUUID(queueID)
+	if !ok {
 		q, ok = GetConfigByKey(queueID)
-		oldID:=queueID
-		queueID=q.Id
-		if !ok{
-			panic(errors.Errorf("queue [%v] was not found",queueID))
+		oldID := queueID
+		queueID = q.Id
+		if !ok {
+			panic(errors.Errorf("queue [%v] was not found", queueID))
 		}
-		if global.Env().IsDebug{
-			log.Tracef("[%v] is not a valid uuid, found as key, continue as [%v]",oldID,queueID)
+		if global.Env().IsDebug {
+			log.Tracef("[%v] is not a valid uuid, found as key, continue as [%v]", oldID, queueID)
 		}
 	}
-	consumers,ok:=GetConsumerConfigsByQueueID(queueID)
-	if !ok{
-		return 0,0,0
+	consumers, ok := GetConsumerConfigsByQueueID(queueID)
+	if !ok {
+		return 0, 0, 0
 	}
 	var iPart int64
 	var iPos int64
-	var init =true
-	for _,v:=range consumers{
-		offset,err:=GetOffset(q,v)
-		if err==nil{
-			str:=strings.Split(offset,",")
-			if len(str)==2{
-				part,err:= util.ToInt64(str[0])
-				if err==nil{
-					pos,err:= util.ToInt64(str[1])
-					if err==nil{
-						if init{
-							iPart=part
+	var init = true
+	for _, v := range consumers {
+		offset, err := GetOffset(q, v)
+		if err == nil {
+			str := strings.Split(offset, ",")
+			if len(str) == 2 {
+				part, err := util.ToInt64(str[0])
+				if err == nil {
+					pos, err := util.ToInt64(str[1])
+					if err == nil {
+						if init {
+							iPart = part
 							iPos = pos
-							init=false
-						}else{
+							init = false
+						} else {
 							if pos < iPos {
 								iPos = pos
 							}
-							if part<iPart{
-								iPart=part
+							if part < iPart {
+								iPart = part
 							}
 						}
 					}
@@ -471,7 +499,7 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 			}
 		}
 	}
-	return len(consumers),iPart, iPos
+	return len(consumers), iPart, iPos
 }
 
 func GetOffset(k *QueueConfig, consumer *ConsumerConfig) (string, error) {
