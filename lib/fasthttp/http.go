@@ -726,7 +726,7 @@ func (req *Request) SetBodyString(body string) {
 	req.rawBody = nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
-	req.bodyBuffer().Set(s2b(body))
+	req.bodyBuffer().SetString(body)
 }
 
 // ResetBody resets request body.
