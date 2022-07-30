@@ -1,6 +1,7 @@
 package bytebufferpool
 
 import (
+	"errors"
 	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
@@ -40,9 +41,10 @@ type Pool struct {
 	//stats
 	inuse, poolByteSize int64
 
-	pool        sync.Pool
-	sequenceID  int64
-	inUseBuffer sync.Map //map[int64]*ByteBuffer
+	pool         sync.Pool
+	sequenceID   int64
+	inUseBuffer  sync.Map //map[int64]*ByteBuffer
+	throttleTime *time.Time
 }
 
 func NewTaggedPool(tag string, defaultSize, maxSize uint64, maxItems int64) *Pool {
@@ -71,7 +73,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 			return pool
 		}
 	} else {
-		pool = NewTaggedPool(tag, 0, 0, 100)
+		pool = NewTaggedPool(tag, 0, 0, 1000)
 	}
 
 	return pool
@@ -86,6 +88,8 @@ func Get(tag string) *ByteBuffer {
 	return getPoolByTag(tag).Get()
 }
 
+var bufferFullErr = errors.New("running out of bytes buffer")
+
 // Get returns new byte buffer with zero length.
 //
 // The byte buffer may be returned to the pool via Put after the use
@@ -94,7 +98,22 @@ func (p *Pool) Get() *ByteBuffer {
 	if p.maxItemCount > 0 && p.inuse > p.maxItemCount {
 		time.Sleep(1 * time.Second)
 		atomic.AddUint64(&p.throttle, 1)
+
+		var t1 time.Time
+		if p.throttleTime == nil {
+			t1 = time.Now()
+			p.throttleTime = &t1
+		}
+
+		if time.Since(t1) > 10*time.Second {
+			panic(bufferFullErr)
+		}
+
 		return p.Get()
+	}
+
+	if p.throttleTime != nil {
+		p.throttleTime = nil
 	}
 
 	atomic.AddInt64(&p.inuse, 1)
