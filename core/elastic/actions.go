@@ -158,14 +158,23 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 
 
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedEndpoint() string {
+	var endpoint string
 	hosts:= meta.GetSeedHosts()
 	if len(hosts)>0{
-		return meta.GetActivePreferredEndpoints(hosts)
+		endpoint = meta.GetActivePreferredEndpoints(hosts)
+	}else{
+		endpoint = meta.GetActiveEndpoint()
 	}
-	return meta.GetActiveEndpoint()
+	if strings.TrimSpace(endpoint) == "" {
+		return meta.Config.Endpoint
+	}
+	return endpoint
 }
 
 func (meta *ElasticsearchMetadata) GetActivePreferredEndpoint(host string) string {
+	if strings.TrimSpace(host) == "" {
+		return meta.Config.Endpoint
+	}
 	return meta.GetActivePreferredEndpoints([]string{host})
 }
 

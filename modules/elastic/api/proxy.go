@@ -6,6 +6,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/lib/fasthttp"
@@ -60,9 +61,10 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusForbidden)
 		return
 	}
-	if permission == "" {
+	if permission == "" && api.IsAuthEnable(){
 		resBody["error"] = "unknown request path"
 		h.WriteJSON(w, resBody, http.StatusForbidden)
+		return
 	}
 	//if permission != "" {
 	//	if permission == "cat.indices" || permission == "cat.shards" {
@@ -100,6 +102,14 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		method = http.MethodPost
 	}
 	freq.Header.SetMethod(method)
+	freq.Header.SetUserAgent(req.Header.Get("user-agent"))
+	freq.Header.SetReferer(endpoint)
+	rurl, _ := url.Parse(endpoint)
+	if rurl != nil {
+		freq.Header.SetHost(rurl.Host)
+		freq.Header.SetRequestURI(rurl.RequestURI())
+	}
+
 
 	freq.SetBodyStream(req.Body, -1)
 	defer req.Body.Close()
