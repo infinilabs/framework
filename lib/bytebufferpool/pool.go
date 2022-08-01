@@ -1,7 +1,8 @@
 package bytebufferpool
 
 import (
-	log "github.com/cihub/seelog"
+	"errors"
+	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -25,22 +26,38 @@ const (
 // Properly determined byte buffer types with their own pools may help reducing
 // memory waste.
 type Pool struct {
+	Tag         string
 	calls       [steps]uint64
 	calibrating uint64
 
 	defaultSize     uint64
 	maxDataByteSize uint64
 
-	maxItemCount uint64
+	maxItemCount int64
 
 	//stats
-	allocate, get, put, throttle uint64
+	allocate, acquire, returned, notReturn, throttle, cap uint64
 
-	pool sync.Pool
+	//stats
+	inuse, poolByteSize int64
+
+	pool         sync.Pool
+	sequenceID   int64
+	inUseBuffer  sync.Map //map[int64]*ByteBuffer
+	throttleTime *time.Time
+}
+
+func NewTaggedPool(tag string, defaultSize, maxSize uint64, maxItems int64) *Pool {
+	pool := NewPool(defaultSize, maxSize)
+	pool.Tag = tag
+	pool.maxItemCount = maxItems
+	pools.Store(tag, pool)
+	return pool
 }
 
 func NewPool(defaultSize, maxSize uint64) *Pool {
-	p := Pool{defaultSize: defaultSize, maxDataByteSize: maxSize}
+	p := Pool{defaultSize: defaultSize, maxItemCount: 100, maxDataByteSize: maxSize}
+	p.inUseBuffer = sync.Map{}
 	return &p
 }
 
@@ -56,8 +73,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 			return pool
 		}
 	} else {
-		pool = &Pool{}
-		pools.Store(tag, pool)
+		pool = NewTaggedPool(tag, 0, 0, 1000)
 	}
 
 	return pool
@@ -68,39 +84,65 @@ func getPoolByTag(tag string) (pool *Pool) {
 // Got byte buffer may be returned to the pool via Put call.
 // This reduces the number of memory allocations required for byte buffer
 // management.
-func Get(tag string) *ByteBuffer { return getPoolByTag(tag).Get(tag) }
+func Get(tag string) *ByteBuffer {
+	return getPoolByTag(tag).Get()
+}
+
+var bufferFullErr = errors.New("running out of bytes buffer")
 
 // Get returns new byte buffer with zero length.
 //
 // The byte buffer may be returned to the pool via Put after the use
 // in order to minimize GC overhead.
-func (p *Pool) Get(tag string) *ByteBuffer {
+func (p *Pool) Get() *ByteBuffer {
+	if p.maxItemCount > 0 && p.inuse > p.maxItemCount {
+		time.Sleep(1 * time.Second)
+		atomic.AddUint64(&p.throttle, 1)
 
-	atomic.AddUint64(&p.get, 1)
+		var t1 time.Time
+		if p.throttleTime == nil {
+			t1 = time.Now()
+			p.throttleTime = &t1
+		}
+
+		if time.Since(t1) > 10*time.Second {
+			panic(bufferFullErr)
+		}
+
+		return p.Get()
+	}
+
+	if p.throttleTime != nil {
+		p.throttleTime = nil
+	}
+
+	atomic.AddInt64(&p.inuse, 1)
+	atomic.AddUint64(&p.acquire, 1)
 
 	v := p.pool.Get()
 	if v != nil {
 		x := v.(*ByteBuffer)
 		x.Reset()
+		atomic.AddInt64(&p.poolByteSize, int64((x.Cap())*-1))
+
+		p.inUseBuffer.Store(x.ID, x)
 		return x
 	}
 
-	if p.maxItemCount > 0 && p.allocate > p.maxItemCount {
-		time.Sleep(1 * time.Second)
-		atomic.AddUint64(&p.throttle, 1)
-		return p.Get(tag)
-	}
-
+	id := atomic.AddInt64(&p.sequenceID, 1)
 	x := &ByteBuffer{
-		B: make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
+		ID: id,
+		B:  make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
 	}
 
 	atomic.AddUint64(&p.allocate, 1)
+
+	p.inUseBuffer.Store(x.ID, x)
 	return x
 }
 
-func SetMaxBufferCount(tag string, size uint64) {
-	atomic.StoreUint64(&getPoolByTag(tag).maxItemCount, size)
+func SetMaxBufferCount(tag string, size int64) {
+	atomic.StoreInt64(&getPoolByTag(tag).maxItemCount, size)
 }
 
 func SetMaxBufferSize(tag string, size uint64) {
@@ -118,19 +160,33 @@ func BuffStats() map[string]interface{} {
 		}
 
 		item := map[string]interface{}{}
-		item["allocate"] = pool.allocate
-		item["get"] = pool.get
-		item["put"] = pool.put
-		item["throttle"] = pool.throttle
+		item["allocated"] = pool.allocate
+		item["acquired"] = pool.acquire
+		item["returned"] = pool.returned
+		item["dropped"] = pool.notReturn
+		item["throttled"] = pool.throttle
+
+		item["inuse"] = pool.inuse
+
+		item["pool_size"] = pool.poolByteSize
+
+		var inuse = 0
+		pool.inUseBuffer.Range(func(key, value any) bool {
+
+			x, ok := value.(*ByteBuffer)
+			if ok {
+				inuse += x.Cap()
+			}
+
+			return true
+		})
+
+		item["inuse_size"] = inuse
+
+		item["max_size"] = pool.maxDataByteSize
+		item["max_count"] = pool.maxItemCount
 
 		result[key.(string)] = item
-
-		//size := 0
-		//count := 0
-		//for _, v := range pool. {
-		//	count++
-		//	size += v.Cap()
-		//}
 
 		return true
 	})
@@ -143,16 +199,18 @@ func BuffStats() map[string]interface{} {
 // ByteBuffer.B mustn't be touched after returning it to the pool.
 // Otherwise data races will occur.
 func Put(tag string, b *ByteBuffer) {
+	stats.Gauge("buffer.put", tag, int64(b.Cap()))
 	b.Reset()
-	getPoolByTag(tag).Put(tag, b)
+	getPoolByTag(tag).Put(b)
 }
 
 // Put releases byte buffer obtained via Get to the pool.
 //
 // The buffer mustn't be accessed after returning to the pool.
-func (p *Pool) Put(tag string, b *ByteBuffer) {
+func (p *Pool) Put(b *ByteBuffer) {
 
-	atomic.AddUint64(&p.put, 1)
+	atomic.AddInt64(&p.inuse, -1)
+	p.inUseBuffer.Delete(b.ID)
 
 	idx := index(len(b.B))
 
@@ -164,12 +222,15 @@ func (p *Pool) Put(tag string, b *ByteBuffer) {
 	if maxSize == 0 || cap(b.B) <= maxSize {
 		b.Reset()
 		p.pool.Put(b)
+		atomic.AddUint64(&p.returned, 1)
+		atomic.AddInt64(&p.poolByteSize, int64(b.Cap()))
+	} else {
+		atomic.AddUint64(&p.notReturn, 1)
+		b = nil
 	}
 }
 
 func (p *Pool) calibrate() {
-
-	log.Debug("call calibrate")
 
 	if !atomic.CompareAndSwapUint64(&p.calibrating, 0, 1) {
 		return
@@ -205,8 +266,6 @@ func (p *Pool) calibrate() {
 
 	atomic.StoreUint64(&p.defaultSize, defaultSize)
 	atomic.StoreUint64(&p.maxDataByteSize, maxSize)
-
-	log.Debug("max size:", maxSize)
 
 	atomic.StoreUint64(&p.calibrating, 0)
 }

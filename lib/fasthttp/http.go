@@ -451,7 +451,7 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		req.body = bytebufferpool.Get("fasthttp_reqbody_buffer")
+		req.body = fastHttpReqbodyBufferPool.Get()
 	}
 	return req.body
 }
@@ -616,7 +616,7 @@ func (req *Request) ReleaseBody(size int) {
 	req.rawBody = nil
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
-		bytebufferpool.Put("fasthttp_reqbody_buffer", req.body)
+		fastHttpReqbodyBufferPool.Put(req.body)
 		req.body = nil
 
 	}
@@ -726,7 +726,7 @@ func (req *Request) SetBodyString(body string) {
 	req.rawBody = nil
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
-	req.bodyBuffer().Set(s2b(body))
+	req.bodyBuffer().SetString(body)
 }
 
 // ResetBody resets request body.
@@ -738,7 +738,7 @@ func (req *Request) ResetBody() {
 		if req.keepBodyBuffer {
 			req.body.Reset()
 		} else {
-			bytebufferpool.Put("fasthttp_reqbody_buffer", req.body)
+			fastHttpReqbodyBufferPool.Put(req.body)
 			req.body = nil
 		}
 	}

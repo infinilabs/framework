@@ -990,6 +990,8 @@ var (
 	responsePool sync.Pool
 )
 
+var fastHttpReqbodyBufferPool = bytebufferpool.NewTaggedPool("fasthttp_reqbody_buffer", 0, 0, 1000)
+
 // AcquireRequest returns an empty Request instance from request pool.
 //
 // The returned Request instance may be passed to ReleaseRequest when it is
@@ -1001,7 +1003,7 @@ func AcquireRequest() *Request {
 		return &Request{}
 	}
 	x := v.(*Request)
-	x.body = bytebufferpool.Get("fasthttp_reqbody_buffer")
+	x.body = fastHttpReqbodyBufferPool.Get()
 	x.Reset()
 	return x
 }

@@ -1,6 +1,8 @@
 package bytebufferpool
 
-import "io"
+import (
+	"io"
+)
 
 // ByteBuffer provides byte buffer, which can be used for minimizing
 // memory allocations.
@@ -10,7 +12,7 @@ import "io"
 //
 // Use Get for obtaining an empty byte buffer.
 type ByteBuffer struct {
-
+	ID int64
 	// B is a byte buffer to use in append-like workloads.
 	// See example code for details.
 	B []byte

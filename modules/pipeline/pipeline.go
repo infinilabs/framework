@@ -274,7 +274,7 @@ func (module *PipeModule) Stop() error {
 	CLOSING:
 
 		for k, v := range module.contexts {
-			if v.GetRunningState()==pipeline.FINISHED||v.GetRunningState()==pipeline.STARTED||v.GetRunningState()==pipeline.STARTED{
+			if v.GetRunningState() == pipeline.FINISHED || v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTED {
 				progress.RegisterBar("pipeline", "shutdown", 1)
 
 				if global.Env().IsDebug {
@@ -299,8 +299,6 @@ func (module *PipeModule) Stop() error {
 					return errors.New("pipeline framework failure to stop tasks, quiting")
 				}
 				goto CLOSING
-			} else {
-				progress.IncreaseWithTotal("pipeline", "shutdown", 1, len(module.contexts))
 			}
 		}
 		module.started = false
