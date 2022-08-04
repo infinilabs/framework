@@ -7,9 +7,9 @@ package agent
 
 var stateManager IStateManager
 
-func GetServiceInstance() IStateManager {
+func GetStateManager() IStateManager {
 	if stateManager == nil {
-		panic("agent service not init")
+		panic("agent state manager not init")
 	}
 	return stateManager
 }
@@ -24,4 +24,7 @@ type IStateManager interface {
 	DispatchAgent(clusterID string) (*Instance, error)
 	GetTaskAgent(clusterID string) (*Instance, error)
 	SetTaskAgent(clusterID, agentID string) error
+	DeleteAgent(agentID string) error
+	LoopState()
+	Stop()
 }
