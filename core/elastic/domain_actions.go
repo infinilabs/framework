@@ -64,16 +64,16 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 }
 
 func GetOrInitHost(host string, clusterID string) *NodeAvailable {
-	if host==""{
+	if host == "" {
 		return nil
 	}
 
 	v1, loaded := hosts.Load(host)
 	if loaded {
 		return v1.(*NodeAvailable)
-	}else{
-		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host),ClusterID: clusterID}
-		hosts.Store(host,v1)
+	} else {
+		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host), ClusterID: clusterID}
+		hosts.Store(host, v1)
 	}
 	return v1.(*NodeAvailable)
 }
@@ -120,8 +120,8 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 		versionLock.Lock()
 		defer versionLock.Unlock()
 
-		v:=meta.Config.ParseMajorVersion()
-		if v>0{
+		v := meta.Config.ParseMajorVersion()
+		if v > 0 {
 			versions[meta.Config.ID] = v
 			return v
 		}
@@ -191,6 +191,21 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
+func GetClientNoPanic(k string) API {
+	if k == "" {
+		panic(fmt.Errorf("elasticsearch id is nil"))
+	}
+
+	v, ok := apis.Load(k)
+	if ok {
+		f, ok := v.(API)
+		if ok {
+			return f
+		}
+	}
+	return nil
+}
+
 //最后返回的为判断是否继续 walk
 func WalkMetadata(walkFunc func(key, value interface{}) bool) {
 	metas.Range(walkFunc)
@@ -219,29 +234,29 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 
 func IsHostDead(host string) bool {
 	info, ok := hosts.Load(host)
-	if info!=nil&&ok {
+	if info != nil && ok {
 		return info.(*NodeAvailable).IsDead()
 	}
 	log.Debugf("no available info for host [%v]", host)
 	return false
 }
 
-func GetHostAvailableInfo(host string) (*NodeAvailable,bool) {
-	info, ok :=hosts.Load(host)
-	if ok&&info!=nil{
-		return info.(*NodeAvailable),ok
+func GetHostAvailableInfo(host string) (*NodeAvailable, bool) {
+	info, ok := hosts.Load(host)
+	if ok && info != nil {
+		return info.(*NodeAvailable), ok
 	}
 	return nil, false
 }
 
 func IsHostAvailable(host string) bool {
 	info, ok := GetHostAvailableInfo(host)
-	if ok && info!=nil{
+	if ok && info != nil {
 		return info.IsAvailable()
-	}else{
-		arry:=strings.Split(host,":")
-		if len(arry)==2{
-			if !util.TestTCPPort(arry[0],arry[1]){
+	} else {
+		arry := strings.Split(host, ":")
+		if len(arry) == 2 {
+			if !util.TestTCPPort(arry[0], arry[1]) {
 				return false
 			}
 		}
@@ -291,22 +306,20 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 }
 
 func (node *NodesInfo) GetHttpPublishHost() string {
-	if util.ContainStr(node.Http.PublishAddress,"/"){
-		if global.Env().IsDebug{
+	if util.ContainStr(node.Http.PublishAddress, "/") {
+		if global.Env().IsDebug {
 			log.Tracef("node's public address contains `/`,try to remove prefix")
 		}
-		arr:=strings.Split(node.Http.PublishAddress,"/")
-		if len(arr)==2{
+		arr := strings.Split(node.Http.PublishAddress, "/")
+		if len(arr) == 2 {
 			return arr[1]
 		}
 	}
 	return node.Http.PublishAddress
 }
 
-
 var clients = map[string]*fasthttp.Client{}
 var clientLock sync.RWMutex
-
 
 func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) string {
 
@@ -382,7 +395,7 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string, req
 
 		if time.Now().Sub(startTime) < maxTime {
 
-			if metadata.Config.TrafficControl.MaxQpsPerNode > 0 && req>0 {
+			if metadata.Config.TrafficControl.MaxQpsPerNode > 0 && req > 0 {
 				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_qps", int(metadata.Config.TrafficControl.MaxQpsPerNode)).Allow() {
 					stats.Increment(metadata.Config.ID, "req-max_qps_throttled")
 					if global.Env().IsDebug {
@@ -393,7 +406,7 @@ func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string, req
 				}
 			}
 
-			if metadata.Config.TrafficControl.MaxBytesPerNode > 0 &&dataSize>0{
+			if metadata.Config.TrafficControl.MaxBytesPerNode > 0 && dataSize > 0 {
 				if !rate.GetRateLimiterPerSecond(metadata.Config.ID, "req-max_bps",
 					int(metadata.Config.TrafficControl.MaxBytesPerNode)).AllowN(time.Now(), dataSize) {
 					stats.Increment(metadata.Config.ID, "req-max_bps_throttled")
@@ -598,7 +611,7 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 								}
 							} else {
 								//log.Warnf("writer_index [%v] was not found in alias [%v] settings,", index, alias)
-								return nil,errors.Error("routing table not found and writer_index was not found in alias settings,", index, ",", alias)
+								return nil, errors.Error("routing table not found and writer_index was not found in alias settings,", index, ",", alias)
 							}
 						}
 						//try again with real index name
@@ -610,44 +623,44 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 					}
 				}
 			}
-			return table.Shards,nil
+			return table.Shards, nil
 		}
 	}
 
 	return GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
 }
 
-func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string)([]IndexShardRouting,error)  {
+func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string) ([]IndexShardRouting, error) {
 	routingTable, err := metadata.GetIndexRoutingTable(index)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	primaryShards:=[]IndexShardRouting{}
+	primaryShards := []IndexShardRouting{}
 
-	for _,shards:=range routingTable{
-		for _,x:=range shards{
-			if x.Primary{
-				primaryShards=append(primaryShards,x)
+	for _, shards := range routingTable {
+		for _, x := range shards {
+			if x.Primary {
+				primaryShards = append(primaryShards, x)
 			}
 		}
 	}
 
-	return primaryShards,nil
+	return primaryShards, nil
 }
 
-func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardRoutingTable(index string,shard int)(*IndexShardRouting,error)  {
+func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardRoutingTable(index string, shard int) (*IndexShardRouting, error) {
 	routingTable, err := metadata.GetIndexRoutingTable(index)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
-	shards,ok:=routingTable[util.ToString(shard)]
-	if ok{
-		for _,x:=range shards{
-			if x.Primary{
-				return &x,nil
+	shards, ok := routingTable[util.ToString(shard)]
+	if ok {
+		for _, x := range shards {
+			if x.Primary {
+				return &x, nil
 			}
 		}
 	}
-	return nil,errors.New("not found")
+	return nil, errors.New("not found")
 }
