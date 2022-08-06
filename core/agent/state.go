@@ -23,7 +23,8 @@ type IStateManager interface {
 	UpdateAgent(inst *Instance, syncToES bool) (*Instance, error)
 	DispatchAgent(clusterID string) (*Instance, error)
 	GetTaskAgent(clusterID string) (*Instance, error)
-	SetTaskAgent(clusterID, agentID string, nodeUUID string) error
+	SetAgentTask(clusterID, agentID string, nodeUUID string) error
+	StopAgentTask(clusterID, agentID string, nodeUUID string) error
 	DeleteAgent(agentID string) error
 	LoopState()
 	Stop()
