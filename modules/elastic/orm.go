@@ -209,6 +209,9 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 
 	//TODO remove
 	for _, doc := range searchResponse.Hits.Hits {
+		if _, ok := doc.Source["id"]; !ok {
+			doc.Source["id"] = doc.ID
+		}
 		array = append(array, doc.Source)
 	}
 
