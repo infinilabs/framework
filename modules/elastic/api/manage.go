@@ -1118,6 +1118,7 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 		return
 	}
 	resBody["version"] = clusterInfo.Version.Number
+	resBody["cluster_uuid"] = clusterInfo.ClusterUUID
 	resBody["cluster_name"] = clusterInfo.ClusterName
 
 	//fetch cluster health info
