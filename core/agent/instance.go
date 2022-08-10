@@ -21,7 +21,7 @@ type Instance struct {
 	Clusters []ESCluster `json:"clusters,omitempty" elastic_mapping:"clusters: { type: object }"`
 	Tags [] string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword,copy_to:search_text }"`
 	Status string `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
-	Timestamp time.Time `json:"-"`
+	Timestamp time.Time `json:"timestamp" elastic_mapping:"timestamp: { type: date }"`
 	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
@@ -36,7 +36,33 @@ type ESCluster struct {
 	Nodes  []ESNode `json:"nodes,omitempty" elastic_mapping:"nodes: { type: object}"`
 	TaskOwner bool `json:"task_owner" elastic_mapping:"task_owner: { type: keyword }"`
 	TaskNodeID string `json:"task_node_id" elastic_mapping:"task_node_id: { type: keyword }"`
+	Task Task `json:"task,omitempty" elastic_mapping:"task: { type: object}"`
 	BasicAuth *BasicAuth `json:"basic_auth,omitempty"`
+}
+type Task struct {
+	ClusterMetric ClusterMetricTask `json:"cluster_metric,omitempty" elastic_mapping:"cluster_metric: { type: object}"`
+	NodeMetric *NodeMetricTask `json:"node_metric,omitempty" elastic_mapping:"node_metric: { type: object}"`
+}
+
+type ClusterMetricTask struct {
+	Owner bool `json:"owner" elastic_mapping:"owner: { type: keyword }"`
+	TaskNodeID string `json:"task_node_id" elastic_mapping:"task_node_id: { type: keyword }"`
+}
+
+type NodeMetricTask struct {
+	Owner bool `json:"owner" elastic_mapping:"owner: { type: keyword }"`
+	ExtraNodes []string `json:"extra_nodes,omitempty" elastic_mapping:"extra_nodes: { type: keyword}"`
+}
+
+type ShortState struct {
+	//AgentID string
+	//NodeUUID string
+	ClusterMetricTask ClusterMetricTaskState
+
+}
+type ClusterMetricTaskState struct {
+	AgentID string
+	NodeUUID string
 }
 
 type ESNode struct {
