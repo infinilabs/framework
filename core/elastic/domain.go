@@ -486,6 +486,8 @@ type ElasticsearchConfig struct {
 	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 	MaxCachedSize int64       `json:"max_cached_size,omitempty" elastic_mapping:"max_cached_size:{type:integer}"`
 	MetadataConfigs *MetadataConfig `config:"metadata_configs" json:"metadata_configs,omitempty" elastic_mapping:"metadata_configs:{type:object}"`
+	ClusterUUID string  `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
+	RawName string  `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
 }
 
 type GeoLocation struct{
