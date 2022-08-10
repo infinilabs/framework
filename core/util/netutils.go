@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -280,4 +281,23 @@ func GetPublishNetworkDeviceInfo(pattern string)(dev string,ip string,mask strin
 func GetIPPrefix(ip string)string  {
 	index:=strings.LastIndex(ip,".")
 	return SubString(ip,0,index)
+}
+
+
+func ClientIP(r *http.Request) string {
+	ip := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
+	if ip != "" {
+		return ip
+	}
+
+	ip = strings.TrimSpace(r.Header.Get("X-Real-Ip"))
+	if ip != "" {
+		return ip
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
+		return ip
+	}
+
+	return ""
 }

@@ -19,6 +19,7 @@ package util
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -133,6 +134,7 @@ type Request struct {
 
 	basicAuthUsername string
 	basicAuthPassword string
+	Context context.Context
 }
 
 func NewRequest(method, url string) *Request {
@@ -265,6 +267,9 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 		request, err = http.NewRequest(string(req.Method), req.Url, postBytesReader)
 	} else {
 		request, err = http.NewRequest(string(req.Method), req.Url, nil)
+	}
+	if req.Context != nil {
+		request = request.WithContext(req.Context)
 	}
 
 	if err != nil {
