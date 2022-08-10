@@ -93,7 +93,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActivePreferredSeedEndpoint(), path)
+	endpoint:=fmt.Sprintf("%s/%s",metadata.GetActivePreferredSeedEndpoint() , path)
 
 	freq.SetRequestURI(endpoint)
 
@@ -118,6 +118,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 		ReadTimeout: 5 *time.Second,
 		WriteTimeout: 5 *time.Second,
+		DisablePathNormalizing: true,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {
