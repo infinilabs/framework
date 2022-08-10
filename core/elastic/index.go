@@ -25,6 +25,7 @@ type ShardResponse struct {
 type ClusterInformation struct {
 	Name        string `json:"name,intern"`
 	ClusterName string `json:"cluster_name,intern"`
+	ClusterUUID string `json:"cluster_uuid"`
 	Version     struct {
 		Number        string `json:"number,intern"`
 		LuceneVersion string `json:"lucene_version,intern"`
