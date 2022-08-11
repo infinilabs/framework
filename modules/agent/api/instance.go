@@ -245,8 +245,7 @@ func (h *APIHandler) updateInstanceNodes(w http.ResponseWriter, req *http.Reques
 				ClusterName: upCluster.ClusterName,
 				ClusterID: cluster.ClusterID,
 				Nodes: upCluster.Nodes,
-				TaskOwner: cluster.TaskOwner,
-				TaskNodeID: cluster.TaskNodeID,
+				Task: cluster.Task,
 			})
 			continue
 		}
@@ -449,7 +448,7 @@ func (h *APIHandler) getClusterInstance(w http.ResponseWriter, req *http.Request
 			for _, n := range cluster.Nodes {
 				if _, ok := nodesM[n.UUID]; ok {
 					nodesM[n.UUID].AgentHost = inst.Host
-					nodesM[n.UUID].Owner = cluster.TaskNodeID == n.UUID
+					nodesM[n.UUID].Owner = cluster.Task.ClusterMetric.TaskNodeID == n.UUID
 				}
 			}
 		}

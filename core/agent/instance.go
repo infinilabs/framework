@@ -34,8 +34,8 @@ type ESCluster struct {
 	ClusterID string   `json:"cluster_id,omitempty" elastic_mapping:"cluster_id: { type: keyword,copy_to:search_text }"`
 	ClusterName string `json:"cluster_name,omitempty" elastic_mapping:"cluster_name: { type: keyword,copy_to:search_text }"`
 	Nodes  []ESNode `json:"nodes,omitempty" elastic_mapping:"nodes: { type: object}"`
-	TaskOwner bool `json:"task_owner" elastic_mapping:"task_owner: { type: keyword }"`
-	TaskNodeID string `json:"task_node_id" elastic_mapping:"task_node_id: { type: keyword }"`
+	//TaskOwner bool `json:"task_owner" elastic_mapping:"task_owner: { type: keyword }"`
+	//TaskNodeID string `json:"task_node_id" elastic_mapping:"task_node_id: { type: keyword }"`
 	Task Task `json:"task,omitempty" elastic_mapping:"task: { type: object}"`
 	BasicAuth *BasicAuth `json:"basic_auth,omitempty"`
 }
