@@ -25,6 +25,8 @@ const (
 
 	IndexAll     = "data.index:all"
 	IndexRead    = "data.index:read"
+	AliasAll     = "data.alias:all"
+	AliasRead    = "data.alias:read"
 	ViewsAll     = "data.view:all"
 	ViewsRead    = "data.view:read"
 	DiscoverAll  = "data.discover:all"
@@ -111,7 +113,9 @@ var (
 	FlowAllPermission  = []string{PermissionGatewayFlowRead, PermissionGatewayFlowWrite}
 
 	IndexAllPermission     = []string{"index:read"}
-	IndexReadPermission    = []string{"index:read", "index:write"}
+	IndexReadPermission    = []string{"index:read", "alias:write"}
+	AliasAllPermission     = []string{"alias:read"}
+	AliasReadPermission    = []string{"alias:read", "alias:write"}
 	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite}
 	ViewsReadPermission    = []string{PermissionViewRead}
 	DiscoverReadPermission = []string{PermissionViewRead}
@@ -141,6 +145,7 @@ var AdminPrivilege = []string{
 	RuleAll, AlertAll, ChannelAll,
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
+	AliasAll,
 }
 
 func init() {
@@ -169,6 +174,8 @@ func init() {
 
 		IndexAll:     IndexAllPermission,
 		IndexRead:    IndexReadPermission,
+		AliasAll:     AliasAllPermission,
+		AliasRead:    AliasReadPermission,
 		ViewsAll:     ViewsAllPermission,
 		ViewsRead:    ViewsReadPermission,
 		DiscoverRead: DiscoverReadPermission,
