@@ -28,4 +28,5 @@ type IStateManager interface {
 	DeleteAgent(agentID string) error
 	LoopState()
 	Stop()
+	GetState(clusterID string) ShortState
 }
