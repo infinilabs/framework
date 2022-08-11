@@ -33,11 +33,26 @@ import (
 	"time"
 )
 
+// 保存了elastic.API(client)
 var apis = sync.Map{}
+
+// 保存了ElasticsearchConfig
 var cfgs = sync.Map{}
+
+//存储了es的metadata(es配置+缓存配置)
 var metas = sync.Map{}
+
 var hosts = sync.Map{}
 
+/**
+注册elastic实例,初始化elastic metadata并保存到metas(sync.Map{})
+
+cfg.ID = cfg.Name = 集群名称
+
+把handle(API)保存到apis(sync.Map)
+
+把ElasticsearchConfig保存到cfgs(sync.Map)
+*/
 func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 
 	if cfg.ID == "" {
@@ -63,6 +78,11 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	}
 }
 
+/**
+根据IP地址，返回可用的Node信息。 这里的Node并不包含es配置信息。 仅仅是集群的状态(是否可用)
+
+如果根据IP从hosts(sync.Map)查询不到Node，则根据入参(host string,clusterID string)创建Node并保存
+*/
 func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 	if host == "" {
 		return nil
@@ -135,6 +155,11 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 	return esMajorVersion
 }
 
+/**
+初始化: ElasticsearchMetadata = ElasticsearchConfig + cache
+
+并保存到metas(sync.Map)
+*/
 func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
 	cache, err := ristretto.NewCache(&ristretto.Config{
@@ -191,6 +216,7 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
+//add by ck
 func GetClientNoPanic(k string) API {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch id is nil"))
@@ -266,6 +292,13 @@ func IsHostAvailable(host string) bool {
 }
 
 //ip:port
+/*
+这是把所有有可能的地址，都获取一遍。
+
+Config.Hosts / Config.Host  用户可能配置1个/多个host，都拿一遍
+
+Config.Endpoint / Config.Endpoints 用户可能配置1个/多个Endpoint，都拿一遍
+*/
 func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 
 	if len(meta.seedHosts) > 0 {
