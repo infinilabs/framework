@@ -61,7 +61,7 @@ func (module *AgentModule) Setup(cfg *config.Config) {
 				taskState[cluster.ClusterID] = agent.ShortState{
 					ClusterMetricTask: agent.ClusterMetricTaskState{
 						AgentID: ag.ID,
-						NodeUUID: cluster.TaskNodeID,
+						NodeUUID: cluster.Task.ClusterMetric.TaskNodeID,
 					},
 				}
 			}
