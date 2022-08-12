@@ -990,7 +990,7 @@ var (
 	responsePool sync.Pool
 )
 
-var fastHttpReqbodyBufferPool = bytebufferpool.NewTaggedPool("fasthttp_reqbody_buffer", 0, 0, 1000)
+var fastHttpReqbodyBufferPool = bytebufferpool.NewTaggedPool("fasthttp_reqbody_buffer", 0, 0, 10000)
 
 // AcquireRequest returns an empty Request instance from request pool.
 //

@@ -54,7 +54,7 @@ func NewActivityProcessor(c *config.Config) (pipeline.Processor, error) {
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
 			FetchMaxMessages: 500,
-			FetchMaxWaitMs:   1000,
+			FetchMaxWaitMs:   10000,
 		},
 
 		DetectActiveQueue: true,
