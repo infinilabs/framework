@@ -192,6 +192,17 @@ func (sm *StateManager) DeleteAgent(agentID string) error{
 	sm.agentMutex.Lock()
 	delete(sm.agentIds, agentID)
 	sm.agentMutex.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
+	defer cancel()
+	inst, err := sm.GetAgent(agentID)
+	if err != nil {
+		return err
+	}
+
+	err = sm.agentClient.DeleteInstance(ctx,inst.GetEndpoint(), agentID)
+	if err != nil {
+		log.Error("delete agent instance error: %v", err)
+	}
 	return kv.DeleteKey(sm.KVKey, []byte(agentID))
 }
 

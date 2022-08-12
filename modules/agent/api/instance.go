@@ -34,6 +34,7 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 	}
 	syncToES := inst.Status != "online"
 	inst.Status = "online"
+	log.Info("heartbeat from ", id)
 	ag, err := sm.UpdateAgent(inst, syncToES)
 	if err != nil {
 		log.Error(err)
@@ -173,19 +174,31 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
-	id = obj.ID
-	create := obj.Created
-	obj = agent.Instance{}
-	err = h.DecodeJSON(req, &obj)
+	newObj := agent.Instance{}
+	err = h.DecodeJSON(req, &newObj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
 		return
 	}
-
-	//protect
-	obj.ID = id
-	obj.Created = create
+	if newObj.Port != obj.Port {
+		obj.Port = newObj.Port
+	}
+	if newObj.Schema != obj.Schema {
+		obj.Schema = newObj.Schema
+	}
+	if len(newObj.Version) > 0 {
+		obj.Version = newObj.Version
+	}
+	if len(newObj.IPS) > 0 {
+		obj.IPS = newObj.IPS
+	}
+	newMatchedClusters, err :=  h.updateInstanceNodes(&obj, newObj.Clusters)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
 	err = orm.Update(&obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -201,36 +214,17 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 	h.WriteJSON(w, util.MapStr{
 		"_id":    obj.ID,
 		"result": "updated",
+		"new_clusters": newMatchedClusters,
 	}, 200)
 }
-func (h *APIHandler) updateInstanceNodes(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
-	id := ps.MustGetParameter("instance_id")
-	obj := agent.Instance{}
-	obj.ID = id
-	exists, err := orm.Get(&obj)
-	if !exists || err != nil {
-		h.WriteJSON(w, util.MapStr{
-			"_id":    id,
-			"result": "not_found",
-		}, http.StatusNotFound)
-		return
-	}
-
-	reqBody := []agent.ESCluster{}
-	err = h.DecodeJSON(req, &reqBody)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
-	}
-	if len(reqBody) == 0 {
-		h.WriteError(w, "request body should not be empty", http.StatusInternalServerError)
-		return
+func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent.ESCluster) (map[string]interface{}, error){
+	if len(esClusters) == 0 {
+		return nil, fmt.Errorf("request body should not be empty")
 	}
 
 	clusters := map[string]*agent.ESCluster{}
 	var newClusters []agent.ESCluster
-	for _, nc := range reqBody {
+	for _, nc := range esClusters {
 		if strings.TrimSpace(nc.ClusterID) == "" {
 			newClusters = append(newClusters, nc)
 			continue
@@ -251,13 +245,14 @@ func (h *APIHandler) updateInstanceNodes(w http.ResponseWriter, req *http.Reques
 		}
 		//todo log delete nodes
 	}
-	var matchedClusters map[string]interface{}
+	var (
+		matchedClusters map[string]interface{}
+		err error
+	)
 	if len(newClusters) > 0 {
 		matchedClusters, err = getMatchedClusters(obj.Host, newClusters)
 		if err != nil {
-			h.WriteError(w, err.Error(), http.StatusInternalServerError)
-			log.Error(err)
-			return
+			return nil, err
 		}
 		//filter already
 		//for _, cluster := range toUpClusters {
@@ -276,22 +271,9 @@ func (h *APIHandler) updateInstanceNodes(w http.ResponseWriter, req *http.Reques
 			})
 		}
 	}
-	sm := agent.GetStateManager()
 	obj.Clusters = toUpClusters
-	_, err = sm.UpdateAgent(&obj, true)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
-	}
-	resBody := util.MapStr{
-		"_id":    obj.ID,
-		"result": "updated",
-	}
-	if len(matchedClusters) > 0 {
-		resBody["clusters"] = matchedClusters
-	}
-	h.WriteJSON(w, resBody, 200)
+	return matchedClusters, nil
+
 
 }
 func (h *APIHandler) setTaskToInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -337,13 +319,16 @@ func (h *APIHandler) deleteInstance(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
+	err = agent.GetStateManager().DeleteAgent(obj.ID)
+	if err != nil {
+		log.Error(err)
+	}
 	err = orm.Delete(&obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
 		return
 	}
-	agent.GetStateManager().DeleteAgent(obj.ID)
 
 	h.WriteJSON(w, util.MapStr{
 		"_id":    obj.ID,
