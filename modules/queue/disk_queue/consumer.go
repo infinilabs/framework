@@ -206,12 +206,12 @@ RELOCATE_FILE:
 	totalMessageSize += message.Size
 
 	if len(messages) >= consumer.FetchMaxMessages {
-		log.Debugf("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.name, consumer.Name, len(messages), consumer.FetchMaxMessages)
+		log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.name, consumer.Name, len(messages), consumer.FetchMaxMessages)
 		return ctx, messages, false, err
 	}
 
 	if totalMessageSize > consumer.FetchMaxBytes && consumer.FetchMaxBytes > 0 {
-		log.Debugf("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.name, consumer.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(consumer.FetchMaxBytes)))
+		log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.name, consumer.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(consumer.FetchMaxBytes)))
 		return ctx, messages, false, err
 	}
 
