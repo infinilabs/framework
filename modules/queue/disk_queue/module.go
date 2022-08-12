@@ -254,7 +254,9 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 		//	err = errors.New("EOF")
 		//}
 
-		log.Debugf("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
+		if global.Env().IsDebug{
+			log.Tracef("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
+		}
 
 		return ctx, messages, timeout, err
 	}
