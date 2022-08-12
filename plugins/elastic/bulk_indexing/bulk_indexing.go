@@ -624,12 +624,13 @@ READ_DOCS:
 				}
 
 				if global.Env().IsDebug {
-					log.Debugf("message count: %v, size: %v", mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
+					log.Tracef("message count: %v, size: %v", mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
+
 				msgSize := mainBuf.GetMessageSize()
 				msgCount := mainBuf.GetMessageCount()
 
-				if msgSize > (bulkSizeInByte) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
+				if (bulkSizeInByte>0 && msgSize > (bulkSizeInByte)) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
 					if global.Env().IsDebug {
 						log.Tracef("consuming [%v], slice_id:%v, hit buffer limit, size:%v, count:%v, submit now", qConfig.Name, sliceID, msgSize, msgCount)
 					}
