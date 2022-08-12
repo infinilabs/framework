@@ -89,7 +89,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		MaxWorkers:           10,
 		MaxConnectionPerHost: 1,
 		IdleTimeoutInSecond:  5,
-		DetectIntervalInMs:   1000,
+		DetectIntervalInMs:   5000,
 
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
@@ -106,7 +106,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 		DetectActiveQueue: true,
 		ValidateRequest:   false,
-		SkipEmptyQueue:    false,
+		SkipEmptyQueue:    true,
 		SkipOnMissingInfo: false,
 		RotateConfig:      rotate.DefaultConfig,
 		BulkConfig:        elastic.DefaultBulkProcessorConfig,

@@ -91,8 +91,8 @@ type ConsumerConfig struct {
 	Id         string `config:"id" json:"id,omitempty"` //uuid for each queue
 	Group      string `config:"group" json:"group,omitempty"`
 	Name       string `config:"name" json:"name,omitempty"`
-	AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
-	AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
+	//AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
+	//AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
 
 	FetchMinBytes    int `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
 	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
