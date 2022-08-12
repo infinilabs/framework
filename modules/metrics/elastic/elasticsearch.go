@@ -3,6 +3,7 @@ package elastic
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/agent"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -148,12 +149,23 @@ func (m *Metric) Collect() error {
 	if !m.Enabled {
 		return nil
 	}
+	var sm agent.IStateManager
+	if agent.IsEnabled(){
+		sm = agent.GetStateManager()
+	}
+
 	collectStartTime := time.Now()
 
 	elastic.WalkMetadata(func(key, value interface{}) bool {
 		log.Debug("collecting metrics for: ", key)
 
 		k := key.(string)
+		if sm != nil {
+			if ag, _ := sm.GetTaskAgent(k); ag != nil && ag.Status=="online" {
+				return true
+			}
+		}
+
 		if value == nil {
 			log.Error("nil value:", key)
 			return true

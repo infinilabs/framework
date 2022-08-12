@@ -6851,6 +6851,10 @@ func easyjson3e1fa5ecDecodeInfiniShFrameworkCoreElastic26(in *jlexer.Lexer, out 
 				}
 				(*out.MetadataConfigs).UnmarshalEasyJSON(in)
 			}
+		case "cluster_uuid":
+			out.ClusterUUID = string(in.String())
+		case "raw_name":
+			out.RawName = string(in.String())
 		case "id":
 			out.ID = string(in.String())
 		case "created":
@@ -7216,6 +7220,26 @@ func easyjson3e1fa5ecEncodeInfiniShFrameworkCoreElastic26(out *jwriter.Writer, i
 			out.RawString(prefix)
 		}
 		(*in.MetadataConfigs).MarshalEasyJSON(out)
+	}
+	if in.ClusterUUID != "" {
+		const prefix string = ",\"cluster_uuid\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ClusterUUID))
+	}
+	if in.RawName != "" {
+		const prefix string = ",\"raw_name\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.RawName))
 	}
 	if in.ID != "" {
 		const prefix string = ",\"id\":"
