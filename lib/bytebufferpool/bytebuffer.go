@@ -12,7 +12,7 @@ import (
 //
 // Use Get for obtaining an empty byte buffer.
 type ByteBuffer struct {
-	ID int64
+	ID uint32
 	// B is a byte buffer to use in append-like workloads.
 	// See example code for details.
 	B []byte

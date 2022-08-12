@@ -2,6 +2,7 @@ package bytebufferpool
 
 import (
 	"errors"
+	"fmt"
 	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
@@ -27,27 +28,27 @@ const (
 // memory waste.
 type Pool struct {
 	Tag         string
-	calls       [steps]uint64
-	calibrating uint64
+	calls       [steps]uint32
+	calibrating uint32
 
-	defaultSize     uint64
-	maxDataByteSize uint64
+	defaultSize     uint32
+	maxDataByteSize uint32
 
-	maxItemCount int64
-
-	//stats
-	allocate, acquire, returned, notReturn, throttle, cap uint64
+	maxItemCount uint32
 
 	//stats
-	inuse, poolByteSize int64
+	allocate, acquire, returned, notReturn, throttle, cap uint32
+
+	//stats
+	inuse, poolByteSize int32
 
 	pool         sync.Pool
-	sequenceID   int64
+	sequenceID   uint32
 	inUseBuffer  sync.Map //map[int64]*ByteBuffer
 	throttleTime *time.Time
 }
 
-func NewTaggedPool(tag string, defaultSize, maxSize uint64, maxItems int64) *Pool {
+func NewTaggedPool(tag string, defaultSize, maxSize uint32, maxItems uint32) *Pool {
 	pool := NewPool(defaultSize, maxSize)
 	pool.Tag = tag
 	pool.maxItemCount = maxItems
@@ -55,8 +56,8 @@ func NewTaggedPool(tag string, defaultSize, maxSize uint64, maxItems int64) *Poo
 	return pool
 }
 
-func NewPool(defaultSize, maxSize uint64) *Pool {
-	p := Pool{defaultSize: defaultSize, maxItemCount: 100, maxDataByteSize: maxSize}
+func NewPool(defaultSize, maxSize uint32) *Pool {
+	p := Pool{defaultSize: defaultSize, maxItemCount: 0, maxDataByteSize: maxSize}
 	p.inUseBuffer = sync.Map{}
 	return &p
 }
@@ -73,7 +74,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 			return pool
 		}
 	} else {
-		pool = NewTaggedPool(tag, 0, 0, 1000)
+		pool = NewTaggedPool(tag, 0, 0, 0)
 	}
 
 	return pool
@@ -88,16 +89,14 @@ func Get(tag string) *ByteBuffer {
 	return getPoolByTag(tag).Get()
 }
 
-var bufferFullErr = errors.New("running out of bytes buffer")
-
 // Get returns new byte buffer with zero length.
 //
 // The byte buffer may be returned to the pool via Put after the use
 // in order to minimize GC overhead.
 func (p *Pool) Get() *ByteBuffer {
-	if p.maxItemCount > 0 && p.inuse > p.maxItemCount {
+	if p.maxItemCount > 0 && p.inuse > int32(p.maxItemCount) {
 		time.Sleep(1 * time.Second)
-		atomic.AddUint64(&p.throttle, 1)
+		atomic.AddUint32(&p.throttle, 1)
 
 		var t1 time.Time
 		if p.throttleTime == nil {
@@ -106,7 +105,7 @@ func (p *Pool) Get() *ByteBuffer {
 		}
 
 		if time.Since(t1) > 10*time.Second {
-			panic(bufferFullErr)
+			panic(errors.New(fmt.Sprintf("running out of bytes buffer [%v][%v]",p.Tag,p.inuse)))
 		}
 
 		return p.Get()
@@ -116,37 +115,37 @@ func (p *Pool) Get() *ByteBuffer {
 		p.throttleTime = nil
 	}
 
-	atomic.AddInt64(&p.inuse, 1)
-	atomic.AddUint64(&p.acquire, 1)
+	atomic.AddInt32(&p.inuse, 1)
+	atomic.AddUint32(&p.acquire, 1)
 
 	v := p.pool.Get()
 	if v != nil {
 		x := v.(*ByteBuffer)
 		x.Reset()
-		atomic.AddInt64(&p.poolByteSize, int64((x.Cap())*-1))
+		atomic.AddInt32(&p.poolByteSize, int32((x.Cap())*-1))
 
 		p.inUseBuffer.Store(x.ID, x)
 		return x
 	}
 
-	id := atomic.AddInt64(&p.sequenceID, 1)
+	id := atomic.AddUint32(&p.sequenceID, 1)
 	x := &ByteBuffer{
 		ID: id,
-		B:  make([]byte, 0, atomic.LoadUint64(&p.defaultSize)),
+		B:  make([]byte, 0, atomic.LoadUint32(&p.defaultSize)),
 	}
 
-	atomic.AddUint64(&p.allocate, 1)
+	atomic.AddUint32(&p.allocate, 1)
 
 	p.inUseBuffer.Store(x.ID, x)
 	return x
 }
 
-func SetMaxBufferCount(tag string, size int64) {
-	atomic.StoreInt64(&getPoolByTag(tag).maxItemCount, size)
+func SetMaxBufferCount(tag string, size uint32) {
+	atomic.StoreUint32(&getPoolByTag(tag).maxItemCount, size)
 }
 
-func SetMaxBufferSize(tag string, size uint64) {
-	atomic.StoreUint64(&getPoolByTag(tag).maxDataByteSize, size)
+func SetMaxBufferSize(tag string, size uint32) {
+	atomic.StoreUint32(&getPoolByTag(tag).maxDataByteSize, size)
 }
 
 func BuffStats() map[string]interface{} {
@@ -209,37 +208,37 @@ func Put(tag string, b *ByteBuffer) {
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(b *ByteBuffer) {
 
-	atomic.AddInt64(&p.inuse, -1)
+	atomic.AddInt32(&p.inuse, -1)
 	p.inUseBuffer.Delete(b.ID)
 
 	idx := index(len(b.B))
 
-	if atomic.AddUint64(&p.calls[idx], 1) > calibrateCallsThreshold {
+	if atomic.AddUint32(&p.calls[idx], 1) > calibrateCallsThreshold {
 		p.calibrate()
 	}
 
-	maxSize := int(atomic.LoadUint64(&p.maxDataByteSize))
+	maxSize := int(atomic.LoadUint32(&p.maxDataByteSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
 		b.Reset()
 		p.pool.Put(b)
-		atomic.AddUint64(&p.returned, 1)
-		atomic.AddInt64(&p.poolByteSize, int64(b.Cap()))
+		atomic.AddUint32(&p.returned, 1)
+		atomic.AddInt32(&p.poolByteSize, int32(b.Cap()))
 	} else {
-		atomic.AddUint64(&p.notReturn, 1)
+		atomic.AddUint32(&p.notReturn, 1)
 		b = nil
 	}
 }
 
 func (p *Pool) calibrate() {
 
-	if !atomic.CompareAndSwapUint64(&p.calibrating, 0, 1) {
+	if !atomic.CompareAndSwapUint32(&p.calibrating, 0, 1) {
 		return
 	}
 
 	a := make(callSizes, 0, steps)
-	var callsSum uint64
-	for i := uint64(0); i < steps; i++ {
-		calls := atomic.SwapUint64(&p.calls[i], 0)
+	var callsSum uint32
+	for i := uint32(0); i < steps; i++ {
+		calls := atomic.SwapUint32(&p.calls[i], 0)
 		callsSum += calls
 		a = append(a, callSize{
 			calls: calls,
@@ -251,7 +250,7 @@ func (p *Pool) calibrate() {
 	defaultSize := a[0].size
 	maxSize := defaultSize
 
-	maxSum := uint64(float64(callsSum) * maxPercentile)
+	maxSum := uint32(float32(callsSum) * maxPercentile)
 	callsSum = 0
 	for i := 0; i < steps; i++ {
 		if callsSum > maxSum {
@@ -264,15 +263,15 @@ func (p *Pool) calibrate() {
 		}
 	}
 
-	atomic.StoreUint64(&p.defaultSize, defaultSize)
-	atomic.StoreUint64(&p.maxDataByteSize, maxSize)
+	atomic.StoreUint32(&p.defaultSize, defaultSize)
+	atomic.StoreUint32(&p.maxDataByteSize, maxSize)
 
-	atomic.StoreUint64(&p.calibrating, 0)
+	atomic.StoreUint32(&p.calibrating, 0)
 }
 
 type callSize struct {
-	calls uint64
-	size  uint64
+	calls uint32
+	size  uint32
 }
 
 type callSizes []callSize
