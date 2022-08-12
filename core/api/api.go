@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
-	"infini.sh/framework/core/api/filter"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
@@ -32,7 +31,7 @@ var registeredAPIMethodHandler = make(map[string]map[string]func(w http.Response
 
 var l sync.Mutex
 
-var filters []filter.Filter
+//var filters []filter.Filter
 
 var APIs = map[string]util.KV{}
 
@@ -43,9 +42,9 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 		registeredAPIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
 	}
 
-	for _, f := range filters {
-		handler = f.FilterHttpHandlerFunc(pattern, handler)
-	}
+	//for _, f := range filters {
+	//	handler = f.FilterHttpHandlerFunc(pattern, handler)
+	//}
 
 	registeredAPIFuncHandler[pattern] = handler
 	APIs[pattern+"*"]=util.KV{Key: "*",Value: pattern}
@@ -69,10 +68,10 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
 
-	//Apply handler filters
-	for _, f := range filters {
-		handler = f.FilterHttpRouter(pattern, handler)
-	}
+	////Apply handler filters
+	//for _, f := range filters {
+	//	handler = f.FilterHttpRouter(pattern, handler)
+	//}
 
 	registeredAPIMethodHandler[m][pattern] = handler
 	APIs[pattern+m]=util.KV{Key: m,Value: pattern}
