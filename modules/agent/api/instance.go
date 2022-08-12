@@ -61,6 +61,7 @@ func (h *APIHandler) getIP(w http.ResponseWriter, req *http.Request, ps httprout
 
 func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = &agent.Instance{
+		Confirmed: true,
 	}
 	err := h.DecodeJSON(req, obj)
 	if err != nil {

@@ -13,7 +13,7 @@ type Instance struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
-	Schema      string `json:"schema,omitempty" elastic_mapping:"Schema: { type: keyword }"`
+	Schema      string `json:"schema,omitempty" elastic_mapping:"schema: { type: keyword }"`
 	Port uint `json:"port,omitempty" elastic_mapping:"port: { type: keyword }"`
 	IPS     []string               `json:"ips,omitempty" elastic_mapping:"ips: { type: keyword,copy_to:search_text }"`
 	Host    string                 `json:"host" elastic_mapping:"host: { type: keyword,copy_to:search_text }"`
@@ -21,6 +21,7 @@ type Instance struct {
 	Clusters []ESCluster `json:"clusters,omitempty" elastic_mapping:"clusters: { type: object }"`
 	Tags [] string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword,copy_to:search_text }"`
 	Status string `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
+	Confirmed bool `json:"confirmed" elastic_mapping:"confirmed: { type: keyword }"`
 	Timestamp time.Time `json:"timestamp" elastic_mapping:"timestamp: { type: date }"`
 	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
