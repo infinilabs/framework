@@ -370,9 +370,9 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		}
 
 		processor.Lock()
-		defer processor.Unlock()
 		_, exists := processor.inFlightQueueConfigs.Load(key)
 		if exists {
+			processor.Unlock()
 			log.Debugf("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v, %v", tag, qConfig.Id, sliceID, key, processor.inFlightQueueConfigs)
 			continue
 		} else {
@@ -380,6 +380,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
 			processor.wg.Add(1)
 			go processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
+			processor.Unlock()
 		}
 	}
 }
