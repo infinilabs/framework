@@ -423,7 +423,7 @@ func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, ti
 		if !timeout {
 			stats.Increment("queue", k.Id, "pop")
 		}
-		stats.Increment("queue,", k.Id, "pop_timeout")
+		stats.Increment("queue", k.Id, "pop_timeout")
 		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
@@ -545,7 +545,7 @@ func Depth(k *QueueConfig) int64 {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		stats.Increment("queue,", k.Id, "call_depth")
+		stats.Increment("queue", k.Id, "call_depth")
 		return o
 	}
 	panic(errors.New("handler is not registered"))
