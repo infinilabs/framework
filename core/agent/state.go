@@ -18,6 +18,10 @@ func RegisterStateManager(sm IStateManager)  {
 	stateManager = sm
 }
 
+func IsEnabled() bool {
+	return stateManager != nil
+}
+
 type IStateManager interface {
 	GetAgent(ID string) (*Instance, error)
 	UpdateAgent(inst *Instance, syncToES bool) (*Instance, error)

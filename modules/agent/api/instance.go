@@ -39,9 +39,11 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 	if err != nil {
 		log.Error(err)
 	}
-	taskState := map[string]string{}
+	taskState := map[string]map[string]string{}
 	for _, cluster := range ag.Clusters {
-		taskState[cluster.ClusterID] = sm.GetState(cluster.ClusterID).ClusterMetricTask.NodeUUID
+		taskState[cluster.ClusterID] = map[string]string{
+			"cluster_metric": sm.GetState(cluster.ClusterID).ClusterMetricTask.NodeUUID,
+		}
 	}
 
 	h.WriteJSON(w, util.MapStr{
@@ -511,4 +513,35 @@ func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]int
 		}
 	}
 	return resultClusters, nil
+}
+
+
+func (h *APIHandler) getClusterAuth(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	clusterID := h.GetParameterOrDefault(req, "cluster_id", "")
+	if clusterID == "" {
+		h.WriteError(w, "parameter cluster_id should not be empty", http.StatusInternalServerError)
+		return
+	}
+	//esClient := elastic.GetClient(clusterID)
+}
+
+func getAgentByHost(host string) (*agent.Instance, error){
+	q := &orm.Query{
+		Size: 1,
+	}
+	q.Conds = orm.And(orm.Eq("host", host))
+	inst := agent.Instance{}
+	err, result := orm.Search(inst, q)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Result) == 0 {
+		return nil, nil
+	}
+	buf, err := util.ToJSONBytes(result.Result[0])
+	if err != nil {
+		return nil, err
+	}
+	err = util.FromJSONBytes(buf, &inst)
+	return &inst, err
 }
