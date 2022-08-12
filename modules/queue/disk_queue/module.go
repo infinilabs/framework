@@ -11,11 +11,10 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
+	"infini.sh/framework/modules/queue/common"
 	"os"
 	"path"
 	"path/filepath"
@@ -47,6 +46,7 @@ type RetentionConfig struct{
 //#  disk.max_used_bytes:  100GB #trigger warning message
 //#  disk.warning_free_bytes:  20GB #trigger warning message
 //#  disk.reserved_free_bytes: 10GB #enter readonly mode, no writes allowed
+
 type DiskQueueConfig struct {
 
 
@@ -89,84 +89,6 @@ type CompressConfig struct {
 	Level   int  `config:"level"`
 }
 
-const queueS3LastFileNum ="last_success_file_for_queue"
-
-func GetLastS3UploadFileNum(queueID string)int64  {
-	b,err:=kv.GetValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID))
-	if err!=nil{
-		panic(err)
-	}
-	if b==nil||len(b)==0{
-		return -1
-	}
-	//log.Errorf("bytes to int64: %v",b)
-	return util.BytesToInt64(b)
-}
-
-func getS3FileLocation(fileName string) string {
-	return path.Join(global.Env().SystemConfig.NodeConfig.ID,util.TrimLeftStr(fileName,global.Env().GetDataDir()))
-}
-
-var s3uploaderLocker sync.RWMutex
-func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
-	//TODO move to channel, async
-	s3uploaderLocker.Lock()
-	defer s3uploaderLocker.Unlock()
-
-	//send s3 upload signal
-	if module.cfg.UploadToS3{
-
-		consumers,_,_:=queue.GetEarlierOffsetByQueueID(queueID)
-		if consumers==0{
-			//skip upload queue without any consumers
-			return
-		}
-
-		//skip uploaded file
-		lastFileNum:= GetLastS3UploadFileNum(queueID)
-		log.Tracef("last upload:%v, fileNum:%v",lastFileNum, fileNum)
-		if fileNum<=lastFileNum{
-			//skip old queue file, no need to upload
-			return
-		}
-
-		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
-			fileName:= GetFileName(queueID,fileNum)
-			toFile:= getS3FileLocation(fileName)
-			var success=false
-			var err error
-			if module.cfg.S3.Async{
-				err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err!=nil{
-					log.Error(err)
-				}else{
-					success=true
-				}
-			}else{
-				var ok bool
-				ok,err=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err!=nil{
-					log.Error(err)
-				}else if ok{
-					success=true
-				}
-			}
-			//update last mark
-			if success{
-				err=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(fileNum))
-				if err!=nil{
-					panic(err)
-				}
-				log.Debugf("queue [%v][%v] uploaded to s3",queueID,fileNum)
-			}else{
-				log.Debugf("failed to upload queue [%v][%v] to s3, %v",queueID,fileNum,err)
-			}
-		}else{
-			log.Errorf("invalid s3 config:%v",module.cfg.S3)
-		}
-	}
-}
-
 func (module *DiskQueue) Init(name string) error {
 	module.initLocker.Lock()
 	defer module.initLocker.Unlock()
@@ -196,16 +118,11 @@ func GetDataPath(queueID string)string  {
 	return path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(queueID))
 }
 
-func getQueueConfigPath() string {
-	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
-	return path.Join(global.Env().GetDataDir(),"queue","configs")
-}
 
 func GetFileName(queueID string,segmentID int64) string {
 	//return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.segment.%06d.dat",queueID , segmentID))
 	return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.diskqueue.%06d.dat",queueID , segmentID))
 }
-
 
 func (module *DiskQueue) Setup(config *config.Config) {
 
@@ -239,55 +156,9 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		return
 	}
 
+	common.InitQueueMetadata()
+
 	module.queues=sync.Map{}
-
-	//load configs from static config
-	configs := []queue.QueueConfig{}
-	ok, err = env.ParseConfig("queue", &configs)
-	if ok && err != nil {
-		panic(err)
-	}
-
-	for _,v:=range configs{
-		v.Source="file"
-		if v.Id==""{
-			v.Id=v.Name
-		}
-		queue.RegisterConfig(v.Name,&v)
-	}
-
-	//load configs from local metadata
-	if util.FileExists(getQueueConfigPath()){
-		data,err:=util.FileGetContent(getQueueConfigPath())
-		if err!=nil{
-			panic(err)
-		}
-
-		cfgs := map[string]*queue.QueueConfig{}
-		err=util.FromJSONBytes(data,&cfgs)
-		if err!=nil{
-			panic(err)
-		}
-
-		for _,v:=range cfgs{
-			if v.Id==""{
-				v.Id=v.Name
-			}
-			log.Debugf("init config:%v, type:%v",v.Name,v.Type)
-			queue.RegisterConfig(v.Name,v)
-		}
-	}
-
-
-	//load queue information from directory
-
-	//load configs from remote elasticsearch
-
-
-	//register queue listener
-	queue.RegisterQueueConfigChangeListener(func(v *queue.QueueConfig) {
-		persistQueueMetadata()
-	})
 
 	module.messages = make(chan Event,module.cfg.NotifyChanBuffer)
 
@@ -383,7 +254,9 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 		//	err = errors.New("EOF")
 		//}
 
-		log.Debugf("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
+		if global.Env().IsDebug{
+			log.Tracef("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
+		}
 
 		return ctx, messages, timeout, err
 	}
@@ -588,7 +461,7 @@ func (module *DiskQueue) Stop() error {
 		return true
 	})
 
-	persistQueueMetadata()
+	common.PersistQueueMetadata()
 	return nil
 }
 
@@ -647,15 +520,4 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
 
 }
 
-var persistentLocker sync.RWMutex
-func persistQueueMetadata()  {
-	persistentLocker.Lock()
-	defer persistentLocker.Unlock()
 
-	//persist configs to local store
-	bytes:=queue.GetAllConfigBytes()
-	_,err:=util.FilePutContentWithByte(getQueueConfigPath(),bytes)
-	if err!=nil{
-		panic(err)
-	}
-}

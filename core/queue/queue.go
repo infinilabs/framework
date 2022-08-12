@@ -27,7 +27,7 @@ type Message struct {
 	Timestamp  int64  `config:"timestamp" json:"timestamp"`
 	Offset     string `config:"offset" json:"offset"`           //current offset
 	NextOffset string `config:"next_offset" json:"next_offset"` //offset for next message
-	Size       int64  `config:"size" json:"size"`
+	Size       int  `config:"size" json:"size"`
 	Data       []byte `config:"data" json:"data"`
 }
 
@@ -91,13 +91,13 @@ type ConsumerConfig struct {
 	Id         string `config:"id" json:"id,omitempty"` //uuid for each queue
 	Group      string `config:"group" json:"group,omitempty"`
 	Name       string `config:"name" json:"name,omitempty"`
-	AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
-	AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
+	//AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
+	//AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
 
-	FetchMinBytes    int64 `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
-	FetchMaxBytes    int64 `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
+	FetchMinBytes    int `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
+	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
 	FetchMaxMessages int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
-	FetchMaxWaitMs   int   `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	FetchMaxWaitMs   int64   `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
 	fetchMaxWaitMs   time.Duration
 }
 
@@ -123,6 +123,9 @@ func getHandler(k *QueueConfig) QueueAPI {
 	if ok && handler != nil {
 		return handler
 	}
+	if defaultHandler==nil{
+		panic(errors.New("no queue handler was found"))
+	}
 	return defaultHandler
 }
 
@@ -141,7 +144,7 @@ func Push(k *QueueConfig, v []byte) error {
 		stats.Increment("queue", k.Id, "push_error")
 		return err
 	}
-	panic(errors.New("handler is not registered"))
+	panic(errors.Errorf("handler for [%v] is not registered",k))
 }
 
 //var pauseMsg = errors.New("queue was paused to read")
@@ -242,7 +245,7 @@ func NewConsumerConfig(group, name string) *ConsumerConfig {
 		FetchMinBytes:    1,
 		FetchMaxBytes:    10 * 1024 * 1024,
 		FetchMaxMessages: 500,
-		FetchMaxWaitMs:   1000,
+		FetchMaxWaitMs:   10000,
 	}
 	cfg.Id = util.GetUUID()
 	cfg.Source = "dynamic"
@@ -258,7 +261,7 @@ func GetOrInitConsumerConfig(queueID, group, name string) *ConsumerConfig {
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
 			FetchMaxMessages: 500,
-			FetchMaxWaitMs:   1000,
+			FetchMaxWaitMs:   10000,
 		}
 		cfg.Id = util.GetUUID()
 		cfg.Source = "dynamic"
@@ -636,6 +639,9 @@ func GetConfigBySelector(selector *QueueSelector) []*QueueConfig {
 			}
 		}
 	}
+
+	log.Tracef("selector:%v, get queues: %v",selector,cfgs)
+
 	return cfgs
 }
 

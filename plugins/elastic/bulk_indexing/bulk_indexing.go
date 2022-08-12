@@ -89,7 +89,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		MaxWorkers:           10,
 		MaxConnectionPerHost: 1,
 		IdleTimeoutInSecond:  5,
-		DetectIntervalInMs:   1000,
+		DetectIntervalInMs:   5000,
 
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
@@ -101,12 +101,12 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
 			FetchMaxMessages: 500,
-			FetchMaxWaitMs:   1000,
+			FetchMaxWaitMs:   10000,
 		},
 
 		DetectActiveQueue: true,
 		ValidateRequest:   false,
-		SkipEmptyQueue:    false,
+		SkipEmptyQueue:    true,
 		SkipOnMissingInfo: false,
 		RotateConfig:      rotate.DefaultConfig,
 		BulkConfig:        elastic.DefaultBulkProcessorConfig,
@@ -213,6 +213,9 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					}
 
 					cfgs := queue.GetConfigBySelector(&processor.config.Selector)
+
+					log.Tracef("get %v queues",len(cfgs))
+
 					for _, v := range cfgs {
 						if c.IsCanceled() {
 							return
@@ -247,6 +250,9 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 }
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
+
+
+	//log.Error("skip:",processor.config.SkipEmptyQueue,",has lag:",queue.HasLag(v))
 
 	if processor.config.SkipEmptyQueue {
 		if !queue.HasLag(v) {
@@ -338,7 +344,7 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 	}
 
 	host := meta.GetActiveHost()
-	log.Debugf("random choose node [%v] to consume queue [%v]", host, v.Id)
+	log.Tracef("random choose node [%v] to consume queue [%v]", host, v.Id)
 	processor.NewBulkWorker("bulk_indexing_"+host, c, processor.config.BulkConfig.GetBulkSizeInBytes(), v, host)
 }
 
@@ -359,24 +365,21 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
 
 		if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
-			log.Debugf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
+			log.Tracef("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
 			return
 		}
 
 		processor.Lock()
 		_, exists := processor.inFlightQueueConfigs.Load(key)
 		if exists {
-
 			processor.Unlock()
-
-			log.Debugf("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v, %v", tag, qConfig.Id, sliceID, key, processor.inFlightQueueConfigs)
+			log.Tracef("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v, %v", tag, qConfig.Id, sliceID, key, processor.inFlightQueueConfigs)
 			continue
 		} else {
 			var workerID = util.GetUUID()
-			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
+			log.Tracef("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
 			processor.wg.Add(1)
 			go processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
-
 			processor.Unlock()
 		}
 	}
@@ -503,7 +506,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 
 READ_DOCS:
 	initOffset, _ = queue.GetOffset(qConfig, consumer)
-	log.Tracef("get init offset: %v for consumer:%v,%v", initOffset, consumer.Group, consumer.Name)
+	log.Debugf("get init offset: %v for consumer:%v,%v", initOffset, consumer.Group, consumer.Name)
 	offset = initOffset
 	for {
 		if ctx.IsCanceled() {
@@ -550,7 +553,7 @@ READ_DOCS:
 			log.Tracef("worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
 		}
 
-		log.Debugf("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
+		log.Tracef("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
 		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer, offset)
 
 		if global.Env().IsDebug {
@@ -565,7 +568,7 @@ READ_DOCS:
 					goto HANDLE_MESSAGE
 				}
 
-				log.Debugf("error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
+				log.Tracef("error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
 				ctx.Failed()
 				goto CLEAN_BUFFER
 				return
@@ -623,10 +626,11 @@ READ_DOCS:
 				if global.Env().IsDebug {
 					log.Tracef("message count: %v, size: %v", mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
+
 				msgSize := mainBuf.GetMessageSize()
 				msgCount := mainBuf.GetMessageCount()
 
-				if msgSize > (bulkSizeInByte) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
+				if (bulkSizeInByte>0 && msgSize > (bulkSizeInByte)) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
 					if global.Env().IsDebug {
 						log.Tracef("consuming [%v], slice_id:%v, hit buffer limit, size:%v, count:%v, submit now", qConfig.Name, sliceID, msgSize, msgCount)
 					}
@@ -653,7 +657,7 @@ READ_DOCS:
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
 			if global.Env().IsDebug {
-				log.Trace("hit idle timeout, ", idleDuration.String())
+				log.Debug("hit idle timeout, ", idleDuration.String())
 			}
 			goto CLEAN_BUFFER
 		}
