@@ -84,7 +84,7 @@ func RestorePersistID(path string) {
 	lock1.Lock()
 	defer lock1.Unlock()
 
-	persistedPath = JoinPath(path, ".sequence")
+	persistedPath = JoinPath(path, ".sequences")
 
 	if !FileExists(persistedPath) {
 		return
