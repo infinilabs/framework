@@ -26,6 +26,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/progress"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"runtime"
@@ -278,14 +279,18 @@ func (module *PipeModule) Stop() error {
 				progress.RegisterBar("pipeline", "shutdown", 1)
 
 				if global.Env().IsDebug {
-					log.Trace("start shutting down pipeline:", k,",state:",v.GetRunningState())
+					if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
+						log.Trace("start shutting down pipeline:", k,",state:",v.GetRunningState())
+					}
 				}
 
 				v.CancelTask()
 				v.Exit()
 
 				if global.Env().IsDebug {
-					log.Trace("finished shutting down pipeline:", k)
+					if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow() {
+						log.Trace("finished shutting down pipeline:", k)
+					}
 				}
 			}
 		}
@@ -298,7 +303,9 @@ func (module *PipeModule) Stop() error {
 					log.Error("pipeline framework failure to stop tasks, quiting")
 					return errors.New("pipeline framework failure to stop tasks, quiting")
 				}
-				log.Trace("pipeline still running:", k,",state:",v.GetRunningState(),", closing")
+				if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
+					log.Trace("pipeline still running:", k,",state:",v.GetRunningState(),", closing")
+				}
 				goto CLOSING
 			}
 		}
