@@ -15,13 +15,13 @@ limitations under the License.
 */
 
 package filter
-
-import (
-	"infini.sh/framework/core/api/router"
-	"net/http"
-)
-
-type Filter interface {
-	FilterHttpRouter(pattern string, h httprouter.Handle) httprouter.Handle
-	FilterHttpHandlerFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request)
-}
+//
+//import (
+//	"infini.sh/framework/core/api/router"
+//	"net/http"
+//)
+//
+//type Filter interface {
+//	FilterHttpRouter(pattern string, h httprouter.Handle) httprouter.Handle
+//	FilterHttpHandlerFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request)
+//}

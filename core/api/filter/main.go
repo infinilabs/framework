@@ -15,89 +15,89 @@ limitations under the License.
 */
 
 package filter
+//
+//import (
+//	"fmt"
+//	"io"
+//	"net/http"
+//	"sync"
+//	"time"
+//)
+//
+//func helloHandler(w http.ResponseWriter, r *http.Request) {
+//	Counter.Increase()
+//
+//	if RequestLimit.IsAvailable() {
+//		RequestLimit.Increase()
+//		fmt.Println(RequestLimit.ReqCount)
+//		io.WriteString(w, "Hello world!\n")
+//	} else {
+//		fmt.Println("Reach request limiting!")
+//		io.WriteString(w, "Reach request limit!\n")
+//	}
+//}
+//
+////func main() {
+////	fmt.Println("Server Started!")
+////	http.HandleFunc("/", helloHandler)
+////	http.HandleFunc("/_stats", getStatsHandler)
+////	http.ListenAndServe(":8000", nil)
+////}
+//
+//var qps []QPSCount
+//
+//type QPSCount struct {
+//	Timestamp  int64
+//	QPS        int
+//	MaxHistory int
+//}
+//
+//type CounterFilter struct {
+//	QPSCount
+//	CountAll int
+//	Lock     sync.Mutex
+//}
+//
+//func NewCounterService() *CounterFilter {
+//	counter := &CounterFilter{}
+//	go func() {
+//		ticker := time.NewTicker(time.Second)
+//		defer ticker.Stop()
+//		for {
+//			<-ticker.C
+//			counter.Lock.Lock()
+//			counter.Timestamp = time.Now().Unix()
+//
+//			if counter.QPS > 0 {
+//				qps = append(qps, QPSCount{counter.Timestamp, counter.QPS, 120})
+//			}
+//
+//			counter.QPS = 0
+//
+//			counter.Lock.Unlock()
+//		}
+//	}()
+//	return counter
+//}
+//
+//func (counter *CounterFilter) Increase() {
+//	counter.Lock.Lock()
+//	defer counter.Lock.Unlock()
+//
+//	counter.CountAll++
+//	counter.QPS++
+//}
 
-import (
-	"fmt"
-	"io"
-	"net/http"
-	"sync"
-	"time"
-)
+//func getStatsHandler(w http.ResponseWriter, r *http.Request) {
+//	cntStr := "time,qps\n"
+//
+//	for _, c := range qps {
+//		cntStr += fmt.Sprintf("%d,%d\n", c.Timestamp, c.QPS)
+//	}
+//
+//	cntStr += fmt.Sprintf("total: %d\n", Counter.CountAll)
+//
+//	io.WriteString(w, cntStr)
+//}
 
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	Counter.Increase()
-
-	if RequestLimit.IsAvailable() {
-		RequestLimit.Increase()
-		fmt.Println(RequestLimit.ReqCount)
-		io.WriteString(w, "Hello world!\n")
-	} else {
-		fmt.Println("Reach request limiting!")
-		io.WriteString(w, "Reach request limit!\n")
-	}
-}
-
-func main() {
-	fmt.Println("Server Started!")
-	http.HandleFunc("/", helloHandler)
-	http.HandleFunc("/_stats", getStatsHandler)
-	http.ListenAndServe(":8000", nil)
-}
-
-var qps []QPSCount
-
-type QPSCount struct {
-	Timestamp  int64
-	QPS        int
-	MaxHistory int
-}
-
-type CounterFilter struct {
-	QPSCount
-	CountAll int
-	Lock     sync.Mutex
-}
-
-func NewCounterService() *CounterFilter {
-	counter := &CounterFilter{}
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			counter.Lock.Lock()
-			counter.Timestamp = time.Now().Unix()
-
-			if counter.QPS > 0 {
-				qps = append(qps, QPSCount{counter.Timestamp, counter.QPS, 120})
-			}
-
-			counter.QPS = 0
-
-			counter.Lock.Unlock()
-		}
-	}()
-	return counter
-}
-
-func (counter *CounterFilter) Increase() {
-	counter.Lock.Lock()
-	defer counter.Lock.Unlock()
-
-	counter.CountAll++
-	counter.QPS++
-}
-
-func getStatsHandler(w http.ResponseWriter, r *http.Request) {
-	cntStr := "time,qps\n"
-
-	for _, c := range qps {
-		cntStr += fmt.Sprintf("%d,%d\n", c.Timestamp, c.QPS)
-	}
-
-	cntStr += fmt.Sprintf("total: %d\n", Counter.CountAll)
-
-	io.WriteString(w, cntStr)
-}
-
-var Counter = NewCounterService()
+//var Counter = NewCounterService()

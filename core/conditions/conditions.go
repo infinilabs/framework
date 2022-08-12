@@ -18,8 +18,11 @@
 package conditions
 
 import (
-	"errors"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
+	"io"
+	"github.com/valyala/fasttemplate"
 )
 
 // Config represents a configuration for a condition, as you would find it in the config files.
@@ -52,6 +55,58 @@ type ValuesMap interface {
 	// GetValue returns the given field from the map
 	GetValue(string) (interface{}, error)
 }
+
+type MutableValueMap interface {
+	PutValue(s string, value interface{}) (interface{}, error)
+}
+
+type RemovableValueMap interface {
+	RemoveValue(s string)(bool, error)
+}
+
+type Context struct {
+	contexts []ValuesMap
+}
+
+func (this *Context)AddContext(ctx ValuesMap)(*Context){
+	if this.contexts==nil{
+		this.contexts=[]ValuesMap{}
+	}
+	this.contexts=append(this.contexts,ctx)
+	return this
+}
+
+func (this *Context)GetValue(k string) (interface{}, error) {
+
+	//handle variables
+	if util.ContainStr(k,"$[["){
+		template, err := fasttemplate.NewTemplate(k, "$[[", "]]")
+		if err != nil {
+			panic(err)
+		}
+		k,err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
+			variable,err := this.GetValue(tag)
+			if err!=nil{
+				return 0,err
+			}
+			return w.Write([]byte(util.ToString(variable)))
+		})
+		if err==nil{
+			return this.GetValue(k)
+		}
+	}
+
+	//check contexts
+	for _,ctx:=range this.contexts{
+		v,err:= ctx.GetValue(k)
+		if err==nil{
+			return v,err
+		}
+	}
+
+	return nil, errors.Errorf("key=%v", k)
+}
+
 
 // NewCondition takes a Config and turns it into a real Condition
 func NewCondition(config *Config) (Condition, error) {

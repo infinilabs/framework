@@ -23,6 +23,7 @@ import (
 	"infini.sh/framework/modules/filter"
 	"infini.sh/framework/modules/pipeline"
 	queue2 "infini.sh/framework/modules/queue/disk_queue"
+	kafka_queue "infini.sh/framework/modules/queue/kafka_queue"
 	"infini.sh/framework/modules/queue/mem_queue"
 	"infini.sh/framework/modules/redis"
 	"infini.sh/framework/modules/stats"
@@ -38,6 +39,7 @@ func Register() {
 	module.RegisterSystemModule(&filter.FilterModule{})
 	module.RegisterSystemModule(&queue2.DiskQueue{})
 	module.RegisterSystemModule(&mem_queue.MemoryQueue{})
+	module.RegisterSystemModule(&kafka_queue.KafkaQueue{})
 	module.RegisterSystemModule(&redis.RedisModule{})
 	module.RegisterSystemModule(&api.APIModule{})
 	module.RegisterSystemModule(&ui.UIModule{})

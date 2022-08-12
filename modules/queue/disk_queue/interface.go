@@ -45,10 +45,6 @@ type Context struct {
 	//MaxLength      int64                  `json:"max_length"`
 }
 
-//func AcquireMessage()*Message  {
-//
-//}
-
 type EventType string
 
 const WriteComplete = EventType("WriteComplete")
