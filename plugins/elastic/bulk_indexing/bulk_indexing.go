@@ -101,7 +101,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
 			FetchMaxMessages: 500,
-			FetchMaxWaitMs:   1000,
+			FetchMaxWaitMs:   10000,
 		},
 
 		DetectActiveQueue: true,
@@ -213,6 +213,9 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					}
 
 					cfgs := queue.GetConfigBySelector(&processor.config.Selector)
+
+					log.Debugf("get %v queues",len(cfgs))
+
 					for _, v := range cfgs {
 						if c.IsCanceled() {
 							return
@@ -247,6 +250,9 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 }
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
+
+
+	//log.Error("skip:",processor.config.SkipEmptyQueue,",has lag:",queue.HasLag(v))
 
 	if processor.config.SkipEmptyQueue {
 		if !queue.HasLag(v) {
@@ -364,11 +370,9 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		}
 
 		processor.Lock()
+		defer processor.Unlock()
 		_, exists := processor.inFlightQueueConfigs.Load(key)
 		if exists {
-
-			processor.Unlock()
-
 			log.Debugf("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v, %v", tag, qConfig.Id, sliceID, key, processor.inFlightQueueConfigs)
 			continue
 		} else {
@@ -376,8 +380,6 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
 			processor.wg.Add(1)
 			go processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
-
-			processor.Unlock()
 		}
 	}
 }
@@ -503,7 +505,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 
 READ_DOCS:
 	initOffset, _ = queue.GetOffset(qConfig, consumer)
-	log.Tracef("get init offset: %v for consumer:%v,%v", initOffset, consumer.Group, consumer.Name)
+	log.Debugf("get init offset: %v for consumer:%v,%v", initOffset, consumer.Group, consumer.Name)
 	offset = initOffset
 	for {
 		if ctx.IsCanceled() {
@@ -547,14 +549,14 @@ READ_DOCS:
 
 		//each message is complete bulk message, must be end with \n
 		if global.Env().IsDebug {
-			log.Tracef("worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
+			log.Debugf("worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
 		}
 
 		log.Debugf("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
 		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer, offset)
 
 		if global.Env().IsDebug {
-			log.Tracef("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)
+			log.Debugf("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
@@ -621,7 +623,7 @@ READ_DOCS:
 				}
 
 				if global.Env().IsDebug {
-					log.Tracef("message count: %v, size: %v", mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
+					log.Debugf("message count: %v, size: %v", mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
 				msgSize := mainBuf.GetMessageSize()
 				msgCount := mainBuf.GetMessageCount()
@@ -653,7 +655,7 @@ READ_DOCS:
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
 			if global.Env().IsDebug {
-				log.Trace("hit idle timeout, ", idleDuration.String())
+				log.Debug("hit idle timeout, ", idleDuration.String())
 			}
 			goto CLEAN_BUFFER
 		}
