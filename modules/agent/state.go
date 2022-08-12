@@ -201,7 +201,7 @@ func (sm *StateManager) DeleteAgent(agentID string) error{
 
 	err = sm.agentClient.DeleteInstance(ctx,inst.GetEndpoint(), agentID)
 	if err != nil {
-		log.Error("delete agent instance error: %v", err)
+		log.Errorf("delete agent instance error: %v", err)
 	}
 	return kv.DeleteKey(sm.KVKey, []byte(agentID))
 }
