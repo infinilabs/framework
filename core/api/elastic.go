@@ -106,17 +106,21 @@ func (handler Handler) IsIndexAllowed(r *http.Request, clusterID string, indexNa
 	return radix.Compile(indices...).Match(indexName)
 }
 
-func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string) (string, error) {
+func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string) (bool, string, error) {
 	if !IsAuthEnable() {
-		return "", nil
+		return false, "", nil
+	}
+	claims, err := rbac.ValidateLogin(req.Header.Get("Authorization"))
+	if err != nil {
+		return false, "", err
+	}
+	if util.StringInArray(claims.Roles, rbac.RoleAdminName){
+		return true, "", nil
 	}
 
 	permission, params, matched := rbac.SearchAPIPermission("elasticsearch", req.Method, req.URL.Path)
 	if matched && permission != "" {
-		claims, err := rbac.ValidateLogin(req.Header.Get("Authorization"))
-		if err != nil {
-			return permission, err
-		}
+
 		newRole := rbac.CombineUserRoles(claims.Roles)
 		if indexName, ok := params["index_name"]; ok {
 
@@ -128,7 +132,7 @@ func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string
 
 			err = rbac.ValidateIndex(indexReq, newRole)
 			if err != nil {
-				return permission, err
+				return false, permission, err
 			}
 		}else{
 			clusterReq := rbac.ClusterRequest{
@@ -137,11 +141,11 @@ func (handler Handler) ValidateProxyRequest( req *http.Request, clusterID string
 			}
 			err = rbac.ValidateCluster(clusterReq, newRole)
 			if err != nil {
-				return permission, err
+				return false, permission, err
 			}
 		}
 	}
-	return permission, nil
+	return false,permission, nil
 }
 
 func  (handler Handler)  GetCurrentUserIndex(req *http.Request) (bool, map[string][]string){

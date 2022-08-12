@@ -54,14 +54,14 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	newReq := req.Clone(context.Background())
 	newReq.URL = reqUrl
 	newReq.Method = method
-	permission, err := h.ValidateProxyRequest(newReq, targetClusterID)
+	isSuperAdmin, permission, err := h.ValidateProxyRequest(newReq, targetClusterID)
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusForbidden)
 		return
 	}
-	if permission == "" && api.IsAuthEnable(){
+	if permission == "" && api.IsAuthEnable() && !isSuperAdmin{
 		resBody["error"] = "unknown request path"
 		h.WriteJSON(w, resBody, http.StatusForbidden)
 		return
@@ -93,7 +93,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	endpoint:=fmt.Sprintf("%s/%s",metadata.GetActivePreferredSeedEndpoint() , path)
+	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActivePreferredSeedEndpoint(), path)
 
 	freq.SetRequestURI(endpoint)
 
@@ -110,15 +110,13 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.Header.SetRequestURI(rurl.RequestURI())
 	}
 
-
-	freq.SetBodyStream(req.Body, -1)
+	freq.SetBodyStream(req.Body, int(req.ContentLength))
 	defer req.Body.Close()
 	client := &fasthttp.Client{
 		MaxConnsPerHost: 1000,
 		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 		ReadTimeout: 5 *time.Second,
 		WriteTimeout: 5 *time.Second,
-		DisablePathNormalizing: true,
 	}
 	err = client.Do(freq, fres)
 	if err != nil {
