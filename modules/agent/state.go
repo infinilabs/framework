@@ -134,7 +134,7 @@ func (sm *StateManager) GetAgent(ID string) (*agent.Instance, error){
 	 if time.Since(inst.Timestamp) > sm.TTL {
 		exists, err := orm.Get(inst)
 		if err != nil {
-			return nil, fmt.Errorf("get agent error: %w", err)
+			return nil, fmt.Errorf("get agent [%s] error: %w", ID, err)
 		}
 		if !exists {
 			return nil, fmt.Errorf("can not found agent [%s]", ID)
@@ -167,6 +167,12 @@ func (sm *StateManager) DispatchAgent(clusterID string) (*agent.Instance, error)
 	state, err := sm.calcTaskAgent(clusterID)
 	if err != nil {
 		return nil, err
+	}
+
+	if state != nil {
+		log.Infof("dispatch cluster metric task of cluster [%s] to agent [%s], node [%s]", clusterID, state.ClusterMetricTask.AgentID, state.ClusterMetricTask.NodeUUID)
+	}else{
+		log.Infof("dispatch cluster metric task of cluster [%s] to console", clusterID)
 	}
 
 	sm.setTaskAgent(clusterID, state)
@@ -304,7 +310,12 @@ func (sm *StateManager) calcTaskAgent(clusterID string) (*agent.ShortState, erro
 	}
 	var targetNodeID string
 	nodeToAgent := map[string]int{}
+	oldState := sm.GetState(clusterID)
 	for i, ag := range agents {
+		//return whether agent is offline or agent id is equal old (es search latency )
+		if ag.Status == "offline" || oldState.ClusterMetricTask.AgentID == ag.ID {
+			continue
+		}
 		for _, cluster := range ag.Clusters {
 			if cluster.ClusterID == clusterID {
 				for _, n := range cluster.Nodes {

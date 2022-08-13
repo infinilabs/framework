@@ -34,7 +34,8 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 	}
 	syncToES := inst.Status != "online"
 	inst.Status = "online"
-	log.Info("heartbeat from ", id)
+	host := util.ClientIP(req)
+	log.Infof("heartbeat from [%s]", host)
 	ag, err := sm.UpdateAgent(inst, syncToES)
 	if err != nil {
 		log.Error(err)
@@ -217,7 +218,7 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 	h.WriteJSON(w, util.MapStr{
 		"_id":    obj.ID,
 		"result": "updated",
-		"new_clusters": newMatchedClusters,
+		"clusters": newMatchedClusters,
 	}, 200)
 }
 func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent.ESCluster) (map[string]interface{}, error){
@@ -225,25 +226,26 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 		return nil, fmt.Errorf("request body should not be empty")
 	}
 
-	clusters := map[string]*agent.ESCluster{}
+	clusters := map[string]agent.ESCluster{}
 	var newClusters []agent.ESCluster
 	for _, nc := range esClusters {
 		if strings.TrimSpace(nc.ClusterID) == "" {
 			newClusters = append(newClusters, nc)
 			continue
 		}
-		clusters[nc.ClusterID] = &nc
+		clusters[nc.ClusterID] = nc
 	}
 	var toUpClusters []agent.ESCluster
 	for _, cluster := range obj.Clusters {
 		if upCluster, ok := clusters[cluster.ClusterID]; ok {
-			toUpClusters = append(toUpClusters, agent.ESCluster{
+			newUpCluster := agent.ESCluster{
 				ClusterUUID: cluster.ClusterUUID,
 				ClusterName: upCluster.ClusterName,
 				ClusterID: cluster.ClusterID,
 				Nodes: upCluster.Nodes,
 				Task: cluster.Task,
-			})
+			}
+			toUpClusters = append(toUpClusters, newUpCluster)
 			continue
 		}
 		//todo log delete nodes
@@ -264,6 +266,11 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 		//	}
 		//}
 	}
+	//attach old cluster
+	oldMatchedClusters, err := getMatchedClusters(obj.Host, toUpClusters)
+	if err != nil {
+		return nil, err
+	}
 
 	for clusterName, matchedCluster := range matchedClusters {
 		if vm, ok := matchedCluster.(map[string]interface{}); ok {
@@ -275,7 +282,11 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 		}
 	}
 	obj.Clusters = toUpClusters
-	return matchedClusters, nil
+	if matchedClusters == nil {
+		matchedClusters = map[string]interface{}{}
+	}
+	err = util.MergeFields(matchedClusters, oldMatchedClusters, true)
+	return matchedClusters, err
 
 
 }

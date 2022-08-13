@@ -50,7 +50,7 @@ func (client *Client) DisableTaskToNode(ctx context.Context, agentBaseURL string
 
 func (client *Client) DeleteInstance(ctx context.Context, agentBaseURL string, agentID string) error {
 	req := &util.Request{
-		Method: http.MethodGet,
+		Method: http.MethodDelete,
 		Url: fmt.Sprintf("%s/manage/%s", agentBaseURL, agentID),
 		Context: ctx,
 	}
