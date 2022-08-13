@@ -13,6 +13,9 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/s3"
+	"infini.sh/framework/core/util"
+	"os"
+	"sync"
 )
 
 type S3Config struct {
@@ -33,6 +36,7 @@ type S3Module struct {
 type S3Uploader struct {
 	S3Config *S3Config
 	minioClient *minio.Client
+	sync.Mutex
 }
 
 func NewS3Uploader(cfg *S3Config)(*S3Uploader,error)  {
@@ -91,7 +95,7 @@ func (uploader *S3Uploader) SyncUpload(filePath,location,bucketName,objectName s
 
 func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName string) (bool,error){
 
-	log.Tracef("s3 downloading file:%v to: %v",objectName,filePath)
+	log.Tracef("try downloading s3 file:%v to: %v",objectName,filePath)
 
 	if !uploader.minioClient.IsOnline(){
 		log.Tracef("s3 server [%v] is online:%v\n", uploader.minioClient.EndpointURL(),uploader.minioClient.IsOnline())
@@ -100,13 +104,35 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 
 	var err error
 	ctx := context.Background()
+
+	uploader.Lock()
+	defer uploader.Unlock()
+
 	exists, errBucketExists := uploader.minioClient.BucketExists(ctx, bucketName)
 	if errBucketExists != nil || !exists {
 		log.Tracef("bucket not exists %s, %v", bucketName,errBucketExists)
 		return false,err
 	}
 
-	err = uploader.minioClient.FGetObject(ctx, bucketName, objectName, filePath, minio.GetObjectOptions{})
+	if util.FileExists(filePath){
+		log.Tracef("local file exists, %v, %v",objectName,filePath)
+		return true,nil
+	}
+
+	tempPath:=filePath+".tmp"
+	if util.FileExists(tempPath){
+		util.FileDelete(tempPath)
+	}
+
+	log.Debugf("s3 downloading file:%v to: %v",objectName,filePath)
+
+	err = uploader.minioClient.FGetObject(ctx, bucketName, objectName, tempPath, minio.GetObjectOptions{})
+	if err != nil {
+		log.Error(err)
+		return false,err
+	}
+
+	err=os.Rename(tempPath,filePath)
 	if err != nil {
 		log.Error(err)
 		return false,err

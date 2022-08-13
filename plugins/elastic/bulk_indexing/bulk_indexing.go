@@ -705,7 +705,11 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 	count := mainBuf.GetMessageCount()
 	size := mainBuf.GetMessageSize()
 
-	if mainBuf.GetMessageCount() > 0 {
+	if count>0&&size==0||count==0&&size>0{
+		panic(errors.Errorf("invalid bulk message, %v",mainBuf))
+	}
+
+	if count > 0 &&size>0{
 
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
