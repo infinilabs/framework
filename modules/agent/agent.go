@@ -67,7 +67,7 @@ func (module *AgentModule) Setup(cfg *config.Config) {
 			}
 		}
 	}
-	sm := NewStateManager(time.Second * 60, "agent_state", taskState, agentIds)
+	sm := NewStateManager(time.Second * 30, "agent_state", taskState, agentIds)
 	agent.RegisterStateManager(sm)
 	go sm.LoopState()
 	//todo reassign tasks and refresh state automatically
