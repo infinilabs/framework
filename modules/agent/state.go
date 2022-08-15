@@ -57,6 +57,9 @@ func (sm *StateManager) checkAgentStatus(){
 		sm.workerChan <- struct{}{}
 		go func(agentID string) {
 			defer func() {
+				if err := recover(); err != nil {
+					log.Errorf("check agent [%s] status recover form panic error: %v", agentID, err)
+				}
 				<- sm.workerChan
 			}()
 			ag, err := sm.GetAgent(agentID)
@@ -174,8 +177,11 @@ func (sm *StateManager) DispatchAgent(clusterID string) (*agent.Instance, error)
 	}else{
 		log.Infof("dispatch cluster metric task of cluster [%s] to console", clusterID)
 	}
-
 	sm.setTaskAgent(clusterID, state)
+	if state == nil {
+		return nil, nil
+	}
+
 	return sm.GetAgent(state.ClusterMetricTask.AgentID)
 }
 func (sm *StateManager) GetTaskAgent(clusterID string) (*agent.Instance, error) {
@@ -323,6 +329,10 @@ func (sm *StateManager) calcTaskAgent(clusterID string) (*agent.ShortState, erro
 				}
 			}
 		}
+	}
+	//no available agent
+	if len(nodeToAgent) == 0 {
+		return nil, nil
 	}
 	esClient := elastic.GetClient(clusterID)
 	nodes, err := esClient.CatNodes("id,name,ip,port,master")
