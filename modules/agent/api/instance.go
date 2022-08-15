@@ -35,7 +35,7 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 	syncToES := inst.Status != "online"
 	inst.Status = "online"
 	host := util.ClientIP(req)
-	log.Infof("heartbeat from [%s]", host)
+	log.Tracef("heartbeat from [%s]", host)
 	ag, err := sm.UpdateAgent(inst, syncToES)
 	if err != nil {
 		log.Error(err)
@@ -117,6 +117,7 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	obj.Clusters = filterClusters
 	obj.Status = "online"
 
+	log.Trace("register agent [%s]: %v", obj.Host, obj)
 	err = orm.Create(obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -203,6 +204,7 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 		log.Error(err)
 		return
 	}
+	log.Infof("update agent [%s]: %v", obj.Host, obj)
 	err = orm.Update(&obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
