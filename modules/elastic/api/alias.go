@@ -43,9 +43,8 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 	if r, _ := util.VersionCompare(esVersion, "6.4"); r == -1 {
 		for i := range aliasReq.Actions {
 			for k, v := range aliasReq.Actions[i] {
-				if v.IsWriteIndex {
-					v.IsWriteIndex = false
-					aliasReq.Actions[i][k] = v
+				if v != nil && v["is_write_index"] != nil {
+					delete(aliasReq.Actions[i][k], "is_write_index")
 					log.Warnf("elasticsearch aliases api of version [%s] not supports parameter is_write_index", esVersion)
 				}
 			}
