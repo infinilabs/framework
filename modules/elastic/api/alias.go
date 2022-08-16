@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/util"
 	"net/http"
 )
 
@@ -37,6 +38,18 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
+	}
+	esVersion := elastic.GetMetadata(targetClusterID).Config.Version
+	if r, _ := util.VersionCompare(esVersion, "6.4"); r == -1 {
+		for i := range aliasReq.Actions {
+			for k, v := range aliasReq.Actions[i] {
+				if v.IsWriteIndex {
+					v.IsWriteIndex = false
+					aliasReq.Actions[i][k] = v
+					log.Warnf("elasticsearch aliases api of version [%s] not supports parameter is_write_index", esVersion)
+				}
+			}
+		}
 	}
 
 	bodyBytes, _ := json.Marshal(aliasReq)
