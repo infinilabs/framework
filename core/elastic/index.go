@@ -171,6 +171,7 @@ type ResponseBase struct {
 	RawResult   *util.Result `json:"-"`
 	StatusCode  int          `json:"-"`
 	ErrorObject error        `json:"-"`
+	ESError interface{} `json:"error"`
 }
 
 func (this *ResponseBase)GetIntByJsonPath(path string) (interface{},error) {

@@ -26,6 +26,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"net/http"
 )
 
 type ElasticStore struct {
@@ -93,6 +94,16 @@ func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 			}
 			return uDec, nil
 		}
+	}
+	if response.StatusCode != http.StatusNotFound {
+		var (
+			errStr string
+			ok bool
+		)
+		if errStr, ok = response.ESError.(string); !ok{
+			errStr = util.MustToJSON(response.ESError)
+		}
+		return nil, fmt.Errorf("get value error: %s", errStr)
 	}
 	return nil,nil
 }
