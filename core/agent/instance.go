@@ -59,11 +59,17 @@ type ShortState struct {
 	//AgentID string
 	//NodeUUID string
 	ClusterMetricTask ClusterMetricTaskState
+	NodeMetricTask  NodeMetricTaskState
 
 }
+
 type ClusterMetricTaskState struct {
 	AgentID string
 	NodeUUID string
+}
+
+type NodeMetricTaskState struct {
+
 }
 
 type ESNode struct {
