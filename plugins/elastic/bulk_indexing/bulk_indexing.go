@@ -519,7 +519,16 @@ READ_DOCS:
 				host1 := host
 				host = meta.GetActiveHost()
 				if rate.GetRateLimiter("host_dead", host, 1, 1, time.Second*3).Allow() {
-					log.Infof("host [%v] is dead, use: [%v]", host1, host)
+					if host!=host1{
+						log.Infof("host [%v] is dead, choose: [%v]", host1, host)
+					}else{
+						log.Infof("host [%v] is dead, no other host available", host1)
+					}
+				}
+				//if no new host found, skip processing
+				if host1==host{
+					log.Debugf("host [%v] is dead, but still use [%v], skip and clean_buffer", host1,host)
+					goto CLEAN_BUFFER
 				}
 			} else {
 				if global.Env().IsDebug {
