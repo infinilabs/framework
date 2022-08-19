@@ -12,9 +12,12 @@ func Init() {
 	handler := APIHandler{}
 	api.HandleAPIMethod(api.POST, "/agent/instance", handler.createInstance)
 	api.HandleAPIMethod(api.GET, "/agent/instance/_search", handler.searchInstance)
+	//api.HandleAPIMethod(api.GET, "/agent/instance/_discover_host", handler.getDiscoverHosts)
 	api.HandleAPIMethod(api.GET, "/agent/instance/:instance_id", handler.getInstance)
 	api.HandleAPIMethod(api.PUT, "/agent/instance/:instance_id", handler.updateInstance)
 	api.HandleAPIMethod(api.DELETE, "/agent/instance/:instance_id", handler.deleteInstance)
 	api.HandleAPIMethod(api.POST, "/agent/instance/:instance_id/_heartbeat", handler.heartbeat)
 	api.HandleAPIMethod(api.POST, "/agent/instance/:instance_id/_assign_task", handler.setTaskToInstance)
+	api.HandleAPIMethod(api.POST, "/agent/instance/_stats", handler.getInstanceStats)
+
 }

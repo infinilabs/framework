@@ -12,6 +12,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/proxy"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"strconv"
@@ -64,7 +65,6 @@ func (h *APIHandler) getIP(w http.ResponseWriter, req *http.Request, ps httprout
 
 func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = &agent.Instance{
-		Confirmed: true,
 	}
 	err := h.DecodeJSON(req, obj)
 	if err != nil {
@@ -117,7 +117,8 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	obj.Clusters = filterClusters
 	obj.Status = "online"
 
-	log.Trace("register agent [%s]: %v", obj.Host, obj)
+	log.Infof("register agent [%s]: %v", obj.Host, obj)
+	obj.Confirmed = true
 	err = orm.Create(obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -351,6 +352,64 @@ func (h *APIHandler) deleteInstance(w http.ResponseWriter, req *http.Request, ps
 		"result": "deleted",
 	}, 200)
 }
+func (h *APIHandler) getInstanceStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var instanceIDs = []string{}
+	err := h.DecodeJSON(req, &instanceIDs)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(instanceIDs) == 0 {
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
+		return
+	}
+	q := orm.Query{}
+	queryDSL := util.MapStr{
+		"query": util.MapStr{
+			"terms": util.MapStr{
+				"_id": instanceIDs,
+			},
+		},
+	}
+	q.RawQuery = util.MustToJSONBytes(queryDSL)
+
+	err, res := orm.Search(&agent.Instance{}, &q)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	result := util.MapStr{}
+	for _, item := range res.Result {
+		instance := agent.Instance{}
+		buf := util.MustToJSONBytes(item)
+		util.MustFromJSONBytes(buf, &instance)
+		endpoint := instance.GetEndpoint()
+		gid := instance.ID
+		res, err :=  proxy.DoProxyRequest(&proxy.Request{
+			Endpoint: endpoint,
+			Method: http.MethodGet,
+			Path: "/stats",
+		})
+		if err != nil {
+			log.Error(err)
+			result[gid] = util.MapStr{}
+			continue
+		}
+		var resMap = util.MapStr{}
+		err = util.FromJSONBytes(res.Body, &resMap)
+		if err != nil {
+			result[gid] = util.MapStr{}
+			log.Errorf("get stats of %v error: %v", endpoint, err)
+			continue
+		}
+
+		result[gid] = resMap
+	}
+	h.WriteJSON(w, result, http.StatusOK)
+}
+
 
 func (h *APIHandler) searchInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
@@ -538,6 +597,16 @@ func (h *APIHandler) getClusterAuth(w http.ResponseWriter, req *http.Request, ps
 	//esClient := elastic.GetClient(clusterID)
 }
 
+func (h *APIHandler) getDiscoverHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	hosts, err := discoverHost()
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.WriteJSON(w, hosts, http.StatusOK)
+}
+
 func getAgentByHost(host string) (*agent.Instance, error){
 	q := &orm.Query{
 		Size: 1,
@@ -557,4 +626,79 @@ func getAgentByHost(host string) (*agent.Instance, error){
 	}
 	err = util.FromJSONBytes(buf, &inst)
 	return &inst, err
+}
+
+// discoverHost auto discover host ip from elasticsearch node metadata and agent ips
+func discoverHost() (interface{}, error){
+	queryDsl := util.MapStr{
+		"_source": []string{"metadata.labels.ip", "metadata.node_id", "metadata.node_name"},
+		"collapse": util.MapStr{
+			"field": "metadata.labels.ip",
+		},
+	}
+	q := &orm.Query{
+		RawQuery: util.MustToJSONBytes(queryDsl),
+	}
+	err, result := orm.Search(elastic.NodeConfig{}, q)
+	if err != nil {
+		return nil, fmt.Errorf("search node metadata error: %w", err)
+	}
+	hostsFromES := map[string]interface{}{}
+	for _, row := range result.Result {
+		if rowM, ok := row.(map[string]interface{}); ok {
+			rowV := util.MapStr(rowM)
+			hostIP, _ := rowV.GetValue("metadata.labels.ip")
+			if v, ok := hostIP.(string); ok {
+				nodeUUID, _ := rowV.GetValue("metadata.node_id")
+				nodeName, _ := rowV.GetValue("metadata.node_name")
+				hostsFromES[v] = util.MapStr{
+					"ip": v,
+					"node_uuid": nodeUUID,
+					"node_name": nodeName,
+					"source": "es_node",
+				}
+			}
+
+		}
+	}
+
+	queryDsl = util.MapStr{
+		"_source": []string{"id", "ips", "host"},
+		"query": util.MapStr{
+			"term": util.MapStr{
+				"confirmed": util.MapStr{
+					"value": true,
+				},
+			},
+		},
+	}
+	q = &orm.Query{RawQuery:util.MustToJSONBytes(queryDsl)}
+	err, result = orm.Search(agent.Instance{}, q)
+	if err != nil {
+		return nil, fmt.Errorf("search agent error: %w", err)
+	}
+
+	hostsFromAgent := map[string]interface{}{}
+	for _, row := range result.Result {
+		if rowM, ok := row.(map[string]interface{}); ok {
+			if ips, ok := rowM["ips"].([]interface{}); ok {
+				for _, ip := range ips {
+					if ipv, ok := ip.(string); ok {
+						if _, ok = hostsFromES[ipv]; !ok {
+							hostsFromAgent[ipv] = util.MapStr{
+								"ip": ipv,
+								"agent_id": rowM["id"],
+								"agent_host": rowM["host"],
+								"source": "agent",
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}
+	err = util.MergeFields(hostsFromES, hostsFromAgent, true)
+
+	return hostsFromES, err
 }
