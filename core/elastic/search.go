@@ -23,7 +23,7 @@ type SearchTemplateHistory struct {
 	Created     time.Time `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
 }
 
-type AliasAction map[string]AliasActionBody
+type AliasAction map[string]map[string]interface{}
 
 type AliasActionBody struct{
 	Index string `json:"index,omitempty"`

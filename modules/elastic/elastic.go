@@ -255,11 +255,16 @@ func (module *ElasticModule) clusterStateRefresh() {
 						if v.MonitorConfigs != nil && v.MetadataConfigs.MetadataRefresh.Interval != "" {
 							interval = v.MetadataConfigs.MetadataRefresh.Interval
 						}
-						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
+						intervalD :=  util.GetDurationOrDefault(interval, 10*time.Second)
+						if time.Since(startTime.(time.Time)) > intervalD *2 {
 							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
 						} else {
-							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
-							return true
+							duration := elapsed - intervalD
+							abd := math.Abs(duration.Seconds())
+							if abd> 3 {
+								log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
+								return true
+							}
 						}
 					}
 					module.stateMap.Store(v.ID, time.Now())
