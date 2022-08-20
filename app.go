@@ -249,7 +249,7 @@ func (app *App) Shutdown() {
 	logger.Flush()
 
 	if app.environment.IsDebug {
-		fmt.Println(string(*stats.StatsAll()))
+		fmt.Println(util.ToJson(stats.StatsAll(),true))
 	}
 
 	if !app.isDaemonMode && !app.disableVerbose {

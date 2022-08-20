@@ -89,3 +89,18 @@ func TestFlatten(t *testing.T) {
 	fmt.Println(flat)
 
 }
+
+func TestFlattenMap(t *testing.T) {
+	m:=MapStr{}
+	m["a"]= MapStr {
+		"abc":int64(153),
+	}
+
+	o:=Flatten(m,false)
+	fmt.Println(o)
+
+	result := map[string]interface{}{}
+	result["key"]=123
+	o=Flatten(result,false)
+	fmt.Println(o)
+}
