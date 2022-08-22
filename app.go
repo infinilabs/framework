@@ -269,7 +269,6 @@ func (p *App) Start(s service.Service) error {
 
 	p.quitSignal = make(chan bool)
 	go p.run()
-	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
 }
 
@@ -282,7 +281,6 @@ func (p *App) run() error {
 		syscall.SIGTERM,
 		syscall.SIGQUIT,
 		os.Interrupt)
-
 
 	var stopping bool
 	var stopLock sync.Mutex
@@ -332,7 +330,7 @@ func (p *App) run() error {
 	}
 
 
-
+	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
 }
 
