@@ -113,6 +113,11 @@ func (handler Handler) EncodeJSON(v interface{}) (b []byte, err error) {
 	return b, nil
 }
 
+func (handler Handler) WriteTextHeader(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain")
+	handler.wroteHeader = true
+}
+
 // WriteJSONHeader will write standard json header
 func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

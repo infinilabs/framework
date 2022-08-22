@@ -232,7 +232,7 @@ func (s *Stats) Stat(category, key string) int64 {
 	return v
 }
 
-func (s *Stats) StatsAll() *[]byte {
+func (s *Stats) StatsAll() map[string]interface{} {
 	s.l.RLock()
 	defer s.l.RUnlock()
 
@@ -250,13 +250,7 @@ func (s *Stats) StatsAll() *[]byte {
 
 	result["buffer"] = bytebufferpool.BuffStats()
 
-	b, err := json.MarshalIndent(result, "", " ")
-	if err != nil {
-		log.Error(err)
-		return nil
-	}
-
-	return &b
+	return result
 }
 
 func (module *SimpleStatsModule) initStats(id string) {

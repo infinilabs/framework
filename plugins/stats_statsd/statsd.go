@@ -147,6 +147,6 @@ func (module *StatsDModule) Stat(category, key string) int64 {
 	return 0
 }
 
-func (module *StatsDModule) StatsAll() *[]byte {
+func (module *StatsDModule) StatsAll() map[string]interface{} {
 	return nil
 }
