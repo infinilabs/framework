@@ -147,7 +147,11 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 	client := elastic.GetClient(clusterId)
 	state,err := client.GetClusterState()
 	if err!=nil{
-		log.Errorf("failed to get [%v] state: %v, got response: %s",clusterId,err, string(state.RawResult.Body))
+		var res string
+		if state!=nil{
+			res=util.UnsafeBytesToString(state.RawResult.Body)
+		}
+		log.Errorf("failed to get [%v] state: %v, got response: %s",clusterId,err,res )
 		return
 	}
 
