@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -259,4 +260,40 @@ func CreateFile(dir string, name string) (string, error) {
 func FileExtension(file string) string {
 	ext := filepath.Ext(file)
 	return strings.ToLower(strings.TrimSpace(ext))
+}
+
+//Smart get file abs path
+func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
+	filename, _ := filepath.Abs(filePath)
+	if FileExists(filename) {
+		return filename
+	}
+
+	pwd, _ := os.Getwd()
+	if pwd != "" {
+		pwd = path.Join(pwd, filePath)
+	}
+
+	if FileExists(filename) {
+		return filename
+	}
+
+	ex, err := os.Executable()
+	var exPath string
+	if err == nil {
+		exPath = filepath.Dir(ex)
+	}
+
+	if exPath != "" {
+		filename = path.Join(exPath, filePath)
+	}
+
+	if FileExists(filename) {
+		return filename
+	} else {
+		if !ignoreMissing {
+			panic(errors.New("file not found:"+ filePath))
+		}
+		return filePath
+	}
 }

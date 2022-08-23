@@ -19,11 +19,9 @@ package env
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/valyala/fasttemplate"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -270,41 +268,6 @@ func (env *Env) loadConfig() error {
 	return nil
 }
 
-func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
-	filename, _ := filepath.Abs(filePath)
-	if util.FileExists(filename) {
-		return filename
-	}
-
-	pwd, _ := os.Getwd()
-	if pwd != "" {
-		pwd = path.Join(pwd, filePath)
-	}
-
-	if util.FileExists(filename) {
-		return filename
-	}
-
-	ex, err := os.Executable()
-	var exPath string
-	if err == nil {
-		exPath = filepath.Dir(ex)
-	}
-
-	if exPath != "" {
-		filename = path.Join(exPath, filePath)
-	}
-
-	if util.FileExists(filename) {
-		return filename
-	} else {
-		if !ignoreMissing {
-			panic(errors.Errorf("file not found: %s", filePath))
-		}
-		return filePath
-	}
-}
-
 func (env *Env) loadEnvFromConfigFile(filename string) error {
 	log.Debug("loading config file:", filename)
 	var err error
@@ -323,7 +286,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 	//load configs from config folder
 	if env.SystemConfig.PathConfig.Config != "" {
-		cfgPath := TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
+		cfgPath := util.TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
 		log.Debug("loading configs from:", cfgPath)
 		if util.FileExists(cfgPath) {
 
@@ -355,25 +318,6 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		}
 	}
 
-	if len(env.SystemConfig.Configs.Templates) > 0 {
-		for i, v := range env.SystemConfig.Configs.Templates {
-			log.Tracef("processing #[%v] template: %v,%v", i, v.Name, v.Path)
-			cfg, err := initTemplate(v)
-			if err != nil {
-				return err
-			} else {
-				configObject, err = config.MergeConfigs(configObject, cfg)
-				if err != nil {
-					return err
-				}
-				obj := map[string]interface{}{}
-				if err := configObject.Unpack(obj); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
 	obj := map[string]interface{}{}
 	if err := configObject.Unpack(obj); err != nil {
 		return err
@@ -382,47 +326,6 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 
 	return nil
-}
-
-func GetVariable(runtimeKV map[string]interface{}, key string) string {
-	if runtimeKV != nil {
-		x, ok := runtimeKV[key]
-		if ok {
-			str, ok := x.(string)
-			if ok {
-				return str
-			} else {
-				return util.ToString(x)
-			}
-		}
-	}
-	panic(errors.Errorf("variable [%v] not found", key))
-}
-
-func initTemplate(v config.ConfigTemplate) (*config.Config, error) {
-
-	file := TryGetFileAbsPath(v.Path, false)
-	if !util.FileExists(file) {
-		return nil, errors.Errorf("template %v not exists", file)
-	}
-
-	log.Tracef("variable: %v", v.Variable)
-
-	tempBytes, err := util.FileGetContent(file)
-	if err != nil {
-		return nil, err
-	}
-
-	template, err := fasttemplate.NewTemplate(util.UnsafeBytesToString(tempBytes), "$[[", "]]")
-	if err != nil {
-		return nil, err
-	}
-	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
-		variable := GetVariable(v.Variable, tag)
-		return w.Write([]byte(variable))
-	})
-	log.Trace("rendering templated config:\n", configStr)
-	return config.NewConfigWithYAML(util.UnsafeStringToBytes(configStr), "template")
 }
 
 func (env *Env) GetConfigFile() string {

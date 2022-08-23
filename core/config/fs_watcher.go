@@ -171,6 +171,7 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 				if cfg==nil{
 					continue
 				}
+
 				for k,v:=range notify{
 					if cfg.HasField(k){
 						currentCfg,err:=cfg.Child(k,-1)

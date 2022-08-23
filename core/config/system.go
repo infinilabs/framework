@@ -129,19 +129,12 @@ type SystemConfig struct {
 
 	Configs struct {
 		AutoReload bool             `config:"auto_reload"`
-		Templates  []ConfigTemplate `config:"template"`
 	} `config:"configs"`
 
 	//dynamic config enabled
 	Modules []*Config `config:"modules"`
 
 	Plugins []*Config `config:"plugins"`
-}
-
-type ConfigTemplate struct {
-	Name     string                 `config:"name"`
-	Path     string                 `config:"path"`
-	Variable map[string]interface{} `config:"variable"`
 }
 
 type APIConfig struct {
