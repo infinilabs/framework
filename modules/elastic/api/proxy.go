@@ -140,9 +140,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 var client = fasthttp.Client{
 	MaxConnsPerHost: 1000,
-	MaxIdleConnDuration: (time.Duration(3) * time.Second),
-	DisableHeaderNamesNormalizing: false,
 	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-	ReadTimeout:     30 * time.Second,
-	WriteTimeout:    30 * time.Second,
+	ReadTimeout:     60 * time.Second,
+	WriteTimeout:    60 * time.Second,
 }
