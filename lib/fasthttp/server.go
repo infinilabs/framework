@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"github.com/segmentio/encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1456,6 +1457,27 @@ func (ctx *RequestCtx) Error(msg string, statusCode int) {
 	ctx.SetBodyString(msg)
 }
 
+func (ctx *RequestCtx) ErrorInJSON(errMessage string, statusCode int) {
+	ctx.Response.Reset()
+	ctx.SetStatusCode(statusCode)
+	ctx.SetContentTypeBytes(strJsonContentType)
+
+	err1 := util.MapStr{
+		"status": statusCode,
+		"error": util.MapStr{
+			"reason": errMessage,
+		},
+	}
+
+	b, err := json.MarshalIndent(err1, "", "  ")
+	if err != nil {
+		log.Error(errMessage,err)
+		return
+	}
+
+	ctx.SetBody(b)
+}
+
 // Success sets response Content-Type and body to the given values.
 func (ctx *RequestCtx) Success(contentType string, body []byte) {
 	ctx.SetContentType(contentType)
@@ -2309,7 +2331,7 @@ func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 				log.Error("error on handle request,", v)
 				err= errors.Error(v)
 				if ctx.Response.GetBodyLength()==0{
-					ctx.Error(err.Error(),500)
+					ctx.ErrorInJSON(err.Error(),500)
 				}
 			}
 		}
