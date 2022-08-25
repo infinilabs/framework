@@ -593,7 +593,14 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 	clustersMutex.RLock()
 	config,ok:=clusters[id]
 	clustersMutex.RUnlock()
-	if !ok{
+
+	var client elastic.API
+
+	if !ok {
+		client=elastic.GetClientNoPanic(id)
+	}
+
+	if client==nil{
 		indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 		getResponse, err := h.Client().Get(indexName, "", id)
 		if err != nil {
@@ -616,9 +623,10 @@ func (h *APIHandler) GetClusterClient(id string) (bool,elastic.API,error) {
 		clusters[id]=cfg
 		clustersMutex.Unlock()
 		config = cfg
-	}
 
-	client, _ := common.InitClientWithConfig(config)
+		client, _ = common.InitClientWithConfig(config)
+
+	}
 
 	return true,client,nil
 }

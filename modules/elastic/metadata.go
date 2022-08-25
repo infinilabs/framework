@@ -641,7 +641,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	nodes, err := client.GetNodes()
 	if err != nil || nodes == nil || len(*nodes) <= 0 {
 		if rate.GetRateLimiterPerSecond(meta.Config.ID, "get_nodes_failure_on_error", 1).Allow() {
-			log.Errorf("elasticsearch [%v] failed to get nodes info", meta.Config.Name)
+			log.Errorf("elasticsearch [%v] failed to get nodes info, err: %v", meta.Config.Name,err)
 		}
 		setNodeUnknown(meta.Config.ID)
 		return
@@ -714,9 +714,12 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
 			//register host to do availability monitoring
-			for _, v := range *nodes {
-				elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
+			if discovery{
+				for _, v := range *nodes {
+					elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
+				}
 			}
+
 		}else{
 			cacheNodeInfo := util.MapStr{
 				"nodes": nodes,

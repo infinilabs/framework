@@ -82,7 +82,7 @@ func DeleteKey(bucket string, key []byte) error {
 var stores map[string]KVStore
 
 func Register(name string, h KVStore) {
-	log.Infof("register kv store with type [%s]", name)
+	log.Debugf("register kv store with type [%s]", name)
 	if stores == nil {
 		stores = map[string]KVStore{}
 	}

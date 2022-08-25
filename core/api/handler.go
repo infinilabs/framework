@@ -140,8 +140,8 @@ func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v
 
 func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
 	err1 := util.MapStr{
+		"status": statusCode,
 		"error": util.MapStr{
-			"status": statusCode,
 			"reason": errMessage,
 		},
 	}

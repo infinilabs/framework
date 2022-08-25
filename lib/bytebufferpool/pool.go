@@ -3,7 +3,6 @@ package bytebufferpool
 import (
 	"errors"
 	"fmt"
-	"infini.sh/framework/core/stats"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -198,7 +197,6 @@ func BuffStats() map[string]interface{} {
 // ByteBuffer.B mustn't be touched after returning it to the pool.
 // Otherwise data races will occur.
 func Put(tag string, b *ByteBuffer) {
-	stats.Gauge("buffer.put", tag, int64(b.Cap()))
 	b.Reset()
 	getPoolByTag(tag).Put(b)
 }
