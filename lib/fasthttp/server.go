@@ -2292,6 +2292,34 @@ var deniedMsgBytes = []byte(
 			"%s",
 		len(deniedMsg), deniedMsg))
 
+func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error on handle request,", v)
+				err= errors.Error(v)
+				if ctx.Response.GetBodyLength()==0{
+					ctx.Error(err.Error(),500)
+				}
+			}
+		}
+	}()
+
+	s.Handler(ctx)
+
+	return err
+}
+
 func (s *Server) serveConn(c net.Conn) (err error) {
 
 	defer func() {
@@ -2571,8 +2599,12 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//ctx.Request.resetSkipHeader() //will reset request body
 			ctx.Response.Reset()
 			stats.Increment("request", "received")
-			s.Handler(ctx)
-			stats.Increment("request", "finished")
+			err:=s.handleRequest(ctx)
+			if err!=nil{
+				stats.Increment("request", "error")
+			}else{
+				stats.Increment("request", "finished")
+			}
 		}
 
 		timeoutResponse = ctx.timeoutResponse
