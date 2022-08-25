@@ -1,7 +1,9 @@
 // +build windows
 
 package status
+
 import (
+	log "github.com/cihub/seelog"
 	"syscall"
 	"unsafe"
 )
@@ -20,17 +22,19 @@ func DiskUsage(path string) (disk DiskStatus) {
 	lpFreeBytesAvailable := uint64(0)
 	lpTotalNumberOfBytes := uint64(0)
 	lpTotalNumberOfFreeBytes := uint64(0)
-	_, _, err := c.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("F:"))),
+	_, _, err := c.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(path))),
 		uintptr(unsafe.Pointer(&lpFreeBytesAvailable)),
 		uintptr(unsafe.Pointer(&lpTotalNumberOfBytes)),
 		uintptr(unsafe.Pointer(&lpTotalNumberOfFreeBytes)))
 
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	disk.All = lpTotalNumberOfBytes
 	disk.Available = lpFreeBytesAvailable
 	disk.Free = lpTotalNumberOfFreeBytes
 	disk.Used = disk.All - disk.Free
+
 	return
 }
