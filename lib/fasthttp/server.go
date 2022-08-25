@@ -421,7 +421,15 @@ type Server struct {
 	open        int32
 	stop        int32
 	done        chan struct{}
+	whiteIPList *hashset.Set
 	blackIPList *hashset.Set
+}
+
+func (this *Server) AddWhiteIPList(ip string) {
+	if this.whiteIPList == nil {
+		this.whiteIPList = hashset.New()
+	}
+	this.whiteIPList.Add(ip)
 }
 
 func (this *Server) AddBlackIPList(ip string) {
@@ -2306,19 +2314,49 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	defer s.serveConnCleanup()
 	atomic.AddUint32(&s.concurrency, 1)
 
-	if s.blackIPList != nil {
+	if s.blackIPList != nil||s.whiteIPList != nil {
 		ip := c.RemoteAddr().String()
 		if strings.Contains(ip, ":") {
 			ips := strings.Split(ip, ":")
-			if s.blackIPList.Contains(ips[0]) {
+			ip=ips[0]
+		}
+
+		if global.Env().IsDebug{
+			log.Tracef("check ip [%v] is permitted or denied",ip)
+		}
+
+		//check black ip list
+		if s.blackIPList != nil{
+			if s.blackIPList.Contains(ip) {
 				stats.Increment("request", "denied")
 				c.Write(deniedMsgBytes)
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				c.Close()
+
+				if global.Env().IsDebug{
+					log.Debugf("ip [%v] denied",ip)
+				}
 
 				return nil
 			}
 		}
+
+		//check white ip list
+		if s.whiteIPList != nil{
+			if !s.whiteIPList.Contains(ip) {
+				stats.Increment("request", "denied")
+				c.Write(deniedMsgBytes)
+				time.Sleep(100 * time.Millisecond)
+				c.Close()
+
+				if global.Env().IsDebug{
+					log.Debugf("ip [%v] not permitted",ip)
+				}
+
+				return nil
+			}
+		}
+
 	}
 
 	var proto string

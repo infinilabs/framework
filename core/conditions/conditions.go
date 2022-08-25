@@ -23,6 +23,8 @@ import (
 	"infini.sh/framework/core/util/match"
 	"io"
 	"github.com/valyala/fasttemplate"
+	log "github.com/cihub/seelog"
+	"sync"
 )
 
 // Config represents a configuration for a condition, as you would find it in the config files.
@@ -66,6 +68,7 @@ type RemovableValueMap interface {
 
 type Context struct {
 	contexts []ValuesMap
+	templates sync.Map
 }
 
 func (this *Context)AddContext(ctx ValuesMap)(*Context){
@@ -78,14 +81,24 @@ func (this *Context)AddContext(ctx ValuesMap)(*Context){
 
 func (this *Context)GetValue(k string) (interface{}, error) {
 
+	var err error
 	//handle variables
 	if util.ContainStr(k,"$[["){
-		template, err := fasttemplate.NewTemplate(k, "$[[", "]]")
-		if err != nil {
-			panic(err)
+		t,ok:=this.templates.Load(k)
+		var template *fasttemplate.Template
+		if !ok{
+			template, err = fasttemplate.NewTemplate(k, "$[[", "]]")
+			if err != nil {
+				panic(err)
+			}
+			this.templates.Store(k,template)
+		}else{
+			template=t.(*fasttemplate.Template)
 		}
+
 		k,err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
 			variable,err := this.GetValue(tag)
+			log.Error(variable,err)
 			if err!=nil{
 				return 0,err
 			}

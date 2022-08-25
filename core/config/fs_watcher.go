@@ -8,7 +8,9 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/fsnotify/fsnotify"
 	"infini.sh/framework/core/util"
+	"runtime"
 	"sync"
+	"time"
 )
 
 type Watcher struct {
@@ -48,6 +50,10 @@ func EnableWatcher(path string)  {
 	log.Debugf("enable watcher on path: %v",path)
 
 }
+var watcherLock=sync.Once{}
+var watcherIsRunning=false
+//event bus
+var events chan fsnotify.Event=make(chan fsnotify.Event,10)
 
 func AddPathToWatch(path string,callback CallbackFunc) {
 
@@ -72,48 +78,118 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 
 	fsWatchers[path]=watcher
 
-	//cache:=util.NewCacheWithExpireOnAdd(5*time.Second,5)
-	go func(watcher *Watcher) {
-		for {
-			select {
-			case ev := <-fsWatcher.Events:
-				{
-					//TODO merge changes in 5 seconds
-					log.Trace("config changed:",ev.String())
+	watcherLock.Do(func() {
+		if watcherIsRunning{
+			return
+		}
+		watcherIsRunning=true
 
-					for _,v:=range watcher.callbacks{
-						v(ev.Name,ev.Op)
-					}
+		//handle events
+		go func(watcher *Watcher) {
 
-					cfg:=loadConfigFile(ev.Name)
-					if cfg==nil{
-						continue
-					}
-					for k,v:=range notify{
-						if cfg.HasField(k){
-							currentCfg,err:=cfg.Child(k,-1)
-							if err!=nil{
-								log.Error(err)
-								continue
-							}
-							// diff config
-							previousCfg,_:=latestConfig[k]
-							for _,f:=range v{
-								f(previousCfg,currentCfg)
-							}
-							latestConfig[k]=currentCfg
+			defer func() {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
 						}
+						log.Trace("error on handle configs,", v)
 					}
+			}()
 
-				}
-			case err := <-fsWatcher.Errors:
-				{
-					log.Debug("error : ", err)
-					return
+			//handle events merge
+			cache:=util.NewCacheWithExpireOnAdd(1*time.Second,5)
+			for {
+				select {
+				case ev := <-fsWatcher.Events:
+					{
+						if util.SuffixStr(ev.Name,"~"){
+							log.Trace("skip temp file:",ev.String())
+							continue
+						}
+
+						//merge changes in 1 seconds
+						v:=cache.Put(ev.Name,ev.Op)
+						if v!=nil{
+							//old key exists
+							log.Trace("1 seconds within, skip:",ev.String())
+							continue
+						}
+
+						log.Trace("config changed:",ev.String())
+						events<-ev
+					}
+				case err := <-fsWatcher.Errors:
+					{
+						log.Debug("error : ", err)
+						return
+					}
 				}
 			}
-		}
-	}(watcher)
+
+
+		}(watcher)
+
+		//handle config reload
+		go func() {
+			defer func() {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Trace("error on handle configs,", v)
+					}
+			}()
+
+			var ev fsnotify.Event
+			var ok bool
+			for{
+				ev,ok = <- events
+				if !ok{
+					return
+				}
+				log.Trace("2 seconds wait, on:",ev.String())
+				time.Sleep(2*time.Second)
+				log.Trace("2 seconds out, on:",ev.String())
+
+				for _,v:=range watcher.callbacks{
+					v(ev.Name,ev.Op)
+				}
+
+				cfg:=loadConfigFile(ev.Name)
+				if cfg==nil{
+					continue
+				}
+
+				for k,v:=range notify{
+					if cfg.HasField(k){
+						currentCfg,err:=cfg.Child(k,-1)
+						if err!=nil{
+							log.Error(err)
+							continue
+						}
+						// diff config
+						previousCfg,_:=latestConfig[k]
+						for _,f:=range v{
+							f(previousCfg,currentCfg)
+						}
+						latestConfig[k]=currentCfg
+					}
+				}
+			}
+		}()
+	})
 
 	err = fsWatcher.Add(path)
 	if err != nil {
@@ -130,6 +206,7 @@ func StopWatchers() {
 			v.watcher.Close()
 		}
 	}
+	close(events)
 }
 
 var notify = map[string][]func(pCfg,cCfg *Config){}

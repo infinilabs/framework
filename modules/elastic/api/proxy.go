@@ -105,19 +105,17 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	freq.Header.SetUserAgent(req.Header.Get("user-agent"))
 	freq.Header.SetReferer(endpoint)
 	rurl, _ := url.Parse(endpoint)
+
 	if rurl != nil {
 		freq.Header.SetHost(rurl.Host)
 		freq.Header.SetRequestURI(rurl.RequestURI())
 	}
 
+	freq.URI().SetScheme(metadata.GetSchema())
+
 	freq.SetBodyStream(req.Body, int(req.ContentLength))
 	defer req.Body.Close()
-	client := &fasthttp.Client{
-		MaxConnsPerHost: 1000,
-		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-		ReadTimeout: 5 *time.Second,
-		WriteTimeout: 5 *time.Second,
-	}
+
 	err = client.Do(freq, fres)
 	if err != nil {
 		resBody["error"] = err.Error()
@@ -138,4 +136,11 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	w.WriteHeader(fres.StatusCode())
 	json.NewEncoder(w).Encode(okBody)
 
+}
+
+var client = fasthttp.Client{
+	MaxConnsPerHost: 1000,
+	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
+	ReadTimeout:     60 * time.Second,
+	WriteTimeout:    60 * time.Second,
 }
