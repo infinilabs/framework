@@ -6,11 +6,14 @@ package api
 
 import (
 	"fmt"
+	"net"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/proxy"
 	"infini.sh/framework/core/util"
@@ -39,7 +42,9 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 	log.Tracef("heartbeat from [%s]", host)
 	ag, err := sm.UpdateAgent(inst, syncToES)
 	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
+		return
 	}
 	taskState := map[string]map[string]string{}
 	for _, cluster := range ag.Clusters {
@@ -50,9 +55,9 @@ func (h *APIHandler) heartbeat(w http.ResponseWriter, req *http.Request, ps http
 
 	h.WriteJSON(w, util.MapStr{
 		"agent_id":   id,
-		"result": "ok",
+		"success":    true,
 		"task_state": taskState,
-		"timestamp": time.Now().Unix(),
+		"timestamp":  time.Now().Unix(),
 	}, 200)
 }
 
@@ -63,9 +68,12 @@ func (h *APIHandler) getIP(w http.ResponseWriter, req *http.Request, ps httprout
 	}, http.StatusOK)
 }
 
+const APIKeyBucket = "console-api-key"
+const HTTPHeaderAPIKey = "X-API-KEY"
+
 func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var obj = &agent.Instance{
-	}
+
+	var obj = &agent.Instance{}
 	err := h.DecodeJSON(req, obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -83,7 +91,7 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 		Size: 2,
 	}
 	remoteIP := util.ClientIP(req)
-	q.Conds = orm.And(orm.Eq("host", remoteIP))
+	q.Conds = orm.And(orm.Eq("remote_ip", remoteIP))
 	err, result := orm.Search(obj, q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -98,12 +106,67 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	}
 
 	//match clusters
-	obj.Host = remoteIP
-	clusters, err := getMatchedClusters(obj.Host, obj.Clusters)
+	obj.RemoteIP = remoteIP
+	obj.Enrolled = false
+
+	err = orm.Create(obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
 		return
+	}
+	log.Infof("receive agent register from host [%s]: %s", obj.RemoteIP, util.MustToJSON(obj))
+
+	apiKey := req.Header.Get(HTTPHeaderAPIKey)
+	var isValidKey bool
+	if apiKey = strings.TrimSpace(apiKey); apiKey != "" {
+		buf, err := kv.GetValue(APIKeyBucket, []byte(apiKey))
+		if err != nil {
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			log.Error(err)
+			return
+		}
+		if string(buf) == "1" {
+			isValidKey = true
+		}
+	}
+	if isValidKey {
+		obj.Enrolled = true
+		clusters, err := enrollInstance(obj.ID)
+		if err != nil {
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			log.Error(err)
+			return
+		}
+		h.WriteJSON(w, util.MapStr{
+			"_id":      obj.ID,
+			"clusters": clusters,
+			"result":   "created",
+		}, 200)
+		return
+	}
+
+	h.WriteJSON(w, util.MapStr{
+		"_id":    obj.ID,
+		"result": "acknowledged",
+	}, 200)
+
+}
+
+func enrollInstance(agentID string) (map[string]interface{}, error) {
+	obj := agent.Instance{}
+
+	obj.ID = agentID
+	exists, err := orm.Get(&obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent [%s]: %w", agentID, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("agent [%s] not found", agentID)
+	}
+	clusters, err := getMatchedClusters(obj.RemoteIP, obj.Clusters)
+	if err != nil {
+		return nil, err
 	}
 
 	var filterClusters []agent.ESCluster
@@ -115,28 +178,11 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 		}
 	}
 	obj.Clusters = filterClusters
-	obj.Status = "online"
 
-	log.Infof("register agent [%s]: %v", obj.Host, obj)
-	obj.Confirmed = true
-	err = orm.Create(obj)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
-	}
-
+	log.Infof("register agent from host [%s]: %s", obj.RemoteIP, util.MustToJSON(obj))
 	sm := agent.GetStateManager()
-	_, err = sm.UpdateAgent(obj, false)
-	if err != nil {
-		log.Error(err)
-	}
-	h.WriteJSON(w, util.MapStr{
-		"_id":    obj.ID,
-		"clusters": clusters,
-		"result": "created",
-	}, 200)
-
+	err = sm.EnrollAgent(&obj, clusters)
+	return clusters, err
 }
 
 func (h *APIHandler) getInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -180,6 +226,11 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
+	if !obj.Enrolled {
+		h.WriteError(w, fmt.Sprintf("agent [%s] is not allowed to update since it is not enrolled", id), http.StatusInternalServerError)
+		return
+	}
+
 	newObj := agent.Instance{}
 	err = h.DecodeJSON(req, &newObj)
 	if err != nil {
@@ -199,34 +250,35 @@ func (h *APIHandler) updateInstance(w http.ResponseWriter, req *http.Request, ps
 	if len(newObj.IPS) > 0 {
 		obj.IPS = newObj.IPS
 	}
-	newMatchedClusters, err :=  h.updateInstanceNodes(&obj, newObj.Clusters)
+	newMatchedClusters, err := h.updateInstanceNodes(&obj, newObj.Clusters)
+
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
 		return
 	}
-	log.Infof("update agent [%s]: %v", obj.Host, obj)
-	err = orm.Update(&obj)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
-	}
+	log.Infof("update agent [%s]: %v", obj.RemoteIP, util.MustToJSON(obj))
+	//err = orm.Update(&obj)
+	//if err != nil {
+	//	h.WriteError(w, err.Error(), http.StatusInternalServerError)
+	//	log.Error(err)
+	//	return
+	//}
 
 	sm := agent.GetStateManager()
-	_, err = sm.UpdateAgent(&obj, false)
+	_, err = sm.UpdateAgent(&obj, true)
 	if err != nil {
 		log.Error(err)
 	}
 	h.WriteJSON(w, util.MapStr{
-		"_id":    obj.ID,
-		"result": "updated",
+		"_id":      obj.ID,
+		"result":   "updated",
 		"clusters": newMatchedClusters,
 	}, 200)
 }
-func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent.ESCluster) (map[string]interface{}, error){
+func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent.ESCluster) (map[string]interface{}, error) {
 	if len(esClusters) == 0 {
-		return nil, fmt.Errorf("request body should not be empty")
+		return nil, fmt.Errorf("clusters should not be empty")
 	}
 
 	clusters := map[string]agent.ESCluster{}
@@ -244,9 +296,9 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 			newUpCluster := agent.ESCluster{
 				ClusterUUID: cluster.ClusterUUID,
 				ClusterName: upCluster.ClusterName,
-				ClusterID: cluster.ClusterID,
-				Nodes: upCluster.Nodes,
-				Task: cluster.Task,
+				ClusterID:   cluster.ClusterID,
+				Nodes:       upCluster.Nodes,
+				Task:        cluster.Task,
 			}
 			toUpClusters = append(toUpClusters, newUpCluster)
 			continue
@@ -255,10 +307,10 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 	}
 	var (
 		matchedClusters map[string]interface{}
-		err error
+		err             error
 	)
 	if len(newClusters) > 0 {
-		matchedClusters, err = getMatchedClusters(obj.Host, newClusters)
+		matchedClusters, err = getMatchedClusters(obj.RemoteIP, newClusters)
 		if err != nil {
 			return nil, err
 		}
@@ -270,18 +322,23 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 		//}
 	}
 	//attach old cluster
-	oldMatchedClusters, err := getMatchedClusters(obj.Host, toUpClusters)
+	oldMatchedClusters, err := getMatchedClusters(obj.RemoteIP, toUpClusters)
 	if err != nil {
 		return nil, err
 	}
 
 	for clusterName, matchedCluster := range matchedClusters {
 		if vm, ok := matchedCluster.(map[string]interface{}); ok {
-			toUpClusters = append(toUpClusters, agent.ESCluster{
-				ClusterUUID: vm["cluster_uuid"].(string),
+			cluster := agent.ESCluster{
 				ClusterName: clusterName,
-				ClusterID: vm["cluster_id"].(string),
-			})
+			}
+			if v, ok := vm["cluster_uuid"].(string); ok {
+				cluster.ClusterUUID = v
+			}
+			if v, ok := vm["cluster_id"].(string); ok {
+				cluster.ClusterID = v
+			}
+			toUpClusters = append(toUpClusters, cluster)
 		}
 	}
 	obj.Clusters = toUpClusters
@@ -291,13 +348,12 @@ func (h *APIHandler) updateInstanceNodes(obj *agent.Instance, esClusters []agent
 	err = util.MergeFields(matchedClusters, oldMatchedClusters, true)
 	return matchedClusters, err
 
-
 }
 func (h *APIHandler) setTaskToInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("instance_id")
-	reqBody := []struct{
+	reqBody := []struct {
 		ClusterID string `json:"cluster_id"`
-		NodeUUID string `json:"node_uuid"`
+		NodeUUID  string `json:"node_uuid"`
 	}{}
 
 	err := h.DecodeJSON(req, &reqBody)
@@ -336,10 +392,13 @@ func (h *APIHandler) deleteInstance(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
-	err = agent.GetStateManager().DeleteAgent(obj.ID)
-	if err != nil {
-		log.Error(err)
+	if obj.Enrolled {
+		err = agent.GetStateManager().DeleteAgent(obj.ID)
+		if err != nil {
+			log.Error(err)
+		}
 	}
+
 	err = orm.Delete(&obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -352,6 +411,7 @@ func (h *APIHandler) deleteInstance(w http.ResponseWriter, req *http.Request, ps
 		"result": "deleted",
 	}, 200)
 }
+
 func (h *APIHandler) getInstanceStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var instanceIDs = []string{}
 	err := h.DecodeJSON(req, &instanceIDs)
@@ -387,10 +447,10 @@ func (h *APIHandler) getInstanceStats(w http.ResponseWriter, req *http.Request, 
 		util.MustFromJSONBytes(buf, &instance)
 		endpoint := instance.GetEndpoint()
 		gid := instance.ID
-		res, err :=  proxy.DoProxyRequest(&proxy.Request{
+		res, err := proxy.DoProxyRequest(&proxy.Request{
 			Endpoint: endpoint,
-			Method: http.MethodGet,
-			Path: "/stats",
+			Method:   http.MethodGet,
+			Path:     "/stats",
 		})
 		if err != nil {
 			log.Error(err)
@@ -410,18 +470,99 @@ func (h *APIHandler) getInstanceStats(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w, result, http.StatusOK)
 }
 
+func (h *APIHandler) enrollInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var instanceIDs = []string{}
+	err := h.DecodeJSON(req, &instanceIDs)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(instanceIDs) == 0 {
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
+		return
+	}
+	q := orm.Query{}
+	queryDSL := util.MapStr{
+		"query": util.MapStr{
+			"terms": util.MapStr{
+				"_id": instanceIDs,
+			},
+		},
+	}
+	q.RawQuery = util.MustToJSONBytes(queryDSL)
+
+	err, res := orm.Search(&agent.Instance{}, &q)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	errors := util.MapStr{}
+	for _, item := range res.Result {
+		instance := agent.Instance{}
+		buf := util.MustToJSONBytes(item)
+		err = util.FromJSONBytes(buf, &instance)
+		if err != nil {
+			errors[instance.ID] = util.MapStr{
+				"error": err.Error(),
+			}
+			log.Error(err)
+			continue
+		}
+		_, err = enrollInstance(instance.ID)
+		if err != nil {
+			errors[instance.ID] = util.MapStr{
+				"error": err.Error(),
+			}
+			log.Error(err)
+			continue
+		}
+	}
+
+	var resBody = util.MapStr{}
+	if len(errors) > 0 {
+		resBody["errors"] = errors
+		resBody["success"] = false
+	} else {
+		resBody["success"] = true
+	}
+
+	h.WriteJSON(w, resBody, http.StatusOK)
+}
 
 func (h *APIHandler) searchInstance(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	var (
-		keyword        = h.GetParameterOrDefault(req, "keyword", "")
-		queryDSL    = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
-		strSize     = h.GetParameterOrDefault(req, "size", "20")
-		strFrom     = h.GetParameterOrDefault(req, "from", "0")
-		mustBuilder = &strings.Builder{}
+		keyword = h.GetParameterOrDefault(req, "keyword", "")
+		//queryDSL    = `{"query":{"bool":{"must":[%s]}}, "size": %d, "from": %d}`
+		strSize      = h.GetParameterOrDefault(req, "size", "20")
+		strFrom      = h.GetParameterOrDefault(req, "from", "0")
+		unregistered = h.GetParameter(req, "unregistered")
 	)
+
+	var (
+		mustQ       []interface{}
+		enrolledVal = true
+	)
+	if unregistered == "1" {
+		enrolledVal = false
+	}
+	mustQ = append(mustQ, util.MapStr{
+		"term": util.MapStr{
+			"enrolled": util.MapStr{
+				"value": enrolledVal,
+			},
+		},
+	})
+
 	if keyword != "" {
-		mustBuilder.WriteString(fmt.Sprintf(`{"query_string":{"default_field":"*","query": "%s"}}`, keyword))
+		mustQ = append(mustQ, util.MapStr{
+			"query_string": util.MapStr{
+				"default_field": "*",
+				"query":         keyword,
+			},
+		})
 	}
 	size, _ := strconv.Atoi(strSize)
 	if size <= 0 {
@@ -432,9 +573,18 @@ func (h *APIHandler) searchInstance(w http.ResponseWriter, req *http.Request, ps
 		from = 0
 	}
 
+	queryDSL := util.MapStr{
+		"size": size,
+		"from": from,
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": mustQ,
+			},
+		},
+	}
+
 	q := orm.Query{}
-	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
-	q.RawQuery = []byte(queryDSL)
+	q.RawQuery = util.MustToJSONBytes(queryDSL)
 
 	err, res := orm.Search(&agent.Instance{}, &q)
 	if err != nil {
@@ -448,7 +598,6 @@ func (h *APIHandler) searchInstance(w http.ResponseWriter, req *http.Request, ps
 	//for _, hit := range searchRes.Hits.Hits {
 	//	hit.Source["task_count"] =
 	//}
-
 
 	h.Write(w, res.Raw)
 }
@@ -466,21 +615,21 @@ func (h *APIHandler) getClusterInstance(w http.ResponseWriter, req *http.Request
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	nodesM := make(map[string]*struct{
-		NodeID string
-		IP string
-		Name string
+	nodesM := make(map[string]*struct {
+		NodeID    string
+		IP        string
+		Name      string
 		AgentHost string
-		Owner bool
+		Owner     bool
 	}, len(nodes))
 	for _, node := range nodes {
 		nodesM[node.Id] = &struct {
-			NodeID  string
-			IP      string
-			Name    string
+			NodeID    string
+			IP        string
+			Name      string
 			AgentHost string
-			Owner   bool
-		}{NodeID: node.Id, IP: node.Ip, Name: node.Name }
+			Owner     bool
+		}{NodeID: node.Id, IP: node.Ip, Name: node.Name}
 	}
 	query := util.MapStr{
 		"query": util.MapStr{
@@ -507,7 +656,7 @@ func (h *APIHandler) getClusterInstance(w http.ResponseWriter, req *http.Request
 		for _, cluster := range inst.Clusters {
 			for _, n := range cluster.Nodes {
 				if _, ok := nodesM[n.UUID]; ok {
-					nodesM[n.UUID].AgentHost = inst.Host
+					nodesM[n.UUID].AgentHost = inst.RemoteIP
 					nodesM[n.UUID].Owner = cluster.Task.ClusterMetric.TaskNodeID == n.UUID
 				}
 			}
@@ -517,9 +666,8 @@ func (h *APIHandler) getClusterInstance(w http.ResponseWriter, req *http.Request
 	h.WriteJSON(w, nodesM, 200)
 }
 
-
-func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]interface{}, error){
-	resultClusters := map[string] interface{}{}
+func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]interface{}, error) {
+	resultClusters := map[string]interface{}{}
 	for _, cluster := range clusters {
 		queryDsl := util.MapStr{
 			"query": util.MapStr{
@@ -535,15 +683,15 @@ func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]int
 						{
 							"bool": util.MapStr{
 								"minimum_should_match": 1,
-								"must": []util.MapStr{
-									{
-										"prefix": util.MapStr{
-											"host": util.MapStr{
-												"value": host,
-											},
-										},
-									},
-								},
+								//"must": []util.MapStr{
+								//	{
+								//		"prefix": util.MapStr{
+								//			"host": util.MapStr{
+								//				"value": host,
+								//			},
+								//		},
+								//	},
+								//},
 								"should": []util.MapStr{
 									{
 										"term": util.MapStr{
@@ -569,6 +717,7 @@ func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]int
 		q := &orm.Query{
 			RawQuery: util.MustToJSONBytes(queryDsl),
 		}
+		log.Trace("match query dsl: ", string(q.RawQuery))
 		err, result := orm.Search(elastic.ElasticsearchConfig{}, q)
 		if err != nil {
 			return nil, err
@@ -578,15 +727,14 @@ func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]int
 			esConfig := elastic.ElasticsearchConfig{}
 			util.MustFromJSONBytes(buf, &esConfig)
 			resultClusters[cluster.ClusterName] = map[string]interface{}{
-				"cluster_id": esConfig.ID,
+				"cluster_id":   esConfig.ID,
 				"cluster_uuid": esConfig.ClusterUUID,
-				"basic_auth": esConfig.BasicAuth,
+				"basic_auth":   esConfig.BasicAuth,
 			}
 		}
 	}
 	return resultClusters, nil
 }
-
 
 func (h *APIHandler) getClusterAuth(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := h.GetParameterOrDefault(req, "cluster_id", "")
@@ -607,11 +755,11 @@ func (h *APIHandler) getDiscoverHosts(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w, hosts, http.StatusOK)
 }
 
-func getAgentByHost(host string) (*agent.Instance, error){
+func getAgentByHost(host string) (*agent.Instance, error) {
 	q := &orm.Query{
 		Size: 1,
 	}
-	q.Conds = orm.And(orm.Eq("host", host))
+	q.Conds = orm.And(orm.Eq("remote_ip", host))
 	inst := agent.Instance{}
 	err, result := orm.Search(inst, q)
 	if err != nil {
@@ -629,9 +777,9 @@ func getAgentByHost(host string) (*agent.Instance, error){
 }
 
 // discoverHost auto discover host ip from elasticsearch node metadata and agent ips
-func discoverHost() (interface{}, error){
+func discoverHost() (interface{}, error) {
 	queryDsl := util.MapStr{
-		"_source": []string{"metadata.labels.ip", "metadata.node_id", "metadata.node_name"},
+		"_source": []string{"metadata.labels.ip", "metadata.node_id", "metadata.node_name", "payload.node_state.os"},
 		"collapse": util.MapStr{
 			"field": "metadata.labels.ip",
 		},
@@ -651,11 +799,14 @@ func discoverHost() (interface{}, error){
 			if v, ok := hostIP.(string); ok {
 				nodeUUID, _ := rowV.GetValue("metadata.node_id")
 				nodeName, _ := rowV.GetValue("metadata.node_name")
+				osName, _ := rowV.GetValue("payload.node_state.os.name")
 				hostsFromES[v] = util.MapStr{
-					"ip": v,
+					"ip":        v,
 					"node_uuid": nodeUUID,
 					"node_name": nodeName,
-					"source": "es_node",
+					"source":    "es_node",
+					"os_name":   osName,
+					"host_name": "",
 				}
 			}
 
@@ -663,16 +814,16 @@ func discoverHost() (interface{}, error){
 	}
 
 	queryDsl = util.MapStr{
-		"_source": []string{"id", "ips", "host"},
+		"_source": []string{"id", "ips", "remote_ip", "major_ip", "host"},
 		"query": util.MapStr{
 			"term": util.MapStr{
-				"confirmed": util.MapStr{
+				"enrolled": util.MapStr{
 					"value": true,
 				},
 			},
 		},
 	}
-	q = &orm.Query{RawQuery:util.MustToJSONBytes(queryDsl)}
+	q = &orm.Query{RawQuery: util.MustToJSONBytes(queryDsl)}
 	err, result = orm.Search(agent.Instance{}, q)
 	if err != nil {
 		return nil, fmt.Errorf("search agent error: %w", err)
@@ -680,22 +831,30 @@ func discoverHost() (interface{}, error){
 
 	hostsFromAgent := map[string]interface{}{}
 	for _, row := range result.Result {
-		if rowM, ok := row.(map[string]interface{}); ok {
-			if ips, ok := rowM["ips"].([]interface{}); ok {
-				for _, ip := range ips {
-					if ipv, ok := ip.(string); ok {
-						if _, ok = hostsFromES[ipv]; !ok {
-							hostsFromAgent[ipv] = util.MapStr{
-								"ip": ipv,
-								"agent_id": rowM["id"],
-								"agent_host": rowM["host"],
-								"source": "agent",
-							}
-						}
-
-					}
+		ag := agent.Instance{}
+		bytes := util.MustToJSONBytes(row)
+		err = util.FromJSONBytes(bytes, &ag)
+		if err != nil {
+			log.Errorf("got unexpected agent: %s, error: %v", string(bytes), err)
+			continue
+		}
+		var ip = ag.MajorIP
+		if ip = strings.TrimSpace(ip); ip == "" {
+			for _, ipr := range ag.IPS {
+				if net.ParseIP(ipr).IsPrivate() {
+					ip = ipr
+					break
 				}
 			}
+		}
+
+		hostsFromAgent[ip] = util.MapStr{
+			"ip":         ip,
+			"agent_id":   ag.ID,
+			"agent_host": ag.RemoteIP,
+			"source":     "agent",
+			"os_name":    ag.Host.OS.Name,
+			"host_name":  ag.Host.Name,
 		}
 	}
 	err = util.MergeFields(hostsFromES, hostsFromAgent, true)

@@ -4,7 +4,6 @@
 
 package agent
 
-
 var stateManager IStateManager
 
 func GetStateManager() IStateManager {
@@ -14,7 +13,7 @@ func GetStateManager() IStateManager {
 	return stateManager
 }
 
-func RegisterStateManager(sm IStateManager)  {
+func RegisterStateManager(sm IStateManager) {
 	stateManager = sm
 }
 
@@ -33,4 +32,6 @@ type IStateManager interface {
 	LoopState()
 	Stop()
 	GetState(clusterID string) ShortState
+	EnrollAgent(inst *Instance, confirmInfo interface{}) error
+	DispatchNodeMetricTask(clusterID string) error
 }

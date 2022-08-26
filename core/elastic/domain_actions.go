@@ -163,9 +163,9 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
 	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1e5,       // Num keys to track frequency of (10M). 10,0000
+		NumCounters: 1e5,     // Num keys to track frequency of (10M). 10,0000
 		MaxCost:     1000000, //cfg.MaxCachedSize, // Maximum cost of cache (1GB).
-		BufferItems: 64,        // Number of keys per Get buffer.
+		BufferItems: 64,      // Number of keys per Get buffer.
 		Metrics:     false,
 	})
 	if err != nil {

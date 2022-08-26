@@ -5,19 +5,17 @@
 package agent
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/agent/api"
-	log "src/github.com/cihub/seelog"
 	"time"
 )
 
 func (module *AgentModule) Name() string {
 	return "agent"
 }
-
-
 
 //func loadAgentFromES() []agent.Instance {
 //	configs := []agent.Instance{}
@@ -44,8 +42,6 @@ func (module *AgentModule) Name() string {
 //	return configs
 //}
 
-
-
 func (module *AgentModule) Setup(cfg *config.Config) {
 	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
 	agents, err := loadAgentsFromES("")
@@ -55,28 +51,34 @@ func (module *AgentModule) Setup(cfg *config.Config) {
 	taskState := map[string]agent.ShortState{}
 	agentIds := map[string]struct{}{}
 	for _, ag := range agents {
+		if !ag.Enrolled {
+			continue
+		}
 		agentIds[ag.ID] = struct{}{}
 		for _, cluster := range ag.Clusters {
 			if cluster.Task.ClusterMetric.Owner {
 				taskState[cluster.ClusterID] = agent.ShortState{
 					ClusterMetricTask: agent.ClusterMetricTaskState{
-						AgentID: ag.ID,
+						AgentID:  ag.ID,
 						NodeUUID: cluster.Task.ClusterMetric.TaskNodeID,
 					},
 				}
 			}
+			if cluster.Task.NodeMetric != nil && cluster.Task.NodeMetric.Owner {
+				state := taskState[cluster.ClusterID]
+				state.NodeMetricTask = agent.NodeMetricTaskState{
+					AgentID: ag.ID,
+					Nodes: cluster.Task.NodeMetric.ExtraNodes,
+				}
+				taskState[cluster.ClusterID] = state
+			}
 		}
 	}
-	sm := NewStateManager(time.Second * 30, "agent_state", taskState, agentIds)
+
+	sm := NewStateManager(time.Second*30, "agent_state", taskState, agentIds)
 	agent.RegisterStateManager(sm)
 	go sm.LoopState()
 	//todo reassign tasks and refresh state automatically
-	//go func() {
-	//	elastic.WalkConfigs(func(key, value interface{}) bool {
-	//
-	//		return true
-	//	})
-	//}()
 	api.Init()
 }
 func (module *AgentModule) Start() error {
@@ -89,7 +91,6 @@ func (module *AgentModule) Stop() error {
 	log.Info("agent module was stopped")
 	return nil
 }
-
 
 type AgentModule struct {
 }

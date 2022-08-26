@@ -551,8 +551,8 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState, error) {
 	if cr > -1 {
 		format += "?expand_wildcards=all"
 	}
-	url := fmt.Sprintf(format, c.GetEndpoint())
 
+	url := fmt.Sprintf(format, c.GetEndpoint())
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	obj := &elastic.ClusterState{}
@@ -574,14 +574,19 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState, error) {
 		obj.ErrorObject = err
 		return obj, err
 	}
-
 	return obj, nil
 }
 
-func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
-	//_cluster/stats
-	url := fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
+func (c *ESAPIV0) GetClusterStatsSpecEndpoint(node string, endPoint string) (*elastic.ClusterStats, error) {
 
+	var url string
+	if endPoint == "" {
+		url = fmt.Sprintf("%s/_cluster/stats", c.GetEndpoint())
+	} else {
+		url = fmt.Sprintf("%s/_cluster/stats", endPoint)
+	}
+
+	//_cluster/stats
 	if node != "" {
 		url = fmt.Sprintf("%s/_cluster/stats/nodes/%v", c.GetEndpoint(), node)
 	}
@@ -622,11 +627,24 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
 	return obj, nil
 }
 
-func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
+func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
+	return c.GetClusterStatsSpecEndpoint(node, "")
+}
 
-	url := fmt.Sprintf("%s/_cluster/health?timeout=1s", c.GetEndpoint())
+//
+// ClusterHealthSpecEndpoint
+// @param url eg: http://192.168.3.22:9200
+//
+func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHealth, error) {
+
+	var url string
+	if endPoint == "" {
+		url = fmt.Sprintf("%s/_cluster/health?timeout=1s", c.GetEndpoint())
+	} else {
+		url = fmt.Sprintf("%s/_cluster/health?timeout=1s", endPoint)
+	}
+	log.Debugf("ClusterHealthSpecEndpoint, url: %s\n", url)
 	health := &elastic.ClusterHealth{}
-
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
 	if resp != nil {
@@ -653,6 +671,10 @@ func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
 	}
 
 	return health, err
+}
+
+func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
+	return c.ClusterHealthSpecEndpoint("")
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
@@ -810,9 +832,15 @@ func (c *ESAPIV0) GetPrimaryShards() (*map[string]map[int]elastic.ShardInfo, err
 	}
 	return &infos, nil
 }
-func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
+
+func (c *ESAPIV0) CatShardsSpecEndpoint(endPoint string) ([]elastic.CatShardResponse, error) {
 	data := []elastic.CatShardResponse{}
-	url := fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json&bytes=b", c.GetEndpoint())
+	var url string
+	if endPoint == "" {
+		url = fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json&bytes=b", c.GetEndpoint())
+	} else {
+		url = fmt.Sprintf("%s/_cat/shards?v&h=index,shard,prirep,state,unassigned.reason,docs,store,id,node,ip&format=json&bytes=b", endPoint)
+	}
 	resp, err := c.Request(util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
@@ -831,6 +859,10 @@ func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
 		data[i].Store = util.FormatBytes(float64(data[i].StoreInBytes), 2)
 	}
 	return data, nil
+}
+
+func (c *ESAPIV0) CatShards() ([]elastic.CatShardResponse, error) {
+	return c.CatShardsSpecEndpoint("")
 }
 
 func (c *ESAPIV0) Bulk(data []byte) (*util.Result, error) {
