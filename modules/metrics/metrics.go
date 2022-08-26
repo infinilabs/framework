@@ -71,7 +71,7 @@ func (module *MetricsModule) Setup(cfg *Config) {
 		if net.Enabled{
 			var task1 = task.ScheduleTask{
 				Description: "fetch network metrics",
-				Type:        "schedule",
+				Type:        "interval",
 				Interval:    "10s",
 				Task: func(ctx context.Context) {
 					log.Debug("collecting network metrics")
