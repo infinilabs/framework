@@ -105,11 +105,12 @@ func (app *App) InitWithFlags(customFunc func()) {
 
 	app.environment.IsDebug = app.isDebug
 	if app.configFile!=""{
-		if !util.FileExists(app.configFile){
-			fmt.Println(errors.Errorf("config file [%v] not exists",app.configFile))
+		path:= util.TryGetFileAbsPath(app.configFile,true)
+		if !util.FileExists(path){
+			fmt.Println(errors.Errorf("config file [%v] not exists",path))
 			os.Exit(1)
 		}
-		app.environment.SetConfigFile(app.configFile)
+		app.environment.SetConfigFile(path)
 	}
 	app.environment.Init()
 
