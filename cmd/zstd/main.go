@@ -7,43 +7,42 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
+	"flag"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
-	"infini.sh/framework/lib/bytebufferpool"
+	log "github.com/cihub/seelog"
+	"time"
 )
+
+
 
 func main() {
 
-	file := "/Users/medcl/Downloads/c8boc1hu46lgcqap7jq0.diskqueue.000200.dat"
-	rawBytes, err := util.FileGetContent(file)
+	path := flag.String("path", "data", "the data path")
+	op := flag.String("op", "compress", "compress or decompress")
+	flag.Parse()
+
+	files,err:=util.ListAllFiles(*path)
 	if err != nil {
 		panic(err)
 	}
-	newBytes, err := zstd.ZSTDCompress(nil, rawBytes, 11)
-	if err != nil {
-		panic(err)
+
+	if *op=="compress"{
+		for _, file := range files {
+			if !util.SuffixStr(file,suffix){
+				err:=zstd.CompressFile(file,file+suffix)
+				log.Error(err)
+			}
+		}
+	}else{
+		for _, file := range files {
+			if util.SuffixStr(file,suffix){
+				err:=zstd.DecompressFile(file,util.TrimRightStr(file,suffix))
+				log.Error(err)
+			}
+		}
 	}
-	fmt.Println(len(rawBytes))
-	fmt.Println(len(newBytes))
 
-	fmt.Println("compression ratio:", len(rawBytes)/len(newBytes))
-
-	//decompress
-	r := bytes.Reader{}
-	r.Reset(newBytes)
-	writer := bytebufferpool.Get("zstd")
-	zstd.ZSTDReusedDecompress(writer, &r)
-
-	fmt.Println("decompressed:", len(writer.Bytes()))
-
-	r = bytes.Reader{}
-	r.Reset(rawBytes)
-	writer = bytebufferpool.Get("zstd")
-	zstd.ZSTDReusedCompress(writer, &r)
-	fmt.Println("compressed:", len(writer.Bytes()))
-
-	fmt.Println("compression ratio:", len(rawBytes)/len(writer.Bytes()))
-
+	time.Sleep(time.Second)
 }
+var suffix=".zstd"
