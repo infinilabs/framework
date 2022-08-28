@@ -168,7 +168,7 @@ RELOCATE_FILE:
 	previousPos:=readPos
 	readPos=nextReadPos
 
-	if d.cfg.CompressOnMessagePayload.Enabled{
+	if d.cfg.Compress.Message.Enabled{
 		//option 1
 		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{

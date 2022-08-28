@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
 	"infini.sh/framework/modules/queue/common"
@@ -25,22 +26,21 @@ import (
 )
 
 type DiskQueue struct {
-	cfg *DiskQueueConfig
+	cfg        *DiskQueueConfig
 	initLocker sync.Mutex
 	api.Handler
-	queues sync.Map
+	queues   sync.Map
 	messages chan Event
-
 }
 
 func (module *DiskQueue) Name() string {
 	return "disk_queue"
 }
 
-type RetentionConfig struct{
-		MaxNumOfLocalFiles int64  `config:"max_num_of_local_files"`
-		//DeleteAfterSaveToS3 bool `config:"delete_after_save_to_s3"`
-		//MaxAge int  	   `config:"max_age"`
+type RetentionConfig struct {
+	MaxNumOfLocalFiles int64 `config:"max_num_of_local_files"`
+	//DeleteAfterSaveToS3 bool `config:"delete_after_save_to_s3"`
+	//MaxAge int  	   `config:"max_age"`
 }
 
 //#  disk.max_used_bytes:  100GB #trigger warning message
@@ -48,53 +48,79 @@ type RetentionConfig struct{
 //#  disk.reserved_free_bytes: 10GB #enter readonly mode, no writes allowed
 
 type DiskQueueConfig struct {
-
-
-	MinMsgSize       int32   `config:"min_msg_size"`
-	MaxMsgSize       int32   `config:"max_msg_size"`
+	MinMsgSize       int32 `config:"min_msg_size"`
+	MaxMsgSize       int32 `config:"max_msg_size"`
 	MaxBytesPerFile  int64 `config:"max_bytes_per_file"`
 	SyncEveryRecords int64 `config:"sync_every_records"`
 	SyncTimeoutInMS  int   `config:"sync_timeout_in_ms"`
-	NotifyChanBuffer   int   `config:"notify_chan_buffer_size"`
+	NotifyChanBuffer int   `config:"notify_chan_buffer_size"`
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
-	WriteChanBuffer   int   `config:"write_chan_buffer_size"`
+	WriteChanBuffer  int   `config:"write_chan_buffer_size"`
 
-	MaxUsedBytes   uint64   `config:"max_used_bytes"`
-	WarningFreeBytes   uint64   `config:"warning_free_bytes"`
-	ReservedFreeBytes   uint64   `config:"reserved_free_bytes"`
+	MaxUsedBytes      uint64 `config:"max_used_bytes"`
+	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
+	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
 
-
-	UploadToS3   bool   `config:"upload_to_s3"`
+	UploadToS3 bool `config:"upload_to_s3"`
 
 	//default queue adaptor
 	Default bool `config:"default"`
 	Enabled bool `config:"enabled"`
 
-	CompressOnSegment        CompressConfig `config:"compress_on_segment"`
-	CompressOnMessagePayload CompressConfig `config:"compress_on_message_payload"`
+	CompressOnSegment CompressConfig `config:"compress_on_segment"`
+
+	Compress DiskCompress `config:"compress"`
 
 	Retention RetentionConfig `config:"retention"`
 
-	S3 struct{
-		Async   bool   `config:"async"`
-		Server   string   `config:"server"`
-		Location   string   `config:"location"`
-		Bucket   string   `config:"bucket"`
-	}`config:"s3"`
+	S3 struct {
+		Async    bool   `config:"async"`
+		Server   string `config:"server"`
+		Location string `config:"location"`
+		Bucket   string `config:"bucket"`
+	} `config:"s3"`
+}
 
+type DiskCompress struct {
+	Message       CompressConfig `config:"message"`
+	Segment       CompressConfig `config:"segment"`
+	IdleThreshold int            `config:"idle_threshold"`
 }
 
 type CompressConfig struct {
-	Enabled bool  `config:"enabled"`
+	Enabled bool `config:"enabled"`
 	Level   int  `config:"level"`
+}
+
+var preventRead bool
+
+func checkCapacity(cfg *DiskQueueConfig) error {
+	if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
+		stats := status.DiskUsage(global.Env().GetDataDir())
+		if cfg.MaxUsedBytes > 0 && stats.Used >= cfg.MaxUsedBytes {
+			preventRead = true
+			return errors.Errorf("disk usage [%v] > threshold [%v]", util.ByteSize(stats.Used), util.ByteSize(cfg.MaxUsedBytes))
+		} else if cfg.ReservedFreeBytes > 0 && stats.Free <= uint64(cfg.ReservedFreeBytes) {
+			preventRead = true
+			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(cfg.ReservedFreeBytes))
+		} else if cfg.WarningFreeBytes > 0 && stats.Free <= uint64(cfg.WarningFreeBytes) {
+			if rate.GetRateLimiterPerSecond("queue", "disk_full_warning", 1).Allow() {
+				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(cfg.WarningFreeBytes))
+			}
+		}
+		if preventRead {
+			preventRead = false
+		}
+	}
+	return nil
 }
 
 func (module *DiskQueue) Init(name string) error {
 	module.initLocker.Lock()
 	defer module.initLocker.Unlock()
 
-	_,ok:= module.queues.Load(name)
-	if ok{
+	_, ok := module.queues.Load(name)
+	if ok {
 		return nil
 	}
 
@@ -102,26 +128,25 @@ func (module *DiskQueue) Init(name string) error {
 
 	dataPath := GetDataPath(name)
 
-	if !util.FileExists(dataPath){
+	if !util.FileExists(dataPath) {
 		os.MkdirAll(dataPath, 0755)
 	}
 
-	tempQueue := NewDiskQueueByConfig(name,dataPath,module.cfg)
+	tempQueue := NewDiskQueueByConfig(name, dataPath, module.cfg)
 
-	module.queues.Store(name,&tempQueue)
+	module.queues.Store(name, &tempQueue)
 
-	module.deleteUnusedFiles(name,tempQueue.ReadContext().WriteFileNum)
+	module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
 	return nil
 }
 
-func GetDataPath(queueID string)string  {
+func GetDataPath(queueID string) string {
 	return path.Join(global.Env().GetDataDir(), "queue", strings.ToLower(queueID))
 }
 
-
-func GetFileName(queueID string,segmentID int64) string {
+func GetFileName(queueID string, segmentID int64) string {
 	//return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.segment.%06d.dat",queueID , segmentID))
-	return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.diskqueue.%06d.dat",queueID , segmentID))
+	return path.Join(GetDataPath(queueID), fmt.Sprintf("%s.diskqueue.%06d.dat", queueID, segmentID))
 }
 
 func (module *DiskQueue) Setup(config *config.Config) {
@@ -130,9 +155,9 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		Enabled:           true,
 		Default:           true,
 		UploadToS3:        false,
-		Retention:         RetentionConfig{ MaxNumOfLocalFiles: 10},
+		Retention:         RetentionConfig{MaxNumOfLocalFiles: 10},
 		MinMsgSize:        1,
-		MaxMsgSize:        104857600, //100MB
+		MaxMsgSize:        104857600,         //100MB
 		MaxBytesPerFile:   100 * 1024 * 1024, //100MB
 		SyncEveryRecords:  1000,
 		SyncTimeoutInMS:   1000,
@@ -141,30 +166,33 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		WriteChanBuffer:   0,
 		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
-		CompressOnMessagePayload: CompressConfig{
+		Compress: DiskCompress{Message: CompressConfig{
 			Enabled: false,
-			Level: 11,
-		},
+			Level:   3,
+		}, Segment: CompressConfig{
+			Enabled: false,
+			Level:   11,
+		}},
 	}
 
-	ok,err:=env.ParseConfig("disk_queue", module.cfg)
-	if ok&&err!=nil{
+	ok, err := env.ParseConfig("disk_queue", module.cfg)
+	if ok && err != nil {
 		panic(err)
 	}
 
-	if !module.cfg.Enabled{
+	if !module.cfg.Enabled {
 		return
 	}
 
 	common.InitQueueMetadata()
 
-	module.queues=sync.Map{}
+	module.queues = sync.Map{}
 
-	module.messages = make(chan Event,module.cfg.NotifyChanBuffer)
+	module.messages = make(chan Event, module.cfg.NotifyChanBuffer)
 
 	RegisterEventListener(func(event Event) error {
 
-		module.messages<-event
+		module.messages <- event
 
 		return nil
 	})
@@ -175,38 +203,38 @@ func (module *DiskQueue) Setup(config *config.Config) {
 	//})
 
 	queue.Register("disk", module)
-	if module.cfg.Default{
+	if module.cfg.Default {
 		queue.RegisterDefaultHandler(module)
 	}
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
-	q,ok:=module.queues.Load(k)
-	if !ok{
+	q, ok := module.queues.Load(k)
+	if !ok {
 		//try init
 		module.Init(k)
-		q,ok=module.queues.Load(k)
+		q, ok = module.queues.Load(k)
 	}
-	if ok{
+	if ok {
 		return (*q.(*BackendQueue)).Put(v)
 	}
-	return errors.Errorf("queue [%v] not found",k)
+	return errors.Errorf("queue [%v] not found", k)
 }
 
-func (module *DiskQueue) ReadChan(k string) <-chan []byte{
-	q,ok:=module.queues.Load(k)
-	if !ok{
+func (module *DiskQueue) ReadChan(k string) <-chan []byte {
+	q, ok := module.queues.Load(k)
+	if !ok {
 		//try init
 		module.Init(k)
-		q,ok=module.queues.Load(k)
+		q, ok = module.queues.Load(k)
 	}
-	if ok{
+	if ok {
 		return (*q.(*BackendQueue)).ReadChan()
 	}
-	panic(errors.Errorf("queue [%v] not found",k))
+	panic(errors.Errorf("queue [%v] not found", k))
 }
 
-func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
+func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []byte, timeout bool) {
 	if timeoutDuration > 0 {
 		to := util.AcquireTimer(timeoutDuration)
 		defer util.ReleaseTimer(to)
@@ -214,26 +242,26 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 			to.Reset(timeoutDuration)
 			select {
 			case b := <-module.ReadChan(k):
-				return b,false
+				return b, false
 			case <-to.C:
-				return nil,true
+				return nil, true
 			}
 		}
 	} else {
 		b := <-module.ReadChan(k)
-		return b,false
+		return b, false
 	}
 }
 
-func ConvertOffset(offsetStr string) (int64,int64) {
-	data:=strings.Split(offsetStr,",")
-	if len(data)!=2{
-		panic(errors.Errorf("invalid offset: %v",offsetStr))
+func ConvertOffset(offsetStr string) (int64, int64) {
+	data := strings.Split(offsetStr, ",")
+	if len(data) != 2 {
+		panic(errors.Errorf("invalid offset: %v", offsetStr))
 	}
-	var segment,offset int64
-	segment,_=util.ToInt64(data[0])
-	offset,_=util.ToInt64(data[1])
-	return segment,offset
+	var segment, offset int64
+	segment, _ = util.ToInt64(data[0])
+	offset, _ = util.ToInt64(data[1])
+	return segment, offset
 }
 
 func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (ctx *queue.Context, messages []queue.Message, timeout bool, err error) {
@@ -254,7 +282,7 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 		//	err = errors.New("EOF")
 		//}
 
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Tracef("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
 		}
 
@@ -265,55 +293,55 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 }
 
 func (module *DiskQueue) Close(k string) error {
-	q,ok:=module.queues.Load(k)
-	if ok{
+	q, ok := module.queues.Load(k)
+	if ok {
 		return (*q.(*BackendQueue)).Close()
 	}
-	panic(errors.Errorf("queue [%v] not found",k))
+	panic(errors.Errorf("queue [%v] not found", k))
 }
 
 func (module *DiskQueue) GetStorageSize(k string) uint64 {
-	q,ok:=module.queues.Load(k)
-	if !ok{
+	q, ok := module.queues.Load(k)
+	if !ok {
 		//try init
 		module.Init(k)
-		q,ok=module.queues.Load(k)
+		q, ok = module.queues.Load(k)
 	}
-	if ok{
-		ctx:= (*q.(*BackendQueue)).ReadContext()
-		folder:=filepath.Dir(ctx.WriteFile)
-		size,_:=status.DirSize(folder)
+	if ok {
+		ctx := (*q.(*BackendQueue)).ReadContext()
+		folder := filepath.Dir(ctx.WriteFile)
+		size, _ := status.DirSize(folder)
 		return size
 	}
-	panic(errors.Errorf("queue [%v] not found",k))
+	panic(errors.Errorf("queue [%v] not found", k))
 }
 
 func (module *DiskQueue) LatestOffset(k string) string {
-	q,ok:=module.queues.Load(k)
-	if !ok{
+	q, ok := module.queues.Load(k)
+	if !ok {
 		//try init
 		module.Init(k)
-		q,ok=module.queues.Load(k)
+		q, ok = module.queues.Load(k)
 	}
-	if ok{
+	if ok {
 		return (*q.(*BackendQueue)).LatestOffset()
 	}
 
-	panic(errors.Errorf("queue [%v] not found",k))
+	panic(errors.Errorf("queue [%v] not found", k))
 }
 
 func (module *DiskQueue) Depth(k string) int64 {
-	q,ok:=module.queues.Load(k)
-	if !ok{
+	q, ok := module.queues.Load(k)
+	if !ok {
 		//try init
 		module.Init(k)
-		q,ok=module.queues.Load(k)
+		q, ok = module.queues.Load(k)
 	}
-	if ok{
+	if ok {
 		return (*q.(*BackendQueue)).Depth()
 	}
 
-	panic(errors.Errorf("queue [%v] not found",k))
+	panic(errors.Errorf("queue [%v] not found", k))
 }
 
 func (module *DiskQueue) GetQueues() []string {
@@ -327,25 +355,25 @@ func (module *DiskQueue) GetQueues() []string {
 }
 
 func (module *DiskQueue) Start() error {
-	if !module.cfg.Enabled{
+	if !module.cfg.Enabled {
 		return nil
 	}
 
 	//TODO move to dedicated queue module
 
 	//load configs from local file
-	cfgs:=queue.GetAllConfigs()
+	cfgs := queue.GetAllConfigs()
 
 	if cfgs != nil && len(cfgs) > 0 {
 		for _, v := range cfgs {
-			if v.Id==""{
-				v.Id=v.Name
+			if v.Id == "" {
+				v.Id = v.Name
 			}
-			if v.Type!=""&&v.Type!="disk"{
+			if v.Type != "" && v.Type != "disk" {
 				continue
 			}
 
-			if v.Type==""&&!module.cfg.Default{
+			if v.Type == "" && !module.cfg.Default {
 				continue
 			}
 
@@ -357,7 +385,7 @@ func (module *DiskQueue) Start() error {
 
 	//trigger s3 uploading
 	//from lastUpload to current WrtieFile
-	if module.cfg.UploadToS3{
+	if module.cfg.UploadToS3 {
 		//TODO, support cancel and safety shutdown
 		go func() {
 			defer func() {
@@ -378,17 +406,17 @@ func (module *DiskQueue) Start() error {
 			}()
 
 			for _, v := range cfgs {
-				last:= GetLastS3UploadFileNum(v.Id)
-				offsetStr:=queue.LatestOffset(v)
-				segment,_:= ConvertOffset(offsetStr)
-				log.Tracef("check offset %v/%v/%v,%v, last upload:%v",v.Name,v.Id,offsetStr, segment,last)
-				if segment >last{
-					for x:=last;x< segment;x++{
-						if x>=0{
-							if global.Env().IsDebug{
-								log.Tracef("try to upload %v/%v",v.Id,x)
+				last := GetLastS3UploadFileNum(v.Id)
+				offsetStr := queue.LatestOffset(v)
+				segment, _ := ConvertOffset(offsetStr)
+				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.Id, offsetStr, segment, last)
+				if segment > last {
+					for x := last; x < segment; x++ {
+						if x >= 0 {
+							if global.Env().IsDebug {
+								log.Tracef("try to upload %v/%v", v.Id, x)
 							}
-							module.uploadToS3(v.Id,x)
+							module.uploadToS3(v.Id, x)
 						}
 					}
 				}
@@ -418,24 +446,29 @@ func (module *DiskQueue) Start() error {
 			evt := <-module.messages
 			switch evt.Type {
 			case WriteComplete:
-
 				//TODO, convert to signal, move to async
+				//本地如果只有不到${10}个文件，文件存量太少，则不进行主动进行压缩
+				//本地文件如果超过 10 个，说明堆积的比较多，可能占用太多磁盘，需要考虑压缩
+
+				//如果开启了上传，则主动上传之前进行压缩，并删除压缩文件
+				//如果没有开启上传，则只是压缩，删除原始文件，保留压缩文件
 
 				//upload old file to s3
-				module.uploadToS3(evt.Queue,evt.FileNum)
+				module.uploadToS3(evt.Queue, evt.FileNum)
 
 				//check capacity
+				checkCapacity(module.cfg)
 
 				//delete old unused files
-				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
 
 				break
 			case ReadComplete:
 
 				//delete old unused files
-				module.deleteUnusedFiles(evt.Queue,evt.FileNum)
+				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
 
-				break;
+				break
 			}
 		}
 
@@ -445,14 +478,14 @@ func (module *DiskQueue) Start() error {
 }
 
 func (module *DiskQueue) Stop() error {
-	if !module.cfg.Enabled{
+	if !module.cfg.Enabled {
 		return nil
 	}
 
 	close(module.messages)
 	module.queues.Range(func(key, value interface{}) bool {
-		q,ok:=module.queues.Load(key)
-		if ok{
+		q, ok := module.queues.Load(key)
+		if ok {
 			err := (*q.(*BackendQueue)).Close()
 			if err != nil {
 				log.Error(err)
@@ -465,59 +498,56 @@ func (module *DiskQueue) Stop() error {
 	return nil
 }
 
-func (module *DiskQueue) deleteUnusedFiles(queueID string,fileNum  int64) {
+func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 
 	//no consumers or consumer/s3 already ahead of this file
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
 
+	//check consumers offset
+	consumers, segmentNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	fileStartToDelete := fileNum - module.cfg.Retention.MaxNumOfLocalFiles
 
-		//check consumers offset
-		consumers, segmentNum,_:=queue.GetEarlierOffsetByQueueID(queueID)
-		fileStartToDelete:=fileNum-module.cfg.Retention.MaxNumOfLocalFiles
+	if fileStartToDelete <= 0 || consumers <= 0 {
+		return
+	}
 
-		if fileStartToDelete<=0||consumers<=0{
+	if module.cfg.UploadToS3 {
+		//check last uploaded mark
+		var lastSavedFileNum = GetLastS3UploadFileNum(queueID)
+
+		if global.Env().IsDebug {
+			log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v", fileStartToDelete, segmentNum, lastSavedFileNum)
+		}
+
+		if fileStartToDelete >= lastSavedFileNum {
 			return
 		}
+	}
 
-		if module.cfg.UploadToS3 {
-			//check last uploaded mark
-			var lastSavedFileNum= GetLastS3UploadFileNum(queueID)
+	if global.Env().IsDebug {
+		log.Tracef("files start to delete:%v, consumer_on:%v", fileStartToDelete, segmentNum)
+	}
 
-			if global.Env().IsDebug{
-				log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v",fileStartToDelete,segmentNum,lastSavedFileNum)
-			}
-
-			if fileStartToDelete>= lastSavedFileNum{
-				return
-			}
-		}
-
-		if global.Env().IsDebug{
-			log.Tracef("files start to delete:%v, consumer_on:%v",fileStartToDelete,segmentNum)
-		}
-
-		//has consumers
-		if consumers>0 &&fileStartToDelete< segmentNum{
-			log.Trace(queueID," start to delete:",fileStartToDelete,",consumers:",consumers,",segment:", segmentNum)
-			for x:=fileStartToDelete;x>=0;x--{
-				file:= GetFileName(queueID,x)
-				if util.FileExists(file){
-					log.Debug("delete queue file:",file)
-					err:=os.Remove(file)
-					if err!=nil{
-						panic(err)
-					}
-				}else{
-					//skip
-					break
+	//has consumers
+	if consumers > 0 && fileStartToDelete < segmentNum {
+		log.Trace(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",segment:", segmentNum)
+		for x := fileStartToDelete; x >= 0; x-- {
+			file := GetFileName(queueID, x)
+			if util.FileExists(file) {
+				log.Debug("delete queue file:", file)
+				err := os.Remove(file)
+				if err != nil {
+					panic(err)
 				}
+			} else {
+				//skip
+				break
 			}
-		}else{
-			//FIFO queue, need to delete old files
-			//log.Errorf("queue:%v, fileID:%v, file start to delete:%v , segment num:%v",queueID,fileNum,fileStartToDelete,segmentNum)
-			//check current read depth and file num
 		}
+	} else {
+		//FIFO queue, need to delete old files
+		//log.Errorf("queue:%v, fileID:%v, file start to delete:%v , segment num:%v",queueID,fileNum,fileStartToDelete,segmentNum)
+		//check current read depth and file num
+	}
 
 }
-
-
