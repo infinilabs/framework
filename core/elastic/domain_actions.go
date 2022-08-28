@@ -276,6 +276,10 @@ func GetHostAvailableInfo(host string) (*NodeAvailable, bool) {
 }
 
 func IsHostAvailable(host string) bool {
+	if host==""{
+		panic("host is nil")
+	}
+
 	info, ok := GetHostAvailableInfo(host)
 	if ok && info != nil {
 		return info.IsAvailable()
@@ -364,15 +368,21 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) strin
 			newEndpoint := metadata.GetActiveHost()
 			log.Warnf("[%v] is not available, try: [%v]", host, newEndpoint)
 			host = newEndpoint
-		} else {
-			time.Sleep(1 * time.Second)
 		}
+	}
+
+	if host==""{
+		host=metadata.GetActivePreferredSeedHost()
 	}
 
 	return host
 }
 
 func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Client {
+
+	if host==""{
+		panic("host can't be nil")
+	}
 
 	clientLock.RLock()
 	client, ok := clients[host]

@@ -490,6 +490,10 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		panic(errors.Errorf("cluster metadata [%v] not ready", esClusterID))
 	}
 
+	if host==""{
+		host=meta.GetActivePreferredSeedHost()
+	}
+
 	if elastic.IsHostDead(host) {
 		host = meta.GetActiveHost()
 	}
