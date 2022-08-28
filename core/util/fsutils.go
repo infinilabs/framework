@@ -297,3 +297,24 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 		return filePath
 	}
 }
+
+func ListAllFiles(path string) ([]string,error)  {
+	output:=[]string{}
+	err:= filepath.Walk(path, func(file string, info os.FileInfo, err error) error {
+		if info.IsDir(){
+			if file!=path{
+				files,err:=ListAllFiles(file)
+				if err != nil {
+					panic(err)
+				}
+				for _,v:=range files{
+					output=append(output,v)
+				}
+			}
+		}else{
+			output = append(output, file)
+		}
+		return nil
+	})
+	return output, err
+}

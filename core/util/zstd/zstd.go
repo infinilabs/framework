@@ -6,8 +6,12 @@
 package zstd
 
 import (
+	"errors"
 	"github.com/klauspost/compress/zstd"
+	"infini.sh/framework/core/util"
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -79,5 +83,95 @@ func ZSTDReusedCompress(compressedDataWriter io.Writer, uncompressedDataReader i
 
 	_, err = io.Copy(encoder, uncompressedDataReader)
 
+	return err
+}
+
+
+func DecompressFile(file,to string) error {
+	abs,err:=filepath.Abs(file)
+	if util.FileExists(to){
+		return errors.New("target file exits, skip "+to)
+	}
+
+	tmp:=to+".tmp"
+	if util.FileExists(tmp){
+		return errors.New("temp file for target file was exits, skip: "+tmp)
+	}
+
+	writer, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	reader, err := os.Open(abs)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if writer!=nil{
+			writer.Close()
+		}
+		if reader!=nil{
+			reader.Close()
+		}
+	}()
+
+	err=ZSTDReusedDecompress(writer,reader)
+	if err != nil && err.Error() != "unexpected EOF"  {
+		e:=os.Remove(tmp)
+		if e!=nil{
+			panic(e)
+		}
+	}else{
+		e:=os.Rename(tmp,to)
+		if e!=nil{
+			panic(e)
+		}
+	}
+	return err
+}
+
+func CompressFile(file,to string)error  {
+
+	if util.FileExists(to){
+		return errors.New("target file exits, skip "+to)
+	}
+
+	tmp:=to+".tmp"
+	if util.FileExists(tmp){
+		return errors.New("temp file for target file was exits, skip: "+tmp)
+	}
+
+	abs,err:=filepath.Abs(file)
+	writer, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	reader, err := os.Open(abs)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if writer!=nil{
+			writer.Close()
+		}
+		if reader!=nil{
+			reader.Close()
+		}
+	}()
+
+	err= ZSTDReusedCompress(writer,reader)
+	if err!=nil{
+		e:=os.Remove(tmp)
+		if e!=nil{
+			panic(e)
+		}
+	}else{
+		e:=os.Rename(tmp,to)
+		if e!=nil{
+			panic(e)
+		}
+	}
 	return err
 }

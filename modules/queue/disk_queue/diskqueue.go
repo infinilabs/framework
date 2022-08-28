@@ -34,7 +34,6 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
-	"infini.sh/framework/lib/status"
 	"io"
 	"math/rand"
 	"os"
@@ -95,8 +94,6 @@ type diskQueue struct {
 	//maxUsedBytes   uint64
 	//warningFreeBytes   uint64
 	//reservedFreeBytes   uint64
-
-	preventRead bool //readonly or not
 
 	cfg *DiskQueueConfig
 }
@@ -180,8 +177,8 @@ func (d *diskQueue) Put(data []byte) error {
 		return errors.New("exiting")
 	}
 
-	if d.preventRead {
-		err := d.checkCapacity()
+	if preventRead {
+		err := checkCapacity(d.cfg)
 		if err != nil {
 			if rate.GetRateLimiterPerSecond(d.name, "disk_full_failure", 1).Allow() {
 				log.Errorf("queue [%v] is readonly, %v", d.name, err)
@@ -396,7 +393,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 		d.nextReadPos = 0
 	}
 
-	if d.cfg.CompressOnMessagePayload.Enabled {
+	if d.cfg.Compress.Message.Enabled {
 		newData, err := zstd.ZSTDDecompress(nil, readBuf)
 		if err != nil {
 			return nil, err
@@ -432,8 +429,8 @@ func (d *diskQueue) writeOne(data []byte) error {
 	}
 
 	//compress data
-	if d.cfg.CompressOnMessagePayload.Enabled {
-		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.CompressOnMessagePayload.Level)
+	if d.cfg.Compress.Message.Enabled {
+		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.Compress.Message.Level)
 		if err != nil {
 			return err
 		}
@@ -445,8 +442,6 @@ func (d *diskQueue) writeOne(data []byte) error {
 	if dataLen < d.cfg.MinMsgSize || dataLen > d.cfg.MaxMsgSize {
 		return fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.cfg.MinMsgSize, d.cfg.MaxMsgSize)
 	}
-
-	//TODO, checking max storage and available storage
 
 	d.writeBuf.Reset()
 	err = binary.Write(&d.writeBuf, binary.BigEndian, dataLen)
@@ -476,13 +471,6 @@ func (d *diskQueue) writeOne(data []byte) error {
 			d.maxBytesPerFileRead = d.writePos
 		}
 
-		//TODO checking for storage, warning or throttling queue push
-		//checking file list and compress file
-		//如果已有多少个文件未压缩，则新文件默认则压缩存储
-
-		//move to outside
-		d.checkCapacity()
-
 		//notify listener that we are writing to a new file
 		Notify(d.name, WriteComplete, d.writeSegmentNum)
 
@@ -504,27 +492,6 @@ func (d *diskQueue) writeOne(data []byte) error {
 	return err
 }
 
-func (d *diskQueue) checkCapacity() error {
-
-	if d.cfg.WarningFreeBytes > 0 || d.cfg.MaxUsedBytes > 0 || d.cfg.ReservedFreeBytes > 0 {
-		stats := status.DiskUsage(d.dataPath)
-		if d.cfg.MaxUsedBytes > 0 && stats.Used >= d.cfg.MaxUsedBytes {
-			d.preventRead = true
-			return errors.Errorf("disk usage [%v] > threshold [%v]", util.ByteSize(stats.Used), util.ByteSize(d.cfg.MaxUsedBytes))
-		} else if d.cfg.ReservedFreeBytes > 0 && stats.Free <= uint64(d.cfg.ReservedFreeBytes) {
-			d.preventRead = true
-			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.ReservedFreeBytes))
-		} else if d.cfg.WarningFreeBytes > 0 && stats.Free <= uint64(d.cfg.WarningFreeBytes) {
-			if rate.GetRateLimiterPerSecond(d.name, "disk_full_warning", 1).Allow() {
-				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(stats.Free), util.ByteSize(d.cfg.WarningFreeBytes))
-			}
-		}
-		if d.preventRead {
-			d.preventRead = false
-		}
-	}
-	return nil
-}
 
 // sync fsyncs the current writeFile and persists metadata
 func (d *diskQueue) sync() error {

@@ -157,6 +157,19 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 }
 
 
+func (meta *ElasticsearchMetadata) GetActivePreferredSeedHost() string {
+	hosts:= meta.GetSeedHosts()
+	if len(hosts)>0{
+		for _,v:=range hosts{
+			available := IsHostAvailable(v)
+			if available{
+				return v
+			}
+		}
+	}
+	return meta.Config.Host
+}
+
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedEndpoint() string {
 	var endpoint string
 	hosts:= meta.GetSeedHosts()
