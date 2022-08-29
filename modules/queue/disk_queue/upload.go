@@ -25,7 +25,6 @@ func GetLastS3UploadFileNum(queueID string)int64  {
 	if b==nil||len(b)==0{
 		return -1
 	}
-	//log.Errorf("bytes to int64: %v",b)
 	return util.BytesToInt64(b)
 }
 

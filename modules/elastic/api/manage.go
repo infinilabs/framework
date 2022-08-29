@@ -683,6 +683,7 @@ const (
 	JVMGroupKey = "JVM"
 	TransportGroupKey = "transport"
 	DocumentGroupKey = "document"
+	IOGroupKey = "io"
 )
 
 func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64) map[string]*common.MetricItem {

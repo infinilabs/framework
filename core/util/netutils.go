@@ -296,6 +296,9 @@ func ClientIP(r *http.Request) string {
 	}
 
 	if ip, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
+		if ip == "::1" {
+			ip = "127.0.0.1"
+		}
 		return ip
 	}
 

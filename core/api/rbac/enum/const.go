@@ -23,6 +23,9 @@ const (
 	FlowRead     = "gateway.flow:read"
 	FlowAll      = "gateway.flow:all"
 
+	AgentInstanceRead = "agent.instance:read"
+	AgentInstanceAll  = "agent.instance:all"
+
 	IndexAll     = "data.index:all"
 	IndexRead    = "data.index:read"
 	AliasAll     = "data.alias:all"
@@ -83,6 +86,9 @@ const (
 	PermissionGatewayFlowRead = "gateway.flow:read"
 	PermissionGatewayFlowWrite = "gateway.flow:write"
 	PermissionElasticsearchMetricRead = "es.metric:read"
+
+	PermissionAgentInstanceRead = "agent.instance:read"
+	PermissionAgentInstanceWrite = "agent.instance:write"
 )
 
 var (
@@ -136,6 +142,9 @@ var (
 
 	ActivitiesReadPermission = []string{PermissionActivityRead}
 	ActivitiesAllPermission  = []string{PermissionActivityRead, PermissionActivityWrite}
+
+	AgentInstanceReadPermission = []string{PermissionAgentInstanceRead}
+	AgentInstanceAllPermission  = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
 )
 
 var AdminPrivilege = []string{
@@ -145,7 +154,7 @@ var AdminPrivilege = []string{
 	RuleAll, AlertAll, ChannelAll,
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
-	AliasAll,
+	AliasAll, AgentInstanceAll,
 }
 
 func init() {
@@ -196,6 +205,8 @@ func init() {
 		MonitoringRead:      MonitoringReadPermission,
 		ActivitiesAll:       ActivitiesAllPermission,
 		ActivitiesRead:      ActivitiesReadPermission,
+		AgentInstanceAll: AgentInstanceAllPermission,
+		AgentInstanceRead: AgentInstanceReadPermission,
 	}
 
 }

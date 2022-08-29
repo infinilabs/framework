@@ -31,13 +31,15 @@ type API interface {
 
 	GetMajorVersion() int
 
-	ClusterHealth() (*ClusterHealth,error)
+	ClusterHealth() (*ClusterHealth, error)
+	ClusterHealthSpecEndpoint(endPoint string) (*ClusterHealth, error)
 
-	GetClusterState() (*ClusterState,error)
+	GetClusterState() (*ClusterState, error)
 
-	GetClusterStats(node string) (*ClusterStats,error)
+	GetClusterStats(node string) (*ClusterStats, error)
+	GetClusterStatsSpecEndpoint(node string, endPoint string) (*ClusterStats, error)
 
-	GetNodesStats(nodeID,host string) *NodesStats
+	GetNodesStats(nodeID, host string) *NodesStats
 
 	GetIndicesStats() *IndicesStats
 
@@ -54,7 +56,7 @@ type API interface {
 	Count(indexName string, body []byte) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 
-	QueryDSL(indexName string,queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)
+	QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)
 
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
 
@@ -70,7 +72,6 @@ type API interface {
 	GetNodes() (*map[string]NodesInfo, error)
 
 	GetNodeInfo(nodeID string) (*NodesInfo, error)
-
 
 	GetIndices(pattern string) (*map[string]IndexInfo, error)
 
@@ -94,12 +95,11 @@ type API interface {
 	Alias(body []byte) error
 	FieldCaps(target string) ([]byte, error)
 	CatShards() ([]CatShardResponse, error)
+	CatShardsSpecEndpoint(endPoint string) ([]CatShardResponse, error)
 	CatNodes(colStr string) ([]CatNodeResponse, error)
 
-
-	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting,error)
+	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error)
 	GetClusterSettings() (map[string]interface{}, error)
-
 }
 
 type TemplateAPI interface {
@@ -114,16 +114,15 @@ type MappingAPI interface {
 
 type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, fields string, sortField, sortType string) ([]byte, error)
-	NextScroll(ctx *APIContext,scrollTime string, scrollId string) ([]byte, error)
+	NextScroll(ctx *APIContext, scrollTime string, scrollId string) ([]byte, error)
 }
 
 type APIContext struct {
 	context.Context `json:"-"`
-	Client *fasthttp.Client
-	Request *fasthttp.Request
-	Response *fasthttp.Response
+	Client          *fasthttp.Client
+	Request         *fasthttp.Request
+	Response        *fasthttp.Response
 }
-
 
 type ScrollResponseAPI interface {
 	GetScrollId() string

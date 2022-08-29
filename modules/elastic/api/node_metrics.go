@@ -816,6 +816,58 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "s",
 	})
 
+	//Transport tcp 连接数
+	tcpNumMetric:=newMetricItem("transport_outbound_connections", 20, TransportGroupKey)
+	tcpNumMetric.AddAxi("Transport Outbound Connections","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "transport_outbound_connections",
+		Field: "payload.elasticsearch.node_stats.transport.total_outbound_connections",
+		ID: util.GetUUID(),
+		IsDerivative: false,
+		MetricItem: tcpNumMetric,
+		FormatType: "num",
+		Units: "",
+	})
+
+	//IO total
+	totalOperationsMetric:=newMetricItem("total_io_operations", 1, IOGroupKey)
+	totalOperationsMetric.AddAxi("Total I/O Operations Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "total_io_operations",
+		Field: "payload.elasticsearch.node_stats.fs.io_stats.total.operations",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: totalOperationsMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+
+	//IO total
+	readOperationsMetric:=newMetricItem("total_read_io_operations", 2, IOGroupKey)
+	readOperationsMetric.AddAxi("Total Read I/O  Operations Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "total_read_io_operations",
+		Field: "payload.elasticsearch.node_stats.fs.io_stats.total.read_operations",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: readOperationsMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+
+	//IO total
+	writeOperationsMetric:=newMetricItem("total_write_io_operations", 3, IOGroupKey)
+	writeOperationsMetric.AddAxi("Total Write I/O  Operations Rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "total_write_io_operations",
+		Field: "payload.elasticsearch.node_stats.fs.io_stats.total.write_operations",
+		ID: util.GetUUID(),
+		IsDerivative: true,
+		MetricItem: writeOperationsMetric,
+		FormatType: "num",
+		Units: "times/s",
+	})
+
 
 	aggs:=map[string]interface{}{}
 

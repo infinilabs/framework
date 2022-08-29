@@ -6,18 +6,20 @@ package api
 
 import (
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/api/rbac/enum"
 )
 
 func Init() {
 	handler := APIHandler{}
 	api.HandleAPIMethod(api.POST, "/agent/instance", handler.createInstance)
-	api.HandleAPIMethod(api.GET, "/agent/instance/_search", handler.searchInstance)
+	api.HandleAPIMethod(api.GET, "/agent/instance/_search", handler.RequirePermission(handler.searchInstance, enum.PermissionAgentInstanceRead))
 	//api.HandleAPIMethod(api.GET, "/agent/instance/_discover_host", handler.getDiscoverHosts)
 	api.HandleAPIMethod(api.GET, "/agent/instance/:instance_id", handler.getInstance)
 	api.HandleAPIMethod(api.PUT, "/agent/instance/:instance_id", handler.updateInstance)
-	api.HandleAPIMethod(api.DELETE, "/agent/instance/:instance_id", handler.deleteInstance)
+	api.HandleAPIMethod(api.DELETE, "/agent/instance/:instance_id", handler.RequirePermission(handler.deleteInstance, enum.PermissionAgentInstanceWrite))
 	api.HandleAPIMethod(api.POST, "/agent/instance/:instance_id/_heartbeat", handler.heartbeat)
-	api.HandleAPIMethod(api.POST, "/agent/instance/:instance_id/_assign_task", handler.setTaskToInstance)
-	api.HandleAPIMethod(api.POST, "/agent/instance/_stats", handler.getInstanceStats)
+	api.HandleAPIMethod(api.POST, "/agent/instance/:instance_id/_set_task", handler.RequirePermission(handler.setTaskToInstance, enum.PermissionAgentInstanceWrite))
+	api.HandleAPIMethod(api.POST, "/agent/instance/_stats", handler.RequirePermission(handler.getInstanceStats, enum.PermissionAgentInstanceRead))
+	api.HandleAPIMethod(api.POST, "/agent/instance/_enroll", handler.RequirePermission(handler.enrollInstance, enum.PermissionAgentInstanceWrite))
 
 }

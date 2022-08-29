@@ -208,12 +208,12 @@ type NodesInfo struct {
 }
 
 type NodeAvailable struct {
-	ClusterID string
+	ClusterID   string
 	Host        string
 	ticket      int
 	available   bool
-	isDead bool
-	lastCheck time.Time
+	isDead      bool
+	lastCheck   time.Time
 	lastSuccess time.Time
 	configLock  sync.RWMutex
 }
@@ -301,9 +301,9 @@ type CatIndexResponse struct {
 }
 
 type CatNodeResponse struct {
-	Id string `json:"id"`
+	Id          string      `json:"id"`
 	Ip          string      `json:"ip"`
-	Port string `json:"port"`
+	Port        string      `json:"port"`
 	HeapPercent string      `json:"heap.percent"`
 	RamPercent  string      `json:"ram.percent"`
 	Cpu         string      `json:"cpu"`
@@ -313,9 +313,9 @@ type CatNodeResponse struct {
 	NodeRole    string      `json:"node.role"`
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
-	DiskAvail string `json:"disk.avail"`
-	Shards int `json:"shards,omitempty"`
-	Uptime string `json:"uptime"`
+	DiskAvail   string      `json:"disk.avail"`
+	Shards      int         `json:"shards,omitempty"`
+	Uptime      string      `json:"uptime"`
 }
 
 type ReindexResponse struct {
@@ -327,8 +327,8 @@ type DeleteByQueryResponse struct {
 	Total   int64 `json:"total"`
 }
 type UpdateByQueryResponse struct {
-	Updated int64 `json:"updated"`
-	Total   int64 `json:"total"`
+	Updated  int64         `json:"updated"`
+	Total    int64         `json:"total"`
 	Failures []interface{} `json:"failures"`
 }
 
@@ -337,7 +337,7 @@ type BulkActionMetadata struct {
 	Delete *BulkIndexMetadata `json:"delete,omitempty"`
 	Create *BulkIndexMetadata `json:"create,omitempty"`
 	Update *BulkIndexMetadata `json:"update,omitempty"`
-	Stats int `json:"-,omitempty"`
+	Stats  int                `json:"-,omitempty"`
 }
 
 type BulkIndexMetadata struct {
@@ -404,13 +404,14 @@ type ElasticsearchMetadata struct {
 	seedHosts            []string
 	activeHost           *NodeAvailable
 
-	cache *ristretto.Cache
+	cache       *ristretto.Cache
+	IsAgentMode bool
 }
 type TaskConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled  bool   `json:"enabled"`
 	Interval string `json:"interval"`
 }
-type MonitorConfig struct{
+type MonitorConfig struct {
 	ClusterHealth TaskConfig `json:"cluster_health"`
 	ClusterStats  TaskConfig `json:"cluster_stats"`
 	NodeStats     TaskConfig `json:"node_stats"`
@@ -427,17 +428,17 @@ type MetadataConfig struct {
 type ElasticsearchConfig struct {
 	orm.ORMObjectBase
 
-	Source      string   `json:"source,omitempty"`
-	Name        string   `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
-	Description string   `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
-	Enabled     bool     `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
-	Monitored   bool              `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
+	Source         string         `json:"source,omitempty"`
+	Name           string         `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
+	Description    string         `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Enabled        bool           `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
+	Monitored      bool           `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	MonitorConfigs *MonitorConfig `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`
-	HttpProxy   string            `json:"http_proxy,omitempty" config:"http_proxy"`
-	Endpoint    string   `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
-	Endpoints   []string `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
-	Version     string   `json:"version,omitempty" config:"version" elastic_mapping:"version:{type:keyword,copy_to:search_text}"`
-	ClientMode  string   `json:"client_mode,omitempty" config:"client_mode"`
+	HttpProxy      string         `json:"http_proxy,omitempty" config:"http_proxy"`
+	Endpoint       string         `json:"endpoint,omitempty" config:"endpoint" elastic_mapping:"endpoint:{type:keyword}"`
+	Endpoints      []string       `json:"endpoints,omitempty" config:"endpoints" elastic_mapping:"endpoints:{type:keyword}"`
+	Version        string         `json:"version,omitempty" config:"version" elastic_mapping:"version:{type:keyword,copy_to:search_text}"`
+	ClientMode     string         `json:"client_mode,omitempty" config:"client_mode"`
 
 	RequestTimeout  int  `json:"request_timeout,omitempty" config:"request_timeout"`
 	RequestCompress bool `json:"request_compress,omitempty" config:"request_compress"`
@@ -481,20 +482,20 @@ type ElasticsearchConfig struct {
 		Name       string `json:"name,omitempty" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
 		ID         string `json:"id,omitempty" elastic_mapping:"id:{type:keyword}"`
 	} `json:"owner,omitempty" elastic_mapping:"owner:{type:object}"`
-	Labels        util.MapStr `json:"labels,omitempty"`
-	Tags          []string    `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
-	SearchText    string      `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
-	MaxCachedSize int64       `json:"max_cached_size,omitempty" elastic_mapping:"max_cached_size:{type:integer}"`
+	Labels          util.MapStr     `json:"labels,omitempty"`
+	Tags            []string        `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
+	SearchText      string          `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	MaxCachedSize   int64           `json:"max_cached_size,omitempty" elastic_mapping:"max_cached_size:{type:integer}"`
 	MetadataConfigs *MetadataConfig `config:"metadata_configs" json:"metadata_configs,omitempty" elastic_mapping:"metadata_configs:{type:object}"`
-	ClusterUUID string  `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
-	RawName string  `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
+	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
+	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
 }
 
-type GeoLocation struct{
+type GeoLocation struct {
 	Provider string `json:"provider,omitempty" elastic_mapping:"provider:{type:keyword}"`
-	Region string `json:"region,omitempty" elastic_mapping:"region:{type:keyword}"`
-	DC string `json:"dc,omitempty" elastic_mapping:"dc:{type:keyword}"`
-	Rack string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
+	Region   string `json:"region,omitempty" elastic_mapping:"region:{type:keyword}"`
+	DC       string `json:"dc,omitempty" elastic_mapping:"dc:{type:keyword}"`
+	Rack     string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
 }
 
 //{
@@ -517,34 +518,34 @@ type CatShardResponse struct {
 	UnassignedReason string `json:"unassigned,omitempty"`
 	Docs             string `json:"docs,omitempty"`
 	Store            string `json:"store,omitempty"`
-	StoreInBytes int64 `json:"store_in_bytes,omitempty"`
+	StoreInBytes     int64  `json:"store_in_bytes,omitempty"`
 	NodeID           string `json:"id,omitempty"`
 	NodeName         string `json:"node,omitempty"`
 	NodeIP           string `json:"ip,omitempty"`
 }
 
 type TraceMeta struct {
-	TraceID   bool     `json:"trace_id" elastic_mapping:"trace_id:{type:keyword}"`
-	Index string `json:"index" elastic_mapping:"index:{type:keyword}"`
+	TraceID   bool   `json:"trace_id" elastic_mapping:"trace_id:{type:keyword}"`
+	Index     string `json:"index" elastic_mapping:"index:{type:keyword}"`
 	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 }
 
 type NodeConfig struct {
-	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata  NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
-	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
-	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	ID         string       `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp  time.Time    `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata   NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
+	Fields     util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	SearchText string       `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 type NodeMetadata struct {
-	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
-	ClusterName string `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
-	Host string `json:"host" elastic_mapping:"host:{type:keyword,copy_to:search_text}"`
-	NodeID string `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
-	NodeName string `json:"node_name" elastic_mapping:"node_name:{type:keyword,copy_to:search_text}"`
-	Tags []string `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
-	Labels util.MapStr `json:"labels,omitempty"`
-	Category string `json:"category,omitempty"`
+	ClusterID   string      `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	ClusterName string      `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
+	Host        string      `json:"host" elastic_mapping:"host:{type:keyword,copy_to:search_text}"`
+	NodeID      string      `json:"node_id" elastic_mapping:"node_id:{type:keyword}"`
+	NodeName    string      `json:"node_name" elastic_mapping:"node_name:{type:keyword,copy_to:search_text}"`
+	Tags        []string    `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
+	Labels      util.MapStr `json:"labels,omitempty"`
+	Category    string      `json:"category,omitempty"`
 }
 
 type HostMetadata struct {
@@ -560,20 +561,20 @@ type HostMetadata struct {
 }
 
 type IndexConfig struct {
-	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
-	Metadata  IndexMetadata `json:"metadata"`
-	Fields     util.MapStr `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
-	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	ID         string        `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Timestamp  time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	Metadata   IndexMetadata `json:"metadata"`
+	Fields     util.MapStr   `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	SearchText string        `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
 type IndexMetadata struct {
-	ClusterID string `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
-	IndexID string `json:"index_id" elastic_mapping:"index_id:{type:keyword}"` //cluster_id:index_name (some metrics not return index uuid of lower es version )
-	IndexName string `json:"index_name" elastic_mapping:"index_name:{type:keyword,copy_to:search_text}"`
-	ClusterName string `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
-	Labels util.MapStr `json:"labels,omitempty"`
-	Aliases interface{} `json:"aliases,omitempty" elastic_mapping:"aliases:{type:keyword,copy_to:search_text}"`
-	Category string `json:"category,omitempty"`
-	Tags []interface{} `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
+	ClusterID   string        `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
+	IndexID     string        `json:"index_id" elastic_mapping:"index_id:{type:keyword}"` //cluster_id:index_name (some metrics not return index uuid of lower es version )
+	IndexName   string        `json:"index_name" elastic_mapping:"index_name:{type:keyword,copy_to:search_text}"`
+	ClusterName string        `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
+	Labels      util.MapStr   `json:"labels,omitempty"`
+	Aliases     interface{}   `json:"aliases,omitempty" elastic_mapping:"aliases:{type:keyword,copy_to:search_text}"`
+	Category    string        `json:"category,omitempty"`
+	Tags        []interface{} `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 }

@@ -705,7 +705,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 	id := ps.ByName("id")
 	meta := elastic.GetMetadata(id)
 	if meta == nil || !meta.IsAvailable() {
-		log.Debugf("cluster [%s] is not available", meta.Config.Name)
+		log.Debugf("cluster [%s] is not available", id)
 		h.WriteJSON(w, []interface{}{}, http.StatusOK)
 		return
 	}
