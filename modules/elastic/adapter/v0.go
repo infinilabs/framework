@@ -137,8 +137,8 @@ func (c *ESAPIV0) Request(method, url string, body []byte) (result *util.Result,
 					return resp, errors.Errorf("still have error in request, after retry [%v] times\n", err)
 				}
 				count++
-				log.Errorf("error in request, sleep 10s and retry [%v]: %s\n", count, err)
-				time.Sleep(10 * time.Second)
+				log.Errorf("error in request, sleep 1s and retry [%v]: %s\n", count, err)
+				time.Sleep(1 * time.Second)
 				resp, err = util.ExecuteRequestWithCatchFlag(req, true)
 				if err != nil {
 					log.Errorf("retry still have error in request, sleep 10s and retry [%v]: %s\n", count, err)
@@ -643,7 +643,7 @@ func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHe
 	} else {
 		url = fmt.Sprintf("%s/_cluster/health?timeout=1s", endPoint)
 	}
-	log.Debugf("ClusterHealthSpecEndpoint, url: %s\n", url)
+	log.Tracef("get cluster health, url: %s", url)
 	health := &elastic.ClusterHealth{}
 	resp, err := c.Request(util.Verb_GET, url, nil)
 
