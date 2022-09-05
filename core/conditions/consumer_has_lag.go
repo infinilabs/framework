@@ -18,9 +18,9 @@ func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLa
 		d:=util.MapStr(fields)
 		if d.SafetyHasKey("queue"){
 			c.Queue=d["queue"].(string)
-			if d.SafetyHasKey("group") && d.SafetyHasKey("cosumer"){
+			if d.SafetyHasKey("group") && d.SafetyHasKey("name"){
 				c.Group=d["group"].(string)
-				c.Consumer=d["consumer"].(string)
+				c.Consumer=d["name"].(string)
 			}
 			return c
 		}
@@ -29,7 +29,6 @@ func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLa
 }
 
 func (c ConsumerHasLag) Check(event ValuesMap) bool {
-
 	if c.Queue!=""{
 		qConfig, ok := queue.GetConfigByKey(c.Queue)
 		if ok{
@@ -47,7 +46,6 @@ func (c ConsumerHasLag) Check(event ValuesMap) bool {
 				}
 			}else{
 				offset:=queue.GetEarlierOffsetStrByQueueID(c.Queue)
-
 				if latestProduceOffset!=offset{
 					return true
 				}
