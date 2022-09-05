@@ -631,8 +631,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 
 //on demand, on state version change
 func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool, discovery bool) {
-	if !force && !meta.IsAvailable() {
-		setNodeUnknown(meta.Config.ID)
+	if !meta.IsAvailable() {
+		if !force {
+			setNodeUnknown(meta.Config.ID)
+		}
 		log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
 		return
 	}
