@@ -36,7 +36,8 @@ var s3uploaderLocker sync.RWMutex
 
 func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
-	//TODO move to channel, async
+	log.Trace("try uploaded id:",queueID,",",fileNum)
+
 	s3uploaderLocker.Lock()
 	defer s3uploaderLocker.Unlock()
 
@@ -51,47 +52,67 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 
 		//skip uploaded file
 		lastFileNum:= GetLastS3UploadFileNum(queueID)
-		log.Tracef("last upload:%v, fileNum:%v",lastFileNum, fileNum)
+		log.Tracef("queue:%v, last upload:%v, fileNum:%v",queueID,lastFileNum, fileNum)
 		if fileNum<=lastFileNum{
 			//skip old queue file, no need to upload
 			return
 		}
 
+		log.Trace(queueID," last uploaded id:",lastFileNum)
+
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
-			fileName:= GetFileName(queueID,fileNum)
-			toFile:= getS3FileLocation(fileName)
-			var success=false
-			var err error
-			if module.cfg.S3.Async{
-				err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err!=nil{
-					log.Error(err)
+			for i:=lastFileNum+1;i<=fileNum;i++{
+				//TODO skip recent file
+
+				log.Trace(queueID," upload id:",i)
+
+				fileName:= GetFileName(queueID,i)
+
+				if module.cfg.Compress.Segment.Enabled{
+					tempFile:=fileName+compressFileSuffix
+					if util.FileExists(tempFile){
+						fileName=tempFile
+					}else{
+						//compress before upload
+						//TODO
+						log.Warn("compressed file should exists, ",tempFile)
+					}
+				}
+
+				toFile:= getS3FileLocation(fileName)
+
+				var success=false
+				var err error
+				if module.cfg.S3.Async{
+					err:=s3.AsyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
+					if err!=nil{
+						log.Error(err)
+					}else{
+						success=true
+					}
 				}else{
-					success=true
+					var ok bool
+					ok,err=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
+					if err!=nil{
+						log.Error(err)
+					}else if ok{
+						success=true
+					}
 				}
-			}else{
-				var ok bool
-				ok,err=s3.SyncUpload(fileName,module.cfg.S3.Server,module.cfg.S3.Location,module.cfg.S3.Bucket,toFile)
-				if err!=nil{
-					log.Error(err)
-				}else if ok{
-					success=true
+				//update last mark
+				if success{
+					err=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(i))
+					if err!=nil{
+						panic(err)
+					}
+					log.Debugf("queue [%v][%v] uploaded to s3",queueID,i)
+				}else{
+					log.Debugf("failed to upload queue [%v][%v] to s3, %v",queueID,i,err)
 				}
-			}
-			//update last mark
-			if success{
-				err=kv.AddValue(queueS3LastFileNum,util.UnsafeStringToBytes(queueID),util.Int64ToBytes(fileNum))
-				if err!=nil{
-					panic(err)
-				}
-				log.Debugf("queue [%v][%v] uploaded to s3",queueID,fileNum)
-			}else{
-				log.Debugf("failed to upload queue [%v][%v] to s3, %v",queueID,fileNum,err)
 			}
 		}else{
 			log.Errorf("invalid s3 config:%v",module.cfg.S3)
 		}
 	}
-
 }
 

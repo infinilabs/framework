@@ -576,7 +576,7 @@ func (d *diskQueue) persistMetaData() error {
 }
 
 func (d *diskQueue) metaDataFileName() string {
-	return fmt.Sprintf(path.Join(d.dataPath, "%s.diskqueue.meta.dat"), d.name)
+	return path.Join(d.dataPath, "meta.dat")
 }
 
 func (d *diskQueue) GetFileName(segmentID int64) string {
@@ -800,7 +800,7 @@ func (d *diskQueue) ioLoop() {
 	}
 
 exit:
-	log.Debugf("disk_queue(%s): closing ... ioLoop", d.name)
+	log.Tracef("disk_queue(%s): closing ... ioLoop", d.name)
 	syncTicker.Stop()
 	d.exitSyncChan <- 1
 }

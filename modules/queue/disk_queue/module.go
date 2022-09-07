@@ -67,8 +67,6 @@ type DiskQueueConfig struct {
 	Default bool `config:"default"`
 	Enabled bool `config:"enabled"`
 
-	CompressOnSegment CompressConfig `config:"compress_on_segment"`
-
 	Compress DiskCompress `config:"compress"`
 
 	Retention RetentionConfig `config:"retention"`
@@ -84,7 +82,8 @@ type DiskQueueConfig struct {
 type DiskCompress struct {
 	Message       CompressConfig `config:"message"`
 	Segment       CompressConfig `config:"segment"`
-	IdleThreshold int            `config:"idle_threshold"`
+	IdleThreshold int64            `config:"idle_threshold"`
+	NumOfFilesDecompressAhead int64            `config:"num_of_files_decompress_ahead"`
 }
 
 type CompressConfig struct {
@@ -124,7 +123,7 @@ func (module *DiskQueue) Init(name string) error {
 		return nil
 	}
 
-	log.Debugf("init queue: %s", name)
+	log.Tracef("init queue: %s", name)
 
 	dataPath := GetDataPath(name)
 
@@ -136,6 +135,7 @@ func (module *DiskQueue) Init(name string) error {
 
 	module.queues.Store(name, &tempQueue)
 
+	module.compressFiles(name, tempQueue.ReadContext().WriteFileNum)
 	module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
 	return nil
 }
@@ -145,8 +145,7 @@ func GetDataPath(queueID string) string {
 }
 
 func GetFileName(queueID string, segmentID int64) string {
-	//return path.Join(GetDataPath(queueID),fmt.Sprintf("%s.segment.%06d.dat",queueID , segmentID))
-	return path.Join(GetDataPath(queueID), fmt.Sprintf("%s.diskqueue.%06d.dat", queueID, segmentID))
+	return path.Join(GetDataPath(queueID), fmt.Sprintf("%09d.dat", segmentID))
 }
 
 func (module *DiskQueue) Setup(config *config.Config) {
@@ -166,7 +165,10 @@ func (module *DiskQueue) Setup(config *config.Config) {
 		WriteChanBuffer:   0,
 		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
-		Compress: DiskCompress{Message: CompressConfig{
+		Compress: DiskCompress{
+			IdleThreshold: 10,
+			NumOfFilesDecompressAhead: 3,
+			Message: CompressConfig{
 			Enabled: false,
 			Level:   3,
 		}, Segment: CompressConfig{
@@ -407,6 +409,7 @@ func (module *DiskQueue) Start() error {
 
 			for _, v := range cfgs {
 				last := GetLastS3UploadFileNum(v.Id)
+				log.Trace("last upload:",v.Id,",",last)
 				offsetStr := queue.LatestOffset(v)
 				segment, _ := ConvertOffset(offsetStr)
 				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.Id, offsetStr, segment, last)
@@ -447,11 +450,7 @@ func (module *DiskQueue) Start() error {
 			switch evt.Type {
 			case WriteComplete:
 				//TODO, convert to signal, move to async
-				//本地如果只有不到${10}个文件，文件存量太少，则不进行主动进行压缩
-				//本地文件如果超过 10 个，说明堆积的比较多，可能占用太多磁盘，需要考虑压缩
-
-				//如果开启了上传，则主动上传之前进行压缩，并删除压缩文件
-				//如果没有开启上传，则只是压缩，删除原始文件，保留压缩文件
+				module.compressFiles(evt.Queue,evt.FileNum)
 
 				//upload old file to s3
 				module.uploadToS3(evt.Queue, evt.FileNum)
@@ -464,6 +463,9 @@ func (module *DiskQueue) Start() error {
 
 				break
 			case ReadComplete:
+
+				//decompress ahead of # files
+				module.prepareFilesToRead(evt.Queue,evt.FileNum)
 
 				//delete old unused files
 				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
@@ -507,13 +509,17 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	consumers, segmentNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
 	fileStartToDelete := fileNum - module.cfg.Retention.MaxNumOfLocalFiles
 
-	if fileStartToDelete <= 0 || consumers <= 0 {
+	if fileStartToDelete <= 0 || consumers <= 0|| segmentNum<0 {
 		return
 	}
 
 	if module.cfg.UploadToS3 {
 		//check last uploaded mark
 		var lastSavedFileNum = GetLastS3UploadFileNum(queueID)
+
+		if lastSavedFileNum<0{
+			return
+		}
 
 		if global.Env().IsDebug {
 			log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v", fileStartToDelete, segmentNum, lastSavedFileNum)
@@ -529,20 +535,29 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	}
 
 	//has consumers
-	if consumers > 0 && fileStartToDelete < segmentNum {
-		log.Trace(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",segment:", segmentNum)
+	if consumers > 0 && fileStartToDelete < segmentNum && segmentNum>0 {
+		log.Debug(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",consumer_on:", segmentNum)
+
+		//TODO do not wall all files, when numbers growing, it will be slow to check each file exists or not
 		for x := fileStartToDelete; x >= 0; x-- {
 			file := GetFileName(queueID, x)
+
 			if util.FileExists(file) {
-				log.Debug("delete queue file:", file)
+				log.Trace("delete queue file:", file)
 				err := os.Remove(file)
 				if err != nil {
 					panic(err)
 				}
-			} else {
-				//skip
-				break
 			}
+			compressedFile := file + compressFileSuffix
+			if util.FileExists(compressedFile) {
+				log.Trace("delete compressed queue file:", compressedFile)
+				err := os.Remove(compressedFile)
+				if err != nil {
+					panic(err)
+				}
+			}
+
 		}
 	} else {
 		//FIFO queue, need to delete old files

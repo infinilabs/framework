@@ -342,7 +342,7 @@ func (this *KafkaQueue) Pop(q string, t time.Duration) (data []byte, timeout boo
 
 	qConfig, ok := queue.GetConfigByUUID(q)
 	if !ok {
-		qConfig, ok = queue.GetConfigByKey(q)
+		qConfig, ok = queue.SmartGetConfig(q)
 	}
 
 	if ok {
