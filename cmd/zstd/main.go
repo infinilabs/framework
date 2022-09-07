@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
 	log "github.com/cihub/seelog"
+	"sync"
 	"time"
 )
 
@@ -37,7 +38,7 @@ func main() {
 	}else{
 		for _, file := range files {
 			if util.SuffixStr(file,suffix){
-				err:=zstd.DecompressFile(file,util.TrimRightStr(file,suffix))
+				err:=zstd.DecompressFile(locker,file,util.TrimRightStr(file,suffix))
 				log.Error(err)
 			}
 		}
@@ -46,3 +47,4 @@ func main() {
 	time.Sleep(time.Second)
 }
 var suffix=".zstd"
+var locker=sync.RWMutex{}

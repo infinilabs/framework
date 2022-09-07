@@ -63,7 +63,7 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 }
 
 func (module *DiskQueue) getQueueStats(q string, include string, consumer string, useKey string, data util.MapStr) error {
-	cfg, ok := queue1.GetConfigByUUID(q)
+	cfg, ok := queue1.SmartGetConfig(q)
 	if !ok {
 		return errors.Errorf("queue [%v] was not found", q)
 	}
@@ -181,7 +181,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 	if ok {
 		consumer := queue1.NewConsumerConfig(group, name)
 		consumer.FetchMaxMessages = size
-		qConfig, ok := queue1.GetConfigByUUID(queueID)
+		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
 			ctx, messages, timeout, err = module.Consume(qConfig, consumer, offsetStr)
 			if err != nil {
@@ -200,7 +200,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
-	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg, ok := queue1.SmartGetConfig(queueID)
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
 	obj := util.MapStr{}
 	var status = 404
@@ -222,7 +222,7 @@ func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http
 func (module *DiskQueue) QueueDeleteConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
-	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg, ok := queue1.SmartGetConfig(queueID)
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
 	obj := util.MapStr{}
 	var status = 404
@@ -244,7 +244,7 @@ func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *ht
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
-	cfg, ok := queue1.GetConfigByUUID(queueID)
+	cfg, ok := queue1.SmartGetConfig(queueID)
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
 	var ack = false
 	var status = 404

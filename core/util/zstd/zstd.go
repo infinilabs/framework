@@ -12,7 +12,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	log "github.com/cihub/seelog"
 	"sync"
+	"time"
 )
 
 var (
@@ -63,7 +65,7 @@ func ZSTDCompressBound(srcSize int) int {
 
 // Create a sync.Pool which returns wrapped *zstd.Decoder's.
 var decoderPool = NewDecoderPoolWrapper(zstd.WithDecoderConcurrency(1))
-var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
+var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedFastest))
 
 // ZSTDDecompress decompresses a block using ZSTD algorithm.
 func ZSTDReusedDecompress(uncompressedDataWriter io.Writer, compressedDataReader io.Reader) (error) {
@@ -87,10 +89,13 @@ func ZSTDReusedCompress(compressedDataWriter io.Writer, uncompressedDataReader i
 }
 
 
-func DecompressFile(file,to string) error {
+func DecompressFile(locker sync.RWMutex,file,to string) error {
+	locker.Lock()
+	defer locker.Unlock()
 	abs,err:=filepath.Abs(file)
 	if util.FileExists(to){
-		return errors.New("target file exits, skip "+to)
+		log.Debug("target file exists, skip "+to)
+		return nil
 	}
 
 	tmp:=to+".tmp"
@@ -139,7 +144,16 @@ func CompressFile(file,to string)error  {
 
 	tmp:=to+".tmp"
 	if util.FileExists(tmp){
-		return errors.New("temp file for target file was exits, skip: "+tmp)
+		info,err:=os.Stat(tmp)
+		if err==nil{
+			if time.Since(info.ModTime()).Seconds()<10{
+				return errors.New("temp file for target file was exits, skip: "+tmp)
+			}
+		}
+		err=os.Remove(tmp)
+		if err!=nil{
+			panic(err)
+		}
 	}
 
 	abs,err:=filepath.Abs(file)

@@ -231,7 +231,6 @@ func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 	if err != nil {
 		panic(err)
 	}
-
 	if cfgs != nil {
 		x, ok := cfgs[fmt.Sprintf("%v-%v", group, name)]
 		return x, ok
@@ -280,7 +279,7 @@ func IsConfigExists(key string) bool {
 }
 
 func GetOrInitConfig(key string) *QueueConfig {
-	cfg, exists := GetConfigByKey(key)
+	cfg, exists := SmartGetConfig(key)
 	if !exists {
 		_, ok := configs[key]
 		if !ok {
@@ -292,6 +291,14 @@ func GetOrInitConfig(key string) *QueueConfig {
 		}
 	}
 	return cfg
+}
+
+func SmartGetConfig(keyOrID string) (*QueueConfig, bool) {
+	q,ok:=GetConfigByKey(keyOrID)
+	if !ok{
+		q,ok=GetConfigByUUID(keyOrID)
+	}
+	return q,ok
 }
 
 func GetConfigByKey(key string) (*QueueConfig, bool) {
@@ -460,11 +467,13 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 	q, ok := GetConfigByUUID(queueID)
 	if !ok {
 		q, ok = GetConfigByKey(queueID)
-		oldID := queueID
-		queueID = q.Id
 		if !ok {
 			panic(errors.Errorf("queue [%v] was not found", queueID))
 		}
+
+		oldID := queueID
+		queueID = q.Id
+
 		if global.Env().IsDebug {
 			log.Tracef("[%v] is not a valid uuid, found as key, continue as [%v]", oldID, queueID)
 		}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	log "github.com/cihub/seelog"
 	"sync"
 
 	stackless2 "infini.sh/framework/lib/fasthttp/stackless"
@@ -233,9 +234,13 @@ func WriteGunzip(w io.Writer, p []byte) (int, error) {
 	r := &byteSliceReader{p}
 	zr, err := acquireGzipReader(r)
 	if err != nil {
+		log.Error(err)
 		return 0, err
 	}
 	n, err := copyZeroAlloc(w, zr)
+	if err!=nil{
+		log.Error(err)
+	}
 	releaseGzipReader(zr)
 	nn := int(n)
 	if int64(nn) != n {

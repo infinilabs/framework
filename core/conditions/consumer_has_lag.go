@@ -29,12 +29,13 @@ func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLa
 }
 
 func (c ConsumerHasLag) Check(event ValuesMap) bool {
+
 	if c.Queue!=""{
-		qConfig, ok := queue.GetConfigByKey(c.Queue)
+		qConfig, ok := queue.SmartGetConfig(c.Queue)
 		if ok{
 			latestProduceOffset:=queue.LatestOffset(qConfig)
 			if c.Group!=""&&c.Consumer!=""{
-				cConfig,ok:=queue.GetConsumerConfig(c.Queue,c.Group,c.Consumer)
+				cConfig,ok:=queue.GetConsumerConfig(qConfig.Id,c.Group,c.Consumer)
 				if ok{
 					consumerOffset,err:=queue.GetOffset(qConfig,cConfig)
 					if err!=nil{
@@ -45,14 +46,13 @@ func (c ConsumerHasLag) Check(event ValuesMap) bool {
 					}
 				}
 			}else{
-				offset:=queue.GetEarlierOffsetStrByQueueID(c.Queue)
+				offset:=queue.GetEarlierOffsetStrByQueueID(qConfig.Id)
 				if latestProduceOffset!=offset{
 					return true
 				}
 			}
 		}
 	}
-
 	return false
 }
 
