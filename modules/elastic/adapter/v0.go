@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1099,13 +1100,16 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 
 	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
 
-	_, err = c.Request(util.Verb_PUT, url, body.Bytes())
+	result, err := c.Request(util.Verb_PUT, url, body.Bytes())
 
 	if err != nil {
-		panic(err)
+		return err
+	}
+	if result.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(result.Body))
 	}
 
-	return err
+	return nil
 }
 
 func (s *ESAPIV0) Refresh(name string) (err error) {

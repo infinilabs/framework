@@ -91,7 +91,7 @@ func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
 func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
 	indexName=util.UrlEncode(indexName)
 
-	url := c.GetEndpoint() + "/" + indexName + "/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
 
 	if len(refresh)>0 {
 		url = url + "?refresh=" + refresh[0]
