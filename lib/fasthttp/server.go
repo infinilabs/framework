@@ -553,11 +553,8 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 	req.encodeLocker.Lock()
 	defer req.encodeLocker.Unlock()
 
-	//headerBuffer:=req.AcquireBuffer()
-
-	//req.Header.Set("X-Encoded-Body-Size",util.ToString(len(body)))
-
-	//req.Header.Del("content-type")
+	req.Header.Del("content-type")
+	req.Header.Del("Content-Type")
 
 	t := req.Header.PeekAny(contentTypes)
 	if t == nil || len(t) == 0 {
@@ -578,7 +575,6 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 
 	headerBytes := headerBuffer.Bytes()
 
-	//data:=req.AcquireBuffer()
 	data := bytes.Buffer{}
 
 	//schema
