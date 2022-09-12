@@ -10,6 +10,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
@@ -19,7 +20,6 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"github.com/segmentio/encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -563,10 +563,6 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 	if t == nil || len(t) == 0 {
 		t = strJsonContentType
 	}
-	req.Header.Del(HeaderContentType)
-	req.Header.Del(HeaderContentType2)
-
-	req.Header.Del("content-length") //TODO check issue
 
 	headerBuffer := bytes.Buffer{}
 	req.Header.VisitAll(func(key, value []byte) {
@@ -599,7 +595,6 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 	uri := req.RequestURI()
 	data.Write(getLengthBytes(uri))
 	data.Write(uri)
-
 	//header
 	data.Write(getLengthBytes(headerBytes))
 	data.Write(headerBytes)
@@ -616,6 +611,9 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 
 func (req *Request) Encode() []byte {
 	body := req.Body()
+	if len(body)<10{
+		log.Error("too small bodys:",req.String(),",raw:",string(req.GetRawBody()))
+	}
 	return req.OverrideBodyEncode(body, false)
 }
 
@@ -647,6 +645,8 @@ func readBytes(reader io.Reader, length uint32) []byte {
 func (req *Request) Decode(data []byte) error {
 	req.decodeLocker.Lock()
 	defer req.decodeLocker.Unlock()
+
+	req.Reset()
 
 	//reader:=req.AcquireBytesReader()
 	reader := &bytes.Reader{}
@@ -2739,9 +2739,6 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			break
 		}
 
-		//ctx1:=ctx
-		//ctx=s.AcquireCtx(c)
-
 		//logging and reset
 		if s.TraceHandler != nil {
 			//TODO, may send to another chan and processing
@@ -2789,9 +2786,6 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		ctx.Request.Reset()
 		reqReset = true
 
-		//ctx2:=s.AcquireCtx(c)
-		//ctx=ctx2
-
 		s.setState(c, StateIdle)
 
 		if atomic.LoadInt32(&s.stop) == 1 {
@@ -2803,9 +2797,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	if br != nil {
 		releaseReader(s, br)
 	}
+
 	if bw != nil {
 		releaseWriter(s, bw)
 	}
+
 	if ctx != nil {
 		// in unexpected cases the for loop will break
 		// before request reset call. in such cases, call it before
@@ -2949,9 +2945,9 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	n, err := c.Read(b[:])
 
 	ctx = s.AcquireCtx(c)
-	ctx.Reset()
-	ctx.Request.resetSkipHeader()
-	ctx.Response.Reset()
+	//ctx.Reset()
+	//ctx.Request.resetSkipHeader()
+	//ctx.Response.Reset()
 
 	*ctxP = ctx
 	if err != nil {
@@ -3020,32 +3016,11 @@ func (s *Server) AcquireCtx(c net.Conn) (ctx *RequestCtx) {
 
 	x1 := ctxPool.Get().(*RequestCtx)
 	x1.s = s
-	//x1.SequenceID=util.GetIncrementID("ctx")
 	x1.c = c
 	x1.Request.Reset()
 	x1.Response.Reset()
 	x1.Reset()
 	return x1
-
-	//v := s.ctxPool.Get()
-	//if v == nil {
-	//	ctx = &RequestCtx{
-	//		SequenceID: util.GetIncrementID("ctx"),
-	//		s: s,
-	//	}
-	//	keepBodyBuffer := !s.ReduceMemoryUsage
-	//	ctx.Request.keepBodyBuffer = keepBodyBuffer
-	//	ctx.Response.keepBodyBuffer = keepBodyBuffer
-	//	fmt.Println("new-context:",ctx.Request.URI().String())
-	//} else {
-	//	ctx = v.(*RequestCtx)
-	//	fmt.Println("reuse-context:",ctx.Request.URI().String())
-	//}
-	//
-	//ctx.Reset()
-	//
-	//ctx.c = c
-	//return
 }
 
 func (ctx *RequestCtx) Reset() {
@@ -3053,6 +3028,10 @@ func (ctx *RequestCtx) Reset() {
 	if ctx.Data == nil || len(ctx.Data) > 0 {
 		ctx.ResetParameters()
 	}
+
+	//ctx.Request.Reset()
+	//ctx.Response.Reset()
+
 	ctx.finished = false
 	ctx.flowProcess = []string{}
 	ctx.destination = ctx.destination[0:0]
@@ -3198,15 +3177,6 @@ func (s *Server) ReleaseCtx(ctx *RequestCtx) {
 	ctx.Reset()
 	//ctx.BufferObject.Reset()
 	ctxPool.Put(ctx)
-
-	return
-
-	//if ctx.timeoutResponse != nil {
-	//	panic("BUG: cannot release timed out RequestCtx")
-	//}
-	//ctx.c = nil
-	//ctx.fbr.c = nil
-	//s.ctxPool.Put(ctx)
 }
 
 func (s *Server) getServerName() []byte {

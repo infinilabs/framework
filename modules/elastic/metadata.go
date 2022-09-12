@@ -133,8 +133,6 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 //update cluster state, on state version change
 func (module *ElasticModule)updateClusterState(clusterId string) {
 
-	log.Trace("update cluster state:",clusterId)
-
 	meta := elastic.GetMetadata(clusterId)
 	if meta==nil{
 		return

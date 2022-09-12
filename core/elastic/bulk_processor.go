@@ -12,7 +12,6 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
 	"path"
@@ -211,7 +210,11 @@ type BulkProcessorConfig struct {
 	RequestTimeoutInSecond  int    `config:"request_timeout_in_second"`
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
+
 	SafetyParse             bool   `config:"safety_parse"`
+
+	IncludeBusyRequestsToFailureQueue bool `config:"include_busy_requests_to_failure_queue"`
+
 	DocBufferSize           int    `config:"doc_buffer_size"`
 }
 
@@ -234,9 +237,12 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	RetryDelayInSeconds:     1,
 	RejectDelayInSeconds:    1,
 	MaxRejectRetryTimes:     60,
-	MaxRetryTimes:           3,
+	MaxRetryTimes:           10,
 	DeadletterRequestsQueue: "dead_letter_queue",
+
 	SafetyParse:             true,
+	IncludeBusyRequestsToFailureQueue:         true,
+
 	DocBufferSize:           256 * 1024,
 	RequestTimeoutInSecond:  60,
 }
@@ -256,15 +262,18 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 
 	host = metadata.GetActivePreferredHost(host)
 
-	httpClient := metadata.GetHttpClient(host)
-
-	if metadata.IsTLS() {
-		host = "https://" + host
-	} else {
-		host = "http://" + host
+	if host==""{
+		panic("invalid host")
 	}
 
-	url := fmt.Sprintf("%s/_bulk", host)
+	httpClient := metadata.GetHttpClient(host)
+
+	var url string
+	if metadata.IsTLS() {
+		url = fmt.Sprintf("https://%s/_bulk", host)
+	} else {
+		url = fmt.Sprintf("http://%s/_bulk", host)
+	}
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
@@ -272,9 +281,10 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 	defer fasthttp.ReleaseResponse(resp) // <- do not forget to release
 
 	req.SetRequestURI(url)
+	//req.URI().Update(url)
+
 	req.Header.SetMethod(http.MethodPost)
 	req.Header.SetUserAgent("_bulk")
-
 	req.Header.SetContentType("application/x-ndjson")
 
 	if metadata.Config.BasicAuth != nil {
@@ -282,10 +292,17 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 		req.URI().SetPassword(metadata.Config.BasicAuth.Password)
 	}
 
-	acceptGzipped := req.AcceptGzippedResponse()
-	compressed := false
+	//acceptGzipped := req.AcceptGzippedResponse()
+	//compressed := false
 
-	data := buffer.Buffer.Bytes()
+	// handle last \n
+	data := buffer.GetMessageBytes()
+	if !util.IsBytesEndingWith(&data,NEWLINEBYTES){
+		if !util.BytesHasPrefix(buffer.GetMessageBytes(),NEWLINEBYTES){
+			buffer.Write(NEWLINEBYTES)
+			data=buffer.GetMessageBytes()
+		}
+	}
 
 	if !req.IsGzipped() && joint.Config.Compress {
 
@@ -297,10 +314,11 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 		//TODO handle response, if client not support gzip, return raw body
 		req.Header.Set(fasthttp.HeaderAcceptEncoding, "gzip")
 		req.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
-		compressed = true
+		//compressed = true
 
 	} else {
 		req.SetBody(data)
+		//req.SetRawBody(data)
 	}
 
 	if req.GetBodyLength() <= 0 {
@@ -310,42 +328,60 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 	// modify schema，align with elasticsearch's schema
 	orignalSchema := string(req.URI().Scheme())
 	orignalHost := string(req.URI().Host())
+
+	if host!=""&&req.Host()==nil||string(req.Host())!=orignalHost{
+		req.Header.SetHost(host)
+	}
+
 	if metadata.GetSchema() != orignalSchema {
 		req.URI().SetScheme(metadata.GetSchema())
 	}
 
 	retryTimes := 0
+	nonRetryableItems := AcquireBulkBuffer()
+	retryableItems := AcquireBulkBuffer()
+	successItems := AcquireBulkBuffer()
+
+	defer ReturnBulkBuffer(nonRetryableItems)
+	defer ReturnBulkBuffer(retryableItems)
+	defer ReturnBulkBuffer(successItems)
+
 DO:
 
 	if req.GetBodyLength() <= 0 {
 		panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
 	}
-
+	
 	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(req.Header.Host()), 1, req.GetRequestLength(), 0)
-
+	
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
 
 	stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "http_request_count")
-
+	
 	if err != nil {
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
 			time.Sleep(1 * time.Second)
 		}
+		
 		return false, err
 	}
+	
+	////restore body and header
+	//if !acceptGzipped && compressed {
+	//
+	//	body := resp.GetRawBody()
+	//
+	//	resp.SwapBody(body)
+	//
+	//	resp.Header.Del(fasthttp.HeaderContentEncoding)
+	//	resp.Header.Del(fasthttp.HeaderContentEncoding2)
+	//
+	//}
 
-	//restore body and header
-	if !acceptGzipped && compressed {
-		body := resp.GetRawBody()
-		resp.SwapBody(body)
-		resp.Header.Del(fasthttp.HeaderContentEncoding)
-		resp.Header.Del(fasthttp.HeaderContentEncoding2)
-	}
-
-	// restore schema
+	//restore schema
 	req.URI().SetScheme(orignalSchema)
 	req.SetHost(orignalHost)
 
@@ -353,95 +389,118 @@ DO:
 		if global.Env().IsDebug {
 			log.Error(err)
 		}
+		
 		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		return false, err
 	}
-
+	
 	// Do we need to decompress the response?
 	var resbody = resp.GetRawBody()
+	
 	if global.Env().IsDebug {
 		log.Trace(resp.StatusCode(), util.UnsafeBytesToString(util.EscapeNewLine(data)), util.UnsafeBytesToString(util.EscapeNewLine(resbody)))
 	}
 
+	if retryTimes>0{
+		log.Errorf("#%v, code:%v",retryTimes,resp.StatusCode())
+	}
+
 	if resp.StatusCode() == http.StatusOK || resp.StatusCode() == http.StatusCreated {
-
+		
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
-		if util.ContainStr(string(req.RequestURI()), "_bulk") {
-			nonRetryableItems := bytebufferpool.Get("bulk_processor")
-			retryableItems := bytebufferpool.Get("bulk_processor")
-			defer bytebufferpool.Put("bulk_processor", nonRetryableItems)
-			defer bytebufferpool.Put("bulk_processor", retryableItems)
-			nonRetryableItems.Reset()
-			retryableItems.Reset()
+		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats := HandleBulkResponse2(tag, joint.Config.SafetyParse, data, resbody, joint.Config.DocBufferSize, buffer, nonRetryableItems, retryableItems)
+			containError, statsCodeStats := HandleBulkResponse2(tag, joint.Config.SafetyParse, data, resbody, joint.Config.DocBufferSize, successItems, nonRetryableItems, retryableItems,joint.Config.IncludeBusyRequestsToFailureQueue)
+
+			if retryTimes>0{
+				log.Errorf("#%v, code:%v, contain_err:%v, status:%v",retryTimes,resp.StatusCode(),containError,statsCodeStats)
+			}
+
 			if containError {
-
+				
 				stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests")
 
-				if retryableItems.Len() > 0 {
-					retryableItems.WriteByte('\n')
-					data := req.OverrideBodyEncode(retryableItems.Bytes(), true)
+				count:=retryableItems.GetMessageCount()
+
+				if count > 0 {
+
+					log.Debugf("%v, retry item: %v",tag,count)
+
+					bodyBytes:=retryableItems.GetMessageBytes()
+					if !util.IsBytesEndingWith(&bodyBytes,NEWLINEBYTES){
+						if !util.BytesHasPrefix(retryableItems.GetMessageBytes(),NEWLINEBYTES){
+							retryableItems.WriteByteBuffer(NEWLINEBYTES)
+							bodyBytes=retryableItems.GetMessageBytes()
+						}
+					}
+
+					req.SetRawBody(bodyBytes)
 
 					delayTime := joint.Config.RejectDelayInSeconds
+					
 					if delayTime <= 0 {
 						delayTime = 5
 					}
+					
 					time.Sleep(time.Duration(delayTime) * time.Second)
+					
 					if joint.Config.MaxRejectRetryTimes <= 0 {
 						joint.Config.MaxRejectRetryTimes = 12 //1min
 					}
+					
 					if retryTimes >= joint.Config.MaxRejectRetryTimes {
+						
 						//continue retry before is back
 						if !metadata.IsAvailable() {
 							return false, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
 						}
-
+						
+						data := req.OverrideBodyEncode(bodyBytes, true)
+						
 						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
+						
 						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry_dead")
 						return true, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
 					}
-					log.Errorf("bulk partial failure, #%v retry", retryTimes)
+					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
 					retryTimes++
+					
 					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry")
 					goto DO
 				}
 
-				failureStatus := buffer.GetMessageStatus(true)
-
-				if len(failureStatus) > 0 {
-					failureStatusStr := util.JoinMapInt(failureStatus, ":")
-					log.Debugf("documents in failure: %v", failureStatusStr)
-					//save message bytes, with metadata, set codec to wrapped bulk messages
-					queue.Push(queue.GetOrInitConfig("failure_messages"), util.MustToJSONBytes(util.MapStr{
-						"cluster_id": metadata.Config.ID,
-						"queue":      buffer.Queue,
-						"request": util.MapStr{
-							"uri":  req.URI().String(),
-							"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, 1024*4),
-						},
-						"response": util.MapStr{
-							"status": failureStatusStr,
-							"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, 1024*4),
-						},
-					}))
-					log.Errorf("bulk requests failure,host:%v,status:%v,invalid:%v,failure:%v,res:%v", host, statsCodeStats, nonRetryableItems.Len(), retryableItems.Len(), util.SubString(util.UnsafeBytesToString(resbody), 0, 1024))
-				}
-
+				//if len(failureStatus) > 0 {
+				//	failureStatusStr := util.JoinMapInt(failureStatus, ":")
+				//	log.Debugf("documents in failure: %v", failureStatusStr)
+				//	//save message bytes, with metadata, set codec to wrapped bulk messages
+				//	queue.Push(queue.GetOrInitConfig("failure_messages"), util.MustToJSONBytes(util.MapStr{
+				//		"cluster_id": metadata.Config.ID,
+				//		"queue":      buffer.Queue,
+				//		"request": util.MapStr{
+				//			"uri":  req.URI().String(),
+				//			"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, 1024*4),
+				//		},
+				//		"response": util.MapStr{
+				//			"status": failureStatusStr,
+				//			"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, 1024*4),
+				//		},
+				//	}))
+				//	//log.Errorf("bulk requests failure,host:%v,status:%v,invalid:%v,failure:%v,res:%v", host, statsCodeStats, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount(), util.SubString(util.UnsafeBytesToString(resbody), 0, 1024))
+				//}
+				
 				//skip all failure messages
-				if nonRetryableItems.Len() > 0 && retryableItems.Len() == 0 {
-
+				if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
+					
 					////handle 400 error
 					if joint.Config.InvalidRequestsQueue != "" {
 						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 					}
-
+					
 					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_all_error_requests")
 					return true, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
 				} else {
 					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "what_else")
 				}
-
 				return false, errors.Errorf("bulk response contains error, %v", statsCodeStats)
 			} else {
 				stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_success_requests")
@@ -462,8 +521,7 @@ DO:
 			queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 		}
 
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "400_requests")
-		log.Errorf("invalid requests, code: %v, response:%v", resp.StatusCode(), util.UnsafeBytesToString(resp.GetRawBody()))
+		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "4xx_requests")
 		return true, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 	} else {
 
@@ -475,17 +533,20 @@ DO:
 		if global.Env().IsDebug {
 			log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))
 		}
-
 		return false, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 	}
 
 }
 
 //TODO remove
-func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []byte, docBuffSize int, reqBuffer *BulkBuffer, nonRetryableItems, retryableItems *bytebufferpool.ByteBuffer) (bool, map[int]int) {
+func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []byte, docBuffSize int, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
+	nonRetryableItems.Reset()
+	retryableItems.Reset()
+	successItems.Reset()
+
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	if containError {
+	//if containError {
 		//decode response
 		response := BulkResponse{}
 		err := response.UnmarshalJSON(resbody)
@@ -497,7 +558,6 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 		var validCount = 0
 		for i, v := range response.Items {
 			item := v.GetItem()
-			reqBuffer.SetResponseStatus(i, item.Status)
 
 			x, ok := statsCodeStats[item.Status]
 			if !ok {
@@ -515,7 +575,7 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 		if len(invalidOffset) > 0 {
 			if global.Env().IsDebug {
-				log.Debug("bulk status:", statsCodeStats)
+				log.Debug(tag," bulk invalid, status:", statsCodeStats)
 			}
 		}
 
@@ -538,27 +598,34 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 		var actionMetadata BulkActionMetadata
 		var docBuffer []byte
 		docBuffer = BulkDocBuffer.Get(docBuffSize)
-		defer BulkDocBuffer.Put(docBuffer)
+		//defer BulkDocBuffer.Put(docBuffer)
 
 		WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
 			return false
 		}, func(metaBytes []byte, actionStr, index, typeName, id string) (err error) {
 			actionMetadata, match = invalidOffset[offset]
+			item:=actionMetadata.GetItem()
+
 			if match {
-				//find invalid request
-				if actionMetadata.GetItem().Status >= 400 && actionMetadata.GetItem().Status < 500 && actionMetadata.GetItem().Status != 429 {
+				if item.Status==429 && retry429{
+					retryable = true
+				}else if item.Status >= 400 && item.Status < 500{ //find invalid request 409
 					retryable = false
-					if nonRetryableItems.Len() > 0 {
-						nonRetryableItems.WriteByte('\n')
-					}
-					nonRetryableItems.Write(metaBytes)
 				} else {
 					retryable = true
-					if retryableItems.Len() > 0 {
-						retryableItems.WriteByte('\n')
-					}
-					retryableItems.Write(metaBytes)
 				}
+
+				if retryable{
+					retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
+					retryableItems.WriteMessageID(item.ID)
+				}else{
+					nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
+					nonRetryableItems.WriteMessageID(item.ID)
+				}
+			}else{
+				//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
+				successItems.WriteNewByteBufferLine("meta5",metaBytes)
+				successItems.WriteMessageID(id)
 			}
 			offset++
 			return nil
@@ -566,20 +633,18 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 			if match {
 				if payloadBytes != nil && len(payloadBytes) > 0 {
 					if retryable {
-						if retryableItems.Len() > 0 {
-							retryableItems.WriteByte('\n')
-						}
-						retryableItems.Write(payloadBytes)
+						retryableItems.WriteNewByteBufferLine("payload4",payloadBytes)
 					} else {
-						if nonRetryableItems.Len() > 0 {
-							nonRetryableItems.WriteByte('\n')
-						}
-						nonRetryableItems.Write(payloadBytes)
+						nonRetryableItems.WriteNewByteBufferLine("payload3",payloadBytes)
 					}
+				}
+			}else{
+				if payloadBytes != nil && len(payloadBytes) > 0 {
+					successItems.WriteNewByteBufferLine("payload5", payloadBytes)
 				}
 			}
 		})
 
-	}
+	//}
 	return containError, statsCodeStats
 }

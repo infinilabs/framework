@@ -252,6 +252,9 @@ func (u *URI) Host() []byte {
 
 // SetHost sets host for the uri.
 func (u *URI) SetHost(host string) {
+	if host==""{
+		panic("invalid host")
+	}
 	u.host = append(u.host[:0], host...)
 	lowercaseBytes(u.host)
 }

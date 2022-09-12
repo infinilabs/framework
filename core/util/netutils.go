@@ -100,19 +100,21 @@ func GetAvailablePort(ip string, port int) int {
 	panic(errors.New("no ports available"))
 }
 
-func TestTCPPort(host string,port string)bool  {
-	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port))
+func TestTCPPort(host string,port string,duration time.Duration)bool  {
+	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port),timeout)
 }
 
-func TestTCPAddress(host string)bool  {
-	timeout := time.Second
+func TestTCPAddress(host string,timeout time.Duration)bool  {
+	log.Debug("testing ip:",host)
 	conn, err := net.DialTimeout("tcp", host, timeout)
-	if err != nil {
-		return false
+	if conn!=nil{
+		conn.Close()
+		if err==nil{
+			return true
+		}
 	}
-	if conn != nil {
-		defer conn.Close()
-		return true
+	if err!=nil{
+		log.Debug(err,",",conn!=nil,",",timeout)
 	}
 	return false
 }

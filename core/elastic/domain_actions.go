@@ -92,7 +92,8 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 	if loaded {
 		return v1.(*NodeAvailable)
 	} else {
-		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host), ClusterID: clusterID}
+		log.Tracef("init host: %v",host)
+		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host,time.Second), ClusterID: clusterID}
 		hosts.Store(host, v1)
 	}
 	return v1.(*NodeAvailable)
@@ -274,24 +275,46 @@ func GetHostAvailableInfo(host string) (*NodeAvailable, bool) {
 	}
 	return nil, false
 }
+var nodeAvailCache=util.NewCacheWithExpireOnAdd(1*time.Minute,100)
 
 func IsHostAvailable(host string) bool {
 	if host==""{
-		panic("host is nil")
+		log.Error("host is nil")
+		return false
 	}
 
 	info, ok := GetHostAvailableInfo(host)
 	if ok && info != nil {
-		return info.IsAvailable()
-	} else {
-		arry := strings.Split(host, ":")
-		if len(arry) == 2 {
-			if !util.TestTCPPort(arry[0], arry[1]) {
-				return false
-			}
+		if global.Env().IsDebug{
+			log.Trace("get host info: ",info)
+		}
+		if time.Since(info.lastCheck)<60*time.Second{
+			return info.IsAvailable()
 		}
 	}
+
 	log.Debugf("no available info for host [%v]", host)
+
+	v:= nodeAvailCache.Get(host)
+	if v!=nil{
+		a,ok:=v.(bool)
+		if ok{
+			if global.Env().IsDebug{
+				log.Debug("hit cache:",host,",",a)
+			}
+			return a
+		}
+	}
+
+	arry := strings.Split(host, ":")
+	if len(arry) == 2 {
+		avail:=util.TestTCPPort(arry[0], arry[1],10*time.Second)
+		nodeAvailCache.Put(host,avail)
+		if !avail {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -360,14 +383,18 @@ var clientLock sync.RWMutex
 
 func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) string {
 
-	//get available host
-	available := IsHostAvailable(host)
+	if host!=""{
+		//get available host
+		available := IsHostAvailable(host)
 
-	if !available {
-		if metadata.IsAvailable() {
-			newEndpoint := metadata.GetActiveHost()
-			log.Warnf("[%v] is not available, try: [%v]", host, newEndpoint)
-			host = newEndpoint
+		if !available {
+			if metadata.IsAvailable() {
+				newEndpoint := metadata.GetActiveHost()
+				if host!=newEndpoint{
+					log.Warnf("[%v] is not available, try: [%v]", host, newEndpoint)
+				}
+				host = newEndpoint
+			}
 		}
 	}
 
@@ -399,12 +426,15 @@ func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Clie
 }
 
 func (metadata *ElasticsearchMetadata) NewHttpClient(host string) *fasthttp.Client {
+
+	log.Trace("new http client: ",host)
+
 	client := &fasthttp.Client{
-		MaxConnsPerHost:               5000,
+		MaxConnsPerHost:               100,
 		MaxConnDuration:               0,
 		MaxIdleConnDuration:           0,
-		ReadTimeout:                   0,
-		WriteTimeout:                  0,
+		ReadTimeout:  5 * time.Minute, // 10 minutes
+		WriteTimeout: 5 * time.Minute,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		MaxConnWaitTimeout:            0,

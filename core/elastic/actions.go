@@ -39,7 +39,7 @@ func (node *NodeAvailable) ReportFailure() {
 
 		node.ticket++
 		//if the target host is not available for 10s, mark it down
-		if (node.ticket >= 10 && time.Since(node.lastSuccess) > 5*time.Second) || time.Since(node.lastSuccess) > 10*time.Second {
+		if (node.ticket >= 30 && time.Since(node.lastSuccess) > 10*time.Second) || time.Since(node.lastSuccess) > 60*time.Second {
 			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down", node.Host)
 			node.available = false
 			node.ticket = 0
@@ -345,7 +345,7 @@ func (meta *ElasticsearchMetadata) ReportFailure(errorMessage error) bool {
 			}
 
 			num:=meta.GetActiveHosts()
-			log.Tracef("%v has active hosts: %v",meta.Config.Name,num)
+			log.Infof("%v has active hosts: %v",meta.Config.Name,num)
 			if num>0{
 				log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name,num)
 				return false

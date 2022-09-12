@@ -208,7 +208,7 @@ type NodesInfo struct {
 }
 
 type NodeAvailable struct {
-	ClusterID   string
+	ClusterID   string //TODO should be removed
 	Host        string
 	ticket      int
 	available   bool

@@ -399,6 +399,10 @@ func (h *RequestHeader) Host() []byte {
 
 // SetHost sets Host header value.
 func (h *RequestHeader) SetHost(host string) {
+	if host==""{
+		panic("invalid host")
+	}
+
 	h.host = append(h.host[:0], host...)
 }
 
@@ -1858,7 +1862,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 		h.noHTTP11 = true
 		n = len(b)
 	} else if n == 0 {
-		return 0, fmt.Errorf("requestURI cannot be empty in %q", buf)
+		return 0, fmt.Errorf("requestURI cannot be empty in %v", string(h.String()))
 	} else if !bytes.Equal(b[n+1:], strHTTP11) {
 		h.noHTTP11 = true
 	}
