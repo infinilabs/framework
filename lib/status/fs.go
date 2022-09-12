@@ -1,11 +1,11 @@
-// +build !windows
 
 /* ©INFINI, All Rights Reserved.
  * mail: contact#infini.ltd */
 package status
 
 import (
-	"syscall"
+	log "github.com/cihub/seelog"
+	disk2 "github.com/shirou/gopsutil/disk"
 )
 
 type DiskStatus struct {
@@ -18,14 +18,14 @@ type DiskStatus struct {
 
 // disk usage of path/disk
 func DiskUsage(path string) (disk DiskStatus) {
-	sf := syscall.Statfs_t{}
-	err := syscall.Statfs(path, &sf)
+	stat, err := disk2.Usage(path)
 	if err != nil {
+		log.Errorf("status.DiskUsage, err: %v",err)
 		return
 	}
-	disk.All = sf.Blocks * uint64(sf.Bsize)
-	disk.Free = sf.Bfree * uint64(sf.Bsize)
-	disk.Available = sf.Bavail * uint64(sf.Bsize)
-	disk.Used = disk.All - disk.Free
+	disk.All = stat.Total
+	disk.Free = stat.Free
+	disk.Available = stat.Free
+	disk.Used = stat.Used
 	return
 }
