@@ -76,6 +76,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 						//compress before upload
 						//TODO
 						log.Warn("compressed file should exists, ",tempFile)
+						continue
 					}
 				}
 
