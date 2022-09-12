@@ -5,20 +5,28 @@
 package host
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"time"
 )
 
 type HostInfo struct {
 	orm.ORMObjectBase
 
-	AgentID    string    `json:"agent_id" elastic_mapping:"agent_id: { type: keyword }"`
-	Name       string    `json:"name" elastic_mapping:"name: { type: keyword }"`                         //eg: zhangsandeMacBook-Pro.local
+	AgentID    string    `json:"agent_id" elastic_mapping:"agent_id: { type: keyword, copy_to:search_text }"`
+	IP string `json:"ip" elastic_mapping:"ip: { type: keyword, copy_to:search_text }"`
+	Name       string    `json:"name" elastic_mapping:"name: { type: keyword, copy_to:search_text }"`                         //eg: zhangsandeMacBook-Pro.local
 	MemorySize uint64    `json:"memory_size,omitempty" elastic_mapping:"memory_size: { type: keyword }"` //byte, eg: 17179869184
 	DiskSize   uint64    `json:"disk_size,omitempty" elastic_mapping:"disk_size: { type: keyword }"`     //byte, eg: 494384795648
 	CPUInfo    CPU       `json:"cpu_info,omitempty" elastic_mapping:"cpu_info: { type: object }"`
 	OSInfo     OS        `json:"os_info,omitempty" elastic_mapping:"os_info: { type: object }"`
 	UpTime     time.Time `json:"up_time,omitempty" elastic_mapping:"up_time: { type: date }"`
+	Tags []string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword, copy_to:search_text }"`
+	SearchText string                 `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	Timestamp  time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
+	AgentStatus string     `json:"agent_status,omitempty" elastic_mapping:"agent_status: { type: keyword }"`
+	NodeID string `json:"node_id,omitempty" elastic_mapping:"node_id: { type: keyword }"`
 }
 
 type CPU struct {
@@ -44,6 +52,7 @@ type Usage struct {
 	NetIOUsage      *NetIOUsageInfo      `json:"net_io_usage,omitempty" elastic_mapping:"net_io_usage: { type: object }"`
 	MemoryUsage     *MemoryUsageInfo     `json:"memory_usage,omitempty" elastic_mapping:"memory_usage: { type: object }"`
 	SwapMemoryUsage *SwapMemoryUsageInfo `json:"swap_memory_usage,omitempty" elastic_mapping:"swap_memory_usage: { type: object }"`
+	ESProcessInfo   string               `json:"es_process_info"`
 }
 
 type UsageCategory string
@@ -55,6 +64,7 @@ const (
 	DiskIOUsage               = "disk_io"
 	NetIOUsage                = "net_io"
 	MemoryUsage               = "memory"
+	ESProcessInfo             = "es_process"
 )
 
 type DiskUsageInfo struct {
@@ -90,4 +100,27 @@ type SwapMemoryUsageInfo struct {
 	Free        uint64  `json:"available" elastic_mapping:"available: { type: keyword }"` //byte
 	Used        uint64  `json:"used" elastic_mapping:"used: { type: keyword }"`           //byte
 	UsedPercent float64 `json:"used_percent" elastic_mapping:"used_percent: { type: keyword }"`
+}
+
+
+func UpdateHostAgentStatus(agentID, agentStatus string) {
+	err, result := orm.GetBy("agent_id", agentID, HostInfo{})
+	if err != nil {
+		log.Errorf("update host agent [%s] status error: %v", agentID, err)
+		return
+	}
+	if len(result.Result) > 0 {
+		buf := util.MustToJSONBytes(result.Result[0])
+		hostInfo := &HostInfo{}
+		err = util.FromJSONBytes(buf, hostInfo)
+		if err != nil {
+			log.Errorf("update host agent [%s] status error: %v", agentID, err)
+			return
+		}
+		hostInfo.AgentStatus = agentStatus
+		err = orm.Update(hostInfo)
+		if err != nil {
+			log.Errorf("update host agent [%s] status error: %v", agentID, err)
+		}
+	}
 }

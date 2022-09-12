@@ -7,6 +7,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/util"
 	"net/http"
 )
@@ -87,6 +88,27 @@ func (client *Client) EnrollInstance(ctx context.Context, agentBaseURL string, a
 	return nil
 }
 
+func (client *Client) GetHostInfo(ctx context.Context, agentBaseURL string, agentID string) (*host.HostInfo, error) {
+	req := &util.Request{
+		Method:  http.MethodGet,
+		Url:     fmt.Sprintf("%s/agent/%s/host/_basic", agentBaseURL, agentID),
+		Context: ctx,
+	}
+	resBody := struct {
+		Success bool `json:"success"`
+		Error string `json:"error"`
+		HostInfo *host.HostInfo `json:"result"`
+	}{}
+	err := client.doRequest(req, &resBody)
+	if err != nil {
+		return nil, err
+	}
+	if resBody.Success != true {
+		return nil, fmt.Errorf("enroll error from client: %v", resBody.Error)
+	}
+	return resBody.HostInfo, nil
+}
+
 func (client *Client) SetNodesMetricTask(ctx context.Context, agentBaseURL string, body interface{}) error {
 	req := &util.Request{
 		Method:  http.MethodPost,
@@ -107,6 +129,44 @@ func (client *Client) SetNodesMetricTask(ctx context.Context, agentBaseURL strin
 		return fmt.Errorf("set nodes metric task error from client: %v", resBody["error"])
 	}
 	return nil
+}
+func (client *Client) DiscoveredHost(ctx context.Context, agentBaseURL string, body interface{}) error {
+	req := &util.Request{
+		Method:  http.MethodPut,
+		Url:     fmt.Sprintf("%s/host/discover", agentBaseURL),
+		Context: ctx,
+	}
+	reqBody, err := util.ToJSONBytes(body)
+	if err != nil {
+		return err
+	}
+	req.Body = reqBody
+	resBody := map[string]interface{}{}
+	err = client.doRequest(req, &resBody)
+	if err != nil {
+		return err
+	}
+	if resBody["success"] != true {
+		return fmt.Errorf("discover host callback error: %v", resBody["error"])
+	}
+	return nil
+}
+
+func (client *Client) GetElasticProcess(ctx context.Context, agentBaseURL string, agentID string)(interface{}, error) {
+	req := &util.Request{
+		Method:  http.MethodGet,
+		Url:     fmt.Sprintf("%s/agent/%s/process/_elastic", agentBaseURL, agentID),
+		Context: ctx,
+	}
+	resBody := map[string]interface{}{}
+	err := client.doRequest(req, &resBody)
+	if err != nil {
+		return nil, err
+	}
+	if resBody["success"] != true {
+		return nil, fmt.Errorf("discover host callback error: %v", resBody["error"])
+	}
+	return resBody["elastic_process"], nil
 }
 
 func (client *Client) doRequest(req *util.Request, respObj interface{}) error {

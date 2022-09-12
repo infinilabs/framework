@@ -13,7 +13,6 @@ func Init() {
 	handler := APIHandler{}
 	api.HandleAPIMethod(api.POST, "/agent/instance", handler.createInstance)
 	api.HandleAPIMethod(api.GET, "/agent/instance/_search", handler.RequirePermission(handler.searchInstance, enum.PermissionAgentInstanceRead))
-	//api.HandleAPIMethod(api.GET, "/agent/instance/_discover_host", handler.getDiscoverHosts)
 	api.HandleAPIMethod(api.GET, "/agent/instance/:instance_id", handler.getInstance)
 	api.HandleAPIMethod(api.PUT, "/agent/instance/:instance_id", handler.updateInstance)
 	api.HandleAPIMethod(api.DELETE, "/agent/instance/:instance_id", handler.RequirePermission(handler.deleteInstance, enum.PermissionAgentInstanceWrite))

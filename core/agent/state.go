@@ -34,4 +34,5 @@ type IStateManager interface {
 	GetState(clusterID string) ShortState
 	EnrollAgent(inst *Instance, confirmInfo interface{}) error
 	DispatchNodeMetricTask(clusterID string) error
+	GetAgentClient() ClientAPI
 }
