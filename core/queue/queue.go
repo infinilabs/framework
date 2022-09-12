@@ -114,6 +114,10 @@ func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
 	return cfg.fetchMaxWaitMs
 }
 
+func (cfg *ConsumerConfig) String() string {
+	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v",cfg.Group,cfg.Name,cfg.Id,cfg.Source)
+}
+
 func getHandler(k *QueueConfig) QueueAPI {
 	handler, ok := handlers[k.Id]
 	if handler != nil && ok {

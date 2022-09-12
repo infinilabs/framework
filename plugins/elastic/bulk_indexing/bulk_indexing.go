@@ -417,7 +417,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	var offset string
 	var groupName = processor.config.Consumer.Group
 	if maxSlices > 1 {
-		fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
+		groupName=fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
 	}
 
 	var consumer = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
