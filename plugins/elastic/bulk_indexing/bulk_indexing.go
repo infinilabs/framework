@@ -221,13 +221,13 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 							return
 						}
 						//if have depth and not in in flight
-						//if queue.HasLag(v) {
-						_, ok := processor.inFlightQueueConfigs.Load(v.Id)
-						if !ok {
-							log.Tracef("detecting new queue: %v", v.Name)
-							processor.HandleQueueConfig(v, c)
+						if queue.HasLag(v) {
+							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
+							if !ok {
+								log.Tracef("detecting new queue: %v", v.Name)
+								processor.HandleQueueConfig(v, c)
+							}
 						}
-						//}
 					}
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
@@ -494,8 +494,16 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		host=meta.GetActivePreferredSeedHost()
 	}
 
-	if elastic.IsHostDead(host) {
+	if global.Env().IsDebug{
+		log.Trace("get host:",host,",is dead:",elastic.IsHostDead(host),",is available:",elastic.IsHostAvailable(host))
+	}
+
+	if elastic.IsHostDead(host)||!elastic.IsHostAvailable(host) {
 		host = meta.GetActiveHost()
+	}
+
+	if global.Env().IsDebug{
+		log.Trace("get final host:",host)
 	}
 
 	bulkProcessor = elastic.BulkProcessor{
@@ -517,7 +525,7 @@ READ_DOCS:
 			goto CLEAN_BUFFER
 		}
 
-		//TODO add config to enable check or not
+		//TODO add config to enable check or not, panic or skip
 		if !elastic.IsHostAvailable(host) {
 			if elastic.IsHostDead(host) {
 				host1 := host
@@ -540,7 +548,6 @@ READ_DOCS:
 				}
 				time.Sleep(time.Second * 1)
 			}
-
 			goto READ_DOCS
 		}
 
@@ -614,23 +621,17 @@ READ_DOCS:
 						partitionID := elastic.GetShardID(7, util.UnsafeStringToBytes(index+id), maxSlices)
 						if partitionID == sliceID {
 							sliceOps++
-
-							mainBuf.WriteByteBuffer(metaBytes)
-							mainBuf.WriteByteBuffer(elastic.NEWLINEBYTES)
+							mainBuf.WriteNewByteBufferLine("meta1",metaBytes)
+							mainBuf.WriteMessageID(pop.Offset)
 							collectMeta = true
 						}
 						return nil
 					}, func(payloadBytes []byte) {
 						if collectMeta {
-							mainBuf.WriteByteBuffer(payloadBytes)
-							mainBuf.WriteByteBuffer(elastic.NEWLINEBYTES)
+							mainBuf.WriteNewByteBufferLine("payload1",payloadBytes)
 							collectMeta = false
 						}
 					})
-
-					if sliceOps > 0 {
-						mainBuf.WriteMessageID(pop.Offset)
-					}
 				} else {
 					mainBuf.WriteMessageID(pop.Offset)
 					mainBuf.WriteByteBuffer(pop.Data)
@@ -653,7 +654,7 @@ READ_DOCS:
 					//reset buffer
 					mainBuf.Reset()
 					if !continueRequest {
-						panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err))
+						panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
 					} else {
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
 							ok, err := queue.CommitOffset(qConfig, consumer, pop.NextOffset)
@@ -670,9 +671,13 @@ READ_DOCS:
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
 			if global.Env().IsDebug {
-				log.Debug("hit idle timeout, ", idleDuration.String())
+				log.Trace("hit idle timeout, ", idleDuration.String())
 			}
 			goto CLEAN_BUFFER
+		}
+		if len(messages)==0 && mainBuf.GetMessageSize() == 0 {
+			log.Trace("no message found in queue: "+qConfig.Id)
+			return
 		}
 	}
 
@@ -719,7 +724,7 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 	size := mainBuf.GetMessageSize()
 
 	if count>0&&size==0||count==0&&size>0{
-		panic(errors.Errorf("invalid bulk message, %v",mainBuf))
+		panic(errors.Errorf("invalid bulk message, count: %v, size:%v",mainBuf.GetMessageCount(),mainBuf.GetMessageSize()))
 	}
 
 	if count > 0 &&size>0{

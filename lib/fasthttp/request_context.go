@@ -6,12 +6,12 @@ package fasthttp
 
 import (
 	"context"
+	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 	"net"
-	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 )
@@ -76,6 +76,7 @@ type RequestCtx struct {
 	// It is unexported to prevent people from using Context wrong
 	// and mutating the contexts held by callers of the same request.
 	ctx context.Context
+
 }
 
 // Context returns the request's context. To change the context, use

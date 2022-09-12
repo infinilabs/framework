@@ -139,7 +139,7 @@ func (req *Request) SetRequestURIBytes(requestURI []byte) {
 
 	//reset host after reset uri
 	if len(req.Header.host) > 0 {
-		req.Header.host = req.Header.host[:0]
+		req.Header.host = req.Host()// req.Header.host[:0]
 	}
 }
 
@@ -972,6 +972,7 @@ func readMultipartForm(r io.Reader, boundary string, size, maxInMemoryFileSize i
 // Reset clears request contents.
 func (req *Request) Reset() {
 	req.Header.Reset()
+	req.Header.Add("RESET_AT",time.Now().String())
 	req.resetSkipHeader()
 
 	req.timeout = 0
@@ -1304,7 +1305,7 @@ func (req *Request) Write(w *bufio.Writer) error {
 
 	hostInHeader := req.Header.Host()
 
-	if len(hostInHeader) == 0 || req.parsedURI {
+	if len(hostInHeader) == 0 || !req.parsedURI {
 		uri := req.URI()
 		if len(hostInHeader) == 0 {
 			host := uri.Host()

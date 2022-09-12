@@ -127,6 +127,10 @@ func (procs *Filters) Close() error {
 }
 
 func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
+	if procs==nil{
+		log.Errorf("invalid filter: %v",procs)
+		return
+	}
 	for _, p := range procs.List {
 
 		if !ctx.ShouldContinue() {

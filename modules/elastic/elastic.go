@@ -187,6 +187,10 @@ func nodeAvailabilityCheck() {
 
 				v, ok := value.(*elastic.NodeAvailable)
 				if ok {
+					if v.ClusterID==""{
+						return true
+					}
+
 					cfg := elastic.GetConfig(v.ClusterID)
 					if !cfg.Enabled || (cfg.MetadataConfigs !=nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled){
 						return true
@@ -208,7 +212,7 @@ func nodeAvailabilityCheck() {
 					availabilityMap.Store(k, time.Now())
 
 					log.Trace("check availability for node: " + k)
-					avail := util.TestTCPAddress(k)
+					avail := util.TestTCPAddress(k,10*time.Second)
 					if global.Env().IsDebug {
 						log.Tracef("availability for node [%v] : %v", k, avail)
 					}

@@ -211,6 +211,7 @@ func (r *Router) ServeFilesCustom(path string, fs *fasthttp.FS) {
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
 func (r *Router) Handle(method, path string, handler fasthttp.RequestHandler) {
+
 	switch {
 	case len(method) == 0:
 		panic("method must not be empty")
