@@ -101,11 +101,11 @@ func GetAvailablePort(ip string, port int) int {
 }
 
 func TestTCPPort(host string,port string,duration time.Duration)bool  {
-	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port),timeout)
+	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port),duration)
 }
 
 func TestTCPAddress(host string,timeout time.Duration)bool  {
-	log.Debug("testing ip:",host)
+	log.Debug("testing ip:",host,",timeout:",timeout)
 	conn, err := net.DialTimeout("tcp", host, timeout)
 	if conn!=nil{
 		conn.Close()
