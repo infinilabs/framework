@@ -37,6 +37,7 @@ type AgentMeta struct {
 	QueueName string `json:"-"`
 
 	AgentID  string   `json:"id,omitempty"`
+	HostID  string    `json:"host_id,omitempty"`
 	Hostname string   `json:"hostname,omitempty"`
 	MajorIP  string   `json:"major_ip,omitempty"`
 	IP       []string `json:"ips,omitempty"`
