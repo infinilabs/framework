@@ -65,8 +65,7 @@ func (m *Metric) collectSwap() error {
 	if err != nil {
 		return err
 	}
-	empty := &mem.SwapMemoryStat{}
-	if v == empty {
+	if v == nil {
 		return errors.New("computer.swapInfo: mem.SwapMemoryStat is empty")
 	}
 	return event.Save(event.Event{
@@ -96,8 +95,7 @@ func (m *Metric) collectMemory() error {
 	if err != nil {
 		return err
 	}
-	empty := &mem.VirtualMemoryStat{}
-	if v == empty {
+	if v == nil {
 		return errors.New("computer.memoryInfo: mem.VirtualMemoryStat is empty")
 	}
 
