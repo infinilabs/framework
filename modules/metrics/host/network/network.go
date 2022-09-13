@@ -125,7 +125,7 @@ func (m *Metric) Collect() error {
 			event.Save(event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
-					Name:     "network_period",
+					Name:     "network_iops",
 					Datatype: "gauge",
 					Labels: util.MapStr{
 						"ip": util.GetLocalIPs(),
@@ -133,7 +133,7 @@ func (m *Metric) Collect() error {
 				},
 				Fields: util.MapStr{
 					"host": util.MapStr{
-						"network_period": util.MapStr{
+						"network_iops": util.MapStr{
 							"input_total_in_bytes":  networkInBytes - m.prevCounters.prevNetworkInBytes,
 							"input_total_packets":   networkInPackets - m.prevCounters.prevNetworkInPackets,
 							"output_total_in_bytes": networkOutBytes - m.prevCounters.prevNetworkOutBytes,
