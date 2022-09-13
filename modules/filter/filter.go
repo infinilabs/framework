@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/modules/filter/nutsdb"
 	nuts	"github.com/xujiajun/nutsdb"
+	"time"
 
 	"path"
 )
@@ -37,7 +38,7 @@ func (module *FilterModule) Setup(cfg *Config) {
 	}
 
 	opt := nuts.Options{
-		EntryIdxMode:         nuts.HintKeyValAndRAMIdxMode,
+		EntryIdxMode:         nuts.HintKeyAndRAMIdxMode,
 		SegmentSize:          8 * 1024 * 1024,
 		NodeNum:              1,
 		RWMode:               nuts.FileIO,
@@ -73,7 +74,9 @@ func (module *FilterModule) Setup(cfg *Config) {
 
 func (module *FilterModule) Start() error {
 	if module.handler != nil {
+		t := time.Now()
 		module.handler.Open()
+		log.Tracef("open kv db elapsed: %s", time.Since(t))
 	}
 	return nil
 }
