@@ -50,6 +50,10 @@ func (m *Metric) Collect() error {
 		}
 		var instanceInfoMap map[string]interface{}
 		err = json.Unmarshal(hs, &instanceInfoMap)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
 		value := instanceInfoMap["boot_time"]
 		bootTime,ok := value.(float64)
 		if !ok || bootTime == 0{
