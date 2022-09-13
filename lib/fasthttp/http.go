@@ -1027,7 +1027,6 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
-	resp.bodyLength = -1
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1160,7 +1159,6 @@ func (req *Request) ContinueReadBody(r *bufio.Reader, maxBodySize int, preParseM
 	bodyBuf := req.bodyBuffer()
 	bodyBuf.Reset()
 	bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
-	//err = readBodyWithBuffer(r, contentLength, maxBodySize, bodyBuf)
 	if err != nil {
 		req.Reset()
 		return err
@@ -1298,10 +1296,6 @@ func (req *Request) onlyMultipartForm() bool {
 func (req *Request) Write(w *bufio.Writer) error {
 
 	req.rawBody = nil
-
-	//log.Error(len(req.Header.Host()) == 0, req.parsedURI)
-	//log.Error("host in header:", string(req.Header.Host()))
-	//log.Error("host in uri:", string(req.URI().Host()))
 
 	hostInHeader := req.Header.Host()
 
@@ -1476,12 +1470,11 @@ func (resp *Response) gzipBody(level int) error {
 			return nil
 		}
 		w := bytebufferpool.Get("fasthttp_resbody_buffer")
-		defer bytebufferpool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			//bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
+			//TODO bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
@@ -1532,12 +1525,11 @@ func (resp *Response) deflateBody(level int) error {
 			return nil
 		}
 		w := bytebufferpool.Get("fasthttp_resbody_buffer")
-		defer bytebufferpool.Put("fasthttp_resbody_buffer", w)
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			//bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
+			//TODO bytebufferpool.Put("fasthttp_resbody_buffer", resp.body)
 		}
 		resp.body = w
 		resp.bodyRaw = nil
