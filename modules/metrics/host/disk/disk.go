@@ -19,7 +19,7 @@ import (
 type MetricType string
 
 const typeUsage = MetricType("usage")
-const typeIOQS = MetricType("ioqs")
+const typeIOQS = MetricType("iops")
 
 type Metric struct {
 	Enabled     bool     `config:"enabled"`
