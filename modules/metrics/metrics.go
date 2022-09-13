@@ -135,93 +135,93 @@ func CollectHostMetric(module *MetricsModule)  {
 	var memoryM *memory.Metric
 	var err error
 
-	var netTask = task.ScheduleTask{
-		Description: "fetch network metrics",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func(ctx context.Context) {
-			if !module.isReady() {
-				return
+	if module.config.NetworkConfig != nil{
+		if netM == nil {
+			netM, err = network.New(module.config.NetworkConfig)
+			if err != nil {
+				panic(err)
 			}
-			log.Debug("collecting network metrics")
-			if module.config.NetworkConfig != nil{
-				if netM == nil {
-					netM, err = network.New(module.config.NetworkConfig)
-					if err != nil {
-						panic(err)
-					}
+		}
+		var netTask = task.ScheduleTask{
+			Description: "fetch network metrics",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func(ctx context.Context) {
+				if !module.isReady() {
+					return
 				}
+				log.Debug("collecting network metrics")
 				netM.Collect()
-			}
-		},
+			},
+		}
+		task.RegisterScheduleTask(netTask)
 	}
-	task.RegisterScheduleTask(netTask)
 
-	var diskTask = task.ScheduleTask{
-		Description: "fetch disk metrics",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func(ctx context.Context) {
-			if !module.isReady() {
-				return
+	if module.config.DiskConfig != nil {
+		if diskM == nil {
+			diskM, err = disk.New(module.config.DiskConfig)
+			if err != nil {
+				panic(err)
 			}
-			log.Debug("collecting disk metrics")
-			if module.config.DiskConfig != nil {
-				if diskM == nil {
-					diskM, err = disk.New(module.config.DiskConfig)
-					if err != nil {
-						panic(err)
-					}
+		}
+		var diskTask = task.ScheduleTask{
+			Description: "fetch disk metrics",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func(ctx context.Context) {
+				if !module.isReady() {
+					return
 				}
+				log.Debug("collecting disk metrics")
 				diskM.Collect()
-			}
-		},
+			},
+		}
+		task.RegisterScheduleTask(diskTask)
 	}
-	task.RegisterScheduleTask(diskTask)
 
-	var cpuTask = task.ScheduleTask{
-		Description: "fetch cpu metrics",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func(ctx context.Context) {
-			if !module.isReady() {
-				return
+	if module.config.CPUConfig != nil {
+		if cpuM == nil {
+			cpuM, err = cpu.New(module.config.CPUConfig)
+			if err != nil {
+				panic(err)
 			}
-			log.Debug("collecting cpu metrics")
-			if module.config.CPUConfig != nil {
-				if cpuM == nil {
-					cpuM, err = cpu.New(module.config.CPUConfig)
-					if err != nil {
-						panic(err)
-					}
+		}
+		var cpuTask = task.ScheduleTask{
+			Description: "fetch cpu metrics",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func(ctx context.Context) {
+				if !module.isReady() {
+					return
 				}
+				log.Debug("collecting cpu metrics")
 				cpuM.Collect()
-			}
-		},
+			},
+		}
+		task.RegisterScheduleTask(cpuTask)
 	}
-	task.RegisterScheduleTask(cpuTask)
 
-	var memTask = task.ScheduleTask{
-		Description: "fetch memory metrics",
-		Type:        "interval",
-		Interval:    "10s",
-		Task: func(ctx context.Context) {
-			if !module.isReady() {
-				return
+	if module.config.MemoryConfig != nil {
+		if memoryM == nil {
+			memoryM, err = memory.New(module.config.MemoryConfig)
+			if err != nil {
+				panic(err)
 			}
-			log.Debug("collecting memory metrics")
-			if module.config.MemoryConfig != nil {
-				if memoryM == nil {
-					memoryM, err = memory.New(module.config.MemoryConfig)
-					if err != nil {
-						panic(err)
-					}
+		}
+		var memTask = task.ScheduleTask{
+			Description: "fetch memory metrics",
+			Type:        "interval",
+			Interval:    "10s",
+			Task: func(ctx context.Context) {
+				if !module.isReady() {
+					return
 				}
+				log.Debug("collecting memory metrics")
 				memoryM.Collect()
-			}
-		},
+			},
+		}
+		task.RegisterScheduleTask(memTask)
 	}
-	task.RegisterScheduleTask(memTask)
 }
 
 func (module *MetricsModule) Start() error {
