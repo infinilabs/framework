@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/agent/api"
 	"time"
@@ -17,33 +18,12 @@ func (module *AgentModule) Name() string {
 	return "agent"
 }
 
-//func loadAgentFromES() []agent.Instance {
-//	configs := []agent.Instance{}
-//	query := orm.Query{
-//		Size: 1000,
-//	}
-//
-//	err, result := orm.Search(agent.Instance{}, &query)
-//	if err != nil {
-//		log.Error(err)
-//		return configs
-//	}
-//
-//	if len(result.Result) > 0 {
-//		for _, row := range result.Result {
-//			cfg := agent.Instance{}
-//			bytes := util.MustToJSONBytes(row)
-//			util.MustFromJSONBytes(bytes, &cfg)
-//			configs = append(configs, cfg)
-//		}
-//	}
-//
-//	log.Infof("loading [%v] agent configs", len(result.Result))
-//	return configs
-//}
-
 func (module *AgentModule) Setup(cfg *config.Config) {
 	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
+	orm.RegisterSchemaWithIndexName(host.HostInfo{}, "host")
+	api.Init()
+}
+func (module *AgentModule) Start() error {
 	agents, err := loadAgentsFromES("")
 	if err != nil {
 		log.Error(err)
@@ -79,15 +59,14 @@ func (module *AgentModule) Setup(cfg *config.Config) {
 	agent.RegisterStateManager(sm)
 	go sm.LoopState()
 	//todo reassign tasks and refresh state automatically
-	api.Init()
-}
-func (module *AgentModule) Start() error {
 	return nil
 }
 
 func (module *AgentModule) Stop() error {
 	log.Info("start to stop agent module")
-	agent.GetStateManager().Stop()
+	if agent.IsEnabled(){
+		agent.GetStateManager().Stop()
+	}
 	log.Info("agent module was stopped")
 	return nil
 }

@@ -90,4 +90,15 @@ func Init(cfg common.ModuleConfig) {
 
 	api.HandleAPIMethod(api.DELETE, "/_framework/api/local_state/elasticsearch/:type/:target", clusterAPI.HandleRemoveLocalState)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/activity/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchActivityAction, enum.PermissionActivityRead))
+
+	api.HandleAPIMethod(api.GET, "/host/_discover", clusterAPI.getDiscoverHosts)
+	api.HandleAPIMethod(api.POST, "/host/_enroll", clusterAPI.enrollHost)
+	api.HandleAPIMethod(api.POST, "/host/_search", clusterAPI.SearchHostMetadata)
+	api.HandleAPIMethod(api.POST, "/host/info", clusterAPI.FetchHostInfo)
+	api.HandleAPIMethod(api.GET, "/host/:host_id/metrics",clusterAPI.GetSingleHostMetrics)
+	api.HandleAPIMethod(api.GET, "/host/:host_id/metric/_stats",clusterAPI.GetHostMetricStats)
+	api.HandleAPIMethod(api.GET, "/host/:host_id/agent/info",clusterAPI.GetHostAgentInfo)
+	api.HandleAPIMethod(api.GET, "/host/:host_id",clusterAPI.GetHostInfo)
+	api.HandleAPIMethod(api.GET, "/host/:host_id/processes",clusterAPI.GetHostElasticProcess)
+	api.HandleAPIMethod(api.PUT, "/host/:host_id",clusterAPI.updateHost)
 }

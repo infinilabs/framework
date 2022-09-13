@@ -5,7 +5,10 @@
 package agent
 
 import (
+	"context"
 	"fmt"
+	"infini.sh/framework/core/util"
+	"net/http"
 	"time"
 )
 
@@ -49,6 +52,32 @@ func (inst *Instance) GetEndpoint() string {
 	return fmt.Sprintf("%s://%s:%d", inst.Schema, inst.RemoteIP, inst.Port)
 }
 
+func (inst *Instance) GetVersion() (map[string]interface{}, error) {
+	req := &util.Request{
+		Method:  http.MethodGet,
+		Url:     fmt.Sprintf("%s/_framework/api/_info", inst.GetEndpoint()),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
+	defer cancel()
+	req.Context = ctx
+	result, err := util.ExecuteRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	if result.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("unknow agent version")
+	}
+	res := map[string]interface{}{}
+	err = util.FromJSONBytes(result.Body, &res)
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := res["version"].(map[string]interface{}); ok {
+		return v, nil
+	}
+	return nil, fmt.Errorf("unknow agent version")
+}
+
 type ESCluster struct {
 	ClusterUUID string   `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid: { type: keyword,copy_to:search_text }"`
 	ClusterID   string   `json:"cluster_id,omitempty" elastic_mapping:"cluster_id: { type: keyword,copy_to:search_text }"`
@@ -87,8 +116,8 @@ type ClusterMetricTaskState struct {
 }
 
 type NodeMetricTaskState struct {
-	AgentID  string
-	Nodes []string
+	AgentID string
+	Nodes   []string
 }
 
 type ESNode struct {
@@ -100,3 +129,8 @@ type BasicAuth struct {
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
 	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 }
+
+const (
+	KVInstanceInfo   string = "agent_instance_info"
+	KVInstanceBucket        = "agent_bucket"
+)

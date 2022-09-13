@@ -11,6 +11,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
@@ -133,6 +134,7 @@ func (sm *StateManager) checkAgentStatus() {
 			ag, err := sm.GetAgent(agentID)
 			if err != nil {
 				log.Error(err)
+				return
 			}
 			if ag != nil && time.Since(ag.Timestamp) > sm.TTL && ag.Status == "online" {
 				ag.Status = "offline"
@@ -140,13 +142,17 @@ func (sm *StateManager) checkAgentStatus() {
 				_, err = sm.UpdateAgent(ag, true)
 				if err != nil {
 					log.Error(err)
-					//continue
+					return
 				}
+				//update host agent status
+				host.UpdateHostAgentStatus(ag.ID, "offline")
+
 				for _, cluster := range ag.Clusters {
 					if cluster.Task.ClusterMetric.Owner {
 						_, err = sm.DispatchAgent(cluster.ClusterID)
 						if err != nil {
 							log.Error(err)
+							continue
 						}
 					}
 					err = sm.DispatchNodeMetricTask(cluster.ClusterID)
@@ -271,7 +277,10 @@ func (sm *StateManager) DispatchAgent(clusterID string) (*agent.Instance, error)
 	} else {
 		log.Infof("dispatch cluster metric task of cluster [%s] to console", clusterID)
 	}
-	sm.setTaskAgent(clusterID, state)
+	err = sm.setTaskAgent(clusterID, state)
+	if err != nil {
+		return nil, err
+	}
 	if state == nil {
 		return nil, nil
 	}
@@ -313,12 +322,11 @@ func (sm *StateManager) DeleteAgent(agentID string) error {
 	return kv.DeleteKey(sm.KVKey, []byte(agentID))
 }
 
-func (sm *StateManager) setTaskAgent(clusterID string, state *agent.ShortState) {
+func (sm *StateManager) setTaskAgent(clusterID string, state *agent.ShortState) error{
 	//update old agent state
 	if oldState, ok := sm.taskState[clusterID]; ok && oldState.ClusterMetricTask.NodeUUID != "" {
 		if err := sm.syncState(clusterID, oldState.ClusterMetricTask.AgentID, oldState.ClusterMetricTask.NodeUUID, false); err != nil {
-			log.Error(err)
-			return
+			return err
 		}
 		//todo request target agent to sync state
 	}
@@ -326,8 +334,7 @@ func (sm *StateManager) setTaskAgent(clusterID string, state *agent.ShortState) 
 	if state != nil {
 		//update new agent state
 		if err := sm.syncState(clusterID, state.ClusterMetricTask.AgentID, state.ClusterMetricTask.NodeUUID, true); err != nil {
-			log.Error(err)
-			return
+			return err
 		}
 		//todo request target agent to sync state
 	}
@@ -338,6 +345,7 @@ func (sm *StateManager) setTaskAgent(clusterID string, state *agent.ShortState) 
 	} else {
 		sm.taskState[clusterID] = *state
 	}
+	return nil
 }
 
 func (sm *StateManager) syncState(clusterID string, agentID, nodeUUID string, taskOwner bool) error {
@@ -398,7 +406,10 @@ func (sm *StateManager) SetAgentTask(clusterID, agentID string, nodeUUID string)
 	oldState := sm.GetState(clusterID)
 	state.NodeMetricTask = oldState.NodeMetricTask
 
-	sm.setTaskAgent(clusterID, state)
+	err = sm.setTaskAgent(clusterID, state)
+	if err != nil {
+		return err
+	}
 
 	err = sm.DispatchNodeMetricTask(clusterID)
 	if err != nil {
@@ -545,6 +556,10 @@ func (sm *StateManager) calcTaskAgent(clusterID string) (*agent.ShortState, erro
 		}
 	}
 	return nil, nil
+}
+
+func (sm *StateManager) GetAgentClient() agent.ClientAPI {
+	return sm.agentClient
 }
 
 func loadAgentsFromES(clusterID string) ([]agent.Instance, error) {

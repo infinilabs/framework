@@ -25,6 +25,18 @@ func getMeta()*AgentMeta {
 	return meta
 }
 
+func UpdateAgentID(agentID string){
+	if meta != nil {
+		meta.AgentID = agentID
+	}
+}
+
+func UpdateHostID(hostID string){
+	if meta != nil {
+		meta.HostID = hostID
+	}
+}
+
 func Save(event Event) error {
 
 	event.Timestamp = time.Now()
