@@ -217,7 +217,7 @@ func (m *Metric) collectIO() error {
 		event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
-				Name:     "disk_io_period",
+				Name:     "disk_iops",
 				Datatype: "gauge",
 				Labels: util.MapStr{
 					"ip": util.GetLocalIPs(),
@@ -225,7 +225,7 @@ func (m *Metric) collectIO() error {
 			},
 			Fields: util.MapStr{
 				"host": util.MapStr{
-					"disk_io_period": util.MapStr{
+					"disk_iops": util.MapStr{
 						"read_in_bytes":    readBytes - m.prevCounter.prevReadBytes,
 						"read_time_in_ms":  readTimeCost - m.prevCounter.prevReadTimeCost,
 						"write_in_bytes":   writeBytes - m.prevCounter.prevWriteBytes,
