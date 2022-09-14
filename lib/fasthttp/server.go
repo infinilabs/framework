@@ -642,8 +642,6 @@ func (req *Request) Decode(data []byte) error {
 	req.decodeLocker.Lock()
 	defer req.decodeLocker.Unlock()
 
-	req.Reset()
-
 	//reader:=req.AcquireBytesReader()
 	reader := &bytes.Reader{}
 	reader.Reset(data)
