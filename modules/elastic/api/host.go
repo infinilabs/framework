@@ -406,10 +406,13 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 						"used_percent": osCPUPercent,
 					}
 				}
-				osMemPercent, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "mem", "used_percent"}, result)
-				if ok {
+				osMem, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "mem"}, result)
+				if osMemM, ok := osMem.(map[string]interface{});ok {
 					summary[strNodeID]["memory"] = util.MapStr{
-						"used_percent": osMemPercent,
+						"used_percent": osMemM["used_percent"],
+						"available_in_bytes": osMemM["free_in_bytes"],
+						"total_in_bytes": osMemM["total_in_bytes"],
+						"used_in_bytes": osMemM["used_in_bytes"],
 					}
 				}
 				fsTotal, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, result)
@@ -419,6 +422,9 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 					if ok1 && ok2 {
 						summary[strNodeID]["disk_usage_summary"] = util.MapStr{
 							"used_percent": (total-free)* 100/total,
+							"total_in_bytes": total,
+							"free_in_bytes": free,
+							"used_in_bytes": total-free,
 						}
 					}
 				}
