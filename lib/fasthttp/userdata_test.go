@@ -76,3 +76,46 @@ func (cv *closerValue) Close() error {
 	(*cv.closeCalls)++
 	return nil
 }
+
+func TestUserDataDelete(t *testing.T) {
+	t.Parallel()
+
+	var u userData
+
+	for i := 0; i < 10; i++ {
+		key := fmt.Sprintf("key_%d", i)
+		u.Set(key, i)
+		testUserDataGet(t, &u, []byte(key), i)
+	}
+
+	for i := 0; i < 10; i += 2 {
+		k := fmt.Sprintf("key_%d", i)
+		u.Remove(k)
+		if val := u.Get(k); val != nil {
+			t.Fatalf("unexpected key= %q, value =%v ,Expecting key= %q, value = nil", k, val, k)
+		}
+		kk := fmt.Sprintf("key_%d", i+1)
+		testUserDataGet(t, &u, []byte(kk), i+1)
+	}
+	for i := 0; i < 10; i++ {
+		key := fmt.Sprintf("key_new_%d", i)
+		u.Set(key, i)
+		testUserDataGet(t, &u, []byte(key), i)
+	}
+
+}
+
+func TestUserDataSetAndRemove(t *testing.T) {
+	var (
+		u        userData
+		shortKey = "[]"
+		longKey  = "[  ]"
+	)
+
+	u.Set(shortKey, "")
+	u.Set(longKey, "")
+	u.Remove(shortKey)
+	u.Set(shortKey, "")
+	testUserDataGet(t, &u, []byte(shortKey), "")
+	testUserDataGet(t, &u, []byte(longKey), "")
+}

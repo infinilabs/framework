@@ -2,14 +2,14 @@ package main
 
 import (
 	"crypto/tls"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"net"
 
+	"infini.sh/framework/lib/fasthttp"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
-func requestHandler(ctx *fasthttp2.RequestCtx) {
+func requestHandler(ctx *fasthttp.RequestCtx) {
 	ctx.SetBodyString("hello from https!")
 }
 
@@ -35,7 +35,7 @@ func main() {
 
 	lnTls := tls.NewListener(ln, cfg)
 
-	if err := fasthttp2.Serve(lnTls, requestHandler); err != nil {
+	if err := fasthttp.Serve(lnTls, requestHandler); err != nil {
 		panic(err)
 	}
 }

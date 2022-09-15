@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+func TestCookiePanic(t *testing.T) {
+	t.Parallel()
+
+	var c Cookie
+	if err := c.Parse(";SAMeSITe="); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestCookieValueWithEqualAndSpaceChars(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +33,7 @@ func testCookieValueWithEqualAndSpaceChars(t *testing.T, expectedName, expectedP
 
 	var c1 Cookie
 	if err := c1.Parse(s); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	name := c1.Key()
 	if string(name) != expectedName {
@@ -46,7 +55,7 @@ func TestCookieSecureHttpOnly(t *testing.T) {
 	var c Cookie
 
 	if err := c.Parse("foo=bar; HttpOnly; secure"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if !c.Secure() {
 		t.Fatalf("secure must be set")
@@ -69,7 +78,7 @@ func TestCookieSecure(t *testing.T) {
 	var c Cookie
 
 	if err := c.Parse("foo=bar; secure"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if !c.Secure() {
 		t.Fatalf("secure must be set")
@@ -80,7 +89,7 @@ func TestCookieSecure(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.Secure() {
 		t.Fatalf("Unexpected secure flag set")
@@ -97,7 +106,7 @@ func TestCookieSameSite(t *testing.T) {
 	var c Cookie
 
 	if err := c.Parse("foo=bar; samesite"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.SameSite() != CookieSameSiteDefaultMode {
 		t.Fatalf("SameSite must be set")
@@ -108,7 +117,7 @@ func TestCookieSameSite(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar; samesite=lax"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.SameSite() != CookieSameSiteLaxMode {
 		t.Fatalf("SameSite Lax Mode must be set")
@@ -119,7 +128,7 @@ func TestCookieSameSite(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar; samesite=strict"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.SameSite() != CookieSameSiteStrictMode {
 		t.Fatalf("SameSite Strict Mode must be set")
@@ -130,7 +139,7 @@ func TestCookieSameSite(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar; samesite=none"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.SameSite() != CookieSameSiteNoneMode {
 		t.Fatalf("SameSite None Mode must be set")
@@ -141,7 +150,7 @@ func TestCookieSameSite(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	c.SetSameSite(CookieSameSiteNoneMode)
 	s = c.String()
@@ -153,7 +162,7 @@ func TestCookieSameSite(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.SameSite() != CookieSameSiteDisabled {
 		t.Fatalf("Unexpected SameSite flag set")
@@ -171,7 +180,7 @@ func TestCookieMaxAge(t *testing.T) {
 
 	maxAge := 100
 	if err := c.Parse("foo=bar; max-age=100"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if maxAge != c.MaxAge() {
 		t.Fatalf("max-age must be set")
@@ -182,7 +191,7 @@ func TestCookieMaxAge(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar; expires=Tue, 10 Nov 2009 23:00:00 GMT; max-age=100;"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if maxAge != c.MaxAge() {
 		t.Fatalf("max-age ignored")
@@ -212,7 +221,7 @@ func TestCookieHttpOnly(t *testing.T) {
 	var c Cookie
 
 	if err := c.Parse("foo=bar; HttpOnly"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if !c.HTTPOnly() {
 		t.Fatalf("HTTPOnly must be set")
@@ -223,7 +232,7 @@ func TestCookieHttpOnly(t *testing.T) {
 	}
 
 	if err := c.Parse("foo=bar"); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.HTTPOnly() {
 		t.Fatalf("Unexpected HTTPOnly flag set")
@@ -277,7 +286,7 @@ func testCookieAcquireRelease(t *testing.T) {
 	s := c.String()
 	c.Reset()
 	if err := c.Parse(s); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if string(c.Key()) != key {
@@ -313,7 +322,7 @@ func TestCookieParse(t *testing.T) {
 func testCookieParse(t *testing.T, s, expectedS string) {
 	var c Cookie
 	if err := c.Parse(s); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	result := string(c.Cookie())
 	if result != expectedS {

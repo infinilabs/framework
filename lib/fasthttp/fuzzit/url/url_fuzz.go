@@ -1,15 +1,17 @@
+//go:build gofuzz
 // +build gofuzz
 
-package url
+package fuzz
 
 import (
 	"bytes"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func Fuzz(data []byte) int {
-	u := fasthttp2.AcquireURI()
-	defer fasthttp2.ReleaseURI(u)
+	u := fasthttp.AcquireURI()
+	defer fasthttp.ReleaseURI(u)
 
 	u.UpdateBytes(data)
 

@@ -206,6 +206,9 @@ func Put(tag string, b *ByteBuffer) {
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(b *ByteBuffer) {
 
+	b.B=nil
+	return
+
 	atomic.AddInt32(&p.inuse, -1)
 	p.inUseBuffer.Delete(b.ID)
 

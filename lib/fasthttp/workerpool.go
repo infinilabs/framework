@@ -1,7 +1,7 @@
 package fasthttp
 
 import (
-	log "github.com/cihub/seelog"
+	"errors"
 	"net"
 	"runtime"
 	"strings"
@@ -24,6 +24,9 @@ type workerPool struct {
 	LogAllErrors bool
 
 	MaxIdleWorkerDuration time.Duration
+
+	//Logger Logger
+
 	lock         sync.Mutex
 	workersCount int
 	mustStop     bool
@@ -224,13 +227,9 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 				strings.Contains(errStr, "reset by peer") ||
 				strings.Contains(errStr, "request headers: small read buffer") ||
 				strings.Contains(errStr, "unexpected EOF") ||
-				strings.Contains(errStr, "EOF") ||
-				strings.Contains(errStr, "unknown certificate") ||
-				strings.Contains(errStr, "first record does not look like a TLS handshake") ||
-				strings.Contains(errStr, "protocol wrong type for socket") ||
-				strings.Contains(errStr, "cannot find http request method in") ||
-				strings.Contains(errStr, "i/o timeout")) {
-				log.Errorf("error when serving connection %v<->%v: %s", c.LocalAddr(), c.RemoteAddr(), err)
+				strings.Contains(errStr, "i/o timeout") ||
+				errors.Is(err, ErrBadTrailer)) {
+				//wp.Logger.Printf("error when serving connection %q<->%q: %v", c.LocalAddr(), c.RemoteAddr(), err)
 			}
 		}
 		if err == errHijacked {

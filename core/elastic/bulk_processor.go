@@ -321,9 +321,9 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 		//req.SetRawBody(data)
 	}
 
-	if req.GetBodyLength() <= 0 {
-		panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
-	}
+	//if req.GetBodyLength() <= 0 {
+	//	panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
+	//}
 
 	// modify schema，align with elasticsearch's schema
 	orignalSchema := string(req.URI().Scheme())
@@ -598,7 +598,7 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 		var actionMetadata BulkActionMetadata
 		var docBuffer []byte
 		docBuffer = BulkDocBuffer.Get(docBuffSize)
-		//defer BulkDocBuffer.Put(docBuffer)
+		defer BulkDocBuffer.Put(docBuffer)
 
 		WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
 			return false

@@ -2,13 +2,14 @@ package prefork
 
 import (
 	"fmt"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"math/rand"
 	"net"
 	"os"
 	"reflect"
 	"runtime"
 	"testing"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func setUp() {
@@ -24,27 +25,30 @@ func getAddr() string {
 }
 
 func Test_IsChild(t *testing.T) {
+	// This test can't run parallel as it modifies os.Args.
+
 	v := IsChild()
 	if v {
 		t.Errorf("IsChild() == %v, want %v", v, false)
 	}
 
 	setUp()
+	defer tearDown()
 
 	v = IsChild()
 	if !v {
 		t.Errorf("IsChild() == %v, want %v", v, true)
 	}
-
-	tearDown()
 }
 
 func Test_New(t *testing.T) {
-	s := &fasthttp2.Server{}
+	t.Parallel()
+
+	s := &fasthttp.Server{}
 	p := New(s)
 
 	if p.Network != defaultNetwork {
-		t.Errorf("Prefork.Netork == %s, want %s", p.Network, defaultNetwork)
+		t.Errorf("Prefork.Netork == %q, want %q", p.Network, defaultNetwork)
 	}
 
 	if reflect.ValueOf(p.ServeFunc).Pointer() != reflect.ValueOf(s.Serve).Pointer() {
@@ -61,6 +65,8 @@ func Test_New(t *testing.T) {
 }
 
 func Test_listen(t *testing.T) {
+	t.Parallel()
+
 	p := &Prefork{
 		Reuseport: true,
 	}
@@ -76,11 +82,11 @@ func Test_listen(t *testing.T) {
 
 	lnAddr := ln.Addr().String()
 	if lnAddr != addr {
-		t.Errorf("Prefork.Addr == %s, want %s", lnAddr, addr)
+		t.Errorf("Prefork.Addr == %q, want %q", lnAddr, addr)
 	}
 
 	if p.Network != defaultNetwork {
-		t.Errorf("Prefork.Network == %s, want %s", p.Network, defaultNetwork)
+		t.Errorf("Prefork.Network == %q, want %q", p.Network, defaultNetwork)
 	}
 
 	procs := runtime.GOMAXPROCS(0)
@@ -90,6 +96,8 @@ func Test_listen(t *testing.T) {
 }
 
 func Test_setTCPListenerFiles(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
 	}
@@ -111,11 +119,11 @@ func Test_setTCPListenerFiles(t *testing.T) {
 
 	lnAddr := p.ln.Addr().String()
 	if lnAddr != addr {
-		t.Errorf("Prefork.Addr == %s, want %s", lnAddr, addr)
+		t.Errorf("Prefork.Addr == %q, want %q", lnAddr, addr)
 	}
 
 	if p.Network != defaultNetwork {
-		t.Errorf("Prefork.Network == %s, want %s", p.Network, defaultNetwork)
+		t.Errorf("Prefork.Network == %q, want %q", p.Network, defaultNetwork)
 	}
 
 	if len(p.files) != 1 {
@@ -124,9 +132,12 @@ func Test_setTCPListenerFiles(t *testing.T) {
 }
 
 func Test_ListenAndServe(t *testing.T) {
-	setUp()
+	// This test can't run parallel as it modifies os.Args.
 
-	s := &fasthttp2.Server{}
+	setUp()
+	defer tearDown()
+
+	s := &fasthttp.Server{}
 	p := New(s)
 	p.Reuseport = true
 	p.ServeFunc = func(ln net.Listener) error {
@@ -144,20 +155,21 @@ func Test_ListenAndServe(t *testing.T) {
 
 	lnAddr := p.ln.Addr().String()
 	if lnAddr != addr {
-		t.Errorf("Prefork.Addr == %s, want %s", lnAddr, addr)
+		t.Errorf("Prefork.Addr == %q, want %q", lnAddr, addr)
 	}
 
 	if p.ln == nil {
 		t.Error("Prefork.ln is nil")
 	}
-
-	tearDown()
 }
 
 func Test_ListenAndServeTLS(t *testing.T) {
-	setUp()
+	// This test can't run parallel as it modifies os.Args.
 
-	s := &fasthttp2.Server{}
+	setUp()
+	defer tearDown()
+
+	s := &fasthttp.Server{}
 	p := New(s)
 	p.Reuseport = true
 	p.ServeTLSFunc = func(ln net.Listener, certFile, keyFile string) error {
@@ -175,20 +187,21 @@ func Test_ListenAndServeTLS(t *testing.T) {
 
 	lnAddr := p.ln.Addr().String()
 	if lnAddr != addr {
-		t.Errorf("Prefork.Addr == %s, want %s", lnAddr, addr)
+		t.Errorf("Prefork.Addr == %q, want %q", lnAddr, addr)
 	}
 
 	if p.ln == nil {
 		t.Error("Prefork.ln is nil")
 	}
-
-	tearDown()
 }
 
 func Test_ListenAndServeTLSEmbed(t *testing.T) {
-	setUp()
+	// This test can't run parallel as it modifies os.Args.
 
-	s := &fasthttp2.Server{}
+	setUp()
+	defer tearDown()
+
+	s := &fasthttp.Server{}
 	p := New(s)
 	p.Reuseport = true
 	p.ServeTLSEmbedFunc = func(ln net.Listener, certData, keyData []byte) error {
@@ -206,12 +219,10 @@ func Test_ListenAndServeTLSEmbed(t *testing.T) {
 
 	lnAddr := p.ln.Addr().String()
 	if lnAddr != addr {
-		t.Errorf("Prefork.Addr == %s, want %s", lnAddr, addr)
+		t.Errorf("Prefork.Addr == %q, want %q", lnAddr, addr)
 	}
 
 	if p.ln == nil {
 		t.Error("Prefork.ln is nil")
 	}
-
-	tearDown()
 }

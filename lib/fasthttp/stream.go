@@ -2,9 +2,10 @@ package fasthttp
 
 import (
 	"bufio"
-	fasthttputil2 "infini.sh/framework/lib/fasthttp/fasthttputil"
 	"io"
 	"sync"
+
+	"infini.sh/framework/lib/fasthttp/fasthttputil"
 )
 
 // StreamWriter must write data to w.
@@ -26,7 +27,7 @@ type StreamWriter func(w *bufio.Writer)
 //
 // See also Response.SetBodyStreamWriter.
 func NewStreamReader(sw StreamWriter) io.ReadCloser {
-	pc := fasthttputil2.NewPipeConns()
+	pc := fasthttputil.NewPipeConns()
 	pw := pc.Conn1()
 	pr := pc.Conn2()
 

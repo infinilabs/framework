@@ -3,13 +3,14 @@ package prefork
 import (
 	"errors"
 	"flag"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
-	reuseport2 "infini.sh/framework/lib/fasthttp/reuseport"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"runtime"
+
+	"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/lib/fasthttp/reuseport"
 )
 
 const (
@@ -21,7 +22,9 @@ var (
 	defaultLogger = Logger(log.New(os.Stderr, "", log.LstdFlags))
 	// ErrOverRecovery is returned when the times of starting over child prefork processes exceed
 	// the threshold.
-	ErrOverRecovery           = errors.New("exceeding the value of RecoverThreshold")
+	ErrOverRecovery = errors.New("exceeding the value of RecoverThreshold")
+
+	// ErrOnlyReuseportOnWindows is returned when Reuseport is false.
 	ErrOnlyReuseportOnWindows = errors.New("windows only supports Reuseport = true")
 )
 
@@ -84,7 +87,7 @@ func IsChild() bool {
 }
 
 // New wraps the fasthttp server to run with preforked processes
-func New(s *fasthttp2.Server) *Prefork {
+func New(s *fasthttp.Server) *Prefork {
 	return &Prefork{
 		Network:           defaultNetwork,
 		RecoverThreshold:  runtime.GOMAXPROCS(0) / 2,
@@ -110,7 +113,7 @@ func (p *Prefork) listen(addr string) (net.Listener, error) {
 	}
 
 	if p.Reuseport {
-		return reuseport2.Listen(p.Network, addr)
+		return reuseport.Listen(p.Network, addr)
 	}
 
 	return net.FileListener(os.NewFile(3, ""))

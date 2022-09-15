@@ -1,15 +1,17 @@
+//go:build go1.11
 // +build go1.11
 
 package fasthttp
 
 import (
-	fasthttputil2 "infini.sh/framework/lib/fasthttp/fasthttputil"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"infini.sh/framework/lib/fasthttp/fasthttputil"
 )
 
 func newFasthttpSleepEchoHandler(sleep time.Duration) RequestHandler {
@@ -36,14 +38,14 @@ func BenchmarkClientGetEndToEndWaitConn1000Inmemory(b *testing.B) {
 }
 
 func benchmarkClientGetEndToEndWaitConnInmemory(b *testing.B, parallelism int) {
-	ln := fasthttputil2.NewInmemoryListener()
+	ln := fasthttputil.NewInmemoryListener()
 
 	ch := make(chan struct{})
 	sleepDuration := 50 * time.Millisecond
 	go func() {
 
 		if err := Serve(ln, newFasthttpSleepEchoHandler(sleepDuration)); err != nil {
-			b.Errorf("error when serving requests: %s", err)
+			b.Errorf("error when serving requests: %v", err)
 		}
 		close(ch)
 	}()
@@ -63,7 +65,7 @@ func benchmarkClientGetEndToEndWaitConnInmemory(b *testing.B, parallelism int) {
 			statusCode, body, err := c.Get(buf, url)
 			if err != nil {
 				if err != ErrNoFreeConns {
-					b.Fatalf("unexpected error: %s", err)
+					b.Fatalf("unexpected error: %v", err)
 				}
 			} else {
 				if statusCode != StatusOK {
@@ -110,14 +112,14 @@ func BenchmarkNetHTTPClientGetEndToEndWaitConn1000Inmemory(b *testing.B) {
 }
 
 func benchmarkNetHTTPClientGetEndToEndWaitConnInmemory(b *testing.B, parallelism int) {
-	ln := fasthttputil2.NewInmemoryListener()
+	ln := fasthttputil.NewInmemoryListener()
 
 	ch := make(chan struct{})
 	sleep := 50 * time.Millisecond
 	go func() {
 		if err := http.Serve(ln, newNethttpSleepEchoHandler(sleep)); err != nil && !strings.Contains(
 			err.Error(), "use of closed network connection") {
-			b.Errorf("error when serving requests: %s", err)
+			b.Errorf("error when serving requests: %v", err)
 		}
 		close(ch)
 	}()
@@ -138,7 +140,7 @@ func benchmarkNetHTTPClientGetEndToEndWaitConnInmemory(b *testing.B, parallelism
 			resp, err := c.Get(url)
 			if err != nil {
 				if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
-					b.Fatalf("unexpected error: %s", err)
+					b.Fatalf("unexpected error: %v", err)
 				}
 			} else {
 				if resp.StatusCode != http.StatusOK {
@@ -147,7 +149,7 @@ func benchmarkNetHTTPClientGetEndToEndWaitConnInmemory(b *testing.B, parallelism
 				body, err := ioutil.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
-					b.Fatalf("unexpected error when reading response body: %s", err)
+					b.Fatalf("unexpected error when reading response body: %v", err)
 				}
 				if string(body) != requestURI {
 					b.Fatalf("unexpected response %q. Expecting %q", body, requestURI)

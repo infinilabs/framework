@@ -47,6 +47,8 @@ func ParseActionMeta(data []byte) (action, index, typeName, id string) {
 
 	log.Warn("fallback to unsafe parse:", util.UnsafeBytesToString(data))
 
+	panic("invalid buffer")
+
 	action = string(util.ExtractFieldFromBytes(&data, ActionStart, ActionEnd, nil))
 	index, _ = jsonparser.GetString(data, action, "_index")
 	typeName, _ = jsonparser.GetString(data, action, "_type")

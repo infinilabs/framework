@@ -1,16 +1,18 @@
+//go:build gofuzz
 // +build gofuzz
 
-package response
+package fuzz
 
 import (
 	"bufio"
 	"bytes"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func Fuzz(data []byte) int {
-	res := fasthttp2.AcquireResponse()
-	defer fasthttp2.ReleaseResponse(res)
+	res := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(res)
 
 	if err := res.ReadLimitBody(bufio.NewReader(bytes.NewReader(data)), 1024*1024); err != nil {
 		return 0

@@ -32,7 +32,7 @@ func AcquireBulkBuffer() *BulkBuffer {
 func ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
 	if item.bytesBuffer!=nil{
-		bytebufferpool.Put("bulk_request_docs",item.bytesBuffer)
+		//bytebufferpool.Put("bulk_request_docs",item.bytesBuffer)
 		item.bytesBuffer=nil
 	}
 	bulkBufferPool.Put(item)
