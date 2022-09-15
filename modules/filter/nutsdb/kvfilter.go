@@ -152,3 +152,26 @@ func (f *NutsdbKVFilter) ExistsKey(bucket string, key []byte) (bool, error) {
 func (f *NutsdbKVFilter) DeleteKey(bucket string, key []byte) error {
 	return f.Delete(bucket,key)
 }
+
+func (f *NutsdbKVFilter) IterateBucketKeys(bucket string, rangeFunc func (key, value []byte) error) error {
+	err := handler.View(
+		func(tx *nutsdb.Tx) error {
+			entries, err := tx.GetAll(bucket)
+			if err != nil {
+				return err
+			}
+
+			for _, entry := range entries {
+				err = rangeFunc(entry.Key, entry.Value)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	return err
+}
+
+func (f *NutsdbKVFilter) Merge() error {
+	return handler.Merge()
+}
