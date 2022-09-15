@@ -199,7 +199,7 @@ func nodeAvailabilityCheck() {
 					if startTime, ok := availabilityMap.Load(k); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.NodeAvailabilityCheckConfig.Interval
-						if cfg.MonitorConfigs != nil && cfg.MetadataConfigs.NodeAvailabilityCheck.Interval != "" {
+						if cfg.MetadataConfigs != nil && cfg.MetadataConfigs.NodeAvailabilityCheck.Interval != "" {
 							interval = cfg.MetadataConfigs.NodeAvailabilityCheck.Interval
 						}
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
@@ -256,7 +256,7 @@ func (module *ElasticModule) clusterStateRefresh() {
 					if startTime, ok := module.stateMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.MetadataRefresh.Interval
-						if v.MonitorConfigs != nil && v.MetadataConfigs.MetadataRefresh.Interval != "" {
+						if v.MetadataConfigs != nil && v.MetadataConfigs.MetadataRefresh.Interval != "" {
 							interval = v.MetadataConfigs.MetadataRefresh.Interval
 						}
 						intervalD :=  util.GetDurationOrDefault(interval, 10*time.Second)
@@ -359,7 +359,7 @@ func (module *ElasticModule) Start() error {
 						if startTime, ok := module.healthMap.Load(cfg1.ID); ok {
 							elapsed := time.Since(startTime.(time.Time))
 							interval := moduleConfig.HealthCheckConfig.Interval
-							if cfg1.MonitorConfigs != nil && cfg1.MetadataConfigs.HealthCheck.Interval != "" {
+							if cfg1.MetadataConfigs != nil && cfg1.MetadataConfigs.HealthCheck.Interval != "" {
 								interval = cfg1.MetadataConfigs.HealthCheck.Interval
 							}
 							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
@@ -538,7 +538,7 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.ClusterSettingsCheckConfig.Interval
-						if v.MonitorConfigs != nil && v.MetadataConfigs.ClusterSettingsCheck.Interval != "" {
+						if v.MetadataConfigs != nil && v.MetadataConfigs.ClusterSettingsCheck.Interval != "" {
 							interval = v.MetadataConfigs.ClusterSettingsCheck.Interval
 						}
 
