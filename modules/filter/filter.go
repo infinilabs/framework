@@ -38,7 +38,7 @@ func (module *FilterModule) Setup(cfg *Config) {
 	}
 
 	opt := nuts.Options{
-		EntryIdxMode:         nuts.HintKeyAndRAMIdxMode,
+		EntryIdxMode:         nuts.HintKeyValAndRAMIdxMode,
 		SegmentSize:          8 * 1024 * 1024,
 		NodeNum:              1,
 		RWMode:               nuts.FileIO,
@@ -77,6 +77,7 @@ func (module *FilterModule) Start() error {
 		t := time.Now()
 		module.handler.Open()
 		log.Tracef("open kv db elapsed: %s", time.Since(t))
+		Init(module.handler)
 	}
 	return nil
 }
