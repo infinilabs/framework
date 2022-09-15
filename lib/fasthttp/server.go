@@ -2365,6 +2365,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 	//TODO
 	ctx.Reset()
+	ctx.Request.resetSkipHeader()
 	ctx.Response.Reset()
 	//TODO
 
@@ -2606,9 +2607,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			// Acquire a new ctx because the old one will still be in use by the timeout out handler.
 			ctx = s.acquireCtx(c)
 			//TODO
-			//ctx.Reset()
-			//ctx.Request.resetSkipHeader()
-			//ctx.Response.Reset()
+			ctx.Reset()
+			ctx.Request.resetSkipHeader()
+			ctx.Response.Reset()
 			//TODO
 
 			timeoutResponse.CopyTo(&ctx.Response)
@@ -2853,6 +2854,14 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	n, err := c.Read(b[:])
 
 	ctx = s.acquireCtx(c)
+
+	//TODO
+	ctx.Reset()
+	ctx.Request.resetSkipHeader()
+	ctx.Response.Reset()
+	//TODO
+
+
 	*ctxP = ctx
 	if err != nil {
 		// Treat all errors as EOF on unsuccessful read

@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"math"
 	"mime/multipart"
 	"net"
 	"os"
+	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -422,9 +424,10 @@ func (req *Request) GetRawBody() []byte {
 		return nil
 	}
 
-	if len(req.rawBody) > 0 {
-		return req.rawBody
-	}
+	//if len(req.rawBody) > 0 {
+	//	log.Error("hit rawbody")
+	//	return req.rawBody
+	//}
 
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
@@ -446,9 +449,9 @@ func (req *Request) GetRawBody() []byte {
 }
 
 func (resp *Response) bodyBytes() []byte {
-	if resp.bodyRaw != nil {
-		return resp.bodyRaw
-	}
+	//if resp.bodyRaw != nil {
+	//	return resp.bodyRaw
+	//}
 	if resp.body == nil {
 		return nil
 	}
@@ -456,9 +459,9 @@ func (resp *Response) bodyBytes() []byte {
 }
 
 func (req *Request) bodyBytes() []byte {
-	if req.bodyRaw != nil {
-		return req.bodyRaw
-	}
+	//if req.bodyRaw != nil {
+	//	return req.bodyRaw
+	//}
 	if req.bodyStream != nil {
 		bodyBuf := req.bodyBuffer()
 		bodyBuf.Reset()
@@ -1169,6 +1172,7 @@ func (req *Request) GetBodyLength() int {
 
 func (req *Request) resetSkipHeader() {
 	req.ResetBody()
+	req.bodyLength=0
 	req.uri.Reset()
 	req.parsedURI = false
 	req.postArgs.Reset()

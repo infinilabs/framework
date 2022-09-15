@@ -37,6 +37,7 @@ START:
 		skipNextLineProcessing = false
 		docCount = 0
 		for i, line := range lines {
+
 			bytesCount := len(line)
 			if line == nil || bytesCount <= 0 {
 				if global.Env().IsDebug {
