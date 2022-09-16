@@ -498,13 +498,13 @@ func TimeoutWithCodeHandler(h RequestHandler, timeout time.Duration, msg string,
 			ch <- struct{}{}
 			<-concurrencyCh
 		}()
-		ctx.timeoutTimer = initTimer(ctx.timeoutTimer, timeout)
+		ctx.timeoutTimer = util.AcquireTimer(timeout)
 		select {
 		case <-ch:
 		case <-ctx.timeoutTimer.C:
 			ctx.TimeoutErrorWithCode(msg, statusCode)
 		}
-		stopTimer(ctx.timeoutTimer)
+		util.ReleaseTimer(ctx.timeoutTimer)
 	}
 }
 
@@ -683,6 +683,10 @@ func readBytes(reader io.Reader, length uint32) []byte {
 func (req *Request) Decode(data []byte) error {
 	req.decodeLocker.Lock()
 	defer req.decodeLocker.Unlock()
+
+	//TODO
+	//req.Reset(), should not call, buggy
+	//TODO
 
 	//reader:=req.AcquireBytesReader()
 	reader := &bytes.Reader{}
@@ -2365,7 +2369,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 	//TODO
 	ctx.Reset()
-	ctx.Request.resetSkipHeader()
+	ctx.Request.resetSkipHeader() //Medcl-A
 	ctx.Response.Reset()
 	//TODO
 
@@ -2380,7 +2384,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		hijackNoResponse bool
 
 		connectionClose bool
-
+		reqReset               bool
 		continueReadingRequest bool = true
 	)
 	for {
@@ -2593,6 +2597,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
+			//ctx.Reset()
+			//ctx.Response.Reset()
 			stats.Increment("continue_request", "received")
 			err:=s.handleRequest(ctx)
 			if err!=nil{
@@ -2660,6 +2666,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 
+			//TODO
 			if ctx.EnrichedMetadata {
 				ctx.Response.Header.Set("X-Filters", util.JoinArray(ctx.flowProcess, "->"))
 			}
@@ -2725,9 +2732,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		s.setState(c, StateIdle)
+		ctx.Reset()
 		ctx.userValues.Reset()
 		ctx.Request.Reset()
 		ctx.Response.Reset()
+		reqReset = true
 
 		if atomic.LoadInt32(&s.stop) == 1 {
 			err = nil
@@ -2742,6 +2751,19 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		releaseWriter(s, bw)
 	}
 	if hijackHandler == nil {
+		s.releaseCtx(ctx)
+	}
+
+	if ctx != nil {
+		// in unexpected cases the for loop will break
+		// before request reset call. in such cases, call it before
+		// release to fix #548
+		if !reqReset {
+			ctx.Reset()
+			ctx.Request.resetSkipHeader()
+			ctx.Response.Reset()
+			ctx.Request.Reset()
+		}
 		s.releaseCtx(ctx)
 	}
 
@@ -2947,7 +2969,7 @@ func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage boo
 	ctx.connID = nextConnID()
 	ctx.s = fakeServer
 	ctx.connRequestNum = 0
-	ctx.connTime = time.Now()
+	ctx.connTime = util.GetLowPrecisionCurrentTime()
 
 	keepBodyBuffer := !reduceMemoryUsage
 	ctx.Request.keepBodyBuffer = keepBodyBuffer
