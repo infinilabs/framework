@@ -64,7 +64,7 @@ func NewPool(defaultSize, maxSize uint32) *Pool {
 //var defaultPool Pool
 
 var pools = sync.Map{}
-
+var lock =sync.RWMutex{}
 func getPoolByTag(tag string) (pool *Pool) {
 
 	if x, ok := pools.Load(tag); ok {
@@ -73,9 +73,12 @@ func getPoolByTag(tag string) (pool *Pool) {
 			return pool
 		}
 	} else {
-		pool = NewTaggedPool(tag, 0, 0, 0)
+		lock.Lock()
+		if _,ok:=pools.Load(tag);!ok{
+			pool = NewTaggedPool(tag, 0, 0, 0)
+		}
+		lock.Unlock()
 	}
-
 	return pool
 }
 
@@ -205,9 +208,6 @@ func Put(tag string, b *ByteBuffer) {
 //
 // The buffer mustn't be accessed after returning to the pool.
 func (p *Pool) Put(b *ByteBuffer) {
-
-	b.B=nil
-	return
 
 	atomic.AddInt32(&p.inuse, -1)
 	p.inUseBuffer.Delete(b.ID)
