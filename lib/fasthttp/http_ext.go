@@ -220,9 +220,6 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 
 func (req *Request) Encode() []byte {
 	body := req.Body()
-	if len(body)<10{
-		log.Error("too small bodys:",req.String(),",raw:",string(req.GetRawBody()))
-	}
 	return req.OverrideBodyEncode(body, false)
 }
 

@@ -131,9 +131,9 @@ func (h *RequestHeader) SetByteRange(startPos, endPos int) {
 
 // StatusCode returns response status code.
 func (h *ResponseHeader) StatusCode() int {
-	if h.statusCode == 0 {
-		return StatusOK
-	}
+	//if h.statusCode == 0 {
+	//	return StatusOK
+	//}
 	return h.statusCode
 }
 
@@ -666,6 +666,9 @@ func (h *RequestHeader) RequestURI() []byte {
 // Use URI.RequestURI for constructing proper RequestURI if unsure.
 func (h *RequestHeader) SetRequestURI(requestURI string) {
 	h.requestURI = append(h.requestURI[:0], requestURI...)
+	//if len(h.host)>0{
+	//	h.host=h.host[:0]
+	//}
 }
 
 // SetRequestURIBytes sets RequestURI for the first HTTP request line.
@@ -673,6 +676,9 @@ func (h *RequestHeader) SetRequestURI(requestURI string) {
 // Use URI.RequestURI for constructing proper RequestURI if unsure.
 func (h *RequestHeader) SetRequestURIBytes(requestURI []byte) {
 	h.requestURI = append(h.requestURI[:0], requestURI...)
+	//if len(h.host)>0{
+	//	h.host=h.host[:0]
+	//}
 }
 
 // SetTrailer sets Trailer header value for chunked request
@@ -1193,8 +1199,12 @@ func (h *ResponseHeader) DelBytes(key []byte) {
 
 func (h *ResponseHeader) del(key []byte) {
 	switch string(key) {
+	case HeaderContentType2:
+		h.contentType = h.contentType[:0]
 	case HeaderContentType:
 		h.contentType = h.contentType[:0]
+	case HeaderContentEncoding2:
+		h.contentEncoding = h.contentEncoding[:0]
 	case HeaderContentEncoding:
 		h.contentEncoding = h.contentEncoding[:0]
 	case HeaderServer:
@@ -1229,6 +1239,8 @@ func (h *RequestHeader) del(key []byte) {
 	switch string(key) {
 	case HeaderHost:
 		h.host = h.host[:0]
+	case HeaderContentType2:
+		h.contentType = h.contentType[:0]
 	case HeaderContentType:
 		h.contentType = h.contentType[:0]
 	case HeaderUserAgent:
@@ -1744,8 +1756,12 @@ func (h *RequestHeader) PeekBytes(key []byte) []byte {
 
 func (h *ResponseHeader) peek(key []byte) []byte {
 	switch string(key) {
+	case HeaderContentType2:
+		return h.ContentType()
 	case HeaderContentType:
 		return h.ContentType()
+	case HeaderContentEncoding2:
+		return h.ContentEncoding()
 	case HeaderContentEncoding:
 		return h.ContentEncoding()
 	case HeaderServer:
@@ -1770,6 +1786,8 @@ func (h *RequestHeader) peek(key []byte) []byte {
 	switch string(key) {
 	case HeaderHost:
 		return h.Host()
+	case HeaderContentType2:
+		return h.ContentType()
 	case HeaderContentType:
 		return h.ContentType()
 	case HeaderUserAgent:
@@ -2439,7 +2457,8 @@ func (h *ResponseHeader) parseTrailer(buf []byte) (int, error) {
 }
 
 func (h *RequestHeader) ignoreBody() bool {
-	return h.IsGet() || h.IsHead()
+	//return h.IsGet() //|| h.IsHead()
+	return h.IsHead()
 }
 
 func (h *RequestHeader) parse(buf []byte) (int, error) {

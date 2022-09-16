@@ -24,7 +24,7 @@ var bulkBufferPool = &sync.Pool{
 
 func AcquireBulkBuffer() *BulkBuffer {
 	buff := bulkBufferPool.Get().(*BulkBuffer)
-	buff.bytesBuffer = bytebufferpool.Get("bulk_request_docs")
+	buff.bytesBuffer = &bytebufferpool.ByteBuffer{}// bytebufferpool.Get("bulk_request_docs")
 	buff.Reset()
 	return buff
 }

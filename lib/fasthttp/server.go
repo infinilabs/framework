@@ -2368,9 +2368,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	ctx := s.acquireCtx(c)
 
 	//TODO
-	ctx.Reset()
-	ctx.Request.resetSkipHeader() //Medcl-A
-	ctx.Response.Reset()
+	//ctx.Reset()
+	//ctx.Request.resetSkipHeader() //Medcl-A
+	//ctx.Response.Reset()
 	//TODO
 
 	ctx.connTime = connTime
@@ -2384,7 +2384,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		hijackNoResponse bool
 
 		connectionClose bool
-		reqReset               bool
+		//reqReset               bool
 		continueReadingRequest bool = true
 	)
 	for {
@@ -2613,9 +2613,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			// Acquire a new ctx because the old one will still be in use by the timeout out handler.
 			ctx = s.acquireCtx(c)
 			//TODO
-			ctx.Reset()
-			ctx.Request.resetSkipHeader()
-			ctx.Response.Reset()
+			//ctx.Reset()
+			//ctx.Request.resetSkipHeader()
+			//ctx.Response.Reset()
 			//TODO
 
 			timeoutResponse.CopyTo(&ctx.Response)
@@ -2681,11 +2681,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			// in a TCP packet and send it back at once than waiting for a flush every request.
 			// In real world circumstances this behaviour could be argued as being wrong.
 			if br == nil || br.Buffered() == 0 || connectionClose {
-				err = bw.Flush()
-				if err != nil {
-					break
+					err = bw.Flush()
+					if err != nil {
+						break
+					}
 				}
-			}
 			if connectionClose {
 				break
 			}
@@ -2736,7 +2736,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		ctx.userValues.Reset()
 		ctx.Request.Reset()
 		ctx.Response.Reset()
-		reqReset = true
+		//reqReset = true
 
 		if atomic.LoadInt32(&s.stop) == 1 {
 			err = nil
@@ -2754,18 +2754,18 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		s.releaseCtx(ctx)
 	}
 
-	if ctx != nil {
-		// in unexpected cases the for loop will break
-		// before request reset call. in such cases, call it before
-		// release to fix #548
-		if !reqReset {
-			ctx.Reset()
-			ctx.Request.resetSkipHeader()
-			ctx.Response.Reset()
-			ctx.Request.Reset()
-		}
-		s.releaseCtx(ctx)
-	}
+	//if ctx != nil {
+	//	// in unexpected cases the for loop will break
+	//	// before request reset call. in such cases, call it before
+	//	// release to fix #548
+	//	if !reqReset {
+	//		ctx.Reset()
+	//		ctx.Request.resetSkipHeader()
+	//		ctx.Response.Reset()
+	//		ctx.Request.Reset()
+	//	}
+	//	s.releaseCtx(ctx)
+	//}
 
 	return
 }
@@ -2878,9 +2878,9 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	ctx = s.acquireCtx(c)
 
 	//TODO
-	ctx.Reset()
-	ctx.Request.resetSkipHeader()
-	ctx.Response.Reset()
+	//ctx.Reset()
+	//ctx.Request.resetSkipHeader()
+	//ctx.Response.Reset()
 	//TODO
 
 

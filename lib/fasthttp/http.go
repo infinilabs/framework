@@ -159,6 +159,7 @@ func (req *Request) SetRequestURIBytes(requestURI []byte) {
 	//reset host after reset uri
 	if len(req.Header.host) > 0 {
 		req.Header.host = req.Host()// req.Header.host[:0]
+		//req.Header.host =req.Header.host[:0]
 	}
 }
 
@@ -700,6 +701,8 @@ func (resp *Response) ResetBody() {
 func (resp *Response) SetBodyRaw(body []byte) {
 	resp.ResetBody()
 	resp.bodyRaw = body
+	resp.Header.Del(HeaderContentEncoding)
+	resp.Header.Del(HeaderContentEncoding2)
 }
 
 // SetBodyRaw sets response body, but without copying it.
@@ -708,6 +711,8 @@ func (resp *Response) SetBodyRaw(body []byte) {
 func (req *Request) SetBodyRaw(body []byte) {
 	req.ResetBody()
 	req.bodyRaw = body
+	req.Header.Del(HeaderContentEncoding)
+	req.Header.Del(HeaderContentEncoding2)
 }
 
 // ReleaseBody retires the response body if it is greater than "size" bytes.
@@ -1026,7 +1031,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 	}
 
 	var err error
-	ce := req.Header.peek(strContentEncoding)
+	ce := req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})
 
 	if req.bodyStream != nil {
 		bodyStream := req.bodyStream
@@ -1060,7 +1065,6 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 			return nil, err
 		}
 	}
-
 	return req.multipartForm, nil
 }
 
@@ -1144,7 +1148,7 @@ func (req *Request) Reset() {
 	if requestBodyPoolSizeLimit >= 0 && req.body != nil {
 		req.ReleaseBody(requestBodyPoolSizeLimit)
 	}
-	req.Header.Reset()
+	//req.Header.Reset()//TODO ?
 	req.Header.Add("RESET_AT",time.Now().String())
 	req.resetSkipHeader()
 	req.timeout = 0
@@ -1615,9 +1619,12 @@ func (req *Request) Write(w *bufio.Writer) error {
 	req.rawBody = nil
 	hostInHeader := req.Header.Host()
 
-	if len(hostInHeader) == 0 || !req.parsedURI {
+	//if len(hostInHeader) == 0 || !req.parsedURI {
+
+		if len(hostInHeader) == 0 || !req.parsedURI {
 		uri := req.URI()
 		host := uri.Host()
+
 		if len(hostInHeader) == 0 {
 			if len(host) == 0 {
 				return errRequestHostRequired
@@ -1627,6 +1634,7 @@ func (req *Request) Write(w *bufio.Writer) error {
 		} else if !req.UseHostHeader {
 			req.Header.SetHostBytes(host)
 		}
+
 		req.Header.SetRequestURIBytes(uri.RequestURI())
 
 		if len(uri.username) > 0 {

@@ -60,6 +60,10 @@ func NewFastHTTPHandler(h http.Handler) fasthttp.RequestHandler {
 		ctx.SetStatusCode(w.StatusCode())
 		haveContentType := false
 		for k, vv := range w.Header() {
+			if k == fasthttp.HeaderContentType2 {
+				haveContentType = true
+			}
+
 			if k == fasthttp.HeaderContentType {
 				haveContentType = true
 			}
