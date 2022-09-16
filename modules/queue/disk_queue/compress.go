@@ -95,7 +95,8 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 
 	for x := start+1; x < end; x++ {
 		file := GetFileName(queueID, x)
-		if util.FileExists(file) {
+		nextFile := GetFileName(queueID, x+1)
+		if util.FileExists(file)&&util.FileExists(nextFile) {
 			log.Debug("start compress queue file:", file)
 			toFile := file + compressFileSuffix
 			if !util.FileExists(toFile){
@@ -127,7 +128,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 				}
 			}
 		} else {
-			log.Warnf("file %v not found, skip compress %v", file, queueID)
+			log.Tracef("file %v not found or next file is not ready, skip compress %v", file, queueID)
 			//skip
 			continue
 		}
