@@ -196,6 +196,10 @@ func nodeAvailabilityCheck() {
 						return true
 					}
 
+					if v.IsDead(){
+						return true
+					}
+
 					if startTime, ok := availabilityMap.Load(k); ok {
 						elapsed := time.Since(startTime.(time.Time))
 						interval := moduleConfig.NodeAvailabilityCheckConfig.Interval
