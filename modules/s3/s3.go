@@ -131,6 +131,9 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 		log.Error(err)
 		return false,err
 	}
+	if !util.FileExists(tempPath){
+		return false,errors.New("download failed")
+	}
 
 	err=os.Rename(tempPath,filePath)
 	if err != nil {

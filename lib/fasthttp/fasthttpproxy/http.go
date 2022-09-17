@@ -4,19 +4,34 @@ import (
 	"bufio"
 	"encoding/base64"
 	"fmt"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"net"
 	"strings"
+	"time"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 // FasthttpHTTPDialer returns a fasthttp.DialFunc that dials using
 // the provided HTTP proxy.
 //
 // Example usage:
+//
 //	c := &fasthttp.Client{
 //		Dial: fasthttpproxy.FasthttpHTTPDialer("username:password@localhost:9050"),
 //	}
-func FasthttpHTTPDialer(proxy string) fasthttp2.DialFunc {
+func FasthttpHTTPDialer(proxy string) fasthttp.DialFunc {
+	return FasthttpHTTPDialerTimeout(proxy, 0)
+}
+
+// FasthttpHTTPDialerTimeout returns a fasthttp.DialFunc that dials using
+// the provided HTTP proxy using the given timeout.
+//
+// Example usage:
+//
+//	c := &fasthttp.Client{
+//		Dial: fasthttpproxy.FasthttpHTTPDialerTimeout("username:password@localhost:9050", time.Second * 2),
+//	}
+func FasthttpHTTPDialerTimeout(proxy string, timeout time.Duration) fasthttp.DialFunc {
 	var auth string
 	if strings.Contains(proxy, "@") {
 		split := strings.Split(proxy, "@")
@@ -25,12 +40,18 @@ func FasthttpHTTPDialer(proxy string) fasthttp2.DialFunc {
 	}
 
 	return func(addr string) (net.Conn, error) {
-		conn, err := fasthttp2.Dial(proxy)
+		var conn net.Conn
+		var err error
+		if timeout == 0 {
+			conn, err = fasthttp.Dial(proxy)
+		} else {
+			conn, err = fasthttp.DialTimeout(proxy, timeout)
+		}
 		if err != nil {
 			return nil, err
 		}
 
-		req := "CONNECT " + addr + " HTTP/1.1\r\n"
+		req := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n", addr, addr)
 		if auth != "" {
 			req += "Proxy-Authorization: Basic " + auth + "\r\n"
 		}
@@ -40,8 +61,8 @@ func FasthttpHTTPDialer(proxy string) fasthttp2.DialFunc {
 			return nil, err
 		}
 
-		res := fasthttp2.AcquireResponse()
-		defer fasthttp2.ReleaseResponse(res)
+		res := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseResponse(res)
 
 		res.SkipBody = true
 
@@ -51,7 +72,7 @@ func FasthttpHTTPDialer(proxy string) fasthttp2.DialFunc {
 		}
 		if res.Header.StatusCode() != 200 {
 			conn.Close()
-			return nil, fmt.Errorf("could not connect to proxy")
+			return nil, fmt.Errorf("could not connect to proxy: %s status code: %d", proxy, res.Header.StatusCode())
 		}
 		return conn, nil
 	}

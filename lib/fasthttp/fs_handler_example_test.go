@@ -2,8 +2,9 @@ package fasthttp_test
 
 import (
 	"bytes"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"log"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 // Setup file handlers (aka 'file server config')
@@ -12,22 +13,22 @@ var (
 	// i.e. /img/foo/bar.jpg will be served from
 	// /var/www/images/foo/bar.jpb .
 	imgPrefix  = []byte("/img/")
-	imgHandler = fasthttp2.FSHandler("/var/www/images", 1)
+	imgHandler = fasthttp.FSHandler("/var/www/images", 1)
 
 	// Handler for serving css from /static/css/ path,
 	// i.e. /static/css/foo/bar.css will be served from
 	// /home/dev/css/foo/bar.css .
 	cssPrefix  = []byte("/static/css/")
-	cssHandler = fasthttp2.FSHandler("/home/dev/css", 2)
+	cssHandler = fasthttp.FSHandler("/home/dev/css", 2)
 
 	// Handler for serving the rest of requests,
 	// i.e. /foo/bar/baz.html will be served from
 	// /var/www/files/foo/bar/baz.html .
-	filesHandler = fasthttp2.FSHandler("/var/www/files", 0)
+	filesHandler = fasthttp.FSHandler("/var/www/files", 0)
 )
 
 // Main request handler
-func requestHandler(ctx *fasthttp2.RequestCtx) {
+func requestHandler(ctx *fasthttp.RequestCtx) {
 	path := ctx.Path()
 	switch {
 	case bytes.HasPrefix(path, imgPrefix):
@@ -40,7 +41,7 @@ func requestHandler(ctx *fasthttp2.RequestCtx) {
 }
 
 func ExampleFSHandler() {
-	if err := fasthttp2.ListenAndServe(":80", requestHandler); err != nil {
-		log.Fatalf("Error in server: %s", err)
+	if err := fasthttp.ListenAndServe(":80", requestHandler); err != nil {
+		log.Fatalf("Error in server: %v", err)
 	}
 }

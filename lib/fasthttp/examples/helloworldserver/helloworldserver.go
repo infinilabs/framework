@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"log"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 var (
@@ -17,15 +18,15 @@ func main() {
 
 	h := requestHandler
 	if *compress {
-		h = fasthttp2.CompressHandler(h)
+		h = fasthttp.CompressHandler(h)
 	}
 
-	if err := fasthttp2.ListenAndServe(*addr, h); err != nil {
-		log.Fatalf("Error in ListenAndServe: %s", err)
+	if err := fasthttp.ListenAndServe(*addr, h); err != nil {
+		log.Fatalf("Error in ListenAndServe: %v", err)
 	}
 }
 
-func requestHandler(ctx *fasthttp2.RequestCtx) {
+func requestHandler(ctx *fasthttp.RequestCtx) {
 	fmt.Fprintf(ctx, "Hello, world!\n\n")
 
 	fmt.Fprintf(ctx, "Request method is %q\n", ctx.Method())
@@ -47,7 +48,7 @@ func requestHandler(ctx *fasthttp2.RequestCtx) {
 	ctx.Response.Header.Set("X-My-Header", "my-header-value")
 
 	// Set cookies
-	var c fasthttp2.Cookie
+	var c fasthttp.Cookie
 	c.SetKey("cookie-name")
 	c.SetValue("cookie-value")
 	ctx.Response.Header.SetCookie(&c)

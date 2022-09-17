@@ -3,17 +3,20 @@ package expvarhandler
 import (
 	"encoding/json"
 	"expvar"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"strings"
 	"testing"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func TestExpvarHandlerBasic(t *testing.T) {
+	t.Parallel()
+
 	expvar.Publish("customVar", expvar.Func(func() interface{} {
 		return "foobar"
 	}))
 
-	var ctx fasthttp2.RequestCtx
+	var ctx fasthttp.RequestCtx
 
 	expvarHandlerCalls.Set(0)
 
@@ -23,7 +26,7 @@ func TestExpvarHandlerBasic(t *testing.T) {
 
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if _, ok := m["cmdline"]; !ok {
@@ -53,7 +56,7 @@ func TestExpvarHandlerBasic(t *testing.T) {
 }
 
 func TestExpvarHandlerRegexp(t *testing.T) {
-	var ctx fasthttp2.RequestCtx
+	var ctx fasthttp.RequestCtx
 	ctx.QueryArgs().Set("r", "cmd")
 	ExpvarHandler(&ctx)
 	body := string(ctx.Response.Body())

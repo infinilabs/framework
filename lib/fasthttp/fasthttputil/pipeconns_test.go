@@ -11,12 +11,14 @@ import (
 )
 
 func TestPipeConnsWriteTimeout(t *testing.T) {
+	t.Parallel()
+
 	pc := NewPipeConns()
 	c1 := pc.Conn1()
 
 	deadline := time.Now().Add(time.Millisecond)
 	if err := c1.SetWriteDeadline(deadline); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	data := []byte("foobar")
@@ -26,7 +28,7 @@ func TestPipeConnsWriteTimeout(t *testing.T) {
 			if err == ErrTimeout {
 				break
 			}
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 
@@ -36,14 +38,14 @@ func TestPipeConnsWriteTimeout(t *testing.T) {
 			t.Fatalf("expecting error")
 		}
 		if err != ErrTimeout {
-			t.Fatalf("unexpected error: %s. Expecting %s", err, ErrTimeout)
+			t.Fatalf("unexpected error: %v. Expecting %v", err, ErrTimeout)
 		}
 	}
 
 	// read the written data
 	c2 := pc.Conn2()
 	if err := c2.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	for {
 		_, err := c2.Read(data)
@@ -51,7 +53,7 @@ func TestPipeConnsWriteTimeout(t *testing.T) {
 			if err == ErrTimeout {
 				break
 			}
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 
@@ -61,16 +63,20 @@ func TestPipeConnsWriteTimeout(t *testing.T) {
 			t.Fatalf("expecting error")
 		}
 		if err != ErrTimeout {
-			t.Fatalf("unexpected error: %s. Expecting %s", err, ErrTimeout)
+			t.Fatalf("unexpected error: %v. Expecting %v", err, ErrTimeout)
 		}
 	}
 }
 
 func TestPipeConnsPositiveReadTimeout(t *testing.T) {
+	t.Parallel()
+
 	testPipeConnsReadTimeout(t, time.Millisecond)
 }
 
 func TestPipeConnsNegativeReadTimeout(t *testing.T) {
+	t.Parallel()
+
 	testPipeConnsReadTimeout(t, -time.Second)
 }
 
@@ -82,7 +88,7 @@ func testPipeConnsReadTimeout(t *testing.T, timeout time.Duration) {
 
 	deadline := time.Now().Add(timeout)
 	if err := c1.SetReadDeadline(deadline); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var buf [1]byte
@@ -92,23 +98,23 @@ func testPipeConnsReadTimeout(t *testing.T, timeout time.Duration) {
 			t.Fatalf("expecting error on iteration %d", i)
 		}
 		if err != ErrTimeout {
-			t.Fatalf("unexpected error on iteration %d: %s. Expecting %s", i, err, ErrTimeout)
+			t.Fatalf("unexpected error on iteration %d: %v. Expecting %v", i, err, ErrTimeout)
 		}
 	}
 
 	// disable deadline and send data from c2 to c1
 	if err := c1.SetReadDeadline(zeroTime); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	data := []byte("foobar")
 	c2 := pc.Conn2()
 	if _, err := c2.Write(data); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	dataBuf := make([]byte, len(data))
 	if _, err := io.ReadFull(c1, dataBuf); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if !bytes.Equal(data, dataBuf) {
 		t.Fatalf("unexpected data received: %q. Expecting %q", dataBuf, data)
@@ -116,6 +122,8 @@ func testPipeConnsReadTimeout(t *testing.T, timeout time.Duration) {
 }
 
 func TestPipeConnsCloseWhileReadWriteConcurrent(t *testing.T) {
+	t.Parallel()
+
 	concurrency := 4
 	ch := make(chan struct{}, concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -135,6 +143,8 @@ func TestPipeConnsCloseWhileReadWriteConcurrent(t *testing.T) {
 }
 
 func TestPipeConnsCloseWhileReadWriteSerial(t *testing.T) {
+	t.Parallel()
+
 	testPipeConnsCloseWhileReadWriteSerial(t)
 }
 
@@ -154,7 +164,7 @@ func testPipeConnsCloseWhileReadWrite(t *testing.T) {
 		var err error
 		if _, err = io.Copy(ioutil.Discard, c1); err != nil {
 			if err != errConnectionClosed {
-				err = fmt.Errorf("unexpected error: %s", err)
+				err = fmt.Errorf("unexpected error: %w", err)
 			} else {
 				err = nil
 			}
@@ -168,7 +178,7 @@ func testPipeConnsCloseWhileReadWrite(t *testing.T) {
 		for {
 			if _, err = c2.Write([]byte("foobar")); err != nil {
 				if err != errConnectionClosed {
-					err = fmt.Errorf("unexpected error: %s", err)
+					err = fmt.Errorf("unexpected error: %w", err)
 				} else {
 					err = nil
 				}
@@ -180,16 +190,16 @@ func testPipeConnsCloseWhileReadWrite(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 	if err := c1.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := c2.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	select {
 	case err := <-readCh:
 		if err != nil {
-			t.Fatalf("unexpected error in reader: %s", err)
+			t.Fatalf("unexpected error in reader: %v", err)
 		}
 	case <-time.After(time.Second):
 		t.Fatalf("timeout")
@@ -197,7 +207,7 @@ func testPipeConnsCloseWhileReadWrite(t *testing.T) {
 	select {
 	case err := <-writeCh:
 		if err != nil {
-			t.Fatalf("unexpected error in writer: %s", err)
+			t.Fatalf("unexpected error in writer: %v", err)
 		}
 	case <-time.After(time.Second):
 		t.Fatalf("timeout")
@@ -205,10 +215,14 @@ func testPipeConnsCloseWhileReadWrite(t *testing.T) {
 }
 
 func TestPipeConnsReadWriteSerial(t *testing.T) {
+	t.Parallel()
+
 	testPipeConnsReadWriteSerial(t)
 }
 
 func TestPipeConnsReadWriteConcurrent(t *testing.T) {
+	t.Parallel()
+
 	testConcurrency(t, 10, testPipeConnsReadWriteSerial)
 }
 
@@ -230,7 +244,7 @@ func testPipeConnsReadWrite(t *testing.T, c1, c2 net.Conn) {
 		s1 := fmt.Sprintf("foo_%d", i)
 		n, err := c1.Write([]byte(s1))
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if n != len(s1) {
 			t.Fatalf("unexpected number of bytes written: %d. Expecting %d", n, len(s1))
@@ -240,7 +254,7 @@ func testPipeConnsReadWrite(t *testing.T, c1, c2 net.Conn) {
 		s2 := fmt.Sprintf("bar_%d", i)
 		n, err = c1.Write([]byte(s2))
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if n != len(s2) {
 			t.Fatalf("unexpected number of bytes written: %d. Expecting %d", n, len(s2))
@@ -250,7 +264,7 @@ func testPipeConnsReadWrite(t *testing.T, c1, c2 net.Conn) {
 		s := s1 + s2
 		n, err = c2.Read(buf[:])
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if n != len(s) {
 			t.Fatalf("unexpected number of bytes read: %d. Expecting %d", n, len(s))
@@ -262,10 +276,14 @@ func testPipeConnsReadWrite(t *testing.T, c1, c2 net.Conn) {
 }
 
 func TestPipeConnsCloseSerial(t *testing.T) {
+	t.Parallel()
+
 	testPipeConnsCloseSerial(t)
 }
 
 func TestPipeConnsCloseConcurrent(t *testing.T) {
+	t.Parallel()
+
 	testConcurrency(t, 10, testPipeConnsCloseSerial)
 }
 
@@ -279,7 +297,7 @@ func testPipeConnsCloseSerial(t *testing.T) {
 
 func testPipeConnsClose(t *testing.T, c1, c2 net.Conn) {
 	if err := c1.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	var buf [10]byte
 
@@ -301,7 +319,7 @@ func testPipeConnsClose(t *testing.T, c1, c2 net.Conn) {
 			t.Fatalf("expecting error")
 		}
 		if err != io.EOF {
-			t.Fatalf("unexpected error: %s. Expecting %s", err, io.EOF)
+			t.Fatalf("unexpected error: %v. Expecting %v", err, io.EOF)
 		}
 		if n != 0 {
 			t.Fatalf("unexpected number of bytes read: %d. Expecting 0", n)
@@ -309,16 +327,16 @@ func testPipeConnsClose(t *testing.T, c1, c2 net.Conn) {
 	}
 
 	if err := c2.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// attempt closing already closed conns
 	for i := 0; i < 10; i++ {
 		if err := c1.Close(); err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if err := c2.Close(); err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 }

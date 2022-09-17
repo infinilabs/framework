@@ -1,9 +1,10 @@
 package fasthttpproxy
 
 import (
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"net"
+	"net/url"
 
+	"infini.sh/framework/lib/fasthttp"
 	"golang.org/x/net/proxy"
 )
 
@@ -11,11 +12,19 @@ import (
 // the provided SOCKS5 proxy.
 //
 // Example usage:
+//
 //	c := &fasthttp.Client{
-//		Dial: fasthttpproxy.FasthttpSocksDialer("localhost:9050"),
+//		Dial: fasthttpproxy.FasthttpSocksDialer("socks5://localhost:9050"),
 //	}
-func FasthttpSocksDialer(proxyAddr string) fasthttp2.DialFunc {
-	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+func FasthttpSocksDialer(proxyAddr string) fasthttp.DialFunc {
+	var (
+		u      *url.URL
+		err    error
+		dialer proxy.Dialer
+	)
+	if u, err = url.Parse(proxyAddr); err == nil {
+		dialer, err = proxy.FromURL(u, proxy.Direct)
+	}
 	// It would be nice if we could return the error here. But we can't
 	// change our API so just keep returning it in the returned Dial function.
 	// Besides the implementation of proxy.SOCKS5() at the time of writing this

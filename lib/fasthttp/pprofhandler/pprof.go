@@ -1,25 +1,26 @@
 package pprofhandler
 
 import (
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
-	fasthttpadaptor2 "infini.sh/framework/lib/fasthttp/fasthttpadaptor"
 	"net/http/pprof"
 	rtp "runtime/pprof"
 	"strings"
+
+	"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/lib/fasthttp/fasthttpadaptor"
 )
 
 var (
-	cmdline = fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Cmdline)
-	profile = fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Profile)
-	symbol  = fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Symbol)
-	trace   = fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Trace)
-	index   = fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Index)
+	cmdline = fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Cmdline)
+	profile = fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Profile)
+	symbol  = fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Symbol)
+	trace   = fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Trace)
+	index   = fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Index)
 )
 
 // PprofHandler serves server runtime profiling data in the format expected by the pprof visualization tool.
 //
 // See https://golang.org/pkg/net/http/pprof/ for details.
-func PprofHandler(ctx *fasthttp2.RequestCtx) {
+func PprofHandler(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Content-Type", "text/html")
 	if strings.HasPrefix(string(ctx.Path()), "/debug/pprof/cmdline") {
 		cmdline(ctx)
@@ -33,7 +34,7 @@ func PprofHandler(ctx *fasthttp2.RequestCtx) {
 		for _, v := range rtp.Profiles() {
 			ppName := v.Name()
 			if strings.HasPrefix(string(ctx.Path()), "/debug/pprof/"+ppName) {
-				namedHandler := fasthttpadaptor2.NewFastHTTPHandlerFunc(pprof.Handler(ppName).ServeHTTP)
+				namedHandler := fasthttpadaptor.NewFastHTTPHandlerFunc(pprof.Handler(ppName).ServeHTTP)
 				namedHandler(ctx)
 				return
 			}

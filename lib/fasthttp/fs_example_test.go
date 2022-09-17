@@ -1,12 +1,13 @@
 package fasthttp_test
 
 import (
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
 	"log"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func ExampleFS() {
-	fs := &fasthttp2.FS{
+	fs := &fasthttp.FS{
 		// Path to directory to serve.
 		Root: "/var/www/static-site",
 
@@ -21,7 +22,7 @@ func ExampleFS() {
 	h := fs.NewRequestHandler()
 
 	// Start the server.
-	if err := fasthttp2.ListenAndServe(":8080", h); err != nil {
-		log.Fatalf("error in ListenAndServe: %s", err)
+	if err := fasthttp.ListenAndServe(":8080", h); err != nil {
+		log.Fatalf("error in ListenAndServe: %v", err)
 	}
 }

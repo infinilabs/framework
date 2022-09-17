@@ -1,11 +1,12 @@
 package fasthttp
 
 import (
-	fasthttputil2 "infini.sh/framework/lib/fasthttp/fasthttputil"
 	"io/ioutil"
 	"net"
 	"testing"
 	"time"
+
+	"infini.sh/framework/lib/fasthttp/fasthttputil"
 )
 
 func TestWorkerPoolStartStopSerial(t *testing.T) {
@@ -38,6 +39,7 @@ func testWorkerPoolStartStop(t *testing.T) {
 	wp := &workerPool{
 		WorkerFunc:      func(conn net.Conn) error { return nil },
 		MaxWorkersCount: 10,
+		//Logger:          defaultLogger,
 	}
 	for i := 0; i < 10; i++ {
 		wp.Start()
@@ -65,7 +67,7 @@ func TestWorkerPoolMaxWorkersCountConcurrent(t *testing.T) {
 	for i := 0; i < concurrency; i++ {
 		select {
 		case <-ch:
-		case <-time.After(time.Second):
+		case <-time.After(time.Second * 2):
 			t.Fatalf("timeout")
 		}
 	}
@@ -84,14 +86,14 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 			buf := make([]byte, 100)
 			n, err := conn.Read(buf)
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			buf = buf[:n]
 			if string(buf) != "foobar" {
 				t.Errorf("unexpected data read: %q. Expecting %q", buf, "foobar")
 			}
 			if _, err = conn.Write([]byte("baz")); err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 
 			<-ready
@@ -99,31 +101,32 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 			return nil
 		},
 		MaxWorkersCount: 10,
+		//Logger:          defaultLogger,
 		connState:       func(net.Conn, ConnState) {},
 	}
 	wp.Start()
 
-	ln := fasthttputil2.NewInmemoryListener()
+	ln := fasthttputil.NewInmemoryListener()
 
 	clientCh := make(chan struct{}, wp.MaxWorkersCount)
 	for i := 0; i < wp.MaxWorkersCount; i++ {
 		go func() {
 			conn, err := ln.Dial()
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if _, err = conn.Write([]byte("foobar")); err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			data, err := ioutil.ReadAll(conn)
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if string(data) != "baz" {
 				t.Errorf("unexpected value read: %q. Expecting %q", data, "baz")
 			}
 			if err = conn.Close(); err != nil {
-				t.Errorf("unexpected error: %s", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			clientCh <- struct{}{}
 		}()
@@ -132,7 +135,7 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 	for i := 0; i < wp.MaxWorkersCount; i++ {
 		conn, err := ln.Accept()
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if !wp.Serve(conn) {
 			t.Fatalf("worker pool must have enough workers to serve the conn")
@@ -141,12 +144,12 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 
 	go func() {
 		if _, err := ln.Dial(); err != nil {
-			t.Errorf("unexpected error: %s", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	}()
 	conn, err := ln.Accept()
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	for i := 0; i < 5; i++ {
 		if wp.Serve(conn) {
@@ -154,7 +157,7 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 		}
 	}
 	if err = conn.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	close(ready)
@@ -168,7 +171,7 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 	}
 
 	if err := ln.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	wp.Stop()
 }

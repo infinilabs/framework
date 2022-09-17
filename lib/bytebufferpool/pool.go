@@ -64,7 +64,7 @@ func NewPool(defaultSize, maxSize uint32) *Pool {
 //var defaultPool Pool
 
 var pools = sync.Map{}
-
+var lock =sync.RWMutex{}
 func getPoolByTag(tag string) (pool *Pool) {
 
 	if x, ok := pools.Load(tag); ok {
@@ -73,9 +73,14 @@ func getPoolByTag(tag string) (pool *Pool) {
 			return pool
 		}
 	} else {
-		pool = NewTaggedPool(tag, 0, 0, 0)
+		lock.Lock()
+		if x,ok:=pools.Load(tag);!ok{
+			pool = NewTaggedPool(tag, 0, 0, 0)
+		}else{
+			pool = x.(*Pool)
+		}
+		lock.Unlock()
 	}
-
 	return pool
 }
 

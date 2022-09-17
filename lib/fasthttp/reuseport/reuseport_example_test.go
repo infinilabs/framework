@@ -2,22 +2,23 @@ package reuseport_test
 
 import (
 	"fmt"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
-	reuseport2 "infini.sh/framework/lib/fasthttp/reuseport"
 	"log"
+
+	"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/lib/fasthttp/reuseport"
 )
 
 func ExampleListen() {
-	ln, err := reuseport2.Listen("tcp4", "localhost:12345")
+	ln, err := reuseport.Listen("tcp4", "localhost:12345")
 	if err != nil {
-		log.Fatalf("error in reuseport listener: %s", err)
+		log.Fatalf("error in reuseport listener: %v", err)
 	}
 
-	if err = fasthttp2.Serve(ln, requestHandler); err != nil {
-		log.Fatalf("error in fasthttp Server: %s", err)
+	if err = fasthttp.Serve(ln, requestHandler); err != nil {
+		log.Fatalf("error in fasthttp Server: %v", err)
 	}
 }
 
-func requestHandler(ctx *fasthttp2.RequestCtx) {
+func requestHandler(ctx *fasthttp.RequestCtx) {
 	fmt.Fprintf(ctx, "Hello, world!")
 }

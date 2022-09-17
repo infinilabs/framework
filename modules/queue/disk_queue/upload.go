@@ -63,19 +63,15 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 		if module.cfg.S3.Server!=""&&module.cfg.S3.Bucket!=""{
 			for i:=lastFileNum+1;i<=fileNum;i++{
 				//TODO skip recent file
-
 				log.Trace(queueID," upload id:",i)
-
 				fileName:= GetFileName(queueID,i)
-
 				if module.cfg.Compress.Segment.Enabled{
 					tempFile:=fileName+compressFileSuffix
 					if util.FileExists(tempFile){
 						fileName=tempFile
 					}else{
 						//compress before upload
-						//TODO
-						log.Warn("compressed file should exists, ",tempFile)
+						log.Debug("compressed file should exists, maybe is not yet ready, ",tempFile)
 						continue
 					}
 				}

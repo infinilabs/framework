@@ -30,10 +30,60 @@ import (
 // It is unsafe modifying/reading RequestCtx instance from concurrently
 // running goroutines. The only exception is TimeoutError*, which may be called
 // while other goroutines accessing RequestCtx.
-type RequestCtx struct {
-	noCopy noCopy //nolint:unused,structcheck
+//type RequestCtx struct {
+//	noCopy noCopy //nolint:unused,structcheck
+//
+//	param.Parameters
+//
+//	// Incoming request.
+//	//
+//	// Copying Request by value is forbidden. Use pointer to Request instead.
+//	Request Request
+//
+//	// Outgoing response.
+//	//
+//	// Copying Response by value is forbidden. Use pointer to Response instead.
+//	Response Response
+//
+//	userValues userData
+//
+//	connID         uint64
+//	connRequestNum uint64
+//	connTime       time.Time
+//
+//	time time.Time
+//
+//	s   *Server
+//	c   net.Conn
+//	fbr firstByteReader
+//
+//	timeoutResponse *Response
+//	timeoutCh       chan struct{}
+//	timeoutTimer    *time.Timer
+//
+//	hijackHandler    HijackHandler
+//	hijackNoResponse bool
+//
+//	finished bool
+//	//SequenceID       int64
+//	flowProcess []string
+//	destination []string
+//
+//	EnrichedMetadata bool
+//
+//	// ctx is either the client or server context. It should only
+//	// be modified via copying the whole Request using WithContext.
+//	// It is unexported to prevent people from using Context wrong
+//	// and mutating the contexts held by callers of the same request.
+//	ctx context.Context
+//
+//}
 
+type RequestCtx struct {
 	param.Parameters
+	ctx context.Context
+
+	noCopy noCopy //nolint:unused,structcheck
 
 	// Incoming request.
 	//
@@ -50,12 +100,14 @@ type RequestCtx struct {
 	connID         uint64
 	connRequestNum uint64
 	connTime       time.Time
+	remoteAddr     net.Addr
 
 	time time.Time
 
-	s   *Server
-	c   net.Conn
-	fbr firstByteReader
+	logger ctxLogger
+	s      *Server
+	c      net.Conn
+	fbr    firstByteReader
 
 	timeoutResponse *Response
 	timeoutCh       chan struct{}
@@ -63,21 +115,15 @@ type RequestCtx struct {
 
 	hijackHandler    HijackHandler
 	hijackNoResponse bool
+	finished         bool
 
-	finished bool
 	//SequenceID       int64
 	flowProcess []string
 	destination []string
 
 	EnrichedMetadata bool
-
-	// ctx is either the client or server context. It should only
-	// be modified via copying the whole Request using WithContext.
-	// It is unexported to prevent people from using Context wrong
-	// and mutating the contexts held by callers of the same request.
-	ctx context.Context
-
 }
+
 
 // Context returns the request's context. To change the context, use
 // WithContext.
@@ -182,12 +228,15 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 								if len(keys) == 0 {
 									return nil,errors.New("invalid json key:" + s)
 								}
-								body := para.Response.GetRawBody()
-								body, err := jsonparser.Set(body, []byte(valueStr), keys...)
-								para.Response.SetRawBody(body)
-								if err != nil {
-									return nil,err
-								}
+
+								//TODO
+
+								//body := para.Response.GetRawBody()
+								//body, err := jsonparser.Set(body, []byte(valueStr), keys...)
+								//para.Response.SetRawBody(body)
+								//if err != nil {
+								//	return nil,err
+								//}
 							}
 						}
 					}
@@ -364,3 +413,15 @@ func (ctx *RequestCtx) Destination() []string {
 	return ctx.destination
 }
 
+
+func (ctx *RequestCtx) Reset() {
+	//reset flags and metadata
+	if ctx.Data == nil || len(ctx.Data) > 0 {
+		ctx.ResetParameters()
+	}
+	ctx.finished = false
+	ctx.flowProcess = []string{}
+	ctx.destination = ctx.destination[0:0]
+	ctx.userValues.Reset()
+
+}

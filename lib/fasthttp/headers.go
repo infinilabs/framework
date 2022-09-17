@@ -1,8 +1,5 @@
 package fasthttp
 
-var AuthHeaderKeys=[]string{"authorization","Authorization","AUTHORIZATION"}
-
-
 // Headers
 const (
 	// Authentication
@@ -39,8 +36,9 @@ const (
 	HeaderVary              = "Vary"
 
 	// Connection management
-	HeaderConnection = "Connection"
-	HeaderKeepAlive  = "Keep-Alive"
+	HeaderConnection      = "Connection"
+	HeaderKeepAlive       = "Keep-Alive"
+	HeaderProxyConnection = "Proxy-Connection"
 
 	// Content negotiation
 	HeaderAccept         = "Accept"
@@ -48,6 +46,8 @@ const (
 	HeaderAcceptEncoding = "Accept-Encoding"
 	HeaderAcceptEncoding2 = "accept-encoding"
 	HeaderAcceptLanguage = "Accept-Language"
+
+	HeaderXRealIP  = "X-Real-IP"
 
 	// Controls
 	HeaderCookie      = "Cookie"
@@ -77,10 +77,9 @@ const (
 
 	// Message body information
 	HeaderContentEncoding = "content-encoding"
-	HeaderContentEncoding2 = "Content-Encoding"
-	HeaderContentLanguage = "content-language"
+	HeaderContentLanguage = "Content-Language"
 	HeaderContentLength   = "Content-Length"
-	HeaderContentLocation = "content-location"
+	HeaderContentLocation = "Content-Location"
 	HeaderContentType     = "content-type"
 	HeaderContentType2     = "Content-Type"
 
@@ -89,7 +88,6 @@ const (
 	HeaderVia             = "Via"
 	HeaderXForwardedFor   = "X-Forwarded-For"
 	HeaderXForwardedHost  = "X-Forwarded-Host"
-	HeaderXRealIP  = "X-Real-IP"
 	HeaderXForwardedProto = "X-Forwarded-Proto"
 
 	// Redirects
@@ -168,4 +166,5 @@ const (
 	HeaderXRequestedWith      = "X-Requested-With"
 	HeaderXRobotsTag          = "X-Robots-Tag"
 	HeaderXUACompatible       = "X-UA-Compatible"
+
 )

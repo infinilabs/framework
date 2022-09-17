@@ -1,15 +1,17 @@
+//go:build gofuzz
 // +build gofuzz
 
-package cookie
+package fuzz
 
 import (
 	"bytes"
-	fasthttp2 "infini.sh/framework/lib/fasthttp"
+
+	"infini.sh/framework/lib/fasthttp"
 )
 
 func Fuzz(data []byte) int {
-	c := fasthttp2.AcquireCookie()
-	defer fasthttp2.ReleaseCookie(c)
+	c := fasthttp.AcquireCookie()
+	defer fasthttp.ReleaseCookie(c)
 
 	if err := c.ParseBytes(data); err != nil {
 		return 0
