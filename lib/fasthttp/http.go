@@ -1149,7 +1149,6 @@ func (req *Request) Reset() {
 		req.ReleaseBody(requestBodyPoolSizeLimit)
 	}
 	//req.Header.Reset()//TODO ?
-	req.Header.Add("RESET_AT",time.Now().String())
 	req.resetSkipHeader()
 	req.timeout = 0
 	req.bodyLength = -1
