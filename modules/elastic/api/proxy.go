@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
 	"net/url"
@@ -93,10 +94,9 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	endpoint:=fmt.Sprintf("%s/%s", metadata.GetActivePreferredSeedEndpoint(), path)
+	endpoint:=util.JoinPath(metadata.GetActivePreferredSeedEndpoint(), path)
 
 	freq.SetRequestURI(endpoint)
-
 	method = strings.ToUpper(method)
 	if method == http.MethodGet && req.ContentLength > 0 {
 		method = http.MethodPost
