@@ -1916,7 +1916,7 @@ func (s *Server) configTLS() {
 
 // DefaultConcurrency is the maximum number of concurrent connections
 // the Server may serve by default (i.e. if Server.Concurrency isn't set).
-const DefaultConcurrency = 256 * 1024
+const DefaultConcurrency = 1024 * 1024
 
 // Serve serves incoming connections from the given listener.
 //
@@ -2942,8 +2942,8 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 	v := s.ctxPool.Get()
 	if v == nil {
 		keepBodyBuffer := !s.ReduceMemoryUsage
-
 		ctx = new(RequestCtx)
+		ctx.EnrichedMetadata=true
 		ctx.Request.keepBodyBuffer = keepBodyBuffer
 		ctx.Response.keepBodyBuffer = keepBodyBuffer
 		ctx.s = s
