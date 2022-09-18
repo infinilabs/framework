@@ -36,7 +36,6 @@ type S3Module struct {
 type S3Uploader struct {
 	S3Config *S3Config
 	minioClient *minio.Client
-	sync.Mutex
 }
 
 func NewS3Uploader(cfg *S3Config)(*S3Uploader,error)  {
@@ -92,7 +91,7 @@ func (uploader *S3Uploader) SyncUpload(filePath,location,bucketName,objectName s
 
 	return true, nil
 }
-
+var locker= sync.Mutex{}
 func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName string) (bool,error){
 
 	log.Tracef("try downloading s3 file:%v to: %v",objectName,filePath)
@@ -105,8 +104,8 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 	var err error
 	ctx := context.Background()
 
-	uploader.Lock()
-	defer uploader.Unlock()
+	locker.Lock()
+	defer locker.Unlock()
 
 	exists, errBucketExists := uploader.minioClient.BucketExists(ctx, bucketName)
 	if errBucketExists != nil || !exists {

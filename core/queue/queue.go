@@ -518,6 +518,57 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 	return len(consumers), iPart, iPos
 }
 
+func GetLatestOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {
+	q, ok := GetConfigByUUID(queueID)
+	if !ok {
+		q, ok = GetConfigByKey(queueID)
+		if !ok {
+			panic(errors.Errorf("queue [%v] was not found", queueID))
+		}
+
+		oldID := queueID
+		queueID = q.Id
+
+		if global.Env().IsDebug {
+			log.Tracef("[%v] is not a valid uuid, found as key, continue as [%v]", oldID, queueID)
+		}
+	}
+	consumers, ok := GetConsumerConfigsByQueueID(queueID)
+	if !ok {
+		return 0, 0, 0
+	}
+	var iPart int64
+	var iPos int64
+	var init = true
+	for _, v := range consumers {
+		offset, err := GetOffset(q, v)
+		if err == nil {
+			str := strings.Split(offset, ",")
+			if len(str) == 2 {
+				part, err := util.ToInt64(str[0])
+				if err == nil {
+					pos, err := util.ToInt64(str[1])
+					if err == nil {
+						if init {
+							iPart = part
+							iPos = pos
+							init = false
+						} else {
+							if pos > iPos {
+								iPos = pos
+							}
+							if part > iPart {
+								iPart = part
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return len(consumers), iPart, iPos
+}
+
 func GetOffset(k *QueueConfig, consumer *ConsumerConfig) (string, error) {
 
 	bytes, err := kv.GetValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))

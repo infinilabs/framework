@@ -67,10 +67,6 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 		module.cfg.Compress.IdleThreshold = 3
 	}
 
-	if module.cfg.UploadToS3{
-		module.cfg.Compress.IdleThreshold=-1
-	}
-
 	//start
 	consumers, earliestConsumedSegmentFileNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
 	fileStartToCompress := fileNum - int64(module.cfg.Compress.IdleThreshold)
@@ -93,7 +89,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	//has consumers
 	log.Debug(queueID, " start to compress:", start,"->",end, ",consumers:", consumers, ",segment:", earliestConsumedSegmentFileNum)
 
-	for x := start+1; x < end; x++ {
+	for x := start+1; x <= end; x++ {
 		file := GetFileName(queueID, x)
 		nextFile := GetFileName(queueID, x+1)
 		if util.FileExists(file)&&util.FileExists(nextFile) {
@@ -119,12 +115,20 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 
 			//if compress ahead of compressed, delete original file
 			_, earliestConsumedSegmentFileNum, _ = queue.GetEarlierOffsetByQueueID(queueID)
-			if x-earliestConsumedSegmentFileNum > module.cfg.Compress.IdleThreshold {
+			_, latestConsumedSegmentFileNum, _ := queue.GetLatestOffsetByQueueID(queueID)
+
+			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+
+			if x-earliestConsumedSegmentFileNum<0 || (x-earliestConsumedSegmentFileNum > module.cfg.Compress.IdleThreshold){
 				//start to delete file
-				log.Debug("start to delete original file: ", file)
-				err := os.Remove(file)
-				if err != nil {
-					panic(err)
+
+				//if latest consumer file num
+				if x-latestConsumedSegmentFileNum <0|| (x-latestConsumedSegmentFileNum> module.cfg.Compress.IdleThreshold){
+					log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+					err := os.Remove(file)
+					if err != nil {
+						panic(err)
+					}
 				}
 			}
 		} else {
