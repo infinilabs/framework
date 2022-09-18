@@ -129,7 +129,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	}{
 		RequestHeader: freq.Header.String(),
 		ResponseHeader: fres.Header.String(),
-		ResponseBody: string(fres.Body()),
+		ResponseBody: string(fres.GetRawBody()),
 	}
 
 	w.Header().Set("Content-type", string(fres.Header.ContentType()))
