@@ -3,7 +3,7 @@ package stats
 import (
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"github.com/struCoder/pidusage"
+	"github.com/shirou/gopsutil/process"
 	"infini.sh/framework/core/api"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -239,12 +239,30 @@ func (s *Stats) StatsAll() map[string]interface{} {
 	result := map[string]interface{}{}
 	result["stats"] = *s.Data
 	//update system metrics
-	sysInfo, err := pidusage.GetStat(os.Getpid())
+	checkPid := os.Getpid()
+	p, _ := process.NewProcess(int32(checkPid))
+	mem, err := p.MemoryInfo()
+	if err != nil {
+		log.Error(err)
+		return result
+	}
+	empty := process.MemoryInfoStat{}
+	if mem == nil || *mem == empty {
+		log.Errorf("could not get memory info %v\n", mem)
+		return result
+	}
+
+	cpuPercent, err := p.CPUPercent()
+	if err != nil {
+		log.Error(err)
+		return result
+	}
+
 	if err == nil {
 		result["system"] = map[string]int64{
 			"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
-			"cpu":          int64(sysInfo.CPU),
-			"mem":          int64(sysInfo.Memory),
+			"cpu":          int64(cpuPercent),
+			"mem":          int64(mem.RSS),
 		}
 	}
 
