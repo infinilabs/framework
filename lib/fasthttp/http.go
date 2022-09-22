@@ -1148,7 +1148,7 @@ func (req *Request) Reset() {
 	if requestBodyPoolSizeLimit >= 0 && req.body != nil {
 		req.ReleaseBody(requestBodyPoolSizeLimit)
 	}
-	//req.Header.Reset()//TODO ?
+	req.Header.Reset()//TODO ?
 	req.resetSkipHeader()
 	req.timeout = 0
 	req.bodyLength = -1
