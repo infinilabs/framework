@@ -23,7 +23,6 @@ import (
 	"infini.sh/framework/core/util/match"
 	"io"
 	"github.com/valyala/fasttemplate"
-	log "github.com/cihub/seelog"
 	"sync"
 )
 
@@ -98,7 +97,6 @@ func (this *Context)GetValue(k string) (interface{}, error) {
 
 		k,err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
 			variable,err := this.GetValue(tag)
-			log.Error(variable,err)
 			if err!=nil{
 				return 0,err
 			}

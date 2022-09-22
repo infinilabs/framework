@@ -102,7 +102,6 @@ type Response struct {
 	bodyStream io.Reader
 	w          responseBodyWriter
 	body       *bytebufferpool.ByteBuffer
-	bodyRaw    []byte
 
 	// Response.Read() skips reading body if set to true.
 	// Use it for reading HEAD responses.
@@ -480,7 +479,6 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
 		resp.body = responseBodyPool.Get()
 	}
-	resp.bodyRaw = nil
 	return resp.body
 }
 
@@ -683,8 +681,8 @@ func (resp *Response) SetBodyString(body string) {
 
 // ResetBody resets response body.
 func (resp *Response) ResetBody() {
-	resp.bodyRaw = nil
 	resp.closeBodyStream() //nolint:errcheck
+	resp.bodyBuffer().Reset()
 	if resp.body != nil {
 		if resp.keepBodyBuffer {
 			resp.body.Reset()
@@ -700,7 +698,7 @@ func (resp *Response) ResetBody() {
 // From this point onward the body argument must not be changed.
 func (resp *Response) SetBodyRaw(body []byte) {
 	resp.ResetBody()
-	resp.bodyRaw = body
+	resp.bodyBuffer().Write(body)
 	resp.Header.Del(HeaderContentEncoding)
 	resp.Header.Del(HeaderContentEncoding2)
 }
@@ -723,7 +721,6 @@ func (req *Request) SetBodyRaw(body []byte) {
 // Use this method only if you really understand how it works.
 // The majority of workloads don't need this method.
 func (resp *Response) ReleaseBody(size int) {
-	resp.bodyRaw = nil
 	if resp.body == nil {
 		return
 	}
@@ -768,8 +765,6 @@ func (resp *Response) SwapBody(body []byte) []byte {
 			bb.SetString(err.Error())
 		}
 	}
-
-	resp.bodyRaw = nil
 
 	oldBody := bb.B
 	bb.B = body
@@ -922,12 +917,7 @@ func (req *Request) copyToSkipBody(dst *Request) {
 // CopyTo copies resp contents to dst except of body stream.
 func (resp *Response) CopyTo(dst *Response) {
 	resp.copyToSkipBody(dst)
-	if resp.bodyRaw != nil {
-		dst.bodyRaw = resp.bodyRaw
-		if dst.body != nil {
-			dst.body.Reset()
-		}
-	} else if resp.body != nil {
+	if resp.body != nil {
 		dst.bodyBuffer().Set(resp.body.B)
 	} else if dst.body != nil {
 		dst.body.Reset()
@@ -958,7 +948,6 @@ func swapRequestBody(a, b *Request) {
 
 func swapResponseBody(a, b *Response) {
 	a.body, b.body = b.body, a.body
-	a.bodyRaw, b.bodyRaw = b.bodyRaw, a.bodyRaw
 	a.bodyStream, b.bodyStream = b.bodyStream, a.bodyStream
 }
 
@@ -1803,7 +1792,6 @@ func (resp *Response) brotliBody(level int) error {
 			responseBodyPool.Put(resp.body)
 		}
 		resp.body = w
-		resp.bodyRaw = nil
 	}
 	resp.Header.SetContentEncodingBytes(strBr)
 	return nil
@@ -1858,7 +1846,6 @@ func (resp *Response) gzipBody(level int) error {
 			responseBodyPool.Put(resp.body)
 		}
 		resp.body = w
-		resp.bodyRaw = nil
 	}
 	resp.Header.SetContentEncodingBytes(strGzip)
 	return nil
@@ -1913,7 +1900,6 @@ func (resp *Response) deflateBody(level int) error {
 			responseBodyPool.Put(resp.body)
 		}
 		resp.body = w
-		resp.bodyRaw = nil
 	}
 	resp.Header.SetContentEncodingBytes(strDeflate)
 	return nil
