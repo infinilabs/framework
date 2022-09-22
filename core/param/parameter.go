@@ -645,42 +645,10 @@ func (para *Parameters) MustGetArray(key ParaKey) []interface{} {
 	return s
 }
 
-//func (para *Parameters) GetValue(s string) (interface{}, error){
-//	v:=para.Get(ParaKey(s))
-//	if v!=nil{
-//		return v,nil
-//	}else{
-//		return nil,errors.New("key not found")
-//	}
-//}
-
 func (para *Parameters) Get(key ParaKey) interface{} {
 	v, _ := para.GetValue(string(key))
 	return v
 }
-
-//func (para *Parameters) Get(key ParaKey) interface{} {
-//	para.init()
-//	s := string(key)
-//	para.l.Lock()
-//	d:=para.Data
-//	if strings.Contains(s, ".") {
-//		keys := strings.Split(s, ".")
-//		for _, x := range keys {
-//			y, ok := d[x]
-//			if ok {
-//				s = x
-//				z, ok := y.(map[string]interface{})
-//				if ok {
-//					d = z
-//				}
-//			}
-//		}
-//	}
-//	x:= d[s]
-//	para.l.Unlock()
-//	return x
-//}
 
 func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	para.init()
@@ -775,6 +743,8 @@ func (e *Parameters) setTimestamp(v interface{}) error {
 }
 
 func (e *Parameters) GetValue(key string) (interface{}, error) {
+	e.init()
+
 	if key == timestampFieldKey {
 		return e.Timestamp, nil
 	} else if subKey, ok := metadataKey(key); ok {
@@ -787,6 +757,8 @@ func (e *Parameters) GetValue(key string) (interface{}, error) {
 }
 
 func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {
+	e.init()
+
 	if key == timestampFieldKey {
 		err := e.setTimestamp(v)
 		return nil, err
@@ -810,6 +782,8 @@ func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {
 }
 
 func (e *Parameters) Delete(key string) error {
+	e.init()
+
 	if subKey, ok := metadataKey(key); ok {
 		if subKey == "" {
 			e.Meta = nil
@@ -840,6 +814,7 @@ func metadataKey(key string) (string, bool) {
 
 // SetErrorWithOption sets jsonErr value in the event fields according to addErrKey value.
 func (e *Parameters) SetErrorWithOption(jsonErr util.MapStr, addErrKey bool) {
+	e.init()
 	if addErrKey {
 		e.Data["error"] = jsonErr
 	}

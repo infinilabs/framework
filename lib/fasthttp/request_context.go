@@ -224,19 +224,21 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 							case "body":
 								para.Response.SetBodyString(valueStr)
 							case "body_json":
+
 								keys := keys[3:]
+
 								if len(keys) == 0 {
 									return nil,errors.New("invalid json key:" + s)
 								}
 
-								//TODO
+								body := para.Response.GetRawBody()
 
-								//body := para.Response.GetRawBody()
-								//body, err := jsonparser.Set(body, []byte(valueStr), keys...)
-								//para.Response.SetRawBody(body)
-								//if err != nil {
-								//	return nil,err
-								//}
+								body, err := jsonparser.Set(body, []byte(valueStr), keys...)
+
+								para.Response.SetBodyRaw(body)
+								if err != nil {
+									return nil,err
+								}
 							}
 						}
 					}
@@ -418,6 +420,7 @@ func (ctx *RequestCtx) Reset() {
 	//reset flags and metadata
 	if ctx.Data == nil || len(ctx.Data) > 0 {
 		ctx.ResetParameters()
+		ctx.Parameters.ResetParameters()
 	}
 	ctx.finished = false
 	ctx.flowProcess = []string{}
