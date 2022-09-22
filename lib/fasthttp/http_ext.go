@@ -236,11 +236,6 @@ func (h *RequestHeader) PeekAnyKey(keys []string) (key string, value []byte) {
 	return "", nil
 }
 
-func (resp *Response) SetRawBody(body []byte) {
-	resp.ResetBody()
-	resp.bodyRaw = body
-}
-
 type ClientAPI interface {
 	Do(req *Request, resp *Response) error
 	DoTimeout(req *Request, resp *Response, timeout time.Duration) error
