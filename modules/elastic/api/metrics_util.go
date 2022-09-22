@@ -48,6 +48,41 @@ type TreeMapNode struct {
 
 type MetricData map[string][][]interface{}
 
+func generateGroupAggs(nodeMetricItems []GroupMetricItem) map[string]interface{} {
+	aggs := map[string]interface{}{}
+
+	for _, metricItem := range nodeMetricItems {
+		aggs[metricItem.ID] = util.MapStr{
+			"max": util.MapStr{
+				"field": metricItem.Field,
+			},
+		}
+		if metricItem.Field2 != "" {
+			aggs[metricItem.ID+"_field2"] = util.MapStr{
+				"max": util.MapStr{
+					"field": metricItem.Field2,
+				},
+			}
+		}
+
+		if metricItem.IsDerivative {
+			aggs[metricItem.ID+"_deriv"] = util.MapStr{
+				"derivative": util.MapStr{
+					"buckets_path": metricItem.ID,
+				},
+			}
+			if metricItem.Field2 != "" {
+				aggs[metricItem.ID+"_deriv_field2"] = util.MapStr{
+					"derivative": util.MapStr{
+						"buckets_path": metricItem.ID + "_field2",
+					},
+				}
+			}
+		}
+	}
+	return aggs
+}
+
 func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem {
 	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
 	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))

@@ -18,4 +18,6 @@ type ClientAPI interface {
 	SetNodesMetricTask(ctx context.Context, agentBaseURL string, body interface{}) error
 	DiscoveredHost(ctx context.Context, agentBaseURL string, body interface{}) error
 	GetElasticProcess(ctx context.Context, agentBaseURL string, agentID string)(interface{}, error)
+	GetElasticLogFiles(ctx context.Context, agentBaseURL string, agentID string, nodeID string)(interface{}, error)
+	GetElasticLogFileContent(ctx context.Context, agentBaseURL string, agentID string, body interface{})(interface{}, error)
 }

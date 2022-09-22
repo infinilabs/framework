@@ -431,3 +431,135 @@ func (m MapStr) Equals(dst MapStr) bool {
 	}
 	return true
 }
+
+// AddTagsWithKey appends a tag to the key field of ms. If the field does not
+// exist then it will be created. If the field exists and is not a []string
+// then an error will be returned. It does not deduplicate the list.
+func AddTagsWithKey(ms MapStr, key string, tags []string) error {
+	if ms == nil || len(tags) == 0 {
+		return nil
+	}
+
+	k, subMap, oldTags, present, err := mapFind(key, ms, true)
+	if err != nil {
+		return err
+	}
+
+	if !present {
+		subMap[k] = tags
+		return nil
+	}
+
+	switch arr := oldTags.(type) {
+	case []string:
+		subMap[k] = append(arr, tags...)
+	case []interface{}:
+		for _, tag := range tags {
+			arr = append(arr, tag)
+		}
+		subMap[k] = arr
+	default:
+		return fmt.Errorf("expected string array by type is %T", oldTags)
+
+	}
+	return nil
+}
+
+// mapFind iterates a M based on a the given dotted key, finding the final
+// subMap and subKey to operate on.
+// An error is returned if some intermediate is no map or the key doesn't exist.
+// If createMissing is set to true, intermediate maps are created.
+// The final map and un-dotted key to run further operations on are returned in
+// subKey and subMap. The subMap already contains a value for subKey, the
+// present flag is set to true and the oldValue return will hold
+// the original value.
+func mapFind(
+	key string,
+	data MapStr,
+	createMissing bool,
+) (subKey string, subMap MapStr, oldValue interface{}, present bool, err error) {
+	// XXX `safemapstr.mapFind` mimics this implementation, both should be updated to have similar behavior
+
+	for {
+		// Fast path, key is present as is.
+		if v, exists := data[key]; exists {
+			return key, data, v, true, nil
+		}
+
+		idx := strings.IndexRune(key, '.')
+		if idx < 0 {
+			return key, data, nil, false, nil
+		}
+
+		k := key[:idx]
+		d, exists := data[k]
+		if !exists {
+			if createMissing {
+				d = MapStr{}
+				data[k] = d
+			} else {
+				return "", nil, nil, false, ErrKeyNotFound
+			}
+		}
+
+		v, err := toMapStr(d)
+		if err != nil {
+			return "", nil, nil, false, err
+		}
+
+		// advance to sub-map
+		key = key[idx+1:]
+		data = v
+	}
+}
+
+// DeepUpdate recursively copies the key-value pairs from d to this map.
+// If the key is present and a map as well, the sub-map will be updated recursively
+// via DeepUpdate.
+// DeepUpdateNoOverwrite is a version of this function that does not
+// overwrite existing values.
+func (m MapStr) DeepUpdate(d MapStr) {
+	m.deepUpdateMap(d, true)
+}
+
+func (m MapStr) deepUpdateMap(d MapStr, overwrite bool) {
+	for k, v := range d {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			m[k] = deepUpdateValue(m[k], MapStr(val), overwrite)
+		case MapStr:
+			m[k] = deepUpdateValue(m[k], val, overwrite)
+		default:
+			if overwrite {
+				m[k] = v
+			} else if _, exists := m[k]; !exists {
+				m[k] = v
+			}
+		}
+	}
+}
+
+func deepUpdateValue(old interface{}, val MapStr, overwrite bool) interface{} {
+	switch sub := old.(type) {
+	case MapStr:
+		if sub == nil {
+			return val
+		}
+
+		sub.deepUpdateMap(val, overwrite)
+		return sub
+	case map[string]interface{}:
+		if sub == nil {
+			return val
+		}
+
+		tmp := MapStr(sub)
+		tmp.deepUpdateMap(val, overwrite)
+		return tmp
+	default:
+		// We reach the default branch if old is no map or if old == nil.
+		// In either case we return `val`, such that the old value is completely
+		// replaced when merging.
+		return val
+	}
+}

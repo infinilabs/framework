@@ -169,6 +169,48 @@ func (client *Client) GetElasticProcess(ctx context.Context, agentBaseURL string
 	return resBody["elastic_process"], nil
 }
 
+func (client *Client) GetElasticLogFiles(ctx context.Context, agentBaseURL string, agentID string, nodeID string)(interface{}, error) {
+	req := &util.Request{
+		Method:  http.MethodGet,
+		Url:     fmt.Sprintf("%s/agent/%s/logs/list/%s", agentBaseURL, agentID, nodeID),
+		Context: ctx,
+	}
+	resBody := map[string]interface{}{}
+	err := client.doRequest(req, &resBody)
+	if err != nil {
+		return nil, err
+	}
+	if resBody["success"] != true {
+		return nil, fmt.Errorf("get elasticsearch log files error: %v", resBody["error"])
+	}
+	return resBody["result"], nil
+}
+
+func (client *Client) GetElasticLogFileContent(ctx context.Context, agentBaseURL string, agentID string, body interface{})(interface{}, error) {
+	req := &util.Request{
+		Method:  http.MethodPost,
+		Url:     fmt.Sprintf("%s/agent/%s/logs/_read", agentBaseURL, agentID),
+		Context: ctx,
+		Body: util.MustToJSONBytes(body),
+	}
+	resBody := map[string]interface{}{}
+	err := client.doRequest(req, &resBody)
+	if err != nil {
+		return nil, err
+	}
+	if resBody["success"] != true {
+		return nil, fmt.Errorf("get elasticsearch log files error: %v", resBody["error"])
+	}
+	var hasMore bool
+	if v, ok := resBody["EOF"].(bool); ok && !v {
+		hasMore = true
+	}
+	return map[string]interface{}{
+		"lines": resBody["result"],
+		"has_more": hasMore,
+	} , nil
+}
+
 func (client *Client) doRequest(req *util.Request, respObj interface{}) error {
 	result, err := util.ExecuteRequest(req)
 	if err != nil {

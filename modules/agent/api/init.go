@@ -21,4 +21,7 @@ func Init() {
 	api.HandleAPIMethod(api.POST, "/agent/instance/_stats", handler.RequirePermission(handler.getInstanceStats, enum.PermissionAgentInstanceRead))
 	api.HandleAPIMethod(api.POST, "/agent/instance/_enroll", handler.RequirePermission(handler.enrollInstance, enum.PermissionAgentInstanceWrite))
 
+	api.HandleAPIMethod(api.GET, "/agent/log/node/:node_id/files", handler.getLogFilesByNode)
+	api.HandleAPIMethod(api.POST, "/agent/log/node/:node_id/_scroll", handler.getLogFileContent)
+
 }
