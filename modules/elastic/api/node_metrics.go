@@ -868,41 +868,10 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "times/s",
 	})
 
+	aggs := generateGroupAggs(nodeMetricItems)
 
-	aggs:=map[string]interface{}{}
-
-	for _,metricItem:=range nodeMetricItems{
-		aggs[metricItem.ID]=util.MapStr{
-			"max":util.MapStr{
-				"field": metricItem.Field,
-			},
-		}
-		if metricItem.Field2 != "" {
-			aggs[metricItem.ID + "_field2"]=util.MapStr{
-				"max":util.MapStr{
-					"field": metricItem.Field2,
-				},
-			}
-		}
-
-		if metricItem.IsDerivative{
-			aggs[metricItem.ID+"_deriv"]=util.MapStr{
-				"derivative":util.MapStr{
-					"buckets_path": metricItem.ID,
-				},
-			}
-			if metricItem.Field2 != "" {
-				aggs[metricItem.ID + "_deriv_field2"]=util.MapStr{
-					"derivative":util.MapStr{
-						"buckets_path": metricItem.ID + "_field2",
-					},
-				}
-			}
-		}
-	}
-
-	query["size"]=0
-	query["aggs"]= util.MapStr{
+	query["size"] = 0
+	query["aggs"] = util.MapStr{
 		"group_by_level": util.MapStr{
 			"terms": util.MapStr{
 				"field": "metadata.labels.transport_address",
@@ -910,11 +879,11 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 			},
 			"aggs": util.MapStr{
 				"dates": util.MapStr{
-					"date_histogram":util.MapStr{
-						"field": "timestamp",
+					"date_histogram": util.MapStr{
+						"field":          "timestamp",
 						"fixed_interval": bucketSizeStr,
 					},
-					"aggs":aggs,
+					"aggs": aggs,
 				},
 			},
 		},
@@ -922,7 +891,6 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	return h.getMetrics(query, nodeMetricItems, bucketSize)
 
 }
-
 
 func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) ([]string, error){
 	var (

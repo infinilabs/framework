@@ -123,6 +123,7 @@ type NodeMetricTaskState struct {
 type ESNode struct {
 	UUID string `json:"uuid" elastic_mapping:"uuid: { type: keyword,copy_to:search_text }"`
 	Name string `json:"name" elastic_mapping:"name: { type: keyword,copy_to:search_text }"`
+	Status string `json:"status" elastic_mapping:"status: { type: keyword,copy_to:search_text }"`
 }
 
 type BasicAuth struct {

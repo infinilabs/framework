@@ -722,13 +722,13 @@ func getMatchedClusters(host string, clusters []agent.ESCluster) (map[string]int
 			"query": util.MapStr{
 				"bool": util.MapStr{
 					"should": []util.MapStr{
-						{
-							"term": util.MapStr{
-								"cluster_uuid": util.MapStr{
-									"value": cluster.ClusterUUID,
-								},
-							},
-						},
+						//{
+						//	"term": util.MapStr{
+						//		"cluster_uuid": util.MapStr{
+						//			"value": cluster.ClusterUUID,
+						//		},
+						//	},
+						//},
 						{
 							"bool": util.MapStr{
 								"minimum_should_match": 1,

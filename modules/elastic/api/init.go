@@ -101,4 +101,5 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/host/:host_id",clusterAPI.GetHostInfo)
 	api.HandleAPIMethod(api.GET, "/host/:host_id/processes",clusterAPI.GetHostElasticProcess)
 	api.HandleAPIMethod(api.PUT, "/host/:host_id",clusterAPI.updateHost)
+	api.HandleAPIMethod(api.GET, "/host/:host_id/info",clusterAPI.GetHostOverviewInfo)
 }
