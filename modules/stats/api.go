@@ -26,6 +26,7 @@ import (
 	"infini.sh/framework/lib/bytebufferpool"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
@@ -35,7 +36,7 @@ func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
 
 var space = []byte(" ")
 var newline = []byte("\n")
-
+var statsLock=sync.RWMutex{}
 // StatsAction return stats information
 func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
@@ -66,6 +67,8 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 		break
 	default:
 
+		statsLock.Lock()
+		defer statsLock.Unlock()
 		bytes, err = json.MarshalIndent(metrics, "", " ")
 		if err != nil {
 			handler.Error(w, err)
