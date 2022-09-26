@@ -764,3 +764,12 @@ func (this ByteValue) String() string {
 
 	return srt
 }
+var NEWLINE =byte('\n')
+var SPACE=byte(' ')
+func WalkBytesAndReplace(data []byte,find,replace byte)  {
+	for i,v:=range data{
+		if v==find{
+			data[i]=replace
+		}
+	}
+}

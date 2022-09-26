@@ -644,3 +644,11 @@ func BenchmarkJsonParser(b *testing.B) {
 		assert.Equal(b,true,ok)
 	}
 }
+
+func BenchmarkWalkBytesAndReplace(b *testing.B) {
+	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\n\"medcl4new1245123-6\",\n\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\n\"status\":429,\n\"error\":{")
+	fmt.Println(string(data))
+	WalkBytesAndReplace(data,NEWLINE,SPACE)
+	fmt.Println(string(data))
+
+}
