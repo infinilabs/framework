@@ -28,6 +28,7 @@ type Metadata struct {
 }
 
 type Log struct {
+	ID string `json:"id"  elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	TaskId string `json:"task_id"  elastic_mapping:"task_id: { type: keyword }"`
 	Status string `json:"status"  elastic_mapping:"status: { type: keyword }"`
 	Type   string `json:"type"  elastic_mapping:"type: { type: keyword }"`
@@ -37,7 +38,7 @@ type Log struct {
 }
 
 type LogAction struct {
-	Result LogResult `json:"result"  elastic_mapping:"result:{type: object}"`
+	Result *LogResult `json:"result,omitempty"  elastic_mapping:"result:{type: object}"`
 	Parameters map[string]interface{} `json:"parameters" elastic_mapping:"parameters:{type: object,enabled:false }"`
 }
 
