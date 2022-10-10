@@ -124,6 +124,7 @@ type SystemConfig struct {
 	CookieSecret string `config:"cookie_secret"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
+	SkipInstanceDetect bool `config:"skip_instance_detect"`
 
 	MaxNumOfInstance int `config:"max_num_of_instances"`
 

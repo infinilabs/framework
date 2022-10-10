@@ -60,8 +60,14 @@ func CheckInstanceLock(p string) {
 				log.Debugf("pid lock [%v] exists, but it's you, let's continue", pid)
 				return
 			}
+		}else{
+			if len(pidBytes)==0{
+				ClearInstanceLock()
+				log.Debugf("missing pid in file [%v], remove the lock file and continue",file)
+				return
+			}
 		}
-		log.Errorf("lock file:%s exists, seems one instance is already running, please remove it or set `allow_multi_instance` to `true`", file)
+		log.Errorf("lock file:%s exists, seems instance [%v] is already running, please remove it or set `allow_multi_instance` to `true`",string(pidBytes), file)
 		log.Flush()
 		os.Exit(1)
 	}

@@ -29,24 +29,24 @@ import (
 )
 
 type App struct {
-	environment  *env.Env
-	numCPU       int
-	quitSignal   chan bool
+	environment    *env.Env
+	numCPU         int
+	quitSignal     chan bool
 	disableVerbose bool
-	isDaemonMode bool
-	isDebug      bool
-	pidFile      string
-	configFile   string
-	logLevel     string
+	isDaemonMode   bool
+	isDebug        bool
+	pidFile        string
+	configFile     string
+	logLevel       string
 
 	setup func()
 	start func()
 	stop  func()
 
 	//for service
-	svc     service.Service
-	exit    chan os.Signal
-	svcFlag string
+	svc               service.Service
+	exit              chan os.Signal
+	svcFlag           string
 }
 
 func NewApp(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
@@ -214,8 +214,10 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 
 func (app *App) Shutdown() {
 	//cleanup
-	util.ClearInstanceLock()
-		
+	if !app.environment.SystemConfig.SkipInstanceDetect {
+		util.ClearInstanceLock()
+	}
+
 	callbacks := global.ShutdownCallback()
 	if callbacks != nil && len(callbacks) > 0 {
 		for i, v := range callbacks {
@@ -265,8 +267,10 @@ func (app *App) Shutdown() {
 //for service
 func (p *App) Start(s service.Service) error {
 
-	//check instance lock
-	util.CheckInstanceLock(p.environment.GetDataDir())
+	if !p.environment.SystemConfig.SkipInstanceDetect{
+		//check instance lock
+		util.CheckInstanceLock(p.environment.GetDataDir())
+	}
 
 	p.quitSignal = make(chan bool)
 	go p.run()
