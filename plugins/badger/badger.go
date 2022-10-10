@@ -17,8 +17,6 @@ type BadgerFilter struct {
 	Path string  `config:"path"`
 }
 
-var v = []byte("true")
-
 var record sync.RWMutex
 
 var l sync.RWMutex
