@@ -20,7 +20,6 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/modules/api"
 	"infini.sh/framework/modules/elastic"
-	"infini.sh/framework/modules/filter"
 	"infini.sh/framework/modules/pipeline"
 	queue2 "infini.sh/framework/modules/queue/disk_queue"
 	kafka_queue "infini.sh/framework/modules/queue/kafka_queue"
@@ -36,7 +35,6 @@ func Register() {
 	module.RegisterSystemModule(&stats.SimpleStatsModule{})
 	//module.RegisterSystemModule(nsq.NSQModule{})
 	module.RegisterSystemModule(&elastic.ElasticModule{})
-	module.RegisterSystemModule(&filter.FilterModule{})
 	module.RegisterSystemModule(&queue2.DiskQueue{})
 	module.RegisterSystemModule(&mem_queue.MemoryQueue{})
 	module.RegisterSystemModule(&kafka_queue.KafkaQueue{})
