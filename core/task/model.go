@@ -12,7 +12,7 @@ type Task struct {
 	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
-	ParentId          []string `json:"parent_id" elastic_mapping:"parent_id: { type: keyword }"`
+	ParentId          []string `json:"parent_id,omitempty" elastic_mapping:"parent_id: { type: keyword }"`
 	StartTimeInMillis int64  `json:"start_time_in_millis" elastic_mapping:"start_time_in_millis: { type: long }"`
 	Cancellable       bool   `json:"cancellable" elastic_mapping:"cancellable: { type: boolean }"`
 	Runnable          bool   `json:"runnable" elastic_mapping:"runnable: { type: boolean }"`
@@ -20,6 +20,7 @@ type Task struct {
 	Status string `json:"status"  elastic_mapping:"status: { type: keyword }"`
 	Description string `json:"description,omitempty" elastic_mapping:"description: { type: text }"`
 	Parameters map[string]interface{} `json:"parameters" elastic_mapping:"parameters:{type: object,enabled:false }"`
+	CompleteTime *time.Time `json:"complete_time,omitempty" elastic_mapping:"complete_time: { type: date }"`
 }
 
 type Metadata struct {
