@@ -1,3 +1,7 @@
+/* Copyright © INFINI LTD. All rights reserved.
+ * Web: https://infinilabs.com
+ * Email: hello#infini.ltd */
+
 package nutsdb
 
 import (
@@ -7,7 +11,7 @@ import (
 	"sync"
 )
 
-type NutsdbKVFilter struct {
+type NutsdbFilter struct {
 	Options nutsdb.Options
 }
 
@@ -15,7 +19,7 @@ var v = []byte("true")
 var l sync.RWMutex
 var handler *nutsdb.DB
 
-func (filter *NutsdbKVFilter) Open() error {
+func (filter *NutsdbFilter) Open() error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -28,14 +32,14 @@ func (filter *NutsdbKVFilter) Open() error {
 	return nil
 }
 
-func (filter *NutsdbKVFilter) Close() error {
+func (filter *NutsdbFilter) Close() error {
 	if handler!=nil{
 		handler.Close()
 	}
 	return nil
 }
 
-func (filter *NutsdbKVFilter) Exists(bucket string, key []byte) bool {
+func (filter *NutsdbFilter) Exists(bucket string, key []byte) bool {
 
 	var entry *nutsdb.Entry
 	if err := handler.View(
@@ -55,7 +59,7 @@ func (filter *NutsdbKVFilter) Exists(bucket string, key []byte) bool {
 		return false
 }
 
-func (filter *NutsdbKVFilter) Add(bucket string, key []byte) error {
+func (filter *NutsdbFilter) Add(bucket string, key []byte) error {
 	err := handler.Update(
 		func(tx *nutsdb.Tx) error {
 			val := []byte("0")
@@ -68,7 +72,7 @@ func (filter *NutsdbKVFilter) Add(bucket string, key []byte) error {
 	return err
 }
 
-func (filter *NutsdbKVFilter) Delete(bucket string, key []byte) error {
+func (filter *NutsdbFilter) Delete(bucket string, key []byte) error {
 	return handler.Update(
 		func(tx *nutsdb.Tx) error {
 			if err := tx.Delete(bucket, key); err != nil {
@@ -78,7 +82,7 @@ func (filter *NutsdbKVFilter) Delete(bucket string, key []byte) error {
 		})
 }
 
-func (filter *NutsdbKVFilter) CheckThenAdd(bucket string, key []byte) (b bool, err error) {
+func (filter *NutsdbFilter) CheckThenAdd(bucket string, key []byte) (b bool, err error) {
 	l.Lock()
 	defer l.Unlock()
 	b = filter.Exists(bucket, key)
@@ -91,7 +95,7 @@ func (filter *NutsdbKVFilter) CheckThenAdd(bucket string, key []byte) (b bool, e
 
 
 //for kv implementation
-func (f *NutsdbKVFilter) GetValue(bucket string, key []byte) ([]byte, error) {
+func (f *NutsdbFilter) GetValue(bucket string, key []byte) ([]byte, error) {
 	var entry *nutsdb.Entry
 	if err := handler.View(
 		func(tx *nutsdb.Tx) error {
@@ -110,7 +114,7 @@ func (f *NutsdbKVFilter) GetValue(bucket string, key []byte) ([]byte, error) {
 	return nil,nil
 }
 
-func (f *NutsdbKVFilter) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
+func (f *NutsdbFilter) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
 	d,err:=f.GetValue(bucket,key)
 	if err!=nil{
 		return d, err
@@ -123,7 +127,7 @@ func (f *NutsdbKVFilter) GetCompressedValue(bucket string, key []byte) ([]byte, 
 	return data,err
 }
 
-func (f *NutsdbKVFilter) AddValueCompress(bucket string, key []byte, value []byte) error {
+func (f *NutsdbFilter) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -132,7 +136,7 @@ func (f *NutsdbKVFilter) AddValueCompress(bucket string, key []byte, value []byt
 	return f.AddValue(bucket, key, value)
 }
 
-func (f *NutsdbKVFilter) AddValue(bucket string, key []byte, value []byte) error {
+func (f *NutsdbFilter) AddValue(bucket string, key []byte, value []byte) error {
 	err := handler.Update(
 		func(tx *nutsdb.Tx) error {
 			if err := tx.Put(bucket, key, value, 0); err != nil {
@@ -144,16 +148,16 @@ func (f *NutsdbKVFilter) AddValue(bucket string, key []byte, value []byte) error
 	return err
 }
 
-func (f *NutsdbKVFilter) ExistsKey(bucket string, key []byte) (bool, error) {
+func (f *NutsdbFilter) ExistsKey(bucket string, key []byte) (bool, error) {
 	ok:= f.Exists(bucket,key)
 	return ok,nil
 }
 
-func (f *NutsdbKVFilter) DeleteKey(bucket string, key []byte) error {
+func (f *NutsdbFilter) DeleteKey(bucket string, key []byte) error {
 	return f.Delete(bucket,key)
 }
 
-func (f *NutsdbKVFilter) IterateBucketKeys(bucket string, rangeFunc func (key, value []byte) error) error {
+func (f *NutsdbFilter) IterateBucketKeys(bucket string, rangeFunc func (key, value []byte) error) error {
 	err := handler.View(
 		func(tx *nutsdb.Tx) error {
 			entries, err := tx.GetAll(bucket)
@@ -172,6 +176,6 @@ func (f *NutsdbKVFilter) IterateBucketKeys(bucket string, rangeFunc func (key, v
 	return err
 }
 
-func (f *NutsdbKVFilter) Merge() error {
+func (f *NutsdbFilter) Merge() error {
 	return handler.Merge()
 }

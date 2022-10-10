@@ -1,5 +1,10 @@
+// GENERATED CODE BY PLUGIN DISCOVERY- DO NOT EDIT.
+
 package plugins
 
-import _ "infini.sh/framework/plugins/elastic/json_indexing"
-import _ "infini.sh/framework/plugins/elastic/bulk_indexing"
-import _ "infini.sh/framework/plugins/elastic/indexing_merge"
+import (
+	_ "infini.sh/framework/plugins/badger"
+	_ "infini.sh/framework/plugins/elastic/bulk_indexing"
+	_ "infini.sh/framework/plugins/elastic/indexing_merge"
+	_ "infini.sh/framework/plugins/elastic/json_indexing"
+)

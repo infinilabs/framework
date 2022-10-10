@@ -454,7 +454,7 @@ func (ns *Namespace) IsSet() bool {
 
 
 
-var flagStrictPerms = flag.Bool("strict.perms", true, "Strict permission checking on config files")
+var flagStrictPerms = flag.Bool("strict.perms", true, "strict permission checking on config files")
 
 // IsStrictPerms returns true if strict permission checking on config files is
 // enabled.

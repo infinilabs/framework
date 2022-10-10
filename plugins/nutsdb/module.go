@@ -1,4 +1,8 @@
-package filter
+/* Copyright © INFINI LTD. All rights reserved.
+ * Web: https://infinilabs.com
+ * Email: hello#infini.ltd */
+
+package nutsdb
 
 import (
 	log "github.com/cihub/seelog"
@@ -7,32 +11,30 @@ import (
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
-	"infini.sh/framework/modules/filter/nutsdb"
 	nuts	"github.com/xujiajun/nutsdb"
 	"time"
 
 	"path"
 )
 
-type FilterModule struct {
+type Module struct {
 	Sync bool  `config:"sync"`
 	RWMode string  `config:"rw_mode"`
 	StartFileLoadingMode string  `config:"start_file_loading_mode"`
 	SegmentSize int64  `config:"segment_size"`
 
-	handler *nutsdb.NutsdbKVFilter
+	handler *NutsdbFilter
 }
 
-func (module *FilterModule) Name() string {
-	return "Filter"
+func (module *Module) Name() string {
+	return "Nutsdb"
 }
 
-
-func (module *FilterModule) Setup(cfg *Config) {
+func (module *Module) Setup(cfg *Config) {
 	module.RWMode="file_io"
 	module.StartFileLoadingMode="file_io"
 	module.SegmentSize=8 * 1024 * 1024
-	ok,err:=env.ParseConfig("filter", module)
+	ok,err:=env.ParseConfig("nutsdb", module)
 	if ok&&err!=nil{
 		panic(err)
 	}
@@ -62,27 +64,27 @@ func (module *FilterModule) Setup(cfg *Config) {
 		opt.SegmentSize=module.SegmentSize
 	}
 
-	opt.Dir = path.Join(global.Env().GetDataDir(),"kvdb")
+	opt.Dir = path.Join(global.Env().GetDataDir(),"nutsdb")
 
-	module.handler= &nutsdb.NutsdbKVFilter{
+	module.handler= &NutsdbFilter{
 		Options: opt,
 	}
-	filter.Register("kv", module.handler)
-	kv.Register("kv", module.handler)
+	filter.Register("nutsdb", module.handler)
+	kv.Register("nutsdb", module.handler)
 
 }
 
-func (module *FilterModule) Start() error {
+func (module *Module) Start() error {
 	if module.handler != nil {
 		t := time.Now()
 		module.handler.Open()
-		log.Tracef("open kv db elapsed: %s", time.Since(t))
+		log.Tracef("open nutsdb elapsed: %s", time.Since(t))
 		Init(module.handler)
 	}
 	return nil
 }
 
-func (module *FilterModule) Stop() error {
+func (module *Module) Stop() error {
 	if module.handler != nil {
 		err := module.handler.Close()
 		if err != nil {

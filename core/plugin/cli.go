@@ -50,7 +50,7 @@ var plugins = &pluginList{
 }
 
 func init() {
-	flag.Var(plugins, "plugin", "Load additional plugins")
+	flag.Var(plugins, "plugin", "load additional plugins")
 }
 
 func Initialize() error {
