@@ -111,7 +111,7 @@ func (p *ClusterMigrationProcessor) Process(ctx *pipeline.Context) error {
 			taskLog := &task2.Log{
 				ID: util.GetUUID(),
 				TaskId: t.ID,
-				Status: "complete",
+				Status: "running",
 				Type: t.Metadata.Type,
 				Action: task2.LogAction{
 					Parameters: t.Parameters,
@@ -119,12 +119,12 @@ func (p *ClusterMigrationProcessor) Process(ctx *pipeline.Context) error {
 						Success: true,
 					},
 				},
-				Content: fmt.Sprintf("success to execute task [%s]", t.ID),
+				Content: fmt.Sprintf("success to split task [%s]", t.ID),
 				Timestamp: time.Now().UTC(),
 			}
 			if err != nil {
 				taskLog.Status = "error"
-				taskLog.Content = fmt.Sprintf("failed to execute task [%s]: %v", t.ID, err)
+				taskLog.Content = fmt.Sprintf("failed to split task [%s]: %v", t.ID, err)
 				taskLog.Action.Result = &task2.LogResult{
 					Success: false,
 					Error: err.Error(),
@@ -156,18 +156,21 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 		return err
 	}
 	buf := util.MustToJSONBytes(migrationConfig)
-	clusterMigrationTask := migration.Cluster{}
+	clusterMigrationTask := migration.ElasticDataConfig{}
 	err = util.FromJSONBytes(buf, &clusterMigrationTask)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		parameters.Put("pipeline.config", clusterMigrationTask)
+	}()
 	esSourceClient := elastic.GetClient(clusterMigrationTask.Cluster.Source.Id)
 	esClient := elastic.GetClient(p.config.Elasticsearch)
 
-	for _, index := range clusterMigrationTask.MigrateIndices {
+	for i, index := range clusterMigrationTask.Indices {
 		source := util.MapStr{
 			"cluster_id": clusterMigrationTask.Cluster.Source.Id,
-			"indices": index.SourceIndex.Name,
+			"indices": index.Source.Name,
 			"slice_size": 10,
 			"batch_size": clusterMigrationTask.Settings.ScrollSize.Documents,
 			"scroll_time": clusterMigrationTask.Settings.ScrollSize.Timeout,
@@ -180,9 +183,9 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 		if index.IndexRename != nil {
 			source["index_rename"] = index.IndexRename
 		}
-		if index.TargetIndex.Name != "" {
+		if index.Target.Name != "" {
 			source["index_rename"] = util.MapStr{
-				index.SourceIndex.Name: index.TargetIndex.Name,
+				index.Source.Name: index.Target.Name,
 			}
 		}
 		if index.TypeRename != nil {
@@ -211,8 +214,8 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			ParentId: []string{taskItem.ID},
 			Created: time.Now().UTC(),
 			Updated: time.Now().UTC(),
-			Cancellable: false,
-			Runnable: true,
+			Cancellable: true,
+			Runnable: false,
 			Status: "init",
 			Metadata: task2.Metadata{
 				Type: "pipeline",
@@ -220,13 +223,16 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					"pipeline_id": "index_migration",
 					"source_cluster_id": clusterMigrationTask.Cluster.Source.Id,
 					"target_cluster_id":  clusterMigrationTask.Cluster.Target.Id,
+					"level": "index",
+					"partition_count": 1,
 				},
 			},
 			Parameters: indexParameters,
 		}
+		clusterMigrationTask.Indices[i].ID = indexMigrationTask.ID
 		if index.Partition != nil {
 			partitionQ := &elastic.PartitionQuery{
-				IndexName: index.SourceIndex.Name,
+				IndexName: index.Source.Name,
 				FieldName: index.Partition.FieldName,
 				FieldType: index.Partition.FieldType,
 				Step: index.Partition.Step,
@@ -239,17 +245,21 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			if partitions == nil || len(partitions) == 0{
 				return fmt.Errorf("empty data with filter: %s", util.MustToJSON(index.RawFilter))
 			}
+			var (
+				partitionID int
+			)
 			for _, partition := range partitions {
 				//skip empty partition
 				if partition.Docs <= 0 {
 					continue
 				}
-
+				partitionID++
 				partitionSource := util.MapStr{
 					"start": partition.Start,
 					"end": partition.End,
 					"doc_count": partition.Docs,
-
+					"step": index.Partition.Step,
+					"partition_id": partitionID,
 				}
 				for k, v := range source{
 					if k == "query_string"{
@@ -267,7 +277,16 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					Cancellable: false,
 					Runnable: true,
 					Status: "init",
-					Metadata: indexMigrationTask.Metadata,
+					Metadata:  task2.Metadata{
+						Type: "pipeline",
+						Labels: util.MapStr{
+							"pipeline_id": "index_migration",
+							"source_cluster_id": clusterMigrationTask.Cluster.Source.Id,
+							"target_cluster_id":  clusterMigrationTask.Cluster.Target.Id,
+							"level": "partition",
+							"index_name": index.Source.Name,
+						},
+					},
 					Parameters: map[string]interface{}{
 						"pipeline": util.MapStr{
 							"id": "index_migration",
@@ -284,8 +303,32 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				}
 
 			}
-			indexMigrationTask.Cancellable = true
-			indexMigrationTask.Runnable = false
+			indexMigrationTask.Metadata.Labels["partition_count"] = partitionID
+		}else{
+			partitionMigrationTask := task2.Task{
+				ID: util.GetUUID(),
+				ParentId: []string{taskItem.ID, indexMigrationTask.ID},
+				Created: time.Now().UTC(),
+				Updated: time.Now().UTC(),
+				Cancellable: false,
+				Runnable: true,
+				Status: "init",
+				Metadata:  task2.Metadata{
+					Type: "pipeline",
+					Labels: util.MapStr{
+						"pipeline_id": "index_migration",
+						"source_cluster_id": clusterMigrationTask.Cluster.Source.Id,
+						"target_cluster_id":  clusterMigrationTask.Cluster.Target.Id,
+						"level": "partition",
+						"index_name": index.Source.Name,
+					},
+				},
+				Parameters: indexParameters,
+			}
+			_, err = esClient.Index(p.config.IndexName, "", partitionMigrationTask.ID, partitionMigrationTask, "")
+			if err != nil {
+				return fmt.Errorf("store index migration task(partition) error: %w", err)
+			}
 		}
 		_, err = esClient.Index(p.config.IndexName, "", indexMigrationTask.ID, indexMigrationTask, "")
 		if err != nil {
@@ -310,7 +353,7 @@ func (p *ClusterMigrationProcessor) getClusterMigrationTasks(size int)([]task2.T
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"status": "init",
+							"status": "ready",
 						},
 					},
 					{

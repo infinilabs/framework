@@ -19,10 +19,10 @@ type PartitionQuery struct {
 }
 
 type PartitionInfo struct {
-	Start float64
-	End float64
-	Filter map[string]interface{}
-	Docs int64
+	Start float64 `json:"start"`
+	End float64 `json:"end"`
+	Filter map[string]interface{} `json:"filter"`
+	Docs int64 `json:"docs"`
 }
 
 const (
@@ -36,9 +36,12 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 		vFilter map[string]interface{}
 		ok bool
 	)
-	if vFilter, ok = q.Filter.(map[string]interface{}); !ok {
-		return nil, fmt.Errorf("got wrong type of filter: %v", q.Filter)
+	if q.Filter != nil {
+		if vFilter, ok = q.Filter.(map[string]interface{}); !ok {
+			return nil, fmt.Errorf("got wrong type of filter: %v", q.Filter)
+		}
 	}
+
 	switch q.FieldType {
 	case PartitionByDate, PartitionByNumber:
 		var step float64
@@ -60,7 +63,7 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			}
 		}
 
-		min, max, err := getBoundValues(client, q.IndexName, q.FieldName, vFilter)
+		min, max, err := getBoundValues(client, q.IndexName, q.FieldName, q.Filter)
 		if err != nil {
 			return nil, err
 		}
@@ -74,26 +77,30 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			partitions []PartitionInfo
 		)
 		for {
-			query :=  util.MapStr{
-				"bool": util.MapStr{
-					"must": []util.MapStr{
-						vFilter,
-						{
-							"range": util.MapStr{
-								q.FieldName: util.MapStr{
-									"gte": start,
-									"lt": end,
-								},
-							},
+			must := []util.MapStr{
+				{
+					"range": util.MapStr{
+						q.FieldName: util.MapStr{
+							"gte": start,
+							"lt": end,
 						},
 					},
+				},
+			}
+			if q.Filter != nil {
+				must = append(must, vFilter)
+			}
+
+			query :=  util.MapStr{
+				"bool": util.MapStr{
+					"must": must,
 				},
 			}
 			queryDsl := util.MapStr{
 				"query": query,
 			}
 
-			docCount, err := getPartitionDocCount(client, q.IndexName, queryDsl)
+			docCount, err := GetPartitionDocCount(client, q.IndexName, queryDsl)
 			if err != nil {
 				return nil, fmt.Errorf("get partition doc count error: %w", err)
 			}
@@ -119,7 +126,7 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 	}
 }
 
-func getPartitionDocCount(client API, indexName string, queryDsl interface{}) (int64 , error) {
+func GetPartitionDocCount(client API, indexName string, queryDsl interface{}) (int64 , error) {
 	res, err := client.Count(indexName, util.MustToJSONBytes(queryDsl))
 	if err != nil {
 		return 0, err
@@ -129,7 +136,6 @@ func getPartitionDocCount(client API, indexName string, queryDsl interface{}) (i
 
 func getBoundValues(client API, indexName string, fieldName string, filter interface{}) (float64, float64, error) {
 	queryDsl := util.MapStr{
-		"query": filter,
 		"size": 0,
 		"aggs": util.MapStr{
 			"max_field_value": util.MapStr{
@@ -143,6 +149,9 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 				},
 			},
 		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
 	}
 	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
 	if err != nil {
