@@ -2,19 +2,18 @@
 * Web: https://infinilabs.com
 * Email: hello#infini.ltd */
 
-package filter
+package nutsdb
 
 import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/filter/nutsdb"
 	"net/http"
 )
 
 type APIHandler struct {
 	api.Handler
-	DB *nutsdb.NutsdbKVFilter
+	DB *NutsdbFilter
 }
 
 func (h *APIHandler) merge(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -28,9 +27,9 @@ func (h *APIHandler) merge(w http.ResponseWriter, req *http.Request, ps httprout
 	},http.StatusOK)
 }
 
-func Init(db  *nutsdb.NutsdbKVFilter){
+func Init(db  *NutsdbFilter){
 	handler := APIHandler{
 		DB: db,
 	}
-	api.HandleAPIMethod(api.GET, "/_framework/api/kv/_merge", handler.merge)
+	api.HandleAPIMethod(api.GET, "/_framework/api/nutsdb/_merge", handler.merge)
 }

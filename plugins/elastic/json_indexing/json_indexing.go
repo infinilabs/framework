@@ -219,7 +219,7 @@ READ_DOCS:
 			} else {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))
 			}
-
+			util.WalkBytesAndReplace(pop,util.NEWLINE,util.SPACE)
 			docBuf.Write(pop)
 			docBuf.WriteString("\n")
 
