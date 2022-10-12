@@ -29,6 +29,7 @@ type Instance struct {
 	Timestamp  time.Time              `json:"timestamp" elastic_mapping:"timestamp: { type: date }"`
 	SearchText string                 `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 	Host       HostInfo               `json:"host" elastic_mapping:"host: { type: object }"`
+	Name string  `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
 }
 
 type HostInfo struct {
