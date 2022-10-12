@@ -20,4 +20,5 @@ type ClientAPI interface {
 	GetElasticProcess(ctx context.Context, agentBaseURL string, agentID string)(interface{}, error)
 	GetElasticLogFiles(ctx context.Context, agentBaseURL string, agentID string, nodeID string)(interface{}, error)
 	GetElasticLogFileContent(ctx context.Context, agentBaseURL string, agentID string, body interface{})(interface{}, error)
+	GetInstanceBasicInfo(ctx context.Context, agentBaseURL string) (map[string]interface{}, error)
 }
