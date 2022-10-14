@@ -92,8 +92,28 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	q := &orm.Query{
 		Size: 2,
 	}
+	sm := agent.GetStateManager()
+	res, err := sm.GetAgentClient().GetInstanceBasicInfo(nil, obj.GetEndpoint())
+	if err != nil {
+		errStr := fmt.Sprintf("get agent instance basic info error: %s", err.Error())
+		h.WriteError(w,errStr , http.StatusInternalServerError)
+		log.Error(errStr)
+		return
+	}
+	if id, ok := res["id"].(string); !ok {
+		errStr :=fmt.Sprintf("got unexpected response of agent instance basic info: %s", util.MustToJSON(res))
+		h.WriteError(w, errStr , http.StatusInternalServerError)
+		log.Error(errStr)
+		return
+	}else{
+		obj.ID = id
+	}
+	if v, ok := res["name"].(string); ok {
+		obj.Name = v
+	}
+
 	remoteIP := util.ClientIP(req)
-	q.Conds = orm.And(orm.Eq("remote_ip", remoteIP))
+	q.Conds = orm.And(orm.Eq("_id", obj.ID))
 	err, result := orm.Search(obj, q)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)

@@ -211,6 +211,17 @@ func (client *Client) GetElasticLogFileContent(ctx context.Context, agentBaseURL
 	} , nil
 }
 
+func (client *Client) GetInstanceBasicInfo(ctx context.Context, agentBaseURL string) (map[string]interface{}, error){
+	req := &util.Request{
+		Method:  http.MethodGet,
+		Url:     fmt.Sprintf("%s/_framework/api/_info", agentBaseURL ),
+		Context: ctx,
+	}
+	resBody := map[string]interface{}{}
+	err := client.doRequest(req, &resBody)
+	return resBody, err
+}
+
 func (client *Client) doRequest(req *util.Request, respObj interface{}) error {
 	result, err := util.ExecuteRequest(req)
 	if err != nil {
