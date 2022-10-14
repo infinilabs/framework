@@ -72,6 +72,12 @@ func (cfg NetworkConfig) GetBindingPort() int {
 
 func (cfg NetworkConfig) GetBindingAddr() string {
 	if cfg.Binding != "" {
+
+		//skip auto detect for ipv6 family
+		if strings.Contains(cfg.Binding,"::"){
+			return cfg.Binding
+		}
+
 		array := strings.Split(strings.TrimSpace(cfg.Binding), ":")
 		cfg.Host = array[0]
 		port,err:=util.ToInt(array[1])

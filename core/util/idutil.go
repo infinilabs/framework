@@ -29,6 +29,8 @@ var count = incrementCounter{l: &sync.RWMutex{}, ID: make(map[string]*atomicID)}
 type atomicID struct {
 	l        sync.Mutex
 	Sequence uint32
+
+	Sequence64 uint64
 }
 
 func (id *atomicID) Increment() uint32 {
@@ -41,10 +43,22 @@ func (id *atomicID) Increment() uint32 {
 	return atomic.AddUint32(&id.Sequence, 1)
 }
 
+func (id *atomicID) Increment64() uint64 {
+	id.l.Lock()
+	defer id.l.Unlock()
+	if id.Sequence64>=maxID64{
+		id.Sequence64=0
+		return 0
+	}
+	log.Error("id.Sequence64:",id.Sequence64)
+	return atomic.AddUint64(&id.Sequence64, 1)
+}
+
 var lock1 sync.Mutex
 var persistedPath string
-var maxID=uint32(int(^uint32(0)>>1))
-// GetIncrementID return incremented id in specify bucket
+var maxID=uint32(^uint32(0)>>1)
+var maxID64=uint64(^uint64(0)>>1)
+
 func GetIncrementID(bucket string) uint32 {
 	//TODO performance issue
 	count.l.Lock()
@@ -54,6 +68,19 @@ func GetIncrementID(bucket string) uint32 {
 		count.ID[bucket] = o
 	}
 	v := o.Increment()
+	count.l.Unlock()
+	return v
+}
+
+func GetIncrementID64(bucket string) uint64 {
+	//TODO performance issue
+	count.l.Lock()
+	o,ok := count.ID[bucket]
+	if !ok||o == nil {
+		o = &atomicID{}
+		count.ID[bucket] = o
+	}
+	v := o.Increment64()
 	count.l.Unlock()
 	return v
 }
