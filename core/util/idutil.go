@@ -56,8 +56,8 @@ func (id *atomicID) Increment64() uint64 {
 
 var lock1 sync.Mutex
 var persistedPath string
-var maxID=uint32(int(^uint32(0)>>1))
-var maxID64=uint64(int(^uint64(0)>>1))
+var maxID=uint32(^uint32(0)>>1)
+var maxID64=uint64(^uint64(0)>>1)
 
 func GetIncrementID(bucket string) uint32 {
 	//TODO performance issue
