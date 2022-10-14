@@ -121,6 +121,12 @@ func TestTCPAddress(host string,timeout time.Duration)bool  {
 
 // AutoGetAddress get valid address to listen, if the specify port is not available, auto choose the next one
 func AutoGetAddress(addr string) string {
+
+	//skip for ipv6 family
+	if strings.Contains(addr,"::"){
+		return addr
+	}
+
 	if strings.Index(addr, ":") < 0 {
 		panic(errors.New("invalid address, eg ip:port, " + addr))
 	}
@@ -133,6 +139,10 @@ func AutoGetAddress(addr string) string {
 }
 
 func GetSafetyInternalAddress(addr string) string {
+	//skip for ipv6 family
+	if strings.Contains(addr,"::"){
+		return addr
+	}
 
 	if strings.Contains(addr, ":") {
 		array := strings.Split(addr, ":")
@@ -147,6 +157,11 @@ func GetSafetyInternalAddress(addr string) string {
 
 // GetValidAddress get valid address, input: :8001 -> output: 127.0.0.1:8001
 func GetValidAddress(addr string) string {
+	//skip for ipv6 family
+	if strings.Contains(addr,"::"){
+		return addr
+	}
+
 	if strings.Index(addr, ":") >= 0 {
 		array := strings.Split(addr, ":")
 		if len(array[0]) == 0 {
