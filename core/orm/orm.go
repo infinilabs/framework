@@ -77,6 +77,7 @@ type Query struct {
 	Conds    []*Cond
 	RawQuery []byte
 	WildcardIndex bool
+	IndexName string
 }
 
 func (q *Query) Collapse(field string) *Query {
