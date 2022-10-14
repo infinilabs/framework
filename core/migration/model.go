@@ -53,7 +53,7 @@ type IndexConfig struct {
 	IndexRename map[string]interface{} `json:"index_rename"`
 	TypeRename map[string]interface{} `json:"type_rename"`
 	Partition *IndexPartition `json:"partition,omitempty"`
-	ID string `json:"id,omitempty"`
+	TaskID string `json:"task_id,omitempty"`
 	Status string `json:"status,omitempty"`
 	Percent float64 `json:"percent,omitempty"`
 	ErrorPartitions int `json:"error_partitions,omitempty"`

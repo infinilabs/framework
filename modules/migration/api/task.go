@@ -552,13 +552,13 @@ func (h *APIHandler) getDataMigrationTaskInfo(w http.ResponseWriter, req *http.R
 			log.Error(err)
 			continue
 		}
-		if st, ok := statusM[index.ID]; ok {
+		if st, ok := statusM[index.TaskID]; ok {
 			taskConfig.Indices[i].Status = st.(string)
 		}
 		percent := float64(count * 100) / float64(index.Source.Docs)
 		taskConfig.Indices[i].Target.Docs = count
 		taskConfig.Indices[i].Percent = util.ToFixed(percent, 2)
-		taskConfig.Indices[i].ErrorPartitions = taskErrors[index.ID]
+		taskConfig.Indices[i].ErrorPartitions = taskErrors[index.TaskID]
 		if count == index.Source.Docs {
 			completedIndices ++
 			taskConfig.Indices[i].Status = "complete"

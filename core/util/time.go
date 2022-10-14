@@ -6,8 +6,11 @@ package util
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/segmentio/encoding/json"
 	"hash"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -169,5 +172,27 @@ func SetupTimeNowRefresh() {
 			}(nowNano)
 			refreshRunning = true
 		})
+	}
+}
+
+func ParseDuration(s string) (time.Duration, error){
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("invalid duration: %s", s)
+	}
+	unit := s[len(s)-1]
+	num, err := strconv.Atoi(s[0:len(s)-1])
+	if err != nil {
+		return 0, err
+	}
+	switch unit {
+	case 's', 'm', 'h':
+		return time.ParseDuration(s)
+	case 'd':
+		return time.Duration(num) * time.Hour * 24, nil
+	case 'w':
+		return time.Duration(num) * time.Hour * 24 * 7, nil
+	default:
+		return 0, fmt.Errorf("unsupport unit %v", unit)
 	}
 }

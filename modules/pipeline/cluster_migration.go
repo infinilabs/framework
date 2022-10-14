@@ -231,7 +231,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			},
 			Parameters: indexParameters,
 		}
-		clusterMigrationTask.Indices[i].ID = indexMigrationTask.ID
+		clusterMigrationTask.Indices[i].TaskID = indexMigrationTask.ID
 		if index.Partition != nil {
 			partitionQ := &elastic.PartitionQuery{
 				IndexName: index.Source.Name,
