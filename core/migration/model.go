@@ -14,22 +14,36 @@ type ElasticDataConfig struct {
 		ParallelIndices      int `json:"parallel_indices"`
 		ParallelTaskPerIndex int `json:"parallel_task_per_index"`
 		ScrollSize           struct {
-			Documents int    `json:"documents"`
+			Docs int    `json:"docs"`
 			Timeout   string `json:"timeout"`
 		} `json:"scroll_size"`
 		BulkSize struct {
-			Documents        int `json:"documents"`
+			Docs        int `json:"docs"`
 			StoreSizeInMB int `json:"store_size_in_mb"`
 		} `json:"bulk_size"`
-		ExecInterval []struct {
-			Start string `json:"start"`
-			End   string `json:"end"`
-		} `json:"exec_interval"`
+		Execution ExecutionConfig `json:"execution"`
 	} `json:"settings"`
 	Creator struct {
 		Name string `json:"name"`
 		Id   string `json:"id"`
 	} `json:"creator"`
+}
+
+type ExecutionConfig struct {
+	TimeWindow []TimeWindowItem `json:"time_window"`
+	Nodes struct{
+		Permit []ExecutionNode `json:"permit"`
+	} `json:"nodes"`
+}
+
+type ExecutionNode struct {
+	ID string `json:"id"`
+	Name string `json:"name"`
+}
+
+type TimeWindowItem struct {
+	Start string `json:"start"`
+	End string `json:"end"`
 }
 
 type IndexConfig struct {
@@ -40,6 +54,7 @@ type IndexConfig struct {
 	TypeRename map[string]interface{} `json:"type_rename"`
 	Partition *IndexPartition `json:"partition,omitempty"`
 	ID string `json:"id,omitempty"`
+	Status string `json:"status,omitempty"`
 	Percent float64 `json:"percent,omitempty"`
 	ErrorPartitions int `json:"error_partitions,omitempty"`
 }

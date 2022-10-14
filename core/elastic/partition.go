@@ -7,7 +7,7 @@ package elastic
 import (
 	"fmt"
 	"infini.sh/framework/core/util"
-	"time"
+	"strconv"
 )
 
 type PartitionQuery struct {
@@ -49,17 +49,24 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			if stepV, ok := q.Step.(string); !ok {
 				return nil, fmt.Errorf("expect step value of string type since filedtype is %s", PartitionByDate)
 			}else{
-				du, err := time.ParseDuration(stepV)
+				du, err := util.ParseDuration(stepV)
 				if err != nil {
 					return nil, fmt.Errorf("parse step duration error: %w", err)
 				}
 				step = float64(du.Milliseconds())
 			}
 		}else {
-			if stepV, ok := q.Step.(float64); !ok {
-				return nil, fmt.Errorf("expect step value of number type since filedtype is %s", PartitionByNumber)
-			}else{
-				step = stepV
+			switch q.Step.(type) {
+			case float64:
+				step = q.Step.(float64)
+			case string:
+				v, err := strconv.Atoi(q.Step.(string))
+				if err != nil {
+					return nil, fmt.Errorf("convert step error: %w", err)
+				}
+				step = float64(v)
+			default:
+				return nil, fmt.Errorf("invalid parameter step: %v", q.Step)
 			}
 		}
 

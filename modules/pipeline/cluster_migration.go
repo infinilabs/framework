@@ -172,13 +172,13 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			"cluster_id": clusterMigrationTask.Cluster.Source.Id,
 			"indices": index.Source.Name,
 			"slice_size": 10,
-			"batch_size": clusterMigrationTask.Settings.ScrollSize.Documents,
+			"batch_size": clusterMigrationTask.Settings.ScrollSize.Docs,
 			"scroll_time": clusterMigrationTask.Settings.ScrollSize.Timeout,
 		}
 		if v, ok := index.RawFilter.(string); ok {
 			source["query_string"] = v
 		}else{
-			source["query_dsl"] = v
+			source["query_dsl"] = index.RawFilter
 		}
 		if index.IndexRename != nil {
 			source["index_rename"] = index.IndexRename
@@ -197,7 +197,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			"detect_interval": 100,
 			"bulk": util.MapStr{
 				"batch_size_in_mb": clusterMigrationTask.Settings.BulkSize.StoreSizeInMB,
-				"batch_size_in_docs":  clusterMigrationTask.Settings.BulkSize.Documents,
+				"batch_size_in_docs":  clusterMigrationTask.Settings.BulkSize.Docs,
 			},
 		}
 		indexParameters := map[string]interface{}{
@@ -206,6 +206,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				"config": util.MapStr{
 					"source": source,
 					"target": target,
+					"execution": clusterMigrationTask.Settings.Execution,
 				},
 			},
 		}
@@ -216,7 +217,8 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			Updated: time.Now().UTC(),
 			Cancellable: true,
 			Runnable: false,
-			Status: "init",
+			Status: "running",
+			StartTimeInMillis: time.Now().UnixMilli(),
 			Metadata: task2.Metadata{
 				Type: "pipeline",
 				Labels: util.MapStr{
@@ -276,7 +278,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					Updated: time.Now().UTC(),
 					Cancellable: false,
 					Runnable: true,
-					Status: "init",
+					Status: "ready",
 					Metadata:  task2.Metadata{
 						Type: "pipeline",
 						Labels: util.MapStr{
@@ -285,6 +287,11 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 							"target_cluster_id":  clusterMigrationTask.Cluster.Target.Id,
 							"level": "partition",
 							"index_name": index.Source.Name,
+							"execution": util.MapStr{
+								"nodes": util.MapStr{
+									"permit": clusterMigrationTask.Settings.Execution.Nodes.Permit,
+								},
+							},
 						},
 					},
 					Parameters: map[string]interface{}{
@@ -293,6 +300,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 							"config": util.MapStr{
 								"source": partitionSource,
 								"target": target,
+								"execution": clusterMigrationTask.Settings.Execution,
 							},
 						},
 					},
@@ -312,7 +320,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				Updated: time.Now().UTC(),
 				Cancellable: false,
 				Runnable: true,
-				Status: "init",
+				Status: "ready",
 				Metadata:  task2.Metadata{
 					Type: "pipeline",
 					Labels: util.MapStr{
@@ -321,6 +329,11 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 						"target_cluster_id":  clusterMigrationTask.Cluster.Target.Id,
 						"level": "partition",
 						"index_name": index.Source.Name,
+						"execution": util.MapStr{
+							"nodes": util.MapStr{
+								"permit": clusterMigrationTask.Settings.Execution.Nodes.Permit,
+							},
+						},
 					},
 				},
 				Parameters: indexParameters,
