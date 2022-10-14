@@ -313,6 +313,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			}
 			indexMigrationTask.Metadata.Labels["partition_count"] = partitionID
 		}else{
+			source["doc_count"] = index.Source.Docs
 			partitionMigrationTask := task2.Task{
 				ID: util.GetUUID(),
 				ParentId: []string{taskItem.ID, indexMigrationTask.ID},

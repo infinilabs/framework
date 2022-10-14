@@ -5,6 +5,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
@@ -152,6 +153,7 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	mainLoop:
 	for _, hit := range searchRes.Hits.Hits {
 		config, err := util.MapStr(hit.Source).GetValue("parameters.pipeline.config")
 		if err != nil {
@@ -163,12 +165,16 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 		err = util.FromJSONBytes(buf, &dataConfig)
 		if err != nil {
 			log.Error(err)
-			continue
+			continue mainLoop
 		}
 		esClient := elastic.GetClient(dataConfig.Cluster.Target.Id)
 		var targetTotalDocs int64
 		for _, index := range dataConfig.Indices {
-			count, _ := getIndexTaskCount(&index, esClient)
+			count, err := getIndexTaskCount(&index, esClient)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
 			targetTotalDocs += count
 		}
 		util.MapStr(hit.Source).Put("metadata.labels.target_total_docs", targetTotalDocs)
@@ -632,7 +638,7 @@ func getErrorPartitionTasks(taskID string) (map[string]int, error){
 	if taskAgg, ok := searchRes.Aggregations["group_by_task"]; ok {
 		for _, bk := range taskAgg.Buckets {
 			if key, ok := bk["key"].(string); ok {
-				if _, ok = resBody[key]; !ok {
+				if key == taskID {
 					continue
 				}
 				resBody[key] = int(bk["doc_count"].(float64))
@@ -657,8 +663,13 @@ func getIndexTaskCount(index *migration.IndexConfig, targetESClient elastic.API)
 		}
 		body = util.MustToJSONBytes(query)
 	}
-	countRes, err := targetESClient.Count(targetIndexName, body)
-	return countRes.Count, err
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	countRes, err := targetESClient.Count(ctx, targetIndexName, body)
+	if err != nil {
+		return 0, err
+	}
+	return countRes.Count, nil
 }
 
 func getExecutionConfig(parameters map[string]interface{}, key string)(*migration.ExecutionConfig, error){
@@ -707,7 +718,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 	var durationInMS int64
 	if indexTask.StartTimeInMillis > 0 {
 		durationInMS = time.Now().UnixMilli() - indexTask.StartTimeInMillis
-		if indexTask.CompleteTime != nil {
+		if indexTask.CompleteTime != nil && indexTask.Status == "complete" {
 			durationInMS = indexTask.CompleteTime.UnixMilli() - indexTask.StartTimeInMillis
 		}
 	}
@@ -796,7 +807,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 		durationInMS = 0
 		if ptask.StartTimeInMillis > 0 {
 			durationInMS = time.Now().UnixMilli() - ptask.StartTimeInMillis
-			if ptask.CompleteTime != nil {
+			if ptask.CompleteTime != nil && (ptask.Status == "complete" || ptask.Status == "error") {
 				durationInMS = ptask.CompleteTime.UnixMilli() - ptask.StartTimeInMillis
 			}
 		}
@@ -881,7 +892,9 @@ func (h *APIHandler) countDocuments(w http.ResponseWriter, req *http.Request, ps
 		})
 	}
 
-	countRes, err := client.Count(index, query)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	countRes, err := client.Count(ctx, index, query)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)

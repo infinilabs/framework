@@ -5,9 +5,11 @@
 package elastic
 
 import (
+	"context"
 	"fmt"
 	"infini.sh/framework/core/util"
 	"strconv"
+	"time"
 )
 
 type PartitionQuery struct {
@@ -133,8 +135,10 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 	}
 }
 
-func GetPartitionDocCount(client API, indexName string, queryDsl interface{}) (int64 , error) {
-	res, err := client.Count(indexName, util.MustToJSONBytes(queryDsl))
+func GetPartitionDocCount( client API, indexName string, queryDsl interface{}) (int64 , error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
+	defer cancel()
+	res, err := client.Count(ctx, indexName, util.MustToJSONBytes(queryDsl))
 	if err != nil {
 		return 0, err
 	}
