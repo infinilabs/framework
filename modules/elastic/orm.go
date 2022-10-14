@@ -158,10 +158,14 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	var searchResponse *elastic.SearchResponse
 	result := api.Result{}
 
-	var indexName = handler.GetIndexName(t)
-	if q.WildcardIndex {
-		indexName = handler.GetWildcardIndexName(t)
+	var indexName = q.IndexName
+	if indexName == "" {
+		indexName = handler.GetIndexName(t)
+		if q.WildcardIndex {
+			indexName = handler.GetWildcardIndexName(t)
+		}
 	}
+
 	if len(q.RawQuery) > 0 {
 		searchResponse, err = handler.Client.QueryDSL(indexName, q.QueryArgs, q.RawQuery)
 	} else {
