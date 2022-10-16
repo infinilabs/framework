@@ -263,8 +263,12 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 					return para.ID(), nil
 				case "tls":
 					return para.IsTLS(), nil
+				case "remote_ip":
+					return para.RemoteIP().String(), nil
 				case "remote_addr":
 					return para.RemoteAddr().String(), nil
+				case "local_ip":
+					return para.LocalIP().String(), nil
 				case "local_addr":
 					return para.LocalAddr().String(), nil
 				case "elapsed":
