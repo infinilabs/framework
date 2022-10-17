@@ -47,3 +47,15 @@ type LogResult struct {
 	Success bool   `json:"success" elastic_mapping:"success: { type: boolean }"`
 	Error   string `json:"error" elastic_mapping:"error: { type: text }"`
 }
+
+const (
+	StatusRunning        = "running"
+	StatusScrollComplete = "scroll_complete"
+	StatusComplete       = "complete"
+	StatusCancel         = "cancel"
+	StatusPause          = "pause"
+	StatusError          = "error"
+	StatusReady          = "ready"
+	StatusInit			 = "init"
+	StatusStopped        = "stopped"
+)
