@@ -35,13 +35,10 @@ const (
 
 func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 	var (
-		vFilter map[string]interface{}
-		ok bool
+		vFilter interface{}
 	)
 	if q.Filter != nil {
-		if vFilter, ok = q.Filter.(map[string]interface{}); !ok {
-			return nil, fmt.Errorf("got wrong type of filter: %v", q.Filter)
-		}
+		vFilter = q.Filter
 	}
 
 	switch q.FieldType {
@@ -86,8 +83,8 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			partitions []PartitionInfo
 		)
 		for {
-			must := []util.MapStr{
-				{
+			must := []interface{}{
+				util.MapStr{
 					"range": util.MapStr{
 						q.FieldName: util.MapStr{
 							"gte": start,
@@ -189,9 +186,9 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 }
 
 func GetIndexTypes( client API, indexName string) (map[string]interface{} , error) {
-	version := client.GetVersion()
-	if version >= "8" {
-		return nil, fmt.Errorf("unimplement for es version: %s", version)
+	version := client.GetMajorVersion()
+	if version >= 8{
+		return map[string]interface{}{}, nil
 	}
 	return getIndexTypes(client, indexName)
 }

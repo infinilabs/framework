@@ -200,7 +200,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				must := []interface{}{
 					util.MapStr{
 						"terms": util.MapStr{
-							"_type": index.Source.DocType,
+							"_type": []string{index.Source.DocType},
 						},
 					},
 				}
@@ -262,7 +262,8 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				FieldName: index.Partition.FieldName,
 				FieldType: index.Partition.FieldType,
 				Step: index.Partition.Step,
-				Filter: index.RawFilter,
+				//Filter: index.RawFilter,
+				Filter: source["query_dsl"],
 			}
 			partitions, err := elastic.GetPartitions(partitionQ, esSourceClient)
 			if err != nil {
