@@ -20,6 +20,7 @@ import (
 	"infini.sh/framework/core/util"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -63,7 +64,7 @@ func (h *APIHandler) createDataMigrationTask(w http.ResponseWriter, req *http.Re
 		},
 		Cancellable: true,
 		Runnable: false,
-		Status: "init",
+		Status: task2.StatusInit,
 		Created: time.Now().UTC(),
 		Updated: time.Now().UTC(),
 		Parameters: map[string]interface{}{
@@ -155,7 +156,8 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 	}
 	mainLoop:
 	for _, hit := range searchRes.Hits.Hits {
-		config, err := util.MapStr(hit.Source).GetValue("parameters.pipeline.config")
+		sourceM := util.MapStr(hit.Source)
+		config, err := sourceM.GetValue("parameters.pipeline.config")
 		if err != nil {
 			log.Error(err)
 			continue
@@ -165,23 +167,26 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 		err = util.FromJSONBytes(buf, &dataConfig)
 		if err != nil {
 			log.Error(err)
-			continue mainLoop
+			continue
 		}
 		esClient := elastic.GetClient(dataConfig.Cluster.Target.Id)
 		var targetTotalDocs int64
-		for _, index := range dataConfig.Indices {
-			count, err := getIndexTaskCount(&index, esClient)
-			if err != nil {
-				log.Error(err)
-				continue
+		targetTotal, _ := sourceM.GetValue("metadata.labels.target_total_docs")
+		if _, ok := targetTotal.(float64); !ok || hit.Source["status"] != task2.StatusComplete {
+			for _, index := range dataConfig.Indices {
+				count, err := getIndexTaskCount(&index, esClient)
+				if err != nil {
+					log.Error(err)
+					continue mainLoop
+				}
+				targetTotalDocs += count
 			}
-			targetTotalDocs += count
-		}
-		util.MapStr(hit.Source).Put("metadata.labels.target_total_docs", targetTotalDocs)
-		sourceTotalDocs, _ := util.MapStr(hit.Source).GetValue("metadata.labels.source_total_docs")
-		if sv, ok := sourceTotalDocs.(float64); ok{
-			if int64(sv) == targetTotalDocs {
-				hit.Source["status"] = "complete"
+			sourceM.Put("metadata.labels.target_total_docs", targetTotalDocs)
+			sourceTotalDocs, _ := sourceM.GetValue("metadata.labels.source_total_docs")
+			if sv, ok := sourceTotalDocs.(float64); ok{
+				if int64(sv) == targetTotalDocs {
+					hit.Source["status"] = task2.StatusComplete
+				}
 			}
 		}
 
@@ -226,12 +231,12 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 	}
 	if obj.Status == "init" {
 		//root task
-		obj.Status = "ready"
-	}else if obj.Status == "stopped" {
+		obj.Status = task2.StatusReady
+	}else if obj.Status == task2.StatusStopped {
 		if obj.Metadata.Labels["level"] == "partition" {
-			obj.Status = "ready"
+			obj.Status = task2.StatusReady
 		}else{
-			obj.Status = "running"
+			obj.Status = task2.StatusRunning
 			//update sub task status
 			query := util.MapStr{
 				"bool": util.MapStr{
@@ -252,7 +257,7 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 						},
 						{
 							"terms": util.MapStr{
-								"status": []string{"error", "stopped"},
+								"status": []string{task2.StatusError, task2.StatusStopped},
 							},
 						},
 					},
@@ -261,7 +266,7 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 			queryDsl := util.MapStr{
 				"query": query,
 				"script": util.MapStr{
-					"source": "ctx._source['status'] = 'ready'",
+					"source": fmt.Sprintf("ctx._source['status'] = '%s'", task2.StatusReady),
 				},
 			}
 
@@ -273,8 +278,8 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 			}
 		}
 
-	}else if obj.Status == "error" {
-		obj.Status = "ready"
+	}else if obj.Status == task2.StatusError {
+		obj.Status = task2.StatusReady
 	}
 
 	err = orm.Update(&obj)
@@ -421,7 +426,7 @@ func (h *APIHandler) stopDataMigrationTask(w http.ResponseWriter, req *http.Requ
 					},
 					{
 						"terms": util.MapStr{
-							"status": []string{"running", "init"},
+							"status": []string{task2.StatusRunning, task2.StatusInit},
 						},
 					},
 				},
@@ -553,21 +558,24 @@ func (h *APIHandler) getDataMigrationTaskInfo(w http.ResponseWriter, req *http.R
 	targetESClient := elastic.GetClient(taskConfig.Cluster.Target.Id)
 	var completedIndices int
 	for i, index := range taskConfig.Indices {
-		count, err := getIndexTaskCount(&index, targetESClient)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
 		if st, ok := statusM[index.TaskID]; ok {
 			taskConfig.Indices[i].Status = st.(string)
 		}
+		var count = index.Target.Docs
+		if taskConfig.Indices[i].Status != task2.StatusComplete || count == 0 {
+			count, err = getIndexTaskCount(&index, targetESClient)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			taskConfig.Indices[i].Target.Docs = count
+		}
 		percent := float64(count * 100) / float64(index.Source.Docs)
-		taskConfig.Indices[i].Target.Docs = count
 		taskConfig.Indices[i].Percent = util.ToFixed(percent, 2)
 		taskConfig.Indices[i].ErrorPartitions = taskErrors[index.TaskID]
 		if count == index.Source.Docs {
 			completedIndices ++
-			taskConfig.Indices[i].Status = "complete"
+			taskConfig.Indices[i].Status = task2.StatusComplete
 		}
 	}
 	util.MapStr(obj.Parameters).Put("pipeline.config", taskConfig)
@@ -605,7 +613,7 @@ func getErrorPartitionTasks(taskID string) (map[string]int, error){
 					{
 						"term": util.MapStr{
 							"status": util.MapStr{
-								"value": "error",
+								"value": task2.StatusError,
 							},
 						},
 					},
@@ -657,12 +665,28 @@ func getIndexTaskCount(index *migration.IndexConfig, targetESClient elastic.API)
 	}
 
 	var body []byte
+	var must []interface{}
+	if index.Source.DocType != "" {
+		must = append(must, util.MapStr{
+			"terms": util.MapStr{
+				"_type": []string{index.Source.DocType},
+			},
+		})
+	}
 	if index.RawFilter != nil {
+		must = append(must, index.RawFilter)
+	}
+	if len(must) > 0 {
 		query := util.MapStr{
-			"query": index.RawFilter,
+			"query": util.MapStr{
+				"bool": util.MapStr{
+					"must": must,
+				},
+			},
 		}
 		body = util.MustToJSONBytes(query)
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	countRes, err := targetESClient.Count(ctx, targetIndexName, body)
@@ -718,7 +742,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 	var durationInMS int64
 	if indexTask.StartTimeInMillis > 0 {
 		durationInMS = time.Now().UnixMilli() - indexTask.StartTimeInMillis
-		if indexTask.CompleteTime != nil && indexTask.Status == "complete" {
+		if indexTask.CompleteTime != nil && indexTask.Status == task2.StatusComplete {
 			durationInMS = indexTask.CompleteTime.UnixMilli() - indexTask.StartTimeInMillis
 		}
 	}
@@ -807,7 +831,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 		durationInMS = 0
 		if ptask.StartTimeInMillis > 0 {
 			durationInMS = time.Now().UnixMilli() - ptask.StartTimeInMillis
-			if ptask.CompleteTime != nil && (ptask.Status == "complete" || ptask.Status == "error") {
+			if ptask.CompleteTime != nil && (ptask.Status == task2.StatusComplete || ptask.Status == task2.StatusError) {
 				durationInMS = ptask.CompleteTime.UnixMilli() - ptask.StartTimeInMillis
 			}
 		}
@@ -820,8 +844,11 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 				if v, ok := ptv["scroll_docs"].(float64); ok {
 					scrollDocs = v
 				}
-				if v, ok := ptv["bulk_docs"].(float64); ok {
+				if v, ok := ptv["bulk_docs.200"].(float64); ok {
 					indexDocs = v
+				}
+				if v, ok := ptv["bulk_docs.201"].(float64); ok {
+					indexDocs += v
 				}
 			}
 		}
@@ -839,7 +866,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 			"index_docs": indexDocs,
 			"total_docs": partitionTotalDocs,
 		})
-		if ptask.Status == "complete" {
+		if ptask.Status == task2.StatusComplete {
 			completedPartitions++
 		}
 	}
@@ -979,4 +1006,43 @@ func (h *APIHandler) updateDataMigrationTaskStatus(w http.ResponseWriter, req *h
 	h.WriteJSON(w, util.MapStr{
 		"success": true,
 	}, 200)
+}
+
+func (h *APIHandler) validateDataMigration(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	typ := h.GetParameter(req, "type")
+	switch typ {
+	case "multi_type":
+		h.validateMultiType(w, req, ps)
+		return
+	}
+	h.WriteError(w, "unknown parameter type", http.StatusOK)
+}
+
+func (h *APIHandler) validateMultiType(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+	var reqBody = struct {
+		Cluster struct{
+			SourceID string `json:"source_id"`
+			TargetID string `json:"target_id"`
+		} `json:"cluster"`
+		Indices []string
+	}{}
+	err := h.DecodeJSON(req, &reqBody)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sourceClient := elastic.GetClient(reqBody.Cluster.SourceID)
+	// get source type
+	indexNames := strings.Join(reqBody.Indices, ",")
+	typeInfo, err := elastic.GetIndexTypes(sourceClient, indexNames)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.WriteJSON(w, util.MapStr{
+		"result": typeInfo,
+	} , http.StatusOK)
 }

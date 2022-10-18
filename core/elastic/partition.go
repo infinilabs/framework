@@ -187,3 +187,58 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 	}
 	return min, max, nil
 }
+
+func GetIndexTypes( client API, indexName string) (map[string]interface{} , error) {
+	version := client.GetVersion()
+	if version >= "8" {
+		return nil, fmt.Errorf("unimplement for es version: %s", version)
+	}
+	return getIndexTypes(client, indexName)
+}
+
+func getIndexTypes( client API, indexName string) (map[string]interface{} , error) {
+	query := util.MapStr{
+		"size": 0,
+			"aggs": util.MapStr{
+			"group_by_index": util.MapStr{
+				"terms": util.MapStr{
+					"field": "_index",
+					"size": 500,
+				},
+				"aggs": util.MapStr{
+					"group_by_type": util.MapStr{
+						"terms": util.MapStr{
+							"field": "_type",
+								"size": 20,
+						},
+					},
+				},
+			},
+		},
+	}
+	searchRes, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(query))
+	if err != nil {
+		return nil, err
+	}
+	typeInfo := map[string]interface{}{}
+	if indexAggs, ok := searchRes.Aggregations["group_by_index"]; ok {
+		for _, bk := range indexAggs.Buckets {
+			if iname, ok := bk["key"].(string); ok{
+				info := map[string]interface{}{}
+				if typeAggs, ok := bk["group_by_type"].(map[string]interface{}); ok {
+					if bks, ok := typeAggs["buckets"].([]interface{}); ok {
+						for _, sbk := range bks {
+							if sbkM, ok := sbk.(map[string]interface{}); ok {
+								if key, ok := sbkM["key"].(string); ok {
+									info[key] = sbkM["doc_count"]
+								}
+							}
+						}
+					}
+				}
+				typeInfo[iname] = info
+			}
+		}
+	}
+	return typeInfo, nil
+}

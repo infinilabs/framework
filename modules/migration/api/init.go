@@ -10,6 +10,7 @@ func Init() {
 	handler := APIHandler{}
 	api.HandleAPIMethod(api.GET, "/migration/data/_search", handler.searchDataMigrationTask)
 	api.HandleAPIMethod(api.POST, "/migration/data", handler.RequireLogin(handler.createDataMigrationTask))
+	api.HandleAPIMethod(api.POST, "/migration/data/_validate", handler.validateDataMigration)
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/index/:index/_partition", handler.getIndexPartitionInfo)
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/index/:index/_count", handler.countDocuments)
@@ -19,4 +20,5 @@ func Init() {
 	api.HandleAPIMethod(api.GET, "/migration/data/:task_id/info", handler.getDataMigrationTaskInfo)
 	api.HandleAPIMethod(api.GET, "/migration/data/:task_id/info/index", handler.getDataMigrationTaskOfIndex)
 	api.HandleAPIMethod(api.PUT, "/migration/data/:task_id/status", handler.updateDataMigrationTaskStatus)
+
 }

@@ -66,6 +66,7 @@ type IndexPartition struct {
 
 type IndexInfo struct {
 	Name             string `json:"name"`
+	DocType string `json:"doc_type"`
 	Docs        int64    `json:"docs"`
 	StoreSizeInBytes int    `json:"store_size_in_bytes"`
 }

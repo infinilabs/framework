@@ -94,12 +94,12 @@ func (p *ClusterMigrationProcessor) Process(ctx *pipeline.Context) error {
 			if ctx.IsCanceled() {
 				return nil
 			}
-			t.Status = "running"
+			t.Status = task2.StatusRunning
 			t.StartTimeInMillis = time.Now().UnixMilli()
 			p.writeTaskLog(&t, &task2.Log{
 				ID: util.GetUUID(),
 				TaskId: t.ID,
-				Status: "running",
+				Status: task2.StatusRunning,
 				Type: t.Metadata.Type,
 				Action: task2.LogAction{
 					Parameters: t.Parameters,
@@ -111,7 +111,7 @@ func (p *ClusterMigrationProcessor) Process(ctx *pipeline.Context) error {
 			taskLog := &task2.Log{
 				ID: util.GetUUID(),
 				TaskId: t.ID,
-				Status: "running",
+				Status: task2.StatusRunning,
 				Type: t.Metadata.Type,
 				Action: task2.LogAction{
 					Parameters: t.Parameters,
@@ -123,7 +123,7 @@ func (p *ClusterMigrationProcessor) Process(ctx *pipeline.Context) error {
 				Timestamp: time.Now().UTC(),
 			}
 			if err != nil {
-				taskLog.Status = "error"
+				taskLog.Status = task2.StatusError
 				taskLog.Content = fmt.Sprintf("failed to split task [%s]: %v", t.ID, err)
 				taskLog.Action.Result = &task2.LogResult{
 					Success: false,
@@ -175,11 +175,6 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			"batch_size": clusterMigrationTask.Settings.ScrollSize.Docs,
 			"scroll_time": clusterMigrationTask.Settings.ScrollSize.Timeout,
 		}
-		if v, ok := index.RawFilter.(string); ok {
-			source["query_string"] = v
-		}else{
-			source["query_dsl"] = index.RawFilter
-		}
 		if index.IndexRename != nil {
 			source["index_rename"] = index.IndexRename
 		}
@@ -191,6 +186,35 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 		if index.TypeRename != nil {
 			source["type_rename"] = index.TypeRename
 		}
+
+		if v, ok := index.RawFilter.(string); ok {
+			source["query_string"] = v
+		}else{
+			source["query_dsl"] = index.RawFilter
+			if index.Source.DocType != "" {
+				if index.Target.DocType != "" {
+					source["type_rename"] = util.MapStr{
+						index.Source.DocType: index.Target.DocType,
+					}
+				}
+				must := []interface{}{
+					util.MapStr{
+						"terms": util.MapStr{
+							"_type": index.Source.DocType,
+						},
+					},
+				}
+				if index.RawFilter != nil {
+					must = append(must, index.RawFilter)
+				}
+				source["query_dsl"] = util.MapStr{
+					"bool": util.MapStr{
+						"must": must,
+					},
+				}
+			}
+		}
+
 		target := util.MapStr{
 			"cluster_id": clusterMigrationTask.Cluster.Target.Id,
 			"max_worker_size": 10,
@@ -217,7 +241,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			Updated: time.Now().UTC(),
 			Cancellable: true,
 			Runnable: false,
-			Status: "running",
+			Status: task2.StatusRunning,
 			StartTimeInMillis: time.Now().UnixMilli(),
 			Metadata: task2.Metadata{
 				Type: "pipeline",
@@ -278,7 +302,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					Updated: time.Now().UTC(),
 					Cancellable: false,
 					Runnable: true,
-					Status: "ready",
+					Status: task2.StatusReady,
 					Metadata:  task2.Metadata{
 						Type: "pipeline",
 						Labels: util.MapStr{
@@ -321,7 +345,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				Updated: time.Now().UTC(),
 				Cancellable: false,
 				Runnable: true,
-				Status: "ready",
+				Status: task2.StatusReady,
 				Metadata:  task2.Metadata{
 					Type: "pipeline",
 					Labels: util.MapStr{
@@ -367,7 +391,7 @@ func (p *ClusterMigrationProcessor) getClusterMigrationTasks(size int)([]task2.T
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"status": "ready",
+							"status": task2.StatusReady,
 						},
 					},
 					{
