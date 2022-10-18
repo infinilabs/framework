@@ -666,7 +666,7 @@ func getIndexTaskCount(index *migration.IndexConfig, targetESClient elastic.API)
 
 	var body []byte
 	var must []interface{}
-	if index.Target.DocType != "" {
+	if index.Target.DocType != "" && targetESClient.GetMajorVersion() < 8 {
 		must = append(must, util.MapStr{
 			"terms": util.MapStr{
 				"_type": []string{index.Target.DocType},
