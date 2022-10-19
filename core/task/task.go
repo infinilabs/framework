@@ -6,6 +6,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/goroutine"
 	"sync"
 	"time"
 )
@@ -17,6 +18,12 @@ const (
 	Running State = "running"
 	Canceled = "canceled"
 )
+
+//use task.Run instead of goroutine
+var defaultGoRoutingGroup = goroutine.NewGroup(goroutine.Option{Name: "default"})
+func Run(tag string,f func(ctx context.Context) error)  {
+	defaultGoRoutingGroup.Go(f)
+}
 
 type ScheduleTask struct {
 	ID          string     `config:"id" json:"id,omitempty"`
