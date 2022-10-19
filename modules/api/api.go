@@ -65,8 +65,8 @@ func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 		obj["services"]=services
 	}
 
-	if global.Env().SetupRequired{
-		obj["setup_required"]=global.Env().SetupRequired
+	if global.Env().SetupRequired(){
+		obj["setup_required"]=global.Env().SetupRequired()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
