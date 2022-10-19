@@ -15,6 +15,7 @@ import (
 
 type BadgerFilter struct {
 	Path string  `config:"path"`
+	InMemoryMode bool  `config:"in_memory_mode"`
 }
 
 var record sync.RWMutex
@@ -54,6 +55,7 @@ func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
 
 	var err error
 	option:=badger.DefaultOptions(dir)
+	option.InMemory=filter.InMemoryMode
 
 	if !global.Env().IsDebug{
 		option.Logger=nil

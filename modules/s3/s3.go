@@ -6,6 +6,7 @@ package s3
 
 import (
 	"context"
+	"crypto/tls"
 	log "github.com/cihub/seelog"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -14,8 +15,11 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
+	"net"
+	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 type S3Config struct {
@@ -24,6 +28,7 @@ type S3Config struct {
 	AccessSecret string `config:"access_secret" json:"access_secret,omitempty"`
 	Token string `config:"token" json:"token,omitempty"`
 	SSL bool `config:"ssl" json:"ssl,omitempty"`
+	SkipInsecureVerify bool `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty"`
 }
 
 type S3Module struct {
@@ -40,13 +45,40 @@ type S3Uploader struct {
 
 func NewS3Uploader(cfg *S3Config)(*S3Uploader,error)  {
 
+	// Keep TLS config.
+	tlsConfig := &tls.Config{}
+	if cfg.SkipInsecureVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+
+	var transport http.RoundTripper = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       tlsConfig,
+		// Set this value so that the underlying transport round-tripper
+		// doesn't try to auto decode the body of objects with
+		// content-encoding set to `gzip`.
+		//
+		// Refer:
+		//    https://golang.org/src/net/http/transport.go?h=roundTrip#L1843
+		DisableCompression: true,
+	}
+
 	var err error
 	uploader:=&S3Uploader{S3Config: cfg}
 	uploader.minioClient, err = minio.New(uploader.S3Config.Endpoint, &minio.Options{
+		Transport:transport,
 		Creds:  credentials.NewStaticV4(uploader.S3Config.AccessKey, uploader.S3Config.AccessSecret, uploader.S3Config.Token),
 		Secure: uploader.S3Config.SSL,
-	})
 
+	})
 	if err != nil {
 		return nil,err
 	}

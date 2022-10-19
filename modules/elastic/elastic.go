@@ -276,10 +276,12 @@ func (module *ElasticModule) clusterStateRefresh() {
 						}
 					}
 					module.stateMap.Store(v.ID, time.Now())
-					go func(clusterID string) {
+					task.Run("refresh_cluster_state",func(ctx context.Context) error {
+						clusterID:=v.ID
 						module.updateClusterState(clusterID)
 						module.stateMap.Delete(clusterID)
-					}(v.ID)
+						return nil
+					})
 				}
 				return true
 			})
@@ -339,7 +341,11 @@ func (module *ElasticModule) Start() error {
 			if metadata != nil {
 				module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
 			}
-			go module.clusterHealthCheck(cfg1.ID, true)
+			task.Run("cluster_health_check", func(ctx context.Context) error {
+				id:=cfg1.ID
+				module.clusterHealthCheck(id, true)
+				return nil
+			})
 		}
 		return true
 	})
@@ -375,10 +381,12 @@ func (module *ElasticModule) Start() error {
 							}
 						}
 						module.healthMap.Store(cfg1.ID, time.Now())
-						go func(clusterID string) {
+						task.Run("refresh_cluster_health",func(ctx context.Context) error {
+							clusterID:=cfg1.ID
 							module.clusterHealthCheck(clusterID, false)
 							module.healthMap.Delete(clusterID)
-						}(cfg1.ID)
+							return nil
+						})
 					}
 					return true
 				})
@@ -554,10 +562,12 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 						}
 					}
 					module.settingsMap.Store(v.ID, time.Now())
-					go func(clusterID string) {
+					task.Run("refresh_cluster_settings",func(ctx context.Context) error {
+						clusterID:=v.ID
 						module.updateClusterSettings(clusterID)
 						module.settingsMap.Delete(clusterID)
-					}(v.ID)
+						return nil
+					})
 				}
 				return true
 			})

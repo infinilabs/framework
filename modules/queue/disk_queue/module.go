@@ -480,6 +480,11 @@ func (module *DiskQueue) Start() error {
 }
 
 func (module *DiskQueue) Stop() error {
+
+	if module.cfg==nil{
+		return nil
+	}
+
 	if !module.cfg.Enabled {
 		return nil
 	}
