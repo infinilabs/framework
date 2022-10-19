@@ -20,9 +20,6 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
-	"path"
-
-	//"github.com/uber-go/automaxprocs"
 	"os"
 	"os/signal"
 	"runtime"
@@ -166,12 +163,6 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 
 	log.Infof("initializing %s", app.environment.GetAppName())
 	log.Infof("using config: %s", app.environment.GetConfigFile())
-
-	//check is required
-	setupLock:=path.Join(app.environment.GetDataDir(),".setup_finished")
-	if !util.FileExists(setupLock){
-		app.environment.SetupRequired=true
-	}
 
 	//daemon
 	if app.isDaemonMode {
