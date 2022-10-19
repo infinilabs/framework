@@ -140,7 +140,7 @@ func initElasticInstances(m []elastic.ElasticsearchConfig, source string) {
 
 var moduleConfig = ModuleConfig{}
 
-func (module *ElasticModule) Setup(cfg *config.Config) {
+func (module *ElasticModule) Setup() {
 
 	moduleConfig = getDefaultConfig()
 

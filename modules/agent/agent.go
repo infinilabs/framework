@@ -7,7 +7,6 @@ package agent
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/agent/api"
@@ -18,7 +17,7 @@ func (module *AgentModule) Name() string {
 	return "agent"
 }
 
-func (module *AgentModule) Setup(cfg *config.Config) {
+func (module *AgentModule) Setup() {
 	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
 	orm.RegisterSchemaWithIndexName(host.HostInfo{}, "host")
 	api.Init()

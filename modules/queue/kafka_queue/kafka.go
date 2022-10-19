@@ -10,7 +10,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/kafka-go"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
@@ -57,7 +56,7 @@ type KafkaTopic struct {
 
 }
 
-func (this *KafkaQueue) Setup(config *config.Config) {
+func (this *KafkaQueue) Setup() {
 
 	this.q = sync.Map{}
 	this.Enabled = true

@@ -13,7 +13,7 @@ func (module NSQModule) Name() string {
 	return "NSQ"
 }
 
-func (module NSQModule) Setup(cfg *config.Config) {
+func (module NSQModule) Setup() {
 
 }
 

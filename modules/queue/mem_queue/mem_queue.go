@@ -6,7 +6,6 @@ package mem_queue
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/queue"
@@ -29,7 +28,7 @@ type MemoryQueue struct {
 	locker     sync.RWMutex
 }
 
-func (this *MemoryQueue) Setup(config *config.Config) {
+func (this *MemoryQueue) Setup() {
 
 	this.q=sync.Map{}
 	this.Enabled=true

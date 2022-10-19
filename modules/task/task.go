@@ -3,7 +3,6 @@ package task
 import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task"
@@ -24,7 +23,7 @@ func (module *TaskModule) Name() string {
 	return "task"
 }
 
-func (module *TaskModule) Setup(cfg *config.Config) {
+func (module *TaskModule) Setup() {
 
 	module.TimeZone = "UTC"
 	module.MaxConcurrentNumOfTasks = 100

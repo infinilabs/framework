@@ -20,7 +20,6 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
@@ -120,7 +119,7 @@ func InitSecurity() {
 }
 
 // Start api server
-func (module *APIModule) Setup(cfg *config.Config) {
+func (module *APIModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().GetAppCapitalName()))
 		w.Write([]byte(", "))

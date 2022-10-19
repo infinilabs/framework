@@ -10,7 +10,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/s3"
@@ -181,7 +180,7 @@ func (module *S3Module) Name() string {
 	return "S3"
 }
 
-func (module *S3Module) Setup(cfg *config.Config) {
+func (module *S3Module) Setup() {
 	var err error
 	module.S3Configs=map[string]S3Config{}
 	ok,err:=env.ParseConfig("s3", &module.S3Configs)
