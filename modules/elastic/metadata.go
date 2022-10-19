@@ -38,7 +38,7 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 		//check cluster health status
 		health, err := client.ClusterHealth()
 		if err != nil || health == nil || health.StatusCode != 200 {
-			if util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
+			if health!=nil&&util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
 				metadata.ReportFailure(errors.New("master_not_discovered_exception"))
 			} else {
 				metadata.ReportFailure(err)
@@ -70,6 +70,7 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 	client := elastic.GetClient(moduleConfig.Elasticsearch)
 	if client == nil {
 		log.Errorf("cluster %s not found", moduleConfig.Elasticsearch)
+		return
 	}
 	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
 	getRes, err := client.Get(indexName, "", clusterID)

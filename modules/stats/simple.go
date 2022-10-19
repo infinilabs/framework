@@ -103,6 +103,10 @@ func (module *SimpleStatsModule) Start() error {
 }
 
 func (module *SimpleStatsModule) Stop() error {
+	if module.config==nil{
+		return nil
+	}
+
 	if !module.config.Enabled {
 		return nil
 	}

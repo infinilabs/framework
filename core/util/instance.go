@@ -72,7 +72,7 @@ func CheckInstanceLock(p string) {
 		os.Exit(1)
 	}
 	FilePutContent(file, IntToString(os.Getpid()))
-	log.Trace("lock placed,", file, " ,pid:", os.Getpid())
+	log.Trace("lock placed at:", file, ", pid:", os.Getpid())
 	locked = true
 	p,_=filepath.Abs(p)
 	log.Info("workspace: ", p)

@@ -361,6 +361,11 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 		client.Transport = tbTransport
 	}
 
+	//handle ipv6
+	if strings.Contains(request.Host,"::"){
+		//TODO https://zandercodes.dev/post/how-create-ipv6-request-golang
+	}
+
 	return execute(request)
 }
 
