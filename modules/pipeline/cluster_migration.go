@@ -165,6 +165,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 		parameters.Put("pipeline.config", clusterMigrationTask)
 	}()
 	esSourceClient := elastic.GetClient(clusterMigrationTask.Cluster.Source.Id)
+	esTargetClient := elastic.GetClient(clusterMigrationTask.Cluster.Target.Id)
 	esClient := elastic.GetClient(p.config.Elasticsearch)
 
 	for i, index := range clusterMigrationTask.Indices {
@@ -213,6 +214,17 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					},
 				}
 			}
+		}
+		var targetMust []interface{}
+		if index.RawFilter != nil {
+			targetMust = append(targetMust, index.RawFilter)
+		}
+		if index.Target.DocType != "" && esTargetClient.GetMajorVersion() < 8 {
+			targetMust = append(targetMust, util.MapStr{
+				"terms": util.MapStr{
+					"_type": []string{index.Target.DocType},
+				},
+			})
 		}
 
 		target := util.MapStr{
@@ -295,6 +307,26 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					partitionSource[k] = v
 				}
 				partitionSource["query_dsl"] = partition.Filter
+				must := []interface{}{
+					util.MapStr{
+						"range": util.MapStr{
+							index.Partition.FieldName: util.MapStr{
+								"gte": partition.Start,
+								"lt": partition.End,
+							},
+						},
+					},
+				}
+				if targetMust != nil {
+					must = append(must, targetMust...)
+				}
+				if len(must) > 0 {
+					target["query_dsl"] = util.MapStr{
+						"bool": util.MapStr{
+							"must": must,
+						},
+					}
+				}
 
 				partitionMigrationTask := task2.Task{
 					ID: util.GetUUID(),
@@ -331,6 +363,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					},
 				}
 				_, err = esClient.Index(p.config.IndexName, "", partitionMigrationTask.ID, partitionMigrationTask, "")
+				delete(target, "query_dsl")
 				if err != nil {
 					return fmt.Errorf("store index migration task(partition) error: %w", err)
 				}
@@ -339,6 +372,13 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 			indexMigrationTask.Metadata.Labels["partition_count"] = partitionID
 		}else{
 			source["doc_count"] = index.Source.Docs
+			if targetMust != nil {
+				target["query_dsl"] = util.MapStr{
+					"bool": util.MapStr{
+						"must": targetMust,
+					},
+				}
+			}
 			partitionMigrationTask := task2.Task{
 				ID: util.GetUUID(),
 				ParentId: []string{taskItem.ID, indexMigrationTask.ID},
@@ -365,6 +405,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 				Parameters: indexParameters,
 			}
 			_, err = esClient.Index(p.config.IndexName, "", partitionMigrationTask.ID, partitionMigrationTask, "")
+			delete(target, "query_dsl")
 			if err != nil {
 				return fmt.Errorf("store index migration task(partition) error: %w", err)
 			}

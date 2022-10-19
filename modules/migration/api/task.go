@@ -742,8 +742,8 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 	var durationInMS int64
 	if indexTask.StartTimeInMillis > 0 {
 		durationInMS = time.Now().UnixMilli() - indexTask.StartTimeInMillis
-		if indexTask.CompleteTime != nil && indexTask.Status == task2.StatusComplete {
-			durationInMS = indexTask.CompleteTime.UnixMilli() - indexTask.StartTimeInMillis
+		if indexTask.CompletedTime != nil && indexTask.Status == task2.StatusComplete {
+			durationInMS = indexTask.CompletedTime.UnixMilli() - indexTask.StartTimeInMillis
 		}
 	}
 
@@ -752,7 +752,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 		"start_time": indexTask.StartTimeInMillis,
 		"status": indexTask.Status,
 		"data_partition": indexTask.Metadata.Labels["partition_count"],
-		"complete_time": indexTask.CompleteTime,
+		"complete_time": indexTask.CompletedTime.UnixMilli(),
 		"duration": durationInMS,
 	}
 	partitionTaskQuery := util.MapStr{
@@ -831,8 +831,8 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 		durationInMS = 0
 		if ptask.StartTimeInMillis > 0 {
 			durationInMS = time.Now().UnixMilli() - ptask.StartTimeInMillis
-			if ptask.CompleteTime != nil && (ptask.Status == task2.StatusComplete || ptask.Status == task2.StatusError) {
-				durationInMS = ptask.CompleteTime.UnixMilli() - ptask.StartTimeInMillis
+			if ptask.CompletedTime != nil && (ptask.Status == task2.StatusComplete || ptask.Status == task2.StatusError) {
+				durationInMS = ptask.CompletedTime.UnixMilli() - ptask.StartTimeInMillis
 			}
 		}
 		var (
@@ -858,7 +858,7 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 			"task_id": ptask.ID,
 			"status": ptask.Status,
 			"start_time": ptask.StartTimeInMillis,
-			"complete_time": ptask.CompleteTime,
+			"complete_time": ptask.CompletedTime.UnixMilli(),
 			"start": start,
 			"end": end,
 			"duration": durationInMS,

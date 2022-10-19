@@ -20,7 +20,7 @@ type Task struct {
 	Status string `json:"status"  elastic_mapping:"status: { type: keyword }"`
 	Description string `json:"description,omitempty" elastic_mapping:"description: { type: text }"`
 	Parameters map[string]interface{} `json:"parameters" elastic_mapping:"parameters:{type: object,enabled:false }"`
-	CompleteTime *time.Time `json:"complete_time,omitempty" elastic_mapping:"complete_time: { type: date }"`
+	CompletedTime *time.Time `json:"completed_time,omitempty" elastic_mapping:"completed_time: { type: date }"`
 }
 
 type Metadata struct {

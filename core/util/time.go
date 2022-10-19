@@ -192,6 +192,8 @@ func ParseDuration(s string) (time.Duration, error){
 		return time.Duration(num) * time.Hour * 24, nil
 	case 'w':
 		return time.Duration(num) * time.Hour * 24 * 7, nil
+	case 'M':
+		return time.Duration(num) * time.Hour * 24 * 30, nil
 	default:
 		return 0, fmt.Errorf("unsupport unit %v", unit)
 	}
