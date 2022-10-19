@@ -104,7 +104,7 @@ func (handler ElasticORM) UpdateBy(o interface{}, query interface{}) error {
 }
 
 func (handler ElasticORM) Count(o interface{}) (int64, error) {
-	countResponse, err := handler.Client.Count(handler.GetIndexName(o), nil)
+	countResponse, err := handler.Client.Count(nil, handler.GetIndexName(o), nil)
 	if err != nil {
 		return 0, err
 	}

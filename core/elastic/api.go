@@ -53,7 +53,7 @@ type API interface {
 
 	Get(indexName, docType, id string) (*GetResponse, error)
 	Delete(indexName, docType, id string, refresh ...string) (*DeleteResponse, error)
-	Count(indexName string, body []byte) (*CountResponse, error)
+	Count(ctx context.Context, indexName string, body []byte) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 
 	QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)

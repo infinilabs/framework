@@ -97,7 +97,7 @@ func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elas
 		url = url + "?refresh=" + refresh[0]
 	}
 
-	resp, err := c.Request(util.Verb_DELETE, url, nil)
+	resp, err := c.Request(nil, util.Verb_DELETE, url, nil)
 
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 
 	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
 
-	resp, err := c.Request(util.Verb_GET, url, nil)
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
 	esResp := &elastic.GetResponse{}
 	if err != nil {
@@ -173,7 +173,7 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 		return nil, err
 	}
 
-	resp, err := c.Request(util.Verb_POST, url, js)
+	resp, err := c.Request(nil, util.Verb_POST, url, js)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (c *ESAPIV8) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 	indexName=util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)
-	resp, err := c.Request(util.Verb_POST, url, mappings)
+	resp, err := c.Request(nil, util.Verb_POST, url, mappings)
 
 	if err != nil {
 		panic(err)
@@ -260,7 +260,7 @@ func (c *ESAPIV8) NewScroll(indexNames string, scrollTime string, docBufferCount
 		panic("scroll request is nil")
 	}
 
-	resp, err := c.Request(util.Verb_POST, url, jsonBody)
+	resp, err := c.Request(nil, util.Verb_POST, url, jsonBody)
 
 	if resp.StatusCode != 200 {
 		return nil, errors.New(string(resp.Body))

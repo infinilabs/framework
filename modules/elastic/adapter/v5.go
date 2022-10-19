@@ -141,7 +141,7 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 		jsonBody = jsonArray
 	}
 
-	resp, err := s.Request(util.Verb_POST, url, jsonBody)
+	resp, err := s.Request(nil, util.Verb_POST, url, jsonBody)
 
 	if err != nil {
 		return nil, err
@@ -169,7 +169,7 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 		return s.ESAPIV2.SetSearchTemplate(templateID, body)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err = s.Request(util.Verb_PUT, url, body)
+	_, err = s.Request(nil, util.Verb_PUT, url, body)
 	return err
 }
 
@@ -183,7 +183,7 @@ func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
 		return s.ESAPIV2.DeleteSearchTemplate(templateID)
 	}
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err = s.Request(util.Verb_DELETE, url, nil)
+	_, err = s.Request(nil, util.Verb_DELETE, url, nil)
 	return err
 }
 
@@ -197,6 +197,6 @@ func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
 		return s.ESAPIV2.FieldCaps(target)
 	}
 	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.GetEndpoint(), target)
-	res, err := s.Request(util.Verb_GET, url, nil)
+	res, err := s.Request(nil, util.Verb_GET, url, nil)
 	return res.Body, err
 }
