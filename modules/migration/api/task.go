@@ -746,13 +746,17 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 			durationInMS = indexTask.CompletedTime.UnixMilli() - indexTask.StartTimeInMillis
 		}
 	}
+	var completedTime int64
+	if indexTask.CompletedTime != nil {
+		completedTime = indexTask.CompletedTime.UnixMilli()
+	}
 
 	taskInfo := util.MapStr{
 		"task_id": id,
 		"start_time": indexTask.StartTimeInMillis,
 		"status": indexTask.Status,
 		"data_partition": indexTask.Metadata.Labels["partition_count"],
-		"complete_time": indexTask.CompletedTime.UnixMilli(),
+		"completed_time": completedTime,
 		"duration": durationInMS,
 	}
 	partitionTaskQuery := util.MapStr{
@@ -852,13 +856,17 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 				}
 			}
 		}
+		var subCompletedTime int64
+		if ptask.CompletedTime != nil {
+			subCompletedTime = ptask.CompletedTime.UnixMilli()
+		}
 
 		partitionTotalDocs, _ := util.MapStr(ptask.Parameters).GetValue("pipeline.config.source.doc_count")
 		partitionTaskInfos = append(partitionTaskInfos, util.MapStr{
 			"task_id": ptask.ID,
 			"status": ptask.Status,
 			"start_time": ptask.StartTimeInMillis,
-			"complete_time": ptask.CompletedTime.UnixMilli(),
+			"completed_time": subCompletedTime,
 			"start": start,
 			"end": end,
 			"duration": durationInMS,
