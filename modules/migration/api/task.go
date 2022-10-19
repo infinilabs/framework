@@ -169,10 +169,14 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 			log.Error(err)
 			continue
 		}
-		esClient := elastic.GetClient(dataConfig.Cluster.Target.Id)
 		var targetTotalDocs int64
 		targetTotal, _ := sourceM.GetValue("metadata.labels.target_total_docs")
 		if _, ok := targetTotal.(float64); !ok || hit.Source["status"] != task2.StatusComplete {
+			esClient := elastic.GetClientNoPanic(dataConfig.Cluster.Target.Id)
+			if esClient == nil {
+				log.Warnf("cluster [%s] was not found", dataConfig.Cluster.Target.Id)
+				continue
+			}
 			for _, index := range dataConfig.Indices {
 				count, err := getIndexTaskCount(&index, esClient)
 				if err != nil {
