@@ -22,7 +22,7 @@ import (
 var NEWLINEBYTES = []byte("\n")
 var BulkDocBuffer pool.BufferPool
 
-func WalkBulkRequests(safetyParse bool, data []byte, docBuff []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id string) (err error), payloadFunc func(payloadBytes []byte)) (int, error) {
+func WalkBulkRequests(safetyParse bool, data []byte, docBuff []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
@@ -63,9 +63,10 @@ START:
 				var index string
 				var typeName string
 				var id string
-				actionStr, index, typeName, id = ParseActionMeta(line)
+				var routing string
+				actionStr, index, typeName, id,routing = ParseActionMeta(line)
 
-				err := metaFunc(line, actionStr, index, typeName, id)
+				err := metaFunc(line, actionStr, index, typeName, id,routing)
 				if err != nil {
 					log.Debug(err)
 					return docCount, err
@@ -126,9 +127,10 @@ START:
 				var index string
 				var typeName string
 				var id string
-				actionStr, index, typeName, id = ParseActionMeta(scannedByte)
+				var routing string
+				actionStr, index, typeName, id,routing = ParseActionMeta(scannedByte)
 
-				err := metaFunc(scannedByte, actionStr, index, typeName, id)
+				err := metaFunc(scannedByte, actionStr, index, typeName, id,routing)
 				if err != nil {
 					if global.Env().IsDebug {
 						log.Error(err)
@@ -550,7 +552,7 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 	//if containError {
 		//decode response
 		response := BulkResponse{}
-		err := response.UnmarshalJSON(resbody)
+		err := util.FromJSONBytes(resbody,&response)
 		if err != nil {
 			panic(err)
 		}
@@ -603,7 +605,7 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 		WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
 			return false
-		}, func(metaBytes []byte, actionStr, index, typeName, id string) (err error) {
+		}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 			actionMetadata, match = invalidOffset[offset]
 			item:=actionMetadata.GetItem()
 
