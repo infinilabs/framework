@@ -424,6 +424,11 @@ type MetadataConfig struct {
 	NodeAvailabilityCheck TaskConfig `json:"node_availability_check"`
 }
 
+type BasicAuth struct {
+	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
+	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
+}
+
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
 	orm.ORMObjectBase
@@ -445,10 +450,7 @@ type ElasticsearchConfig struct {
 
 	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
 
-	BasicAuth *struct {
-		Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-		Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
-	} `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {
 		MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`

@@ -30,7 +30,7 @@ func (module *Module) Name() string {
 	return "Nutsdb"
 }
 
-func (module *Module) Setup(cfg *Config) {
+func (module *Module) Setup() {
 	module.RWMode="file_io"
 	module.StartFileLoadingMode="file_io"
 	module.SegmentSize=8 * 1024 * 1024

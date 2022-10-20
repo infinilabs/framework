@@ -40,11 +40,11 @@ type Env struct {
 	desc          string
 
 	//generated
-	version       string
-	commit        string
-	buildDate     string
-	buildNumber   string
-	eolDate       string
+	version     string
+	commit      string
+	buildDate   string
+	buildNumber string
+	eolDate     string
 	//generated
 
 	configFile string
@@ -62,9 +62,18 @@ type Env struct {
 
 	init bool
 
-	 workingDataDir string
-	 workingLogDir string
-	 pluginDir string
+	workingDataDir string
+	workingLogDir  string
+	pluginDir      string
+}
+
+func (env *Env) SetupRequired() bool {
+	//check is required
+	setupLock:=path.Join(env.GetDataDir(),".setup_finished")
+	if !util.FileExists(setupLock){
+		return true
+	}
+	return false
 }
 
 func (env *Env) GetLastCommitHash() string {

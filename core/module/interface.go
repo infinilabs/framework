@@ -16,13 +16,9 @@ limitations under the License.
 
 package module
 
-import (
-	"infini.sh/framework/core/config"
-)
-
 // Module defines system level module structure
 type Module interface {
-	Setup(config *config.Config)
+	Setup()
 	Start() error
 	Stop() error
 	Name() string

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -148,7 +147,7 @@ func GetFileName(queueID string, segmentID int64) string {
 	return path.Join(GetDataPath(queueID), fmt.Sprintf("%09d.dat", segmentID))
 }
 
-func (module *DiskQueue) Setup(config *config.Config) {
+func (module *DiskQueue) Setup() {
 
 	module.cfg = &DiskQueueConfig{
 		Enabled:           true,
@@ -480,6 +479,11 @@ func (module *DiskQueue) Start() error {
 }
 
 func (module *DiskQueue) Stop() error {
+
+	if module.cfg==nil{
+		return nil
+	}
+
 	if !module.cfg.Enabled {
 		return nil
 	}

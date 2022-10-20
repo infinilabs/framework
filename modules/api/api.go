@@ -20,7 +20,6 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
@@ -39,6 +38,7 @@ const whoisAPI = "/_framework/api/_whoami"
 const versionAPI = "/_framework/api/_version"
 const infoAPI = "/_framework/api/_info"
 const authAPI = "/_framework/api/_auth"
+const healthAPI = "/health"
 
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -50,6 +50,26 @@ func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Par
 func versionAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	w.Write([]byte(global.Env().GetVersion()))
 	w.Write([]byte("\n"))
+	w.WriteHeader(200)
+}
+
+func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	obj:=util.MapStr{
+		"status":global.Env().GetOverallHealth().ToString(),
+	}
+
+	services:=global.Env().GetServicesHealth()
+	if len(services)>0{
+		obj["services"]=services
+	}
+
+	if global.Env().SetupRequired(){
+		obj["setup_required"]=global.Env().SetupRequired()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(util.MustToJSONBytes(obj))
 	w.WriteHeader(200)
 }
 
@@ -84,6 +104,7 @@ func init() {
 	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
 	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
 	api.HandleAPIMethod(api.GET, authAPI, authAPIHandler)
+	api.HandleAPIMethod(api.GET, healthAPI, healthAPIHandler)
 
 	if global.Env().SystemConfig.APIConfig.AuthConfig.Enabled {
 		InitSecurity()
@@ -98,7 +119,7 @@ func InitSecurity() {
 }
 
 // Start api server
-func (module *APIModule) Setup(cfg *config.Config) {
+func (module *APIModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		w.Write([]byte(global.Env().GetAppCapitalName()))
 		w.Write([]byte(", "))

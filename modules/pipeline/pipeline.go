@@ -54,9 +54,12 @@ var moduleCfg = struct {
 	APIEnabled: true,
 }
 
-func (module *PipeModule) Setup(cfg *config.Config) {
+func (module *PipeModule) Setup() {
 
-	cfg.Unpack(&moduleCfg)
+	ok, err := env.ParseConfig("pipeline", &moduleCfg)
+	if ok && err != nil {
+		panic(err)
+	}
 
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)

@@ -20,7 +20,6 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/license"
-	//"github.com/uber-go/automaxprocs"
 	"os"
 	"os/signal"
 	"runtime"
@@ -158,6 +157,7 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 	} else {
 		runtime.GOMAXPROCS(app.numCPU)
 	}
+
 
 	fmt.Println(app.environment.GetWelcomeMessage())
 

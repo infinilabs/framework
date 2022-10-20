@@ -3,9 +3,12 @@ package task
 import (
 	"context"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/goroutine"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -17,6 +20,49 @@ const (
 	Running State = "running"
 	Canceled = "canceled"
 )
+
+//use task.Run instead of goroutine
+var defaultGoRoutingGroup = goroutine.NewGroup(goroutine.Option{Name: "default"})
+func RunWithinGroup(tag string,f func(ctx context.Context) error)  {
+	defaultGoRoutingGroup.Go(f)
+}
+
+func MustGetString(ctx context.Context,key string)string  {
+	v:=ctx.Value(key)
+	if v!=nil{
+		x,ok:=v.(string)
+		if ok{
+			return x
+		}
+	}
+	panic(errors.Errorf("invalid key: %v",key))
+}
+
+func RunWithContext(tag string,f func(ctx context.Context) error,ctx context.Context)  {
+	go func(func2 func(ctx context.Context) error,ctx2 context.Context) {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error(r,v)
+				}
+			}
+		}()
+
+		err:=func2(ctx2)
+		if err!=nil{
+			log.Error(err)
+		}
+	}(f,ctx)
+}
 
 type ScheduleTask struct {
 	ID          string     `config:"id" json:"id,omitempty"`

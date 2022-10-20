@@ -5,7 +5,6 @@ import (
 	"github.com/segmentio/encoding/json"
 	"github.com/shirou/gopsutil/process"
 	"infini.sh/framework/core/api"
-	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
@@ -32,7 +31,7 @@ type SimpleStatsConfig struct {
 	FlushIntervalInMs int  `config:"flush_interval_ms"`
 }
 
-func (module *SimpleStatsModule) Setup(cfg *Config) {
+func (module *SimpleStatsModule) Setup() {
 
 	module.config = &SimpleStatsConfig{
 		Enabled:           true,
@@ -103,6 +102,10 @@ func (module *SimpleStatsModule) Start() error {
 }
 
 func (module *SimpleStatsModule) Stop() error {
+	if module.config==nil{
+		return nil
+	}
+
 	if !module.config.Enabled {
 		return nil
 	}

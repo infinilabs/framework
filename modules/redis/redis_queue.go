@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-redis/redis"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
 	"sync"
@@ -33,7 +32,7 @@ func (module *RedisModule) Name() string {
 	return "redis"
 }
 
-func (module *RedisModule) Setup(cfg *config.Config) {
+func (module *RedisModule) Setup() {
 	module.config = RedisConfig{
 		Db: 0,
 		PoolSize: 1000,

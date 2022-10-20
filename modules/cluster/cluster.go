@@ -17,7 +17,7 @@ func (module ClusterModule) Name() string {
 	return "Cluster"
 }
 
-func (module ClusterModule) Setup(cfg *config.Config) {
+func (module ClusterModule) Setup() {
 	if !global.Env().SystemConfig.ClusterConfig.Enabled {
 		return
 	}

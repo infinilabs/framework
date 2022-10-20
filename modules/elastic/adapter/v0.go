@@ -695,7 +695,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 
 	node := elastic.NodesResponse{}
 
-	err = node.UnmarshalJSON(resp.Body)
+	err=util.FromJSONBytes(resp.Body,&node)
 
 	if err != nil {
 		return nil, err
@@ -717,8 +717,7 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 	}
 
 	node := elastic.NodesResponse{}
-
-	err = node.UnmarshalJSON(resp.Body)
+	err=util.FromJSONBytes(resp.Body,&node)
 	if err != nil {
 		return nil, err
 	}
@@ -1108,7 +1107,7 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 		return err
 	}
 	if result.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(result.Body))
+		return fmt.Errorf("code:%v,response:%v",result.StatusCode,string(result.Body))
 	}
 
 	return nil

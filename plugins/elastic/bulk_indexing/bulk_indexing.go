@@ -615,7 +615,7 @@ READ_DOCS:
 					var collectMeta = false
 					elastic.WalkBulkRequests(true, pop.Data, nil, func(eachLine []byte) (skipNextLine bool) {
 						return false
-					}, func(metaBytes []byte, actionStr, index, typeName, id string) (err error) {
+					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 						totalOps++
 						//check hash
 						partitionID := elastic.GetShardID(7, util.UnsafeStringToBytes(index+id), maxSlices)

@@ -41,7 +41,7 @@ func (module *UIModule) Name() string {
 	return "Web"
 }
 
-func (module *UIModule) Setup(cfg *Config) {
+func (module *UIModule) Setup() {
 
 
 	module.uiConfig = &uis.UIConfig{

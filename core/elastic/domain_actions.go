@@ -66,16 +66,25 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	if exists {
 		//if config no change, skip init
 		if util.ToJson(cfg, false) == util.ToJson(oldCfg, false) {
-			log.Trace("cfg no change, skip init")
+			log.Trace("cfg no change, skip init, ",oldCfg)
 			return
 		}
 	}
 
-	apis.Store(cfg.ID, handler)
-	cfgs.Store(cfg.ID, &cfg)
+	UpdateClient(cfg, handler)
+	UpdateConfig(cfg)
+
 	if exists && oldCfg != nil {
 		InitMetadata(&cfg, true)
 	}
+}
+
+func UpdateConfig(cfg ElasticsearchConfig) {
+	cfgs.Store(cfg.ID, &cfg)
+}
+
+func UpdateClient(cfg ElasticsearchConfig,handler API) {
+	apis.Store(cfg.ID, handler)
 }
 
 /**

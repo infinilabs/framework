@@ -5,7 +5,6 @@
 package badger
 
 import (
-	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
@@ -22,7 +21,7 @@ func (module *Module) Name() string {
 	return "Badger"
 }
 
-func (module *Module) Setup(cfg *Config) {
+func (module *Module) Setup() {
 	ok,err:=env.ParseConfig("badger", module)
 	if ok&&err!=nil{
 		panic(err)
