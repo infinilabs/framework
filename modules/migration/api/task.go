@@ -559,7 +559,7 @@ func (h *APIHandler) getDataMigrationTaskInfo(w http.ResponseWriter, req *http.R
 		}
 	}
 
-	targetESClient := elastic.GetClient(taskConfig.Cluster.Target.Id)
+
 	var completedIndices int
 	for i, index := range taskConfig.Indices {
 		if st, ok := statusM[index.TaskID]; ok {
@@ -567,6 +567,11 @@ func (h *APIHandler) getDataMigrationTaskInfo(w http.ResponseWriter, req *http.R
 		}
 		var count = index.Target.Docs
 		if taskConfig.Indices[i].Status != task2.StatusComplete || count == 0 {
+			targetESClient := elastic.GetClientNoPanic(taskConfig.Cluster.Target.Id)
+			if targetESClient == nil {
+				log.Warnf("cluster [%s] was not found", taskConfig.Cluster.Target.Id)
+				continue
+			}
 			count, err = getIndexTaskCount(&index, targetESClient)
 			if err != nil {
 				log.Error(err)
