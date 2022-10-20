@@ -17,7 +17,7 @@ func TestBulkWalkLines(t *testing.T) {
 	WalkBulkRequests(false,[]byte(bulkRequests),nil, func(eachLine []byte) (skipNextLine bool) {
 		//fmt.Println(string(eachLine))
 		return false
-	}, func(metaBytes []byte,actionStr,index,typeName,id string) (err error) {
+	}, func(metaBytes []byte,actionStr,index,typeName,id,routing string) (err error) {
 		fmt.Println(string(metaBytes))
 		return nil
 	}, func(payloadBytes []byte) {
