@@ -48,7 +48,7 @@ func (this *MetricsModule) Name() string {
 	return "metrics"
 }
 
-func (module *MetricsModule) Setup(cfg *Config) {
+func (module *MetricsModule) Setup() {
 
 	module.config = &MetricConfig{Enabled: true}
 

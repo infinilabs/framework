@@ -52,7 +52,7 @@ func Start() {
 
 		if cfg.Enabled(true) {
 			log.Trace("start to setup module: ", v.Name())
-			v.Setup(cfg)
+			v.Setup()
 			log.Debug("setup module: ", v.Name())
 		}
 
@@ -68,7 +68,7 @@ func Start() {
 
 		if cfg.Enabled(true) {
 			log.Trace("start to setup plugin: ", v.Name())
-			v.Setup(cfg)
+			v.Setup()
 			log.Debug("setup plugin: ", v.Name())
 		}
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/quipo/statsd"
-	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/stats"
@@ -26,12 +25,10 @@ type StatsDModule struct {
 	 statsdclient *statsd.StatsdClient
 	 buffer *statsd.StatsdBuffer
 	 l1 sync.RWMutex
-	 cfg *Config
 }
 
 
-func (module *StatsDModule) Setup(config *Config) {
-	module.cfg = config
+func (module *StatsDModule) Setup() {
 }
 
 
