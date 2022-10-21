@@ -239,6 +239,31 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 	}else if obj.Status == task2.StatusStopped {
 		if obj.Metadata.Labels["level"] == "partition" {
 			obj.Status = task2.StatusReady
+			//update parent task status
+			query := util.MapStr{
+				"bool": util.MapStr{
+					"must": []util.MapStr{
+						{
+							"terms": util.MapStr{
+								"parent_id": obj.ParentId,
+							},
+						},
+					},
+				},
+			}
+			queryDsl := util.MapStr{
+				"query": query,
+				"script": util.MapStr{
+					"source": fmt.Sprintf("ctx._source['status'] = '%s'", task2.StatusRunning),
+				},
+			}
+
+			err = orm.UpdateBy(obj, util.MustToJSONBytes(queryDsl))
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}else{
 			obj.Status = task2.StatusRunning
 			//update sub task status
