@@ -5,7 +5,6 @@
 package migration
 
 import (
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/modules/migration/api"
 )
 
@@ -13,7 +12,7 @@ func (module *MigrationModule) Name() string {
 	return "migration"
 }
 
-func (module *MigrationModule) Setup(cfg *config.Config) {
+func (module *MigrationModule) Setup() {
 	api.Init()
 }
 func (module *MigrationModule) Start() error {
