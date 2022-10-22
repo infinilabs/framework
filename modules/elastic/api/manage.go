@@ -169,6 +169,25 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	}
 	id := ps.ByName("id")
 	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+
+	esConfig:=elastic.ElasticsearchConfig{}
+	esConfig.ID=id
+	ok,err:=orm.Get(&esConfig)
+	if err!=nil{
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	if ok{
+		if esConfig.Reserved{
+			resBody["error"] = "this cluster is reserved"
+			h.WriteJSON(w, resBody, http.StatusInternalServerError)
+			return
+		}
+	}
+
 	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
 
 	if err != nil {

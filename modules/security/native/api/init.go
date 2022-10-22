@@ -8,7 +8,6 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/api/rbac/enum"
-	_ "infini.sh/framework/modules/auth/native"
 )
 
 type APIHandler struct {

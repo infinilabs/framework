@@ -436,6 +436,9 @@ type ElasticsearchConfig struct {
 	Source         string         `json:"source,omitempty"`
 	Name           string         `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
 	Description    string         `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+
+	//reserved means can't be deleted from console or API
+	Reserved        bool           `json:"reserved,omitempty" config:"reserved" elastic_mapping:"reserved:{type:boolean}"`
 	Enabled        bool           `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
 	Monitored      bool           `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	MonitorConfigs *MonitorConfig `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`

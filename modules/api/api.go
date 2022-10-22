@@ -18,13 +18,9 @@ package api
 
 import (
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/auth/native"
-	napi "infini.sh/framework/modules/auth/native/api"
 	"net/http"
 	"sort"
 )
@@ -105,18 +101,8 @@ func init() {
 	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
 	api.HandleAPIMethod(api.GET, authAPI, authAPIHandler)
 	api.HandleAPIMethod(api.GET, healthAPI, healthAPIHandler)
-
-	if global.Env().SystemConfig.APIConfig.AuthConfig.Enabled {
-		InitSecurity()
-	}
 }
 
-func InitSecurity() {
-	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
-	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
-	native.Init()
-	napi.Init()
-}
 
 // Start api server
 func (module *APIModule) Setup() {
