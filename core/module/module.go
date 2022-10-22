@@ -35,10 +35,12 @@ func New() {
 
 func RegisterSystemModule(mod Module) {
 	m.system = append(m.system, mod)
+	log.Trace("system:",mod.Name(),",",m.system)
 }
 
 func RegisterUserPlugin(mod Module) {
 	m.user = append(m.user, mod)
+	log.Trace("user:",mod.Name(),",",m.user)
 }
 
 func Start() {

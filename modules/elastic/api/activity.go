@@ -8,6 +8,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -145,7 +146,7 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 	}
 
 	dsl := util.MustToJSONBytes(query)
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetWildcardIndexName(event.Activity{}), dsl)
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(orm.GetWildcardIndexName(event.Activity{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )

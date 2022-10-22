@@ -67,7 +67,7 @@ func CheckInstanceLock(p string) {
 				return
 			}
 		}
-		log.Errorf("lock file:%s exists, seems instance [%v] is already running, please remove it or set `allow_multi_instance` to `true`",string(pidBytes), file)
+		log.Errorf("lock file:%s exists, seems instance [%v] is already running, please remove it or set `allow_multi_instance` to `true`",file,string(pidBytes))
 		log.Flush()
 		os.Exit(1)
 	}

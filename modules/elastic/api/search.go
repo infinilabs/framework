@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -60,7 +61,7 @@ func (h *APIHandler) HandleCreateSearchTemplateAction(w http.ResponseWriter, req
 		return
 	}
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	id := util.GetUUID()
 	template.Created = time.Now()
 	template.Updated = template.Created
@@ -111,7 +112,7 @@ func (h *APIHandler) HandleUpdateSearchTemplateAction(w http.ResponseWriter, req
 		return
 	}
 	templateID := ps.ByName("template_id")
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	index:=orm.GetIndexName(elastic.SearchTemplate{})
 	getRes, err := esClient.Get(index, "",templateID)
 	if err != nil {
@@ -208,7 +209,7 @@ func (h *APIHandler) HandleDeleteSearchTemplateAction(w http.ResponseWriter, req
 	templateID := ps.ByName("template_id")
 
 	index:=orm.GetIndexName(elastic.SearchTemplate{})
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	res, err := esClient.Get(index, "", templateID)
 	if err != nil {
 		log.Error(err)
@@ -268,7 +269,7 @@ func (h *APIHandler) HandleSearchSearchTemplateAction(w http.ResponseWriter, req
 	}
 
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), from, size)
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.SearchTemplate{}), []byte(queryDSL))
 
 	if err != nil {
@@ -319,7 +320,7 @@ func (h *APIHandler) HandleSearchSearchTemplateHistoryAction(w http.ResponseWrit
 	}
 
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), from, size)
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.SearchTemplateHistory{}), []byte(queryDSL))
 
 	if err != nil {

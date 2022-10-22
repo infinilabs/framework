@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -9,6 +8,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
@@ -27,7 +27,7 @@ type APIHandler struct {
 }
 
 func (h *APIHandler) Client() elastic.API {
-	return elastic.GetClient(h.Config.Elasticsearch)
+	return elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 }
 
 func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
@@ -42,7 +42,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		return
 	}
 	// TODO validate data format
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	id := util.GetUUID()
 	conf.Created = time.Now()
 	conf.Enabled=true
@@ -108,7 +108,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 		return
 	}
 	id := ps.ByName("id")
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
 	originConf, err := esClient.Get(indexName, "", id)
 	if err != nil {
@@ -168,7 +168,7 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 	resBody := map[string] interface{}{
 	}
 	id := ps.ByName("id")
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
 
 	if err != nil {
@@ -247,7 +247,7 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 
 
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from, sort)
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
 
 	if err != nil {
@@ -274,7 +274,7 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 	id := ps.ByName("id")
 
 	summary:=map[string]interface{}{}
-	client := elastic.GetClient(h.Config.Elasticsearch)
+	client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	var query = util.MapStr{
 		"sort": util.MapStr{
 			"timestamp": util.MapStr{
@@ -1007,7 +1007,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 			},
 		},
 	}
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -1098,19 +1098,30 @@ func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http
 		return
 	}
 	defer req.Body.Close()
-	config.Endpoint = fmt.Sprintf("%s://%s", config.Schema, config.Host)
-	freq.SetRequestURI(fmt.Sprintf("%s/", config.Endpoint))
+	var url string
+	if config.Endpoint!=""{
+		url=config.Endpoint
+	}else if config.Host!=""&&config.Schema!=""{
+		config.Endpoint = fmt.Sprintf("%s://%s", config.Schema, config.Host)
+	}else{
+		resBody["error"] = fmt.Sprintf("invalid config: %v", util.MustToJSON(config))
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+
+	if !util.SuffixStr(url,"/"){
+		url=fmt.Sprintf("%s/", url)
+	}
+
+	freq.SetRequestURI(url)
 	freq.Header.SetMethod("GET")
+
 	if config.BasicAuth != nil && strings.TrimSpace(config.BasicAuth.Username) != ""{
 		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
 	}
 
-	client := &fasthttp.Client{
-		MaxConnsPerHost: 1000,
-		TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-		ReadTimeout: time.Second * 5,
-	}
 	err = client.Do(freq, fres)
+
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("request error: %v", err)
 		log.Error( "test_connection ", "request error: ", err)

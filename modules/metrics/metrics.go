@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
 	. "infini.sh/framework/core/config"
@@ -74,9 +75,18 @@ func (module *MetricsModule) Setup() {
 		QueueName: util.StringDefault(module.config.Queue, "metrics"),
 		Labels:    module.config.Labels,
 		Tags:      module.config.Tags}
+
 	event.RegisterMeta(&meta)
 
-	log.Infof("ip:%v, host:%v, labels:%v, tags:%v", meta.MajorIP, meta.Hostname, util.JoinMapString(meta.Labels, "->"), util.JoinArray(meta.Tags, ","))
+	tail:=fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
+	if len(meta.Labels)>0{
+		tail=tail+",labels: "+util.JoinMapString(meta.Labels, "->")
+	}
+	if len(meta.Tags)>0{
+		tail=tail+",tags: "+util.JoinArray(meta.Tags, ",")
+	}
+
+	log.Info(tail)
 
 	CollectAgentMetric(module)
 	CollectHostMetric(module)

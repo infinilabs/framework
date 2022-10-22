@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
@@ -85,7 +86,7 @@ func generateGroupAggs(nodeMetricItems []GroupMetricItem) map[string]interface{}
 
 func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []GroupMetricItem, bucketSize int) map[string]*common.MetricItem {
 	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 	}
@@ -332,7 +333,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 			"aggs": aggs,
 		},
 	}
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 		panic(err)
@@ -407,7 +408,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 
 func (h *APIHandler) getBucketMetrics(query map[string]interface{}, bucketItems *[]common.BucketItem, bucketSize int) map[string]*common.MetricItem {
 	//bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 	}

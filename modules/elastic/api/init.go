@@ -54,7 +54,7 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetSettingAction))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/_proxy", clusterAPI.RequireClusterPermission(clusterAPI.HandleProxyAction))
-	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.RequireLogin(clusterAPI.HandleTestConnectionAction))
+	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.HandleTestConnectionAction)
 
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))
