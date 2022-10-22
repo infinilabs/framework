@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/util"
 	"net/http"
+	"src/github.com/buger/jsonparser"
 	"strconv"
 	"time"
 )
@@ -26,6 +27,14 @@ type PartitionInfo struct {
 	End float64 `json:"end"`
 	Filter map[string]interface{} `json:"filter"`
 	Docs int64 `json:"docs"`
+	Other bool
+}
+
+type BoundValuesResult struct {
+	Min float64
+	Max float64
+	Null int64
+	NotExistsFilter map[string]interface{}
 }
 
 const (
@@ -70,16 +79,16 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			}
 		}
 
-		min, max, err := getBoundValues(client, q.IndexName, q.FieldName, q.Filter)
+		result, err := getBoundValues(client, q.IndexName, q.FieldName, q.Filter)
 		if err != nil {
 			return nil, err
 		}
 		// empty data
-		if min == -1 {
+		if result.Min == -1 {
 			return nil, nil
 		}
 		var (
-			start = min
+			start = result.Min
 			end = start + step
 			partitions []PartitionInfo
 		)
@@ -118,14 +127,21 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 				Docs: docCount,
 			})
 
-			if end >= max {
+			if end >= result.Max {
 				break
 			}
 			start = end
 			end = start + step
-			if end >= max {
-				end = max + 1
+			if end >= result.Max {
+				end = result.Max + 1
 			}
+		}
+		if result.Null > 0 {
+			partitions = append(partitions, PartitionInfo{
+				Filter: result.NotExistsFilter,
+				Other: true,
+				Docs: result.Null,
+			})
 		}
 		return partitions, nil
 	default:
@@ -143,7 +159,18 @@ func GetPartitionDocCount( client API, indexName string, queryDsl interface{}) (
 	return res.Count, nil
 }
 
-func getBoundValues(client API, indexName string, fieldName string, filter interface{}) (float64, float64, error) {
+func getBoundValues(client API, indexName string, fieldName string, filter interface{}) (*BoundValuesResult, error) {
+	nullFilter := util.MapStr{
+		"bool": util.MapStr{
+			"must_not":[]util.MapStr{
+				{
+					"exists": util.MapStr{
+						"field": fieldName,
+					},
+				},
+			},
+		},
+	}
 	queryDsl := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -157,6 +184,9 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 					"field": fieldName,
 				},
 			},
+			"null_field_value": util.MapStr{
+				"filter": nullFilter,
+			},
 		},
 	}
 	if filter != nil {
@@ -164,26 +194,31 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 	}
 	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
 	if err != nil {
-		return 0, 0, err
+		return nil, err
+	}
+	result := BoundValuesResult{
+		Min: -1,
+		Max: -1,
+		Null: -1,
 	}
 	if res.GetTotal() == 0 {
-		return -1, -1, nil
+		return &result, nil
 	}
-	var (
-		max float64
-		min float64
-	)
 	if maxFieldValue, ok := res.Aggregations["max_field_value"]; ok {
 		if v, ok := maxFieldValue.Value.(float64); ok {
-			max = v
+			result.Max = v
 		}
 	}
 	if minFieldValue, ok := res.Aggregations["min_field_value"]; ok {
 		if v, ok := minFieldValue.Value.(float64); ok {
-			min = v
+			result.Min = v
 		}
 	}
-	return min, max, nil
+	result.Null, _ = jsonparser.GetInt(res.RawResult.Body, "aggregations", "null_field_value", "doc_count")
+	if result.Null > 0 {
+		result.NotExistsFilter = nullFilter
+	}
+	return &result, nil
 }
 
 func GetIndexTypes( client API, indexName string) (map[string]interface{} , error) {

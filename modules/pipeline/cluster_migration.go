@@ -313,16 +313,21 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 					partitionSource[k] = v
 				}
 				partitionSource["query_dsl"] = partition.Filter
-				must := []interface{}{
-					util.MapStr{
+				var must []interface{}
+
+				if partition.Other {
+					must = append(must, partition.Filter)
+				}else{
+					must = append(must, util.MapStr{
 						"range": util.MapStr{
 							index.Partition.FieldName: util.MapStr{
 								"gte": partition.Start,
 								"lt": partition.End,
 							},
 						},
-					},
+					})
 				}
+
 				if targetMust != nil {
 					must = append(must, targetMust...)
 				}
