@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"infini.sh/framework/core/util"
+	"net/http"
 	"strconv"
 	"time"
 )
@@ -216,6 +217,9 @@ func getIndexTypes( client API, indexName string) (map[string]interface{} , erro
 	searchRes, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(query))
 	if err != nil {
 		return nil, err
+	}
+	if searchRes.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(searchRes.RawResult.Body))
 	}
 	typeInfo := map[string]interface{}{}
 	if indexAggs, ok := searchRes.Aggregations["group_by_index"]; ok {
