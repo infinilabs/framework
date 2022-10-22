@@ -213,6 +213,12 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 						"must": must,
 					},
 				}
+			}else{
+				if esSourceClient.GetMajorVersion() >= 8 {
+					source["type_rename"] = util.MapStr{
+						"*": index.Target.DocType,
+					}
+				}
 			}
 		}
 		var targetMust []interface{}
