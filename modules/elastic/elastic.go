@@ -114,7 +114,7 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 		}
 	}
 
-	log.Infof("loading [%v] remote elasticsearch configs", len(result.Hits.Hits))
+	log.Infof("loading [%v] remote configs", len(result.Hits.Hits))
 	return configs
 }
 

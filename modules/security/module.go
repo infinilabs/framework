@@ -6,7 +6,7 @@ package security
 
 import (
 	"infini.sh/framework/core/api/rbac"
-	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/security/native"
 	napi "infini.sh/framework/modules/security/native/api"
@@ -14,6 +14,7 @@ import (
 
 
 type Module struct {
+	Enabled           bool `config:"enabled"`
 }
 
 func (module Module) Name() string {
@@ -23,6 +24,7 @@ func (module Module) Name() string {
 func (module Module) Setup() {
 
 }
+
 var securityInited bool
 func InitSecurity() {
 	if securityInited{
@@ -36,13 +38,25 @@ func InitSecurity() {
 }
 
 func (module Module) Start() error {
-	if global.Env().SystemConfig.APIConfig.AuthConfig.Enabled {
-		InitSecurity()
+
+	cfg := &Module{Enabled:true}
+
+	ok,err:=env.ParseConfig("security", &cfg)
+	if ok&&err!=nil{
+		panic(err)
 	}
+
+	if !cfg.Enabled {
+		return nil
+	}
+
+	InitSecurity()
+
 	return nil
 }
 
 func (module Module) Stop() error {
+
 	return nil
 }
 
