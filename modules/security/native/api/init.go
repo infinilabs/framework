@@ -16,10 +16,9 @@ type APIHandler struct {
 }
 
 const adapterType = "elasticsearch"
+var apiHandler = APIHandler{Adapter: rbac.GetAdapter(adapterType)}
 
 func Init() {
-
-	apiHandler := APIHandler{Adapter: rbac.GetAdapter(adapterType)}
 
 	api.HandleAPIMethod(api.GET, "/permission/:type", apiHandler.ListPermission)
 	api.HandleAPIMethod(api.POST, "/role/:type", apiHandler.RequirePermission(apiHandler.CreateRole, enum.RoleAllPermission...))
@@ -46,6 +45,10 @@ func Init() {
 
 	api.HandleAPIMethod(api.GET, "/user/security/settings", apiHandler.RequireLogin(apiHandler.GetSecuritySettings))
 
+
+}
+
+func LoadPermission()  {
 	//load role from store
 	apiHandler.loadRolePermission()
 }

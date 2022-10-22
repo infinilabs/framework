@@ -11,7 +11,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/modules/elastic/common"
 	"math"
 	"net/http"
@@ -1096,103 +1095,6 @@ func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Req
 		return true
 	})
 	h.WriteJSON(w, status, http.StatusOK)
-}
-
-func (h *APIHandler) HandleTestConnectionAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var (
-		freq = fasthttp.AcquireRequest()
-		fres = fasthttp.AcquireResponse()
-		resBody = map[string] interface{}{}
-	)
-	defer func() {
-		fasthttp.ReleaseRequest(freq)
-		fasthttp.ReleaseResponse(fres)
-	}()
-	var config = &elastic.ElasticsearchConfig{}
-	err := h.DecodeJSON(req, &config)
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("json decode error: %v", err)
-		log.Errorf("json decode error: %v", err)
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	defer req.Body.Close()
-	var url string
-	if config.Endpoint!=""{
-		url=config.Endpoint
-	}else if config.Host!=""&&config.Schema!=""{
-		config.Endpoint = fmt.Sprintf("%s://%s", config.Schema, config.Host)
-	}else{
-		resBody["error"] = fmt.Sprintf("invalid config: %v", util.MustToJSON(config))
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-
-	if !util.SuffixStr(url,"/"){
-		url=fmt.Sprintf("%s/", url)
-	}
-
-	freq.SetRequestURI(url)
-	freq.Header.SetMethod("GET")
-
-	if config.BasicAuth != nil && strings.TrimSpace(config.BasicAuth.Username) != ""{
-		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
-	}
-
-	err = client.Do(freq, fres)
-
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("request error: %v", err)
-		log.Error( "test_connection ", "request error: ", err)
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	b := fres.Body()
-	clusterInfo := &elastic.ClusterInformation{}
-	err = json.Unmarshal(b, clusterInfo)
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("cluster info decode error: %v", err)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	resBody["version"] = clusterInfo.Version.Number
-	resBody["cluster_uuid"] = clusterInfo.ClusterUUID
-	resBody["cluster_name"] = clusterInfo.ClusterName
-
-	//fetch cluster health info
-	freq.SetRequestURI(fmt.Sprintf("%s/_cluster/health", config.Endpoint))
-	fres.Reset()
-	err = client.Do(freq, fres)
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("request cluster health info error: %v", err)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	var statusCode = fres.StatusCode()
-	if statusCode == http.StatusUnauthorized {
-		resBody["error"] = fmt.Sprintf("required authentication credentials")
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-
-	healthInfo := &elastic.ClusterHealth{}
-	err = json.Unmarshal(fres.Body(), &healthInfo)
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("cluster health info decode error: %v", err)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	resBody["status"] = healthInfo.Status
-	resBody["number_of_nodes"] = healthInfo.NumberOfNodes
-	resBody["number_of_data_nodes"] = healthInfo.NumberOf_data_nodes
-	resBody["active_shards"] = healthInfo.ActiveShards
-
-	h.WriteJSON(w, resBody, http.StatusOK)
-
 }
 
 func (h *APIHandler) GetMetadata(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

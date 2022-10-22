@@ -70,5 +70,9 @@ func (module *UIModule) Start() error {
 
 func (module *UIModule) Stop() error {
 
+	if module.uiConfig.Enabled {
+		uis.StopUI(module.uiConfig)
+	}
+
 	return nil
 }

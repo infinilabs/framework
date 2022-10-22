@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"os"
@@ -125,6 +126,10 @@ func (handler Handler) RequireLogin(h httprouter.Handle) httprouter.Handle {
 
 func (handler Handler) RequirePermission(h httprouter.Handle, permissions ...string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+		if global.Env().SetupRequired(){
+			return
+		}
 
 		if authEnabled {
 			claims, err := rbac.ValidateLogin(r.Header.Get("Authorization"))

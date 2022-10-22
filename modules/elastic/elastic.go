@@ -158,18 +158,6 @@ func (module *ElasticModule) Setup() {
 	m := loadFileBasedElasticConfig()
 	initElasticInstances(m, "file")
 
-	if moduleConfig.ORMConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-		orm.Register("elastic", handler)
-	}
-
-	if moduleConfig.StoreConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-		kv.Register("elastic", module.storeHandler)
-	}
-
 	api.Init(moduleConfig)
 }
 
@@ -328,6 +316,18 @@ func InitSchema()  {
 var ormInited bool
 
 func (module *ElasticModule) Start() error {
+
+	if moduleConfig.ORMConfig.Enabled {
+		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
+		orm.Register("elastic", handler)
+	}
+
+	if moduleConfig.StoreConfig.Enabled {
+		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+		kv.Register("elastic", module.storeHandler)
+	}
 
 	if moduleConfig.ORMConfig.Enabled{
 		if !ormInited{

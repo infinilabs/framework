@@ -22,7 +22,7 @@ func (module Module) Name() string {
 }
 
 func (module Module) Setup() {
-
+	napi.Init()
 }
 
 var securityInited bool
@@ -33,7 +33,9 @@ func InitSecurity() {
 	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
 	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
 	native.Init()
-	napi.Init()
+
+	//load role from store
+	napi.LoadPermission()
 	securityInited=true
 }
 

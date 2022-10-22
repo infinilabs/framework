@@ -130,6 +130,8 @@ func (app *App) InitWithFlags(customFunc func()) {
 		app.environment.IsDebug = app.environment.SystemConfig.LoggingConfig.IsDebug
 	}
 
+	app.environment.CheckSetup()
+
 	//put env into global registrar
 	global.RegisterEnv(app.environment)
 

@@ -65,15 +65,22 @@ type Env struct {
 	workingDataDir string
 	workingLogDir  string
 	pluginDir      string
+
+	setupRequired bool
 }
 
-func (env *Env) SetupRequired() bool {
+func (env *Env) CheckSetup() error {
+	env.setupRequired=false
 	//check is required
 	setupLock:=path.Join(env.GetDataDir(),".setup_lock")
 	if !util.FileExists(setupLock){
-		return true
+		env.setupRequired=true
 	}
-	return false
+	return nil
+}
+
+func (env *Env) SetupRequired() bool {
+	return env.setupRequired
 }
 
 func (env *Env) GetLastCommitHash() string {
