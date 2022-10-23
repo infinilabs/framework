@@ -6,6 +6,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/r3labs/diff/v2"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
@@ -63,9 +64,15 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
-	client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+
+	globalID:=global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	if clusterID==globalID{
+		global.Env().ReportHealth("system_cluster",env.GetHealthType(healthStatus))
+	}
+
+	client := elastic.GetClient(globalID)
 	if client == nil {
-		log.Errorf("cluster %s not found", global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		log.Errorf("cluster %s not found", globalID)
 		return
 	}
 	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
