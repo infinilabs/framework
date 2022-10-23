@@ -24,7 +24,6 @@ import (
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/logger"
-	"infini.sh/framework/modules/api"
 	_ "net/http/pprof"
 )
 
@@ -33,7 +32,6 @@ type UIModule struct {
 }
 
 func LoggerReceiver(message string, level log.LogLevel, context log.LogContextInterface) {
-
 	websocket.BroadcastMessage(message)
 }
 
@@ -57,16 +55,6 @@ func (module *UIModule) Setup() {
 
 		uis.EnableAuth(module.uiConfig.AuthConfig.Enabled)
 
-		if module.uiConfig.AuthConfig.Enabled {
-			api.InitSecurity()
-		}
-
-		//init admin ui
-		//admin.InitUI()
-
-		//init public ui
-		//public.InitUI(module.uiConfig.AuthConfig)
-
 		//register websocket logger
 		logger.RegisterWebsocketHandler(LoggerReceiver)
 	}
@@ -81,6 +69,10 @@ func (module *UIModule) Start() error {
 }
 
 func (module *UIModule) Stop() error {
+
+	if module.uiConfig.Enabled {
+		uis.StopUI(module.uiConfig)
+	}
 
 	return nil
 }

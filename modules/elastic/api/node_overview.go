@@ -10,6 +10,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
@@ -51,7 +52,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			},
 		},
 	}
-	var should []util.MapStr
+	var should =[]util.MapStr{}
 	if reqBody.SearchField != ""{
 		should = []util.MapStr{
 			{
@@ -128,6 +129,8 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		must = append(must, clusterFilter)
 	}
 
+
+
 	query := util.MapStr{
 		"aggs":      aggs,
 		"size":      reqBody.Size,
@@ -158,7 +161,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		}
 	}
 	dsl := util.MustToJSONBytes(query)
-	response, err := elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(orm.GetIndexName(elastic.NodeConfig{}), dsl)
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(orm.GetIndexName(elastic.NodeConfig{}), dsl)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w,resBody, http.StatusInternalServerError )

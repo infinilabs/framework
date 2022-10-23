@@ -207,6 +207,9 @@ func (module *DiskQueue) Setup() {
 	if module.cfg.Default {
 		queue.RegisterDefaultHandler(module)
 	}
+
+	module.RegisterAPI()
+
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
@@ -381,8 +384,6 @@ func (module *DiskQueue) Start() error {
 			queue.IniQueue(v)
 		}
 	}
-
-	module.RegisterAPI()
 
 	//trigger s3 uploading
 	//from lastUpload to current WrtieFile

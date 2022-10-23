@@ -25,6 +25,7 @@ import (
 	kafka_queue "infini.sh/framework/modules/queue/kafka_queue"
 	"infini.sh/framework/modules/queue/mem_queue"
 	"infini.sh/framework/modules/redis"
+	"infini.sh/framework/modules/security"
 	"infini.sh/framework/modules/stats"
 	"infini.sh/framework/modules/task"
 	"infini.sh/framework/modules/ui"
@@ -44,4 +45,5 @@ func Register() {
 	module.RegisterSystemModule(&pipeline.PipeModule{})
 	//module.RegisterSystemModule(cluster.ClusterModule{})
 	module.RegisterSystemModule(&task.TaskModule{})
+	module.RegisterSystemModule(&security.Module{})
 }

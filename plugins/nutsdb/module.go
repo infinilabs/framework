@@ -72,6 +72,8 @@ func (module *Module) Setup() {
 	filter.Register("nutsdb", module.handler)
 	kv.Register("nutsdb", module.handler)
 
+	Init(module.handler)
+
 }
 
 func (module *Module) Start() error {
@@ -79,7 +81,6 @@ func (module *Module) Start() error {
 		t := time.Now()
 		module.handler.Open()
 		log.Tracef("open nutsdb elapsed: %s", time.Since(t))
-		Init(module.handler)
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -16,7 +17,7 @@ func (h *APIHandler) HandleSettingAction(w http.ResponseWriter, req *http.Reques
 	}
 	targetClusterID := ps.ByName("id")
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	var reqParams = elastic.Setting{
 		UpdatedAt: time.Now(),
 		ClusterID: targetClusterID,
@@ -55,7 +56,7 @@ func (h *APIHandler) HandleGetSettingAction(w http.ResponseWriter, req *http.Req
 	}
 	targetClusterID := ps.ByName("id")
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	var key = ps.ByName("key")
 
 	queryDSL := fmt.Sprintf(`{"size":1,"query":{"bool":{"must":[{"match":{"key":"%s"}},{"match":{"cluster_id":"%s"}}]}}}`, key, targetClusterID)

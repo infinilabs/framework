@@ -5,6 +5,7 @@ import (
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -88,7 +89,7 @@ func (h *APIHandler) HandleSearchTraceTemplateAction(w http.ResponseWriter, req 
 	}
 
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from)
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.TraceTemplate{}), []byte(queryDSL))
 
 	if err != nil {
@@ -115,7 +116,7 @@ func (h *APIHandler) HandleSaveTraceTemplateAction(w http.ResponseWriter, req *h
 	}
 	reqParams.ID = ps.ByName("template_id")
 	reqParams.Updated = time.Now()
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	_, err = esClient.Index(orm.GetIndexName(reqParams),"", reqParams.ID, reqParams, "wait_for")
 	if err != nil {
 		log.Error(err)
@@ -148,7 +149,7 @@ func (h *APIHandler) HandleGetTraceTemplateAction(w http.ResponseWriter, req *ht
 func (h *APIHandler) HandleDeleteTraceTemplateAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("template_id")
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	delRes, err := esClient.Delete(orm.GetIndexName(elastic.TraceTemplate{}), "", id, "wait_for")
 	if err != nil {
 		log.Error(err)

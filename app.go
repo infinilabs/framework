@@ -130,6 +130,8 @@ func (app *App) InitWithFlags(customFunc func()) {
 		app.environment.IsDebug = app.environment.SystemConfig.LoggingConfig.IsDebug
 	}
 
+	app.environment.CheckSetup()
+
 	//put env into global registrar
 	global.RegisterEnv(app.environment)
 
@@ -252,7 +254,10 @@ func (app *App) Shutdown() {
 	logger.Flush()
 
 	if app.environment.IsDebug {
-		fmt.Println(util.ToJson(stats.StatsAll(),true))
+		stats:=stats.StatsAll()
+		if len(stats)>0{
+			fmt.Println(util.ToJson(stats,true))
+		}
 	}
 
 	if !app.isDaemonMode && !app.disableVerbose {

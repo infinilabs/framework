@@ -98,7 +98,7 @@ func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
-	result, err := elastic.GetClient(moduleConfig.Elasticsearch).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
+	result, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
 		log.Error(err)
 		return configs
@@ -114,7 +114,7 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 		}
 	}
 
-	log.Infof("loading [%v] remote elasticsearch configs", len(result.Hits.Hits))
+	log.Infof("loading [%v] remote configs", len(result.Hits.Hits))
 	return configs
 }
 
@@ -145,26 +145,20 @@ func (module *ElasticModule) Setup() {
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
-
 	if exists && err != nil {
 		panic(err)
 	}
+
+	if exists{
+		if moduleConfig.Elasticsearch!=""{
+			global.Register(elastic.GlobalSystemElasticsearchID,moduleConfig.Elasticsearch)
+		}
+	}
+
 	m := loadFileBasedElasticConfig()
 	initElasticInstances(m, "file")
 
-	if moduleConfig.ORMConfig.Enabled {
-		client := elastic.GetClient(moduleConfig.Elasticsearch)
-		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-		orm.Register("elastic", handler)
-	}
-
-	if moduleConfig.StoreConfig.Enabled {
-		client := elastic.GetClient(moduleConfig.Elasticsearch)
-		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-		kv.Register("elastic", module.storeHandler)
-	}
-
-	api.Init(moduleConfig)
+	api.InitAPI(moduleConfig)
 }
 
 func (module *ElasticModule) Stop() error {
@@ -291,36 +285,60 @@ func (module *ElasticModule) clusterStateRefresh() {
 	task.RegisterScheduleTask(task2)
 }
 
+var schemaInited bool
+func InitSchema()  {
+	if schemaInited{
+		return
+	}
+	err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+	if err != nil {
+		panic(err)
+	}
+	err = orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
+	if err != nil {
+		panic(err)
+	}
+	err = orm.RegisterSchemaWithIndexName(elastic.IndexConfig{}, "index")
+	if err != nil {
+		panic(err)
+	}
+	err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
+	if err != nil {
+		panic(err)
+	}
+	err = orm.RegisterSchemaWithIndexName(event.Activity{}, "activities")
+	if err != nil {
+		panic(err)
+	}
+	schemaInited=true
+}
+
+var ormInited bool
+
 func (module *ElasticModule) Start() error {
 
 	if moduleConfig.ORMConfig.Enabled {
-		if moduleConfig.ORMConfig.InitTemplate {
-			client := elastic.GetClient(moduleConfig.Elasticsearch)
-			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
-		}
+		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
+		orm.Register("elastic", handler)
+	}
 
-		err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(elastic.IndexConfig{}, "index")
-		if err != nil {
-			panic(err)
-		}
+	if moduleConfig.StoreConfig.Enabled {
+		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+		kv.Register("elastic", module.storeHandler)
+	}
 
-		err = orm.RegisterSchemaWithIndexName(event.Event{}, "metrics")
-		if err != nil {
-			panic(err)
-		}
-		err = orm.RegisterSchemaWithIndexName(event.Activity{}, "activities")
-		if err != nil {
-			panic(err)
+	if moduleConfig.ORMConfig.Enabled{
+		if !ormInited{
+			//init template
+			InitTemplate(false)
+			//register schema
+			InitSchema()
+			ormInited=true
 		}
 	}
+
 	if moduleConfig.RemoteConfigEnabled {
 		m := loadESBasedElasticConfig()
 		initElasticInstances(m, "elastic")

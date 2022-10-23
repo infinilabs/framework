@@ -65,15 +65,22 @@ type Env struct {
 	workingDataDir string
 	workingLogDir  string
 	pluginDir      string
+
+	setupRequired bool
+}
+
+func (env *Env) CheckSetup() error {
+	env.setupRequired=false
+	//check is required
+	setupLock:=path.Join(env.GetDataDir(),".setup_lock")
+	if !util.FileExists(setupLock){
+		env.setupRequired=true
+	}
+	return nil
 }
 
 func (env *Env) SetupRequired() bool {
-	//check is required
-	setupLock:=path.Join(env.GetDataDir(),".setup_finished")
-	if !util.FileExists(setupLock){
-		return true
-	}
-	return false
+	return env.setupRequired
 }
 
 func (env *Env) GetLastCommitHash() string {
@@ -249,8 +256,6 @@ func (env *Env) loadConfig() error {
 		exPath=path.Join(exPath,env.GetAppLowercaseName() + ".yml")
 	}
 
-	log.Trace("pwd:",pwd,",process path:",exPath)
-
 	if util.FileExists(filename) {
 		err:=env.loadEnvFromConfigFile(filename)
 		if err!=nil{
@@ -282,10 +287,12 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	var err error
 	configObject, err = config.LoadFile(filename)
 	if err != nil {
+		panic(err)
 		return err
 	}
 
 	if err := configObject.Unpack(env.SystemConfig); err != nil {
+		panic(err)
 		return err
 	}
 
@@ -301,6 +308,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 			v, err := config.LoadPath(env.SystemConfig.PathConfig.Config)
 			if err != nil {
+				panic(err)
 				return err
 			}
 			if env.IsDebug {
@@ -311,6 +319,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 			err = configObject.Merge(v)
 			if err != nil {
+				panic(err)
 				return err
 			}
 		}
@@ -329,6 +338,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 	obj := map[string]interface{}{}
 	if err := configObject.Unpack(obj); err != nil {
+		panic(err)
 		return err
 	}
 	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
@@ -441,6 +451,14 @@ func EmptyEnv() *Env {
 
 func GetStartTime() time.Time {
 	return startTime
+}
+
+func (env *Env) GetConfigDir() string {
+	cfgPath := util.TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
+	if util.FileExists(cfgPath){
+		return cfgPath
+	}
+	return env.SystemConfig.PathConfig.Config
 }
 
 // GetDataDir returns root working dir of app instance

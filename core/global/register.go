@@ -17,6 +17,8 @@ limitations under the License.
 package global
 
 import (
+	"errors"
+	"fmt"
 	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
@@ -62,7 +64,19 @@ func Register(k RegisterKey, v interface{}) {
 	reg.values[k] = v
 }
 
-// Lookup is to lookup your own previous registered value
+func MustLookupString(k RegisterKey) string {
+	v:=MustLookup(k)
+	return v.(string)
+}
+
+func MustLookup(k RegisterKey) interface{} {
+	v:=Lookup(k)
+	if v==nil{
+		panic(errors.New(fmt.Sprintf("invalid key: %v",k)))
+	}
+	return v
+}
+
 func Lookup(k RegisterKey) interface{} {
 	reg := getRegistrar()
 	if reg == nil {

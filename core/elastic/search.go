@@ -93,7 +93,7 @@ func BuildSearchHighlight(highlightParam *SearchHighlightParam) util.MapStr{
 
 type SearchFilterParam map[string][]string
 func BuildSearchTermFilter(filterParam SearchFilterParam) []util.MapStr{
-	var filter []util.MapStr
+	var filter= []util.MapStr{}
 	if filterParam == nil {
 		return filter
 	}

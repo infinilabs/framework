@@ -7,6 +7,7 @@ import (
 	"github.com/r3labs/diff/v2"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/queue"
@@ -62,14 +63,9 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
-	if moduleConfig.Elasticsearch == "" {
-		log.Error("trying access the system cluster but it is not set")
-		return
-	}
-
-	client := elastic.GetClient(moduleConfig.Elasticsearch)
+	client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	if client == nil {
-		log.Errorf("cluster %s not found", moduleConfig.Elasticsearch)
+		log.Errorf("cluster %s not found", global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 		return
 	}
 	var indexName = orm.GetIndexName(elastic.ElasticsearchConfig{})
@@ -188,7 +184,7 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 }
 
 func (module *ElasticModule) loadIndexMetadataFromES( clusterID string)([]byte, error){
- 	esClient := elastic.GetClient(moduleConfig.Elasticsearch)
+ 	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	queryDsl := `{
 	"size": 1000,
   "query": {
@@ -1255,7 +1251,7 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 }
 
 func (module *ElasticModule) loadClusterSettingsFromES( clusterID string)([]byte, error){
-	esClient := elastic.GetClient(moduleConfig.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	queryDsl := `{
 	"size": 1,
   "query": {

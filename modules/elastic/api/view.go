@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
@@ -46,7 +47,7 @@ func (h *APIHandler) HandleCreateViewAction(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	id := util.GetUUID()
 	viewReq.Attributes.UpdatedAt = time.Now()
 	viewReq.Attributes.ClusterID = targetClusterID
@@ -79,7 +80,7 @@ func (h *APIHandler) HandleGetViewListAction(w http.ResponseWriter, req *http.Re
 		search = fmt.Sprintf(`,{"match":{"title":%s}}`, search)
 	}
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 
 	queryDSL :=[]byte(fmt.Sprintf(`{"_source":["title","viewName", "updated_at"],"size": %d, "query":{"bool":{"must":[{"match":{"cluster_id":"%s"}}%s]}}}`, size, targetClusterID, search))
 
@@ -123,7 +124,7 @@ func (h *APIHandler) HandleDeleteViewAction(w http.ResponseWriter, req *http.Req
 
 	viewID := ps.ByName("view_id")
 
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 
 	_, err := esClient.Delete(orm.GetIndexName(elastic.View{}), "", viewID, "wait_for")
 	if err != nil {
@@ -235,7 +236,7 @@ func (h *APIHandler) HandleBulkGetViewAction(w http.ResponseWriter, req *http.Re
 			indexNames = append(indexNames, reqID.ID)
 		}
 	}
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 
 	queryDSL :=[]byte(fmt.Sprintf(`{"query": {"bool": {"must": [{"terms": {"_id": [%s]}},
 		{"match": {"cluster_id": "%s"}}]}}}`, strings.Join(strIDs, ","), targetClusterID))
@@ -332,7 +333,7 @@ func (h *APIHandler) HandleUpdateViewAction(w http.ResponseWriter, req *http.Req
 		return
 	}
 	id := ps.ByName("view_id")
-	esClient := elastic.GetClient(h.Config.Elasticsearch)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	viewReq.Attributes.UpdatedAt = time.Now()
 	viewReq.Attributes.ClusterID = targetClusterID
 	_, err = esClient.Index(orm.GetIndexName(viewReq.Attributes),"", id, viewReq.Attributes, "wait_for")

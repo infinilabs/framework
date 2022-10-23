@@ -6,8 +6,10 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 )
 
-func Init(cfg common.ModuleConfig) {
+func InitAPI(cfg common.ModuleConfig) {
 	clusterAPI := APIHandler{Config: cfg}
+
+	InitTestAPI()
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/health", clusterAPI.RequireClusterPermission(clusterAPI.GetClusterHealth))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/metrics", clusterAPI.RequireClusterPermission(clusterAPI.HandleMetricsSummaryAction))
@@ -54,8 +56,6 @@ func Init(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/setting/:key", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetSettingAction))
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/_proxy", clusterAPI.RequireClusterPermission(clusterAPI.HandleProxyAction))
-	api.HandleAPIMethod(api.POST, "/elasticsearch/try_connect", clusterAPI.RequireLogin(clusterAPI.HandleTestConnectionAction))
-
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts",  clusterAPI.RequireLogin(clusterAPI.GetHosts))

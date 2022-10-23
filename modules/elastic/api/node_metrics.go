@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"sort"
@@ -1017,7 +1018,7 @@ func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) 
 			},
 		},
 	}
-	response,err:=elastic.GetClient(h.Config.Elasticsearch).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
+	response,err:=elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(),util.MustToJSONBytes(query))
 	if err!=nil{
 		log.Error(err)
 		return nil, err

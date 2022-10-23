@@ -93,7 +93,7 @@ func initIndexName(t interface{},indexName string)string  {
 		v,ok:=indexNames.Load(indexName)
 		if ok{
 			if v==key{
-				log.Warnf("duplicated schema registration %s",key)
+				log.Warnf("duplicated schema %v, %s",indexName,key)
 				return indexName
 			}
 			panic(errors.Errorf("index name [%s][%s] already registered!",indexName,key))
@@ -132,7 +132,7 @@ func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName st
 
 		json := fmt.Sprintf(jsonFormat, quoteJson(js))
 
-		log.Trace("mapping: ", json)
+		log.Trace(indexName,", mapping: ", json)
 
 		data, err := handler.Client.UpdateMapping(indexName, []byte(json))
 		if err != nil {
@@ -141,7 +141,7 @@ func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName st
 
 		x,_,_,_:= jsonparser.Get(data,"error")
 		if x!=nil{
-			log.Errorf("error on update mapping: %v",string(x))
+			log.Errorf("error on update mapping: %v, %v",indexName,string(x))
 		}else{
 			log.Debugf("schema %v successful initialized", indexName)
 		}

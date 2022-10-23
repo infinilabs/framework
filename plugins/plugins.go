@@ -7,4 +7,5 @@ import (
 	_ "infini.sh/framework/plugins/elastic/bulk_indexing"
 	_ "infini.sh/framework/plugins/elastic/indexing_merge"
 	_ "infini.sh/framework/plugins/elastic/json_indexing"
+	_ "infini.sh/framework/plugins/replay"
 )

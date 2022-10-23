@@ -18,11 +18,12 @@ func (module *AgentModule) Name() string {
 }
 
 func (module *AgentModule) Setup() {
-	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
-	orm.RegisterSchemaWithIndexName(host.HostInfo{}, "host")
 	api.Init()
 }
 func (module *AgentModule) Start() error {
+	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
+	orm.RegisterSchemaWithIndexName(host.HostInfo{}, "host")
+
 	agents, err := loadAgentsFromES("")
 	if err != nil {
 		log.Error(err)

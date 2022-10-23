@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
@@ -15,6 +16,19 @@ var ErrNotFound = errors.New("record not found")
 type ElasticORM struct {
 	Client elastic.API
 	Config common.ORMConfig
+}
+
+var templateInited bool
+func InitTemplate(force bool)  {
+	if templateInited{
+		return
+	}
+
+	if force||moduleConfig.ORMConfig.InitTemplate {
+		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+		client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
+	}
+	templateInited=true
 }
 
 func (handler ElasticORM) GetWildcardIndexName(o interface{}) string {

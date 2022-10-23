@@ -21,6 +21,7 @@ import (
 	"errors"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	ctx "context"
 	"infini.sh/framework/core/api/gzip"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
@@ -49,6 +50,20 @@ var bindAddress string
 
 func GetBindAddress() string {
 	return bindAddress
+}
+
+func StopUI(cfg *UIConfig) {
+	if srv!=nil{
+		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 60*time.Second)
+		defer cancel()
+		err:=srv.Shutdown(ctx1)
+		if err!=nil{
+			panic(err)
+		}
+
+		log.Error("stopping UI server")
+
+	}
 }
 
 func StartUI(cfg *UIConfig) {
@@ -103,6 +118,7 @@ func StartUI(cfg *UIConfig) {
 			}
 		}
 	}
+
 
 
 	//init websocket,TODO configurable
@@ -168,30 +184,30 @@ func StartUI(cfg *UIConfig) {
 		}
 
 
-		srv := &http.Server{
+		srv = &http.Server{
 			Addr:         bindAddress,
 			Handler:      RecoveryHandler()(handler),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 
-		go func() {
+		go func(srv *http.Server) {
 			err = srv.ListenAndServeTLS(certFile, keyFile)
-			if err != nil {
+			if err != nil&& err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
 			}
-		}()
+		}(srv)
 
 	} else {
-
-		go func() {
-			err := http.ListenAndServe(bindAddress, RecoveryHandler()(handler))
-			if err != nil {
+		srv= &http.Server{Addr: bindAddress, Handler: RecoveryHandler()(handler)}
+		go func(srv *http.Server) {
+			err :=  srv.ListenAndServe()
+			if err != nil&& err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
 			}
-		}()
+		}(srv)
 
 	}
 
@@ -204,6 +220,7 @@ func StartUI(cfg *UIConfig) {
 
 }
 
+var srv *http.Server
 // RegisteredUIHandler is a hub for registered ui handler
 var registeredUIHandler map[string]http.Handler
 

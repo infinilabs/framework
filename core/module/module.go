@@ -35,10 +35,12 @@ func New() {
 
 func RegisterSystemModule(mod Module) {
 	m.system = append(m.system, mod)
+	log.Trace("system:",mod.Name(),",",m.system)
 }
 
 func RegisterUserPlugin(mod Module) {
 	m.user = append(m.user, mod)
+	log.Trace("user:",mod.Name(),",",m.user)
 }
 
 func Start() {
@@ -88,7 +90,7 @@ func Start() {
 			if err!=nil{
 				panic(err)
 			}
-			log.Debug("started module: ", v.Name())
+			log.Info("started module: ", v.Name())
 		}
 
 	}
@@ -107,7 +109,7 @@ func Start() {
 			if err!=nil{
 				panic(err)
 			}
-			log.Debug("started plugin: ", v.Name())
+			log.Info("started plugin: ", v.Name())
 		}
 
 	}

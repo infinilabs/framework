@@ -224,7 +224,7 @@ func initTemplate(v ConfigTemplate) (*Config, error) {
 		return nil, err
 	}
 
-	template, err := fasttemplate.NewTemplate(util.UnsafeBytesToString(tempBytes), "$[[", "]]")
+	template, err := fasttemplate.NewTemplate(string(tempBytes), "$[[", "]]")
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func initTemplate(v ConfigTemplate) (*Config, error) {
 	})
 
 	log.Trace("rendering templated config:\n", configStr)
-	return NewConfigWithYAML(util.UnsafeStringToBytes(configStr), "template")
+	return NewConfigWithYAML([]byte(configStr), "template")
 }
 
 
