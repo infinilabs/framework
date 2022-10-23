@@ -76,7 +76,7 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	registeredAPIMethodHandler[m][pattern] = handler
 	APIs[pattern+m]=util.KV{Key: m,Value: pattern}
 
-	log.Debugf("register http handler: %v %v", m, pattern)
+	log.Debugf("register http handler: %v %v, total apis: %v", m, pattern,len(APIs))
 
 	router.Handle(m, pattern, handler)
 	l.Unlock()

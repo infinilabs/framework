@@ -6,7 +6,7 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 )
 
-func Init(cfg common.ModuleConfig) {
+func InitAPI(cfg common.ModuleConfig) {
 	clusterAPI := APIHandler{Config: cfg}
 
 	InitTestAPI()

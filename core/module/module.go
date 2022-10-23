@@ -90,7 +90,7 @@ func Start() {
 			if err!=nil{
 				panic(err)
 			}
-			log.Debug("started module: ", v.Name())
+			log.Info("started module: ", v.Name())
 		}
 
 	}
@@ -109,7 +109,7 @@ func Start() {
 			if err!=nil{
 				panic(err)
 			}
-			log.Debug("started plugin: ", v.Name())
+			log.Info("started plugin: ", v.Name())
 		}
 
 	}

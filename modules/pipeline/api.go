@@ -31,7 +31,7 @@ type API struct {
 	api.Handler
 }
 
-func (handler API) Init() {
+func (handler API) InitAPI() {
 
 	//Pipeline API
 	//api.HandleAPIMethod(api.GET, "/pipeline/joints/", handler.getPipelineJoints)

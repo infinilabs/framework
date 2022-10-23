@@ -74,7 +74,7 @@ func (module *PipeModule) Setup() {
 
 	if moduleCfg.APIEnabled {
 		handler := API{}
-		handler.Init()
+		handler.InitAPI()
 		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTask)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTask)

@@ -158,7 +158,7 @@ func (module *ElasticModule) Setup() {
 	m := loadFileBasedElasticConfig()
 	initElasticInstances(m, "file")
 
-	api.Init(moduleConfig)
+	api.InitAPI(moduleConfig)
 }
 
 func (module *ElasticModule) Stop() error {
