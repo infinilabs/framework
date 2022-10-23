@@ -44,7 +44,7 @@ func (h *APIHandler) SearchHostMetadata(w http.ResponseWriter, req *http.Request
 		reqBody.Size = 20
 	}
 	aggs := elastic.BuildSearchTermAggregations(reqBody.Aggregations)
-	var should []util.MapStr
+	var should =[]util.MapStr{}
 	if reqBody.SearchField != ""{
 		should = []util.MapStr{
 			{
@@ -280,6 +280,11 @@ func getHostSummary(hostIDs []string, metricName string, summary map[string]util
 		summary = map[string]util.MapStr{
 		}
 	}
+
+	if hostIDs==nil{
+		hostIDs=[]string{}
+	}
+
 	q1 := orm.Query{WildcardIndex: true}
 	query := util.MapStr{
 		"sort": []util.MapStr{
@@ -1222,6 +1227,10 @@ func enrollHostFromAgent(agentID string) (*host.HostInfo, error){
 }
 
 func getAgentOnlineStatusOfRecentDay(hostIDs []string)(map[string][]interface{}, error){
+	if hostIDs==nil{
+		hostIDs=[]string{}
+	}
+
 	q := orm.Query{
 		WildcardIndex: true,
 	}

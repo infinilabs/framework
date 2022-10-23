@@ -52,7 +52,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 			},
 		},
 	}
-	var should []util.MapStr
+	var should =[]util.MapStr{}
 	if reqBody.SearchField != ""{
 		should = []util.MapStr{
 			{
@@ -128,6 +128,8 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 	if !hasPrivilege && clusterFilter != nil {
 		must = append(must, clusterFilter)
 	}
+
+
 
 	query := util.MapStr{
 		"aggs":      aggs,
