@@ -7,9 +7,25 @@ package env
 import "sync"
 
 type HealthType int
-const  HEALTH_GREEN HealthType =0
-const  HEALTH_YELLOW HealthType =1
-const  HEALTH_RED HealthType=2
+const  HEALTH_UNKNOWN HealthType =0
+const  HEALTH_GREEN HealthType =1
+const  HEALTH_YELLOW HealthType =2
+const  HEALTH_RED HealthType=3
+const  HEALTH_UNAVAILABLE HealthType=4
+
+func GetHealthType(health string)HealthType  {
+	switch health {
+	case "green":
+		return HEALTH_GREEN
+	case "yellow":
+		return HEALTH_YELLOW
+	case "red":
+		return HEALTH_RED
+	case "unavailable":
+		return HEALTH_UNAVAILABLE
+	}
+	return HEALTH_UNKNOWN
+}
 
 func (h HealthType)ToString()string  {
 	switch h {
@@ -19,8 +35,10 @@ func (h HealthType)ToString()string  {
 		return "red"
 	case HEALTH_GREEN:
 		return "green"
+	case HEALTH_UNAVAILABLE:
+		return "unavailable"
 	}
-	return "unknown_health"
+	return "unknown"
 }
 var h =sync.Map{}
 
