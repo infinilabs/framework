@@ -114,7 +114,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 
 		var err error
 		var done bool
-		count, err, done = ReplayLines(ctx, lines, filename, processor)
+		count, err, done = ReplayLines(ctx, lines, processor.config.Schema,processor.config.Host)
 		if done {
 			return err
 		}
@@ -129,20 +129,14 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func ReplayLines(ctx *pipeline.Context, lines []string, filename string, processor *ReplayProcessor) (int, error, bool) {
+func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (int, error, bool) {
 	req := fasthttp.AcquireRequest()
 	var buffer = bytebufferpool.Get("replay")
 	var res = fasthttp.AcquireResponse()
 	var requestIsSet bool
-	var category = "replay"
-	total := len(lines)
-	progress.RegisterBar(category, filename, total)
-	progress.Start()
 	count:=0
 	for _, line := range lines {
 		count++
-		progress.IncreaseWithTotal(category, filename, 1, total)
-		//log.Error("count++:",count,",",total)
 		if ctx.IsCanceled() {
 			return 0, nil, true
 		}
@@ -169,9 +163,15 @@ func ReplayLines(ctx *pipeline.Context, lines []string, filename string, process
 						req.SetBody(buffer.Bytes())
 					}
 					err := fastHttpClient.Do(req, res)
+					log.Error("execute request: ",req.URI().String())
 					if err != nil {
 						log.Error(err, req.String())
 						panic(err)
+					}
+
+					if res.StatusCode()>210{
+						log.Error(string(req.GetRawBody()))
+						log.Error(string(res.GetRawBody()))
 					}
 
 					if global.Env().IsDebug {
@@ -180,6 +180,7 @@ func ReplayLines(ctx *pipeline.Context, lines []string, filename string, process
 
 					req.Reset()
 					res.Reset()
+					buffer.Reset()
 					requestIsSet = false
 				}
 
@@ -190,10 +191,10 @@ func ReplayLines(ctx *pipeline.Context, lines []string, filename string, process
 					uri := arr[1]
 					req.SetRequestURI(uri)
 					req.Header.SetMethod(method)
-					req.Header.SetHost(processor.config.Host)
-					req.URI().SetScheme(processor.config.Schema)
-					req.URI().SetHost(processor.config.Host)
-					req.SetHost(processor.config.Host)
+					req.Header.SetHost(host)
+					req.URI().SetScheme(schema)
+					req.URI().SetHost(host)
+					req.SetHost(host)
 
 					if global.Env().IsDebug {
 						log.Trace(req.String())
