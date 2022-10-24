@@ -50,7 +50,6 @@ type LogResult struct {
 
 const (
 	StatusRunning        = "running"
-	StatusScrollComplete = "scroll_complete"
 	StatusComplete       = "complete"
 	StatusCancel         = "cancel"
 	StatusPause          = "pause"
