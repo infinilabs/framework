@@ -36,6 +36,10 @@ func (h *APIHandler) createDataMigrationTask(w http.ResponseWriter, req *http.Re
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(clusterTaskConfig.Indices) == 0 {
+		h.WriteError(w, "indices must not be empty", http.StatusInternalServerError)
+		return
+	}
 	clusterTaskConfig.Creator = struct {
 		Name string `json:"name"`
 		Id   string `json:"id"`
@@ -178,7 +182,7 @@ func (h *APIHandler) searchDataMigrationTask(w http.ResponseWriter, req *http.Re
 				continue
 			}
 			for _, index := range dataConfig.Indices {
-				count, err := getIndexTaskCount(&index, esClient)
+				count, err := getIndexTaskDocCount(&index, esClient)
 				if err != nil {
 					log.Error(err)
 					continue mainLoop
@@ -240,6 +244,10 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 		if obj.Metadata.Labels["level"] == "partition" {
 			obj.Status = task2.StatusReady
 			//update parent task status
+			if len(obj.ParentId) == 0 {
+				h.WriteError(w,  fmt.Sprintf("empty parent id of task [%s]", taskID), http.StatusInternalServerError)
+				return
+			}
 			query := util.MapStr{
 				"bool": util.MapStr{
 					"must": []util.MapStr{
@@ -597,7 +605,7 @@ func (h *APIHandler) getDataMigrationTaskInfo(w http.ResponseWriter, req *http.R
 				log.Warnf("cluster [%s] was not found", taskConfig.Cluster.Target.Id)
 				continue
 			}
-			count, err = getIndexTaskCount(&index, targetESClient)
+			count, err = getIndexTaskDocCount(&index, targetESClient)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -690,7 +698,7 @@ func getErrorPartitionTasks(taskID string) (map[string]int, error){
 	return resBody, nil
 }
 
-func getIndexTaskCount(index *migration.IndexConfig, targetESClient elastic.API) (int64, error) {
+func getIndexTaskDocCount(index *migration.IndexConfig, targetESClient elastic.API) (int64, error) {
 	targetIndexName := index.Target.Name
 	if targetIndexName == "" {
 		if v, ok := index.IndexRename[index.Source.Name].(string); ok {
@@ -726,6 +734,9 @@ func getIndexTaskCount(index *migration.IndexConfig, targetESClient elastic.API)
 	countRes, err := targetESClient.Count(ctx, targetIndexName, body)
 	if err != nil {
 		return 0, err
+	}
+	if countRes.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf(string(countRes.RawResult.Body))
 	}
 	return countRes.Count, nil
 }
@@ -789,9 +800,11 @@ func (h *APIHandler) getDataMigrationTaskOfIndex(w http.ResponseWriter, req *htt
 		"task_id": id,
 		"start_time": indexTask.StartTimeInMillis,
 		"status": indexTask.Status,
-		"data_partition": indexTask.Metadata.Labels["partition_count"],
 		"completed_time": completedTime,
 		"duration": durationInMS,
+	}
+	if len(indexTask.Metadata.Labels) > 0 {
+		taskInfo["data_partition"] = indexTask.Metadata.Labels["partition_count"]
 	}
 	partitionTaskQuery := util.MapStr{
 		"size": 500,

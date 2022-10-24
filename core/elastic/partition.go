@@ -44,6 +44,9 @@ const (
 )
 
 func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
+	if q == nil {
+		return nil, fmt.Errorf("patition query can not be empty")
+	}
 	var (
 		vFilter interface{}
 	)

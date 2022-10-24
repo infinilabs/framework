@@ -172,7 +172,7 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 		source := util.MapStr{
 			"cluster_id": clusterMigrationTask.Cluster.Source.Id,
 			"indices": index.Source.Name,
-			"slice_size": 10,
+			//"slice_size": 10,
 			"batch_size": clusterMigrationTask.Settings.ScrollSize.Docs,
 			"scroll_time": clusterMigrationTask.Settings.ScrollSize.Timeout,
 		}
@@ -235,8 +235,8 @@ func (p *ClusterMigrationProcessor) SplitMigrationTask(taskItem *task2.Task) err
 
 		target := util.MapStr{
 			"cluster_id": clusterMigrationTask.Cluster.Target.Id,
-			"max_worker_size": 10,
-			"detect_interval": 100,
+			//"max_worker_size": 10,
+			//"detect_interval": 100,
 			"bulk": util.MapStr{
 				"batch_size_in_mb": clusterMigrationTask.Settings.BulkSize.StoreSizeInMB,
 				"batch_size_in_docs":  clusterMigrationTask.Settings.BulkSize.Docs,
