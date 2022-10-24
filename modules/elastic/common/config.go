@@ -1,8 +1,10 @@
 package common
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	elastic "infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/elastic/adapter"
 	"strings"
 )
@@ -110,4 +112,20 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	}
 	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
+}
+
+func GetElasticClient(clusterID string)(elastic.API, error) {
+	client := elastic.GetClientNoPanic(clusterID)
+	if client != nil {
+		return client, nil
+	}
+	conf := &elastic.ElasticsearchConfig{}
+	exists, err := orm.Get(conf)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return InitElasticInstance(*conf)
+	}
+	return nil, fmt.Errorf("cluster [%s] was not found", clusterID)
 }
