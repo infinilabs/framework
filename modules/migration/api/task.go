@@ -245,7 +245,7 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 					"must": []util.MapStr{
 						{
 							"terms": util.MapStr{
-								"parent_id": obj.ParentId,
+								"id": obj.ParentId,
 							},
 						},
 					},
