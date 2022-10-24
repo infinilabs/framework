@@ -7,9 +7,9 @@ package elastic
 import (
 	"context"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"infini.sh/framework/core/util"
 	"net/http"
-	"src/github.com/buger/jsonparser"
 	"strconv"
 	"time"
 )

@@ -9,11 +9,13 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/migration"
 	"infini.sh/framework/core/pipeline"
 	task2 "infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/common"
 	"runtime"
 	"time"
 )
@@ -35,14 +37,29 @@ func init() {
 }
 
 func newClusterMigrationProcessor(c *config.Config) (pipeline.Processor, error) {
+
 	cfg := ClusterMigrationConfig{
 		DetectIntervalInMs: 5000,
-		IndexName: ".infini_task",
-		LogIndexName: ".infini_task-log",
 	}
 	if err := c.Unpack(&cfg); err != nil {
 		log.Error(err)
 		return nil, fmt.Errorf("failed to unpack the configuration of cluster migration processor: %s", err)
+	}
+	if cfg.IndexName == "" || cfg.LogIndexName == "" {
+		ormConfig := common.ORMConfig{}
+		ok, err := env.ParseConfig("elastic.orm", &ormConfig)
+		if ok && err == nil {
+			if cfg.IndexName == ""{
+				cfg.IndexName = fmt.Sprintf("%stask", ormConfig.IndexPrefix)
+			}
+			if cfg.LogIndexName == "" {
+				cfg.LogIndexName = fmt.Sprintf("%stask-log", ormConfig.IndexPrefix)
+			}
+		}else{
+			err = fmt.Errorf("parse config elastic.orm error: %w", err)
+			log.Error(err)
+			return nil, err
+		}
 	}
 
 	processor := ClusterMigrationProcessor{
