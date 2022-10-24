@@ -54,7 +54,7 @@ func GetBindAddress() string {
 
 func StopUI(cfg *UIConfig) {
 	if srv!=nil{
-		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 60*time.Second)
+		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
 		defer cancel()
 		err:=srv.Shutdown(ctx1)
 		if err!=nil{
