@@ -163,7 +163,7 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (in
 						req.SetBody(buffer.Bytes())
 					}
 					err := fastHttpClient.Do(req, res)
-					log.Error("execute request: ",req.URI().String())
+					log.Debug("execute request: ",req.URI().String())
 					if err != nil {
 						log.Error(err, req.String())
 						panic(err)
