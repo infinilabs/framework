@@ -735,7 +735,7 @@ func getIndexTaskDocCount(index *migration.IndexConfig, targetESClient elastic.A
 	if err != nil {
 		return 0, err
 	}
-	if countRes.StatusCode != http.StatusOK {
+	if countRes.StatusCode != http.StatusOK && countRes.RawResult != nil {
 		return 0, fmt.Errorf(string(countRes.RawResult.Body))
 	}
 	return countRes.Count, nil
