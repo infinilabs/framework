@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 // Event metadata constants. These keys are used to identify
@@ -562,4 +563,15 @@ func deepUpdateValue(old interface{}, val MapStr, overwrite bool) interface{} {
 		// replaced when merging.
 		return val
 	}
+}
+
+
+
+func GetSyncMapSize(m *sync.Map) int {
+	var i int
+	m.Range(func(k, v interface{}) bool {
+		i++
+		return true
+	})
+	return i
 }
