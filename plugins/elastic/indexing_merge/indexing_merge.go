@@ -283,7 +283,6 @@ CLEAN_BUFFER:
 
 		//result, err := client.Bulk(mainBuf.Bytes())
 		if err != nil {
-			log.Error(err, util.SubString(util.UnsafeBytesToString(mainBuf.Bytes()), 0, 200))
 			stats.Increment("json_indexing", "error")
 			queue.Push(queue.GetOrInitConfig(processor.config.FailureQueue), mainBuf.Bytes())
 		}

@@ -148,7 +148,6 @@ func (module *ElasticModule) Setup() {
 	if exists && err != nil {
 		panic(err)
 	}
-
 	if exists{
 		if moduleConfig.Elasticsearch!=""{
 			global.Register(elastic.GlobalSystemElasticsearchID,moduleConfig.Elasticsearch)
