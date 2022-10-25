@@ -25,7 +25,6 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/progress"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -129,10 +128,18 @@ func (module *PipeModule) stopTask(taskID string)bool {
 	if ok {
 		v1,ok:=ctx.(*pipeline.Context)
 		if ok{
-			if v1.GetRunningState() == pipeline.STARTED || v1.GetRunningState() == pipeline.STARTING {
+			if global.Env().IsDebug {
+				if rate.GetRateLimiterPerSecond("pipeline","shutdown "+taskID+string(v1.GetRunningState()),1).Allow(){
+					log.Trace("start shutting down pipeline:", taskID,",state:",v1.GetRunningState())
+				}
+			}
+
+			if v1.GetRunningState() == pipeline.FAILED ||v1.GetRunningState() == pipeline.STARTED || v1.GetRunningState() == pipeline.STARTING {
 				v1.CancelTask()
 				v1.Exit()
 			}
+		}else{
+			log.Errorf("context for pipeline [%v] was missing",taskID)
 		}
 		return true
 	}
@@ -178,6 +185,7 @@ func (module *PipeModule) Start() error {
 				log.Errorf("error on running pipeline: %v, err: %v",v.Name,err)
 				continue
 			}
+			module.configs[v.Name]=v
 		}
 	}
 
@@ -273,7 +281,7 @@ func (module *PipeModule) Stop() error {
 			return nil
 		}
 
-		log.Debug("shutting down pipeline framework")
+		log.Info("shutting down pipeline framework")
 		start := time.Now()
 
 	CLOSING:
@@ -283,53 +291,36 @@ func (module *PipeModule) Stop() error {
 			if !ok{
 				return false
 			}
-			v,ok:=value.(*pipeline.Context)
-			if ok{
-				if v.GetRunningState() == pipeline.FINISHED || v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTED {
-					progress.RegisterBar("pipeline", "shutdown", 1)
-
-					if global.Env().IsDebug {
-						if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
-							log.Trace("start shutting down pipeline:", k,",state:",v.GetRunningState())
-						}
-					}
-
-					v.CancelTask()
-					v.Exit()
-
-					if global.Env().IsDebug {
-						if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow() {
-							log.Trace("finished shutting down pipeline:", k)
-						}
-					}
-				}
-			}
+			ok=module.stopTask(k)
 			return true
 		})
 
-		progress.Start()
-
+		log.Trace("configs:",len(module.configs))
 
 		for k, _ := range module.configs {
+			log.Trace("checking config: ",k)
 			v1,ok:=module.contexts.Load(k)
 			if ok{
 				v,ok:=v1.(*pipeline.Context)
+				log.Trace(v.Config.Name,",",v.GetRunningState())
 				if ok{
 					if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
 						if time.Now().Sub(start).Minutes() > 5 {
-							log.Error("pipeline framework failure to stop tasks, quiting")
+							log.Error("pipeline framework faile to stop tasks, quiting")
 							return errors.New("pipeline framework failure to stop tasks, quiting")
 						}
 						if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
-							log.Trace("pipeline still running:", k,",state:",v.GetRunningState(),", closing")
+							log.Debug("pipeline still running:", k,",state:",v.GetRunningState(),", closing")
 						}
 						goto CLOSING
 					}
 				}
+			}else{
+				log.Errorf("context for pipeline [%v] was missing",k)
 			}
 		}
+		log.Info("finished shutting down pipelines")
 		module.started = false
-		progress.Stop()
 	} else {
 		log.Error("pipeline framework is not started")
 	}
