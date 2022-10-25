@@ -172,7 +172,7 @@ func (client *Client) GetElasticProcess(ctx context.Context, agentBaseURL string
 func (client *Client) GetElasticLogFiles(ctx context.Context, agentBaseURL string, agentID string, nodeID string)(interface{}, error) {
 	req := &util.Request{
 		Method:  http.MethodGet,
-		Url:     fmt.Sprintf("%s/agent/%s/logs/list/%s", agentBaseURL, agentID, nodeID),
+		Url:     fmt.Sprintf("%s/agent/logs/list?node_id=%s", agentBaseURL, nodeID),
 		Context: ctx,
 	}
 	resBody := map[string]interface{}{}
@@ -189,7 +189,7 @@ func (client *Client) GetElasticLogFiles(ctx context.Context, agentBaseURL strin
 func (client *Client) GetElasticLogFileContent(ctx context.Context, agentBaseURL string, agentID string, body interface{})(interface{}, error) {
 	req := &util.Request{
 		Method:  http.MethodPost,
-		Url:     fmt.Sprintf("%s/agent/%s/logs/_read", agentBaseURL, agentID),
+		Url:     fmt.Sprintf("%s/agent/logs/_read", agentBaseURL),
 		Context: ctx,
 		Body: util.MustToJSONBytes(body),
 	}
