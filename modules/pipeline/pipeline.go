@@ -319,7 +319,7 @@ func (module *PipeModule) Stop() error {
 				log.Errorf("context for pipeline [%v] was missing",k)
 			}
 		}
-		log.Info("finished shutting down pipelines")
+		log.Info("finished shut down pipelines")
 		module.started = false
 	} else {
 		log.Error("pipeline framework is not started")
