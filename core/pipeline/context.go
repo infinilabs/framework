@@ -53,6 +53,9 @@ type Context struct {
 	pause sync.WaitGroup
 	isQuit bool
 	stateLock sync.RWMutex
+
+	Config PipelineConfigV2
+
 }
 
 func AcquireContext()*Context{
