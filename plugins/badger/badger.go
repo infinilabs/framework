@@ -43,13 +43,14 @@ func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
 	l.Lock()
 	defer l.Unlock()
 
-	log.Debugf("init badger database [%v]",bucket)
 
 	//double check after lock
 	item,ok=buckets.Load(bucket)
 	if ok{
 		return item.(*badger.DB)
 	}
+
+	log.Debugf("init badger database [%v]",bucket)
 
 	dir := path.Join(filter.Path,bucket)
 

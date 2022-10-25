@@ -61,8 +61,7 @@ func StopUI(cfg *UIConfig) {
 			panic(err)
 		}
 
-		log.Error("stopping UI server")
-
+		log.Debug("stopping UI server")
 	}
 }
 

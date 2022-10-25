@@ -251,7 +251,6 @@ func (module *PipeModule) Start() error {
 
 			log.Debug("starting new pipeline")
 			for _,v:=range newPipeline{
-				log.Info("starting pipeline:"+v.Name)
 				err:=module.startPipeline(v)
 				if err!=nil{
 					log.Error(err)
@@ -343,6 +342,8 @@ func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 		log.Error("pipeline [%v] is already running, skip",v.Name)
 		return nil
 	}
+
+	log.Info("starting pipeline: "+v.Name)
 
 	processor, err := pipeline.NewPipeline(v.Processors)
 	if err != nil {

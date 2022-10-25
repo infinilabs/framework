@@ -58,7 +58,14 @@ func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	if c.metadata != nil {
 		return c.metadata
 	}
-	c.metadata = elastic.GetMetadata(c.Elasticsearch)
+
+	cfg:=elastic.GetConfig(c.Elasticsearch)
+	if cfg!=nil{
+		meta:=elastic.GetOrInitMetadata(cfg)
+		if meta!=nil{
+			c.metadata=meta
+		}
+	}
 	if c.metadata == nil {
 		panic(errors.Errorf("metadata not found for [%v]", c.Elasticsearch))
 	}
