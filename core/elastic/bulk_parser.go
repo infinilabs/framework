@@ -7,7 +7,6 @@ package elastic
 import (
 	"github.com/buger/jsonparser"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
 )
 
 var ActionIndex = "index"
@@ -25,7 +24,7 @@ func ParseActionMeta(data []byte) (action, index, typeName, id,routing string) {
 	match := false
 	for _, v := range Actions {
 		jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			switch util.UnsafeBytesToString(key) {
+			switch string(key) {
 			case "_index":
 				index = string(value)
 				break
