@@ -949,7 +949,9 @@ func (ctx *RequestCtx) reset() {
 		ctx.ResetParameters()
 	}
 	ctx.finished = false
-	ctx.flowProcess = []string{}
+	if ctx.flowProcess.Len()>0{
+		ctx.flowProcess.Reset()
+	}
 	ctx.destination = ctx.destination[0:0]
 
 	ctx.userValues.Reset()
@@ -2666,9 +2668,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 
-			//TODO
-			if ctx.EnrichedMetadata {
-				ctx.Response.Header.Set("X-Filters", util.JoinArray(ctx.flowProcess, "->"))
+			if ctx.EnrichedMetadata&&ctx.flowProcess.Len()>0 {
+				ctx.Response.Header.Set("X-Filters", ctx.flowProcess.String())
 			}
 
 			if err = writeResponse(ctx, bw); err != nil {
