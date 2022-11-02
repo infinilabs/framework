@@ -441,7 +441,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error in bulk_indexing worker[%v],queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
+				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
 				ctx.Failed()
 				skipFinalDocsProcess = true
 			}
@@ -465,9 +465,9 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 			}
 		} else {
 			if global.Env().IsDebug {
-				log.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err)
+				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err)
 			}
-			panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err))
+			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err))
 		}
 		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
 	}()
