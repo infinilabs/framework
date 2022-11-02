@@ -45,15 +45,15 @@ var (
 	defaultConfig = ModuleConfig{
 		RemoteConfigEnabled: false,
 		HealthCheckConfig: CheckConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Interval: "10s",
 		},
 		NodeAvailabilityCheckConfig: CheckConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Interval: "10s",
 		},
 		MetadataRefresh: CheckConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Interval: "10s",
 		},
 		ORMConfig: ORMConfig{
@@ -65,7 +65,7 @@ var (
 			Enabled: false,
 		},
 		ClusterSettingsCheckConfig: CheckConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Interval: "20s",
 		},
 		ClientTimeout: "60s",
