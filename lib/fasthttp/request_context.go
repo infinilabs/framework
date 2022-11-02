@@ -5,6 +5,7 @@
 package fasthttp
 
 import (
+	"bytes"
 	"context"
 	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
@@ -118,7 +119,7 @@ type RequestCtx struct {
 	finished         bool
 
 	//SequenceID       int64
-	flowProcess []string
+	flowProcess bytes.Buffer
 	destination []string
 
 	EnrichedMetadata bool
@@ -393,12 +394,12 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 }
 
 
-func (ctx *RequestCtx) GetRequestProcess() []string {
-	return ctx.flowProcess
+func (ctx *RequestCtx) GetRequestProcess() string {
+	return ctx.flowProcess.String()
 }
 
-func (ctx *RequestCtx) GetFlowProcess() []string {
-	return ctx.flowProcess
+func (ctx *RequestCtx) GetFlowProcess() string {
+	return ctx.flowProcess.String()
 }
 
 func (ctx *RequestCtx) AddFlowProcess(str string) {
@@ -407,7 +408,10 @@ func (ctx *RequestCtx) AddFlowProcess(str string) {
 	}
 
 	if str != "" {
-		ctx.flowProcess = append(ctx.flowProcess, str)
+		if ctx.flowProcess.Len()>0{
+			ctx.flowProcess.WriteString("->")
+		}
+		ctx.flowProcess.WriteString(str)
 	}
 }
 
@@ -427,7 +431,9 @@ func (ctx *RequestCtx) Reset() {
 		ctx.Parameters.ResetParameters()
 	}
 	ctx.finished = false
-	ctx.flowProcess = []string{}
+	if ctx.flowProcess.Len()>0{
+		ctx.flowProcess.Reset()
+	}
 	ctx.destination = ctx.destination[0:0]
 	ctx.userValues.Reset()
 
