@@ -759,6 +759,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 		if _, ok := qps[nodeInfo.Id]; ok {
 			info.IndexQPS = qps[nodeInfo.Id]["index"]
 			info.QueryQPS = qps[nodeInfo.Id]["query"]
+			info.IndexBytesQPS = qps[nodeInfo.Id]["index_bytes"]
 		}
 		nodeInfos = append(nodeInfos, info)
 	}
@@ -842,6 +843,7 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 		if _, ok := qps[item.Index]; ok {
 			info.IndexQPS = qps[item.Index]["index"]
 			info.QueryQPS = qps[item.Index]["query"]
+			info.IndexBytesQPS = qps[item.Index]["index_bytes"]
 		}
 		indices = append(indices, info)
 	}
@@ -851,12 +853,14 @@ type IndexInfo elastic.IndexInfo
 type RealtimeIndexInfo struct{
 	IndexQPS interface{} `json:"index_qps"`
 	QueryQPS interface{} `json:"query_qps"`
+	IndexBytesQPS interface{} `json:"index_bytes_qps"`
 	IndexInfo
 }
 type CatNodeResponse elastic.CatNodeResponse
 type RealtimeNodeInfo struct {
 	IndexQPS interface{} `json:"index_qps"`
 	QueryQPS interface{} `json:"query_qps"`
+	IndexBytesQPS interface{} `json:"index_bytes_qps"`
 	CatNodeResponse
 }
 
@@ -886,6 +890,11 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 									"field": "payload.elasticsearch.index_stats.total.search.query_total",
 								},
 							},
+							"index_bytes_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.primaries.store.size_in_bytes",
+								},
+							},
 							"index_rate": util.MapStr{
 								"derivative": util.MapStr{
 									"buckets_path": "index_total",
@@ -894,6 +903,11 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 							"query_rate": util.MapStr{
 								"derivative": util.MapStr{
 									"buckets_path": "query_total",
+								},
+							},
+							"index_bytes_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_bytes_total",
 								},
 							},
 						},
@@ -956,6 +970,11 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 									"field": "payload.elasticsearch.node_stats.indices.indexing.index_total",
 								},
 							},
+							"index_bytes_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.node_stats.indices.store.size_in_bytes",
+								},
+							},
 							"query_total": util.MapStr{
 								"max": util.MapStr{
 									"field": "payload.elasticsearch.node_stats.indices.search.query_total",
@@ -964,6 +983,11 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 							"index_rate": util.MapStr{
 								"derivative": util.MapStr{
 									"buckets_path": "index_total",
+								},
+							},
+							"index_bytes_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_bytes_total",
 								},
 							},
 							"query_rate": util.MapStr{
@@ -1026,6 +1050,7 @@ func (h *APIHandler) queryQPS(query util.MapStr) (map[string]util.MapStr, error)
 						var (
 							maxIndexRate float64
 							maxQueryRate float64
+							maxIndexBytesRate float64
 						)
 						for _, dateBk := range bks {
 							if dateBkVal, ok := dateBk.(map[string]interface{}); ok {
@@ -1039,11 +1064,17 @@ func (h *APIHandler) queryQPS(query util.MapStr) (map[string]util.MapStr, error)
 										maxQueryRate = queryRateVal
 									}
 								}
+								if indexBytesRate, ok := dateBkVal["index_bytes_rate"].(map[string]interface{}); ok {
+									if indexBytesRateVal, ok := indexBytesRate["value"].(float64); ok && indexBytesRateVal > maxIndexBytesRate {
+										maxIndexBytesRate = indexBytesRateVal
+									}
+								}
 							}
 
 						}
 						indexQPS[k]["index"] = maxIndexRate / 10
 						indexQPS[k]["query"] = maxQueryRate / 10
+						indexQPS[k]["index_bytes"] = maxIndexBytesRate / 10
 					}
 				}
 			}

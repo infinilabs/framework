@@ -198,6 +198,19 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		FormatType: "num",
 		Units: "doc/s",
 	})
+
+	indexingBytesMetric := newMetricItem("indexing_bytes", 2, OperationGroupKey)
+	indexingBytesMetric.AddAxi("Indexing bytes","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "indexing_bytes",
+		Field:        "payload.elasticsearch.node_stats.indices.store.size_in_bytes",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   indexingBytesMetric,
+		FormatType:   "bytes",
+		Units:        "bytes/s",
+	})
+
 	// 索引延时
 	indexLatencyMetric:=newMetricItem("indexing_latency", 1, LatencyGroupKey)
 	indexLatencyMetric.AddAxi("indexing latency","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
