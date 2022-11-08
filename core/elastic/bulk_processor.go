@@ -258,7 +258,6 @@ type API_STATUS string
 func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, err error) {
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "empty_bulk_requests")
 		return true, errors.New("invalid bulk requests, message is nil")
 	}
 
@@ -359,15 +358,11 @@ DO:
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
 
-	//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "http_request_count")
-	
 	if err != nil {
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
-		
 		return false, err
 	}
 	
@@ -391,8 +386,6 @@ DO:
 		if global.Env().IsDebug {
 			log.Error(err)
 		}
-		
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		return false, err
 	}
 	
@@ -423,15 +416,9 @@ DO:
 			}
 
 			if containError {
-				
-				//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests")
-
 				count:=retryableItems.GetMessageCount()
-
 				if count > 0 {
-
 					log.Debugf("%v, retry item: %v",tag,count)
-
 					bodyBytes:=retryableItems.GetMessageBytes()
 					if !util.IsBytesEndingWith(&bodyBytes,NEWLINEBYTES){
 						if !util.BytesHasPrefix(retryableItems.GetMessageBytes(),NEWLINEBYTES){
@@ -441,9 +428,8 @@ DO:
 					}
 
 					req.SetRawBody(bodyBytes)
-
 					delayTime := joint.Config.RejectDelayInSeconds
-					
+
 					if delayTime <= 0 {
 						delayTime = 5
 					}
@@ -462,19 +448,16 @@ DO:
 						}
 						
 						data := req.OverrideBodyEncode(bodyBytes, true)
-						
 						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
-						
-						//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry_dead")
 						return true, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
 					}
 					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
 					retryTimes++
-					
-					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry")
+					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
 					goto DO
 				}
 
+				//TODO, save message offset and failure message
 				//if len(failureStatus) > 0 {
 				//	failureStatusStr := util.JoinMapInt(failureStatus, ":")
 				//	log.Debugf("documents in failure: %v", failureStatusStr)
@@ -496,43 +479,30 @@ DO:
 				
 				//skip all failure messages
 				if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
-					
 					////handle 400 error
 					if joint.Config.InvalidRequestsQueue != "" {
 						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 					}
-					
-					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_all_error_requests")
 					return true, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
-				} else {
-					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "what_else")
 				}
 				return false, errors.Errorf("bulk response contains error, %v", statsCodeStats)
-			} else {
-				//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_success_requests")
 			}
-		} else {
-			//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_requests")
 		}
-
 		return true, nil
 	} else if resp.StatusCode() == 429 {
-		time.Sleep(1 * time.Second)
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "429_requests")
+		//TODO, save message offset and failure message
+		time.Sleep(2 * time.Second)
 		return false, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
 	} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
-
+		//TODO, save message offset and failure message
 		////handle 400 error
 		if joint.Config.InvalidRequestsQueue != "" {
 			queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 		}
-
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "4xx_requests")
 		return true, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 	} else {
 
-		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
-
+		//TODO, save message offset and failure message
 		//if joint.QueueConfig.SaveFailure {
 		//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
 		//}
@@ -541,7 +511,6 @@ DO:
 		}
 		return false, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 	}
-
 }
 
 func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []byte, docBuffSize int, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
