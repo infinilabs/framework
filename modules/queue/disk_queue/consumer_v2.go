@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	log "github.com/cihub/seelog"
+	"strings"
 	"time"
 )
 
@@ -70,21 +71,15 @@ func (d *diskQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment,read
 	return &output, err
 }
 
-//FetchMessages(numOfMessages int) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error)
 func (d *Consumer) FetchMessages(numOfMessages int) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error){
-
-
-
 	var msgSize int32
 	var messageOffset=0
 	var totalMessageSize int = 0
 	ctx = &queue.Context{}
 
 	initOffset := fmt.Sprintf("%v,%v", d.segment, d.readPos)
-	//defer func() {
 	ctx.InitOffset = initOffset
 	ctx.NextOffset = initOffset
-	//}()
 
 	messages = []queue.Message{}
 
@@ -93,31 +88,34 @@ READ_MSG:
 	//read message size
 	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
 	if err != nil {
-		if err.Error()=="invalid argument"{
-			log.Error(err,d.reader==nil,d.reader.Size(),msgSize)
-		}
-
 		if err.Error()=="EOF"{
 
 			//current have changes, reload file with new position
 			if d.getFileSize()>d.readPos{
-				log.Error("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
+				log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
+				time.Sleep(1*time.Second)
+				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
+					if strings.Contains(err.Error(),"not found"){
+						return ctx, messages, false, nil
+					}
 					panic(err)
 				}
 				goto READ_MSG
 			}
 
 
-			//log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
 			nextFile,exists:= SmartGetFileName(d.mCfg,d.queue,d.segment+1)
 			if exists||util.FileExists(nextFile){
-
 				log.Trace("EOF, continue read:",nextFile)
 				Notify(d.queue, ReadComplete,d.segment)
+				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment+1,0)
 				if err!=nil{
+					if strings.Contains(err.Error(),"not found"){
+						return ctx, messages, false, nil
+					}
 					panic(err)
 				}
 				goto READ_MSG
@@ -131,13 +129,13 @@ READ_MSG:
 				if d.segment < d.diskQueue.writeSegmentNum {
 					oldPart := d.segment
 					Notify(d.queue, ReadComplete, d.segment)
-
-					//d.segment = d.segment + 1
-					//d.readPos = 0
 					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.segment)
-
+					ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 					err=d.ResetOffset(d.segment + 1,0)
 					if err!=nil{
+						if strings.Contains(err.Error(),"not found"){
+							return ctx, messages, false, nil
+						}
 						panic(err)
 					}
 
@@ -215,32 +213,34 @@ READ_MSG:
 	}
 
 	if nextReadPos >= d.maxBytesPerFileRead {
-		//TODO checking the current file whether to have new changes or not during read
 		nextFile,exists := SmartGetFileName(d.mCfg,d.queue, d.segment+1)
 		if exists||util.FileExists(nextFile) {
-
 			//current have changes, reload file with new position
 			if d.getFileSize()>d.readPos{
 				if global.Env().IsDebug{
 					log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
 				}
+				time.Sleep(1*time.Second)
+				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
+					if strings.Contains(err.Error(),"not found"){
+						return ctx, messages, false, nil
+					}
 					panic(err)
 				}
 				goto READ_MSG
 			}
 
 			log.Trace("EOF, continue read:", nextFile)
+
 			Notify(d.queue, ReadComplete, d.segment)
-			//d.segment = d.segment + 1
-			//d.readPos = 0
-			//if d.readFile != nil {
-			//	d.readFile.Close()
-			//}
-			//goto RELOCATE_FILE
+			ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 			err=d.ResetOffset(d.segment+1,0)
 			if err!=nil{
+				if strings.Contains(err.Error(),"not found"){
+					return ctx, messages, false, nil
+				}
 				panic(err)
 			}
 			goto READ_MSG

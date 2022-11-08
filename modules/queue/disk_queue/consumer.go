@@ -52,8 +52,6 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 				panic(err)
 			}
 
-			//TODO try uncompressed file if not found
-
 			//uncompress after download
 			if cfg.Compress.Segment.Enabled&&fileToDownload!=filePath{
 				err:=zstd.DecompressFile(compressLocker,fileToDownload,filePath)
