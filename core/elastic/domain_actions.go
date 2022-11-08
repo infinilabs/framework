@@ -302,14 +302,14 @@ func IsHostAvailable(host string) bool {
 		}
 	}
 
-	log.Debugf("no available info for host [%v]", host)
+	log.Tracef("no available info for host [%v]", host)
 
 	v:= nodeAvailCache.Get(host)
 	if v!=nil{
 		a,ok:=v.(bool)
 		if ok{
 			if global.Env().IsDebug{
-				log.Debug("hit cache:",host,",",a)
+				log.Trace("hit cache:",host,",",a)
 			}
 			return a
 		}

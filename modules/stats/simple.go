@@ -36,6 +36,7 @@ func (module *SimpleStatsModule) Setup() {
 	module.config = &SimpleStatsConfig{
 		Enabled:           true,
 		Persist:           true,
+		NoBuffer:           true,
 		BufferSize:        1000,
 		FlushIntervalInMs: 1000,
 	}
@@ -121,7 +122,6 @@ func (module *SimpleStatsModule) Stop() error {
 		}
 		log.Trace("save stats db,", module.data.ID)
 	}
-
 	return nil
 }
 
@@ -235,11 +235,11 @@ func (s *Stats) Stat(category, key string) int64 {
 	return v
 }
 
-func (s *Stats) StatsAll() map[string]interface{} {
+func (s *Stats) StatsAll()string {
 	s.l.RLock()
 	defer s.l.RUnlock()
 
-	result := map[string]interface{}{}
+	result:=util.MapStr{}
 	result["stats"] = *s.Data
 	//update system metrics
 	checkPid := os.Getpid()
@@ -247,31 +247,29 @@ func (s *Stats) StatsAll() map[string]interface{} {
 	mem, err := p.MemoryInfo()
 	if err != nil {
 		log.Error(err)
-		return result
+		util.ToJson(result,false)
 	}
 	empty := process.MemoryInfoStat{}
 	if mem == nil || *mem == empty {
 		log.Errorf("could not get memory info %v\n", mem)
-		return result
+		util.ToJson(result,false)
 	}
 
 	cpuPercent, err := p.CPUPercent()
 	if err != nil {
 		log.Error(err)
-		return result
+		return util.ToJson(result,false)
 	}
 
-	if err == nil {
-		result["system"] = map[string]int64{
-			"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
-			"cpu":          int64(cpuPercent),
-			"mem":          int64(mem.RSS),
-		}
+	result["system"] = map[string]int64{
+		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
+		"cpu":          int64(cpuPercent),
+		"mem":          int64(mem.RSS),
 	}
 
 	result["buffer"] = bytebufferpool.BuffStats()
 
-	return result
+	return util.ToJson(result,false)
 }
 
 func (module *SimpleStatsModule) initStats(id string) {
