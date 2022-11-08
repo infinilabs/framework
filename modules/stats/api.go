@@ -37,46 +37,53 @@ func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
 var space = []byte(" ")
 var newline = []byte("\n")
 var statsLock=sync.RWMutex{}
+
 // StatsAction return stats information
 func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-	metrics := stats.StatsAll()
-	format :=handler.GetParameter(req,"format")
 	var bytes []byte
 	var err error
+	metricsJSON := stats.StatsAll()
+	if metricsJSON==""{
+		handler.WriteError(w,"stats is nil",500)
+		return
+	}
+	metrics:=util.MapStr{}
+	err=util.FromJSONBytes([]byte(metricsJSON),&metrics)
+	if err!=nil{
+		panic(err)
+	}
+
+	format :=handler.GetParameter(req,"format")
 
 	switch format {
-	case "prometheus":
-		kv := util.Flatten(metrics, false)
-		buffer := bytebufferpool.Get("stats")
-		defer bytebufferpool.Put("stats", buffer)
-		for k, v := range kv {
-			buffer.Write(util.UnsafeStringToBytes(strings.ReplaceAll(k,".","_")))
-			buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"gateway\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
-				global.Env().SystemConfig.NodeConfig.IP,
-				global.Env().SystemConfig.NodeConfig.Name,
-				global.Env().SystemConfig.NodeConfig.ID,
-				)))
-			buffer.Write(space)
-			buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
-			buffer.Write(newline)
-		}
-
-		handler.WriteTextHeader(w)
-		handler.Write(w, buffer.Bytes())
-		break
-	default:
-
-		statsLock.Lock()
-		defer statsLock.Unlock()
-		bytes, err = json.MarshalIndent(metrics, "", " ")
-		if err != nil {
-			handler.Error(w, err)
-			return
-		}
-
-		handler.WriteJSONHeader(w)
-		handler.Write(w, bytes)
+		case "prometheus":
+			kv := util.Flatten(metrics, false)
+			buffer := bytebufferpool.Get("stats")
+			defer bytebufferpool.Put("stats", buffer)
+			for k, v := range kv {
+				buffer.Write(util.UnsafeStringToBytes(strings.ReplaceAll(k,".","_")))
+				buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"gateway\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
+					global.Env().SystemConfig.NodeConfig.IP,
+					global.Env().SystemConfig.NodeConfig.Name,
+					global.Env().SystemConfig.NodeConfig.ID,
+					)))
+				buffer.Write(space)
+				buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
+				buffer.Write(newline)
+			}
+			handler.WriteTextHeader(w)
+			handler.Write(w, buffer.Bytes())
+			break
+		default:
+			statsLock.Lock()
+			defer statsLock.Unlock()
+			bytes, err = json.MarshalIndent(metrics, "", " ")
+			if err != nil {
+				handler.Error(w, err)
+				return
+			}
+			handler.WriteJSONHeader(w)
+			handler.Write(w, bytes)
 	}
 
 	handler.WriteHeader(w, 200)

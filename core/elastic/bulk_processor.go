@@ -14,7 +14,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 )
@@ -259,7 +258,7 @@ type API_STATUS string
 func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, err error) {
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "empty_bulk_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "empty_bulk_requests")
 		return true, errors.New("invalid bulk requests, message is nil")
 	}
 
@@ -360,10 +359,10 @@ DO:
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
 
-	stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "http_request_count")
+	//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "http_request_count")
 	
 	if err != nil {
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
 			time.Sleep(1 * time.Second)
@@ -393,7 +392,7 @@ DO:
 			log.Error(err)
 		}
 		
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 		return false, err
 	}
 	
@@ -415,13 +414,17 @@ DO:
 
 			containError, statsCodeStats := HandleBulkResponse2(tag, joint.Config.SafetyParse, data, resbody, joint.Config.DocBufferSize, successItems, nonRetryableItems, retryableItems,joint.Config.IncludeBusyRequestsToFailureQueue)
 
+			for k,v:=range statsCodeStats{
+				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
+			}
+
 			if retryTimes>0{
 				log.Errorf("#%v, code:%v, contain_err:%v, status:%v",retryTimes,resp.StatusCode(),containError,statsCodeStats)
 			}
 
 			if containError {
 				
-				stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests")
+				//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests")
 
 				count:=retryableItems.GetMessageCount()
 
@@ -462,13 +465,13 @@ DO:
 						
 						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
 						
-						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry_dead")
+						//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry_dead")
 						return true, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
 					}
 					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
 					retryTimes++
 					
-					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry")
+					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_error_requests_retry")
 					goto DO
 				}
 
@@ -499,23 +502,23 @@ DO:
 						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 					}
 					
-					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_all_error_requests")
+					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_all_error_requests")
 					return true, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
 				} else {
-					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "what_else")
+					//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "what_else")
 				}
 				return false, errors.Errorf("bulk response contains error, %v", statsCodeStats)
 			} else {
-				stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_success_requests")
+				//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_bulk_success_requests")
 			}
 		} else {
-			stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_requests")
+			//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "200_requests")
 		}
 
 		return true, nil
 	} else if resp.StatusCode() == 429 {
 		time.Sleep(1 * time.Second)
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "429_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "429_requests")
 		return false, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
 	} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
 
@@ -524,11 +527,11 @@ DO:
 			queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 		}
 
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "4xx_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "4xx_requests")
 		return true, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 	} else {
 
-		stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
+		//stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "5xx_requests")
 
 		//if joint.QueueConfig.SaveFailure {
 		//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
@@ -541,7 +544,6 @@ DO:
 
 }
 
-//TODO remove
 func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []byte, docBuffSize int, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
 	nonRetryableItems.Reset()
 	retryableItems.Reset()
@@ -549,105 +551,88 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	//if containError {
-		//decode response
-		response := BulkResponse{}
-		err := util.FromJSONBytes(resbody,&response)
-		if err != nil {
-			panic(err)
+	//decode response
+	response := BulkResponse{}
+	err := util.FromJSONBytes(resbody,&response)
+	if err != nil {
+		panic(err)
+	}
+	invalidOffset := map[int]BulkActionMetadata{}
+	var validCount = 0
+	for i, v := range response.Items {
+		item := v.GetItem()
+
+		x, ok := statsCodeStats[item.Status]
+		if !ok {
+			x = 0
 		}
-		//var contains400Error = false
-		invalidOffset := map[int]BulkActionMetadata{}
-		var validCount = 0
-		for i, v := range response.Items {
-			item := v.GetItem()
+		x++
+		statsCodeStats[item.Status] = x
 
-			x, ok := statsCodeStats[item.Status]
-			if !ok {
-				x = 0
-			}
-			x++
-			statsCodeStats[item.Status] = x
+		if item.Error != nil {
+			invalidOffset[i] = v
+		} else {
+			validCount++
+		}
+	}
 
-			if item.Error != nil {
-				invalidOffset[i] = v
+	if len(invalidOffset) > 0 {
+		if global.Env().IsDebug {
+			log.Debug(tag," bulk invalid, status:", statsCodeStats)
+		}
+	}
+	var offset = 0
+	var match = false
+	var retryable = false
+	var actionMetadata BulkActionMetadata
+	var docBuffer []byte
+	docBuffer = BulkDocBuffer.Get(docBuffSize)
+	defer BulkDocBuffer.Put(docBuffer)
+
+	WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
+		return false
+	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
+		actionMetadata, match = invalidOffset[offset]
+		item:=actionMetadata.GetItem()
+
+		if match {
+			if item.Status==429 && retry429{
+				retryable = true
+			}else if item.Status >= 400 && item.Status < 500{ //find invalid request 409
+				retryable = false
 			} else {
-				validCount++
+				retryable = true
 			}
-		}
 
-		if len(invalidOffset) > 0 {
-			if global.Env().IsDebug {
-				log.Debug(tag," bulk invalid, status:", statsCodeStats)
+			if retryable{
+				retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
+				retryableItems.WriteMessageID(item.ID)
+			}else{
+				nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
+				nonRetryableItems.WriteMessageID(item.ID)
 			}
+		}else{
+			//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
+			successItems.WriteNewByteBufferLine("meta5",metaBytes)
+			successItems.WriteMessageID(id)
 		}
-
-		//de-dup
-		var has409 bool
-		for x, y := range statsCodeStats {
-			if x == 409 {
-				has409 = true
-			}
-			stats.IncrementBy(path.Join("request_flow", tag, "offline"), fmt.Sprintf("bulk_items_response.%v", x), int64(y))
-		}
-		stats.Increment(path.Join("request_flow", tag, "offline"), fmt.Sprintf("HandleBulkResponse2.total-requests"))
-		if has409 {
-			stats.Increment(path.Join("request_flow", tag, "offline"), fmt.Sprintf("HandleBulkResponse2.409-requests"))
-		}
-
-		var offset = 0
-		var match = false
-		var retryable = false
-		var actionMetadata BulkActionMetadata
-		var docBuffer []byte
-		docBuffer = BulkDocBuffer.Get(docBuffSize)
-		defer BulkDocBuffer.Put(docBuffer)
-
-		WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
-			return false
-		}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
-			actionMetadata, match = invalidOffset[offset]
-			item:=actionMetadata.GetItem()
-
-			if match {
-				if item.Status==429 && retry429{
-					retryable = true
-				}else if item.Status >= 400 && item.Status < 500{ //find invalid request 409
-					retryable = false
+		offset++
+		return nil
+	}, func(payloadBytes []byte) {
+		if match {
+			if payloadBytes != nil && len(payloadBytes) > 0 {
+				if retryable {
+					retryableItems.WriteNewByteBufferLine("payload4",payloadBytes)
 				} else {
-					retryable = true
-				}
-
-				if retryable{
-					retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
-					retryableItems.WriteMessageID(item.ID)
-				}else{
-					nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
-					nonRetryableItems.WriteMessageID(item.ID)
-				}
-			}else{
-				//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
-				successItems.WriteNewByteBufferLine("meta5",metaBytes)
-				successItems.WriteMessageID(id)
-			}
-			offset++
-			return nil
-		}, func(payloadBytes []byte) {
-			if match {
-				if payloadBytes != nil && len(payloadBytes) > 0 {
-					if retryable {
-						retryableItems.WriteNewByteBufferLine("payload4",payloadBytes)
-					} else {
-						nonRetryableItems.WriteNewByteBufferLine("payload3",payloadBytes)
-					}
-				}
-			}else{
-				if payloadBytes != nil && len(payloadBytes) > 0 {
-					successItems.WriteNewByteBufferLine("payload5", payloadBytes)
+					nonRetryableItems.WriteNewByteBufferLine("payload3",payloadBytes)
 				}
 			}
-		})
+		}else{
+			if payloadBytes != nil && len(payloadBytes) > 0 {
+				successItems.WriteNewByteBufferLine("payload5", payloadBytes)
+			}
+		}
+	})
 
-	//}
 	return containError, statsCodeStats
 }

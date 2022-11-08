@@ -20,16 +20,16 @@ import (
 )
 
 //if local file not found, try to download from s3
-func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) string {
+func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (string,bool) {
 	filePath:= GetFileName(queueID,segmentID)
-	if !util.FileExists(filePath){
+	exists:=util.FileExists(filePath)
+	if !exists{
 		if cfg.Compress.Segment.Enabled{
 			//check local compressed file
 			compressedFile:=filePath+compressFileSuffix
 			if util.FileExists(compressedFile){
 				err:=zstd.DecompressFile(compressLocker,compressedFile,filePath)
 				if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
-					log.Error(err)
 					panic(err)
 				}
 			}
@@ -49,7 +49,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) strin
 			// download remote file
 			_,err:=s3.SyncDownload(fileToDownload,cfg.S3.Server,cfg.S3.Location,cfg.S3.Bucket,s3Object)
 			if err!=nil{
-				log.Error(err)
+				panic(err)
 			}
 
 			//TODO try uncompressed file if not found
@@ -58,18 +58,16 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) strin
 			if cfg.Compress.Segment.Enabled&&fileToDownload!=filePath{
 				err:=zstd.DecompressFile(compressLocker,fileToDownload,filePath)
 				if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
-					log.Error(err)
 					panic(err)
 				}
 			}
 		}
 	}
-	return filePath
+	return filePath,exists
 }
 
 //每个 consumer 维护自己的元数据，part 自动切换，offset 表示文件级别的读取偏移，messageCount 表示消息的返回条数
 func (d *diskQueue) Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error) {
-
 	messages = []queue.Message{}
 	var totalMessageSize int = 0
 	ctx = &queue.Context{}
@@ -83,11 +81,11 @@ RELOCATE_FILE:
 	log.Tracef("[%v] consumer[%v] %v,%v, max fetch count:%v", d.dataPath, consumer.Name, part, readPos, consumer.FetchMaxMessages)
 	ctx.InitOffset = fmt.Sprintf("%v,%v", part, readPos)
 	ctx.NextOffset = ctx.InitOffset
-
-	fileName := SmartGetFileName(d.cfg,d.name, part)
-
-	if !util.FileExists(fileName) {
-		return ctx, messages, false, err
+	fileName,exists := SmartGetFileName(d.cfg,d.name, part)
+	if !exists{
+		if !util.FileExists(fileName) {
+			return ctx, messages, false, err
+		}
 	}
 
 	var msgSize int32
@@ -131,12 +129,10 @@ RELOCATE_FILE:
 	if err != nil {
 		if err.Error()=="EOF"{
 			log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
-			nextFile:= SmartGetFileName(d.cfg,d.name,part+1)
-			if util.FileExists(nextFile){
+			nextFile,exists:= SmartGetFileName(d.cfg,d.name,part+1)
+			if exists||util.FileExists(nextFile){
 				log.Trace("EOF, continue read:",nextFile)
-
 				Notify(d.name, ReadComplete,part)
-
 				part=part+1
 				readPos=0
 				if readFile!=nil{
@@ -244,9 +240,9 @@ RELOCATE_FILE:
 	}
 
 	if nextReadPos >= maxBytesPerFileRead {
-		log.Tracef("nextReadPos >= maxBytesPerFileRead,%v,%v,%v", ctx, len(messages), err)
-		nextFile := SmartGetFileName(d.cfg,d.name, part+1)
-		if util.FileExists(nextFile) {
+		//TODO checking the current file whether to have new changes or not during read
+		nextFile,exists := SmartGetFileName(d.cfg,d.name, part+1)
+		if exists||util.FileExists(nextFile) {
 			log.Trace("EOF, continue read:", nextFile)
 			Notify(d.name, ReadComplete, part)
 			part = part + 1

@@ -22,6 +22,8 @@ type BackendQueue interface {
 	LatestOffset() string
 	ReadContext() Context
 
+	AcquireConsumer(consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI,error)
+
 	Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error)
 	Empty() error
 }

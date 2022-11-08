@@ -38,10 +38,10 @@ func (this *MemoryQueue) Setup() {
 	if ok && err != nil {
 		panic(err)
 	}
-	queue.Register("memory",this)
-	if this.Default{
-		queue.RegisterDefaultHandler(this)
-	}
+	//queue.Register("memory",this)
+	//if this.Default{
+	//	queue.RegisterDefaultHandler(this)
+	//}
 
 }
 
