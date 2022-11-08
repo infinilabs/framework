@@ -10,6 +10,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"infini.sh/framework/core/global"
 	"path"
+	"github.com/dgraph-io/badger/v3/options"
 	"sync"
 )
 
@@ -56,7 +57,17 @@ func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
 
 	var err error
 	option:=badger.DefaultOptions(dir)
-	option.InMemory=filter.InMemoryMode
+	option.InMemory=false
+	option.MemTableSize=1024 * 1024 * 10
+	option.ValueLogMaxEntries=1000
+	option.NumGoroutines=1
+	option.NumMemtables=1
+	option.Compression=options.ZSTD
+	option.NumLevelZeroTables = 1
+	option.NumLevelZeroTablesStall = 2
+	option.SyncWrites=false
+	option.CompactL0OnClose=true
+	option.ValueLogFileSize=1024 * 1024 * 10
 
 	if !global.Env().IsDebug{
 		option.Logger=nil
@@ -105,9 +116,9 @@ func (filter *BadgerFilter) Add(bucket string, key []byte) error {
 
 func (filter *BadgerFilter) Delete(bucket string, key []byte) error {
 	var err error
-	err=filter.getOrInitBucket(bucket).View(func(txn *badger.Txn) error {
+	err=filter.getOrInitBucket(bucket).Update(func(txn *badger.Txn) error {
 		 err = txn.Delete(key)
-		return nil
+		return err
 	})
 	return err
 }
