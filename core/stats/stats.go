@@ -37,7 +37,7 @@ type StatsInterface interface {
 
 	Stat(category, key string) int64
 
-	StatsAll() map[string]interface{}
+	StatsAll() string
 }
 
 var handlers = []StatsInterface{}
@@ -118,14 +118,14 @@ func Stat(category, key string) int64 {
 	return 0
 }
 
-func StatsAll() map[string]interface{} {
+func StatsAll() string{
 	for _, v := range handlers {
 		b := v.StatsAll()
-		if b != nil {
+		if b != "" {
 			return b
 		}
 	}
-	return map[string]interface{}{}
+	return ""
 }
 
 func Register(h StatsInterface) {
