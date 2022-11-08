@@ -345,6 +345,18 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 									return string(user), nil
 								}
 								return "", nil
+							case "username": //alias to user
+								exists, user, _ := para.Request.ParseBasicAuth()
+								if exists {
+									return string(user), nil
+								}
+								return "", nil
+							case "password":
+								exists, pass, _ := para.Request.ParseBasicAuth()
+								if exists {
+									return string(pass), nil
+								}
+								return "", nil
 							}
 						}
 					}
