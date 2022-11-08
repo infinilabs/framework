@@ -75,7 +75,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 	} else {
 		lock.Lock()
 		if x,ok:=pools.Load(tag);!ok{
-			pool = NewTaggedPool(tag, 0, 0, 0)
+			pool = NewTaggedPool(tag, 0, 100*1024*1024, 1000000)
 		}else{
 			pool = x.(*Pool)
 		}
