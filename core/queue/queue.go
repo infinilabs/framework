@@ -23,6 +23,10 @@ type Context struct {
 	InitOffset string `config:"init_offset" json:"init_offset"`
 }
 
+func (c *Context) ToString() string {
+	return fmt.Sprintf("%v->%v",c.InitOffset,c.NextOffset)
+}
+
 type Message struct {
 	Timestamp  int64  `config:"timestamp" json:"timestamp"`
 	Offset     string `config:"offset" json:"offset"`           //current offset
@@ -32,6 +36,9 @@ type Message struct {
 }
 
 type QueueAPI interface {
+
+	AdvancedQueueAPI
+
 	Name() string
 	Init(string) error
 	Push(string, []byte) error
@@ -44,6 +51,16 @@ type QueueAPI interface {
 	LatestOffset(string) string
 
 	GetQueues() []string
+}
+
+type AdvancedQueueAPI interface {
+	AcquireConsumer(qconfig *QueueConfig,consumer *ConsumerConfig, segment, readPos int64) (ConsumerAPI,error)
+}
+
+type ConsumerAPI interface {
+	Close()error
+	ResetOffset(part, readPos int64) (err error)
+	FetchMessages(numOfMessages int) (ctx *Context, messages []Message, isTimeout bool, err error)
 }
 
 var defaultHandler QueueAPI
@@ -413,6 +430,30 @@ func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Cont
 	}
 	panic(errors.New("handler is not registered"))
 }
+
+func ConvertOffset(offsetStr string) (int64, int64) {
+	data := strings.Split(offsetStr, ",")
+	if len(data) != 2 {
+		panic(errors.Errorf("invalid offset: %v", offsetStr))
+	}
+	var segment, offset int64
+	segment, _ = util.ToInt64(data[0])
+	offset, _ = util.ToInt64(data[1])
+	return segment, offset
+}
+
+func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, offset string)  (ConsumerAPI,error) {
+	if k == nil || k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+	handler := getHandler(k)
+	if handler != nil {
+		segment,pos:=ConvertOffset(offset)
+		return handler.AcquireConsumer(k,consumer,segment,pos)
+	}
+	panic(errors.New("handler is not registered"))
+}
+
 
 func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
 	if k == nil || k.Id == "" {

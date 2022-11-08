@@ -420,8 +420,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		groupName=fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
 	}
 
-	var consumer = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
-
+	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
 	var skipFinalDocsProcess bool
 
 	//TODO check lag
@@ -458,7 +457,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		mainBuf.Reset()
 		if continueNext {
 			if offset != "" && initOffset != offset {
-				ok, err := queue.CommitOffset(qConfig, consumer, offset)
+				ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
 				if !ok || err != nil {
 					panic(err)
 				}
@@ -517,9 +516,20 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	var lastCommit time.Time = time.Now()
 
 READ_DOCS:
-	initOffset, _ = queue.GetOffset(qConfig, consumer)
-	log.Debugf("get init offset: %v for consumer:%v,%v", initOffset, consumer.Group, consumer.Name)
+	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
+
+	if global.Env().IsDebug{
+		log.Debugf("get init offset: %v for consumer:%v,%v", initOffset, consumerConfig.Group, consumerConfig.Name)
+	}
 	offset = initOffset
+
+	consumerInstance,err:=queue.AcquireConsumer(qConfig,consumerConfig,offset)
+	if err!=nil||consumerInstance==nil{
+		panic(err)
+	}
+
+	defer consumerInstance.Close()
+
 	for {
 		if ctx.IsCanceled() {
 			goto CLEAN_BUFFER
@@ -574,10 +584,10 @@ READ_DOCS:
 		}
 
 		log.Tracef("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
-		ctx1, messages, timeout, err := queue.Consume(qConfig, consumer, offset)
+		ctx1, messages, timeout, err := consumerInstance.FetchMessages(consumerConfig.FetchMaxMessages)
 
 		if global.Env().IsDebug {
-			log.Tracef("[%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumer.Name, len(messages), ctx1, timeout, err)
+			log.Infof("[%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name,sliceID, len(messages), ctx1.ToString(), timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
@@ -594,6 +604,7 @@ READ_DOCS:
 				return
 			}
 			log.Errorf("error on queue:[%v], slice_id:%v, %v", qConfig.Name, sliceID, err)
+			log.Flush()
 			panic(err)
 		}
 
@@ -657,7 +668,7 @@ READ_DOCS:
 						panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
 					} else {
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
-							ok, err := queue.CommitOffset(qConfig, consumer, pop.NextOffset)
+							ok, err := queue.CommitOffset(qConfig, consumerConfig, pop.NextOffset)
 							if !ok || err != nil {
 								panic(err)
 							}
@@ -691,7 +702,7 @@ CLEAN_BUFFER:
 
 	if continueNext {
 		if offset != "" && offset != initOffset {
-			ok, err := queue.CommitOffset(qConfig, consumer, offset)
+			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
 			if !ok || err != nil {
 				panic(err)
 			}

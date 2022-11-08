@@ -28,8 +28,8 @@ type DiskQueue struct {
 	cfg        *DiskQueueConfig
 	initLocker sync.Mutex
 	api.Handler
-	queues   sync.Map
-	messages chan Event
+	queues             sync.Map
+	messages           chan Event
 }
 
 func (module *DiskQueue) Name() string {
@@ -61,6 +61,8 @@ type DiskQueueConfig struct {
 	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
 
 	UploadToS3 bool `config:"upload_to_s3"`
+
+	PrepareFilesToRead bool `config:"prepare_files_to_read"`
 
 	//default queue adaptor
 	Default bool `config:"default"`
@@ -257,15 +259,18 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
-func ConvertOffset(offsetStr string) (int64, int64) {
-	data := strings.Split(offsetStr, ",")
-	if len(data) != 2 {
-		panic(errors.Errorf("invalid offset: %v", offsetStr))
+func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig,consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI,error){
+	q, ok := module.queues.Load(qconfig.Id)
+	if !ok {
+		//try init
+		module.Init(qconfig.Id)
+		q, ok = module.queues.Load(qconfig.Id)
 	}
-	var segment, offset int64
-	segment, _ = util.ToInt64(data[0])
-	offset, _ = util.ToInt64(data[1])
-	return segment, offset
+	if ok {
+		q1 := (*q.(*BackendQueue))
+		return q1.AcquireConsumer(consumer,segment,offset)
+	}
+	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
 }
 
 func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (ctx *queue.Context, messages []queue.Message, timeout bool, err error) {
@@ -277,14 +282,9 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 		q, ok = module.queues.Load(qconfig.Id)
 	}
 	if ok {
-		segment, offset := ConvertOffset(offsetStr)
+		segment, offset := queue.ConvertOffset(offsetStr)
 		q1 := (*q.(*BackendQueue))
 		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset)
-
-		////no new message found
-		//if len(messages) == 0 && ctx.NextOffset == ctx.InitOffset {
-		//	err = errors.New("EOF")
-		//}
 
 		if global.Env().IsDebug {
 			log.Tracef("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
@@ -411,7 +411,7 @@ func (module *DiskQueue) Start() error {
 				last := GetLastS3UploadFileNum(v.Id)
 				log.Trace("last upload:",v.Id,",",last)
 				offsetStr := queue.LatestOffset(v)
-				segment, _ := ConvertOffset(offsetStr)
+				segment, _ := queue.ConvertOffset(offsetStr)
 				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.Id, offsetStr, segment, last)
 				if segment > last {
 					for x := last; x < segment; x++ {
@@ -464,8 +464,10 @@ func (module *DiskQueue) Start() error {
 				break
 			case ReadComplete:
 
-				//decompress ahead of # files
-				module.prepareFilesToRead(evt.Queue,evt.FileNum)
+				if module.cfg.PrepareFilesToRead{
+					//decompress ahead of # files
+					module.prepareFilesToRead(evt.Queue,evt.FileNum)
+				}
 
 				//delete old unused files
 				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
