@@ -143,8 +143,8 @@ func (module *RedisModule) Start() error {
 		panic(err)
 	}
 
-	handler:=&RedisQueue{client: module.client,pubsub: map[string]int{}}
-	queue.Register("redis",handler)
+	//handler:=&RedisQueue{client: module.client,pubsub: map[string]int{}}
+	//queue.Register("redis",handler)
 
 	return nil
 }

@@ -166,11 +166,11 @@ func (this *KafkaQueue) Setup() {
 		},
 	}
 
-	queue.Register("kafka", this)
-
-	if this.Default {
-		queue.RegisterDefaultHandler(this)
-	}
+	//queue.Register("kafka", this)
+	//
+	//if this.Default {
+	//	queue.RegisterDefaultHandler(this)
+	//}
 
 }
 
