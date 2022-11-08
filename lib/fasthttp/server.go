@@ -2601,12 +2601,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		if continueReadingRequest {
 			//ctx.Reset()
 			//ctx.Response.Reset()
-			stats.Increment("continue_request", "received")
 			err:=s.handleRequest(ctx)
 			if err!=nil{
-				stats.Increment("continue_request", "error")
-			}else{
-				stats.Increment("continue_request", "finished")
+				stats.Increment("http", "continue_error")
 			}
 		}
 
