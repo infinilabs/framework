@@ -173,7 +173,7 @@ func (module *DiskQueue) Setup() {
 			Enabled: false,
 			Level:   3,
 		}, Segment: CompressConfig{
-			Enabled: true,
+			Enabled: false,
 			Level:   11,
 		}},
 	}

@@ -709,6 +709,7 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 		}
 	}
 
+	log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
 	return GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
 }
 
