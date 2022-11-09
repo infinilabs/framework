@@ -268,12 +268,19 @@ func (d *diskQueue) skipToNextRWFile() error {
 	var err error
 
 	if d.readFile != nil {
-		d.readFile.Close()
+		err=d.readFile.Close()
+		if err!=nil{
+			panic(err)
+		}
 		d.readFile = nil
 	}
 
 	if d.writeFile != nil {
-		d.writeFile.Close()
+		d.writeFile.Sync()
+		err=d.writeFile.Close()
+		if err!=nil{
+			panic(err)
+		}
 		d.writeFile = nil
 	}
 
