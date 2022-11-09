@@ -331,7 +331,8 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		}
 
 		if env.SystemConfig.Configs.AutoReload {
-			log.Info("auto reload config, monitoring path:", env.SystemConfig.PathConfig.Config)
+			absConfigPath,_:=filepath.Abs(env.SystemConfig.PathConfig.Config)
+			log.Info("auto reload config, watching:", absConfigPath)
 			config.EnableWatcher(env.SystemConfig.PathConfig.Config)
 		}
 	}
