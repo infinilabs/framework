@@ -303,7 +303,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	//load configs from config folder
 	if env.SystemConfig.PathConfig.Config != "" {
 		cfgPath := util.TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
-		log.Debug("loading configs from:", cfgPath)
+		log.Debug("loading configs from: ", cfgPath)
 		if util.FileExists(cfgPath) {
 
 			v, err := config.LoadPath(env.SystemConfig.PathConfig.Config)
@@ -331,7 +331,8 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		}
 
 		if env.SystemConfig.Configs.AutoReload {
-			log.Info("auto reload config, monitoring path:", env.SystemConfig.PathConfig.Config)
+			absConfigPath,_:=filepath.Abs(env.SystemConfig.PathConfig.Config)
+			log.Info("watching config: ", absConfigPath)
 			config.EnableWatcher(env.SystemConfig.PathConfig.Config)
 		}
 	}
