@@ -109,6 +109,10 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 			if field.Type.Kind() == reflect.Struct {
 				v1 := reflect.New(field.Type)
 				a.Annotation = GetTagsByTagName(v1.Interface(), tagName)
+				if field.Anonymous && len(a.Annotation) > 0{
+					result = append(result, a.Annotation...)
+					continue
+				}
 			}
 
 			if len(a.Annotation) > 0 || a.Tag != "" {

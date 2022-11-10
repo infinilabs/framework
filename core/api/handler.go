@@ -313,3 +313,10 @@ func (handler Handler) ErrorInternalServer(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusInternalServerError)
 	return
 }
+
+func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{}) error {
+	return handler.WriteJSON(w, util.MapStr{
+		"_id":    id,
+		"result": "created",
+	}, http.StatusOK)
+}
