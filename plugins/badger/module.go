@@ -11,10 +11,23 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/module"
 	"path"
+	"github.com/dgraph-io/badger/v3"
 )
 
 type Module struct {
-	handler *BadgerFilter
+	SingleBucketMode bool   `config:"single_bucket_mode"`
+	Path             string `config:"path"`
+	InMemoryMode     bool   `config:"memory_mode"`
+	SyncWrites     bool   `config:"sync_writes"`
+	MemTableSize     int64   `config:"mem_table_size"`
+	ValueLogFileSize     int64   `config:"value_log_file_size"`
+	ValueThreshold     int64   `config:"value_threshold"`
+	ValueLogMaxEntries     uint32   `config:"value_log_max_entries"`
+	NumMemtables     int   `config:"num_mem_tables"`
+
+	NumLevelZeroTables     int   `config:"num_level0_tables"`
+	NumLevelZeroTablesStall     int   `config:"num_level0_tables_stall"`
+	bucket           *badger.DB
 }
 
 func (module *Module) Name() string {
@@ -26,29 +39,30 @@ func (module *Module) Setup() {
 	if ok&&err!=nil{
 		panic(err)
 	}
-
-	module.handler= &BadgerFilter{
-		Path : path.Join(global.Env().GetDataDir(),"badger"),
+	if module.Path==""{
+		module.Path = path.Join(global.Env().GetDataDir(),"badger")
 	}
-	filter.Register("badger", module.handler)
-	kv.Register("badger", module.handler)
+	filter.Register("badger", module)
+	kv.Register("badger", module)
 
 }
 
 func (module *Module) Start() error {
-	if module.handler != nil {
-		module.handler.Open()
-	}
-	return nil
+	return module.Open()
 }
 
 func (module *Module) Stop() error {
-	if module.handler != nil {
-		module.handler.Close()
-	}
-	return nil
+	return module.Close()
 }
 
 func init() {
-	module.RegisterSystemModule(&Module{})
+	module.RegisterSystemModule(&Module{
+		MemTableSize: 1*1024*1024,
+		ValueLogFileSize: 1*1024*1024,
+		ValueLogMaxEntries: 1000,
+		NumMemtables: 1,
+		NumLevelZeroTables: 1,
+		NumLevelZeroTablesStall: 2,
+		SingleBucketMode: true,
+	})
 }

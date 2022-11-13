@@ -126,8 +126,6 @@ func (p *Pool) Get() *ByteBuffer {
 	if v != nil {
 		x := v.(*ByteBuffer)
 		x.Reset()
-		atomic.AddInt32(&p.poolByteSize, int32((x.Cap())*-1))
-
 		p.inUseBuffer.Store(x.ID, x)
 		return x
 	}
@@ -220,6 +218,13 @@ func (p *Pool) Put(b *ByteBuffer) {
 		p.calibrate()
 	}
 
+	if p.maxItemCount>0 && p.inuse>int32(p.maxItemCount){
+		atomic.AddInt32(&p.poolByteSize, int32((b.Cap())*-1))
+		atomic.AddUint32(&p.notReturn, 1)
+		b=nil
+		return
+	}
+
 	maxSize := int(atomic.LoadUint32(&p.maxDataByteSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
 		b.Reset()
@@ -227,6 +232,7 @@ func (p *Pool) Put(b *ByteBuffer) {
 		atomic.AddUint32(&p.returned, 1)
 		atomic.AddInt32(&p.poolByteSize, int32(b.Cap()))
 	} else {
+		atomic.AddInt32(&p.poolByteSize, int32((b.Cap())*-1))
 		atomic.AddUint32(&p.notReturn, 1)
 		b = nil
 	}
