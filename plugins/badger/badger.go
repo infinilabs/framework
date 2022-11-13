@@ -9,28 +9,40 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/dgraph-io/badger/v3"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 	"path"
 	"github.com/dgraph-io/badger/v3/options"
 	"sync"
 )
 
-type BadgerFilter struct {
-	Path string  `config:"path"`
-	InMemoryMode bool  `config:"in_memory_mode"`
-}
-
 var record sync.RWMutex
-
 var l sync.RWMutex
+
 var buckets =sync.Map{}
-func (filter *BadgerFilter) Open() error {
+
+func (filter *Module) Open() error {
 	if filter.Path==""{
 		filter.Path= path.Join(global.Env().GetDataDir(),"badger")
 	}
+
+	if filter.SingleBucketMode{
+		filter.bucket=filter.getOrInitBucket("default")
+	}
+
 	return nil
 }
 
-func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
+func (filter *Module)mustGetBucket(bucket string)*badger.DB  {
+	if filter.SingleBucketMode{
+		if filter.bucket==nil{
+			panic("invalid badger module")
+		}
+		return filter.bucket
+	}
+	return filter.getOrInitBucket(bucket)
+}
+
+func (filter *Module)getOrInitBucket(bucket string)*badger.DB  {
 	item,ok:=buckets.Load(bucket)
 	if ok{
 		db,ok:=item.(*badger.DB)
@@ -57,17 +69,18 @@ func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
 
 	var err error
 	option:=badger.DefaultOptions(dir)
-	option.InMemory=false
-	option.MemTableSize=1024 * 1024 * 10
-	option.ValueLogMaxEntries=1000
+	option.InMemory=filter.InMemoryMode
+	option.MemTableSize=filter.MemTableSize
+	option.ValueLogMaxEntries=filter.ValueLogMaxEntries
+	option.ValueThreshold=filter.ValueThreshold
 	option.NumGoroutines=1
-	option.NumMemtables=1
+	option.NumMemtables=filter.NumMemtables
 	option.Compression=options.ZSTD
-	option.NumLevelZeroTables = 1
-	option.NumLevelZeroTablesStall = 2
-	option.SyncWrites=false
+	option.NumLevelZeroTables =      filter.NumLevelZeroTables
+	option.NumLevelZeroTablesStall = filter.NumLevelZeroTablesStall
+	option.SyncWrites=filter.SyncWrites
 	option.CompactL0OnClose=true
-	option.ValueLogFileSize=1024 * 1024 * 10
+	option.ValueLogFileSize=filter.ValueLogFileSize
 
 	if !global.Env().IsDebug{
 		option.Logger=nil
@@ -81,7 +94,7 @@ func (filter *BadgerFilter)getOrInitBucket(bucket string)*badger.DB  {
 	return h
 }
 
-func (filter *BadgerFilter) Close() error {
+func (filter *Module) Close() error {
 	buckets.Range(func(key, value any) bool {
 		db,ok:=value.(*badger.DB)
 		if ok{
@@ -95,10 +108,14 @@ func (filter *BadgerFilter) Close() error {
 	return nil
 }
 
-func (filter *BadgerFilter) Exists(bucket string, key []byte) bool {
+func (filter *Module) Exists(bucket string, key []byte) bool {
+
+	if filter.SingleBucketMode{
+		key=joinKey(bucket,key)
+	}
 
 	var exists=false
-	_:filter.getOrInitBucket(bucket).View(func(txn *badger.Txn) error {
+	_:filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if item!=nil&&err==nil{
 			exists=true
@@ -110,20 +127,25 @@ func (filter *BadgerFilter) Exists(bucket string, key []byte) bool {
 
 var zeroVal = []byte("0")
 
-func (filter *BadgerFilter) Add(bucket string, key []byte) error {
+func (filter *Module) Add(bucket string, key []byte) error {
 	return filter.AddValue(bucket,key,zeroVal)
 }
 
-func (filter *BadgerFilter) Delete(bucket string, key []byte) error {
+func (filter *Module) Delete(bucket string, key []byte) error {
+
+	if filter.SingleBucketMode{
+		key=joinKey(bucket,key)
+	}
+
 	var err error
-	err=filter.getOrInitBucket(bucket).Update(func(txn *badger.Txn) error {
+	err=filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
 		 err = txn.Delete(key)
 		return err
 	})
 	return err
 }
 
-func (filter *BadgerFilter) CheckThenAdd(bucket string, key []byte) (b bool, err error) {
+func (filter *Module) CheckThenAdd(bucket string, key []byte) (b bool, err error) {
 	//TODO remove this lock
 	record.Lock()
 	defer record.Unlock()
@@ -135,11 +157,16 @@ func (filter *BadgerFilter) CheckThenAdd(bucket string, key []byte) (b bool, err
 }
 
 //for kv implementation
-func (filter *BadgerFilter) GetValue(bucket string, key []byte) ([]byte, error) {
+func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
+
+	if filter.SingleBucketMode{
+		key=joinKey(bucket,key)
+	}
+
 	var valCopy []byte
 	var err error
 	var item *badger.Item
-	err=filter.getOrInitBucket(bucket).View(func(txn *badger.Txn) error {
+	err=filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
 			item, err= txn.Get(key)
 				if item!=nil&&err==nil{
 				err = item.Value(func(val []byte) error {
@@ -152,7 +179,7 @@ func (filter *BadgerFilter) GetValue(bucket string, key []byte) ([]byte, error) 
 	return valCopy,err
 }
 
-func (filter *BadgerFilter) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
+func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
 	d,err:=filter.GetValue(bucket,key)
 	if err!=nil{
 		return d, err
@@ -165,7 +192,7 @@ func (filter *BadgerFilter) GetCompressedValue(bucket string, key []byte) ([]byt
 	return data,err
 }
 
-func (filter *BadgerFilter) AddValueCompress(bucket string, key []byte, value []byte) error {
+func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -174,19 +201,28 @@ func (filter *BadgerFilter) AddValueCompress(bucket string, key []byte, value []
 	return filter.AddValue(bucket, key, value)
 }
 
-func (filter *BadgerFilter) AddValue(bucket string, key []byte, value []byte) error {
-	err := filter.getOrInitBucket(bucket).Update(func(txn *badger.Txn) error {
+func joinKey(bucket string,key []byte) []byte {
+	return util.UnsafeStringToBytes(bucket+","+util.UnsafeBytesToString(key))
+}
+
+func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
+
+	if filter.SingleBucketMode{
+		key=joinKey(bucket,key)
+	}
+
+	err := filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
 		err := txn.Set(key, value)
 		return err
 	})
 	return err
 }
 
-func (filter *BadgerFilter) ExistsKey(bucket string, key []byte) (bool, error) {
+func (filter *Module) ExistsKey(bucket string, key []byte) (bool, error) {
 	ok:= filter.Exists(bucket,key)
 	return ok,nil
 }
 
-func (filter *BadgerFilter) DeleteKey(bucket string, key []byte) error {
+func (filter *Module) DeleteKey(bucket string, key []byte) error {
 	return filter.Delete(bucket,key)
 }

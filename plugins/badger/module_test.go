@@ -26,7 +26,7 @@ func Test(t *testing.T) {
 	global.RegisterEnv(env1)
 
 	m := Module{}
-	m.Setup(nil)
+	m.Setup()
 	m.Start()
 	b, _ := filter.CheckThenAdd(filterKey, []byte("key"))
 	assert.Equal(t, false, b)
