@@ -282,7 +282,9 @@ func (d *Consumer) ResetOffset(segment,readPos int64)error {
 			log.Debugf("start to switch segment, previous:%v,%v, now: %v,%v",d.segment,d.readPos,segment,readPos)
 		}
 		//potential file handler leak
-		d.readFile.Close()
+		if d.readFile!=nil {
+			d.readFile.Close()
+		}
 	}
 
 	d.segment= segment
