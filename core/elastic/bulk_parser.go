@@ -19,7 +19,7 @@ var ActionEnd = []byte("\"")
 
 var Actions = []string{"index", "delete", "create", "update"}
 
-func ParseActionMeta(data []byte) (action, index, typeName, id,routing string) {
+func ParseActionMeta(data []byte) (action, index, typeName, id,routing string,err error) {
 
 	match := false
 	for _, v := range Actions {
@@ -43,9 +43,9 @@ func ParseActionMeta(data []byte) (action, index, typeName, id,routing string) {
 		}, v)
 		action = v
 		if match {
-			return action, index, typeName, id,routing
+			return action, index, typeName, id,routing,nil
 		}
 	}
 
-	panic(errors.Errorf("invalid meta buffer: %v",string(data)))
+	return action, index, typeName, id,routing, errors.Errorf("invalid meta buffer: %v",string(data))
 }

@@ -176,7 +176,6 @@ var cfgLock = sync.RWMutex{}
 var consumerCfgLock = sync.RWMutex{}
 var existsErr = errors.New("config exists")
 
-//TODO do not lock here
 func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
@@ -302,8 +301,10 @@ func IsConfigExists(key string) bool {
 func GetOrInitConfig(key string) *QueueConfig {
 	cfg, exists := SmartGetConfig(key)
 	if !exists {
-		_, ok := configs[key]
-		if !ok {
+		cfgLock.Lock()
+		cfg, exists = configs[key]
+		cfgLock.Unlock()
+		if !exists {
 			cfg = &QueueConfig{}
 			cfg.Id = util.GetUUID()
 			cfg.Name = key

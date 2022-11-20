@@ -1,7 +1,6 @@
 package elastic
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/buger/jsonparser"
@@ -22,135 +21,70 @@ import (
 var NEWLINEBYTES = []byte("\n")
 var BulkDocBuffer pool.BufferPool
 
-func WalkBulkRequests(safetyParse bool, data []byte, docBuff []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte)) (int, error) {
+func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
 	var docCount = 0
 
-	if safetyParse {
-		lines := bytes.Split(data, NEWLINEBYTES)
-		//reset
-		nextIsMeta = true
-		skipNextLineProcessing = false
-		docCount = 0
-		for i, line := range lines {
+	lines := bytes.Split(data, NEWLINEBYTES)
+	//reset
+	nextIsMeta = true
+	skipNextLineProcessing = false
+	docCount = 0
+	for i, line := range lines {
 
-			bytesCount := len(line)
-			if line == nil || bytesCount <= 0 {
-				if global.Env().IsDebug {
-					log.Tracef("invalid line, continue, [%v/%v] [%v]\n%v", i, len(lines), string(line), util.PrintStringByteLines(lines))
-				}
-				continue
+		bytesCount := len(line)
+		if line == nil || bytesCount <= 0 {
+			if global.Env().IsDebug {
+				log.Tracef("invalid line, continue, [%v/%v] [%v]\n%v", i, len(lines), string(line), util.PrintStringByteLines(lines))
 			}
-
-			if eachLineFunc != nil {
-				skipNextLineProcessing = eachLineFunc(line)
-			}
-
-			if skipNextLineProcessing {
-				skipNextLineProcessing = false
-				nextIsMeta = true
-				log.Debug("skip body processing")
-				continue
-			}
-
-			if nextIsMeta {
-				nextIsMeta = false
-				var actionStr string
-				var index string
-				var typeName string
-				var id string
-				var routing string
-				actionStr, index, typeName, id,routing = ParseActionMeta(line)
-
-				err := metaFunc(line, actionStr, index, typeName, id,routing)
-				if err != nil {
-					log.Debug(err)
-					return docCount, err
-				}
-
-				docCount++
-
-				if actionStr == ActionDelete {
-					nextIsMeta = true
-					payloadFunc(nil)
-				}
-			} else {
-				nextIsMeta = true
-				payloadFunc(line)
-			}
-		}
-	}
-
-	if !safetyParse {
-		scanner := bufio.NewScanner(bytes.NewReader(data))
-		scanner.Split(util.GetSplitFunc(NEWLINEBYTES))
-
-		sizeOfDocBuffer := len(docBuff)
-		if sizeOfDocBuffer > 0 {
-			if sizeOfDocBuffer < 1024 {
-				log.Debug("doc buffer size maybe too small,", sizeOfDocBuffer)
-			}
-			scanner.Buffer(docBuff, sizeOfDocBuffer)
+			continue
 		}
 
-		processedBytesCount := 0
-		for scanner.Scan() {
-			scannedByte := scanner.Bytes()
-			bytesCount := len(scannedByte)
-			processedBytesCount += bytesCount
-			if scannedByte == nil || bytesCount <= 0 {
-				log.Debug("invalid scanned byte, continue")
-				continue
-			}
-
-			if eachLineFunc != nil {
-				skipNextLineProcessing = eachLineFunc(scannedByte)
-			}
-
-			if skipNextLineProcessing {
-				skipNextLineProcessing = false
-				nextIsMeta = true
-				log.Debug("skip body processing")
-				continue
-			}
-
-			if nextIsMeta {
-
-				nextIsMeta = false
-
-				//TODO improve poor performance
-				var actionStr string
-				var index string
-				var typeName string
-				var id string
-				var routing string
-				actionStr, index, typeName, id,routing = ParseActionMeta(scannedByte)
-
-				err := metaFunc(scannedByte, actionStr, index, typeName, id,routing)
-				if err != nil {
-					if global.Env().IsDebug {
-						log.Error(err)
-					}
-					return docCount, err
-				}
-
-				docCount++
-
-				if actionStr == ActionDelete {
-					nextIsMeta = true
-					payloadFunc(nil)
-				}
-			} else {
-				nextIsMeta = true
-				payloadFunc(scannedByte)
-			}
+		if eachLineFunc != nil {
+			skipNextLineProcessing = eachLineFunc(line)
 		}
 
-		if processedBytesCount+sizeOfDocBuffer <= len(data) {
-			log.Warn("bulk requests was not fully processed,", processedBytesCount, "/", len(data), ", you may need to increase `doc_buffer_size`")
-			return 0, errors.New("documents too big, skip processing")
+		if skipNextLineProcessing {
+			skipNextLineProcessing = false
+			nextIsMeta = true
+			log.Debug("skip body processing")
+			continue
+		}
+
+		if nextIsMeta {
+			nextIsMeta = false
+			var actionStr string
+			var index string
+			var typeName string
+			var id string
+			var routing string
+			var err error
+			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
+			if err!=nil{
+				log.Error(err,string(data))
+				log.Flush()
+				panic(err)
+			}
+
+			err = metaFunc(line, actionStr, index, typeName, id,routing)
+			if err != nil {
+				log.Error(err,string(data))
+				log.Flush()
+				panic(err)
+				//return docCount, err
+			}
+
+			docCount++
+
+			if actionStr == ActionDelete {
+				nextIsMeta = true
+				payloadFunc(nil)
+			}
+		} else {
+			nextIsMeta = true
+			payloadFunc(line)
 		}
 	}
 
@@ -209,11 +143,7 @@ type BulkProcessorConfig struct {
 	RequestTimeoutInSecond  int    `config:"request_timeout_in_second"`
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
-
-	SafetyParse             bool   `config:"safety_parse"`
-
 	IncludeBusyRequestsToFailureQueue bool `config:"include_busy_requests_to_failure_queue"`
-
 	DocBufferSize           int    `config:"doc_buffer_size"`
 }
 
@@ -239,7 +169,6 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	MaxRetryTimes:           10,
 	DeadletterRequestsQueue: "dead_letter_queue",
 
-	SafetyParse:             true,
 	IncludeBusyRequestsToFailureQueue:         true,
 
 	DocBufferSize:           256 * 1024,
@@ -395,7 +324,7 @@ DO:
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats := HandleBulkResponse2(tag, joint.Config.SafetyParse, data, resbody, joint.Config.DocBufferSize, successItems, nonRetryableItems, retryableItems,joint.Config.IncludeBusyRequestsToFailureQueue)
+			containError, statsCodeStats := HandleBulkResponse(tag, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.IncludeBusyRequestsToFailureQueue)
 
 			for k,v:=range statsCodeStats{
 				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
@@ -503,7 +432,7 @@ DO:
 	}
 }
 
-func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []byte, docBuffSize int, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
+func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
 	nonRetryableItems.Reset()
 	retryableItems.Reset()
 	successItems.Reset()
@@ -563,15 +492,12 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 	var match = false
 	var retryable = false
-	var docBuffer []byte
-	docBuffer = BulkDocBuffer.Get(docBuffSize)
-	defer BulkDocBuffer.Put(docBuffer)
-
-	WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
+	WalkBulkRequests(requestBytes,func(eachLine []byte) (skipNextLine bool) {
 		return false
 	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 
-		code, match := invalidDocStatus[id]
+		var code int
+		code, match = invalidDocStatus[id]
 		if match {
 			if code==429 && retry429{
 				retryable = true
