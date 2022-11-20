@@ -439,7 +439,7 @@ func (metadata *ElasticsearchMetadata) NewHttpClient(host string) *fasthttp.Clie
 	log.Trace("new http client: ",host)
 
 	client := &fasthttp.Client{
-		MaxConnsPerHost:               100,
+		MaxConnsPerHost:               10000,
 		MaxConnDuration:               0,
 		MaxIdleConnDuration:           0,
 		ReadTimeout:  5 * time.Minute, // 10 minutes

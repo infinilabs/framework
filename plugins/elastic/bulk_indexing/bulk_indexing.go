@@ -624,7 +624,7 @@ READ_DOCS:
 				if maxSlices > 1 {
 					var totalOps, sliceOps int
 					var collectMeta = false
-					elastic.WalkBulkRequests(true, pop.Data, nil, func(eachLine []byte) (skipNextLine bool) {
+					elastic.WalkBulkRequests(pop.Data,  func(eachLine []byte) (skipNextLine bool) {
 						return false
 					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 						totalOps++
