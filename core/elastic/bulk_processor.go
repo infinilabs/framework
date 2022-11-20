@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	pool "github.com/libp2p/go-buffer-pool"
 	"infini.sh/framework/core/errors"
@@ -26,8 +27,6 @@ func WalkBulkRequests(safetyParse bool, data []byte, docBuff []byte, eachLineFun
 	nextIsMeta := true
 	skipNextLineProcessing := false
 	var docCount = 0
-
-START:
 
 	if safetyParse {
 		lines := bytes.Split(data, NEWLINEBYTES)
@@ -150,10 +149,8 @@ START:
 		}
 
 		if processedBytesCount+sizeOfDocBuffer <= len(data) {
-			log.Warn("bulk requests was not fully processed,", processedBytesCount, "/", len(data), ", you may need to increase `doc_buffer_size`, re-processing with memory inefficient way now")
+			log.Warn("bulk requests was not fully processed,", processedBytesCount, "/", len(data), ", you may need to increase `doc_buffer_size`")
 			return 0, errors.New("documents too big, skip processing")
-			safetyParse = true
-			goto START
 		}
 	}
 
@@ -253,8 +250,6 @@ type BulkProcessor struct {
 	Config BulkProcessorConfig
 }
 
-type API_STATUS string
-
 func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, err error) {
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
@@ -319,12 +314,7 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 
 	} else {
 		req.SetBody(data)
-		//req.SetRawBody(data)
 	}
-
-	//if req.GetBodyLength() <= 0 {
-	//	panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
-	//}
 
 	// modify schema，align with elasticsearch's schema
 	orignalSchema := string(req.URI().Scheme())
@@ -520,40 +510,59 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	//decode response
-	response := BulkResponse{}
-	err := util.FromJSONBytes(resbody,&response)
+	invalidDocStatus := map[string]int{}
+	invalidDocError := map[string]string{}
+
+	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err != nil {
 		panic(err)
 	}
-	invalidOffset := map[int]BulkActionMetadata{}
-	var validCount = 0
-	for i, v := range response.Items {
-		item := v.GetItem()
 
-		x, ok := statsCodeStats[item.Status]
-		if !ok {
-			x = 0
+	jsonparser.ArrayEach(items, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		item,_,_,err:=jsonparser.Get(value,"index")
+		if err!=nil{
+			item,_,_,err=jsonparser.Get(value,"delete")
+			if err!=nil{
+				item,_,_,err=jsonparser.Get(value,"create")
+				if err!=nil{
+					item,_,_,err=jsonparser.Get(value,"update")
+				}
+			}
 		}
-		x++
-		statsCodeStats[item.Status] = x
+		if err==nil{
+			docId,err:=jsonparser.GetString(item,"_id")
+			if err != nil {
+				panic(err)
+			}
+			docId=strings.Clone(docId)
+			code1,err:=jsonparser.GetInt(item,"status")
+			if err != nil {
+				panic(err)
+			}
+			code:=int(code1)
+			x, ok := statsCodeStats[code]
+			if !ok {
+				x = 0
+			}
+			x++
+			statsCodeStats[code] = x
+			erObj,_,_,err:=jsonparser.Get(item,"error")
 
-		if item.Error != nil {
-			invalidOffset[i] = v
-		} else {
-			validCount++
+			if err==nil&&erObj != nil {
+				invalidDocStatus[docId] = code
+				invalidDocError[docId] = util.UnsafeBytesToString(erObj)
+			}
 		}
-	}
+	})
 
-	if len(invalidOffset) > 0 {
+	if len(invalidDocStatus) > 0 {
 		if global.Env().IsDebug {
 			log.Debug(tag," bulk invalid, status:", statsCodeStats)
 		}
 	}
-	var offset = 0
+
 	var match = false
 	var retryable = false
-	var actionMetadata BulkActionMetadata
 	var docBuffer []byte
 	docBuffer = BulkDocBuffer.Get(docBuffSize)
 	defer BulkDocBuffer.Put(docBuffer)
@@ -561,44 +570,41 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 	WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
 		return false
 	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
-		actionMetadata, match = invalidOffset[offset]
-		item:=actionMetadata.GetItem()
 
+		code, match := invalidDocStatus[id]
 		if match {
-			if item.Status==429 && retry429{
+			if code==429 && retry429{
 				retryable = true
-			}else if item.Status >= 400 && item.Status < 500{ //find invalid request 409
+			}else if code >= 400 && code < 500{ //find invalid request 409
 				retryable = false
 			} else {
 				retryable = true
 			}
 
 			if retryable{
-				retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
-				retryableItems.WriteMessageID(item.ID)
+				retryableItems.WriteNewByteBufferLine("retryable",metaBytes)
+				retryableItems.WriteMessageID(id)
 			}else{
-				nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
-				nonRetryableItems.WriteMessageID(item.ID)
+				nonRetryableItems.WriteNewByteBufferLine("none-retryable",metaBytes)
+				nonRetryableItems.WriteMessageID(id)
 			}
 		}else{
-			//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
-			successItems.WriteNewByteBufferLine("meta5",metaBytes)
+			successItems.WriteNewByteBufferLine("success",metaBytes)
 			successItems.WriteMessageID(id)
 		}
-		offset++
 		return nil
 	}, func(payloadBytes []byte) {
 		if match {
 			if payloadBytes != nil && len(payloadBytes) > 0 {
 				if retryable {
-					retryableItems.WriteNewByteBufferLine("payload4",payloadBytes)
+					retryableItems.WriteNewByteBufferLine("retryable",payloadBytes)
 				} else {
-					nonRetryableItems.WriteNewByteBufferLine("payload3",payloadBytes)
+					nonRetryableItems.WriteNewByteBufferLine("none-retryable",payloadBytes)
 				}
 			}
 		}else{
 			if payloadBytes != nil && len(payloadBytes) > 0 {
-				successItems.WriteNewByteBufferLine("payload5", payloadBytes)
+				successItems.WriteNewByteBufferLine("success", payloadBytes)
 			}
 		}
 	})

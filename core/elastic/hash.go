@@ -34,33 +34,38 @@ func GetShardID(esMajorVersion int,docID []byte, numberOfShards int) int {
 	return GetShardIDWithRoutingOffset(esMajorVersion,docID,numberOfShards,-1,1)
 }
 
-func GetShardIDWithRoutingOffset(esMajorVersion int,docID []byte, numberOfShards int, routingNumShards int, partitionOffset uint32) int {
+func GetShardIDWithRoutingOffset(esMajorVersion int,docID []byte, numberOfShards int, routingNumShards int, partitionOffset int) int {
 
-	hash := murmur3Hash(docID)
+	hash := int(murmur3Hash(docID))
 	//esMajorVersion := 7 //only es after 7.0.0,need to consider routing hash to calculate hash
 	if routingNumShards <= 0 {
 		routingNumShards = getRoutingNumOfShards(numberOfShards, esMajorVersion) //number_of_routing_shards
 	}
 
 	if partitionOffset != 1 {
-		partition := math.Mod(float64(hash), float64(partitionOffset))
-		hash = hash + int32(partition)
+		partition := hash % partitionOffset
+		hash = hash + partition
 	}
 
 	routingFactor := routingNumShards / numberOfShards
 
 	var mod int
 	if hash < 0 {
-		newHash := float64(routingNumShards) - math.Abs(float64(hash))
-		mod = int(math.Mod(float64(newHash), float64(routingNumShards)))
+		newHash := routingNumShards - Abs(hash)
+		mod = newHash % routingNumShards
 		if mod < 0 {
 			mod = mod + routingNumShards
 		}
 	} else {
-		mod = int(math.Mod(float64(hash), float64(routingNumShards)))
+		mod = hash % routingNumShards
 	}
-
-	shardID := int(mod) / routingFactor
-
+	shardID := mod / routingFactor
 	return shardID
+}
+
+func Abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

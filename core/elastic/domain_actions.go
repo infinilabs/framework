@@ -669,6 +669,12 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *u
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error) {
+	x,ok:=metadata.cache.Get(index)
+	if ok&&x!=nil{
+		if y,ok:=x.(map[string][]IndexShardRouting);ok{
+			return y,nil
+		}
+	}
 
 	if metadata.ClusterState != nil {
 		if metadata.ClusterState.RoutingTable != nil {
@@ -710,7 +716,12 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 	}
 
 	log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
-	return GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
+	v,err:= GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
+	if err==nil&&v!=nil{
+		metadata.cache.SetWithTTL(index,v,100,10*time.Second)
+	}
+	return v,err
+
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexPrimaryShardsRoutingTable(index string) ([]IndexShardRouting, error) {
