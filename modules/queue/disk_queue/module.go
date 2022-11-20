@@ -60,13 +60,17 @@ type DiskQueueConfig struct {
 	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
 	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
 
-	UploadToS3 bool `config:"upload_to_s3"`
+	UploadToS3 		  bool   `config:"upload_to_s3"`
+	AlwaysDownload    bool   `config:"always_download"`
 
 	PrepareFilesToRead bool `config:"prepare_files_to_read"`
 
 	//default queue adaptor
 	Default bool `config:"default"`
 	Enabled bool `config:"enabled"`
+
+
+	SkipZeroConsumers bool `config:"skip_zero_consumers"`
 
 	Compress DiskCompress `config:"compress"`
 
