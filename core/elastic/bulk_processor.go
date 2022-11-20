@@ -14,6 +14,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
+	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 )
@@ -520,40 +521,68 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	//decode response
-	response := BulkResponse{}
-	err := util.FromJSONBytes(resbody,&response)
+	//invalid doc IDs
+	invalidDocStatus := map[string]int{}
+	invalidDocError := map[string]string{}
+	//invalidStatus := map[int]int{}
+	//var validCount = 0
+
+	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err != nil {
 		panic(err)
 	}
-	invalidOffset := map[int]BulkActionMetadata{}
-	var validCount = 0
-	for i, v := range response.Items {
-		item := v.GetItem()
 
-		x, ok := statsCodeStats[item.Status]
-		if !ok {
-			x = 0
+	jsonparser.ArrayEach(items, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		item,_,_,err:=jsonparser.Get(value,"index")
+		if err!=nil{
+			item,_,_,err=jsonparser.Get(value,"delete")
+			if err!=nil{
+				item,_,_,err=jsonparser.Get(value,"create")
+				if err!=nil{
+					item,_,_,err=jsonparser.Get(value,"update")
+				}
+			}
 		}
-		x++
-		statsCodeStats[item.Status] = x
+		if err==nil{
+			docId,err:=jsonparser.GetString(item,"_id")
+			if err != nil {
+				panic(err)
+			}
+			docId=strings.Clone(docId)
+			code1,err:=jsonparser.GetInt(item,"status")
+			if err != nil {
+				panic(err)
+			}
+			code:=int(code1)
+			x, ok := statsCodeStats[code]
+			if !ok {
+				x = 0
+			}
+			x++
+			statsCodeStats[code] = x
+			erObj,_,_,err:=jsonparser.Get(item,"error")
 
-		if item.Error != nil {
-			invalidOffset[i] = v
-		} else {
-			validCount++
+			if err==nil&&erObj != nil {
+				invalidDocStatus[docId] = code
+				invalidDocError[docId] = util.UnsafeBytesToString(erObj)
+				//invalidStatus[offset] = code
+				//log.Error(docId,",",code,",",string(erObj))
+			}
+			//else {
+			//	validCount++
+			//}
+
 		}
-	}
+	})
 
-	if len(invalidOffset) > 0 {
+	if len(invalidDocStatus) > 0 {
 		if global.Env().IsDebug {
 			log.Debug(tag," bulk invalid, status:", statsCodeStats)
 		}
 	}
-	var offset = 0
+
 	var match = false
 	var retryable = false
-	var actionMetadata BulkActionMetadata
 	var docBuffer []byte
 	docBuffer = BulkDocBuffer.Get(docBuffSize)
 	defer BulkDocBuffer.Put(docBuffer)
@@ -561,13 +590,12 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 	WalkBulkRequests(safetyParse, requestBytes, docBuffer, func(eachLine []byte) (skipNextLine bool) {
 		return false
 	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
-		actionMetadata, match = invalidOffset[offset]
-		item:=actionMetadata.GetItem()
 
+		code, match := invalidDocStatus[id]
 		if match {
-			if item.Status==429 && retry429{
+			if code==429 && retry429{
 				retryable = true
-			}else if item.Status >= 400 && item.Status < 500{ //find invalid request 409
+			}else if code >= 400 && code < 500{ //find invalid request 409
 				retryable = false
 			} else {
 				retryable = true
@@ -575,17 +603,16 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 			if retryable{
 				retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
-				retryableItems.WriteMessageID(item.ID)
+				retryableItems.WriteMessageID(id)
 			}else{
 				nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
-				nonRetryableItems.WriteMessageID(item.ID)
+				nonRetryableItems.WriteMessageID(id)
 			}
 		}else{
 			//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
 			successItems.WriteNewByteBufferLine("meta5",metaBytes)
 			successItems.WriteMessageID(id)
 		}
-		offset++
 		return nil
 	}, func(payloadBytes []byte) {
 		if match {
