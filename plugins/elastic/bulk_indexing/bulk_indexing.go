@@ -587,7 +587,7 @@ READ_DOCS:
 		ctx1, messages, timeout, err := consumerInstance.FetchMessages(consumerConfig.FetchMaxMessages)
 
 		if global.Env().IsDebug {
-			log.Infof("[%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name,sliceID, len(messages), ctx1.ToString(), timeout, err)
+			log.Debugf("[%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name,sliceID, len(messages), ctx1.ToString(), timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
@@ -629,7 +629,7 @@ READ_DOCS:
 					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 						totalOps++
 						//check hash
-						partitionID := elastic.GetShardID(7, util.UnsafeStringToBytes(index+id), maxSlices)
+						partitionID :=  util.ModString(id,maxSlices)
 						if partitionID == sliceID {
 							sliceOps++
 							mainBuf.WriteNewByteBufferLine("meta1",metaBytes)
@@ -665,7 +665,10 @@ READ_DOCS:
 					//reset buffer
 					mainBuf.Reset()
 					if !continueRequest {
-						panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
+						//TODO handle 429 gracefully
+						if errorOn409||!util.ContainStr(err.Error(),"code 429"){
+							panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
+						}
 					} else {
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
 							ok, err := queue.CommitOffset(qConfig, consumerConfig, pop.NextOffset)
@@ -709,7 +712,10 @@ CLEAN_BUFFER:
 		}
 	} else {
 		//logging failure offset boundry
-		panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
+		//TODO handle 429 gracefully
+		if errorOn409||!util.ContainStr(err.Error(),"429") {
+			panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
+		}
 	}
 
 	if offset == "" || ctx.IsCanceled() || ctx.IsFailed() {
@@ -750,3 +756,5 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 
 	return true, nil
 }
+
+var errorOn409=true
