@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	pool "github.com/libp2p/go-buffer-pool"
 	"infini.sh/framework/core/errors"
@@ -14,7 +15,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"net/http"
-	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 )
@@ -27,8 +27,6 @@ func WalkBulkRequests(safetyParse bool, data []byte, docBuff []byte, eachLineFun
 	nextIsMeta := true
 	skipNextLineProcessing := false
 	var docCount = 0
-
-START:
 
 	if safetyParse {
 		lines := bytes.Split(data, NEWLINEBYTES)
@@ -151,10 +149,8 @@ START:
 		}
 
 		if processedBytesCount+sizeOfDocBuffer <= len(data) {
-			log.Warn("bulk requests was not fully processed,", processedBytesCount, "/", len(data), ", you may need to increase `doc_buffer_size`, re-processing with memory inefficient way now")
+			log.Warn("bulk requests was not fully processed,", processedBytesCount, "/", len(data), ", you may need to increase `doc_buffer_size`")
 			return 0, errors.New("documents too big, skip processing")
-			safetyParse = true
-			goto START
 		}
 	}
 
@@ -254,8 +250,6 @@ type BulkProcessor struct {
 	Config BulkProcessorConfig
 }
 
-type API_STATUS string
-
 func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, err error) {
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
@@ -320,12 +314,7 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 
 	} else {
 		req.SetBody(data)
-		//req.SetRawBody(data)
 	}
-
-	//if req.GetBodyLength() <= 0 {
-	//	panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
-	//}
 
 	// modify schema，align with elasticsearch's schema
 	orignalSchema := string(req.URI().Scheme())
@@ -521,11 +510,8 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	//invalid doc IDs
 	invalidDocStatus := map[string]int{}
 	invalidDocError := map[string]string{}
-	//invalidStatus := map[int]int{}
-	//var validCount = 0
 
 	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err != nil {
@@ -565,13 +551,7 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 			if err==nil&&erObj != nil {
 				invalidDocStatus[docId] = code
 				invalidDocError[docId] = util.UnsafeBytesToString(erObj)
-				//invalidStatus[offset] = code
-				//log.Error(docId,",",code,",",string(erObj))
 			}
-			//else {
-			//	validCount++
-			//}
-
 		}
 	})
 
@@ -602,15 +582,14 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 			}
 
 			if retryable{
-				retryableItems.WriteNewByteBufferLine("meta4",metaBytes)
+				retryableItems.WriteNewByteBufferLine("retryable",metaBytes)
 				retryableItems.WriteMessageID(id)
 			}else{
-				nonRetryableItems.WriteNewByteBufferLine("meta3",metaBytes)
+				nonRetryableItems.WriteNewByteBufferLine("none-retryable",metaBytes)
 				nonRetryableItems.WriteMessageID(id)
 			}
 		}else{
-			//fmt.Println(successItems!=nil,item!=nil,offset,string(metaBytes),id)
-			successItems.WriteNewByteBufferLine("meta5",metaBytes)
+			successItems.WriteNewByteBufferLine("success",metaBytes)
 			successItems.WriteMessageID(id)
 		}
 		return nil
@@ -618,14 +597,14 @@ func HandleBulkResponse2(tag string, safetyParse bool, requestBytes, resbody []b
 		if match {
 			if payloadBytes != nil && len(payloadBytes) > 0 {
 				if retryable {
-					retryableItems.WriteNewByteBufferLine("payload4",payloadBytes)
+					retryableItems.WriteNewByteBufferLine("retryable",payloadBytes)
 				} else {
-					nonRetryableItems.WriteNewByteBufferLine("payload3",payloadBytes)
+					nonRetryableItems.WriteNewByteBufferLine("none-retryable",payloadBytes)
 				}
 			}
 		}else{
 			if payloadBytes != nil && len(payloadBytes) > 0 {
-				successItems.WriteNewByteBufferLine("payload5", payloadBytes)
+				successItems.WriteNewByteBufferLine("success", payloadBytes)
 			}
 		}
 	})
