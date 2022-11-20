@@ -7,16 +7,17 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"infini.sh/framework/core/errors"
 	"fmt"
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
 	"io"
 	"os"
-	log "github.com/cihub/seelog"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,8 @@ type Consumer struct {
 	queue   string
 	segment int64
 	readPos int64
+
+	fileLock sync.RWMutex
 }
 
 func (c *Consumer) getFileSize()(int64)  {
@@ -57,7 +60,7 @@ func (c *Consumer) getFileSize()(int64)  {
 
 func (d *diskQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment,readPos int64) (queue.ConsumerAPI,error){
 	output:=Consumer{
-		ID:util.GetUUID(),
+		ID:util.ToString(util.GetIncrementID("consumer")),
 		mCfg: d.cfg,
 		diskQueue: d,
 		cCfg: consumer,
@@ -65,7 +68,7 @@ func (d *diskQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment,read
 	}
 
 	if global.Env().IsDebug{
-		log.Infof("acquire consumer:%v, %v, %v, %v-%v",output.ID,d.name,consumer.Key(), segment,readPos)
+		log.Debugf("acquire consumer:%v, %v, %v, %v-%v",output.ID,d.name,consumer.Key(), segment,readPos)
 	}
 	err:=output.ResetOffset(segment,readPos)
 	return &output, err
@@ -84,12 +87,11 @@ func (d *Consumer) FetchMessages(numOfMessages int) (ctx *queue.Context, message
 	messages = []queue.Message{}
 
 READ_MSG:
-
 	//read message size
 	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
 	if err != nil {
-		if err.Error()=="EOF"{
-
+		errMsg:=err.Error()
+		if util.ContainStr(errMsg,"EOF")||util.ContainStr(errMsg,"file already closed"){
 			//current have changes, reload file with new position
 			if d.getFileSize()>d.readPos{
 				log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
@@ -104,8 +106,6 @@ READ_MSG:
 				}
 				goto READ_MSG
 			}
-
-
 			nextFile,exists:= SmartGetFileName(d.mCfg,d.queue,d.segment+1)
 			if exists||util.FileExists(nextFile){
 				log.Trace("EOF, continue read:",nextFile)
@@ -153,13 +153,19 @@ READ_MSG:
 			//No error for EOF error
 			err=nil
 		}else{
-			log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",d.fileName,err,msgSize,d.maxBytesPerFileRead,len(messages))
+			log.Error("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",d.fileName,err,msgSize,d.maxBytesPerFileRead,len(messages))
 		}
-
 		return ctx,messages,false,err
 	}
 
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
+
+		//current have changes, reload file with new position
+		if d.getFileSize()>d.maxBytesPerFileRead{
+			d.ResetOffset(d.segment,d.readPos)
+			return ctx, messages, false, err
+		}
+
 		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v",d.queue,d.segment,d.readPos,msgSize,d.mCfg.MinMsgSize,d.mCfg.MaxMsgSize)
 		return ctx,messages,false,err
 	}
@@ -168,9 +174,10 @@ READ_MSG:
 	readBuf := make([]byte, msgSize)
 	_, err = io.ReadFull(d.reader, readBuf)
 	if err != nil {
-		log.Debug(err)
-		if err.Error()=="EOF" {
+		if util.ContainStr(err.Error(),"EOF") {
 			err=nil
+		}else{
+			log.Error(err)
 		}
 		return ctx,messages,false,err
 	}
@@ -183,7 +190,7 @@ READ_MSG:
 	if d.mCfg.Compress.Message.Enabled{
 		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
-			log.Debug(err)
+			log.Error(err)
 			ctx.NextOffset=fmt.Sprintf("%v,%v",d.segment,nextReadPos)
 			return ctx,messages,false,err
 		}
@@ -253,20 +260,29 @@ READ_MSG:
 }
 
 func (d *Consumer) Close() error {
+	d.fileLock.Lock()
+	d.fileLock.Unlock()
 	if d.readFile!=nil{
-		return d.readFile.Close()
+		 err:=d.readFile.Close()
+		 if err!=nil&&!util.ContainStr(err.Error(),"already"){
+			 log.Error(err)
+			 panic(err)
+		 }
+		 d.readFile=nil
+		return err
 	}
 	return nil
 }
 
 func (d *Consumer) ResetOffset(segment,readPos int64)error {
+	d.fileLock.Lock()
+	d.fileLock.Unlock()
 	if d.segment!=segment{
 		if global.Env().IsDebug{
 			log.Debugf("start to switch segment, previous:%v,%v, now: %v,%v",d.segment,d.readPos,segment,readPos)
 		}
-		if d.readFile!=nil{
-			d.readFile.Close()
-		}
+		//potential file handler leak
+		d.readFile.Close()
 	}
 
 	d.segment= segment
@@ -311,6 +327,5 @@ func (d *Consumer) ResetOffset(segment,readPos int64)error {
 		d.reader= bufio.NewReader(d.readFile)
 	}
 	d.fileName=fileName
-
 	return nil
 }

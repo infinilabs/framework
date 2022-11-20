@@ -173,7 +173,7 @@ RELOCATE_FILE:
 	}
 
 	if int32(msgSize) < d.cfg.MinMsgSize || int32(msgSize) > d.cfg.MaxMsgSize {
-		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v",d.name,part,readPos,msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
+		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message, size: %v, should between: %v TO %v",d.name,part,readPos,msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
 		return ctx,messages,false,err
 	}
 
