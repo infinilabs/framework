@@ -275,6 +275,11 @@ func (d *Consumer) Close() error {
 }
 
 func (d *Consumer) ResetOffset(segment,readPos int64)error {
+
+	if global.Env().IsDebug{
+		log.Debugf("reset offset: %v,%v, file: %v",segment,readPos,d.fileName)
+	}
+
 	d.fileLock.Lock()
 	d.fileLock.Unlock()
 	if d.segment!=segment{

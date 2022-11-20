@@ -45,7 +45,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 	if module.cfg.UploadToS3{
 
 		consumers,_,_:=queue.GetEarlierOffsetByQueueID(queueID)
-		if consumers==0{
+		if module.cfg.SkipZeroConsumers&&consumers==0{
 			//skip upload queue without any consumers
 			return
 		}

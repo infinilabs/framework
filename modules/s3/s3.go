@@ -12,6 +12,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"net"
@@ -158,7 +159,9 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 
 	err = uploader.minioClient.FGetObject(ctx, bucketName, objectName, tempPath, minio.GetObjectOptions{})
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug{
+			log.Error(err)
+		}
 		return false,err
 	}
 	if !util.FileExists(tempPath){
@@ -167,7 +170,9 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 
 	err=os.Rename(tempPath,filePath)
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug{
+			log.Error(err)
+		}
 		return false,err
 	}
 
