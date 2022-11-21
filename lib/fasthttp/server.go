@@ -945,15 +945,16 @@ func (ctx *RequestCtx) Resume() {
 }
 
 func (ctx *RequestCtx) reset() {
+
 	if ctx.Data == nil || len(ctx.Data) > 0 {
 		ctx.ResetParameters()
+		ctx.Parameters.ResetParameters()
 	}
 	ctx.finished = false
 	if ctx.flowProcess.Len()>0{
 		ctx.flowProcess.Reset()
 	}
 	ctx.destination = ctx.destination[0:0]
-
 	ctx.userValues.Reset()
 	ctx.Request.Reset()
 	ctx.Response.Reset()
