@@ -35,7 +35,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 			}
 		}
 
-		if cfg.UploadToS3{
+		if cfg.UploadToS3||cfg.AlwaysDownload{
 
 			//download from s3 if that is possible
 			lastFileNum:= GetLastS3UploadFileNum(queueID)
