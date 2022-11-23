@@ -23,7 +23,7 @@ func TestBulkWalkLines(t *testing.T) {
 	}, func(metaBytes []byte,actionStr,index,typeName,id,routing string) (err error) {
 		fmt.Println(string(metaBytes))
 		return nil
-	}, func(payloadBytes []byte) {
+	}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
 		fmt.Println(string(payloadBytes))
 	})
 }

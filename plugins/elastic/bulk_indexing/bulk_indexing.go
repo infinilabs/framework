@@ -637,7 +637,7 @@ READ_DOCS:
 							collectMeta = true
 						}
 						return nil
-					}, func(payloadBytes []byte) {
+					}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
 						if collectMeta {
 							mainBuf.WriteNewByteBufferLine("payload1",payloadBytes)
 							collectMeta = false
