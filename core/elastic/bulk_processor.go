@@ -80,7 +80,6 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 
 			if actionStr == ActionDelete {
 				nextIsMeta = true
-				payloadFunc(nil, actionStr, index, typeName, id,routing)
 			}
 		} else {
 			nextIsMeta = true
