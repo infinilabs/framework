@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
-	pool "github.com/libp2p/go-buffer-pool"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
@@ -19,9 +18,8 @@ import (
 )
 
 var NEWLINEBYTES = []byte("\n")
-var BulkDocBuffer pool.BufferPool
 
-func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte)) (int, error) {
+func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id,routing string)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
@@ -32,6 +30,13 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 	nextIsMeta = true
 	skipNextLineProcessing = false
 	docCount = 0
+
+	var actionStr string
+	var index string
+	var typeName string
+	var id string
+	var routing string
+
 	for i, line := range lines {
 
 		bytesCount := len(line)
@@ -55,11 +60,6 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 
 		if nextIsMeta {
 			nextIsMeta = false
-			var actionStr string
-			var index string
-			var typeName string
-			var id string
-			var routing string
 			var err error
 			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
 			if err!=nil{
@@ -80,11 +80,10 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 
 			if actionStr == ActionDelete {
 				nextIsMeta = true
-				payloadFunc(nil)
 			}
 		} else {
 			nextIsMeta = true
-			payloadFunc(line)
+			payloadFunc(line, actionStr, index, typeName, id,routing)
 		}
 	}
 
@@ -519,7 +518,7 @@ func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *B
 			successItems.WriteMessageID(id)
 		}
 		return nil
-	}, func(payloadBytes []byte) {
+	}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
 		if match {
 			if payloadBytes != nil && len(payloadBytes) > 0 {
 				if retryable {
