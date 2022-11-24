@@ -298,7 +298,6 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 								}
 								v, t, _, err := jsonparser.Get(para.Request.GetRawBody(), keys...)
 								if err != nil {
-									//log.Error(s,err)
 									return nil, err
 								}
 
@@ -374,6 +373,32 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 								return para.Response.StatusCode(), nil
 							case "body":
 								return string(para.Response.GetRawBody()), nil
+							case "body_json":
+								keys := keys[3:]
+								if len(keys) == 0 {
+									return nil, errors.New("invalid json key:" + s)
+								}
+								v, t, _, err := jsonparser.Get(para.Response.GetRawBody(), keys...)
+								if err != nil {
+									return nil, err
+								}
+
+								switch t {
+								case jsonparser.NotExist:
+									return nil, errors.New("key not found:" + s)
+								case jsonparser.String:
+									return string(v), nil
+								case jsonparser.Boolean:
+									return jsonparser.ParseBoolean(v)
+								case jsonparser.Number:
+									i, err := jsonparser.ParseInt(v)
+									if err != nil {
+										return jsonparser.ParseFloat(v)
+									}
+									return i, err
+								default:
+									seelog.Error("json type not handled:", s, v, t, err)
+								}
 							case "content_type":
 								return string(para.Response.Header.ContentType()), nil
 							case "body_length":
