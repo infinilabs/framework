@@ -211,10 +211,10 @@ var (
 		},
 
 		PathConfig: config.PathConfig{
-			Plugin: "plugins",
+			Plugin: "plugin",
 			Data:   "data",
 			Log:    "log",
-			Config:  "configs",
+			Config:  "config",
 		},
 
 		AllowMultiInstance: false,
