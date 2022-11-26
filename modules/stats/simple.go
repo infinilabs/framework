@@ -56,7 +56,9 @@ func (module *SimpleStatsModule) Setup() {
 	}
 	module.initStats("simple")
 
-	module.data.q = queue.NewQueue(uint32(module.config.BufferSize))
+	if module.config.NoBuffer{
+		module.data.q = queue.NewQueue(uint32(module.config.BufferSize))
+	}
 
 	stats.Register(module.data)
 
@@ -69,36 +71,53 @@ func (module *SimpleStatsModule) Start() error {
 		return nil
 	}
 
-	go func() {
-
-		for {
-			v, ok, n := module.data.q.Get()
-			if ok {
-				x, ok := v.(StatItem)
-				if ok {
-					module.data.initData(x.Category, x.Key)
-					switch x.Op {
-					case Incr:
-						module.data.l.Lock()
-						(*module.data.Data)[x.Category][x.Key] += x.Value
-						module.data.l.Unlock()
-						break
-					case Decr:
-						module.data.l.Lock()
-						(*module.data.Data)[x.Category][x.Key] -= x.Value
-						module.data.l.Unlock()
-						break
+	if !module.config.NoBuffer{
+		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
 					}
 				}
-			}
-			if n == 0 {
-				if module.config.FlushIntervalInMs < 100 {
-					module.config.FlushIntervalInMs = 1000
+			}()
+			for {
+				v, ok, n := module.data.q.Get()
+				if ok {
+					x, ok := v.(StatItem)
+					if ok {
+						module.data.initData(x.Category, x.Key)
+						switch x.Op {
+						case Incr:
+							module.data.l.Lock()
+							(*module.data.Data)[x.Category][x.Key] += x.Value
+							module.data.l.Unlock()
+							break
+						case Decr:
+							module.data.l.Lock()
+							(*module.data.Data)[x.Category][x.Key] -= x.Value
+							module.data.l.Unlock()
+							break
+						}
+					}
 				}
-				time.Sleep(time.Duration(module.config.FlushIntervalInMs) * time.Millisecond)
+				if n == 0 {
+					if module.config.FlushIntervalInMs < 100 {
+						module.config.FlushIntervalInMs = 1000
+					}
+					time.Sleep(time.Duration(module.config.FlushIntervalInMs) * time.Millisecond)
+				}
 			}
-		}
-	}()
+		}()
+	}
 	return nil
 }
 

@@ -2,6 +2,9 @@ package chrono
 
 import (
 	"context"
+	"infini.sh/framework/core/global"
+	"runtime"
+	log "github.com/cihub/seelog"
 )
 
 type TaskRunner interface {
@@ -21,6 +24,23 @@ func NewSimpleTaskRunner() *SimpleTaskRunner {
 
 func (runner *SimpleTaskRunner) Run(task Task) {
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error", v)
+				}
+			}
+		}()
+
 		task(context.Background())
 	}()
 }

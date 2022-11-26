@@ -1,5 +1,11 @@
 package pipeline
 
+import (
+	"infini.sh/framework/core/global"
+	"runtime"
+	log "github.com/cihub/seelog"
+)
+
 // Dag represents directed acyclic graph
 type Dag struct {
 	mode string
@@ -41,6 +47,22 @@ func (dag *Dag) Run(ctx *Context) {
 // RunAsync executes Run on another goroutine
 func (dag *Dag) RunAsync(ctx *Context,onComplete func()) {
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error", v)
+				}
+			}
+		}()
 
 		dag.Run(ctx)
 

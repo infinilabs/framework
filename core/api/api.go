@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -227,6 +228,23 @@ func StartAPI() {
 		})
 
 		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
+					}
+				}
+			}()
+
 			err = srv.ServeTLS(l, apiConfig.TLSConfig.TLSCertFile, apiConfig.TLSConfig.TLSKeyFile)
 			if err != nil {
 				log.Error(err)
@@ -237,6 +255,23 @@ func StartAPI() {
 	} else {
 		log.Trace("starting insecure API server")
 		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
+					}
+				}
+			}()
+
 			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(router))))
 			if err != nil {
 				log.Error(err)

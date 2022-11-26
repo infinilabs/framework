@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -193,6 +194,23 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 
 		//async notify
 		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
+					}
+				}
+			}()
+
 			for _, f := range queueConfigListener {
 				f(cfg)
 			}
@@ -229,6 +247,23 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 
 	//async notify
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error", v)
+				}
+			}
+		}()
+
 		for _, f := range consumerConfigListener {
 			f(queueID, cfgs)
 		}
