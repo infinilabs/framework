@@ -190,7 +190,10 @@ func Setup(cfg *config.RPCConfig) {
 			}
 
 			// create a template for the server
-			servCertTmpl, err := util.GetCertTemplate()
+			if rpcConfig.TLSConfig.DefaultDomain == "" {
+				rpcConfig.TLSConfig.DefaultDomain = "localhost"
+			}
+			servCertTmpl, err := util.GetCertTemplate([]string{rpcConfig.TLSConfig.DefaultDomain})
 			if err != nil {
 				panic(err)
 			}

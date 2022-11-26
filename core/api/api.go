@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -15,6 +14,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -135,6 +135,9 @@ func StartAPI() {
 	schema := "http://"
 	if apiConfig.TLSConfig.TLSEnabled {
 		schema = "https://"
+
+		log.Trace("using tls connection")
+
 		cfg := &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			CurvePreferences: []tls.CurveID{
@@ -142,7 +145,7 @@ func StartAPI() {
 				tls.X25519, // Go 1.8 only
 			},
 			PreferServerCipherSuites: true,
-			InsecureSkipVerify:       true,
+			InsecureSkipVerify:       apiConfig.TLSConfig.TLSInsecureSkipVerify,
 			SessionTicketsDisabled:   false,
 			ClientSessionCache:       tls.NewLRUClientSessionCache(128),
 			CipherSuites: []uint16{
@@ -155,61 +158,49 @@ func StartAPI() {
 			},
 			NextProtos: []string{"spdy/3"},
 		}
-
-		var ca, cert, key string
-		log.Trace("using tls connection")
-
-		//var creds credentials.TransportCredentials
-		if cert != "" && key != "" {
-			log.Debug("using pre-defined cert files")
-
-		} else {
-			ca = path.Join(global.Env().GetDataDir(), "certs", "root.cert")
-			cert = path.Join(global.Env().GetDataDir(), "certs", "auto.cert")
-			key = path.Join(global.Env().GetDataDir(), "certs", "auto.key")
-
-			if !(util.FileExists(ca) && util.FileExists(cert) && util.FileExists(key)) {
-
-				os.MkdirAll(path.Join(global.Env().GetDataDir(), "certs"), 0775)
-
+		if apiConfig.TLSConfig.TLSCertFile == "" && apiConfig.TLSConfig.TLSKeyFile == "" {
+			dataDir := global.Env().GetDataDir()
+			apiConfig.TLSConfig.TLSCertFile = path.Join(dataDir, "certs/instance.crt")
+			apiConfig.TLSConfig.TLSKeyFile = path.Join(dataDir, "certs/instance.key")
+			apiConfig.TLSConfig.TLSCAFile = path.Join(dataDir, "certs/ca.crt")
+			caKey := path.Join(dataDir, "certs/ca.key")
+			if !(util.FileExists(apiConfig.TLSConfig.TLSCAFile) && util.FileExists(apiConfig.TLSConfig.TLSCertFile) && util.FileExists(apiConfig.TLSConfig.TLSKeyFile)) {
+				err = os.MkdirAll(path.Join(dataDir, "certs"), 0775)
+				if err != nil {
+					panic(err)
+				}
 				log.Info("auto generating cert files")
 				rootCert, rootKey, rootCertPEM = util.GetRootCert()
-
-				certPool = x509.NewCertPool()
-				certPool.AppendCertsFromPEM(rootCertPEM)
-
-				// create a key-pair for the server
-				servKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				if apiConfig.TLSConfig.DefaultDomain == "" {
+					apiConfig.TLSConfig.DefaultDomain = "localhost"
+				}
+				instanceCertPEM, instanceKeyPEM, err := util.GenerateServerCert(rootCert, rootKey, rootCertPEM, []string{apiConfig.TLSConfig.DefaultDomain})
 				if err != nil {
 					panic(err)
 				}
-
-				// create a template for the server
-				servCertTmpl, err := util.GetCertTemplate()
-				if err != nil {
-					panic(err)
-				}
-
-				servCertTmpl.KeyUsage = x509.KeyUsageDigitalSignature
-				servCertTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
-
-				// create a certificate which wraps the server's public key, sign it with the root private key
-				_, servCertPEM, err := util.CreateCert(servCertTmpl, rootCert, &servKey.PublicKey, rootKey)
-				if err != nil {
-					panic(err)
-				}
-
-				// provide the private key and the cert
-				servKeyPEM := pem.EncodeToMemory(&pem.Block{
-					Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(servKey),
+				caKeyPEM := pem.EncodeToMemory(&pem.Block{
+					Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
 				})
-
-				util.FilePutContentWithByte(ca, rootCertPEM)
-				util.FilePutContentWithByte(cert, servCertPEM)
-				util.FilePutContentWithByte(key, servKeyPEM)
-			} else {
-				log.Debug("loading auto generated certs")
+				util.FilePutContentWithByte(caKey, caKeyPEM)
+				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCAFile, rootCertPEM)
+				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCertFile, instanceCertPEM)
+				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSKeyFile, instanceKeyPEM)
 			}
+		}
+
+		if !apiConfig.TLSConfig.TLSInsecureSkipVerify {
+			if certPool == nil {
+				certPool = x509.NewCertPool()
+			}
+			if len(rootCertPEM) == 0 {
+				rootCertPEM, err = ioutil.ReadFile(apiConfig.TLSConfig.TLSCAFile)
+				if err != nil {
+					panic(err)
+				}
+			}
+			certPool.AppendCertsFromPEM(rootCertPEM)
+			cfg.ClientCAs = certPool
+			cfg.ClientAuth = tls.RequireAndVerifyClientCert
 		}
 
 		srv := &http.Server{
@@ -236,7 +227,7 @@ func StartAPI() {
 		})
 
 		go func() {
-			err = srv.ServeTLS(l, cert, key)
+			err = srv.ServeTLS(l, apiConfig.TLSConfig.TLSCertFile, apiConfig.TLSConfig.TLSKeyFile)
 			if err != nil {
 				log.Error(err)
 				panic(err)
