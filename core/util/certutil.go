@@ -123,6 +123,13 @@ func GetClientCert(rootCert *x509.Certificate, rootKey any) (clientTLSCert tls.C
 }
 
 // helper function to create a cert template with a serial number and other required fields
+func GetCertTemplateWithSingleDomain(dnsNames string) (*x509.Certificate, error) {
+	if dnsNames == "" {
+		dnsNames = "localhost"
+	}
+	return GetCertTemplate([]string{dnsNames})
+}
+
 func GetCertTemplate(dnsNames []string) (*x509.Certificate, error) {
 	log.Trace("generate cert template")
 
