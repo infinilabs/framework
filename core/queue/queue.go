@@ -680,6 +680,31 @@ func HasLag(k *QueueConfig) bool {
 	panic(errors.New("handler is not registered"))
 }
 
+func ConsumerHasLag(k *QueueConfig,c *ConsumerConfig) bool {
+	if k == nil || k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+
+	handler := getHandler(k)
+
+	if handler != nil {
+		latestProduceOffset := LatestOffset(k)
+		offset,err := GetOffset(k,c)
+		if err!=nil{
+			panic(err)
+		}
+
+		if latestProduceOffset != offset {
+			return true
+		}
+
+		stats.Increment("queue", k.Id, "check_consumer_lag")
+		return false
+	}
+
+	panic(errors.New("handler is not registered"))
+}
+
 func LatestOffset(k *QueueConfig) string {
 	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
