@@ -1215,6 +1215,21 @@ func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollI
 	return resp.Body, nil
 }
 
+func (s *ESAPIV0) ClearScroll(scrollId string) error {
+	url := fmt.Sprintf("%s/_search/scroll", s.GetEndpoint())
+	body := util.MustToJSONBytes(util.MapStr{"scroll_id": scrollId})
+
+	resp, err := s.Request(context.Background(), util.Verb_DELETE, url, body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return errors.New(string(resp.Body))
+	}
+	return nil
+}
+
 func (c *ESAPIV0) TemplateExists(templateName string) (bool, error) {
 	url := fmt.Sprintf("%s/_template/%s", c.GetEndpoint(), templateName)
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
