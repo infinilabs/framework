@@ -30,8 +30,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net"
+	"runtime"
 	"time"
 )
 
@@ -278,6 +280,23 @@ func StartRPCServer() {
 	reflection.Register(s)
 
 	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error", v)
+				}
+			}
+		}()
+
 		if err := s.Serve(listener); err != nil {
 			log.Errorf("failed to serve: %v", err)
 		}

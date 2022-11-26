@@ -32,6 +32,7 @@ import (
 	_ "net/http/pprof"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -191,6 +192,23 @@ func StartUI(cfg *UIConfig) {
 		}
 
 		go func(srv *http.Server) {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
+					}
+				}
+			}()
+
 			err = srv.ListenAndServeTLS(certFile, keyFile)
 			if err != nil&& err != http.ErrServerClosed {
 				log.Error(err)
@@ -201,6 +219,23 @@ func StartUI(cfg *UIConfig) {
 	} else {
 		srv= &http.Server{Addr: bindAddress, Handler: RecoveryHandler()(handler)}
 		go func(srv *http.Server) {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
+					}
+				}
+			}()
+
 			err :=  srv.ListenAndServe()
 			if err != nil&& err != http.ErrServerClosed {
 				log.Error(err)

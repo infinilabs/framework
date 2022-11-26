@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -19,6 +20,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -202,6 +204,23 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 			sendContent = pr
 			defer pr.Close() // cause writing goroutine to fail and exit if CopyN doesn't finish.
 			go func() {
+				defer func() {
+					if !global.Env().IsDebug {
+						if r := recover(); r != nil {
+							var v string
+							switch r.(type) {
+							case error:
+								v = r.(error).Error()
+							case runtime.Error:
+								v = r.(runtime.Error).Error()
+							case string:
+								v = r.(string)
+							}
+							log.Error("error", v)
+						}
+					}
+				}()
+
 				for _, ra := range ranges {
 					part, err := mw.CreatePart(ra.mimeHeader(ctype, size))
 					if err != nil {
