@@ -221,7 +221,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 							return
 						}
 						//if have depth and not in in flight
-						if queue.HasLag(v) {
+						if !processor.config.SkipEmptyQueue ||queue.HasLag(v) {
 							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
 							if !ok {
 								log.Tracef("detecting new queue: %v", v.Name)
@@ -250,18 +250,13 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 }
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
-
-
-	//log.Error("skip:",processor.config.SkipEmptyQueue,",has lag:",queue.HasLag(v))
-
-	if processor.config.SkipEmptyQueue {
-		if !queue.HasLag(v) {
+	if processor.config.SkipEmptyQueue &&!queue.HasLag(v) {
 			if global.Env().IsDebug {
 				log.Tracef("skip empty queue:[%v]", v.Name)
 			}
 			return
-		}
 	}
+
 
 	elasticsearch, ok := v.Labels["elasticsearch"]
 	if !ok {
