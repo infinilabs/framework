@@ -31,12 +31,6 @@ func UpdateAgentID(agentID string){
 	}
 }
 
-func UpdateHostID(hostID string){
-	if meta != nil {
-		meta.HostID = hostID
-	}
-}
-
 func Save(event Event) error {
 
 	event.Timestamp = time.Now()

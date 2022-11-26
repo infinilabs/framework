@@ -5,13 +5,11 @@
 package agent
 
 import (
-	"encoding/json"
 	log "github.com/cihub/seelog"
 	"github.com/struCoder/pidusage"
-	"infini.sh/framework/core/agent"
+	"infini.sh/agent/lib/store"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/util"
 	"os"
 	"time"
@@ -19,7 +17,6 @@ import (
 
 type Metric struct {
 	Enabled       bool `config:"enabled"`
-	agentBootTime int64
 }
 
 func New(cfg *config.Config) (*Metric, error) {
@@ -37,32 +34,12 @@ func New(cfg *config.Config) (*Metric, error) {
 }
 
 func (m *Metric) Collect() error {
-	var hs []byte
-	var err error
-	if m.agentBootTime == 0 {
-		hs, err = kv.GetValue(agent.KVInstanceBucket, []byte(agent.KVInstanceInfo))
-		if err != nil {
-			log.Error(err)
-			return nil
-		}
-		if hs == nil {
-			return nil
-		}
-		var instanceInfoMap map[string]interface{}
-		err = json.Unmarshal(hs, &instanceInfoMap)
-		if err != nil {
-			log.Error(err)
-			return nil
-		}
-		value := instanceInfoMap["boot_time"]
-		bootTime,ok := value.(float64)
-		if !ok || bootTime == 0{
-			return nil
-		}
-		m.agentBootTime = int64(bootTime)
+	if store.GetAgentBootTime() == 0 {
+		log.Debug("collect agent metric, boot time is 0")
+		return nil
 	}
 
-	upTime := time.Now().UnixMilli() - m.agentBootTime
+	upTime := time.Now().UnixMilli() - store.GetAgentBootTime()
 	sysInfo, err := pidusage.GetStat(os.Getpid())
 	if err != nil {
 		return err
