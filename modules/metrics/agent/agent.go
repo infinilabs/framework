@@ -6,7 +6,7 @@ package agent
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/struCoder/pidusage"
+	"github.com/shirou/gopsutil/process"
 	"infini.sh/agent/lib/store"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
@@ -40,7 +40,16 @@ func (m *Metric) Collect() error {
 	}
 
 	upTime := time.Now().UnixMilli() - store.GetAgentBootTime()
-	sysInfo, err := pidusage.GetStat(os.Getpid())
+	checkPid := os.Getpid()
+	p, err := process.NewProcess(int32(checkPid))
+	if err != nil {
+		return err
+	}
+	cupPercent, err := p.CPUPercent()
+	if err != nil {
+		return err
+	}
+	memInfo, err := p.MemoryInfo()
 	if err != nil {
 		return err
 	}
@@ -54,9 +63,9 @@ func (m *Metric) Collect() error {
 			"agent": util.MapStr{
 				"agent_basic": util.MapStr{
 					"uptime_in_ms":   upTime,
-					"cpu":             sysInfo.CPU,
-					"memory_in_bytes": sysInfo.Memory,
-					"memory":          util.ByteSize(uint64(sysInfo.Memory)),
+					"cpu":             util.FormatNumber(cupPercent),
+					"memory_in_bytes": memInfo.RSS,
+					"memory":          util.ByteSize(memInfo.RSS),
 				},
 			},
 		},
