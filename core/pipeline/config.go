@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/util"
 )
@@ -19,8 +20,35 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 		this.AutoStart != target.AutoStart ||
 		this.KeepRunning != target.KeepRunning ||
 		this.RetryDelayInMs != target.RetryDelayInMs ||
-		util.MustToJSON(this.Processors) != util.MustToJSON(target.Processors) {
+		!this.ProcessorsEquals(target) {
 		return false
+	}
+	return true
+}
+
+func (this PipelineConfigV2) ProcessorsEquals(target PipelineConfigV2) bool {
+	if len(this.Processors) != len(target.Processors) {
+		return false
+	}
+	var length = len(this.Processors)
+	for i := 0; i < length; i++ {
+		srcM := map[string]interface{}{}
+		err := this.Processors[i].Unpack(srcM)
+		if err != nil {
+			log.Error(err)
+		}
+		dstM := map[string]interface{}{}
+		err = target.Processors[i].Unpack(dstM)
+		if err != nil {
+			log.Error(err)
+		}
+		clog, err := util.DiffTwoObject(srcM, dstM)
+		if err != nil {
+			log.Error(err)
+		}
+		if len(clog) > 0 {
+			return false
+		}
 	}
 	return true
 }

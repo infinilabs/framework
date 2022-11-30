@@ -192,6 +192,17 @@ func (module *PipeModule) Start() error {
 
 	//listen on changes
 	config.NotifyOnConfigSectionChange("pipeline", func(pCfg,cCfg *config.Config) {
+		configDir := global.Env().GetConfigDir()
+		newCfg, err := config.LoadPath(configDir)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		newCfg, err = newCfg.Child("pipeline", -1)
+		if err != nil {
+			log.Error(err)
+			return
+		}
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -210,9 +221,9 @@ func (module *PipeModule) Start() error {
 			}
 		}()
 
-		if cCfg != nil {
+		if newCfg != nil {
 			newConfig := []pipeline.PipelineConfigV2{}
-			err := cCfg.Unpack(&newConfig)
+			err := newCfg.Unpack(&newConfig)
 			if err != nil {
 				log.Error(err)
 				return
@@ -237,7 +248,7 @@ func (module *PipeModule) Start() error {
 				newPipeline[v.Name] = v
 			}
 
-			if len(newPipeline)==0{
+			if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
 				return
 			}
 
@@ -251,6 +262,7 @@ func (module *PipeModule) Start() error {
 				}
 
 				module.stopTask(v.Name)
+				log.Infof("remove pipeline [%s]", v.Name)
 
 				module.runningPipelines.Delete(v.Name)
 				module.contexts.Delete(v.Name)
@@ -339,7 +351,7 @@ func (module *PipeModule) Stop() error {
 func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 
 	if _,ok:=module.runningPipelines.Load(v.Name);ok{
-		log.Error("pipeline [%v] is already running, skip",v.Name)
+		log.Tracef("pipeline [%v] is already running, skip",v.Name)
 		return nil
 	}
 
