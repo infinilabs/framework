@@ -39,6 +39,7 @@ type PipeModule struct {
 	configs          map[string]pipeline.PipelineConfigV2
 	contexts         sync.Map
 	started          bool
+	closing          bool
 	wg               sync.WaitGroup
 }
 
@@ -276,6 +277,7 @@ func (module *PipeModule) Start() error {
 func (module *PipeModule) Stop() error {
 
 	if module.started {
+		module.closing=true
 		total := util.GetSyncMapSize(&module.contexts)
 		if total <= 0 {
 			return nil
@@ -298,11 +300,15 @@ func (module *PipeModule) Stop() error {
 		log.Trace("configs:",len(module.configs))
 
 		for k, _ := range module.configs {
-			log.Trace("checking config: ",k)
+			if global.Env().IsDebug{
+				log.Trace("checking config: ",k)
+			}
 			v1,ok:=module.contexts.Load(k)
 			if ok{
 				v,ok:=v1.(*pipeline.Context)
-				log.Trace(v.Config.Name,",",v.GetRunningState())
+				if global.Env().IsDebug{
+					log.Trace(v.Config.Name,",",v.GetRunningState())
+				}
 				if ok{
 					if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
 						if time.Now().Sub(start).Minutes() > 5 {
@@ -324,6 +330,8 @@ func (module *PipeModule) Stop() error {
 	} else {
 		log.Error("pipeline framework is not started")
 	}
+
+	module.closing=false
 	return nil
 }
 
@@ -386,6 +394,7 @@ func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 				if global.Env().IsDebug {
 					log.Debugf("pipeline [%v] start running", cfg.Name)
 				}
+
 				ctx.Started()
 				err = p.Process(ctx)
 				if cfg.KeepRunning && !ctx.IsExit() {
@@ -393,6 +402,12 @@ func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 						log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, cfg.RetryDelayInMs)
 						if cfg.RetryDelayInMs > 0 {
 							time.Sleep(time.Duration(cfg.RetryDelayInMs) * time.Millisecond)
+						}
+
+						if module.closing{
+							log.Debugf("pipeline module stopped, skip running [%v]", cfg.Name)
+							ctx.Finished()
+							return
 						}
 						goto RESTART
 					}

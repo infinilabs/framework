@@ -185,6 +185,15 @@ func (procs *Processors) Process(ctx *Context) error {
 			ctx.AddFlowProcess("skipped")
 			return nil
 		}
+
+		if ctx.IsCanceled(){
+			if global.Env().IsDebug {
+				log.Debugf("filter [%v] canceled", p.Name())
+			}
+			ctx.AddFlowProcess("canceled")
+			return nil
+		}
+
 		ctx.AddFlowProcess(p.Name())
 		log.Trace("start processing:", p.Name())
 		err := p.Process(ctx)
