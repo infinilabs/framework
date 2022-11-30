@@ -5,10 +5,9 @@
 package agent
 
 import (
-	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/process"
-	"infini.sh/agent/lib/store"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 	"os"
@@ -34,12 +33,7 @@ func New(cfg *config.Config) (*Metric, error) {
 }
 
 func (m *Metric) Collect() error {
-	if store.GetAgentBootTime() == 0 {
-		log.Debug("collect agent metric, boot time is 0")
-		return nil
-	}
 
-	upTime := time.Now().UnixMilli() - store.GetAgentBootTime()
 	checkPid := os.Getpid()
 	p, err := process.NewProcess(int32(checkPid))
 	if err != nil {
@@ -62,7 +56,7 @@ func (m *Metric) Collect() error {
 		Fields: util.MapStr{
 			"agent": util.MapStr{
 				"agent_basic": util.MapStr{
-					"uptime_in_ms":   upTime,
+					"uptime_in_ms":    time.Since(env.GetStartTime()).Milliseconds(),
 					"cpu":             util.FormatNumber(cupPercent),
 					"memory_in_bytes": memInfo.RSS,
 					"memory":          util.ByteSize(memInfo.RSS),
