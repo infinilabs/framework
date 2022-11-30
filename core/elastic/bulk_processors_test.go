@@ -28,6 +28,11 @@ func TestBulkWalkLines(t *testing.T) {
 	})
 }
 
+func TestBulkStats(t *testing.T) {
+	statsRet := make(map[int]int)
+	statsRet[1]=statsRet[1]+1
+
+}
 
 func TestBulkWalkLinesSimdJson(t *testing.T) {
 	bulkRequests:= "{ \"index\" : { \"_index\" : \"medcl-test\",\"_type\" : \"doc\", \"_id\" : \"id1\" } }\n{ \"id\" : \"123\",\"field1\" : \"user2\",\"ip\" : \"123\" }\n"

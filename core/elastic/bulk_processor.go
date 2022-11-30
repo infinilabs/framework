@@ -178,10 +178,12 @@ type BulkProcessor struct {
 	Config BulkProcessorConfig
 }
 
-func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, err error) {
+func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, err error) {
+
+	statsRet = make(map[int]int)
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
-		return true, errors.New("invalid bulk requests, message is nil")
+		return true,statsRet, errors.New("invalid bulk requests, message is nil")
 	}
 
 	host = metadata.GetActivePreferredHost(host)
@@ -281,7 +283,7 @@ DO:
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
 			time.Sleep(2 * time.Second)
 		}
-		return false, err
+		return false,statsRet, err
 	}
 	
 	////restore body and header
@@ -304,7 +306,7 @@ DO:
 		if global.Env().IsDebug {
 			log.Error(err)
 		}
-		return false, err
+		return false,statsRet, err
 	}
 	
 	// Do we need to decompress the response?
@@ -327,6 +329,7 @@ DO:
 
 			for k,v:=range statsCodeStats{
 				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
+				statsRet[k] = statsRet[k] + v
 			}
 
 			if retryTimes>0{
@@ -362,12 +365,12 @@ DO:
 						
 						//continue retry before is back
 						if !metadata.IsAvailable() {
-							return false, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
+							return false,statsRet, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
 						}
 						
 						data := req.OverrideBodyEncode(bodyBytes, true)
 						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
-						return true, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
+						return true,statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
 					}
 					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
 					retryTimes++
@@ -401,33 +404,36 @@ DO:
 					if joint.Config.InvalidRequestsQueue != "" {
 						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 					}
-					return true, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
+					return true,statsRet, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
 				}
-				return false, errors.Errorf("bulk response contains error, %v", statsCodeStats)
+				return false,statsRet, errors.Errorf("bulk response contains error, %v", statsCodeStats)
 			}
 		}
-		return true, nil
-	} else if resp.StatusCode() == 429 {
-		//TODO, save message offset and failure message
-		time.Sleep(2 * time.Second)
-		return false, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
-	} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
-		//TODO, save message offset and failure message
-		////handle 400 error
-		if joint.Config.InvalidRequestsQueue != "" {
-			queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
-		}
-		return true, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
-	} else {
+		return true,statsRet, nil
+	}else{
 
-		//TODO, save message offset and failure message
-		//if joint.QueueConfig.SaveFailure {
-		//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
-		//}
-		if global.Env().IsDebug {
-			log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))
+		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageSize()
+
+		if resp.StatusCode() == 429 {
+			//TODO, save message offset and failure message
+			return false,statsRet, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
+		} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
+			//TODO, save message offset and failure message
+			////handle 400 error
+			if joint.Config.InvalidRequestsQueue != "" {
+				queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
+			}
+			return true,statsRet, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
+		} else {
+			//TODO, save message offset and failure message
+			//if joint.QueueConfig.SaveFailure {
+			//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
+			//}
+			if global.Env().IsDebug {
+				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))
+			}
+			return false,statsRet, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 		}
-		return false, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 	}
 }
 

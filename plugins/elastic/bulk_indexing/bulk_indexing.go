@@ -743,7 +743,7 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
-		contrinueRequest, err := bulkProcessor.Bulk(tag, meta, host, mainBuf)
+		contrinueRequest,_, err := bulkProcessor.Bulk(tag, meta, host, mainBuf)
 		stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		log.Debug(meta.Config.Name, ", ", host, ", count:", count, ", size:", util.ByteSize(uint64(size)), ", elapsed:", time.Since(start))
 		return contrinueRequest, err
