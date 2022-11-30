@@ -390,15 +390,92 @@ type Query struct {
 	BoolQuery *BoolQuery `json:"bool"`
 }
 
+func (q *Query) Must(query interface{})  {
+	if q.BoolQuery==nil{
+		q.BoolQuery=&BoolQuery{}
+	}
+	q.BoolQuery.Must = append(q.BoolQuery.Must, query)
+}
+
 // SearchRequest is the root search query object
 type SearchRequest struct {
+	rootField util.MapStr
+
 	Query              *Query         `json:"query,omitempty"`
 	From               int            `json:"from"`
-	Collapse           *Collapse `json:"collapse,omitempty"`
 	Size               int            `json:"size"`
+
+	Collapse           *Collapse `json:"collapse,omitempty"`
+
 	Sort               *[]interface{} `json:"sort,omitempty"`
-	AggregationRequest `json:"aggs,omitempty"`
+	Source             interface{} `json:"_source,omitempty"`
+	AggregationRequest *AggregationRequest `json:"aggs,omitempty"`
 }
+
+func (request *SearchRequest) ToJSONString() string{
+	if request.Query!=nil{
+		request.Set("query",request.Query)
+	}
+
+	if request.From>=0{
+		request.Set("from",request.From)
+	}
+	if request.Size>=0{
+		request.Set("size",request.Size)
+	}
+
+	if request.Collapse!=nil{
+		request.Set("collapse",request.Collapse)
+	}
+	if request.Sort!=nil{
+		request.Set("sort",request.Sort)
+	}
+
+	if request.Source!=nil{
+		request.Set("_source",request.Source)
+	}
+
+	if request.AggregationRequest!=nil{
+		request.Set("aggs",request.AggregationRequest)
+	}
+
+	return util.ToJson(request.rootField,false)
+}
+
+func GetSearchRequest(querystring,dsl,sourceFields string, sortField, sortType string)*SearchRequest  {
+	var query =&SearchRequest{}
+	if dsl!=""{
+		err:=util.FromJSONBytes([]byte(dsl),query)
+		if err!=nil{
+			panic(err)
+		}
+	}
+
+	if querystring!=""{
+		queryString:=&QueryStringQuery{}
+		queryString.QueryString(querystring)
+		query.Query.Must(queryString)
+	}
+
+	//handle sort
+	if len(sortField) > 0 {
+		if len(sortType) == 0 {
+			sortType = "asc"
+		}
+		query.AddSort(sortField,sortType)
+	}
+
+	//handle _source
+	if len(sourceFields) > 0 {
+		if !strings.Contains(sourceFields, ",") {
+			query.Source=sourceFields
+		} else {
+			query.Source = strings.Split(sourceFields, ",")
+		}
+	}
+	return query
+}
+
 
 type Collapse struct {
 	Field string `json:"field,omitempty"`
@@ -422,4 +499,12 @@ func (request *SearchRequest) AddSort(field string, order string) {
 	v["order"] = order
 	s[field] = v
 	*request.Sort = append(*request.Sort, s)
+}
+
+func (request *SearchRequest) Set(key string, value interface{})error {
+	if request.rootField==nil{
+		request.rootField=util.MapStr{}
+	}
+	_,err:=request.rootField.Put(key,value)
+	return err
 }

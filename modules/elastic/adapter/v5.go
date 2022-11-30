@@ -20,10 +20,9 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 type ESAPIV5 struct {
@@ -92,56 +91,28 @@ func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
 
 const TypeName5 = "doc"
 
-func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ([]byte,  error) {
+func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query *elastic.SearchRequest, slicedId, maxSlicedCount int) ([]byte,  error) {
 	indexNames=util.UrlEncode(indexNames)
 
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
-
-	var jsonBody []byte
-	queryBody := map[string]interface{}{}
-
-	if len(sourceFields) > 0 {
-		if !strings.Contains(sourceFields, ",") {
-			queryBody["_source"]=sourceFields
-		} else {
-			queryBody["_source"] = strings.Split(sourceFields, ",")
-		}
-	}
-
-	if len(sortField) > 0 {
-		if len(sortType)==0{
-			sortType="asc"
-		}
-	sort:= []map[string]interface{}{}
-	sort=append(sort,util.MapStr{
-		sortField:util.MapStr{
-			"order":sortType,
-		},
-	})
-	queryBody["sort"] =sort
-	}
-
-	if len(query) > 0 {
-		queryBody["query"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
-	}
-
+	var err error
 	if maxSlicedCount > 1 {
 		//log.Tracef("sliced scroll, %d of %d",slicedId,maxSlicedCount)
-		queryBody["slice"] = map[string]interface{}{}
-		queryBody["slice"].(map[string]interface{})["id"] = slicedId
-		queryBody["slice"].(map[string]interface{})["max"] = maxSlicedCount
+		err=query.Set("slice",util.MapStr{
+			"id":slicedId,
+			"max":maxSlicedCount,
+		})
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	jsonArray, err := json.Marshal(queryBody)
-	if err != nil {
-		panic(err)
-	} else {
-		jsonBody = jsonArray
+	var jsonBody string
+	if query!=nil{
+		jsonBody=query.ToJSONString()
 	}
 
-	resp, err := s.Request(nil, util.Verb_POST, url, jsonBody)
+	resp, err := s.Request(nil, util.Verb_POST, url, util.UnsafeStringToBytes(jsonBody))
 
 	if err != nil {
 		return nil, err
@@ -149,11 +120,6 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 
 	if resp.StatusCode != 200 {
 		return nil, errors.New(string(resp.Body))
-	}
-
-	if err != nil {
-		//panic(err)
-		return nil, err
 	}
 
 	return resp.Body, err

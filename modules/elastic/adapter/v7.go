@@ -17,17 +17,13 @@ limitations under the License.
 package adapter
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/segmentio/encoding/json"
-	"strings"
-
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 type ESAPIV7 struct {
@@ -226,76 +222,4 @@ func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 	}
 
 	return resp.Body, err
-}
-
-func (c *ESAPIV7) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( []byte, error) {
-	indexNames=util.UrlEncode(indexNames)
-
-	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.GetEndpoint(), indexNames, scrollTime, docBufferCount)
-	var jsonBody []byte
-	queryBody := map[string]interface{}{}
-
-	if len(sourceFields) > 0 {
-		if !strings.Contains(sourceFields, ",") {
-			queryBody["_source"]=sourceFields
-		} else {
-			queryBody["_source"] = strings.Split(sourceFields, ",")
-		}
-	}
-
-	if len(sortField) > 0 {
-		if len(sortType)==0{
-			sortType="asc"
-		}
-		sort:= []map[string]interface{}{}
-		sort=append(sort,util.MapStr{
-			sortField:util.MapStr{
-				"order":sortType,
-			},
-		})
-		queryBody["sort"] =sort
-	}
-
-	if len(query) > 0 {
-		queryBody["query"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
-	}
-
-	if maxSlicedCount > 1 {
-		log.Tracef("sliced scroll, %d of %d", slicedId, maxSlicedCount)
-		queryBody["slice"] = map[string]interface{}{}
-		queryBody["slice"].(map[string]interface{})["id"] = slicedId
-		queryBody["slice"].(map[string]interface{})["max"] = maxSlicedCount
-	}
-
-	jsonArray, err := json.Marshal(queryBody)
-	if err != nil {
-		log.Error(err)
-
-	} else {
-		jsonBody = jsonArray
-	}
-
-	if jsonBody == nil {
-		panic("scroll request is nil")
-	}
-
-	resp, err := c.Request(nil, util.Verb_POST, url, jsonBody)
-
-	if resp.StatusCode != 200 {
-		return nil, errors.New(string(resp.Body))
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.Body, err
-}
-
-func BasicAuth(req *fasthttp.Request, user, pass string) {
-	msg := fmt.Sprintf("%s:%s", user, pass)
-	encoded := base64.StdEncoding.EncodeToString([]byte(msg))
-	req.Header.Add("Authorization", "Basic "+encoded)
 }
