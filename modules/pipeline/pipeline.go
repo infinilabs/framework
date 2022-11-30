@@ -271,6 +271,7 @@ func (module *PipeModule) Start() error {
 
 
 	module.started = true
+	module.closing=false
 	return nil
 }
 
