@@ -399,12 +399,8 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 		query.Size = 10
 	}
 
-	js, err := json.Marshal(query)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.SearchWithRawQueryDSL(indexName, js)
+	js:=query.ToJSONString()
+	return c.SearchWithRawQueryDSL(indexName, util.UnsafeStringToBytes(js))
 }
 
 func (c *ESAPIV0) QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
@@ -1130,61 +1126,24 @@ func (s *ESAPIV0) Refresh(name string) (err error) {
 	return err
 }
 
-func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string, sortField, sortType string) ([]byte, error) {
+func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount int, query *elastic.SearchRequest, slicedId, maxSlicedCount int) ([]byte, error) {
 	indexNames = util.UrlEncode(indexNames)
 
 	// curl -XGET 'http://es-0.9:9200/_search?search_type=scan&scroll=10m&size=50'
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
-	var jsonBody []byte
-	queryBody := map[string]interface{}{}
-	if len(sourceFields) > 0 {
-		if !strings.Contains(sourceFields, ",") {
-			queryBody["_source"] = sourceFields
-		} else {
-			queryBody["_source"] = strings.Split(sourceFields, ",")
-		}
+	var jsonBody string
+	if query!=nil{
+		jsonBody=query.ToJSONString()
 	}
 
-	if len(sortField) > 0 {
-		if len(sortType) == 0 {
-			sortType = "asc"
-		}
-		sort := []map[string]interface{}{}
-		sort = append(sort, util.MapStr{
-			sortField: util.MapStr{
-				"order": sortType,
-			},
-		})
-		queryBody["sort"] = sort
-	}
-
-	if len(query) > 0 {
-		queryBody["query"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
-	}
-
-	jsonArray, err := json.Marshal(queryBody)
-	if err != nil {
-		panic(err)
-
-	} else {
-		jsonBody = jsonArray
-	}
-
-	resp, err := s.Request(nil, util.Verb_POST, url, jsonBody)
-
+	resp, err := s.Request(nil, util.Verb_POST, url, util.UnsafeStringToBytes(jsonBody))
 	if err != nil {
 		return nil, err
 	}
 
 	if global.Env().IsDebug {
-		log.Trace("new scroll,", url, ",", string(jsonBody))
-	}
-
-	if err != nil {
-		return nil, err
+		log.Trace("new scroll,", url, ",", jsonBody)
 	}
 
 	if resp.StatusCode != 200 {

@@ -11,7 +11,6 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 type ESAPIV8 struct {
@@ -85,7 +84,6 @@ func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
 	log.Debugf("elasticsearch template successful initialized")
 
 }
-
 
 // Delete used to delete document by id
 func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
@@ -202,72 +200,6 @@ func (c *ESAPIV8) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 
 	if err != nil {
 		panic(err)
-	}
-
-	return resp.Body, err
-}
-
-func (c *ESAPIV8) NewScroll(indexNames string, scrollTime string, docBufferCount int, query string, slicedId, maxSlicedCount int, sourceFields string,sortField,sortType string) ( []byte, error) {
-	indexNames=util.UrlEncode(indexNames)
-
-	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", c.GetEndpoint(), indexNames, scrollTime, docBufferCount)
-	var jsonBody []byte
-	queryBody := map[string]interface{}{}
-
-	if len(sourceFields) > 0 {
-		if !strings.Contains(sourceFields, ",") {
-			queryBody["_source"]=sourceFields
-		} else {
-			queryBody["_source"] = strings.Split(sourceFields, ",")
-		}
-	}
-
-	if len(sortField) > 0 {
-		if len(sortType)==0{
-			sortType="asc"
-		}
-		sort:= []map[string]interface{}{}
-		sort=append(sort,util.MapStr{
-			sortField:util.MapStr{
-				"order":sortType,
-			},
-		})
-		queryBody["sort"] =sort
-	}
-
-	if len(query) > 0 {
-		queryBody["query"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"] = map[string]interface{}{}
-		queryBody["query"].(map[string]interface{})["query_string"].(map[string]interface{})["query"] = query
-	}
-
-	if maxSlicedCount > 1 {
-		log.Tracef("sliced scroll, %d of %d", slicedId, maxSlicedCount)
-		queryBody["slice"] = map[string]interface{}{}
-		queryBody["slice"].(map[string]interface{})["id"] = slicedId
-		queryBody["slice"].(map[string]interface{})["max"] = maxSlicedCount
-	}
-
-	jsonArray, err := json.Marshal(queryBody)
-	if err != nil {
-		log.Error(err)
-
-	} else {
-		jsonBody = jsonArray
-	}
-
-	if jsonBody == nil {
-		panic("scroll request is nil")
-	}
-
-	resp, err := c.Request(nil, util.Verb_POST, url, jsonBody)
-
-	if resp.StatusCode != 200 {
-		return nil, errors.New(string(resp.Body))
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	return resp.Body, err
