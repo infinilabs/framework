@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/errors"
 	queue1 "infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/queue/common"
 	"net/http"
 )
 
@@ -18,7 +19,7 @@ func (module *DiskQueue) RegisterAPI()  {
 	api.HandleAPIMethod(api.GET,"/queue/:id/stats", module.SingleQueueStatsAction)
 	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
 
-	//api.HandleAPIMethod(api.DELETE,"/queue/:id", module.DeleteQueue)
+	api.HandleAPIMethod(api.DELETE,"/queue/:id", module.DeleteQueue)
 
 	//create consumer
 	//api.HandleAPIMethod(api.POST,"/queue/:id/consumer/:consumer_id", module.QueueResetConsumerOffset)
@@ -43,6 +44,12 @@ func (module *DiskQueue) SingleQueueStatsAction(w http.ResponseWriter, req *http
 	module.WriteJSON(w, data, 200)
 
 }
+func (module *DiskQueue) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	queue1.RemoveConfig(ps.ByName("id"))
+	common.PersistQueueMetadata()
+	module.WriteAckOKJSON(w)
+}
+
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	include:=module.Get(req,"metadata","true")
 	consumer:=module.Get(req,"consumers","true")
@@ -227,7 +234,7 @@ func (module *DiskQueue) QueueDeleteConsumerOffset(w http.ResponseWriter, req *h
 	obj := util.MapStr{}
 	var status = 404
 	if ok && ok1 {
-		err := queue1.DeleteOffset(cfg, cfg1)
+		_,err := queue1.RemoveConsumer(cfg.Id, cfg1.Key())
 		if err != nil {
 			obj["error"] = err.Error()
 		} else {
