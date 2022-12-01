@@ -26,7 +26,12 @@ func PersistQueueMetadata()  {
 
 	//persist configs to local store
 	bytes:=queue.GetAllConfigBytes()
-	_,err:=util.FilePutContentWithByte(GetLocalQueueConfigPath(),bytes)
+	path1:=GetLocalQueueConfigPath()
+	_,err:=util.CopyFile(path1,path1+".bak")
+	if err!=nil{
+		panic(err)
+	}
+	_,err=util.FilePutContentWithByte(path1,bytes)
 	if err!=nil{
 		panic(err)
 	}
