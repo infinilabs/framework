@@ -220,6 +220,19 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 	}
 }
 
+func RemoveConfig(queueKey string) bool {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+
+	cfg, ok := configs[queueKey]
+	if !ok {
+		return false
+	}
+	delete(idConfigs, cfg.Id)
+	delete(configs, queueKey)
+	return true
+}
+
 const consumerBucket = "queue_consumers"
 
 func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
@@ -239,37 +252,77 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 		if err != nil {
 			panic(err)
 		}
+
+		cfgs[consumer.Key()] = consumer
+		kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
+
+		TriggerChangeEvent(queueID,cfgs,false)
+
+		return true, nil
 	}
 
-	cfgs[consumer.Key()] = consumer
+	return false, errors.New("queue not found")
+}
 
-	kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
-
-	//async notify
-	go func() {
-		defer func() {
-			if !global.Env().IsDebug {
-				if r := recover(); r != nil {
-					var v string
-					switch r.(type) {
-					case error:
-						v = r.(error).Error()
-					case runtime.Error:
-						v = r.(runtime.Error).Error()
-					case string:
-						v = r.(string)
+func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig,async bool) {
+	if async{
+		//async notify
+		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error("error", v)
 					}
-					log.Error("error", v)
 				}
+			}()
+			for _, f := range consumerConfigListener {
+				f(queueID, cfgs)
 			}
 		}()
-
+	}else{
 		for _, f := range consumerConfigListener {
 			f(queueID, cfgs)
 		}
-	}()
+	}
+}
 
-	return false, nil
+func RemoveConsumer(queueID string, consumerKey string)(bool, error) {
+	consumerCfgLock.Lock()
+	defer consumerCfgLock.Unlock()
+
+	queueIDBytes := util.UnsafeStringToBytes(queueID)
+	ok, _ := kv.ExistsKey(consumerBucket, queueIDBytes)
+	cfgs := map[string]*ConsumerConfig{}
+	if ok {
+		data, err := kv.GetValue(consumerBucket, queueIDBytes)
+		if err != nil {
+			return false,err
+		}
+		err = util.FromJSONBytes(data, &cfgs)
+		if err != nil {
+			return false,err
+		}
+		delete(cfgs,consumerKey)
+		err=kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
+		if err != nil {
+			return false,err
+		}
+
+		TriggerChangeEvent(queueID,cfgs,false)
+
+		return true, nil
+	}
+
+	return false, errors.New("consumer not found")
 }
 
 func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
