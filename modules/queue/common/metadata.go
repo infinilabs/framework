@@ -15,7 +15,10 @@ import (
 
 
 func GetLocalQueueConfigPath() string {
-	os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
+	err:=os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
+	if err!=nil{
+		panic(err)
+	}
 	return path.Join(global.Env().GetDataDir(),"queue","configs")
 }
 
@@ -27,11 +30,13 @@ func PersistQueueMetadata()  {
 	//persist configs to local store
 	bytes:=queue.GetAllConfigBytes()
 	path1:=GetLocalQueueConfigPath()
-	_,err:=util.CopyFile(path1,path1+".bak")
-	if err!=nil{
-		panic(err)
+	if util.FileExists(path1){
+		_,err:=util.CopyFile(path1,path1+".bak")
+		if err!=nil{
+			panic(err)
+		}
 	}
-	_,err=util.FilePutContentWithByte(path1,bytes)
+	_,err:=util.FilePutContentWithByte(path1,bytes)
 	if err!=nil{
 		panic(err)
 	}
