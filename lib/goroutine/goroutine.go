@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -104,6 +105,7 @@ func (g *Group) do(f func(ctx context.Context) error) {
 				}
 
 				err = fmt.Errorf("goroutine: panic recovered: %s", r)
+				log.Error(err)
 			}
 
 			if err != nil {
