@@ -325,7 +325,7 @@ func (module *PipeModule) Stop() error {
 				if ok{
 					if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
 						if time.Now().Sub(start).Minutes() > 5 {
-							log.Error("pipeline framework faile to stop tasks, quiting")
+							log.Error("pipeline framework failed to stop tasks, quiting")
 							return errors.New("pipeline framework failure to stop tasks, quiting")
 						}
 						if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
