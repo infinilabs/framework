@@ -32,6 +32,7 @@ var defaultClient = &fasthttp.Client{
 	MaxConnsPerHost: 1000,
 	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	ReadTimeout: time.Second * 3,
+	DialDualStack: true,
 }
 
 func DoProxyRequest(req *Request) (*Response, error){

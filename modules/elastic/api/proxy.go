@@ -143,4 +143,5 @@ var client = fasthttp.Client{
 	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	ReadTimeout:     60 * time.Second,
 	WriteTimeout:    60 * time.Second,
+	DialDualStack: true,
 }
