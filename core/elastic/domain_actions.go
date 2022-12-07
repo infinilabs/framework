@@ -448,6 +448,7 @@ func (metadata *ElasticsearchMetadata) NewHttpClient(host string) *fasthttp.Clie
 		DisablePathNormalizing:        true,
 		MaxConnWaitTimeout:            0,
 		TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
+		DialDualStack: true,
 	}
 
 	if metadata.Config.TrafficControl != nil && metadata.Config.TrafficControl.MaxConnectionPerNode > 0 {

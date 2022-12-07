@@ -78,6 +78,7 @@ var fastHttpClient = &fasthttp.Client{
 	MaxConnWaitTimeout:            10 * time2.Second,
 	DisableHeaderNamesNormalizing: false,
 	TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
+	DialDualStack: true,
 }
 
 const newline = "\n"
