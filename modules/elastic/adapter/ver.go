@@ -56,6 +56,7 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 			MaxIdleConnDuration: timeout,
 			WriteTimeout: timeout,
 			ReadTimeout: timeout,
+			DialDualStack: true,
 		},
 		Request: req,
 		Response: res,
