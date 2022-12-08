@@ -131,7 +131,7 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	obj.RemoteIP = remoteIP
 	obj.Enrolled = false
 
-	err = orm.Create(obj)
+	err = orm.Create(obj, "")
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
@@ -238,7 +238,7 @@ func bindAgentToHostByIP(ag *agent.Instance) error{
 
 		hostInfo.AgentStatus = ag.Status
 		hostInfo.AgentID = ag.ID
-		err = orm.Update(hostInfo)
+		err = orm.Update(hostInfo, "")
 		if err != nil {
 			return  err
 		}

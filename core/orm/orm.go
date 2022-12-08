@@ -33,9 +33,9 @@ type ORM interface {
 
 	GetWildcardIndexName(o interface{}) string
 
-	Save(o interface{}) error
+	Save(o interface{}, refresh string) error
 
-	Update(o interface{}) error
+	Update(o interface{}, refresh string) error
 
 	Delete(o interface{}) error
 
@@ -285,7 +285,7 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 	}
 }
 
-func Create(o interface{}) error {
+func Create(o interface{}, refresh string) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of object is allowed")
@@ -301,10 +301,10 @@ func Create(o interface{}) error {
 	setFieldValue(rValue, "Created", time1)
 	setFieldValue(rValue, "Updated", time1)
 
-	return Save(o)
+	return Save(o, refresh)
 }
 
-func Save(o interface{}) error {
+func Save(o interface{}, refresh string) error {
 
 	rValue := reflect.ValueOf(o)
 
@@ -320,10 +320,10 @@ func Save(o interface{}) error {
 	//	return errors.New("name was not found")
 	//}
 
-	return getHandler().Save(o)
+	return getHandler().Save(o, refresh)
 }
 
-func Update(o interface{}) error {
+func Update(o interface{}, refresh string) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of the object is allowed")
@@ -342,7 +342,7 @@ func Update(o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	setFieldValue(rValue, "Updated", time.Now())
 
-	return Save(o)
+	return Save(o, refresh)
 }
 
 func Delete(o interface{}) error {

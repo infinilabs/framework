@@ -42,12 +42,12 @@ func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error){
 
 func (dal *User) Update(user *rbac.User) error {
 
-	return orm.Save(user)
+	return orm.Save(user, "")
 }
 
 func (dal *User) Create(user *rbac.User) (string, error){
 	user.ID = util.GetUUID()
-	return user.ID, orm.Save(user)
+	return user.ID, orm.Save(user, "")
 }
 
 func (dal *User) Delete(id string) error {

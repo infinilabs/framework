@@ -257,7 +257,7 @@ func (sm *StateManager) UpdateAgent(inst *agent.Instance, syncToES bool) (*agent
 	sm.agentMutex.Unlock()
 	err := kv.AddValue(sm.KVKey, []byte(inst.ID), util.MustToJSONBytes(inst))
 	if syncToES {
-		err = orm.Update(inst)
+		err = orm.Update(inst, "")
 		if err != nil {
 			return nil, err
 		}

@@ -29,12 +29,12 @@ func (dal *Role) GetBy(field string, value interface{}) (rbac.Role, error) {
 }
 
 func (dal *Role) Update(role *rbac.Role) error {
-	return orm.Save(role)
+	return orm.Save(role, "")
 }
 
 func (dal *Role) Create(role *rbac.Role) (string, error){
 	role.ID = util.GetUUID()
-	return role.ID, orm.Save(role)
+	return role.ID, orm.Save(role, "")
 }
 
 func (dal *Role) Delete(id string) error {
