@@ -17,12 +17,17 @@ limitations under the License.
 package orm
 
 import (
+	"context"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"time"
 )
+type Context struct {
+	context.Context
+	Refresh string
+}
 
 type ORM interface {
 	RegisterSchema(t interface{}) error
@@ -33,9 +38,9 @@ type ORM interface {
 
 	GetWildcardIndexName(o interface{}) string
 
-	Save(o interface{}) error
+	Save(ctx *Context, o interface{}) error
 
-	Update(o interface{}) error
+	Update(ctx *Context, o interface{}) error
 
 	Delete(o interface{}) error
 
@@ -285,7 +290,7 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 	}
 }
 
-func Create(o interface{}) error {
+func Create(ctx *Context, o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of object is allowed")
@@ -301,11 +306,10 @@ func Create(o interface{}) error {
 	setFieldValue(rValue, "Created", time1)
 	setFieldValue(rValue, "Updated", time1)
 
-	return Save(o)
+	return Save(ctx, o)
 }
 
-func Save(o interface{}) error {
-
+func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 
 	//check required value
@@ -320,10 +324,10 @@ func Save(o interface{}) error {
 	//	return errors.New("name was not found")
 	//}
 
-	return getHandler().Save(o)
+	return getHandler().Save(ctx, o)
 }
 
-func Update(o interface{}) error {
+func Update(ctx *Context, o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of the object is allowed")
@@ -342,7 +346,7 @@ func Update(o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	setFieldValue(rValue, "Updated", time.Now())
 
-	return Save(o)
+	return Save(ctx, o)
 }
 
 func Delete(o interface{}) error {

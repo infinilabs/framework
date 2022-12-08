@@ -158,7 +158,7 @@ func (h *APIHandler) updateHost(w http.ResponseWriter, req *http.Request, ps htt
 	if toUpObj.IP != "" {
 		obj.IP = toUpObj.IP
 	}
-	err = orm.Update(&obj)
+	err = orm.Update(nil, &obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
@@ -206,7 +206,7 @@ func (h *APIHandler) enrollHost(w http.ResponseWriter, req *http.Request, ps htt
 			}
 			hostInfo.IP = hi.IP
 			hostInfo.AgentID = hi.AgentID
-			err = orm.Create(hostInfo)
+			err = orm.Create(nil, hostInfo)
 			if err != nil {
 				errors[hi.IP] = util.MapStr{
 					"error": err.Error(),
@@ -230,7 +230,7 @@ func (h *APIHandler) enrollHost(w http.ResponseWriter, req *http.Request, ps htt
 			continue
 		}
 		hostInfo.Timestamp = time.Now()
-		err = orm.Create(hostInfo)
+		err = orm.Create(nil, hostInfo)
 		if err != nil {
 			errors[hi.IP] = util.MapStr{
 				"error": err.Error(),
@@ -905,7 +905,7 @@ func (h *APIHandler) GetHostAgentInfo(w http.ResponseWriter, req *http.Request, 
 	aversion, err := ag.GetVersion()
 	if err == nil {
 		ag.Version = aversion
-		orm.Save(ag)
+		orm.Save(nil, ag)
 	}
 	h.WriteJSON(w, util.MapStr{
 		"host_id": hostID,

@@ -868,7 +868,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					"node_state": nodeInfo,
 				},
 			}
-			err = orm.Save(nodeMetadata)
+			err = orm.Save(nil, nodeMetadata)
 			if err != nil {
 				log.Error(err)
 			}
@@ -914,7 +914,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 										},
 									},
 								}
-								err = orm.Save(activityInfo)
+								err = orm.Save(nil, activityInfo)
 								if err != nil {
 									log.Error(err)
 								}
@@ -943,7 +943,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 							"node_state": nodeInfo,
 						},
 					}
-					err = orm.Save(nodeMetadata)
+					err = orm.Save(nil, nodeMetadata)
 					if err != nil {
 						log.Error(err)
 					}
@@ -979,7 +979,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			}
 			activityInfo.Changelog = changeLog
 		}
-		err = orm.Save(activityInfo)
+		err = orm.Save(nil, activityInfo)
 		if err != nil {
 			log.Error(err, activityInfo)
 		}
@@ -998,7 +998,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		oldConfig.Metadata.Labels["status"] = "unavailable"
 		oldConfig.Timestamp = time.Now()
 
-		err = orm.Save(oldConfig)
+		err = orm.Save(nil, oldConfig)
 		if err != nil {
 			log.Error(err)
 		}
@@ -1020,7 +1020,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 			},
 		}
-		err = orm.Save(activityInfo)
+		err = orm.Save(nil, activityInfo)
 		if err != nil {
 			log.Error(err)
 		}
