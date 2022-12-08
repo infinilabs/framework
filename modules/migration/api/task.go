@@ -78,7 +78,7 @@ func (h *APIHandler) createDataMigrationTask(w http.ResponseWriter, req *http.Re
 			},
 		},
 	}
-	err = orm.Create(&t, "")
+	err = orm.Create(nil, &t)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		log.Error(err)
@@ -319,7 +319,7 @@ func (h *APIHandler) startDataMigration(w http.ResponseWriter, req *http.Request
 		obj.Status = task2.StatusReady
 	}
 
-	err = orm.Update(&obj, "")
+	err = orm.Update(nil, &obj)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -1051,7 +1051,7 @@ func (h *APIHandler) updateDataMigrationTaskStatus(w http.ResponseWriter, req *h
 		return
 	}
 	obj.Status = reqBody.Status
-	err = orm.Update(obj, "")
+	err = orm.Update(nil, obj)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)

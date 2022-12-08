@@ -118,7 +118,7 @@ func UpdateHostAgentStatus(agentID, agentStatus string) {
 			return
 		}
 		hostInfo.AgentStatus = agentStatus
-		err = orm.Update(hostInfo, "")
+		err = orm.Update(nil, hostInfo)
 		if err != nil {
 			log.Errorf("update host agent [%s] status error: %v", agentID, err)
 		}

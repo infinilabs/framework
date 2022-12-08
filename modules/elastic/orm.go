@@ -79,13 +79,17 @@ func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}) 
 	return handler.Search(t, &query)
 }
 
-func (handler ElasticORM) Save(o interface{}, refresh string) error {
+func (handler ElasticORM) Save(ctx *api.Context, o interface{}) error {
+	var refresh string
+	if ctx != nil {
+		refresh = ctx.Refresh
+	}
 	_, err := handler.Client.Index(handler.GetIndexName(o), "_doc", getIndexID(o), o, refresh)
 	return err
 }
 
-func (handler ElasticORM) Update(o interface{}, refresh string) error {
-	return handler.Save(o, refresh)
+func (handler ElasticORM) Update(ctx *api.Context, o interface{}) error {
+	return handler.Save(ctx, o)
 }
 
 func (handler ElasticORM) Delete(o interface{}) error {

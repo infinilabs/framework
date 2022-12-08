@@ -23,6 +23,9 @@ import (
 	"reflect"
 	"time"
 )
+type Context struct {
+	Refresh string
+}
 
 type ORM interface {
 	RegisterSchema(t interface{}) error
@@ -33,9 +36,9 @@ type ORM interface {
 
 	GetWildcardIndexName(o interface{}) string
 
-	Save(o interface{}, refresh string) error
+	Save(ctx *Context, o interface{}) error
 
-	Update(o interface{}, refresh string) error
+	Update(ctx *Context, o interface{}) error
 
 	Delete(o interface{}) error
 
@@ -285,7 +288,7 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 	}
 }
 
-func Create(o interface{}, refresh string) error {
+func Create(ctx *Context, o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of object is allowed")
@@ -301,11 +304,10 @@ func Create(o interface{}, refresh string) error {
 	setFieldValue(rValue, "Created", time1)
 	setFieldValue(rValue, "Updated", time1)
 
-	return Save(o, refresh)
+	return Save(ctx, o)
 }
 
-func Save(o interface{}, refresh string) error {
-
+func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 
 	//check required value
@@ -320,10 +322,10 @@ func Save(o interface{}, refresh string) error {
 	//	return errors.New("name was not found")
 	//}
 
-	return getHandler().Save(o, refresh)
+	return getHandler().Save(ctx, o)
 }
 
-func Update(o interface{}, refresh string) error {
+func Update(ctx *Context, o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of the object is allowed")
@@ -342,7 +344,7 @@ func Update(o interface{}, refresh string) error {
 	rValue := reflect.ValueOf(o)
 	setFieldValue(rValue, "Updated", time.Now())
 
-	return Save(o, refresh)
+	return Save(ctx, o)
 }
 
 func Delete(o interface{}) error {

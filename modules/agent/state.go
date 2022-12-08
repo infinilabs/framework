@@ -257,12 +257,13 @@ func (sm *StateManager) UpdateAgent(inst *agent.Instance, syncToES bool) (*agent
 	sm.agentMutex.Unlock()
 	err := kv.AddValue(sm.KVKey, []byte(inst.ID), util.MustToJSONBytes(inst))
 	if syncToES {
-		err = orm.Update(inst, "")
+		ctx := orm.Context{
+			Refresh: "wait_for",
+		}
+		err = orm.Update(&ctx, inst)
 		if err != nil {
 			return nil, err
 		}
-		//for es search latency
-		time.Sleep(time.Second)
 	}
 	return inst, err
 }
