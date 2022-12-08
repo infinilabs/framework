@@ -17,6 +17,7 @@ limitations under the License.
 package orm
 
 import (
+	"context"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -24,6 +25,7 @@ import (
 	"time"
 )
 type Context struct {
+	context.Context
 	Refresh string
 }
 
