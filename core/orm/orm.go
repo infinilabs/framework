@@ -42,7 +42,7 @@ type ORM interface {
 
 	Update(ctx *Context, o interface{}) error
 
-	Delete(o interface{}) error
+	Delete(ctx *Context, o interface{}) error
 
 	Search(o interface{}, q *Query) (error, Result)
 
@@ -349,8 +349,8 @@ func Update(ctx *Context, o interface{}) error {
 	return Save(ctx, o)
 }
 
-func Delete(o interface{}) error {
-	return getHandler().Delete(o)
+func Delete(ctx *Context, o interface{}) error {
+	return getHandler().Delete(ctx, o)
 }
 func DeleteBy(o interface{}, query interface{}) error {
 	return getHandler().DeleteBy(o, query)

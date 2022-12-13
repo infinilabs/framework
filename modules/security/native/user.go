@@ -53,7 +53,7 @@ func (dal *User) Create(user *rbac.User) (string, error){
 func (dal *User) Delete(id string) error {
 	user := rbac.User{}
 	user.ID = id
-	return orm.Delete(user)
+	return orm.Delete(nil, user)
 }
 
 func (dal *User) Search(keyword string, from, size int) ( orm.Result, error){
