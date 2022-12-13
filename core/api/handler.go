@@ -320,3 +320,23 @@ func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{})
 		"result": "created",
 	}, http.StatusOK)
 }
+
+func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{}) error {
+	return handler.WriteJSON(w, util.MapStr{
+		"_id":    id,
+		"result": "updated",
+	}, http.StatusOK)
+}
+func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{}) error {
+	return handler.WriteJSON(w, util.MapStr{
+		"_id":    id,
+		"result": "deleted",
+	}, http.StatusOK)
+}
+func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{}) error {
+	return handler.WriteJSON(w, util.MapStr{
+		"found":   true,
+		"_id":     id,
+		"_source": obj,
+	}, 200)
+}

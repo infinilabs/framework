@@ -92,8 +92,12 @@ func (handler ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	return handler.Save(ctx, o)
 }
 
-func (handler ElasticORM) Delete(o interface{}) error {
-	_, err := handler.Client.Delete(handler.GetIndexName(o), "_doc", getIndexID(o))
+func (handler ElasticORM) Delete(ctx *api.Context, o interface{}) error {
+	var refresh string
+	if ctx != nil {
+		refresh = ctx.Refresh
+	}
+	_, err := handler.Client.Delete(handler.GetIndexName(o), "_doc", getIndexID(o), refresh)
 	return err
 }
 

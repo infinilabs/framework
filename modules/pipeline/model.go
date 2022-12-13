@@ -94,7 +94,7 @@ func DeletePipelineConfig(id string) error {
 		return err
 	}
 	o := pipeline.PipelineConfig{ID: id}
-	return orm.Delete(&o)
+	return orm.Delete(nil, &o)
 }
 
 func convertPipeline(result orm.Result, pipelines *[]pipeline.PipelineConfig) {

@@ -31,92 +31,71 @@ func (h *APIHandler) Client() elastic.API {
 
 func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	var conf = &elastic.ElasticsearchConfig{}
-	resBody := map[string] interface{}{
-	}
 	err := h.DecodeJSON(req, conf)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// TODO validate data format
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-	id := util.GetUUID()
-	conf.Created = time.Now()
 	conf.Enabled=true
-	conf.Updated = conf.Created
 	conf.Host = strings.TrimSpace(conf.Host)
 	conf.Endpoint = fmt.Sprintf("%s://%s", conf.Schema, conf.Host)
-	index:=orm.GetIndexName(elastic.ElasticsearchConfig{})
-	_, err = esClient.Index(index, "", id, conf, "wait_for")
+	conf.ID = util.GetUUID()
+	ctx := &orm.Context{
+		Refresh: "wait_for",
+	}
+	err = orm.Create(ctx, conf)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	resBody["_source"] = conf
-	resBody["_id"] = id
-	resBody["result"] = "created"
-	conf.ID = id
-	conf.Discovery.Enabled = true
 	_, err = common.InitElasticInstance(*conf)
 	if err != nil {
 		log.Warn("error on init elasticsearch:", err)
 	}
 
-	h.WriteJSON(w, resBody,http.StatusOK)
-
+	h.WriteCreatedOKJSON(w, conf.ID)
 }
 
 func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
-	resBody := map[string] interface{}{}
-
-	id := ps.ByName("id")
-	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
-	getResponse, err := h.Client().Get(indexName, "", id)
-	if err != nil {
+	id := ps.MustGetParameter("id")
+	clusterConf := elastic.ElasticsearchConfig{}
+	clusterConf.ID = id
+	exists, err := orm.Get(&clusterConf)
+	if err != nil || !exists{
 		log.Error(err)
-		resBody["error"] = err.Error()
-		if getResponse!=nil{
-			h.WriteJSON(w, resBody, getResponse.StatusCode)
-		}else{
-			h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		}
+		h.Error404(w)
 		return
 	}
-	if basicAuth, ok := getResponse.Source["basic_auth"]; ok {
-		if authMap, ok := basicAuth.(map[string]interface{}); ok {
-			delete(authMap, "password")
-		}
+	if clusterConf.BasicAuth != nil {
+		clusterConf.BasicAuth.Password = ""
 	}
-	h.WriteJSON(w,getResponse,200)
+	h.WriteGetOKJSON(w, id, clusterConf)
 }
 
 func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	var conf = map[string]interface{}{}
-	resBody := map[string] interface{}{
-	}
 	err := h.DecodeJSON(req, &conf)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	id := ps.ByName("id")
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-	indexName := orm.GetIndexName(elastic.ElasticsearchConfig{})
-	originConf, err := esClient.Get(indexName, "", id)
-	if err != nil {
+	id := ps.MustGetParameter("id")
+	originConf := elastic.ElasticsearchConfig{
+	}
+	originConf.ID = id
+	exists, err := orm.Get(&originConf)
+	if err != nil || !exists {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.Error404(w)
 		return
 	}
-	source := originConf.Source
+	buf := util.MustToJSONBytes(originConf)
+	source := map[string]interface{}{}
+	util.MustFromJSONBytes(buf, &source)
 	for k, v := range conf {
 		if k == "id" {
 			continue
@@ -140,42 +119,40 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	}
 
 	conf["updated"] = time.Now()
-	_, err = esClient.Index(indexName, "", id, source, "wait_for")
-	if err != nil {
-		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
+	ctx := &orm.Context{
+		Refresh: "wait_for",
 	}
-	resBody["_source"] = conf
-	resBody["_id"] = id
-	resBody["result"] = "updated"
-
-	//update config in heap
 	confBytes, _ := json.Marshal(source)
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
+	err = orm.Update(ctx, newConf)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	//update config in heap
 	_, err = common.InitElasticInstance(*newConf)
 	if err != nil {
 		log.Warn("error on init elasticsearch:", err)
 	}
 
-	h.WriteJSON(w, resBody,http.StatusOK)}
+	h.WriteUpdatedOKJSON(w, id)
+}
 
 func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	resBody := map[string] interface{}{
 	}
-	id := ps.ByName("id")
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+	id := ps.MustGetParameter("id")
 
 	esConfig:=elastic.ElasticsearchConfig{}
 	esConfig.ID=id
 	ok,err:=orm.Get(&esConfig)
 	if err!=nil{
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -186,17 +163,14 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 			return
 		}
 	}
-
-	response, err := esClient.Delete(orm.GetIndexName(elastic.ElasticsearchConfig{}), "", id, "wait_for")
+	ctx := &orm.Context{
+		Refresh: "wait_for",
+	}
+	err = orm.Delete(ctx, &esConfig)
 
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		if response!=nil{
-			h.WriteJSON(w, resBody, response.StatusCode)
-		}else{
-			h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		}
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	delDsl := util.MapStr{
@@ -206,25 +180,21 @@ func (h *APIHandler) HandleDeleteClusterAction(w http.ResponseWriter, req *http.
 			},
 		},
 	}
-	_, err = esClient.DeleteByQuery(orm.GetIndexName(elastic.NodeConfig{}), util.MustToJSONBytes(delDsl))
+	err = orm.DeleteBy(elastic.NodeConfig{}, util.MustToJSONBytes(delDsl))
 	if err != nil {
 		log.Error(err)
 	}
-	_, err = esClient.DeleteByQuery(orm.GetIndexName(elastic.IndexConfig{}), util.MustToJSONBytes(delDsl))
+	err = orm.DeleteBy(elastic.IndexConfig{}, util.MustToJSONBytes(delDsl))
 	if err != nil {
 		log.Error(err)
 	}
 
 	elastic.RemoveInstance(id)
 	elastic.RemoveHostsByClusterID(id)
-	resBody["_id"] = id
-	resBody["result"] = response.Result
-	h.WriteJSON(w, resBody, response.StatusCode)
+	h.WriteDeletedOKJSON(w, id)
 }
 
 func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
-	resBody := map[string] interface{}{
-	}
 	var (
 		name          = h.GetParameterOrDefault(req, "name", "")
 		sortField     = h.GetParameterOrDefault(req, "sort_field", "")
@@ -265,17 +235,19 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 
 
 	queryDSL = fmt.Sprintf(queryDSL, mustBuilder.String(), size, from, sort)
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-	res, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.ElasticsearchConfig{}), []byte(queryDSL))
-
+	q := orm.Query{
+		RawQuery: []byte(queryDSL),
+	}
+	err, result := orm.Search(elastic.ElasticsearchConfig{}, &q)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if len(res.Hits.Hits) > 0 {
-		for _, hit := range res.Hits.Hits {
+	searchRes := elastic.SearchResponse{}
+	util.MustFromJSONBytes(result.Raw, &searchRes)
+	if len(searchRes.Hits.Hits) > 0 {
+		for _, hit := range searchRes.Hits.Hits {
 			if basicAuth, ok := hit.Source["basic_auth"]; ok {
 				if authMap, ok := basicAuth.(map[string]interface{}); ok {
 					delete(authMap, "password")
@@ -284,15 +256,14 @@ func (h *APIHandler) HandleSearchClusterAction(w http.ResponseWriter, req *http.
 		}
 	}
 
-	h.WriteJSON(w, res, http.StatusOK)
+	h.WriteJSON(w, searchRes, http.StatusOK)
 }
 
 func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	resBody := map[string] interface{}{}
-	id := ps.ByName("id")
+	id := ps.MustGetParameter("id")
 
 	summary:=map[string]interface{}{}
-	client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	var query = util.MapStr{
 		"sort": util.MapStr{
 			"timestamp": util.MapStr{
@@ -328,56 +299,62 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 			},
 		},
 	}
-	searchRes, err := client.SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	q := orm.Query{
+		RawQuery: util.MustToJSONBytes(query),
+		WildcardIndex: true,
+	}
+	err, result := orm.Search(event.Event{}, &q)
 	if err != nil {
 		resBody["error"] = err.Error()
 		log.Error("MetricsSummary search error: ", err)
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	if len(searchRes.Hits.Hits) > 0 {
-		sourceMap := util.MapStr(searchRes.Hits.Hits[0].Source)
-		summary["timestamp"],_= sourceMap.GetValue("timestamp")
-		status, _ := sourceMap.GetValue("payload.elasticsearch.cluster_stats")
-		statusMap := util.MapStr(status.(map[string]interface{}))
-		summary["cluster_name"], _ = statusMap.GetValue("cluster_name")
-		summary["status"],_ = statusMap.GetValue("status")
-		summary["indices_count"],_ =statusMap.GetValue("indices.count")
-		summary["total_shards"],_ = statusMap.GetValue("indices.shards.total")
-		summary["primary_shards"],_ = statusMap.GetValue("indices.shards.primaries")
-		summary["replication_shards"],_ = statusMap.GetValue("indices.shards.replication")
-		//summary["unassigned_shards"]=status.Indices["shards"].(map[string]interface{})["primaries"]
+	if len(result.Result) > 0 {
+		if v, ok := result.Result[0].(map[string]interface{}); ok {
+			sourceMap := util.MapStr(v)
+			summary["timestamp"], _ = sourceMap.GetValue("timestamp")
+			status, _ := sourceMap.GetValue("payload.elasticsearch.cluster_stats")
+			statusMap := util.MapStr(status.(map[string]interface{}))
+			summary["cluster_name"], _ = statusMap.GetValue("cluster_name")
+			summary["status"], _ = statusMap.GetValue("status")
+			summary["indices_count"], _ = statusMap.GetValue("indices.count")
+			summary["total_shards"], _ = statusMap.GetValue("indices.shards.total")
+			summary["primary_shards"], _ = statusMap.GetValue("indices.shards.primaries")
+			summary["replication_shards"], _ = statusMap.GetValue("indices.shards.replication")
+			//summary["unassigned_shards"]=status.Indices["shards"].(map[string]interface{})["primaries"]
 
-		summary["document_count"], _ = statusMap.GetValue("indices.docs.count")
-		summary["deleted_document_count"],_ = statusMap.GetValue("indices.docs.deleted")
+			summary["document_count"], _ = statusMap.GetValue("indices.docs.count")
+			summary["deleted_document_count"], _ = statusMap.GetValue("indices.docs.deleted")
 
-		summary["used_store_bytes"],_ = statusMap.GetValue("indices.store.size_in_bytes")
+			summary["used_store_bytes"], _ = statusMap.GetValue("indices.store.size_in_bytes")
 
-		summary["max_store_bytes"],_ = statusMap.GetValue("nodes.fs.total_in_bytes")
-		summary["available_store_bytes"],_ =  statusMap.GetValue("nodes.fs.available_in_bytes")
+			summary["max_store_bytes"], _ = statusMap.GetValue("nodes.fs.total_in_bytes")
+			summary["available_store_bytes"], _ = statusMap.GetValue("nodes.fs.available_in_bytes")
 
-		summary["fielddata_bytes"],_ = statusMap.GetValue("indices.fielddata.memory_size_in_bytes")
-		summary["fielddata_evictions"],_ = statusMap.GetValue("indices.fielddata.evictions")
+			summary["fielddata_bytes"], _ = statusMap.GetValue("indices.fielddata.memory_size_in_bytes")
+			summary["fielddata_evictions"], _ = statusMap.GetValue("indices.fielddata.evictions")
 
-		summary["query_cache_bytes"],_ = statusMap.GetValue("indices.query_cache.memory_size_in_bytes")
-		summary["query_cache_total_count"],_ = statusMap.GetValue("indices.query_cache.total_count")
-		summary["query_cache_hit_count"],_ = statusMap.GetValue("indices.query_cache.hit_count")
-		summary["query_cache_miss_count"],_ = statusMap.GetValue("indices.query_cache.miss_count")
-		summary["query_cache_evictions"],_ = statusMap.GetValue("indices.query_cache.evictions")
+			summary["query_cache_bytes"], _ = statusMap.GetValue("indices.query_cache.memory_size_in_bytes")
+			summary["query_cache_total_count"], _ = statusMap.GetValue("indices.query_cache.total_count")
+			summary["query_cache_hit_count"], _ = statusMap.GetValue("indices.query_cache.hit_count")
+			summary["query_cache_miss_count"], _ = statusMap.GetValue("indices.query_cache.miss_count")
+			summary["query_cache_evictions"], _ = statusMap.GetValue("indices.query_cache.evictions")
 
-		summary["segments_count"],_ = statusMap.GetValue("indices.segments.count")
-		summary["segments_memory_in_bytes"],_ =statusMap.GetValue("indices.segments.memory_in_bytes")
+			summary["segments_count"], _ = statusMap.GetValue("indices.segments.count")
+			summary["segments_memory_in_bytes"], _ = statusMap.GetValue("indices.segments.memory_in_bytes")
 
-		summary["nodes_count"],_ = statusMap.GetValue("nodes.count.total")
-		summary["version"],_ = statusMap.GetValue("nodes.versions")
+			summary["nodes_count"], _ = statusMap.GetValue("nodes.count.total")
+			summary["version"], _ = statusMap.GetValue("nodes.versions")
 
-		summary["mem_total_in_bytes"],_ =  statusMap.GetValue("nodes.os.mem.total_in_bytes")
-		summary["mem_used_in_bytes"],_ =  statusMap.GetValue("nodes.os.mem.used_in_bytes")
-		summary["mem_used_percent"],_ = statusMap.GetValue("nodes.os.mem.used_percent")
+			summary["mem_total_in_bytes"], _ = statusMap.GetValue("nodes.os.mem.total_in_bytes")
+			summary["mem_used_in_bytes"], _ = statusMap.GetValue("nodes.os.mem.used_in_bytes")
+			summary["mem_used_percent"], _ = statusMap.GetValue("nodes.os.mem.used_percent")
 
-		summary["uptime"],_ = statusMap.GetValue("nodes.jvm.max_uptime_in_millis")
-		summary["used_jvm_bytes"],_ =  statusMap.GetValue("nodes.jvm.mem.heap_used_in_bytes")
-		summary["max_jvm_bytes"],_ = statusMap.GetValue("nodes.jvm.mem.heap_max_in_bytes")
+			summary["uptime"], _ = statusMap.GetValue("nodes.jvm.max_uptime_in_millis")
+			summary["used_jvm_bytes"], _ = statusMap.GetValue("nodes.jvm.mem.heap_used_in_bytes")
+			summary["max_jvm_bytes"], _ = statusMap.GetValue("nodes.jvm.mem.heap_max_in_bytes")
+		}
 	}
 
 	query["query"]=util.MapStr{
@@ -407,14 +384,17 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 			},
 		},
 	}
-	searchRes, err = client.SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	q.RawQuery = util.MustToJSONBytes(query)
+	err, result = orm.Search(event.Event{}, &q)
 	if err != nil {
 		log.Error("MetricsSummary search error: ", err)
 	}else{
-		if len(searchRes.Hits.Hits) > 0 {
-			health, _ := util.MapStr(searchRes.Hits.Hits[0].Source).GetValue("payload.elasticsearch.cluster_health")
-			healthMap := util.MapStr(health.(map[string]interface{}))
-			summary["unassigned_shards"], _ = healthMap.GetValue("unassigned_shards")
+		if len(result.Result) > 0 {
+			if v, ok := result.Result[0].(map[string]interface{}); ok {
+				health, _ := util.MapStr(v).GetValue("payload.elasticsearch.cluster_health")
+				healthMap := util.MapStr(health.(map[string]interface{}))
+				summary["unassigned_shards"], _ = healthMap.GetValue("unassigned_shards")
+			}
 		}
 	}
 
@@ -1070,7 +1050,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 
 func (h *APIHandler) GetClusterStatusAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var status = map[string]interface{}{}
-	 clusterIDs, hasAllPrivilege := h.GetAllowedClusters(req)
+	clusterIDs, hasAllPrivilege := h.GetAllowedClusters(req)
 	if !hasAllPrivilege && len(clusterIDs) == 0 {
 		h.WriteJSON(w, status, http.StatusOK)
 		return
