@@ -317,7 +317,11 @@ func IsHostAvailable(host string) bool {
 
 	arry := strings.Split(host, ":")
 	if len(arry) == 2 {
-		avail:=util.TestTCPPort(arry[0], arry[1],10*time.Second)
+		port,err:=util.ToInt(arry[1])
+		if err!=nil{
+			panic(err)
+		}
+		avail:=util.TestTCPPort(arry[0], port,10*time.Second)
 		nodeAvailCache.Put(host,avail)
 		if !avail {
 			return false

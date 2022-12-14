@@ -100,7 +100,7 @@ func GetAvailablePort(ip string, port int) int {
 	panic(errors.New("no ports available"))
 }
 
-func TestTCPPort(host string,port string,duration time.Duration)bool  {
+func TestTCPPort(host string,port int,duration time.Duration)bool  {
 	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port),duration)
 }
 
