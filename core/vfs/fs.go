@@ -216,7 +216,7 @@ func serveContent(w http.ResponseWriter, r *http.Request, name string, modtime t
 							case string:
 								v = r.(string)
 							}
-							log.Error("error", v)
+							log.Error(v)
 						}
 					}
 				}()

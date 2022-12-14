@@ -206,7 +206,7 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 						case string:
 							v = r.(string)
 						}
-						log.Error("error", v)
+						log.Error(v)
 					}
 				}
 			}()
@@ -280,7 +280,7 @@ func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig,async bo
 						case string:
 							v = r.(string)
 						}
-						log.Error("error", v)
+						log.Error(v)
 					}
 				}
 			}()

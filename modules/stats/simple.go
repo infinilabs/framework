@@ -85,7 +85,7 @@ func (module *SimpleStatsModule) Start() error {
 						case string:
 							v = r.(string)
 						}
-						log.Error("error", v)
+						log.Error(v)
 					}
 				}
 			}()

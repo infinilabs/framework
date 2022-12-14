@@ -36,7 +36,7 @@ func (runner *SimpleTaskRunner) Run(task Task) {
 					case string:
 						v = r.(string)
 					}
-					log.Error("error", v)
+					log.Error(v)
 				}
 			}
 		}()

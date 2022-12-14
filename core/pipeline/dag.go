@@ -59,7 +59,7 @@ func (dag *Dag) RunAsync(ctx *Context,onComplete func()) {
 					case string:
 						v = r.(string)
 					}
-					log.Error("error", v)
+					log.Error(v)
 				}
 			}
 		}()
