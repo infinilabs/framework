@@ -204,7 +204,7 @@ func StartUI(cfg *UIConfig) {
 						case string:
 							v = r.(string)
 						}
-						log.Error("error", v)
+						log.Error(v)
 					}
 				}
 			}()
@@ -231,7 +231,7 @@ func StartUI(cfg *UIConfig) {
 						case string:
 							v = r.(string)
 						}
-						log.Error("error", v)
+						log.Error(v)
 					}
 				}
 			}()
