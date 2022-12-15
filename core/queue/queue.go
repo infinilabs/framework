@@ -252,16 +252,13 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 		if err != nil {
 			panic(err)
 		}
-
-		cfgs[consumer.Key()] = consumer
-		kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
-
-		TriggerChangeEvent(queueID,cfgs,false)
-
-		return true, nil
 	}
+	cfgs[consumer.Key()] = consumer
+	kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 
-	return false, errors.New("queue not found")
+	TriggerChangeEvent(queueID,cfgs,false)
+
+	return true, nil
 }
 
 func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig,async bool) {
@@ -363,7 +360,7 @@ func NewConsumerConfig(group, name string) *ConsumerConfig {
 
 func GetOrInitConsumerConfig(queueID, group, name string) *ConsumerConfig {
 	cfg, exists := GetConsumerConfig(queueID, group, name)
-	if !exists {
+	if !exists || cfg == nil {
 		cfg = &ConsumerConfig{
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
