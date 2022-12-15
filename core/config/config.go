@@ -451,20 +451,6 @@ func (ns *Namespace) IsSet() bool {
 	return len(ns.C) != 0
 }
 
-
-
-
-var flagStrictPerms = flag.Bool("strict.perms", true, "strict permission checking on config files")
-
-// IsStrictPerms returns true if strict permission checking on config files is
-// enabled.
-func IsStrictPerms() bool {
-	if !*flagStrictPerms || os.Getenv("STRICT_PERMS") == "false" {
-		return false
-	}
-	return true
-}
-
 // OwnerHasExclusiveWritePerms asserts that the current user or root is the
 // owner of the config file and that the config file is (at most) writable by
 // the owner or root (e.g. group and other cannot have write access).
