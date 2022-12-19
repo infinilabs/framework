@@ -79,6 +79,9 @@ func SetLogging(env *env.Env, logLevel string) {
 	consoleWriter, _ := NewConsoleWriter()
 
 	format := "[%Date(01-02) %Time] [%LEV] [%File:%Line] %Msg%n"
+	if loggingConfig.LogFormat!=""{
+		format=loggingConfig.LogFormat
+	}
 	formatter, err := log.NewFormatter(format)
 	if err != nil {
 		fmt.Println(err)
