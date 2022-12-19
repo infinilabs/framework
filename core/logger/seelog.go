@@ -34,6 +34,24 @@ var loggingConfig *config.LoggingConfig
 var l sync.Mutex
 var e *env.Env
 
+var oldQuoteStr =[]byte("\"")
+var newQuoteStr =[]byte("”")
+func createMyLevelFormatter(params string) log.FormatterFunc {
+	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+		if util.ContainStr(message,"\""){
+			return util.UnsafeBytesToString(util.ReplaceByte(util.UnsafeStringToBytes(message),oldQuoteStr,newQuoteStr))
+		}
+		return message
+	}
+}
+
+func init() {
+	err := log.RegisterCustomFormatter("EscapedMsg", createMyLevelFormatter)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // SetLogging init set logging
 func SetLogging(env *env.Env, logLevel string) {
 
