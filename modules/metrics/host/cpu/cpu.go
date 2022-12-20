@@ -113,12 +113,12 @@ func (m *Metric) Collect() error {
 		err = event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
-				Name:     "cpu_usage",
+				Name:     "cpu",
 				Datatype: "gauge",
 			},
 			Fields: util.MapStr{
 				"host": util.MapStr{
-					"cpu_usage": mapStr,
+					"cpu": mapStr,
 				},
 			},
 		})
