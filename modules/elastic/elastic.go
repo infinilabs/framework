@@ -49,7 +49,7 @@ var (
 			Interval: "10s",
 		},
 		NodeAvailabilityCheckConfig: CheckConfig{
-			Enabled:  false,
+			Enabled:  true,
 			Interval: "10s",
 		},
 		MetadataRefresh: CheckConfig{

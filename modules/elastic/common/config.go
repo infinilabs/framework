@@ -120,6 +120,7 @@ func GetElasticClient(clusterID string)(elastic.API, error) {
 		return client, nil
 	}
 	conf := &elastic.ElasticsearchConfig{}
+	conf.ID = clusterID
 	exists, err := orm.Get(conf)
 	if err != nil {
 		return nil, err
