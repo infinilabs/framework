@@ -90,17 +90,17 @@ func (m *Metric) collectUsage() error {
 		event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
-				Name:     "disk_partition_usage",
+				Name:     "filesystem",
 				Datatype: "gauge",
 			},
 			Fields: util.MapStr{
 				"host": util.MapStr{
-					"disk_partition_usage": util.MapStr{
-						"partition":      disk.Mountpoint,
-						"total_in_bytes": stat.Total,
-						"free_in_bytes":  stat.Free,
-						"used_in_bytes":  stat.Used,
-						"used_percent":   stat.UsedPercent,
+					"filesystem": util.MapStr{
+						"mount_point":      disk.Mountpoint,
+						"total.bytes": stat.Total,
+						"free.bytes":  stat.Free,
+						"used.bytes":  stat.Used,
+						"used.percent":   stat.UsedPercent,
 					},
 				},
 			},
@@ -118,42 +118,43 @@ func (m *Metric) collectUsage() error {
 		event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
-				Name:     "disk_usage_summary",
+				Name:     "filesystem_summary",
 				Datatype: "accumulate",
 			},
 			Fields: util.MapStr{
 				"host": util.MapStr{
-					"disk_usage_summary": util.MapStr{
-						"partition":      "all",
-						"total_in_bytes": statMac.Total,
-						"free_in_bytes":  statMac.Free,
-						"used_in_bytes":  statMac.Total - statMac.Free,
-						"used_percent":  float64(statMac.Total - statMac.Free) / float64(statMac.Total) * 100.00,
+					"filesystem_summary": util.MapStr{
+						"mount_point":      "/",
+						"total.bytes": statMac.Total,
+						"free.bytes":  statMac.Free,
+						"used.bytes":  statMac.Total - statMac.Free,
+						"used.percent":  float64(statMac.Total - statMac.Free) / float64(statMac.Total) * 100.00,
 					},
 				},
 			},
 		})
 		return nil
-	}
-
-	event.Save(event.Event{
-		Metadata: event.EventMetadata{
-			Category: "host",
-			Name:     "disk_usage_summary",
-			Datatype: "accumulate",
-		},
-		Fields: util.MapStr{
-			"host": util.MapStr{
-				"disk_usage_summary": util.MapStr{
-					"partition":      "all",
-					"total_in_bytes": total,
-					"free_in_bytes":  free,
-					"used_in_bytes":  used,
-					"used_percent":   float64(used) / float64(total) * 100.00,
+	}else{
+		event.Save(event.Event{
+			Metadata: event.EventMetadata{
+				Category: "host",
+				Name:     "filesystem_summary",
+				Datatype: "accumulate",
+			},
+			Fields: util.MapStr{
+				"host": util.MapStr{
+					"filesystem_summary": util.MapStr{
+						"mount_point":      "/",
+						"total.bytes": total,
+						"free.bytes":  free,
+						"used.bytes":  used,
+						"used.percent":   float64(used) / float64(total) * 100.00,
+					},
 				},
 			},
-		},
-	})
+		})
+	}
+
 	return nil
 }
 
@@ -198,16 +199,16 @@ func (m *Metric) collectIO() error {
 	event.Save(event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
-			Name:     "disk_io_summary",
+			Name:     "diskio_summary",
 			Datatype: "accumulate",
 		},
 		Fields: util.MapStr{
 			"host": util.MapStr{
-				"disk_io_summary": util.MapStr{
-					"read_in_bytes":    readBytes,
-					"read_time_in_ms":  readTimeCost,
-					"write_in_bytes":   writeBytes,
-					"write_time_in_ms": writeTimeCost,
+				"diskio_summary": util.MapStr{
+					"read.bytes":    readBytes,
+					"read.time_in_ms":  readTimeCost,
+					"write.bytes":   writeBytes,
+					"write.time_in_ms": writeTimeCost,
 				},
 			},
 		},
@@ -217,7 +218,7 @@ func (m *Metric) collectIO() error {
 		event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
-				Name:     "disk_iops",
+				Name:     "diskio",
 				Datatype: "gauge",
 				Labels: util.MapStr{
 					"ip": util.GetLocalIPs(),
@@ -225,11 +226,11 @@ func (m *Metric) collectIO() error {
 			},
 			Fields: util.MapStr{
 				"host": util.MapStr{
-					"disk_iops": util.MapStr{
-						"read_in_bytes":    readBytes - m.prevCounter.prevReadBytes,
-						"read_time_in_ms":  readTimeCost - m.prevCounter.prevReadTimeCost,
-						"write_in_bytes":   writeBytes - m.prevCounter.prevWriteBytes,
-						"write_time_in_ms": writeTimeCost - m.prevCounter.prevWriteTimeCost,
+					"diskio": util.MapStr{
+						"read.bytes":    readBytes - m.prevCounter.prevReadBytes,
+						"read.time_in_ms":  readTimeCost - m.prevCounter.prevReadTimeCost,
+						"write.bytes":   writeBytes - m.prevCounter.prevWriteBytes,
+						"write.time_in_ms": writeTimeCost - m.prevCounter.prevWriteTimeCost,
 					},
 				},
 			},

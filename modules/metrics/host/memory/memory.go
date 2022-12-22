@@ -71,16 +71,27 @@ func (m *Metric) collectSwap() error {
 	return event.Save(event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
-			Name:     "memory_swap",
+			Name:     "swap",
 			Datatype: "accumulate",
 		},
+		//page-out: The system's free memory is less than a threshold "lotsfree" and unnused / least used pages are moved to the swap area.
+		//page-in: One process which is running requested for a page that is not in the current memory (page-fault), it's pages are being brought back to memory.
+		//swap-out: System is thrashing and has deactivated a process and it's memory pages are moved into the swap area.
+		//swap-in: A deactivated process is back to work and it's pages are being brought into the memory.
 		Fields: util.MapStr{
 			"host": util.MapStr{
-				"memory_swap": util.MapStr{
-					"total_in_bytes": v.Total,
-					"free_in_bytes":  v.Free,
-					"used_in_bytes":  v.Used,
-					"used_percent":   v.UsedPercent,
+				"swap": util.MapStr{
+					"total.bytes": v.Total,
+					"free.bytes":  v.Free,
+					"used.bytes":  v.Used,
+					"used.percent":   v.UsedPercent,
+
+					"page_in":  v.PgIn,
+					"page_out":  v.PgOut,
+					"swap_in":  v.Sin,
+					"swap_out":  v.Sout,
+					"page_fault":  v.PgFault,
+					"major_page_fault":  v.PgMajFault,
 				},
 			},
 		},
@@ -117,10 +128,12 @@ func (m *Metric) collectMemory() error {
 		Fields: util.MapStr{
 			"host": util.MapStr{
 				"memory": util.MapStr{
-					"total_in_bytes":     total,
-					"available_in_bytes": v.Available,
-					"used_in_bytes":      v.Used,
-					"used_percent":       v.UsedPercent,
+					"total.bytes":     total,
+					"free.bytes": 	  v.Free,
+					"cached.bytes": 	  v.Cached,
+					"available.bytes": v.Available,
+					"used.bytes":      v.Used,
+					"used.percent":       v.UsedPercent,
 				},
 			},
 		},

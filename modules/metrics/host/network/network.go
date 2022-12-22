@@ -19,6 +19,7 @@ type Metric struct {
 
 	Enabled    bool     `config:"enabled"`
 	Summary    bool     `config:"summary"`
+	Throughput bool     `config:"throughput"`
 	Detail     bool     `config:"details"`
 	Interfaces []string `config:"interfaces"`
 }
@@ -64,8 +65,7 @@ func (m *Metric) Collect() error {
 		return errors.Wrap(err, "network io counters")
 	}
 
-	var networkInBytes, networkOutBytes, networkInPackets, networkOutPackets uint64
-
+	var networkInBytes, networkOutBytes, networkInPackets, networkOutPackets,Errin,Errout,Dropin,Dropout uint64
 	for _, counters := range stats {
 		if m.interfaces != nil &&len(m.interfaces)>0{
 			name := strings.ToLower(counters.Name)
@@ -78,7 +78,7 @@ func (m *Metric) Collect() error {
 			event.Save(event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
-					Name: "network_interface",
+					Name: "network",
 					Datatype: "accumulate",
 					Labels: util.MapStr{
 						"ip": util.GetLocalIPs(),
@@ -93,6 +93,10 @@ func (m *Metric) Collect() error {
 		networkOutBytes += counters.BytesSent
 		networkInPackets += counters.PacketsRecv
 		networkOutPackets += counters.PacketsSent
+		Errin += counters.Errin
+		Errout += counters.Errout
+		Dropin += counters.Dropin
+		Dropout += counters.Dropout
 	}
 
 	if m.Summary {
@@ -110,22 +114,28 @@ func (m *Metric) Collect() error {
 				Fields: util.MapStr{
 					"host": util.MapStr{
 						"network_summary": util.MapStr{
-							"input_total_in_bytes":  networkInBytes,
-							"input_total_packets":   networkInPackets,
-							"output_total_in_bytes": networkOutBytes,
-							"output_total_packets":  networkOutPackets,
+							"in.bytes":  	networkInBytes,
+							"in.packets":   networkInPackets,
+							"in.errors":    Errin,
+							"in.dropped":   Dropin,
+							"out.bytes": 	networkOutBytes,
+							"out.packets":  networkOutPackets,
+							"out.errors":    Errout,
+							"out.dropped":   Dropout,
 						},
 					},
 				},
 			})
 		}
+	}
 
+	if m.Throughput {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
 			event.Save(event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
-					Name:     "network_iops",
+					Name:     "network_throughput",
 					Datatype: "gauge",
 					Labels: util.MapStr{
 						"ip": util.GetLocalIPs(),
@@ -133,41 +143,43 @@ func (m *Metric) Collect() error {
 				},
 				Fields: util.MapStr{
 					"host": util.MapStr{
-						"network_iops": util.MapStr{
-							"input_total_in_bytes":  networkInBytes - m.prevCounters.prevNetworkInBytes,
-							"input_total_packets":   networkInPackets - m.prevCounters.prevNetworkInPackets,
-							"output_total_in_bytes": networkOutBytes - m.prevCounters.prevNetworkOutBytes,
-							"output_total_packets":  networkOutPackets - m.prevCounters.prevNetworkOutPackets,
+						"network_throughput": util.MapStr{
+							"in.bytes":  	networkInBytes - m.prevCounters.prevNetworkInBytes,
+							"in.packets":   networkInPackets - m.prevCounters.prevNetworkInPackets,
+							"out.bytes": 	networkOutBytes - m.prevCounters.prevNetworkOutBytes,
+							"out.packets":  networkOutPackets - m.prevCounters.prevNetworkOutPackets,
 						},
 					},
 				},
 			})
 		}
-
-		//total traffics of all interfaces on host
-		// update prevCounters
-		//m.prevCounters =
-		m.prevCounters.prevNetworkInBytes = networkInBytes
-		m.prevCounters.prevNetworkInPackets = networkInPackets
-		m.prevCounters.prevNetworkOutBytes = networkOutBytes
-		m.prevCounters.prevNetworkOutPackets = networkOutPackets
 	}
+
+	//total traffics of all interfaces on host
+	// update prevCounters
+	//m.prevCounters =
+	m.prevCounters.prevNetworkInBytes = networkInBytes
+	m.prevCounters.prevNetworkInPackets = networkInPackets
+	m.prevCounters.prevNetworkOutBytes = networkOutBytes
+	m.prevCounters.prevNetworkOutPackets = networkOutPackets
+
 	return nil
 }
 
 func ioCountersToMapStr(counters net.IOCountersStat) util.MapStr {
 	return util.MapStr{
 		"host": util.MapStr{
-			"network_interface": util.MapStr{
+			"network": util.MapStr{
 				"name":            counters.Name,
-				"input_errors":    counters.Errin,
-				"input_dropped":   counters.Dropin,
-				"input_in_bytes":  counters.BytesRecv,
-				"input_packets":   counters.PacketsRecv,
-				"output_errors":   counters.Errout,
-				"output_dropped":  counters.Dropout,
-				"output_packets":  counters.PacketsSent,
-				"output_in_bytes": counters.BytesSent,
+				"in.errors":    counters.Errin,
+				"in.dropped":   counters.Dropin,
+				"in.bytes":  counters.BytesRecv,
+				"in.packets":   counters.PacketsRecv,
+
+				"out.errors":   counters.Errout,
+				"out.dropped":  counters.Dropout,
+				"out.packets":  counters.PacketsSent,
+				"out.bytes": counters.BytesSent,
 			},
 		}}
 }

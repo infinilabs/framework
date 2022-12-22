@@ -17,6 +17,8 @@ limitations under the License.
 package stats
 
 import (
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 	"strings"
 )
 
@@ -126,6 +128,20 @@ func StatsAll() string{
 		}
 	}
 	return ""
+}
+
+func StatsMap() (util.MapStr,error) {
+	var err error
+	metricsJSON := StatsAll()
+	if metricsJSON==""{
+		return nil,errors.New("invalid stats")
+	}
+	metrics:=util.MapStr{}
+	err=util.FromJSONBytes([]byte(metricsJSON),&metrics)
+	if err!=nil{
+		return nil,err
+	}
+	return metrics,nil
 }
 
 func Register(h StatsInterface) {

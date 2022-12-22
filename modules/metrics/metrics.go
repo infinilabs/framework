@@ -10,7 +10,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
-	agent2 "infini.sh/framework/modules/metrics/agent"
+	agent2 "infini.sh/framework/modules/metrics/instance"
 	"infini.sh/framework/modules/metrics/elastic"
 	"infini.sh/framework/modules/metrics/host/cpu"
 	"infini.sh/framework/modules/metrics/host/disk"
@@ -24,11 +24,12 @@ type MetricConfig struct {
 	MajorIPPattern string `config:"major_ip_pattern"`
 	Queue          string `config:"queue"`
 
+	InstanceConfig *Config `config:"instance"`
+
 	NetworkConfig        *Config `config:"network"`
 	DiskConfig           *Config `config:"disk"`
 	CPUConfig            *Config `config:"cpu"`
 	MemoryConfig         *Config `config:"memory"`
-	AgentConfig          *Config `config:"agent"`
 	ElasticsearchConfig  *Config `config:"elasticsearch"`
 
 	Tags   []string          `config:"tags"`
@@ -119,8 +120,8 @@ func (module *MetricsModule) CollectESMetric(){
 }
 
 func (module *MetricsModule) CollectAgentMetric() {
-	if module.config.AgentConfig != nil{
-		agentM, err := agent2.New(module.config.AgentConfig)
+	if module.config.InstanceConfig != nil{
+		agentM, err := agent2.New(module.config.InstanceConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -129,11 +130,11 @@ func (module *MetricsModule) CollectAgentMetric() {
 			module.taskIDs = append(module.taskIDs, taskId)
 			var task1 = task.ScheduleTask{
 				ID: taskId,
-				Description: "fetch agent metrics",
+				Description: "fetch instance metrics",
 				Type:        "interval",
 				Interval:    "10s",
 				Task: func(ctx context.Context) {
-					log.Debug("collecting agent metrics")
+					log.Debug("collecting instance metrics")
 					agentM.Collect()
 				},
 			}
