@@ -150,8 +150,9 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 		return true,nil
 	}
 
-	tempPath:=filePath+".tmp"
+	tempPath:=filePath+".s3_tmp"
 	if util.FileExists(tempPath){
+		log.Warnf("s3 temp file exists, delete: ",tempPath)
 		util.FileDelete(tempPath)
 	}
 

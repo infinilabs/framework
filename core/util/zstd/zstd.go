@@ -98,9 +98,10 @@ func DecompressFile(locker sync.RWMutex,file,to string) error {
 		return nil
 	}
 
-	tmp:=to+".tmp"
+	tmp:=to+".std_tmp"
 	if util.FileExists(tmp){
-		return errors.New("temp file for target file was exits, skip: "+tmp)
+		os.Remove(tmp)
+		log.Warn("temp file for decompress zstd file was exits, delete: ",tmp)
 	}
 
 	writer, err := os.Create(tmp)
