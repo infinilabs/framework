@@ -89,7 +89,7 @@ func ZSTDReusedCompress(compressedDataWriter io.Writer, uncompressedDataReader i
 }
 
 
-func DecompressFile(locker sync.RWMutex,file,to string) error {
+func DecompressFile(locker *sync.RWMutex,file,to string) error {
 	locker.Lock()
 	defer locker.Unlock()
 	abs,err:=filepath.Abs(file)
@@ -101,7 +101,7 @@ func DecompressFile(locker sync.RWMutex,file,to string) error {
 	tmp:=to+".std_tmp"
 	if util.FileExists(tmp){
 		os.Remove(tmp)
-		log.Warn("temp file for decompress zstd file was exits, delete: ",tmp)
+		log.Warn("temp file for decompress zstd file was exists, delete: ",tmp)
 	}
 
 	writer, err := os.Create(tmp)

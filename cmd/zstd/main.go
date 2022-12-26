@@ -38,7 +38,7 @@ func main() {
 	}else{
 		for _, file := range files {
 			if util.SuffixStr(file,suffix){
-				err:=zstd.DecompressFile(locker,file,util.TrimRightStr(file,suffix))
+				err:=zstd.DecompressFile(&locker,file,util.TrimRightStr(file,suffix))
 				log.Error(err)
 			}
 		}

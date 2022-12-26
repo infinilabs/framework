@@ -28,7 +28,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 			//check local compressed file
 			compressedFile:=filePath+compressFileSuffix
 			if util.FileExists(compressedFile){
-				err:=zstd.DecompressFile(compressLocker,compressedFile,filePath)
+				err:=zstd.DecompressFile(&compressLocker,compressedFile,filePath)
 				if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
 					panic(err)
 				}
@@ -58,7 +58,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 
 				//uncompress after download
 				if cfg.Compress.Segment.Enabled&&fileToDownload!=filePath{
-					err:=zstd.DecompressFile(compressLocker,fileToDownload,filePath)
+					err:=zstd.DecompressFile(&compressLocker,fileToDownload,filePath)
 					if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
 						panic(err)
 					}
