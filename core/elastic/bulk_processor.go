@@ -142,8 +142,12 @@ type BulkProcessorConfig struct {
 	RequestTimeoutInSecond  int    `config:"request_timeout_in_second"`
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
-	IncludeBusyRequestsToFailureQueue bool `config:"include_busy_requests_to_failure_queue"`
-	DocBufferSize           int    `config:"doc_buffer_size"`
+
+	ErrorMessageQueue    string `config:"error_message_queue"`
+	ErrorMessageMaxRequestBodyLength    int `config:"max_request_body_size"`
+	ErrorMessageMaxResponseBodyLength    int `config:"max_response_body_size"`
+
+	Retry429      bool `config:"retry_429"`
 }
 
 func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
@@ -166,11 +170,15 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	RejectDelayInSeconds:    1,
 	MaxRejectRetryTimes:     60,
 	MaxRetryTimes:           10,
-	DeadletterRequestsQueue: "dead_letter_queue",
 
-	IncludeBusyRequestsToFailureQueue:         true,
+	ErrorMessageMaxRequestBodyLength:            10*1024,
+	ErrorMessageMaxResponseBodyLength:           10*1024,
 
-	DocBufferSize:           256 * 1024,
+	ErrorMessageQueue: 	     "bulk_error_messages",
+	DeadletterRequestsQueue: "bulk_dead_requests",
+
+	Retry429: true,
+
 	RequestTimeoutInSecond:  60,
 }
 
@@ -325,7 +333,7 @@ DO:
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats := HandleBulkResponse(tag, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.IncludeBusyRequestsToFailureQueue)
+			containError, statsCodeStats := HandleBulkResponse(tag, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.Retry429)
 
 			for k,v:=range statsCodeStats{
 				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
@@ -337,6 +345,24 @@ DO:
 			}
 
 			if containError {
+
+				if joint.Config.ErrorMessageQueue!=""{
+						//save message bytes, with metadata, set codec to wrapped bulk messages
+						queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+							"cluster_id": metadata.Config.ID,
+							"queue":      buffer.Queue,
+							//"messages":   buffer.MessageIDs, #可能有重复的 offset，一个消息可能包含多个 bulk 请求文档
+							"request": util.MapStr{
+								"uri":  req.URI().String(),
+								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
+							},
+							"response": util.MapStr{
+								"status": statsCodeStats,
+								"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
+							},
+						}))
+				}
+
 				count:=retryableItems.GetMessageCount()
 				if count > 0 {
 					log.Debugf("%v, retry item: %v",tag,count)
@@ -378,26 +404,6 @@ DO:
 					goto DO
 				}
 
-				//TODO, save message offset and failure message
-				//if len(failureStatus) > 0 {
-				//	failureStatusStr := util.JoinMapInt(failureStatus, ":")
-				//	log.Debugf("documents in failure: %v", failureStatusStr)
-				//	//save message bytes, with metadata, set codec to wrapped bulk messages
-				//	queue.Push(queue.GetOrInitConfig("failure_messages"), util.MustToJSONBytes(util.MapStr{
-				//		"cluster_id": metadata.Config.ID,
-				//		"queue":      buffer.Queue,
-				//		"request": util.MapStr{
-				//			"uri":  req.URI().String(),
-				//			"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, 1024*4),
-				//		},
-				//		"response": util.MapStr{
-				//			"status": failureStatusStr,
-				//			"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, 1024*4),
-				//		},
-				//	}))
-				//	//log.Errorf("bulk requests failure,host:%v,status:%v,invalid:%v,failure:%v,res:%v", host, statsCodeStats, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount(), util.SubString(util.UnsafeBytesToString(resbody), 0, 1024))
-				//}
-				
 				//skip all failure messages
 				if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
 					////handle 400 error
@@ -412,7 +418,24 @@ DO:
 		return true,statsRet, nil
 	}else{
 
-		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageSize()
+		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageCount()
+
+		if joint.Config.ErrorMessageQueue!=""{
+			//save message bytes, with metadata, set codec to wrapped bulk messages
+			queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+				"cluster_id": metadata.Config.ID,
+				"queue":      buffer.Queue,
+				//"messages":   buffer.MessageIDs,
+				"request": util.MapStr{
+					"uri":  req.URI().String(),
+					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
+				},
+				"response": util.MapStr{
+					"status": statsRet,
+					"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
+				},
+			}))
+		}
 
 		if resp.StatusCode() == 429 {
 			//TODO, save message offset and failure message
@@ -426,9 +449,6 @@ DO:
 			return true,statsRet, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 		} else {
 			//TODO, save message offset and failure message
-			//if joint.QueueConfig.SaveFailure {
-			//	queue.Push(queue.GetOrInitConfig(joint.QueueConfig.FailureRequestsQueue), data)
-			//}
 			if global.Env().IsDebug {
 				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))
 			}
