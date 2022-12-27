@@ -35,9 +35,6 @@ type MetricConfig struct {
 	Tags   []string          `config:"tags"`
 	Labels map[string]string `config:"labels"`
 
-	agentId       string
-	hostId        string
-	hostMetricMux sync.Mutex
 }
 
 type MetricsModule struct {
