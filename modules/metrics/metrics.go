@@ -10,13 +10,12 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
-	agent2 "infini.sh/framework/modules/metrics/instance"
 	"infini.sh/framework/modules/metrics/elastic"
 	"infini.sh/framework/modules/metrics/host/cpu"
 	"infini.sh/framework/modules/metrics/host/disk"
 	"infini.sh/framework/modules/metrics/host/memory"
 	"infini.sh/framework/modules/metrics/host/network"
-	"sync"
+	agent2 "infini.sh/framework/modules/metrics/instance"
 )
 
 type MetricConfig struct {
