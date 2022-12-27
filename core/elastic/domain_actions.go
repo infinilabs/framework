@@ -720,12 +720,16 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 		}
 	}
 
-	log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
-	v,err:= GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
-	if err==nil&&v!=nil{
-		metadata.cache.SetWithTTL(index,v,100,10*time.Second)
+	if rate.GetRateLimiter("cluster_state_fetch",metadata.Config.ID,1,1,10*time.Second).Allow(){
+		log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
+		v,err:= GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
+		if err==nil&&v!=nil{
+			metadata.cache.SetWithTTL(index,v,100,10*time.Second)
+		}
+		return v,err
 	}
-	return v,err
+
+	return nil,errors.Errorf("index [%v] routing_table not found", index)
 
 }
 
