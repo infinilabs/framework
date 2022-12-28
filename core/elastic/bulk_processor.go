@@ -351,7 +351,6 @@ DO:
 						queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
 							"cluster_id": metadata.Config.ID,
 							"queue":      buffer.Queue,
-							//"messages":   buffer.MessageIDs, #可能有重复的 offset，一个消息可能包含多个 bulk 请求文档
 							"request": util.MapStr{
 								"uri":  req.URI().String(),
 								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
@@ -425,7 +424,6 @@ DO:
 			queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
 				"cluster_id": metadata.Config.ID,
 				"queue":      buffer.Queue,
-				//"messages":   buffer.MessageIDs,
 				"request": util.MapStr{
 					"uri":  req.URI().String(),
 					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
