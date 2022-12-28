@@ -661,8 +661,10 @@ READ_DOCS:
 					mainBuf.Reset()
 					if !continueRequest {
 						//TODO handle 429 gracefully
-						if errorOn409||!util.ContainStr(err.Error(),"code 429"){
-							panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
+						if !util.ContainStr(err.Error(),"code 429"){
+							skipFinalDocsProcess=true
+							return
+							//panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
 						}
 					} else {
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
@@ -708,8 +710,10 @@ CLEAN_BUFFER:
 	} else {
 		//logging failure offset boundry
 		//TODO handle 429 gracefully
-		if errorOn409||!util.ContainStr(err.Error(),"429") {
-			panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
+		if !util.ContainStr(err.Error(),"429") {
+			skipFinalDocsProcess=true
+			return
+			//panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
 		}
 	}
 
@@ -751,5 +755,3 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 
 	return true, nil
 }
-
-var errorOn409=true
