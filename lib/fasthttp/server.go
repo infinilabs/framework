@@ -2423,6 +2423,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		} else {
 			// If this is a keep-alive connection acquireByteReader will try to peek
 			// a couple of bytes already so the idle timeout will already be used.
+			if ctx.c==nil{
+				if c!=nil{
+					ctx.c=c
+				}
+			}
 			br, err = acquireByteReader(&ctx)
 		}
 
