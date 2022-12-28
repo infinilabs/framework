@@ -198,10 +198,26 @@ func (module *PipeModule) Start() error {
 			log.Error(err)
 			return
 		}
-		newCfg, err = newCfg.Child("pipeline", -1)
-		if err != nil {
-			log.Error(err)
-			return
+
+		newConfig := []pipeline.PipelineConfigV2{}
+
+		if ok,err:=newCfg.Has("pipeline",-1);ok{
+			newCfg, err = newCfg.Child("pipeline", -1)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			err := cCfg.Unpack(&newConfig)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+		}else{
+			err := cCfg.Unpack(&newConfig)
+			if err != nil {
+				log.Error(err)
+				return
+			}
 		}
 
 		defer func() {
@@ -221,64 +237,55 @@ func (module *PipeModule) Start() error {
 			}
 		}()
 
-		if newCfg != nil {
-			newConfig := []pipeline.PipelineConfigV2{}
-			err := newCfg.Unpack(&newConfig)
-			if err != nil {
-				log.Error(err)
-				return
-			}
+		//each entry should reuse port
+		//collect old entry with same id and same port
+		old := module.configs
+		existKeys := map[string]string{}
+		skipKeys := map[string]string{}
+		newPipeline := map[string]pipeline.PipelineConfigV2{}
 
-			//each entry should reuse port
-			//collect old entry with same id and same port
-			old := module.configs
-			existKeys := map[string]string{}
-			skipKeys := map[string]string{}
-			newPipeline := map[string]pipeline.PipelineConfigV2{}
-
-			for _, v := range newConfig {
-				oldC, ok := old[v.Name]
-				if ok {
-					existKeys[v.Name] = v.Name
-					if v.Equals(oldC) {
-						skipKeys[v.Name] = v.Name
-						continue
-					}
-				}
-				newPipeline[v.Name] = v
-			}
-
-			if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
-				return
-			}
-
-
-			log.Debug("stopping old entry points")
-			for _,v:=range old{
-				_,ok:=skipKeys[v.Name]
-				if ok{
-					newPipeline[v.Name]=v
+		for _, v := range newConfig {
+			oldC, ok := old[v.Name]
+			if ok {
+				existKeys[v.Name] = v.Name
+				if v.Equals(oldC) {
+					skipKeys[v.Name] = v.Name
 					continue
 				}
-
-				module.stopTask(v.Name)
-				log.Infof("remove pipeline [%s]", v.Name)
-
-				module.runningPipelines.Delete(v.Name)
-				module.contexts.Delete(v.Name)
 			}
-
-			module.configs=newPipeline
-
-			log.Debug("starting new pipeline")
-			for _,v:=range newPipeline{
-				err:=module.startPipeline(v)
-				if err!=nil{
-					log.Error(err)
-				}
-			}
-
+			newPipeline[v.Name] = v
 		}
+
+		if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
+			return
+		}
+
+
+		log.Debug("stopping old entry points")
+		for _,v:=range old{
+			_,ok:=skipKeys[v.Name]
+			if ok{
+				newPipeline[v.Name]=v
+				continue
+			}
+
+			module.stopTask(v.Name)
+			log.Infof("remove pipeline [%s]", v.Name)
+
+			module.runningPipelines.Delete(v.Name)
+			module.contexts.Delete(v.Name)
+		}
+
+		module.configs=newPipeline
+
+		log.Debug("starting new pipeline")
+		for _,v:=range newPipeline{
+			err:=module.startPipeline(v)
+			if err!=nil{
+				log.Error(err)
+			}
+		}
+
 	})
 
 

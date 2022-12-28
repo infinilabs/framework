@@ -491,8 +491,8 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 }
 
 var (
-	responseBodyPool bytebufferpool.Pool
-	requestBodyPool  bytebufferpool.Pool
+	responseBodyPool =bytebufferpool.NewTaggedPool("response_body",0,1024*1024*100,1000000)
+	requestBodyPool =bytebufferpool.NewTaggedPool("request_body",0,1024*1024*100,1000000)
 )
 
 // BodyGunzip returns un-gzipped body data.

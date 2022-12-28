@@ -43,7 +43,6 @@ type Pool struct {
 
 	pool         sync.Pool
 	sequenceID   uint32
-	inUseBuffer  sync.Map //map[int64]*ByteBuffer
 	throttleTime *time.Time
 }
 
@@ -57,7 +56,6 @@ func NewTaggedPool(tag string, defaultSize, maxSize uint32, maxItems uint32) *Po
 
 func NewPool(defaultSize, maxSize uint32) *Pool {
 	p := Pool{defaultSize: defaultSize, maxItemCount: 0, maxDataByteSize: maxSize}
-	p.inUseBuffer = sync.Map{}
 	return &p
 }
 
@@ -126,7 +124,6 @@ func (p *Pool) Get() *ByteBuffer {
 	if v != nil {
 		x := v.(*ByteBuffer)
 		x.Reset()
-		p.inUseBuffer.Store(x.ID, x)
 		return x
 	}
 
@@ -137,8 +134,6 @@ func (p *Pool) Get() *ByteBuffer {
 	}
 
 	atomic.AddUint32(&p.allocate, 1)
-
-	p.inUseBuffer.Store(x.ID, x)
 	return x
 }
 
@@ -171,19 +166,6 @@ func BuffStats() map[string]interface{} {
 
 		item["pool_size"] = pool.poolByteSize
 
-		var inuse = 0
-		pool.inUseBuffer.Range(func(key, value any) bool {
-
-			x, ok := value.(*ByteBuffer)
-			if ok {
-				inuse += x.Cap()
-			}
-
-			return true
-		})
-
-		item["inuse_size"] = inuse
-
 		item["max_size"] = pool.maxDataByteSize
 		item["max_count"] = pool.maxItemCount
 
@@ -210,7 +192,6 @@ func Put(tag string, b *ByteBuffer) {
 func (p *Pool) Put(b *ByteBuffer) {
 
 	atomic.AddInt32(&p.inuse, -1)
-	p.inUseBuffer.Delete(b.ID)
 
 	idx := index(len(b.B))
 
