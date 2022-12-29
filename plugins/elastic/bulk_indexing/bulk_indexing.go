@@ -662,9 +662,9 @@ READ_DOCS:
 					if !continueRequest {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(),"code 429"){
-							skipFinalDocsProcess=true
-							return
-							//panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
+							//skipFinalDocsProcess=true
+							//return
+							panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host,err))
 						}
 					} else {
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
@@ -711,9 +711,9 @@ CLEAN_BUFFER:
 		//logging failure offset boundry
 		//TODO handle 429 gracefully
 		if !util.ContainStr(err.Error(),"429") {
-			skipFinalDocsProcess=true
-			return
-			//panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
+			//skipFinalDocsProcess=true
+			//return
+			panic(errors.Errorf("queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
 		}
 	}
 
