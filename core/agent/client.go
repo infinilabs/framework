@@ -22,3 +22,16 @@ type ClientAPI interface {
 	GetElasticLogFileContent(ctx context.Context, agentBaseURL string, agentID string, body interface{})(interface{}, error)
 	GetInstanceBasicInfo(ctx context.Context, agentBaseURL string) (map[string]interface{}, error)
 }
+
+var defaultClient ClientAPI
+
+func GetClient() ClientAPI {
+	if defaultClient == nil {
+		panic("agent client not init")
+	}
+	return defaultClient
+}
+
+func RegisterClient(client ClientAPI) {
+	defaultClient = client
+}

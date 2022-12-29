@@ -7,9 +7,11 @@ package agent
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/agent/api"
+	"infini.sh/framework/modules/agent/common"
 	"time"
 )
 
@@ -18,53 +20,70 @@ func (module *AgentModule) Name() string {
 }
 
 func (module *AgentModule) Setup() {
-	api.Init()
+	exists, err := env.ParseConfig("agent", &module.AgentConfig)
+	if exists && err != nil {
+		panic(err)
+	}
+	if module.AgentConfig.Enabled {
+		api.Init()
+	}
 }
 func (module *AgentModule) Start() error {
+	if !module.AgentConfig.Enabled {
+		return nil
+	}
 	orm.RegisterSchemaWithIndexName(agent.Instance{}, "agent")
 	orm.RegisterSchemaWithIndexName(host.HostInfo{}, "host")
+	agent.RegisterClient(&Client{})
 
-	agents, err := loadAgentsFromES("")
-	if err != nil {
-		log.Error(err)
-	}
-	taskState := map[string]agent.ShortState{}
-	agentIds := map[string]struct{}{}
-	for _, ag := range agents {
-		if !ag.Enrolled {
-			continue
+	if module.AgentConfig.StateManager.Enabled {
+		onlineAgentIDs, err := getLatestOnlineAgentIDs(nil, 60)
+		if err != nil {
+			log.Error(err)
 		}
-		agentIds[ag.ID] = struct{}{}
-		for _, cluster := range ag.Clusters {
-			if cluster.Task.ClusterMetric.Owner {
-				taskState[cluster.ClusterID] = agent.ShortState{
-					ClusterMetricTask: agent.ClusterMetricTaskState{
-						AgentID:  ag.ID,
-						NodeUUID: cluster.Task.ClusterMetric.TaskNodeID,
-					},
+		agents, err := loadAgentsFromES("")
+		if err != nil {
+			log.Error(err)
+		}
+		taskState := map[string]agent.ShortState{}
+		agentIds := map[string]string{}
+		for _, ag := range agents {
+			if _, ok := onlineAgentIDs[ag.ID]; ok {
+				agentIds[ag.ID] = "online"
+			}
+			for _, cluster := range ag.Clusters {
+				if cluster.Task.ClusterMetric.Owner {
+					taskState[cluster.ClusterID] = agent.ShortState{
+						ClusterMetricTask: agent.ClusterMetricTaskState{
+							AgentID:  ag.ID,
+							NodeUUID: cluster.Task.ClusterMetric.TaskNodeID,
+						},
+					}
+				}
+				if cluster.Task.NodeMetric != nil && cluster.Task.NodeMetric.Owner {
+					state := taskState[cluster.ClusterID]
+					state.NodeMetricTask = agent.NodeMetricTaskState{
+						AgentID: ag.ID,
+						Nodes: cluster.Task.NodeMetric.ExtraNodes,
+					}
+					taskState[cluster.ClusterID] = state
 				}
 			}
-			if cluster.Task.NodeMetric != nil && cluster.Task.NodeMetric.Owner {
-				state := taskState[cluster.ClusterID]
-				state.NodeMetricTask = agent.NodeMetricTaskState{
-					AgentID: ag.ID,
-					Nodes: cluster.Task.NodeMetric.ExtraNodes,
-				}
-				taskState[cluster.ClusterID] = state
-			}
 		}
-	}
 
-	sm := NewStateManager(time.Second*30, "agent_state", taskState, agentIds)
-	agent.RegisterStateManager(sm)
-	go sm.LoopState()
-	//todo reassign tasks and refresh state automatically
+		sm := NewStateManager(time.Second*30, "agent_state", taskState, agentIds)
+		agent.RegisterStateManager(sm)
+		go sm.LoopState()
+	}
 	return nil
 }
 
 func (module *AgentModule) Stop() error {
+	if !module.AgentConfig.Enabled {
+		return nil
+	}
 	log.Info("start to stop agent module")
-	if agent.IsEnabled(){
+	if module.AgentConfig.StateManager.Enabled {
 		agent.GetStateManager().Stop()
 	}
 	log.Info("agent module was stopped")
@@ -72,4 +91,5 @@ func (module *AgentModule) Stop() error {
 }
 
 type AgentModule struct {
+	common.AgentConfig
 }
