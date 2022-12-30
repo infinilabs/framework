@@ -351,6 +351,7 @@ func (h *APIHandler) getInstanceStats(w http.ResponseWriter, req *http.Request, 
 					if ab, ok := util.GetMapValueByKeys([]string{"payload","instance", "system"}, itemV); ok{
 						if abV, ok := ab.(map[string]interface{}); ok {
 							result[v] = util.MapStr{
+								"timestamp": itemV["timestamp"],
 								"system": util.MapStr{
 									"cpu": abV["cpu"],
 									"mem": abV["mem"],
