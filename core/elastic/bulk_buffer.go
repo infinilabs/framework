@@ -37,6 +37,12 @@ func ReturnBulkBuffer(item *BulkBuffer) {
 	bulkBufferPool.Put(item)
 }
 
+func (receiver *BulkBuffer) SafetyEndWithNewline() {
+	if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
+		receiver.bytesBuffer.Write(NEWLINEBYTES)
+	}
+}
+
 func (receiver *BulkBuffer) Write(data []byte) {
 	if data != nil && len(data) > 0 {
 		receiver.bytesBuffer.Write(data)
@@ -45,46 +51,39 @@ func (receiver *BulkBuffer) Write(data []byte) {
 
 func (receiver *BulkBuffer) WriteByteBuffer(data []byte) {
 	if data != nil && len(data) > 0 {
-		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
-			if !util.BytesHasPrefix(data,NEWLINEBYTES){
-				receiver.bytesBuffer.Write(NEWLINEBYTES)
-			}
-		}
-		receiver.bytesBuffer.Write(data)
+		SafetyAddNewlineBetweenData(receiver.bytesBuffer, data)
 	}
 }
 
 func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string,data []byte) {
 	if data != nil && len(data) > 0 {
-		if receiver.bytesBuffer.Len()>0{
-			if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
-				if !util.BytesHasPrefix(data,NEWLINEBYTES) {
-					receiver.bytesBuffer.Write(NEWLINEBYTES)
-				}
-			}
-		}
-		receiver.bytesBuffer.Write(data)
+		SafetyAddNewlineBetweenData(receiver.bytesBuffer, data)
 	}
 }
 
 func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 	if data != "" && len(data) > 0 {
-		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
-			if !util.BytesHasPrefix(util.UnsafeStringToBytes(data),NEWLINEBYTES) {
-				receiver.bytesBuffer.Write(NEWLINEBYTES)
+		SafetyAddNewlineBetweenData(receiver.bytesBuffer,[]byte(data))
+	}
+}
+
+func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte)(int,error){
+	if buffer.Len()>0{
+		//previous data is not ending with \n
+		if !util.BytesHasSuffix(buffer.B,NEWLINEBYTES){
+			//new data is not start with \n
+			if !util.BytesHasPrefix(data,NEWLINEBYTES){
+				buffer.Write(NEWLINEBYTES)
 			}
 		}
-		receiver.bytesBuffer.WriteString(data)
 	}
+	return buffer.Write(data)
 }
 
 func (receiver *BulkBuffer) Add(id string, data []byte) {
 	if data != nil && len(data) > 0 && len(id) != 0 {
 		receiver.MessageIDs = append(receiver.MessageIDs, id)
-		if !util.BytesHasSuffix(data,NEWLINEBYTES){
-			receiver.bytesBuffer.Write(NEWLINEBYTES)
-		}
-		receiver.bytesBuffer.Write(data)
+		SafetyAddNewlineBetweenData(receiver.bytesBuffer, data)
 	}
 }
 

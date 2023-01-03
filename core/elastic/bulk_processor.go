@@ -230,13 +230,8 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 	//compressed := false
 
 	// handle last \n
+	buffer.SafetyEndWithNewline()
 	data := buffer.GetMessageBytes()
-	if !util.BytesHasSuffix(data,NEWLINEBYTES){
-		if !util.BytesHasPrefix(buffer.GetMessageBytes(),NEWLINEBYTES){
-			buffer.Write(NEWLINEBYTES)
-			data=buffer.GetMessageBytes()
-		}
-	}
 
 	if joint.Config.RemoveDuplicatedNewlines{
 		//handle double \n
@@ -372,14 +367,8 @@ DO:
 				count:=retryableItems.GetMessageCount()
 				if count > 0 {
 					log.Debugf("%v, retry item: %v",tag,count)
+					retryableItems.SafetyEndWithNewline()
 					bodyBytes:=retryableItems.GetMessageBytes()
-					if !util.BytesHasSuffix(bodyBytes,NEWLINEBYTES){
-						if !util.BytesHasPrefix(retryableItems.GetMessageBytes(),NEWLINEBYTES){
-							retryableItems.WriteByteBuffer(NEWLINEBYTES)
-							bodyBytes=retryableItems.GetMessageBytes()
-						}
-					}
-
 					req.SetRawBody(bodyBytes)
 					delayTime := joint.Config.RejectDelayInSeconds
 
