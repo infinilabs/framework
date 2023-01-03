@@ -133,7 +133,7 @@ type BulkProcessorConfig struct {
 	BulkSizeInMb     int `config:"batch_size_in_mb,omitempty"`
 	BulkMaxDocsCount int `config:"batch_size_in_docs,omitempty"`
 
-	Compress                bool   `config:"compress"`
+	Compress                 bool   `config:"compress"`
 	RetryDelayInSeconds     int    `config:"retry_delay_in_seconds"`
 	RejectDelayInSeconds    int    `config:"reject_retry_delay_in_seconds"`
 	MaxRejectRetryTimes     int    `config:"max_reject_retry_times"`
@@ -147,6 +147,7 @@ type BulkProcessorConfig struct {
 	ErrorMessageMaxResponseBodyLength    int `config:"max_response_body_size"`
 
 	Retry429      bool `config:"retry_429"`
+	RemoveDuplicatedNewlines bool   `config:"remove_duplicated_newlines"`
 }
 
 func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
@@ -235,6 +236,11 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 			buffer.Write(NEWLINEBYTES)
 			data=buffer.GetMessageBytes()
 		}
+	}
+
+	if joint.Config.RemoveDuplicatedNewlines{
+		//handle double \n
+		data=util.ReplaceByte(data,[]byte("\n\n"),[]byte("\n"))
 	}
 
 	if !req.IsGzipped() && joint.Config.Compress {

@@ -44,7 +44,7 @@ func TestGetCert(t *testing.T) {
 	}
 
 	// create a template for the server
-	servCertTmpl, err := GetCertTemplate()
+	servCertTmpl, err := GetCertTemplate(nil)
 	if err != nil {
 		log.Errorf("creating cert template: %v", err)
 	}
