@@ -45,7 +45,7 @@ func (receiver *BulkBuffer) Write(data []byte) {
 
 func (receiver *BulkBuffer) WriteByteBuffer(data []byte) {
 	if data != nil && len(data) > 0 {
-		if !util.IsBytesEndingWith(&receiver.bytesBuffer.B,NEWLINEBYTES){
+		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
 			if !util.BytesHasPrefix(data,NEWLINEBYTES){
 				receiver.bytesBuffer.Write(NEWLINEBYTES)
 			}
@@ -57,7 +57,7 @@ func (receiver *BulkBuffer) WriteByteBuffer(data []byte) {
 func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string,data []byte) {
 	if data != nil && len(data) > 0 {
 		if receiver.bytesBuffer.Len()>0{
-			if !util.IsBytesEndingWith(&receiver.bytesBuffer.B,NEWLINEBYTES){
+			if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
 				if !util.BytesHasPrefix(data,NEWLINEBYTES) {
 					receiver.bytesBuffer.Write(NEWLINEBYTES)
 				}
@@ -69,7 +69,7 @@ func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string,data []byte) {
 
 func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 	if data != "" && len(data) > 0 {
-		if !util.IsBytesEndingWith(&receiver.bytesBuffer.B,NEWLINEBYTES){
+		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
 			if !util.BytesHasPrefix(util.UnsafeStringToBytes(data),NEWLINEBYTES) {
 				receiver.bytesBuffer.Write(NEWLINEBYTES)
 			}
@@ -81,7 +81,7 @@ func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 func (receiver *BulkBuffer) Add(id string, data []byte) {
 	if data != nil && len(data) > 0 && len(id) != 0 {
 		receiver.MessageIDs = append(receiver.MessageIDs, id)
-		if !util.IsBytesEndingWith(&data,NEWLINEBYTES){
+		if !util.BytesHasSuffix(data,NEWLINEBYTES){
 			receiver.bytesBuffer.Write(NEWLINEBYTES)
 		}
 		receiver.bytesBuffer.Write(data)
