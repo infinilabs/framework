@@ -350,15 +350,17 @@ DO:
 						//save message bytes, with metadata, set codec to wrapped bulk messages
 						queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
 							"timestamp": time.Now(),
-							"cluster_id": metadata.Config.ID,
+							"elastic":util.MapStr{
+								"cluster_id": metadata.Config.ID,
+								"bulk_stats.stats.code":statsCodeStats,
+							},
 							"queue":      buffer.Queue,
 							"request": util.MapStr{
 								"uri":  req.URI().String(),
 								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
 							},
 							"response": util.MapStr{
-								"bulk_status": statsCodeStats,
-								"code": resp.StatusCode(),
+								"status_code": resp.StatusCode(),
 								"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
 							},
 						}))
@@ -419,15 +421,17 @@ DO:
 			//save message bytes, with metadata, set codec to wrapped bulk messages
 			queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
 				"timestamp": time.Now(),
-				"cluster_id": metadata.Config.ID,
 				"queue":      buffer.Queue,
 				"request": util.MapStr{
 					"uri":  req.URI().String(),
 					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
 				},
+				"elastic":util.MapStr{
+					"cluster_id": metadata.Config.ID,
+					"bulk_stats.stats.code":statsRet,
+				},
 				"response": util.MapStr{
-					"bulk_status": statsRet,
-					"code": resp.StatusCode(),
+					"status_code": resp.StatusCode(),
 					"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
 				},
 			}))
