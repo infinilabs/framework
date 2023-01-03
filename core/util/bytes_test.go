@@ -520,7 +520,7 @@ func TestBytesEndWith(t *testing.T) {
 	fmt.Println(len(d)-offset <= len(ending))
 	assert.Equal(t, true, len(d)-offset <= len(ending))
 
-	assert.Equal(t, true, IsBytesEndingWith(&d, ending))
+	assert.Equal(t, true, BytesHasSuffix(d, ending))
 }
 
 func TestBytesEndWith1(t *testing.T) {
@@ -528,7 +528,7 @@ func TestBytesEndWith1(t *testing.T) {
 	str := []byte("asdfas\n")
 
 	ending := []byte("\n")
-	assert.Equal(t, true, IsBytesEndingWith(&str, ending))
+	assert.Equal(t, true, BytesHasSuffix(str, ending))
 }
 
 func TestToLowercase(t *testing.T) {

@@ -231,7 +231,7 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 
 	// handle last \n
 	data := buffer.GetMessageBytes()
-	if !util.IsBytesEndingWith(&data,NEWLINEBYTES){
+	if !util.BytesHasSuffix(data,NEWLINEBYTES){
 		if !util.BytesHasPrefix(buffer.GetMessageBytes(),NEWLINEBYTES){
 			buffer.Write(NEWLINEBYTES)
 			data=buffer.GetMessageBytes()
@@ -354,6 +354,7 @@ DO:
 				if joint.Config.ErrorMessageQueue!=""{
 						//save message bytes, with metadata, set codec to wrapped bulk messages
 						queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+							"timestamp": time.Now(),
 							"cluster_id": metadata.Config.ID,
 							"queue":      buffer.Queue,
 							"request": util.MapStr{
@@ -361,7 +362,8 @@ DO:
 								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
 							},
 							"response": util.MapStr{
-								"status": statsCodeStats,
+								"bulk_status": statsCodeStats,
+								"code": resp.StatusCode(),
 								"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
 							},
 						}))
@@ -371,7 +373,7 @@ DO:
 				if count > 0 {
 					log.Debugf("%v, retry item: %v",tag,count)
 					bodyBytes:=retryableItems.GetMessageBytes()
-					if !util.IsBytesEndingWith(&bodyBytes,NEWLINEBYTES){
+					if !util.BytesHasSuffix(bodyBytes,NEWLINEBYTES){
 						if !util.BytesHasPrefix(retryableItems.GetMessageBytes(),NEWLINEBYTES){
 							retryableItems.WriteByteBuffer(NEWLINEBYTES)
 							bodyBytes=retryableItems.GetMessageBytes()
@@ -427,6 +429,7 @@ DO:
 		if joint.Config.ErrorMessageQueue!=""{
 			//save message bytes, with metadata, set codec to wrapped bulk messages
 			queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+				"timestamp": time.Now(),
 				"cluster_id": metadata.Config.ID,
 				"queue":      buffer.Queue,
 				"request": util.MapStr{
@@ -434,7 +437,8 @@ DO:
 					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
 				},
 				"response": util.MapStr{
-					"status": statsRet,
+					"bulk_status": statsRet,
+					"code": resp.StatusCode(),
 					"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
 				},
 			}))
