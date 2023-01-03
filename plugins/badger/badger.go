@@ -5,6 +5,7 @@
 package badger
 
 import (
+	"errors"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
 	"github.com/dgraph-io/badger/v3"
@@ -33,6 +34,10 @@ func (filter *Module) Open() error {
 }
 
 func (filter *Module)mustGetBucket(bucket string)*badger.DB  {
+	if filter.closed{
+		panic(errors.New("module closed"))
+	}
+
 	if filter.SingleBucketMode{
 		if filter.bucket==nil{
 			panic("invalid badger module")
@@ -159,6 +164,10 @@ func (filter *Module) CheckThenAdd(bucket string, key []byte) (b bool, err error
 //for kv implementation
 func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 
+	if filter.closed{
+		return nil,errors.New("module closed")
+	}
+
 	if filter.SingleBucketMode{
 		key=joinKey(bucket,key)
 	}
@@ -167,6 +176,9 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 	var err error
 	var item *badger.Item
 	err=filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
+			if txn==nil{
+				return errors.New("invalid txn")
+			}
 			item, err= txn.Get(key)
 				if item!=nil&&err==nil{
 				err = item.Value(func(val []byte) error {
@@ -206,6 +218,9 @@ func joinKey(bucket string,key []byte) []byte {
 }
 
 func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
+	if filter.closed{
+		return errors.New("module closed")
+	}
 
 	if filter.SingleBucketMode{
 		key=joinKey(bucket,key)

@@ -28,6 +28,7 @@ type Module struct {
 	NumLevelZeroTables     int   `config:"num_level0_tables"`
 	NumLevelZeroTablesStall     int   `config:"num_level0_tables_stall"`
 	bucket           *badger.DB
+	closed bool
 }
 
 func (module *Module) Name() string {
@@ -48,10 +49,12 @@ func (module *Module) Setup() {
 }
 
 func (module *Module) Start() error {
+	module.closed=false
 	return module.Open()
 }
 
 func (module *Module) Stop() error {
+	module.closed=true
 	return module.Close()
 }
 
