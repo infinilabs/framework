@@ -38,8 +38,10 @@ func ReturnBulkBuffer(item *BulkBuffer) {
 }
 
 func (receiver *BulkBuffer) SafetyEndWithNewline() {
-	if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
-		receiver.bytesBuffer.Write(NEWLINEBYTES)
+	if receiver.bytesBuffer.Len()>0{
+		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
+			receiver.bytesBuffer.Write(NEWLINEBYTES)
+		}
 	}
 }
 
@@ -67,7 +69,11 @@ func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 	}
 }
 
-func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte)(int,error){
+func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte){
+	if len(data)<=0{
+		return
+	}
+
 	if buffer.Len()>0{
 		//previous data is not ending with \n
 		if !util.BytesHasSuffix(buffer.B,NEWLINEBYTES){
@@ -77,7 +83,7 @@ func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte)(
 			}
 		}
 	}
-	return buffer.Write(data)
+	buffer.Write(data)
 }
 
 func (receiver *BulkBuffer) Add(id string, data []byte) {
