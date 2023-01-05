@@ -142,9 +142,11 @@ type BulkProcessorConfig struct {
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
 
-	ErrorMessageQueue    string `config:"error_message_queue"`
-	ErrorMessageMaxRequestBodyLength    int `config:"max_request_body_size"`
-	ErrorMessageMaxResponseBodyLength    int `config:"max_response_body_size"`
+	SaveSuccessBulkResultToMessageQueue    bool `config:"save_success_results"`
+	SaveBusyBulkResultToMessageQueue       bool `config:"save_busy_results"`
+	BulkResultMessageQueue                 string `config:"bulk_result_message_queue"`
+	BulkResultMessageMaxRequestBodyLength  int    `config:"max_request_body_size"`
+	BulkResultMessageMaxResponseBodyLength int    `config:"max_response_body_size"`
 
 	Retry429      bool `config:"retry_429"`
 	RemoveDuplicatedNewlines bool   `config:"remove_duplicated_newlines"`
@@ -171,10 +173,10 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	MaxRejectRetryTimes:     60,
 	MaxRetryTimes:           10,
 
-	ErrorMessageMaxRequestBodyLength:            10*1024,
-	ErrorMessageMaxResponseBodyLength:           10*1024,
+	BulkResultMessageMaxRequestBodyLength:  10*1024,
+	BulkResultMessageMaxResponseBodyLength: 10*1024,
 
-	ErrorMessageQueue: 	     "bulk_error_messages",
+	BulkResultMessageQueue:  "bulk_result_messages",
 	DeadletterRequestsQueue: "bulk_dead_requests",
 
 	Retry429: true,
@@ -344,72 +346,81 @@ DO:
 				log.Errorf("#%v, code:%v, contain_err:%v, status:%v",retryTimes,resp.StatusCode(),containError,statsCodeStats)
 			}
 
-			if containError {
+			if containError || joint.Config.SaveSuccessBulkResultToMessageQueue {
 
-				if joint.Config.ErrorMessageQueue!=""{
+				if joint.Config.BulkResultMessageQueue !=""{
+
+						elasticMap:=util.MapStr{
+							"cluster_id": metadata.Config.ID,
+							"error": containError,
+							"bulk_stats.stats.code":statsCodeStats,
+						}
+						if retryTimes>0{
+							elasticMap["retry_times"]=retryTimes
+						}
+
 						//save message bytes, with metadata, set codec to wrapped bulk messages
-						queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+						queue.Push(queue.GetOrInitConfig(joint.Config.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
 							"timestamp": time.Now(),
-							"elastic":util.MapStr{
-								"cluster_id": metadata.Config.ID,
-								"bulk_stats.stats.code":statsCodeStats,
-							},
+							"elastic":elasticMap,
 							"queue":      buffer.Queue,
 							"request": util.MapStr{
 								"uri":  req.URI().String(),
-								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
+								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.BulkResultMessageMaxRequestBodyLength),
 							},
 							"response": util.MapStr{
 								"status_code": resp.StatusCode(),
-								"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
+								"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResultMessageMaxResponseBodyLength),
 							},
 						}))
 				}
 
-				count:=retryableItems.GetMessageCount()
-				if count > 0 {
-					log.Debugf("%v, retry item: %v",tag,count)
-					retryableItems.SafetyEndWithNewline()
-					bodyBytes:=retryableItems.GetMessageBytes()
-					req.SetRawBody(bodyBytes)
-					delayTime := joint.Config.RejectDelayInSeconds
+				if containError{
+					count:=retryableItems.GetMessageCount()
+					if count > 0 {
+						log.Debugf("%v, retry item: %v",tag,count)
+						retryableItems.SafetyEndWithNewline()
+						bodyBytes:=retryableItems.GetMessageBytes()
+						req.SetRawBody(bodyBytes)
+						delayTime := joint.Config.RejectDelayInSeconds
 
-					if delayTime <= 0 {
-						delayTime = 5
-					}
-					
-					time.Sleep(time.Duration(delayTime) * time.Second)
-					
-					if joint.Config.MaxRejectRetryTimes <= 0 {
-						joint.Config.MaxRejectRetryTimes = 12 //1min
-					}
-					
-					if retryTimes >= joint.Config.MaxRejectRetryTimes {
-						
-						//continue retry before is back
-						if !metadata.IsAvailable() {
-							return false,statsRet, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
+						if delayTime <= 0 {
+							delayTime = 5
 						}
-						
-						data := req.OverrideBodyEncode(bodyBytes, true)
-						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
-						return true,statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
-					}
-					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
-					retryTimes++
-					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
-					goto DO
-				}
 
-				//skip all failure messages
-				if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
-					////handle 400 error
-					if joint.Config.InvalidRequestsQueue != "" {
-						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
+						time.Sleep(time.Duration(delayTime) * time.Second)
+
+						if joint.Config.MaxRejectRetryTimes <= 0 {
+							joint.Config.MaxRejectRetryTimes = 12 //1min
+						}
+
+						if retryTimes >= joint.Config.MaxRejectRetryTimes {
+
+							//continue retry before is back
+							if !metadata.IsAvailable() {
+								return false,statsRet, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
+							}
+
+							data := req.OverrideBodyEncode(bodyBytes, true)
+							queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
+							return true,statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
+						}
+						log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
+						retryTimes++
+						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
+						goto DO
 					}
-					return true,statsRet, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
+
+					//skip all failure messages
+					if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
+						////handle 400 error
+						if joint.Config.InvalidRequestsQueue != "" {
+							queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
+						}
+						return true,statsRet, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
+					}
+					return false,statsRet, errors.Errorf("bulk response contains error, %v, %v", statsCodeStats,statsRet)
 				}
-				return false,statsRet, errors.Errorf("bulk response contains error, %v", statsCodeStats)
 			}
 		}
 		return true,statsRet, nil
@@ -417,14 +428,14 @@ DO:
 
 		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageCount()
 
-		if joint.Config.ErrorMessageQueue!=""{
+		if joint.Config.BulkResultMessageQueue !="" && !(resp.StatusCode()==429&&!joint.Config.SaveBusyBulkResultToMessageQueue){
 			//save message bytes, with metadata, set codec to wrapped bulk messages
-			queue.Push(queue.GetOrInitConfig(joint.Config.ErrorMessageQueue), util.MustToJSONBytes(util.MapStr{
+			queue.Push(queue.GetOrInitConfig(joint.Config.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
 				"timestamp": time.Now(),
 				"queue":      buffer.Queue,
 				"request": util.MapStr{
 					"uri":  req.URI().String(),
-					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.ErrorMessageMaxRequestBodyLength),
+					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.BulkResultMessageMaxRequestBodyLength),
 				},
 				"elastic":util.MapStr{
 					"cluster_id": metadata.Config.ID,
@@ -432,7 +443,7 @@ DO:
 				},
 				"response": util.MapStr{
 					"status_code": resp.StatusCode(),
-					"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.ErrorMessageMaxResponseBodyLength),
+					"body":   util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResultMessageMaxResponseBodyLength),
 				},
 			}))
 		}
