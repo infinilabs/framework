@@ -45,7 +45,7 @@ var (
 	defaultConfig = ModuleConfig{
 		RemoteConfigEnabled: false,
 		HealthCheckConfig: CheckConfig{
-			Enabled:  false,
+			Enabled:  true,
 			Interval: "10s",
 		},
 		NodeAvailabilityCheckConfig: CheckConfig{
