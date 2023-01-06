@@ -449,7 +449,7 @@ func (module *DiskQueue) Start() error {
 				}
 			}
 		}()
-
+		var lastFilePrepared int64
 		for {
 			evt := <-module.messages
 			switch evt.Type {
@@ -470,8 +470,11 @@ func (module *DiskQueue) Start() error {
 			case ReadComplete:
 
 				if module.cfg.PrepareFilesToRead{
+					if lastFilePrepared>0 && evt.FileNum<=lastFilePrepared{
+						break
+					}
 					//decompress ahead of # files
-					module.prepareFilesToRead(evt.Queue,evt.FileNum)
+					lastFilePrepared=module.prepareFilesToRead(evt.Queue,evt.FileNum)
 				}
 
 				//delete old unused files

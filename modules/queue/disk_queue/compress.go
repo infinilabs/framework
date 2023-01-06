@@ -30,18 +30,20 @@ func GetLastCompressFileNum(queueID string) int64 {
 
 var compressFileSuffix = ".zstd"
 var compressLocker =sync.RWMutex{}
-func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) {
+func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64{
 	if !module.cfg.Compress.Segment.Enabled {
 		log.Tracef("segment compress for queue %v was not enabled, skip", queueID)
-		return
+		return -1
 	}
 
+	var lastFile int64
 	for i:=int64(1);i<=module.cfg.Compress.NumOfFilesDecompressAhead;i++{
-		targetFile:=int64(fileNum+int64(i))
-
-		log.Tracef("check file: %v",targetFile)
-
-		SmartGetFileName(module.cfg,queueID,targetFile)
+		lastFile=int64(fileNum+int64(i))
+		log.Tracef("check file: %v",lastFile)
+		_,exists:=SmartGetFileName(module.cfg,queueID,lastFile)
+		if !exists{
+			return fileNum
+		}
 	}
 
 	//check local
@@ -49,6 +51,7 @@ func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) {
 
 	//decompress the file if that is necessary
 
+	return lastFile
 }
 
 func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
