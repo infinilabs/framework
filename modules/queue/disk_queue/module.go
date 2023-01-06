@@ -170,6 +170,7 @@ func (module *DiskQueue) Setup() {
 		WriteChanBuffer:   0,
 		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
+		PrepareFilesToRead: true,
 		Compress: DiskCompress{
 			IdleThreshold: 10,
 			NumOfFilesDecompressAhead: 3,
