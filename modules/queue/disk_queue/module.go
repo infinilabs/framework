@@ -88,7 +88,7 @@ type DiskCompress struct {
 	DeleteAfterCompress  						bool `config:"delete_after_compress"`
 	Message       CompressConfig `config:"message"`
 	Segment       CompressConfig `config:"segment"`
-	IdleThreshold int64            				`config:"num_of_idle_files_between_compress"`
+	IdleThreshold int64            				`config:"idle_threshold"`
 	NumOfFilesDecompressAhead int64             `config:"num_of_files_decompress_ahead"`
 }
 
