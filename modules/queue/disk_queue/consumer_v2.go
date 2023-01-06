@@ -280,6 +280,11 @@ func (d *Consumer) ResetOffset(segment,readPos int64)error {
 		log.Debugf("reset offset: %v,%v, file: %v",segment,readPos,d.fileName)
 	}
 
+	if segment>d.diskQueue.writeSegmentNum{
+		log.Errorf("reading segment [%v] is greater than writing segment [%v]",segment,d.diskQueue.writeSegmentNum)
+		return io.EOF
+	}
+
 	d.fileLock.Lock()
 	d.fileLock.Unlock()
 	if d.segment!=segment{

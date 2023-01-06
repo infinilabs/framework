@@ -85,10 +85,11 @@ type DiskQueueConfig struct {
 }
 
 type DiskCompress struct {
+	DeleteAfterCompress  						bool `config:"delete_after_compress"`
 	Message       CompressConfig `config:"message"`
 	Segment       CompressConfig `config:"segment"`
-	IdleThreshold int64            `config:"idle_threshold"`
-	NumOfFilesDecompressAhead int64            `config:"num_of_files_decompress_ahead"`
+	IdleThreshold int64            				`config:"num_of_idle_files_between_compress"`
+	NumOfFilesDecompressAhead int64             `config:"num_of_files_decompress_ahead"`
 }
 
 type CompressConfig struct {
@@ -172,7 +173,7 @@ func (module *DiskQueue) Setup() {
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
 		PrepareFilesToRead: true,
 		Compress: DiskCompress{
-			IdleThreshold: 10,
+			IdleThreshold: 5,
 			NumOfFilesDecompressAhead: 3,
 			Message: CompressConfig{
 			Enabled: false,
