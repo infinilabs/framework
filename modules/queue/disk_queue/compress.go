@@ -125,15 +125,16 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 			_, latestConsumedSegmentFileNum, _ := queue.GetLatestOffsetByQueueID(queueID)
 
 			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+			if x-earliestConsumedSegmentFileNum < module.cfg.Compress.IdleThreshold || (x-earliestConsumedSegmentFileNum > module.cfg.Compress.IdleThreshold){
+				//start to delete file
 
-			//start to delete file
-			if util.AbsInt64(x-earliestConsumedSegmentFileNum) > module.cfg.Compress.IdleThreshold &&
-				util.AbsInt64(x-latestConsumedSegmentFileNum)> module.cfg.Compress.IdleThreshold {
 				//if latest consumer file num
-				log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
-				err := os.Remove(file)
-				if err != nil {
-					panic(err)
+				if x-latestConsumedSegmentFileNum < module.cfg.Compress.IdleThreshold || (x-latestConsumedSegmentFileNum> module.cfg.Compress.IdleThreshold){
+					log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+					err := os.Remove(file)
+					if err != nil {
+						panic(err)
+					}
 				}
 			}
 		} else {
