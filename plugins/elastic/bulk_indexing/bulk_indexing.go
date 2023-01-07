@@ -519,8 +519,6 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	}
 
 	var lastCommit time.Time = time.Now()
-
-READ_DOCS:
 	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
 
 	if global.Env().IsDebug{
@@ -532,8 +530,11 @@ READ_DOCS:
 	if err!=nil||consumerInstance==nil{
 		panic(err)
 	}
-
 	defer consumerInstance.Close()
+
+READ_DOCS:
+
+	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
 
 	for {
 		if ctx.IsCanceled() {

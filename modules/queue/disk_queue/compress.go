@@ -8,7 +8,6 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
 	"os"
@@ -71,7 +70,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	}
 
 	//start
-	consumers, earliestConsumedSegmentFileNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, earliestConsumedSegmentFileNum := module.GetEarlierOffsetByQueueID(queueID)
 	fileStartToCompress := fileNum - int64(module.cfg.Compress.IdleThreshold)
 	lastCompressedFileNum := GetLastCompressFileNum(queueID)
 
@@ -121,20 +120,20 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 			}
 
 			//if compress ahead of compressed, delete original file
-			_, earliestConsumedSegmentFileNum, _ = queue.GetEarlierOffsetByQueueID(queueID)
-			_, latestConsumedSegmentFileNum, _ := queue.GetLatestOffsetByQueueID(queueID)
+			_, earliestConsumedSegmentFileNum = module.GetEarlierOffsetByQueueID(queueID)
+			_, latestConsumedSegmentFileNum:= module.GetLatestOffsetByQueueID(queueID)
 
 			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
-			if x-earliestConsumedSegmentFileNum < module.cfg.Compress.IdleThreshold || (x-earliestConsumedSegmentFileNum > module.cfg.Compress.IdleThreshold){
-				//start to delete file
 
-				//if latest consumer file num
-				if x-latestConsumedSegmentFileNum < module.cfg.Compress.IdleThreshold || (x-latestConsumedSegmentFileNum> module.cfg.Compress.IdleThreshold){
-					log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
-					err := os.Remove(file)
-					if err != nil {
-						panic(err)
-					}
+			//gap: delete-able| threshold+earliest| gap| latest+ threshold | delete-able
+			left:=earliestConsumedSegmentFileNum-module.cfg.Compress.IdleThreshold
+			right:=latestConsumedSegmentFileNum+module.cfg.Compress.IdleThreshold
+			if x<left||x>right{
+				log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+				err := os.Remove(file)
+				if err != nil {
+					log.Error(err)
+					break
 				}
 			}
 		} else {

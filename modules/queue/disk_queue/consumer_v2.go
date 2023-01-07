@@ -23,7 +23,7 @@ import (
 
 type Consumer struct {
 	ID string
-	diskQueue *diskQueue
+	diskQueue *DiskBasedQueue
 
 	mCfg *DiskQueueConfig
 	cCfg *queue.ConsumerConfig
@@ -45,7 +45,7 @@ func (c *Consumer) getFileSize()(int64)  {
 	var err error
 	readFile, err:= os.OpenFile(c.fileName, os.O_RDONLY, 0600)
 	if err != nil {
-		log.Error(err)
+		log.Error(c.diskQueue.writeSegmentNum,",",err)
 		return -1
 	}
 	defer readFile.Close()
@@ -58,7 +58,7 @@ func (c *Consumer) getFileSize()(int64)  {
 	return stat.Size()
 }
 
-func (d *diskQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment,readPos int64) (queue.ConsumerAPI,error){
+func (d *DiskBasedQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment,readPos int64) (queue.ConsumerAPI,error){
 	output:=Consumer{
 		ID:util.ToString(util.GetIncrementID("consumer")),
 		mCfg: d.cfg,
@@ -262,6 +262,7 @@ READ_MSG:
 func (d *Consumer) Close() error {
 	d.fileLock.Lock()
 	d.fileLock.Unlock()
+	d.diskQueue.DeleteSegmentConsumerInReading(d.ID)
 	if d.readFile!=nil{
 		 err:=d.readFile.Close()
 		 if err!=nil&&!util.ContainStr(err.Error(),"already"){
@@ -297,9 +298,12 @@ func (d *Consumer) ResetOffset(segment,readPos int64)error {
 		}
 	}
 
+
 	d.segment= segment
 	d.readPos= readPos
 	d.maxBytesPerFileRead=0
+
+	d.diskQueue.UpdateSegmentConsumerInReading(d.ID,d.segment)
 
 	fileName,exists := SmartGetFileName(d.mCfg,d.queue, segment)
 	if !exists{

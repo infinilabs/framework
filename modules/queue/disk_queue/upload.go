@@ -5,14 +5,13 @@
 package queue
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"path"
-	log "github.com/cihub/seelog"
 	"sync"
-	"infini.sh/framework/core/s3"
 )
 
 const queueS3LastFileNum ="last_success_file_for_queue"
@@ -44,7 +43,7 @@ func (module *DiskQueue)uploadToS3(queueID string,fileNum  int64){
 	//send s3 upload signal
 	if module.cfg.UploadToS3{
 
-		consumers,_,_:=queue.GetEarlierOffsetByQueueID(queueID)
+		consumers,_:=module.GetEarlierOffsetByQueueID(queueID)
 		if module.cfg.SkipZeroConsumers&&consumers==0{
 			//skip upload queue without any consumers
 			return

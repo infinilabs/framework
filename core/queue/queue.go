@@ -642,7 +642,12 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 			}
 		}
 	}
+
+
 	return len(consumers), iPart, iPos
+
+
+
 }
 
 func GetLatestOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {

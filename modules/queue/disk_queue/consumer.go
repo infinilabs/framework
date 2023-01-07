@@ -71,7 +71,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 }
 
 //每个 consumer 维护自己的元数据，part 自动切换，offset 表示文件级别的读取偏移，messageCount 表示消息的返回条数
-func (d *diskQueue) Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error) {
+func (d *DiskBasedQueue) Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error) {
 	messages = []queue.Message{}
 	var totalMessageSize int = 0
 	ctx = &queue.Context{}

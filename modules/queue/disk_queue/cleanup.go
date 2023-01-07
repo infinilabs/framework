@@ -5,12 +5,58 @@
 package queue
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"os"
-	log "github.com/cihub/seelog"
 )
+
+func (module *DiskQueue)GetEarlierOffsetByQueueID(queueID string)(int,int64)  {
+	consumers, eSegmentNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	q,ok:=module.queues.Load(queueID)
+	if ok{
+		var c=0
+		(q.(*DiskBasedQueue)).consumersInReading.Range(func(key, value any) bool {
+			seg:=value.(int64)
+			c++
+			if seg<eSegmentNum{
+				//if global.Env().IsDebug{
+					log.Info(queueID,",",seg," < ",eSegmentNum, " use:",seg)
+				//}
+				eSegmentNum=seg
+			}
+			return true
+		})
+		if c>consumers{
+			consumers=c
+		}
+	}
+	return consumers,eSegmentNum
+}
+
+func (module *DiskQueue)GetLatestOffsetByQueueID(queueID string)(int,int64)  {
+	consumers, eSegmentNum, _ := queue.GetLatestOffsetByQueueID(queueID)
+	q,ok:=module.queues.Load(queueID)
+	if ok{
+		var c=0
+		(q.(*DiskBasedQueue)).consumersInReading.Range(func(key, value any) bool {
+			seg:=value.(int64)
+			c++
+			if seg>eSegmentNum{
+				if global.Env().IsDebug {
+					log.Trace(queueID, ",", seg, " > ", eSegmentNum, " use:", seg)
+				}
+				eSegmentNum=seg
+			}
+			return true
+		})
+		if c>consumers{
+			consumers=c
+		}
+	}
+	return consumers,eSegmentNum
+}
 
 func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 
@@ -18,14 +64,14 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	//TODO add config to configure none-consumers queue, to enable upload to s3 or not
 
 	//check consumers offset
-	consumers, eSegmentNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, eSegmentNum := module.GetEarlierOffsetByQueueID(queueID)
 	fileStartToDelete := fileNum - module.cfg.Retention.MaxNumOfLocalFiles
 
 	if fileStartToDelete <= 0 || consumers <= 0|| eSegmentNum <0 {
 		return
 	}
 
-	_, lSegmentNum, _ := queue.GetLatestOffsetByQueueID(queueID) //delete saved file to latest offset(keep 5 distance)
+	_, lSegmentNum := module.GetLatestOffsetByQueueID(queueID) //delete saved file to latest offset(keep 5 distance)
 
 
 	if module.cfg.UploadToS3 {
@@ -59,32 +105,43 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 
 	//has consumers
 	if consumers > 0 && fileStartToDelete>0 && fileStartToDelete < eSegmentNum && eSegmentNum >0 {
-		log.Debug(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",consumer_on:", eSegmentNum)
+		log.Trace(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",consumer_on:", eSegmentNum)
 
 		//TODO do not wall all files, when numbers growing, it will be slow to check each file exists or not
 		for x := fileStartToDelete; x >= 0; x-- {
 			file := GetFileName(queueID, x)
 			log.Trace(queueID, " start to delete:", file)
+			var exists=false
 			if util.FileExists(file) {
-				log.Trace("delete queue file:", file)
+				exists=true
+				log.Debug("delete queue file:", file)
 				err := os.Remove(file)
 				if err != nil {
-					panic(err)
+					log.Error(err)
+					break
 				}
 			}
 			compressedFile := file + compressFileSuffix
 			if util.FileExists(compressedFile) {
+				exists=true
 				log.Trace("delete compressed queue file:", compressedFile)
 				err := os.Remove(compressedFile)
 				if err != nil {
-					panic(err)
+					log.Error(err)
+					break
 				}
+			}
+
+			//no compress or flat file exists
+			if !exists{
+				log.Debug("skip further delete, missing queue file:", file)
+				break
 			}
 
 		}
 	} else {
 		//FIFO queue, need to delete old files
-		log.Tracef("skip delete, queue:%v, consumers:%v, fileID:%v, file start to delete:%v , segment num:%v",queueID,consumers,fileNum,fileStartToDelete, eSegmentNum)
+		log.Debugf("skip delete, queue:%v, consumers:%v, fileID:%v, file start to delete:%v , segment num:%v",queueID,consumers,fileNum,fileStartToDelete, eSegmentNum)
 		//check current read depth and file num
 	}
 
