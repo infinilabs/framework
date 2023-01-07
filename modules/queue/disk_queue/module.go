@@ -85,10 +85,11 @@ type DiskQueueConfig struct {
 }
 
 type DiskCompress struct {
+	DeleteAfterCompress  						bool `config:"delete_after_compress"`
 	Message       CompressConfig `config:"message"`
 	Segment       CompressConfig `config:"segment"`
-	IdleThreshold int64            `config:"idle_threshold"`
-	NumOfFilesDecompressAhead int64            `config:"num_of_files_decompress_ahead"`
+	IdleThreshold int64            				`config:"idle_threshold"`
+	NumOfFilesDecompressAhead int64             `config:"num_of_files_decompress_ahead"`
 }
 
 type CompressConfig struct {
@@ -138,7 +139,7 @@ func (module *DiskQueue) Init(name string) error {
 
 	tempQueue := NewDiskQueueByConfig(name, dataPath, module.cfg)
 
-	module.queues.Store(name, &tempQueue)
+	module.queues.Store(name, tempQueue)
 
 	module.compressFiles(name, tempQueue.ReadContext().WriteFileNum)
 	module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
@@ -170,8 +171,9 @@ func (module *DiskQueue) Setup() {
 		WriteChanBuffer:   0,
 		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
+		PrepareFilesToRead: true,
 		Compress: DiskCompress{
-			IdleThreshold: 10,
+			IdleThreshold: 5,
 			NumOfFilesDecompressAhead: 3,
 			Message: CompressConfig{
 			Enabled: false,
@@ -226,7 +228,7 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
-		return (*q.(*BackendQueue)).Put(v)
+		return (q.(*DiskBasedQueue)).Put(v)
 	}
 	return errors.Errorf("queue [%v] not found", k)
 }
@@ -239,7 +241,7 @@ func (module *DiskQueue) ReadChan(k string) <-chan []byte {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
-		return (*q.(*BackendQueue)).ReadChan()
+		return (q.(*DiskBasedQueue)).ReadChan()
 	}
 	panic(errors.Errorf("queue [%v] not found", k))
 }
@@ -271,7 +273,7 @@ func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig,consumer *qu
 		q, ok = module.queues.Load(qconfig.Id)
 	}
 	if ok {
-		q1 := (*q.(*BackendQueue))
+		q1 := q.(*DiskBasedQueue)
 		return q1.AcquireConsumer(consumer,segment,offset)
 	}
 	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
@@ -287,7 +289,7 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 	}
 	if ok {
 		segment, offset := queue.ConvertOffset(offsetStr)
-		q1 := (*q.(*BackendQueue))
+		q1 := q.(*DiskBasedQueue)
 		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset)
 
 		if global.Env().IsDebug {
@@ -303,7 +305,7 @@ func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.Con
 func (module *DiskQueue) Close(k string) error {
 	q, ok := module.queues.Load(k)
 	if ok {
-		return (*q.(*BackendQueue)).Close()
+		return (q.(*DiskBasedQueue)).Close()
 	}
 	panic(errors.Errorf("queue [%v] not found", k))
 }
@@ -316,7 +318,7 @@ func (module *DiskQueue) GetStorageSize(k string) uint64 {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
-		ctx := (*q.(*BackendQueue)).ReadContext()
+		ctx := (q.(*DiskBasedQueue)).ReadContext()
 		folder := filepath.Dir(ctx.WriteFile)
 		size, _ := status.DirSize(folder)
 		return size
@@ -332,7 +334,7 @@ func (module *DiskQueue) LatestOffset(k string) string {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
-		return (*q.(*BackendQueue)).LatestOffset()
+		return (q.(*DiskBasedQueue)).LatestOffset()
 	}
 
 	panic(errors.Errorf("queue [%v] not found", k))
@@ -346,7 +348,7 @@ func (module *DiskQueue) Depth(k string) int64 {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
-		return (*q.(*BackendQueue)).Depth()
+		return (q.(*DiskBasedQueue)).Depth()
 	}
 
 	panic(errors.Errorf("queue [%v] not found", k))
@@ -448,7 +450,7 @@ func (module *DiskQueue) Start() error {
 				}
 			}
 		}()
-
+		var lastFilePrepared int64
 		for {
 			evt := <-module.messages
 			switch evt.Type {
@@ -469,8 +471,11 @@ func (module *DiskQueue) Start() error {
 			case ReadComplete:
 
 				if module.cfg.PrepareFilesToRead{
+					if lastFilePrepared>0 && evt.FileNum<=lastFilePrepared{
+						break
+					}
 					//decompress ahead of # files
-					module.prepareFilesToRead(evt.Queue,evt.FileNum)
+					lastFilePrepared=module.prepareFilesToRead(evt.Queue,evt.FileNum)
 				}
 
 				//delete old unused files
@@ -499,7 +504,7 @@ func (module *DiskQueue) Stop() error {
 	module.queues.Range(func(key, value interface{}) bool {
 		q, ok := module.queues.Load(key)
 		if ok {
-			err := (*q.(*BackendQueue)).Close()
+			err := (q.(*DiskBasedQueue)).Close()
 			if err != nil {
 				log.Error(err)
 			}

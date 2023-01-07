@@ -8,7 +8,6 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
 	"os"
@@ -30,18 +29,20 @@ func GetLastCompressFileNum(queueID string) int64 {
 
 var compressFileSuffix = ".zstd"
 var compressLocker =sync.RWMutex{}
-func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) {
+func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64{
 	if !module.cfg.Compress.Segment.Enabled {
 		log.Tracef("segment compress for queue %v was not enabled, skip", queueID)
-		return
+		return -1
 	}
 
+	var lastFile int64
 	for i:=int64(1);i<=module.cfg.Compress.NumOfFilesDecompressAhead;i++{
-		targetFile:=int64(fileNum+int64(i))
-
-		log.Tracef("check file: %v",targetFile)
-
-		SmartGetFileName(module.cfg,queueID,targetFile)
+		lastFile=int64(fileNum+int64(i))
+		log.Tracef("check file: %v",lastFile)
+		_,exists:=SmartGetFileName(module.cfg,queueID,lastFile)
+		if !exists{
+			return fileNum
+		}
 	}
 
 	//check local
@@ -49,6 +50,7 @@ func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) {
 
 	//decompress the file if that is necessary
 
+	return lastFile
 }
 
 func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
@@ -64,11 +66,11 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	}
 
 	if module.cfg.Compress.IdleThreshold < 1 {
-		module.cfg.Compress.IdleThreshold = 3
+		module.cfg.Compress.IdleThreshold = 5
 	}
 
 	//start
-	consumers, earliestConsumedSegmentFileNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, earliestConsumedSegmentFileNum := module.GetEarlierOffsetByQueueID(queueID)
 	fileStartToCompress := fileNum - int64(module.cfg.Compress.IdleThreshold)
 	lastCompressedFileNum := GetLastCompressFileNum(queueID)
 
@@ -113,22 +115,25 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 				panic(err)
 			}
 
+			if !module.cfg.Compress.DeleteAfterCompress{
+				continue
+			}
+
 			//if compress ahead of compressed, delete original file
-			_, earliestConsumedSegmentFileNum, _ = queue.GetEarlierOffsetByQueueID(queueID)
-			_, latestConsumedSegmentFileNum, _ := queue.GetLatestOffsetByQueueID(queueID)
+			_, earliestConsumedSegmentFileNum = module.GetEarlierOffsetByQueueID(queueID)
+			_, latestConsumedSegmentFileNum:= module.GetLatestOffsetByQueueID(queueID)
 
 			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
 
-			if x-earliestConsumedSegmentFileNum<0 || (x-earliestConsumedSegmentFileNum > module.cfg.Compress.IdleThreshold){
-				//start to delete file
-
-				//if latest consumer file num
-				if x-latestConsumedSegmentFileNum <0|| (x-latestConsumedSegmentFileNum> module.cfg.Compress.IdleThreshold){
-					log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
-					err := os.Remove(file)
-					if err != nil {
-						panic(err)
-					}
+			//gap: delete-able| threshold+earliest| gap| latest+ threshold | delete-able
+			left:=earliestConsumedSegmentFileNum-module.cfg.Compress.IdleThreshold
+			right:=latestConsumedSegmentFileNum+module.cfg.Compress.IdleThreshold
+			if x<left||x>right{
+				log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+				err := os.Remove(file)
+				if err != nil {
+					log.Error(err)
+					break
 				}
 			}
 		} else {

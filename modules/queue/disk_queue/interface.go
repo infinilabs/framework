@@ -6,27 +6,9 @@ package queue
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
 	"infini.sh/framework/lib/bytebufferpool"
 	"sync"
 )
-
-// BackendQueue represents the behavior for the secondary message
-// storage system
-type BackendQueue interface {
-	Put([]byte) error
-	ReadChan() <-chan []byte // this is expected to be an *unbuffered* channel
-	Close() error
-	Delete() error
-	Depth() int64
-	LatestOffset() string
-	ReadContext() Context
-
-	AcquireConsumer(consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI,error)
-
-	Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error)
-	Empty() error
-}
 
 type Message struct {
 	Payload *bytebufferpool.ByteBuffer

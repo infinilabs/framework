@@ -43,9 +43,8 @@ import (
 	"time"
 )
 
-// diskQueue implements the BackendQueue interface
 // providing a filesystem backed FIFO queue
-type diskQueue struct {
+type DiskBasedQueue struct {
 	sync.RWMutex
 
 	// 64bit atomic vars need to be first for proper alignment on 32bit platforms
@@ -91,6 +90,8 @@ type diskQueue struct {
 	exitChan          chan int
 	exitSyncChan      chan int
 
+	consumersInReading sync.Map
+
 	//maxUsedBytes   uint64
 	//warningFreeBytes   uint64
 	//reservedFreeBytes   uint64
@@ -98,10 +99,10 @@ type diskQueue struct {
 	cfg *DiskQueueConfig
 }
 
-// NewDiskQueue instantiates a new instance of diskQueue, retrieving metadata
+// NewDiskQueue instantiates a new instance of DiskBasedQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
-func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) BackendQueue {
-	d := diskQueue{
+func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBasedQueue {
+	d := DiskBasedQueue{
 		name:     name,
 		dataPath: dataPath,
 		//maxBytesPerFile:   maxBytesPerFile,
@@ -116,6 +117,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) BackendQu
 		emptyResponseChan: make(chan error),
 		exitChan:          make(chan int),
 		exitSyncChan:      make(chan int, 10),
+		consumersInReading: sync.Map{},
 		//syncEvery:         syncEvery,
 		//syncTimeout:       syncTimeout,
 		//maxUsedBytes:		maxUsedBytes,
@@ -140,7 +142,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) BackendQu
 }
 
 // Depth returns the depth of the queue
-func (d *diskQueue) ReadContext() Context {
+func (d *DiskBasedQueue) ReadContext() Context {
 	ctx := Context{}
 	//ctx.Depth=d.depth
 	ctx.WriteFileNum = d.writeSegmentNum
@@ -149,11 +151,11 @@ func (d *diskQueue) ReadContext() Context {
 	return ctx
 }
 
-func (d *diskQueue) LatestOffset() string {
+func (d *DiskBasedQueue) LatestOffset() string {
 	return fmt.Sprintf("%v,%v", d.writeSegmentNum, d.writePos)
 }
 
-func (d *diskQueue) Depth() int64 {
+func (d *DiskBasedQueue) Depth() int64 {
 	depth, ok := <-d.depthChan
 	if !ok {
 		// ioLoop exited
@@ -163,12 +165,12 @@ func (d *diskQueue) Depth() int64 {
 }
 
 // ReadChan returns the receive-only []byte channel for reading data
-func (d *diskQueue) ReadChan() <-chan []byte {
+func (d *DiskBasedQueue) ReadChan() <-chan []byte {
 	return d.readChan
 }
 
 // Put writes a []byte to the queue
-func (d *diskQueue) Put(data []byte) error {
+func (d *DiskBasedQueue) Put(data []byte) error {
 	d.RLock()
 	defer d.RUnlock()
 
@@ -192,7 +194,7 @@ func (d *diskQueue) Put(data []byte) error {
 }
 
 // Close cleans up the queue and persists metadata
-func (d *diskQueue) Close() error {
+func (d *DiskBasedQueue) Close() error {
 	err := d.exit(false)
 	if err != nil {
 		return err
@@ -200,11 +202,11 @@ func (d *diskQueue) Close() error {
 	return d.sync()
 }
 
-func (d *diskQueue) Delete() error {
+func (d *DiskBasedQueue) Delete() error {
 	return d.exit(true)
 }
 
-func (d *diskQueue) exit(deleted bool) error {
+func (d *DiskBasedQueue) exit(deleted bool) error {
 	d.Lock()
 	defer d.Unlock()
 
@@ -237,7 +239,7 @@ func (d *diskQueue) exit(deleted bool) error {
 
 // Empty destructively clears out any pending data in the queue
 // by fast forwarding read positions and removing intermediate files
-func (d *diskQueue) Empty() error {
+func (d *DiskBasedQueue) Empty() error {
 	d.RLock()
 	defer d.RUnlock()
 
@@ -251,7 +253,7 @@ func (d *diskQueue) Empty() error {
 	return <-d.emptyResponseChan
 }
 
-func (d *diskQueue) deleteAllFiles() error {
+func (d *DiskBasedQueue) deleteAllFiles() error {
 	err := d.skipToNextRWFile()
 
 	innerErr := os.Remove(d.metaDataFileName())
@@ -264,7 +266,7 @@ func (d *diskQueue) deleteAllFiles() error {
 }
 
 //删除中间的错误文件，跳转到最后一个可写文件
-func (d *diskQueue) skipToNextRWFile() error {
+func (d *DiskBasedQueue) skipToNextRWFile() error {
 	var err error
 
 	if d.readFile != nil {
@@ -310,7 +312,7 @@ func (d *diskQueue) skipToNextRWFile() error {
 
 // readOne performs a low level filesystem read for a single []byte
 // while advancing read positions and rolling files, if necessary
-func (d *diskQueue) readOne() ([]byte, error) {
+func (d *DiskBasedQueue) readOne() ([]byte, error) {
 	var err error
 	var msgSize int32
 
@@ -413,7 +415,7 @@ func (d *diskQueue) readOne() ([]byte, error) {
 
 // writeOne performs a low level filesystem write for a single []byte
 // while advancing write positions and rolling files, if necessary
-func (d *diskQueue) writeOne(data []byte) error {
+func (d *DiskBasedQueue) writeOne(data []byte) error {
 	var err error
 
 	if d.writeFile == nil {
@@ -501,7 +503,7 @@ func (d *diskQueue) writeOne(data []byte) error {
 
 
 // sync fsyncs the current writeFile and persists metadata
-func (d *diskQueue) sync() error {
+func (d *DiskBasedQueue) sync() error {
 	if d.writeFile != nil {
 		err := d.writeFile.Sync()
 		if err != nil {
@@ -521,7 +523,7 @@ func (d *diskQueue) sync() error {
 }
 
 // retrieveMetaData initializes state from the filesystem
-func (d *diskQueue) retrieveMetaData() error {
+func (d *DiskBasedQueue) retrieveMetaData() error {
 	var f *os.File
 	var err error
 
@@ -551,7 +553,7 @@ func (d *diskQueue) retrieveMetaData() error {
 }
 
 // persistMetaData atomically writes state to the filesystem
-func (d *diskQueue) persistMetaData() error {
+func (d *DiskBasedQueue) persistMetaData() error {
 	var f *os.File
 	var err error
 
@@ -582,15 +584,15 @@ func (d *diskQueue) persistMetaData() error {
 	return util.AtomicFileRename(tmpFileName, fileName)
 }
 
-func (d *diskQueue) metaDataFileName() string {
+func (d *DiskBasedQueue) metaDataFileName() string {
 	return path.Join(d.dataPath, "meta.dat")
 }
 
-func (d *diskQueue) GetFileName(segmentID int64) string {
+func (d *DiskBasedQueue) GetFileName(segmentID int64) string {
 	return GetFileName(d.name, segmentID)
 }
 
-func (d *diskQueue) checkTailCorruption(depth int64) {
+func (d *DiskBasedQueue) checkTailCorruption(depth int64) {
 	if d.readSegmentFileNum < d.writeSegmentNum || d.readPos < d.writePos {
 		return
 	}
@@ -633,7 +635,7 @@ func (d *diskQueue) checkTailCorruption(depth int64) {
 	}
 }
 
-func (d *diskQueue) readMoveForward() {
+func (d *DiskBasedQueue) readMoveForward() {
 	oldReadFileNum := d.readSegmentFileNum
 	d.readSegmentFileNum = d.nextReadFileNum
 	d.readPos = d.nextReadPos
@@ -666,7 +668,7 @@ func (d *diskQueue) readMoveForward() {
 	d.checkTailCorruption(d.depth)
 }
 
-func (d *diskQueue) handleReadError() {
+func (d *DiskBasedQueue) handleReadError() {
 	// jump to the next read file and rename the current (bad) file
 	if d.readSegmentFileNum == d.writeSegmentNum {
 		// if you can't properly read from the current write file it's safe to
@@ -725,7 +727,7 @@ func (d *diskQueue) handleReadError() {
 // go channels
 //
 // conveniently this also means that we're asynchronously reading from the filesystem
-func (d *diskQueue) ioLoop() {
+func (d *DiskBasedQueue) ioLoop() {
 
 	var dataRead []byte
 	var err error
@@ -810,4 +812,12 @@ exit:
 	log.Tracef("disk_queue(%s): closing ... ioLoop", d.name)
 	syncTicker.Stop()
 	d.exitSyncChan <- 1
+}
+
+func (d *DiskBasedQueue) UpdateSegmentConsumerInReading(consumerID string, segment int64) {
+	d.consumersInReading.Store(consumerID,segment)
+}
+
+func (d *DiskBasedQueue) DeleteSegmentConsumerInReading(consumerID string) {
+	d.consumersInReading.Delete(consumerID)
 }

@@ -6,6 +6,7 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/rotate"
 	"runtime"
+	"github.com/OneOfOne/xxhash"
 	"sync"
 	"time"
 
@@ -380,6 +381,12 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 	}
 }
 
+var xxHashPool= sync.Pool{
+	New: func() interface{} {
+		return xxhash.New32()
+	},
+}
+
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string, sliceID, maxSlices int, tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
 
 	defer func() {
@@ -417,6 +424,9 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 
 	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
 	var skipFinalDocsProcess bool
+
+	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
+	defer xxHashPool.Put(xxHash)
 
 	//TODO check lag
 	//if !queue.HasLag(qConfig) {
@@ -509,8 +519,6 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	}
 
 	var lastCommit time.Time = time.Now()
-
-READ_DOCS:
 	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
 
 	if global.Env().IsDebug{
@@ -522,8 +530,11 @@ READ_DOCS:
 	if err!=nil||consumerInstance==nil{
 		panic(err)
 	}
-
 	defer consumerInstance.Close()
+
+READ_DOCS:
+
+	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
 
 	for {
 		if ctx.IsCanceled() {
@@ -623,8 +634,14 @@ READ_DOCS:
 						return false
 					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
 						totalOps++
+
 						//check hash
-						partitionID :=  util.ModString(id,maxSlices)
+						xxHash.Reset()
+						xxHash.WriteString(id)
+						partitionID := int(xxHash.Sum32()) % maxSlices
+
+						//partitionID :=  util.ModString(id,maxSlices)
+
 						if partitionID == sliceID {
 							sliceOps++
 							mainBuf.WriteNewByteBufferLine("meta1",metaBytes)

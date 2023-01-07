@@ -9,7 +9,7 @@ import (
 )
 
 func XXHash(data string)uint32  {
-	hash := xxhash.New32()
+	hash:=xxhash.New32()
 	hash.Write(UnsafeStringToBytes(data))
 	return hash.Sum32()
 }
@@ -17,4 +17,8 @@ func XXHash(data string)uint32  {
 func ModString(data string,max int) int {
 	hash:=int(XXHash(data))
 	return int(hash%max)
+}
+
+func Mod(data,max int) int {
+	return data%max
 }
