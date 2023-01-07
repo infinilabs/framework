@@ -353,7 +353,8 @@ DO:
 						elasticMap:=util.MapStr{
 							"cluster_id": metadata.Config.ID,
 							"error": containError,
-							"bulk_stats.stats.code":statsCodeStats,
+							"bulk_stats.code":util.GetIntMapKeys(statsCodeStats),
+							"bulk_stats.stats":statsCodeStats,
 						}
 						if retryTimes>0{
 							elasticMap["retry_times"]=retryTimes
@@ -439,7 +440,8 @@ DO:
 				},
 				"elastic":util.MapStr{
 					"cluster_id": metadata.Config.ID,
-					"bulk_stats.stats.code":statsRet,
+					"bulk_stats.code":util.GetIntMapKeys(statsRet),
+					"bulk_stats.stats":statsRet,
 				},
 				"response": util.MapStr{
 					"status_code": resp.StatusCode(),

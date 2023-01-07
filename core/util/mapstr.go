@@ -371,6 +371,14 @@ type KV struct {
 	Value string   `json:"value,omitempty"`
 }
 
+func GetIntMapKeys(m map[int]int)[]int  {
+	keys:=[]int{}
+	for k,_:=range m{
+		keys=append(keys,k)
+	}
+	return keys
+}
+
 func GetMapKeys(m map[string]KV)[]string  {
 	keys:=[]string{}
 	for k,_:=range m{
