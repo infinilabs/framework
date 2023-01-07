@@ -640,13 +640,13 @@ READ_DOCS:
 						xxHash.WriteString(id)
 						partitionID := int(xxHash.Sum32()) % maxSlices
 
-						//partitionID :=  util.ModString(id,maxSlices)
-
 						if partitionID == sliceID {
 							sliceOps++
 							mainBuf.WriteNewByteBufferLine("meta1",metaBytes)
-							mainBuf.WriteMessageID(pop.Offset)
+							mainBuf.WriteMessageID(id)
 							collectMeta = true
+						}else{
+							collectMeta = false
 						}
 						return nil
 					}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
