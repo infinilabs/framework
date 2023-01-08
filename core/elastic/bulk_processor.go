@@ -63,15 +63,11 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 			var err error
 			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
 			if err!=nil{
-				log.Error(err)
-				log.Flush()
 				panic(err)
 			}
 
 			err = metaFunc(line, actionStr, index, typeName, id,routing)
 			if err != nil {
-				log.Error(err)
-				log.Flush()
 				panic(err)
 			}
 
