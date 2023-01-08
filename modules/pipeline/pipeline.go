@@ -463,7 +463,7 @@ func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 				ctx.Pause()
 				break
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 		}
 
 	}(v, processor, ctx)

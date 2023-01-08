@@ -773,8 +773,8 @@ func (d *DiskBasedQueue) ioLoop() {
 			if d.nextReadPos == d.readPos {
 				dataRead, err = d.readOne()
 				if err != nil {
-					time.Sleep(1 * time.Second)
 					d.handleReadError()
+					time.Sleep(1 * time.Second)
 					continue
 				}
 			}

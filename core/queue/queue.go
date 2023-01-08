@@ -116,6 +116,7 @@ type ConsumerConfig struct {
 	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
 	FetchMaxMessages int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
 	FetchMaxWaitMs   int64   `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	EOFRetryDelayInMs   int64   `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 	fetchMaxWaitMs   time.Duration
 }
 
@@ -349,6 +350,7 @@ func NewConsumerConfig(group, name string) *ConsumerConfig {
 		FetchMinBytes:    1,
 		FetchMaxBytes:    10 * 1024 * 1024,
 		FetchMaxMessages: 500,
+		EOFRetryDelayInMs: 500,
 		FetchMaxWaitMs:   10000,
 	}
 	cfg.Id = util.GetUUID()
@@ -365,6 +367,7 @@ func GetOrInitConsumerConfig(queueID, group, name string) *ConsumerConfig {
 			FetchMinBytes:    1,
 			FetchMaxBytes:    10 * 1024 * 1024,
 			FetchMaxMessages: 500,
+			EOFRetryDelayInMs: 500,
 			FetchMaxWaitMs:   10000,
 		}
 		cfg.Id = util.GetUUID()

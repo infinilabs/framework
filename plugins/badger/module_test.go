@@ -41,7 +41,7 @@ func Test(t *testing.T) {
 		go run(i, t)
 	}
 
-	time.Sleep(100 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	//For BoltDB KV filter, 19k unique will consume 100MB memory, 40K:230MB
 }

@@ -95,7 +95,9 @@ READ_MSG:
 			//current have changes, reload file with new position
 			if d.getFileSize()>d.readPos{
 				log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
-				time.Sleep(1*time.Second)
+				if d.cCfg.EOFRetryDelayInMs>0{
+					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs)*time.Millisecond)
+				}
 				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
@@ -147,7 +149,6 @@ READ_MSG:
 					if global.Env().IsDebug {
 						log.Tracef("no message found in queue: %v, sleep 1s", d.queue)
 					}
-					time.Sleep(1 * time.Second)
 				}
 			}
 			//No error for EOF error
@@ -227,7 +228,6 @@ READ_MSG:
 				if global.Env().IsDebug{
 					log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
 				}
-				time.Sleep(1*time.Second)
 				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
@@ -236,6 +236,11 @@ READ_MSG:
 					}
 					panic(err)
 				}
+
+				if d.cCfg.EOFRetryDelayInMs>0{
+					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs)*time.Millisecond)
+				}
+
 				goto READ_MSG
 			}
 
