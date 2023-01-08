@@ -113,6 +113,8 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 
 		lines := util.FileGetLines(filename)
 
+		log.Debugf("get %v lines prepare to replay",len(lines))
+
 		var err error
 		var done bool
 		count, err, done = ReplayLines(ctx, lines, processor.config.Schema,processor.config.Host)
@@ -157,30 +159,12 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (in
 
 				//execute previous request now
 				if requestIsSet {
-					if buffer.Len() > 0 {
-						if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
-							buffer.WriteString(newline)
-						}
-						req.SetBody(buffer.Bytes())
-					}
-					err := fastHttpClient.Do(req, res)
 					log.Debug("execute request: ",req.URI().String())
-					if err != nil {
+					err:=execute(req,res,buffer)
+					if err!=nil{
 						log.Error(err, req.String())
 						panic(err)
 					}
-
-					if res.StatusCode()>210{
-						log.Error(string(req.GetRawBody()))
-						log.Error(string(res.GetRawBody()))
-					}
-
-					if global.Env().IsDebug {
-						log.Trace(string(res.GetRawBody()))
-					}
-
-					req.Reset()
-					res.Reset()
 					buffer.Reset()
 					requestIsSet = false
 				}
@@ -218,5 +202,45 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (in
 			}
 		}
 	}
+
+	//execute previous request now
+	if requestIsSet {
+		log.Debug("execute last request: ",req.URI().String())
+		err:=execute(req,res,buffer)
+		if err!=nil{
+			log.Error(err, req.String())
+			panic(err)
+		}
+	}
+
 	return count, nil, false
+}
+
+func execute(req *fasthttp.Request,res *fasthttp.Response,buffer *bytebufferpool.ByteBuffer) error {
+	if buffer.Len() > 0 {
+		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
+			buffer.WriteString(newline)
+		}
+		req.SetBody(buffer.Bytes())
+	}
+
+	err := fastHttpClient.Do(req, res)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode()>210{
+		if global.Env().IsDebug {
+			log.Debug("request:", string(req.String()))
+			log.Debug("response:", string(res.String()))
+		}
+	}
+
+	if global.Env().IsDebug {
+		log.Trace(string(res.GetRawBody()))
+	}
+
+	req.Reset()
+	res.Reset()
+	return nil
 }
