@@ -144,9 +144,39 @@ type BulkProcessorConfig struct {
 	BulkResultMessageMaxRequestBodyLength  int    `config:"max_request_body_size"`
 	BulkResultMessageMaxResponseBodyLength int    `config:"max_response_body_size"`
 
-	Retry429      bool `config:"retry_429"`
+	RetryException RetryException `config:"retry_exception"`
+
 	RemoveDuplicatedNewlines bool   `config:"remove_duplicated_newlines"`
 }
+
+type RetryException struct {
+	Retry429 			bool `config:"retry_429"`
+	ResponseCode       []int 	`config:"code"`
+	ResponseKeyword    []string `config:"keyword"`
+}
+
+func (this *RetryException) ShouldSkipRetry(code int,msg string)bool{
+
+	if len(this.ResponseCode)>0{
+		for _,v:=range this.ResponseCode{
+			if v==code{
+				return true
+			}
+		}
+	}
+
+	if len(this.ResponseKeyword)>0 && len(msg)>0{
+		for _,v:=range this.ResponseKeyword{
+			if util.ContainStr(msg,v){
+				log.Debug("message: ",msg," contains keyword: [",v, "], skip retry")
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 
 func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
 
@@ -174,9 +204,7 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 
 	BulkResultMessageQueue:  "bulk_result_messages",
 	DeadletterRequestsQueue: "bulk_dead_requests",
-
-	Retry429: true,
-
+	RetryException: RetryException{Retry429: true},
 	RequestTimeoutInSecond:  60,
 }
 
@@ -331,7 +359,7 @@ DO:
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats := HandleBulkResponse(tag, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.Retry429)
+			containError, statsCodeStats := HandleBulkResponse(tag, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.RetryException)
 
 			for k,v:=range statsCodeStats{
 				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
@@ -447,26 +475,31 @@ DO:
 		}
 
 		if resp.StatusCode() == 429 {
-			//TODO, save message offset and failure message
 			return false,statsRet, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
 		} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
-			//TODO, save message offset and failure message
 			////handle 400 error
 			if joint.Config.InvalidRequestsQueue != "" {
 				queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 			}
 			return true,statsRet, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 		} else {
-			//TODO, save message offset and failure message
+
 			if global.Env().IsDebug {
-				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resp.GetRawBody()))
+				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resbody))
 			}
+
+			if joint.Config.RetryException.ShouldSkipRetry(resp.StatusCode(),util.UnsafeBytesToString(resp.GetRawBody())){
+				truncatedResponse:=util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResultMessageMaxRequestBodyLength)
+				log.Warnf("code: %v, but hit condition to skip retry, response: %v",resp.StatusCode(),truncatedResponse)
+				return true,statsRet, errors.Errorf("code: %v, response: %v", resp.StatusCode(),truncatedResponse)
+			}
+
 			return false,statsRet, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 		}
 	}
 }
 
-func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retry429 bool) (bool, map[int]int) {
+func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retryException RetryException) (bool, map[int]int) {
 	nonRetryableItems.Reset()
 	retryableItems.Reset()
 	successItems.Reset()
@@ -533,12 +566,19 @@ func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *B
 		var code int
 		code, match = invalidDocStatus[id]
 		if match {
-			if code==429 && retry429{
+			if code==429 && retryException.Retry429{
 				retryable = true
 			}else if code >= 400 && code < 500{ //find invalid request 409
 				retryable = false
 			} else {
-				retryable = true
+
+				errMsg:=invalidDocError[id]
+
+				if retryException.ShouldSkipRetry(code,errMsg){
+					retryable = false
+				}else{
+					retryable = true
+				}
 			}
 
 			if retryable{
