@@ -5,7 +5,6 @@ package fasthttpadaptor
 import (
 	"io"
 	"net/http"
-
 	"infini.sh/framework/lib/fasthttp"
 )
 
@@ -49,7 +48,6 @@ func NewFastHTTPHandler(h http.Handler) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
 		var r http.Request
 		if err := ConvertRequest(ctx, &r, true); err != nil {
-			ctx.Logger().Printf("cannot parse requestURI %q: %v", r.RequestURI, err)
 			ctx.Error("Internal Server Error", fasthttp.StatusInternalServerError)
 			return
 		}
