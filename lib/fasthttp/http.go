@@ -145,9 +145,9 @@ func (req *Request) SetRequestURI(requestURI string) {
 	req.parsedURI = false
 
 	//reset host after reset uri
-	if len(req.Header.host) > 0 {
+	//if len(req.Header.host) > 0 {
 		req.Header.host = req.Header.host[:0]
-	}
+	//}
 }
 
 // SetRequestURIBytes sets RequestURI.
@@ -156,10 +156,10 @@ func (req *Request) SetRequestURIBytes(requestURI []byte) {
 	req.parsedURI = false
 
 	//reset host after reset uri
-	if len(req.Header.host) > 0 {
+	//if len(req.Header.host) > 0 {
 		req.Header.host = req.Host()// req.Header.host[:0]
 		//req.Header.host =req.Header.host[:0]
-	}
+	//}
 }
 
 // RequestURI returns request's URI.

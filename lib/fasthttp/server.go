@@ -1102,6 +1102,7 @@ func (ctx *RequestCtx) SetContentTypeBytes(contentType []byte) {
 //
 // The returned bytes are valid until your request handler returns.
 func (ctx *RequestCtx) RequestURI() []byte {
+	//return ctx.URI().RequestURI()
 	return ctx.Request.Header.RequestURI()
 }
 
