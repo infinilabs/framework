@@ -225,6 +225,7 @@ func (app *App) Shutdown() {
 		for i, v := range callbacks {
 			log.Trace("executing callback: ", i)
 			v()
+			log.Trace("executed callback: ", i)
 		}
 	}
 

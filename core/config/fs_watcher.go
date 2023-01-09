@@ -44,6 +44,7 @@ func EnableWatcher(path string)  {
 		return
 	}
 	AddPathToWatch(path, func(file string,op fsnotify.Op) {
+		log.Debug("reload file: ",file,",",op.String())
 		loadConfigFile(file)
 	})
 
@@ -84,57 +85,6 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 		}
 		watcherIsRunning=true
 
-		//handle events
-		go func(watcher *Watcher) {
-
-			defer func() {
-					if r := recover(); r != nil {
-						var v string
-						switch r.(type) {
-						case error:
-							v = r.(error).Error()
-						case runtime.Error:
-							v = r.(runtime.Error).Error()
-						case string:
-							v = r.(string)
-						}
-						log.Trace("error on handle configs,", v)
-					}
-			}()
-
-			//handle events merge
-			cache:=util.NewCacheWithExpireOnAdd(1*time.Second,5)
-			for {
-				select {
-				case ev := <-fsWatcher.Events:
-					{
-						if util.SuffixStr(ev.Name,"~"){
-							log.Trace("skip temp file:",ev.String())
-							continue
-						}
-
-						//merge changes in 1 seconds
-						v:=cache.Put(ev.Name,ev.Op)
-						if v!=nil{
-							//old key exists
-							log.Trace("1 seconds within, skip:",ev.String())
-							continue
-						}
-
-						log.Trace("config changed:",ev.String())
-						events<-ev
-					}
-				case err := <-fsWatcher.Errors:
-					{
-						log.Debug("error : ", err)
-						return
-					}
-				}
-			}
-
-
-		}(watcher)
-
 		//handle config reload
 		go func() {
 			defer func() {
@@ -157,7 +107,7 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 			for{
 				ev,ok = <- events
 				if !ok{
-					return
+					continue
 				}
 				log.Trace("2 seconds wait, on:",ev.String())
 				time.Sleep(2*time.Second)
@@ -191,6 +141,55 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 		}()
 	})
 
+	//handle events
+	go func(watcher *Watcher) {
+		defer func() {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Trace("error on handle configs,", v)
+			}
+		}()
+
+		//handle events merge
+		cache:=util.NewCacheWithExpireOnAdd(1*time.Second,5)
+		for {
+			select {
+			case ev := <-fsWatcher.Events:
+				{
+					if util.SuffixStr(ev.Name,"~"){
+						log.Trace("skip temp file:",ev.String())
+						continue
+					}
+
+					//merge changes in 1 seconds
+					v:=cache.Put(ev.Name,ev.Op)
+					if v!=nil{
+						//old key exists
+						log.Trace("1 seconds within, skip:",ev.String())
+						continue
+					}
+
+					log.Trace("config changed:",ev.String())
+					events<-ev
+				}
+			case err := <-fsWatcher.Errors:
+				{
+					log.Debug("error : ", err)
+					return
+				}
+			}
+		}
+
+	}(watcher)
+
 	err = fsWatcher.Add(path)
 	if err != nil {
 		log.Error(err)
@@ -201,11 +200,17 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 var latestConfig =map[string]*Config{}
 
 func StopWatchers() {
-	for _,v:=range fsWatchers{
+
+	log.Trace("stopping watchers")
+	for i,v:=range fsWatchers{
+		log.Trace("stopping watcher: ",i)
 		if v.watcher!=nil{
 			v.watcher.Close()
 		}
+		log.Trace("stopped watcher: ",i)
 	}
+
+	log.Trace("start closing watcher events channel")
 	close(events)
 }
 
