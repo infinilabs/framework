@@ -20,6 +20,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"strings"
+	"sync"
 )
 
 type StatsInterface interface {
@@ -120,7 +121,7 @@ func Stat(category, key string) int64 {
 	return 0
 }
 
-func StatsAll() string{
+func statsAll() string{
 	for _, v := range handlers {
 		b := v.StatsAll()
 		if b != "" {
@@ -130,9 +131,17 @@ func StatsAll() string{
 	return ""
 }
 
+var registeredStats = map[string]func()interface{}{}
+var registerLock=sync.Mutex{}
+func RegisterStats(statsKey string,callback func()interface{})  {
+	registerLock.Lock()
+	registeredStats[statsKey]=callback
+	registerLock.Unlock()
+}
+
 func StatsMap() (util.MapStr,error) {
 	var err error
-	metricsJSON := StatsAll()
+	metricsJSON := statsAll()
 	if metricsJSON==""{
 		return nil,errors.New("invalid stats")
 	}
@@ -141,6 +150,15 @@ func StatsMap() (util.MapStr,error) {
 	if err!=nil{
 		return nil,err
 	}
+
+	if len(registeredStats)>0{
+		registerLock.Lock()
+		for k,v:=range registeredStats{
+			metrics[k]=v()
+		}
+		registerLock.Unlock()
+	}
+
 	return metrics,nil
 }
 

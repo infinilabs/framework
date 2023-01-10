@@ -58,9 +58,9 @@ type ORM interface {
 }
 
 type ORMObjectBase struct {
-	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
-	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+	ID      string    `config:"id"  json:"id,omitempty"    elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
+	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
 }
 
 type Sort struct {

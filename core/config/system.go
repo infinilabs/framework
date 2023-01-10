@@ -168,9 +168,12 @@ type TLSConfig struct {
 	TLSKeyFile            string `config:"key_file" json:"key_file,omitempty" elastic_mapping:"key_file: { type: keyword }"`
 	TLSCAFile            string `config:"ca_file" json:"ca_file,omitempty" elastic_mapping:"ca_file: { type: keyword }"`
 	TLSInsecureSkipVerify bool   `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty" elastic_mapping:"skip_insecure_verify: { type: boolean }"`
+
 	//use for auto generate cert
 	DefaultDomain string `config:"default_domain" json:"default_domain,omitempty" elastic_mapping:"default_domain: { type: keyword }"`
 	SkipDomainVerify bool `config:"skip_domain_verify" json:"skip_domain_verify,omitempty" elastic_mapping:"skip_domain_verify: { type: boolean }"`
+
+	ClientSessionCacheSize int `config:"client_session_cache_size" json:"client_session_cache_size,omitempty"`
 }
 
 type AuthConfig struct {
