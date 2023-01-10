@@ -16,6 +16,7 @@ import (
 	"infini.sh/framework/core/util/zstd"
 	io "io"
 	"os"
+	"time"
 )
 
 //if local file not found, try to download from s3
@@ -161,6 +162,9 @@ RELOCATE_FILE:
 				if len(messages) == 0 {
 					if global.Env().IsDebug {
 						log.Tracef("no message found in queue: %v, sleep 1s", d.name)
+					}
+					if d.cfg.EOFRetryDelayInMs>0{
+						time.Sleep(time.Duration(d.cfg.EOFRetryDelayInMs)*time.Millisecond)
 					}
 				}
 			}

@@ -690,6 +690,7 @@ READ_DOCS:
 							if !ok || err != nil {
 								panic(err)
 							}
+							initOffset=pop.NextOffset
 						}
 						offset = pop.NextOffset
 					}
@@ -724,6 +725,7 @@ CLEAN_BUFFER:
 			if !ok || err != nil {
 				panic(err)
 			}
+			initOffset=offset
 		}
 	} else {
 		//logging failure offset boundry

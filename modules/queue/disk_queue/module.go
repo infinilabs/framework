@@ -56,6 +56,8 @@ type DiskQueueConfig struct {
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer  int   `config:"write_chan_buffer_size"`
 
+	EOFRetryDelayInMs   int64   `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
+
 	MaxUsedBytes      uint64 `config:"max_used_bytes"`
 	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
 	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
@@ -164,6 +166,7 @@ func (module *DiskQueue) Setup() {
 		MinMsgSize:        1,
 		MaxMsgSize:        104857600,         //100MB
 		MaxBytesPerFile:   100 * 1024 * 1024, //100MB
+		EOFRetryDelayInMs:  500,
 		SyncEveryRecords:  1000,
 		SyncTimeoutInMS:   1000,
 		NotifyChanBuffer:  100,

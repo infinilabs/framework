@@ -149,6 +149,9 @@ READ_MSG:
 					if global.Env().IsDebug {
 						log.Tracef("no message found in queue: %v, sleep 1s", d.queue)
 					}
+					if d.cCfg.EOFRetryDelayInMs>0{
+						time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs)*time.Millisecond)
+					}
 				}
 			}
 			//No error for EOF error

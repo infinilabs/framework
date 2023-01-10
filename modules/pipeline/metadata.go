@@ -349,6 +349,7 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 				if !ok || err != nil {
 					panic(err)
 				}
+				initOffset=offset
 			}
 		} else {
 			if !isTimeout {
