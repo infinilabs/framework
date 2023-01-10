@@ -255,8 +255,8 @@ func (app *App) Shutdown() {
 	logger.Flush()
 
 	if app.environment.IsDebug {
-		stats:=stats.StatsAll()
-		if len(stats)>0{
+		stats,_:=stats.StatsMap()
+		if stats!=nil && len(stats)>0{
 			fmt.Println(util.ToJson(stats,true))
 		}
 	}

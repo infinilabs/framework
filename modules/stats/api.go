@@ -42,15 +42,11 @@ var statsLock=sync.RWMutex{}
 func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var bytes []byte
 	var err error
-	metricsJSON := stats.StatsAll()
-	if metricsJSON==""{
+
+	metrics,err:=stats.StatsMap()
+	if err!=nil{
 		handler.WriteError(w,"stats is nil",500)
 		return
-	}
-	metrics:=util.MapStr{}
-	err=util.FromJSONBytes([]byte(metricsJSON),&metrics)
-	if err!=nil{
-		panic(err)
 	}
 
 	format :=handler.GetParameter(req,"format")
