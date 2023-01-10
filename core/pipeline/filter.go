@@ -15,7 +15,7 @@ type Filter interface {
 }
 
 type Filters struct {
-	List []Filter
+	List []Filter `json:"list,omitempty"`
 }
 
 func NewFilterList() *Filters {
