@@ -46,8 +46,9 @@ func (h APIHandler) CreateUser(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	user.Password = string(hash)
 
-	user.Created = time.Now()
-	user.Updated = time.Now()
+	now:=time.Now()
+	user.Created = &now
+	user.Updated = &now
 
 	id, err := h.User.Create(&user)
 	user.ID = id
@@ -121,7 +122,8 @@ func (h APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	user.Updated = time.Now()
+	now:=time.Now()
+	user.Updated = &now
 	user.Created = oldUser.Created
 	user.ID = id
 	err = h.User.Update(&user)

@@ -42,8 +42,8 @@ func (h APIHandler) CreateRole(w http.ResponseWriter, r *http.Request, ps httpro
 		h.ErrorInternalServer(w, "role name already exists")
 		return
 	}
-
-	role.Created = time.Now()
+	now:=time.Now()
+	role.Created = &now
 	role.Updated = role.Created
 	role.Type = roleType
 	var id string
@@ -169,8 +169,9 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 		h.ErrorInternalServer(w, "Changing role name is not allowed")
 		return
 	}
+	now:=time.Now()
 	role.Type = oldRole.Type
-	role.Updated = time.Now()
+	role.Updated = &now
 	role.Created = oldRole.Created
 	err = h.Role.Update(role)
 	delete(rbac.RoleMap, oldRole.Name)
