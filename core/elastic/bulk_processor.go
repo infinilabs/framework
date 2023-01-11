@@ -19,7 +19,7 @@ import (
 
 var NEWLINEBYTES = []byte("\n")
 
-func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id,routing string)) (int, error) {
+func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id,routing string)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
@@ -62,11 +62,12 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 			nextIsMeta = false
 			var err error
 			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
+			//log.Error(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
 			if err!=nil{
 				panic(err)
 			}
 
-			err = metaFunc(line, actionStr, index, typeName, id,routing)
+			err = metaFunc(line, actionStr, index, typeName, id,routing,docCount)
 			if err != nil {
 				panic(err)
 			}
@@ -261,7 +262,7 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 
 	if joint.Config.RemoveDuplicatedNewlines{
 		//handle double \n
-		data=util.ReplaceByte(data,[]byte("\n\n"),[]byte("\n"))
+		data=bytes.ReplaceAll(data,[]byte("\n\n"),[]byte("\n"))
 	}
 
 	if !req.IsGzipped() && joint.Config.Compress {
@@ -366,8 +367,9 @@ DO:
 				statsRet[k] = statsRet[k] + v
 			}
 
-			if retryTimes>0{
-				log.Errorf("#%v, code:%v, contain_err:%v, status:%v",retryTimes,resp.StatusCode(),containError,statsCodeStats)
+			if retryTimes>0||global.Env().IsDebug{
+				log.Infof("#%v, code:%v, contain_err:%v, status:%v, success:%v, failure:%v, invalid:%v",
+					retryTimes,resp.StatusCode(),containError,statsCodeStats,successItems.GetMessageCount(),retryableItems.GetMessageCount(),nonRetryableItems.GetMessageCount())
 			}
 
 			if containError || joint.Config.SaveSuccessBulkResultToMessageQueue {
@@ -384,11 +386,26 @@ DO:
 							elasticMap["retry_times"]=retryTimes
 						}
 
+						if nonRetryableItems.GetMessageCount()>0{
+							elasticMap["invalid"]=util.MapStr{
+								"documents":nonRetryableItems.MessageIDs,
+								"reason":nonRetryableItems.Reason,
+							}
+						}
+
+						if retryableItems.GetMessageCount()>0{
+							elasticMap["failure"]=util.MapStr{
+								"documents":retryableItems.MessageIDs,
+								"reason":retryableItems.Reason,
+							}
+						}
+
 						//save message bytes, with metadata, set codec to wrapped bulk messages
 						queue.Push(queue.GetOrInitConfig(joint.Config.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
 							"timestamp": time.Now(),
 							"elastic":elasticMap,
 							"queue":      buffer.Queue,
+							"node":      global.Env().SystemConfig.NodeConfig,
 							"request": util.MapStr{
 								"uri":  req.URI().String(),
 								"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.BulkResultMessageMaxRequestBodyLength),
@@ -436,15 +453,23 @@ DO:
 						goto DO
 					}
 
+					var continueNext =false
 					//skip all failure messages
 					if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
 						////handle 400 error
 						if joint.Config.InvalidRequestsQueue != "" {
 							queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 						}
-						return true,statsRet, errors.Errorf("[%v] invalid bulk requests", metadata.Config.Name)
+						continueNext=true
+					}else if nonRetryableItems.GetMessageCount() == 0 && retryableItems.GetMessageCount() == 0{
+						//no retryable
+						continueNext=true
 					}
-					return false,statsRet, errors.Errorf("bulk response contains error, %v, %v", statsCodeStats,statsRet)
+					if retryableItems.GetMessageCount()>0{
+						continueNext=false
+					}
+
+					return continueNext,statsRet, errors.Errorf("bulk response contains error, %v, %v, %v, none-retryable:%v, retryable:%v",metadata.Config.Name, statsCodeStats,statsRet,nonRetryableItems.GetMessageCount(),retryableItems.GetMessageCount())
 				}
 			}
 		}
@@ -458,6 +483,7 @@ DO:
 			queue.Push(queue.GetOrInitConfig(joint.Config.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
 				"timestamp": time.Now(),
 				"queue":      buffer.Queue,
+				"node":      global.Env().SystemConfig.NodeConfig,
 				"request": util.MapStr{
 					"uri":  req.URI().String(),
 					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, joint.Config.BulkResultMessageMaxRequestBodyLength),
@@ -500,20 +526,22 @@ DO:
 }
 
 func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,retryException RetryException) (bool, map[int]int) {
-	nonRetryableItems.Reset()
-	retryableItems.Reset()
-	successItems.Reset()
+	nonRetryableItems.ResetData()
+	retryableItems.ResetData()
+	successItems.ResetData()
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
-	invalidDocStatus := map[string]int{}
-	invalidDocError := map[string]string{}
+	invalidDocStatus := map[int]int{}
+	invalidDocError := map[int]string{}
+	invalidDocID := map[int]string{}
 
 	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err != nil {
 		panic(err)
 	}
 
+	var docOffset=0
 	jsonparser.ArrayEach(items, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		item,_,_,err:=jsonparser.Get(value,"index")
 		if err!=nil{
@@ -526,11 +554,13 @@ func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *B
 			}
 		}
 		if err==nil{
+
+			//id can be nil
 			docId,err:=jsonparser.GetString(item,"_id")
-			if err != nil {
-				panic(err)
+			if err == nil {
+				docId=strings.Clone(docId)
 			}
-			docId=strings.Clone(docId)
+
 			code1,err:=jsonparser.GetInt(item,"status")
 			if err != nil {
 				panic(err)
@@ -543,50 +573,64 @@ func HandleBulkResponse(tag string, requestBytes, resbody []byte,successItems *B
 			x++
 			statsCodeStats[code] = x
 			erObj,_,_,err:=jsonparser.Get(item,"error")
-
 			if err==nil&&erObj != nil {
-				invalidDocStatus[docId] = code
-				invalidDocError[docId] = util.UnsafeBytesToString(erObj)
+				invalidDocID[docOffset] = docId
+				invalidDocStatus[docOffset] = code
+				invalidDocError[docOffset] = util.UnsafeBytesToString(erObj)
 			}
 		}
+		docOffset++
 	})
 
-	if len(invalidDocStatus) > 0 {
-		if global.Env().IsDebug {
-			log.Debug(tag," bulk invalid, status:", statsCodeStats)
-		}
+	if global.Env().IsDebug {
+		log.Debug(tag, " bulk invalid, status:", statsCodeStats, ",invalid status:", invalidDocStatus)
 	}
 
 	var match = false
 	var retryable = false
 	WalkBulkRequests(requestBytes,func(eachLine []byte) (skipNextLine bool) {
 		return false
-	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
+	}, func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error) {
 
 		var code int
-		code, match = invalidDocStatus[id]
+		code, match = invalidDocStatus[offset]
+		if id==""{
+			id=fmt.Sprintf("N/A(%v)",offset)
+		}
 		if match {
+
+			docID:=invalidDocID[offset]
+			if docID==""{
+				docID=fmt.Sprintf("N/A(%v)",offset)
+			}
+			//log.Error(offset,",",id,",",docID,",",code,",",match)
+
 			if code==429 && retryException.Retry429{
 				retryable = true
 			}else if code >= 400 && code < 500{ //find invalid request 409
 				retryable = false
-			} else {
+			}else{
+				retryable = true
+			}
 
-				errMsg:=invalidDocError[id]
+			//last check
+			errMsg:=invalidDocError[offset]
+			if retryable&&retryException.ShouldSkipRetry(code,errMsg){
+				retryable = false
+			}
 
-				if retryException.ShouldSkipRetry(code,errMsg){
-					retryable = false
-				}else{
-					retryable = true
-				}
+			if global.Env().IsDebug{
+				log.Debugf("index:%v, offset:%v, docID:%v, action:%v, code:%v, retryable:%v, reason:%v",index,offset,docID,actionStr,code,retryable,errMsg)
 			}
 
 			if retryable{
 				retryableItems.WriteNewByteBufferLine("retryable",metaBytes)
-				retryableItems.WriteMessageID(id)
+				retryableItems.WriteMessageID(docID)
+				retryableItems.WriteErrorReason(errMsg)
 			}else{
 				nonRetryableItems.WriteNewByteBufferLine("none-retryable",metaBytes)
-				nonRetryableItems.WriteMessageID(id)
+				nonRetryableItems.WriteMessageID(docID)
+				nonRetryableItems.WriteErrorReason(errMsg)
 			}
 		}else{
 			successItems.WriteNewByteBufferLine("success",metaBytes)
