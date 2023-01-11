@@ -460,7 +460,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 
 		//cleanup buffer before exit worker
 		continueNext, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
-		mainBuf.Reset()
+		mainBuf.ResetData()
 		if continueNext {
 			if offset != "" && initOffset != offset {
 				ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
@@ -633,7 +633,7 @@ READ_DOCS:
 					var collectMeta = false
 					elastic.WalkBulkRequests(pop.Data,  func(eachLine []byte) (skipNextLine bool) {
 						return false
-					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string) (err error) {
+					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error) {
 						totalOps++
 
 						//check hash
@@ -676,7 +676,7 @@ READ_DOCS:
 					//submit request
 					continueRequest, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 					//reset buffer
-					mainBuf.Reset()
+					mainBuf.ResetData()
 					if !continueRequest {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(),"code 429"){
@@ -717,7 +717,7 @@ CLEAN_BUFFER:
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	continueNext, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 	//reset buffer
-	mainBuf.Reset()
+	mainBuf.ResetData()
 
 	if continueNext {
 		if offset != "" && offset != initOffset {

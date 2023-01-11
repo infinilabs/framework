@@ -11,6 +11,7 @@ type BulkBuffer struct {
 	Queue      string
 	bytesBuffer     *bytebufferpool.ByteBuffer
 	MessageIDs []string
+	Reason []string
 }
 
 var bulkBufferPool = &sync.Pool{
@@ -111,10 +112,21 @@ func (receiver *BulkBuffer) WriteMessageID(id string) {
 	}
 }
 
+func (receiver *BulkBuffer) WriteErrorReason(reason string) {
+	if len(reason) != 0 {
+		receiver.Reason = append(receiver.Reason, reason)
+	}
+}
+
 func (receiver *BulkBuffer) Reset() {
+	receiver.ResetData()
+	receiver.Queue = ""
+}
+
+func (receiver *BulkBuffer) ResetData() {
 	if receiver.bytesBuffer != nil {
 		receiver.bytesBuffer.Reset()
 	}
-	receiver.Queue = ""
 	receiver.MessageIDs = receiver.MessageIDs[:0]
+	receiver.Reason = receiver.Reason[:0]
 }
