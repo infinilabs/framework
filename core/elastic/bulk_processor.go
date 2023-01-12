@@ -140,6 +140,8 @@ type BulkProcessorConfig struct {
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
 
 	SaveSuccessBulkResultToMessageQueue    bool `config:"save_success_results"`
+	SaveErrorDetailsToMessageQueue    	   bool `config:"save_error_details"`
+	MaxItemOfErrorDetailsCount    		   int `config:"max_error_details_count"`
 	SaveBusyBulkResultToMessageQueue       bool `config:"save_busy_results"`
 	BulkResultMessageQueue                 string `config:"bulk_result_message_queue"`
 	BulkResultMessageMaxRequestBodyLength  int    `config:"max_request_body_size"`
@@ -204,6 +206,8 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	BulkResultMessageMaxResponseBodyLength: 10*1024,
 
 	BulkResultMessageQueue:  "bulk_result_messages",
+	SaveErrorDetailsToMessageQueue:  true,
+	MaxItemOfErrorDetailsCount:  50,
 	DeadletterRequestsQueue: "bulk_dead_requests",
 	RetryException: RetryException{Retry429: true},
 	RequestTimeoutInSecond:  60,
@@ -386,17 +390,31 @@ DO:
 							elasticMap["retry_times"]=retryTimes
 						}
 
-						if nonRetryableItems.GetMessageCount()>0{
-							elasticMap["invalid"]=util.MapStr{
-								"documents":nonRetryableItems.MessageIDs,
-								"reason":nonRetryableItems.Reason,
+						if joint.Config.SaveErrorDetailsToMessageQueue{
+							if nonRetryableItems.GetMessageCount()>0{
+								ids:=nonRetryableItems.MessageIDs
+								reasons:=nonRetryableItems.Reason
+								if nonRetryableItems.GetMessageCount()>joint.Config.MaxItemOfErrorDetailsCount{
+									ids=ids[0:joint.Config.MaxItemOfErrorDetailsCount]
+									reasons=reasons[0:joint.Config.MaxItemOfErrorDetailsCount]
+								}
+								elasticMap["invalid"]=util.MapStr{
+									"documents":ids,
+									"reason":reasons,
+								}
 							}
-						}
 
-						if retryableItems.GetMessageCount()>0{
-							elasticMap["failure"]=util.MapStr{
-								"documents":retryableItems.MessageIDs,
-								"reason":retryableItems.Reason,
+							if retryableItems.GetMessageCount()>0{
+								ids:=retryableItems.MessageIDs
+								reasons:=retryableItems.Reason
+								if retryableItems.GetMessageCount()>joint.Config.MaxItemOfErrorDetailsCount{
+									ids=ids[0:joint.Config.MaxItemOfErrorDetailsCount]
+									reasons=reasons[0:joint.Config.MaxItemOfErrorDetailsCount]
+								}
+								elasticMap["failure"]=util.MapStr{
+									"documents":ids,
+									"reason":reasons,
+								}
 							}
 						}
 
