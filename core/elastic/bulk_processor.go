@@ -563,7 +563,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 		})
 
 		if global.Env().IsDebug {
-			log.Debug(tag, " bulk invalid, status:", statsCodeStats, ",invalid status:", invalidDocStatus)
+			log.Debug(tag, " bulk status:", statsCodeStats, ",invalid status:", invalidDocStatus)
 		}
 
 		var match = false
@@ -581,11 +581,12 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				}
 
 				//stats
-				v, ok := indexStatsData[index]
+				indexName:=RemoveDotFromIndexName(index,"#")
+				v, ok := indexStatsData[indexName]
 				if !ok {
-					indexStatsData[index] = 1
+					indexStatsData[indexName] = 1
 				} else {
-					indexStatsData[index] = v + 1
+					indexStatsData[indexName] = v + 1
 				}
 			}
 
