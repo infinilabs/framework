@@ -67,6 +67,8 @@ type DiskQueueConfig struct {
 
 	PrepareFilesToRead bool `config:"prepare_files_to_read"`
 
+	CompressAndCleanupDuringInit bool `config:"cleanup_files_on_init"`
+
 	//default queue adaptor
 	Default bool `config:"default"`
 	Enabled bool `config:"enabled"`
@@ -143,8 +145,12 @@ func (module *DiskQueue) Init(name string) error {
 
 	module.queues.Store(name, tempQueue)
 
-	module.compressFiles(name, tempQueue.ReadContext().WriteFileNum)
-	module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
+	if module.cfg.CompressAndCleanupDuringInit{
+		module.compressFiles(name, tempQueue.ReadContext().WriteFileNum)
+		module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
+	}
+
+
 	return nil
 }
 
