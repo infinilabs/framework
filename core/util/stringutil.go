@@ -32,7 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"src/github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
