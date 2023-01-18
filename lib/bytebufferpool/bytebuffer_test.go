@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"src/github.com/magiconair/properties/assert"
 	"testing"
 	"time"
 )
@@ -87,6 +88,32 @@ func TestByteBufferGetPutConcurrent(t *testing.T) {
 			t.Fatalf("timeout!")
 		}
 	}
+}
+
+func TestByteBufferGrow(t *testing.T) {
+	a:="hello"
+	b:=ByteBuffer{}
+	b.WriteString(a)
+	fmt.Println(b.Len())
+	fmt.Println(b.Cap())
+
+	assert.Equal(t,b.Len(),5)
+	assert.Equal(t,b.Cap(),8)
+	//grow
+	b.Grow(24)
+	fmt.Println(b.String())
+	fmt.Println(b.Len())
+	fmt.Println(b.Cap())
+	assert.Equal(t,b.Len(),5)
+	assert.Equal(t,b.Cap(),32)
+
+	c:="world"
+	b.WriteString(c)
+	fmt.Println(b.String())
+	fmt.Println(b.Len())
+	fmt.Println(b.Cap())
+	assert.Equal(t,b.Len(),10)
+	assert.Equal(t,b.Cap(),32)
 }
 
 func testByteBufferGetPut(t *testing.T) {
