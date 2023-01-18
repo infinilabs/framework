@@ -133,9 +133,16 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 }
 
 func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (int, error, bool) {
-	req := fasthttp.AcquireRequest()
+
 	var buffer = bytebufferpool.Get("replay")
-	var res = fasthttp.AcquireResponse()
+	defer bytebufferpool.Put("replay",buffer)
+
+	req := fasthttp.AcquireRequest()
+	res := fasthttp.AcquireResponse()
+
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(res)
+
 	var requestIsSet bool
 	count:=0
 	for _, line := range lines {

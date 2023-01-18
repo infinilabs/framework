@@ -317,18 +317,18 @@ func (module *PipeModule) Stop() error {
 			return true
 		})
 
-		log.Trace("configs:",len(module.configs))
+		//log.Trace("configs:",len(module.configs))
 
 		for k, _ := range module.configs {
-			if global.Env().IsDebug{
-				log.Trace("checking config: ",k)
-			}
+			//if global.Env().IsDebug{
+			//	log.Trace("checking config: ",k)
+			//}
 			v1,ok:=module.contexts.Load(k)
 			if ok{
 				v,ok:=v1.(*pipeline.Context)
-				if global.Env().IsDebug{
-					log.Trace(v.Config.Name,",",v.GetRunningState())
-				}
+				//if global.Env().IsDebug{
+				//	log.Trace(v.Config.Name,",",v.GetRunningState())
+				//}
 				if ok{
 					if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
 						if time.Now().Sub(start).Minutes() > 5 {
