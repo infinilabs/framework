@@ -21,9 +21,9 @@ func (module *DiskQueue)GetEarlierOffsetByQueueID(queueID string)(int,int64)  {
 			seg:=value.(int64)
 			c++
 			if seg<eSegmentNum{
-				//if global.Env().IsDebug{
-					log.Info(queueID,",",seg," < ",eSegmentNum, " use:",seg)
-				//}
+				if global.Env().IsDebug{
+					log.Debug(queueID,",",seg," < ",eSegmentNum, " use:",seg)
+				}
 				eSegmentNum=seg
 			}
 			return true

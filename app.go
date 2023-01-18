@@ -19,12 +19,15 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/license"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 type App struct {
@@ -46,6 +49,9 @@ type App struct {
 	svc               service.Service
 	exit              chan os.Signal
 	svcFlag           string
+
+	//atomic status
+	stopped           int32 //0 means running, 1 means stopped
 }
 
 func NewApp(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
@@ -332,6 +338,7 @@ func (p *App) run() error {
 
 			//wait modules to stop
 			module.Stop()
+			atomic.StoreInt32(&p.stopped,1)
 			p.quitSignal <- true
 		}
 	}()
@@ -340,6 +347,31 @@ func (p *App) run() error {
 		p.start()
 	}
 
+	global.RegisterBackgroundCallback(global.BackgroundTask{Tag: "cleanup_bytes_buffer",Func: func() {
+		bytebufferpool.CleanupIdleCachedBytesBuffer()
+	},Interval: time.Minute})
+
+
+	//background job
+	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on running background jobs,", v)
+				}
+			}
+		}()
+		global.RunBackgroundCallbacks(&p.stopped)
+	}()
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil

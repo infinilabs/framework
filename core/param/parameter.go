@@ -24,17 +24,11 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 )
-
-type BufferObject struct {
-	bytesBuffer []*bytebufferpool.ByteBuffer
-	byteReader  []*bytes.Reader
-}
 
 type Parameters struct {
 	Timestamp time.Time
@@ -48,33 +42,6 @@ var byteReaderPool = &sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Reader)
 	},
-}
-
-func (r *BufferObject) AcquireBytesReader() *bytes.Reader {
-	buffer := byteReaderPool.Get().(*bytes.Reader)
-	r.byteReader = append(r.byteReader, buffer)
-	return buffer
-}
-
-func (r *BufferObject) AcquireBuffer() *bytebufferpool.ByteBuffer {
-	buffer := bytebufferpool.Get("parameter_buffer")
-	buffer.Reset()
-	r.bytesBuffer = append(r.bytesBuffer, buffer)
-	return buffer
-}
-
-func (para *BufferObject) Reset() {
-	if para.bytesBuffer != nil && len(para.bytesBuffer) > 0 {
-		for _, v := range para.bytesBuffer {
-			bytebufferpool.Put("parameter_buffer", v)
-		}
-	}
-
-	if para.byteReader != nil && len(para.byteReader) > 0 {
-		for _, v := range para.byteReader {
-			byteReaderPool.Put(v)
-		}
-	}
 }
 
 func (para *Parameters) ResetParameters() {

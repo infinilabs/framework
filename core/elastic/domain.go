@@ -451,6 +451,8 @@ type ElasticsearchConfig struct {
 	RequestTimeout  int  `json:"request_timeout,omitempty" config:"request_timeout"`
 	RequestCompress bool `json:"request_compress,omitempty" config:"request_compress"`
 
+	MetadataCacheEnabled bool `json:"metadata_cache_enabled,omitempty" config:"metadata_cache_enabled"`
+
 	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`

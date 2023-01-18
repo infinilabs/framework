@@ -60,9 +60,10 @@ func (module *Module) Stop() error {
 
 func init() {
 	module.RegisterSystemModule(&Module{
-		MemTableSize: 1*1024*1024,
-		ValueLogFileSize: 1*1024*1024,
-		ValueLogMaxEntries: 1000,
+		MemTableSize: 10*1024*1024,
+		ValueLogFileSize: 1<<30 - 1, //1g
+		ValueThreshold: 1048576, //1m
+		ValueLogMaxEntries: 1000000,//1million
 		NumMemtables: 1,
 		NumLevelZeroTables: 1,
 		NumLevelZeroTablesStall: 2,

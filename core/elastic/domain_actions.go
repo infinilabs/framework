@@ -172,16 +172,19 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 */
 func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
-	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1e5,     // Num keys to track frequency of (10M). 10,0000
-		MaxCost:     1000000, //cfg.MaxCachedSize, // Maximum cost of cache (1GB).
-		BufferItems: 64,      // Number of keys per Get buffer.
-		Metrics:     false,
-	})
-	if err != nil {
-		panic(err)
+
+	if cfg.MetadataCacheEnabled{
+		cache, err := ristretto.NewCache(&ristretto.Config{
+			NumCounters: 1e5,     // Num keys to track frequency of (10M). 10,0000
+			MaxCost:     1000000, //cfg.MaxCachedSize, // Maximum cost of cache (1GB).
+			BufferItems: 64,      // Number of keys per Get buffer.
+			Metrics:     false,
+		})
+		if err != nil {
+			panic(err)
+		}
+		v.cache = cache
 	}
-	v.cache = cache
 
 	v.Init(defaultHealth)
 	SetMetadata(cfg.ID, v)
@@ -572,15 +575,17 @@ func (metadata *ElasticsearchMetadata) GetValue(s string) (interface{}, error) {
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.MapStr, error) {
-	if metadata.cache != nil {
-		o, found := metadata.cache.Get("index_stats" + indexName)
-		if found {
-			return o.(*util.MapStr), nil
+	if metadata.Config.MetadataCacheEnabled{
+		if metadata.cache != nil {
+			o, found := metadata.cache.Get("index_stats" + indexName)
+			if found {
+				return o.(*util.MapStr), nil
+			}
 		}
 	}
 
 	s, err := GetClient(metadata.Config.ID).GetIndexStats(indexName)
-	if err == nil {
+	if err == nil &&metadata.Config.MetadataCacheEnabled {
 		if metadata.cache != nil {
 			metadata.cache.SetWithTTL("index_stats"+indexName, s, 1, 10*time.Second)
 		}
@@ -590,10 +595,12 @@ func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.Ma
 
 func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *util.MapStr, error) {
 
-	if metadata.cache != nil {
-		o, found := metadata.cache.Get("index_settings" + index)
-		if found {
-			return index, o.(*util.MapStr), nil
+	if metadata.Config.MetadataCacheEnabled{
+		if metadata.cache != nil {
+			o, found := metadata.cache.Get("index_settings" + index)
+			if found {
+				return index, o.(*util.MapStr), nil
+			}
 		}
 	}
 
@@ -656,14 +663,12 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *u
 		if indexSettings == nil {
 			//fetch single index settings
 			settings, err := GetClient(metadata.Config.ID).GetIndexSettings(index)
-			if err == nil && settings != nil {
+			if err == nil && settings != nil&&metadata.Config.MetadataCacheEnabled {
 				//TODO set cache
 				//metadata.IndexSettings[index] = settings
-
 				if metadata.cache != nil {
 					metadata.cache.SetWithTTL("index_settings"+index, settings, 1, 10*time.Second)
 				}
-
 				return index, settings, nil
 			}
 		}
@@ -674,10 +679,13 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *u
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error) {
-	x,ok:=metadata.cache.Get(index)
-	if ok&&x!=nil{
-		if y,ok:=x.(map[string][]IndexShardRouting);ok{
-			return y,nil
+
+	if metadata.Config.MetadataCacheEnabled{
+		x,ok:=metadata.cache.Get(index)
+		if ok&&x!=nil{
+			if y,ok:=x.(map[string][]IndexShardRouting);ok{
+				return y,nil
+			}
 		}
 	}
 
@@ -723,7 +731,7 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 	if rate.GetRateLimiter("cluster_state_fetch",metadata.Config.ID,1,1,10*time.Second).Allow(){
 		log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
 		v,err:= GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
-		if err==nil&&v!=nil{
+		if err==nil&&v!=nil&&metadata.Config.MetadataCacheEnabled{
 			metadata.cache.SetWithTTL(index,v,100,10*time.Second)
 		}
 		return v,err

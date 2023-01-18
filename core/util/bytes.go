@@ -523,12 +523,20 @@ var bufferPool *sync.Pool = &sync.Pool{
 	},
 }
 
-func BytesHasPrefix(left, right []byte) bool {
-	if len(left) == 0 || len(right) == 0 {
+func BytesHasPrefix(data, prefix []byte) bool {
+	if len(data) == 0 || len(prefix) == 0 {
 		return false
 	}
 
-	return bytes.HasPrefix(left, right)
+	if len(prefix) == 1 {
+		if data[0] == prefix[0] {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	return bytes.HasPrefix(data, prefix)
 }
 
 func BytesHasSuffix(left, right []byte) bool {
@@ -536,10 +544,6 @@ func BytesHasSuffix(left, right []byte) bool {
 	if len(left) == 0 || len(right) == 0 {
 		return false
 	}
-
-	//fmt.Println(len(left))
-	//fmt.Println(len(right))
-	//fmt.Println(string(left[len(left)-1]))
 
 	if len(right) == 1 {
 		if right[0] == left[len(left)-1] {

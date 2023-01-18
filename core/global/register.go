@@ -17,11 +17,15 @@ limitations under the License.
 package global
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"infini.sh/framework/core/env"
 	"runtime"
+	log "github.com/cihub/seelog"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // RegisterKey is used to register custom value and retrieve back
@@ -105,9 +109,67 @@ func Env() *env.Env {
 var shutdownCallback = []func(){}
 
 func RegisterShutdownCallback(callback func()) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
 	shutdownCallback = append(shutdownCallback, callback)
 }
 
 func ShutdownCallback() []func() {
+	registerLock.Lock()
+	defer registerLock.Unlock()
 	return shutdownCallback
+}
+
+type BackgroundTask struct {
+	Tag string
+	Func func()
+	lastRunning time.Time
+	Interval time.Duration
+}
+
+var backgroundCallback = sync.Map{}
+var registerLock=sync.Mutex{}
+func RegisterBackgroundCallback(task BackgroundTask) {
+	backgroundCallback.Store(task.Tag,task)
+}
+
+
+func FuncWithTimeout(ctx context.Context,f func()) error {
+	ctx, cancel := context.WithTimeout(ctx,1*time.Second)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		cancel()
+		return ctx.Err()
+	default:
+		f()
+		return nil
+	}
+}
+
+func RunBackgroundCallbacks(continueRun *int32) {
+	ctx := context.Background()
+	for {
+		if atomic.LoadInt32(continueRun)==1{
+			log.Info("exit background tasks")
+			return
+		}
+		timeStart:=time.Now()
+		backgroundCallback.Range(func(key, value any) bool {
+			v:=value.(BackgroundTask)
+			if time.Since(v.lastRunning)>v.Interval{
+				err := FuncWithTimeout(ctx,v.Func)
+				if err != nil {
+					panic(fmt.Sprintf("error on running background job: %v, %v",key,err))
+				}
+				v.lastRunning=time.Now()
+			}
+			return true
+		})
+
+		if time.Since(timeStart)<time.Second{
+			time.Sleep(10*time.Second)
+		}
+	}
 }

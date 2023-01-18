@@ -488,7 +488,9 @@ func Pop(k *QueueConfig) ([]byte, error) {
 			stats.Increment("queue", k.Id, "pop")
 			return o, nil
 		}
-		stats.Increment("queue", k.Id, "pop_timeout")
+		if global.Env().IsDebug{
+			stats.Increment("queue", k.Id, "pop_timeout")
+		}
 		return o, errors.New("timeout")
 	}
 	panic(errors.New("handler is not registered"))
@@ -564,7 +566,10 @@ func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, ti
 		if !timeout {
 			stats.Increment("queue", k.Id, "pop")
 		}
-		stats.Increment("queue", k.Id, "pop_timeout")
+
+		if global.Env().IsDebug {
+			stats.Increment("queue", k.Id, "pop_timeout")
+		}
 		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
@@ -766,7 +771,9 @@ func HasLag(k *QueueConfig) bool {
 			return true
 		}
 
-		stats.Increment("queue", k.Id, "check_lag")
+		if global.Env().IsDebug{
+			stats.Increment("queue", k.Id, "check_lag")
+		}
 		return false
 	}
 

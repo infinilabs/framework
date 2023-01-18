@@ -156,10 +156,12 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 
 	b, err := handler.EncodeJSON(v)
 	if err != nil {
+		w.Write([]byte(err.Error()))
 		return err
 	}
 	_, err = w.Write(b)
 	if err != nil {
+		w.Write([]byte(err.Error()))
 		return err
 	}
 

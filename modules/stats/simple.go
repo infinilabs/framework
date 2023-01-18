@@ -5,12 +5,14 @@ import (
 	"github.com/segmentio/encoding/json"
 	"github.com/shirou/gopsutil/process"
 	"infini.sh/framework/core/api"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/lock_free/queue"
+	"net/http"
 	"os"
 	"path"
 	"runtime"
@@ -64,6 +66,10 @@ func (module *SimpleStatsModule) Setup() {
 
 	//register api
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
+
+	if global.Env().IsDebug{
+		api.HandleAPIMethod(api.GET, "/buffer_items", module.BufferItemStatsAction)
+	}
 }
 
 func (module *SimpleStatsModule) Start() error {
@@ -284,6 +290,8 @@ func (s *Stats) StatsAll()string {
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
 		"mem":          int64(mem.RSS),
+		"goroutines":          int64(runtime.NumGoroutine()),
+		"cgo_calls":          int64(runtime.NumCgoCall()),
 	}
 
 	result["buffer"] = bytebufferpool.BuffStats()
@@ -314,4 +322,9 @@ func (module *SimpleStatsModule) initStats(id string) {
 		module.data.Data = &map[string]map[string]int64{}
 		log.Trace("inited stats map")
 	}
+}
+
+func (handler SimpleStatsModule) BufferItemStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	obj:=bytebufferpool.DumpBufferItemSize()
+	handler.WriteJSON(w,obj,200)
 }

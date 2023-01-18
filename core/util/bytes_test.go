@@ -360,6 +360,15 @@ func BenchmarkLastIndex(b *testing.B) {
 	}
 }
 
+func BenchmarkBytesHasPrefix(b *testing.B) {
+	item := []byte("took")
+	prefix:=[]byte("to")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		BytesHasPrefix(item,prefix)
+	}
+}
+
 func TestLastIndex(t *testing.T) {
 
 	data := []byte("i am groot!")
@@ -531,6 +540,14 @@ func TestBytesEndWith1(t *testing.T) {
 	assert.Equal(t, true, BytesHasSuffix(str, ending))
 }
 
+func TestBytesStartWith1(t *testing.T) {
+
+	str := []byte("\nasdfas")
+
+	start := []byte("\n")
+	assert.Equal(t, true, BytesHasPrefix(str, start))
+}
+
 func TestToLowercase(t *testing.T) {
 	str := []byte("AZazUPPERcase")
 
@@ -550,6 +567,17 @@ func printStr(str []byte) {
 		fmt.Println(i, "-", s, "-", string(s))
 	}
 }
+
+func TestBytesLength(t *testing.T) {
+	a:=[]byte("0000000000")
+	fmt.Println(len(a))
+	fmt.Println(cap(a))
+	a=a[0:6]
+	fmt.Println(len(a))
+	fmt.Println(cap(a))
+
+}
+
 
 func TestUInt32ToBytes(t *testing.T) {
 	var v uint32 = 4294967294

@@ -81,6 +81,7 @@ func (filter *Module)getOrInitBucket(bucket string)*badger.DB  {
 	option.NumGoroutines=1
 	option.NumMemtables=filter.NumMemtables
 	option.Compression=options.ZSTD
+	option.MetricsEnabled=false
 	option.NumLevelZeroTables =      filter.NumLevelZeroTables
 	option.NumLevelZeroTablesStall = filter.NumLevelZeroTablesStall
 	option.SyncWrites=filter.SyncWrites
