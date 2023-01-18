@@ -516,7 +516,9 @@ func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Cont
 			stats.Increment("queue", k.Id, "consume")
 			return ctx, messages, isTimeout, err
 		}
-		stats.Increment("queue", k.Id, "consume_timeout")
+		if global.Env().IsDebug {
+			stats.Increment("queue", k.Id, "consume_timeout")
+		}
 		return ctx, messages, isTimeout, err
 	}
 	panic(errors.New("handler is not registered"))
@@ -749,7 +751,9 @@ func Depth(k *QueueConfig) int64 {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		stats.Increment("queue", k.Id, "call_depth")
+		if global.Env().IsDebug{
+			stats.Increment("queue", k.Id, "call_depth")
+		}
 		return o
 	}
 	panic(errors.New("handler is not registered"))
@@ -798,7 +802,9 @@ func ConsumerHasLag(k *QueueConfig,c *ConsumerConfig) bool {
 			return true
 		}
 
-		stats.Increment("queue", k.Id, "check_consumer_lag")
+		if global.Env().IsDebug {
+			stats.Increment("queue", k.Id, "check_consumer_lag")
+		}
 		return false
 	}
 
@@ -824,7 +830,9 @@ func GetQueues() map[string][]string {
 		result := []string{}
 		if handler != nil {
 			o := handler.GetQueues()
-			stats.Increment("queue", q, "get_queues")
+			if global.Env().IsDebug {
+				stats.Increment("queue", q, "get_queues")
+			}
 			result = append(result, o...)
 			results[q] = result
 		}
