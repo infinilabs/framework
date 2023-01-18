@@ -491,8 +491,8 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 }
 
 var (
-	responseBodyPool =bytebufferpool.NewTaggedPool("response_body",0,1024*1024*100,1000000)
-	requestBodyPool =bytebufferpool.NewTaggedPool("request_body",0,1024*1024*100,1000000)
+	responseBodyPool =bytebufferpool.NewTaggedPool("response_body",0,1024*1024*1024,1000000)
+	requestBodyPool =bytebufferpool.NewTaggedPool("request_body",0,1024*1024*1024,1000000)
 )
 
 // BodyGunzip returns un-gzipped body data.
@@ -1365,8 +1365,8 @@ func (req *Request) ReadBody(r *bufio.Reader, contentLength int, maxBodySize int
 	bodyBuf.Reset()
 
 	if contentLength >= 0 {
-		bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
-
+		//bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
+		err = readBodyWithBytesBuffer(r, contentLength, maxBodySize, bodyBuf)
 	} else if contentLength == -1 {
 		bodyBuf.B, err = readBodyChunked(r, maxBodySize, bodyBuf.B)
 
@@ -1503,8 +1503,8 @@ func (resp *Response) ReadBody(r *bufio.Reader, maxBodySize int) (err error) {
 
 	contentLength := resp.Header.ContentLength()
 	if contentLength >= 0 {
-		bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
-
+		//bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
+		err = readBodyWithBytesBuffer(r, contentLength, maxBodySize, bodyBuf)
 	} else if contentLength == -1 {
 		bodyBuf.B, err = readBodyChunked(r, maxBodySize, bodyBuf.B)
 
@@ -2117,6 +2117,8 @@ func (resp *Response) GetResponseLength() int {
 
 func getHTTPString(hw httpWriter) string {
 	w := bytebufferpool.Get("http")
+	defer bytebufferpool.Put("http",w)
+
 	bw := bufio.NewWriter(w)
 	if err := hw.Write(bw); err != nil {
 		return err.Error()
@@ -2125,7 +2127,6 @@ func getHTTPString(hw httpWriter) string {
 		return err.Error()
 	}
 	s := string(w.B)
-	bytebufferpool.Put("http",w)
 	return s
 }
 
@@ -2232,6 +2233,13 @@ func readBody(r *bufio.Reader, contentLength int, maxBodySize int, dst []byte) (
 	return appendBodyFixedSize(r, dst, contentLength)
 }
 
+func readBodyWithBytesBuffer(r *bufio.Reader, contentLength int, maxBodySize int, buf *bytebufferpool.ByteBuffer) (error) {
+	if maxBodySize > 0 && contentLength > maxBodySize {
+		return ErrBodyTooLarge
+	}
+	return appendBodyFixedSizeWithBytesBuffer(r, buf, contentLength)
+}
+
 var errChunkedStream = errors.New("chunked stream")
 
 func readBodyWithStreaming(r *bufio.Reader, contentLength int, maxBodySize int, dst []byte) (b []byte, err error) {
@@ -2294,6 +2302,37 @@ func readBodyIdentity(r *bufio.Reader, maxBodySize int, dst []byte) ([]byte, err
 			b := make([]byte, n)
 			copy(b, dst)
 			dst = b
+		}
+	}
+}
+
+func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.ByteBuffer, n int) (error) {
+	if n == 0 {
+		return nil
+	}
+
+	buff.Grow(n)
+
+	dst:=buff.B
+	offset := len(dst)
+	dstLen := offset + n
+	dst = dst[:dstLen]
+	for {
+		nn, err := r.Read(dst[offset:])
+		if nn <= 0 {
+			if err != nil {
+				if err == io.EOF {
+					err = io.ErrUnexpectedEOF
+				}
+				buff.B=dst[:offset]
+				return err
+			}
+			panic(fmt.Sprintf("BUG: bufio.Read() returned (%d, nil)", nn))
+		}
+		offset += nn
+		if offset == dstLen {
+			buff.B=dst
+			return nil
 		}
 	}
 }
