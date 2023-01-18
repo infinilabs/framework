@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"src/github.com/magiconair/properties/assert"
+	"github.com/magiconair/properties/assert"
 	"testing"
 	"time"
 )
