@@ -62,7 +62,9 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 			nextIsMeta = false
 			var err error
 			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
-			//log.Error(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
+			if global.Env().IsDebug{
+				log.Debug(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
+			}
 			if err!=nil{
 				panic(err)
 			}
@@ -150,13 +152,12 @@ type BulkProcessorConfig struct {
 
 type BulkResponseParseConfig struct {
 
-	SaveSuccessBulkResultToMessageQueue    bool `config:"save_success_results"`
-	SaveErrorBulkResultToMessageQueue      bool `config:"save_error_results"`
-	OutputBulkResults      				   bool `config:"output_bulk_stats"`
+	SaveSuccessBulkResultToMessageQueue bool `config:"save_success_results"`
+	SaveErrorBulkResultToMessageQueue   bool `config:"save_error_results"`
 
-	IncludeIndexStats      				   bool `config:"include_index_stats"`
-	IncludeOperationStats      			   bool `config:"include_operation_stats"`
-
+	OutputBulkStats    bool `config:"output_bulk_stats"`
+	IncludeIndexStats  bool `config:"include_index_stats"`
+	IncludeActionStats bool `config:"include_action_stats"`
 
 	IncludeErrorDetails        bool `config:"include_error_details"`
 	MaxItemOfErrorDetailsCount int  `config:"max_error_details_count"`
@@ -228,14 +229,14 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 
 		BulkResultMessageQueue:  "bulk_result_messages",
 
-		SaveSuccessBulkResultToMessageQueue:  true,
-		SaveErrorBulkResultToMessageQueue:true,
-		SaveBusyBulkResultToMessageQueue:true,
-		OutputBulkResults:false,
+		SaveSuccessBulkResultToMessageQueue: false,
+		SaveErrorBulkResultToMessageQueue:   true,
+		SaveBusyBulkResultToMessageQueue:    true,
+		OutputBulkStats:                     false,
 
 		IncludeErrorDetails:        true,
 		IncludeIndexStats:          true,
-		IncludeOperationStats:      true,
+		IncludeActionStats:         true,
 		MaxItemOfErrorDetailsCount: 50,
 
 		RetryException: RetryException{Retry429: true},
@@ -384,10 +385,6 @@ DO:
 		log.Trace(resp.StatusCode(), util.UnsafeBytesToString(util.EscapeNewLine(data)), util.UnsafeBytesToString(util.EscapeNewLine(resbody)))
 	}
 
-	if retryTimes>0{
-		log.Errorf("#%v, code:%v",retryTimes,resp.StatusCode())
-	}
-
 	//for response
 	labels:=util.MapStr{
 		"cluster_id":       metadata.Config.ID,
@@ -406,7 +403,9 @@ DO:
 			containError, statsCodeStats,_:= HandleBulkResponse(req, resp,labels, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.BulkResponseParseConfig)
 
 			for k,v:=range statsCodeStats{
-				stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
+				if global.Env().IsDebug{
+					stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
+				}
 				statsRet[k] = statsRet[k] + v
 			}
 
@@ -445,7 +444,7 @@ DO:
 							queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
 							return true,statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
 						}
-						log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize())
+						log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v, stats:%v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize(),statsCodeStats)
 						retryTimes++
 						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
 						goto DO
@@ -590,7 +589,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				}
 			}
 
-			if options.IncludeOperationStats {
+			if options.IncludeActionStats {
 				//init
 				if actionStatsData == nil {
 					if actionStatsData == nil {
@@ -677,7 +676,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 		return containError, statsCodeStats,bulkResult
 	}
 
-	if options.OutputBulkResults||options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
+	if options.OutputBulkStats ||options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
 
 		bulkResult = util.MapStr{
 			"error": containError,
@@ -739,24 +738,26 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 			}
 		}
 
-		if options.BulkResultMessageQueue != "" {
-			//save message bytes, with metadata, set codec to wrapped bulk messages
-			queue.Push(queue.GetOrInitConfig(options.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
-				"timestamp": time.Now(),
-				"bulk_results":   bulkResult,
-				"labels":   tag,
-				"node":      global.Env().SystemConfig.NodeConfig,
-				"request": util.MapStr{
-					"uri":  req.URI().String(),
-					"body_length": len(requestBytes),
-					"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, options.BulkResultMessageMaxRequestBodyLength),
-				},
-				"response": util.MapStr{
-					"status_code": resp.StatusCode(),
-					"body_length": len(resbody),
-					"body":        util.SubString(util.UnsafeBytesToString(resbody), 0, options.BulkResultMessageMaxResponseBodyLength),
-				},
-			}))
+		if containError&&options.SaveErrorBulkResultToMessageQueue || !containError&&options.SaveSuccessBulkResultToMessageQueue {
+			if options.BulkResultMessageQueue != "" {
+				//save message bytes, with metadata, set codec to wrapped bulk messages
+				queue.Push(queue.GetOrInitConfig(options.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
+					"timestamp": time.Now(),
+					"bulk_results":   bulkResult,
+					"labels":   tag,
+					"node":      global.Env().SystemConfig.NodeConfig,
+					"request": util.MapStr{
+						"uri":  req.URI().String(),
+						"body_length": len(requestBytes),
+						"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, options.BulkResultMessageMaxRequestBodyLength),
+					},
+					"response": util.MapStr{
+						"status_code": resp.StatusCode(),
+						"body_length": len(resbody),
+						"body":        util.SubString(util.UnsafeBytesToString(resbody), 0, options.BulkResultMessageMaxResponseBodyLength),
+					},
+				}))
+			}
 		}
 	}
 
