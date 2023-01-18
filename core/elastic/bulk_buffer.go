@@ -1,9 +1,9 @@
 package elastic
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
-	"sync"
 )
 
 type BulkBuffer struct {
@@ -14,25 +14,33 @@ type BulkBuffer struct {
 	Reason []string
 }
 
-var bulkBufferPool = &sync.Pool{
-	New: func() interface{} {
-		v := new(BulkBuffer)
-		v.ID = util.ToString(util.GetIncrementID("bulk_buffer"))
-		v.Reset()
-		return v
-	},
-}
+var bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects", func() interface{} {
+	v := new(BulkBuffer)
+	v.ID = util.ToString(util.GetIncrementID("bulk_buffer"))
+	v.Reset()
+	return v
+}, func() interface{} {
+	return nil
+},10000,1024*1024*1024)
+
+var bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer",0,1024*1024*1024,1000000)
 
 func AcquireBulkBuffer() *BulkBuffer {
+	//stats.Increment("bulk_buffer","acquire")
 	buff := bulkBufferPool.Get().(*BulkBuffer)
-	buff.bytesBuffer = &bytebufferpool.ByteBuffer{}
+	if buff.bytesBuffer==nil{
+		buff.bytesBuffer = bulkBytesBuffer.Get()
+	}
 	buff.Reset()
 	return buff
 }
 
 func ReturnBulkBuffer(item *BulkBuffer) {
+	//stats.Increment("bulk_buffer","return")
 	item.Reset()
 	if item.bytesBuffer!=nil{
+		item.bytesBuffer.Reset()
+		bulkBytesBuffer.Put(item.bytesBuffer)
 		item.bytesBuffer=nil
 	}
 	bulkBufferPool.Put(item)
@@ -109,6 +117,9 @@ func (receiver *BulkBuffer) GetMessageBytes() []byte {
 func (receiver *BulkBuffer) WriteMessageID(id string) {
 	if len(id) != 0 {
 		receiver.MessageIDs = append(receiver.MessageIDs, id)
+	}else{
+		log.Error("invalid message id: ",id)
+		panic("invalid message id")
 	}
 }
 

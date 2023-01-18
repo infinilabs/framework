@@ -537,7 +537,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				//id can be nil
 				docId,err:=jsonparser.GetString(item,"_id")
 				if err == nil {
-					docId=strings.Clone(docId)
+					docId=strings.Clone(docId) //TODO
 				}
 
 				code1,err:=jsonparser.GetInt(item,"status")
