@@ -5,6 +5,7 @@
 package framework
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -24,7 +25,9 @@ import (
 	"os/signal"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 type App struct {
@@ -46,6 +49,9 @@ type App struct {
 	svc               service.Service
 	exit              chan os.Signal
 	svcFlag           string
+
+	//atomic status
+	stopped           int32 //0 means running, 1 means stopped
 }
 
 func NewApp(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
@@ -332,6 +338,7 @@ func (p *App) run() error {
 
 			//wait modules to stop
 			module.Stop()
+			atomic.StoreInt32(&p.stopped,1)
 			p.quitSignal <- true
 		}
 	}()
@@ -340,9 +347,59 @@ func (p *App) run() error {
 		p.start()
 	}
 
+	//background job
+	go func() {
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on running background jobs,", v)
+				}
+			}
+		}()
+		backgroundJobs,_:=global.BackgroundCallback()
+		ctx := context.Background()
+		for {
+			timeStart:=time.Now()
+			for k,v:=range backgroundJobs{
+				log.Debugf("start running background job: %v",k)
+				err := FuncWithTimeout(ctx,v)
+				if err != nil {
+					log.Errorf("error on running background job: %v, %v",k,err)
+				}else {
+					log.Debugf("finished running background job: %v",k)
+				}
+			}
+			if time.Since(timeStart)<time.Second{
+				time.Sleep(1*time.Second)
+			}
+		}
+	}()
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
+}
+
+func FuncWithTimeout(ctx context.Context,f func()) error {
+	ctx, cancel := context.WithTimeout(ctx,1*time.Second)
+	defer cancel()
+
+	select {
+		case <-ctx.Done():
+			cancel()
+			return ctx.Err()
+		default:
+			f()
+			return nil
+	}
 }
 
 func (p *App) Stop(s service.Service) error {

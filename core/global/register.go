@@ -22,6 +22,7 @@ import (
 	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
+	"time"
 )
 
 // RegisterKey is used to register custom value and retrieve back
@@ -105,9 +106,29 @@ func Env() *env.Env {
 var shutdownCallback = []func(){}
 
 func RegisterShutdownCallback(callback func()) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
 	shutdownCallback = append(shutdownCallback, callback)
 }
 
 func ShutdownCallback() []func() {
+	registerLock.Lock()
+	defer registerLock.Unlock()
 	return shutdownCallback
+}
+
+var backgroundCallback = []func(){}
+var backgroundCallbackInterval = []time.Duration{}
+var registerLock=sync.Mutex{}
+func RegisterBackgroundCallback(callback func(), interval time.Duration) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	backgroundCallback = append(backgroundCallback, callback)
+	backgroundCallbackInterval = append(backgroundCallbackInterval, interval)
+}
+
+func BackgroundCallback() ([]func(),[]time.Duration) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	return backgroundCallback,backgroundCallbackInterval
 }
