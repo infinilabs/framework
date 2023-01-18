@@ -2610,6 +2610,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			//ctx.Response.Reset()
 			err:=s.handleRequest(ctx)
 			if err!=nil{
+				if global.Env().IsDebug{
+					log.Error(err)
+				}
 				stats.Increment("http", "continue_error")
 			}
 		}
