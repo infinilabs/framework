@@ -622,7 +622,7 @@ READ_DOCS:
 		}
 
 		if len(messages) > 0 {
-			for _, pop := range messages {
+			for msgOffset, pop := range messages {
 
 				if processor.config.ValidateRequest {
 					elastic.ValidateBulkRequest("write_pop", string(pop.Data))
@@ -636,15 +636,26 @@ READ_DOCS:
 					}, func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error) {
 						totalOps++
 
-						//check hash
-						xxHash.Reset()
-						xxHash.WriteString(id)
-						partitionID := int(xxHash.Sum32()) % maxSlices
+						var partitionID int
+						var msgID=id
+						if id!=""{
+							//check hash
+							xxHash.Reset()
+							xxHash.WriteString(id)
+							partitionID = int(xxHash.Sum32()) % maxSlices
+						}else{
+							partitionID=msgOffset % maxSlices
+							msgID=fmt.Sprintf("%v",msgOffset)
+						}
+
+						if global.Env().IsDebug{
+							log.Debug(sliceID,",",id,",",partitionID == sliceID)
+						}
 
 						if partitionID == sliceID {
 							sliceOps++
 							mainBuf.WriteNewByteBufferLine("meta1",metaBytes)
-							mainBuf.WriteMessageID(id)
+							mainBuf.WriteMessageID(msgID)
 							collectMeta = true
 						}else{
 							collectMeta = false
@@ -760,7 +771,7 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 	size := mainBuf.GetMessageSize()
 
 	if count>0&&size==0||count==0&&size>0{
-		panic(errors.Errorf("invalid bulk message, count: %v, size:%v",mainBuf.GetMessageCount(),mainBuf.GetMessageSize()))
+		panic(errors.Errorf("invalid bulk message, count: %v, size:%v, msg: %v",mainBuf.GetMessageCount(),mainBuf.GetMessageSize(),string(mainBuf.GetMessageBytes())))
 	}
 
 	if count > 0 &&size>0{
@@ -768,8 +779,13 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
 		contrinueRequest,statsMap, err := bulkProcessor.Bulk(tag, meta, host, mainBuf)
-		stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
-		log.Info(meta.Config.Name, ", ", host,", stats:",statsMap, ", count:", count, ", size:", util.ByteSize(uint64(size)), ", elapsed:", time.Since(start))
+
+		if global.Env().IsDebug{
+			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
+		}
+
+		log.Debug(meta.Config.Name, ", ", host,", stats:",statsMap, ", count:", count, ", size:", util.ByteSize(uint64(size)), ", elapsed:", time.Since(start))
+
 		return contrinueRequest, err
 	}
 
