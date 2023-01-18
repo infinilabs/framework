@@ -5,7 +5,6 @@
 package framework
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -20,6 +19,7 @@ import (
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/license"
 	"os"
 	"os/signal"
@@ -347,6 +347,11 @@ func (p *App) run() error {
 		p.start()
 	}
 
+	global.RegisterBackgroundCallback(global.BackgroundTask{Tag: "cleanup_bytes_buffer",Func: func() {
+		bytebufferpool.CleanupIdleCachedBytesBuffer()
+	},Interval: time.Minute})
+
+
 	//background job
 	go func() {
 		defer func() {
@@ -365,41 +370,11 @@ func (p *App) run() error {
 				}
 			}
 		}()
-		backgroundJobs,_:=global.BackgroundCallback()
-		ctx := context.Background()
-		for {
-			timeStart:=time.Now()
-			for k,v:=range backgroundJobs{
-				log.Debugf("start running background job: %v",k)
-				err := FuncWithTimeout(ctx,v)
-				if err != nil {
-					log.Errorf("error on running background job: %v, %v",k,err)
-				}else {
-					log.Debugf("finished running background job: %v",k)
-				}
-			}
-			if time.Since(timeStart)<time.Second{
-				time.Sleep(1*time.Second)
-			}
-		}
+		global.RunBackgroundCallbacks(&p.stopped)
 	}()
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
-}
-
-func FuncWithTimeout(ctx context.Context,f func()) error {
-	ctx, cancel := context.WithTimeout(ctx,1*time.Second)
-	defer cancel()
-
-	select {
-		case <-ctx.Done():
-			cancel()
-			return ctx.Err()
-		default:
-			f()
-			return nil
-	}
 }
 
 func (p *App) Stop(s service.Service) error {
