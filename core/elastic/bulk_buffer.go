@@ -7,7 +7,6 @@ import (
 )
 
 type BulkBuffer struct {
-	ID         string
 	Queue      string
 	bytesBuffer     *bytebufferpool.ByteBuffer
 	MessageIDs []string
@@ -16,7 +15,6 @@ type BulkBuffer struct {
 
 var bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects", func() interface{} {
 	v := new(BulkBuffer)
-	v.ID = util.ToString(util.GetIncrementID("bulk_buffer"))
 	v.Reset()
 	return v
 }, func() interface{} {
@@ -26,7 +24,6 @@ var bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects", func() in
 var bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer",0,1024*1024*1024,1000000)
 
 func AcquireBulkBuffer() *BulkBuffer {
-	//stats.Increment("bulk_buffer","acquire")
 	buff := bulkBufferPool.Get().(*BulkBuffer)
 	if buff.bytesBuffer==nil{
 		buff.bytesBuffer = bulkBytesBuffer.Get()
@@ -36,7 +33,6 @@ func AcquireBulkBuffer() *BulkBuffer {
 }
 
 func ReturnBulkBuffer(item *BulkBuffer) {
-	//stats.Increment("bulk_buffer","return")
 	item.Reset()
 	if item.bytesBuffer!=nil{
 		item.bytesBuffer.Reset()
