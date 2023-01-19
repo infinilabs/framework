@@ -3,8 +3,8 @@ package bytebufferpool
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"github.com/magiconair/properties/assert"
+	"io"
 	"testing"
 	"time"
 )
@@ -100,7 +100,7 @@ func TestByteBufferGrow(t *testing.T) {
 	assert.Equal(t,b.Len(),5)
 	assert.Equal(t,b.Cap(),8)
 	//grow
-	b.Grow(24)
+	b.GrowTo(24)
 	fmt.Println(b.String())
 	fmt.Println(b.Len())
 	fmt.Println(b.Cap())

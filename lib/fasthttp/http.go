@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"math"
 	"mime/multipart"
 	"net"
 	"os"
+	log "github.com/cihub/seelog"
 	"sync"
 	"time"
 )
@@ -491,8 +493,8 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 }
 
 var (
-	responseBodyPool =bytebufferpool.NewTaggedPool("response_body",0,1024*1024*1024,1000000)
-	requestBodyPool =bytebufferpool.NewTaggedPool("request_body",0,1024*1024*1024,1000000)
+	responseBodyPool =bytebufferpool.NewTaggedPool("response_body",0,1024*1024*1024,100000)
+	requestBodyPool =bytebufferpool.NewTaggedPool("request_body",0,1024*1024*1024,100000)
 )
 
 // BodyGunzip returns un-gzipped body data.
@@ -726,6 +728,7 @@ func (resp *Response) ReleaseBody(size int) {
 	}
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
+		responseBodyPool.Put(resp.body)
 		resp.body = nil
 	}
 }
@@ -744,6 +747,7 @@ func (req *Request) ReleaseBody(size int) {
 	}
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
+		requestBodyPool.Put(req.body)
 		req.body = nil
 	}
 }
@@ -2311,7 +2315,11 @@ func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.By
 		return nil
 	}
 
-	buff.Grow(n)
+	if global.Env().IsDebug{
+		log.Info("content length:",n,",buffer used:",buff.Len(),",buffer cap:",buff.Cap(),",need grow:",buff.Cap()<n)
+	}
+
+	buff.GrowTo(n)
 
 	dst:=buff.B
 	offset := len(dst)

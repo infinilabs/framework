@@ -15,6 +15,7 @@ import (
 // Use Get for obtaining an empty byte buffer.
 type ByteBuffer struct {
 	LastAccess time.Time
+	Used uint32
 	ID uint32
 	// B is a byte buffer to use in append-like workloads.
 	// See example code for details.
@@ -128,6 +129,7 @@ func (b *ByteBuffer) String() string {
 // Reset makes ByteBuffer.B empty.
 func (b *ByteBuffer) Reset() {
 	b.B = b.B[:0]
+	b.Used++
 	b.LastAccess=time.Now()
 }
 
@@ -151,16 +153,15 @@ func round2(n int) int {
 	return int(x + 1)
 }
 
-func (b *ByteBuffer) Grow(n int) {
+func (b *ByteBuffer) GrowTo(n int) {
 	dst:=b.B
 	offset := len(dst)
+	left:=cap(dst)-offset
 	dstLen := offset + n
-	dstCap:=cap(dst)+ n
-	if cap(dst) < dstCap {
-		b := make([]byte, round2(dstLen))
-		copy(b, dst)
-		dst = b
+	if left < n {
+		b1 := make([]byte, dstLen)
+		copy(b1, dst)
+		dst = b1
 	}
-	b.B=nil
 	b.B=dst[:offset]
 }
