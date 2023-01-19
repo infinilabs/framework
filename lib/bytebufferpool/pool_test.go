@@ -1,7 +1,9 @@
 package bytebufferpool
 
 import (
+	"fmt"
 	"math/rand"
+	"github.com/magiconair/properties/assert"
 	"testing"
 	"time"
 )
@@ -91,4 +93,16 @@ func allocNBytes(dst []byte, n int) []byte {
 		return dst[:n]
 	}
 	return append(dst, make([]byte, diff)...)
+}
+
+func TestCalibrate(t *testing.T) {
+	p:=getPoolByTag("test")
+	for i:=0;i<1000;i++{
+		x:=p.Get()
+		x.GrowTo(i)
+	}
+	fmt.Println(p.poolItems)
+	p.calibrate()
+	assert.Equal(t,p.maxItemSize,uint32(950))
+
 }

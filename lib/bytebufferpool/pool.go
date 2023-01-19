@@ -123,6 +123,7 @@ func (p *Pool)newBuffer() *ByteBuffer {
 	id := atomic.AddUint32(&p.sequenceID, 1)
 	x := &ByteBuffer{
 		ID: id,
+		Used: 0,
 		B:  make([]byte, 0, atomic.LoadUint32(&p.defaultSize)),
 		LastAccess: time.Now(),
 	}
@@ -213,15 +214,15 @@ func (p *Pool) Get() *ByteBuffer {
 	//	p.throttleTime = nil
 	//}
 
-	atomic.AddInt32(&p.inuse, 1)
-	atomic.AddUint32(&p.acquire, 1)
-
 	var x *ByteBuffer
 	select {
 	case x = <-p.pool: // Try to get one from the pool
 	default: // All in use, create a new, temporary:
 		x = p.newBuffer()
 	}
+	x.Used++
+	atomic.AddInt32(&p.inuse, 1)
+	atomic.AddUint32(&p.acquire, 1)
 
 	return x
 }
@@ -315,6 +316,7 @@ func (p *Pool)Drop(b *ByteBuffer){
 	atomic.AddUint32(&p.dropped, 1)
 	atomic.AddInt32(&p.poolItems,-1)
 	p.items.Delete(b.ID)
+	b.B=nil
 	b=nil
 }
 
@@ -337,12 +339,12 @@ func (p *Pool) Put(b *ByteBuffer) {
 		return
 	}
 
-	if p.enableCalibrate{
+	//if p.enableCalibrate{
 		idx := index(len(b.B))
 		if atomic.AddUint32(&p.calls[idx], 1) > calibrateCallsThreshold {
 			p.calibrate()
 		}
-	}
+	//}
 
 	maxSize := int(atomic.LoadUint32(&p.maxItemSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
@@ -354,9 +356,9 @@ func (p *Pool) Put(b *ByteBuffer) {
 				p.Drop(b)
 		}
 	} else {
-		if cap(b.B)>maxSize{
-			log.Warnf("buffer %v too large (%v>%v), skip return",p.Tag,cap(b.B),maxSize)
-		}
+		//if cap(b.B)>maxSize{
+		//	log.Warnf("buffer %v too large (%v>%v), skip return",p.Tag,cap(b.B),maxSize)
+		//}
 		p.Drop(b)
 	}
 }
@@ -367,37 +369,22 @@ func (p *Pool) calibrate() {
 		return
 	}
 
-	a := make(callSizes, 0, steps)
-	var callsSum uint32
-	for i := uint32(0); i < steps; i++ {
-		calls := atomic.SwapUint32(&p.calls[i], 0)
-		callsSum += calls
-		a = append(a, callSize{
-			calls: calls,
-			size:  minSize << i,
-		})
-	}
-	sort.Sort(a)
+	var list []int
+	p.items.Range(func(key, value any) bool {
+		list=append(list,value.(*ByteBuffer).Cap())
+		return true
+	})
 
-	defaultSize := a[0].size
-	maxSize := defaultSize
+	sort.Ints(list)
+	maxSize := 0
+	maxSum := int(float32(len(list)) * maxPercentile)
 
-	maxSum := uint32(float32(callsSum) * maxPercentile)
-	callsSum = 0
-	for i := 0; i < steps; i++ {
-		if callsSum > maxSum {
-			break
-		}
-		callsSum += a[i].calls
-		size := a[i].size
-		if size > maxSize {
-			maxSize = size
-			log.Warnf("%v update max_size %v",p.Tag,maxSize)
-		}
+	if maxSum<=(len(list)-1){
+		maxSize=list[maxSum]
+		//log.Tracef("%v update max item size to: %v",p.Tag,maxSize)
 	}
 
-	atomic.StoreUint32(&p.maxItemSize, maxSize)
-
+	atomic.StoreUint32(&p.maxItemSize, uint32(maxSize))
 	atomic.StoreUint32(&p.calibrating, 0)
 }
 
@@ -426,7 +413,8 @@ func (p *Pool) getPoolByteSize() int {
 func (p *Pool) getPoolItemSize() map[string]int {
 	obj:=map[string]int{}
 	p.items.Range(func(key, value any) bool {
-		obj[fmt.Sprintf("%v", key)]= value.(*ByteBuffer).Cap()
+		bf:=value.(*ByteBuffer)
+		obj[fmt.Sprintf("%v-%v-%v", key,bf.Used,int(time.Since(bf.LastAccess).Seconds()))]= bf.Cap()
 		return true
 	})
 	obj["total"]=p.getPoolByteSize()
