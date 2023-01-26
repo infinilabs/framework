@@ -17,9 +17,11 @@ const (
 	maxSize = 1 << (minBitSize + steps - 1)
 
 	defaultMaxPoolSize = 100*1024*1024
+	defaultItemSize = 0
 	defaultMaxItemCount = 1000000
-	calibrateCallsThreshold = 42000
+	calibrateThreshold = 100
 	maxPercentile           = 0.95
+	defaultSizeInPercentile           = 0.5
 )
 
 type ObjectPool struct {
@@ -81,35 +83,63 @@ func (p *ObjectPool) Put(o interface{}){
 // Properly determined byte buffer types with their own pools may help reducing
 // memory waste.
 type Pool struct {
-	Tag         string
-	calls       [steps]uint32
+	Tag   string
+	calibrating     uint32
 
-	//https://www.jianshu.com/p/a730d095ae51
-	//https://segmentfault.com/a/1190000039969499
-	enableCalibrate bool
-	calibrating uint32
+	defaultItemSize uint32
+	maxItemSize     uint32
 
-	defaultSize     uint32
-	maxItemSize      uint32
-
-	maxDataByteSize uint32
-
-	maxItemCount uint32
+	maxTotalDataByteSize uint32
+	maxTotalItemCount    uint32
 
 	//stats
-	allocate, acquire, returned, dropped, throttle, cap uint32
+	allocate, acquire, returned, dropped, throttle, cap,invalid uint32
 
 	//stats
-	invalid,inuse, poolByteSize,poolItems int32
+	inuse, poolByteSize, poolItems int32
 
-	items sync.Map
+	items *ItemMap
 
-	pool  chan *ByteBuffer
-	//pool         sync.Pool
+	pool chan *ByteBuffer
 
-	sequenceID   uint32
+	sequenceID uint32
 
 	throttleTime *time.Time
+}
+
+type ItemMap struct {
+	 sync.RWMutex
+	data map[uint32]*ByteBuffer
+}
+func NewItemMap() *ItemMap{
+	i:=ItemMap{}
+	i.data= map[uint32]*ByteBuffer{}
+	return &i
+}
+
+func (this *ItemMap)Store(id uint32,buffer *ByteBuffer)  {
+	this.Lock()
+	defer this.Unlock()
+
+	this.data[id]=buffer
+}
+
+func (this *ItemMap) Delete(id uint32) {
+	this.Lock()
+	defer this.Unlock()
+
+	delete(this.data,id)
+}
+
+func (this *ItemMap) Range(f func(key uint32, value *ByteBuffer) bool) {
+	this.RLock()
+	defer this.RUnlock()
+
+	for k,v:=range this.data{
+		if !f(k,v){
+			break
+		}
+	}
 }
 
 func NewTaggedPool(tag string, defaultSize, maxSize uint32, maxItems uint32) *Pool {
@@ -124,10 +154,9 @@ func (p *Pool)newBuffer() *ByteBuffer {
 	x := &ByteBuffer{
 		ID: id,
 		Used: 0,
-		B:  make([]byte, 0, atomic.LoadUint32(&p.defaultSize)),
+		B:  make([]byte, 0, atomic.LoadUint32(&p.defaultItemSize)),
 		LastAccess: time.Now(),
 	}
-
 	atomic.AddUint32(&p.allocate, 1)
 	atomic.AddInt32(&p.poolItems,1)
 	p.items.Store(x.ID,x)
@@ -135,7 +164,6 @@ func (p *Pool)newBuffer() *ByteBuffer {
 }
 
 func newPool(defaultSize, maxSize,maxItems uint32) *Pool {
-
 	if maxSize<=0{
 		maxSize=defaultMaxPoolSize
 	}
@@ -144,19 +172,15 @@ func newPool(defaultSize, maxSize,maxItems uint32) *Pool {
 		maxItems=defaultMaxItemCount
 	}
 
-	p := Pool{defaultSize: defaultSize, maxItemCount: maxItems, maxDataByteSize: maxSize}
-	//p.pool = sync.Pool{
-	//	//New: p.newBuffer,
-	//}
+	if defaultSize<0{
+		defaultSize=defaultItemSize
+	}
 
+	p := Pool{defaultItemSize: defaultSize, maxTotalItemCount: maxItems, maxTotalDataByteSize: maxSize}
 	p.pool= make(chan *ByteBuffer, maxItems)
-
-	p.items=sync.Map{}
-
+	p.items=NewItemMap()
 	return &p
 }
-
-//var defaultPool Pool
 
 var pools = sync.Map{}
 var lock =sync.RWMutex{}
@@ -170,7 +194,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 	} else {
 		lock.Lock()
 		if x,ok:=pools.Load(tag);!ok{
-			pool = NewTaggedPool(tag, 0, 100*1024*1024, 1000000)
+			pool = NewTaggedPool(tag, 0, 1024*1024*1024, 1000000)
 		}else{
 			pool = x.(*Pool)
 		}
@@ -193,7 +217,7 @@ func Get(tag string) *ByteBuffer {
 // The byte buffer may be returned to the pool via Put after the use
 // in order to minimize GC overhead.
 func (p *Pool) Get() *ByteBuffer {
-	//if p.maxItemCount > 0 && p.inuse > int32(p.maxItemCount) {
+	//if p.maxTotalItemCount > 0 && p.inuse > int32(p.maxTotalItemCount) {
 	//	time.Sleep(1 * time.Second)
 	//	atomic.AddUint32(&p.throttle, 1)
 	//
@@ -223,16 +247,26 @@ func (p *Pool) Get() *ByteBuffer {
 	x.Used++
 	atomic.AddInt32(&p.inuse, 1)
 	atomic.AddUint32(&p.acquire, 1)
+	x.Reset() //reset on get only
+	return x
+}
 
+func (p *Pool) getOnly() *ByteBuffer {
+	var x *ByteBuffer
+	select {
+	case x = <-p.pool: // Try to get one from the pool
+	default: // All in use, create a new, temporary:
+		return nil
+	}
 	return x
 }
 
 func SetMaxBufferCount(tag string, size uint32) {
-	atomic.StoreUint32(&getPoolByTag(tag).maxItemCount, size)
+	atomic.StoreUint32(&getPoolByTag(tag).maxTotalItemCount, size)
 }
 
 func SetMaxBufferSize(tag string, size uint32) {
-	atomic.StoreUint32(&getPoolByTag(tag).maxDataByteSize, size)
+	atomic.StoreUint32(&getPoolByTag(tag).maxTotalDataByteSize, size)
 }
 
 func addIfNotZero(m map[string]interface{},k string,v uint32)  {
@@ -262,8 +296,6 @@ func BuffStats() map[string]interface{} {
 		addIfNotZero(item,"invalid", uint32(pool.invalid))
 		addIfNotZero(item,"pool_size", uint32(pool.getPoolByteSize()))
 		addIfNotZero(item,"pool_items", uint32(pool.poolItems))
-		//item["max_size"] = pool.maxDataByteSize
-		//item["max_count"] = pool.maxItemCount
 		if len(item)>0{
 			bytesBuffer[key.(string)] = item
 		}
@@ -304,7 +336,7 @@ func BuffStats() map[string]interface{} {
 // ByteBuffer.B mustn't be touched after returning it to the pool.
 // Otherwise data races will occur.
 func Put(tag string, b *ByteBuffer) {
-	b.Reset()
+	//b.Reset()
 	getPoolByTag(tag).Put(b)
 }
 
@@ -323,32 +355,42 @@ func (p *Pool)Drop(b *ByteBuffer){
 // Put releases byte buffer obtained via Get to the pool.
 //
 // The buffer mustn't be accessed after returning to the pool.
+func (p *Pool) putOnly(b *ByteBuffer) {
+	select {
+	case p.pool <- b: // Try to put back into the pool
+	default: // Pool is full, will be garbage collected
+		p.Drop(b)
+	}
+}
+
 func (p *Pool) Put(b *ByteBuffer) {
 
 	atomic.AddInt32(&p.inuse, -1)
-
-	if p.maxItemCount>0 && p.inuse>int32(p.maxItemCount){
-		//log.Warnf("%v hit max items, dropping, %v>%v",p.Tag,p.inuse,p.maxItemCount)
-		p.Drop(b)
-		return
-	}
-
-	if p.maxDataByteSize>0 && p.poolByteSize>int32(p.maxDataByteSize){
-		//log.Warnf("%v hit max data size, dropping, %v>%v",p.Tag,p.poolByteSize,p.maxDataByteSize)
-		p.Drop(b)
-		return
-	}
-
-	//if p.enableCalibrate{
-		idx := index(len(b.B))
-		if atomic.AddUint32(&p.calls[idx], 1) > calibrateCallsThreshold {
-			p.calibrate()
+	length:=b.Len()
+	if length>1024&&(length*10)<b.Cap() ||(p.maxItemSize>0 && (int(p.maxItemSize*10))<b.Cap()){
+		if (p.defaultItemSize >0&&uint32(length)>p.defaultItemSize)||p.maxItemSize>0&&(uint32(length)>p.maxItemSize){
+			atomic.AddUint32(&p.invalid, 1)
+			log.Debugf("pool:%v, buffer is far too large, dropping, default:%v max:%v, len:%v ~< cap:%v",p.Tag,p.defaultItemSize,p.maxItemSize,length,b.Cap())
+			p.Drop(b)
+			return
 		}
-	//}
+	}
+
+	if p.maxTotalItemCount >0 && p.inuse>int32(p.maxTotalItemCount){
+		log.Tracef("%v hit max items, dropping, %v>%v",p.Tag,p.inuse,p.maxTotalItemCount)
+		p.Drop(b)
+		return
+	}
+
+	if p.maxTotalDataByteSize >0 && p.poolByteSize>int32(p.maxTotalDataByteSize){
+		log.Tracef("%v hit max data size, dropping, %v>%v",p.Tag,p.poolByteSize,p.maxTotalDataByteSize)
+		p.Drop(b)
+		return
+	}
 
 	maxSize := int(atomic.LoadUint32(&p.maxItemSize))
 	if maxSize == 0 || cap(b.B) <= maxSize {
-		b.Reset()
+		//b.Reset()
 		select {
 			case p.pool <- b: // Try to put back into the pool
 				atomic.AddUint32(&p.returned, 1)
@@ -369,22 +411,41 @@ func (p *Pool) calibrate() {
 		return
 	}
 
-	var list []int
-	p.items.Range(func(key, value any) bool {
-		list=append(list,value.(*ByteBuffer).Cap())
-		return true
-	})
+	if p.poolItems>10{
+		var list []int
+		p.items.Range(func(key uint32, value *ByteBuffer) bool {
+			if value.Len()>0{
+				list=append(list,value.Len()) //prefer to use length over cap
+			}else{
+				list=append(list,value.Cap())
+			}
+			return true
+		})
 
-	sort.Ints(list)
-	maxSize := 0
-	maxSum := int(float32(len(list)) * maxPercentile)
+		if len(list)>0{
+			sort.Ints(list)
+			maxSize := 0
+			maxSum := int(float32(len(list)) * maxPercentile)
 
-	if maxSum<=(len(list)-1){
-		maxSize=list[maxSum]
-		//log.Tracef("%v update max item size to: %v",p.Tag,maxSize)
+			if maxSum>0&&maxSum<=(len(list)-1){
+				maxSize=list[maxSum]
+				if p.maxItemSize!=uint32(maxSize){
+					log.Debugf("%v update max item size from:%v to:%v",p.Tag,p.maxItemSize,maxSize)
+					atomic.StoreUint32(&p.maxItemSize, uint32(maxSize))
+				}
+			}
+
+			defaultSizeIndex := int(float32(len(list)) * defaultSizeInPercentile)
+			if defaultSizeIndex>0&&defaultSizeIndex<=(len(list)-1){
+				defaultSize:=uint32(list[defaultSizeIndex])
+				if p.defaultItemSize !=defaultSize&& defaultSize<p.maxItemSize{
+					log.Debugf("%v update default item size from:%v to:%v",p.Tag,p.defaultItemSize,defaultSize)
+					atomic.StoreUint32(&p.defaultItemSize, defaultSize)
+				}
+			}
+		}
 	}
 
-	atomic.StoreUint32(&p.maxItemSize, uint32(maxSize))
 	atomic.StoreUint32(&p.calibrating, 0)
 }
 
@@ -401,8 +462,8 @@ func DumpBufferItemSize()map[string]interface{} {
 
 func (p *Pool) getPoolByteSize() int {
 	total:=0
-	p.items.Range(func(key, value any) bool {
-		total+= value.(*ByteBuffer).Cap()
+	p.items.Range(func(key uint32, value *ByteBuffer) bool {
+		total+= value.Cap()
 		return true
 	})
 
@@ -410,48 +471,33 @@ func (p *Pool) getPoolByteSize() int {
 	return total
 }
 
-func (p *Pool) getPoolItemSize() map[string]int {
-	obj:=map[string]int{}
-	p.items.Range(func(key, value any) bool {
-		bf:=value.(*ByteBuffer)
-		obj[fmt.Sprintf("%v-%v-%v", key,bf.Used,int(time.Since(bf.LastAccess).Seconds()))]= bf.Cap()
+func (p *Pool) getPoolItemSize() map[string]interface{} {
+	obj:=map[string]interface{}{}
+	items:=map[string]string{}
+	p.items.Range(func(key uint32, value *ByteBuffer) bool {
+		items[fmt.Sprintf("%v-%v-%v", key,value.Used,int(time.Since(value.LastAccess).Seconds()))]= fmt.Sprintf("%v,%v",value.Len(),value.Cap())
 		return true
 	})
-	obj["total"]=p.getPoolByteSize()
+
+	addIfNotZero(obj,"allocated",p.allocate)
+	addIfNotZero(obj,"acquired",p.acquire)
+	addIfNotZero(obj,"returned",p.returned)
+	addIfNotZero(obj,"dropped",p.dropped)
+	addIfNotZero(obj,"throttled",p.throttle)
+	addIfNotZero(obj,"inuse", uint32(p.inuse))
+	addIfNotZero(obj,"invalid", uint32(p.invalid))
+	addIfNotZero(obj,"pool_size", uint32(p.getPoolByteSize()))
+	addIfNotZero(obj,"pool_items", uint32(p.poolItems))
+
+	addIfNotZero(obj,"max_item_size", uint32(p.maxItemSize))
+	addIfNotZero(obj,"default_item_size", uint32(p.defaultItemSize))
+
+	addIfNotZero(obj,"max_count", uint32(p.maxTotalItemCount))
+	addIfNotZero(obj,"max_size", uint32(p.maxTotalDataByteSize))
+
+	obj["items"]=items
+
 	return obj
-}
-
-type callSize struct {
-	calls uint32
-	size  uint32
-}
-
-type callSizes []callSize
-
-func (ci callSizes) Len() int {
-	return len(ci)
-}
-
-func (ci callSizes) Less(i, j int) bool {
-	return ci[i].calls > ci[j].calls
-}
-
-func (ci callSizes) Swap(i, j int) {
-	ci[i], ci[j] = ci[j], ci[i]
-}
-
-func index(n int) int {
-	n--
-	n >>= minBitSize
-	idx := 0
-	for n > 0 {
-		n >>= 1
-		idx++
-	}
-	if idx >= steps {
-		idx = steps - 1
-	}
-	return idx
 }
 
 var lastCleanup time.Time
@@ -459,18 +505,38 @@ func CleanupIdleCachedBytesBuffer() {
 	if time.Since(lastCleanup)>1*time.Minute{
 		lastCleanup=time.Now()
 		pools.Range(func(key, value any) bool {
+			defer log.Tracef("end cleanup:%v",key)
 			v:=value.(*Pool)
+			log.Tracef("start cleanup:%v, %v",key,v!=nil)
 			if v!=nil{
 				limit:=int(v.poolItems)
-				for i:=0;i<=limit;i++{
-					x:=v.Get()
-					if x!=nil{
-						if time.Since(x.LastAccess)>1*time.Minute{
-							log.Trace("cleanup old buffer item:",v.Tag,",id:",x.ID,",length:",x.Len(),",cap:",x.Cap())
-							v.Drop(x)
-						}else{
-							v.Put(x)
+				log.Tracef("cleanup:%v, items:%v",key,limit)
+				if limit>0{
+					for i:=0;i<=limit;i++{
+						x:=v.getOnly()
+						if x!=nil{
+							if time.Since(x.LastAccess)>1*time.Minute{
+								log.Trace("dropping old buffer item:",v.Tag,",id:",x.ID,",length:",x.Len(),",cap:",x.Cap())
+								v.Drop(x)
+							}else{
+								v.putOnly(x)
+							}
 						}
+					}
+				}
+
+				if v.poolItems>calibrateThreshold{
+					v.calibrate()
+				}
+
+				if limit<10|| atomic.CompareAndSwapUint32(&v.invalid, 1000,0){
+					if v.defaultItemSize >0{
+						log.Debugf("tag: %v, reset default item size",v.Tag)
+						atomic.StoreUint32(&v.defaultItemSize, 0)
+					}
+					if v.maxItemSize>0{
+						log.Debugf("tag: %v, reset max item size",v.Tag)
+						atomic.StoreUint32(&v.maxItemSize, 0)
 					}
 				}
 			}

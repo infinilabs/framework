@@ -37,8 +37,8 @@ var defaultClient = &fasthttp.Client{
 
 func DoProxyRequest(req *Request) (*Response, error){
 	var (
-		freq = fasthttp.AcquireRequest()
-		fres = fasthttp.AcquireResponse()
+		freq = fasthttp.AcquireRequestWithTag("proxy_request")
+		fres = fasthttp.AcquireResponseWithTag("proxy_response")
 	)
 	defer func() {
 		fasthttp.ReleaseRequest(freq)

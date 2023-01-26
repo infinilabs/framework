@@ -67,9 +67,9 @@ func (module *SimpleStatsModule) Setup() {
 	//register api
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
 
-	if global.Env().IsDebug{
-		api.HandleAPIMethod(api.GET, "/buffer_items", module.BufferItemStatsAction)
-	}
+	//if global.Env().IsDebug{
+		api.HandleAPIMethod(api.GET, "/bytes_buffer", module.BufferItemStatsAction)
+	//}
 }
 
 func (module *SimpleStatsModule) Start() error {
@@ -266,18 +266,21 @@ func (s *Stats) StatsAll()string {
 
 	result:=util.MapStr{}
 	result["stats"] = *s.Data
+
+	result["pool"] = bytebufferpool.BuffStats()
+
 	//update system metrics
 	checkPid := os.Getpid()
 	p, _ := process.NewProcess(int32(checkPid))
 	mem, err := p.MemoryInfo()
 	if err != nil {
 		log.Error(err)
-		util.ToJson(result,false)
+		return util.ToJson(result,false)
 	}
 	empty := process.MemoryInfoStat{}
 	if mem == nil || *mem == empty {
 		log.Errorf("could not get memory info %v\n", mem)
-		util.ToJson(result,false)
+		return util.ToJson(result,false)
 	}
 
 	cpuPercent, err := p.CPUPercent()
@@ -294,7 +297,6 @@ func (s *Stats) StatsAll()string {
 		"cgo_calls":          int64(runtime.NumCgoCall()),
 	}
 
-	result["buffer"] = bytebufferpool.BuffStats()
 
 	return util.ToJson(result,false)
 }

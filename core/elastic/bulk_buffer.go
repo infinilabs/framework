@@ -35,7 +35,7 @@ func AcquireBulkBuffer() *BulkBuffer {
 func ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
 	if item.bytesBuffer!=nil{
-		item.bytesBuffer.Reset()
+		//item.bytesBuffer.Reset()
 		bulkBytesBuffer.Put(item.bytesBuffer)
 		item.bytesBuffer=nil
 	}

@@ -2,45 +2,10 @@ package bytebufferpool
 
 import (
 	"fmt"
-	"math/rand"
 	"github.com/magiconair/properties/assert"
 	"testing"
 	"time"
 )
-
-func TestIndex(t *testing.T) {
-	testIndex(t, 0, 0)
-	testIndex(t, 1, 0)
-
-	testIndex(t, minSize-1, 0)
-	testIndex(t, minSize, 0)
-	testIndex(t, minSize+1, 1)
-
-	testIndex(t, 2*minSize-1, 1)
-	testIndex(t, 2*minSize, 1)
-	testIndex(t, 2*minSize+1, 2)
-
-	testIndex(t, maxSize-1, steps-1)
-	testIndex(t, maxSize, steps-1)
-	testIndex(t, maxSize+1, steps-1)
-}
-
-func testIndex(t *testing.T, n, expectedIdx int) {
-	idx := index(n)
-	if idx != expectedIdx {
-		t.Fatalf("unexpected idx for n=%d: %d. Expecting %d", n, idx, expectedIdx)
-	}
-}
-
-func TestPoolCalibrate(t *testing.T) {
-	for i := 0; i < steps*calibrateCallsThreshold; i++ {
-		n := 1004
-		if i%15 == 0 {
-			n = rand.Intn(15234)
-		}
-		testGetPut(t, n)
-	}
-}
 
 func TestPoolVariousSizesSerial(t *testing.T) {
 	testPoolVariousSizes(t)

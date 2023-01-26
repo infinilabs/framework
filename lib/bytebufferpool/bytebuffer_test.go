@@ -163,3 +163,14 @@ func TestByteBufferGetStringConcurrent(t *testing.T) {
 		}
 	}
 }
+
+
+
+func TestByteBufferWriteSize(t *testing.T) {
+	expectedS := "foobarbaz"
+	bb:=ByteBuffer{}
+	for i := 0; i < 100; i++ {
+		bb.Write([]byte(expectedS))
+		fmt.Println(i,",",bb.Len(),",",bb.Cap())
+	}
+}
