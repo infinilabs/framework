@@ -38,8 +38,8 @@ func MustGetString(ctx context.Context,key string)string  {
 	panic(errors.Errorf("invalid key: %v",key))
 }
 
-func RunWithContext(tag string,f func(ctx context.Context) error,ctx context.Context)  {
-	go func(func2 func(ctx context.Context) error,ctx2 context.Context) {
+func RunWithContext(tag string,f func(ctx context.Context) error,ctxInput context.Context) error {
+	go func(func2 func(ctx context.Context) error){
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -56,12 +56,12 @@ func RunWithContext(tag string,f func(ctx context.Context) error,ctx context.Con
 				}
 			}
 		}()
-
-		err:=func2(ctx2)
+		err:=func2(ctxInput)
 		if err!=nil{
 			log.Error(err)
 		}
-	}(f,ctx)
+	}(f)
+	return nil
 }
 
 type ScheduleTask struct {
@@ -123,6 +123,7 @@ var quit = make(chan struct{})
 var taskScheduler = chrono.NewDefaultTaskScheduler()
 var defaultInterval = time.Duration(10) * time.Second
 var started bool
+
 func RunTasks() {
 	started = true
 	Tasks.Range(func(key, value any) bool {

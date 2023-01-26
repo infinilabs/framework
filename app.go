@@ -17,8 +17,8 @@ import (
 	_ "infini.sh/framework/core/log"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
+	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/task/ants"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/license"
@@ -352,7 +352,7 @@ func (p *App) run() error {
 		bytebufferpool.CleanupIdleCachedBytesBuffer()
 	},Interval: 30*time.Second})
 
-	stats.RegisterStats("goroutine",ants.GetPoolStats)
+	stats.RegisterStats("goroutine",pipeline.GetPoolStats)
 
 	//background job
 	go func() {

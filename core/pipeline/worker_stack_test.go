@@ -1,6 +1,6 @@
 // +build !windows
 
-package ants
+package pipeline
 
 import (
 	"testing"

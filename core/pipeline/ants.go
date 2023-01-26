@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package ants
+package pipeline
 
 import (
 	"errors"
@@ -100,7 +100,7 @@ type Logger interface {
 }
 
 // Submit submits a task to pool.
-func Submit(task func()) error {
+func Submit(task *Task) error {
 	return defaultAntsPool.Submit(task)
 }
 

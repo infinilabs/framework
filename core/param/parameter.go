@@ -22,7 +22,6 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -373,9 +372,9 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type, mutable *
 		key := ParaKey(tag)
 		//fmt.Println("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
 
-		if global.Env().IsDebug {
-			log.Trace("tag: ", tag, " key: ", key, " has para: ", newPara.Has(key), newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
-		}
+		//if global.Env().IsDebug {
+		//	log.Trace("tag: ", tag, " key: ", key, " has para: ", newPara.Has(key), newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
+		//}
 
 		if newPara.Has(key) {
 			switch f.Kind() {
@@ -598,9 +597,9 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	}
 
 	//TODO handle rest types
-	if global.Env().IsDebug {
+	//if global.Env().IsDebug {
 		log.Warnf("parameters failed to GetArray, key: %v, type: %v", key, reflect.TypeOf(v))
-	}
+	//}
 	return s, ok
 }
 
@@ -712,6 +711,9 @@ func (e *Parameters) setTimestamp(v interface{}) error {
 func (e *Parameters) GetValue(key string) (interface{}, error) {
 	e.init()
 
+	e.l.RLock()
+	defer e.l.RUnlock()
+
 	if key == timestampFieldKey {
 		return e.Timestamp, nil
 	} else if subKey, ok := metadataKey(key); ok {
@@ -725,6 +727,9 @@ func (e *Parameters) GetValue(key string) (interface{}, error) {
 
 func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {
 	e.init()
+
+	e.l.Lock()
+	defer e.l.Unlock()
 
 	if key == timestampFieldKey {
 		err := e.setTimestamp(v)

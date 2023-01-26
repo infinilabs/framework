@@ -5,8 +5,8 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/task/ants"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"time"
@@ -14,7 +14,7 @@ import (
 
 type TaskModule struct {
 	api.Handler
-	pool                    *ants.Pool
+	pool                    *pipeline.Pool
 	TimeZone                string `config:"time_zone" json:"time_zone,omitempty"`
 	MaxConcurrentNumOfTasks int    `config:"max_concurrent_tasks" json:"max_concurrent_tasks,omitempty"`
 }
@@ -36,9 +36,9 @@ func (module *TaskModule) Setup() {
 	if tz == nil {
 		tz = time.UTC
 	}
-	module.pool, _ = ants.NewPoolWithTag("tasks",module.MaxConcurrentNumOfTasks)
+	module.pool, _ = pipeline.NewPoolWithTag("tasks",module.MaxConcurrentNumOfTasks)
 	global.RegisterShutdownCallback(func() {
-		ants.Release()
+		pipeline.Release()
 	})
 
 	api.HandleAPIMethod(api.GET, "/tasks/", module.GetTaskList)

@@ -20,12 +20,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package ants
+package pipeline
 
 import (
 	"runtime"
 	"time"
 )
+
+type Task struct {
+	Handler func(ctx *Context,v ...interface{})
+	Params  []interface{}
+	Context *Context
+}
 
 // goWorker is the actual executor who runs the tasks,
 // it starts a goroutine that accepts tasks and
@@ -35,7 +41,7 @@ type goWorker struct {
 	pool *Pool
 
 	// task is a job should be done.
-	task chan func()
+	task chan *Task
 
 	// recycleTime will be updated when putting a worker back into queue.
 	recycleTime time.Time
@@ -67,7 +73,7 @@ func (w *goWorker) run() {
 			if f == nil {
 				return
 			}
-			f()
+			f.Handler(f.Context,f.Params...)
 			if ok := w.pool.revertWorker(w); !ok {
 				return
 			}
