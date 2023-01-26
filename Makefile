@@ -132,6 +132,10 @@ build-linux-amd64: config
 	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
 	@$(MAKE) restore-generated-file
 
+build-linux-amd64-dev: config
+	GOOS=linux  GOARCH=amd64 DEV=true $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-dev
+	@$(MAKE) restore-generated-file
+
 build-linux: config
 	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
 	GOOS=linux  GOARCH=386    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-386
