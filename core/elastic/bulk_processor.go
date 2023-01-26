@@ -544,7 +544,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 					log.Error(docId,err)
 				}
 				if err == nil {
-					//docId=strings.Clone(docId) //TODO
+					docId=strings.Clone(docId) //TODO
 					//docId=docId //TODO
 				}
 

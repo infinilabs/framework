@@ -149,7 +149,7 @@ func FuncWithTimeout(ctx context.Context,f func()) error {
 			}
 			log.Error("error: ", v)
 		}
-		defer cancel()
+		cancel()
 	}()
 
 	select {
