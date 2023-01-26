@@ -18,6 +18,7 @@ import (
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/task/ants"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/license"
@@ -347,10 +348,11 @@ func (p *App) run() error {
 		p.start()
 	}
 
-	global.RegisterBackgroundCallback(global.BackgroundTask{Tag: "cleanup_bytes_buffer",Func: func() {
+	global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "cleanup_bytes_buffer",Func: func() {
 		bytebufferpool.CleanupIdleCachedBytesBuffer()
-	},Interval: time.Minute})
+	},Interval: 30*time.Second})
 
+	stats.RegisterStats("goroutine",ants.GetPoolStats)
 
 	//background job
 	go func() {
