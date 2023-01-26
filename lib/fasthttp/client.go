@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"net"
 	"strconv"
@@ -1080,9 +1081,25 @@ func StatusCodeIsRedirect(statusCode int) bool {
 }
 
 var (
-	requestPool  sync.Pool
-	responsePool sync.Pool
+	//requestPool  sync.Pool
+	//responsePool sync.Pool
 )
+
+var requestPool=bytebufferpool.NewObjectPool("request", func() interface{} {
+	v := new(Request)
+	return v
+}, func() interface{} {
+	return nil
+},10000,1024*1024*1024)
+
+var responsePool=bytebufferpool.NewObjectPool("response", func() interface{} {
+	v := new(Response)
+	return v
+}, func() interface{} {
+	return nil
+},10000,1024*1024*1024)
+
+
 
 // AcquireRequest returns an empty Request instance from request pool.
 //
@@ -1090,11 +1107,17 @@ var (
 // no longer needed. This allows Request recycling, reduces GC pressure
 // and usually improves performance.
 func AcquireRequest() *Request {
+	return AcquireRequestWithTag("")
+}
+
+func AcquireRequestWithTag(tag string) *Request {
 	v := requestPool.Get()
 	if v == nil {
-		return &Request{}
+		return &Request{Tag: tag}
 	}
-	return v.(*Request)
+	x:= v.(*Request)
+	x.Tag=tag
+	return x
 }
 
 // ReleaseRequest returns req acquired via AcquireRequest to request pool.
@@ -1103,6 +1126,14 @@ func AcquireRequest() *Request {
 // it to request pool.
 func ReleaseRequest(req *Request) {
 	req.Reset()
+	if req.body!=nil{
+		if req.Tag!=""{
+			bytebufferpool.Put(req.Tag,req.body)
+		}else{
+			requestBodyPool.Put(req.body)
+		}
+		req.body=nil
+	}
 	requestPool.Put(req)
 }
 
@@ -1112,11 +1143,17 @@ func ReleaseRequest(req *Request) {
 // no longer needed. This allows Response recycling, reduces GC pressure
 // and usually improves performance.
 func AcquireResponse() *Response {
+	return AcquireResponseWithTag("")
+}
+
+func AcquireResponseWithTag(tag string) *Response {
 	v := responsePool.Get()
 	if v == nil {
-		return &Response{}
+		return &Response{Tag: tag}
 	}
-	return v.(*Response)
+	x:= v.(*Response)
+	x.Tag=tag
+	return x
 }
 
 // ReleaseResponse return resp acquired via AcquireResponse to response pool.
@@ -1125,6 +1162,14 @@ func AcquireResponse() *Response {
 // it to response pool.
 func ReleaseResponse(resp *Response) {
 	resp.Reset()
+	if resp.body!=nil{
+		if resp.Tag!=""{
+			bytebufferpool.Put(resp.Tag,resp.body)
+		}else{
+			responseBodyPool.Put(resp.body)
+		}
+		resp.body=nil
+	}
 	responsePool.Put(resp)
 }
 

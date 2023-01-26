@@ -2,6 +2,7 @@ package elastic
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
@@ -63,7 +64,7 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 			var err error
 			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
 			if global.Env().IsDebug{
-				log.Debug(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
+				log.Trace(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
 			}
 			if err!=nil{
 				panic(err)
@@ -248,7 +249,7 @@ type BulkProcessor struct {
 	Config BulkProcessorConfig
 }
 
-func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, err error) {
+func (joint *BulkProcessor) Bulk(ctx context.Context,tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, err error) {
 
 	statsRet = make(map[int]int)
 
@@ -271,8 +272,8 @@ func (joint *BulkProcessor) Bulk(tag string, metadata *ElasticsearchMetadata, ho
 		url = fmt.Sprintf("http://%s/_bulk", host)
 	}
 
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
+	req := fasthttp.AcquireRequestWithTag("bulk_processing_request")
+	resp := fasthttp.AcquireResponseWithTag("bulk_processing_response")
 	defer fasthttp.ReleaseRequest(req)   // <- do not forget to release
 	defer fasthttp.ReleaseResponse(resp) // <- do not forget to release
 
@@ -343,7 +344,9 @@ DO:
 	}
 	
 	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(req.Header.Host()), 1, req.GetRequestLength(), 0)
-	
+
+	stats.Increment("elasticsearch.bulk","submit")
+
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
 
@@ -447,6 +450,7 @@ DO:
 						log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v, stats:%v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize(),statsCodeStats)
 						retryTimes++
 						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
+
 						goto DO
 					}
 
@@ -535,9 +539,13 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 			if err==nil{
 
 				//id can be nil
-				docId,err:=jsonparser.GetString(item,"_id")
+				docId,err:=jsonparser.GetUnsafeString(item,"_id")
+				if err!=nil{
+					log.Error(docId,err)
+				}
 				if err == nil {
 					docId=strings.Clone(docId) //TODO
+					//docId=docId //TODO
 				}
 
 				code1,err:=jsonparser.GetInt(item,"status")

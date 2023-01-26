@@ -13,18 +13,46 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-type Context struct {
-	//Metadata   map[string]interface{} `config:"metadata" json:"metadata"`
-	NextOffset string `config:"next_offset" json:"next_offset"`
-	InitOffset string `config:"init_offset" json:"init_offset"`
+
+func Itoa64(i int64) string {
+	return strconv.FormatInt(i, 10)
 }
 
-func (c *Context) ToString() string {
+func AcquireOffset(seg,pos int64)Offset  {
+	return Offset{Segment: seg,Position: pos}
+}
+
+type Offset struct {
+	Segment int64
+	Position int64
+}
+
+func (c *Offset) String() string {
+	return fmt.Sprintf("%v,%v",c.Segment, c.Position)
+}
+
+type Context struct {
+	NextOffset Offset `config:"next_offset" json:"next_offset"`
+	InitOffset Offset `config:"init_offset" json:"init_offset"`
+}
+
+func (c *Context) UpdateInitOffset(seg,pos int64) {
+	c.InitOffset.Segment=seg
+	c.InitOffset.Position=pos
+}
+
+func (c *Context) UpdateNextOffset(seg,pos int64) {
+	c.NextOffset.Segment=seg
+	c.NextOffset.Position=pos
+}
+
+func (c *Context) String() string {
 	return fmt.Sprintf("%v->%v",c.InitOffset,c.NextOffset)
 }
 
@@ -61,7 +89,7 @@ type AdvancedQueueAPI interface {
 type ConsumerAPI interface {
 	Close()error
 	ResetOffset(part, readPos int64) (err error)
-	FetchMessages(numOfMessages int) (ctx *Context, messages []Message, isTimeout bool, err error)
+	FetchMessages(ctx *Context,numOfMessages int) (messages []Message, isTimeout bool, err error)
 }
 
 var defaultHandler QueueAPI
@@ -121,7 +149,8 @@ type ConsumerConfig struct {
 }
 
 func (cfg *ConsumerConfig) Key() string {
-	return fmt.Sprintf("%v-%v", cfg.Group, cfg.Name)
+	return cfg.Group+"-"+cfg.Name
+	//return fmt.Sprintf("%v-%v", cfg.Group, cfg.Name)
 }
 
 func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
@@ -338,7 +367,8 @@ func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 		panic(err)
 	}
 	if cfgs != nil {
-		x, ok := cfgs[fmt.Sprintf("%v-%v", group, name)]
+		x, ok := cfgs[group+"-"+name]
+		//x, ok := cfgs[fmt.Sprintf("%v-%v", group, name)]
 		return x, ok
 	}
 
@@ -516,7 +546,9 @@ func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Cont
 			stats.Increment("queue", k.Id, "consume")
 			return ctx, messages, isTimeout, err
 		}
-		stats.Increment("queue", k.Id, "consume_timeout")
+		if global.Env().IsDebug {
+			stats.Increment("queue", k.Id, "consume_timeout")
+		}
 		return ctx, messages, isTimeout, err
 	}
 	panic(errors.New("handler is not registered"))
@@ -598,7 +630,8 @@ const consumerOffsetBucket = "queue_consumer_commit_offset"
 
 func GetEarlierOffsetStrByQueueID(queueID string) string {
 	_, seg, pos := GetEarlierOffsetByQueueID(queueID)
-	offset := fmt.Sprintf("%v,%v", seg, pos)
+	offset := Itoa64(seg)+","+Itoa64(pos)
+	//offset := fmt.Sprintf("%v,%v", seg, pos)
 	return offset
 }
 
@@ -749,7 +782,9 @@ func Depth(k *QueueConfig) int64 {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		stats.Increment("queue", k.Id, "call_depth")
+		if global.Env().IsDebug{
+			stats.Increment("queue", k.Id, "call_depth")
+		}
 		return o
 	}
 	panic(errors.New("handler is not registered"))
@@ -798,7 +833,9 @@ func ConsumerHasLag(k *QueueConfig,c *ConsumerConfig) bool {
 			return true
 		}
 
-		stats.Increment("queue", k.Id, "check_consumer_lag")
+		if global.Env().IsDebug {
+			stats.Increment("queue", k.Id, "check_consumer_lag")
+		}
 		return false
 	}
 
@@ -824,7 +861,9 @@ func GetQueues() map[string][]string {
 		result := []string{}
 		if handler != nil {
 			o := handler.GetQueues()
-			stats.Increment("queue", q, "get_queues")
+			if global.Env().IsDebug {
+				stats.Increment("queue", q, "get_queues")
+			}
 			result = append(result, o...)
 			results[q] = result
 		}

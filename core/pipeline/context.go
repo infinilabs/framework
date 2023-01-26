@@ -23,7 +23,6 @@ import (
 	"time"
 )
 
-
 type RunningState string
 
 const STARTING RunningState = "STARTING"
@@ -70,7 +69,6 @@ func ReleaseContext(ctx *Context)  {
 	//TODO
 }
 
-
 func (ctx *Context)GetStartTime()*time.Time  {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
@@ -89,6 +87,7 @@ func (ctx *Context)GetRunningState()RunningState  {
 	return ctx.runningState
 
 }
+
 func (ctx *Context)ResetContext()  {
 	t:=time.Now()
 	ctx.startTime =&t
@@ -97,6 +96,7 @@ func (ctx *Context)ResetContext()  {
 	ctx.ResetParameters()
 	ctx.processHistory =[]string{}
 }
+
 func (ctx *Context)GetFlowProcess()[]string  {
 	return ctx.processHistory
 }

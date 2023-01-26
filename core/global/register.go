@@ -129,14 +129,28 @@ type BackgroundTask struct {
 
 var backgroundCallback = sync.Map{}
 var registerLock=sync.Mutex{}
-func RegisterBackgroundCallback(task BackgroundTask) {
+func RegisterBackgroundCallback(task *BackgroundTask) {
 	backgroundCallback.Store(task.Tag,task)
 }
 
 
 func FuncWithTimeout(ctx context.Context,f func()) error {
 	ctx, cancel := context.WithTimeout(ctx,1*time.Second)
-	defer cancel()
+	defer func() {
+		if r := recover(); r != nil {
+			var v string
+			switch r.(type) {
+			case error:
+				v = r.(error).Error()
+			case runtime.Error:
+				v = r.(runtime.Error).Error()
+			case string:
+				v = r.(string)
+			}
+			log.Error("error: ", v)
+		}
+		cancel()
+	}()
 
 	select {
 	case <-ctx.Done():
@@ -152,16 +166,17 @@ func RunBackgroundCallbacks(continueRun *int32) {
 	ctx := context.Background()
 	for {
 		if atomic.LoadInt32(continueRun)==1{
-			log.Info("exit background tasks")
+			log.Debug("exit background tasks")
 			return
 		}
 		timeStart:=time.Now()
 		backgroundCallback.Range(func(key, value any) bool {
-			v:=value.(BackgroundTask)
+			v:=value.(*BackgroundTask)
 			if time.Since(v.lastRunning)>v.Interval{
+				log.Debugf("run background job:%v, interval:%v", key,v.Interval)
 				err := FuncWithTimeout(ctx,v.Func)
 				if err != nil {
-					panic(fmt.Sprintf("error on running background job: %v, %v",key,err))
+					log.Error(fmt.Sprintf("error on running background job: %v, %v",key,err))
 				}
 				v.lastRunning=time.Now()
 			}

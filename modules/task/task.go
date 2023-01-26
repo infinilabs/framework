@@ -36,7 +36,7 @@ func (module *TaskModule) Setup() {
 	if tz == nil {
 		tz = time.UTC
 	}
-	module.pool, _ = ants.NewPool(module.MaxConcurrentNumOfTasks)
+	module.pool, _ = ants.NewPoolWithTag("tasks",module.MaxConcurrentNumOfTasks)
 	global.RegisterShutdownCallback(func() {
 		ants.Release()
 	})

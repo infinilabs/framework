@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/rotate"
+	"infini.sh/framework/core/task/ants"
 	"runtime"
 	"github.com/OneOfOne/xxhash"
 	"sync"
@@ -45,6 +46,7 @@ type BulkIndexingProcessor struct {
 	detectorRunning      bool
 	id                   string
 	sync.RWMutex
+	pool *ants.Pool
 }
 
 type Config struct {
@@ -144,6 +146,20 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner.wg = sync.WaitGroup{}
+
+	if runner.config.MaxWorkers<10{
+		runner.config.MaxWorkers=10
+	}
+
+	pool,err:=ants.NewPoolWithTag("bulk_indexing",runner.config.MaxWorkers)
+	if err!=nil{
+		panic(err)
+	}
+
+	runner.pool=pool
+	global.RegisterShutdownCallback(func() {
+		runner.pool.Release()
+	})
 
 	return &runner, nil
 }
@@ -349,7 +365,9 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
-		//log.Errorf("checking slice_id: %v", sliceID)
+		if global.Env().IsDebug{
+			log.Tracef("checking slice_id: %v", sliceID)
+		}
 		if len(processor.config.enabledSlice) > 0 {
 			_, ok := processor.config.enabledSlice[sliceID]
 			if !ok {
@@ -376,8 +394,13 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 			var workerID = util.GetUUID()
 			log.Tracef("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
 			processor.wg.Add(1)
-			go processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
+			//err:=processor.pool.Submit(func() {
+				go processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
+			//})
 			processor.Unlock()
+			//if err!=nil{
+			//	panic(err)
+			//}
 		}
 	}
 }
@@ -389,6 +412,10 @@ var xxHashPool= sync.Pool{
 }
 
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string, sliceID, maxSlices int, tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
+
+	if global.Env().IsDebug {
+		log.Tracef("new slice bulk worker: %v, %v, %v", key, workerID, sliceID)
+	}
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -459,7 +486,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		//cleanup buffer before exit worker
-		continueNext, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		continueNext, err := processor.submitBulkRequest(ctx,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 		mainBuf.ResetData()
 		if continueNext {
 			if offset != "" && initOffset != offset {
@@ -533,6 +560,8 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	}
 	defer consumerInstance.Close()
 
+	ctx1 := &queue.Context{}
+
 READ_DOCS:
 
 	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
@@ -590,11 +619,14 @@ READ_DOCS:
 			log.Tracef("worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
 		}
 
-		log.Tracef("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
-		ctx1, messages, timeout, err := consumerInstance.FetchMessages(consumerConfig.FetchMaxMessages)
+		if global.Env().IsDebug{
+			log.Tracef("star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
+		}
+
+		messages, timeout, err := consumerInstance.FetchMessages(ctx1,consumerConfig.FetchMaxMessages)
 
 		if global.Env().IsDebug {
-			log.Debugf("[%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name,sliceID, len(messages), ctx1.ToString(), timeout, err)
+			log.Tracef("[%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name,sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
@@ -649,7 +681,7 @@ READ_DOCS:
 						}
 
 						if global.Env().IsDebug{
-							log.Debug(sliceID,",",id,",",partitionID == sliceID)
+							log.Debug(sliceID,",",id,",",partitionID,",",partitionID == sliceID)
 						}
 
 						if partitionID == sliceID {
@@ -685,7 +717,7 @@ READ_DOCS:
 					}
 
 					//submit request
-					continueRequest, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+					continueRequest, err := processor.submitBulkRequest(ctx,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 					//reset buffer
 					mainBuf.ResetData()
 					if !continueRequest {
@@ -708,7 +740,7 @@ READ_DOCS:
 				}
 			}
 		}
-		offset = ctx1.NextOffset
+		offset = ctx1.NextOffset.String() //TODO
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
 			if global.Env().IsDebug {
@@ -726,7 +758,7 @@ CLEAN_BUFFER:
 
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
-	continueNext, err := processor.submitBulkRequest(tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+	continueNext, err := processor.submitBulkRequest(ctx,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 	//reset buffer
 	mainBuf.ResetData()
 
@@ -758,10 +790,9 @@ CLEAN_BUFFER:
 	if !ctx.IsCanceled() {
 		goto READ_DOCS
 	}
-
 }
 
-func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
+func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
 
 	if mainBuf == nil || meta == nil {
 		return true, errors.New("invalid buffer or meta")
@@ -778,7 +809,7 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(tag, esClusterID strin
 
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
-		contrinueRequest,statsMap, err := bulkProcessor.Bulk(tag, meta, host, mainBuf)
+		contrinueRequest,statsMap, err := bulkProcessor.Bulk(ctx.Context,tag, meta, host, mainBuf)
 
 		if global.Env().IsDebug{
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())

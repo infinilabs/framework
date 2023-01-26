@@ -6,7 +6,6 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -75,15 +74,17 @@ func (d *DiskBasedQueue) Consume(consumer *queue.ConsumerConfig, part, readPos i
 	messages = []queue.Message{}
 	var totalMessageSize int = 0
 	ctx = &queue.Context{}
-	initOffset := fmt.Sprintf("%v,%v", part, readPos)
-	defer func() {
-		ctx.InitOffset = initOffset
-	}()
+	ctx.UpdateInitOffset(part,readPos)
+	//initOffset := queue.AcquireOffset(part,readPos)//fmt.Sprintf("%v,%v", part, readPos)
+	//defer func() {
+	//	ctx.InitOffset = initOffset
+	//}()
 
 RELOCATE_FILE:
 
 	log.Tracef("[%v] consumer[%v] %v,%v, max fetch count:%v", d.dataPath, consumer.Name, part, readPos, consumer.FetchMaxMessages)
-	ctx.InitOffset = fmt.Sprintf("%v,%v", part, readPos)
+	//ctx.InitOffset = queue.AcquireOffset(part,readPos)// fmt.Sprintf("%v,%v", part, readPos)
+	ctx.UpdateInitOffset(part,readPos)
 	ctx.NextOffset = ctx.InitOffset
 	fileName,exists := SmartGetFileName(d.cfg,d.name, part)
 	if !exists{
@@ -155,7 +156,7 @@ RELOCATE_FILE:
 					if readFile != nil {
 						readFile.Close()
 					}
-					ctx.NextOffset = fmt.Sprintf("%v,%v", part, readPos)
+					ctx.UpdateNextOffset(part,readPos)//.NextOffset = fmt.Sprintf("%v,%v", part, readPos)
 					return ctx, messages, false, err
 				}
 
@@ -203,7 +204,7 @@ RELOCATE_FILE:
 		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
 			log.Debug(err)
-			ctx.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
+			ctx.UpdateNextOffset(part,nextReadPos)//.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
 			return ctx,messages,false,err
 		}
 		readBuf=newData
@@ -226,11 +227,11 @@ RELOCATE_FILE:
 	message := queue.Message{
 		Data:       readBuf,
 		Size:       totalBytes,
-		Offset:     fmt.Sprintf("%v,%v", part, previousPos),
-		NextOffset: fmt.Sprintf("%v,%v", part, nextReadPos),
+		Offset:     (queue.Itoa64(part)+",")+queue.Itoa64(previousPos), // fmt.Sprintf("%v,%v", part, previousPos),
+		NextOffset: queue.Itoa64(part)+","+queue.Itoa64(nextReadPos),   //fmt.Sprintf("%v,%v", part, nextReadPos),
 	}
 
-	ctx.NextOffset = fmt.Sprintf("%v,%v", part, nextReadPos)
+	ctx.UpdateNextOffset(part,nextReadPos)//.NextOffset = fmt.Sprintf("%v,%v", part, nextReadPos)
 
 	messages = append(messages, message)
 	totalMessageSize += message.Size
@@ -265,4 +266,3 @@ RELOCATE_FILE:
 	goto READ_MSG
 
 }
-
