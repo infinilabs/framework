@@ -31,6 +31,8 @@ import (
 	"infini.sh/framework/core/task/ants/internal"
 )
 
+var pools=sync.Map{}
+
 // Pool accepts the tasks from client, it limits the total of goroutines to a given number by recycling goroutines.
 type Pool struct {
 	// capacity of the pool, a negative value means that the capacity of pool is limitless, an infinite pool is used to
@@ -150,6 +152,70 @@ func NewPool(size int, options ...Option) (*Pool, error) {
 	return p, nil
 }
 
+func GetPoolStats()interface{} {
+	stats:=map[string]map[string]int32{}
+	pools.Range(func(key, value any) bool {
+		v:=value.(*Pool)
+		if v!=nil{
+			x:=map[string]int32{}
+			x["running"]=v.running
+			x["capacity"]=v.capacity
+			x["blocking"]=int32(v.blockingNum)
+			stats[key.(string)]=x
+		}
+		return true
+	})
+	return stats
+}
+
+func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
+	opts := loadOptions(options...)
+
+	if size <= 0 {
+		size = -1
+	}
+
+	if expiry := opts.ExpiryDuration; expiry < 0 {
+		return nil, ErrInvalidPoolExpiry
+	} else if expiry == 0 {
+		opts.ExpiryDuration = DefaultCleanIntervalTime
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = defaultLogger
+	}
+
+	p := &Pool{
+		capacity:      int32(size),
+		lock:          internal.NewSpinLock(),
+		stopHeartbeat: make(chan struct{}, 1),
+		options:       opts,
+	}
+	p.workerCache.New = func() interface{} {
+		return &goWorker{
+			pool: p,
+			task: make(chan func(), workerChanCap),
+		}
+	}
+	if p.options.PreAlloc {
+		if size == -1 {
+			return nil, ErrInvalidPreAllocSize
+		}
+		p.workers = newWorkerArray(loopQueueType, size)
+	} else {
+		p.workers = newWorkerArray(stackType, 0)
+	}
+
+	p.cond = sync.NewCond(p.lock)
+
+	pools.Store(tag,p)
+
+	// Start a goroutine to clean up expired workers periodically.
+	go p.purgePeriodically()
+
+	return p, nil
+}
+
 // ---------------------------------------------------------------------------
 
 // Submit submits a task to this pool.
@@ -159,6 +225,18 @@ func NewPool(size int, options ...Option) (*Pool, error) {
 // Pool.Submit() call once the current Pool runs out of its capacity, and to avoid this,
 // you should instantiate a Pool with ants.WithNonblocking(true).
 func (p *Pool) Submit(task func()) error {
+	if p.IsClosed() {
+		return ErrPoolClosed
+	}
+	var w *goWorker
+	if w = p.retrieveWorker(); w == nil {
+		return ErrPoolOverload
+	}
+	w.task <- task
+	return nil
+}
+
+func (p *Pool) SubmitWithTag(task func()) error {
 	if p.IsClosed() {
 		return ErrPoolClosed
 	}
