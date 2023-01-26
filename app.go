@@ -94,7 +94,7 @@ func (app *App) InitWithFlags(customFunc func()) {
 	//flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
 	//flag.StringVar(&app.pidFile, "pidfile", "", "pidfile path (only for daemon mode)")
 
-	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit with panic error")
+	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit on panic immediately with full stack trace")
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 	flag.StringVar(&app.svcFlag, "service", "", "service management, options: install,uninstall,start,stop")
 

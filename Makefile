@@ -133,7 +133,7 @@ build-linux-amd64: config
 	@$(MAKE) restore-generated-file
 
 build-linux-amd64-dev: config
-	GOOS=linux  GOARCH=amd64 DEV=true $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-dev
+	GOOS=linux  GOARCH=amd64 $(GOBUILD) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-dev
 	@$(MAKE) restore-generated-file
 
 build-linux: config
