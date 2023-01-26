@@ -218,7 +218,6 @@ func (h APIHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	user.Password = string(hash)
-	user.Updated = time.Now()
 	err = h.User.Update(&user)
 	if err != nil {
 		_ = log.Error(err.Error())

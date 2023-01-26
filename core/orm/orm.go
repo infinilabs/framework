@@ -311,7 +311,6 @@ func Create(ctx *Context, o interface{}) error {
 
 func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
-
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
 	//nameExists, _ := getFieldStringValue(rValue, "Name")
@@ -323,7 +322,7 @@ func Save(ctx *Context, o interface{}) error {
 	//if !nameExists {
 	//	return errors.New("name was not found")
 	//}
-
+	setFieldValue(rValue, "Updated", time.Now())
 	return getHandler().Save(ctx, o)
 }
 
