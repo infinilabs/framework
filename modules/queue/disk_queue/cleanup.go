@@ -135,7 +135,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 			//no compress or flat file exists
 			if !exists{
 				log.Debug("skip further delete, missing queue file:", file)
-				break
+				return
 			}
 
 		}

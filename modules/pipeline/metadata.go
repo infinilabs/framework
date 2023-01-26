@@ -319,7 +319,7 @@ func (processor *MetadataProcessor) HandleMessage(ctx *pipeline.Context, qConfig
 	HANDLE_MESSAGE:
 
 		//update temp offset, not committed, continued reading
-		offset = ctx1.NextOffset
+		offset = ctx1.NextOffset.String()//TODO
 
 		if len(messages) > 0 {
 			for _, pop := range messages {

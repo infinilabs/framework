@@ -7,7 +7,6 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -74,15 +73,16 @@ func (d *DiskBasedQueue) AcquireConsumer(consumer *queue.ConsumerConfig, segment
 	return &output, err
 }
 
-func (d *Consumer) FetchMessages(numOfMessages int) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error){
+func (d *Consumer) FetchMessages(ctx *queue.Context,numOfMessages int) (messages []queue.Message, isTimeout bool, err error){
 	var msgSize int32
 	var messageOffset=0
 	var totalMessageSize int = 0
-	ctx = &queue.Context{}
 
-	initOffset := fmt.Sprintf("%v,%v", d.segment, d.readPos)
-	ctx.InitOffset = initOffset
-	ctx.NextOffset = initOffset
+	//initOffset := queue.AcquireOffset(d.segment, d.readPos) //fmt.Sprintf("%v,%v", d.segment, d.readPos)
+	//ctx.InitOffset = initOffset
+
+	ctx.UpdateInitOffset(d.segment,d.readPos)
+	ctx.NextOffset = ctx.InitOffset
 
 	messages = []queue.Message{}
 
@@ -98,11 +98,11 @@ READ_MSG:
 				if d.cCfg.EOFRetryDelayInMs>0{
 					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs)*time.Millisecond)
 				}
-				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+				ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
 					if strings.Contains(err.Error(),"not found"){
-						return ctx, messages, false, nil
+						return messages, false, nil
 					}
 					panic(err)
 				}
@@ -112,11 +112,11 @@ READ_MSG:
 			if exists||util.FileExists(nextFile){
 				log.Trace("EOF, continue read:",nextFile)
 				Notify(d.queue, ReadComplete,d.segment)
-				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+				ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment+1,0)
 				if err!=nil{
 					if strings.Contains(err.Error(),"not found"){
-						return ctx, messages, false, nil
+						return messages, false, nil
 					}
 					panic(err)
 				}
@@ -132,17 +132,17 @@ READ_MSG:
 					oldPart := d.segment
 					Notify(d.queue, ReadComplete, d.segment)
 					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.segment)
-					ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+					ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 					err=d.ResetOffset(d.segment + 1,0)
 					if err!=nil{
 						if strings.Contains(err.Error(),"not found"){
-							return ctx, messages, false, nil
+							return messages, false, nil
 						}
 						panic(err)
 					}
 
-					ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
-					return ctx, messages, false, err
+					ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+					return messages, false, err
 				}
 
 				if len(messages) == 0 {
@@ -159,7 +159,7 @@ READ_MSG:
 		}else{
 			log.Error("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",d.fileName,err,msgSize,d.maxBytesPerFileRead,len(messages))
 		}
-		return ctx,messages,false,err
+		return messages,false,err
 	}
 
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
@@ -167,11 +167,11 @@ READ_MSG:
 		//current have changes, reload file with new position
 		if d.getFileSize()>d.maxBytesPerFileRead{
 			d.ResetOffset(d.segment,d.readPos)
-			return ctx, messages, false, err
+			return messages, false, err
 		}
 
 		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v",d.queue,d.segment,d.readPos,msgSize,d.mCfg.MinMsgSize,d.mCfg.MaxMsgSize)
-		return ctx,messages,false,err
+		return messages,false,err
 	}
 
 	//read message
@@ -183,7 +183,7 @@ READ_MSG:
 		}else{
 			log.Error(err)
 		}
-		return ctx,messages,false,err
+		return messages,false,err
 	}
 
 	totalBytes := int(4 + msgSize)
@@ -195,8 +195,8 @@ READ_MSG:
 		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
 		if err!=nil{
 			log.Error(err)
-			ctx.NextOffset=fmt.Sprintf("%v,%v",d.segment,nextReadPos)
-			return ctx,messages,false,err
+			ctx.UpdateNextOffset(d.segment,nextReadPos)//.NextOffset=fmt.Sprintf("%v,%v",d.segment,nextReadPos)
+			return messages,false,err
 		}
 		readBuf=newData
 	}
@@ -204,23 +204,23 @@ READ_MSG:
 	message := queue.Message{
 		Data:       readBuf,
 		Size:       totalBytes,
-		Offset:     fmt.Sprintf("%v,%v", d.segment, previousPos),
-		NextOffset: fmt.Sprintf("%v,%v", d.segment, nextReadPos),
+		Offset:     queue.Itoa64(d.segment)+","+queue.Itoa64(previousPos),//fmt.Sprintf("%v,%v", d.segment, previousPos),
+		NextOffset: queue.Itoa64(d.segment)+","+queue.Itoa64(nextReadPos),//fmt.Sprintf("%v,%v", d.segment, nextReadPos),
 	}
 
-	ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, nextReadPos)
+	ctx.UpdateNextOffset(d.segment,nextReadPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, nextReadPos)
 
 	messages = append(messages, message)
 	totalMessageSize += message.Size
 
 	if len(messages) >= d.cCfg.FetchMaxMessages {
 		log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.queue, d.cCfg.Name, len(messages), d.cCfg.FetchMaxMessages)
-		return ctx, messages, false, err
+		return messages, false, err
 	}
 
 	if totalMessageSize > d.cCfg.FetchMaxBytes && d.cCfg.FetchMaxBytes > 0 {
 		log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.queue, d.cCfg.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(d.cCfg.FetchMaxBytes)))
-		return ctx, messages, false, err
+		return messages, false, err
 	}
 
 	if nextReadPos >= d.maxBytesPerFileRead {
@@ -231,11 +231,11 @@ READ_MSG:
 				if global.Env().IsDebug{
 					log.Debug("current file have changes, reload:",d.queue,",",d.getFileSize()," > ",d.readPos)
 				}
-				ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+				ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 				err=d.ResetOffset(d.segment,d.readPos)
 				if err!=nil{
 					if strings.Contains(err.Error(),"not found"){
-						return ctx, messages, false, nil
+						return messages, false, nil
 					}
 					panic(err)
 				}
@@ -250,17 +250,17 @@ READ_MSG:
 			log.Trace("EOF, continue read:", nextFile)
 
 			Notify(d.queue, ReadComplete, d.segment)
-			ctx.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
+			ctx.UpdateNextOffset(d.segment,d.readPos)//.NextOffset = fmt.Sprintf("%v,%v", d.segment, d.readPos)
 			err=d.ResetOffset(d.segment+1,0)
 			if err!=nil{
 				if strings.Contains(err.Error(),"not found"){
-					return ctx, messages, false, nil
+					return messages, false, nil
 				}
 				panic(err)
 			}
 			goto READ_MSG
 		}
-		return ctx, messages, false, err
+		return messages, false, err
 	}
 
 	messageOffset++

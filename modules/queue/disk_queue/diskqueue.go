@@ -152,7 +152,8 @@ func (d *DiskBasedQueue) ReadContext() Context {
 }
 
 func (d *DiskBasedQueue) LatestOffset() string {
-	return fmt.Sprintf("%v,%v", d.writeSegmentNum, d.writePos)
+	return queue.Itoa64(d.writeSegmentNum)+","+queue.Itoa64(d.writePos)
+	//return fmt.Sprintf("%v,%v", d.writeSegmentNum, d.writePos)
 }
 
 func (d *DiskBasedQueue) Depth() int64 {
