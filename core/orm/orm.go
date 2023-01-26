@@ -303,8 +303,8 @@ func Create(ctx *Context, o interface{}) error {
 	}
 
 	time1 := time.Now()
-	setFieldValue(rValue, "Created", time1)
-	setFieldValue(rValue, "Updated", time1)
+	setFieldValue(rValue, "Created", &time1)
+	setFieldValue(rValue, "Updated", &time1)
 
 	return Save(ctx, o)
 }
@@ -322,7 +322,8 @@ func Save(ctx *Context, o interface{}) error {
 	//if !nameExists {
 	//	return errors.New("name was not found")
 	//}
-	setFieldValue(rValue, "Updated", time.Now())
+	t:=time.Now()
+	setFieldValue(rValue, "Updated",&t )
 	return getHandler().Save(ctx, o)
 }
 
@@ -343,7 +344,8 @@ func Update(ctx *Context, o interface{}) error {
 	//}
 
 	rValue := reflect.ValueOf(o)
-	setFieldValue(rValue, "Updated", time.Now())
+	t1:=time.Now()
+	setFieldValue(rValue, "Updated", &t1)
 
 	return Save(ctx, o)
 }
