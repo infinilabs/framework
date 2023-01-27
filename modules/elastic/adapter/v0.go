@@ -645,9 +645,9 @@ func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHe
 
 	var url string
 	if endPoint == "" {
-		url = fmt.Sprintf("%s/_cluster/health?timeout=1s", c.GetEndpoint())
+		url = fmt.Sprintf("%s/_cluster/health?timeout=10s", c.GetEndpoint())
 	} else {
-		url = fmt.Sprintf("%s/_cluster/health?timeout=1s", endPoint)
+		url = fmt.Sprintf("%s/_cluster/health?timeout=10s", endPoint)
 	}
 	log.Tracef("get cluster health, url: %s", url)
 	health := &elastic.ClusterHealth{}

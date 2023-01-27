@@ -5,13 +5,13 @@
 package task
 
 import (
+	"infini.sh/framework/core/orm"
 	"time"
 )
 
 type Task struct {
-	ID      string    `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Created time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
-	Updated time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+	orm.ORMObjectBase
+
 	ParentId          []string `json:"parent_id,omitempty" elastic_mapping:"parent_id: { type: keyword }"`
 	StartTimeInMillis int64  `json:"start_time_in_millis" elastic_mapping:"start_time_in_millis: { type: long }"`
 	Cancellable       bool   `json:"cancellable" elastic_mapping:"cancellable: { type: boolean }"`

@@ -276,17 +276,30 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 	}
 
 	f := v.FieldByName(param)
+
 	if f.IsValid() {
-		if f.CanSet() {
-			if f.Kind() == reflect.String {
-				f.SetString(value.(string))
-				return
-			} else if f.Kind() == reflect.Struct {
+		if f.Type().String() == "*time.Time" { //处理time.Time时间类型
+			vType:=reflect.TypeOf(value).String()
+			if vType=="*time.Time"{
 				f.Set(reflect.ValueOf(value))
 			}
+		}else if f.Type().String() == "time.Time" { //处理time.Time时间类型
+			//TODO fix this: https://www.cnblogs.com/marshhu/p/12837834.html
+			//vType:=reflect.TypeOf(value).String()
+			//if vType=="time.Time"{
+			//	timeValue := value.(time.Time)
+			//	f.Set(reflect.ValueOf(timeValue.String()))
+			//}
+		}else {
+			if f.CanSet() {
+				if f.Kind() == reflect.String {
+					f.SetString(value.(string))
+					return
+				} else if f.Kind() == reflect.Struct {
+					f.Set(reflect.ValueOf(value))
+				}
+			}
 		}
-	} else {
-
 	}
 }
 
