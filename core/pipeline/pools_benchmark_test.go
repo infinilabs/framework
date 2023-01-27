@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package ants
+package pipeline
 
 import (
 	"runtime"
@@ -36,7 +36,9 @@ const (
 	DefaultExpiredTime = 10 * time.Second
 )
 
-func demoFunc() {
+var demoFunc= &Task{Handler: demo}
+
+func demo(ctx *Context,v ...interface{}) {
 	time.Sleep(time.Duration(BenchParam) * time.Millisecond)
 }
 
@@ -67,7 +69,7 @@ func BenchmarkGoroutines(b *testing.B) {
 		wg.Add(RunTimes)
 		for j := 0; j < RunTimes; j++ {
 			go func() {
-				demoFunc()
+				demo(nil,nil)
 				wg.Done()
 			}()
 		}
@@ -84,52 +86,12 @@ func BenchmarkSemaphore(b *testing.B) {
 		for j := 0; j < RunTimes; j++ {
 			sema <- struct{}{}
 			go func() {
-				demoFunc()
+				demo(nil,nil)
 				<-sema
 				wg.Done()
 			}()
 		}
 		wg.Wait()
-	}
-}
-
-func BenchmarkAntsPool(b *testing.B) {
-	var wg sync.WaitGroup
-	p, _ := NewPool(BenchAntsSize, WithExpiryDuration(DefaultExpiredTime))
-	defer p.Release()
-
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		wg.Add(RunTimes)
-		for j := 0; j < RunTimes; j++ {
-			_ = p.Submit(func() {
-				demoFunc()
-				wg.Done()
-			})
-		}
-		wg.Wait()
-	}
-	b.StopTimer()
-}
-
-func BenchmarkGoroutinesThroughput(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < RunTimes; j++ {
-			go demoFunc()
-		}
-	}
-}
-
-func BenchmarkSemaphoreThroughput(b *testing.B) {
-	sema := make(chan struct{}, BenchAntsSize)
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < RunTimes; j++ {
-			sema <- struct{}{}
-			go func() {
-				demoFunc()
-				<-sema
-			}()
-		}
 	}
 }
 

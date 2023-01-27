@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package ants
+package pipeline
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"infini.sh/framework/core/task/ants/internal"
+	"infini.sh/framework/core/pipeline/internal"
 )
 
 var pools=sync.Map{}
@@ -132,7 +132,7 @@ func NewPool(size int, options ...Option) (*Pool, error) {
 	p.workerCache.New = func() interface{} {
 		return &goWorker{
 			pool: p,
-			task: make(chan func(), workerChanCap),
+			task: make(chan *Task, workerChanCap),
 		}
 	}
 	if p.options.PreAlloc {
@@ -194,7 +194,7 @@ func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
 	p.workerCache.New = func() interface{} {
 		return &goWorker{
 			pool: p,
-			task: make(chan func(), workerChanCap),
+			task: make(chan *Task, workerChanCap),
 		}
 	}
 	if p.options.PreAlloc {
@@ -224,7 +224,15 @@ func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
 // but what calls for special attention is that you will get blocked with the latest
 // Pool.Submit() call once the current Pool runs out of its capacity, and to avoid this,
 // you should instantiate a Pool with ants.WithNonblocking(true).
-func (p *Pool) Submit(task func()) error {
+func (p *Pool) SubmitSimpleTask(f func()) error {
+	return p.Submit(&Task{
+		Handler: func(ctx *Context,v ...interface{}) {
+			f()
+		},
+	})
+}
+
+func (p *Pool) Submit(task *Task) error {
 	if p.IsClosed() {
 		return ErrPoolClosed
 	}
@@ -236,7 +244,7 @@ func (p *Pool) Submit(task func()) error {
 	return nil
 }
 
-func (p *Pool) SubmitWithTag(task func()) error {
+func (p *Pool) SubmitWithTag(task *Task) error {
 	if p.IsClosed() {
 		return ErrPoolClosed
 	}

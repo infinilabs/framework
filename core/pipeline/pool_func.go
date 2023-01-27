@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package ants
+package pipeline
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"infini.sh/framework/core/task/ants/internal"
+	"infini.sh/framework/core/pipeline/internal"
 )
 
 // PoolWithFunc accepts the tasks from client,

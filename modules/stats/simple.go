@@ -68,7 +68,7 @@ func (module *SimpleStatsModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
 
 	//if global.Env().IsDebug{
-		api.HandleAPIMethod(api.GET, "/bytes_buffer", module.BufferItemStatsAction)
+		api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
 	//}
 }
 
