@@ -72,8 +72,6 @@ func (module *PipeModule) Setup() {
 	pipeline.RegisterProcessorPlugin("echo", NewEchoProcessor)
 
 	if moduleCfg.APIEnabled {
-		handler := API{}
-		handler.InitAPI()
 		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTaskHandler)
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTaskHandler)
@@ -316,8 +314,6 @@ func (module *PipeModule) Stop() error {
 			ok=module.stopTask(k)
 			return true
 		})
-
-		//log.Trace("configs:",len(module.configs))
 
 		for k, _ := range module.configs {
 			//if global.Env().IsDebug{
