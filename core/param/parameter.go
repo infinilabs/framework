@@ -370,11 +370,6 @@ func (newPara *Parameters) ConfigBinding(key ParaKey, rt reflect.Type, mutable *
 		field := mutable.FieldByName(rt.Field(i).Name)
 
 		key := ParaKey(tag)
-		//fmt.Println("tag: ", tag," key: ",key," has para: ",newPara.Has(key),newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
-
-		//if global.Env().IsDebug {
-		//	log.Trace("tag: ", tag, " key: ", key, " has para: ", newPara.Has(key), newPara.Data, ",", rt.Field(i).Name, ",", i, ":", f.Type(), ", kind:", f.Kind(), ",", f.String(), ",", field)
-		//}
 
 		if newPara.Has(key) {
 			switch f.Kind() {
@@ -597,9 +592,8 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 	}
 
 	//TODO handle rest types
-	//if global.Env().IsDebug {
-		log.Warnf("parameters failed to GetArray, key: %v, type: %v", key, reflect.TypeOf(v))
-	//}
+	log.Warnf("parameters failed to GetArray, key: %v, type: %v", key, reflect.TypeOf(v))
+
 	return s, ok
 }
 
