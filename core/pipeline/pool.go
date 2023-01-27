@@ -224,6 +224,14 @@ func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
 // but what calls for special attention is that you will get blocked with the latest
 // Pool.Submit() call once the current Pool runs out of its capacity, and to avoid this,
 // you should instantiate a Pool with ants.WithNonblocking(true).
+func (p *Pool) SubmitSimpleTask(f func()) error {
+	return p.Submit(&Task{
+		Handler: func(ctx *Context,v ...interface{}) {
+			f()
+		},
+	})
+}
+
 func (p *Pool) Submit(task *Task) error {
 	if p.IsClosed() {
 		return ErrPoolClosed

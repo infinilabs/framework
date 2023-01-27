@@ -154,11 +154,6 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	if err!=nil{
 		panic(err)
 	}
-	//
-	//pool, err := pipeline.NewPool("bulk_indexing",uint64(runner.config.MaxWorkers))
-	//if err != nil {
-	//	panic(err)
-	//}
 
 	runner.pool=pool
 	global.RegisterShutdownCallback(func() {
@@ -386,7 +381,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
 
 		if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
-			log.Warnf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
+			log.Debugf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
 			return
 		}
 
@@ -399,11 +394,8 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		} else {
 			var workerID = util.GetUUID()
 			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, host)
-			processor.wg.Add(1)
 
-			//err:=processor.pool.Submit(func() {
-			//	processor.NewSlicedBulkWorker(key, workerID, sliceID, processor.config.NumOfSlices, tag, ctx, bulkSizeInByte, qConfig, host)
-			//})
+			processor.wg.Add(1)
 
 			ctx1:=&pipeline.Context{}
 			ctx1.Set("key",key)
@@ -539,8 +531,8 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	}()
 
 	processor.inFlightQueueConfigs.Store(key, workerID)
-	log.Debugf("place slice_worker lock: [%v], queue [%v], slice_id:%v, key:%v,v:%v", tag, qConfig.Id, sliceID, key,workerID)
 
+	log.Tracef("place slice_worker lock: [%v], queue [%v], slice_id:%v, key:%v,v:%v", tag, qConfig.Id, sliceID, key,workerID)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSecond) * time.Second
 	elasticsearch, ok := qConfig.Labels["elasticsearch"]
