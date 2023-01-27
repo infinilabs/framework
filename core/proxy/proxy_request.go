@@ -31,7 +31,7 @@ type Response struct {
 var defaultClient = &fasthttp.Client{
 	MaxConnsPerHost: 1000,
 	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
-	ReadTimeout: time.Second * 3,
+	ReadTimeout: time.Second * 10,
 	DialDualStack: true,
 }
 
