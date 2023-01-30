@@ -67,6 +67,14 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 				log.Trace(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
 			}
 			if err!=nil{
+				if global.Env().IsDebug{
+					if util.ContainStr(err.Error(),"invalid_meta_buffer"){
+					if i>0{
+						previous:=lines[i-1]
+							log.Info("line:",i,",previous line:",string(previous),",raw:",string(lines[i]),",invalid:",string(line),",full message:",string(data))
+						}
+					}
+				}
 				panic(err)
 			}
 

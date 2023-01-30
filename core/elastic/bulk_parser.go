@@ -47,5 +47,5 @@ func ParseActionMeta(data []byte) (action, index, typeName, id,routing string,er
 		}
 	}
 
-	return action, index, typeName, id,routing, errors.Errorf("invalid meta buffer: %v",string(data))
+	return action, index, typeName, id,routing, errors.Errorf("invalid_meta_buffer: %v",string(data))
 }
