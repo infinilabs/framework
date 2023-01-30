@@ -810,7 +810,7 @@ CLEAN_BUFFER:
 	}
 
 	if offset == "" || ctx.IsCanceled() || ctx.IsFailed() {
-		 log.Warnf("invalid offset or canceled, return on queue:[%v], slice_id:%v", qConfig.Name, sliceID)
+		 log.Warnf("invalid offset[%v] or canceled[%v] or failed[%v], return on queue:[%v], slice_id:%v",offset,ctx.IsCanceled(),ctx.IsFailed(), qConfig.Name, sliceID)
 		return
 	}
 

@@ -139,7 +139,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 		} else {
 			log.Tracef("file %v not found or next file is not ready, skip compress %v", file, queueID)
 			//skip
-			continue
+			return
 		}
 	}
 }
