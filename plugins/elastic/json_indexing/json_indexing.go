@@ -29,6 +29,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"runtime"
+	"github.com/savsgio/gotils/bytes"
 	"sync"
 	"time"
 )
@@ -223,7 +224,7 @@ READ_DOCS:
 			docBuf.Write(pop)
 			docBuf.WriteString("\n")
 
-			mainBuf.Write(docBuf.Bytes())
+			mainBuf.Write(bytes.Copy(docBuf.Bytes()))
 
 			docBuf.Reset()
 			(*count)++
