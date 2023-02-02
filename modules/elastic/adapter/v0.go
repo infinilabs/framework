@@ -20,14 +20,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/buger/jsonparser"
-	"github.com/segmentio/encoding/json"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/buger/jsonparser"
+	"github.com/segmentio/encoding/json"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
@@ -41,7 +42,7 @@ type ESAPIV0 struct {
 	Version       string
 	majorVersion  int
 	metadata      *elastic.ElasticsearchMetadata
-	metaLocker    sync.RWMutex
+	metaLocker    sync.Mutex
 }
 
 func (c *ESAPIV0) GetActivePreferredEndpoint(host string) string {
@@ -53,17 +54,17 @@ func (c *ESAPIV0) GetEndpoint() string {
 }
 func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	c.metaLocker.Lock()
-	c.metaLocker.Unlock()
+	defer c.metaLocker.Unlock()
 
 	if c.metadata != nil {
 		return c.metadata
 	}
 
-	cfg:=elastic.GetConfig(c.Elasticsearch)
-	if cfg!=nil{
-		meta:=elastic.GetOrInitMetadata(cfg)
-		if meta!=nil{
-			c.metadata=meta
+	cfg := elastic.GetConfig(c.Elasticsearch)
+	if cfg != nil {
+		meta := elastic.GetOrInitMetadata(cfg)
+		if meta != nil {
+			c.metadata = meta
 		}
 	}
 	if c.metadata == nil {
@@ -399,7 +400,7 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 		query.Size = 10
 	}
 
-	js:=query.ToJSONString()
+	js := query.ToJSONString()
 	return c.SearchWithRawQueryDSL(indexName, util.UnsafeStringToBytes(js))
 }
 
@@ -637,10 +638,8 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
 	return c.GetClusterStatsSpecEndpoint(node, "")
 }
 
-//
 // ClusterHealthSpecEndpoint
 // @param url eg: http://192.168.3.22:9200
-//
 func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHealth, error) {
 
 	var url string
@@ -698,7 +697,7 @@ func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
 
 	node := elastic.NodesResponse{}
 
-	err=util.FromJSONBytes(resp.Body,&node)
+	err = util.FromJSONBytes(resp.Body, &node)
 
 	if err != nil {
 		return nil, err
@@ -720,7 +719,7 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 	}
 
 	node := elastic.NodesResponse{}
-	err=util.FromJSONBytes(resp.Body,&node)
+	err = util.FromJSONBytes(resp.Body, &node)
 	if err != nil {
 		return nil, err
 	}
@@ -1110,7 +1109,7 @@ func (c *ESAPIV0) CreateIndex(indexName string, settings map[string]interface{})
 		return err
 	}
 	if result.StatusCode != http.StatusOK {
-		return fmt.Errorf("code:%v,response:%v",result.StatusCode,string(result.Body))
+		return fmt.Errorf("code:%v,response:%v", result.StatusCode, string(result.Body))
 	}
 
 	return nil
@@ -1133,8 +1132,8 @@ func (s *ESAPIV0) NewScroll(indexNames string, scrollTime string, docBufferCount
 	url := fmt.Sprintf("%s/%s/_search?search_type=scan&scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 
 	var jsonBody string
-	if query!=nil{
-		jsonBody=query.ToJSONString()
+	if query != nil {
+		jsonBody = query.ToJSONString()
 	}
 
 	resp, err := s.Request(nil, util.Verb_POST, url, util.UnsafeStringToBytes(jsonBody))
@@ -1286,16 +1285,16 @@ func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
 	return response, nil
 }
 
-//"dict" : {
-//"aliases" : {
-//"dictalias1" : {
-//"is_write_index" : true
-//},
-//"dictalias2" : {
-//"is_write_index" : true
-//}
-//}
-//},
+// "dict" : {
+// "aliases" : {
+// "dictalias1" : {
+// "is_write_index" : true
+// },
+// "dictalias2" : {
+// "is_write_index" : true
+// }
+// }
+// },
 type AliasesResponse struct {
 	Aliases map[string]struct {
 		IsWriteIndex  bool        `json:"is_write_index,omitempty"`
