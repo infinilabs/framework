@@ -45,7 +45,7 @@ bin/
 /bin-run/
 /leveldb
 /dist
-vendor/
+vendor
 /cmd/vfs/vfs
 *.so
 /test/
