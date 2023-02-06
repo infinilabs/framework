@@ -35,6 +35,7 @@ BUILD_NUMBER ?= 001
 # GOBUILD_FLAGS?=-ldflags "-X infini.sh/framework/core/env.version=$(APP_VERSION)  -X infini.sh/framework/core/env.buildDate=$(NOW)   -X infini.sh/framework/core/env.commit=$(COMMIT_ID) -X infini.sh/framework/core/env.eolDate=$(APP_EOLDate)  -X infini.sh/framework/core/env.buildNumber=$(BUILD_NUMBER)"
 
 PATH := $(PATH):$(GOPATH)/bin
+VFS_PATH := ~/vfs
 
 # Go environment
 CURDIR := $(shell pwd)
@@ -102,9 +103,9 @@ cross-build-cmd: config
 	@$(MAKE) restore-generated-file
 
 update-plugins:
-	@if [ ! -e ~/go/src/infini.sh/framework/bin/plugin-discovery ]; then ( cd ~/go/src/infini.sh/framework/ && make build-cmd ) fi
+	@if [ ! -e $(OLDGOPATH)/src/infini.sh/framework/bin/plugin-discovery ]; then ( cd $(OLDGOPATH)/src/infini.sh/framework/ && make build-cmd ) fi
 	@$(foreach var,$(APP_PLUGIN_FOLDER),\
-        ( ~/go/src/infini.sh/framework/bin/plugin-discovery -dir $(var) -pkg $(var) -import_prefix infini.sh/$(APP_NAME) -out $(var)/generated_plugins.go); \
+        ( $(OLDGOPATH)/src/infini.sh/framework/bin/plugin-discovery -dir $(var) -pkg $(var) -import_prefix infini.sh/$(APP_NAME) -out $(var)/generated_plugins.go); \
     )
 
 # used to build the binary for gdb debugging
@@ -213,8 +214,8 @@ restore-generated-file:
 
 
 update-vfs:
-	@if [ ! -e ~/vfs ]; then (cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs ~/) fi
-	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && ~/vfs -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
+	@if [ ! -e $(VFS_PATH) ]; then (cd $(FRAMEWORK_FOLDER) && cd cmd/vfs && $(GO) build && cp vfs $(VFS_PATH)) fi
+	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && $(VFS_PATH) -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
 
 config: init update-vfs update-generated-file update-plugins
 	@echo "update configs"
