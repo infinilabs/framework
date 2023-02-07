@@ -19,7 +19,7 @@ const (
 
 	defaultMaxPoolSize      = 100 * 1024 * 1024
 	defaultItemSize         = 0
-	defaultMaxItemCount     = 1000000
+	defaultMaxItemCount     = 100000
 	calibrateThreshold      = 100
 	maxPercentile           = 0.95
 	defaultSizeInPercentile = 0.5
@@ -198,7 +198,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 	} else {
 		lock.Lock()
 		if x, ok := pools.Load(tag); !ok {
-			pool = NewTaggedPool(tag, 0, 1024*1024*1024, 1000000)
+			pool = NewTaggedPool(tag, 0, 1024*1024*1024, 100000)
 		} else {
 			pool = x.(*Pool)
 		}

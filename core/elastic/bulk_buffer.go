@@ -21,7 +21,7 @@ var bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects", func() in
 	return nil
 },10000,1024*1024*1024)
 
-var bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer",0,1024*1024*1024,1000000)
+var bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer",0,1024*1024*1024,100000)
 
 func AcquireBulkBuffer() *BulkBuffer {
 	buff := bulkBufferPool.Get().(*BulkBuffer)
