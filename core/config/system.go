@@ -116,8 +116,6 @@ type PathConfig struct {
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply
 type SystemConfig struct {
 
-	Environments map[string]interface{} `config:"env"`
-
 	//reserved config
 	ClusterConfig ClusterConfig `config:"cluster"`
 

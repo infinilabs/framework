@@ -66,7 +66,7 @@ var (
 )
 
 func TestLoadModules(t *testing.T) {
-	cfg, _ := LoadFile("config_test.yml")
+	cfg, _ := internalLoadFile("config_test.yml")
 
 	config := globalConfig{}
 

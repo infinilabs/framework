@@ -28,7 +28,7 @@ func loadConfigFile(file string)*Config  {
 		if !util.FileExists(file){
 			return nil
 		}
-		v1,err:=LoadFile(file)
+		v1,err:= LoadFile(file)
 		if err!=nil{
 			log.Error(err)
 			return nil

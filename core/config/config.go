@@ -16,6 +16,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"runtime"
 	"github.com/valyala/fasttemplate"
+	"strings"
 )
 
 // Config object to store hierarchical configurations into.
@@ -156,8 +157,64 @@ type ConfigTemplate struct {
 	Variable util.MapStr `config:"variable"`
 }
 
-// LoadFile will load config from specify file
+type EnvConfig struct {
+	Environments map[string]interface{} `config:"env"`
+}
+
 func LoadFile(path string) (*Config, error) {
+	var err error
+	//check templated file
+	cfgByes,err:=util.FileGetContent(path)
+	if err!=nil{
+		panic(err)
+	}
+
+	//if hash variable, apply and re-unpack
+	bytesStr:= util.UnsafeBytesToString(cfgByes)
+	if util.ContainStr(bytesStr,"$[["){
+
+		env1:=EnvConfig{}
+		var err error
+		configObject, err := internalLoadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		if err :=configObject.Unpack(&env1); err != nil {
+			panic(err)
+		}
+
+		log.Debugf("config contain variables, try to parse with environments")
+		environs:=os.Environ()
+		obj:=map[string]interface{}{}
+
+		for k,v:=range env1.Environments{
+			obj[k]=v
+		}
+
+		for _,env:=range environs{
+			kv:=strings.Split(env,"=")
+			if len(kv)==2{
+				obj[kv[0]]=kv[1]
+			}
+		}
+
+		log.Trace("environments:",util.ToJson(obj,true))
+
+		envObj:=util.MapStr{}
+		envObj.Put("env",obj)
+		tempConfig:=ConfigTemplate{
+			Path: path,
+			Variable: envObj,
+		}
+
+		return NewConfigWithTemplate(tempConfig)
+	}
+	return internalLoadFile(path)
+}
+
+// internalLoadFile will load config from specify file
+func internalLoadFile(path string) (*Config, error) {
 
 	c, err := yaml.NewConfigWithFile(path, configOpts...)
 	if err != nil {
@@ -249,7 +306,7 @@ func LoadFiles(paths ...string) (*ucfg.Config, error) {
 	cfg := &Config{}
 
 	for _, path := range paths {
-		cfg, err = LoadFile(path)
+		cfg, err = internalLoadFile(path)
 		if err != nil {
 			return c, err
 		}
