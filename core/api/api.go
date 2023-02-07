@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
+	"infini.sh/framework/core/errors"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
@@ -282,7 +284,7 @@ func StartAPI() {
 
 	err = util.WaitServerUp(listenAddress, 30*time.Second)
 	if err != nil {
-		panic(err)
+		panic(errors.Wrap(err,fmt.Sprintf("failed to listen on: %v",listenAddress)))
 	}
 	log.Info("api listen at: ", schema, listenAddress)
 }
