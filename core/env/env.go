@@ -296,6 +296,52 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
+	log.Trace(env.SystemConfig.Environments)
+
+	//check templated file
+	cfgByes,err1:=util.FileGetContent(filename)
+	if err!=nil{
+		panic(err1)
+	}
+
+	//if hash variable, apply and re-unpack
+	bytesStr:= util.UnsafeBytesToString(cfgByes)
+	if util.ContainStr(bytesStr,"$[["){
+		log.Debugf("config contain variables, try to parse with environments")
+		environs:=os.Environ()
+		obj:=map[string]interface{}{}
+
+		for k,v:=range env.SystemConfig.Environments{
+			obj[k]=v
+		}
+
+		for _,env:=range environs{
+			kv:=strings.Split(env,"=")
+			if len(kv)==2{
+				obj[kv[0]]=kv[1]
+			}
+		}
+
+		log.Trace("environments:",util.ToJson(obj,true))
+
+		envObj:=util.MapStr{}
+		envObj.Put("env",obj)
+		tempConfig:=config.ConfigTemplate{
+			Path: filename,
+			Variable: envObj,
+		}
+
+		configObject,err=config.NewConfigWithTemplate(tempConfig)
+		if err!=nil{
+			panic(err)
+		}
+
+		//re-unpack with updated config
+		if err := configObject.Unpack(env.SystemConfig); err != nil {
+			panic(err)
+		}
+	}
+
 	env.SetConfigFile(filename)
 
 	log.Trace(env.SystemConfig.PathConfig.Config)

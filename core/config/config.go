@@ -153,7 +153,7 @@ type TemplateConfigs struct {
 type ConfigTemplate struct {
 	Name     string                 `config:"name"`
 	Path     string                 `config:"path"`
-	Variable map[string]interface{} `config:"variable"`
+	Variable util.MapStr `config:"variable"`
 }
 
 // LoadFile will load config from specify file
@@ -173,7 +173,7 @@ func LoadFile(path string) (*Config, error) {
 		if len(templates.Templates) > 0 {
 			for i, v := range templates.Templates {
 				log.Tracef("processing #[%v] template: %v,%v", i, v.Name, v.Path)
-				cfg, err := initTemplate(v)
+				cfg, err := NewConfigWithTemplate(v)
 				if err != nil {
 					return pCfg,err
 				} else {
@@ -195,10 +195,10 @@ func LoadFile(path string) (*Config, error) {
 	return pCfg, err
 }
 
-func GetVariable(runtimeKV map[string]interface{}, key string) string {
+func GetVariable(runtimeKV util.MapStr, key string) string {
 	if runtimeKV != nil {
-		x, ok := runtimeKV[key]
-		if ok {
+		x,err:=runtimeKV.GetValue(key)
+		if err==nil {
 			str, ok := x.(string)
 			if ok {
 				return str
@@ -210,16 +210,14 @@ func GetVariable(runtimeKV map[string]interface{}, key string) string {
 	panic(errors.Errorf("variable [%v] not found", key))
 }
 
-func initTemplate(v ConfigTemplate) (*Config, error) {
+func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
 
-	file := util.TryGetFileAbsPath(v.Path, false)
-	if !util.FileExists(file) {
-		return nil, errors.Errorf("template %v not exists", file)
+	cfgFile := util.TryGetFileAbsPath(v.Path, false)
+	if !util.FileExists(cfgFile) {
+		return nil, errors.Errorf("template %v not exists", cfgFile)
 	}
 
-	log.Tracef("variable: %v", v.Variable)
-
-	tempBytes, err := util.FileGetContent(file)
+	tempBytes, err := util.FileGetContent(cfgFile)
 	if err != nil {
 		return nil, err
 	}
