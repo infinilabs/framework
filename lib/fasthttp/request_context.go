@@ -125,7 +125,6 @@ type RequestCtx struct {
 	EnrichedMetadata bool
 }
 
-
 // Context returns the request's context. To change the context, use
 // WithContext.
 //
@@ -144,7 +143,6 @@ func (r *RequestCtx) Context() context.Context {
 	return context.Background()
 }
 
-
 func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, error) {
 
 	if util.PrefixStr(s, "_ctx.") {
@@ -152,7 +150,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 		if len(keys) >= 2 {
 			rootFied := keys[1]
 			if rootFied != "" {
-				valueStr:=util.ToString(value)
+				valueStr := util.ToString(value)
 				switch rootFied {
 				case "request":
 					if len(keys) >= 3 {
@@ -172,20 +170,20 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 							case "body_json":
 								keys := keys[3:]
 								if len(keys) == 0 {
-									return nil,errors.New("invalid json key:" + s)
+									return nil, errors.New("invalid json key:" + s)
 								}
 								body := para.Request.GetRawBody()
 								body, err := jsonparser.Set(body, []byte(valueStr), keys...)
 								para.Request.SetRawBody(body)
 								if err != nil {
-									return nil,err
+									return nil, err
 								}
 							case "query_args":
 								if len(keys) == 4 { //TODO notify
 									argsField := keys[3]
 									if argsField != "" {
 										para.Request.URI().QueryArgs().Set(argsField, valueStr)
-										return nil,nil
+										return nil, nil
 									}
 								}
 							case "header":
@@ -193,10 +191,10 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 									headerKey := keys[3]
 									if headerKey != "" {
 										para.Request.Header.Set(headerKey, valueStr)
-										return nil,nil
+										return nil, nil
 									}
 								}
-								return nil,nil
+								return nil, nil
 							}
 						}
 					}
@@ -209,7 +207,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 							case "status":
 								status, err := util.ToInt(valueStr)
 								if err != nil {
-									return nil,err
+									return nil, err
 								}
 								para.Response.SetStatusCode(status)
 							case "content_type":
@@ -219,7 +217,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 									headerKey := keys[3]
 									if headerKey != "" {
 										para.Response.Header.Set(headerKey, valueStr)
-										return nil,nil
+										return nil, nil
 									}
 								}
 							case "body":
@@ -229,7 +227,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 								keys := keys[3:]
 
 								if len(keys) == 0 {
-									return nil,errors.New("invalid json key:" + s)
+									return nil, errors.New("invalid json key:" + s)
 								}
 
 								body := para.Response.GetRawBody()
@@ -238,7 +236,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 
 								para.Response.SetBodyRaw(body)
 								if err != nil {
-									return nil,err
+									return nil, err
 								}
 							}
 						}
@@ -252,172 +250,197 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 	return para.Parameters.PutValue(s, value)
 }
 
+var builtin = []byte("_")[0]
+
 func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 
-	if util.PrefixStr(s, "_ctx.") {
-		keys := strings.Split(s, ".")
-		if len(keys) >= 2 {
-			rootFied := keys[1]
-			if rootFied != "" {
-				switch rootFied {
-				case "id":
-					return para.ID(), nil
-				case "tls":
-					return para.IsTLS(), nil
-				case "remote_ip":
-					return para.RemoteIP().String(), nil
-				case "remote_addr":
-					return para.RemoteAddr().String(), nil
-				case "local_ip":
-					return para.LocalIP().String(), nil
-				case "local_addr":
-					return para.LocalAddr().String(), nil
-				case "elapsed":
-					return para.GetElapsedTime().Milliseconds(), nil
-				case "request":
-					if len(keys) >= 3 {
-						requestField := keys[2]
-						if requestField != "" {
-							switch requestField {
-							case "to_string":
-								return string(para.Request.String()), nil
-							case "host":
-								return string(para.Request.Host()), nil
-							case "method":
-								return string(para.Method()), nil
-							case "uri":
-								return string(para.Request.URI().String()), nil
-							case "path":
-								return string(para.Request.URI().Path()), nil
-							case "body":
-								return string(para.Request.GetRawBody()), nil
-							case "body_json":
-								keys := keys[3:]
-								if len(keys) == 0 {
-									return nil, errors.New("invalid json key:" + s)
-								}
-								v, t, _, err := jsonparser.Get(para.Request.GetRawBody(), keys...)
-								if err != nil {
-									return nil, err
-								}
+	if len(s) > 0 {
+		firstChar := s[0]
+		if firstChar == builtin {
+			keys := strings.Split(s, ".")
+			firstPart := keys[0]
+			switch firstPart {
+			case "_ctx":
+				if len(keys) >= 2 {
+					rootFied := keys[1]
+					if rootFied != "" {
+						switch rootFied {
+						case "id":
+							return para.ID(), nil
+						case "tls":
+							return para.IsTLS(), nil
+						case "remote_ip":
+							return para.RemoteIP().String(), nil
+						case "remote_addr":
+							return para.RemoteAddr().String(), nil
+						case "local_ip":
+							return para.LocalIP().String(), nil
+						case "local_addr":
+							return para.LocalAddr().String(), nil
+						case "elapsed":
+							return para.GetElapsedTime().Milliseconds(), nil
+						case "request":
+							if len(keys) >= 3 {
+								requestField := keys[2]
+								if requestField != "" {
+									switch requestField {
+									case "to_string":
+										return string(para.Request.String()), nil
+									case "host":
+										return string(para.Request.Host()), nil
+									case "method":
+										return string(para.Method()), nil
+									case "uri":
+										return string(para.Request.URI().String()), nil
+									case "path":
+										return string(para.Request.URI().Path()), nil
+									case "body":
+										return string(para.Request.GetRawBody()), nil
+									case "body_json":
+										keys := keys[3:]
+										if len(keys) == 0 {
+											return nil, errors.New("invalid json key:" + s)
+										}
+										v, t, _, err := jsonparser.Get(para.Request.GetRawBody(), keys...)
+										if err != nil {
+											return nil, err
+										}
 
-								switch t {
-								case jsonparser.NotExist:
-									return nil, errors.New("key not found:" + s)
-								case jsonparser.String:
-									return string(v), nil
-								case jsonparser.Boolean:
-									return jsonparser.ParseBoolean(v)
-								case jsonparser.Number:
-									i, err := jsonparser.ParseInt(v)
-									if err != nil {
-										return jsonparser.ParseFloat(v)
-									}
-									return i, err
-								default:
-									seelog.Error("json type not handled:", s, v, t, err)
-								}
+										switch t {
+										case jsonparser.NotExist:
+											return nil, errors.New("key not found:" + s)
+										case jsonparser.String:
+											return string(v), nil
+										case jsonparser.Boolean:
+											return jsonparser.ParseBoolean(v)
+										case jsonparser.Number:
+											i, err := jsonparser.ParseInt(v)
+											if err != nil {
+												return jsonparser.ParseFloat(v)
+											}
+											return i, err
+										default:
+											seelog.Error("json type not handled:", s, v, t, err)
+										}
 
-							case "body_length":
-								return para.Request.GetBodyLength(), nil
-							case "body_size":
-								return para.Request.GetBodyLength(), nil
-							case "query_args":
-								if len(keys) == 4 { //TODO notify
-									argsField := keys[3]
-									if argsField != "" {
-										v := para.Request.URI().QueryArgs().Peek(argsField)
-										return string(v), nil
-									}
-								}
-							case "header":
-								if len(keys) == 4 { //TODO notify
-									headerKey := keys[3]
-									if headerKey != "" {
-										v := para.Request.Header.Peek(headerKey)
-										return string(v), nil
-									}
-								}
-							case "user":
-								exists, user, _ := para.Request.ParseBasicAuth()
-								if exists {
-									return string(user), nil
-								}
-								return "", nil
-							case "username": //alias to user
-								exists, user, _ := para.Request.ParseBasicAuth()
-								if exists {
-									return string(user), nil
-								}
-								return "", nil
-							case "password":
-								exists, pass, _ := para.Request.ParseBasicAuth()
-								if exists {
-									return string(pass), nil
-								}
-								return "", nil
-							}
-						}
-					}
-					break
-				case "response":
-					if len(keys) >= 3 {
-						responseField := keys[2]
-						if responseField != "" {
-							switch responseField {
-							case "to_string":
-								return para.Response.String(), nil
-							case "status":
-								return para.Response.StatusCode(), nil
-							case "status_code":
-								return para.Response.StatusCode(), nil
-							case "body":
-								return string(para.Response.GetRawBody()), nil
-							case "body_json":
-								keys := keys[3:]
-								if len(keys) == 0 {
-									return nil, errors.New("invalid json key:" + s)
-								}
-								v, t, _, err := jsonparser.Get(para.Response.GetRawBody(), keys...)
-								if err != nil {
-									return nil, err
-								}
-
-								switch t {
-								case jsonparser.NotExist:
-									return nil, errors.New("key not found:" + s)
-								case jsonparser.String:
-									return string(v), nil
-								case jsonparser.Boolean:
-									return jsonparser.ParseBoolean(v)
-								case jsonparser.Number:
-									i, err := jsonparser.ParseInt(v)
-									if err != nil {
-										return jsonparser.ParseFloat(v)
-									}
-									return i, err
-								default:
-									seelog.Error("json type not handled:", s, v, t, err)
-								}
-							case "content_type":
-								return string(para.Response.Header.ContentType()), nil
-							case "body_length":
-								return para.Response.GetBodyLength(), nil
-							case "body_size":
-								return para.Response.GetBodyLength(), nil
-							case "header":
-								if len(keys) == 4 { //TODO notify
-									headerKey := keys[3]
-									if headerKey != "" {
-										v := para.Response.Header.Peek(headerKey)
-										return string(v), nil
+									case "body_length":
+										return para.Request.GetBodyLength(), nil
+									case "body_size":
+										return para.Request.GetBodyLength(), nil
+									case "query_args":
+										if len(keys) == 4 { //TODO notify
+											argsField := keys[3]
+											if argsField != "" {
+												v := para.Request.URI().QueryArgs().Peek(argsField)
+												return string(v), nil
+											}
+										}
+									case "header":
+										if len(keys) == 4 { //TODO notify
+											headerKey := keys[3]
+											if headerKey != "" {
+												v := para.Request.Header.Peek(headerKey)
+												return string(v), nil
+											}
+										}
+									case "user":
+										exists, user, _ := para.Request.ParseBasicAuth()
+										if exists {
+											return string(user), nil
+										}
+										return "", nil
+									case "username": //alias to user
+										exists, user, _ := para.Request.ParseBasicAuth()
+										if exists {
+											return string(user), nil
+										}
+										return "", nil
+									case "password":
+										exists, pass, _ := para.Request.ParseBasicAuth()
+										if exists {
+											return string(pass), nil
+										}
+										return "", nil
 									}
 								}
 							}
+							break
+						case "response":
+							if len(keys) >= 3 {
+								responseField := keys[2]
+								if responseField != "" {
+									switch responseField {
+									case "to_string":
+										return para.Response.String(), nil
+									case "status":
+										return para.Response.StatusCode(), nil
+									case "status_code":
+										return para.Response.StatusCode(), nil
+									case "body":
+										return string(para.Response.GetRawBody()), nil
+									case "body_json":
+										keys := keys[3:]
+										if len(keys) == 0 {
+											return nil, errors.New("invalid json key:" + s)
+										}
+										v, t, _, err := jsonparser.Get(para.Response.GetRawBody(), keys...)
+										if err != nil {
+											return nil, err
+										}
+
+										switch t {
+										case jsonparser.NotExist:
+											return nil, errors.New("key not found:" + s)
+										case jsonparser.String:
+											return string(v), nil
+										case jsonparser.Boolean:
+											return jsonparser.ParseBoolean(v)
+										case jsonparser.Number:
+											i, err := jsonparser.ParseInt(v)
+											if err != nil {
+												return jsonparser.ParseFloat(v)
+											}
+											return i, err
+										default:
+											seelog.Error("json type not handled:", s, v, t, err)
+										}
+									case "content_type":
+										return string(para.Response.Header.ContentType()), nil
+									case "body_length":
+										return para.Response.GetBodyLength(), nil
+									case "body_size":
+										return para.Response.GetBodyLength(), nil
+									case "header":
+										if len(keys) == 4 { //TODO notify
+											headerKey := keys[3]
+											if headerKey != "" {
+												v := para.Response.Header.Peek(headerKey)
+												return string(v), nil
+											}
+										}
+									}
+								}
+							}
+							break
 						}
 					}
-					break
 				}
+				break
+			case "_sys":
+				if len(keys) >= 2 {
+					rootFied := keys[1]
+					if rootFied != "" {
+						switch rootFied {
+						case "hostname":
+							return util.GetHostName(), nil
+						case "day_of_now":
+							return util.GetLowPrecisionCurrentTime().Day(), nil
+						case "month_of_now":
+							return int(util.GetLowPrecisionCurrentTime().Month()), nil
+						}
+					}
+				}
+				break
 			}
 		}
 	}
@@ -429,7 +452,6 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 		return nil, errors.New("key not found:" + s)
 	}
 }
-
 
 func (ctx *RequestCtx) GetRequestProcess() string {
 	return ctx.flowProcess.String()
@@ -445,7 +467,7 @@ func (ctx *RequestCtx) AddFlowProcess(str string) {
 	}
 
 	if str != "" {
-		if ctx.flowProcess.Len()>0{
+		if ctx.flowProcess.Len() > 0 {
 			ctx.flowProcess.WriteString("->")
 		}
 		ctx.flowProcess.WriteString(str)
@@ -459,7 +481,6 @@ func (ctx *RequestCtx) SetDestination(str string) {
 func (ctx *RequestCtx) Destination() []string {
 	return ctx.destination
 }
-
 
 func (ctx *RequestCtx) Reset() {
 	//reset flags and metadata

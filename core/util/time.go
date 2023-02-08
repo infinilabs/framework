@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/segmentio/encoding/json"
 	"hash"
+	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
 	"sync"
@@ -158,12 +159,19 @@ func GetLowPrecisionCurrentTime() time.Time {
 }
 
 func SetupTimeNowRefresh() {
-	setupLock.Lock()
-	defer setupLock.Unlock()
+
 	if !refreshRunning {
+		setupLock.Lock()
+		defer setupLock.Unlock()
+
+		if refreshRunning{
+			return
+		}
+
 		once := sync.Once{}
 		once.Do(func() {
 			go func(nowNano int64) {
+				log.Debug("refresh low precision time in background")
 				for {
 					t := time.Now()
 					atomic.StoreInt64(&nowNano, t.UnixNano())
