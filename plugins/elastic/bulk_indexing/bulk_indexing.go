@@ -5,7 +5,6 @@ import (
 	"github.com/OneOfOne/xxhash"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/rotate"
 	"runtime"
 	"sync"
 	"time"
