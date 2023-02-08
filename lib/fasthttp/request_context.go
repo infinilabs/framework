@@ -17,69 +17,6 @@ import (
 	"time"
 )
 
-// RequestCtx contains incoming request and manages outgoing response.
-//
-// It is forbidden copying RequestCtx instances.
-//
-// RequestHandler should avoid holding references to incoming RequestCtx and/or
-// its' members after the return.
-// If holding RequestCtx references after the return is unavoidable
-// (for instance, ctx is passed to a separate goroutine and ctx lifetime cannot
-// be controlled), then the RequestHandler MUST call ctx.TimeoutError()
-// before return.
-//
-// It is unsafe modifying/reading RequestCtx instance from concurrently
-// running goroutines. The only exception is TimeoutError*, which may be called
-// while other goroutines accessing RequestCtx.
-//type RequestCtx struct {
-//	noCopy noCopy //nolint:unused,structcheck
-//
-//	param.Parameters
-//
-//	// Incoming request.
-//	//
-//	// Copying Request by value is forbidden. Use pointer to Request instead.
-//	Request Request
-//
-//	// Outgoing response.
-//	//
-//	// Copying Response by value is forbidden. Use pointer to Response instead.
-//	Response Response
-//
-//	userValues userData
-//
-//	connID         uint64
-//	connRequestNum uint64
-//	connTime       time.Time
-//
-//	time time.Time
-//
-//	s   *Server
-//	c   net.Conn
-//	fbr firstByteReader
-//
-//	timeoutResponse *Response
-//	timeoutCh       chan struct{}
-//	timeoutTimer    *time.Timer
-//
-//	hijackHandler    HijackHandler
-//	hijackNoResponse bool
-//
-//	finished bool
-//	//SequenceID       int64
-//	flowProcess []string
-//	destination []string
-//
-//	EnrichedMetadata bool
-//
-//	// ctx is either the client or server context. It should only
-//	// be modified via copying the whole Request using WithContext.
-//	// It is unexported to prevent people from using Context wrong
-//	// and mutating the contexts held by callers of the same request.
-//	ctx context.Context
-//
-//}
-
 type RequestCtx struct {
 	param.Parameters
 	ctx context.Context
@@ -433,10 +370,18 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 						switch rootFied {
 						case "hostname":
 							return util.GetHostName(), nil
-						case "day_of_now":
-							return util.GetLowPrecisionCurrentTime().Day(), nil
 						case "month_of_now":
 							return int(util.GetLowPrecisionCurrentTime().Month()), nil
+						case "weekday_of_now": //0,23
+							return util.GetLowPrecisionCurrentTime().Weekday(), nil
+						case "day_of_now":
+							return util.GetLowPrecisionCurrentTime().Day(), nil
+						case "hour_of_now":
+							return util.GetLowPrecisionCurrentTime().Hour(), nil
+						case "minute_of_now": //0,59
+							return util.GetLowPrecisionCurrentTime().Minute(), nil
+						case "second_of_now":
+							return util.GetLowPrecisionCurrentTime().Second(), nil
 						}
 					}
 				}
