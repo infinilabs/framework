@@ -167,7 +167,7 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 			log.Tracef("cluster state updated from version [%v] to [%v]", meta.ClusterState.Version, state.Version)
 		}
 
-		oldIndexState, err := kv.GetValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
+		oldIndexState, err := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
 
 		//TODO locker
 		if stateChanged || (err == nil && oldIndexState == nil){
@@ -175,9 +175,17 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 				if meta.ClusterState == nil || oldIndexState == nil{
 					//load init state from es when console start
 					oldIndexState, err = module.loadIndexMetadataFromES(clusterId)
-					kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState)
+					if err != nil {
+						log.Errorf("failed to load index metadata from es: %v", err)
+					}
+					err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState)
+					if err != nil {
+						log.Errorf("failed to save index metadata: %v", err)
+					}
 				}
-				module.saveIndexMetadata(state, clusterId)
+				if err == nil {
+					module.saveIndexMetadata(state, clusterId)
+				}
 			}
 		}
 		if stateChanged {
@@ -311,7 +319,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	//	indexHealths[iname] = info.Health
 	//}
 
-	oldIndexBytes, err := kv.GetValue(elastic.KVElasticIndexMetadata, []byte(clusterID))
+	oldIndexBytes, err := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterID))
 	if err != nil {
 		log.Error(err)
 		return
@@ -627,7 +635,10 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 
 	}
 	if isIndicesStateChange {
-		kv.AddValue(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata))
+		err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata))
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
 
@@ -729,7 +740,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 				"nodes": nodes,
 				"timestamp": time.Now(),
 			}
-			kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			err =kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
 		}
 		//TODO　save to es metadata
 	}
