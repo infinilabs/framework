@@ -72,8 +72,6 @@ type Config struct {
 	SkipEmptyQueue    bool `config:"skip_empty_queue"`
 	SkipOnMissingInfo bool `config:"skip_info_missing"`
 
-	RotateConfig rotate.RotateConfig `config:"rotate"`
-
 	BulkConfig elastic.BulkProcessorConfig `config:"bulk"`
 
 	Elasticsearch string `config:"elasticsearch,omitempty"`
@@ -111,7 +109,6 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		ValidateRequest:   false,
 		SkipEmptyQueue:    true,
 		SkipOnMissingInfo: false,
-		RotateConfig:      rotate.DefaultConfig,
 		BulkConfig:        elastic.DefaultBulkProcessorConfig,
 	}
 
