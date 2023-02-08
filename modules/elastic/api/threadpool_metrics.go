@@ -6,17 +6,18 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"strings"
 )
 
 const (
-	ThreadPool_GetGroupKey = "thread_pool_get"
-	ThreadPool_SearchGroupKey = "thread_pool_search"
-	ThreadPool_FlushGroupKey = "thread_pool_flush"
-	ThreadPool_RefreshGroupKey = "thread_pool_refresh"
-	ThreadPool_WriteGroupKey = "thread_pool_write"
-	ThreadPool_ForceMergeGroupKey = "thread_pool_force_merge"
-	ThreadPool_IndexGroupKey = "thread_pool_index"
-	ThreadPool_BulkGroupKey = "thread_pool_bulk"
+	ThreadPoolGetGroupKey    = "thread_pool_get"
+	ThreadPoolSearchGroupKey   = "thread_pool_search"
+	ThreadPoolFlushGroupKey   = "thread_pool_flush"
+	ThreadPoolRefreshGroupKey     = "thread_pool_refresh"
+	ThreadPoolWriteGroupKey      = "thread_pool_write"
+	ThreadPoolForceMergeGroupKey = "thread_pool_force_merge"
+	ThreadPoolIndexGroupKey = "thread_pool_index"
+	ThreadPoolBulkGroupKey  = "thread_pool_bulk"
 )
 
 func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
@@ -44,27 +45,25 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			},
 		},
 	}
+	var (
+		nodeNames []string
+		err error
+	)
 	if nodeName != "" {
-		top = 1
-		must = append(must, util.MapStr{
-			"term": util.MapStr{
-				"metadata.labels.transport_address": util.MapStr{
-					"value": nodeName,
-				},
-			},
-		})
+		nodeNames = strings.Split(nodeName, ",")
+		top = len(nodeNames)
 	}else{
-		nodeNames, err := h.getTopNodeName(clusterID, top, 15)
+		nodeNames, err = h.getTopNodeName(clusterID, top, 15)
 		if err != nil {
 			log.Error(err)
 		}
-		if len(nodeNames) > 0 {
-			must = append(must, util.MapStr{
-				"terms": util.MapStr{
-					"metadata.labels.transport_address": nodeNames,
-				},
-			})
-		}
+	}
+	if len(nodeNames) > 0 {
+		must = append(must, util.MapStr{
+			"terms": util.MapStr{
+				"metadata.labels.transport_address": nodeNames,
+			},
+		})
 	}
 
 	query:=map[string]interface{}{}
@@ -83,7 +82,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			},
 		},
 	}
-	searchThreadsMetric := newMetricItem("search_threads", 1, ThreadPool_SearchGroupKey)
+	searchThreadsMetric := newMetricItem("search_threads", 1, ThreadPoolSearchGroupKey)
 	searchThreadsMetric.AddAxi("Search Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems := []GroupMetricItem{
@@ -97,7 +96,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			Units: "",
 		},
 	}
-	searchQueueMetric := newMetricItem("search_queue", 1, ThreadPool_SearchGroupKey)
+	searchQueueMetric := newMetricItem("search_queue", 1, ThreadPoolSearchGroupKey)
 	searchQueueMetric.AddAxi("Search Queue Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -109,7 +108,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	searchActiveMetric := newMetricItem("search_active", 1, ThreadPool_SearchGroupKey)
+	searchActiveMetric := newMetricItem("search_active", 1, ThreadPoolSearchGroupKey)
 	searchActiveMetric.AddAxi("Search Active Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -121,7 +120,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	searchRejectedMetric := newMetricItem("search_rejected", 1, ThreadPool_SearchGroupKey)
+	searchRejectedMetric := newMetricItem("search_rejected", 1, ThreadPoolSearchGroupKey)
 	searchRejectedMetric.AddAxi("Search Rejected Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -134,7 +133,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		Units: "rejected/s",
 	})
 
-	getThreadsMetric := newMetricItem("get_threads", 1, ThreadPool_GetGroupKey)
+	getThreadsMetric := newMetricItem("get_threads", 1, ThreadPoolGetGroupKey)
 	getThreadsMetric.AddAxi("Get Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -146,7 +145,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	getQueueMetric := newMetricItem("get_queue", 1, ThreadPool_GetGroupKey)
+	getQueueMetric := newMetricItem("get_queue", 1, ThreadPoolGetGroupKey)
 	getQueueMetric.AddAxi("Get Queue Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -158,7 +157,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	getActiveMetric := newMetricItem("get_active", 1, ThreadPool_GetGroupKey)
+	getActiveMetric := newMetricItem("get_active", 1, ThreadPoolGetGroupKey)
 	getActiveMetric.AddAxi("Get Active Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -170,7 +169,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	getRejectedMetric := newMetricItem("get_rejected", 1, ThreadPool_GetGroupKey)
+	getRejectedMetric := newMetricItem("get_rejected", 1, ThreadPoolGetGroupKey)
 	getRejectedMetric.AddAxi("Get Rejected Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -183,7 +182,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		Units: "rejected/s",
 	})
 
-	flushThreadsMetric := newMetricItem("flush_threads", 1, ThreadPool_FlushGroupKey)
+	flushThreadsMetric := newMetricItem("flush_threads", 1, ThreadPoolFlushGroupKey)
 	flushThreadsMetric.AddAxi("Flush Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -195,7 +194,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	flushQueueMetric := newMetricItem("flush_queue", 1, ThreadPool_FlushGroupKey)
+	flushQueueMetric := newMetricItem("flush_queue", 1, ThreadPoolFlushGroupKey)
 	flushQueueMetric.AddAxi("Get Queue Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -207,7 +206,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	flushActiveMetric := newMetricItem("flush_active", 1, ThreadPool_FlushGroupKey)
+	flushActiveMetric := newMetricItem("flush_active", 1, ThreadPoolFlushGroupKey)
 	flushActiveMetric.AddAxi("Flush Active Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -219,7 +218,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	flushRejectedMetric := newMetricItem("flush_rejected", 1, ThreadPool_FlushGroupKey)
+	flushRejectedMetric := newMetricItem("flush_rejected", 1, ThreadPoolFlushGroupKey)
 	flushRejectedMetric.AddAxi("Flush Rejected Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -235,7 +234,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 	majorVersion := elastic.GetMetadata(clusterID).GetMajorVersion()
 
 	if majorVersion < 6 {
-		indexThreadsMetric := newMetricItem("index_threads", 1, ThreadPool_IndexGroupKey)
+		indexThreadsMetric := newMetricItem("index_threads", 1, ThreadPoolIndexGroupKey)
 		indexThreadsMetric.AddAxi("Index Threads Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -247,7 +246,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		indexQueueMetric := newMetricItem("index_queue", 1, ThreadPool_IndexGroupKey)
+		indexQueueMetric := newMetricItem("index_queue", 1, ThreadPoolIndexGroupKey)
 		indexQueueMetric.AddAxi("Index Queue Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -259,7 +258,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		indexActiveMetric := newMetricItem("index_active", 1, ThreadPool_IndexGroupKey)
+		indexActiveMetric := newMetricItem("index_active", 1, ThreadPoolIndexGroupKey)
 		indexActiveMetric.AddAxi("Index Active Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -271,7 +270,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		indexRejectedMetric := newMetricItem("index_rejected", 1, ThreadPool_IndexGroupKey)
+		indexRejectedMetric := newMetricItem("index_rejected", 1, ThreadPoolIndexGroupKey)
 		indexRejectedMetric.AddAxi("Index Rejected Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -284,7 +283,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			Units:        "rejected/s",
 		})
 
-		bulkThreadsMetric := newMetricItem("bulk_threads", 1, ThreadPool_BulkGroupKey)
+		bulkThreadsMetric := newMetricItem("bulk_threads", 1, ThreadPoolBulkGroupKey)
 		bulkThreadsMetric.AddAxi("Bulk Threads Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -296,7 +295,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		bulkQueueMetric := newMetricItem("bulk_queue", 1, ThreadPool_BulkGroupKey)
+		bulkQueueMetric := newMetricItem("bulk_queue", 1, ThreadPoolBulkGroupKey)
 		bulkQueueMetric.AddAxi("Bulk Queue Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -308,7 +307,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		bulkActiveMetric := newMetricItem("bulk_active", 1, ThreadPool_BulkGroupKey)
+		bulkActiveMetric := newMetricItem("bulk_active", 1, ThreadPoolBulkGroupKey)
 		bulkActiveMetric.AddAxi("Bulk Active Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -320,7 +319,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		bulkRejectedMetric := newMetricItem("bulk_rejected", 1, ThreadPool_BulkGroupKey)
+		bulkRejectedMetric := newMetricItem("bulk_rejected", 1, ThreadPoolBulkGroupKey)
 		bulkRejectedMetric.AddAxi("Bulk Rejected Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -333,7 +332,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			Units:        "rejected/s",
 		})
 	}else {
-		writeThreadsMetric := newMetricItem("write_threads", 1, ThreadPool_WriteGroupKey)
+		writeThreadsMetric := newMetricItem("write_threads", 1, ThreadPoolWriteGroupKey)
 		writeThreadsMetric.AddAxi("Write Threads Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -345,7 +344,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		writeQueueMetric := newMetricItem("write_queue", 1, ThreadPool_WriteGroupKey)
+		writeQueueMetric := newMetricItem("write_queue", 1, ThreadPoolWriteGroupKey)
 		writeQueueMetric.AddAxi("Write Queue Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -357,7 +356,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		writeActiveMetric := newMetricItem("write_active", 1, ThreadPool_WriteGroupKey)
+		writeActiveMetric := newMetricItem("write_active", 1, ThreadPoolWriteGroupKey)
 		writeActiveMetric.AddAxi("Write Active Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -369,7 +368,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			FormatType:   "num",
 			Units:        "",
 		})
-		writeRejectedMetric := newMetricItem("write_rejected", 1, ThreadPool_WriteGroupKey)
+		writeRejectedMetric := newMetricItem("write_rejected", 1, ThreadPoolWriteGroupKey)
 		writeRejectedMetric.AddAxi("Write Rejected Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
 		queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -382,7 +381,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			Units:        "rejected/s",
 		})
 	}
-	refreshThreadsMetric := newMetricItem("refresh_threads", 1, ThreadPool_RefreshGroupKey)
+	refreshThreadsMetric := newMetricItem("refresh_threads", 1, ThreadPoolRefreshGroupKey)
 	refreshThreadsMetric.AddAxi("Refresh Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -394,7 +393,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	refreshQueueMetric := newMetricItem("refresh_queue", 1, ThreadPool_RefreshGroupKey)
+	refreshQueueMetric := newMetricItem("refresh_queue", 1, ThreadPoolRefreshGroupKey)
 	refreshQueueMetric.AddAxi("Refresh Queue Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -406,7 +405,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	refreshActiveMetric := newMetricItem("refresh_active", 1, ThreadPool_RefreshGroupKey)
+	refreshActiveMetric := newMetricItem("refresh_active", 1, ThreadPoolRefreshGroupKey)
 	refreshActiveMetric.AddAxi("Refresh Active Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -418,7 +417,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	refreshRejectedMetric := newMetricItem("refresh_rejected", 1, ThreadPool_RefreshGroupKey)
+	refreshRejectedMetric := newMetricItem("refresh_rejected", 1, ThreadPoolRefreshGroupKey)
 	refreshRejectedMetric.AddAxi("Refresh Rejected Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -430,7 +429,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "rejected/s",
 	})
-	forceMergeThreadsMetric := newMetricItem("force_merge_threads", 1, ThreadPool_ForceMergeGroupKey)
+	forceMergeThreadsMetric := newMetricItem("force_merge_threads", 1, ThreadPoolForceMergeGroupKey)
 	forceMergeThreadsMetric.AddAxi("Force Merge Threads Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -442,7 +441,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	forceMergeQueueMetric := newMetricItem("force_merge_queue", 1, ThreadPool_ForceMergeGroupKey)
+	forceMergeQueueMetric := newMetricItem("force_merge_queue", 1, ThreadPoolForceMergeGroupKey)
 	forceMergeQueueMetric.AddAxi("Force Merge Queue Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -454,7 +453,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	forceMergeActiveMetric := newMetricItem("force_merge_active", 1, ThreadPool_ForceMergeGroupKey)
+	forceMergeActiveMetric := newMetricItem("force_merge_active", 1, ThreadPoolForceMergeGroupKey)
 	forceMergeActiveMetric.AddAxi("Force Merge Active Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
@@ -466,7 +465,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 		FormatType: "num",
 		Units: "",
 	})
-	forceMergeRejectedMetric := newMetricItem("force_merge_rejected", 1, ThreadPool_ForceMergeGroupKey)
+	forceMergeRejectedMetric := newMetricItem("force_merge_rejected", 1, ThreadPoolForceMergeGroupKey)
 	forceMergeRejectedMetric.AddAxi("Force Merge Rejected Count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 
 	queueMetricItems = append(queueMetricItems, GroupMetricItem{
