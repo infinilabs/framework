@@ -42,3 +42,27 @@ func TestExtractBool(t *testing.T) {
 	}
 	assert.Equal(t, input, v)
 }
+
+func TestExtractInt(t *testing.T) {
+	type test struct {
+		i   interface{}
+		o   int64
+		err bool
+	}
+	tests := []test{
+		{float32(1.0), 1, false},
+		{float64(1.0), 1, false},
+		{float32(1.2), 0, true},
+		{float64(1.2), 0, true},
+		{float64(-1.2), 0, true},
+		{float64(-1), -1, false},
+		{int(-1), -1, false},
+	}
+
+	for _, test := range tests {
+		v, err := ExtractInt(test.i)
+		if v != test.o || (test.err && err == nil) {
+			t.Fatal(test.i, test.o, v, test.err)
+		}
+	}
+}
