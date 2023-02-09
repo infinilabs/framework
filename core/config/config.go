@@ -1,22 +1,23 @@
-//Package config , actually copied from github.com/elastic/beats
+// Package config , actually copied from github.com/elastic/beats
 package config
 
 import (
 	"flag"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"github.com/elastic/go-ucfg"
 	cfgflag "github.com/elastic/go-ucfg/flag"
 	"github.com/elastic/go-ucfg/yaml"
+	"github.com/valyala/fasttemplate"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/file"
-	"io"
-	"os"
-	"path/filepath"
-	"infini.sh/framework/core/errors"
-	"runtime"
-	"github.com/valyala/fasttemplate"
-	"strings"
 )
 
 // Config object to store hierarchical configurations into.
@@ -133,7 +134,6 @@ func NewFlagOverwrite(
 	return &f.value
 }
 
-
 func LoadPath(folder string) (*ucfg.Config, error) {
 	files := []string{}
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
@@ -148,12 +148,12 @@ func LoadPath(folder string) (*ucfg.Config, error) {
 }
 
 type TemplateConfigs struct {
-	Templates  []ConfigTemplate `config:"configs.template"`
+	Templates []ConfigTemplate `config:"configs.template"`
 }
 
 type ConfigTemplate struct {
-	Name     string                 `config:"name"`
-	Path     string                 `config:"path"`
+	Name     string      `config:"name"`
+	Path     string      `config:"path"`
 	Variable util.MapStr `config:"variable"`
 }
 
@@ -164,47 +164,47 @@ type EnvConfig struct {
 func LoadFile(path string) (*Config, error) {
 	var err error
 	//check templated file
-	cfgByes,err:=util.FileGetContent(path)
-	if err!=nil{
+	cfgByes, err := util.FileGetContent(path)
+	if err != nil {
 		panic(err)
 	}
 
 	//if hash variable, apply and re-unpack
-	bytesStr:= util.UnsafeBytesToString(cfgByes)
-	if util.ContainStr(bytesStr,"$[["){
+	bytesStr := util.UnsafeBytesToString(cfgByes)
+	if util.ContainStr(bytesStr, "$[[") {
 
-		env1:=EnvConfig{}
+		env1 := EnvConfig{}
 		var err error
 		configObject, err := internalLoadFile(path)
 		if err != nil {
 			panic(err)
 		}
 
-		if err :=configObject.Unpack(&env1); err != nil {
+		if err := configObject.Unpack(&env1); err != nil {
 			panic(err)
 		}
 
 		log.Debugf("config contain variables, try to parse with environments")
-		environs:=os.Environ()
-		obj:=map[string]interface{}{}
+		environs := os.Environ()
+		obj := map[string]interface{}{}
 
-		for k,v:=range env1.Environments{
-			obj[k]=v
+		for k, v := range env1.Environments {
+			obj[k] = v
 		}
 
-		for _,env:=range environs{
-			kv:=strings.Split(env,"=")
-			if len(kv)==2{
-				obj[kv[0]]=kv[1]
+		for _, env := range environs {
+			kv := strings.Split(env, "=")
+			if len(kv) == 2 {
+				obj[kv[0]] = kv[1]
 			}
 		}
 
-		log.Trace("environments:",util.ToJson(obj,true))
+		log.Trace("environments:", util.ToJson(obj, true))
 
-		envObj:=util.MapStr{}
-		envObj.Put("env",obj)
-		tempConfig:=ConfigTemplate{
-			Path: path,
+		envObj := util.MapStr{}
+		envObj.Put("env", obj)
+		tempConfig := ConfigTemplate{
+			Path:     path,
 			Variable: envObj,
 		}
 
@@ -223,8 +223,8 @@ func internalLoadFile(path string) (*Config, error) {
 
 	pCfg := fromConfig(c)
 
-	if pCfg.HasField("configs"){
-		templates:=TemplateConfigs{}
+	if pCfg.HasField("configs") {
+		templates := TemplateConfigs{}
 		pCfg.Unpack(&templates)
 		log.Trace(templates)
 		if len(templates.Templates) > 0 {
@@ -232,15 +232,15 @@ func internalLoadFile(path string) (*Config, error) {
 				log.Tracef("processing #[%v] template: %v,%v", i, v.Name, v.Path)
 				cfg, err := NewConfigWithTemplate(v)
 				if err != nil {
-					return pCfg,err
+					return pCfg, err
 				} else {
 					pCfg, err = MergeConfigs(pCfg, cfg)
 					if err != nil {
-						return pCfg,err
+						return pCfg, err
 					}
 					obj := map[string]interface{}{}
 					if err := pCfg.Unpack(obj); err != nil {
-						return pCfg,err
+						return pCfg, err
 					}
 				}
 			}
@@ -252,19 +252,19 @@ func internalLoadFile(path string) (*Config, error) {
 	return pCfg, err
 }
 
-func GetVariable(runtimeKV util.MapStr, key string) string {
+func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 	if runtimeKV != nil {
-		x,err:=runtimeKV.GetValue(key)
-		if err==nil {
+		x, err := runtimeKV.GetValue(key)
+		if err == nil {
 			str, ok := x.(string)
 			if ok {
-				return str
+				return str, true
 			} else {
-				return util.ToString(x)
+				return util.ToString(x), true
 			}
 		}
 	}
-	panic(errors.Errorf("variable [%v] not found", key))
+	return "", false
 }
 
 func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
@@ -285,14 +285,17 @@ func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
 	}
 
 	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
-		variable := GetVariable(v.Variable, tag)
-		return w.Write([]byte(variable))
+		variable, ok := GetVariable(v.Variable, tag)
+		if ok {
+			return w.Write([]byte(variable))
+		}
+		// TODO: skip replacement during execute stage
+		return w.Write([]byte("$[[" + tag + "]]"))
 	})
 
 	log.Trace("rendering templated config:\n", configStr)
 	return NewConfigWithYAML([]byte(configStr), "template")
 }
-
 
 // LoadFiles will load configs from specify files
 func LoadFiles(paths ...string) (*ucfg.Config, error) {
