@@ -77,6 +77,104 @@ func (module *PipeModule) Setup() {
 		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTaskHandler)
 	}
 
+	//listen on changes
+	config.NotifyOnConfigSectionChange("pipeline", func(pCfg,cCfg *config.Config) {
+		configDir := global.Env().GetConfigDir()
+		newCfg, err := config.LoadPath(configDir)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		newConfig := []pipeline.PipelineConfigV2{}
+
+		if ok,err:=newCfg.Has("pipeline",-1);ok{
+			newCfg, err = newCfg.Child("pipeline", -1)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			err := cCfg.Unpack(&newConfig)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+		}else{
+			err := cCfg.Unpack(&newConfig)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+		}
+
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					log.Error("error on apply pipeline change,", v)
+				}
+			}
+		}()
+
+		//each entry should reuse port
+		//collect old entry with same id and same port
+		old := module.configs
+		existKeys := map[string]string{}
+		skipKeys := map[string]string{}
+		newPipeline := map[string]pipeline.PipelineConfigV2{}
+
+		for _, v := range newConfig {
+			oldC, ok := old[v.Name]
+			if ok {
+				existKeys[v.Name] = v.Name
+				if v.Equals(oldC) {
+					skipKeys[v.Name] = v.Name
+					continue
+				}
+			}
+			newPipeline[v.Name] = v
+		}
+
+		if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
+			return
+		}
+
+
+		log.Debug("stopping old entry points")
+		for _,v:=range old{
+			_,ok:=skipKeys[v.Name]
+			if ok{
+				newPipeline[v.Name]=v
+				continue
+			}
+
+			module.stopTask(v.Name)
+			log.Infof("remove pipeline [%s]", v.Name)
+
+			module.runningPipelines.Delete(v.Name)
+			module.contexts.Delete(v.Name)
+		}
+
+		module.configs=newPipeline
+
+		log.Debug("starting new pipeline")
+		for _,v:=range newPipeline{
+			err:=module.startPipeline(v)
+			if err!=nil{
+				log.Error(err)
+			}
+		}
+
+	})
+
 }
 
 func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -187,105 +285,6 @@ func (module *PipeModule) Start() error {
 			module.configs[v.Name]=v
 		}
 	}
-
-	//listen on changes
-	config.NotifyOnConfigSectionChange("pipeline", func(pCfg,cCfg *config.Config) {
-		configDir := global.Env().GetConfigDir()
-		newCfg, err := config.LoadPath(configDir)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		newConfig := []pipeline.PipelineConfigV2{}
-
-		if ok,err:=newCfg.Has("pipeline",-1);ok{
-			newCfg, err = newCfg.Child("pipeline", -1)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-			err := cCfg.Unpack(&newConfig)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-		}else{
-			err := cCfg.Unpack(&newConfig)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-		}
-
-		defer func() {
-			if !global.Env().IsDebug {
-				if r := recover(); r != nil {
-					var v string
-					switch r.(type) {
-					case error:
-						v = r.(error).Error()
-					case runtime.Error:
-						v = r.(runtime.Error).Error()
-					case string:
-						v = r.(string)
-					}
-					log.Error("error on apply pipeline change,", v)
-				}
-			}
-		}()
-
-		//each entry should reuse port
-		//collect old entry with same id and same port
-		old := module.configs
-		existKeys := map[string]string{}
-		skipKeys := map[string]string{}
-		newPipeline := map[string]pipeline.PipelineConfigV2{}
-
-		for _, v := range newConfig {
-			oldC, ok := old[v.Name]
-			if ok {
-				existKeys[v.Name] = v.Name
-				if v.Equals(oldC) {
-					skipKeys[v.Name] = v.Name
-					continue
-				}
-			}
-			newPipeline[v.Name] = v
-		}
-
-		if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
-			return
-		}
-
-
-		log.Debug("stopping old entry points")
-		for _,v:=range old{
-			_,ok:=skipKeys[v.Name]
-			if ok{
-				newPipeline[v.Name]=v
-				continue
-			}
-
-			module.stopTask(v.Name)
-			log.Infof("remove pipeline [%s]", v.Name)
-
-			module.runningPipelines.Delete(v.Name)
-			module.contexts.Delete(v.Name)
-		}
-
-		module.configs=newPipeline
-
-		log.Debug("starting new pipeline")
-		for _,v:=range newPipeline{
-			err:=module.startPipeline(v)
-			if err!=nil{
-				log.Error(err)
-			}
-		}
-
-	})
-
 
 	module.started = true
 	module.closing=false

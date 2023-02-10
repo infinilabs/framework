@@ -197,6 +197,9 @@ func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, err
 	if err!=nil{
 		return d, err
 	}
+	if len(d) == 0 {
+		return nil, nil
+	}
 	data, err := lz4.Decode(nil, d)
 	if err != nil {
 		log.Error("Failed to decode:", err)
