@@ -54,6 +54,12 @@ func init() {
 
 // SetLogging init set logging
 func SetLogging(env *env.Env, logLevel string) {
+	if env == nil {
+		panic("empty env")
+	}
+	if env.SystemConfig == nil {
+		panic("empty logging config")
+	}
 
 	e = env
 
@@ -66,14 +72,8 @@ func SetLogging(env *env.Env, logLevel string) {
 		appName="app"
 	}
 
-	if env != nil {
-		envLevel := strings.ToLower(env.LoggingLevel)
-		if env.SystemConfig != nil {
-			file = path.Join(env.GetLogDir(),  appName + ".log")
-		}
-		if len(envLevel) > 0 {
-			loggingConfig.LogLevel = envLevel
-		}
+	if len(env.LoggingLevel) > 0 {
+		loggingConfig.LogLevel = strings.ToLower(env.LoggingLevel)
 	}
 
 	//overwrite env config
@@ -112,8 +112,9 @@ func SetLogging(env *env.Env, logLevel string) {
 	receivers := []interface{}{consoleWriter}
 
 	if !loggingConfig.DisableFileOutput{
-		//finally check filename
-		if file == "" {
+		if baseDir := env.GetLogDir(); baseDir != "" {
+			file = path.Join(baseDir,  appName + ".log")
+		}else{
 			file = "./log/" + appName + ".log"
 		}
 
