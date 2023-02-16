@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
-	"github.com/elastic/go-ucfg"
-	"github.com/elastic/go-ucfg/yaml"
+	"infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/lib/go-ucfg/yaml"
 	"github.com/magiconair/properties/assert"
 	"github.com/spf13/viper"
 	"infini.sh/framework/core/util"

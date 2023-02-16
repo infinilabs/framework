@@ -174,6 +174,33 @@ func (env *Env) Init() *Env {
 	return env
 }
 
+func (env *Env) InitPaths(cfgPath string) error {
+	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo("")
+	env.SystemConfig = &defaultSystemConfig
+	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
+	partialConfig := struct {
+		Path config.PathConfig `config:"path"`
+	}{}
+
+	var (
+		cfgObj *config.Config
+		err error
+	)
+	if cfgObj, err = config.LoadFile(cfgPath); err != nil {
+		return fmt.Errorf("error loading confiuration file: %w", err)
+	}
+	if err = cfgObj.Unpack(&partialConfig); err != nil {
+		return fmt.Errorf("error extracting default paths: %w", err)
+	}
+	if partialConfig.Path.Data != "" {
+		env.SystemConfig.PathConfig.Data = partialConfig.Path.Data
+	}
+	if partialConfig.Path.Log != "" {
+		env.SystemConfig.PathConfig.Data = partialConfig.Path.Log
+	}
+	return nil
+}
+
 var moduleConfig map[string]*config.Config
 var pluginConfig map[string]*config.Config
 var startTime = time.Now().UTC()
@@ -230,14 +257,6 @@ func (env *Env) loadConfig() error {
 	if env.configFile == "" {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
-	}
-
-	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo("")
-
-	env.SystemConfig = &defaultSystemConfig
-
-	if env.SystemConfig.ClusterConfig.Name == "" {
-		env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	}
 
 	filename, _ := filepath.Abs(env.configFile)

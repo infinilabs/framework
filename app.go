@@ -14,6 +14,7 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/keystore"
 	_ "infini.sh/framework/core/log"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
@@ -70,8 +71,13 @@ var debugFlagInitFunc func()
 var debugInitFunc func()
 
 func (app *App) Init(customFunc func()) {
-
-	app.InitWithFlags(customFunc)
+	app.initWithFlags()
+	ksResolver, err := keystore.GetVariableResolver()
+	if err != nil {
+		panic(err)
+	}
+	config.RegisterOption("keystore", ksResolver)
+	app.initEnvironment(customFunc)
 
 	if debugInitFunc!=nil{
 		debugInitFunc()
@@ -84,7 +90,7 @@ func (app *App) Init(customFunc func()) {
 
 }
 
-func (app *App) InitWithFlags(customFunc func()) {
+func (app *App) initWithFlags() {
 
 	showversion := flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
@@ -118,7 +124,11 @@ func (app *App) InitWithFlags(customFunc func()) {
 		}
 		app.environment.SetConfigFile(path)
 	}
-	app.environment.Init()
+	err := app.environment.InitPaths(app.configFile)
+	if err != nil {
+		panic(err)
+	}
+	global.RegisterEnv(app.environment)
 
 	if app.svcFlag==""{
 		if !util.FileExists(app.environment.GetDataDir()){
@@ -128,6 +138,15 @@ func (app *App) InitWithFlags(customFunc func()) {
 			os.MkdirAll(app.environment.GetLogDir(), 0755)
 		}
 	}
+}
+
+func (app *App) initEnvironment(customFunc func()){
+	ksResolver, err := keystore.GetVariableResolver()
+	if err != nil {
+		panic(err)
+	}
+	config.RegisterOption("keystore", ksResolver)
+	app.environment.Init()
 
 	//allow use yml to configure the log level
 	if app.environment.SystemConfig.LoggingConfig.LogLevel!=""{
@@ -139,9 +158,6 @@ func (app *App) InitWithFlags(customFunc func()) {
 
 	app.environment.CheckSetup()
 
-	//put env into global registrar
-	global.RegisterEnv(app.environment)
-
 	logger.SetLogging(app.environment, app.logLevel)
 
 	if customFunc != nil {
@@ -151,7 +167,6 @@ func (app *App) InitWithFlags(customFunc func()) {
 	global.RegisterShutdownCallback(func() {
 		config.StopWatchers()
 	})
-
 }
 
 func (app *App) Setup(setup func(), start func(), stop func())(allowContinue bool) {

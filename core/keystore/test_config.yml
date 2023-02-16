@@ -1,0 +1,10 @@
+elasticsearch:
+  - name: test
+    enabled: true
+    endpoints:
+      - 'http://192.168.3.1'
+    discovery:
+      enabled: false
+    basic_auth:
+      username: elastic
+      password: '$[[keystore.ES_PASSWORD]]'

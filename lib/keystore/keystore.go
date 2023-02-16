@@ -20,9 +20,9 @@ package keystore
 import (
 	"errors"
 
-	"github.com/elastic/go-ucfg"
-	"github.com/elastic/go-ucfg/parse"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 var (

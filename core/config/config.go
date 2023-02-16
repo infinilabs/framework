@@ -11,13 +11,13 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"github.com/elastic/go-ucfg"
-	cfgflag "github.com/elastic/go-ucfg/flag"
-	"github.com/elastic/go-ucfg/yaml"
 	"github.com/valyala/fasttemplate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/file"
+	"infini.sh/framework/lib/go-ucfg"
+	cfgflag "infini.sh/framework/lib/go-ucfg/flag"
+	"infini.sh/framework/lib/go-ucfg/yaml"
 )
 
 // Config object to store hierarchical configurations into.
@@ -37,9 +37,13 @@ type flagOverwrite struct {
 
 var configOpts = []ucfg.Option{
 	ucfg.PathSep("."),
-	ucfg.ResolveEnv,
 	ucfg.AppendValues,
 	ucfg.VarExp,
+}
+
+var customConfigOpts = map[string]ucfg.Option{}
+func RegisterOption(name string, option ucfg.Option){
+	customConfigOpts[name] = option
 }
 
 // NewConfig create a pretty new config
@@ -331,7 +335,12 @@ func (c *Config) Merge(from interface{}) error {
 // Unpack unpacks c into a struct, a map, or a slice allocating maps, slices,
 // and pointers as necessary.
 func (c *Config) Unpack(to interface{}) error {
-	return c.access().Unpack(to, configOpts...)
+	var opts []ucfg.Option
+	for _, opt := range customConfigOpts {
+		opts = append(opts, opt)
+	}
+	opts = append(opts, configOpts...)
+	return c.access().Unpack(to, opts...)
 }
 
 // Path gets the absolute path of c separated by sep. If c is a root-Config an
