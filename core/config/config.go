@@ -39,6 +39,7 @@ var configOpts = []ucfg.Option{
 	ucfg.PathSep("."),
 	ucfg.AppendValues,
 	ucfg.VarExp,
+	ucfg.ResolveNOOP,
 }
 
 var customConfigOpts = map[string]ucfg.Option{}
@@ -336,10 +337,10 @@ func (c *Config) Merge(from interface{}) error {
 // and pointers as necessary.
 func (c *Config) Unpack(to interface{}) error {
 	var opts []ucfg.Option
+	opts = append(opts, configOpts...)
 	for _, opt := range customConfigOpts {
 		opts = append(opts, opt)
 	}
-	opts = append(opts, configOpts...)
 	return c.access().Unpack(to, opts...)
 }
 

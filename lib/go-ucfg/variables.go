@@ -391,10 +391,10 @@ func lexer(in string) (<-chan token, <-chan error) {
 				idx = strings.IndexAny(content[off:], "$")
 			} else {
 				idx = strings.IndexAny(content[off:], "$:")
-				if idx == -1 {
-					idx = strings.Index(content[off:], "]]")
+				idx1 := strings.Index(content[off:], "]]")
+				if idx1 > -1 && (idx1 < idx || idx == -1) {
+					idx = idx1
 				}
-
 			}
 			if idx < 0 {
 				return
@@ -430,20 +430,19 @@ func lexer(in string) (<-chan token, <-chan error) {
 				if len(content) <= off { // found '$' at end of string
 					return
 				}
-				if strings.HasPrefix(content[off:], "[[") {
-					strToken(content[:idx])
-					lex <- openToken
-					off+=2
-					varcount++
-					break
-				}
 
 				switch content[off] {
-				//case '{': // start variable
-				//	strToken(content[:idx])
-				//	lex <- openToken
-				//	off++
-				//	varcount++
+				case '[':
+					if strings.HasPrefix(content[off:], "[[") {
+						// start variable
+						strToken(content[:idx])
+						lex <- openToken
+						off+=2
+						varcount++
+					}else{
+						continue
+					}
+
 				case '$', ']': // escape $} and $$
 					content = content[:idx] + content[off:]
 					continue
@@ -502,7 +501,7 @@ func parseVarExp(lex <-chan token, pathSep string) (varEvaler, error) {
 
 	// validate and return final state
 	if len(stack) > 1 {
-		return nil, errors.New("missing '}'")
+		return nil, errors.New("missing ']]'")
 	}
 	if len(stack) == 0 {
 		return nil, errors.New("fatal: expansion parse state empty")

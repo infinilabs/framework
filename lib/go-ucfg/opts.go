@@ -141,7 +141,7 @@ var ResolveNOOP Option = doResolveNOOP
 
 func doResolveNOOP(o *options) {
 	o.resolvers = append(o.resolvers, func(name string) (string, parse.Config, error) {
-		return "${" + name + "}", parse.NoopConfig, nil
+		return "$[[" + name + "]]", parse.NoopConfig, nil
 	})
 }
 
