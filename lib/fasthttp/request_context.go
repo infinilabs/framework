@@ -372,7 +372,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 							return util.GetHostName(), nil
 						case "month_of_now":
 							return int(util.GetLowPrecisionCurrentTime().Month()), nil
-						case "weekday_of_now": //0,23
+						case "weekday_of_now": //0,6
 							return util.GetLowPrecisionCurrentTime().Weekday(), nil
 						case "day_of_now":
 							return util.GetLowPrecisionCurrentTime().Day(), nil
