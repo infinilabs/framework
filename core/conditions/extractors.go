@@ -62,28 +62,38 @@ func ExtractFloat(unk interface{}) (float64, error) {
 }
 
 // ExtractInt extracts an int from an unknown type.
-func ExtractInt(unk interface{}) (uint64, error) {
+func ExtractInt(unk interface{}) (int64, error) {
 	switch i := unk.(type) {
+	case float64:
+		if math.Mod(i, 1.0) == 0 {
+			return int64(i), nil
+		}
+		return 0, fmt.Errorf("unknown type %T passed to ExtractInt", unk)
+	case float32:
+		if math.Mod(float64(i), 1.0) == 0 {
+			return int64(i), nil
+		}
+		return 0, fmt.Errorf("unknown type %T passed to ExtractInt", unk)
 	case int64:
-		return uint64(i), nil
+		return int64(i), nil
 	case int32:
-		return uint64(i), nil
+		return int64(i), nil
 	case int16:
-		return uint64(i), nil
+		return int64(i), nil
 	case int8:
-		return uint64(i), nil
+		return int64(i), nil
 	case uint64:
-		return uint64(i), nil
+		return int64(i), nil
 	case uint32:
-		return uint64(i), nil
+		return int64(i), nil
 	case uint16:
-		return uint64(i), nil
+		return int64(i), nil
 	case uint8:
-		return uint64(i), nil
+		return int64(i), nil
 	case int:
-		return uint64(i), nil
+		return int64(i), nil
 	case uint:
-		return uint64(i), nil
+		return int64(i), nil
 	default:
 		return 0, fmt.Errorf("unknown type %T passed to ExtractInt", unk)
 	}

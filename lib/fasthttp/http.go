@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"math"
 	"mime/multipart"
@@ -15,6 +14,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 var (
@@ -69,12 +70,12 @@ type Request struct {
 
 	// Request timeout. Usually set by DoDeadline or DoTimeout
 	// if <= 0, means not set
-	timeout time.Duration
+	timeout    time.Duration
 	bodyLength int
 
 	// Use Host header (request.Header.SetHost) instead of the host from SetRequestURI, SetHost, or URI().SetHost
 	UseHostHeader bool
-	
+
 	encodeLocker sync.RWMutex
 	decodeLocker sync.RWMutex
 
@@ -150,7 +151,7 @@ func (req *Request) SetRequestURI(requestURI string) {
 
 	//reset host after reset uri
 	//if len(req.Header.host) > 0 {
-		req.Header.host = req.Header.host[:0]
+	req.Header.host = req.Header.host[:0]
 	//}
 }
 
@@ -161,8 +162,8 @@ func (req *Request) SetRequestURIBytes(requestURI []byte) {
 
 	//reset host after reset uri
 	//if len(req.Header.host) > 0 {
-		req.Header.host = req.Host()// req.Header.host[:0]
-		//req.Header.host =req.Header.host[:0]
+	req.Header.host = req.Host() // req.Header.host[:0]
+	//req.Header.host =req.Header.host[:0]
 	//}
 }
 
@@ -378,8 +379,8 @@ func (resp *Response) Body() []byte {
 	return resp.bodyBytes()
 }
 
-//返回的没有压缩过的 body
-//TODO cache
+// 返回的没有压缩过的 body
+// TODO cache
 func (resp *Response) GetRawBody() []byte {
 	if resp.GetBodyLength() <= 0 {
 		return nil
@@ -419,7 +420,7 @@ func (req *Request) IsGzipped() bool {
 	return false
 }
 
-//TODO cache
+// TODO cache
 func (req *Request) GetRawBody() []byte {
 	var err error
 	if req.GetBodyLength() <= 0 {
@@ -481,9 +482,9 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		if resp.Tag!=""{
-			resp.body =bytebufferpool.Get(resp.Tag)
-		}else{
+		if resp.Tag != "" {
+			resp.body = bytebufferpool.Get(resp.Tag)
+		} else {
 			resp.body = responseBodyPool.Get()
 		}
 	}
@@ -492,9 +493,9 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		if req.Tag!=""{
+		if req.Tag != "" {
 			req.body = bytebufferpool.Get(req.Tag)
-		}else{
+		} else {
 			req.body = requestBodyPool.Get()
 		}
 	}
@@ -503,8 +504,8 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 }
 
 var (
-	responseBodyPool =bytebufferpool.NewTaggedPool("default_response_body",0,1024*1024*1024,100000)
-	requestBodyPool =bytebufferpool.NewTaggedPool("default_request_body",0,1024*1024*1024,100000)
+	responseBodyPool = bytebufferpool.NewTaggedPool("default_response_body", 0, 1024*1024*1024, 100000)
+	requestBodyPool  = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
 )
 
 // BodyGunzip returns un-gzipped body data.
@@ -698,9 +699,9 @@ func (resp *Response) ResetBody() {
 		if resp.keepBodyBuffer {
 			resp.body.Reset()
 		} else {
-			if resp.Tag!=""{
-				bytebufferpool.Put(resp.Tag,resp.body)
-			}else{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
 				responseBodyPool.Put(resp.body)
 			}
 			resp.body = nil
@@ -741,9 +742,9 @@ func (resp *Response) ReleaseBody(size int) {
 	}
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
-		if resp.Tag!=""{
-			bytebufferpool.Put(resp.Tag,resp.body)
-		}else{
+		if resp.Tag != "" {
+			bytebufferpool.Put(resp.Tag, resp.body)
+		} else {
 			responseBodyPool.Put(resp.body)
 		}
 		resp.body = nil
@@ -764,9 +765,9 @@ func (req *Request) ReleaseBody(size int) {
 	}
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
-		if req.Tag!=""{
-			bytebufferpool.Put(req.Tag,req.body)
-		}else{
+		if req.Tag != "" {
+			bytebufferpool.Put(req.Tag, req.body)
+		} else {
 			requestBodyPool.Put(req.body)
 		}
 		req.body = nil
@@ -886,9 +887,9 @@ func (req *Request) ResetBody() {
 		if req.keepBodyBuffer {
 			req.body.Reset()
 		} else {
-			if req.Tag!=""{
-				bytebufferpool.Put(req.Tag,req.body)
-			}else{
+			if req.Tag != "" {
+				bytebufferpool.Put(req.Tag, req.body)
+			} else {
 				requestBodyPool.Put(req.body)
 			}
 			req.body = nil
@@ -1166,7 +1167,7 @@ func (req *Request) Reset() {
 	if requestBodyPoolSizeLimit >= 0 && req.body != nil {
 		req.ReleaseBody(requestBodyPoolSizeLimit)
 	}
-	req.Header.Reset()//TODO ?
+	req.Header.Reset() //TODO ?
 	req.resetSkipHeader()
 	req.timeout = 0
 	req.bodyLength = -1
@@ -1191,7 +1192,7 @@ func (req *Request) GetBodyLength() int {
 
 func (req *Request) resetSkipHeader() {
 	req.ResetBody()
-	req.bodyLength=0
+	req.bodyLength = 0
 	req.uri.Reset()
 	req.parsedURI = false
 	req.postArgs.Reset()
@@ -1222,6 +1223,7 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
+	resp.bodyLength = -1
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1638,7 +1640,7 @@ func (req *Request) Write(w *bufio.Writer) error {
 
 	//if len(hostInHeader) == 0 || !req.parsedURI {
 
-		if len(hostInHeader) == 0 || !req.parsedURI {
+	if len(hostInHeader) == 0 || !req.parsedURI {
 		uri := req.URI()
 		host := uri.Host()
 
@@ -1815,9 +1817,9 @@ func (resp *Response) brotliBody(level int) error {
 		}
 
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag!=""{
-			w=bytebufferpool.Get(resp.Tag)
-		}else{
+		if resp.Tag != "" {
+			w = bytebufferpool.Get(resp.Tag)
+		} else {
 			w = responseBodyPool.Get()
 		}
 
@@ -1825,9 +1827,9 @@ func (resp *Response) brotliBody(level int) error {
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag!=""{
-				bytebufferpool.Put(resp.Tag,resp.body)
-			}else{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
 				responseBodyPool.Put(resp.body)
 			}
 		}
@@ -1879,18 +1881,18 @@ func (resp *Response) gzipBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag!=""{
-			w=bytebufferpool.Get(resp.Tag)
-		}else{
+		if resp.Tag != "" {
+			w = bytebufferpool.Get(resp.Tag)
+		} else {
 			w = responseBodyPool.Get()
 		}
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag!=""{
-				bytebufferpool.Put(resp.Tag,resp.body)
-			}else{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
 				responseBodyPool.Put(resp.body)
 			}
 		}
@@ -1942,18 +1944,18 @@ func (resp *Response) deflateBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag!=""{
+		if resp.Tag != "" {
 			w = bytebufferpool.Get(resp.Tag)
-		}else{
+		} else {
 			w = responseBodyPool.Get()
 		}
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag!=""{
-				bytebufferpool.Put(resp.Tag,resp.body)
-			}else{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
 				responseBodyPool.Put(resp.body)
 			}
 		}
@@ -2175,7 +2177,7 @@ func (resp *Response) GetResponseLength() int {
 
 func getHTTPString(hw httpWriter) string {
 	w := bytebufferpool.Get("http")
-	defer bytebufferpool.Put("http",w)
+	defer bytebufferpool.Put("http", w)
 
 	bw := bufio.NewWriter(w)
 	if err := hw.Write(bw); err != nil {
@@ -2291,7 +2293,7 @@ func readBody(r *bufio.Reader, contentLength int, maxBodySize int, dst []byte) (
 	return appendBodyFixedSize(r, dst, contentLength)
 }
 
-func readBodyWithBytesBuffer(r *bufio.Reader, contentLength int, maxBodySize int, buf *bytebufferpool.ByteBuffer) (error) {
+func readBodyWithBytesBuffer(r *bufio.Reader, contentLength int, maxBodySize int, buf *bytebufferpool.ByteBuffer) error {
 	if maxBodySize > 0 && contentLength > maxBodySize {
 		return ErrBodyTooLarge
 	}
@@ -2364,7 +2366,7 @@ func readBodyIdentity(r *bufio.Reader, maxBodySize int, dst []byte) ([]byte, err
 	}
 }
 
-func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.ByteBuffer, n int) (error) {
+func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.ByteBuffer, n int) error {
 	if n == 0 {
 		return nil
 	}
@@ -2375,7 +2377,7 @@ func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.By
 
 	buff.GrowTo(n)
 
-	dst:=buff.B
+	dst := buff.B
 	offset := len(dst)
 	dstLen := offset + n
 	dst = dst[:dstLen]
@@ -2386,14 +2388,14 @@ func appendBodyFixedSizeWithBytesBuffer(r *bufio.Reader, buff *bytebufferpool.By
 				if err == io.EOF {
 					err = io.ErrUnexpectedEOF
 				}
-				buff.B=dst[:offset]
+				buff.B = dst[:offset]
 				return err
 			}
 			panic(fmt.Sprintf("BUG: bufio.Read() returned (%d, nil)", nn))
 		}
 		offset += nn
 		if offset == dstLen {
-			buff.B=dst
+			buff.B = dst
 			return nil
 		}
 	}

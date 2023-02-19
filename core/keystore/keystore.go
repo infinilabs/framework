@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/lib/go-ucfg/parse"
 	"infini.sh/framework/lib/keystore"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -36,7 +39,8 @@ func GetWriteableKeystore()(keystore.WritableKeystore, error) {
 }
 
 func initKeystore() (keystore.Keystore, error){
-	keystorePath := filepath.Join(global.Env().GetDataDir(), ".keystore")
+	ksPath := GetKeystoreBasePath()
+	keystorePath := filepath.Join(ksPath, ".keystore")
 	if !util.FileExists(keystorePath){
 		err := os.Mkdir(keystorePath, 0750)
 		if err != nil {
@@ -62,4 +66,54 @@ func initKeystore() (keystore.Keystore, error){
 	}
 
 	return keystore.NewFileKeystoreWithPassword(storePath, password)
+}
+
+const PathEnvKey = "KEYSTORE_PATH"
+func GetKeystoreBasePath() string {
+	ksPath, exists := os.LookupEnv(PathEnvKey)
+	if exists {
+		return ksPath
+	}
+	return global.Env().GetDataDir()
+}
+
+func GetValue(key string) ([]byte, error) {
+	ks, err := GetOrInitKeystore()
+	if err != nil {
+		return nil, err
+	}
+	secStr, err := ks.Retrieve(key)
+	if err != nil {
+		return nil, err
+	}
+	return secStr.Get()
+}
+
+func SetValue(key string, value []byte) error {
+	ksw, err := GetWriteableKeystore()
+	if err != nil {
+		return err
+	}
+	err = ksw.Store(key, value)
+	if err != nil {
+		return err
+	}
+	return ksw.Save()
+}
+
+func GetVariableResolver() (ucfg.Option, error){
+	ks, err := GetOrInitKeystore()
+	if err != nil {
+		return nil, err
+	}
+	return ucfg.Resolve(func(keyName string) (string, parse.Config, error) {
+		if strings.HasPrefix(keyName, "keystore."){
+			v, pc, err := keystore.ResolverWrap(ks)(keyName[9:])
+			if err == ucfg.ErrMissing {
+				return "", parse.NoopConfig, nil
+			}
+			return v, pc, err
+		}
+		return "", parse.NoopConfig, ucfg.ErrMissing
+	}), nil
 }

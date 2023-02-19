@@ -19,6 +19,7 @@ package conditions
 
 import (
 	"fmt"
+
 	logger "github.com/cihub/seelog"
 )
 
@@ -27,7 +28,7 @@ type Equals map[string]equalsValue
 
 type equalsValue func(interface{}) bool
 
-func equalsIntValue(i uint64) equalsValue {
+func equalsIntValue(i int64) equalsValue {
 	return func(value interface{}) bool {
 		if sValue, err := ExtractInt(value); err == nil {
 			return sValue == i

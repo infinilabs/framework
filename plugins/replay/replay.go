@@ -24,6 +24,8 @@ type Config struct {
 
 	Filename   string `config:"filename"`
 	InputQueue string `config:"input_queue"`
+	Username string `config:"username"`
+	Password string `config:"password"`
 }
 
 type ReplayProcessor struct {
@@ -117,7 +119,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 
 		var err error
 		var done bool
-		count, err, done = ReplayLines(ctx, lines, processor.config.Schema,processor.config.Host)
+		count, err, done = ReplayLines(ctx, lines, processor.config.Schema,processor.config.Host,processor.config.Username,processor.config.Password)
 		if done {
 			return err
 		}
@@ -132,7 +134,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (int, error, bool) {
+func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,password string) (int, error, bool) {
 
 	var buffer = bytebufferpool.Get("replay")
 	defer bytebufferpool.Put("replay",buffer)
@@ -167,6 +169,9 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (in
 				//execute previous request now
 				if requestIsSet {
 					log.Debug("execute request: ",req.URI().String())
+					if username != "" && password != "" {
+						req.SetBasicAuth(username, password)
+					}
 					err:=execute(req,res,buffer)
 					if err!=nil{
 						log.Error(err, req.String())
@@ -213,6 +218,9 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host string) (in
 	//execute previous request now
 	if requestIsSet {
 		log.Debug("execute last request: ",req.URI().String())
+		if username != "" && password != "" {
+			req.SetBasicAuth(username, password)
+		}
 		err:=execute(req,res,buffer)
 		if err!=nil{
 			log.Error(err, req.String())
