@@ -18,15 +18,16 @@ package logger
 
 import (
 	"fmt"
+	"path"
+	"strings"
+	"sync"
+
 	log "github.com/cihub/seelog"
 	"github.com/ryanuber/go-glob"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
-	"path"
-	"strings"
-	"sync"
 )
 
 var file string
@@ -34,12 +35,13 @@ var loggingConfig *config.LoggingConfig
 var l sync.Mutex
 var e *env.Env
 
-var oldQuoteStr =[]byte("\"")
-var newQuoteStr =[]byte("”")
+var oldQuoteStr = []byte("\"")
+var newQuoteStr = []byte("”")
+
 func createMyLevelFormatter(params string) log.FormatterFunc {
 	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
-		if util.ContainStr(message,"\""){
-			return util.UnsafeBytesToString(util.ReplaceByte(util.UnsafeStringToBytes(message),oldQuoteStr,newQuoteStr))
+		if util.ContainStr(message, "\"") {
+			return util.UnsafeBytesToString(util.ReplaceByte(util.UnsafeStringToBytes(message), oldQuoteStr, newQuoteStr))
 		}
 		return message
 	}
@@ -64,12 +66,12 @@ func SetLogging(env *env.Env, logLevel string) {
 	e = env
 
 	l.Lock()
-	loggingConfig=&env.SystemConfig.LoggingConfig
+	loggingConfig = &env.SystemConfig.LoggingConfig
 	l.Unlock()
 
-	appName:=env.GetAppLowercaseName()
-	if appName==""{
-		appName="app"
+	appName := env.GetAppLowercaseName()
+	if appName == "" {
+		appName = "app"
 	}
 
 	if len(env.LoggingLevel) > 0 {
@@ -97,8 +99,8 @@ func SetLogging(env *env.Env, logLevel string) {
 	consoleWriter, _ := NewConsoleWriter()
 
 	format := "[%Date(01-02) %Time] [%LEV] [%File:%Line] %Msg%n"
-	if loggingConfig.LogFormat!=""{
-		format=loggingConfig.LogFormat
+	if loggingConfig.LogFormat != "" {
+		format = loggingConfig.LogFormat
 	}
 	formatter, err := log.NewFormatter(format)
 	if err != nil {
@@ -111,32 +113,31 @@ func SetLogging(env *env.Env, logLevel string) {
 	//logging receivers
 	receivers := []interface{}{consoleWriter}
 
-	if !loggingConfig.DisableFileOutput{
+	if !loggingConfig.DisableFileOutput {
 		if baseDir := env.GetLogDir(); baseDir != "" {
-			file = path.Join(baseDir,  appName + ".log")
-		}else{
+			file = path.Join(baseDir, appName+".log")
+		} else {
 			file = "./log/" + appName + ".log"
 		}
 
-		cfg1:=rotate.RotateConfig{
+		cfg1 := rotate.RotateConfig{
 			Compress:     true,
 			MaxFileAge:   0,
 			MaxFileCount: 100,
-			MaxFileSize: 1024,
+			MaxFileSize:  1024,
 		}
-		fileHandler:=rotate.GetFileHandler(file,cfg1)
-		receivers=append(receivers,fileHandler)
+		fileHandler := rotate.GetFileHandler(file, cfg1)
+		receivers = append(receivers, fileHandler)
 	}
-
 
 	root, err := log.NewSplitDispatcher(formatter, receivers)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	golbalConstraints, err := log.NewMinMaxConstraints(l, log.CriticalLvl)
+	golbalConstraints, err := log.NewMinMaxConstraints(l, log.Off)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	exceptions := []*log.LogLevelException{}
