@@ -46,6 +46,7 @@ var DefaultConfig = Config{
 	Object:       true,
 	StringDQuote: true,
 	StringSQuote: true,
+	IgnoreCommas: true,
 }
 
 // EnvConfig is configuration for parser when the value comes from environmental variable.
