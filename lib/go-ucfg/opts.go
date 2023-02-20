@@ -47,6 +47,7 @@ type options struct {
 	parsed valueCache
 
 	activeFields *fieldSet
+	resolveRef bool
 }
 
 type valueCache map[string]spliceValue
@@ -223,6 +224,11 @@ func makeFieldOptValueHandling(h configHandling) func(...string) Option {
 var VarExp Option = doVarExp
 
 func doVarExp(o *options) { o.varexp = true }
+
+// ResolveRef option enables support for variable resolve reference from parent config.
+var ResolveRef Option = doResolveRef
+
+func doResolveRef(o *options) { o.resolveRef = true }
 
 func makeOptions(opts []Option) *options {
 	o := options{

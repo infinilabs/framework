@@ -90,8 +90,8 @@ const (
 )
 
 var (
-	openToken  = token{tokOpen, "${"}
-	closeToken = token{tokClose, "}"}
+	openToken  = token{tokOpen, "$[["}
+	closeToken = token{tokClose, "]]"}
 
 	sepDefToken = token{tokSep, opDefault}
 	sepAltToken = token{tokSep, opAlternative}
@@ -103,7 +103,7 @@ func newReference(p cfgPath) *reference {
 }
 
 func (r *reference) String() string {
-	return fmt.Sprintf("${%v}", r.Path)
+	return fmt.Sprintf("$[[%v]]", r.Path)
 }
 
 func (r *reference) resolveRef(cfg *Config, opts *options) (value, error) {
@@ -162,12 +162,14 @@ func (r *reference) resolveEnv(cfg *Config, opts *options) (string, parse.Config
 }
 
 func (r *reference) resolve(cfg *Config, opts *options) (value, error) {
-	v, err := r.resolveRef(cfg, opts)
-	if v != nil || criticalResolveError(err) {
-		return v, err
+	var previousErr error
+	if opts.resolveRef {
+		v, err := r.resolveRef(cfg, opts)
+		if v != nil || criticalResolveError(err) {
+			return v, err
+		}
+		previousErr = err
 	}
-
-	previousErr := err
 
 	s, _, err := r.resolveEnv(cfg, opts)
 	if err != nil {
