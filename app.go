@@ -7,6 +7,14 @@ package framework
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
 	"infini.sh/framework/core/config"
@@ -23,13 +31,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/license"
-	"os"
-	"os/signal"
-	"runtime"
-	"sync"
-	"sync/atomic"
-	"syscall"
-	"time"
 )
 
 type App struct {
@@ -48,23 +49,27 @@ type App struct {
 	stop  func()
 
 	//for service
-	svc               service.Service
-	exit              chan os.Signal
-	svcFlag           string
+	svc     service.Service
+	exit    chan os.Signal
+	svcFlag string
 
 	//atomic status
-	stopped           int32 //0 means running, 1 means stopped
+	stopped int32 //0 means running, 1 means stopped
 }
 
-func NewApp(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *App {
-	if terminalFooter==""{
+const (
+	env_SILENT_GREETINGS = "SILENT_GREETINGS"
+)
+
+func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *App {
+	if terminalFooter == "" {
 		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
 		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
 		terminalFooter += (" / // || // _/ / // || // /    \n")
 		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/   \n\n")
 		terminalFooter += ("©INFINI.LTD, All Rights Reserved.\n")
 	}
-	return &App{environment: env.NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter)}
+	return &App{environment: env.NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter)}
 }
 
 var debugFlagInitFunc func()
@@ -79,7 +84,7 @@ func (app *App) Init(customFunc func()) {
 	config.RegisterOption("keystore", ksResolver)
 	app.initEnvironment(customFunc)
 
-	if debugInitFunc!=nil{
+	if debugInitFunc != nil {
 		debugInitFunc()
 	}
 
@@ -116,10 +121,10 @@ func (app *App) initWithFlags() {
 	}
 
 	app.environment.IsDebug = app.isDebug
-	if app.configFile!=""{
-		path:= util.TryGetFileAbsPath(app.configFile,true)
-		if !util.FileExists(path){
-			fmt.Println(errors.Errorf("config file [%v] not exists",path))
+	if app.configFile != "" {
+		path := util.TryGetFileAbsPath(app.configFile, true)
+		if !util.FileExists(path) {
+			fmt.Println(errors.Errorf("config file [%v] not exists", path))
 			os.Exit(1)
 		}
 		app.environment.SetConfigFile(path)
@@ -130,8 +135,8 @@ func (app *App) initWithFlags() {
 	}
 	global.RegisterEnv(app.environment)
 
-	if app.svcFlag==""{
-		if !util.FileExists(app.environment.GetDataDir()){
+	if app.svcFlag == "" {
+		if !util.FileExists(app.environment.GetDataDir()) {
 			os.MkdirAll(app.environment.GetDataDir(), 0755)
 		}
 		if !util.FileExists(app.environment.GetLogDir()) {
@@ -140,7 +145,7 @@ func (app *App) initWithFlags() {
 	}
 }
 
-func (app *App) initEnvironment(customFunc func()){
+func (app *App) initEnvironment(customFunc func()) {
 	ksResolver, err := keystore.GetVariableResolver()
 	if err != nil {
 		panic(err)
@@ -149,10 +154,10 @@ func (app *App) initEnvironment(customFunc func()){
 	app.environment.Init()
 
 	//allow use yml to configure the log level
-	if app.environment.SystemConfig.LoggingConfig.LogLevel!=""{
-		app.logLevel=app.environment.SystemConfig.LoggingConfig.LogLevel
+	if app.environment.SystemConfig.LoggingConfig.LogLevel != "" {
+		app.logLevel = app.environment.SystemConfig.LoggingConfig.LogLevel
 	}
-	if app.environment.SystemConfig.LoggingConfig.IsDebug{
+	if app.environment.SystemConfig.LoggingConfig.IsDebug {
 		app.environment.IsDebug = app.environment.SystemConfig.LoggingConfig.IsDebug
 	}
 
@@ -169,10 +174,10 @@ func (app *App) initEnvironment(customFunc func()){
 	})
 }
 
-func (app *App) Setup(setup func(), start func(), stop func())(allowContinue bool) {
+func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bool) {
 
 	//skip on service mode
-	if app.svcFlag!=""{
+	if app.svcFlag != "" {
 		return true
 	}
 
@@ -182,8 +187,9 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 		runtime.GOMAXPROCS(app.numCPU)
 	}
 
-
-	fmt.Println(app.environment.GetWelcomeMessage())
+	if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
+		fmt.Println(app.environment.GetWelcomeMessage())
+	}
 
 	log.Infof("initializing %s", app.environment.GetAppName())
 	log.Infof("using config: %s", app.environment.GetConfigFile())
@@ -199,7 +205,7 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 				context.PidFilePerm = 0644
 			}
 			child, err := context.Reborn()
-			if err!=nil{
+			if err != nil {
 				panic(err)
 			}
 
@@ -226,11 +232,11 @@ func (app *App) Setup(setup func(), start func(), stop func())(allowContinue boo
 	}
 
 	if start != nil {
-		app.start=start
+		app.start = start
 	}
 
 	if stop != nil {
-		app.stop=stop
+		app.stop = stop
 	}
 
 	return true
@@ -264,7 +270,7 @@ func (app *App) Shutdown() {
 
 		log.Error("panic: ", v)
 
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			buf := make([]byte, 1<<20)
 			runtime.Stack(buf, app.environment.IsDebug)
 			fmt.Printf("\n%s\n", util.StripCtlAndExtFromUTF8(string(buf)))
@@ -277,9 +283,9 @@ func (app *App) Shutdown() {
 	logger.Flush()
 
 	if app.environment.IsDebug {
-		stats,_:=stats.StatsMap()
-		if stats!=nil && len(stats)>0{
-			fmt.Println(util.ToJson(stats,true))
+		stats, _ := stats.StatsMap()
+		if stats != nil && len(stats) > 0 {
+			fmt.Println(util.ToJson(stats, true))
 		}
 	}
 
@@ -287,15 +293,17 @@ func (app *App) Shutdown() {
 		log.Infof("%s now terminated.", app.environment.GetAppName())
 		log.Flush()
 		//print goodbye message
-		fmt.Println(app.environment.GetGoodbyeMessage())
+		if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
+			fmt.Println(app.environment.GetGoodbyeMessage())
+		}
 	}
 	os.Exit(0)
 }
 
-//for service
+// for service
 func (p *App) Start(s service.Service) error {
 
-	if !p.environment.SystemConfig.SkipInstanceDetect{
+	if !p.environment.SystemConfig.SkipInstanceDetect {
 		//check instance lock
 		util.CheckInstanceLock(p.environment.GetDataDir())
 	}
@@ -320,7 +328,7 @@ func (p *App) run() error {
 	go func() {
 		stopLock.Lock()
 		defer stopLock.Unlock()
-		if stopping{
+		if stopping {
 			return
 		}
 
@@ -344,7 +352,7 @@ func (p *App) run() error {
 		s := <-p.exit
 		if s == os.Interrupt || s.(os.Signal) == syscall.SIGINT || s.(os.Signal) == syscall.SIGTERM ||
 			s.(os.Signal) == syscall.SIGKILL || s.(os.Signal) == syscall.SIGQUIT {
-			stopping=true
+			stopping = true
 			fmt.Printf("\n[%s] got signal: %v, start shutting down\n", p.environment.GetAppCapitalName(), s.String())
 
 			//perform custom stop func first
@@ -354,7 +362,7 @@ func (p *App) run() error {
 
 			//wait modules to stop
 			module.Stop()
-			atomic.StoreInt32(&p.stopped,1)
+			atomic.StoreInt32(&p.stopped, 1)
 			p.quitSignal <- true
 		}
 	}()
@@ -363,11 +371,11 @@ func (p *App) run() error {
 		p.start()
 	}
 
-	global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "cleanup_bytes_buffer",Func: func() {
+	global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "cleanup_bytes_buffer", Func: func() {
 		bytebufferpool.CleanupIdleCachedBytesBuffer()
-	},Interval: 30*time.Second})
+	}, Interval: 30 * time.Second})
 
-	stats.RegisterStats("goroutine",pipeline.GetPoolStats)
+	stats.RegisterStats("goroutine", pipeline.GetPoolStats)
 
 	//background job
 	go func() {
@@ -409,17 +417,17 @@ func (app *App) Run() {
 	svcOptions := make(service.KeyValue)
 	svcOptions["Restart"] = "on-success"
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
-	svcOptions["LimitNOFILE"]=1024000
+	svcOptions["LimitNOFILE"] = 1024000
 
-	workdir,err:=os.Getwd()
-	if err!=nil{
+	workdir, err := os.Getwd()
+	if err != nil {
 		panic(err)
 	}
 
 	svcConfig := &service.Config{
-		Name:        app.environment.GetAppLowercaseName(),
-		DisplayName: app.environment.GetAppName(),
-		Description: app.environment.GetAppDesc(),
+		Name:             app.environment.GetAppLowercaseName(),
+		DisplayName:      app.environment.GetAppName(),
+		Description:      app.environment.GetAppDesc(),
 		WorkingDirectory: workdir,
 		//Dependencies: []string{
 		//	"Requires=network.target",
