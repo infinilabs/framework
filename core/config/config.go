@@ -4,6 +4,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"infini.sh/framework/lib/go-ucfg/parse"
 	"io"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ var configOpts = []ucfg.Option{
 	ucfg.AppendValues,
 	ucfg.VarExp,
 	ucfg.ResolveNOOP,
+	ucfg.DefaultParseConfig(parse.NoopConfig),
 }
 
 var customConfigOpts = map[string]ucfg.Option{}

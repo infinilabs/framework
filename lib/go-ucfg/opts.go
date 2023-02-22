@@ -48,6 +48,15 @@ type options struct {
 
 	activeFields *fieldSet
 	resolveRef bool
+	defaultParseConfig *parse.Config
+}
+
+// DefaultParseConfig option sets the default parse config used to parse dyn value
+// if it is not empty
+func DefaultParseConfig(config parse.Config) Option {
+	return func(o *options) {
+		o.defaultParseConfig = &config
+	}
 }
 
 type valueCache map[string]spliceValue
