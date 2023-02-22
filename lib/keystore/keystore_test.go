@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ucfg "github.com/elastic/go-ucfg"
-	"github.com/elastic/go-ucfg/parse"
+	ucfg "infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 func TestResolverWhenTheKeyDoesntExist(t *testing.T) {

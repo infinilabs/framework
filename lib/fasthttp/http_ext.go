@@ -8,10 +8,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
-	"infini.sh/framework/core/util"
-	log "src/github.com/cihub/seelog"
 	"strings"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/util"
 )
 
 const HeaderContentEncoding2 = "Content-Encoding"
@@ -33,7 +34,6 @@ func (h *RequestHeader) PeekAny(keys []string) []byte {
 	}
 	return nil
 }
-
 
 func GetBasicAuthHeader(user string, password string) string {
 	var userAndPass = user + ":" + password
@@ -148,7 +148,7 @@ func (ctx *Request) ParseAuthorization() (authType string) {
 	return authType
 }
 
-var AuthHeaderKeys=[]string{"authorization","Authorization","AUTHORIZATION"}
+var AuthHeaderKeys = []string{"authorization", "Authorization", "AUTHORIZATION"}
 
 var colon = []byte(": ")
 var newLine = []byte("\n")
@@ -160,7 +160,6 @@ func getLengthBytes(data []byte) []byte {
 	binary.LittleEndian.PutUint32(bytesLength, uint32(l))
 	return bytesLength
 }
-
 
 func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) []byte {
 	req.encodeLocker.Lock()
@@ -223,9 +222,7 @@ func (req *Request) Encode() []byte {
 	return req.OverrideBodyEncode(body, false)
 }
 
-
-
-//peak value
+// peak value
 func (h *RequestHeader) PeekAnyKey(keys []string) (key string, value []byte) {
 	for _, k := range keys {
 		v := h.Peek(k)

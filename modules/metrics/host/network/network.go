@@ -4,13 +4,14 @@
 package network
 
 import (
+	"strings"
+
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/net"
+	"github.com/shirou/gopsutil/v3/net"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 type Metric struct {
@@ -38,8 +39,8 @@ func New(cfg *config.Config) (*Metric, error) {
 		prevCounters: networkCounter{},
 	}
 
-	err:=cfg.Unpack(&me)
-	if err!=nil{
+	err := cfg.Unpack(&me)
+	if err != nil {
 		panic(err)
 	}
 
@@ -56,7 +57,7 @@ func New(cfg *config.Config) (*Metric, error) {
 
 func (m *Metric) Collect() error {
 
-	if !m.Enabled{
+	if !m.Enabled {
 		return nil
 	}
 
@@ -65,9 +66,9 @@ func (m *Metric) Collect() error {
 		return errors.Wrap(err, "network io counters")
 	}
 
-	var networkInBytes, networkOutBytes, networkInPackets, networkOutPackets,Errin,Errout,Dropin,Dropout uint64
+	var networkInBytes, networkOutBytes, networkInPackets, networkOutPackets, Errin, Errout, Dropin, Dropout uint64
 	for _, counters := range stats {
-		if m.interfaces != nil &&len(m.interfaces)>0{
+		if m.interfaces != nil && len(m.interfaces) > 0 {
 			name := strings.ToLower(counters.Name)
 			if _, include := m.interfaces[name]; !include {
 				continue
@@ -78,7 +79,7 @@ func (m *Metric) Collect() error {
 			event.Save(event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
-					Name: "network",
+					Name:     "network",
 					Datatype: "accumulate",
 					Labels: util.MapStr{
 						"ip": util.GetLocalIPs(),
@@ -114,14 +115,14 @@ func (m *Metric) Collect() error {
 				Fields: util.MapStr{
 					"host": util.MapStr{
 						"network_summary": util.MapStr{
-							"in.bytes":  	networkInBytes,
-							"in.packets":   networkInPackets,
-							"in.errors":    Errin,
-							"in.dropped":   Dropin,
-							"out.bytes": 	networkOutBytes,
-							"out.packets":  networkOutPackets,
-							"out.errors":    Errout,
-							"out.dropped":   Dropout,
+							"in.bytes":    networkInBytes,
+							"in.packets":  networkInPackets,
+							"in.errors":   Errin,
+							"in.dropped":  Dropin,
+							"out.bytes":   networkOutBytes,
+							"out.packets": networkOutPackets,
+							"out.errors":  Errout,
+							"out.dropped": Dropout,
 						},
 					},
 				},
@@ -144,10 +145,10 @@ func (m *Metric) Collect() error {
 				Fields: util.MapStr{
 					"host": util.MapStr{
 						"network_throughput": util.MapStr{
-							"in.bytes":  	networkInBytes - m.prevCounters.prevNetworkInBytes,
-							"in.packets":   networkInPackets - m.prevCounters.prevNetworkInPackets,
-							"out.bytes": 	networkOutBytes - m.prevCounters.prevNetworkOutBytes,
-							"out.packets":  networkOutPackets - m.prevCounters.prevNetworkOutPackets,
+							"in.bytes":    networkInBytes - m.prevCounters.prevNetworkInBytes,
+							"in.packets":  networkInPackets - m.prevCounters.prevNetworkInPackets,
+							"out.bytes":   networkOutBytes - m.prevCounters.prevNetworkOutBytes,
+							"out.packets": networkOutPackets - m.prevCounters.prevNetworkOutPackets,
 						},
 					},
 				},
@@ -170,16 +171,16 @@ func ioCountersToMapStr(counters net.IOCountersStat) util.MapStr {
 	return util.MapStr{
 		"host": util.MapStr{
 			"network": util.MapStr{
-				"name":            counters.Name,
-				"in.errors":    counters.Errin,
-				"in.dropped":   counters.Dropin,
-				"in.bytes":  counters.BytesRecv,
-				"in.packets":   counters.PacketsRecv,
+				"name":       counters.Name,
+				"in.errors":  counters.Errin,
+				"in.dropped": counters.Dropin,
+				"in.bytes":   counters.BytesRecv,
+				"in.packets": counters.PacketsRecv,
 
-				"out.errors":   counters.Errout,
-				"out.dropped":  counters.Dropout,
-				"out.packets":  counters.PacketsSent,
-				"out.bytes": counters.BytesSent,
+				"out.errors":  counters.Errout,
+				"out.dropped": counters.Dropout,
+				"out.packets": counters.PacketsSent,
+				"out.bytes":   counters.BytesSent,
 			},
 		}}
 }

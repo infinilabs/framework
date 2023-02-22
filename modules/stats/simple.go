@@ -1,9 +1,17 @@
 package stats
 
 import (
+	"net/http"
+	"os"
+	"path"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"github.com/shirou/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"
@@ -12,13 +20,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/lock_free/queue"
-	"net/http"
-	"os"
-	"path"
-	"runtime"
-	"strings"
-	"sync"
-	"time"
 )
 
 func (module SimpleStatsModule) Name() string {
@@ -38,7 +39,7 @@ func (module *SimpleStatsModule) Setup() {
 	module.config = &SimpleStatsConfig{
 		Enabled:           true,
 		Persist:           true,
-		NoBuffer:           true,
+		NoBuffer:          true,
 		BufferSize:        1000,
 		FlushIntervalInMs: 1000,
 	}
@@ -58,7 +59,7 @@ func (module *SimpleStatsModule) Setup() {
 	}
 	module.initStats("simple")
 
-	if module.config.NoBuffer{
+	if module.config.NoBuffer {
 		module.data.q = queue.NewQueue(uint32(module.config.BufferSize))
 	}
 
@@ -68,7 +69,7 @@ func (module *SimpleStatsModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
 
 	//if global.Env().IsDebug{
-		api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
+	api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
 	//}
 }
 
@@ -77,7 +78,7 @@ func (module *SimpleStatsModule) Start() error {
 		return nil
 	}
 
-	if !module.config.NoBuffer{
+	if !module.config.NoBuffer {
 		go func() {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -128,7 +129,7 @@ func (module *SimpleStatsModule) Start() error {
 }
 
 func (module *SimpleStatsModule) Stop() error {
-	if module.config==nil{
+	if module.config == nil {
 		return nil
 	}
 
@@ -260,11 +261,11 @@ func (s *Stats) Stat(category, key string) int64 {
 	return v
 }
 
-func (s *Stats) StatsAll()string {
+func (s *Stats) StatsAll() string {
 	s.l.RLock()
 	defer s.l.RUnlock()
 
-	result:=util.MapStr{}
+	result := util.MapStr{}
 	result["stats"] = *s.Data
 
 	result["pool"] = bytebufferpool.BuffStats()
@@ -275,30 +276,29 @@ func (s *Stats) StatsAll()string {
 	mem, err := p.MemoryInfo()
 	if err != nil {
 		log.Error(err)
-		return util.ToJson(result,false)
+		return util.ToJson(result, false)
 	}
 	empty := process.MemoryInfoStat{}
 	if mem == nil || *mem == empty {
 		log.Errorf("could not get memory info %v\n", mem)
-		return util.ToJson(result,false)
+		return util.ToJson(result, false)
 	}
 
 	cpuPercent, err := p.CPUPercent()
 	if err != nil {
 		log.Error(err)
-		return util.ToJson(result,false)
+		return util.ToJson(result, false)
 	}
 
 	result["system"] = map[string]int64{
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
 		"mem":          int64(mem.RSS),
-		"goroutines":          int64(runtime.NumGoroutine()),
-		"cgo_calls":          int64(runtime.NumCgoCall()),
+		"goroutines":   int64(runtime.NumGoroutine()),
+		"cgo_calls":    int64(runtime.NumCgoCall()),
 	}
 
-
-	return util.ToJson(result,false)
+	return util.ToJson(result, false)
 }
 
 func (module *SimpleStatsModule) initStats(id string) {
@@ -327,6 +327,6 @@ func (module *SimpleStatsModule) initStats(id string) {
 }
 
 func (handler SimpleStatsModule) BufferItemStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	obj:=bytebufferpool.DumpBufferItemSize()
-	handler.WriteJSON(w,obj,200)
+	obj := bytebufferpool.DumpBufferItemSize()
+	handler.WriteJSON(w, obj, 200)
 }

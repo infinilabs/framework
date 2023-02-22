@@ -5,7 +5,7 @@ package pprof
 
 import (
 	"fmt"
-	"infini.sh/framework/core/ui/common"
+	"infini.sh/framework/modules/ui/common"
 	"io"
 	"net/http"
 )

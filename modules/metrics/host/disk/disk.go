@@ -7,13 +7,14 @@ package disk
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
+
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/v3/disk"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
-	"runtime"
-	"strings"
 )
 
 type MetricType string
@@ -96,11 +97,11 @@ func (m *Metric) collectUsage() error {
 			Fields: util.MapStr{
 				"host": util.MapStr{
 					"filesystem": util.MapStr{
-						"mount_point":      disk.Mountpoint,
-						"total.bytes": stat.Total,
-						"free.bytes":  stat.Free,
-						"used.bytes":  stat.Used,
-						"used.percent":   stat.UsedPercent,
+						"mount_point":  disk.Mountpoint,
+						"total.bytes":  stat.Total,
+						"free.bytes":   stat.Free,
+						"used.bytes":   stat.Used,
+						"used.percent": stat.UsedPercent,
 					},
 				},
 			},
@@ -124,17 +125,17 @@ func (m *Metric) collectUsage() error {
 			Fields: util.MapStr{
 				"host": util.MapStr{
 					"filesystem_summary": util.MapStr{
-						"mount_point":      "/",
-						"total.bytes": statMac.Total,
-						"free.bytes":  statMac.Free,
-						"used.bytes":  statMac.Total - statMac.Free,
-						"used.percent":  float64(statMac.Total - statMac.Free) / float64(statMac.Total) * 100.00,
+						"mount_point":  "/",
+						"total.bytes":  statMac.Total,
+						"free.bytes":   statMac.Free,
+						"used.bytes":   statMac.Total - statMac.Free,
+						"used.percent": float64(statMac.Total-statMac.Free) / float64(statMac.Total) * 100.00,
 					},
 				},
 			},
 		})
 		return nil
-	}else{
+	} else {
 		event.Save(event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
@@ -144,11 +145,11 @@ func (m *Metric) collectUsage() error {
 			Fields: util.MapStr{
 				"host": util.MapStr{
 					"filesystem_summary": util.MapStr{
-						"mount_point":      "/",
-						"total.bytes": total,
-						"free.bytes":  free,
-						"used.bytes":  used,
-						"used.percent":   float64(used) / float64(total) * 100.00,
+						"mount_point":  "/",
+						"total.bytes":  total,
+						"free.bytes":   free,
+						"used.bytes":   used,
+						"used.percent": float64(used) / float64(total) * 100.00,
 					},
 				},
 			},
@@ -205,9 +206,9 @@ func (m *Metric) collectIO() error {
 		Fields: util.MapStr{
 			"host": util.MapStr{
 				"diskio_summary": util.MapStr{
-					"read.bytes":    readBytes,
+					"read.bytes":       readBytes,
 					"read.time_in_ms":  readTimeCost,
-					"write.bytes":   writeBytes,
+					"write.bytes":      writeBytes,
 					"write.time_in_ms": writeTimeCost,
 				},
 			},
@@ -227,9 +228,9 @@ func (m *Metric) collectIO() error {
 			Fields: util.MapStr{
 				"host": util.MapStr{
 					"diskio": util.MapStr{
-						"read.bytes":    readBytes - m.prevCounter.prevReadBytes,
+						"read.bytes":       readBytes - m.prevCounter.prevReadBytes,
 						"read.time_in_ms":  readTimeCost - m.prevCounter.prevReadTimeCost,
-						"write.bytes":   writeBytes - m.prevCounter.prevWriteBytes,
+						"write.bytes":      writeBytes - m.prevCounter.prevWriteBytes,
 						"write.time_in_ms": writeTimeCost - m.prevCounter.prevWriteTimeCost,
 					},
 				},
