@@ -17,10 +17,13 @@ limitations under the License.
 package util
 import (
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -137,3 +140,63 @@ func RsaDecrypt(ciphertext, keyBytes []byte) []byte {
 	return data
 }
 
+
+func AesGcmEncrypt(plaintext, secret []byte) ([]byte,[]byte, error){
+	salt, err := RandomBytes(12)
+	if err != nil {
+		return nil,nil, err
+	}
+
+	block, err := aes.NewCipher(secret)
+	if err != nil {
+		return nil,nil, fmt.Errorf("could not create the cipher to encrypt, error: %w", err)
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create the cipher to encrypt, error: %w", err)
+	}
+
+	encodedBytes := aesgcm.Seal(nil, salt, plaintext, nil)
+	hexEncodedBytes := make([]byte, hex.EncodedLen(len(encodedBytes)))
+	hex.Encode(hexEncodedBytes, encodedBytes)
+	hexSaltBytes := make([]byte, hex.EncodedLen(len(salt)))
+	hex.Encode(hexSaltBytes, salt)
+	return hexEncodedBytes, hexSaltBytes, nil
+}
+
+func AesGcmDecrypt(hexEncodedBytes, secret, hexEncodedSalt []byte) ([]byte, error){
+	encodedBytes := make([]byte, hex.DecodedLen(len(hexEncodedBytes)))
+	_, err := hex.Decode(encodedBytes, hexEncodedBytes)
+	if err != nil {
+		return nil, err
+	}
+	salt := make([]byte, hex.DecodedLen(len(hexEncodedSalt)))
+	_, err = hex.Decode(salt, hexEncodedSalt)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(secret)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the cipher to decrypt the data: %w", err)
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the cipher to decrypt the data: %w", err)
+	}
+
+	return aesgcm.Open(nil, salt, encodedBytes, nil)
+}
+
+func RandomBytes(length int) ([]byte, error) {
+	r := make([]byte, length)
+	_, err := rand.Read(r)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}

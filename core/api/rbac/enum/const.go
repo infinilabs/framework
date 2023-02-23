@@ -13,6 +13,8 @@ const (
 	ClusterRead = "system.cluster:read"
 	CommandAll  = "system.command:all"
 	CommandRead = "system.command:read"
+	CredentialAll  = "system.credential:all"
+	CredentialRead = "system.credential:read"
 
 	InstanceRead = "gateway.instance:read"
 	InstanceAll  = "gateway.instance:all"
@@ -89,6 +91,8 @@ const (
 
 	PermissionAgentInstanceRead = "agent.instance:read"
 	PermissionAgentInstanceWrite = "agent.instance:write"
+	PermissionCredentialRead = "credential:read"
+	PermissionCredentialWrite = "credential:write"
 )
 
 var (
@@ -145,6 +149,8 @@ var (
 
 	AgentInstanceReadPermission = []string{PermissionAgentInstanceRead}
 	AgentInstanceAllPermission  = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
+	CredentialReadPermission = []string{PermissionCredentialRead}
+	CredentialAllPermission  = []string{PermissionCredentialRead, PermissionCredentialWrite}
 )
 
 var AdminPrivilege = []string{
@@ -154,7 +160,7 @@ var AdminPrivilege = []string{
 	RuleAll, AlertAll, ChannelAll,
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
-	AliasAll, AgentInstanceAll,
+	AliasAll, AgentInstanceAll, CredentialAll,
 }
 
 func init() {
@@ -207,6 +213,8 @@ func init() {
 		ActivitiesRead:      ActivitiesReadPermission,
 		AgentInstanceAll: AgentInstanceAllPermission,
 		AgentInstanceRead: AgentInstanceReadPermission,
+		CredentialAll: CredentialAllPermission,
+		CredentialRead: CredentialReadPermission,
 	}
 
 }

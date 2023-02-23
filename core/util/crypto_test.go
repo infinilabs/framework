@@ -47,3 +47,17 @@ func TestCrypto(t *testing.T) {
 	fmt.Println("私钥解密后的数据：", string(sourceData))
 }
 
+func TestAesGcmEncrypt(t *testing.T) {
+	palintext := []byte("hello123@rt%k*")
+	password, _ := RandomBytes(32)
+	encodeBytes, salt, err := AesGcmEncrypt(palintext, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("encoded string: ", string(encodeBytes), " ", string(salt))
+	plaintextBytes, err := AesGcmDecrypt(encodeBytes, password, salt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("decoded string: ", string(plaintextBytes))
+}
