@@ -175,6 +175,9 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 		newConf.CredentialID = credentialID
 		newConf.BasicAuth = nil
 	}
+	if conf["credential_id"] == nil {
+		newConf.CredentialID = ""
+	}
 	err = orm.Update(ctx, newConf)
 	if err != nil {
 		log.Error(err)
