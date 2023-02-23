@@ -58,7 +58,7 @@ ifneq "$(DEV)" ""
    FRAMEWORK_DEVEL_BUILD := -tags dev
 endif
 
-NEWGOPATH:= $(CURDIR):$(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
+NEWGOPATH:= $(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
@@ -273,9 +273,4 @@ package-windows-platform:
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
 
 test:
-	go get -u github.com/kardianos/govendor
-	go get github.com/stretchr/testify/assert
-	govendor test +local
-	go test -timeout 60s ./...
-	#GORACE="halt_on_error=1" go test ./... -race -timeout 120s  --ignore ./vendor
-	#go test -bench=. -benchmem
+	$(GO) test -timeout 60s ./...
