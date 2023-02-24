@@ -12,7 +12,6 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"time"
@@ -35,26 +34,6 @@ func (h APIHandler) authenticateUser(username string, password string) (user *rb
 		return
 	}
 	return
-}
-
-
-func authenticateAdmin(username string, password string) (user *rbac.User, err error) {
-
-	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
-	p, _ := global.Env().GetConfig("bootstrap.password", "admin")
-
-	if u != username || p != password {
-		err = errors.New("invalid username or password")
-		return
-	}
-	user = &rbac.User{
-	}
-	user.ID = username
-	user.Name = username
-	user.Roles = []rbac.UserRole{{
-		ID: rbac.RoleAdminName, Name: rbac.RoleAdminName,
-	}}
-	return user, nil
 }
 
 func authorize(user rbac.User) (m map[string]interface{}, err error) {
@@ -104,24 +83,11 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 	}
 
 	var user *rbac.User
-	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
-	if !api.IsBuiltinUserAdminDisabled()&&req.Username == u {
-		if api.IsBuiltinUserAdminDisabled() {
-			h.ErrorInternalServer(w, fmt.Sprintf("builtin user %s was disabled", u))
-			return
-		}
-		user, err = authenticateAdmin(req.Username, req.Password)
-		if err != nil {
-			h.ErrorInternalServer(w, err.Error())
-			return
-		}
 
-	} else {
-		user, err = h.authenticateUser(req.Username, req.Password)
-		if err != nil {
-			h.ErrorInternalServer(w, err.Error())
-			return
-		}
+	user, err = h.authenticateUser(req.Username, req.Password)
+	if err != nil {
+		h.ErrorInternalServer(w, err.Error())
+		return
 	}
 
 	data, err := authorize(*user)
@@ -205,34 +171,20 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	uname, _ := global.Env().GetConfig("bootstrap.username", "admin")
-	if reqUser.UserId == uname {
-
-		u := util.MapStr{
-			"user_id":  uname,
-			"name": uname,
-			"email":    "admin@infini.ltd",
-			"nick_name":     uname,
-			"phone":    "13011111111",
-		}
-		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
-	} else {
-		user, err := h.User.Get(reqUser.UserId)
-		if err != nil {
-			h.ErrorInternalServer(w, err.Error())
-			return
-		}
-		u := util.MapStr{
-			"user_id":  user.ID,
-			"name": user.Name,
-			"email":    user.Email,
-			"nick_name":     user.NickName,
-			"phone":    user.Phone,
-		}
-		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
+	user, err := h.User.Get(reqUser.UserId)
+	if err != nil {
+		h.ErrorInternalServer(w, err.Error())
+		return
 	}
+	u := util.MapStr{
+		"user_id":  user.ID,
+		"name": user.Name,
+		"email":    user.Email,
+		"nick_name":     user.NickName,
+		"phone":    user.Phone,
+	}
+	h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
 
-	return
 }
 
 func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
