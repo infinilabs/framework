@@ -72,7 +72,7 @@ func (h APIHandler) userNameExists(w http.ResponseWriter, name string) bool {
 		h.ErrorInternalServer(w, err.Error())
 		return true
 	}
-	if  name == "admin" || u != nil {
+	if u != nil {
 		h.ErrorInternalServer(w, "user name already exists")
 		return true
 	}
