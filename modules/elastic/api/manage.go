@@ -165,18 +165,19 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
-	if conf["credential_id"] == nil && newConf.BasicAuth != nil && newConf.BasicAuth.Username != ""{
-		credentialID, err := saveBasicAuthToCredential(newConf)
-		if err != nil {
-			log.Error(err)
-			h.WriteError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		newConf.CredentialID = credentialID
-		newConf.BasicAuth = nil
-	}
 	if conf["credential_id"] == nil {
-		newConf.CredentialID = ""
+		if newConf.BasicAuth != nil && newConf.BasicAuth.Username != "" {
+			credentialID, err := saveBasicAuthToCredential(newConf)
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			newConf.CredentialID = credentialID
+			newConf.BasicAuth = nil
+		}else{
+			newConf.CredentialID = ""
+		}
 	}
 	err = orm.Update(ctx, newConf)
 	if err != nil {
