@@ -38,6 +38,8 @@ type Config struct {
 	// Enables ignoring commas as a shortcut for building arrays: a,b parses to [a,b].
 	// The comma array syntax is enabled by default for backwards compatibility.
 	IgnoreCommas bool
+	// Enables trim spaces. eg: \nabc\n
+	TrimSpace bool
 }
 
 // DefaultConfig is the default config with all parser features enabled.
@@ -64,6 +66,7 @@ var NoopConfig = Config{
 	StringDQuote: false,
 	StringSQuote: false,
 	IgnoreCommas: true,
+	TrimSpace: false,
 }
 
 type flagParser struct {
@@ -112,7 +115,11 @@ func Value(content string) (interface{}, error) {
 // In addition, top-level values can be separated by ',' to build arrays
 // without having to use [].
 func ValueWithConfig(content string, cfg Config) (interface{}, error) {
-	p := &flagParser{strings.TrimSpace(content), cfg}
+	input := content
+	if cfg.TrimSpace {
+		input = strings.TrimSpace(input)
+	}
+	p := &flagParser{input, cfg}
 	if err := p.validateConfig(); err != nil {
 		return nil, err
 	}
@@ -146,7 +153,9 @@ func (p *flagParser) parse() (interface{}, error) {
 		}
 		values = append(values, v)
 
-		p.ignoreWhitespace()
+		if p.cfg.TrimSpace {
+			p.ignoreWhitespace()
+		}
 		if p.input == "" {
 			break
 		}
@@ -166,7 +175,9 @@ func (p *flagParser) parse() (interface{}, error) {
 }
 
 func (p *flagParser) parseValue(stopSet string) (interface{}, error) {
-	p.ignoreWhitespace()
+	if p.cfg.TrimSpace{
+		p.ignoreWhitespace()
+	}
 	in := p.input
 
 	if in == "" {
@@ -361,8 +372,11 @@ func (p *flagParser) parseNonQuotedString(stopSet string) (string, error) {
 		content, in = content[:idx], content[idx:]
 	}
 	p.input = in
+	if p.cfg.TrimSpace {
+		content = strings.TrimSpace(content)
+	}
 
-	return strings.TrimSpace(content), nil
+	return content, nil
 }
 
 func (p *flagParser) parsePrimitive(stopSet string) (interface{}, error) {
