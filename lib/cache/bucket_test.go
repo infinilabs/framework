@@ -3,48 +3,43 @@ package ccache
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type BucketTests struct {
-}
-
-func Test_Bucket(t *testing.T) {
-	Expectify(new(BucketTests), t)
-}
-
-func (_ *BucketTests) GetMissFromBucket() {
+func Test_Bucket_GetMissFromBucket(t *testing.T) {
 	bucket := testBucket()
-	Expect(bucket.get("invalid")).To.Equal(nil)
+	assert.Nil(t, bucket.get("invalid"))
 }
 
-func (_ *BucketTests) GetHitFromBucket() {
+func Test_Bucket_GetHitFromBucket(t *testing.T) {
 	bucket := testBucket()
 	item := bucket.get("power")
-	assertValue(item, "9000")
+	assert.Equal(t, item.value, TestValue("9000"))
 }
 
-func (_ *BucketTests) DeleteItemFromBucket() {
+func Test_Bucket_DeleteItemFromBucket(t *testing.T) {
 	bucket := testBucket()
 	bucket.delete("power")
-	Expect(bucket.get("power")).To.Equal(nil)
+	assert.Nil(t, bucket.get("power"))
 }
 
-func (_ *BucketTests) SetsANewBucketItem() {
+func Test_Bucket_SetsANewBucketItem(t *testing.T) {
 	bucket := testBucket()
 	item, existing := bucket.set("spice", TestValue("flow"), time.Minute, false)
-	assertValue(item, "flow")
+	assert.Equal(t, item.value, TestValue("flow"))
 	item = bucket.get("spice")
-	assertValue(item, "flow")
-	Expect(existing).To.Equal(nil)
+	assert.Equal(t, item.value, TestValue("flow"))
+	assert.Nil(t, existing)
 }
 
-func (_ *BucketTests) SetsAnExistingItem() {
+func Test_Bucket_SetsAnExistingItem(t *testing.T) {
 	bucket := testBucket()
 	item, existing := bucket.set("power", TestValue("9001"), time.Minute, false)
-	assertValue(item, "9001")
+	assert.Equal(t, item.value, TestValue("9001"))
 	item = bucket.get("power")
-	assertValue(item, "9001")
-	assertValue(existing, "9000")
+	assert.Equal(t, item.value, TestValue("9001"))
+	assert.Equal(t, existing.value, TestValue("9000"))
 }
 
 func testBucket() *bucket {
@@ -54,11 +49,6 @@ func testBucket() *bucket {
 		value: TestValue("9000"),
 	}
 	return b
-}
-
-func assertValue(item *Item, expected string) {
-	value := item.value.(TestValue)
-	Expect(value).To.Equal(TestValue(expected))
 }
 
 type TestValue string

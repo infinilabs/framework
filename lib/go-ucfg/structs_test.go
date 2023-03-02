@@ -22,8 +22,8 @@ import (
 	"reflect"
 	"testing"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 type testEnv map[string]string
@@ -43,18 +43,18 @@ func TestStructMergeUnpackTyped(t *testing.T) {
 				Strings: []string{"string1", "abc"},
 			},
 			cfg: map[string]interface{}{
-				"strings": "${env_strings}",
+				"strings": "$[[env_strings]]",
 			},
 			env: testEnv{"env_strings": "string1,abc"},
 		},
 		{
 			t: &struct {
-				Strings []string
+				Strings string
 			}{
-				Strings: []string{"string1", "abc"},
+				Strings: "string1,abc",
 			},
 			cfg: map[string]interface{}{
-				"strings": "${env_strings:string1,abc}",
+				"strings": "$[[env_strings:string1,abc]]",
 			},
 		},
 		{
@@ -64,7 +64,7 @@ func TestStructMergeUnpackTyped(t *testing.T) {
 				Strings: []string{"one string"},
 			},
 			cfg: map[string]interface{}{
-				"strings": "${env_strings} string",
+				"strings": "$[[env_strings]] string",
 			},
 			env: testEnv{"env_strings": "one"},
 		},
@@ -75,29 +75,18 @@ func TestStructMergeUnpackTyped(t *testing.T) {
 				Hosts: []string{"host1:1234", "host2:4567"},
 			},
 			cfg: map[string]interface{}{
-				"hosts": "${hosts_from_env}",
+				"hosts": "$[[hosts_from_env]]",
 			},
 			env: testEnv{"hosts_from_env": "host1:1234,host2:4567"},
 		},
 		{
 			t: &struct {
-				Hosts []string
+				Hosts string
 			}{
-				Hosts: []string{"{host1}:1234", "host2:4567"},
+				Hosts: "host1:1234,host2:4567",
 			},
 			cfg: map[string]interface{}{
-				"hosts": "${hosts_from_env}",
-			},
-			env: testEnv{"hosts_from_env": "{host1}:1234,host2:4567"},
-		},
-		{
-			t: &struct {
-				Hosts []string
-			}{
-				Hosts: []string{"host1:1234", "host2:4567"},
-			},
-			cfg: map[string]interface{}{
-				"hosts": "${missing_env:host1:1234,host2:4567}",
+				"hosts": "$[[missing_env:host1:1234,host2:4567]]",
 			},
 		},
 	}
@@ -134,7 +123,7 @@ func TestStructMergeUnpackTyped(t *testing.T) {
 
 		// unpack config into zeroed out config
 		if err := c.Unpack(test.t, opts...); err != nil {
-			t.Fatal(err)
+			t.Fatal(i, err)
 		}
 
 		// parse restored input config
