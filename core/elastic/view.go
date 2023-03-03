@@ -15,6 +15,7 @@ type View struct {
 	Fields string `json:"fields" elastic_mapping:"fields:{type:text}"`
 	FieldFormatMap string `json:"fieldFormatMap" elastic_mapping:"fields:{type:text}`
 	UpdatedAt     time.Time `json:"updated_at,omitempty" elastic_mapping:"updated_at:{type:date}"`
+	DefaultLayoutID string `json:"default_layout_id" elastic_mapping:"default_layout_id:{type:keyword}"`
 }
 
 type AAIR_Alias struct {

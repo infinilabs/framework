@@ -79,6 +79,8 @@ const (
 	PermissionAlertChannelWrite = "alert.channel:write"
 	PermissionViewRead = "view:read"
 	PermissionViewWrite = "view:write"
+	PermissionLayoutRead = "layout:read"
+	PermissionLayoutWrite = "layout:write"
 	PermissionGatewayInstanceRead = "gateway.instance:read"
 	PermissionGatewayInstanceWrite = "gateway.instance:write"
 	PermissionGatewayEntryRead = "gateway.entry:read"
@@ -126,8 +128,8 @@ var (
 	IndexReadPermission    = []string{"index:read", "alias:write"}
 	AliasAllPermission     = []string{"alias:read"}
 	AliasReadPermission    = []string{"alias:read", "alias:write"}
-	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite}
-	ViewsReadPermission    = []string{PermissionViewRead}
+	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite, PermissionLayoutRead, PermissionLayoutWrite}
+	ViewsReadPermission    = []string{PermissionViewRead, PermissionLayoutRead}
 	DiscoverReadPermission = []string{PermissionViewRead}
 	DiscoverAllPermission  = []string{PermissionViewRead}
 
