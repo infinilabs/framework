@@ -59,7 +59,7 @@ func (module *SimpleStatsModule) Setup() {
 	}
 	module.initStats("simple")
 
-	if module.config.NoBuffer {
+	if !module.config.NoBuffer {
 		module.data.q = queue.NewQueue(uint32(module.config.BufferSize))
 	}
 
