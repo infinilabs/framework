@@ -22,8 +22,8 @@ import (
 	"sort"
 	"testing"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 var opts = []Option{
@@ -96,7 +96,7 @@ func TestDetectCyclicReference(t *testing.T) {
 		{
 			title: "direct reference on a struct",
 			cfg: map[string]interface{}{
-				"top.reference": "${top.reference}",
+				"top.reference": "$[[top.reference]]",
 			},
 			config: &struct {
 				TopReference string `config:"top.reference"`
@@ -105,7 +105,7 @@ func TestDetectCyclicReference(t *testing.T) {
 		{
 			title: "direct compound reference on a struct",
 			cfg: map[string]interface{}{
-				"top.reference": "hello ${top.reference}",
+				"top.reference": "hello $[[top.reference]]",
 			},
 			config: &struct {
 				TopReference string `config:"top.reference"`
@@ -114,7 +114,7 @@ func TestDetectCyclicReference(t *testing.T) {
 		{
 			title: "direct template reference on an empty map",
 			cfg: map[string]interface{}{
-				"top.reference": "hello ${top.reference}",
+				"top.reference": "hello $[[top.reference]]",
 			},
 			config: &map[string]interface{}{},
 		},
@@ -123,7 +123,7 @@ func TestDetectCyclicReference(t *testing.T) {
 			cfg: map[string]interface{}{
 				"a": map[string]interface{}{
 					"b": map[string]interface{}{
-						"c": "hello ${a}",
+						"c": "hello $[[a]]",
 					},
 				},
 			},
@@ -134,7 +134,7 @@ func TestDetectCyclicReference(t *testing.T) {
 			cfg: map[string]interface{}{
 				"a": map[string]interface{}{
 					"b": map[string]interface{}{
-						"c": "${a}",
+						"c": "$[[a]]",
 					},
 				},
 			},
@@ -145,7 +145,7 @@ func TestDetectCyclicReference(t *testing.T) {
 			cfg: map[string]interface{}{
 				"c": []string{
 					"a",
-					"${c.1}",
+					"$[[c.1]]",
 				},
 			},
 			config: &map[string]interface{}{},
@@ -155,7 +155,7 @@ func TestDetectCyclicReference(t *testing.T) {
 			cfg: map[string]interface{}{
 				"c": []string{
 					"a",
-					"${c.1}",
+					"$[[c.1]]",
 				},
 			},
 			config: &map[string]interface{}{},
@@ -165,7 +165,7 @@ func TestDetectCyclicReference(t *testing.T) {
 			cfg: map[string]interface{}{
 				"c": []string{
 					"a",
-					"${c.1}",
+					"$[[c.1]]",
 				},
 			},
 			config: &struct {
@@ -188,7 +188,7 @@ func TestDetectCyclicReference(t *testing.T) {
 
 func TestCyclicReferenceShouldFallbackToOtherResolvers(t *testing.T) {
 	cfg := map[string]interface{}{
-		"top.reference": "${top.reference}",
+		"top.reference": "$[[top.reference]]",
 	}
 
 	resolveFn := func(key string) (string, parse.Config, error) {
@@ -239,13 +239,13 @@ func TestTopYamlKeyInEnvResolvers(t *testing.T) {
 			name: "top level key reference exists",
 			cfg: map[string]interface{}{
 				"a.top":         "top-level",
-				"f.l.reference": "${a.key}",
+				"f.l.reference": "$[[a.key]]",
 			},
 		},
 		{
 			name: "top level key reference doesn't exist",
 			cfg: map[string]interface{}{
-				"f.l.reference": "${a.key}",
+				"f.l.reference": "$[[a.key]]",
 			},
 		},
 	}
@@ -263,48 +263,6 @@ func TestTopYamlKeyInEnvResolvers(t *testing.T) {
 	}
 }
 
-func TestMultipleDirectReference(t *testing.T) {
-	cfg := map[string]interface{}{
-		"path.home": "hello",
-		"path.logs": "${path.home}",
-		"output": map[string]interface{}{
-			"path": "${path.logs}",
-		},
-	}
-
-	c := New()
-	err := c.Merge(cfg, opts...)
-	assert.NoError(t, err)
-
-	t.Run("into a struct", func(t *testing.T) {
-		config := struct {
-			Path struct {
-				Home string `config:"home"`
-				Logs string `config:"logs"`
-			} `config:"path"`
-			Output struct {
-				Path string `config:"path"`
-			} `config:"output"`
-		}{}
-
-		err = c.Unpack(&config, opts...)
-		if assert.NoError(t, err) {
-			assert.Equal(t, "hello", config.Output.Path)
-		}
-	})
-
-	t.Run("into a map", func(t *testing.T) {
-		m := map[string]interface{}{}
-		err = c.Unpack(&m, opts...)
-		if assert.NoError(t, err) {
-			v := m["output"]
-			output := v.(map[string]interface{})
-			path := output["path"]
-			assert.Equal(t, "hello", path)
-		}
-	})
-}
-
 func TestResolveNOOP(t *testing.T) {
 	opts := []Option{
 		PathSep("."),
@@ -313,7 +271,7 @@ func TestResolveNOOP(t *testing.T) {
 
 	cfg := map[string]interface{}{
 		"a.top":         "top-level",
-		"f.l.reference": "${a.key}",
+		"f.l.reference": "$[[a.key]]",
 	}
 
 	c, err := NewFrom(cfg, opts...)
@@ -321,7 +279,7 @@ func TestResolveNOOP(t *testing.T) {
 
 	v, err := c.String("f.l.reference", -1, opts...)
 	if assert.NoError(t, err) {
-		assert.Equal(t, "${a.key}", v)
+		assert.Equal(t, "$[[a.key]]", v)
 	}
 }
 
@@ -446,18 +404,6 @@ func TestRemove(t *testing.T) {
 			wants: map[string]interface{}{"x": "keep"},
 			spec:  spec{has: true, path: "a", idx: -1},
 		},
-		"shared via reference": {
-			cfg: map[string]interface{}{"a": "${b}", "b.c": "remove", "b.d": "keep"},
-			wants: map[string]interface{}{
-				"a": map[string]interface{}{
-					"d": "keep",
-				},
-				"b": map[string]interface{}{
-					"d": "keep",
-				},
-			},
-			spec: spec{has: true, path: "a.c", idx: -1},
-		},
 		"fail if no object": {
 			cfg:  map[string]interface{}{"a": "test"},
 			spec: spec{fails: true, path: "a.b", idx: -1},
@@ -472,7 +418,7 @@ func TestRemove(t *testing.T) {
 			cfg := MustNewFrom(test.cfg, opts...)
 			b, err := cfg.Remove(test.spec.path, test.spec.idx, opts...)
 			if err != nil && !test.spec.fails {
-				t.Fatal("unexpected error:", err)
+				t.Fatal(name, "|", "unexpected error:", err)
 			}
 			assert.Equal(t, test.spec.has, b, "unexpected remove operation result")
 

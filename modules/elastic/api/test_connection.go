@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
+	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
@@ -75,8 +76,14 @@ func (h TestAPI) HandleTestConnectionAction(w http.ResponseWriter, req *http.Req
 	freq.SetRequestURI(url)
 	freq.Header.SetMethod("GET")
 
-	if config.BasicAuth != nil && strings.TrimSpace(config.BasicAuth.Username) != ""{
-		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
+	basicAuth, err := common.GetBasicAuth(config)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if strings.TrimSpace(basicAuth.Username) != ""{
+		freq.SetBasicAuth(basicAuth.Username, basicAuth.Password)
 	}
 
 	err = client.Do(freq, fres)

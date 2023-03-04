@@ -6,11 +6,12 @@ package redis
 import (
 	"context"
 	"fmt"
-	"github.com/go-redis/redis"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/queue"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/queue"
 )
 
 type RedisModule struct {
@@ -19,12 +20,12 @@ type RedisModule struct {
 }
 
 type RedisConfig struct {
-	Enabled     bool `config:"enabled"`
+	Enabled  bool   `config:"enabled"`
 	Host     string `config:"host"`
 	Port     int    `config:"port"`
 	Username string `config:"username"`
 	Password string `config:"password"`
-	PoolSize int `config:"pool_size"`
+	PoolSize int    `config:"pool_size"`
 	Db       int    `config:"db"`
 }
 
@@ -34,7 +35,7 @@ func (module *RedisModule) Name() string {
 
 func (module *RedisModule) Setup() {
 	module.config = RedisConfig{
-		Db: 0,
+		Db:       0,
 		PoolSize: 1000,
 	}
 	ok, err := env.ParseConfig("redis", &module.config)
@@ -56,16 +57,16 @@ func (module *RedisQueue) Name() string {
 
 func (module *RedisQueue) Push(k string, v []byte) error {
 	module.Init(k)
-	_,err:=module.client.LPush(ctx,k,v).Result()
+	_, err := module.client.LPush(ctx, k, v).Result()
 	return err
 }
 
-func (module *RedisQueue) Init(k string) error{
-	_,ok:= module.pubsub[k]
-	if ok{
+func (module *RedisQueue) Init(k string) error {
+	_, ok := module.pubsub[k]
+	if ok {
 		return nil
 	}
-	module.pubsub[k]=1
+	module.pubsub[k] = 1
 	return nil
 }
 
@@ -76,33 +77,33 @@ func (module *RedisQueue) Consume(q *queue.QueueConfig, consumer *queue.Consumer
 	panic("consume is not supported in redis queue")
 }
 
-func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte,timeout bool) {
+func (module *RedisQueue) Pop(k string, timeoutDuration time.Duration) (data []byte, timeout bool) {
 
 	lock.Lock()
 	defer lock.Unlock()
 
 	if timeoutDuration > 0 {
-		v,err:= module.client.BLPop(ctx,timeoutDuration,k).Result()
-		if err!=nil{
-			return nil,true
+		v, err := module.client.BLPop(ctx, timeoutDuration, k).Result()
+		if err != nil {
+			return nil, true
 		}
 
-		if len(v)==1{
-			return []byte(v[0]),false
+		if len(v) == 1 {
+			return []byte(v[0]), false
 		}
 
 	} else {
-		v,err:=module.client.LPop(ctx,k).Result()
-		if err!=nil{
-			return nil,true
+		v, err := module.client.LPop(ctx, k).Result()
+		if err != nil {
+			return nil, true
 		}
-		return []byte(v),false
+		return []byte(v), false
 	}
-	return nil,true
+	return nil, true
 }
 
 func (module *RedisQueue) Close(k string) error {
-	return module.client.Subscribe(ctx,k).Close()
+	return module.client.Subscribe(ctx, k).Close()
 }
 
 func (module *RedisQueue) LatestOffset(string) string {
@@ -110,8 +111,8 @@ func (module *RedisQueue) LatestOffset(string) string {
 }
 
 func (module *RedisQueue) Depth(k string) int64 {
-	c,err:=module.client.LLen(ctx,k).Result()
-	if err!=nil{
+	c, err := module.client.LLen(ctx, k).Result()
+	if err != nil {
 		return -1
 	}
 	return c
@@ -119,14 +120,14 @@ func (module *RedisQueue) Depth(k string) int64 {
 
 func (module *RedisQueue) GetQueues() []string {
 	result := []string{}
-	for k,_:=range module.pubsub{
-		result=append(result,k)
+	for k, _ := range module.pubsub {
+		result = append(result, k)
 	}
 	return result
 }
 
 func (module *RedisModule) Start() error {
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return nil
 	}
 
@@ -150,7 +151,7 @@ func (module *RedisModule) Start() error {
 }
 
 func (module *RedisModule) Stop() error {
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return nil
 	}
 

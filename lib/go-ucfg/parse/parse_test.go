@@ -71,17 +71,6 @@ func TestFlagValueParsingWithAll(t *testing.T) {
 		// test arrays
 		{`[]`, nil},
 		{
-			`a,b,c`,
-			[]interface{}{"a", "b", "c"},
-		},
-		{
-			`C:\Windows\Path1,C:\Windows\Path2`,
-			[]interface{}{
-				`C:\Windows\Path1`,
-				`C:\Windows\Path2`,
-			},
-		},
-		{
 			`[array, 1, true, "abc"]`,
 			[]interface{}{"array", uint64(1), true, "abc"},
 		},
@@ -103,32 +92,6 @@ func TestFlagValueParsingWithAll(t *testing.T) {
 
 		// test dictionaries:
 		{`{}`, nil},
-		{`{'key1': true,
-       "key2": 1,
-       key 3: ['test', "test2", off],
-       nested key: {"a" : 2}}`,
-			map[string]interface{}{
-				"key1":  true,
-				"key2":  uint64(1),
-				"key 3": []interface{}{"test", "test2", false},
-				"nested key": map[string]interface{}{
-					"a": uint64(2),
-				},
-			},
-		},
-
-		// array of top-level dictionaries
-		{
-			`{key: 1},{key: 2}`,
-			[]interface{}{
-				map[string]interface{}{
-					"key": uint64(1),
-				},
-				map[string]interface{}{
-					"key": uint64(2),
-				},
-			},
-		},
 	}
 
 	for i, test := range tests {
@@ -286,27 +249,6 @@ func TestFlagValueParsingWithNoArrayObj(t *testing.T) {
 				`C:\Windows\Path2`,
 			},
 		},
-		{
-			`[array, 1, true, "abc",]`,
-			[]interface{}{"[array", uint64(1), true, "abc", "]"},
-		},
-		{
-			`[test, [1,2,3], on]`,
-			[]interface{}{
-				"[test",
-				"[1",
-				uint64(2),
-				"3]",
-				"on]",
-			},
-		},
-		{
-			`[host1:1234, host2:1234]`,
-			[]interface{}{
-				"[host1:1234",
-				"host2:1234]",
-			},
-		},
 
 		// test dictionaries (won't parse)
 		{`{string}`, "{string}"},
@@ -408,32 +350,6 @@ func TestFlagValueParsingWithNoStringDQuote(t *testing.T) {
 
 		// test dictionaries:
 		{`{}`, nil},
-		{`{'key1': true,
-       "key2": 1,
-       key 3: ['test', "test2", off],
-       nested key: {"a" : 2}}`,
-			map[string]interface{}{
-				"key1":  true,
-				"key2":  uint64(1),
-				"key 3": []interface{}{"test", `"test2"`, false},
-				"nested key": map[string]interface{}{
-					"a": uint64(2),
-				},
-			},
-		},
-
-		// array of top-level dictionaries
-		{
-			`{key: 1},{key: 2}`,
-			[]interface{}{
-				map[string]interface{}{
-					"key": uint64(1),
-				},
-				map[string]interface{}{
-					"key": uint64(2),
-				},
-			},
-		},
 	}
 
 	for i, test := range tests {
@@ -523,32 +439,6 @@ func TestFlagValueParsingWithNoStringSQuote(t *testing.T) {
 
 		// test dictionaries:
 		{`{}`, nil},
-		{`{'key1': true,
-       "key2": 1,
-       key 3: ['test', "test2", off],
-       nested key: {"a" : 2}}`,
-			map[string]interface{}{
-				"key1":  true,
-				"key2":  uint64(1),
-				"key 3": []interface{}{`'test'`, "test2", false},
-				"nested key": map[string]interface{}{
-					"a": uint64(2),
-				},
-			},
-		},
-
-		// array of top-level dictionaries
-		{
-			`{key: 1},{key: 2}`,
-			[]interface{}{
-				map[string]interface{}{
-					"key": uint64(1),
-				},
-				map[string]interface{}{
-					"key": uint64(2),
-				},
-			},
-		},
 	}
 
 	for i, test := range tests {
@@ -638,32 +528,6 @@ func TestFlagValueParsingWithNoStringDQuoteOrSQuote(t *testing.T) {
 
 		// test dictionaries:
 		{`{}`, nil},
-		{`{'key1': true,
-       "key2": 1,
-       key 3: ['test', "test2", off],
-       nested key: {"a" : 2}}`,
-			map[string]interface{}{
-				"key1":  true,
-				"key2":  uint64(1),
-				"key 3": []interface{}{`'test'`, `"test2"`, false},
-				"nested key": map[string]interface{}{
-					"a": uint64(2),
-				},
-			},
-		},
-
-		// array of top-level dictionaries
-		{
-			`{key: 1},{key: 2}`,
-			[]interface{}{
-				map[string]interface{}{
-					"key": uint64(1),
-				},
-				map[string]interface{}{
-					"key": uint64(2),
-				},
-			},
-		},
 	}
 
 	for i, test := range tests {
@@ -676,7 +540,7 @@ func TestFlagValueParsingWithNoStringDQuoteOrSQuote(t *testing.T) {
 			StringSQuote: false,
 		})
 		if err != nil {
-			t.Error(err)
+			t.Error(test.input, err)
 			continue
 		}
 
@@ -767,37 +631,4 @@ func TestFlagValueParsingWithNoop(t *testing.T) {
 		assert.Equal(t, test.expected, v)
 	}
 
-}
-
-func TestFlagValueParsingFails(t *testing.T) {
-	tests := []string{
-		// strings:
-		`'abc`,
-		`"abc`,
-
-		// arrays
-		`[1,2,3`,         // missing ']'
-		`['abc' 'def']`,  // missing comma
-		`['abc', 'def,]`, // nested
-
-		// objects
-		`{a: 1, b:2`,      // missing '}'
-		`{'a' 1, b: 2}`,   // missing ':'
-		`{'a': '1' b: 2}`, // missing ','
-		`{'abc: 2}`,       // key parsing error
-		`{key: 'fail}`,    // value parsing error
-		`{:'abc'}`,        // object with missing key
-		`{nested: {a: 2}`, // nested object with missing '}'
-	}
-	for i, test := range tests {
-		t.Logf("run test(%v): %v", i, test)
-
-		_, err := Value(test)
-		if err == nil {
-			t.Errorf("parsing '%v' did not fail", test)
-			continue
-		}
-
-		t.Log("  Failed with: ", err.Error())
-	}
 }

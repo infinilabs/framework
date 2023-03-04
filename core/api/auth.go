@@ -11,7 +11,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
-	"os"
 )
 
 // BasicAuth register api with basic auth
@@ -180,37 +179,4 @@ func (handler Handler) GetCurrentUser(req *http.Request) string {
 		}
 	}
 	return ""
-}
-
-const DisableBuiltinUsersLockFilePath = "/data/console/.disable_builtin_users"
-func IsBuiltinUserAdminDisabled() bool{
-	currentDir, _ := os.Getwd()
-	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
-	return util.FileExists(targetPath)
-}
-func DisableBuiltinUserAdmin() error{
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
-	if !util.FileExists(targetPath){
-		_, err = util.FilePutContent(targetPath, "")
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func EnableBuiltinUserAdmin() error{
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	targetPath := util.JoinPath(currentDir, DisableBuiltinUsersLockFilePath)
-	if util.FileExists(targetPath){
-		return util.FileDelete(targetPath)
-	}
-	return nil
 }

@@ -6,10 +6,12 @@ package security
 
 import (
 	"infini.sh/framework/core/api/rbac"
+	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/security/native"
 	napi "infini.sh/framework/modules/security/native/api"
+	credapi "infini.sh/framework/modules/security/credential/api"
 )
 
 
@@ -23,6 +25,7 @@ func (module Module) Name() string {
 
 func (module Module) Setup() {
 	napi.Init()
+	credapi.Init()
 }
 
 var securityInited bool
@@ -32,6 +35,7 @@ func InitSecurity() {
 	}
 	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
 	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
+	orm.RegisterSchemaWithIndexName(credential.Credential{}, "credential")
 	native.Init()
 
 	//load role from store

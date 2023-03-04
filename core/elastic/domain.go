@@ -496,6 +496,7 @@ type ElasticsearchConfig struct {
 	MetadataConfigs *MetadataConfig `config:"metadata_configs" json:"metadata_configs,omitempty" elastic_mapping:"metadata_configs:{type:object}"`
 	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
 	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
+	CredentialID string `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
 }
 
 type GeoLocation struct {

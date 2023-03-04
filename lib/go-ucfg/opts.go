@@ -47,6 +47,16 @@ type options struct {
 	parsed valueCache
 
 	activeFields *fieldSet
+	resolveRef bool
+	defaultParseConfig *parse.Config
+}
+
+// DefaultParseConfig option sets the default parse config used to parse dyn value
+// if it is not empty
+func DefaultParseConfig(config parse.Config) Option {
+	return func(o *options) {
+		o.defaultParseConfig = &config
+	}
 }
 
 type valueCache map[string]spliceValue
@@ -223,6 +233,11 @@ func makeFieldOptValueHandling(h configHandling) func(...string) Option {
 var VarExp Option = doVarExp
 
 func doVarExp(o *options) { o.varexp = true }
+
+// ResolveRef option enables support for variable resolve reference from parent config.
+var ResolveRef Option = doResolveRef
+
+func doResolveRef(o *options) { o.resolveRef = true }
 
 func makeOptions(opts []Option) *options {
 	o := options{

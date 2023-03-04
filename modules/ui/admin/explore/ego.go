@@ -5,9 +5,10 @@ package explore
 
 import (
 	"fmt"
-	"infini.sh/framework/core/ui/common"
 	"io"
 	"net/http"
+
+	"infini.sh/framework/modules/ui/common"
 )
 
 var _ = fmt.Sprint("") // just so that we can keep the fmt import for now

@@ -13,6 +13,8 @@ const (
 	ClusterRead = "system.cluster:read"
 	CommandAll  = "system.command:all"
 	CommandRead = "system.command:read"
+	CredentialAll  = "system.credential:all"
+	CredentialRead = "system.credential:read"
 
 	InstanceRead = "gateway.instance:read"
 	InstanceAll  = "gateway.instance:all"
@@ -77,6 +79,8 @@ const (
 	PermissionAlertChannelWrite = "alert.channel:write"
 	PermissionViewRead = "view:read"
 	PermissionViewWrite = "view:write"
+	PermissionLayoutRead = "layout:read"
+	PermissionLayoutWrite = "layout:write"
 	PermissionGatewayInstanceRead = "gateway.instance:read"
 	PermissionGatewayInstanceWrite = "gateway.instance:write"
 	PermissionGatewayEntryRead = "gateway.entry:read"
@@ -89,6 +93,8 @@ const (
 
 	PermissionAgentInstanceRead = "agent.instance:read"
 	PermissionAgentInstanceWrite = "agent.instance:write"
+	PermissionCredentialRead = "credential:read"
+	PermissionCredentialWrite = "credential:write"
 )
 
 var (
@@ -122,8 +128,8 @@ var (
 	IndexReadPermission    = []string{"index:read", "alias:write"}
 	AliasAllPermission     = []string{"alias:read"}
 	AliasReadPermission    = []string{"alias:read", "alias:write"}
-	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite}
-	ViewsReadPermission    = []string{PermissionViewRead}
+	ViewsAllPermission     = []string{PermissionViewRead, PermissionViewWrite, PermissionLayoutRead, PermissionLayoutWrite}
+	ViewsReadPermission    = []string{PermissionViewRead, PermissionLayoutRead}
 	DiscoverReadPermission = []string{PermissionViewRead}
 	DiscoverAllPermission  = []string{PermissionViewRead}
 
@@ -145,6 +151,8 @@ var (
 
 	AgentInstanceReadPermission = []string{PermissionAgentInstanceRead}
 	AgentInstanceAllPermission  = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
+	CredentialReadPermission = []string{PermissionCredentialRead}
+	CredentialAllPermission  = []string{PermissionCredentialRead, PermissionCredentialWrite}
 )
 
 var AdminPrivilege = []string{
@@ -154,7 +162,7 @@ var AdminPrivilege = []string{
 	RuleAll, AlertAll, ChannelAll,
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
-	AliasAll, AgentInstanceAll,
+	AliasAll, AgentInstanceAll, CredentialAll,
 }
 
 func init() {
@@ -207,6 +215,8 @@ func init() {
 		ActivitiesRead:      ActivitiesReadPermission,
 		AgentInstanceAll: AgentInstanceAllPermission,
 		AgentInstanceRead: AgentInstanceReadPermission,
+		CredentialAll: CredentialAllPermission,
+		CredentialRead: CredentialReadPermission,
 	}
 
 }

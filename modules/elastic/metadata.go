@@ -669,7 +669,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	}
 	var oldNodes = meta.Nodes
 	if !discovery {
-		buf, err := kv.GetValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID))
+		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID))
 		if  err != nil{
 			log.Errorf("read node metadata error: %v", err)
 			return
@@ -740,7 +740,10 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 				"nodes": nodes,
 				"timestamp": time.Now(),
 			}
-			err =kv.AddValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			err =kv.AddValueCompress(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			if err != nil {
+				log.Errorf("save node metadata error: %v", err)
+			}
 		}
 		//TODO　save to es metadata
 	}

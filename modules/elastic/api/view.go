@@ -395,4 +395,65 @@ func (h *APIHandler) HandleGetFieldCapsAction(w http.ResponseWriter, req *http.R
 	h.WriteJSON(w,resBody ,http.StatusOK)
 }
 
+func (h *APIHandler) HandleGetViewAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id := ps.MustGetParameter("view_id")
+
+	obj := elastic.View{}
+	obj.ID = id
+
+	exists, err := orm.Get(&obj)
+	if !exists || err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"_id":   id,
+			"found": false,
+		}, http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
+
+	h.WriteGetOKJSON(w, id, obj)
+}
+
+func (h *APIHandler) SetDefaultLayout(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var viewReq = &elastic.View{}
+
+	err := h.DecodeJSON(req, viewReq)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id := ps.MustGetParameter("view_id")
+	viewObj := elastic.View{}
+	viewObj.ID = id
+	exists, err := orm.Get(&viewObj)
+	if !exists || err != nil {
+		h.WriteJSON(w, util.MapStr{
+			"_id":    id,
+			"result": "not_found",
+		}, http.StatusNotFound)
+		return
+	}
+
+	viewObj.DefaultLayoutID = viewReq.DefaultLayoutID
+	ctx := &orm.Context{
+		Refresh: "wait_for",
+	}
+	err = orm.Update(ctx, &viewObj)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		log.Error(err)
+		return
+	}
+
+	h.WriteJSON(w, util.MapStr{
+		"success": true,
+	}, 200)
+
+}
 

@@ -12,13 +12,18 @@ import (
 )
 
 var fakeCurrentTime = time.Now()
-var currentTime=time.Now
+
+func init() {
+	timeNow = func() time.Time {
+		return fakeCurrentTime
+	}
+}
+
 func fakeTime() time.Time {
 	return fakeCurrentTime
 }
 
 func TestNew(t *testing.T) {
-	currentTime = fakeTime
 
 	dir := "/tmp/test"
 	l := &RotateWriter{
@@ -35,9 +40,7 @@ func TestNew(t *testing.T) {
 	//}
 }
 
-
 func TestNewFile(t *testing.T) {
-	currentTime = fakeTime
 
 	dir := makeTempDir("TestNewFile", t)
 	defer os.RemoveAll(dir)
@@ -54,7 +57,6 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestOpenExisting(t *testing.T) {
-	currentTime = fakeTime
 	dir := makeTempDir("TestOpenExisting", t)
 	defer os.RemoveAll(dir)
 
@@ -81,7 +83,6 @@ func TestOpenExisting(t *testing.T) {
 }
 
 func TestWriteTooLong(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 	dir := makeTempDir("TestWriteTooLong", t)
 	defer os.RemoveAll(dir)
@@ -101,7 +102,6 @@ func TestWriteTooLong(t *testing.T) {
 }
 
 func TestMakeLogDir(t *testing.T) {
-	currentTime = fakeTime
 	dir := time.Now().Format("TestMakeLogDir" + backupTimeFormat)
 	dir = filepath.Join(os.TempDir(), dir)
 	defer os.RemoveAll(dir)
@@ -119,11 +119,10 @@ func TestMakeLogDir(t *testing.T) {
 }
 
 func TestDefaultFilename(t *testing.T) {
-	currentTime = fakeTime
 	dir := os.TempDir()
 	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"-lumberjack.log")
 	defer os.Remove(filename)
-	l := &RotateWriter{}
+	l := &RotateWriter{Filename: filename}
 	defer l.Close()
 	b := []byte("boo!")
 	n, err := l.Write(b)
@@ -134,7 +133,6 @@ func TestDefaultFilename(t *testing.T) {
 }
 
 func TestAutoRotate(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestAutoRotate", t)
@@ -172,7 +170,6 @@ func TestAutoRotate(t *testing.T) {
 }
 
 func TestFirstWriteRotate(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 	dir := makeTempDir("TestFirstWriteRotate", t)
 	defer os.RemoveAll(dir)
@@ -203,7 +200,6 @@ func TestFirstWriteRotate(t *testing.T) {
 }
 
 func TestMaxBackups(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 	dir := makeTempDir("TestMaxBackups", t)
 	defer os.RemoveAll(dir)
@@ -331,7 +327,6 @@ func TestCleanupExistingBackups(t *testing.T) {
 	// test that if we start with more backup files than we're supposed to have
 	// in total, that extra ones get cleaned up when we rotate.
 
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestCleanupExistingBackups", t)
@@ -384,7 +379,6 @@ func TestCleanupExistingBackups(t *testing.T) {
 }
 
 func TestMaxAge(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestMaxAge", t)
@@ -451,7 +445,6 @@ func TestMaxAge(t *testing.T) {
 }
 
 func TestOldLogFiles(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestOldLogFiles", t)
@@ -513,7 +506,6 @@ func TestTimeFromName(t *testing.T) {
 }
 
 func TestLocalTime(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestLocalTime", t)
@@ -540,7 +532,6 @@ func TestLocalTime(t *testing.T) {
 }
 
 func TestRotate(t *testing.T) {
-	currentTime = fakeTime
 	dir := makeTempDir("TestRotate", t)
 	defer os.RemoveAll(dir)
 
@@ -597,7 +588,6 @@ func TestRotate(t *testing.T) {
 }
 
 func TestCompressOnRotate(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestCompressOnRotate", t)
@@ -646,11 +636,10 @@ func TestCompressOnRotate(t *testing.T) {
 }
 
 func TestCompressOnResume(t *testing.T) {
-	currentTime = fakeTime
 	megabyte = 1
 
 	dir := makeTempDir("TestCompressOnResume", t)
-	//defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	filename := logFile(dir)
 	l := &RotateWriter{

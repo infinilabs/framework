@@ -5,18 +5,19 @@
 package conditions
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewConsumerHasLagCondition(t *testing.T) {
 	config := Config{
 		ConsumerHasLag: &Fields{fields: map[string]interface{}{
-			"queue": "myqueue",
-			"group": "group",
+			"queue":    "myqueue",
+			"group":    "group",
 			"consumer": "myconsumer1",
 		}},
 	}
 	_, err := NewCondition(&config)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }

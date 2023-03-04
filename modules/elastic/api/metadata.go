@@ -6,19 +6,20 @@ package api
 
 import (
 	"fmt"
+	"net/http"
+
+	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"net/http"
-	log "src/github.com/cihub/seelog"
 )
 
-func (h *APIHandler) HandleRemoveLocalState(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
+func (h *APIHandler) HandleRemoveLocalState(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	//todo add UI
 	var (
-		typ = ps.MustGetParameter("type")
+		typ    = ps.MustGetParameter("type")
 		target = ps.ByName("target")
 	)
 	switch typ {
@@ -47,7 +48,7 @@ func (h *APIHandler) HandleRemoveLocalState(w http.ResponseWriter, req *http.Req
 					return
 				}
 			}
-		}else{
+		} else {
 			found := false
 			for _, conf := range searchRes.Hits.Hits {
 				if conf.ID == target {

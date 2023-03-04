@@ -3,10 +3,11 @@ package bytebufferpool
 import (
 	"bytes"
 	"fmt"
-	"github.com/magiconair/properties/assert"
 	"io"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestByteBufferReadFrom(t *testing.T) {
@@ -91,29 +92,29 @@ func TestByteBufferGetPutConcurrent(t *testing.T) {
 }
 
 func TestByteBufferGrow(t *testing.T) {
-	a:="hello"
-	b:=ByteBuffer{}
+	a := "hello"
+	b := ByteBuffer{}
 	b.WriteString(a)
-	fmt.Println(b.Len())
-	fmt.Println(b.Cap())
+	t.Log(b.Len())
+	t.Log(b.Cap())
 
-	assert.Equal(t,b.Len(),5)
-	assert.Equal(t,b.Cap(),8)
+	assert.Equal(t, b.Len(), 5)
+	assert.Equal(t, b.Cap(), 8)
 	//grow
 	b.GrowTo(24)
-	fmt.Println(b.String())
-	fmt.Println(b.Len())
-	fmt.Println(b.Cap())
-	assert.Equal(t,b.Len(),5)
-	assert.Equal(t,b.Cap(),32)
+	t.Log(b.String())
+	t.Log(b.Len())
+	t.Log(b.Cap())
+	assert.Equal(t, b.Len(), 5)
+	assert.Equal(t, b.Cap(), 29)
 
-	c:="world"
+	c := "world"
 	b.WriteString(c)
-	fmt.Println(b.String())
-	fmt.Println(b.Len())
-	fmt.Println(b.Cap())
-	assert.Equal(t,b.Len(),10)
-	assert.Equal(t,b.Cap(),32)
+	t.Log(b.String())
+	t.Log(b.Len())
+	t.Log(b.Cap())
+	assert.Equal(t, b.Len(), 10)
+	assert.Equal(t, b.Cap(), 29)
 }
 
 func testByteBufferGetPut(t *testing.T) {
@@ -164,13 +165,11 @@ func TestByteBufferGetStringConcurrent(t *testing.T) {
 	}
 }
 
-
-
 func TestByteBufferWriteSize(t *testing.T) {
 	expectedS := "foobarbaz"
-	bb:=ByteBuffer{}
+	bb := ByteBuffer{}
 	for i := 0; i < 100; i++ {
 		bb.Write([]byte(expectedS))
-		fmt.Println(i,",",bb.Len(),",",bb.Cap())
+		t.Log(i, ",", bb.Len(), ",", bb.Cap())
 	}
 }

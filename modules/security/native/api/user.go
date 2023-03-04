@@ -11,7 +11,6 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic"
 	"net/http"
@@ -73,7 +72,7 @@ func (h APIHandler) userNameExists(w http.ResponseWriter, name string) bool {
 		h.ErrorInternalServer(w, err.Error())
 		return true
 	}
-	if  name == "admin" || u != nil {
+	if u != nil {
 		h.ErrorInternalServer(w, "user name already exists")
 		return true
 	}
@@ -232,39 +231,4 @@ func (h APIHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request, p
 	_ = h.WriteOKJSON(w, api.UpdateResponse(id))
 	return
 
-}
-
-func (h APIHandler) SetBuiltinUserAdminDisabled(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	reqUser, err := rbac.FromUserContext(r.Context())
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-
-	u, _ := global.Env().GetConfig("bootstrap.username", "admin")
-	if reqUser.UserId == u {
-		h.ErrorInternalServer(w, "you are trying to disable yourself and it is not allowed!")
-		return
-	}
-	disabled :=  h.GetParameter(r, "disabled")
-	if disabled == "true" {
-		err = api.DisableBuiltinUserAdmin()
-	}else{
-		err = api.EnableBuiltinUserAdmin()
-	}
-	if err != nil {
-		_ = log.Error(err.Error())
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-
-	h.WriteJSON(w, util.MapStr{
-		"result": "updated",
-	}, http.StatusOK)
-}
-
-func (h APIHandler) GetSecuritySettings(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	h.WriteJSON(w, util.MapStr{
-		"admin_disabled": api.IsBuiltinUserAdminDisabled(),
-	}, http.StatusOK)
 }

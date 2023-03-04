@@ -5,54 +5,50 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type CacheTests struct{}
-
-func Test_Cache(t *testing.T) {
-	Expectify(new(CacheTests), t)
-}
-
-func (_ CacheTests) DeletesAValue() {
+func Test_Cache_DeletesAValue(t *testing.T) {
 	cache := New(Configure())
-	Expect(cache.ItemCount()).To.Equal(0)
+	assert.Equal(t, cache.ItemCount(), 0)
 
 	cache.Set("spice", "flow", time.Minute)
 	cache.Set("worm", "sand", time.Minute)
-	Expect(cache.ItemCount()).To.Equal(2)
+	assert.Equal(t, cache.ItemCount(), 2)
 
 	cache.Delete("spice")
-	Expect(cache.Get("spice")).To.Equal(nil)
-	Expect(cache.Get("worm").Value()).To.Equal("sand")
-	Expect(cache.ItemCount()).To.Equal(1)
+	assert.Nil(t, cache.Get("spice"))
+	assert.Equal(t, cache.Get("worm").Value(), "sand")
+	assert.Equal(t, cache.ItemCount(), 1)
 }
 
-func (_ CacheTests) DeletesAPrefix() {
+func Test_Cache_DeletesAPrefix(t *testing.T) {
 	cache := New(Configure())
-	Expect(cache.ItemCount()).To.Equal(0)
+	assert.Equal(t, cache.ItemCount(), 0)
 
 	cache.Set("aaa", "1", time.Minute)
 	cache.Set("aab", "2", time.Minute)
 	cache.Set("aac", "3", time.Minute)
 	cache.Set("ac", "4", time.Minute)
 	cache.Set("z5", "7", time.Minute)
-	Expect(cache.ItemCount()).To.Equal(5)
+	assert.Equal(t, cache.ItemCount(), 5)
 
-	Expect(cache.DeletePrefix("9a")).To.Equal(0)
-	Expect(cache.ItemCount()).To.Equal(5)
+	assert.Equal(t, cache.DeletePrefix("9a"), 0)
+	assert.Equal(t, cache.ItemCount(), 5)
 
-	Expect(cache.DeletePrefix("aa")).To.Equal(3)
-	Expect(cache.Get("aaa")).To.Equal(nil)
-	Expect(cache.Get("aab")).To.Equal(nil)
-	Expect(cache.Get("aac")).To.Equal(nil)
-	Expect(cache.Get("ac").Value()).To.Equal("4")
-	Expect(cache.Get("z5").Value()).To.Equal("7")
-	Expect(cache.ItemCount()).To.Equal(2)
+	assert.Equal(t, cache.DeletePrefix("aa"), 3)
+	assert.Nil(t, cache.Get("aaa"))
+	assert.Nil(t, cache.Get("aab"))
+	assert.Nil(t, cache.Get("aac"))
+	assert.Equal(t, cache.Get("ac").Value(), "4")
+	assert.Equal(t, cache.Get("z5").Value(), "7")
+	assert.Equal(t, cache.ItemCount(), 2)
 }
 
-func (_ CacheTests) DeletesAFunc() {
+func Test_Cache_DeletesAFunc(t *testing.T) {
 	cache := New(Configure())
-	Expect(cache.ItemCount()).To.Equal(0)
+	assert.Equal(t, cache.ItemCount(), 0)
 
 	cache.Set("a", 1, time.Minute)
 	cache.Set("b", 2, time.Minute)
@@ -60,26 +56,26 @@ func (_ CacheTests) DeletesAFunc() {
 	cache.Set("d", 4, time.Minute)
 	cache.Set("e", 5, time.Minute)
 	cache.Set("f", 6, time.Minute)
-	Expect(cache.ItemCount()).To.Equal(6)
+	assert.Equal(t, cache.ItemCount(), 6)
 
-	Expect(cache.DeleteFunc(func(key string, item *Item) bool {
+	assert.Equal(t, cache.DeleteFunc(func(key string, item *Item) bool {
 		return false
-	})).To.Equal(0)
-	Expect(cache.ItemCount()).To.Equal(6)
+	}), 0)
+	assert.Equal(t, cache.ItemCount(), 6)
 
-	Expect(cache.DeleteFunc(func(key string, item *Item) bool {
+	assert.Equal(t, cache.DeleteFunc(func(key string, item *Item) bool {
 		return item.Value().(int) < 4
-	})).To.Equal(3)
-	Expect(cache.ItemCount()).To.Equal(3)
+	}), 3)
+	assert.Equal(t, cache.ItemCount(), 3)
 
-	Expect(cache.DeleteFunc(func(key string, item *Item) bool {
+	assert.Equal(t, cache.DeleteFunc(func(key string, item *Item) bool {
 		return key == "d"
-	})).To.Equal(1)
-	Expect(cache.ItemCount()).To.Equal(2)
+	}), 1)
+	assert.Equal(t, cache.ItemCount(), 2)
 
 }
 
-func (_ CacheTests) OnDeleteCallbackCalled() {
+func Test_Cache_OnDeleteCallbackCalled(t *testing.T) {
 	onDeleteFnCalled := int32(0)
 	onDeleteFn := func(item *Item) {
 		if item.key == "spice" {
@@ -95,23 +91,23 @@ func (_ CacheTests) OnDeleteCallbackCalled() {
 	cache.Delete("spice")
 	time.Sleep(time.Millisecond * 10) // Wait for worker to pick up deleted items
 
-	Expect(cache.Get("spice")).To.Equal(nil)
-	Expect(cache.Get("worm").Value()).To.Equal("sand")
-	Expect(atomic.LoadInt32(&onDeleteFnCalled)).To.Eql(1)
+	assert.Nil(t, cache.Get("spice"))
+	assert.Equal(t, cache.Get("worm").Value(), "sand")
+	assert.Equal(t, atomic.LoadInt32(&onDeleteFnCalled), int32(1))
 }
 
-func (_ CacheTests) FetchesExpiredItems() {
+func Test_Cache_FetchesExpiredItems(t *testing.T) {
 	cache := New(Configure())
 	fn := func() (interface{}, error) { return "moo-moo", nil }
 
 	cache.Set("beef", "moo", time.Second*-1)
-	Expect(cache.Get("beef").Value()).To.Equal("moo")
+	assert.Equal(t, cache.Get("beef").Value(), "moo")
 
 	out, _ := cache.Fetch("beef", time.Second, fn)
-	Expect(out.Value()).To.Equal("moo-moo")
+	assert.Equal(t, out.Value(), "moo-moo")
 }
 
-func (_ CacheTests) GCsTheOldestItems() {
+func Test_Cache_GCsTheOldestItems(t *testing.T) {
 	cache := New(Configure().ItemsToPrune(10))
 	for i := 0; i < 500; i++ {
 		cache.Set(strconv.Itoa(i), i, time.Minute)
@@ -119,12 +115,12 @@ func (_ CacheTests) GCsTheOldestItems() {
 	//let the items get promoted (and added to our list)
 	time.Sleep(time.Millisecond * 10)
 	gcCache(cache)
-	Expect(cache.Get("9")).To.Equal(nil)
-	Expect(cache.Get("10").Value()).To.Equal(10)
-	Expect(cache.ItemCount()).To.Equal(490)
+	assert.Nil(t, cache.Get("9"))
+	assert.Equal(t, cache.Get("10").Value(), 10)
+	assert.Equal(t, cache.ItemCount(), 490)
 }
 
-func (_ CacheTests) PromotedItemsDontGetPruned() {
+func Test_Cache_PromotedItemsDontGetPruned(t *testing.T) {
 	cache := New(Configure().ItemsToPrune(10).GetsPerPromote(1))
 	for i := 0; i < 500; i++ {
 		cache.Set(strconv.Itoa(i), i, time.Minute)
@@ -133,12 +129,12 @@ func (_ CacheTests) PromotedItemsDontGetPruned() {
 	cache.Get("9")
 	time.Sleep(time.Millisecond * 10)
 	gcCache(cache)
-	Expect(cache.Get("9").Value()).To.Equal(9)
-	Expect(cache.Get("10")).To.Equal(nil)
-	Expect(cache.Get("11").Value()).To.Equal(11)
+	assert.Equal(t, cache.Get("9").Value(), 9)
+	assert.Nil(t, cache.Get("10"))
+	assert.Equal(t, cache.Get("11").Value(), 11)
 }
 
-func (_ CacheTests) TrackerDoesNotCleanupHeldInstance() {
+func Test_Cache_TrackerDoesNotCleanupHeldInstance(t *testing.T) {
 	cache := New(Configure().ItemsToPrune(11).Track())
 	item0 := cache.TrackingSet("0", 0, time.Minute)
 	for i := 1; i < 11; i++ {
@@ -147,16 +143,16 @@ func (_ CacheTests) TrackerDoesNotCleanupHeldInstance() {
 	item1 := cache.TrackingGet("1")
 	time.Sleep(time.Millisecond * 10)
 	gcCache(cache)
-	Expect(cache.Get("0").Value()).To.Equal(0)
-	Expect(cache.Get("1").Value()).To.Equal(1)
+	assert.Equal(t, cache.Get("0").Value(), 0)
+	assert.Equal(t, cache.Get("1").Value(), 1)
 	item0.Release()
 	item1.Release()
 	gcCache(cache)
-	Expect(cache.Get("0")).To.Equal(nil)
-	Expect(cache.Get("1")).To.Equal(nil)
+	assert.Nil(t, cache.Get("0"))
+	assert.Nil(t, cache.Get("1"))
 }
 
-func (_ CacheTests) RemovesOldestItemWhenFull() {
+func Test_Cache_RemovesOldestItemWhenFull(t *testing.T) {
 	onDeleteFnCalled := false
 	onDeleteFn := func(item *Item) {
 		if item.key == "0" {
@@ -169,106 +165,106 @@ func (_ CacheTests) RemovesOldestItemWhenFull() {
 		cache.Set(strconv.Itoa(i), i, time.Minute)
 	}
 	time.Sleep(time.Millisecond * 10)
-	Expect(cache.Get("0")).To.Equal(nil)
-	Expect(cache.Get("1")).To.Equal(nil)
-	Expect(cache.Get("2").Value()).To.Equal(2)
-	Expect(onDeleteFnCalled).To.Equal(true)
-	Expect(cache.ItemCount()).To.Equal(5)
+	assert.Nil(t, cache.Get("0"))
+	assert.Nil(t, cache.Get("1"))
+	assert.Equal(t, cache.Get("2").Value(), 2)
+	assert.Equal(t, onDeleteFnCalled, true)
+	assert.Equal(t, cache.ItemCount(), 5)
 }
 
-func (_ CacheTests) RemovesOldestItemWhenFullBySizer() {
+func Test_Cache_RemovesOldestItemWhenFullBySizer(t *testing.T) {
 	cache := New(Configure().MaxSize(9).ItemsToPrune(2))
 	for i := 0; i < 7; i++ {
 		cache.Set(strconv.Itoa(i), &SizedItem{i, 2}, time.Minute)
 	}
 	time.Sleep(time.Millisecond * 10)
-	Expect(cache.Get("0")).To.Equal(nil)
-	Expect(cache.Get("1")).To.Equal(nil)
-	Expect(cache.Get("2")).To.Equal(nil)
-	Expect(cache.Get("3")).To.Equal(nil)
-	Expect(cache.Get("4").Value().(*SizedItem).id).To.Equal(4)
-	Expect(cache.GetDropped()).To.Equal(4)
-	Expect(cache.GetDropped()).To.Equal(0)
+	assert.Nil(t, cache.Get("0"))
+	assert.Nil(t, cache.Get("1"))
+	assert.Nil(t, cache.Get("2"))
+	assert.Nil(t, cache.Get("3"))
+	assert.Equal(t, cache.Get("4").Value().(*SizedItem).id, 4)
+	assert.Equal(t, cache.GetDropped(), 4)
+	assert.Equal(t, cache.GetDropped(), 0)
 }
 
-func (_ CacheTests) SetUpdatesSizeOnDelta() {
+func Test_Cache_SetUpdatesSizeOnDelta(t *testing.T) {
 	cache := New(Configure())
 	cache.Set("a", &SizedItem{0, 2}, time.Minute)
 	cache.Set("b", &SizedItem{0, 3}, time.Minute)
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 5)
+	checkSize(t, cache, 5)
 	cache.Set("b", &SizedItem{0, 3}, time.Minute)
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 5)
+	checkSize(t, cache, 5)
 	cache.Set("b", &SizedItem{0, 4}, time.Minute)
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 6)
+	checkSize(t, cache, 6)
 	cache.Set("b", &SizedItem{0, 2}, time.Minute)
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 4)
+	checkSize(t, cache, 4)
 	cache.Delete("b")
 	time.Sleep(time.Millisecond * 100)
-	checkSize(cache, 2)
+	checkSize(t, cache, 2)
 }
 
-func (_ CacheTests) ReplaceDoesNotchangeSizeIfNotSet() {
+func Test_Cache_ReplaceDoesNotchangeSizeIfNotSet(t *testing.T) {
 	cache := New(Configure())
 	cache.Set("1", &SizedItem{1, 2}, time.Minute)
 	cache.Set("2", &SizedItem{1, 2}, time.Minute)
 	cache.Set("3", &SizedItem{1, 2}, time.Minute)
 	cache.Replace("4", &SizedItem{1, 2})
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 6)
+	checkSize(t, cache, 6)
 }
 
-func (_ CacheTests) ReplaceChangesSize() {
+func Test_Cache_ReplaceChangesSize(t *testing.T) {
 	cache := New(Configure())
 	cache.Set("1", &SizedItem{1, 2}, time.Minute)
 	cache.Set("2", &SizedItem{1, 2}, time.Minute)
 
 	cache.Replace("2", &SizedItem{1, 2})
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 4)
+	checkSize(t, cache, 4)
 
 	cache.Replace("2", &SizedItem{1, 1})
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 3)
+	checkSize(t, cache, 3)
 
 	cache.Replace("2", &SizedItem{1, 3})
 	time.Sleep(time.Millisecond * 5)
-	checkSize(cache, 5)
+	checkSize(t, cache, 5)
 }
 
-func (_ CacheTests) ResizeOnTheFly() {
+func Test_Cache_ResizeOnTheFly(t *testing.T) {
 	cache := New(Configure().MaxSize(9).ItemsToPrune(1))
 	for i := 0; i < 5; i++ {
 		cache.Set(strconv.Itoa(i), i, time.Minute)
 	}
 	cache.SetMaxSize(3)
 	time.Sleep(time.Millisecond * 10)
-	Expect(cache.GetDropped()).To.Equal(2)
-	Expect(cache.Get("0")).To.Equal(nil)
-	Expect(cache.Get("1")).To.Equal(nil)
-	Expect(cache.Get("2").Value()).To.Equal(2)
-	Expect(cache.Get("3").Value()).To.Equal(3)
-	Expect(cache.Get("4").Value()).To.Equal(4)
+	assert.Equal(t, cache.GetDropped(), 2)
+	assert.Nil(t, cache.Get("0"))
+	assert.Nil(t, cache.Get("1"))
+	assert.Equal(t, cache.Get("2").Value(), 2)
+	assert.Equal(t, cache.Get("3").Value(), 3)
+	assert.Equal(t, cache.Get("4").Value(), 4)
 
 	cache.Set("5", 5, time.Minute)
 	time.Sleep(time.Millisecond * 5)
-	Expect(cache.GetDropped()).To.Equal(1)
-	Expect(cache.Get("2")).To.Equal(nil)
-	Expect(cache.Get("3").Value()).To.Equal(3)
-	Expect(cache.Get("4").Value()).To.Equal(4)
-	Expect(cache.Get("5").Value()).To.Equal(5)
+	assert.Equal(t, cache.GetDropped(), 1)
+	assert.Nil(t, cache.Get("2"))
+	assert.Equal(t, cache.Get("3").Value(), 3)
+	assert.Equal(t, cache.Get("4").Value(), 4)
+	assert.Equal(t, cache.Get("5").Value(), 5)
 
 	cache.SetMaxSize(10)
 	cache.Set("6", 6, time.Minute)
 	time.Sleep(time.Millisecond * 10)
-	Expect(cache.GetDropped()).To.Equal(0)
-	Expect(cache.Get("3").Value()).To.Equal(3)
-	Expect(cache.Get("4").Value()).To.Equal(4)
-	Expect(cache.Get("5").Value()).To.Equal(5)
-	Expect(cache.Get("6").Value()).To.Equal(6)
+	assert.Equal(t, cache.GetDropped(), 0)
+	assert.Equal(t, cache.Get("3").Value(), 3)
+	assert.Equal(t, cache.Get("4").Value(), 4)
+	assert.Equal(t, cache.Get("5").Value(), 5)
+	assert.Equal(t, cache.Get("6").Value(), 6)
 }
 
 type SizedItem struct {
@@ -280,9 +276,9 @@ func (s *SizedItem) Size() int64 {
 	return s.s
 }
 
-func checkSize(cache *Cache, sz int64) {
+func checkSize(t *testing.T, cache *Cache, sz int64) {
 	cache.Stop()
-	Expect(cache.size).To.Equal(sz)
+	assert.Equal(t, cache.size, sz)
 	cache.restart()
 }
 

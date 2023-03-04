@@ -20,8 +20,8 @@ package ucfg
 import (
 	"testing"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 func TestUnpackPrimitiveValues(t *testing.T) {
@@ -151,12 +151,12 @@ func TestUnpackPrimitivesValuesResolve(t *testing.T) {
 	}
 
 	c, _ := NewFrom(node{
-		"b": "${v_b}",
-		"i": "${v_i}",
-		"u": "${v_u}",
-		"f": "${v_f}",
-		"s": "${v_s}",
-		"w": "${v_w}",
+		"b": "$[[v_b]]",
+		"i": "$[[v_i]]",
+		"u": "$[[v_u]]",
+		"f": "$[[v_f]]",
+		"s": "$[[v_s]]",
+		"w": "$[[v_w]]",
 	}, cfgOpts...)
 
 	for i, out := range tests {

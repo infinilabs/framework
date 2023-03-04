@@ -5,13 +5,14 @@
 package cpu
 
 import (
+	"strconv"
+
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/load"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/load"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
-	"strconv"
 )
 
 type MetricType string
@@ -23,8 +24,8 @@ const TypeIoWait = MetricType("iowait")
 const TypeLoad = MetricType("load")
 
 type Metric struct {
-	Enabled bool     `config:"enabled"`
-	Metrics []string `config:"metrics"`
+	Enabled     bool     `config:"enabled"`
+	Metrics     []string `config:"metrics"`
 	prevCounter cpuCounter
 }
 
@@ -38,7 +39,7 @@ type cpuCounter struct {
 func New(cfg *config.Config) (*Metric, error) {
 
 	me := &Metric{
-		Enabled: true,
+		Enabled:     true,
 		prevCounter: cpuCounter{},
 	}
 
@@ -73,15 +74,15 @@ func (m *Metric) Collect() error {
 				retIOWait := KeepZero(iowait)
 				mapStr.Put(string(TypeIoWait), retIOWait)
 			case TypeSystem:
-				system := (cpuStats.System-m.prevCounter.preSystem)/10.00*100.00 //interval: 10s. convert to %
+				system := (cpuStats.System - m.prevCounter.preSystem) / 10.00 * 100.00 //interval: 10s. convert to %
 				retSystem := KeepZero(system)
 				mapStr.Put(string(TypeSystem), retSystem)
 			case TypeIdle:
-				idle := 100.00-(cpuStats.Idle-m.prevCounter.preIdle)/10.00 //interval: 10s. convert to %
+				idle := 100.00 - (cpuStats.Idle-m.prevCounter.preIdle)/10.00 //interval: 10s. convert to %
 				retIdle := KeepZero(idle)
 				mapStr.Put(string(TypeIdle), retIdle)
 			case TypeUser:
-				user := (cpuStats.User-m.prevCounter.preUser)/10.00*100.00
+				user := (cpuStats.User - m.prevCounter.preUser) / 10.00 * 100.00
 				retIdle := KeepZero(user)
 				mapStr.Put(string(TypeUser), retIdle) //interval: 10s. convert to %
 			case TypeLoad:

@@ -5,14 +5,15 @@
 package memory
 
 import (
+	"runtime"
+	"strings"
+
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/mem"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
-	"runtime"
-	"strings"
 )
 
 type MetricType string
@@ -81,17 +82,17 @@ func (m *Metric) collectSwap() error {
 		Fields: util.MapStr{
 			"host": util.MapStr{
 				"swap": util.MapStr{
-					"total.bytes": v.Total,
-					"free.bytes":  v.Free,
-					"used.bytes":  v.Used,
-					"used.percent":   v.UsedPercent,
+					"total.bytes":  v.Total,
+					"free.bytes":   v.Free,
+					"used.bytes":   v.Used,
+					"used.percent": v.UsedPercent,
 
-					"page_in":  v.PgIn,
-					"page_out":  v.PgOut,
-					"swap_in":  v.Sin,
-					"swap_out":  v.Sout,
-					"page_fault":  v.PgFault,
-					"major_page_fault":  v.PgMajFault,
+					"page_in":          v.PgIn,
+					"page_out":         v.PgOut,
+					"swap_in":          v.Sin,
+					"swap_out":         v.Sout,
+					"page_fault":       v.PgFault,
+					"major_page_fault": v.PgMajFault,
 				},
 			},
 		},
@@ -129,11 +130,11 @@ func (m *Metric) collectMemory() error {
 			"host": util.MapStr{
 				"memory": util.MapStr{
 					"total.bytes":     total,
-					"free.bytes": 	  v.Free,
-					"cached.bytes": 	  v.Cached,
+					"free.bytes":      v.Free,
+					"cached.bytes":    v.Cached,
 					"available.bytes": v.Available,
 					"used.bytes":      v.Used,
-					"used.percent":       v.UsedPercent,
+					"used.percent":    v.UsedPercent,
 				},
 			},
 		},

@@ -18,16 +18,17 @@ package env
 
 import (
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 )
 
 //TODO storage adaptor should config in env
@@ -70,11 +71,11 @@ type Env struct {
 }
 
 func (env *Env) CheckSetup() error {
-	env.setupRequired=false
+	env.setupRequired = false
 	//check is required
-	setupLock:=path.Join(env.GetDataDir(),".setup_lock")
-	if !util.FileExists(setupLock){
-		env.setupRequired=true
+	setupLock := path.Join(env.GetDataDir(), ".setup_lock")
+	if !util.FileExists(setupLock) {
+		env.setupRequired = true
 	}
 	return nil
 }
@@ -89,8 +90,8 @@ func (env *Env) GetLastCommitHash() string {
 
 // GetBuildDate returns the build datetime of current package
 func (env *Env) GetBuildDate() time.Time {
-	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(env.buildDate))
-	if err!=nil{
+	t, err := time.Parse(time.RFC3339, util.TrimSpaces(env.buildDate))
+	if err != nil {
 		return time.Time{}
 	}
 	return t
@@ -106,8 +107,8 @@ func (env *Env) GetVersion() string {
 }
 
 func (env *Env) GetEOLDate() time.Time {
-	t,err:=time.Parse(time.RFC3339,util.TrimSpaces(env.eolDate))
-	if err!=nil{
+	t, err := time.Parse(time.RFC3339, util.TrimSpaces(env.eolDate))
+	if err != nil {
 		return time.Time{}
 	}
 	return t
@@ -137,10 +138,10 @@ func (env *Env) GetWelcomeMessage() string {
 	//	message = " " + env.GetLastCommitLog()
 	//}
 
-	message =fmt.Sprintf("%s, %s, %s",util.FormatTime(env.GetBuildDate()),util.FormatTime(env.GetEOLDate()),env.GetLastCommitHash())
+	message = fmt.Sprintf("%s, %s, %s", util.FormatTime(env.GetBuildDate()), util.FormatTime(env.GetEOLDate()), env.GetLastCommitHash())
 
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
-	s +=  "[" + env.GetAppCapitalName() + "] " + env.GetVersion() +"#"+ env.GetBuildNumber() + ", " + message + ""
+	s += "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + "#" + env.GetBuildNumber() + ", " + message + ""
 	return s
 }
 
@@ -175,7 +176,7 @@ func (env *Env) Init() *Env {
 }
 
 func (env *Env) InitPaths(cfgPath string) error {
-	_,defaultSystemConfig.NodeConfig.IP,_,_ = util.GetPublishNetworkDeviceInfo("")
+	_, defaultSystemConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	partialConfig := struct {
@@ -184,7 +185,7 @@ func (env *Env) InitPaths(cfgPath string) error {
 
 	var (
 		cfgObj *config.Config
-		err error
+		err    error
 	)
 	if cfgObj, err = config.LoadFile(cfgPath); err != nil {
 		return fmt.Errorf("error loading confiuration file: %w", err)
@@ -196,7 +197,7 @@ func (env *Env) InitPaths(cfgPath string) error {
 		env.SystemConfig.PathConfig.Data = partialConfig.Path.Data
 	}
 	if partialConfig.Path.Log != "" {
-		env.SystemConfig.PathConfig.Data = partialConfig.Path.Log
+		env.SystemConfig.PathConfig.Log = partialConfig.Path.Log
 	}
 	return nil
 }
@@ -208,11 +209,11 @@ var startTime = time.Now().UTC()
 var (
 	defaultSystemConfig = config.SystemConfig{
 		APIConfig: config.APIConfig{
-				Enabled: true,
-				NetworkConfig: config.NetworkConfig{
-					Binding:          "0.0.0.0:2900",
-					SkipOccupiedPort: true,
-				},
+			Enabled: true,
+			NetworkConfig: config.NetworkConfig{
+				Binding:          "0.0.0.0:2900",
+				SkipOccupiedPort: true,
+			},
 		},
 		LoggingConfig: config.LoggingConfig{
 			DisableFileOutput: false,
@@ -233,15 +234,13 @@ var (
 			},
 		},
 
-		NodeConfig: config.NodeConfig{
-
-		},
+		NodeConfig: config.NodeConfig{},
 
 		PathConfig: config.PathConfig{
 			Plugin: "plugin",
 			Data:   "data",
 			Log:    "log",
-			Config:  "config",
+			Config: "config",
 		},
 
 		AllowMultiInstance: false,
@@ -253,7 +252,7 @@ var configObject *config.Config
 
 func (env *Env) loadConfig() error {
 
-	var ignoreFileMissing =false
+	var ignoreFileMissing = false
 	if env.configFile == "" {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
 		ignoreFileMissing = true
@@ -262,34 +261,34 @@ func (env *Env) loadConfig() error {
 	filename, _ := filepath.Abs(env.configFile)
 
 	//looking config from pwd
-	pwd,_:=os.Getwd()
-	if pwd!=""{
-		pwd=path.Join(pwd,env.GetAppLowercaseName() + ".yml")
+	pwd, _ := os.Getwd()
+	if pwd != "" {
+		pwd = path.Join(pwd, env.GetAppLowercaseName()+".yml")
 	}
-	ex,err:=os.Executable()
+	ex, err := os.Executable()
 	var exPath string
-	if err==nil{
-		exPath=filepath.Dir(ex)
+	if err == nil {
+		exPath = filepath.Dir(ex)
 	}
-	if exPath!=""{
-		exPath=path.Join(exPath,env.GetAppLowercaseName() + ".yml")
+	if exPath != "" {
+		exPath = path.Join(exPath, env.GetAppLowercaseName()+".yml")
 	}
 
 	if util.FileExists(filename) {
-		err:=env.loadEnvFromConfigFile(filename)
-		if err!=nil{
+		err := env.loadEnvFromConfigFile(filename)
+		if err != nil {
 			return err
 		}
-	}else if util.FileExists(pwd){
-		log.Warnf("default config missing, but found in %v",pwd)
-		err:=env.loadEnvFromConfigFile(pwd)
-		if err!=nil{
+	} else if util.FileExists(pwd) {
+		log.Warnf("default config missing, but found in %v", pwd)
+		err := env.loadEnvFromConfigFile(pwd)
+		if err != nil {
 			return err
 		}
-	}else if util.FileExists(exPath){
-		log.Warnf("default config missing, but found in %v",exPath)
-		err:=env.loadEnvFromConfigFile(exPath)
-		if err!=nil{
+	} else if util.FileExists(exPath) {
+		log.Warnf("default config missing, but found in %v", exPath)
+		err := env.loadEnvFromConfigFile(exPath)
+		if err != nil {
 			return err
 		}
 	} else {
@@ -350,8 +349,8 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		}
 
 		if env.SystemConfig.Configs.AutoReload {
-			absConfigPath,_:=filepath.Abs(env.SystemConfig.PathConfig.Config)
-			if util.FileExists(absConfigPath){
+			absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
+			if util.FileExists(absConfigPath) {
 				log.Info("watching config: ", absConfigPath)
 				config.EnableWatcher(env.SystemConfig.PathConfig.Config)
 			}
@@ -394,23 +393,23 @@ func parseModuleConfig(cfgs []*config.Config) map[string]*config.Config {
 	return result
 }
 
-//GetModuleConfig return specify module's config
+// GetModuleConfig return specify module's config
 func GetModuleConfig(name string) *config.Config {
 	cfg := moduleConfig[strings.ToLower(name)]
 	return cfg
 }
 
-//GetPluginConfig return specify plugin's config
+// GetPluginConfig return specify plugin's config
 func GetPluginConfig(name string) *config.Config {
 	cfg := pluginConfig[strings.ToLower(name)]
 	return cfg
 }
 
 func ParseConfig(configKey string, configInstance interface{}) (exist bool, err error) {
-	return ParseConfigSection(configObject,configKey,configInstance)
+	return ParseConfigSection(configObject, configKey, configInstance)
 }
 
-func ParseConfigSection(cfg *config.Config,configKey string, configInstance interface{}) (exist bool, err error) {
+func ParseConfigSection(cfg *config.Config, configKey string, configInstance interface{}) (exist bool, err error) {
 	if cfg != nil {
 		childConfig, err := cfg.Child(configKey, -1)
 		if err != nil {
@@ -450,7 +449,7 @@ func getModuleName(c *config.Config) string {
 }
 
 // EmptyEnv return a empty env instance
-func NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHeader, terminalFooter string) *Env {
+func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *Env {
 	return &Env{
 		name:           util.TrimSpaces(name),
 		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
@@ -460,7 +459,7 @@ func NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHead
 		commit:         util.TrimSpaces(commit),
 		buildDate:      buildDate,
 		buildNumber:    buildNumber,
-		eolDate:      	eolDate,
+		eolDate:        eolDate,
 		terminalHeader: terminalHeader,
 		terminalFooter: terminalFooter,
 	}
@@ -469,9 +468,9 @@ func NewEnv(name, desc, ver,buildNumber, commit, buildDate,eolDate, terminalHead
 func EmptyEnv() *Env {
 	system := defaultSystemConfig
 	system.ClusterConfig.Name = "app"
-	system.PathConfig.Data=os.TempDir()
-	system.PathConfig.Log=os.TempDir()
-	system.LoggingConfig.DisableFileOutput=true
+	system.PathConfig.Data = os.TempDir()
+	system.PathConfig.Log = os.TempDir()
+	system.LoggingConfig.DisableFileOutput = true
 	return &Env{SystemConfig: &system}
 }
 
@@ -481,7 +480,7 @@ func GetStartTime() time.Time {
 
 func (env *Env) GetConfigDir() string {
 	cfgPath := util.TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
-	if util.FileExists(cfgPath){
+	if util.FileExists(cfgPath) {
 		return cfgPath
 	}
 	return env.SystemConfig.PathConfig.Config
@@ -489,22 +488,22 @@ func (env *Env) GetConfigDir() string {
 
 // GetDataDir returns root working dir of app instance
 func (env *Env) GetDataDir() string {
-	if env.workingDataDir!=""{
+	if env.workingDataDir != "" {
 		return env.workingDataDir
 	}
-	env.workingDataDir,env.workingLogDir=env.findWorkingDir()
+	env.workingDataDir, env.workingLogDir = env.findWorkingDir()
 	return env.workingDataDir
 }
 
 func (env *Env) GetLogDir() string {
-	if env.workingLogDir!=""{
+	if env.workingLogDir != "" {
 		return env.workingLogDir
 	}
-	env.workingDataDir,env.workingLogDir=env.findWorkingDir()
+	env.workingDataDir, env.workingLogDir = env.findWorkingDir()
 	return env.workingLogDir
 }
 
-func (env *Env) findWorkingDir() (string,string) {
+func (env *Env) findWorkingDir() (string, string) {
 
 	//check data folder
 	//check if lock file exists
@@ -531,16 +530,16 @@ func (env *Env) findWorkingDir() (string,string) {
 		panic(err)
 	}
 
-	log.Trace("finding files in working dir:",files)
+	log.Trace("finding files in working dir:", files)
 
 	var instance = 0
 	for _, f := range files {
-		log.Trace("checking dir: ",f.Name(),",",f.IsDir())
+		log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
 		if f.IsDir() {
 			instance++
-			lockFile := path.Join(baseDir,f.Name(), ".lock")
+			lockFile := path.Join(baseDir, f.Name(), ".lock")
 
-			log.Tracef("lock found [%v] in dir: %v",util.FileExists(lockFile),f.Name())
+			log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
 
 			if !util.FileExists(lockFile) {
 				env.SystemConfig.NodeConfig.ID = f.Name()
@@ -563,7 +562,7 @@ func (env *Env) findWorkingDir() (string,string) {
 
 			procExists := util.CheckProcessExists(pid)
 
-			log.Tracef("process [%v] exists: ",pid, procExists)
+			log.Tracef("process [%v] exists: ", pid, procExists)
 
 			if !procExists {
 
@@ -577,7 +576,7 @@ func (env *Env) findWorkingDir() (string,string) {
 				return env.getNodeWorkingDir(f.Name())
 			}
 
-			log.Tracef("data folder [%v] is in used by [%v], continue",f.Name(),pid)
+			log.Tracef("data folder [%v] is in used by [%v], continue", f.Name(), pid)
 
 			//current folder is in use
 			if !env.SystemConfig.AllowMultiInstance {
@@ -586,7 +585,7 @@ func (env *Env) findWorkingDir() (string,string) {
 				break
 			}
 
-			if instance>=env.SystemConfig.MaxNumOfInstance{
+			if instance >= env.SystemConfig.MaxNumOfInstance {
 				panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
 			}
 		}
@@ -615,37 +614,37 @@ func (env *Env) GetPluginDir() string {
 	return env.pluginDir
 }
 
-//lowercase, get configs from defaults>env>config
-func (env *Env)GetConfig(key string,defaultV string)(string,bool){
-	tryEnvAgain:
+// lowercase, get configs from defaults>env>config
+func (env *Env) GetConfig(key string, defaultV string) (string, bool) {
+tryEnvAgain:
 	val, ok := os.LookupEnv(key)
 	if !ok {
 
 		val, ok = os.LookupEnv(strings.ToUpper(key))
-		if ok{
-			return val,true
+		if ok {
+			return val, true
 		}
 
 		val, ok = os.LookupEnv(strings.ToLower(key))
-		if ok{
-			return val,true
+		if ok {
+			return val, true
 		}
-		if strings.Contains(key,"."){
-			key=strings.ReplaceAll(key,".","_")
+		if strings.Contains(key, ".") {
+			key = strings.ReplaceAll(key, ".", "_")
 			goto tryEnvAgain
 		}
 
-		return defaultV,false
+		return defaultV, false
 	} else {
-		return val,true
+		return val, true
 	}
 
 	//TODO check configs
 	//TODO cache env for period time
 }
 
-func (env *Env) getNodeWorkingDir(nodeID string)(string,string)  {
-	dir1:= path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
-	dir2:= path.Join(env.SystemConfig.PathConfig.Log,  env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
-	return dir1,dir2
+func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
+	dir1 := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	dir2 := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	return dir1, dir2
 }

@@ -80,7 +80,7 @@ func (filter *Module)getOrInitBucket(bucket string)*badger.DB  {
 	option.ValueThreshold=filter.ValueThreshold
 	option.NumGoroutines=1
 	option.NumMemtables=filter.NumMemtables
-	option.Compression=options.ZSTD
+	option.Compression=options.None
 	option.MetricsEnabled=false
 	option.NumLevelZeroTables =      filter.NumLevelZeroTables
 	option.NumLevelZeroTablesStall = filter.NumLevelZeroTablesStall

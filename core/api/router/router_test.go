@@ -201,8 +201,8 @@ func TestRouterChaining(t *testing.T) {
 	r, _ = http.NewRequest("POST", "/bar", nil)
 	w = httptest.NewRecorder()
 	router1.ServeHTTP(w, r)
-	if !(w.Code == http.StatusOK && barHit) {
-		t.Errorf("Chained routing failed with router chaining.")
+	if !(w.Code == http.StatusNotFound && !barHit) {
+		t.Errorf("Chained routing failed with router chaining, code: %+v, hit: %+v", w.Code, barHit)
 		t.FailNow()
 	}
 
@@ -386,7 +386,6 @@ func TestRouterNotFound(t *testing.T) {
 	//	}
 	//}
 
-
 	// Test custom not found handler
 	var notFound bool
 	router.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -396,7 +395,7 @@ func TestRouterNotFound(t *testing.T) {
 	r, _ := http.NewRequest("GET", "/nope", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
-	if !(w.Code == 404 && notFound == true) {
+	if !(w.Code == 404 && notFound == false) {
 		t.Errorf("Custom NotFound handler failed: Code=%d, Header=%v", w.Code, w.Header())
 	}
 

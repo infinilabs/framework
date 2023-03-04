@@ -4,90 +4,86 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type SecondaryCacheTests struct{}
-
-func Test_SecondaryCache(t *testing.T) {
-	Expectify(new(SecondaryCacheTests), t)
-}
-
-func (_ SecondaryCacheTests) GetsANonExistantValue() {
+func Test_SecondaryCache_GetsANonExistantValue(t *testing.T) {
 	cache := newLayered().GetOrCreateSecondaryCache("foo")
-	Expect(cache).Not.To.Equal(nil)
+	assert.NotNil(t, cache)
 }
 
-func (_ SecondaryCacheTests) SetANewValue() {
+func Test_SecondaryCache_SetANewValue(t *testing.T) {
 	cache := newLayered()
 	cache.Set("spice", "flow", "a value", time.Minute)
 	sCache := cache.GetOrCreateSecondaryCache("spice")
-	Expect(sCache.Get("flow").Value()).To.Equal("a value")
-	Expect(sCache.Get("stop")).To.Equal(nil)
+	assert.Equal(t, sCache.Get("flow").Value(), "a value")
+	assert.Nil(t, sCache.Get("stop"))
 }
 
-func (_ SecondaryCacheTests) ValueCanBeSeenInBothCaches1() {
+func Test_SecondaryCache_ValueCanBeSeenInBothCaches1(t *testing.T) {
 	cache := newLayered()
 	cache.Set("spice", "flow", "a value", time.Minute)
 	sCache := cache.GetOrCreateSecondaryCache("spice")
 	sCache.Set("orinoco", "another value", time.Minute)
-	Expect(sCache.Get("orinoco").Value()).To.Equal("another value")
-	Expect(cache.Get("spice", "orinoco").Value()).To.Equal("another value")
+	assert.Equal(t, sCache.Get("orinoco").Value(), "another value")
+	assert.Equal(t, cache.Get("spice", "orinoco").Value(), "another value")
 }
 
-func (_ SecondaryCacheTests) ValueCanBeSeenInBothCaches2() {
+func Test_SecondaryCache_ValueCanBeSeenInBothCaches2(t *testing.T) {
 	cache := newLayered()
 	sCache := cache.GetOrCreateSecondaryCache("spice")
 	sCache.Set("flow", "a value", time.Minute)
-	Expect(sCache.Get("flow").Value()).To.Equal("a value")
-	Expect(cache.Get("spice", "flow").Value()).To.Equal("a value")
+	assert.Equal(t, sCache.Get("flow").Value(), "a value")
+	assert.Equal(t, cache.Get("spice", "flow").Value(), "a value")
 }
 
-func (_ SecondaryCacheTests) DeletesAreReflectedInBothCaches() {
+func Test_SecondaryCache_DeletesAreReflectedInBothCaches(t *testing.T) {
 	cache := newLayered()
 	cache.Set("spice", "flow", "a value", time.Minute)
 	cache.Set("spice", "sister", "ghanima", time.Minute)
 	sCache := cache.GetOrCreateSecondaryCache("spice")
 
 	cache.Delete("spice", "flow")
-	Expect(cache.Get("spice", "flow")).To.Equal(nil)
-	Expect(sCache.Get("flow")).To.Equal(nil)
+	assert.Nil(t, cache.Get("spice", "flow"))
+	assert.Nil(t, sCache.Get("flow"))
 
 	sCache.Delete("sister")
-	Expect(cache.Get("spice", "sister")).To.Equal(nil)
-	Expect(sCache.Get("sister")).To.Equal(nil)
+	assert.Nil(t, cache.Get("spice", "sister"))
+	assert.Nil(t, sCache.Get("sister"))
 }
 
-func (_ SecondaryCacheTests) ReplaceDoesNothingIfKeyDoesNotExist() {
+func Test_SecondaryCache_ReplaceDoesNothingIfKeyDoesNotExist(t *testing.T) {
 	cache := newLayered()
 	sCache := cache.GetOrCreateSecondaryCache("spice")
-	Expect(sCache.Replace("flow", "value-a")).To.Equal(false)
-	Expect(cache.Get("spice", "flow")).To.Equal(nil)
+	assert.Equal(t, sCache.Replace("flow", "value-a"), false)
+	assert.Nil(t, cache.Get("spice", "flow"))
 }
 
-func (_ SecondaryCacheTests) ReplaceUpdatesTheValue() {
+func Test_SecondaryCache_ReplaceUpdatesTheValue(t *testing.T) {
 	cache := newLayered()
 	cache.Set("spice", "flow", "value-a", time.Minute)
 	sCache := cache.GetOrCreateSecondaryCache("spice")
-	Expect(sCache.Replace("flow", "value-b")).To.Equal(true)
-	Expect(cache.Get("spice", "flow").Value().(string)).To.Equal("value-b")
+	assert.Equal(t, sCache.Replace("flow", "value-b"), true)
+	assert.Equal(t, cache.Get("spice", "flow").Value().(string), "value-b")
 }
 
-func (_ SecondaryCacheTests) FetchReturnsAnExistingValue() {
+func Test_SecondaryCache_FetchReturnsAnExistingValue(t *testing.T) {
 	cache := newLayered()
 	cache.Set("spice", "flow", "value-a", time.Minute)
 	sCache := cache.GetOrCreateSecondaryCache("spice")
 	val, _ := sCache.Fetch("flow", time.Minute, func() (interface{}, error) { return "a fetched value", nil })
-	Expect(val.Value().(string)).To.Equal("value-a")
+	assert.Equal(t, val.Value().(string), "value-a")
 }
 
-func (_ SecondaryCacheTests) FetchReturnsANewValue() {
+func Test_SecondaryCache_FetchReturnsANewValue(t *testing.T) {
 	cache := newLayered()
 	sCache := cache.GetOrCreateSecondaryCache("spice")
 	val, _ := sCache.Fetch("flow", time.Minute, func() (interface{}, error) { return "a fetched value", nil })
-	Expect(val.Value().(string)).To.Equal("a fetched value")
+	assert.Equal(t, val.Value().(string), "a fetched value")
 }
 
-func (_ SecondaryCacheTests) TrackerDoesNotCleanupHeldInstance() {
+func Test_SecondaryCache_TrackerDoesNotCleanupHeldInstance(t *testing.T) {
 	cache := Layered(Configure().ItemsToPrune(10).Track())
 	for i := 0; i < 10; i++ {
 		cache.Set(strconv.Itoa(i), "a", i, time.Minute)
@@ -96,9 +92,9 @@ func (_ SecondaryCacheTests) TrackerDoesNotCleanupHeldInstance() {
 	item := sCache.TrackingGet("a")
 	time.Sleep(time.Millisecond * 10)
 	gcLayeredCache(cache)
-	Expect(cache.Get("0", "a").Value()).To.Equal(0)
-	Expect(cache.Get("1", "a")).To.Equal(nil)
+	assert.Equal(t, cache.Get("0", "a").Value(), 0)
+	assert.Nil(t, cache.Get("1", "a"))
 	item.Release()
 	gcLayeredCache(cache)
-	Expect(cache.Get("0", "a")).To.Equal(nil)
+	assert.Nil(t, cache.Get("0", "a"))
 }

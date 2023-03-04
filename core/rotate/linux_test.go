@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package rotate
@@ -10,7 +11,6 @@ import (
 )
 
 func TestMaintainMode(t *testing.T) {
-	currentTime = fakeTime
 	dir := makeTempDir("TestMaintainMode", t)
 	defer os.RemoveAll(dir)
 
@@ -54,7 +54,6 @@ func TestMaintainOwner(t *testing.T) {
 		osChown = os.Chown
 		osStat = os.Stat
 	}()
-	currentTime = fakeTime
 	dir := makeTempDir("TestMaintainOwner", t)
 	defer os.RemoveAll(dir)
 
@@ -84,10 +83,7 @@ func TestMaintainOwner(t *testing.T) {
 	equals(666, fakeFS.files[filename].gid, t)
 }
 
-var currentTime=time.Now()
-
 func TestCompressMaintainMode(t *testing.T) {
-	currentTime = fakeTime
 
 	dir := makeTempDir("TestCompressMaintainMode", t)
 	defer os.RemoveAll(dir)
@@ -139,7 +135,6 @@ func TestCompressMaintainOwner(t *testing.T) {
 		osChown = os.Chown
 		osStat = os.Stat
 	}()
-	currentTime = fakeTime
 	dir := makeTempDir("TestCompressMaintainOwner", t)
 	defer os.RemoveAll(dir)
 

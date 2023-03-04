@@ -3,7 +3,7 @@
 // Note that this is v2.0 of lumberjack, and should be imported using gopkg.in
 // thusly:
 //
-//   import "gopkg.in/natefinch/lumberjack.v2"
+//	import "gopkg.in/natefinch/lumberjack.v2"
 //
 // The package name remains simply lumberjack, and the code resides at
 // https://github.com/natefinch/lumberjack under the v2.0 branch.
@@ -44,6 +44,9 @@ const (
 // ensure we always implement io.WriteCloser
 var _ io.WriteCloser = (*RotateWriter)(nil)
 
+// make testing easier
+var timeNow = time.Now
+
 // RotateWriter is an io.WriteCloser that writes to the specified filename.
 //
 // RotateWriter opens or creates the logfile on first Write.  If the file exists and
@@ -66,7 +69,7 @@ var _ io.WriteCloser = (*RotateWriter)(nil)
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
 // use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
 //
-// Cleaning Up Old Log Files
+// # Cleaning Up Old Log Files
 //
 // Whenever a new logfile gets created, old log files may be deleted.  The most
 // recent files according to the encoded timestamp will be retained, up to a
@@ -138,8 +141,8 @@ func (l *RotateWriter) WriteBytesArray(ps ...[]byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	t:=0
-	for _,p:=range ps{
+	t := 0
+	for _, p := range ps {
 		writeLen := int64(len(p))
 		if writeLen > l.max() {
 			return 0, fmt.Errorf(
@@ -160,7 +163,7 @@ func (l *RotateWriter) WriteBytesArray(ps ...[]byte) (n int, err error) {
 		}
 
 		n, err = l.file.Write(p)
-		t+=n
+		t += n
 		l.size += int64(n)
 	}
 
@@ -255,7 +258,7 @@ func backupName(name string, local bool) string {
 	filename := filepath.Base(name)
 	ext := filepath.Ext(filename)
 	prefix := filename[:len(filename)-len(ext)]
-	t := time.Now()
+	t := timeNow()
 	if !local {
 		t = t.UTC()
 	}
@@ -341,7 +344,7 @@ func (l *RotateWriter) millRunOnce() error {
 	}
 	if l.MaxFileAge > 0 {
 		diff := time.Duration(int64(24*time.Hour) * int64(l.MaxFileAge))
-		cutoff := time.Now().Add(-1 * diff)
+		cutoff := timeNow().Add(-1 * diff)
 
 		var remaining []fileInfo
 		for _, f := range files {
@@ -363,7 +366,7 @@ func (l *RotateWriter) millRunOnce() error {
 	}
 
 	for _, f := range remove {
-		fileToRemove:=filepath.Join(l.dir(), f.Name())
+		fileToRemove := filepath.Join(l.dir(), f.Name())
 		errRemove := os.Remove(fileToRemove)
 
 		if err == nil && errRemove != nil {

@@ -41,9 +41,6 @@ func Init() {
 	api.HandleAPIMethod(api.DELETE, "/account/logout", apiHandler.Logout)
 	api.HandleAPIMethod(api.GET, "/account/profile", apiHandler.RequireLogin(apiHandler.Profile))
 	api.HandleAPIMethod(api.PUT, "/account/password", apiHandler.RequireLogin(apiHandler.UpdatePassword))
-	api.HandleAPIMethod(api.GET, "/user/disable_builtin_user", apiHandler.RequirePermission(apiHandler.SetBuiltinUserAdminDisabled, enum.PermissionDisableBuiltinAdmin))
-
-	api.HandleAPIMethod(api.GET, "/user/security/settings", apiHandler.RequireLogin(apiHandler.GetSecuritySettings))
 
 
 }

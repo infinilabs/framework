@@ -519,12 +519,15 @@ func (r *refDynValue) getValue(
 	opts *options,
 ) (value, error) {
 	ref := (*reference)(r)
-	v, err := ref.resolveRef(p.ctx.getParent(), opts)
-	// If not found or we have a cyclic reference we try the environment resolvers
-	if v != nil || criticalResolveError(err) {
-		return v, err
+	var previousErr error
+	if opts.resolveRef {
+		v, err := ref.resolveRef(p.ctx.getParent(), opts)
+		// If not found or we have a cyclic reference we try the environment resolvers
+		if v != nil || criticalResolveError(err) {
+			return v, err
+		}
+		previousErr = err
 	}
-	previousErr := err
 
 	str, parseCfg, err := ref.resolveEnv(p.ctx.getParent(), opts)
 	if err != nil {
@@ -549,7 +552,13 @@ func (s spliceDynValue) getValue(
 		return nil, err
 	}
 
-	return parseValue(p, opts, str, parse.DefaultConfig)
+	var parseCfg parse.Config
+	if opts.defaultParseConfig != nil {
+		parseCfg = *opts.defaultParseConfig
+	}else{
+		parseCfg = parse.DefaultConfig
+	}
+	return parseValue(p, opts, str, parseCfg)
 }
 
 func (s spliceDynValue) String() string {

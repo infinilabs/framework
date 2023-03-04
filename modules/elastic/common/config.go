@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/credential"
 	elastic "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/modules/elastic/adapter"
@@ -112,6 +113,30 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	}
 	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
+}
+
+func GetBasicAuth(esConfig *elastic.ElasticsearchConfig)(basicAuth elastic.BasicAuth, err error){
+	if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
+		basicAuth = *esConfig.BasicAuth
+		return
+	}
+	if esConfig.CredentialID != "" {
+		cred := credential.Credential{}
+		cred.ID = esConfig.CredentialID
+		_, err = orm.Get(&cred)
+		if err != nil {
+			return
+		}
+		var dv interface{}
+		dv, err = cred.Decode()
+		if err != nil {
+			return
+		}
+		if auth, ok := dv.(elastic.BasicAuth); ok {
+			basicAuth = auth
+		}
+	}
+	return
 }
 
 func GetElasticClient(clusterID string)(elastic.API, error) {

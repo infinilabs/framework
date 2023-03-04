@@ -21,6 +21,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/event"
@@ -98,11 +99,14 @@ func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
-	result, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+	result, err := esClient.Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
 		log.Error(err)
 		return configs
 	}
+	credentialIDsM := map[string]struct{}{}
+	credentialIDs := []string{}
 
 	if len(result.Hits.Hits) > 0 {
 		for _, v1 := range result.Hits.Hits {
@@ -111,7 +115,58 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 			util.MustFromJSONBytes(bytes, &cfg)
 			cfg.ID = v1.ID
 			configs = append(configs, cfg)
+			if cfg.CredentialID != "" {
+				if _, ok := credentialIDsM[cfg.CredentialID]; !ok {
+					credentialIDs = append(credentialIDs, cfg.CredentialID)
+					credentialIDsM[cfg.CredentialID] = struct{}{}
+				}
+			}
 		}
+	}
+	if len(credentialIDs) > 0 {
+		query.Query = &elastic.Query{
+			BoolQuery: &elastic.BoolQuery{
+			Must: []interface{}{
+				util.MapStr{
+					"terms": util.MapStr{
+						"_id": credentialIDs,
+					},
+				},
+			},
+		}}
+		searchRes, err := esClient.Search(orm.GetIndexName(credential.Credential{}), &query)
+		if err != nil {
+			log.Error(err)
+			return configs
+		}
+		if len(searchRes.Hits.Hits) > 0 {
+			credentials := map[string]*credential.Credential{}
+			for _, v1 := range searchRes.Hits.Hits {
+				cred := credential.Credential{}
+				bytes := util.MustToJSONBytes(v1.Source)
+				util.MustFromJSONBytes(bytes, &cred)
+				cred.ID = v1.ID
+				credentials[cred.ID] = &cred
+			}
+			for i, cfg := range configs {
+				if cfg.CredentialID != "" {
+					if v, ok := credentials[cfg.CredentialID]; ok {
+						if v.Type == credential.BasicAuth {
+							obj, err := v.Decode()
+							if err != nil {
+								log.Error(err)
+								continue
+							}
+							if basicAuth, ok := obj.(elastic.BasicAuth); ok {
+								configs[i].BasicAuth = &basicAuth
+							}
+
+						}
+					}
+				}
+			}
+		}
+
 	}
 
 	log.Infof("loading [%v] remote configs", len(result.Hits.Hits))

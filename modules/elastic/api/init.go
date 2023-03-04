@@ -48,6 +48,10 @@ func InitAPI(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/internal/view-management/resolve_index/:wild",  clusterAPI.RequireLogin(clusterAPI.HandleResolveIndexAction))
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/saved_objects/_bulk_get", clusterAPI.RequirePermission(clusterAPI.HandleBulkGetViewAction, enum.PermissionViewRead))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/view/_fields_for_wildcard", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetFieldCapsAction) )
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/saved_objects/view/:view_id", clusterAPI.RequireClusterPermission(clusterAPI.HandleGetViewAction) )
+	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/view/:view_id/_set_default_layout", clusterAPI.RequireClusterPermission(clusterAPI.SetDefaultLayout) )
+
+
 
 	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/search/ese", clusterAPI.RequireClusterPermission(clusterAPI.HandleEseSearchAction))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/search/trace_id", clusterAPI.HandleTraceIDSearchAction)

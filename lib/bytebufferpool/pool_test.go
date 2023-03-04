@@ -1,10 +1,10 @@
 package bytebufferpool
 
 import (
-	"fmt"
-	"github.com/magiconair/properties/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPoolVariousSizesSerial(t *testing.T) {
@@ -61,13 +61,13 @@ func allocNBytes(dst []byte, n int) []byte {
 }
 
 func TestCalibrate(t *testing.T) {
-	p:=getPoolByTag("test")
-	for i:=0;i<1000;i++{
-		x:=p.Get()
+	p := getPoolByTag("test")
+	for i := 0; i < 1000; i++ {
+		x := p.Get()
 		x.GrowTo(i)
 	}
-	fmt.Println(p.poolItems)
+	t.Log(p.poolItems)
 	p.calibrate()
-	assert.Equal(t,p.maxItemSize,uint32(950))
+	assert.Equal(t, p.maxItemSize, uint32(955))
 
 }

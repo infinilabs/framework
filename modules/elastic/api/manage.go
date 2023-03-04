@@ -6,6 +6,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
@@ -45,18 +46,57 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	ctx := &orm.Context{
 		Refresh: "wait_for",
 	}
+	if conf.CredentialID == "" && conf.BasicAuth != nil && conf.BasicAuth.Username != ""{
+		credentialID, err := saveBasicAuthToCredential(conf)
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		conf.CredentialID = credentialID
+	}
+	basicAuth := conf.BasicAuth
+	conf.BasicAuth = nil
 	err = orm.Create(ctx, conf)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	conf.BasicAuth = basicAuth
 	_, err = common.InitElasticInstance(*conf)
 	if err != nil {
 		log.Warn("error on init elasticsearch:", err)
 	}
 
 	h.WriteCreatedOKJSON(w, conf.ID)
+}
+
+func saveBasicAuthToCredential(conf *elastic.ElasticsearchConfig)(string, error){
+	if conf == nil {
+		return "", fmt.Errorf("param elasticsearh config can not be empty")
+	}
+	cred := credential.Credential{
+		Name: conf.Name,
+		Type: credential.BasicAuth,
+		Tags: []string{"ES"},
+		Payload: map[string]interface{}{
+			"basic_auth": map[string]interface{}{
+				"username": conf.BasicAuth.Username,
+				"password": conf.BasicAuth.Password,
+			},
+		},
+	}
+	cred.ID = util.GetUUID()
+	err := cred.Encode()
+	if err != nil {
+		return "", err
+	}
+	err = orm.Create(nil, &cred)
+	if err != nil {
+		return "", err
+	}
+	return cred.ID, nil
 }
 
 func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
@@ -68,9 +108,6 @@ func (h *APIHandler) HandleGetClusterAction(w http.ResponseWriter, req *http.Req
 		log.Error(err)
 		h.Error404(w)
 		return
-	}
-	if clusterConf.BasicAuth != nil {
-		clusterConf.BasicAuth.Password = ""
 	}
 	h.WriteGetOKJSON(w, id, clusterConf)
 }
@@ -103,7 +140,9 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 		if k == "basic_auth" {
 			if authMap, ok := v.(map[string]interface{}); ok {
 				if pwd, ok := authMap["password"]; !ok || (ok && pwd =="") {
-					authMap["password"] = source[k].(map[string]interface{})["password"]
+					if sourceM, ok :=  source[k].(map[string]interface{}); ok {
+						authMap["password"] = sourceM["password"]
+					}
 				}
 			}
 		}
@@ -126,12 +165,35 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
+	if conf["credential_id"] == nil {
+		if newConf.BasicAuth != nil && newConf.BasicAuth.Username != "" {
+			credentialID, err := saveBasicAuthToCredential(newConf)
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			newConf.CredentialID = credentialID
+			newConf.BasicAuth = nil
+		}else{
+			newConf.CredentialID = ""
+		}
+	}
 	err = orm.Update(ctx, newConf)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+
+	basicAuth, err := common.GetBasicAuth(newConf)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	newConf.BasicAuth = &basicAuth
 
 	//update config in heap
 	_, err = common.InitElasticInstance(*newConf)
