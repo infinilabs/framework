@@ -166,6 +166,43 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 		h.WriteJSON(w, elastic.AliasAndIndicesResponse{
 			Aliases: []elastic.AAIR_Alias{},
 			Indices: []elastic.AAIR_Indices{},
+
+		}, http.StatusOK)
+		return
+	}
+	//ccs
+	if strings.Contains(wild, ":") {
+		q := util.MapStr{
+			"size": 0,
+			"aggs": util.MapStr{
+				"indices": util.MapStr{
+					"terms": util.MapStr{
+						"field": "_index",
+						"size": 200,
+					},
+				},
+			},
+		}
+		searchRes, err := client.SearchWithRawQueryDSL(wild, util.MustToJSONBytes(q))
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		indices := []elastic.AAIR_Indices{}
+		if agg, ok := searchRes.Aggregations["indices"]; ok {
+			for _, bk := range agg.Buckets {
+				if k, ok := bk["key"].(string); ok {
+					indices = append(indices, elastic.AAIR_Indices{
+						Name: k,
+						Attributes: []string{"open"},
+					})
+				}
+			}
+		}
+		h.WriteJSON(w, elastic.AliasAndIndicesResponse{
+			Aliases: []elastic.AAIR_Alias{},
+			Indices: indices,
 		}, http.StatusOK)
 		return
 	}
