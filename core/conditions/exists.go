@@ -17,22 +17,30 @@
 
 package conditions
 
-import "testing"
+import (
+	"fmt"
+)
 
-func TestHasFieldsMultiFieldPositiveMatch(t *testing.T) {
-	testConfig(t, true, secdTestEvent, &Config{
-		HasFields: []string{"proc.cmdline", "type"},
-	})
+// Exists is a Condition for checking field existence.
+type Exists []string
+
+// NewExistsCondition builds a new Exists checking the given list of fields.
+func NewExistsCondition(fields []string) (hasFieldsCondition Exists) {
+	return Exists(fields)
 }
 
-func TestHasFieldsSingleFieldNegativeMatch(t *testing.T) {
-	testConfig(t, false, secdTestEvent, &Config{
-		HasFields: []string{"cpu"},
-	})
+// Check determines whether the given event matches this condition
+func (c Exists) Check(event ValuesMap) bool {
+	for _, field := range c {
+		_, err := event.GetValue(field)
+		//fmt.Println("has_field,",field,",",v,",",err)
+		if err != nil {
+			return false
+		}
+	}
+	return true
 }
 
-func TestHasFieldsMultiFieldNegativeMatch(t *testing.T) {
-	testConfig(t, false, secdTestEvent, &Config{
-		HasFields: []string{"proc", "beat"},
-	})
+func (c Exists) String() string {
+	return fmt.Sprintf("exists: %v", []string(c))
 }

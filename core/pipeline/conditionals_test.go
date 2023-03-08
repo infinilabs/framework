@@ -19,11 +19,12 @@ package pipeline
 
 import (
 	"errors"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	cfg1 "infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
-	"testing"
 )
 
 type countFilter struct {
@@ -66,13 +67,13 @@ func (c *countFilter) String() string { return "count" }
 //		},
 //		{
 //			"condition_matches",
-//			config{"when.has_fields": []string{"i"}},
+//			config{"when.exists": []string{"i"}},
 //			[]util.MapStr{{"i": 10}},
 //			1,
 //		},
 //		{
 //			"condition_fails",
-//			config{"when.has_fields": []string{"j"}},
+//			config{"when.exists": []string{"j"}},
 //			[]util.MapStr{{"i": 10}},
 //			0,
 //		},

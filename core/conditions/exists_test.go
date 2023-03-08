@@ -17,30 +17,22 @@
 
 package conditions
 
-import (
-	"fmt"
-)
+import "testing"
 
-// HasFields is a Condition for checking field existence.
-type HasFields []string
-
-// NewHasFieldsCondition builds a new HasFields checking the given list of fields.
-func NewHasFieldsCondition(fields []string) (hasFieldsCondition HasFields) {
-	return HasFields(fields)
+func TestHasFieldsMultiFieldPositiveMatch(t *testing.T) {
+	testConfig(t, true, secdTestEvent, &Config{
+		Exists: []string{"proc.cmdline", "type"},
+	})
 }
 
-// Check determines whether the given event matches this condition
-func (c HasFields) Check(event ValuesMap) bool {
-	for _, field := range c {
-		_, err := event.GetValue(field)
-		//fmt.Println("has_field,",field,",",v,",",err)
-		if err != nil {
-			return false
-		}
-	}
-	return true
+func TestHasFieldsSingleFieldNegativeMatch(t *testing.T) {
+	testConfig(t, false, secdTestEvent, &Config{
+		Exists: []string{"cpu"},
+	})
 }
 
-func (c HasFields) String() string {
-	return fmt.Sprintf("has_fields: %v", []string(c))
+func TestHasFieldsMultiFieldNegativeMatch(t *testing.T) {
+	testConfig(t, false, secdTestEvent, &Config{
+		Exists: []string{"proc", "beat"},
+	})
 }
