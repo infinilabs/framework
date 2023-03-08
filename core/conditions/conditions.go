@@ -18,26 +18,27 @@
 package conditions
 
 import (
+	"io"
+	"sync"
+
+	"github.com/valyala/fasttemplate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
-	"io"
-	"github.com/valyala/fasttemplate"
-	"sync"
 )
 
 // Config represents a configuration for a condition, as you would find it in the config files.
 type Config struct {
 	Equals           *Fields                `config:"equals"`
 	Contains         *Fields                `config:"contains"`
-	Prefix           map[string]interface{} 	`config:"prefix"`
-	Suffix           map[string]interface{}     `config:"suffix"`
+	Prefix           map[string]interface{} `config:"prefix"`
+	Suffix           map[string]interface{} `config:"suffix"`
 	Regexp           *Fields                `config:"regexp"`
 	Range            *Fields                `config:"range"`
 	QueueHasLag      []string               `config:"queue_has_lag"`
 	ConsumerHasLag   *Fields                `config:"consumer_has_lag"`
 	ClusterAvailable []string               `config:"cluster_available"`
-	HasFields        []string               `config:"has_fields"`
+	Exists           []string               `config:"exists"`
 	Network          map[string]interface{} `config:"network"`
 	OR               []Config               `config:"or"`
 	AND              []Config               `config:"and"`
@@ -62,62 +63,61 @@ type MutableValueMap interface {
 }
 
 type RemovableValueMap interface {
-	RemoveValue(s string)(bool, error)
+	RemoveValue(s string) (bool, error)
 }
 
 type Context struct {
-	contexts []ValuesMap
+	contexts  []ValuesMap
 	templates sync.Map
 }
 
-func (this *Context)AddContext(ctx ValuesMap)(*Context){
-	if this.contexts==nil{
-		this.contexts=[]ValuesMap{}
+func (this *Context) AddContext(ctx ValuesMap) *Context {
+	if this.contexts == nil {
+		this.contexts = []ValuesMap{}
 	}
-	this.contexts=append(this.contexts,ctx)
+	this.contexts = append(this.contexts, ctx)
 	return this
 }
 
-func (this *Context)GetValue(k string) (interface{}, error) {
+func (this *Context) GetValue(k string) (interface{}, error) {
 
 	var err error
 	//handle variables
-	if util.ContainStr(k,"$[["){
-		t,ok:=this.templates.Load(k)
+	if util.ContainStr(k, "$[[") {
+		t, ok := this.templates.Load(k)
 		var template *fasttemplate.Template
-		if !ok{
+		if !ok {
 			template, err = fasttemplate.NewTemplate(k, "$[[", "]]")
 			if err != nil {
 				panic(err)
 			}
-			this.templates.Store(k,template)
-		}else{
-			template=t.(*fasttemplate.Template)
+			this.templates.Store(k, template)
+		} else {
+			template = t.(*fasttemplate.Template)
 		}
 
-		k,err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
-			variable,err := this.GetValue(tag)
-			if err!=nil{
-				return 0,err
+		k, err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
+			variable, err := this.GetValue(tag)
+			if err != nil {
+				return 0, err
 			}
 			return w.Write([]byte(util.ToString(variable)))
 		})
-		if err==nil{
+		if err == nil {
 			return this.GetValue(k)
 		}
 	}
 
 	//check contexts
-	for _,ctx:=range this.contexts{
-		v,err:= ctx.GetValue(k)
-		if err==nil{
-			return v,err
+	for _, ctx := range this.contexts {
+		v, err := ctx.GetValue(k)
+		if err == nil {
+			return v, err
 		}
 	}
 
 	return nil, errors.Errorf("key=%v", k)
 }
-
 
 // NewCondition takes a Config and turns it into a real Condition
 func NewCondition(config *Config) (Condition, error) {
@@ -144,8 +144,8 @@ func NewCondition(config *Config) (Condition, error) {
 		condition, err = NewMatcherCondition("regexp", config.Regexp.fields, match.Compile)
 	case config.Range != nil:
 		condition, err = NewRangeCondition(config.Range.fields)
-	case config.HasFields != nil:
-		condition = NewHasFieldsCondition(config.HasFields)
+	case config.Exists != nil:
+		condition = NewExistsCondition(config.Exists)
 	case config.QueueHasLag != nil:
 		condition = NewQueueHasLagCondition(config.QueueHasLag)
 	case config.ConsumerHasLag != nil:
