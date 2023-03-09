@@ -19,7 +19,6 @@ package stats
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/segmentio/encoding/json"
@@ -58,7 +57,7 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 		buffer := bytebufferpool.Get("stats")
 		defer bytebufferpool.Put("stats", buffer)
 		for k, v := range kv {
-			buffer.Write(util.UnsafeStringToBytes(strings.ReplaceAll(k, ".", "_")))
+			buffer.Write(util.UnsafeStringToBytes(util.PrometheusMetricReplacer.Replace(k)))
 			buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
 				global.Env().GetAppLowercaseName(),
 				global.Env().SystemConfig.NodeConfig.IP,
