@@ -6,38 +6,40 @@ package event
 import (
 	"errors"
 	"fmt"
-	"infini.sh/framework/core/util"
 	"strings"
 	"time"
+
+	"infini.sh/framework/core/util"
 )
 
 type Event struct {
 	Agent     *AgentMeta    `json:"agent"`
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata  EventMetadata `json:"metadata"`
-	Fields     util.MapStr `json:"payload"`
+	Fields    util.MapStr   `json:"payload"`
 
 	Meta       util.MapStr `json:"-"`
-	Private    interface{} `json:"-"`// for beats private use
-	TimeSeries bool       `json:"-"` // true if the event contains timeseries data
+	Private    interface{} `json:"-"` // for beats private use
+	TimeSeries bool        `json:"-"` // true if the event contains timeseries data
 }
 
 type EventMetadata struct {
-	Labels util.MapStr `json:"labels,omitempty"`
-	Category string `json:"category,omitempty"`
-	Name     string `json:"name,omitempty"`
-	Datatype string `json:"datatype,omitempty"`
+	Labels   util.MapStr `json:"labels,omitempty"`
+	Category string      `json:"category,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Version  string      `json:"version,omitempty"`
+	Datatype string      `json:"datatype,omitempty"`
 }
 
 func (e *Event) String() string {
-	return fmt.Sprintf("%v %v %v", e.Timestamp.UTC().Unix(), e.Metadata.Category,e.Metadata.Name)
+	return fmt.Sprintf("%v %v %v", e.Timestamp.UTC().Unix(), e.Metadata.Category, e.Metadata.Name)
 }
 
 type AgentMeta struct {
 	QueueName string `json:"-"`
 
 	AgentID  string   `json:"id,omitempty"`
-	HostID  string    `json:"host_id,omitempty"`
+	HostID   string   `json:"host_id,omitempty"`
 	Hostname string   `json:"hostname,omitempty"`
 	MajorIP  string   `json:"major_ip,omitempty"`
 	IP       []string `json:"ips,omitempty"`
@@ -45,7 +47,6 @@ type AgentMeta struct {
 	Tags   []string          `json:"tags,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 }
-
 
 // SetID overwrites the "id" field in the events metadata.
 // If Meta is nil, a new Meta dictionary is created.
