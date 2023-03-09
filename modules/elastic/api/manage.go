@@ -55,7 +55,6 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		}
 		conf.CredentialID = credentialID
 	}
-	basicAuth := conf.BasicAuth
 	conf.BasicAuth = nil
 	err = orm.Create(ctx, conf)
 	if err != nil {
@@ -63,7 +62,13 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	conf.BasicAuth = basicAuth
+	basicAuth, err := common.GetBasicAuth(conf)
+	if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+	}
+	conf.BasicAuth = &basicAuth
 	_, err = common.InitElasticInstance(*conf)
 	if err != nil {
 		log.Warn("error on init elasticsearch:", err)
