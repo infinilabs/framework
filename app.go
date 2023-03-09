@@ -172,14 +172,13 @@ func (app *App) initWithFlags() {
 	}
 	global.RegisterEnv(app.environment)
 
-	if app.svcFlag == "" {
-		if !util.FileExists(app.environment.GetDataDir()) {
-			os.MkdirAll(app.environment.GetDataDir(), 0755)
-		}
-		if !util.FileExists(app.environment.GetLogDir()) {
-			os.MkdirAll(app.environment.GetLogDir(), 0755)
-		}
+	if !util.FileExists(app.environment.GetDataDir()) {
+		os.MkdirAll(app.environment.GetDataDir(), 0755)
 	}
+	if !util.FileExists(app.environment.GetLogDir()) {
+		os.MkdirAll(app.environment.GetLogDir(), 0755)
+	}
+
 }
 
 func (app *App) initEnvironment(customFunc func()) {
