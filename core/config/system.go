@@ -134,6 +134,8 @@ type SystemConfig struct {
 
 	MaxNumOfInstance int `config:"max_num_of_instances"`
 
+	MaxMemoryInBytes int `config:"max_memory_in_bytes"`
+
 	Configs struct {
 		AutoReload bool             `config:"auto_reload"`
 	} `config:"configs"`

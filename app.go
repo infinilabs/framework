@@ -98,11 +98,15 @@ func (app *App) Init(customFunc func()) {
 
 	license.Verify()
 
+	//detect memory usage
+	maxMemInBytes:=uint64(app.environment.SystemConfig.MaxMemoryInBytes)
 	if app.maxMEM>0{
+		maxMemInBytes=uint64(app.maxMEM*1024*1024)
+	}
+
+	if maxMemInBytes>0{
 		checkPid := os.Getpid()
 		p, _ := process.NewProcess(int32(checkPid))
-		maxMemInBytes:=uint64(app.maxMEM*1024*1024)
-
 		debug.SetMemoryLimit(int64(maxMemInBytes))
 
 		var memoryInfoStat *process.MemoryInfoStat
@@ -122,9 +126,6 @@ func (app *App) Init(customFunc func()) {
 						log.Warnf("reached max memory limit! used: %v, limit:%v",util.ByteSize(memoryInfoStat.RSS),util.ByteSize(maxMemInBytes))
 					}
 				}
-
-
-
 			}}
 		task.RegisterScheduleTask(task1)
 	}
