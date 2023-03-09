@@ -18,15 +18,16 @@ package stats
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
-	"net/http"
-	"strings"
-	"sync"
 )
 
 func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
@@ -36,50 +37,51 @@ func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
 
 var space = []byte(" ")
 var newline = []byte("\n")
-var statsLock=sync.RWMutex{}
+var statsLock = sync.RWMutex{}
 
 // StatsAction return stats information
 func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var bytes []byte
 	var err error
 
-	metrics,err:=stats.StatsMap()
-	if err!=nil{
-		handler.WriteError(w,"stats is nil",500)
+	metrics, err := stats.StatsMap()
+	if err != nil {
+		handler.WriteError(w, "stats is nil", 500)
 		return
 	}
 
-	format :=handler.GetParameter(req,"format")
+	format := handler.GetParameter(req, "format")
 
 	switch format {
-		case "prometheus":
-			kv := util.Flatten(metrics, false)
-			buffer := bytebufferpool.Get("stats")
-			defer bytebufferpool.Put("stats", buffer)
-			for k, v := range kv {
-				buffer.Write(util.UnsafeStringToBytes(strings.ReplaceAll(k,".","_")))
-				buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"gateway\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
-					global.Env().SystemConfig.NodeConfig.IP,
-					global.Env().SystemConfig.NodeConfig.Name,
-					global.Env().SystemConfig.NodeConfig.ID,
-					)))
-				buffer.Write(space)
-				buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
-				buffer.Write(newline)
-			}
-			handler.WriteTextHeader(w)
-			handler.Write(w, buffer.Bytes())
-			break
-		default:
-			statsLock.Lock()
-			defer statsLock.Unlock()
-			bytes, err = json.MarshalIndent(metrics, "", " ")
-			if err != nil {
-				handler.Error(w, err)
-				return
-			}
-			handler.WriteJSONHeader(w)
-			handler.Write(w, bytes)
+	case "prometheus":
+		kv := util.Flatten(metrics, false)
+		buffer := bytebufferpool.Get("stats")
+		defer bytebufferpool.Put("stats", buffer)
+		for k, v := range kv {
+			buffer.Write(util.UnsafeStringToBytes(strings.ReplaceAll(k, ".", "_")))
+			buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
+				global.Env().GetAppLowercaseName(),
+				global.Env().SystemConfig.NodeConfig.IP,
+				global.Env().SystemConfig.NodeConfig.Name,
+				global.Env().SystemConfig.NodeConfig.ID,
+			)))
+			buffer.Write(space)
+			buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
+			buffer.Write(newline)
+		}
+		handler.WriteTextHeader(w)
+		handler.Write(w, buffer.Bytes())
+		break
+	default:
+		statsLock.Lock()
+		defer statsLock.Unlock()
+		bytes, err = json.MarshalIndent(metrics, "", " ")
+		if err != nil {
+			handler.Error(w, err)
+			return
+		}
+		handler.WriteJSONHeader(w)
+		handler.Write(w, bytes)
 	}
 
 	handler.WriteHeader(w, 200)
