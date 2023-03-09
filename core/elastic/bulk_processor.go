@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
@@ -13,14 +17,11 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
-	"net/http"
-	"strings"
-	"time"
 )
 
 var NEWLINEBYTES = []byte("\n")
 
-func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id,routing string)) (int, error) {
+func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id, routing string)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
@@ -62,23 +63,23 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 		if nextIsMeta {
 			nextIsMeta = false
 			var err error
-			actionStr, index, typeName, id,routing,err = ParseActionMeta(line)
-			if global.Env().IsDebug{
-				log.Trace(docCount,",",actionStr, index, typeName, id,routing,err,",",string(line))
+			actionStr, index, typeName, id, routing, err = ParseActionMeta(line)
+			if global.Env().IsDebug {
+				log.Trace(docCount, ",", actionStr, index, typeName, id, routing, err, ",", string(line))
 			}
-			if err!=nil{
-				if global.Env().IsDebug{
-					if util.ContainStr(err.Error(),"invalid_meta_buffer"){
-					if i>0{
-						previous:=lines[i-1]
-							log.Info("line:",i,",previous line:",string(previous),",raw:",string(lines[i]),",invalid:",string(line),",full message:",string(data))
+			if err != nil {
+				if global.Env().IsDebug {
+					if util.ContainStr(err.Error(), "invalid_meta_buffer") {
+						if i > 0 {
+							previous := lines[i-1]
+							log.Info("line:", i, ",previous line:", string(previous), ",raw:", string(lines[i]), ",invalid:", string(line), ",full message:", string(data))
 						}
 					}
 				}
 				panic(err)
 			}
 
-			err = metaFunc(line, actionStr, index, typeName, id,routing,docCount)
+			err = metaFunc(line, actionStr, index, typeName, id, routing, docCount)
 			if err != nil {
 				panic(err)
 			}
@@ -90,7 +91,7 @@ func WalkBulkRequests(data []byte,eachLineFunc func(eachLine []byte) (skipNextLi
 			}
 		} else {
 			nextIsMeta = true
-			payloadFunc(line, actionStr, index, typeName, id,routing)
+			payloadFunc(line, actionStr, index, typeName, id, routing)
 		}
 	}
 
@@ -141,26 +142,22 @@ type BulkProcessorConfig struct {
 	BulkSizeInMb     int `config:"batch_size_in_mb,omitempty"`
 	BulkMaxDocsCount int `config:"batch_size_in_docs,omitempty"`
 
-	Compress                 bool   `config:"compress"`
-	RetryDelayInSeconds     int    `config:"retry_delay_in_seconds"`
-	RejectDelayInSeconds    int    `config:"reject_retry_delay_in_seconds"`
-	MaxRejectRetryTimes     int    `config:"max_reject_retry_times"`
-	MaxRetryTimes           int    `config:"max_retry_times"`
-	RequestTimeoutInSecond  int    `config:"request_timeout_in_second"`
+	Compress               bool `config:"compress"`
+	RetryDelayInSeconds    int  `config:"retry_delay_in_seconds"`
+	RejectDelayInSeconds   int  `config:"reject_retry_delay_in_seconds"`
+	MaxRejectRetryTimes    int  `config:"max_reject_retry_times"`
+	MaxRetryTimes          int  `config:"max_retry_times"`
+	RequestTimeoutInSecond int  `config:"request_timeout_in_second"`
 
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
 
-
-
 	BulkResponseParseConfig BulkResponseParseConfig `config:"response_handle"`
 
-	RemoveDuplicatedNewlines bool   `config:"remove_duplicated_newlines"`
+	RemoveDuplicatedNewlines bool `config:"remove_duplicated_newlines"`
 }
 
-
 type BulkResponseParseConfig struct {
-
 	SaveSuccessBulkResultToMessageQueue bool `config:"save_success_results"`
 	SaveErrorBulkResultToMessageQueue   bool `config:"save_error_results"`
 
@@ -171,7 +168,7 @@ type BulkResponseParseConfig struct {
 	IncludeErrorDetails        bool `config:"include_error_details"`
 	MaxItemOfErrorDetailsCount int  `config:"max_error_details_count"`
 
-	SaveBusyBulkResultToMessageQueue       bool `config:"save_busy_results"`
+	SaveBusyBulkResultToMessageQueue       bool   `config:"save_busy_results"`
 	BulkResultMessageQueue                 string `config:"bulk_result_message_queue"`
 	BulkResultMessageMaxRequestBodyLength  int    `config:"max_request_body_size"`
 	BulkResultMessageMaxResponseBodyLength int    `config:"max_response_body_size"`
@@ -179,27 +176,26 @@ type BulkResponseParseConfig struct {
 	RetryException RetryException `config:"retry_exception"`
 }
 
-
 type RetryException struct {
-	Retry429 			bool `config:"retry_429"`
-	ResponseCode       []int 	`config:"code"`
-	ResponseKeyword    []string `config:"keyword"`
+	Retry429        bool     `config:"retry_429"`
+	ResponseCode    []int    `config:"code"`
+	ResponseKeyword []string `config:"keyword"`
 }
 
-func (this *RetryException) ShouldSkipRetry(code int,msg string)bool{
+func (this *RetryException) ShouldSkipRetry(code int, msg string) bool {
 
-	if len(this.ResponseCode)>0{
-		for _,v:=range this.ResponseCode{
-			if v==code{
+	if len(this.ResponseCode) > 0 {
+		for _, v := range this.ResponseCode {
+			if v == code {
 				return true
 			}
 		}
 	}
 
-	if len(this.ResponseKeyword)>0 && len(msg)>0{
-		for _,v:=range this.ResponseKeyword{
-			if util.ContainStr(msg,v){
-				log.Debug("message: ",msg," contains keyword: [",v, "], skip retry")
+	if len(this.ResponseKeyword) > 0 && len(msg) > 0 {
+		for _, v := range this.ResponseKeyword {
+			if util.ContainStr(msg, v) {
+				log.Debug("message: ", msg, " contains keyword: [", v, "], skip retry")
 				return true
 			}
 		}
@@ -207,7 +203,6 @@ func (this *RetryException) ShouldSkipRetry(code int,msg string)bool{
 
 	return false
 }
-
 
 func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
 
@@ -222,21 +217,20 @@ func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
 }
 
 var DefaultBulkProcessorConfig = BulkProcessorConfig{
-	BulkMaxDocsCount:        1000,
-	BulkSizeInMb:            10,
-	Compress:                false,
-	RetryDelayInSeconds:     1,
-	RejectDelayInSeconds:    1,
-	MaxRejectRetryTimes:     60,
-	MaxRetryTimes:           10,
-
+	BulkMaxDocsCount:     1000,
+	BulkSizeInMb:         10,
+	Compress:             false,
+	RetryDelayInSeconds:  1,
+	RejectDelayInSeconds: 1,
+	MaxRejectRetryTimes:  60,
+	MaxRetryTimes:        10,
 
 	DeadletterRequestsQueue: "bulk_dead_requests",
 	BulkResponseParseConfig: BulkResponseParseConfig{
-		BulkResultMessageMaxRequestBodyLength:  10*1024,
-		BulkResultMessageMaxResponseBodyLength: 10*1024,
+		BulkResultMessageMaxRequestBodyLength:  10 * 1024,
+		BulkResultMessageMaxResponseBodyLength: 10 * 1024,
 
-		BulkResultMessageQueue:  "bulk_result_messages",
+		BulkResultMessageQueue: "bulk_result_messages",
 
 		SaveSuccessBulkResultToMessageQueue: false,
 		SaveErrorBulkResultToMessageQueue:   true,
@@ -250,24 +244,24 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 
 		RetryException: RetryException{Retry429: true},
 	},
-	RequestTimeoutInSecond:  60,
+	RequestTimeoutInSecond: 60,
 }
 
 type BulkProcessor struct {
 	Config BulkProcessorConfig
 }
 
-func (joint *BulkProcessor) Bulk(ctx context.Context,tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, err error) {
+func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, err error) {
 
 	statsRet = make(map[int]int)
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
-		return true,statsRet, errors.New("invalid bulk requests, message is nil")
+		return true, statsRet, errors.New("invalid bulk requests, message is nil")
 	}
 
 	host = metadata.GetActivePreferredHost(host)
 
-	if host==""{
+	if host == "" {
 		panic("invalid host")
 	}
 
@@ -303,9 +297,9 @@ func (joint *BulkProcessor) Bulk(ctx context.Context,tag string, metadata *Elast
 	buffer.SafetyEndWithNewline()
 	data := buffer.GetMessageBytes()
 
-	if joint.Config.RemoveDuplicatedNewlines{
+	if joint.Config.RemoveDuplicatedNewlines {
 		//handle double \n
-		data=bytes.ReplaceAll(data,[]byte("\n\n"),[]byte("\n"))
+		data = bytes.ReplaceAll(data, []byte("\n\n"), []byte("\n"))
 	}
 
 	if !req.IsGzipped() && joint.Config.Compress {
@@ -328,7 +322,7 @@ func (joint *BulkProcessor) Bulk(ctx context.Context,tag string, metadata *Elast
 	orignalSchema := string(req.URI().Scheme())
 	orignalHost := string(req.URI().Host())
 
-	if host!=""&&req.Host()==nil||string(req.Host())!=orignalHost{
+	if host != "" && req.Host() == nil || string(req.Host()) != orignalHost {
 		req.Header.SetHost(host)
 	}
 
@@ -350,10 +344,10 @@ DO:
 	if req.GetBodyLength() <= 0 {
 		panic(errors.Error("request body is zero,", len(data), ",is compress:", joint.Config.Compress))
 	}
-	
+
 	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(req.Header.Host()), 1, req.GetRequestLength(), 0)
 
-	stats.Increment("elasticsearch.bulk","submit")
+	stats.Increment("elasticsearch.bulk", "submit")
 
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
@@ -363,9 +357,9 @@ DO:
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
 			time.Sleep(2 * time.Second)
 		}
-		return false,statsRet, err
+		return false, statsRet, err
 	}
-	
+
 	////restore body and header
 	//if !acceptGzipped && compressed {
 	//
@@ -386,103 +380,101 @@ DO:
 		if global.Env().IsDebug {
 			log.Error(err)
 		}
-		return false,statsRet, err
+		return false, statsRet, err
 	}
-	
+
 	// Do we need to decompress the response?
 	var resbody = resp.GetRawBody()
-	
+
 	if global.Env().IsDebug {
 		log.Trace(resp.StatusCode(), util.UnsafeBytesToString(util.EscapeNewLine(data)), util.UnsafeBytesToString(util.EscapeNewLine(resbody)))
 	}
 
 	//for response
-	labels:=util.MapStr{
-		"cluster_id":       metadata.Config.ID,
+	labels := util.MapStr{
+		"cluster_id": metadata.Config.ID,
 		"host":       orignalHost,
-		"queue":     buffer.Queue,
+		"queue":      buffer.Queue,
 	}
 	if retryTimes > 0 {
 		labels["retry_times"] = retryTimes
 	}
 
 	if resp.StatusCode() == http.StatusOK || resp.StatusCode() == http.StatusCreated {
-		
+
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats,_:= HandleBulkResponse(req, resp,labels, data, resbody,successItems, nonRetryableItems, retryableItems,joint.Config.BulkResponseParseConfig)
+			containError, statsCodeStats, _ := HandleBulkResponse(req, resp, labels, data, resbody, successItems, nonRetryableItems, retryableItems, joint.Config.BulkResponseParseConfig)
 
-			for k,v:=range statsCodeStats{
-				if global.Env().IsDebug{
-					stats.IncrementBy("bulk::"+tag,util.ToString(k), int64(v))
+			for k, v := range statsCodeStats {
+				if global.Env().IsDebug {
+					stats.IncrementBy("bulk::"+tag, util.ToString(k), int64(v))
 				}
 				statsRet[k] = statsRet[k] + v
 			}
 
-			if retryTimes>0||global.Env().IsDebug{
+			if retryTimes > 0 || global.Env().IsDebug {
 				log.Infof("#%v, code:%v, contain_err:%v, status:%v, success:%v, failure:%v, invalid:%v",
-					retryTimes,resp.StatusCode(),containError,statsCodeStats,successItems.GetMessageCount(),retryableItems.GetMessageCount(),nonRetryableItems.GetMessageCount())
+					retryTimes, resp.StatusCode(), containError, statsCodeStats, successItems.GetMessageCount(), retryableItems.GetMessageCount(), nonRetryableItems.GetMessageCount())
 			}
 
-			if containError{
-					count:=retryableItems.GetMessageCount()
-					if count > 0 {
-						log.Debugf("%v, retry item: %v",tag,count)
-						retryableItems.SafetyEndWithNewline()
-						bodyBytes:=retryableItems.GetMessageBytes()
-						req.SetRawBody(bodyBytes)
-						delayTime := joint.Config.RejectDelayInSeconds
+			if containError {
+				count := retryableItems.GetMessageCount()
+				if count > 0 {
+					log.Debugf("%v, retry item: %v", tag, count)
+					retryableItems.SafetyEndWithNewline()
+					bodyBytes := retryableItems.GetMessageBytes()
+					req.SetRawBody(bodyBytes)
+					delayTime := joint.Config.RejectDelayInSeconds
 
-						if delayTime <= 0 {
-							delayTime = 5
-						}
-
-						time.Sleep(time.Duration(delayTime) * time.Second)
-
-						if joint.Config.MaxRejectRetryTimes <= 0 {
-							joint.Config.MaxRejectRetryTimes = 12 //1min
-						}
-
-						if retryTimes >= joint.Config.MaxRejectRetryTimes {
-
-							//continue retry before is back
-							if !metadata.IsAvailable() {
-								return false,statsRet, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
-							}
-
-							data := req.OverrideBodyEncode(bodyBytes, true)
-							queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
-							return true,statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
-						}
-						log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v, stats:%v", tag,retryTimes,retryableItems.GetMessageCount(),retryableItems.GetMessageSize(),statsCodeStats)
-						retryTimes++
-						stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
-
-						goto DO
+					if delayTime <= 0 {
+						delayTime = 5
 					}
 
-					var continueNext =false
-					//skip all failure messages
-					if nonRetryableItems.GetMessageCount() > 0 && retryableItems.GetMessageCount() == 0 {
+					time.Sleep(time.Duration(delayTime) * time.Second)
+
+					if joint.Config.MaxRejectRetryTimes <= 0 {
+						joint.Config.MaxRejectRetryTimes = 12 //1min
+					}
+
+					if retryTimes >= joint.Config.MaxRejectRetryTimes {
+
+						//continue retry before is back
+						if !metadata.IsAvailable() {
+							return false, statsRet, errors.Errorf("elasticsearch [%v] is not available", metadata.Config.Name)
+						}
+
+						data := req.OverrideBodyEncode(bodyBytes, true)
+						queue.Push(queue.GetOrInitConfig(metadata.Config.ID+"_dead_letter_queue"), data)
+						return true, statsRet, errors.Errorf("bulk partial failure, retried %v times, quit retry", retryTimes)
+					}
+					log.Infof("%v, bulk partial failure, #%v retry, %v items left, size: %v, stats:%v", tag, retryTimes, retryableItems.GetMessageCount(), retryableItems.GetMessageSize(), statsCodeStats)
+					retryTimes++
+					stats.Increment("elasticsearch."+tag+"."+metadata.Config.Name+".bulk", "retry")
+
+					goto DO
+				}
+
+				var continueNext = false
+				if retryableItems.GetMessageCount() == 0 {
+					// no retryable
+					continueNext = true
+					// skip all failure messages
+					if nonRetryableItems.GetMessageCount() > 0 {
 						////handle 400 error
 						if joint.Config.InvalidRequestsQueue != "" {
 							queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 						}
-						continueNext=true
-					}else if nonRetryableItems.GetMessageCount() == 0 && retryableItems.GetMessageCount() == 0{
-						//no retryable
-						continueNext=true
+						continueNext = true
 					}
-					if retryableItems.GetMessageCount()>0{
-						continueNext=false
-					}
-
-					return continueNext,statsRet, errors.Errorf("bulk response contains error, %v, %v, %v, none-retryable:%v, retryable:%v",metadata.Config.Name, statsCodeStats,statsRet,nonRetryableItems.GetMessageCount(),retryableItems.GetMessageCount())
 				}
+
+				return continueNext, statsRet, errors.Errorf("bulk response contains error, config: %v, non-retryable docs: %v, retryable docs:%v", metadata.Config.Name, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount())
+			}
 		}
-		return true,statsRet, nil
-	}else{
+		return true, statsRet, nil
+	} else {
 
 		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageCount()
 
@@ -491,32 +483,31 @@ DO:
 		}
 
 		if resp.StatusCode() == 429 {
-			return false,statsRet, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
+			return false, statsRet, errors.Errorf("code 429, [%v] is too busy", metadata.Config.Name)
 		} else if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
 			////handle 400 error
 			if joint.Config.InvalidRequestsQueue != "" {
 				queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
 			}
-			return true,statsRet, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
+			return true, statsRet, errors.Errorf("invalid requests, code: %v", resp.StatusCode())
 		} else {
 
 			if global.Env().IsDebug {
 				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resbody))
 			}
 
-			if joint.Config.BulkResponseParseConfig.RetryException.ShouldSkipRetry(resp.StatusCode(),util.UnsafeBytesToString(resp.GetRawBody())){
-				truncatedResponse:=util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResponseParseConfig.BulkResultMessageMaxRequestBodyLength)
-				log.Warnf("code: %v, but hit condition to skip retry, response: %v",resp.StatusCode(),truncatedResponse)
-				return true,statsRet, errors.Errorf("code: %v, response: %v", resp.StatusCode(),truncatedResponse)
+			if joint.Config.BulkResponseParseConfig.RetryException.ShouldSkipRetry(resp.StatusCode(), util.UnsafeBytesToString(resp.GetRawBody())) {
+				truncatedResponse := util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResponseParseConfig.BulkResultMessageMaxRequestBodyLength)
+				log.Warnf("code: %v, but hit condition to skip retry, response: %v", resp.StatusCode(), truncatedResponse)
+				return true, statsRet, errors.Errorf("code: %v, response: %v", resp.StatusCode(), truncatedResponse)
 			}
 
-			return false,statsRet, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
+			return false, statsRet, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
 		}
 	}
 }
 
-
-func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag util.MapStr, requestBytes, resbody []byte,successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer,options BulkResponseParseConfig) (bool, map[int]int,util.MapStr) {
+func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util.MapStr, requestBytes, resbody []byte, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer, options BulkResponseParseConfig) (bool, map[int]int, util.MapStr) {
 	nonRetryableItems.ResetData()
 	retryableItems.ResetData()
 	successItems.ResetData()
@@ -527,48 +518,48 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 	invalidDocError := map[int]string{}
 	invalidDocID := map[int]string{}
 
-	var indexStatsData map[string]int= map[string]int{}
-	var actionStatsData map[string]int= map[string]int{}
+	var indexStatsData map[string]int = map[string]int{}
+	var actionStatsData map[string]int = map[string]int{}
 
 	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err == nil {
-		var docOffset=0
+		var docOffset = 0
 		jsonparser.ArrayEach(items, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			item,_,_,err:=jsonparser.Get(value,"index")
-			if err!=nil{
-				item,_,_,err=jsonparser.Get(value,"delete")
-				if err!=nil{
-					item,_,_,err=jsonparser.Get(value,"create")
-					if err!=nil{
-						item,_,_,err=jsonparser.Get(value,"update")
+			item, _, _, err := jsonparser.Get(value, "index")
+			if err != nil {
+				item, _, _, err = jsonparser.Get(value, "delete")
+				if err != nil {
+					item, _, _, err = jsonparser.Get(value, "create")
+					if err != nil {
+						item, _, _, err = jsonparser.Get(value, "update")
 					}
 				}
 			}
-			if err==nil{
+			if err == nil {
 
 				//id can be nil
-				docId,err:=jsonparser.GetUnsafeString(item,"_id")
-				if err!=nil{
-					log.Error(docId,err)
+				docId, err := jsonparser.GetUnsafeString(item, "_id")
+				if err != nil {
+					log.Error(docId, err)
 				}
 				if err == nil {
-					docId=strings.Clone(docId) //TODO
+					docId = strings.Clone(docId) //TODO
 					//docId=docId //TODO
 				}
 
-				code1,err:=jsonparser.GetInt(item,"status")
+				code1, err := jsonparser.GetInt(item, "status")
 				if err != nil {
 					panic(err)
 				}
-				code:=int(code1)
+				code := int(code1)
 				x, ok := statsCodeStats[code]
 				if !ok {
 					x = 0
 				}
 				x++
 				statsCodeStats[code] = x
-				erObj,_,_,err:=jsonparser.Get(item,"error")
-				if err==nil&&erObj != nil {
+				erObj, _, _, err := jsonparser.Get(item, "error")
+				if err == nil && erObj != nil {
 					invalidDocID[docOffset] = docId
 					invalidDocStatus[docOffset] = code
 					invalidDocError[docOffset] = util.UnsafeBytesToString(erObj)
@@ -583,9 +574,9 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 
 		var match = false
 		var retryable = false
-		WalkBulkRequests(requestBytes,func(eachLine []byte) (skipNextLine bool) {
+		WalkBulkRequests(requestBytes, func(eachLine []byte) (skipNextLine bool) {
 			return false
-		}, func(metaBytes []byte, actionStr, index, typeName, id,routing string,offset int) (err error) {
+		}, func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error) {
 
 			if options.IncludeIndexStats {
 				//init
@@ -596,7 +587,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				}
 
 				//stats
-				indexName:=RemoveDotFromIndexName(index,"#")
+				indexName := RemoveDotFromIndexName(index, "#")
 				v, ok := indexStatsData[indexName]
 				if !ok {
 					indexStatsData[indexName] = 1
@@ -624,59 +615,59 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 
 			var code int
 			code, match = invalidDocStatus[offset]
-			if id==""{
-				id=fmt.Sprintf("N/A(%v)",offset)
+			if id == "" {
+				id = fmt.Sprintf("N/A(%v)", offset)
 			}
 			if match {
 
-				docID:=invalidDocID[offset]
-				if docID==""{
-					docID=fmt.Sprintf("N/A(%v)",offset)
+				docID := invalidDocID[offset]
+				if docID == "" {
+					docID = fmt.Sprintf("N/A(%v)", offset)
 				}
 				//log.Error(offset,",",id,",",docID,",",code,",",match)
 
-				if code==429 && options.RetryException.Retry429{
+				if code == 429 && options.RetryException.Retry429 {
 					retryable = true
-				}else if code >= 400 && code < 500{ //find invalid request 409
+				} else if code >= 400 && code < 500 { //find invalid request 409
 					retryable = false
-				}else{
+				} else {
 					retryable = true
 				}
 
 				//last check
-				errMsg:=invalidDocError[offset]
-				if retryable&&options.RetryException.ShouldSkipRetry(code,errMsg){
+				errMsg := invalidDocError[offset]
+				if retryable && options.RetryException.ShouldSkipRetry(code, errMsg) {
 					retryable = false
 				}
 
-				if global.Env().IsDebug{
-					log.Debugf("index:%v, offset:%v, docID:%v, action:%v, code:%v, retryable:%v, reason:%v",index,offset,docID,actionStr,code,retryable,errMsg)
+				if global.Env().IsDebug {
+					log.Debugf("index:%v, offset:%v, docID:%v, action:%v, code:%v, retryable:%v, reason:%v", index, offset, docID, actionStr, code, retryable, errMsg)
 				}
 
-				if retryable{
-					retryableItems.WriteNewByteBufferLine("retryable",metaBytes)
+				if retryable {
+					retryableItems.WriteNewByteBufferLine("retryable", metaBytes)
 					retryableItems.WriteMessageID(docID)
 					retryableItems.WriteErrorReason(errMsg)
-				}else{
-					nonRetryableItems.WriteNewByteBufferLine("none-retryable",metaBytes)
+				} else {
+					nonRetryableItems.WriteNewByteBufferLine("none-retryable", metaBytes)
 					nonRetryableItems.WriteMessageID(docID)
 					nonRetryableItems.WriteErrorReason(errMsg)
 				}
-			}else{
-				successItems.WriteNewByteBufferLine("success",metaBytes)
+			} else {
+				successItems.WriteNewByteBufferLine("success", metaBytes)
 				successItems.WriteMessageID(id)
 			}
 			return nil
-		}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
+		}, func(payloadBytes []byte, actionStr, index, typeName, id, routing string) {
 			if match {
 				if payloadBytes != nil && len(payloadBytes) > 0 {
 					if retryable {
-						retryableItems.WriteNewByteBufferLine("retryable",payloadBytes)
+						retryableItems.WriteNewByteBufferLine("retryable", payloadBytes)
 					} else {
-						nonRetryableItems.WriteNewByteBufferLine("none-retryable",payloadBytes)
+						nonRetryableItems.WriteNewByteBufferLine("none-retryable", payloadBytes)
 					}
 				}
-			}else{
+			} else {
 				if payloadBytes != nil && len(payloadBytes) > 0 {
 					successItems.WriteNewByteBufferLine("success", payloadBytes)
 				}
@@ -688,41 +679,40 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 	var bulkResult util.MapStr
 
 	//skip 429 response
-	if resp.StatusCode()==429&&!options.SaveBusyBulkResultToMessageQueue {
-		return containError, statsCodeStats,bulkResult
+	if resp.StatusCode() == 429 && !options.SaveBusyBulkResultToMessageQueue {
+		return containError, statsCodeStats, bulkResult
 	}
 
-	if options.OutputBulkStats ||options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
+	if options.OutputBulkStats || options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
 
 		bulkResult = util.MapStr{
-			"error": containError,
-			"codes":  util.GetIntMapKeys(statsCodeStats),
-			"indices":util.GetStringIntMapKeys(indexStatsData),
-			"actions":util.GetStringIntMapKeys(actionStatsData),
-			"summary":util.MapStr{
-				"failure" : util.MapStr{
+			"error":   containError,
+			"codes":   util.GetIntMapKeys(statsCodeStats),
+			"indices": util.GetStringIntMapKeys(indexStatsData),
+			"actions": util.GetStringIntMapKeys(actionStatsData),
+			"summary": util.MapStr{
+				"failure": util.MapStr{
 					"count": retryableItems.GetMessageCount(),
 					"size":  retryableItems.GetMessageSize(),
 				},
-				"invalid" : util.MapStr{
+				"invalid": util.MapStr{
 					"count": nonRetryableItems.GetMessageCount(),
 					"size":  nonRetryableItems.GetMessageSize(),
 				},
-				"success" : util.MapStr{
+				"success": util.MapStr{
 					"count": successItems.GetMessageCount(),
 					"size":  successItems.GetMessageSize(),
 				},
 			},
 			"stats": util.MapStr{
-				"code":statsCodeStats,
-				"indices":indexStatsData,
-				"actions":actionStatsData,
+				"code":    statsCodeStats,
+				"indices": indexStatsData,
+				"actions": actionStatsData,
 			},
 		}
 
-
 		if options.IncludeErrorDetails {
-			detail:=util.MapStr{}
+			detail := util.MapStr{}
 			if nonRetryableItems.GetMessageCount() > 0 {
 				ids := nonRetryableItems.MessageIDs
 				reasons := nonRetryableItems.Reason
@@ -732,7 +722,7 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				}
 				detail["invalid"] = util.MapStr{
 					"documents": ids,
-					"reasons":    reasons,
+					"reasons":   reasons,
 				}
 			}
 
@@ -745,27 +735,27 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 				}
 				detail["failure"] = util.MapStr{
 					"documents": ids,
-					"reasons":    reasons,
+					"reasons":   reasons,
 				}
 			}
 
-			if len(detail)>0{
-				bulkResult["detail"]=detail
+			if len(detail) > 0 {
+				bulkResult["detail"] = detail
 			}
 		}
 
-		if containError&&options.SaveErrorBulkResultToMessageQueue || !containError&&options.SaveSuccessBulkResultToMessageQueue {
+		if containError && options.SaveErrorBulkResultToMessageQueue || !containError && options.SaveSuccessBulkResultToMessageQueue {
 			if options.BulkResultMessageQueue != "" {
 				//save message bytes, with metadata, set codec to wrapped bulk messages
 				queue.Push(queue.GetOrInitConfig(options.BulkResultMessageQueue), util.MustToJSONBytes(util.MapStr{
-					"timestamp": time.Now(),
-					"bulk_results":   bulkResult,
-					"labels":   tag,
-					"node":      global.Env().SystemConfig.NodeConfig,
+					"timestamp":    time.Now(),
+					"bulk_results": bulkResult,
+					"labels":       tag,
+					"node":         global.Env().SystemConfig.NodeConfig,
 					"request": util.MapStr{
-						"uri":  req.URI().String(),
+						"uri":         req.URI().String(),
 						"body_length": len(requestBytes),
-						"body": util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, options.BulkResultMessageMaxRequestBodyLength),
+						"body":        util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, options.BulkResultMessageMaxRequestBodyLength),
 					},
 					"response": util.MapStr{
 						"status_code": resp.StatusCode(),
@@ -777,5 +767,5 @@ func HandleBulkResponse(req  *fasthttp.Request, resp *fasthttp.Response ,tag uti
 		}
 	}
 
-	return containError, statsCodeStats,bulkResult
+	return containError, statsCodeStats, bulkResult
 }

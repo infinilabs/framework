@@ -13,7 +13,7 @@ import (
 )
 
 type Metric struct {
-	Enabled       bool `config:"enabled"`
+	Enabled bool `config:"enabled"`
 }
 
 func New(cfg *config.Config) (*Metric, error) {
@@ -32,8 +32,8 @@ func New(cfg *config.Config) (*Metric, error) {
 
 func (m *Metric) Collect() error {
 
-	data,err:=stats.StatsMap()
-	if err!=nil{
+	data, err := stats.StatsMap()
+	if err != nil {
 		panic(err)
 	}
 
@@ -41,11 +41,12 @@ func (m *Metric) Collect() error {
 		Metadata: event.EventMetadata{
 			Category: "instance",
 			Name:     global.Env().GetAppLowercaseName(),
+			Version:  global.Env().GetVersion(),
 			Datatype: "gauge",
 			Labels: util.MapStr{
-				"id":global.Env().SystemConfig.NodeConfig.ID,
-				"name":global.Env().SystemConfig.NodeConfig.Name,
-				"ip":global.Env().SystemConfig.NodeConfig.IP,
+				"id":   global.Env().SystemConfig.NodeConfig.ID,
+				"name": global.Env().SystemConfig.NodeConfig.Name,
+				"ip":   global.Env().SystemConfig.NodeConfig.IP,
 			},
 		},
 		Fields: util.MapStr{
