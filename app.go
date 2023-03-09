@@ -5,11 +5,15 @@
 package framework
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/task"
 	"os"
 	"os/signal"
 	"runtime"
+	"github.com/shirou/gopsutil/v3/process"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -36,6 +40,7 @@ import (
 type App struct {
 	environment    *env.Env
 	numCPU         int
+	maxMEM         int
 	quitSignal     chan bool
 	disableVerbose bool
 	isDaemonMode   bool
@@ -93,13 +98,44 @@ func (app *App) Init(customFunc func()) {
 
 	license.Verify()
 
+	if app.maxMEM>0{
+		checkPid := os.Getpid()
+		p, _ := process.NewProcess(int32(checkPid))
+		maxMemInBytes:=uint64(app.maxMEM*1024*1024)
+
+		debug.SetMemoryLimit(int64(maxMemInBytes))
+
+		var memoryInfoStat *process.MemoryInfoStat
+		//register memory OOM detector
+		task1 := task.ScheduleTask{
+			ID:          util.GetUUID(),
+			Interval:    "10s",
+			Description: "detect highly memory usage",
+			Task: func(ctx context.Context) {
+				memoryInfoStat, err = p.MemoryInfo()
+				if err!=nil{
+					log.Error(err)
+					return
+				}
+				if memoryInfoStat !=nil{
+					if memoryInfoStat.RSS>maxMemInBytes{
+						log.Warnf("reached max memory limit! used: %v, limit:%v",util.ByteSize(memoryInfoStat.RSS),util.ByteSize(maxMemInBytes))
+					}
+				}
+
+
+
+			}}
+		task.RegisterScheduleTask(task1)
+	}
+
 }
 
 func (app *App) initWithFlags() {
 
 	showversion := flag.Bool("v", false, "version")
 	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
-	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file, default: "+app.environment.GetAppName()+".yml")
+	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file")
 
 	//TODO bug fix
 	//flag.BoolVar(&app.isDaemonMode, "daemon", false, "run in background as daemon")
@@ -107,6 +143,7 @@ func (app *App) initWithFlags() {
 
 	flag.BoolVar(&app.isDebug, "debug", false, "run in debug mode, "+app.environment.GetAppName()+" will quit on panic immediately with full stack trace")
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
+	flag.IntVar(&app.maxMEM, "mem", -1, "the max size of Memory to use, soft limit in megabyte")
 	flag.StringVar(&app.svcFlag, "service", "", "service management, options: install,uninstall,start,stop")
 
 	if debugFlagInitFunc != nil {

@@ -11,8 +11,8 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/module"
 	"path"
-	"github.com/dgraph-io/badger/v3"
-)
+	"github.com/dgraph-io/badger/v4"
+	)
 
 type Module struct {
 	SingleBucketMode bool   `config:"single_bucket_mode"`

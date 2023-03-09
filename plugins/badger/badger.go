@@ -8,11 +8,11 @@ import (
 	"errors"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"path"
-	"github.com/dgraph-io/badger/v3/options"
+	"github.com/dgraph-io/badger/v4/options"
 	"sync"
 )
 

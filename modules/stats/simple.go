@@ -261,6 +261,8 @@ func (s *Stats) Stat(category, key string) int64 {
 	return v
 }
 
+var m runtime.MemStats
+
 func (s *Stats) StatsAll() string {
 	s.l.RLock()
 	defer s.l.RUnlock()
@@ -290,11 +292,17 @@ func (s *Stats) StatsAll() string {
 		return util.ToJson(result, false)
 	}
 
+	runtime.ReadMemStats(&m)
+
 	result["system"] = map[string]int64{
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
 		"mem":          int64(mem.RSS),
-		"goroutines":   int64(runtime.NumGoroutine()),
+		"goroutines":   int64(mem.Locked),
+		"objects":   int64(m.HeapObjects),
+		"stack":   int64(m.StackInuse),
+		"mspan":   int64(m.MSpanInuse),
+		"gc":   int64(m.NumGC),
 		"cgo_calls":    int64(runtime.NumCgoCall()),
 	}
 
