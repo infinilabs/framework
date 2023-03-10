@@ -179,10 +179,6 @@ func (env *Env) InitPaths(cfgPath string) error {
 	_, defaultSystemConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
-	partialConfig := struct {
-		Path config.PathConfig `config:"path"`
-	}{}
-
 	var (
 		cfgObj *config.Config
 		err    error
@@ -190,16 +186,8 @@ func (env *Env) InitPaths(cfgPath string) error {
 	if cfgObj, err = config.LoadFile(cfgPath); err != nil {
 		return fmt.Errorf("error loading confiuration file: %w", err)
 	}
-	if err = cfgObj.Unpack(&partialConfig); err != nil {
-		return fmt.Errorf("error extracting default paths: %w", err)
-	}
-	if partialConfig.Path.Data != "" {
-		env.SystemConfig.PathConfig.Data = partialConfig.Path.Data
-	}
-	if partialConfig.Path.Log != "" {
-		env.SystemConfig.PathConfig.Log = partialConfig.Path.Log
-	}
-	return nil
+
+	return cfgObj.Unpack(&env.SystemConfig)
 }
 
 var moduleConfig map[string]*config.Config
@@ -586,7 +574,7 @@ func (env *Env) findWorkingDir() (string, string) {
 			}
 
 			if instance >= env.SystemConfig.MaxNumOfInstance {
-				panic(fmt.Errorf("reach max num of instances on this node, limit is: %v", env.SystemConfig.MaxNumOfInstance))
+				panic(fmt.Errorf("reach max num of instances on this node, max_num_of_instances is: %v", env.SystemConfig.MaxNumOfInstance))
 			}
 		}
 	}
