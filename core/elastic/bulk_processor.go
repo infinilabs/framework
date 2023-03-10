@@ -222,8 +222,8 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	Compress:             false,
 	RetryDelayInSeconds:  1,
 	RejectDelayInSeconds: 1,
-	MaxRejectRetryTimes:  60,
-	MaxRetryTimes:        10,
+	MaxRejectRetryTimes:  0,
+	MaxRetryTimes:        0,
 
 	DeadletterRequestsQueue: "bulk_dead_requests",
 	BulkResponseParseConfig: BulkResponseParseConfig{
