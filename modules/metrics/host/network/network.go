@@ -5,6 +5,7 @@ package network
 
 import (
 	"strings"
+	"syscall"
 
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v3/net"
@@ -20,6 +21,7 @@ type Metric struct {
 
 	Enabled    bool     `config:"enabled"`
 	Summary    bool     `config:"summary"`
+	Sockets bool     `config:"sockets"`
 	Throughput bool     `config:"throughput"`
 	Detail     bool     `config:"details"`
 	Interfaces []string `config:"interfaces"`
@@ -156,9 +158,37 @@ func (m *Metric) Collect() error {
 		}
 	}
 
+	if m.Sockets{
+		// all network connections
+		conns, err := connections("inet")
+		if err != nil {
+			return errors.Wrap(err, "error getting connections")
+		}
+
+		stats := calculateConnStats(conns)
+		stats,_=applyEnhancements(stats)
+
+		if m.prevCounters != (networkCounter{}) {
+			event.Save(event.Event{
+				Metadata: event.EventMetadata{
+					Category: "host",
+					Name:     "network_sockets",
+					Datatype: "gauge",
+					Labels: util.MapStr{
+						"ip": util.GetLocalIPs(),
+					},
+				},
+				Fields: util.MapStr{
+					"host": util.MapStr{
+						"network_sockets": stats,
+					},
+				},
+			})
+		}
+	}
+
 	//total traffics of all interfaces on host
 	// update prevCounters
-	//m.prevCounters =
 	m.prevCounters.prevNetworkInBytes = networkInBytes
 	m.prevCounters.prevNetworkInPackets = networkInPackets
 	m.prevCounters.prevNetworkOutBytes = networkOutBytes
@@ -183,4 +213,89 @@ func ioCountersToMapStr(counters net.IOCountersStat) util.MapStr {
 				"out.bytes":   counters.BytesSent,
 			},
 		}}
+}
+
+type SocketStats struct {
+	TcpConns       uint `json:"connections,omitempty"`
+	TcpListening   uint `json:"listening,omitempty"`
+	TcpClosewait   uint `json:"close_wait,omitempty"`
+	TcpEstablished uint `json:"established,omitempty"`
+	TcpTimewait    uint `json:"time_wait,omitempty"`
+	TcpSynsent     uint `json:"sync_sent,omitempty"`
+	TcpSynrecv     uint `json:"sync_recv,omitempty"`
+	TcpFinwait1    uint `json:"fin_wait1,omitempty"`
+	TcpFinwait2    uint `json:"fin_wait2,omitempty"`
+	TcpLastack     uint `json:"last_ack,omitempty"`
+	TcpClosing     uint `json:"closing,omitempty"`
+}
+
+//fetch socks
+func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
+	var (
+		allConns       = len(conns)
+		allListening   = 0
+		allEstablished = 0
+		udpConns       = 0
+	)
+
+	ipStats:=map[string]*SocketStats{}
+
+	for _, conn := range conns {
+		ip:=conn.Laddr.IP
+		s,ok:=ipStats[ip]
+		if!ok{
+			s=&SocketStats{}
+			ipStats[ip]=s
+		}
+
+		if conn.Status == "LISTEN" {
+			allListening++
+		}
+		switch conn.Type {
+		case syscall.SOCK_STREAM:
+			s.TcpConns++
+			if conn.Status == "ESTABLISHED" {
+				allEstablished++
+				s.TcpEstablished++
+			}
+			if conn.Status == "CLOSE_WAIT" {
+				s.TcpClosewait++
+			}
+			if conn.Status == "TIME_WAIT" {
+				s.TcpTimewait++
+			}
+			if conn.Status == "LISTEN" {
+				s.TcpListening++
+			}
+			if conn.Status == "SYN_SENT" {
+				s.TcpSynsent++
+			}
+			if conn.Status == "SYN_RECV" {
+				s.TcpSynrecv++
+			}
+			if conn.Status == "FIN_WAIT1" {
+				s.TcpFinwait1++
+			}
+			if conn.Status == "FIN_WAIT2" {
+				s.TcpFinwait2++
+			}
+			if conn.Status == "LAST_ACK" {
+				s.TcpLastack++
+			}
+			if conn.Status == "CLOSING" {
+				s.TcpClosing++
+			}
+		case syscall.SOCK_DGRAM:
+			udpConns++
+		}
+	}
+
+	return util.MapStr{
+		"all": util.MapStr{
+			"connections": allConns,
+			"listening": allListening,
+			"udp": udpConns,
+		},
+		"tcp": ipStats,
+	}
 }
