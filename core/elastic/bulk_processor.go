@@ -256,7 +256,7 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 	statsRet = make(map[int]int)
 
 	if buffer == nil || buffer.GetMessageSize() == 0 {
-		return true, statsRet, errors.New("invalid bulk requests, message is nil")
+		return true, statsRet, errors.New("invalid or empty message")
 	}
 
 	host = metadata.GetActivePreferredHost(host)
@@ -434,8 +434,8 @@ DO:
 
 					time.Sleep(time.Duration(delayTime) * time.Second)
 
-					if joint.Config.MaxRejectRetryTimes <= 0 {
-						joint.Config.MaxRejectRetryTimes = 12 //1min
+					if joint.Config.MaxRejectRetryTimes < 0 {
+						joint.Config.MaxRejectRetryTimes = 3
 					}
 
 					if retryTimes >= joint.Config.MaxRejectRetryTimes {
@@ -470,7 +470,7 @@ DO:
 					}
 				}
 
-				return continueNext, statsRet, errors.Errorf("bulk response contains error, config: %v, non-retryable docs: %v, retryable docs:%v", metadata.Config.Name, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount())
+				return continueNext, statsRet, errors.Errorf("parial failure, config: %v, non-retryable docs: %v, retryable docs:%v", metadata.Config.Name, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount())
 			}
 		}
 		return true, statsRet, nil
@@ -502,7 +502,7 @@ DO:
 				return true, statsRet, errors.Errorf("code: %v, response: %v", resp.StatusCode(), truncatedResponse)
 			}
 
-			return false, statsRet, errors.Errorf("bulk requests failed, code: %v", resp.StatusCode())
+			return false, statsRet, errors.Errorf("request failed, code: %v", resp.StatusCode())
 		}
 	}
 }
@@ -678,7 +678,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 	//save log and stats
 	var bulkResult util.MapStr
 
-	//skip 429 response
+	//skip 429 results to response queue
 	if resp.StatusCode() == 429 && !options.SaveBusyBulkResultToMessageQueue {
 		return containError, statsCodeStats, bulkResult
 	}

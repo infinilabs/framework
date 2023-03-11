@@ -143,7 +143,7 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 			if err := recover(); err != nil {
 				var count = 0
 			RETRY:
-				if count > 10 {
+				if count > 3 {
 					log.Errorf("still have error in request, after retry [%v] times\n", err)
 					return resp, errors.Errorf("still have error in request, after retry [%v] times\n", err)
 				}

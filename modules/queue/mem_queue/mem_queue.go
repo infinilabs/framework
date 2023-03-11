@@ -83,7 +83,7 @@ func (this *MemoryQueue)Push(q string,data []byte) error{
 	RETRY:
 	ok,_=mq.Put(da)
 	if !ok{
-		if retryTimes>10{
+		if retryTimes>3{
 			stats.Increment("mem_queue","dead_retry")
 			return capacityFull
 		}else{
