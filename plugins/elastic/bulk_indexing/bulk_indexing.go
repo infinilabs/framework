@@ -805,7 +805,7 @@ CLEAN_BUFFER:
 	}
 
 	if offset == "" || ctx.IsCanceled() || ctx.IsFailed() {
-		log.Warnf("offset[%v], canceled[%v], failed[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.IsFailed(), qConfig.Name, sliceID)
+		log.Debugf("offset[%v], canceled[%v], failed[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.IsFailed(), qConfig.Name, sliceID)
 		return
 	}
 
@@ -834,16 +834,13 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
 		continueRequest, statsMap, err := bulkProcessor.Bulk(ctx.Context, tag, meta, host, mainBuf)
-
 		if global.Env().IsDebug {
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
-		if err != nil {
-			log.Warnf("failed to submit bulk request, error: %+v", err)
+		if err!=nil{
+			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v",meta.Config.Name,err)
 		}
-
-		log.Debug(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continueNext: ", continueRequest, ", error: ", err)
-
+		log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
 		return continueRequest, err
 	}
 

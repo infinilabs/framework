@@ -105,3 +105,12 @@ func TestMod(t *testing.T) {
 	fmt.Println(math.Mod(float64(a), float64(b)))
 	fmt.Println(a % b)
 }
+
+func TestRetryRules_Retryable(t *testing.T) {
+	rules:=RetryRules{Retry429: false,Default: true,Denied: RetryRule{Keyword: []string{"\"message\":\"timeout\""}}}
+	ok:=rules.Retryable(429,"{\"error\":true,\"message\":\"timeout\"}")
+	fmt.Println(ok)
+
+	ok=rules.Retryable(429,"{\"error\":{\"root_cause\":[{\"type\":\"es_rejected_execution_exception\",\"reason\":\"rejected execution of coordinating operation [coordinating_and_primary_bytes=3325454943, replica_bytes=0, all_bytes=3325454943, coordinating_operation_bytes=9054099, max_coordinating_and_primary_bytes=3328599654]\"}],\"type\":\"es_rejected_execution_exception\",\"reason\":\"rejected execution of coordinating operation [coordinating_and_primary_bytes=3325454943, replica_bytes=0, all_bytes=3325454943, coordinating_operation_bytes=9054099, max_coordinating_and_primary_bytes=3328599654]\"},\"status\":429}")
+	fmt.Println(ok)
+}

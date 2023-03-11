@@ -104,6 +104,14 @@ func TestContainsAnyInAnyIntArray(t *testing.T) {
 	assert.Equal(t, false, ok2)
 }
 
+func TestContainsString(t *testing.T) {
+	a:="{\"error\":true,\"message\":\"timeout\"}"
+	b:="\"message\":\"timeout\""
+	ok:=ContainStr(a,b)
+	fmt.Println(ok)
+	assert.Equal(t, true, ok)
+}
+
 func TestInt64ToString(t *testing.T) {
 	i := 6393600409
 	new:=Int64ToString(int64(i))
