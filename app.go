@@ -135,7 +135,7 @@ func (app *App) Init(customFunc func()) {
 func (app *App) initWithFlags() {
 
 	showversion := flag.Bool("v", false, "version")
-	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error")
+	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error,off")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file")
 
 	//TODO bug fix
