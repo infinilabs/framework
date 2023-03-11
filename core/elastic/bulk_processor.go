@@ -152,6 +152,8 @@ type BulkProcessorConfig struct {
 	InvalidRequestsQueue    string `config:"invalid_queue"`
 	DeadletterRequestsQueue string `config:"dead_letter_queue"`
 
+	RetryRules RetryRules 						`config:"retry_rules"`
+
 	BulkResponseParseConfig BulkResponseParseConfig `config:"response_handle"`
 
 	RemoveDuplicatedNewlines bool `config:"remove_duplicated_newlines"`
@@ -160,6 +162,7 @@ type BulkProcessorConfig struct {
 type BulkResponseParseConfig struct {
 	SaveSuccessBulkResultToMessageQueue bool `config:"save_success_results"`
 	SaveErrorBulkResultToMessageQueue   bool `config:"save_error_results"`
+	SaveBusyBulkResultToMessageQueue       bool   `config:"save_busy_results"`
 
 	OutputBulkStats    bool `config:"output_bulk_stats"`
 	IncludeIndexStats  bool `config:"include_index_stats"`
@@ -168,40 +171,76 @@ type BulkResponseParseConfig struct {
 	IncludeErrorDetails        bool `config:"include_error_details"`
 	MaxItemOfErrorDetailsCount int  `config:"max_error_details_count"`
 
-	SaveBusyBulkResultToMessageQueue       bool   `config:"save_busy_results"`
 	BulkResultMessageQueue                 string `config:"bulk_result_message_queue"`
 	BulkResultMessageMaxRequestBodyLength  int    `config:"max_request_body_size"`
 	BulkResultMessageMaxResponseBodyLength int    `config:"max_response_body_size"`
 
-	RetryException RetryException `config:"retry_exception"`
 }
 
-type RetryException struct {
+type RetryRule struct {
+	//response
+	Status  []int    `config:"status"`
+	Keyword []string `config:"keyword"`
+}
+
+type RetryRules struct {
+	//Retry3xx        bool     `config:"retry_3xx"`
+	Retry4xx        bool     `config:"retry_4xx"`
 	Retry429        bool     `config:"retry_429"`
-	ResponseCode    []int    `config:"code"`
-	ResponseKeyword []string `config:"keyword"`
+
+	Default    bool     `config:"default"`
+
+	Permitted RetryRule `config:"permitted"`
+	Denied RetryRule `config:"denied"`
 }
 
-func (this *RetryException) ShouldSkipRetry(code int, msg string) bool {
+func (this *RetryRules) Retryable(code int, msg string) bool {
 
-	if len(this.ResponseCode) > 0 {
-		for _, v := range this.ResponseCode {
+	//allow
+	if len(this.Permitted.Status) > 0 {
+		for _, v := range this.Permitted.Status {
 			if v == code {
 				return true
 			}
 		}
 	}
 
-	if len(this.ResponseKeyword) > 0 && len(msg) > 0 {
-		for _, v := range this.ResponseKeyword {
+	if len(this.Permitted.Keyword) > 0 && len(msg) > 0 {
+		for _, v := range this.Permitted.Keyword {
 			if util.ContainStr(msg, v) {
-				log.Debug("message: ", msg, " contains keyword: [", v, "], skip retry")
+				log.Debug("message: ", msg, " contains keyword: [", v, "], allow retry")
 				return true
 			}
 		}
 	}
 
-	return false
+	//deny
+	if len(this.Denied.Status) > 0 {
+		for _, v := range this.Denied.Status {
+			if v == code {
+				return false
+			}
+		}
+	}
+
+	if len(this.Denied.Keyword) > 0 && len(msg) > 0 {
+		for _, v := range this.Denied.Keyword {
+			if util.ContainStr(msg, v) {
+				log.Debug("message: ", msg, " contains keyword: [", v, "], skip retry")
+				return false
+			}
+		}
+	}
+
+	//handle 4xx
+	if code >= 400 && code < 500 { //find invalid request 409
+		if code == 429{
+			return this.Retry429
+		}
+		return this.Retry4xx
+	}
+
+	return this.Default
 }
 
 func (this *BulkProcessorConfig) GetBulkSizeInBytes() int {
@@ -242,8 +281,8 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 		IncludeActionStats:         true,
 		MaxItemOfErrorDetailsCount: 50,
 
-		RetryException: RetryException{Retry429: true},
 	},
+	RetryRules: RetryRules{Retry429: true,Default: true,Retry4xx: false},
 	RequestTimeoutInSecond: 60,
 }
 
@@ -405,7 +444,7 @@ DO:
 		//如果是部分失败，应该将可以重试的做完，然后记录失败的消息再返回不继续
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 
-			containError, statsCodeStats, _ := HandleBulkResponse(req, resp, labels, data, resbody, successItems, nonRetryableItems, retryableItems, joint.Config.BulkResponseParseConfig)
+			containError, statsCodeStats, _ := HandleBulkResponse(req, resp, labels, data, resbody, successItems, nonRetryableItems, retryableItems, joint.Config.BulkResponseParseConfig,joint.Config.RetryRules)
 
 			for k, v := range statsCodeStats {
 				if global.Env().IsDebug {
@@ -479,7 +518,7 @@ DO:
 		statsRet[resp.StatusCode()] = statsRet[resp.StatusCode()] + buffer.GetMessageCount()
 
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
-			HandleBulkResponse(req, resp, labels, data, resbody, successItems, nonRetryableItems, retryableItems, joint.Config.BulkResponseParseConfig)
+			HandleBulkResponse(req, resp, labels, data, resbody, successItems, nonRetryableItems, retryableItems, joint.Config.BulkResponseParseConfig,joint.Config.RetryRules)
 		}
 
 		if resp.StatusCode() == 429 {
@@ -496,7 +535,7 @@ DO:
 				log.Debugf("status:", resp.StatusCode(), ",request:", util.UnsafeBytesToString(req.GetRawBody()), ",response:", util.UnsafeBytesToString(resbody))
 			}
 
-			if joint.Config.BulkResponseParseConfig.RetryException.ShouldSkipRetry(resp.StatusCode(), util.UnsafeBytesToString(resp.GetRawBody())) {
+			if !joint.Config.RetryRules.Retryable(resp.StatusCode(), util.UnsafeBytesToString(resp.GetRawBody())) {
 				truncatedResponse := util.SubString(util.UnsafeBytesToString(resbody), 0, joint.Config.BulkResponseParseConfig.BulkResultMessageMaxRequestBodyLength)
 				log.Warnf("code: %v, but hit condition to skip retry, response: %v", resp.StatusCode(), truncatedResponse)
 				return true, statsRet, errors.Errorf("code: %v, response: %v", resp.StatusCode(), truncatedResponse)
@@ -507,7 +546,7 @@ DO:
 	}
 }
 
-func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util.MapStr, requestBytes, resbody []byte, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer, options BulkResponseParseConfig) (bool, map[int]int, util.MapStr) {
+func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util.MapStr, requestBytes, resbody []byte, successItems *BulkBuffer, nonRetryableItems, retryableItems *BulkBuffer, options BulkResponseParseConfig, retryRules RetryRules) (bool, map[int]int, util.MapStr) {
 	nonRetryableItems.ResetData()
 	retryableItems.ResetData()
 	successItems.ResetData()
@@ -624,21 +663,10 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 				if docID == "" {
 					docID = fmt.Sprintf("N/A(%v)", offset)
 				}
-				//log.Error(offset,",",id,",",docID,",",code,",",match)
 
-				if code == 429 && options.RetryException.Retry429 {
-					retryable = true
-				} else if code >= 400 && code < 500 { //find invalid request 409
-					retryable = false
-				} else {
-					retryable = true
-				}
-
-				//last check
+				//check
 				errMsg := invalidDocError[offset]
-				if retryable && options.RetryException.ShouldSkipRetry(code, errMsg) {
-					retryable = false
-				}
+				retryable = retryRules.Retryable(code, errMsg)
 
 				if global.Env().IsDebug {
 					log.Debugf("index:%v, offset:%v, docID:%v, action:%v, code:%v, retryable:%v, reason:%v", index, offset, docID, actionStr, code, retryable, errMsg)
