@@ -1,28 +1,40 @@
-/* ©INFINI, All Rights Reserved.
- * mail: contact#infini.ltd */
+/*
+Copyright Medcl (m AT medcl.net)
 
-package adapter
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package elasticsearch
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
-type ESAPIV8 struct {
-	ESAPIV7
+type ESAPIV7 struct {
+	ESAPIV6_6
 }
 
-
-func (c *ESAPIV8) InitDefaultTemplate(templateName,indexPrefix string) {
+func (c *ESAPIV7) InitDefaultTemplate(templateName,indexPrefix string) {
 	c.initTemplate(templateName,indexPrefix)
 }
 
-func (c *ESAPIV8) getDefaultTemplate(indexPrefix string) string {
+func (c *ESAPIV7) getDefaultTemplate(indexPrefix string) string {
 	template := `
 {
 "index_patterns": "%s*",
@@ -59,7 +71,7 @@ func (c *ESAPIV8) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1)
 }
 
-func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
+func (c *ESAPIV7) initTemplate(templateName,indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
@@ -85,11 +97,13 @@ func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
 
 }
 
+const TypeName7 = "_doc"
+
 // Delete used to delete document by id
-func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
+func (c *ESAPIV7) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
 	indexName=util.UrlEncode(indexName)
 
-	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/" + TypeName7 + "/" + id
 
 	if len(refresh)>0 {
 		url = url + "?refresh=" + refresh[0]
@@ -116,11 +130,13 @@ func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elas
 }
 
 // Get fetch document by id
-func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
-
+func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
+	if docType==""{
+		docType=TypeName7
+	}
 	indexName=util.UrlEncode(indexName)
 
-	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
+	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
@@ -141,14 +157,17 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 }
 
 // IndexDoc index a document into elasticsearch
-func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
+	if docType==""{
+		docType=TypeName7
+	}
 	indexName=util.UrlEncode(indexName)
 
-	url := fmt.Sprintf("%s/%s/_doc/%s", c.GetEndpoint(), indexName, id)
+	url := fmt.Sprintf("%s/%s/%s/%s", c.GetEndpoint(), indexName, docType, id)
 
 	if id==""{
-		url = fmt.Sprintf("%s/%s/_doc", c.GetEndpoint(), indexName)
+		url = fmt.Sprintf("%s/%s/%s/", c.GetEndpoint(), indexName, docType)
 	}
 	if refresh != "" {
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
@@ -192,7 +211,7 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 	return esResp, nil
 }
 
-func (c *ESAPIV8) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
 	indexName=util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)

@@ -52,7 +52,7 @@ func (handler ElasticORM) Get(o interface{}) (bool, error) {
 		return false, errors.Errorf("id was not found in object: %v", o)
 	}
 
-	response, err := handler.Client.Get(handler.GetIndexName(o), "_doc", getIndexID(o))
+	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +84,7 @@ func (handler ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	if ctx != nil {
 		refresh = ctx.Refresh
 	}
-	_, err := handler.Client.Index(handler.GetIndexName(o), "_doc", getIndexID(o), o, refresh)
+	_, err := handler.Client.Index(handler.GetIndexName(o), "", getIndexID(o), o, refresh)
 	return err
 }
 
@@ -97,7 +97,7 @@ func (handler ElasticORM) Delete(ctx *api.Context, o interface{}) error {
 	if ctx != nil {
 		refresh = ctx.Refresh
 	}
-	_, err := handler.Client.Delete(handler.GetIndexName(o), "_doc", getIndexID(o), refresh)
+	_, err := handler.Client.Delete(handler.GetIndexName(o), "", getIndexID(o), refresh)
 	return err
 }
 

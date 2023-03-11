@@ -883,6 +883,11 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	})
 
 	aggs := generateGroupAggs(nodeMetricItems)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
 
 	query["size"] = 0
 	query["aggs"] = util.MapStr{
@@ -895,7 +900,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 				"dates": util.MapStr{
 					"date_histogram": util.MapStr{
 						"field":          "timestamp",
-						"fixed_interval": bucketSizeStr,
+						intervalField: bucketSizeStr,
 					},
 					"aggs": aggs,
 				},
@@ -907,11 +912,22 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 }
 
 func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) ([]string, error){
+	ver := h.Client().GetVersion()
+	cr, _ := util.VersionCompare(ver.Number, "6.1")
+	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsarch) && cr == -1 {
+		return nil, nil
+	}
 	var (
 		now = time.Now()
 		max = now.UnixNano()/1e6
 		min = now.Add(-time.Duration(lastMinutes) * time.Minute).UnixNano()/1e6
+		bucketSizeStr = "60s"
 	)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		return nil, err
+	}
+
 	query := util.MapStr{
 		"size": 0,
 		"query": util.MapStr{
@@ -973,7 +989,7 @@ func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) 
 					"dates": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "60s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"search_query_total": util.MapStr{
@@ -992,7 +1008,7 @@ func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) 
 			},
 			"group_by_index1": util.MapStr{
 				"terms": util.MapStr{
-					"field": "metadata.labels.index_name",
+					"field": "metadata.labels.transport_address",
 					"size":  10000,
 				},
 				"aggs": util.MapStr{
@@ -1012,7 +1028,7 @@ func (h *APIHandler) getTopNodeName(clusterID string, top int, lastMinutes int) 
 					"dates": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "60s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"index_total": util.MapStr{

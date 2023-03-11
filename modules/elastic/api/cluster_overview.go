@@ -34,7 +34,7 @@ func (h *APIHandler) ClusterOverTreeMap(w http.ResponseWriter, req *http.Request
 					"recent_15m": util.MapStr{
 						"auto_date_histogram": util.MapStr{
 							"field":            "timestamp",
-							"minimum_interval": "minute",
+							"minimum_interval": "minute", //es7.3 and above
 							"buckets":          12,
 						},
 						"aggs": util.MapStr{
@@ -310,10 +310,15 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 			"size":  top,
 		})
 
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
 	histgram := common.NewBucketItem(
 		common.DateHistogramBucket, util.MapStr{
 			"field":          "timestamp",
-			"fixed_interval": bucketSizeStr,
+			intervalField: bucketSizeStr,
 		})
 	histgram.AddMetricItems(metricItems...)
 
@@ -325,7 +330,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 
 	util.MergeFields(query, aggs, true)
 
-	searchR1, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	searchR1, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		panic(err)
 	}
@@ -727,13 +732,11 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 	catShardsInfo, err := esClient.CatShards()
 	if err != nil {
 		log.Error(err)
-		//h.WriteJSON(w, util.MapStr{
-		//	"error": err.Error(),
-		//}, http.StatusInternalServerError)
-		//return
 	}
 	shardCounts := map[string]int{}
+	nodeM := map[string]string{}
 	for _, shardInfo := range catShardsInfo {
+		nodeM[shardInfo.NodeName] = shardInfo.NodeID
 		if c, ok := shardCounts[shardInfo.NodeName]; ok {
 			shardCounts[shardInfo.NodeName] = c + 1
 		} else {
@@ -750,6 +753,9 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 
 	nodeInfos := []RealtimeNodeInfo{}
 	for _, nodeInfo := range catNodesInfo {
+		if len(nodeInfo.Id) == 4 { //node short id, use nodeId from shard info isnstead
+			nodeInfo.Id = nodeM[nodeInfo.Name]
+		}
 		if c, ok := shardCounts[nodeInfo.Name]; ok {
 			nodeInfo.Shards = c
 		}
@@ -866,6 +872,11 @@ type RealtimeNodeInfo struct {
 }
 
 func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, error) {
+	ver := h.Client().GetVersion()
+	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, "10s")
+	if err != nil {
+		return nil, err
+	}
 	query := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -878,7 +889,7 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 					"date": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "10s",
+							intervalField: "10s",
 						},
 						"aggs": util.MapStr{
 							"index_total": util.MapStr{
@@ -951,6 +962,11 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 }
 
 func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error) {
+	ver := h.Client().GetVersion()
+	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, "10s")
+	if err != nil {
+		return nil, err
+	}
 	query := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -963,7 +979,7 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 					"date": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "10s",
+							intervalField: "10s",
 						},
 						"aggs": util.MapStr{
 							"index_total": util.MapStr{
@@ -1120,7 +1136,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 						"fuzziness":            "AUTO",
 						"max_expansions":       10,
 						"prefix_length":        2,
-						"fuzzy_transpositions": true,
 						"boost":                2,
 					},
 				},
@@ -1167,7 +1182,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 						"fuzziness":            "AUTO",
 						"max_expansions":       10,
 						"prefix_length":        2,
-						"fuzzy_transpositions": true,
 						"boost":                2,
 					},
 				},
@@ -1179,7 +1193,6 @@ func (h *APIHandler) SearchClusterMetadata(w http.ResponseWriter, req *http.Requ
 					"fuzziness":              "AUTO",
 					"fuzzy_prefix_length":    2,
 					"fuzzy_max_expansions":   10,
-					"fuzzy_transpositions":   true,
 					"allow_leading_wildcard": false,
 				},
 			},

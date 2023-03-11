@@ -43,7 +43,7 @@ type API interface {
 
 	GetIndicesStats() *IndicesStats
 
-	GetVersion() string
+	GetVersion() Version
 
 	CreateIndex(name string, settings map[string]interface{}) error
 

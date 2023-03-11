@@ -46,10 +46,13 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	ver := client.GetVersion()
 	if _, ok := reqParams.Body["track_total_hits"]; ok {
-		vr, _ := util.VersionCompare(client.GetVersion(), "7.0")
-		if vr < 0 {
-			delete(reqParams.Body, "track_total_hits")
+		if ver.Distribution == "" || ver.Distribution == "elasticsearch" {
+			vr, _ := util.VersionCompare(ver.Number, "7.0")
+			if vr < 0 {
+				delete(reqParams.Body, "track_total_hits")
+			}
 		}
 	}
 	if reqParams.DistinctByField != nil {
@@ -73,28 +76,30 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 			}
 		}
 	}
-	vr, err := util.VersionCompare(client.GetVersion(), "7.2")
-	if err != nil {
-		resBody["error"] = fmt.Sprintf("version compare error: %v",err)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
-	}
-	if vr < 0 {
-		if aggs, ok := reqParams.Body["aggs"]; ok {
-			if maggs, ok := aggs.(map[string]interface{}); ok {
-				if aggsCounts, ok := maggs["counts"].(map[string]interface{}); ok {
-					if aggVals, ok := aggsCounts["date_histogram"].(map[string]interface{}); ok {
-						var interval interface{}
-						if calendarInterval, ok := aggVals["calendar_interval"]; ok {
-							interval = calendarInterval
-							delete(aggVals, "calendar_interval")
+	if ver.Distribution == "" || ver.Distribution == "elasticsearch" {
+		vr, err := util.VersionCompare(ver.Number, "7.2")
+		if err != nil {
+			resBody["error"] = fmt.Sprintf("version compare error: %v", err)
+			log.Error(resBody["error"])
+			h.WriteJSON(w, resBody, http.StatusInternalServerError)
+			return
+		}
+		if vr < 0 {
+			if aggs, ok := reqParams.Body["aggs"]; ok {
+				if maggs, ok := aggs.(map[string]interface{}); ok {
+					if aggsCounts, ok := maggs["counts"].(map[string]interface{}); ok {
+						if aggVals, ok := aggsCounts["date_histogram"].(map[string]interface{}); ok {
+							var interval interface{}
+							if calendarInterval, ok := aggVals["calendar_interval"]; ok {
+								interval = calendarInterval
+								delete(aggVals, "calendar_interval")
+							}
+							if fixedInterval, ok := aggVals["fixed_interval"]; ok {
+								interval = fixedInterval
+								delete(aggVals, "fixed_interval")
+							}
+							aggVals["interval"] = interval
 						}
-						if fixedInterval, ok := aggVals["fixed_interval"]; ok {
-							interval = fixedInterval
-							delete(aggVals, "fixed_interval")
-						}
-						aggVals["interval"] = interval
 					}
 				}
 			}

@@ -394,6 +394,11 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 		}
 	}
 
+	bucketSizeStr := fmt.Sprintf("%ds", bucketSize)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
 	query["size"]=0
 	query["aggs"]= util.MapStr{
 		"group_by_level": util.MapStr{
@@ -405,7 +410,7 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 				"dates": util.MapStr{
 					"date_histogram":util.MapStr{
 						"field": "timestamp",
-						"fixed_interval": fmt.Sprintf("%ds", bucketSize),
+						intervalField: bucketSizeStr,
 					},
 					"aggs":aggs,
 				},

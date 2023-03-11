@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package adapter
+package elasticsearch
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ import (
 )
 
 type ESAPIV6 struct {
-	ESAPIV5
+	ESAPIV5_6
 }
 
 func (c *ESAPIV6) InitDefaultTemplate(templateName,indexPrefix string) {
@@ -40,7 +40,15 @@ func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
 "settings": {
     "number_of_shards": %v,
     "index.mapping.total_fields.limit": 20000,
-    "index.max_result_window":10000000
+    "index.max_result_window":10000000,
+	"index.analysis.analyzer": {
+            "suggest_text_search": {
+              "filter": [
+                "word_delimiter"
+              ],
+              "tokenizer": "classic"
+            }
+	}
   },
   "mappings": {
     "%s": {
@@ -62,7 +70,7 @@ func (c *ESAPIV6) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1, TypeName6)
 }
 
-const TypeName6 = "_doc"
+const TypeName6 = "doc"
 
 func (c *ESAPIV6) initTemplate(templateName,indexPrefix string) {
 	if global.Env().IsDebug {

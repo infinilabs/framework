@@ -587,6 +587,11 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 			}
 		}
 	}
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
 
 	query["size"]=0
 	query["aggs"]= util.MapStr{
@@ -602,7 +607,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 				"dates": util.MapStr{
 					"date_histogram":util.MapStr{
 						"field": "timestamp",
-						"fixed_interval": bucketSizeStr,
+						intervalField: bucketSizeStr,
 					},
 					"aggs":aggs,
 				},
@@ -619,6 +624,11 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 }
 
 func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top int, lastMinutes int) ([]string, error){
+	ver := h.Client().GetVersion()
+	cr, _ := util.VersionCompare(ver.Number, "6.1")
+	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsarch) && cr == -1 {
+		return nil, nil
+	}
 	var (
 		now = time.Now()
 		max = now.UnixNano()/1e6
@@ -659,6 +669,11 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 				"default_operator": "OR",
 			},
 		})
+	}
+	bucketSizeStr := "60s"
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		return nil, err
 	}
 
 	query := util.MapStr{
@@ -709,7 +724,7 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 					"dates": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "60s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"search_query_total": util.MapStr{
@@ -748,7 +763,7 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 					"dates": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							"interval": "60s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"index_total": util.MapStr{

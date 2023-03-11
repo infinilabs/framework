@@ -27,12 +27,15 @@ import (
 	"time"
 )
 
-func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata)(string, error)  {
+func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata)(elastic.Version, error)  {
 	esVersion, err := ClusterVersion(esConfig)
 	if err != nil {
-		return "", err
+		return elastic.Version{}, err
 	}
-	return esVersion.Version.Number, nil
+	return elastic.Version{
+		Number: esVersion.Version.Number,
+		Distribution: esVersion.Version.Distribution,
+	}, nil
 }
 
 var timeout=30*time.Second
@@ -74,6 +77,9 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	err = json.Unmarshal(result.Body, &version)
 	if err != nil {
 		return nil, err
+	}
+	if version.Version.Distribution == "" {
+		version.Version.Distribution = elastic.Elasticsarch
 	}
 	return &version, nil
 }

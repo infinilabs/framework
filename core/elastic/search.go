@@ -2,7 +2,6 @@ package elastic
 
 import (
 	"infini.sh/framework/core/util"
-	"strings"
 	"time"
 )
 
@@ -116,16 +115,16 @@ func BuildSearchTermFilter(filterParam SearchFilterParam) []util.MapStr{
 	return filter
 }
 
-func GetDateHistogramIntervalField(version string, bucketSize string) (string, error){
-	cr, err := util.VersionCompare(version, "7.2")
+func GetDateHistogramIntervalField(distribution, version string, bucketSize string) (string, error){
+	if distribution == Easysearch || distribution == Opensearch {
+		return "interval", nil
+	}
+	cr, err := util.VersionCompare(version, "8.0")
 	if err != nil {
 		return "", err
 	}
 	if cr > -1 {
-		if strings.HasSuffix(bucketSize, "s") {
-			return "fixed_interval", nil
-		}
-		if util.StringInArray([]string{"1w", "1M","1q","1y"}, bucketSize) {
+		if util.StringInArray([]string{"1w", "week", "1M", "month","1q","quarter", "1y", "year"}, bucketSize) {
 			return "calendar_interval", nil
 		}
 		return "fixed_interval", nil

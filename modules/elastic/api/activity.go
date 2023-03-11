@@ -75,43 +75,9 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 	if reqBody.Keyword != "" {
 		should = []util.MapStr{
 			{
-				"prefix": util.MapStr{
-					"metadata.labels": util.MapStr{
-						"value": reqBody.Keyword,
-						"boost": 15,
-					},
-				},
-			},
-			{
-				"prefix": util.MapStr{
-					"changelog": util.MapStr{
-						"value": reqBody.Keyword,
-						"boost": 10,
-					},
-				},
-			},
-			{
-				"match": util.MapStr{
-					"metadata.labels": util.MapStr{
-						"query":                reqBody.Keyword,
-						"fuzziness":            "AUTO",
-						"max_expansions":       10,
-						"prefix_length":        2,
-						"fuzzy_transpositions": true,
-						"boost":                5,
-					},
-				},
-			},
-			{
-				"match": util.MapStr{
-					"changelog": util.MapStr{
-						"query":                reqBody.Keyword,
-						"fuzziness":            "AUTO",
-						"max_expansions":       10,
-						"prefix_length":        2,
-						"fuzzy_transpositions": true,
-						"boost":                5,
-					},
+				"query_string": util.MapStr{
+					"default_field": "*",
+					"query": reqBody.Keyword,
 				},
 			},
 		}
