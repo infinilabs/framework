@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package adapter
+package elasticsearch
 
 import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
@@ -41,7 +42,15 @@ func (c *ESAPIV5) getDefaultTemplate(indexPrefix string) string {
 "settings": {
     "number_of_shards": %v,
     "index.mapping.total_fields.limit": 20000,
-    "index.max_result_window":10000000
+    "index.max_result_window":10000000,
+	"index.analysis.analyzer": {
+            "suggest_text_search": {
+              "filter": [
+                "word_delimiter"
+              ],
+              "tokenizer": "classic"
+            }
+	}
   },
   "mappings": {
     "%s": {
@@ -126,43 +135,44 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 }
 
 func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
-	cr, err := util.VersionCompare(s.GetVersion(), "5.6")
-	if err != nil {
-		return  err
+	ver := s.GetVersion()
+	if ver.Distribution == "" {
+		cr, err := util.VersionCompare(ver.Number, "5.6")
+		if err != nil {
+			return  err
+		}
+		if cr == -1 {
+			//fmt.Println(s.Version, templateID)
+			return s.ESAPIV2.SetSearchTemplate(templateID, body)
+		}
 	}
-	if cr == -1 {
-		//fmt.Println(s.Version, templateID)
-		return s.ESAPIV2.SetSearchTemplate(templateID, body)
-	}
+
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err = s.Request(nil, util.Verb_PUT, url, body)
+	_, err := s.Request(nil, util.Verb_PUT, url, body)
 	return err
 }
 
-func (s *ESAPIV5) DeleteSearchTemplate(templateID string) error {
-	cr, err := util.VersionCompare(s.GetVersion(), "5.6")
-	if err != nil {
-		return  err
+func (c *ESAPIV5) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
+	ver := c.GetVersion()
+	path := "_cat/nodes?format=json&full_id"
+	if ver.Number == "5.0.0" && (ver.Distribution == elastic.Elasticsarch || ver.Distribution == "") {
+		//https://github.com/elastic/elasticsearch/issues/21266
+		path = "_cat/nodes?format=json"
 	}
-	if cr == -1{
-		//fmt.Println(s.Version, templateID)
-		return s.ESAPIV2.DeleteSearchTemplate(templateID)
+	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), path)
+	if colStr != "" {
+		url = fmt.Sprintf("%s&h=%s", url, colStr)
 	}
-	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
-	_, err = s.Request(nil, util.Verb_DELETE, url, nil)
-	return err
-}
-
-func (s *ESAPIV5) FieldCaps(target string) ([]byte, error) {
-	target=util.UrlEncode(target)
-	cr, err := util.VersionCompare(s.GetVersion(), "5.4")
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	if cr == -1 {
-		return s.ESAPIV2.FieldCaps(target)
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
 	}
-	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.GetEndpoint(), target)
-	res, err := s.Request(nil, util.Verb_GET, url, nil)
-	return res.Body, err
+
+	data := []elastic.CatNodeResponse{}
+	err = json.Unmarshal(resp.Body, &data)
+	return data, err
 }

@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package adapter
+package elasticsearch
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"infini.sh/framework/modules/elastic/adapter"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -39,7 +40,7 @@ import (
 
 type ESAPIV0 struct {
 	Elasticsearch string
-	Version       string
+	Version elastic.Version
 	majorVersion  int
 	metadata      *elastic.ElasticsearchMetadata
 	metaLocker    sync.Mutex
@@ -73,9 +74,9 @@ func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	return c.metadata
 }
 
-func (c *ESAPIV0) GetVersion() string {
-	if c.Version == "" && c.GetEndpoint() != "" {
-		c.Version, _ = GetMajorVersion(c.GetMetadata())
+func (c *ESAPIV0) GetVersion() elastic.Version {
+	if c.Version.Number == "" && c.GetEndpoint() != "" {
+		c.Version, _ = adapter.GetMajorVersion(c.GetMetadata())
 	}
 	return c.Version
 }
@@ -87,8 +88,8 @@ func (c *ESAPIV0) GetMajorVersion() int {
 
 	ver := c.GetVersion()
 
-	if ver != "" {
-		vs := strings.Split(ver, ".")
+	if ver.Number != "" {
+		vs := strings.Split(ver.Number, ".")
 		n, err := util.ToInt(vs[0])
 		if err != nil {
 			panic(err)
@@ -326,6 +327,9 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 // Delete used to delete document by id
 func (c *ESAPIV0) Delete(indexName, docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
 	indexName = util.UrlEncode(indexName)
+	if docType == "" {
+		docType = TypeName0
+	}
 
 	url := c.GetEndpoint() + "/" + indexName + "/" + docType + "/" + id
 
@@ -479,7 +483,7 @@ func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {
 	return false, nil
 }
 
-func (c *ESAPIV0) ClusterVersion() string {
+func (c *ESAPIV0) ClusterVersion() elastic.Version {
 	return c.GetVersion()
 }
 
@@ -551,14 +555,6 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState, error) {
 	//GET /_cluster/state/version,nodes,master_node,routing_table
 	//url := fmt.Sprintf("%s/_cluster/state/version,nodes,master_node,routing_table", c.GetEndpoint())
 	format := "%s/_cluster/state/version,master_node,routing_table,metadata/*"
-	cr, err := util.VersionCompare(c.GetVersion(), "7.3")
-	if err != nil {
-		return nil, err
-	}
-	if cr > -1 {
-		format += "?expand_wildcards=all"
-	}
-
 	url := fmt.Sprintf(format, c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
@@ -729,13 +725,6 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
 	format := "%s/_cat/indices%s?h=health,status,index,uuid,pri,rep,docs.count,docs.deleted,store.size,pri.store.size,segments.count&format=json"
-	cr, err := util.VersionCompare(c.GetVersion(), "7.7")
-	if err != nil {
-		return nil, err
-	}
-	if cr > -1 {
-		format += "&expand_wildcards=all"
-	}
 	if pattern != "" {
 		pattern = "/" + pattern
 	}
@@ -1060,6 +1049,9 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 }
 
 func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+	//es6.6 start support index_prefixes, index_phrases
+	mappings = bytes.Replace(mappings, []byte(`"index_prefixes":{},"index_phrases":"true",`), nil, -1)
+
 	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, TypeName0)
@@ -1157,7 +1149,7 @@ func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollI
 
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
 
-	resp, err := RequestTimeout(ctx, util.Verb_GET, url, nil, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
+	resp, err := adapter.RequestTimeout(ctx, util.Verb_GET, url, nil, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -1263,14 +1255,7 @@ func (c *ESAPIV0) GetIndexStats(indexName string) (*util.MapStr, error) {
 }
 
 func (c *ESAPIV0) GetStats() (*elastic.Stats, error) {
-	cr, err := util.VersionCompare(c.GetVersion(), "7.3")
-	if err != nil {
-		return nil, err
-	}
 	format := "%s/_stats?ignore_unavailable=true"
-	if cr > -1 {
-		format += "&expand_wildcards=all"
-	}
 	url := fmt.Sprintf(format, c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -1484,15 +1469,9 @@ func (c *ESAPIV0) DeleteSearchTemplate(templateID string) error {
 }
 
 func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
-	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
-	if err != nil {
-		return nil, err
-	}
-	if cr == -1 {
-		if source, ok := body["source"]; ok {
-			body["inline"] = source
-			delete(body, "source")
-		}
+	if source, ok := body["source"]; ok { //es 5.6
+		body["inline"] = source
+		delete(body, "source")
 	}
 	url := fmt.Sprintf("%s/_render/template", c.GetEndpoint())
 	bytesBody, err := json.Marshal(body)
@@ -1504,16 +1483,11 @@ func (c *ESAPIV0) RenderTemplate(body map[string]interface{}) ([]byte, error) {
 }
 
 func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
-	cr, err := util.VersionCompare(c.GetVersion(), "5.6")
-	if err != nil {
-		return nil, err
+	if source, ok := body["source"]; ok { //es 5.6
+		body["inline"] = source
+		delete(body, "source")
 	}
-	if cr == -1 {
-		if source, ok := body["source"]; ok {
-			body["inline"] = source
-			delete(body, "source")
-		}
-	}
+
 	url := fmt.Sprintf("%s/_search/template", c.GetEndpoint())
 	bytesBody, err := json.Marshal(body)
 	if err != nil {

@@ -6,7 +6,11 @@ import (
 	"infini.sh/framework/core/credential"
 	elastic "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
+	"infini.sh/framework/modules/elastic/adapter/easysearch"
+	"infini.sh/framework/modules/elastic/adapter/elasticsearch"
+	"infini.sh/framework/modules/elastic/adapter/opensearch"
 	"strings"
 )
 
@@ -45,44 +49,93 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		esConfig.Version, _ = adapter.GetMajorVersion(elastic.GetOrInitMetadata(&esConfig))
+		verInfo, _ := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
+		if verInfo != nil {
+			esConfig.Version = verInfo.Version.Number
+			esConfig.Distribution = verInfo.Version.Distribution
+		}
 	} else {
 		ver = esConfig.Version
 	}
-
+	
 	if ver == "" && esConfig.Version != "" {
 		ver = esConfig.Version
 	}
+	apiVer := elastic.Version{
+		Number: ver,
+		Distribution: esConfig.Distribution,
+	}
 
-	if strings.HasPrefix(ver, "8.") {
-		api := new(adapter.ESAPIV8)
+	if esConfig.Distribution == elastic.Easysearch {
+		return newEasysearchClient(esConfig.ID, apiVer)
+	}else if esConfig.Distribution == elastic.Opensearch {
+		return newOpensearchClient(esConfig.ID, apiVer)
+	}
+	sem, err := util.ParseSemantic(ver)
+	if err != nil {
+		return nil, err
+	}
+	major, minor := sem.Major(), sem.Minor()
+	if major >=8 {
+		api := new(elasticsearch.ESAPIV8)
 		api.Elasticsearch = esConfig.ID
-		api.Version = ver
+		api.Version = apiVer
 		client = api
-	} else if strings.HasPrefix(ver, "7.") {
-		api := new(adapter.ESAPIV7)
+	}else if major == 7 {
+		if minor >=7 {
+			api := new(elasticsearch.ESAPIV7_7)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}else if minor >=3 {
+			api := new(elasticsearch.ESAPIV7_3)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}else{
+			api := new(elasticsearch.ESAPIV7)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}
+	}else if major == 6 {
+		if minor >= 6 {
+			api := new(elasticsearch.ESAPIV6_6)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}else{
+			api := new(elasticsearch.ESAPIV6)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}
+	}else if major == 5 {
+		if minor >=6 {
+			api := new(elasticsearch.ESAPIV5_6)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}else if minor >=4 {
+			api := new(elasticsearch.ESAPIV5_4)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}else{
+			api := new(elasticsearch.ESAPIV5)
+			api.Elasticsearch = esConfig.ID
+			api.Version = apiVer
+			client = api
+		}
+	}else if major == 2 {
+		api := new(elasticsearch.ESAPIV2)
 		api.Elasticsearch = esConfig.ID
-		api.Version = ver
+		api.Version = apiVer
 		client = api
-	} else if strings.HasPrefix(ver, "6.") {
-		api := new(adapter.ESAPIV6)
+	}else{
+		api := new(elasticsearch.ESAPIV0)
 		api.Elasticsearch = esConfig.ID
-		api.Version = ver
-		client = api
-	} else if strings.HasPrefix(ver, "5.") {
-		api := new(adapter.ESAPIV5)
-		api.Elasticsearch = esConfig.ID
-		api.Version = ver
-		client = api
-	} else if strings.HasPrefix(ver, "2.") {
-		api := new(adapter.ESAPIV2)
-		api.Elasticsearch = esConfig.ID
-		api.Version = ver
-		client = api
-	} else {
-		api := new(adapter.ESAPIV0)
-		api.Elasticsearch = esConfig.ID
-		api.Version = ver
+		api.Version = apiVer
 		client = api
 	}
 
@@ -154,4 +207,48 @@ func GetElasticClient(clusterID string)(elastic.API, error) {
 		return InitElasticInstance(*conf)
 	}
 	return nil, fmt.Errorf("cluster [%s] was not found", clusterID)
+}
+
+func GetClusterDocType(clusterID string) string {
+	client := elastic.GetClient(clusterID)
+	verInfo := client.GetVersion()
+	switch verInfo.Distribution {
+	case elastic.Easysearch:
+		return "_doc"
+	case elastic.Opensearch:
+		return ""
+	default:
+		majorVersion := client.GetMajorVersion()
+		if majorVersion >= 8 {
+			return ""
+		}
+		if majorVersion < 7 {
+			return "doc"
+		} else {
+			return "_doc"
+		}
+	}
+}
+
+func newOpensearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "2.") {
+		api := new(opensearch.APIV2)
+		api.Elasticsearch = clusterID
+		api.Version = version
+		return api, nil
+	}
+	if strings.HasPrefix(version.Number, "1.") {
+		api := new(opensearch.APIV1)
+		api.Elasticsearch = clusterID
+		api.Version = version
+		return api, nil
+	}
+	return nil, fmt.Errorf("unsupport opensearch version [%v]", version.Number)
+}
+
+func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	api := new(easysearch.APIV1)
+	api.Elasticsearch = clusterID
+	api.Version = version
+	return api, nil
 }

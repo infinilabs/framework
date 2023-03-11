@@ -28,6 +28,7 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
+	"infini.sh/framework/modules/elastic/common"
 	"runtime"
 	"github.com/savsgio/gotils/bytes"
 	"sync"
@@ -162,7 +163,6 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSeconds) * time.Second
 
 	client := elastic.GetClient(processor.config.Elasticsearch)
-	clientMajorVersion := client.GetMajorVersion()
 
 	var checkCount = 0
 
@@ -186,11 +186,7 @@ CHECK_AVAIABLE:
 	}
 
 	if processor.config.TypeName == "" {
-		if clientMajorVersion < 7 {
-			processor.config.TypeName = "doc"
-		} else {
-			processor.config.TypeName = "_doc"
-		}
+		processor.config.TypeName = common.GetClusterDocType(processor.config.Elasticsearch)
 	}
 	var lastCommit time.Time = time.Now()
 
@@ -215,7 +211,7 @@ READ_DOCS:
 				panic("index name is empty")
 			}
 
-			if clientMajorVersion < 8 {
+			if processor.config.TypeName != "" {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" } }\n", processor.config.IndexName, processor.config.TypeName))
 			} else {
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))

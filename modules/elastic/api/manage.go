@@ -56,6 +56,9 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		conf.CredentialID = credentialID
 	}
 	conf.BasicAuth = nil
+	if conf.Distribution == "" {
+		conf.Distribution = elastic.Elasticsarch
+	}
 	err = orm.Create(ctx, conf)
 	if err != nil {
 		log.Error(err)
@@ -542,6 +545,16 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	resBody["metrics"] = h.getNodeMetrics(id, bucketSize, min, max, nodeName, top)
+	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
+	if ver.Distribution == "" {
+		cr, err := util.VersionCompare(ver.Number, "6.1")
+		if err != nil {
+			log.Error(err)
+		}
+		if cr < 0 {
+			resBody["tips"] = "The system cluster version is lower than 6.1, the top node may be inaccurate"
+		}
+	}
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
@@ -615,6 +628,16 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 
 	}
 	resBody["metrics"] = metrics
+	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
+	if ver.Distribution == "" {
+		cr, err := util.VersionCompare(ver.Number, "6.1")
+		if err != nil {
+			log.Error(err)
+		}
+		if cr < 0 {
+			resBody["tips"] = "The system cluster version is lower than 6.1, the top index may be inaccurate"
+		}
+	}
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
@@ -641,6 +664,16 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 		}
 	}
 	resBody["metrics"] = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
+	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
+	if ver.Distribution == "" {
+		cr, err := util.VersionCompare(ver.Number, "6.1")
+		if err != nil {
+			log.Error(err)
+		}
+		if cr < 0 {
+			resBody["tips"] = "The system cluster version is lower than 6.1, the top node may be inaccurate"
+		}
+	}
 
 	err = h.WriteJSON(w, resBody, http.StatusOK)
 	if err != nil {
@@ -1017,6 +1050,10 @@ func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) 
 
 func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSize int)(*common.MetricItem, error){
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		return nil, err
+	}
 	query := util.MapStr{
 		"query": util.MapStr{
 			"bool": util.MapStr{
@@ -1059,7 +1096,7 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 			"dates": util.MapStr{
 				"date_histogram": util.MapStr{
 					"field": "timestamp",
-					"fixed_interval": bucketSizeStr,
+					intervalField: bucketSizeStr,
 				},
 				"aggs": util.MapStr{
 					"group_status": util.MapStr{
@@ -1314,4 +1351,10 @@ func (h *APIHandler) HandleGetStorageMetricAction(w http.ResponseWriter, req *ht
 	}
 	metricData.Value = math.Trunc(totalStoreSize * 100)/100
 	h.WriteJSON(w, metricData, http.StatusOK)
+}
+
+func getDateHistogramIntervalField(clusterID string, bucketSize string) (string, error){
+	esClient := elastic.GetClient(clusterID)
+	ver := esClient.GetVersion()
+	return elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, bucketSize)
 }

@@ -497,6 +497,7 @@ type ElasticsearchConfig struct {
 	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
 	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
 	CredentialID string `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
+	Distribution string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 }
 
 type GeoLocation struct {
@@ -586,3 +587,14 @@ type IndexMetadata struct {
 	Category    string        `json:"category,omitempty"`
 	Tags        []interface{} `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 }
+
+type Version struct{
+	Number string
+	Distribution string
+}
+
+const (
+	Elasticsarch = "elasticsearch"
+	Easysearch = "easysearch"
+	Opensearch = "opensearch"
+)

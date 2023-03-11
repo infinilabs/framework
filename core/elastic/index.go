@@ -29,6 +29,7 @@ type ClusterInformation struct {
 	Version     struct {
 		Number        string `json:"number,intern"`
 		LuceneVersion string `json:"lucene_version,intern"`
+		Distribution string `json:"distribution"`
 	} `json:"version"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"strings"
@@ -232,8 +233,9 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 	})
 
 	majorVersion := elastic.GetMetadata(clusterID).GetMajorVersion()
+	ver := elastic.GetClient(clusterID).GetVersion()
 
-	if majorVersion < 6 {
+	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsarch) && majorVersion < 6{
 		indexThreadsMetric := newMetricItem("index_threads", 1, ThreadPoolIndexGroupKey)
 		indexThreadsMetric.AddAxi("Index Threads Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 
@@ -509,6 +511,11 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			}
 		}
 	}
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
 
 	query["size"]=0
 	query["aggs"]= util.MapStr{
@@ -521,7 +528,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 				"dates": util.MapStr{
 					"date_histogram":util.MapStr{
 						"field": "timestamp",
-						"fixed_interval": bucketSizeStr,
+						intervalField: bucketSizeStr,
 					},
 					"aggs":aggs,
 				},

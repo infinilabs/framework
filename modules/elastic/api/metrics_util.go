@@ -323,17 +323,23 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	}
 	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
 
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
 	query["size"] = 0
 	query["aggs"] = util.MapStr{
 		"dates": util.MapStr{
 			"date_histogram": util.MapStr{
 				"field":          "timestamp",
-				"fixed_interval": bucketSizeStr,
+				intervalField: bucketSizeStr,
 			},
 			"aggs": aggs,
 		},
 	}
-	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	response, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
 		panic(err)

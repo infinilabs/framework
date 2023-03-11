@@ -106,6 +106,7 @@ func (h TestAPI) HandleTestConnectionAction(w http.ResponseWriter, req *http.Req
 	resBody["version"] = clusterInfo.Version.Number
 	resBody["cluster_uuid"] = clusterInfo.ClusterUUID
 	resBody["cluster_name"] = clusterInfo.ClusterName
+	resBody["distribution"] = clusterInfo.Version.Distribution
 
 	//fetch cluster health info
 	freq.SetRequestURI(fmt.Sprintf("%s/_cluster/health", config.Endpoint))
