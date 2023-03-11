@@ -293,6 +293,7 @@ func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
 	return util.MapStr{
 		"all": util.MapStr{
 			"connections": allConns,
+			"established": allEstablished,
 			"listening": allListening,
 			"udp": udpConns,
 		},
