@@ -298,7 +298,7 @@ func (s *Stats) StatsAll() string {
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
 		"mem":          int64(mem.RSS),
-		"goroutines":   int64(mem.Locked),
+		"goroutines":   int64(runtime.NumGoroutine()),
 		"objects":   int64(m.HeapObjects),
 		"stack":   int64(m.StackInuse),
 		"mspan":   int64(m.MSpanInuse),
