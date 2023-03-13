@@ -17,9 +17,14 @@ limitations under the License.
 package pipeline
 
 import (
+	"net/http"
+	"runtime"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/api/router"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
@@ -27,10 +32,6 @@ import (
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
-	"net/http"
-	"runtime"
-	"sync"
-	"time"
 )
 
 type PipeModule struct {
@@ -47,18 +48,9 @@ func (module PipeModule) Name() string {
 	return "Pipeline"
 }
 
-var moduleCfg = struct {
-	APIEnabled bool `config:"api_enabled"`
-}{
-	APIEnabled: true,
-}
+var moduleCfg = struct{}{}
 
 func (module *PipeModule) Setup() {
-
-	ok, err := env.ParseConfig("pipeline", &moduleCfg)
-	if ok && err != nil {
-		panic(err)
-	}
 
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)
@@ -71,36 +63,38 @@ func (module *PipeModule) Setup() {
 	pipeline.RegisterProcessorPlugin("dag", pipeline.NewDAGProcessor)
 	pipeline.RegisterProcessorPlugin("echo", NewEchoProcessor)
 
-	if moduleCfg.APIEnabled {
-		api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
-		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTaskHandler)
-		api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTaskHandler)
-	}
+	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getPipelines)
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTaskHandler)
+	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTaskHandler)
 
 	//listen on changes
-	config.NotifyOnConfigSectionChange("pipeline", func(pCfg,cCfg *config.Config) {
+	config.NotifyOnConfigChange(func() {
+		configFile := global.Env().GetConfigFile()
 		configDir := global.Env().GetConfigDir()
-		newCfg, err := config.LoadPath(configDir)
+		parentCfg, err := config.LoadFile(configFile)
 		if err != nil {
-			log.Error(err)
+			log.Error("failed to load config file: ", err, ", path: ", configFile)
 			return
+		}
+		childCfg, err := config.LoadPath(configDir)
+		if err != nil {
+			log.Error("failed to load config dir: ", err, ", path: ", configDir)
+			return
+		}
+		err = parentCfg.Merge(childCfg)
+		if err != nil {
+			log.Error("failed to merge configs: ", err)
 		}
 
 		newConfig := []pipeline.PipelineConfigV2{}
 
-		if ok,err:=newCfg.Has("pipeline",-1);ok{
-			newCfg, err = newCfg.Child("pipeline", -1)
+		if ok := parentCfg.HasField("pipeline"); ok {
+			parentCfg, err = parentCfg.Child("pipeline", -1)
 			if err != nil {
 				log.Error(err)
 				return
 			}
-			err := cCfg.Unpack(&newConfig)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-		}else{
-			err := cCfg.Unpack(&newConfig)
+			err := parentCfg.Unpack(&newConfig)
 			if err != nil {
 				log.Error(err)
 				return
@@ -124,51 +118,45 @@ func (module *PipeModule) Setup() {
 			}
 		}()
 
-		//each entry should reuse port
-		//collect old entry with same id and same port
 		old := module.configs
-		existKeys := map[string]string{}
 		skipKeys := map[string]string{}
 		newPipeline := map[string]pipeline.PipelineConfigV2{}
 
 		for _, v := range newConfig {
+			newPipeline[v.Name] = v
 			oldC, ok := old[v.Name]
 			if ok {
-				existKeys[v.Name] = v.Name
 				if v.Equals(oldC) {
 					skipKeys[v.Name] = v.Name
 					continue
 				}
 			}
-			newPipeline[v.Name] = v
 		}
 
-		if newLen := len(newPipeline); newLen==0 && newLen==len(old) {
+		// If all pipelines are unchanged, return early
+		if len(newPipeline) == len(skipKeys) {
 			return
 		}
 
-
 		log.Debug("stopping old entry points")
-		for _,v:=range old{
-			_,ok:=skipKeys[v.Name]
-			if ok{
-				newPipeline[v.Name]=v
+		for _, v := range old {
+			_, ok := skipKeys[v.Name]
+			if ok {
 				continue
 			}
 
+			log.Infof("removing pipeline [%s]", v.Name)
 			module.stopTask(v.Name)
-			log.Infof("remove pipeline [%s]", v.Name)
-
 			module.runningPipelines.Delete(v.Name)
 			module.contexts.Delete(v.Name)
 		}
 
-		module.configs=newPipeline
+		module.configs = newPipeline
 
 		log.Debug("starting new pipeline")
-		for _,v:=range newPipeline{
-			err:=module.startPipeline(v)
-			if err!=nil{
+		for _, v := range newPipeline {
+			err := module.startPipeline(v)
+			if err != nil {
 				log.Error(err)
 			}
 		}
@@ -179,19 +167,19 @@ func (module *PipeModule) Setup() {
 
 func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	if module.startTask(id){
+	if module.startTask(id) {
 		module.WriteAckOKJSON(w)
-	}else{
+	} else {
 		module.WriteAckJSON(w, false, 404, util.MapStr{
 			"error": "task not found",
 		})
 	}
 }
 
-func (module *PipeModule) startTask(taskID string) bool{
-	ctx,ok:=module.contexts.Load(taskID)
-	if ok{
-		if ctx,ok:=ctx.(*pipeline.Context);ok{
+func (module *PipeModule) startTask(taskID string) bool {
+	ctx, ok := module.contexts.Load(taskID)
+	if ok {
+		if ctx, ok := ctx.(*pipeline.Context); ok {
 			if ctx.IsPause() {
 				ctx.Resume()
 			}
@@ -211,32 +199,32 @@ func (module *PipeModule) startTask(taskID string) bool{
 
 func (module *PipeModule) stopTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	if module.stopTask(id){
+	if module.stopTask(id) {
 		module.WriteAckOKJSON(w)
-	}else{
+	} else {
 		module.WriteAckJSON(w, false, 404, util.MapStr{
 			"error": "task not found",
 		})
 	}
 }
 
-func (module *PipeModule) stopTask(taskID string)bool {
+func (module *PipeModule) stopTask(taskID string) bool {
 	ctx, ok := module.contexts.Load(taskID)
 	if ok {
-		v1,ok:=ctx.(*pipeline.Context)
-		if ok{
+		v1, ok := ctx.(*pipeline.Context)
+		if ok {
 			if global.Env().IsDebug {
-				if rate.GetRateLimiterPerSecond("pipeline","shutdown "+taskID+string(v1.GetRunningState()),1).Allow(){
-					log.Trace("start shutting down pipeline:", taskID,",state:",v1.GetRunningState())
+				if rate.GetRateLimiterPerSecond("pipeline", "shutdown "+taskID+string(v1.GetRunningState()), 1).Allow() {
+					log.Trace("start shutting down pipeline:", taskID, ",state:", v1.GetRunningState())
 				}
 			}
 
-			if v1.GetRunningState() == pipeline.FAILED ||v1.GetRunningState() == pipeline.STARTED || v1.GetRunningState() == pipeline.STARTING {
+			if v1.GetRunningState() == pipeline.FAILED || v1.GetRunningState() == pipeline.STARTED || v1.GetRunningState() == pipeline.STARTING {
 				v1.CancelTask()
 				v1.Exit()
 			}
-		}else{
-			log.Errorf("context for pipeline [%v] was missing",taskID)
+		} else {
+			log.Errorf("context for pipeline [%v] was missing", taskID)
 		}
 		return true
 	}
@@ -246,11 +234,11 @@ func (module *PipeModule) stopTask(taskID string)bool {
 func (module *PipeModule) getPipelines(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	obj := util.MapStr{}
 	module.runningPipelines.Range(func(key, value any) bool {
-		k,ok:=key.(string)
-		if ok{
-			c,ok:=module.contexts.Load(k)
-			if ok{
-				if c1,ok:=c.(*pipeline.Context);ok{
+		k, ok := key.(string)
+		if ok {
+			c, ok := module.contexts.Load(k)
+			if ok {
+				if c1, ok := c.(*pipeline.Context); ok {
 					obj[k] = util.MapStr{
 						"state":      c1.GetRunningState(),
 						"start_time": c1.GetStartTime(),
@@ -277,24 +265,24 @@ func (module *PipeModule) Start() error {
 	}
 	if ok {
 		for _, v := range pipelines {
-			err:=module.startPipeline(v)
-			if err!=nil{
-				log.Errorf("error on running pipeline: %v, err: %v",v.Name,err)
+			err := module.startPipeline(v)
+			if err != nil {
+				log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
 				continue
 			}
-			module.configs[v.Name]=v
+			module.configs[v.Name] = v
 		}
 	}
 
 	module.started = true
-	module.closing=false
+	module.closing = false
 	return nil
 }
 
 func (module *PipeModule) Stop() error {
 
 	if module.started {
-		module.closing=true
+		module.closing = true
 		total := util.GetSyncMapSize(&module.contexts)
 		if total <= 0 {
 			return nil
@@ -306,11 +294,11 @@ func (module *PipeModule) Stop() error {
 	CLOSING:
 
 		module.contexts.Range(func(key, value any) bool {
-			k,ok:=key.(string)
-			if !ok{
+			k, ok := key.(string)
+			if !ok {
 				return false
 			}
-			ok=module.stopTask(k)
+			ok = module.stopTask(k)
 			return true
 		})
 
@@ -318,26 +306,26 @@ func (module *PipeModule) Stop() error {
 			//if global.Env().IsDebug{
 			//	log.Trace("checking config: ",k)
 			//}
-			v1,ok:=module.contexts.Load(k)
-			if ok{
-				v,ok:=v1.(*pipeline.Context)
+			v1, ok := module.contexts.Load(k)
+			if ok {
+				v, ok := v1.(*pipeline.Context)
 				//if global.Env().IsDebug{
 				//	log.Trace(v.Config.Name,",",v.GetRunningState())
 				//}
-				if ok{
+				if ok {
 					if v.GetRunningState() == pipeline.STARTED || v.GetRunningState() == pipeline.STARTING || v.GetRunningState() == pipeline.STOPPING {
 						if time.Now().Sub(start).Minutes() > 5 {
 							log.Error("pipeline framework failed to stop tasks, quiting")
 							return errors.New("pipeline framework failure to stop tasks, quiting")
 						}
-						if rate.GetRateLimiterPerSecond("pipeline","shutdown"+k+string(v.GetRunningState()),1).Allow(){
-							log.Debug("pipeline still running:", k,",state:",v.GetRunningState(),", closing")
+						if rate.GetRateLimiterPerSecond("pipeline", "shutdown"+k+string(v.GetRunningState()), 1).Allow() {
+							log.Debug("pipeline still running:", k, ",state:", v.GetRunningState(), ", closing")
 						}
 						goto CLOSING
 					}
 				}
-			}else{
-				log.Errorf("context for pipeline [%v] was missing",k)
+			} else {
+				log.Errorf("context for pipeline [%v] was missing", k)
 			}
 		}
 		log.Info("finished shut down pipelines")
@@ -346,32 +334,32 @@ func (module *PipeModule) Stop() error {
 		log.Error("pipeline framework is not started")
 	}
 
-	module.closing=false
+	module.closing = false
 	return nil
 }
 
-func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
+func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2) error {
 
-	if _,ok:=module.runningPipelines.Load(v.Name);ok{
-		log.Tracef("pipeline [%v] is already running, skip",v.Name)
+	if _, ok := module.runningPipelines.Load(v.Name); ok {
+		log.Tracef("pipeline [%v] is already running, skip", v.Name)
 		return nil
 	}
 
-	log.Info("starting pipeline: "+v.Name)
+	log.Info("starting pipeline: " + v.Name)
 
 	processor, err := pipeline.NewPipeline(v.Processors)
 	if err != nil {
 		return err
 	}
 	ctx := pipeline.AcquireContext()
-	ctx.Config=v
+	ctx.Config = v
 
 	if v.RetryDelayInMs <= 0 {
 		v.RetryDelayInMs = 1000
 	}
 
-	module.runningPipelines.Store(v.Name,processor)
-	module.contexts.Store(v.Name,ctx)
+	module.runningPipelines.Store(v.Name, processor)
+	module.contexts.Store(v.Name, ctx)
 
 	go func(cfg pipeline.PipelineConfigV2, p *pipeline.Processors, ctx *pipeline.Context) {
 		defer func() {
@@ -419,7 +407,7 @@ func (module *PipeModule) startPipeline(v pipeline.PipelineConfigV2)error {
 							time.Sleep(time.Duration(cfg.RetryDelayInMs) * time.Millisecond)
 						}
 
-						if module.closing{
+						if module.closing {
 							log.Debugf("pipeline module stopped, skip running [%v]", cfg.Name)
 							ctx.Finished()
 							return

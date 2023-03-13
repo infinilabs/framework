@@ -5,31 +5,32 @@
 package config
 
 import (
-	log "github.com/cihub/seelog"
-	"github.com/fsnotify/fsnotify"
-	"infini.sh/framework/core/util"
 	"runtime"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"github.com/fsnotify/fsnotify"
+	"infini.sh/framework/core/util"
 )
 
 type Watcher struct {
-	path string
-	watcher *fsnotify.Watcher
+	path      string
+	watcher   *fsnotify.Watcher
 	callbacks []CallbackFunc
 }
 
-type CallbackFunc func(file string,op fsnotify.Op)
+type CallbackFunc func(file string, op fsnotify.Op)
 
 var fsWatchers map[string]*Watcher = map[string]*Watcher{}
 
-func loadConfigFile(file string)*Config  {
-	if util.SuffixStr(file,".yml")||util.SuffixStr(file,".yaml"){
-		if !util.FileExists(file){
+func loadConfigFile(file string) *Config {
+	if util.SuffixStr(file, ".yml") || util.SuffixStr(file, ".yaml") {
+		if !util.FileExists(file) {
 			return nil
 		}
-		v1,err:= LoadFile(file)
-		if err!=nil{
+		v1, err := LoadFile(file)
+		if err != nil {
 			log.Error(err)
 			return nil
 		}
@@ -38,103 +39,114 @@ func loadConfigFile(file string)*Config  {
 	return nil
 }
 
-func EnableWatcher(path string)  {
-	if !util.FileExists(path){
-		log.Debugf("path: %v not exists, skip watcher",path)
+func EnableWatcher(path string) {
+	if !util.FileExists(path) {
+		log.Debugf("path: %v not exists, skip watcher", path)
 		return
 	}
-	AddPathToWatch(path, func(file string,op fsnotify.Op) {
-		log.Debug("reload file: ",file,",",op.String())
-		loadConfigFile(file)
+	AddPathToWatch(path, func(file string, op fsnotify.Op) {
+		log.Debug("reload file: ", file, ",", op.String())
 	})
 
-	log.Debugf("enable watcher on path: %v",path)
-
+	log.Debugf("enable watcher on path: %v", path)
 }
-var watcherLock=sync.Once{}
-var watcherIsRunning=false
-//event bus
-var events chan fsnotify.Event=make(chan fsnotify.Event,10)
 
-func AddPathToWatch(path string,callback CallbackFunc) {
+var watcherLock = sync.Once{}
+var watcherIsRunning = false
+
+// event bus
+var events chan fsnotify.Event = make(chan fsnotify.Event, 10)
+
+// AddPathToWatch should only be called for configuration paths
+func AddPathToWatch(path string, callback CallbackFunc) {
 
 	var err error
-	watcher,ok:= fsWatchers[path]
-	if ok{
-		watcher.callbacks=append(watcher.callbacks,callback)
+	watcher, ok := fsWatchers[path]
+	if ok {
+		watcher.callbacks = append(watcher.callbacks, callback)
 		return
 	}
 
 	fsWatcher, err := fsnotify.NewWatcher()
-	if err!=nil{
+	if err != nil {
 		log.Error(err)
 		return
 	}
 
-	watcher=&Watcher{
-		path: path,
-		watcher: fsWatcher,
-		callbacks:[]CallbackFunc{callback},
+	watcher = &Watcher{
+		path:      path,
+		watcher:   fsWatcher,
+		callbacks: []CallbackFunc{callback},
 	}
 
-	fsWatchers[path]=watcher
+	fsWatchers[path] = watcher
 
 	watcherLock.Do(func() {
-		if watcherIsRunning{
+		if watcherIsRunning {
 			return
 		}
-		watcherIsRunning=true
+		watcherIsRunning = true
 
 		//handle config reload
 		go func() {
 			defer func() {
-					if r := recover(); r != nil {
-						var v string
-						switch r.(type) {
-						case error:
-							v = r.(error).Error()
-						case runtime.Error:
-							v = r.(runtime.Error).Error()
-						case string:
-							v = r.(string)
-						}
-						log.Trace("error on handle configs,", v)
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
 					}
+					log.Trace("error on handle configs,", v)
+				}
 			}()
 
 			var ev fsnotify.Event
 			var ok bool
-			for{
-				ev,ok = <- events
-				if !ok{
+			for {
+				ev, ok = <-events
+				if !ok {
 					continue
 				}
-				log.Trace("2 seconds wait, on:",ev.String())
-				time.Sleep(2*time.Second)
-				log.Trace("2 seconds out, on:",ev.String())
+				log.Trace("2 seconds wait, on:", ev.String())
+				time.Sleep(2 * time.Second)
+				log.Trace("2 seconds out, on:", ev.String())
 
-				for _,v:=range watcher.callbacks{
-					v(ev.Name,ev.Op)
+				// AddPathToWatch
+
+				for _, v := range watcher.callbacks {
+					v(ev.Name, ev.Op)
 				}
 
-				cfg:=loadConfigFile(ev.Name)
-				if cfg==nil{
+				// NotifyOnConfigChange
+
+				for _, v := range configCallbacks {
+					v()
+				}
+
+				// NotifyOnConfigSectionChange
+
+				cfg := loadConfigFile(ev.Name)
+				if cfg == nil {
 					continue
 				}
 
-				for k,v:=range notify{
-					if cfg.HasField(k){
-						currentCfg,err:=cfg.Child(k,-1)
-						if err!=nil{
+				for k, v := range sectionCallbacks {
+					if cfg.HasField(k) {
+						currentCfg, err := cfg.Child(k, -1)
+						if err != nil {
 							log.Error(err)
 							continue
 						}
 						// diff config
-						previousCfg,_:=latestConfig[k]
-						for _,f:=range v{
-							f(previousCfg,currentCfg)
+						previousCfg, _ := latestConfig[k]
+						for _, f := range v {
+							f(previousCfg, currentCfg)
 						}
-						latestConfig[k]=currentCfg
+						latestConfig[k] = currentCfg
 					}
 				}
 			}
@@ -159,26 +171,26 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 		}()
 
 		//handle events merge
-		cache:=util.NewCacheWithExpireOnAdd(1*time.Second,5)
+		cache := util.NewCacheWithExpireOnAdd(1*time.Second, 5)
 		for {
 			select {
 			case ev := <-fsWatcher.Events:
 				{
-					if util.SuffixStr(ev.Name,"~"){
-						log.Trace("skip temp file:",ev.String())
+					if util.SuffixStr(ev.Name, "~") {
+						log.Trace("skip temp file:", ev.String())
 						continue
 					}
 
 					//merge changes in 1 seconds
-					v:=cache.Put(ev.Name,ev.Op)
-					if v!=nil{
+					v := cache.Put(ev.Name, ev.Op)
+					if v != nil {
 						//old key exists
-						log.Trace("1 seconds within, skip:",ev.String())
+						log.Trace("1 seconds within, skip:", ev.String())
 						continue
 					}
 
-					log.Trace("config changed:",ev.String())
-					events<-ev
+					log.Trace("config changed:", ev.String())
+					events <- ev
 				}
 			case err := <-fsWatcher.Errors:
 				{
@@ -197,35 +209,46 @@ func AddPathToWatch(path string,callback CallbackFunc) {
 	}
 }
 
-var latestConfig =map[string]*Config{}
+var latestConfig = map[string]*Config{}
 
 func StopWatchers() {
 
 	log.Trace("stopping watchers")
-	for i,v:=range fsWatchers{
-		log.Trace("stopping watcher: ",i)
-		if v.watcher!=nil{
+	for i, v := range fsWatchers {
+		log.Trace("stopping watcher: ", i)
+		if v.watcher != nil {
 			v.watcher.Close()
 		}
-		log.Trace("stopped watcher: ",i)
+		log.Trace("stopped watcher: ", i)
 	}
 
 	log.Trace("start closing watcher events channel")
 	close(events)
 }
 
-var notify = map[string][]func(pCfg,cCfg *Config){}
-var cfgLocker=sync.RWMutex{}
+var sectionCallbacks = map[string][]func(pCfg, cCfg *Config){}
+var configCallbacks = []func(){}
+var cfgLocker = sync.RWMutex{}
 
-func NotifyOnConfigSectionChange(configKey string,f func(pCfg,cCfg *Config))  {
+// NotifyOnConfigSectionChange will trigger callback when any configuration file change detected and
+// configKey present in the changed file
+func NotifyOnConfigSectionChange(configKey string, f func(pCfg, cCfg *Config)) {
 	cfgLocker.Lock()
 	defer cfgLocker.Unlock()
 
-	v,ok:=notify[configKey]
-	if !ok{
-		v=[]func(pCfg,cCfg *Config){}
-		notify[configKey]=v
+	v, ok := sectionCallbacks[configKey]
+	if !ok {
+		v = []func(pCfg, cCfg *Config){}
+		sectionCallbacks[configKey] = v
 	}
-	v=append(v,f)
-	notify[configKey]=v
+	v = append(v, f)
+	sectionCallbacks[configKey] = v
+}
+
+// NotifyOnConfigChange will trigger callback when any configuration file change detected
+func NotifyOnConfigChange(f func()) {
+	cfgLocker.Lock()
+	defer cfgLocker.Unlock()
+
+	configCallbacks = append(configCallbacks, f)
 }
