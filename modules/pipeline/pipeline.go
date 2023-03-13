@@ -134,7 +134,7 @@ func (module *PipeModule) Setup() {
 		}
 
 		// If all pipelines are unchanged, return early
-		if len(newPipeline) == len(skipKeys) {
+		if len(newPipeline) == len(skipKeys) && len(newPipeline) == len(old) {
 			return
 		}
 
