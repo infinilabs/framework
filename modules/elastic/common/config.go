@@ -57,10 +57,16 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	} else {
 		ver = esConfig.Version
 	}
-	
+
 	if ver == "" && esConfig.Version != "" {
 		ver = esConfig.Version
 	}
+
+	if ver==""{
+		//can't fetch any version
+		ver="1.0.0"
+	}
+
 	apiVer := elastic.Version{
 		Number: ver,
 		Distribution: esConfig.Distribution,
@@ -75,6 +81,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	if err != nil {
 		return nil, err
 	}
+
 	major, minor := sem.Major(), sem.Minor()
 	if major >=8 {
 		api := new(elasticsearch.ESAPIV8)
