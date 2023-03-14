@@ -75,7 +75,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 		KeepRunning:    obj.KeepRunning,
 		RetryDelayInMs: obj.RetryDelayInMs,
 		Processors:     processors,
-	})
+	}, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		log.Error("failed to start pipeline: ", err)

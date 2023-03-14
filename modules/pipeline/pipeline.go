@@ -132,6 +132,10 @@ func (module *PipeModule) Setup() {
 				log.Errorf("impossible value from configs: %t", v)
 				return true
 			}
+			// Don't stop dynamic pipelines
+			if oldC.IsDynamic {
+				return true
+			}
 			newC, ok := newPipelines[oldC.Name]
 			// If old pipeline is present in the new pipeline configs and the same as the new config,
 			// there's no need to stop and clean the old pipeline
@@ -151,7 +155,7 @@ func (module *PipeModule) Setup() {
 
 		log.Debug("starting new pipeline")
 		for _, v := range newPipelines {
-			err := module.createPipeline(v)
+			err := module.createPipeline(v, false)
 			if err != nil {
 				log.Error("failed to create pipeline: ", err)
 			}
@@ -222,7 +226,7 @@ func (module *PipeModule) Start() error {
 	}
 	if ok {
 		for _, v := range pipelines {
-			err := module.createPipeline(v)
+			err := module.createPipeline(v, false)
 			if err != nil {
 				log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
 				continue
@@ -301,13 +305,14 @@ func (module *PipeModule) Stop() error {
 	return nil
 }
 
-func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2) error {
+func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, dynamic bool) error {
 
 	if _, ok := module.configs.Load(v.Name); ok {
 		log.Tracef("pipeline [%v] is already created, skip", v.Name)
 		return nil
 	}
 
+	v.IsDynamic = dynamic
 	module.configs.Store(v.Name, v)
 
 	log.Info("creating pipeline: " + v.Name)
