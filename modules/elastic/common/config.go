@@ -2,6 +2,8 @@ package common
 
 import (
 	"fmt"
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/credential"
 	elastic "infini.sh/framework/core/elastic"
@@ -11,7 +13,6 @@ import (
 	"infini.sh/framework/modules/elastic/adapter/easysearch"
 	"infini.sh/framework/modules/elastic/adapter/elasticsearch"
 	"infini.sh/framework/modules/elastic/adapter/opensearch"
-	"strings"
 )
 
 type ORMConfig struct {
@@ -39,8 +40,8 @@ type ModuleConfig struct {
 	HealthCheckConfig           CheckConfig `config:"health_check"`
 	NodeAvailabilityCheckConfig CheckConfig `config:"availability_check"`
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
-	ClusterSettingsCheckConfig           CheckConfig `config:"cluster_settings_check"`
-	ClientTimeout string `config:"client_timeout"`
+	ClusterSettingsCheckConfig  CheckConfig `config:"cluster_settings_check"`
+	ClientTimeout               string      `config:"client_timeout"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
@@ -62,19 +63,19 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver = esConfig.Version
 	}
 
-	if ver==""{
+	if ver == "" {
 		//can't fetch any version
-		ver="1.0.0"
+		ver = "1.0.0"
 	}
 
 	apiVer := elastic.Version{
-		Number: ver,
+		Number:       ver,
 		Distribution: esConfig.Distribution,
 	}
 
 	if esConfig.Distribution == elastic.Easysearch {
 		return newEasysearchClient(esConfig.ID, apiVer)
-	}else if esConfig.Distribution == elastic.Opensearch {
+	} else if esConfig.Distribution == elastic.Opensearch {
 		return newOpensearchClient(esConfig.ID, apiVer)
 	}
 	sem, err := util.ParseSemantic(ver)
@@ -83,68 +84,86 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	}
 
 	major, minor := sem.Major(), sem.Minor()
-	if major >=8 {
+	if major >= 8 {
 		api := new(elasticsearch.ESAPIV8)
 		api.Elasticsearch = esConfig.ID
 		api.Version = apiVer
 		client = api
-	}else if major == 7 {
-		if minor >=7 {
+	} else if major == 7 {
+		if minor >= 7 {
 			api := new(elasticsearch.ESAPIV7_7)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
-		}else if minor >=3 {
+		} else if minor >= 3 {
 			api := new(elasticsearch.ESAPIV7_3)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
-		}else{
+		} else {
 			api := new(elasticsearch.ESAPIV7)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
 		}
-	}else if major == 6 {
+	} else if major == 6 {
 		if minor >= 6 {
 			api := new(elasticsearch.ESAPIV6_6)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
-		}else{
+		} else {
 			api := new(elasticsearch.ESAPIV6)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
 		}
-	}else if major == 5 {
-		if minor >=6 {
+	} else if major == 5 {
+		if minor >= 6 {
 			api := new(elasticsearch.ESAPIV5_6)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
-		}else if minor >=4 {
+		} else if minor >= 4 {
 			api := new(elasticsearch.ESAPIV5_4)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
-		}else{
+		} else {
 			api := new(elasticsearch.ESAPIV5)
 			api.Elasticsearch = esConfig.ID
 			api.Version = apiVer
 			client = api
 		}
-	}else if major == 2 {
+	} else if major == 2 {
 		api := new(elasticsearch.ESAPIV2)
 		api.Elasticsearch = esConfig.ID
 		api.Version = apiVer
 		client = api
-	}else{
+	} else {
 		api := new(elasticsearch.ESAPIV0)
 		api.Elasticsearch = esConfig.ID
 		api.Version = apiVer
 		client = api
 	}
+
+	return client, nil
+}
+
+func InitElasticInstanceWithoutMetadata(esConfig elastic.ElasticsearchConfig) (elastic.API, error) {
+	if esConfig.ID == "" && esConfig.Name != "" {
+		esConfig.ID = esConfig.Name
+	}
+	if !esConfig.Enabled {
+		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
+		return nil, nil
+	}
+	client, err := InitClientWithConfig(esConfig)
+	if err != nil {
+		log.Error("elasticsearch ", esConfig.Name, err)
+		return nil, err
+	}
+	elastic.RegisterInstance(esConfig, client)
 
 	return client, nil
 }
@@ -175,7 +194,7 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	return client, err
 }
 
-func GetBasicAuth(esConfig *elastic.ElasticsearchConfig)(basicAuth elastic.BasicAuth, err error){
+func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth elastic.BasicAuth, err error) {
 	if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
 		basicAuth = *esConfig.BasicAuth
 		return
@@ -199,7 +218,7 @@ func GetBasicAuth(esConfig *elastic.ElasticsearchConfig)(basicAuth elastic.Basic
 	return
 }
 
-func GetElasticClient(clusterID string)(elastic.API, error) {
+func GetElasticClient(clusterID string) (elastic.API, error) {
 	client := elastic.GetClientNoPanic(clusterID)
 	if client != nil {
 		return client, nil

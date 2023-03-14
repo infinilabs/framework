@@ -19,6 +19,11 @@ package elastic
 import (
 	"crypto/tls"
 	"fmt"
+	uri "net/url"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/errors"
@@ -27,10 +32,6 @@ import (
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
-	uri "net/url"
-	"strings"
-	"sync"
-	"time"
 )
 
 // 保存了elastic.API(client)
@@ -39,12 +40,13 @@ var apis = sync.Map{}
 // 保存了ElasticsearchConfig
 var cfgs = sync.Map{}
 
-//存储了es的metadata(es配置+缓存配置)
+// 存储了es的metadata(es配置+缓存配置)
 var metas = sync.Map{}
 
 var hosts = sync.Map{}
 
-/**
+/*
+*
 注册elastic实例,初始化elastic metadata并保存到metas(sync.Map{})
 
 cfg.ID = cfg.Name = 集群名称
@@ -66,7 +68,7 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	if exists {
 		//if config no change, skip init
 		if util.ToJson(cfg, false) == util.ToJson(oldCfg, false) {
-			log.Trace("cfg no change, skip init, ",oldCfg)
+			log.Trace("cfg no change, skip init, ", oldCfg)
 			return
 		}
 	}
@@ -83,11 +85,12 @@ func UpdateConfig(cfg ElasticsearchConfig) {
 	cfgs.Store(cfg.ID, &cfg)
 }
 
-func UpdateClient(cfg ElasticsearchConfig,handler API) {
+func UpdateClient(cfg ElasticsearchConfig, handler API) {
 	apis.Store(cfg.ID, handler)
 }
 
-/**
+/*
+*
 根据IP地址，返回可用的Node信息。 这里的Node并不包含es配置信息。 仅仅是集群的状态(是否可用)
 
 如果根据IP从hosts(sync.Map)查询不到Node，则根据入参(host string,clusterID string)创建Node并保存
@@ -101,8 +104,8 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 	if loaded {
 		return v1.(*NodeAvailable)
 	} else {
-		log.Tracef("init host: %v",host)
-		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host,time.Second), ClusterID: clusterID}
+		log.Tracef("init host: %v", host)
+		v1 = &NodeAvailable{Host: host, available: util.TestTCPAddress(host, time.Second), ClusterID: clusterID}
 		hosts.Store(host, v1)
 	}
 	return v1.(*NodeAvailable)
@@ -121,6 +124,17 @@ func GetConfig(k string) *ElasticsearchConfig {
 	v, ok := cfgs.Load(k)
 	if !ok {
 		panic(fmt.Sprintf("elasticsearch config [%v] was not found", k))
+	}
+	return v.(*ElasticsearchConfig)
+}
+
+func GetConfigNoPanic(k string) *ElasticsearchConfig {
+	if k == "" {
+		panic(fmt.Errorf("elasticsearch config undefined"))
+	}
+	v, ok := cfgs.Load(k)
+	if !ok {
+		return nil
 	}
 	return v.(*ElasticsearchConfig)
 }
@@ -165,7 +179,8 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 	return esMajorVersion
 }
 
-/**
+/*
+*
 初始化: ElasticsearchMetadata = ElasticsearchConfig + cache
 
 并保存到metas(sync.Map)
@@ -173,7 +188,7 @@ func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMetadata {
 	v := &ElasticsearchMetadata{Config: cfg}
 
-	if cfg.MetadataCacheEnabled{
+	if cfg.MetadataCacheEnabled {
 		cache, err := ristretto.NewCache(&ristretto.Config{
 			NumCounters: 1e5,     // Num keys to track frequency of (10M). 10,0000
 			MaxCost:     1000000, //cfg.MaxCachedSize, // Maximum cost of cache (1GB).
@@ -192,6 +207,12 @@ func InitMetadata(cfg *ElasticsearchConfig, defaultHealth bool) *ElasticsearchMe
 }
 
 func GetOrInitMetadata(cfg *ElasticsearchConfig) *ElasticsearchMetadata {
+	if cfg.ID == "" {
+		if cfg.Name == "" {
+			panic(errors.Errorf("invalid elasticsearch config, id and name is not set, %v", cfg))
+		}
+		cfg.ID = cfg.Name
+	}
 	v := GetMetadata(cfg.ID)
 	if v == nil {
 		v = InitMetadata(cfg, false)
@@ -229,7 +250,7 @@ func GetClient(k string) API {
 	panic(fmt.Sprintf("elasticsearch client [%v] was not found", k))
 }
 
-//add by ck
+// add by ck
 func GetClientNoPanic(k string) API {
 	if k == "" {
 		panic(fmt.Errorf("elasticsearch id is nil"))
@@ -245,7 +266,7 @@ func GetClientNoPanic(k string) API {
 	return nil
 }
 
-//最后返回的为判断是否继续 walk
+// 最后返回的为判断是否继续 walk
 func WalkMetadata(walkFunc func(key, value interface{}) bool) {
 	metas.Range(walkFunc)
 }
@@ -287,32 +308,33 @@ func GetHostAvailableInfo(host string) (*NodeAvailable, bool) {
 	}
 	return nil, false
 }
-var nodeAvailCache=util.NewCacheWithExpireOnAdd(1*time.Minute,100)
+
+var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
-	if host==""{
+	if host == "" {
 		log.Error("host is nil")
 		return false
 	}
 
 	info, ok := GetHostAvailableInfo(host)
 	if ok && info != nil {
-		if global.Env().IsDebug{
-			log.Trace("get host info: ",info)
+		if global.Env().IsDebug {
+			log.Trace("get host info: ", info)
 		}
-		if time.Since(info.lastCheck)<60*time.Second{
+		if time.Since(info.lastCheck) < 60*time.Second {
 			return info.IsAvailable()
 		}
 	}
 
 	log.Tracef("no available info for host [%v]", host)
 
-	v:= nodeAvailCache.Get(host)
-	if v!=nil{
-		a,ok:=v.(bool)
-		if ok{
-			if global.Env().IsDebug{
-				log.Trace("hit cache:",host,",",a)
+	v := nodeAvailCache.Get(host)
+	if v != nil {
+		a, ok := v.(bool)
+		if ok {
+			if global.Env().IsDebug {
+				log.Trace("hit cache:", host, ",", a)
 			}
 			return a
 		}
@@ -320,12 +342,12 @@ func IsHostAvailable(host string) bool {
 
 	arry := strings.Split(host, ":")
 	if len(arry) == 2 {
-		port,err:=util.ToInt(arry[1])
-		if err!=nil{
+		port, err := util.ToInt(arry[1])
+		if err != nil {
 			panic(err)
 		}
-		avail:=util.TestTCPPort(arry[0], port,10*time.Second)
-		nodeAvailCache.Put(host,avail)
+		avail := util.TestTCPPort(arry[0], port, 10*time.Second)
+		nodeAvailCache.Put(host, avail)
 		if !avail {
 			return false
 		}
@@ -399,14 +421,14 @@ var clientLock sync.RWMutex
 
 func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) string {
 
-	if host!=""{
+	if host != "" {
 		//get available host
 		available := IsHostAvailable(host)
 
 		if !available {
 			if metadata.IsAvailable() {
 				newEndpoint := metadata.GetActiveHost()
-				if host!=newEndpoint{
+				if host != newEndpoint {
 					log.Warnf("[%v] is not available, try: [%v]", host, newEndpoint)
 				}
 				host = newEndpoint
@@ -414,8 +436,8 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) strin
 		}
 	}
 
-	if host==""{
-		host=metadata.GetActivePreferredSeedHost()
+	if host == "" {
+		host = metadata.GetActivePreferredSeedHost()
 	}
 
 	return host
@@ -423,7 +445,7 @@ func (metadata *ElasticsearchMetadata) GetActivePreferredHost(host string) strin
 
 func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Client {
 
-	if host==""{
+	if host == "" {
 		panic("host can't be nil")
 	}
 
@@ -443,19 +465,19 @@ func (metadata *ElasticsearchMetadata) GetHttpClient(host string) *fasthttp.Clie
 
 func (metadata *ElasticsearchMetadata) NewHttpClient(host string) *fasthttp.Client {
 
-	log.Trace("new http client: ",host)
+	log.Trace("new http client: ", host)
 
 	client := &fasthttp.Client{
 		MaxConnsPerHost:               10000,
 		MaxConnDuration:               0,
 		MaxIdleConnDuration:           0,
-		ReadTimeout:  5 * time.Minute, // 10 minutes
-		WriteTimeout: 5 * time.Minute,
+		ReadTimeout:                   5 * time.Minute, // 10 minutes
+		WriteTimeout:                  5 * time.Minute,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		MaxConnWaitTimeout:            0,
 		TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
-		DialDualStack: true,
+		DialDualStack:                 true,
 	}
 
 	if metadata.Config.TrafficControl != nil && metadata.Config.TrafficControl.MaxConnectionPerNode > 0 {
@@ -575,7 +597,7 @@ func (metadata *ElasticsearchMetadata) GetValue(s string) (interface{}, error) {
 }
 
 func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.MapStr, error) {
-	if metadata.Config.MetadataCacheEnabled{
+	if metadata.Config.MetadataCacheEnabled {
 		if metadata.cache != nil {
 			o, found := metadata.cache.Get("index_stats" + indexName)
 			if found {
@@ -585,7 +607,7 @@ func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.Ma
 	}
 
 	s, err := GetClient(metadata.Config.ID).GetIndexStats(indexName)
-	if err == nil &&metadata.Config.MetadataCacheEnabled {
+	if err == nil && metadata.Config.MetadataCacheEnabled {
 		if metadata.cache != nil {
 			metadata.cache.SetWithTTL("index_stats"+indexName, s, 1, 10*time.Second)
 		}
@@ -595,7 +617,7 @@ func (metadata *ElasticsearchMetadata) GetIndexStats(indexName string) (*util.Ma
 
 func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *util.MapStr, error) {
 
-	if metadata.Config.MetadataCacheEnabled{
+	if metadata.Config.MetadataCacheEnabled {
 		if metadata.cache != nil {
 			o, found := metadata.cache.Get("index_settings" + index)
 			if found {
@@ -663,7 +685,7 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *u
 		if indexSettings == nil {
 			//fetch single index settings
 			settings, err := GetClient(metadata.Config.ID).GetIndexSettings(index)
-			if err == nil && settings != nil&&metadata.Config.MetadataCacheEnabled {
+			if err == nil && settings != nil && metadata.Config.MetadataCacheEnabled {
 				//TODO set cache
 				//metadata.IndexSettings[index] = settings
 				if metadata.cache != nil {
@@ -680,11 +702,11 @@ func (metadata *ElasticsearchMetadata) GetIndexSetting(index string) (string, *u
 
 func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error) {
 
-	if metadata.Config.MetadataCacheEnabled{
-		x,ok:=metadata.cache.Get(index)
-		if ok&&x!=nil{
-			if y,ok:=x.(map[string][]IndexShardRouting);ok{
-				return y,nil
+	if metadata.Config.MetadataCacheEnabled {
+		x, ok := metadata.cache.Get(index)
+		if ok && x != nil {
+			if y, ok := x.(map[string][]IndexShardRouting); ok {
+				return y, nil
 			}
 		}
 	}
@@ -728,16 +750,16 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 		}
 	}
 
-	if rate.GetRateLimiter("cluster_state_fetch",metadata.Config.ID,1,1,10*time.Second).Allow(){
-		log.Warnf("cluster state is nil, fetch routing table for index: %v",index)
-		v,err:= GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
-		if err==nil&&v!=nil&&metadata.Config.MetadataCacheEnabled{
-			metadata.cache.SetWithTTL(index,v,100,10*time.Second)
+	if rate.GetRateLimiter("cluster_state_fetch", metadata.Config.ID, 1, 1, 10*time.Second).Allow() {
+		log.Warnf("cluster state is nil, fetch routing table for index: %v", index)
+		v, err := GetClient(metadata.Config.ID).GetIndexRoutingTable(index)
+		if err == nil && v != nil && metadata.Config.MetadataCacheEnabled {
+			metadata.cache.SetWithTTL(index, v, 100, 10*time.Second)
 		}
-		return v,err
+		return v, err
 	}
 
-	return nil,errors.Errorf("index [%v] routing_table not found", index)
+	return nil, errors.Errorf("index [%v] routing_table not found", index)
 
 }
 

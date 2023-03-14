@@ -19,6 +19,11 @@ package elastic
 import (
 	"context"
 	"fmt"
+	"math"
+	"runtime"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/credential"
@@ -31,11 +36,7 @@ import (
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/api"
-	. "infini.sh/framework/modules/elastic/common"
-	"math"
-	"runtime"
-	"sync"
-	"time"
+	"infini.sh/framework/modules/elastic/common"
 )
 
 func (module *ElasticModule) Name() string {
@@ -43,29 +44,29 @@ func (module *ElasticModule) Name() string {
 }
 
 var (
-	defaultConfig = ModuleConfig{
+	defaultConfig = common.ModuleConfig{
 		RemoteConfigEnabled: false,
-		HealthCheckConfig: CheckConfig{
+		HealthCheckConfig: common.CheckConfig{
 			Enabled:  true,
 			Interval: "10s",
 		},
-		NodeAvailabilityCheckConfig: CheckConfig{
+		NodeAvailabilityCheckConfig: common.CheckConfig{
 			Enabled:  true,
 			Interval: "10s",
 		},
-		MetadataRefresh: CheckConfig{
+		MetadataRefresh: common.CheckConfig{
 			Enabled:  false,
 			Interval: "10s",
 		},
-		ORMConfig: ORMConfig{
+		ORMConfig: common.ORMConfig{
 			Enabled:      false,
 			InitTemplate: true,
 			IndexPrefix:  ".infini-",
 		},
-		StoreConfig: StoreConfig{
+		StoreConfig: common.StoreConfig{
 			Enabled: false,
 		},
-		ClusterSettingsCheckConfig: CheckConfig{
+		ClusterSettingsCheckConfig: common.CheckConfig{
 			Enabled:  false,
 			Interval: "20s",
 		},
@@ -73,7 +74,7 @@ var (
 	}
 )
 
-func getDefaultConfig() ModuleConfig {
+func getDefaultConfig() common.ModuleConfig {
 	return defaultConfig
 }
 
@@ -126,14 +127,14 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	if len(credentialIDs) > 0 {
 		query.Query = &elastic.Query{
 			BoolQuery: &elastic.BoolQuery{
-			Must: []interface{}{
-				util.MapStr{
-					"terms": util.MapStr{
-						"_id": credentialIDs,
+				Must: []interface{}{
+					util.MapStr{
+						"terms": util.MapStr{
+							"_id": credentialIDs,
+						},
 					},
 				},
-			},
-		}}
+			}}
 		searchRes, err := esClient.Search(orm.GetIndexName(credential.Credential{}), &query)
 		if err != nil {
 			log.Error(err)
@@ -176,24 +177,11 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 func initElasticInstances(m []elastic.ElasticsearchConfig, source string) {
 	for _, esConfig := range m {
 		esConfig.Source = source
-		if esConfig.ID == "" && esConfig.Name != "" {
-			esConfig.ID = esConfig.Name
-		}
-		log.Trace("init elasticsearch ", esConfig.Name, ", enabled:", esConfig.Enabled)
-		if !esConfig.Enabled {
-			log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
-			continue
-		}
-		client, err := InitClientWithConfig(esConfig)
-		if err != nil {
-			log.Error("elasticsearch ", esConfig.Name, err)
-			continue
-		}
-		elastic.RegisterInstance(esConfig, client)
+		common.InitElasticInstanceWithoutMetadata(esConfig)
 	}
 }
 
-var moduleConfig = ModuleConfig{}
+var moduleConfig = common.ModuleConfig{}
 
 func (module *ElasticModule) Setup() {
 
@@ -203,9 +191,9 @@ func (module *ElasticModule) Setup() {
 	if exists && err != nil {
 		panic(err)
 	}
-	if exists{
-		if moduleConfig.Elasticsearch!=""{
-			global.Register(elastic.GlobalSystemElasticsearchID,moduleConfig.Elasticsearch)
+	if exists {
+		if moduleConfig.Elasticsearch != "" {
+			global.Register(elastic.GlobalSystemElasticsearchID, moduleConfig.Elasticsearch)
 		}
 	}
 
@@ -235,16 +223,16 @@ func nodeAvailabilityCheck() {
 
 				v, ok := value.(*elastic.NodeAvailable)
 				if ok {
-					if v.ClusterID==""{
+					if v.ClusterID == "" {
 						return true
 					}
 
 					cfg := elastic.GetConfig(v.ClusterID)
-					if !cfg.Enabled || (cfg.MetadataConfigs !=nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled){
+					if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled) {
 						return true
 					}
 
-					if v.IsDead(){
+					if v.IsDead() {
 						return true
 					}
 
@@ -264,7 +252,7 @@ func nodeAvailabilityCheck() {
 					availabilityMap.Store(k, time.Now())
 
 					log.Trace("check availability for node: " + k)
-					avail := util.TestTCPAddress(k,10*time.Second)
+					avail := util.TestTCPAddress(k, 10*time.Second)
 					if global.Env().IsDebug {
 						log.Tracef("availability for node [%v] : %v", k, avail)
 					}
@@ -301,7 +289,7 @@ func (module *ElasticModule) clusterStateRefresh() {
 				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs !=nil && !v.MetadataConfigs.MetadataRefresh.Enabled){
+					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.MetadataRefresh.Enabled) {
 						return true
 					}
 
@@ -311,13 +299,13 @@ func (module *ElasticModule) clusterStateRefresh() {
 						if v.MetadataConfigs != nil && v.MetadataConfigs.MetadataRefresh.Interval != "" {
 							interval = v.MetadataConfigs.MetadataRefresh.Interval
 						}
-						intervalD :=  util.GetDurationOrDefault(interval, 10*time.Second)
-						if time.Since(startTime.(time.Time)) > intervalD *2 {
+						intervalD := util.GetDurationOrDefault(interval, 10*time.Second)
+						if time.Since(startTime.(time.Time)) > intervalD*2 {
 							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
 						} else {
 							duration := elapsed - intervalD
 							abd := math.Abs(duration.Seconds())
-							if abd> 3 {
+							if abd > 3 {
 								log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
 								return true
 							}
@@ -325,12 +313,12 @@ func (module *ElasticModule) clusterStateRefresh() {
 					}
 					module.stateMap.Store(v.ID, time.Now())
 
-					task.RunWithContext("refresh_cluster_state",func(ctx context.Context) error {
-						clusterID:=task.MustGetString(ctx,"id")
+					task.RunWithContext("refresh_cluster_state", func(ctx context.Context) error {
+						clusterID := task.MustGetString(ctx, "id")
 						module.updateClusterState(clusterID)
 						module.stateMap.Delete(clusterID)
 						return nil
-					},context.WithValue(context.Background(),"id",v.ID))
+					}, context.WithValue(context.Background(), "id", v.ID))
 				}
 				return true
 			})
@@ -340,8 +328,9 @@ func (module *ElasticModule) clusterStateRefresh() {
 }
 
 var schemaInited bool
-func InitSchema()  {
-	if schemaInited{
+
+func InitSchema() {
+	if schemaInited {
 		return
 	}
 	err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
@@ -364,7 +353,7 @@ func InitSchema()  {
 	if err != nil {
 		panic(err)
 	}
-	schemaInited=true
+	schemaInited = true
 }
 
 var ormInited bool
@@ -383,13 +372,13 @@ func (module *ElasticModule) Start() error {
 		kv.Register("elastic", module.storeHandler)
 	}
 
-	if moduleConfig.ORMConfig.Enabled{
-		if !ormInited{
+	if moduleConfig.ORMConfig.Enabled {
+		if !ormInited {
 			//init template
 			InitTemplate(false)
 			//register schema
 			InitSchema()
-			ormInited=true
+			ormInited = true
 		}
 	}
 
@@ -416,10 +405,10 @@ func (module *ElasticModule) Start() error {
 			}
 
 			task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
-				id:=task.MustGetString(ctx,"id")
+				id := task.MustGetString(ctx, "id")
 				module.clusterHealthCheck(id, true)
 				return nil
-			},context.WithValue(context.Background(),"id",cfg1.ID))
+			}, context.WithValue(context.Background(), "id", cfg1.ID))
 		}
 		return true
 	})
@@ -434,7 +423,7 @@ func (module *ElasticModule) Start() error {
 				elastic.WalkConfigs(func(key, value interface{}) bool {
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
-						if !cfg1.Enabled || (cfg1.MetadataConfigs !=nil && !cfg1.MetadataConfigs.HealthCheck.Enabled){
+						if !cfg1.Enabled || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
 							return true
 						}
 
@@ -449,19 +438,19 @@ func (module *ElasticModule) Start() error {
 							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
 							if elapsed > tinterval*2 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
-							} else if math.Abs((elapsed - tinterval).Seconds()) > 3{
+							} else if math.Abs((elapsed - tinterval).Seconds()) > 3 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v", cfg1.Name, elapsed.String())
 								return true
 							}
 						}
 						module.healthMap.Store(cfg1.ID, time.Now())
 
-						task.RunWithContext("refresh_cluster_health",func(ctx context.Context) error {
-							clusterID:=task.MustGetString(ctx,"id")
+						task.RunWithContext("refresh_cluster_health", func(ctx context.Context) error {
+							clusterID := task.MustGetString(ctx, "id")
 							module.clusterHealthCheck(clusterID, false)
 							module.healthMap.Delete(clusterID)
 							return nil
-						},context.WithValue(context.Background(),"id",cfg1.ID))
+						}, context.WithValue(context.Background(), "id", cfg1.ID))
 					}
 					return true
 				})
@@ -619,7 +608,7 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs !=nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
+					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
 						return true
 					}
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
@@ -637,12 +626,12 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 						}
 					}
 					module.settingsMap.Store(v.ID, time.Now())
-					task.RunWithContext("refresh_cluster_settings",func(ctx context.Context) error {
-						clusterID:=task.MustGetString(ctx,"id")
+					task.RunWithContext("refresh_cluster_settings", func(ctx context.Context) error {
+						clusterID := task.MustGetString(ctx, "id")
 						module.updateClusterSettings(clusterID)
 						module.settingsMap.Delete(clusterID)
 						return nil
-					},context.WithValue(context.Background(),"id",v.ID))
+					}, context.WithValue(context.Background(), "id", v.ID))
 				}
 				return true
 			})

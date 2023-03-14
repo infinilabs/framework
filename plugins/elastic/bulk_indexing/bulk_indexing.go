@@ -74,7 +74,8 @@ type Config struct {
 
 	BulkConfig elastic.BulkProcessorConfig `config:"bulk"`
 
-	Elasticsearch string `config:"elasticsearch,omitempty"`
+	Elasticsearch       string                       `config:"elasticsearch,omitempty"`
+	ElasticsearchConfig *elastic.ElasticsearchConfig `config:"elasticsearch_config"`
 
 	WaitingAfter []string `config:"waiting_after"`
 }
@@ -273,23 +274,13 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 		return
 	}
 
-	elasticsearch, ok := v.Labels["elasticsearch"]
-	if !ok {
-		if processor.config.Elasticsearch == "" {
-			log.Tracef("label [elasticsearch] was not found in: %v", v)
-			return
-		} else {
-			elasticsearch = processor.config.Elasticsearch
-		}
-	}
-
-	meta := elastic.GetMetadata(util.ToString(elasticsearch))
+	esClusterID, meta := processor.getElasticsearchMeatadata(v)
 	if meta == nil {
-		log.Debugf("metadata for [%v] is nil", elasticsearch)
+		log.Debugf("metadata for [%v] is nil", esClusterID)
 		return
 	}
 
-	level, ok := v.Labels["level"]
+	level, _ := v.Labels["level"]
 
 	if level == "node" {
 		nodeID, ok := v.Labels["node_id"]
@@ -530,17 +521,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	log.Tracef("place slice_worker lock: [%v], queue [%v], slice_id:%v, key:%v,v:%v", tag, qConfig.Id, sliceID, key, workerID)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSecond) * time.Second
-	elasticsearch, ok := qConfig.Labels["elasticsearch"]
-	if !ok {
-		if processor.config.Elasticsearch == "" {
-			log.Errorf("slice_worker, label [elasticsearch] was not found in: %v", qConfig)
-			return
-		} else {
-			elasticsearch = processor.config.Elasticsearch
-		}
-	}
-	esClusterID = util.ToString(elasticsearch)
-	meta = elastic.GetMetadata(esClusterID)
+	esClusterID, meta = processor.getElasticsearchMeatadata(qConfig)
 	if meta == nil {
 		panic(errors.Errorf("slice_worker, cluster metadata [%v] not ready", esClusterID))
 	}
@@ -837,12 +818,40 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		if global.Env().IsDebug {
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
-		if err!=nil{
-			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v",meta.Config.Name,err)
+		if err != nil {
+			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
 		}
 		log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
 		return continueRequest, err
 	}
 
 	return true, nil
+}
+
+func (processor *BulkIndexingProcessor) getElasticsearchMeatadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {
+	elasticsearch, ok := qConfig.Labels["elasticsearch"]
+	if !ok {
+		if processor.config.Elasticsearch == "" {
+			log.Errorf("slice_worker, label [elasticsearch] was not found in: %v", qConfig)
+		} else {
+			elasticsearch = processor.config.Elasticsearch
+		}
+	}
+	esClusterID := util.ToString(elasticsearch)
+	meta := elastic.GetMetadata(esClusterID)
+	if meta == nil {
+		esConfig := elastic.GetConfigNoPanic(esClusterID)
+		if esConfig == nil {
+			if processor.config.ElasticsearchConfig != nil {
+				processor.config.ElasticsearchConfig.Source = "bulk_indexing"
+				esConfig = processor.config.ElasticsearchConfig
+			}
+			esConfig = processor.config.ElasticsearchConfig
+		}
+		if esConfig == nil {
+			return esClusterID, nil
+		}
+		meta = elastic.GetOrInitMetadata(esConfig)
+	}
+	return esClusterID, meta
 }
