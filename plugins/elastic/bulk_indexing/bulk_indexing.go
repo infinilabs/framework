@@ -559,10 +559,12 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	offset = initOffset
 
 	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig, offset)
+	if consumerInstance != nil {
+		defer consumerInstance.Close()
+	}
 	if err != nil || consumerInstance == nil {
 		panic(err)
 	}
-	defer consumerInstance.Close()
 
 	ctx1 := &queue.Context{}
 
