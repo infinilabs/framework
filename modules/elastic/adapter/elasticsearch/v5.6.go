@@ -5,6 +5,8 @@
 package elasticsearch
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
@@ -38,4 +40,19 @@ func (s *ESAPIV5_6) DeleteSearchTemplate(templateID string) error {
 	url := fmt.Sprintf("%s/_scripts/%s", s.GetEndpoint(), templateID)
 	_, err := s.Request(nil, util.Verb_DELETE, url, nil)
 	return err
+}
+
+func (s *ESAPIV5_6) ClearScroll(scrollId string) error {
+	url := fmt.Sprintf("%s/_search/scroll", s.GetEndpoint())
+	body := util.MustToJSONBytes(util.MapStr{"scroll_id": scrollId})
+
+	resp, err := s.Request(context.Background(), util.Verb_DELETE, url, body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return errors.New(string(resp.Body))
+	}
+	return nil
 }
