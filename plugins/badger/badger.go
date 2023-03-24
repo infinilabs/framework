@@ -6,40 +6,41 @@ package badger
 
 import (
 	"errors"
+	"path"
+	"sync"
+
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/dgraph-io/badger/v4/options"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"path"
-	"github.com/dgraph-io/badger/v4/options"
-	"sync"
 )
 
 var record sync.RWMutex
 var l sync.RWMutex
 
-var buckets =sync.Map{}
+var buckets = sync.Map{}
 
 func (filter *Module) Open() error {
-	if filter.Path==""{
-		filter.Path= path.Join(global.Env().GetDataDir(),"badger")
+	if filter.Path == "" {
+		filter.Path = path.Join(global.Env().GetDataDir(), "badger")
 	}
 
-	if filter.SingleBucketMode{
-		filter.bucket=filter.getOrInitBucket("default")
+	if filter.SingleBucketMode {
+		filter.bucket = filter.getOrInitBucket("default")
 	}
 
 	return nil
 }
 
-func (filter *Module)mustGetBucket(bucket string)*badger.DB  {
-	if filter.closed{
+func (filter *Module) mustGetBucket(bucket string) *badger.DB {
+	if filter.closed {
 		panic(errors.New("module closed"))
 	}
 
-	if filter.SingleBucketMode{
-		if filter.bucket==nil{
+	if filter.SingleBucketMode {
+		if filter.bucket == nil {
 			panic("invalid badger module")
 		}
 		return filter.bucket
@@ -47,12 +48,12 @@ func (filter *Module)mustGetBucket(bucket string)*badger.DB  {
 	return filter.getOrInitBucket(bucket)
 }
 
-func (filter *Module)getOrInitBucket(bucket string)*badger.DB  {
-	item,ok:=buckets.Load(bucket)
-	if ok{
-		db,ok:=item.(*badger.DB)
-		if ok{
-			if db!=nil{
+func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
+	item, ok := buckets.Load(bucket)
+	if ok {
+		db, ok := item.(*badger.DB)
+		if ok {
+			if db != nil {
 				return db
 			}
 		}
@@ -61,51 +62,54 @@ func (filter *Module)getOrInitBucket(bucket string)*badger.DB  {
 	l.Lock()
 	defer l.Unlock()
 
-
 	//double check after lock
-	item,ok=buckets.Load(bucket)
-	if ok{
+	item, ok = buckets.Load(bucket)
+	if ok {
 		return item.(*badger.DB)
 	}
 
-	log.Debugf("init badger database [%v]",bucket)
+	log.Debugf("init badger database [%v]", bucket)
 
-	dir := path.Join(filter.Path,bucket)
+	dir := path.Join(filter.Path, bucket)
 
 	var err error
-	option:=badger.DefaultOptions(dir)
-	option.InMemory=filter.InMemoryMode
-	option.MemTableSize=filter.MemTableSize
-	option.ValueLogMaxEntries=filter.ValueLogMaxEntries
-	option.ValueThreshold=filter.ValueThreshold
-	option.NumGoroutines=1
-	option.NumMemtables=filter.NumMemtables
-	option.Compression=options.None
-	option.MetricsEnabled=false
-	option.NumLevelZeroTables =      filter.NumLevelZeroTables
+	option := badger.DefaultOptions(dir)
+	option.InMemory = filter.InMemoryMode
+	option.MemTableSize = filter.MemTableSize
+	option.ValueLogMaxEntries = filter.ValueLogMaxEntries
+	option.ValueThreshold = filter.ValueThreshold
+	option.NumGoroutines = 1
+	option.NumMemtables = filter.NumMemtables
+	option.Compression = options.None
+	option.MetricsEnabled = false
+	option.NumLevelZeroTables = filter.NumLevelZeroTables
 	option.NumLevelZeroTablesStall = filter.NumLevelZeroTablesStall
-	option.SyncWrites=filter.SyncWrites
-	option.CompactL0OnClose=true
-	option.ValueLogFileSize=filter.ValueLogFileSize
+	option.SyncWrites = filter.SyncWrites
+	option.CompactL0OnClose = true
+	option.ValueLogFileSize = filter.ValueLogFileSize
 
-	if !global.Env().IsDebug{
-		option.Logger=nil
+	if !global.Env().IsDebug {
+		option.Logger = nil
 	}
 
 	h, err := badger.Open(option)
 	if err != nil {
 		panic(err)
 	}
-	buckets.Store(bucket,h)
+	buckets.Store(bucket, h)
 	return h
 }
 
 func (filter *Module) Close() error {
+	if filter.SingleBucketMode {
+		filter.bucket.Close()
+	}
+
 	buckets.Range(func(key, value any) bool {
-		db,ok:=value.(*badger.DB)
-		if ok{
-			err:=db.Close()
-			if err!=nil{
+		db, ok := value.(*badger.DB)
+		if ok {
+			err := db.Close()
+			if err != nil {
 				panic(err)
 			}
 		}
@@ -116,15 +120,15 @@ func (filter *Module) Close() error {
 
 func (filter *Module) Exists(bucket string, key []byte) bool {
 
-	if filter.SingleBucketMode{
-		key=joinKey(bucket,key)
+	if filter.SingleBucketMode {
+		key = joinKey(bucket, key)
 	}
 
-	var exists=false
-	_:filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
+	var exists = false
+	filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
-		if item!=nil&&err==nil{
-			exists=true
+		if item != nil && err == nil {
+			exists = true
 		}
 		return nil
 	})
@@ -134,18 +138,18 @@ func (filter *Module) Exists(bucket string, key []byte) bool {
 var zeroVal = []byte("0")
 
 func (filter *Module) Add(bucket string, key []byte) error {
-	return filter.AddValue(bucket,key,zeroVal)
+	return filter.AddValue(bucket, key, zeroVal)
 }
 
 func (filter *Module) Delete(bucket string, key []byte) error {
 
-	if filter.SingleBucketMode{
-		key=joinKey(bucket,key)
+	if filter.SingleBucketMode {
+		key = joinKey(bucket, key)
 	}
 
 	var err error
-	err=filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
-		 err = txn.Delete(key)
+	err = filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
+		err = txn.Delete(key)
 		return err
 	})
 	return err
@@ -162,39 +166,39 @@ func (filter *Module) CheckThenAdd(bucket string, key []byte) (b bool, err error
 	return b, err
 }
 
-//for kv implementation
+// for kv implementation
 func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 
-	if filter.closed{
-		return nil,errors.New("module closed")
+	if filter.closed {
+		return nil, errors.New("module closed")
 	}
 
-	if filter.SingleBucketMode{
-		key=joinKey(bucket,key)
+	if filter.SingleBucketMode {
+		key = joinKey(bucket, key)
 	}
 
 	var valCopy []byte
 	var err error
 	var item *badger.Item
-	err=filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
-			if txn==nil{
-				return errors.New("invalid txn")
-			}
-			item, err= txn.Get(key)
-				if item!=nil&&err==nil{
-				err = item.Value(func(val []byte) error {
-					valCopy = append([]byte{}, val...)
-					return nil
-				})
+	err = filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
+		if txn == nil {
+			return errors.New("invalid txn")
+		}
+		item, err = txn.Get(key)
+		if item != nil && err == nil {
+			err = item.Value(func(val []byte) error {
+				valCopy = append([]byte{}, val...)
+				return nil
+			})
 		}
 		return nil
 	})
-	return valCopy,err
+	return valCopy, err
 }
 
 func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, error) {
-	d,err:=filter.GetValue(bucket,key)
-	if err!=nil{
+	d, err := filter.GetValue(bucket, key)
+	if err != nil {
 		return d, err
 	}
 	if len(d) == 0 {
@@ -205,7 +209,7 @@ func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, err
 		log.Error("Failed to decode:", err)
 		return nil, err
 	}
-	return data,err
+	return data, err
 }
 
 func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) error {
@@ -217,17 +221,17 @@ func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) 
 	return filter.AddValue(bucket, key, value)
 }
 
-func joinKey(bucket string,key []byte) []byte {
-	return util.UnsafeStringToBytes(bucket+","+util.UnsafeBytesToString(key))
+func joinKey(bucket string, key []byte) []byte {
+	return util.UnsafeStringToBytes(bucket + "," + util.UnsafeBytesToString(key))
 }
 
 func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
-	if filter.closed{
+	if filter.closed {
 		return errors.New("module closed")
 	}
 
-	if filter.SingleBucketMode{
-		key=joinKey(bucket,key)
+	if filter.SingleBucketMode {
+		key = joinKey(bucket, key)
 	}
 
 	err := filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
@@ -238,10 +242,10 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 }
 
 func (filter *Module) ExistsKey(bucket string, key []byte) (bool, error) {
-	ok:= filter.Exists(bucket,key)
-	return ok,nil
+	ok := filter.Exists(bucket, key)
+	return ok, nil
 }
 
 func (filter *Module) DeleteKey(bucket string, key []byte) error {
-	return filter.Delete(bucket,key)
+	return filter.Delete(bucket, key)
 }

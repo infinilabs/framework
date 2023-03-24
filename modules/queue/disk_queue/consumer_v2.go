@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -21,6 +20,7 @@ import (
 	"infini.sh/framework/core/util/zstd"
 )
 
+// NOTE: Consumer is not thread-safe
 type Consumer struct {
 	ID        string
 	diskQueue *DiskBasedQueue
@@ -37,8 +37,6 @@ type Consumer struct {
 	queue   string
 	segment int64
 	readPos int64
-
-	fileLock sync.RWMutex
 }
 
 func (c *Consumer) getFileSize() int64 {
@@ -269,8 +267,6 @@ READ_MSG:
 }
 
 func (d *Consumer) Close() error {
-	d.fileLock.Lock()
-	d.fileLock.Unlock()
 	d.diskQueue.DeleteSegmentConsumerInReading(d.ID)
 	if d.readFile != nil {
 		err := d.readFile.Close()
@@ -295,8 +291,6 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 		return io.EOF
 	}
 
-	d.fileLock.Lock()
-	d.fileLock.Unlock()
 	if d.segment != segment {
 		if global.Env().IsDebug {
 			log.Debugf("start to switch segment, previous:%v,%v, now: %v,%v", d.segment, d.readPos, segment, readPos)
