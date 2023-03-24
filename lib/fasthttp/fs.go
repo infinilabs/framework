@@ -174,8 +174,8 @@ func NewVHostPathRewriter(slashesCount int) PathRewriteFunc {
 		b.B = append(b.B, '/')
 		b.B = append(b.B, host...)
 		b.B = append(b.B, path...)
-		ctx.URI().SetPathBytes(b.B)
-		bytebufferpool.Put("fs",b)
+		ctx.getURI().SetPathBytes(b.B)
+		bytebufferpool.Put("fs", b)
 
 		return ctx.Path()
 	}
@@ -1057,7 +1057,7 @@ func (h *fsHandler) openIndexFile(ctx *RequestCtx, dirPath string, mustCompress 
 		return nil, fmt.Errorf("cannot access directory without index page. Directory %q", dirPath)
 	}
 
-	return h.createDirIndex(ctx.URI(), dirPath, mustCompress, fileEncoding)
+	return h.createDirIndex(ctx.getURI(), dirPath, mustCompress, fileEncoding)
 }
 
 var (

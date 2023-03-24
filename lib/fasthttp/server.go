@@ -695,7 +695,7 @@ func (req *Request) Decode(data []byte) error {
 	//schema
 	schemaLength := readBytesLength(reader)
 	schema := readBytes(reader, schemaLength)
-	req.URI().SetSchemeBytes(schema)
+	req.getURI().SetSchemeBytes(schema)
 
 	if string(schema) == "https" {
 		req.isTLS = true
@@ -928,14 +928,14 @@ func (ctx *RequestCtx) ShouldContinue() bool {
 }
 
 func (ctx *RequestCtx) ParseAPIKey() (exists bool, apiID, apiKey []byte) {
-	api := ctx.Request.URI().apiID
+	api := ctx.Request.getURI().apiID
 	if len(api) > 0 {
-		return true, api, ctx.Request.URI().apiKey
+		return true, api, ctx.Request.getURI().apiKey
 	}
 
 	ctx.Request.ParseAuthorization()
 
-	return len(ctx.Request.URI().apiID) > 0, ctx.Request.URI().apiID, ctx.Request.URI().apiKey
+	return len(ctx.Request.getURI().apiID) > 0, ctx.Request.getURI().apiID, ctx.Request.getURI().apiKey
 }
 
 //resume processing pipeline, allow filters continue
@@ -1040,7 +1040,7 @@ var zeroTCPAddr = &net.TCPAddr{
 //
 // The returned value may be useful for logging.
 func (ctx *RequestCtx) String() string {
-	return fmt.Sprintf("#%016X - %s<->%s - %s %s", ctx.ID(), ctx.LocalAddr(), ctx.RemoteAddr(), ctx.Request.Header.Method(), ctx.URI().FullURI())
+	return fmt.Sprintf("#%016X - %s<->%s - %s %s", ctx.ID(), ctx.LocalAddr(), ctx.RemoteAddr(), ctx.Request.Header.Method(), ctx.getURI().FullURI())
 }
 
 // ID returns unique ID of the request.
@@ -1102,15 +1102,25 @@ func (ctx *RequestCtx) SetContentTypeBytes(contentType []byte) {
 //
 // The returned bytes are valid until your request handler returns.
 func (ctx *RequestCtx) RequestURI() []byte {
-	//return ctx.URI().RequestURI()
 	return ctx.Request.Header.RequestURI()
 }
 
 // URI returns requested uri.
 //
 // This uri is valid until your request handler returns.
-func (ctx *RequestCtx) URI() *URI {
-	return ctx.Request.URI()
+func (ctx *RequestCtx) getURI() *URI {
+	return ctx.Request.getURI()
+}
+
+// CloneURI returns a copy of requested uri.
+//
+// Call ReleaseURI to reduce GC load
+func (ctx *RequestCtx) CloneURI() *URI {
+	return ctx.Request.CloneURI()
+}
+
+func (ctx *RequestCtx) PhantomURI() *URI {
+	return ctx.Request.PhantomURI()
 }
 
 // Referer returns request referer.
@@ -1131,14 +1141,14 @@ func (ctx *RequestCtx) UserAgent() []byte {
 //
 // The returned bytes are valid until your request handler returns.
 func (ctx *RequestCtx) Path() []byte {
-	return ctx.URI().Path()
+	return ctx.getURI().Path()
 }
 
 // Host returns requested host.
 //
 // The returned bytes are valid until your request handler returns.
 func (ctx *RequestCtx) Host() []byte {
-	return ctx.URI().Host()
+	return ctx.getURI().Host()
 }
 
 // QueryArgs returns query arguments from RequestURI.
@@ -1149,7 +1159,7 @@ func (ctx *RequestCtx) Host() []byte {
 //
 // These args are valid until your request handler returns.
 func (ctx *RequestCtx) QueryArgs() *Args {
-	return ctx.URI().QueryArgs()
+	return ctx.getURI().QueryArgs()
 }
 
 // PostArgs returns POST arguments.
@@ -1470,7 +1480,7 @@ func (ctx *RequestCtx) SuccessString(contentType, body string) {
 //	ctx.Response.SetStatusCode(fasthttp.StatusMovedPermanently)
 func (ctx *RequestCtx) Redirect(uri string, statusCode int) {
 	u := AcquireURI()
-	ctx.URI().CopyTo(u)
+	ctx.getURI().CopyTo(u)
 	u.Update(uri)
 	ctx.redirect(u.FullURI(), statusCode)
 	ReleaseURI(u)

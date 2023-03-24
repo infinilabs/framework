@@ -101,7 +101,10 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 							case "uri":
 								para.Request.SetRequestURI(valueStr)
 							case "path":
-								para.Request.URI().SetPath(valueStr)
+								uri := para.Request.CloneURI()
+								uri.SetPath(valueStr)
+								para.Request.SetURI(uri)
+								ReleaseURI(uri)
 							case "body":
 								para.Request.SetBodyString(valueStr)
 							case "body_json":
@@ -119,7 +122,10 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 								if len(keys) == 4 { //TODO notify
 									argsField := keys[3]
 									if argsField != "" {
-										para.Request.URI().QueryArgs().Set(argsField, valueStr)
+										uri := para.Request.CloneURI()
+										uri.QueryArgs().Set(argsField, valueStr)
+										para.Request.SetURI(uri)
+										ReleaseURI(uri)
 										return nil, nil
 									}
 								}
@@ -228,9 +234,9 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 									case "method":
 										return string(para.Method()), nil
 									case "uri":
-										return string(para.Request.URI().String()), nil
+										return string(para.Request.getURI().String()), nil
 									case "path":
-										return string(para.Request.URI().Path()), nil
+										return string(para.Request.getURI().Path()), nil
 									case "body":
 										return string(para.Request.GetRawBody()), nil
 									case "body_json":
@@ -268,7 +274,7 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 										if len(keys) == 4 { //TODO notify
 											argsField := keys[3]
 											if argsField != "" {
-												v := para.Request.URI().QueryArgs().Peek(argsField)
+												v := para.Request.getURI().QueryArgs().Peek(argsField)
 												return string(v), nil
 											}
 										}

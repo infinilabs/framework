@@ -324,9 +324,12 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 	req.Header.SetUserAgent("_bulk")
 	req.Header.SetContentType("application/x-ndjson")
 
+	clonedURI := req.CloneURI()
+	defer fasthttp.ReleaseURI(clonedURI)
+
 	if metadata.Config.BasicAuth != nil {
-		req.URI().SetUsername(metadata.Config.BasicAuth.Username)
-		req.URI().SetPassword(metadata.Config.BasicAuth.Password)
+		clonedURI.SetUsername(metadata.Config.BasicAuth.Username)
+		clonedURI.SetPassword(metadata.Config.BasicAuth.Password)
 	}
 
 	//acceptGzipped := req.AcceptGzippedResponse()
@@ -358,15 +361,15 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 	}
 
 	// modify schema，align with elasticsearch's schema
-	orignalSchema := string(req.URI().Scheme())
-	orignalHost := string(req.URI().Host())
+	orignalSchema := string(clonedURI.Scheme())
+	orignalHost := string(clonedURI.Host())
 
 	if host != "" && req.Host() == nil || string(req.Host()) != orignalHost {
 		req.Header.SetHost(host)
 	}
 
 	if metadata.GetSchema() != orignalSchema {
-		req.URI().SetScheme(metadata.GetSchema())
+		clonedURI.SetScheme(metadata.GetSchema())
 	}
 
 	retryTimes := 0
@@ -388,8 +391,13 @@ DO:
 
 	stats.Increment("elasticsearch.bulk", "submit")
 
+	req.SetURI(clonedURI)
 	//execute
 	err = httpClient.DoTimeout(req, resp, time.Duration(joint.Config.RequestTimeoutInSecond)*time.Second)
+	//restore schema
+	clonedURI.SetScheme(orignalSchema)
+	req.SetURI(clonedURI)
+	req.SetHost(orignalHost)
 
 	if err != nil {
 		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
@@ -410,10 +418,6 @@ DO:
 	//	resp.Header.Del(fasthttp.HeaderContentEncoding2)
 	//
 	//}
-
-	//restore schema
-	req.URI().SetScheme(orignalSchema)
-	req.SetHost(orignalHost)
 
 	if resp == nil {
 		if global.Env().IsDebug {
@@ -781,7 +785,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 					"labels":       tag,
 					"node":         global.Env().SystemConfig.NodeConfig,
 					"request": util.MapStr{
-						"uri":         req.URI().String(),
+						"uri":         req.PhantomURI().String(),
 						"body_length": len(requestBytes),
 						"body":        util.SubString(util.UnsafeBytesToString(req.GetRawBody()), 0, options.BulkResultMessageMaxRequestBodyLength),
 					},

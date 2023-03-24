@@ -43,7 +43,7 @@ func GetBasicAuthHeader(user string, password string) string {
 func (req *Request) SetBasicAuth(username string, password string) {
 	req.Header.Del("Authorization")
 	req.Header.Set("Authorization", GetBasicAuthHeader(username, password))
-	req.URI().ResetUser()
+	req.getURI().ResetUser()
 }
 
 //func (req *Request) GetRawBody() []byte {
@@ -101,14 +101,14 @@ func (h *ResponseHeader) PeekAny(keys []string) []byte {
 }
 
 func (ctx *Request) ParseBasicAuth() (exists bool, user, pass []byte) {
-	username := ctx.URI().Username()
+	username := ctx.getURI().Username()
 	if username != nil && len(username) > 0 {
-		return true, username, ctx.URI().Password()
+		return true, username, ctx.getURI().Password()
 	}
 
 	ctx.ParseAuthorization()
 
-	return len(ctx.URI().Username()) > 0, ctx.URI().Username(), ctx.URI().Password()
+	return len(ctx.getURI().Username()) > 0, ctx.getURI().Username(), ctx.getURI().Password()
 
 }
 
@@ -190,7 +190,7 @@ func (req *Request) OverrideBodyEncode(body []byte, removeCompressHeader bool) [
 	data := bytes.Buffer{}
 
 	//schema
-	schema := req.URI().Scheme()
+	schema := req.getURI().Scheme()
 	data.Write(getLengthBytes(schema))
 	data.Write(schema)
 

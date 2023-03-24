@@ -129,42 +129,33 @@ type Response struct {
 	Tag string
 }
 
+// NOTE: Don't add other Set* methods to Request unless you know how to do it!
+
 // SetHost sets host for the request.
 func (req *Request) SetHost(host string) {
-	req.URI().SetHost(host)
+	req.getURI().SetHost(host)
 }
 
 // SetHostBytes sets host for the request.
 func (req *Request) SetHostBytes(host []byte) {
-	req.URI().SetHostBytes(host)
+	req.getURI().SetHostBytes(host)
 }
 
 // Host returns the host for the given request.
 func (req *Request) Host() []byte {
-	return req.URI().Host()
+	return req.getURI().Host()
 }
 
 // SetRequestURI sets RequestURI.
 func (req *Request) SetRequestURI(requestURI string) {
 	req.Header.SetRequestURI(requestURI)
 	req.parsedURI = false
-
-	//reset host after reset uri
-	//if len(req.Header.host) > 0 {
-	req.Header.host = req.Header.host[:0]
-	//}
 }
 
 // SetRequestURIBytes sets RequestURI.
 func (req *Request) SetRequestURIBytes(requestURI []byte) {
 	req.Header.SetRequestURIBytes(requestURI)
 	req.parsedURI = false
-
-	//reset host after reset uri
-	//if len(req.Header.host) > 0 {
-	req.Header.host = req.Host() // req.Header.host[:0]
-	//req.Header.host =req.Header.host[:0]
-	//}
 }
 
 // RequestURI returns request's URI.
@@ -982,9 +973,21 @@ func swapResponseBody(a, b *Response) {
 }
 
 // URI returns request URI
-func (req *Request) URI() *URI {
+func (req *Request) getURI() *URI {
 	req.parseURI() //nolint:errcheck
 	return &req.uri
+}
+
+// CloneURI returns a deep copy of URI
+func (req *Request) CloneURI() *URI {
+	uri := AcquireURI()
+	req.getURI().CopyTo(uri)
+	return uri
+}
+
+// PhantomURI returns the raw URI, don't modify it
+func (req *Request) PhantomURI() *URI {
+	return req.getURI()
 }
 
 // SetURI initializes request URI
@@ -1638,10 +1641,8 @@ func (req *Request) Write(w *bufio.Writer) error {
 	req.rawBody = nil
 	hostInHeader := req.Header.Host()
 
-	//if len(hostInHeader) == 0 || !req.parsedURI {
-
-	if len(hostInHeader) == 0 || !req.parsedURI {
-		uri := req.URI()
+	if len(hostInHeader) == 0 || req.parsedURI {
+		uri := req.getURI()
 		host := uri.Host()
 
 		if len(hostInHeader) == 0 {

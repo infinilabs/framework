@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"net"
 	"strconv"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Do performs the given http request and fills the given http response.
@@ -119,7 +120,7 @@ func DoDeadline(req *Request, resp *Response, deadline time.Time) error {
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func DoRedirects(req *Request, resp *Response, maxRedirectsCount int) error {
-	_, _, err := doRequestFollowRedirects(req, resp, req.URI().String(), maxRedirectsCount, &defaultClient)
+	_, _, err := doRequestFollowRedirects(req, resp, req.getURI().String(), maxRedirectsCount, &defaultClient)
 	return err
 }
 
@@ -440,7 +441,7 @@ func (c *Client) DoDeadline(req *Request, resp *Response, deadline time.Time) er
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *Client) DoRedirects(req *Request, resp *Response, maxRedirectsCount int) error {
-	_, _, err := doRequestFollowRedirects(req, resp, req.URI().String(), maxRedirectsCount, c)
+	_, _, err := doRequestFollowRedirects(req, resp, req.getURI().String(), maxRedirectsCount, c)
 	return err
 }
 
@@ -464,7 +465,7 @@ func (c *Client) DoRedirects(req *Request, resp *Response, maxRedirectsCount int
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *Client) Do(req *Request, resp *Response) error {
-	uri := req.URI()
+	uri := req.getURI()
 	if uri == nil {
 		return ErrorInvalidURI
 	}
@@ -1081,25 +1082,23 @@ func StatusCodeIsRedirect(statusCode int) bool {
 }
 
 var (
-	//requestPool  sync.Pool
-	//responsePool sync.Pool
+// requestPool  sync.Pool
+// responsePool sync.Pool
 )
 
-var requestPool=bytebufferpool.NewObjectPool("request", func() interface{} {
+var requestPool = bytebufferpool.NewObjectPool("request", func() interface{} {
 	v := new(Request)
 	return v
 }, func() interface{} {
 	return nil
-},10000,1024*1024*1024)
+}, 10000, 1024*1024*1024)
 
-var responsePool=bytebufferpool.NewObjectPool("response", func() interface{} {
+var responsePool = bytebufferpool.NewObjectPool("response", func() interface{} {
 	v := new(Response)
 	return v
 }, func() interface{} {
 	return nil
-},10000,1024*1024*1024)
-
-
+}, 10000, 1024*1024*1024)
 
 // AcquireRequest returns an empty Request instance from request pool.
 //
@@ -1115,8 +1114,8 @@ func AcquireRequestWithTag(tag string) *Request {
 	if v == nil {
 		return &Request{Tag: tag}
 	}
-	x:= v.(*Request)
-	x.Tag=tag
+	x := v.(*Request)
+	x.Tag = tag
 	return x
 }
 
@@ -1126,13 +1125,13 @@ func AcquireRequestWithTag(tag string) *Request {
 // it to request pool.
 func ReleaseRequest(req *Request) {
 	req.Reset()
-	if req.body!=nil{
-		if req.Tag!=""{
-			bytebufferpool.Put(req.Tag,req.body)
-		}else{
+	if req.body != nil {
+		if req.Tag != "" {
+			bytebufferpool.Put(req.Tag, req.body)
+		} else {
 			requestBodyPool.Put(req.body)
 		}
-		req.body=nil
+		req.body = nil
 	}
 	requestPool.Put(req)
 }
@@ -1151,8 +1150,8 @@ func AcquireResponseWithTag(tag string) *Response {
 	if v == nil {
 		return &Response{Tag: tag}
 	}
-	x:= v.(*Response)
-	x.Tag=tag
+	x := v.(*Response)
+	x.Tag = tag
 	return x
 }
 
@@ -1162,13 +1161,13 @@ func AcquireResponseWithTag(tag string) *Response {
 // it to response pool.
 func ReleaseResponse(resp *Response) {
 	resp.Reset()
-	if resp.body!=nil{
-		if resp.Tag!=""{
-			bytebufferpool.Put(resp.Tag,resp.body)
-		}else{
+	if resp.body != nil {
+		if resp.Tag != "" {
+			bytebufferpool.Put(resp.Tag, resp.body)
+		} else {
 			responseBodyPool.Put(resp.body)
 		}
-		resp.body=nil
+		resp.body = nil
 	}
 	responsePool.Put(resp)
 }
@@ -1244,7 +1243,7 @@ func (c *HostClient) DoDeadline(req *Request, resp *Response, deadline time.Time
 // It is recommended obtaining req and resp via AcquireRequest
 // and AcquireResponse in performance-critical code.
 func (c *HostClient) DoRedirects(req *Request, resp *Response, maxRedirectsCount int) error {
-	_, _, err := doRequestFollowRedirects(req, resp, req.URI().String(), maxRedirectsCount, c)
+	_, _, err := doRequestFollowRedirects(req, resp, req.getURI().String(), maxRedirectsCount, c)
 	return err
 }
 
@@ -1354,7 +1353,7 @@ func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error)
 	req.secureErrorLogMessage = c.SecureErrorLogMessage
 	req.Header.secureErrorLogMessage = c.SecureErrorLogMessage
 
-	if c.IsTLS != req.URI().isHttps() {
+	if c.IsTLS != req.getURI().isHttps() {
 		return false, ErrHostClientRedirectToDifferentScheme
 	}
 
@@ -1368,7 +1367,7 @@ func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error)
 	resp.Reset()
 	resp.SkipBody = customSkipBody
 
-	req.URI().DisablePathNormalizing = c.DisablePathNormalizing
+	req.getURI().DisablePathNormalizing = c.DisablePathNormalizing
 
 	userAgentOld := req.Header.UserAgent()
 	if len(userAgentOld) == 0 {
@@ -2412,7 +2411,7 @@ func (c *pipelineConnClient) DoDeadline(req *Request, resp *Response, deadline t
 	}
 
 	if c.DisablePathNormalizing {
-		req.URI().DisablePathNormalizing = true
+		req.getURI().DisablePathNormalizing = true
 	}
 
 	userAgentOld := req.Header.UserAgent()
@@ -2479,7 +2478,7 @@ func (c *pipelineConnClient) Do(req *Request, resp *Response) error {
 	c.init()
 
 	if c.DisablePathNormalizing {
-		req.URI().DisablePathNormalizing = true
+		req.getURI().DisablePathNormalizing = true
 	}
 
 	userAgentOld := req.Header.UserAgent()

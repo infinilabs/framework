@@ -3,6 +3,11 @@ package replay
 import (
 	"crypto/tls"
 	"fmt"
+	"path"
+	"runtime"
+	"strings"
+	time2 "time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
@@ -12,10 +17,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/lib/fasthttp"
-	"path"
-	"runtime"
-	"strings"
-	time2 "time"
 )
 
 type Config struct {
@@ -24,8 +25,8 @@ type Config struct {
 
 	Filename   string `config:"filename"`
 	InputQueue string `config:"input_queue"`
-	Username string `config:"username"`
-	Password string `config:"password"`
+	Username   string `config:"username"`
+	Password   string `config:"password"`
 }
 
 type ReplayProcessor struct {
@@ -69,7 +70,7 @@ var validVerbs = []string{
 	fasthttp.MethodDelete,
 }
 var commentMarks = []string{
-	"#","//",
+	"#", "//",
 }
 
 var fastHttpClient = &fasthttp.Client{
@@ -80,7 +81,7 @@ var fastHttpClient = &fasthttp.Client{
 	MaxConnWaitTimeout:            10 * time2.Second,
 	DisableHeaderNamesNormalizing: false,
 	TLSConfig:                     &tls.Config{InsecureSkipVerify: true},
-	DialDualStack: true,
+	DialDualStack:                 true,
 }
 
 const newline = "\n"
@@ -115,11 +116,11 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 
 		lines := util.FileGetLines(filename)
 
-		log.Debugf("get %v lines prepare to replay",len(lines))
+		log.Debugf("get %v lines prepare to replay", len(lines))
 
 		var err error
 		var done bool
-		count, err, done = ReplayLines(ctx, lines, processor.config.Schema,processor.config.Host,processor.config.Username,processor.config.Password)
+		count, err, done = ReplayLines(ctx, lines, processor.config.Schema, processor.config.Host, processor.config.Username, processor.config.Password)
 		if done {
 			return err
 		}
@@ -134,10 +135,10 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,password string) (int, error, bool) {
+func ReplayLines(ctx *pipeline.Context, lines []string, schema, host, username, password string) (int, error, bool) {
 
 	var buffer = bytebufferpool.Get("replay")
-	defer bytebufferpool.Put("replay",buffer)
+	defer bytebufferpool.Put("replay", buffer)
 
 	req := fasthttp.AcquireRequest()
 	res := fasthttp.AcquireResponse()
@@ -146,7 +147,7 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,pa
 	defer fasthttp.ReleaseResponse(res)
 
 	var requestIsSet bool
-	count:=0
+	count := 0
 	for _, line := range lines {
 		count++
 		if ctx.IsCanceled() {
@@ -166,14 +167,15 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,pa
 			//buffer is not empty, clear current request first
 			if util.PrefixAnyInArray(line, validVerbs) {
 
+				clonedURI := req.CloneURI()
 				//execute previous request now
 				if requestIsSet {
-					log.Debug("execute request: ",req.URI().String())
+					log.Debug("execute request: ", clonedURI.String())
 					if username != "" && password != "" {
 						req.SetBasicAuth(username, password)
 					}
-					err:=execute(req,res,buffer)
-					if err!=nil{
+					err := execute(req, res, buffer)
+					if err != nil {
 						log.Error(err, req.String())
 						panic(err)
 					}
@@ -189,8 +191,10 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,pa
 					req.SetRequestURI(uri)
 					req.Header.SetMethod(method)
 					req.Header.SetHost(host)
-					req.URI().SetScheme(schema)
-					req.URI().SetHost(host)
+					clonedURI.SetScheme(schema)
+					clonedURI.SetHost(host)
+					req.SetURI(clonedURI)
+					fasthttp.ReleaseURI(clonedURI)
 					req.SetHost(host)
 
 					if global.Env().IsDebug {
@@ -217,12 +221,12 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,pa
 
 	//execute previous request now
 	if requestIsSet {
-		log.Debug("execute last request: ",req.URI().String())
+		log.Debug("execute last request: ", req.PhantomURI().String())
 		if username != "" && password != "" {
 			req.SetBasicAuth(username, password)
 		}
-		err:=execute(req,res,buffer)
-		if err!=nil{
+		err := execute(req, res, buffer)
+		if err != nil {
 			log.Error(err, req.String())
 			panic(err)
 		}
@@ -231,7 +235,7 @@ func ReplayLines(ctx *pipeline.Context, lines []string,  schema,host,username,pa
 	return count, nil, false
 }
 
-func execute(req *fasthttp.Request,res *fasthttp.Response,buffer *bytebufferpool.ByteBuffer) error {
+func execute(req *fasthttp.Request, res *fasthttp.Response, buffer *bytebufferpool.ByteBuffer) error {
 	if buffer.Len() > 0 {
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 			buffer.WriteString(newline)
@@ -244,7 +248,7 @@ func execute(req *fasthttp.Request,res *fasthttp.Response,buffer *bytebufferpool
 		return err
 	}
 
-	if res.StatusCode()>210{
+	if res.StatusCode() > 210 {
 		if global.Env().IsDebug {
 			log.Debug("request:", string(req.String()))
 			log.Debug("response:", string(res.String()))

@@ -666,9 +666,6 @@ func (h *RequestHeader) RequestURI() []byte {
 // Use URI.RequestURI for constructing proper RequestURI if unsure.
 func (h *RequestHeader) SetRequestURI(requestURI string) {
 	h.requestURI = append(h.requestURI[:0], requestURI...)
-	//if len(h.host)>0{
-	//	h.host=h.host[:0]
-	//}
 }
 
 // SetRequestURIBytes sets RequestURI for the first HTTP request line.
@@ -676,9 +673,6 @@ func (h *RequestHeader) SetRequestURI(requestURI string) {
 // Use URI.RequestURI for constructing proper RequestURI if unsure.
 func (h *RequestHeader) SetRequestURIBytes(requestURI []byte) {
 	h.requestURI = append(h.requestURI[:0], requestURI...)
-	//if len(h.host)>0{
-	//	h.host=h.host[:0]
-	//}
 }
 
 // SetTrailer sets Trailer header value for chunked request

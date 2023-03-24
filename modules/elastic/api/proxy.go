@@ -4,6 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api"
@@ -11,24 +16,19 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 )
 
 func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	resBody := map[string]interface{}{
-	}
+	resBody := map[string]interface{}{}
 	targetClusterID := ps.ByName("id")
 	method := h.GetParameterOrDefault(req, "method", "")
 	path := h.GetParameterOrDefault(req, "path", "")
-	if method == "" || path == ""{
+	if method == "" || path == "" {
 		resBody["error"] = fmt.Errorf("parameter method and path is required")
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	exists,_,err:=h.GetClusterClient(targetClusterID)
+	exists, _, err := h.GetClusterClient(targetClusterID)
 
 	if err != nil {
 		log.Error(err)
@@ -37,8 +37,8 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		return
 	}
 
-	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
+	if !exists {
+		resBody["error"] = fmt.Sprintf("cluster [%s] not found", targetClusterID)
 		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
@@ -55,7 +55,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusForbidden)
 		return
 	}
-	if permission == "" && api.IsAuthEnable() && !isSuperAdmin{
+	if permission == "" && api.IsAuthEnable() && !isSuperAdmin {
 		resBody["error"] = "unknown request path"
 		h.WriteJSON(w, resBody, http.StatusForbidden)
 		return
@@ -66,7 +66,6 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	//	}
 	//}
 
-
 	var (
 		freq = fasthttp.AcquireRequest()
 		fres = fasthttp.AcquireResponse()
@@ -76,8 +75,8 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		fasthttp.ReleaseResponse(fres)
 	}()
 	metadata := elastic.GetMetadata(targetClusterID)
-	if metadata==nil{
-		resBody["error"] = fmt.Sprintf("cluster [%s] metadata not found",targetClusterID)
+	if metadata == nil {
+		resBody["error"] = fmt.Sprintf("cluster [%s] metadata not found", targetClusterID)
 		log.Error(resBody["error"])
 		h.WriteJSON(w, resBody, http.StatusNotFound)
 		return
@@ -87,7 +86,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
 
-	endpoint:=util.JoinPath(metadata.GetActivePreferredSeedEndpoint(), path)
+	endpoint := util.JoinPath(metadata.GetActivePreferredSeedEndpoint(), path)
 
 	freq.SetRequestURI(endpoint)
 	method = strings.ToUpper(method)
@@ -104,7 +103,10 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		freq.Header.SetRequestURI(rurl.RequestURI())
 	}
 
-	freq.URI().SetScheme(metadata.GetSchema())
+	clonedURI := freq.CloneURI()
+	defer fasthttp.ReleaseURI(clonedURI)
+	clonedURI.SetScheme(metadata.GetSchema())
+	freq.SetURI(clonedURI)
 
 	freq.SetBodyStream(req.Body, int(req.ContentLength))
 	defer req.Body.Close()
@@ -116,13 +118,13 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		return
 	}
 	okBody := struct {
-		RequestHeader string `json:"request_header"`
+		RequestHeader  string `json:"request_header"`
 		ResponseHeader string `json:"response_header"`
-		ResponseBody string `json:"response_body"`
+		ResponseBody   string `json:"response_body"`
 	}{
-		RequestHeader: freq.Header.String(),
+		RequestHeader:  freq.Header.String(),
 		ResponseHeader: fres.Header.String(),
-		ResponseBody: string(fres.GetRawBody()),
+		ResponseBody:   string(fres.GetRawBody()),
 	}
 
 	w.Header().Set("Content-type", string(fres.Header.ContentType()))
@@ -136,5 +138,5 @@ var client = fasthttp.Client{
 	TLSConfig:       &tls.Config{InsecureSkipVerify: true},
 	ReadTimeout:     60 * time.Second,
 	WriteTimeout:    60 * time.Second,
-	DialDualStack: true,
+	DialDualStack:   true,
 }
