@@ -11,7 +11,7 @@ import (
 
 var fileHandlers = map[string]*RotateWriter{}
 var lock sync.RWMutex
-var callbackRegistered
+var callbackRegistered bool
 
 type RotateConfig struct {
 	Compress     bool `config:"compress_after_rotate"`
