@@ -5,11 +5,13 @@ package rotate
 
 import (
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"sync"
 )
 
 var fileHandlers = map[string]*RotateWriter{}
 var lock sync.RWMutex
+var callbackRegistered
 
 type RotateConfig struct {
 	Compress     bool `config:"compress_after_rotate"`
@@ -27,6 +29,12 @@ var DefaultConfig = RotateConfig{
 
 func GetFileHandler(path string, config RotateConfig) *RotateWriter {
 	lock.Lock()
+	if !callbackRegistered{
+		global.RegisterShutdownCallback(func() {
+			Close()
+		})
+		callbackRegistered=true
+	}
 	v, ok := fileHandlers[path]
 	if !ok {
 		v = &RotateWriter{
