@@ -835,7 +835,11 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 				ctx.Error(err)
 			}
 		}
-		log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+		if global.Env().IsDebug{
+			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+		}else{
+			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
+		}
 		processor.updateContext(ctx, bulkResult)
 		return continueRequest, err
 	}
