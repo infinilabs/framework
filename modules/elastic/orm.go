@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	log "github.com/cihub/seelog"
 )
 
 var ErrNotFound = errors.New("record not found")
@@ -53,6 +54,11 @@ func (handler ElasticORM) Get(o interface{}) (bool, error) {
 	}
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
+
+	if global.Env().IsDebug{
+		log.Debug(string(response.RawResult.Body))
+	}
+
 	if err != nil {
 		return false, err
 	}

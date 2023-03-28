@@ -18,6 +18,7 @@ type UserClaims struct {
 }
 
 type ShortUser struct {
+	Provider string     `json:"provider"`
 	Username string   `json:"username"`
 	UserId   string   `json:"user_id"`
 	Roles    []string `json:"roles"`

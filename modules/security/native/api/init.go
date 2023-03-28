@@ -5,6 +5,7 @@
 package api
 
 import (
+	"golang.org/x/oauth2"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/api/rbac/enum"
@@ -13,12 +14,18 @@ import (
 type APIHandler struct {
 	api.Handler
 	rbac.Adapter
+
 }
 
 const adapterType = "elasticsearch"
 var apiHandler = APIHandler{Adapter: rbac.GetAdapter(adapterType)}
+var (
+	oAuthConfig       OAuthConfig
+	defaultOAuthRoles []rbac.UserRole
+	oauthCfg          oauth2.Config
+)
 
-func Init() {
+func Init(cfg OAuthConfig) {
 
 	api.HandleAPIMethod(api.GET, "/permission/:type", apiHandler.ListPermission)
 	api.HandleAPIMethod(api.POST, "/role/:type", apiHandler.RequirePermission(apiHandler.CreateRole, enum.RoleAllPermission...))
@@ -42,6 +49,23 @@ func Init() {
 	api.HandleAPIMethod(api.GET, "/account/profile", apiHandler.RequireLogin(apiHandler.Profile))
 	api.HandleAPIMethod(api.PUT, "/account/password", apiHandler.RequireLogin(apiHandler.UpdatePassword))
 
+	//init oauth
+	if cfg.Enabled{
+		api.HandleUIMethod(api.GET, "/sso/login/", apiHandler.AuthHandler)
+		api.HandleUIMethod(api.GET, "/sso/callback/", apiHandler.CallbackHandler)
+
+		oAuthConfig=cfg
+		oauthCfg = oauth2.Config{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  cfg.AuthorizeUrl,
+				TokenURL: cfg.TokenUrl,
+			},
+			RedirectURL: cfg.RedirectUrl,
+			Scopes:      cfg.Scopes,
+		}
+	}
 
 }
 

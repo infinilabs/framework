@@ -14,17 +14,36 @@ import (
 	credapi "infini.sh/framework/modules/security/credential/api"
 )
 
-
-type Module struct {
+type Config struct {
 	Enabled           bool `config:"enabled"`
+	OAuth napi.OAuthConfig `config:"oauth"`
 }
 
-func (module Module) Name() string {
+type Module struct {
+	cfg *Config
+}
+
+func (module *Module) Name() string {
 	return "security"
 }
 
-func (module Module) Setup() {
-	napi.Init()
+func (module *Module) Setup() {
+	module.cfg=&Config{
+		Enabled:true,
+		OAuth: napi.OAuthConfig{
+		SuccessPage: "/#/user/sso/success",
+		FailedPage: "/#/user/sso/failed",
+	}}
+
+	ok,err:=env.ParseConfig("security", &module.cfg)
+	if ok&&err!=nil{
+		panic(err)
+	}
+
+	if !module.cfg.Enabled{
+		return
+	}
+	napi.Init(module.cfg.OAuth)
 	credapi.Init()
 }
 
@@ -43,16 +62,9 @@ func InitSecurity() {
 	securityInited=true
 }
 
-func (module Module) Start() error {
+func (module *Module) Start() error {
 
-	cfg := &Module{Enabled:true}
-
-	ok,err:=env.ParseConfig("security", &cfg)
-	if ok&&err!=nil{
-		panic(err)
-	}
-
-	if !cfg.Enabled {
+	if !module.cfg.Enabled {
 		return nil
 	}
 
@@ -61,7 +73,7 @@ func (module Module) Start() error {
 	return nil
 }
 
-func (module Module) Stop() error {
+func (module *Module) Stop() error {
 
 	return nil
 }

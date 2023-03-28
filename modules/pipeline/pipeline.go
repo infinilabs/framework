@@ -452,7 +452,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		}
 
 		ctx.SetLoopReleased()
-		log.Infof("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
+		log.Debugf("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
 	}(v, processor, ctx)
 
 	return nil

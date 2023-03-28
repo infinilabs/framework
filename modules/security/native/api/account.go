@@ -36,7 +36,7 @@ func (h APIHandler) authenticateUser(username string, password string) (user *rb
 	return
 }
 
-func authorize(user rbac.User) (m map[string]interface{}, err error) {
+func authorize(user rbac.User,provider string) (m map[string]interface{}, err error) {
 	var roles, privilege []string
 	for _, v := range user.Roles {
 		role := rbac.RoleMap[v.Name]
@@ -45,6 +45,7 @@ func authorize(user rbac.User) (m map[string]interface{}, err error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, rbac.UserClaims{
 		ShortUser: &rbac.ShortUser{
+			Provider: provider,
 			Username: user.Name,
 			UserId:   user.ID,
 			Roles:    roles,
@@ -70,6 +71,9 @@ func authorize(user rbac.User) (m map[string]interface{}, err error) {
 	return
 }
 
+const SSOProvider = "sso"
+const NativeProvider = "native"
+
 func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	var req struct {
@@ -90,7 +94,7 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 		return
 	}
 
-	data, err := authorize(*user)
+	data, err := authorize(*user,NativeProvider)
 	if err != nil {
 		h.ErrorInternalServer(w, err.Error())
 		return
@@ -171,19 +175,30 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	user, err := h.User.Get(reqUser.UserId)
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
+	if reqUser.Provider==NativeProvider{
+		user, err := h.User.Get(reqUser.UserId)
+		if err != nil {
+			h.ErrorInternalServer(w, err.Error())
+			return
+		}
+		u := util.MapStr{
+			"user_id":  user.ID,
+			"name": user.Name,
+			"email":    user.Email,
+			"nick_name":     user.NickName,
+			"phone":    user.Phone,
+		}
+		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
+	}else{
+		u := util.MapStr{
+			"user_id":  reqUser.UserId,
+			"name": reqUser.Username,
+			"email":   "" , //TOOD, save user profile come from SSO
+			"nick_name":     reqUser.Username, //TODO
+			"phone":    "", //TODO
+		}
+		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
 	}
-	u := util.MapStr{
-		"user_id":  user.ID,
-		"name": user.Name,
-		"email":    user.Email,
-		"nick_name":     user.NickName,
-		"phone":    user.Phone,
-	}
-	h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
 
 }
 

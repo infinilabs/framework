@@ -75,8 +75,6 @@ func (module *MetricsModule) Setup() {
 		tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
 	}
 
-	log.Info(tail)
-
 	module.CollectAgentMetric()
 	module.CollectHostMetric()
 	module.CollectESMetric()
@@ -260,8 +258,6 @@ func (module *MetricsModule) Start() error {
 		if len(meta.Tags) > 0 {
 			tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
 		}
-
-		log.Info(tail)
 
 		module.CollectAgentMetric()
 		module.CollectHostMetric()

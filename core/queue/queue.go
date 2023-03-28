@@ -57,11 +57,11 @@ func (c *Context) String() string {
 }
 
 type Message struct {
-	Timestamp  int64  `config:"timestamp" json:"timestamp"`
-	Offset     string `config:"offset" json:"offset"`           //current offset
-	NextOffset string `config:"next_offset" json:"next_offset"` //offset for next message
-	Size       int  `config:"size" json:"size"`
-	Data       []byte `config:"data" json:"data"`
+	Timestamp  int64  `config:"timestamp" json:"timestamp" parquet:"timestamp"`
+	Offset     string `config:"offset" json:"offset"  parquet:"offset"`           //current offset
+	NextOffset string `config:"next_offset" json:"next_offset"  parquet:"next_offset"` //offset for next message
+	Size       int  `config:"size" json:"size"  parquet:"size"`
+	Data       []byte `config:"data" json:"data"  parquet:"data,zstd"`
 }
 
 type QueueAPI interface {
