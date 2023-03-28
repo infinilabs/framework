@@ -4,12 +4,13 @@ package config
 import (
 	"flag"
 	"fmt"
-	"infini.sh/framework/lib/go-ucfg/parse"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"infini.sh/framework/lib/go-ucfg/parse"
 
 	log "github.com/cihub/seelog"
 	"github.com/valyala/fasttemplate"
@@ -45,7 +46,8 @@ var configOpts = []ucfg.Option{
 }
 
 var customConfigOpts = map[string]ucfg.Option{}
-func RegisterOption(name string, option ucfg.Option){
+
+func RegisterOption(name string, option ucfg.Option) {
 	customConfigOpts[name] = option
 }
 
@@ -453,6 +455,10 @@ func (c *Config) Enabled(defaultV bool) bool {
 		return defaultV
 	}
 	return testEnabled.Enabled
+}
+
+func FromConfig(in *ucfg.Config) *Config {
+	return fromConfig(in)
 }
 
 func fromConfig(in *ucfg.Config) *Config {

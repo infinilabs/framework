@@ -18,7 +18,12 @@ package indexing_merge
 
 import (
 	"fmt"
+	"runtime"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
+	"github.com/savsgio/gotils/bytes"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
@@ -29,10 +34,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"infini.sh/framework/modules/elastic/common"
-	"runtime"
-	"github.com/savsgio/gotils/bytes"
-	"sync"
-	"time"
 )
 
 type IndexingMergeProcessor struct {
@@ -41,7 +42,7 @@ type IndexingMergeProcessor struct {
 	outputQueueConfig *queue.QueueConfig
 }
 
-//处理纯 json 格式的消息索引
+// 处理纯 json 格式的消息索引
 func (processor *IndexingMergeProcessor) Name() string {
 	return "indexing_merge"
 }
@@ -132,8 +133,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 }
 
-//合并批量处理的操作，这里只用来合并请求和构造 bulk 请求。
-//TODO 重启子进程，当子进程挂了之后
+// 合并批量处理的操作，这里只用来合并请求和构造 bulk 请求。
+// TODO 重启子进程，当子进程挂了之后
 func (processor *IndexingMergeProcessor) Process(ctx *pipeline.Context) error {
 	defer func() {
 		if !global.Env().IsDebug {
@@ -184,7 +185,7 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 					v = r.(string)
 				}
 				log.Error("error in json indexing worker,", v)
-				ctx.Failed()
+				ctx.Error(fmt.Errorf("indexing merge panic: %v", r))
 			}
 		}
 		wg.Done()
@@ -234,7 +235,7 @@ READ_DOCS:
 				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\" } }\n", processor.config.IndexName))
 			}
 
-			util.WalkBytesAndReplace(pop,util.NEWLINE,util.SPACE)
+			util.WalkBytesAndReplace(pop, util.NEWLINE, util.SPACE)
 
 			docBuf.Write(pop)
 			docBuf.WriteString("\n")

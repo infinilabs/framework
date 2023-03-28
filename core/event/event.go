@@ -36,7 +36,8 @@ func (e *Event) String() string {
 }
 
 type AgentMeta struct {
-	QueueName string `json:"-"`
+	MetricQueueName  string `json:"-"`
+	LoggingQueueName string `json:"-"`
 
 	AgentID  string   `json:"id,omitempty"`
 	HostID   string   `json:"host_id,omitempty"`

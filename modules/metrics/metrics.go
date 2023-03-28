@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -19,26 +20,26 @@ import (
 )
 
 type MetricConfig struct {
-	Enabled bool  `config:"enabled"`
+	Enabled        bool   `config:"enabled"`
 	MajorIPPattern string `config:"major_ip_pattern"`
-	Queue          string `config:"queue"`
+	MetricQueue    string `config:"queue"`
+	LoggingQueue   string `config:"logging_queue"`
 
 	InstanceConfig *Config `config:"instance"`
 
-	NetworkConfig        *Config `config:"network"`
-	DiskConfig           *Config `config:"disk"`
-	CPUConfig            *Config `config:"cpu"`
-	MemoryConfig         *Config `config:"memory"`
-	ElasticsearchConfig  *Config `config:"elasticsearch"`
+	NetworkConfig       *Config `config:"network"`
+	DiskConfig          *Config `config:"disk"`
+	CPUConfig           *Config `config:"cpu"`
+	MemoryConfig        *Config `config:"memory"`
+	ElasticsearchConfig *Config `config:"elasticsearch"`
 
 	Tags   []string          `config:"tags"`
 	Labels map[string]string `config:"labels"`
-
 }
 
 type MetricsModule struct {
-	config *MetricConfig
-	taskIDs 	  []string
+	config  *MetricConfig
+	taskIDs []string
 }
 
 func (module *MetricsModule) Name() string {
@@ -50,37 +51,28 @@ func (module *MetricsModule) Setup() {
 	module.config = &MetricConfig{Enabled: true}
 
 	exits, err := env.ParseConfig("metrics", module.config)
-	if !exits{
-		module.config.Enabled=false
+	if !exits {
+		module.config.Enabled = false
 		return
 	}
 	if err != nil {
 		panic(err)
 	}
 
-	if !module.config.Enabled{
+	if !module.config.Enabled {
 		return
 	}
 
-
-	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
-	meta := event.AgentMeta{
-		AgentID:   global.Env().SystemConfig.NodeConfig.ID,
-		MajorIP:   publicIP,
-		Hostname:  util.GetHostName(),
-		IP:        util.GetLocalIPs(),
-		QueueName: util.StringDefault(module.config.Queue, "metrics"),
-		Labels:    module.config.Labels,
-		Tags:      module.config.Tags}
+	meta := module.buildAgentMeta()
 
 	event.RegisterMeta(&meta)
 
-	tail:=fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
-	if len(meta.Labels)>0{
-		tail=tail+",labels: "+util.JoinMapString(meta.Labels, "->")
+	tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
+	if len(meta.Labels) > 0 {
+		tail = tail + ",labels: " + util.JoinMapString(meta.Labels, "->")
 	}
-	if len(meta.Tags)>0{
-		tail=tail+",tags: "+util.JoinArray(meta.Tags, ",")
+	if len(meta.Tags) > 0 {
+		tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
 	}
 
 	log.Info(tail)
@@ -90,18 +82,18 @@ func (module *MetricsModule) Setup() {
 	module.CollectESMetric()
 }
 
-func (module *MetricsModule) CollectESMetric(){
-	if module.config.ElasticsearchConfig!=nil{
+func (module *MetricsModule) CollectESMetric() {
+	if module.config.ElasticsearchConfig != nil {
 		//elasticsearch
 		es, err := elastic.New(module.config.ElasticsearchConfig)
 		if err != nil {
 			panic(err)
 		}
-		if es.Enabled{
+		if es.Enabled {
 			taskId := util.GetUUID()
 			module.taskIDs = append(module.taskIDs, taskId)
 			var task1 = task.ScheduleTask{
-				ID: taskId,
+				ID:          taskId,
 				Description: "monitoring for elasticsearch clusters",
 				Type:        "interval",
 				Interval:    es.Interval,
@@ -116,16 +108,16 @@ func (module *MetricsModule) CollectESMetric(){
 }
 
 func (module *MetricsModule) CollectAgentMetric() {
-	if module.config.InstanceConfig != nil{
+	if module.config.InstanceConfig != nil {
 		agentM, err := agent2.New(module.config.InstanceConfig)
 		if err != nil {
 			panic(err)
 		}
-		if agentM.Enabled{
+		if agentM.Enabled {
 			taskId := util.GetUUID()
 			module.taskIDs = append(module.taskIDs, taskId)
 			var task1 = task.ScheduleTask{
-				ID: taskId,
+				ID:          taskId,
 				Description: "fetch instance metrics",
 				Type:        "interval",
 				Interval:    "10s",
@@ -139,14 +131,14 @@ func (module *MetricsModule) CollectAgentMetric() {
 	}
 }
 
-func (module *MetricsModule) CollectHostMetric()  {
+func (module *MetricsModule) CollectHostMetric() {
 	var netM *network.Metric
 	var diskM *disk.Metric
 	var cpuM *cpu.Metric
 	var memoryM *memory.Metric
 	var err error
 
-	if module.config.NetworkConfig != nil{
+	if module.config.NetworkConfig != nil {
 		if netM == nil {
 			netM, err = network.New(module.config.NetworkConfig)
 			if err != nil {
@@ -156,7 +148,7 @@ func (module *MetricsModule) CollectHostMetric()  {
 		taskId := util.GetUUID()
 		module.taskIDs = append(module.taskIDs, taskId)
 		var netTask = task.ScheduleTask{
-			ID: taskId,
+			ID:          taskId,
 			Description: "fetch network metrics",
 			Type:        "interval",
 			Interval:    "10s",
@@ -178,7 +170,7 @@ func (module *MetricsModule) CollectHostMetric()  {
 		taskId := util.GetUUID()
 		module.taskIDs = append(module.taskIDs, taskId)
 		var diskTask = task.ScheduleTask{
-			ID: taskId,
+			ID:          taskId,
 			Description: "fetch disk metrics",
 			Type:        "interval",
 			Interval:    "10s",
@@ -200,7 +192,7 @@ func (module *MetricsModule) CollectHostMetric()  {
 		taskId := util.GetUUID()
 		module.taskIDs = append(module.taskIDs, taskId)
 		var cpuTask = task.ScheduleTask{
-			ID: taskId,
+			ID:          taskId,
 			Description: "fetch cpu metrics",
 			Type:        "interval",
 			Interval:    "10s",
@@ -222,7 +214,7 @@ func (module *MetricsModule) CollectHostMetric()  {
 		taskId := util.GetUUID()
 		module.taskIDs = append(module.taskIDs, taskId)
 		var memTask = task.ScheduleTask{
-			ID: taskId,
+			ID:          taskId,
 			Description: "fetch memory metrics",
 			Type:        "interval",
 			Interval:    "10s",
@@ -237,7 +229,7 @@ func (module *MetricsModule) CollectHostMetric()  {
 
 func (module *MetricsModule) Start() error {
 
-	NotifyOnConfigSectionChange("metrics", func(pCfg,cCfg *Config) {
+	NotifyOnConfigSectionChange("metrics", func(pCfg, cCfg *Config) {
 
 		if cCfg == nil {
 			return
@@ -257,24 +249,16 @@ func (module *MetricsModule) Start() error {
 		module.taskIDs = nil
 
 		module.config = newCfg
-		_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
-		meta := event.AgentMeta{
-			AgentID:   global.Env().SystemConfig.NodeConfig.ID,
-			MajorIP:   publicIP,
-			Hostname:  util.GetHostName(),
-			IP:        util.GetLocalIPs(),
-			QueueName: util.StringDefault(module.config.Queue, "metrics"),
-			Labels:    module.config.Labels,
-			Tags:      module.config.Tags}
+		meta := module.buildAgentMeta()
 
 		event.RegisterMeta(&meta)
 
-		tail:=fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
-		if len(meta.Labels)>0{
-			tail=tail+",labels: "+util.JoinMapString(meta.Labels, "->")
+		tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
+		if len(meta.Labels) > 0 {
+			tail = tail + ",labels: " + util.JoinMapString(meta.Labels, "->")
 		}
-		if len(meta.Tags)>0{
-			tail=tail+",tags: "+util.JoinArray(meta.Tags, ",")
+		if len(meta.Tags) > 0 {
+			tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
 		}
 
 		log.Info(tail)
@@ -292,4 +276,18 @@ func (module *MetricsModule) Stop() error {
 	//TODO cancel or stop background jobs
 
 	return nil
+}
+
+func (module *MetricsModule) buildAgentMeta() event.AgentMeta {
+	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
+	return event.AgentMeta{
+		AgentID:          global.Env().SystemConfig.NodeConfig.ID,
+		MajorIP:          publicIP,
+		Hostname:         util.GetHostName(),
+		IP:               util.GetLocalIPs(),
+		MetricQueueName:  util.StringDefault(module.config.MetricQueue, "metrics"),
+		LoggingQueueName: util.StringDefault(module.config.LoggingQueue, "logging"),
+		Labels:           module.config.Labels,
+		Tags:             module.config.Tags,
+	}
 }

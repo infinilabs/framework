@@ -7,13 +7,17 @@ import (
 )
 
 type PipelineConfigV2 struct {
-	Name           string           `config:"name" json:"name,omitempty"`
-	AutoStart      bool             `config:"auto_start" json:"auto_start"`
-	KeepRunning    bool             `config:"keep_running" json:"keep_running"`
-	RetryDelayInMs int              `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
-	Processors     []*config.Config `config:"processor" json:"processor,omitempty"`
+	Name           string `config:"name" json:"name,omitempty"`
+	AutoStart      bool   `config:"auto_start" json:"auto_start"`
+	KeepRunning    bool   `config:"keep_running" json:"keep_running"`
+	RetryDelayInMs int    `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
+	Logging        struct {
+		Enabled bool `config:"enabled" json:"enabled"`
+	} `config:"logging" json:"logging"`
+	Processors []*config.Config       `config:"processor" json:"-"`
+	Labels     map[string]interface{} `config:"labels" json:"labels"`
 
-	IsDynamic bool
+	Transient bool `config:"-" json:"transient"`
 }
 
 func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {

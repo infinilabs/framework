@@ -1,13 +1,14 @@
 package pipeline
 
-type GetPipelinesResponse map[string]PipelineStatus
+import "infini.sh/framework/core/pipeline"
 
-type GetPipelineResponse PipelineStatus
+type GetPipelinesResponse map[string]*PipelineStatus
 
 type CreatePipelineRequest struct {
-	Name           string                   `json:"name"`
-	AutoStart      bool                     `json:"auto_start"`
-	KeepRunning    bool                     `json:"keep_running"`
-	RetryDelayInMs int                      `json:"retry_delay_in_ms"`
-	Processors     []map[string]interface{} `json:"processor"`
+	pipeline.PipelineConfigV2
+	Processors []map[string]interface{} `json:"processor"`
+}
+
+type SearchPipelinesRequest struct {
+	Ids []string `json:"ids"`
 }

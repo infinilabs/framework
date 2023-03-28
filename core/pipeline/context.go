@@ -18,55 +18,108 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/event"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
+	"infini.sh/framework/core/util"
 )
 
 type RunningState string
 
 const STARTING RunningState = "STARTING"
 const STARTED RunningState = "STARTED"
-const CANCELLED RunningState = "CANCELLED"
 const STOPPING RunningState = "STOPPING"
-const STOPPED RunningState = "STOPPED"
 const FAILED RunningState = "FAILED"
 const FINISHED RunningState = "FINISHED"
+const STOPPED RunningState = "STOPPED"
 
-type Context struct {
-	param.Parameters `json:"parameters,omitempty"`
-
-	//IsSimulate   bool        `json:"-"`
-	//IgnoreBroken bool        `json:"-"`
-	//Payload      interface{} `json:"-"`
-
-	//private parameters
-	startTime      *time.Time   `json:"start_time,omitempty"`
-	endTime        *time.Time   `json:"end_time,omitempty"`
-	runningState   RunningState `json:"state"`
-	processHistory []string     `json:"-"`
-
-	context.Context `json:"-"`
-	cancelFunc      context.CancelFunc
-	isPaused        bool
-	pause           sync.WaitGroup
-	isQuit          bool
-	stateLock       sync.RWMutex
-
-	Config PipelineConfigV2
+func (s RunningState) IsEnded() bool {
+	return s == FAILED || s == FINISHED || s == STOPPED
 }
 
-func AcquireContext() *Context {
-	//TODO
+func (s RunningState) IsSuccess() bool {
+	return s == FINISHED
+}
+
+func (s RunningState) IsFailure() bool {
+	return s == FAILED
+}
+
+type StateItem struct {
+	Steps             int64
+	State             RunningState
+	ContextParameters util.MapStr
+	ExitErr           error
+	ProcessErrs       []error
+}
+
+type Context struct {
+	context.Context  `json:"-"`
+	param.Parameters `json:"parameters,omitempty"`
+
+	config PipelineConfigV2
+
+	//private parameters
+	startTime      *time.Time
+	endTime        *time.Time
+	runningState   RunningState
+	exitErr        error
+	processErrs    []error
+	processHistory []string
+	// steps tracks the count of state transition, doesn't reset within the context lifecycle
+	steps int64
+
+	cancelFunc   context.CancelFunc
+	isPaused     bool
+	pause        sync.WaitGroup
+	isQuit       bool
+	stateLock    sync.Mutex
+	released     bool
+	loopReleased bool
+}
+
+func AcquireContext(config PipelineConfigV2) *Context {
 	ctx := Context{}
 	ctx.ResetContext()
-	ctx.runningState = STARTING
+	ctx.runningState = FINISHED
+	ctx.config = config
 	return &ctx
 }
 
+// ReleaseContext could be called concurrently
+// Doesn't handle context lifecycle, only recycle the resources
+// Mark the context as released, quit the pipeline loop automatically
 func ReleaseContext(ctx *Context) {
-	//TODO
+	ctx.stateLock.Lock()
+	if ctx.released {
+		ctx.stateLock.Unlock()
+		return
+	}
+	ctx.released = true
+	ctx.stateLock.Unlock()
+}
+
+func (ctx *Context) IsReleased() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.released
+}
+
+func (ctx *Context) SetLoopReleased() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	ctx.loopReleased = true
+}
+
+func (ctx *Context) IsLoopReleased() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+	return ctx.loopReleased
 }
 
 func (ctx *Context) GetStartTime() *time.Time {
@@ -85,16 +138,18 @@ func (ctx *Context) GetRunningState() RunningState {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 	return ctx.runningState
-
 }
 
+// ResetContext only clears the context informations, doesn't modify state values
 func (ctx *Context) ResetContext() {
 	t := time.Now()
 	ctx.startTime = &t
 	ctx.endTime = nil
 	ctx.Context, ctx.cancelFunc = context.WithCancel(context.Background())
-	ctx.ResetParameters()
+	ctx.exitErr = nil
+	ctx.processErrs = []error{}
 	ctx.processHistory = []string{}
+	ctx.ResetParameters()
 }
 
 func (ctx *Context) GetFlowProcess() []string {
@@ -117,12 +172,15 @@ func (ctx *Context) IsFailed() bool {
 	return ctx.runningState == FAILED
 }
 
+// should filters continue to process
+func (ctx *Context) ShouldContinue() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return !(ctx.runningState == FINISHED)
+}
+
 func (ctx *Context) IsCanceled() bool {
-
-	if ctx.runningState == STOPPING || ctx.runningState == STOPPED {
-		return true
-	}
-
 	select {
 	case <-ctx.Context.Done():
 		return true
@@ -137,70 +195,73 @@ func (ctx *Context) Finished() {
 
 	t := time.Now()
 	ctx.endTime = &t
-	ctx.runningState = FINISHED
+	ctx.setRunningState(FINISHED)
 }
 
-// should filters continue to process
-func (ctx *Context) ShouldContinue() bool {
+func (ctx *Context) Failed(err error) {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 
-	return !(ctx.runningState == FINISHED)
-}
-
-func (context *Context) Starting() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
-
-	context.runningState = STARTING
-}
-
-func (context *Context) Started() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
-
-	context.ResetContext()
-	context.runningState = STARTED
-}
-
-func (context *Context) Failed() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
-
-	context.runningState = FAILED
+	ctx.exitErr = err
+	ctx.setRunningState(FAILED)
 	t := time.Now()
-	context.endTime = &t
+	ctx.endTime = &t
 }
 
-func (context *Context) Stopped() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
-
-	context.runningState = STOPPED
-	t := time.Now()
-	context.endTime = &t
-}
-
-func (context *Context) Cancelled() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
-
-	context.runningState = CANCELLED
-	t := time.Now()
-	context.endTime = &t
-}
-
-// resume pipeline, set to start mode
-func (ctx *Context) Resume() {
+func (ctx *Context) Starting() {
 	ctx.stateLock.Lock()
-	ctx.isPaused = false
-	ctx.isQuit = false
-	ctx.stateLock.Unlock()
+	defer ctx.stateLock.Unlock()
 
-	ctx.pause.Done()
+	ctx.setRunningState(STARTING)
 }
 
-// pause and wait signal to resume
+// Only STARTING/STARTED pipelines will get marked as STOPPING
+// Other states happen when pipeline finished, no need to mark it again.
+func (ctx *Context) Stopping() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	if ctx.runningState == STARTED || ctx.runningState == STARTING {
+		ctx.setRunningState(STOPPING)
+	}
+}
+
+func (ctx *Context) Stopped() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	ctx.setRunningState(STOPPED)
+}
+
+func (ctx *Context) Started() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	ctx.setRunningState(STARTED)
+}
+
+func (ctx *Context) Error(err error) {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	ctx.processErrs = append(ctx.processErrs, err)
+}
+
+func (ctx *Context) HasError() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return len(ctx.processErrs) > 0
+}
+
+func (ctx *Context) Errors() []error {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.processErrs
+}
+
+// Pause will pause the pipeline running loop until Resume called
 func (ctx *Context) Pause() {
 	ctx.stateLock.Lock()
 	if ctx.isPaused {
@@ -214,35 +275,105 @@ func (ctx *Context) Pause() {
 	ctx.pause.Wait()
 }
 
-func (context *Context) CancelTask() {
-	context.stateLock.Lock()
-	if context.runningState == STARTED || context.runningState == STARTING {
-		context.runningState = STOPPING
-	}
-	context.stateLock.Unlock()
+// Resume recovers pipeline from Pause
+func (ctx *Context) Resume() {
+	ctx.stateLock.Lock()
+	ctx.isPaused = false
+	ctx.stateLock.Unlock()
 
-	context.cancelFunc()
+	ctx.pause.Done()
 }
 
-func (context *Context) IsPause() bool {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
+// Restart marks the pipeline as ready to run
+func (ctx *Context) Restart() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
 
-	return context.isPaused
+	ctx.isQuit = false
 }
 
-// IsExit means all pipelines will be broke and jump to outside, even the end phrase will not be executed as well
-func (context *Context) IsExit() bool {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
+// IsExit means pipeline has been manually stopped, will not running until Restart
+func (ctx *Context) IsExit() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
 
-	return context.isQuit
+	return ctx.isQuit
 }
 
 // Exit tells pipeline to exit
-func (context *Context) Exit() {
-	context.stateLock.Lock()
-	defer context.stateLock.Unlock()
+func (ctx *Context) Exit() {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
 
-	context.isQuit = true
+	ctx.isQuit = true
+}
+
+func (ctx *Context) CancelTask() {
+	ctx.cancelFunc()
+}
+
+func (ctx *Context) IsPause() bool {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.isPaused
+}
+
+// setRunningState must be called after holding stateLock
+func (ctx *Context) setRunningState(newState RunningState) {
+	// Don't allow state modifications after ReleaseContext()
+	if ctx.released {
+		return
+	}
+	oldState := ctx.runningState
+	ctx.runningState = newState
+	if oldState != newState {
+		ctx.steps++
+
+		if ctx.config.Logging.Enabled {
+			ctx.pushPipelineLog()
+		}
+	}
+}
+
+func (ctx *Context) pushPipelineLog() {
+	if global.Env().IsDebug {
+		log.Info("received pipeline state change, id: ", ctx.config.Name, ", state: ", ctx.runningState)
+	}
+	eventData := event.Event{
+		Metadata: event.EventMetadata{
+			Category: "pipeline",
+			Name:     "logging",
+			Datatype: "event",
+		},
+	}
+	labels := util.MapStr{
+		"task_id": ctx.config.Name,
+	}
+	for k, v := range ctx.config.Labels {
+		labels[k] = v
+	}
+	eventData.Metadata.Labels = labels
+	payload := util.MapStr{
+		"steps":   ctx.steps,
+		"status":  string(ctx.runningState),
+		"config":  ctx.config,
+		"context": ctx.Parameters.CloneData(),
+	}
+	if ctx.runningState.IsEnded() {
+		result := util.MapStr{
+			"success": ctx.runningState.IsSuccess(),
+		}
+		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
+			result["error"] = fmt.Sprintf("exit: %v, process: %v", ctx.exitErr, ctx.processErrs)
+		}
+		payload["result"] = result
+	}
+	eventData.Fields = util.MapStr{
+		"pipeline": util.MapStr{
+			"logging": payload,
+		},
+	}
+
+	event.SaveLog(eventData)
 }

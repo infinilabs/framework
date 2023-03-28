@@ -6,6 +6,7 @@ package task
 
 import (
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
 	"time"
 )
 
@@ -19,8 +20,9 @@ type Task struct {
 	Metadata Metadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
 	Status string `json:"status"  elastic_mapping:"status: { type: keyword }"`
 	Description string `json:"description,omitempty" elastic_mapping:"description: { type: text }"`
-	Parameters map[string]interface{} `json:"parameters" elastic_mapping:"parameters:{type: object,enabled:false }"`
+	Config interface{} `json:"config" elastic_mapping:"config:{type: object,enabled:false }"`
 	CompletedTime *time.Time `json:"completed_time,omitempty" elastic_mapping:"completed_time: { type: date }"`
+	RetryTimes int `json:"retry_times,omitempty" elastic_mapping:"retry_times: { type: integer }"`
 }
 
 type Metadata struct {
@@ -29,23 +31,20 @@ type Metadata struct {
 }
 
 type Log struct {
-	ID string `json:"id"  elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	TaskId string `json:"task_id"  elastic_mapping:"task_id: { type: keyword }"`
-	Status string `json:"status"  elastic_mapping:"status: { type: keyword }"`
-	Type   string `json:"type"  elastic_mapping:"type: { type: keyword }"`
-	Action LogAction `json:"action"  elastic_mapping:"action: { type: object }"`
-	Content   string `json:"content" elastic_mapping:"content: { type: text }"`
-	Timestamp time.Time `json:"timestamp" elastic_mapping:"timestamp: { type: date }"`
-}
-
-type LogAction struct {
-	Result *LogResult `json:"result,omitempty"  elastic_mapping:"result:{type: object}"`
-	Parameters map[string]interface{} `json:"parameters" elastic_mapping:"parameters:{type: object,enabled:false }"`
+	ID        string      `json:"id"  elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	TaskId    string      `json:"task_id"  elastic_mapping:"task_id: { type: keyword }"`
+	Status    string      `json:"status"  elastic_mapping:"status: { type: keyword }"`
+	Type      string      `json:"type"  elastic_mapping:"type: { type: keyword }"`
+	Config    interface{} `json:"config" elastic_mapping:"config:{type: object,enabled:false }"`
+	Result    *LogResult  `json:"result,omitempty"  elastic_mapping:"result:{type: object}"`
+	Message   string      `json:"message" elastic_mapping:"message: { type: text }"`
+	Timestamp time.Time   `json:"timestamp" elastic_mapping:"timestamp: { type: date }"`
+	Context util.MapStr `json:"context,omitempty" elastic_mapping:"timestamp: { type: object,enabled:false }"`
 }
 
 type LogResult struct {
 	Success bool   `json:"success" elastic_mapping:"success: { type: boolean }"`
-	Error   string `json:"error" elastic_mapping:"error: { type: text }"`
+	Error   string `json:"error,omitempty" elastic_mapping:"error: { type: text }"`
 }
 
 const (
@@ -56,5 +55,6 @@ const (
 	StatusError          = "error"
 	StatusReady          = "ready"
 	StatusInit			 = "init"
+	StatusPendingStop = "pending_stop"
 	StatusStopped        = "stopped"
 )

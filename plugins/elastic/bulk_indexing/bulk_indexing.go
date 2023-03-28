@@ -46,6 +46,9 @@ type BulkIndexingProcessor struct {
 	id                   string
 	sync.RWMutex
 	pool *pipeline.Pool
+
+	bulkStats *elastic.BulkResult
+	statsLock sync.Mutex
 }
 
 type Config struct {
@@ -77,7 +80,8 @@ type Config struct {
 	Elasticsearch       string                       `config:"elasticsearch,omitempty"`
 	ElasticsearchConfig *elastic.ElasticsearchConfig `config:"elasticsearch_config"`
 
-	WaitingAfter []string `config:"waiting_after"`
+	WaitingAfter           []string `config:"waiting_after"`
+	RetryDelayIntervalInMs int      `config:"retry_delay_interval"`
 }
 
 func init() {
@@ -106,11 +110,12 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			FetchMaxWaitMs:    10000,
 		},
 
-		DetectActiveQueue: true,
-		ValidateRequest:   false,
-		SkipEmptyQueue:    true,
-		SkipOnMissingInfo: false,
-		BulkConfig:        elastic.DefaultBulkProcessorConfig,
+		DetectActiveQueue:      true,
+		ValidateRequest:        false,
+		SkipEmptyQueue:         true,
+		SkipOnMissingInfo:      false,
+		BulkConfig:             elastic.DefaultBulkProcessorConfig,
+		RetryDelayIntervalInMs: 5000,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {
@@ -168,6 +173,7 @@ func (processor *BulkIndexingProcessor) Name() string {
 }
 
 func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
+	processor.bulkStats = &elastic.BulkResult{}
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -488,7 +494,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 					v = r.(string)
 				}
 				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
-				ctx.Failed()
+				ctx.Error(fmt.Errorf("NewSlicedBulkWorker panic: %+v", r))
 				skipFinalDocsProcess = true
 			}
 		}
@@ -644,7 +650,6 @@ READ_DOCS:
 				}
 
 				log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
-				ctx.Failed()
 				goto CLEAN_BUFFER
 				return
 			}
@@ -725,8 +730,6 @@ READ_DOCS:
 
 					//submit request
 					continueRequest, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
-					//reset buffer
-					mainBuf.ResetData()
 					if !continueRequest {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(), "code 429") {
@@ -734,7 +737,11 @@ READ_DOCS:
 							//return
 							panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host, err))
 						}
+						time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
+						continue
 					} else {
+						//reset buffer
+						mainBuf.ResetData()
 						if pop.NextOffset != "" && pop.NextOffset != initOffset {
 							ok, err := queue.CommitOffset(qConfig, consumerConfig, pop.NextOffset)
 							if !ok || err != nil {
@@ -766,10 +773,10 @@ CLEAN_BUFFER:
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	continueNext, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
-	//reset buffer
-	mainBuf.ResetData()
 
 	if continueNext {
+		//reset buffer
+		mainBuf.ResetData()
 		if offset != "" && offset != initOffset {
 			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
 			if !ok || err != nil {
@@ -785,10 +792,12 @@ CLEAN_BUFFER:
 			//return
 			panic(errors.Errorf("slice_worker, queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
 		}
+		time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
+		goto CLEAN_BUFFER
 	}
 
-	if offset == "" || ctx.IsCanceled() || ctx.IsFailed() {
-		log.Debugf("offset[%v], canceled[%v], failed[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.IsFailed(), qConfig.Name, sliceID)
+	if offset == "" || ctx.IsCanceled() || ctx.HasError() {
+		log.Debugf("offset[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
 		return
 	}
 
@@ -816,18 +825,60 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
-		continueRequest, statsMap, err := bulkProcessor.Bulk(ctx.Context, tag, meta, host, mainBuf)
+		continueRequest, statsMap, bulkResult, err := bulkProcessor.Bulk(ctx.Context, tag, meta, host, mainBuf)
 		if global.Env().IsDebug {
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
 		if err != nil {
 			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
+			if !util.ContainStr(err.Error(), "code 429") {
+				ctx.Error(err)
+			}
 		}
-		log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
+		log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+		processor.updateContext(ctx, bulkResult)
 		return continueRequest, err
 	}
 
 	return true, nil
+}
+
+func (processor *BulkIndexingProcessor) updateContext(ctx *pipeline.Context, bulkResult *elastic.BulkResult) {
+	if bulkResult == nil {
+		return
+	}
+	processor.statsLock.Lock()
+	defer processor.statsLock.Unlock()
+	processor.bulkStats.Summary.Failure.Count += bulkResult.Summary.Failure.Count
+	processor.bulkStats.Summary.Failure.Size += bulkResult.Summary.Failure.Size
+	processor.bulkStats.Summary.Invalid.Count += bulkResult.Summary.Invalid.Count
+	processor.bulkStats.Summary.Invalid.Size += bulkResult.Summary.Invalid.Size
+	processor.bulkStats.Summary.Success.Count += bulkResult.Summary.Success.Count
+	processor.bulkStats.Summary.Success.Size += bulkResult.Summary.Success.Size
+	ctx.PutValue("bulk_indexing.failure", processor.bulkStats.Summary.Failure)
+	ctx.PutValue("bulk_indexing.success", processor.bulkStats.Summary.Success)
+	ctx.PutValue("bulk_indexing.invalid", processor.bulkStats.Summary.Invalid)
+
+	processor.bulkStats.Detail.Invalid.Documents = appendStrArr(processor.bulkStats.Detail.Invalid.Documents, 10, bulkResult.Detail.Invalid.Documents)
+	processor.bulkStats.Detail.Invalid.Reasons = appendStrArr(processor.bulkStats.Detail.Invalid.Reasons, 10, bulkResult.Detail.Invalid.Reasons)
+	processor.bulkStats.Detail.Failure.Documents = appendStrArr(processor.bulkStats.Detail.Failure.Documents, 10, bulkResult.Detail.Failure.Documents)
+	processor.bulkStats.Detail.Failure.Reasons = appendStrArr(processor.bulkStats.Detail.Failure.Reasons, 10, bulkResult.Detail.Failure.Reasons)
+	processor.bulkStats.ErrorMsgs = appendStrArr(processor.bulkStats.ErrorMsgs, 10, bulkResult.ErrorMsgs)
+
+	ctx.PutValue("bulk_indexing.error_msgs", processor.bulkStats.ErrorMsgs)
+	ctx.PutValue("bulk_indexing.detail.failure", processor.bulkStats.Detail.Failure)
+	ctx.PutValue("bulk_indexing.detail.invalid", processor.bulkStats.Detail.Invalid)
+}
+
+func appendStrArr(arr []string, size int, elems []string) []string {
+	if len(arr) >= size {
+		return arr
+	}
+	remaining := size - len(arr)
+	if len(elems) > remaining {
+		return append(arr, elems[0:remaining]...)
+	}
+	return append(arr, elems...)
 }
 
 func (processor *BulkIndexingProcessor) getElasticsearchMeatadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {

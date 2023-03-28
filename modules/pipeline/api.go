@@ -8,47 +8,93 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 func (module *PipeModule) getPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	config := module.Get(req, "config", "false")
+	processor := module.Get(req, "processor", "false")
 	resp := GetPipelinesResponse{}
-	module.pipelines.Range(func(key, value any) bool {
-		k, ok := key.(string)
-		if ok {
-			c, ok := module.contexts.Load(k)
-			if ok {
-				if c1, ok := c.(*pipeline.Context); ok {
-					resp[k] = PipelineStatus{
-						State:     c1.GetRunningState(),
-						StartTime: c1.GetStartTime(),
-						EndTime:   c1.GetEndTime(),
-					}
-				}
-			}
+	module.configs.Range(func(key, value any) bool {
+		id, ok := key.(string)
+		if !ok {
+			return true
+		}
+		status := module.getPipelineStatus(id, config, processor)
+		if status != nil {
+			resp[id] = status
 		}
 		return true
 	})
 	module.WriteJSON(w, resp, 200)
 }
 
+func (module *PipeModule) searchPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	config := module.Get(req, "config", "false")
+	processor := module.Get(req, "processor", "false")
+	var obj = SearchPipelinesRequest{}
+	err := module.DecodeJSON(req, &obj)
+	if err != nil {
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
+		log.Error("failed to parse request: ", err)
+		return
+	}
+	resp := GetPipelinesResponse{}
+	for _, id := range obj.Ids {
+		status := module.getPipelineStatus(id, config, processor)
+		if status != nil {
+			resp[id] = status
+		}
+	}
+	module.WriteJSON(w, resp, 200)
+}
+
+func (module *PipeModule) getPipelineStatus(id string, config string, processor string) *PipelineStatus {
+	c, ok := module.contexts.Load(id)
+	if !ok {
+		return nil
+	}
+	c1, ok := c.(*pipeline.Context)
+	if !ok {
+		return nil
+	}
+	ret := &PipelineStatus{
+		State:     c1.GetRunningState(),
+		StartTime: c1.GetStartTime(),
+		EndTime:   c1.GetEndTime(),
+		Context:   c1.CloneData(),
+	}
+	if config != "false" {
+		v1, ok := module.configs.Load(id)
+		if !ok {
+			return ret
+		}
+		cfg, ok := v1.(pipeline.PipelineConfigV2)
+		if !ok {
+			return ret
+		}
+		ret.Config = &cfg
+		if processor != "false" {
+			for i := range cfg.Processors {
+				processorMap := map[string]interface{}{}
+				cfg.Processors[i].Unpack(processorMap)
+				ret.Processors = append(ret.Processors, processorMap)
+			}
+		}
+	}
+	return ret
+}
+
 func (module *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	v, ok := module.contexts.Load(id)
-	if !ok {
+	config := module.Get(req, "config", "false")
+	processor := module.Get(req, "processor", "false")
+	status := module.getPipelineStatus(id, config, processor)
+	if status == nil {
 		module.WriteError(w, "pipeline not found", http.StatusNotFound)
 		return
 	}
-	ctx, ok := v.(*pipeline.Context)
-	if !ok {
-		module.WriteError(w, "invalid pipeline", http.StatusInternalServerError)
-		return
-	}
-	resp := GetPipelineResponse{
-		State:     ctx.GetRunningState(),
-		StartTime: ctx.GetStartTime(),
-		EndTime:   ctx.GetEndTime(),
-	}
-	module.WriteJSON(w, resp, 200)
+	module.WriteJSON(w, status, 200)
 }
 
 func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -61,21 +107,17 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 	}
 	var processors []*config.Config
 	for _, processorDict := range obj.Processors {
-		processor, err := config.NewConfigFrom(processorDict)
+		processor, err := ucfg.NewFrom(processorDict)
 		if err != nil {
 			module.WriteError(w, err.Error(), http.StatusBadRequest)
 			log.Error("failed to parse processor config: ", err)
 			return
 		}
-		processors = append(processors, processor)
+		processors = append(processors, config.FromConfig(processor))
 	}
-	err = module.createPipeline(pipeline.PipelineConfigV2{
-		Name:           obj.Name,
-		AutoStart:      obj.AutoStart,
-		KeepRunning:    obj.KeepRunning,
-		RetryDelayInMs: obj.RetryDelayInMs,
-		Processors:     processors,
-	}, true)
+	pipelineConfig := obj.PipelineConfigV2
+	pipelineConfig.Processors = processors
+	err = module.createPipeline(pipelineConfig, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		log.Error("failed to start pipeline: ", err)
@@ -86,7 +128,8 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 
 func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	if module.stopTask(id) {
+	_, exists := module.contexts.Load(id)
+	if exists {
 		module.deleteTask(id)
 		module.WriteAckOKJSON(w)
 	} else {
@@ -98,7 +141,8 @@ func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http
 
 func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	if module.startTask(id) {
+	exists := module.startTask(id)
+	if exists {
 		module.WriteAckOKJSON(w)
 	} else {
 		module.WriteAckJSON(w, false, 404, util.MapStr{
@@ -109,7 +153,8 @@ func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Requ
 
 func (module *PipeModule) stopTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	if module.stopTask(id) {
+	exists := module.stopTask(id)
+	if exists {
 		module.WriteAckOKJSON(w)
 	} else {
 		module.WriteAckJSON(w, false, 404, util.MapStr{

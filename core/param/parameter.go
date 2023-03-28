@@ -20,13 +20,14 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
 )
 
 type Parameters struct {
@@ -41,6 +42,12 @@ var byteReaderPool = &sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Reader)
 	},
+}
+
+func (para *Parameters) CloneData() util.MapStr {
+	para.l.RLock()
+	defer para.l.RUnlock()
+	return para.Data.Clone()
 }
 
 func (para *Parameters) ResetParameters() {
@@ -622,7 +629,7 @@ func (para *Parameters) GetOrDefault(key ParaKey, val interface{}) interface{} {
 	return v
 }
 
-//TODO remove lock async, channel
+// TODO remove lock async, channel
 func (para *Parameters) Set(key ParaKey, value interface{}) {
 	para.init()
 	para.PutValue(string(key), value)
