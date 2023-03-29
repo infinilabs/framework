@@ -235,7 +235,7 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 	majorVersion := elastic.GetMetadata(clusterID).GetMajorVersion()
 	ver := elastic.GetClient(clusterID).GetVersion()
 
-	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsarch) && majorVersion < 6{
+	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsearch) && majorVersion < 6{
 		indexThreadsMetric := newMetricItem("index_threads", 1, ThreadPoolIndexGroupKey)
 		indexThreadsMetric.AddAxi("Index Threads Count", "group1", common.PositionLeft, "num", "0.[0]", "0.[0]", 5, true)
 

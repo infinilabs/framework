@@ -20,13 +20,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"infini.sh/framework/modules/elastic/adapter"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"infini.sh/framework/modules/elastic/adapter"
 
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
@@ -40,8 +41,7 @@ import (
 
 type ESAPIV0 struct {
 	Elasticsearch string
-	Version elastic.Version
-	majorVersion  int
+	Version       elastic.Version
 	metadata      *elastic.ElasticsearchMetadata
 	metaLocker    sync.Mutex
 }
@@ -82,20 +82,13 @@ func (c *ESAPIV0) GetVersion() elastic.Version {
 }
 
 func (c *ESAPIV0) GetMajorVersion() int {
-	if c.majorVersion > 0 {
-		return c.majorVersion
+	if c.Version.Major > 0 {
+		return c.Version.Major
 	}
 
-	ver := c.GetVersion()
-
-	if ver.Number != "" {
-		vs := strings.Split(ver.Number, ".")
-		n, err := util.ToInt(vs[0])
-		if err != nil {
-			panic(err)
-		}
-		c.majorVersion = n
-		return n
+	c.GetVersion()
+	if c.Version.Major > 0 {
+		return c.Version.Major
 	}
 
 	log.Debugf("failed to get the major version of elasticsearch [%v], fallback to v0", c.GetMetadata().Config.Name)

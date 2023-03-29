@@ -19,6 +19,7 @@ package elasticsearch
 import (
 	"errors"
 	"fmt"
+
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/elastic"
@@ -30,9 +31,8 @@ type ESAPIV5 struct {
 	ESAPIV2
 }
 
-
-func (c *ESAPIV5) InitDefaultTemplate(templateName,indexPrefix string) {
-	c.initTemplate(templateName,indexPrefix)
+func (c *ESAPIV5) InitDefaultTemplate(templateName, indexPrefix string) {
+	c.initTemplate(templateName, indexPrefix)
 }
 
 func (c *ESAPIV5) getDefaultTemplate(indexPrefix string) string {
@@ -72,11 +72,11 @@ func (c *ESAPIV5) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1, TypeName5)
 }
 
-func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
+func (c *ESAPIV5) initTemplate(templateName, indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
-	if templateName==""{
+	if templateName == "" {
 		templateName = global.Env().GetAppLowercaseName()
 	}
 	exist, err := c.TemplateExists(templateName)
@@ -100,16 +100,16 @@ func (c *ESAPIV5) initTemplate(templateName,indexPrefix string) {
 
 const TypeName5 = "doc"
 
-func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query *elastic.SearchRequest, slicedId, maxSlicedCount int) ([]byte,  error) {
-	indexNames=util.UrlEncode(indexNames)
+func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount int, query *elastic.SearchRequest, slicedId, maxSlicedCount int) ([]byte, error) {
+	indexNames = util.UrlEncode(indexNames)
 
 	url := fmt.Sprintf("%s/%s/_search?scroll=%s&size=%d", s.GetEndpoint(), indexNames, scrollTime, docBufferCount)
 	var err error
 	if maxSlicedCount > 1 {
 		//log.Tracef("sliced scroll, %d of %d",slicedId,maxSlicedCount)
-		err=query.Set("slice",util.MapStr{
-			"id":slicedId,
-			"max":maxSlicedCount,
+		err = query.Set("slice", util.MapStr{
+			"id":  slicedId,
+			"max": maxSlicedCount,
 		})
 		if err != nil {
 			panic(err)
@@ -117,8 +117,8 @@ func (s *ESAPIV5) NewScroll(indexNames string, scrollTime string, docBufferCount
 	}
 
 	var jsonBody string
-	if query!=nil{
-		jsonBody=query.ToJSONString()
+	if query != nil {
+		jsonBody = query.ToJSONString()
 	}
 
 	resp, err := s.Request(nil, util.Verb_POST, url, util.UnsafeStringToBytes(jsonBody))
@@ -139,7 +139,7 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 	if ver.Distribution == "" {
 		cr, err := util.VersionCompare(ver.Number, "5.6")
 		if err != nil {
-			return  err
+			return err
 		}
 		if cr == -1 {
 			//fmt.Println(s.Version, templateID)
@@ -155,7 +155,7 @@ func (s *ESAPIV5) SetSearchTemplate(templateID string, body []byte) error {
 func (c *ESAPIV5) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	ver := c.GetVersion()
 	path := "_cat/nodes?format=json&full_id"
-	if ver.Number == "5.0.0" && (ver.Distribution == elastic.Elasticsarch || ver.Distribution == "") {
+	if ver.Number == "5.0.0" && (ver.Distribution == elastic.Elasticsearch || ver.Distribution == "") {
 		//https://github.com/elastic/elasticsearch/issues/21266
 		path = "_cat/nodes?format=json"
 	}

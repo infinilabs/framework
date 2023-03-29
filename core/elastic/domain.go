@@ -1,11 +1,12 @@
 package elastic
 
 import (
+	"sync"
+	"time"
+
 	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"sync"
-	"time"
 )
 
 type Stats struct {
@@ -433,12 +434,12 @@ type BasicAuth struct {
 type ElasticsearchConfig struct {
 	orm.ORMObjectBase
 
-	Source         string         `json:"source,omitempty"`
-	Name           string         `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
-	Description    string         `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
+	Source      string `json:"source,omitempty"`
+	Name        string `json:"name,omitempty" config:"name" elastic_mapping:"name:{type:keyword,fields:{text: {type: text}}}"`
+	Description string `json:"description,omitempty" elastic_mapping:"description:{type:text}"`
 
 	//reserved means can't be deleted from console or API
-	Reserved        bool           `json:"reserved,omitempty" config:"reserved" elastic_mapping:"reserved:{type:boolean}"`
+	Reserved       bool           `json:"reserved,omitempty" config:"reserved" elastic_mapping:"reserved:{type:boolean}"`
 	Enabled        bool           `json:"enabled,omitempty" config:"enabled" elastic_mapping:"enabled:{type:boolean}"`
 	Monitored      bool           `json:"monitored,omitempty" config:"monitored" elastic_mapping:"monitored:{type:boolean}"`
 	MonitorConfigs *MonitorConfig `config:"monitor_configs" json:"monitor_configs,omitempty" elastic_mapping:"monitor_configs:{type:object}"`
@@ -496,8 +497,8 @@ type ElasticsearchConfig struct {
 	MetadataConfigs *MetadataConfig `config:"metadata_configs" json:"metadata_configs,omitempty" elastic_mapping:"metadata_configs:{type:object}"`
 	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
 	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
-	CredentialID string `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
-	Distribution string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
+	CredentialID    string          `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
+	Distribution    string          `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 }
 
 type GeoLocation struct {
@@ -507,18 +508,18 @@ type GeoLocation struct {
 	Rack     string `json:"rack,omitempty" elastic_mapping:"rack:{type:keyword}"`
 }
 
-//{
-//"index" : ".monitoring-es-7-2020.12.29",
-//"shard" : "0",
-//"prirep" : "p",
-//"state" : "STARTED",
-//"unassigned.reason" : null,
-//"docs" : "227608",
-//"store" : "132.5mb",
-//"id" : "qIgTsxtuQ8mzAGiBATkqHw",
-//"node" : "dev",
-//"ip" : "192.168.3.98"
-//}
+// {
+// "index" : ".monitoring-es-7-2020.12.29",
+// "shard" : "0",
+// "prirep" : "p",
+// "state" : "STARTED",
+// "unassigned.reason" : null,
+// "docs" : "227608",
+// "store" : "132.5mb",
+// "id" : "qIgTsxtuQ8mzAGiBATkqHw",
+// "node" : "dev",
+// "ip" : "192.168.3.98"
+// }
 type CatShardResponse struct {
 	Index            string `json:"index,omitempty"`
 	ShardID          string `json:"shard,omitempty"`
@@ -588,13 +589,14 @@ type IndexMetadata struct {
 	Tags        []interface{} `json:"tags,omitempty" elastic_mapping:"tags:{type:keyword,copy_to:search_text}"`
 }
 
-type Version struct{
-	Number string
+type Version struct {
+	Number       string
+	Major        int
 	Distribution string
 }
 
 const (
-	Elasticsarch = "elasticsearch"
-	Easysearch = "easysearch"
-	Opensearch = "opensearch"
+	Elasticsearch = "elasticsearch"
+	Easysearch    = "easysearch"
+	Opensearch    = "opensearch"
 )
