@@ -57,7 +57,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	}
 	conf.BasicAuth = nil
 	if conf.Distribution == "" {
-		conf.Distribution = elastic.Elasticsarch
+		conf.Distribution = elastic.Elasticsearch
 	}
 	err = orm.Create(ctx, conf)
 	if err != nil {

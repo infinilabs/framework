@@ -626,7 +626,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top int, lastMinutes int) ([]string, error){
 	ver := h.Client().GetVersion()
 	cr, _ := util.VersionCompare(ver.Number, "6.1")
-	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsarch) && cr == -1 {
+	if (ver.Distribution == "" || ver.Distribution == elastic.Elasticsearch) && cr == -1 {
 		return nil, nil
 	}
 	var (
