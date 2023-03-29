@@ -68,8 +68,14 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver = "1.0.0"
 	}
 
+	sem, err := util.ParseSemantic(ver)
+	if err != nil {
+		return nil, err
+	}
+	major, minor := sem.Major(), sem.Minor()
 	apiVer := elastic.Version{
 		Number:       ver,
+		Major:        int(major),
 		Distribution: esConfig.Distribution,
 	}
 
@@ -78,12 +84,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	} else if esConfig.Distribution == elastic.Opensearch {
 		return newOpensearchClient(esConfig.ID, apiVer)
 	}
-	sem, err := util.ParseSemantic(ver)
-	if err != nil {
-		return nil, err
-	}
 
-	major, minor := sem.Major(), sem.Minor()
 	if major >= 8 {
 		api := new(elasticsearch.ESAPIV8)
 		api.Elasticsearch = esConfig.ID
