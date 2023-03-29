@@ -134,17 +134,38 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 	if user != nil {
 		roles:=[]rbac.UserRole{}
 
+		var id,name,email string
+		if user.Login!=nil&&*user.Login!=""{
+			id=*user.Login
+		}
+		if user.Name!=nil&&*user.Name!=""{
+			name=*user.Name
+		}
+		if user.Email!=nil&&*user.Email!=""{
+			email=*user.Name
+		}
+
+		if id==""{
+			log.Error("user id can't be nil")
+			http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+			return
+		}
+
+		if name==""{
+			name=id
+		}
+
 		//get by roleMapping
 		roles=h.getRoleMapping(user)
 		if len(roles)>0{
 			u:=rbac.User{
-				Name: *user.Login,
-				NickName: *user.Name,
-				Email: *user.Email,
+				Name: id,
+				NickName: name,
+				Email: email,
 				Roles: roles,
 			}
 
-			u.ID=util.ToString(*user.Login)
+			u.ID=id
 			data, err := authorize(u,SSOProvider)
 			if err != nil {
 				http.Redirect(w, r, oAuthConfig.FailedPage, 302)
