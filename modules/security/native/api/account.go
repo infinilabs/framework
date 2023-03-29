@@ -14,6 +14,7 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
 	"net/http"
+	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -39,10 +40,18 @@ func (h APIHandler) authenticateUser(username string, password string) (user *rb
 func authorize(user rbac.User,provider string) (m map[string]interface{}, err error) {
 	var roles, privilege []string
 	for _, v := range user.Roles {
-		role := rbac.RoleMap[v.Name]
-		roles = append(roles, v.Name)
-		privilege = append(privilege, role.Privilege.Platform...)
+		role,ok := rbac.RoleMap[v.Name]
+		if ok{
+			roles = append(roles, v.Name)
+			privilege = append(privilege, role.Privilege.Platform...)
+		}
 	}
+
+	if len(privilege)==0{
+		log.Error("no privilege assigned to user:",user)
+		return nil,errors.New("no privilege assigned to this user:"+user.Name)
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, rbac.UserClaims{
 		ShortUser: &rbac.ShortUser{
 			Provider: provider,

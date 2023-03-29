@@ -119,11 +119,14 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 		return
 	}
 
+	//only for github, TODO
 	client := github.NewClient(oauthCfg.Client(oauth2.NoContext, tkn))
 
 	user, res, err := client.Users.Get(oauth2.NoContext, "")
 	if err != nil {
-		log.Debug("error getting name:",err,res.String())
+		if res!=nil{
+			log.Debug("error getting name:",err,res.String())
+		}
 		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
 		return
 	}
@@ -133,7 +136,6 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 
 		//get by roleMapping
 		roles=h.getRoleMapping(user)
-
 		if len(roles)>0{
 			u:=rbac.User{
 				Name: *user.Login,
@@ -145,7 +147,7 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 			u.ID=util.ToString(*user.Login)
 			data, err := authorize(u,SSOProvider)
 			if err != nil {
-				h.ErrorInternalServer(w, err.Error())
+				http.Redirect(w, r, oAuthConfig.FailedPage, 302)
 				return
 			}
 
