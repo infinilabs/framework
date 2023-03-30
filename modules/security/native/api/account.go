@@ -7,6 +7,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
@@ -14,7 +15,6 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -108,12 +108,14 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
+
+	if user.NickName==""{
+		user.NickName=user.Name
+	}
+
 	token := rbac.Token{ExpireIn: time.Now().Unix() + 86400}
 	rbac.SetUserToken(user.ID, token)
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
+
 	data["status"] = "ok"
 
 	//api.SetSession(w, r, userInSession+req.Username, req.Username)
@@ -190,6 +192,10 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 			h.ErrorInternalServer(w, err.Error())
 			return
 		}
+		if user.NickName==""{
+			user.NickName=user.Name
+		}
+
 		u := util.MapStr{
 			"user_id":  user.ID,
 			"name": user.Name,
