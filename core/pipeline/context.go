@@ -42,14 +42,6 @@ func (s RunningState) IsEnded() bool {
 	return s == FAILED || s == FINISHED || s == STOPPED
 }
 
-func (s RunningState) IsSuccess() bool {
-	return s == FINISHED
-}
-
-func (s RunningState) IsFailure() bool {
-	return s == FAILED
-}
-
 type StateItem struct {
 	Steps             int64
 	State             RunningState
@@ -362,7 +354,7 @@ func (ctx *Context) pushPipelineLog() {
 	}
 	if ctx.runningState.IsEnded() {
 		result := util.MapStr{
-			"success": ctx.runningState.IsSuccess(),
+			"success": ctx.exitErr == nil,
 		}
 		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
 			result["error"] = fmt.Sprintf("exit: %v, process: %v", ctx.exitErr, ctx.processErrs)
