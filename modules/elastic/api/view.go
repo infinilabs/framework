@@ -208,7 +208,7 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 	}
 
 	res, err := client.GetAliasesAndIndices()
-	if err != nil {
+	if err != nil ||res==nil{
 		log.Error(err)
 		resBody["error"] = err
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
