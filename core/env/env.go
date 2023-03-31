@@ -58,6 +58,7 @@ type Env struct {
 
 	IsDebug      bool
 	IsDaemonMode bool
+	ISServiceMode   bool
 
 	LoggingLevel string
 
@@ -339,7 +340,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		if env.SystemConfig.Configs.AutoReload {
 			absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
 			if util.FileExists(absConfigPath) {
-				log.Info("watching config: ", absConfigPath)
+				if !env.ISServiceMode{
+					log.Info("watching config: ", absConfigPath)
+				}
 				config.EnableWatcher(env.SystemConfig.PathConfig.Config)
 			}
 

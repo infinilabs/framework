@@ -153,6 +153,7 @@ func (app *App) initWithFlags() {
 
 	flag.Parse()
 
+	app.environment.ISServiceMode=app.svcFlag!=""
 	if *showversion {
 		fmt.Println(app.environment.GetAppName(), app.environment.GetVersion(), app.environment.GetBuildNumber(), app.environment.GetBuildDate(), app.environment.GetEOLDate(), app.environment.GetLastCommitHash())
 		os.Exit(1)
