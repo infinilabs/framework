@@ -46,7 +46,14 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 	authPath, _ := url.PathUnescape(path)
 	newReq := req.Clone(context.Background())
-	newReq.RequestURI = authPath
+	newURL, err := url.Parse(authPath)
+	if err != nil {
+		log.Error(err)
+		resBody["error"] = err.Error()
+		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		return
+	}
+	newReq.URL = newURL
 	newReq.Method = method
 	isSuperAdmin, permission, err := h.ValidateProxyRequest(newReq, targetClusterID)
 	if err != nil {
