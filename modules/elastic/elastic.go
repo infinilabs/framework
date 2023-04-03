@@ -87,7 +87,7 @@ func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 
 	if exist {
 		for _, v := range configs {
-			v.Source = "file"
+			v.Source = elastic.ElasticsearchConfigSourceFile
 			if !v.Enabled {
 				log.Debug("elasticsearch ", v.Name, " is not enabled")
 				continue
@@ -198,7 +198,7 @@ func (module *ElasticModule) Setup() {
 	}
 
 	m := loadFileBasedElasticConfig()
-	initElasticInstances(m, "file")
+	initElasticInstances(m, elastic.ElasticsearchConfigSourceFile)
 
 	api.InitAPI(moduleConfig)
 }
@@ -384,7 +384,7 @@ func (module *ElasticModule) Start() error {
 
 	if moduleConfig.RemoteConfigEnabled {
 		m := loadESBasedElasticConfig()
-		initElasticInstances(m, "elastic")
+		initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
 	}
 
 	if module.storeHandler != nil {
@@ -583,7 +583,7 @@ func (module *ElasticModule) Start() error {
 				log.Error(err)
 				return
 			}
-			initElasticInstances(newConfig, "file")
+			initElasticInstances(newConfig, elastic.ElasticsearchConfigSourceFile)
 		}
 	})
 

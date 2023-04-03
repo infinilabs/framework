@@ -3,6 +3,11 @@ package elastic
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/r3labs/diff/v2"
 	"infini.sh/framework/core/elastic"
@@ -14,10 +19,6 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
-	"reflect"
-	"strings"
-	"sync"
-	"time"
 )
 
 func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
@@ -40,19 +41,19 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 		//check cluster health status
 		health, err := client.ClusterHealth()
 		if err != nil || health == nil || health.StatusCode != 200 {
-			if health!=nil&&util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
+			if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
 				metadata.ReportFailure(errors.New("master_not_discovered_exception"))
 			} else {
 				metadata.ReportFailure(err)
 			}
 
-			if metadata.Config.Source != "file" && !metadata.IsAvailable() {
+			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
 		} else {
-			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable(){
+			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable() {
 				metadata.Health = health
-				if metadata.Config.Source != "file" {
+				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 					updateClusterHealthStatus(clusterID, health.Status)
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
@@ -65,9 +66,9 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
 
-	globalID:=global.MustLookupString(elastic.GlobalSystemElasticsearchID)
-	if clusterID==globalID{
-		global.Env().ReportHealth("system_cluster",env.GetHealthType(healthStatus))
+	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	if clusterID == globalID {
+		global.Env().ReportHealth("system_cluster", env.GetHealthType(healthStatus))
 	}
 
 	client := elastic.GetClient(globalID)
@@ -86,18 +87,18 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 		return
 	}
 	var (
-		labels map[string]interface{}
-		ok bool
+		labels          map[string]interface{}
+		ok              bool
 		oldHealthStatus interface{}
 	)
-	if labels, ok =  getRes.Source["labels"].(map[string]interface{}); ok {
+	if labels, ok = getRes.Source["labels"].(map[string]interface{}); ok {
 		if !reflect.DeepEqual(labels["health_status"], healthStatus) {
 			oldHealthStatus = labels["health_status"]
 			labels["health_status"] = healthStatus
-		}else{
+		} else {
 			return
 		}
-	}else{
+	} else {
 		oldHealthStatus = "unknown"
 		labels = util.MapStr{
 			"health_status": healthStatus,
@@ -112,18 +113,18 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 	}
 
 	activityInfo := &event.Activity{
-		ID: util.GetUUID(),
+		ID:        util.GetUUID(),
 		Timestamp: time.Now(),
 		Metadata: event.ActivityMetadata{
 			Category: "elasticsearch",
-			Group: "health",
-			Name: "cluster_health_change",
-			Type: "update",
+			Group:    "health",
+			Name:     "cluster_health_change",
+			Type:     "update",
 			Labels: util.MapStr{
-				"cluster_id": clusterID,
+				"cluster_id":   clusterID,
 				"cluster_name": getRes.Source["name"],
-				"from": oldHealthStatus,
-				"to": healthStatus,
+				"from":         oldHealthStatus,
+				"to":           healthStatus,
 			},
 		},
 	}
@@ -134,26 +135,26 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 
 }
 
-//update cluster state, on state version change
-func (module *ElasticModule)updateClusterState(clusterId string) {
+// update cluster state, on state version change
+func (module *ElasticModule) updateClusterState(clusterId string) {
 
 	meta := elastic.GetMetadata(clusterId)
-	if meta==nil{
+	if meta == nil {
 		return
 	}
 
-	if !meta.IsAvailable(){
+	if !meta.IsAvailable() {
 		return
 	}
 
 	client := elastic.GetClient(clusterId)
-	state,err := client.GetClusterState()
-	if err!=nil{
+	state, err := client.GetClusterState()
+	if err != nil {
 		var res string
-		if state!=nil{
-			res=util.UnsafeBytesToString(state.RawResult.Body)
+		if state != nil {
+			res = util.UnsafeBytesToString(state.RawResult.Body)
 		}
-		log.Errorf("failed to get [%v] state: %v, got response: %s",clusterId,err,res )
+		log.Errorf("failed to get [%v] state: %v, got response: %s", clusterId, err, res)
 		return
 	}
 
@@ -170,9 +171,9 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		oldIndexState, err := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
 
 		//TODO locker
-		if stateChanged || (err == nil && oldIndexState == nil){
-			if meta.Config.Source != "file"{
-				if meta.ClusterState == nil || oldIndexState == nil{
+		if stateChanged || (err == nil && oldIndexState == nil) {
+			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
+				if meta.ClusterState == nil || oldIndexState == nil {
 					//load init state from es when console start
 					oldIndexState, err = module.loadIndexMetadataFromES(clusterId)
 					if err != nil {
@@ -190,7 +191,7 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 		}
 		if stateChanged {
 			state.Metadata = nil
-			if meta.Config.Source != "file"{
+			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				module.saveRoutingTable(state, clusterId)
 			}
 			meta.ClusterState = state
@@ -198,8 +199,8 @@ func (module *ElasticModule)updateClusterState(clusterId string) {
 	}
 }
 
-func (module *ElasticModule) loadIndexMetadataFromES( clusterID string)([]byte, error){
- 	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+func (module *ElasticModule) loadIndexMetadataFromES(clusterID string) ([]byte, error) {
+	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	queryDsl := `{
 	"size": 1000,
   "query": {
@@ -217,28 +218,28 @@ func (module *ElasticModule) loadIndexMetadataFromES( clusterID string)([]byte, 
   }
 }`
 	queryDsl = fmt.Sprintf(queryDsl, clusterID)
-	 searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), []byte(queryDsl))
-	 if err != nil {
+	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(elastic.IndexConfig{}), []byte(queryDsl))
+	if err != nil {
 		return nil, err
-	 }
-	 states := util.MapStr{}
-	 for _, hit := range searchRes.Hits.Hits {
-		 indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hit.Source)
-		 indexState, _ := util.GetMapValueByKeys([]string{"payload", "index_state"}, hit.Source)
-		 health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit.Source)
-		 if v, ok := indexName.(string); ok {
-			 states[v] = util.MapStr{
-				 "index_state": indexState,
-				 "health": health,
-				 "id": hit.ID,
-			 }
-		 }
-	 }
-	 return util.ToJSONBytes(states)
+	}
+	states := util.MapStr{}
+	for _, hit := range searchRes.Hits.Hits {
+		indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hit.Source)
+		indexState, _ := util.GetMapValueByKeys([]string{"payload", "index_state"}, hit.Source)
+		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit.Source)
+		if v, ok := indexName.(string); ok {
+			states[v] = util.MapStr{
+				"index_state": indexState,
+				"health":      health,
+				"id":          hit.ID,
+			}
+		}
+	}
+	return util.ToJSONBytes(states)
 }
 
-func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, clusterID string) {
-	if state == nil || state.RoutingTable == nil{
+func (module *ElasticModule) saveRoutingTable(state *elastic.ClusterState, clusterID string) {
+	if state == nil || state.RoutingTable == nil {
 		return
 	}
 	nodesRouting := map[string][]elastic.IndexShardRouting{}
@@ -266,7 +267,7 @@ func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, cluste
 		for _, routeData := range routing.Shards {
 			for _, rd := range routeData {
 				if _, ok := nodesRouting[rd.Node]; !ok {
-					if rd.Node == ""{
+					if rd.Node == "" {
 						continue
 					}
 					nodesRouting[rd.Node] = []elastic.IndexShardRouting{}
@@ -281,11 +282,11 @@ func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, cluste
 			Timestamp: time.Now(),
 			Metadata: event.EventMetadata{
 				Category: "elasticsearch",
-				Name: "node_routing_table",
+				Name:     "node_routing_table",
 				Datatype: "snapshot",
 				Labels: util.MapStr{
 					"cluster_id": clusterID,
-					"node_id": nodeID,
+					"node_id":    nodeID,
 				},
 			},
 			Fields: util.MapStr{
@@ -299,7 +300,8 @@ func (module *ElasticModule)saveRoutingTable(state *elastic.ClusterState, cluste
 }
 
 var saveIndexMetadataMutex = sync.Mutex{}
-func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clusterID string){
+
+func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clusterID string) {
 	saveIndexMetadataMutex.Lock()
 	defer func() {
 		saveIndexMetadataMutex.Unlock()
@@ -324,7 +326,6 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		log.Error(err)
 		return
 	}
-
 
 	oldIndexMetadata := util.MapStr{}
 	util.MustFromJSONBytes(oldIndexBytes, &oldIndexMetadata)
@@ -353,9 +354,9 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				}
 				isIndicesStateChange = true
 				var (
-					version interface{}
+					version   interface{}
 					indexUUID interface{}
-					aliases interface{}
+					aliases   interface{}
 				)
 				if mp, ok := infoMap["index_state"].(map[string]interface{}); ok {
 					mps := util.MapStr(mp)
@@ -364,38 +365,37 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					indexUUID, _ = mps.GetValue("settings.index.uuid")
 				}
 				indexConfig := &elastic.IndexConfig{
-					ID:       infoMap["id"].(string),
+					ID:        infoMap["id"].(string),
 					Timestamp: time.Now(),
-					Metadata:  elastic.IndexMetadata{
-						IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
-						IndexName: indexName,
+					Metadata: elastic.IndexMetadata{
+						IndexID:     fmt.Sprintf("%s:%s", clusterID, indexName),
+						IndexName:   indexName,
 						ClusterName: esConfig.Name,
-						ClusterID: clusterID,
-						Category: "elasticsearch",
-						Aliases: aliases,
+						ClusterID:   clusterID,
+						Category:    "elasticsearch",
+						Aliases:     aliases,
 						Labels: util.MapStr{
-							"version": version,
-							"state": "delete",
-							"index_uuid": indexUUID,
+							"version":       version,
+							"state":         "delete",
+							"index_uuid":    indexUUID,
 							"health_status": "unavailable",
 						},
 					},
 					Fields: util.MapStr{
 						"index_state": infoMap["index_state"],
 					},
-
 				}
 				activityInfo := &event.Activity{
-					ID: util.GetUUID(),
+					ID:        util.GetUUID(),
 					Timestamp: time.Now(),
 					Metadata: event.ActivityMetadata{
 						Category: "elasticsearch",
-						Group: "metadata",
-						Name: "index_state_change",
-						Type: "delete",
+						Group:    "metadata",
+						Name:     "index_state_change",
+						Type:     "delete",
 						Labels: util.MapStr{
-							"cluster_id": clusterID,
-							"index_name": indexName,
+							"cluster_id":   clusterID,
+							"index_name":   indexName,
 							"cluster_name": esConfig.Name,
 						},
 					},
@@ -408,7 +408,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					Timestamp: time.Now(),
 					Metadata: event.EventMetadata{
 						Category: "elasticsearch",
-						Name: "index_state_change",
+						Name:     "index_state_change",
 						Labels: util.MapStr{
 							"operation": "delete",
 						},
@@ -423,7 +423,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					Timestamp: time.Now(),
 					Metadata: event.EventMetadata{
 						Category: "elasticsearch",
-						Name: "activity",
+						Name:     "activity",
 					},
 					Fields: util.MapStr{
 						"activity": activityInfo,
@@ -432,9 +432,9 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					log.Error(err)
 				}
 				newIndexMetadata[indexName] = util.MapStr{
-					"id": indexConfig.ID,
+					"id":          indexConfig.ID,
 					"index_state": infoMap["index_state"],
-					"health": "unavailable",
+					"health":      "unavailable",
 				}
 				continue
 			}
@@ -444,7 +444,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 					if newInfo, ok := state.Metadata.Indices[indexName].(map[string]interface{}); ok {
 						indexUUID, _ := infoMap.GetValue("index_state.settings.index.uuid")
 						newIndexUUID, _ := util.MapStr(newInfo).GetValue("settings.index.uuid")
-						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) && indexUUID == newIndexUUID{
+						if v != nil && newInfo["version"] != nil && v.(float64) >= newInfo["version"].(float64) && indexUUID == newIndexUUID {
 							newIndexMetadata[indexName] = infoMap
 							notChanges[indexName] = true
 						}
@@ -470,13 +470,13 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			continue
 		}
 		isIndicesStateChange = true
-		health :=  (*indexInfos)[indexName].Health
+		health := (*indexInfos)[indexName].Health
 
 		var (
-			state interface{}
-			version interface{}
+			state     interface{}
+			version   interface{}
 			indexUUID interface{}
-			aliases interface{}
+			aliases   interface{}
 		)
 		if mp, ok := indexMetadata.(map[string]interface{}); ok {
 			mps := util.MapStr(mp)
@@ -487,18 +487,18 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		}
 
 		indexConfig := &elastic.IndexConfig{
-			ID:  util.GetUUID()    ,
+			ID:        util.GetUUID(),
 			Timestamp: time.Now(),
-			Metadata:  elastic.IndexMetadata{
-				IndexID: fmt.Sprintf("%s:%s", clusterID, indexName),
-				IndexName: indexName,
+			Metadata: elastic.IndexMetadata{
+				IndexID:     fmt.Sprintf("%s:%s", clusterID, indexName),
+				IndexName:   indexName,
 				ClusterName: esConfig.Name,
-				Aliases:  aliases,
-				ClusterID: clusterID,
+				Aliases:     aliases,
+				ClusterID:   clusterID,
 				Labels: util.MapStr{
-					"version": version,
-					"state": state,
-					"index_uuid": indexUUID,
+					"version":       version,
+					"state":         state,
+					"index_uuid":    indexUUID,
 					"health_status": health,
 				},
 				Category: "elasticsearch",
@@ -509,15 +509,15 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 		}
 
 		activityInfo := &event.Activity{
-			ID: util.GetUUID(),
+			ID:        util.GetUUID(),
 			Timestamp: time.Now(),
 			Metadata: event.ActivityMetadata{
 				Category: "elasticsearch",
-				Group: "metadata",
-				Name: "index_state_change",
+				Group:    "metadata",
+				Name:     "index_state_change",
 				Labels: util.MapStr{
-					"cluster_id": clusterID,
-					"index_name": indexName,
+					"cluster_id":   clusterID,
+					"index_name":   indexName,
 					"cluster_name": esConfig.Name,
 				},
 			},
@@ -530,9 +530,9 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			//compare metadata for lower elasticsearch version
 			oldConfig := oldIndexMetadata[indexName].(map[string]interface{})
 			newIndexMetadata[indexName] = util.MapStr{
-				"id": oldConfig["id"].(string),
+				"id":          oldConfig["id"].(string),
 				"index_state": indexMetadata,
-				"health": health,
+				"health":      health,
 			}
 			if oldConfig["health"] != "unavailable" {
 
@@ -591,25 +591,25 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 				}
 				activityInfo.Metadata.Type = "update"
 				activityInfo.Changelog = filterChangeLog
-			}else{
+			} else {
 				activityInfo.Metadata.Type = "create"
 			}
 			indexConfig.ID = oldConfig["id"].(string)
 
-		}else{
+		} else {
 			//new
 			activityInfo.Metadata.Type = "create"
 			newIndexMetadata[indexName] = util.MapStr{
-				"id": indexConfig.ID,
+				"id":          indexConfig.ID,
 				"index_state": indexMetadata,
-				"health": health,
+				"health":      health,
 			}
 		}
 		err = queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
 			Timestamp: time.Now(),
 			Metadata: event.EventMetadata{
 				Category: "elasticsearch",
-				Name: "index_state_change",
+				Name:     "index_state_change",
 				Labels: util.MapStr{
 					"operation": activityInfo.Metadata.Type,
 				},
@@ -624,7 +624,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 			Timestamp: time.Now(),
 			Metadata: event.EventMetadata{
 				Category: "elasticsearch",
-				Name: "activity",
+				Name:     "activity",
 			},
 			Fields: util.MapStr{
 				"activity": activityInfo,
@@ -642,7 +642,7 @@ func (module *ElasticModule)saveIndexMetadata(state *elastic.ClusterState, clust
 	}
 }
 
-//on demand, on state version change
+// on demand, on state version change
 func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool, discovery bool) {
 	if !meta.IsAvailable() {
 		if !force {
@@ -656,28 +656,28 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	nodes, err := client.GetNodes()
 	if err != nil || nodes == nil || len(*nodes) <= 0 {
 		if rate.GetRateLimiterPerSecond(meta.Config.ID, "get_nodes_failure_on_error", 1).Allow() {
-			log.Errorf("elasticsearch [%v] failed to get nodes info, err: %v", meta.Config.Name,err)
+			log.Errorf("elasticsearch [%v] failed to get nodes info, err: %v", meta.Config.Name, err)
 		}
 		setNodeUnknown(meta.Config.ID)
 		return
 	}
 
 	var nodesChanged = false
-	if _, ok := nodeAlreadyUnknown[meta.Config.ID]; ok && meta.Config.Source != "file"{
+	if _, ok := nodeAlreadyUnknown[meta.Config.ID]; ok && meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 		delete(nodeAlreadyUnknown, meta.Config.ID)
 		nodesChanged = true
 	}
 	var oldNodes = meta.Nodes
 	if !discovery {
-		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID))
-		if  err != nil{
+		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID))
+		if err != nil {
 			log.Errorf("read node metadata error: %v", err)
 			return
 		}
 		if len(buf) > 0 {
 			cacheNodes := struct {
-				Nodes *map[string]elastic.NodesInfo `json:"nodes"`
-				Timestamp time.Time `json:"timestamp"`
+				Nodes     *map[string]elastic.NodesInfo `json:"nodes"`
+				Timestamp time.Time                     `json:"timestamp"`
 			}{}
 			//oldNodes = &map[string]elastic.NodesInfo{}
 			util.MustFromJSONBytes(buf, &cacheNodes)
@@ -711,7 +711,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	if nodesChanged {
 		//TODO locker
 		if moduleConfig.ORMConfig.Enabled {
-			if meta.Config.Source != "file"{
+			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				//todo check whether store elasticsearch change or not
 				err = saveNodeMetadata(*nodes, meta.Config.ID)
 				if err != nil {
@@ -723,42 +723,43 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 		}
 
-		if discovery || force{
+		if discovery || force {
 			meta.Nodes = nodes
 			meta.NodesTopologyVersion++
 			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
 			//register host to do availability monitoring
-			if discovery{
+			if discovery {
 				for _, v := range *nodes {
 					elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
 				}
 			}
 
-		}else{
+		} else {
 			cacheNodeInfo := util.MapStr{
-				"nodes": nodes,
+				"nodes":     nodes,
 				"timestamp": time.Now(),
 			}
-			err =kv.AddValueCompress(elastic.KVElasticNodeMetadata,[]byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			err = kv.AddValueCompress(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
 			if err != nil {
 				log.Errorf("save node metadata error: %v", err)
 			}
 		}
 		//TODO　save to es metadata
 	}
-	log.Trace(meta.Config.Name,"nodes changed:",nodesChanged)
+	log.Trace(meta.Config.Name, "nodes changed:", nodesChanged)
 }
 
 var saveNodeMetadataMutex = sync.Mutex{}
 var nodeAlreadyUnknown = map[string]bool{}
+
 func setNodeUnknown(clusterID string) {
-	kv.DeleteKey(elastic.KVElasticNodeMetadata,[]byte(clusterID))
+	kv.DeleteKey(elastic.KVElasticNodeMetadata, []byte(clusterID))
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
 		return
 	}
-	if meta.Config.Source == "file" {
+	if meta.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
 		return
 	}
 	if v, ok := nodeAlreadyUnknown[clusterID]; ok && v {
@@ -777,7 +778,7 @@ func setNodeUnknown(clusterID string) {
 		Timestamp: time.Now(),
 		Metadata: event.EventMetadata{
 			Category: "elasticsearch",
-			Name: "unknown_node_status",
+			Name:     "unknown_node_status",
 			Labels: util.MapStr{
 				"operation": "update",
 			},
@@ -829,8 +830,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	}
 	//nodeMetadatas := map[string] util.MapStr{}
 	nodeIDMap := map[string]interface{}{}
-	historyNodeMetadata := map[string] util.MapStr{}
-	unavailableNodeIDs := map[string]bool {}
+	historyNodeMetadata := map[string]util.MapStr{}
+	unavailableNodeIDs := map[string]bool{}
 	for _, nodeItem := range result.Result {
 		if nodeInfo, ok := nodeItem.(map[string]interface{}); ok {
 			if nodeID, ok := util.GetMapValueByKeys([]string{"metadata", "node_id"}, nodeInfo); ok {
@@ -862,21 +863,21 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			innerID = newID
 			nodeMetadata := &elastic.NodeConfig{
 				Metadata: elastic.NodeMetadata{
-					ClusterID: clusterID,
-					NodeID:    rawNodeID,
-					Category: "elasticsearch",
+					ClusterID:   clusterID,
+					NodeID:      rawNodeID,
+					Category:    "elasticsearch",
 					ClusterName: esConfig.Name,
-					NodeName: nodeInfo.Name,
-					Host: nodeInfo.Host,
+					NodeName:    nodeInfo.Name,
+					Host:        nodeInfo.Host,
 					Labels: util.MapStr{
 						"transport_address": nodeInfo.TransportAddress,
-						"ip": nodeInfo.Ip,
-						"version": nodeInfo.Version,
-						"roles": nodeInfo.Roles,
-						"status": "available",
+						"ip":                nodeInfo.Ip,
+						"version":           nodeInfo.Version,
+						"roles":             nodeInfo.Roles,
+						"status":            "available",
 					},
 				},
-				ID:  newID,
+				ID:        newID,
 				Timestamp: time.Now(),
 				Fields: util.MapStr{
 					"node_state": nodeInfo,
@@ -886,12 +887,12 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			if err != nil {
 				log.Error(err)
 			}
-		}else {
+		} else {
 			innerID = rowID
 			typ = "update"
 			if rid, ok := rowID.(string); ok {
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
-					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil  {
+					if oldMetadata, err := historyM.GetValue("payload.node_state"); err == nil {
 						if oldMetadataM, ok := oldMetadata.(map[string]interface{}); ok { // && currentNodeInfo.Equals(oldMetadataM)
 							healthStatus, _ := historyM.GetValue("metadata.labels.status")
 							changeLog, _ = util.DiffTwoObject(oldMetadataM, currentNodeInfo)
@@ -903,27 +904,27 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					//only overwrite follow labels
 					newLabels := util.MapStr{
 						"transport_address": nodeInfo.TransportAddress,
-						"ip": nodeInfo.Ip,
-						"version": nodeInfo.Version,
-						"roles": nodeInfo.Roles,
-						"status": "available",
+						"ip":                nodeInfo.Ip,
+						"version":           nodeInfo.Version,
+						"roles":             nodeInfo.Roles,
+						"status":            "available",
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
 							if st, ok := labelsM["status"].(string); ok && st == "unavailable" || st == "N/A" {
 								activityInfo := &event.Activity{
-									ID: util.GetUUID(),
+									ID:        util.GetUUID(),
 									Timestamp: time.Now(),
 									Metadata: event.ActivityMetadata{
 										Category: "elasticsearch",
-										Group: "health",
-										Name: "node_health_change",
-										Type: "update",
+										Group:    "health",
+										Name:     "node_health_change",
+										Type:     "update",
 										Labels: util.MapStr{
-											"cluster_id": clusterID,
-											"to": "available",
-											"node_id": rawNodeID,
-											"node_name": nodeInfo.Name,
+											"cluster_id":   clusterID,
+											"to":           "available",
+											"node_id":      rawNodeID,
+											"node_name":    nodeInfo.Name,
 											"cluster_name": esConfig.Name,
 										},
 									},
@@ -936,22 +937,22 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 							for k, v := range labelsM {
 								if _, ok := newLabels[k]; !ok {
 									newLabels[k] = v
- 								}
+								}
 							}
 
 						}
 					}
 					nodeMetadata := &elastic.NodeConfig{
 						Metadata: elastic.NodeMetadata{
-							ClusterID: clusterID,
-							NodeID: rawNodeID,
+							ClusterID:   clusterID,
+							NodeID:      rawNodeID,
 							ClusterName: esConfig.Name,
-							NodeName: nodeInfo.Name,
-							Host: nodeInfo.Host,
-							Labels: newLabels,
-							Category: "elasticsearch",
+							NodeName:    nodeInfo.Name,
+							Host:        nodeInfo.Host,
+							Labels:      newLabels,
+							Category:    "elasticsearch",
 						},
-						ID:  rid,
+						ID:        rid,
 						Timestamp: time.Now(),
 						Fields: util.MapStr{
 							"node_state": nodeInfo,
@@ -964,22 +965,21 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				}
 			}
 
-
 		}
 
 		activityInfo := &event.Activity{
-			ID: util.GetUUID(),
+			ID:        util.GetUUID(),
 			Timestamp: time.Now(),
 			Metadata: event.ActivityMetadata{
 				Category: "elasticsearch",
-				Group: "metadata",
-				Name: "node_state_change",
-				Type: typ,
+				Group:    "metadata",
+				Name:     "node_state_change",
+				Type:     typ,
 				Labels: util.MapStr{
-					"cluster_id": clusterID,
-					"node_id": innerID,
-					"node_uuid": rawNodeID,
-					"node_name": nodeInfo.Name,
+					"cluster_id":   clusterID,
+					"node_id":      innerID,
+					"node_uuid":    rawNodeID,
+					"node_name":    nodeInfo.Name,
 					"cluster_name": esConfig.Name,
 				},
 			},
@@ -987,7 +987,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				"node_state": nodeInfo,
 			},
 		}
-		if typ == "update"{
+		if typ == "update" {
 			if len(changeLog) == 0 {
 				continue
 			}
@@ -1017,19 +1017,19 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			log.Error(err)
 		}
 		activityInfo := &event.Activity{
-			ID: util.GetUUID(),
+			ID:        util.GetUUID(),
 			Timestamp: time.Now(),
 			Metadata: event.ActivityMetadata{
 				Category: "elasticsearch",
-				Group: "health",
-				Name: "node_health_change",
-				Type: "update",
+				Group:    "health",
+				Name:     "node_health_change",
+				Type:     "update",
 				Labels: util.MapStr{
-					"cluster_id": clusterID,
-					"to": "unavailable",
-					"node_id": oldConfig.Metadata.NodeID,
-					"node_uuid": nodeID,
-					"node_name": oldConfig.Metadata.NodeName,
+					"cluster_id":   clusterID,
+					"to":           "unavailable",
+					"node_id":      oldConfig.Metadata.NodeID,
+					"node_uuid":    nodeID,
+					"node_name":    oldConfig.Metadata.NodeName,
 					"cluster_name": esConfig.Name,
 				},
 			},
@@ -1041,7 +1041,6 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 	}
 	return nil
 }
-
 
 //func updateIndices(meta *elastic.ElasticsearchMetadata) {
 //
@@ -1086,10 +1085,10 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 //	}
 //}
 
-//on demand, on state version change
+// on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata) {
 
-	if !meta.IsAvailable(){
+	if !meta.IsAvailable() {
 		return
 	}
 
@@ -1186,20 +1185,20 @@ func updateAliases(meta *elastic.ElasticsearchMetadata) {
 
 func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	meta := elastic.GetMetadata(clusterId)
-	if meta==nil{
+	if meta == nil {
 		return
 	}
-	if !meta.IsAvailable(){
+	if !meta.IsAvailable() {
 		return
 	}
-	if meta.Config.Source == "file"{
+	if meta.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
 		return
 	}
-	log.Trace("update cluster settings:",clusterId)
+	log.Trace("update cluster settings:", clusterId)
 
 	client := elastic.GetClient(clusterId)
-	settings,err := client.GetClusterSettings()
-	if err!=nil{
+	settings, err := client.GetClusterSettings()
+	if err != nil {
 		log.Errorf("failed to get cluster settings for [%v], err: %v", clusterId, err)
 		meta.ReportFailure(err)
 		return
@@ -1208,12 +1207,12 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	if settings != nil {
 		oldClusterSettings, err := kv.GetValue(elastic.KVElasticClusterSettings, []byte(clusterId))
 		if err != nil {
-			log.Errorf("failed to get kv %s of [%v] : %v",elastic.KVElasticClusterSettings, clusterId,err)
+			log.Errorf("failed to get kv %s of [%v] : %v", elastic.KVElasticClusterSettings, clusterId, err)
 		}
 		if oldClusterSettings == nil {
 			oldClusterSettings, err = module.loadClusterSettingsFromES(clusterId)
 			if err != nil {
-				log.Errorf("failed to load cluster settings from es [%v] : %v", clusterId,err)
+				log.Errorf("failed to load cluster settings from es [%v] : %v", clusterId, err)
 			}
 		}
 
@@ -1234,14 +1233,14 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 				}
 			}
 			activityInfo := &event.Activity{
-				ID: util.GetUUID(),
+				ID:        util.GetUUID(),
 				Timestamp: time.Now(),
 				Metadata: event.ActivityMetadata{
 					Category: "elasticsearch",
-					Group: "metadata",
-					Name: "cluster_settings_change",
+					Group:    "metadata",
+					Name:     "cluster_settings_change",
 					Labels: util.MapStr{
-						"cluster_id": clusterId,
+						"cluster_id":   clusterId,
 						"cluster_name": meta.Config.Name,
 					},
 					Type: "update",
@@ -1255,7 +1254,7 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 				Timestamp: time.Now(),
 				Metadata: event.EventMetadata{
 					Category: "elasticsearch",
-					Name: "activity",
+					Name:     "activity",
 				},
 				Fields: util.MapStr{
 					"activity": activityInfo,
@@ -1264,14 +1263,14 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 				panic(err)
 			}
 			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
-		}else{
+		} else {
 			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
 		}
 
 	}
 }
 
-func (module *ElasticModule) loadClusterSettingsFromES( clusterID string)([]byte, error){
+func (module *ElasticModule) loadClusterSettingsFromES(clusterID string) ([]byte, error) {
 	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 	queryDsl := `{
 	"size": 1,
@@ -1298,14 +1297,14 @@ func (module *ElasticModule) loadClusterSettingsFromES( clusterID string)([]byte
 }`
 	queryDsl = fmt.Sprintf(queryDsl, clusterID)
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetIndexName(event.Activity{}), []byte(queryDsl))
-	if err != nil||searchRes==nil {
+	if err != nil || searchRes == nil {
 		return nil, err
 	}
 	if searchRes.GetTotal() == 0 {
 		return nil, nil
 	}
 
-	if len(searchRes.Hits.Hits)>0{
+	if len(searchRes.Hits.Hits) > 0 {
 		clusterSettings, _ := util.GetMapValueByKeys([]string{"payload", "settings"}, searchRes.Hits.Hits[0].Source)
 		return util.ToJSONBytes(clusterSettings)
 	}

@@ -430,6 +430,11 @@ type BasicAuth struct {
 	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
 }
 
+const (
+	ElasticsearchConfigSourceFile          = "file"
+	ElasticsearchConfigSourceElasticsearch = "elastic"
+)
+
 // ElasticsearchConfig contains common settings for elasticsearch
 type ElasticsearchConfig struct {
 	orm.ORMObjectBase
