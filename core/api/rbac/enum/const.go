@@ -52,6 +52,8 @@ const (
 	MonitoringAll    = "cluster.monitoring:all"
 	ActivitiesRead      = "cluster.activities:read"
 	ActivitiesAll       = "cluster.activities:all"
+	DataMigrationRead = "data_tools.migration:read"
+	DataMigrationAll = "data_tools.migration:all"
 )
 
 const (
@@ -95,6 +97,8 @@ const (
 	PermissionAgentInstanceWrite = "agent.instance:write"
 	PermissionCredentialRead = "credential:read"
 	PermissionCredentialWrite = "credential:write"
+	PermissionTaskRead = "task:read"
+	PermissionTaskWrite = "task:write"
 )
 
 var (
@@ -153,6 +157,8 @@ var (
 	AgentInstanceAllPermission  = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
 	CredentialReadPermission = []string{PermissionCredentialRead}
 	CredentialAllPermission  = []string{PermissionCredentialRead, PermissionCredentialWrite}
+	DataMigrationReadPermission = []string{PermissionTaskRead}
+	DataMigrationAllPermission = []string{PermissionTaskRead, PermissionTaskWrite}
 )
 
 var AdminPrivilege = []string{
@@ -163,6 +169,7 @@ var AdminPrivilege = []string{
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
+	DataMigrationAll,
 }
 
 func init() {
@@ -217,6 +224,8 @@ func init() {
 		AgentInstanceRead: AgentInstanceReadPermission,
 		CredentialAll: CredentialAllPermission,
 		CredentialRead: CredentialReadPermission,
+		DataMigrationRead: DataMigrationReadPermission,
+		DataMigrationAll: DataMigrationAllPermission,
 	}
 
 }
