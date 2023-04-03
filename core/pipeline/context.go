@@ -349,7 +349,7 @@ func (ctx *Context) pushPipelineLog() {
 	payload := util.MapStr{
 		"steps":   ctx.steps,
 		"status":  string(ctx.runningState),
-		"config":  ctx.config,
+		"config":  util.MustToJSON(ctx.config),
 		"context": ctx.Parameters.CloneData(),
 	}
 	if ctx.runningState.IsEnded() {
