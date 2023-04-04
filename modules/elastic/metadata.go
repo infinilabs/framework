@@ -553,6 +553,9 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 					if logItem.Path[0] == "version" {
 						continue
 					}
+					if strings.HasPrefix(logItem.Path[0], "ilm") {
+						continue
+					}
 					filterChangeLog = append(filterChangeLog, logItem)
 				}
 				if len(filterChangeLog) == 0 {
