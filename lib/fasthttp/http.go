@@ -482,6 +482,11 @@ func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	return resp.body
 }
 
+// BodyBuffer allocates the body buffer and return it
+func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
+	return req.bodyBuffer()
+}
+
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
 		if req.Tag != "" {
