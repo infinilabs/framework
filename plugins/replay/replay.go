@@ -167,10 +167,9 @@ func ReplayLines(ctx *pipeline.Context, lines []string, schema, host, username, 
 			//buffer is not empty, clear current request first
 			if util.PrefixAnyInArray(line, validVerbs) {
 
-				clonedURI := req.CloneURI()
 				//execute previous request now
 				if requestIsSet {
-					log.Debug("execute request: ", clonedURI.String())
+					log.Debug("execute request: ", req.PhantomURI().String())
 					if username != "" && password != "" {
 						req.SetBasicAuth(username, password)
 					}
@@ -189,6 +188,7 @@ func ReplayLines(ctx *pipeline.Context, lines []string, schema, host, username, 
 					method := arr[0]
 					uri := arr[1]
 					req.SetRequestURI(uri)
+					clonedURI := req.CloneURI()
 					req.Header.SetMethod(method)
 					req.Header.SetHost(host)
 					clonedURI.SetScheme(schema)
