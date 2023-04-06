@@ -102,6 +102,7 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 						q.FieldName: util.MapStr{
 							"gte": start,
 							"lt": end,
+							"format": "epoch_millis",
 						},
 					},
 				},
