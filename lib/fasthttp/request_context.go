@@ -7,14 +7,15 @@ package fasthttp
 import (
 	"bytes"
 	"context"
+	"net"
+	"strings"
+	"time"
+
 	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
-	"net"
-	"strings"
-	"time"
 )
 
 type RequestCtx struct {
@@ -177,7 +178,7 @@ func (para *RequestCtx) PutValue(s string, value interface{}) (interface{}, erro
 
 								body, err := jsonparser.Set(body, []byte(valueStr), keys...)
 
-								para.Response.SetBodyRaw(body)
+								para.Response.SetRawBody(body)
 								if err != nil {
 									return nil, err
 								}

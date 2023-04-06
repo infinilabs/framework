@@ -44,15 +44,12 @@ type Request struct {
 	// Copying Header by value is forbidden. Use pointer to Header instead.
 	Header RequestHeader
 
-	rawBody []byte
-
 	uri      URI
 	postArgs Args
 
 	bodyStream io.Reader
 	w          requestBodyWriter
 	body       *bytebufferpool.ByteBuffer
-	bodyRaw    []byte
 
 	multipartForm         *multipart.Form
 	multipartFormBoundary string
@@ -413,39 +410,29 @@ func (req *Request) IsGzipped() bool {
 
 // TODO cache
 func (req *Request) GetRawBody() []byte {
-	var err error
 	if req.GetBodyLength() <= 0 {
 		return nil
 	}
 
-	//if len(req.rawBody) > 0 {
-	//	log.Error("hit rawbody")
-	//	return req.rawBody
-	//}
-
 	ce := string(req.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2}))
 	if ce == "gzip" {
-		req.rawBody, err = req.BodyGunzip()
+		body, err := req.BodyGunzip()
 		if err != nil {
 			panic(err)
 		}
-		return req.rawBody
+		return body
 	} else if ce == "deflate" {
-		req.rawBody, err = req.BodyInflate()
+		body, err := req.BodyInflate()
 		if err != nil {
 			panic(err)
 		}
-		return req.rawBody
+		return body
 	} else {
-		req.rawBody = req.Body()
-		return req.rawBody
+		return req.Body()
 	}
 }
 
 func (resp *Response) bodyBytes() []byte {
-	//if resp.bodyRaw != nil {
-	//	return resp.bodyRaw
-	//}
 	if resp.body == nil {
 		return nil
 	}
@@ -453,9 +440,6 @@ func (resp *Response) bodyBytes() []byte {
 }
 
 func (req *Request) bodyBytes() []byte {
-	//if req.bodyRaw != nil {
-	//	return req.bodyRaw
-	//}
 	if req.bodyStream != nil {
 		bodyBuf := req.bodyBuffer()
 		bodyBuf.Reset()
@@ -495,7 +479,6 @@ func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 			req.body = requestBodyPool.Get()
 		}
 	}
-	req.bodyRaw = nil
 	return req.body
 }
 
@@ -670,6 +653,15 @@ func (resp *Response) AppendBodyString(s string) {
 	resp.bodyBuffer().WriteString(s) //nolint:errcheck
 }
 
+// SetRawBody sets request body and clear content encoding headers.
+//
+// It is safe re-using body argument after the function returns.
+func (resp *Response) SetRawBody(body []byte) {
+	resp.Header.Del(HeaderContentEncoding)
+	resp.Header.Del(HeaderContentEncoding2)
+	resp.SetBody(body)
+}
+
 // SetBody sets response body.
 //
 // It is safe re-using body argument after the function returns.
@@ -690,6 +682,7 @@ func (resp *Response) SetBodyString(body string) {
 
 // ResetBody resets response body.
 func (resp *Response) ResetBody() {
+	resp.bodyLength = -1
 	resp.closeBodyStream() //nolint:errcheck
 	if resp.body != nil {
 		if resp.keepBodyBuffer {
@@ -703,26 +696,6 @@ func (resp *Response) ResetBody() {
 			resp.body = nil
 		}
 	}
-}
-
-// SetBodyRaw sets response body, but without copying it.
-//
-// From this point onward the body argument must not be changed.
-func (resp *Response) SetBodyRaw(body []byte) {
-	resp.ResetBody()
-	resp.bodyBuffer().Write(body)
-	resp.Header.Del(HeaderContentEncoding)
-	resp.Header.Del(HeaderContentEncoding2)
-}
-
-// SetBodyRaw sets response body, but without copying it.
-//
-// From this point onward the body argument must not be changed.
-func (req *Request) SetBodyRaw(body []byte) {
-	req.ResetBody()
-	req.bodyRaw = body
-	req.Header.Del(HeaderContentEncoding)
-	req.Header.Del(HeaderContentEncoding2)
 }
 
 // ReleaseBody retires the response body if it is greater than "size" bytes.
@@ -755,7 +728,6 @@ func (resp *Response) ReleaseBody(size int) {
 // Use this method only if you really understand how it works.
 // The majority of workloads don't need this method.
 func (req *Request) ReleaseBody(size int) {
-	req.bodyRaw = nil
 	if req.body == nil {
 		return
 	}
@@ -811,8 +783,6 @@ func (req *Request) SwapBody(body []byte) []byte {
 		}
 	}
 
-	req.bodyRaw = nil
-
 	oldBody := bb.B
 	bb.B = body
 	return oldBody
@@ -824,9 +794,7 @@ func (req *Request) SwapBody(body []byte) []byte {
 // either though ReleaseRequest or your request handler returning.
 // Do not store references to returned value. Make copies instead.
 func (req *Request) Body() []byte {
-	if req.bodyRaw != nil {
-		return req.bodyRaw
-	} else if req.onlyMultipartForm() {
+	if req.onlyMultipartForm() {
 		body, err := marshalMultipartForm(req.multipartForm, req.multipartFormBoundary)
 		if err != nil {
 			return []byte(err.Error())
@@ -852,7 +820,7 @@ func (req *Request) AppendBodyString(s string) {
 	req.bodyBuffer().WriteString(s) //nolint:errcheck
 }
 
-// SetBody sets request body.
+// SetRawBody sets request body and clear content encoding headers.
 //
 // It is safe re-using body argument after the function returns.
 func (req *Request) SetRawBody(body []byte) {
@@ -876,7 +844,7 @@ func (req *Request) SetBodyString(body string) {
 
 // ResetBody resets request body.
 func (req *Request) ResetBody() {
-	req.bodyRaw = nil
+	req.bodyLength = -1
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
 	if req.body != nil {
@@ -896,12 +864,7 @@ func (req *Request) ResetBody() {
 // CopyTo copies req contents to dst except of body stream.
 func (req *Request) CopyTo(dst *Request) {
 	req.copyToSkipBody(dst)
-	if req.bodyRaw != nil {
-		dst.bodyRaw = req.bodyRaw
-		if dst.body != nil {
-			dst.body.Reset()
-		}
-	} else if req.body != nil {
+	if req.body != nil {
 		dst.bodyBuffer().Set(req.body.B)
 	} else if dst.body != nil {
 		dst.body.Reset()
@@ -960,7 +923,6 @@ func (resp *Response) copyToSkipBody(dst *Response) {
 
 func swapRequestBody(a, b *Request) {
 	a.body, b.body = b.body, a.body
-	a.bodyRaw, b.bodyRaw = b.bodyRaw, a.bodyRaw
 	a.bodyStream, b.bodyStream = b.bodyStream, a.bodyStream
 
 	// This code assumes that if a requestStream was swapped the headers are also swapped or copied.
@@ -1175,10 +1137,9 @@ func (req *Request) Reset() {
 	if requestBodyPoolSizeLimit >= 0 && req.body != nil {
 		req.ReleaseBody(requestBodyPoolSizeLimit)
 	}
-	req.Header.Reset() //TODO ?
+	req.Header.Reset()
 	req.resetSkipHeader()
 	req.timeout = 0
-	req.bodyLength = -1
 }
 
 func (req *Request) GetRequestLength() int {
@@ -1200,7 +1161,6 @@ func (req *Request) GetBodyLength() int {
 
 func (req *Request) resetSkipHeader() {
 	req.ResetBody()
-	req.bodyLength = 0
 	req.uri.Reset()
 	req.parsedURI = false
 	req.postArgs.Reset()
@@ -1231,7 +1191,6 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
-	resp.bodyLength = -1
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1643,7 +1602,6 @@ func (req *Request) onlyMultipartForm() bool {
 //
 // See also WriteTo.
 func (req *Request) Write(w *bufio.Writer) error {
-	req.rawBody = nil
 	hostInHeader := req.Header.Host()
 
 	if len(hostInHeader) == 0 || req.parsedURI {
