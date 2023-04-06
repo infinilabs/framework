@@ -5,7 +5,9 @@
 package api
 
 import (
+	"bytes"
 	"errors"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
@@ -179,6 +181,26 @@ func (h APIHandler) SearchUser(w http.ResponseWriter, r *http.Request, ps httpro
 	)
 
 	res, err := h.User.Search(keyword, from, size)
+	if err != nil {
+		log.Error(err.Error())
+		h.ErrorInternalServer(w, err.Error())
+		return
+	}
+	//remove password field
+	hitsBuf := bytes.Buffer{}
+	hitsBuf.Write([]byte("["))
+	jsonparser.ArrayEach(res.Raw, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		value = jsonparser.Delete(value, "_source", "password")
+		hitsBuf.Write(value)
+		hitsBuf.Write([]byte(","))
+	}, "hits", "hits")
+	buf := hitsBuf.Bytes()
+	if buf[len(buf)-1] == ',' {
+		buf[len(buf)-1] = ']'
+	}else{
+		hitsBuf.Write([]byte("["))
+	}
+	res.Raw, err = jsonparser.Set(res.Raw, hitsBuf.Bytes(), "hits", "hits")
 	if err != nil {
 		log.Error(err.Error())
 		h.ErrorInternalServer(w, err.Error())
