@@ -54,6 +54,8 @@ const (
 	ActivitiesAll       = "cluster.activities:all"
 	DataMigrationRead = "data_tools.migration:read"
 	DataMigrationAll = "data_tools.migration:all"
+	DashboardRead = "insight.dashboard:read"
+	DashboardAll = "insight.dashboard:all"
 )
 
 const (
@@ -159,6 +161,8 @@ var (
 	CredentialAllPermission  = []string{PermissionCredentialRead, PermissionCredentialWrite}
 	DataMigrationReadPermission = []string{PermissionTaskRead}
 	DataMigrationAllPermission = []string{PermissionTaskRead, PermissionTaskWrite}
+	DashboardReadPermission= []string{PermissionLayoutRead}
+	DashboardAllPermission=[]string{PermissionLayoutRead, PermissionLayoutWrite}
 )
 
 var AdminPrivilege = []string{
@@ -169,7 +173,7 @@ var AdminPrivilege = []string{
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
-	DataMigrationAll,
+	DataMigrationAll, DashboardAll,
 }
 
 func init() {
@@ -226,6 +230,8 @@ func init() {
 		CredentialRead: CredentialReadPermission,
 		DataMigrationRead: DataMigrationReadPermission,
 		DataMigrationAll: DataMigrationAllPermission,
+		DashboardRead: DashboardReadPermission,
+		DashboardAll: DashboardAllPermission,
 	}
 
 }
