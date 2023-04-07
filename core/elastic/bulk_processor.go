@@ -300,6 +300,7 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 	MaxRejectRetryTimes:  0,
 
 	DeadletterRequestsQueue: "bulk_dead_requests",
+	InvalidRequestsQueue:    "bulk_invalid_requests",
 	BulkResponseParseConfig: BulkResponseParseConfig{
 		BulkResultMessageMaxRequestBodyLength:  10 * 1024,
 		BulkResultMessageMaxResponseBodyLength: 10 * 1024,
