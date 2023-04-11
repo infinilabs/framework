@@ -5,6 +5,12 @@ package queue
 
 import (
 	"fmt"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/errors"
@@ -12,29 +18,23 @@ import (
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
-	"runtime"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
-
 
 func Itoa64(i int64) string {
 	return strconv.FormatInt(i, 10)
 }
 
-func AcquireOffset(seg,pos int64)Offset  {
-	return Offset{Segment: seg,Position: pos}
+func AcquireOffset(seg, pos int64) Offset {
+	return Offset{Segment: seg, Position: pos}
 }
 
 type Offset struct {
-	Segment int64
-	Position int64
+	Segment  int64 `json:"segment"`
+	Position int64 `json:"position"`
 }
 
 func (c *Offset) String() string {
-	return fmt.Sprintf("%v,%v",c.Segment, c.Position)
+	return fmt.Sprintf("%v,%v", c.Segment, c.Position)
 }
 
 type Context struct {
@@ -42,30 +42,29 @@ type Context struct {
 	InitOffset Offset `config:"init_offset" json:"init_offset"`
 }
 
-func (c *Context) UpdateInitOffset(seg,pos int64) {
-	c.InitOffset.Segment=seg
-	c.InitOffset.Position=pos
+func (c *Context) UpdateInitOffset(seg, pos int64) {
+	c.InitOffset.Segment = seg
+	c.InitOffset.Position = pos
 }
 
-func (c *Context) UpdateNextOffset(seg,pos int64) {
-	c.NextOffset.Segment=seg
-	c.NextOffset.Position=pos
+func (c *Context) UpdateNextOffset(seg, pos int64) {
+	c.NextOffset.Segment = seg
+	c.NextOffset.Position = pos
 }
 
 func (c *Context) String() string {
-	return fmt.Sprintf("%v->%v",c.InitOffset,c.NextOffset)
+	return fmt.Sprintf("%v->%v", c.InitOffset, c.NextOffset)
 }
 
 type Message struct {
 	Timestamp  int64  `config:"timestamp" json:"timestamp" parquet:"timestamp"`
-	Offset     string `config:"offset" json:"offset"  parquet:"offset"`           //current offset
+	Offset     string `config:"offset" json:"offset"  parquet:"offset"`                //current offset
 	NextOffset string `config:"next_offset" json:"next_offset"  parquet:"next_offset"` //offset for next message
-	Size       int  `config:"size" json:"size"  parquet:"size"`
+	Size       int    `config:"size" json:"size"  parquet:"size"`
 	Data       []byte `config:"data" json:"data"  parquet:"data,zstd"`
 }
 
 type QueueAPI interface {
-
 	AdvancedQueueAPI
 
 	Name() string
@@ -83,13 +82,13 @@ type QueueAPI interface {
 }
 
 type AdvancedQueueAPI interface {
-	AcquireConsumer(qconfig *QueueConfig,consumer *ConsumerConfig, segment, readPos int64) (ConsumerAPI,error)
+	AcquireConsumer(qconfig *QueueConfig, consumer *ConsumerConfig, segment, readPos int64) (ConsumerAPI, error)
 }
 
 type ConsumerAPI interface {
-	Close()error
+	Close() error
 	ResetOffset(part, readPos int64) (err error)
-	FetchMessages(ctx *Context,numOfMessages int) (messages []Message, isTimeout bool, err error)
+	FetchMessages(ctx *Context, numOfMessages int) (messages []Message, isTimeout bool, err error)
 }
 
 var defaultHandler QueueAPI
@@ -133,23 +132,23 @@ func ReturnQueueConfig(cfg *QueueConfig) {
 }
 
 type ConsumerConfig struct {
-	Source     string `config:"source" json:"source,omitempty"`
-	Id         string `config:"id" json:"id,omitempty"` //uuid for each queue
-	Group      string `config:"group" json:"group,omitempty"`
-	Name       string `config:"name" json:"name,omitempty"`
+	Source string `config:"source" json:"source,omitempty"`
+	Id     string `config:"id" json:"id,omitempty"` //uuid for each queue
+	Group  string `config:"group" json:"group,omitempty"`
+	Name   string `config:"name" json:"name,omitempty"`
 	//AutoReset  string `config:"auto_offset_reset" json:"auto_offset_reset,omitempty"`
 	//AutoCommit bool   `config:"auto_commit" json:"auto_commit,omitempty"`
 
-	FetchMinBytes    int `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
-	FetchMaxBytes    int `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
-	FetchMaxMessages int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
-	FetchMaxWaitMs   int64   `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
-	EOFRetryDelayInMs   int64   `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
-	fetchMaxWaitMs   time.Duration
+	FetchMinBytes     int   `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
+	FetchMaxBytes     int   `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
+	FetchMaxMessages  int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
+	FetchMaxWaitMs    int64 `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
+	fetchMaxWaitMs    time.Duration
 }
 
 func (cfg *ConsumerConfig) Key() string {
-	return cfg.Group+"-"+cfg.Name
+	return cfg.Group + "-" + cfg.Name
 	//return fmt.Sprintf("%v-%v", cfg.Group, cfg.Name)
 }
 
@@ -163,7 +162,7 @@ func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
 }
 
 func (cfg *ConsumerConfig) String() string {
-	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v",cfg.Group,cfg.Name,cfg.Id,cfg.Source)
+	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v", cfg.Group, cfg.Name, cfg.Id, cfg.Source)
 }
 
 func getHandler(k *QueueConfig) QueueAPI {
@@ -175,7 +174,7 @@ func getHandler(k *QueueConfig) QueueAPI {
 	if ok && handler != nil {
 		return handler
 	}
-	if defaultHandler==nil{
+	if defaultHandler == nil {
 		panic(errors.New("no queue handler was found"))
 	}
 	return defaultHandler
@@ -196,7 +195,7 @@ func Push(k *QueueConfig, v []byte) error {
 		stats.Increment("queue", k.Id, "push_error")
 		return err
 	}
-	panic(errors.Errorf("handler for [%v] is not registered",k))
+	panic(errors.Errorf("handler for [%v] is not registered", k))
 }
 
 //var pauseMsg = errors.New("queue was paused to read")
@@ -286,13 +285,13 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 	cfgs[consumer.Key()] = consumer
 	kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 
-	TriggerChangeEvent(queueID,cfgs,false)
+	TriggerChangeEvent(queueID, cfgs, false)
 
 	return true, nil
 }
 
-func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig,async bool) {
-	if async{
+func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig, async bool) {
+	if async {
 		//async notify
 		go func() {
 			defer func() {
@@ -315,14 +314,14 @@ func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig,async bo
 				f(queueID, cfgs)
 			}
 		}()
-	}else{
+	} else {
 		for _, f := range consumerConfigListener {
 			f(queueID, cfgs)
 		}
 	}
 }
 
-func RemoveConsumer(queueID string, consumerKey string)(bool, error) {
+func RemoveConsumer(queueID string, consumerKey string) (bool, error) {
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
 
@@ -332,19 +331,19 @@ func RemoveConsumer(queueID string, consumerKey string)(bool, error) {
 	if ok {
 		data, err := kv.GetValue(consumerBucket, queueIDBytes)
 		if err != nil {
-			return false,err
+			return false, err
 		}
 		err = util.FromJSONBytes(data, &cfgs)
 		if err != nil {
-			return false,err
+			return false, err
 		}
-		delete(cfgs,consumerKey)
-		err=kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
+		delete(cfgs, consumerKey)
+		err = kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 		if err != nil {
-			return false,err
+			return false, err
 		}
 
-		TriggerChangeEvent(queueID,cfgs,false)
+		TriggerChangeEvent(queueID, cfgs, false)
 
 		return true, nil
 	}
@@ -377,11 +376,11 @@ func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 
 func NewConsumerConfig(group, name string) *ConsumerConfig {
 	cfg := &ConsumerConfig{
-		FetchMinBytes:    1,
-		FetchMaxBytes:    10 * 1024 * 1024,
-		FetchMaxMessages: 500,
+		FetchMinBytes:     1,
+		FetchMaxBytes:     10 * 1024 * 1024,
+		FetchMaxMessages:  500,
 		EOFRetryDelayInMs: 500,
-		FetchMaxWaitMs:   10000,
+		FetchMaxWaitMs:    10000,
 	}
 	cfg.Id = util.GetUUID()
 	cfg.Source = "dynamic"
@@ -394,11 +393,11 @@ func GetOrInitConsumerConfig(queueID, group, name string) *ConsumerConfig {
 	cfg, exists := GetConsumerConfig(queueID, group, name)
 	if !exists || cfg == nil {
 		cfg = &ConsumerConfig{
-			FetchMinBytes:    1,
-			FetchMaxBytes:    10 * 1024 * 1024,
-			FetchMaxMessages: 500,
+			FetchMinBytes:     1,
+			FetchMaxBytes:     10 * 1024 * 1024,
+			FetchMaxMessages:  500,
 			EOFRetryDelayInMs: 1000,
-			FetchMaxWaitMs:   10000,
+			FetchMaxWaitMs:    10000,
 		}
 		cfg.Id = util.GetUUID()
 		cfg.Source = "dynamic"
@@ -434,11 +433,11 @@ func GetOrInitConfig(key string) *QueueConfig {
 }
 
 func SmartGetConfig(keyOrID string) (*QueueConfig, bool) {
-	q,ok:=GetConfigByKey(keyOrID)
-	if !ok{
-		q,ok=GetConfigByUUID(keyOrID)
+	q, ok := GetConfigByKey(keyOrID)
+	if !ok {
+		q, ok = GetConfigByUUID(keyOrID)
 	}
-	return q,ok
+	return q, ok
 }
 
 func GetConfigByKey(key string) (*QueueConfig, bool) {
@@ -518,7 +517,7 @@ func Pop(k *QueueConfig) ([]byte, error) {
 			stats.Increment("queue", k.Id, "pop")
 			return o, nil
 		}
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			stats.Increment("queue", k.Id, "pop_timeout")
 		}
 		return o, errors.New("timeout")
@@ -526,7 +525,7 @@ func Pop(k *QueueConfig) ([]byte, error) {
 	panic(errors.New("handler is not registered"))
 }
 
-//consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs)
+// consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs)
 func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Context, messages []Message, isTimeout bool, err error) {
 	//,offsetStr string,count int,timeout time.Duration
 	if k == nil || k.Id == "" {
@@ -565,18 +564,17 @@ func ConvertOffset(offsetStr string) (int64, int64) {
 	return segment, offset
 }
 
-func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, offset string)  (ConsumerAPI,error) {
+func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, offset string) (ConsumerAPI, error) {
 	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 	handler := getHandler(k)
 	if handler != nil {
-		segment,pos:=ConvertOffset(offset)
-		return handler.AcquireConsumer(k,consumer,segment,pos)
+		segment, pos := ConvertOffset(offset)
+		return handler.AcquireConsumer(k, consumer, segment, pos)
 	}
 	panic(errors.New("handler is not registered"))
 }
-
 
 func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
 	if k == nil || k.Id == "" {
@@ -630,7 +628,7 @@ const consumerOffsetBucket = "queue_consumer_commit_offset"
 
 func GetEarlierOffsetStrByQueueID(queueID string) string {
 	_, seg, pos := GetEarlierOffsetByQueueID(queueID)
-	offset := Itoa64(seg)+","+Itoa64(pos)
+	offset := Itoa64(seg) + "," + Itoa64(pos)
 	//offset := fmt.Sprintf("%v,%v", seg, pos)
 	return offset
 }
@@ -684,10 +682,7 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 		}
 	}
 
-
 	return len(consumers), iPart, iPos
-
-
 
 }
 
@@ -782,7 +777,7 @@ func Depth(k *QueueConfig) int64 {
 	handler := getHandler(k)
 	if handler != nil {
 		o := handler.Depth(k.Id)
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			stats.Increment("queue", k.Id, "call_depth")
 		}
 		return o
@@ -806,7 +801,7 @@ func HasLag(k *QueueConfig) bool {
 			return true
 		}
 
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			stats.Increment("queue", k.Id, "check_lag")
 		}
 		return false
@@ -815,7 +810,7 @@ func HasLag(k *QueueConfig) bool {
 	panic(errors.New("handler is not registered"))
 }
 
-func ConsumerHasLag(k *QueueConfig,c *ConsumerConfig) bool {
+func ConsumerHasLag(k *QueueConfig, c *ConsumerConfig) bool {
 	if k == nil || k.Id == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
@@ -824,8 +819,8 @@ func ConsumerHasLag(k *QueueConfig,c *ConsumerConfig) bool {
 
 	if handler != nil {
 		latestProduceOffset := LatestOffset(k)
-		offset,err := GetOffset(k,c)
-		if err!=nil{
+		offset, err := GetOffset(k, c)
+		if err != nil {
 			panic(err)
 		}
 
@@ -910,7 +905,7 @@ func GetConfigBySelector(selector *QueueSelector) []*QueueConfig {
 		}
 	}
 
-	log.Tracef("selector:%v, get queues: %v",selector,cfgs)
+	log.Tracef("selector:%v, get queues: %v", selector, cfgs)
 
 	return cfgs
 }
@@ -991,7 +986,7 @@ func Register(name string, h QueueAPI) {
 	log.Debug("register queue adapter: ", name)
 }
 
-//TODO only update specify event, func(queueID)
+// TODO only update specify event, func(queueID)
 var queueConfigListener = []func(cfg *QueueConfig){}
 
 func RegisterQueueConfigChangeListener(l func(cfg *QueueConfig)) {
