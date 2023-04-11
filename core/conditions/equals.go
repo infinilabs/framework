@@ -21,6 +21,8 @@ import (
 	"fmt"
 
 	logger "github.com/cihub/seelog"
+
+	"infini.sh/framework/core/util"
 )
 
 // Equals is a Condition for testing string equality.
@@ -30,7 +32,7 @@ type equalsValue func(interface{}) bool
 
 func equalsIntValue(i int64) equalsValue {
 	return func(value interface{}) bool {
-		if sValue, err := ExtractInt(value); err == nil {
+		if sValue, err := util.ExtractInt(value); err == nil {
 			return sValue == i
 		}
 		logger.Warnf("expected int but got type %T in equals condition.", value)
@@ -40,7 +42,7 @@ func equalsIntValue(i int64) equalsValue {
 
 func equalsFloatValue(i float64) equalsValue {
 	return func(value interface{}) bool {
-		if sValue, err := ExtractFloat(value); err == nil {
+		if sValue, err := util.ExtractFloat(value); err == nil {
 			return sValue == i
 		}
 		logger.Warnf("expected float but got type %T in equals condition.", value)
@@ -50,7 +52,7 @@ func equalsFloatValue(i float64) equalsValue {
 
 func equalsStringValue(s string) equalsValue {
 	return func(value interface{}) bool {
-		if sValue, err := ExtractString(value); err == nil {
+		if sValue, err := util.ExtractString(value); err == nil {
 			return sValue == s
 		}
 		logger.Warnf("expected string but got type %T in equals condition.", value)
@@ -60,7 +62,7 @@ func equalsStringValue(s string) equalsValue {
 
 func equalsBoolValue(b bool) equalsValue {
 	return func(value interface{}) bool {
-		if sValue, err := ExtractBool(value); err == nil {
+		if sValue, err := util.ExtractBool(value); err == nil {
 			return sValue == b
 		}
 		logger.Warnf("expected bool but got type %T in equals condition.", value)
@@ -73,25 +75,25 @@ func NewEqualsCondition(fields map[string]interface{}) (c Equals, err error) {
 	c = Equals{}
 
 	for field, value := range fields {
-		uintValue, err := ExtractInt(value)
+		uintValue, err := util.ExtractInt(value)
 		if err == nil {
 			c[field] = equalsIntValue(uintValue)
 			continue
 		}
 
-		ufloatValue, err := ExtractFloat(value)
+		ufloatValue, err := util.ExtractFloat(value)
 		if err == nil {
 			c[field] = equalsFloatValue(ufloatValue)
 			continue
 		}
 
-		sValue, err := ExtractString(value)
+		sValue, err := util.ExtractString(value)
 		if err == nil {
 			c[field] = equalsStringValue(sValue)
 			continue
 		}
 
-		bValue, err := ExtractBool(value)
+		bValue, err := util.ExtractBool(value)
 		if err == nil {
 			c[field] = equalsBoolValue(bValue)
 			continue

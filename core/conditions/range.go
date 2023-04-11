@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
 	logger "github.com/cihub/seelog"
+	"infini.sh/framework/core/util"
 )
 
 type rangeValue struct {
@@ -63,7 +65,7 @@ func NewRangeCondition(config map[string]interface{}) (c Range, err error) {
 
 	for key, value := range config {
 
-		floatValue, err := ExtractFloat(value)
+		floatValue, err := util.ExtractFloat(value)
 		if err != nil {
 			return c, err
 		}
@@ -128,7 +130,7 @@ func (c Range) Check(event ValuesMap) bool {
 			}
 
 		case float64, float32:
-		//case float64, float32, common.Float:
+			//case float64, float32, common.Float:
 			floatValue := reflect.ValueOf(value).Float()
 
 			if !checkValue(floatValue, rangeValue) {

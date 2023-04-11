@@ -19,6 +19,8 @@ package conditions
 
 import (
 	"fmt"
+
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
 
 	logger "github.com/cihub/seelog"
@@ -91,7 +93,7 @@ func (c Matcher) Check(event ValuesMap) bool {
 				return false
 			}
 		default:
-			str, err := ExtractString(value)
+			str, err := util.ExtractString(value)
 			if err != nil {
 				logger.Warnf("unexpected type %T in %v condition as it accepts only strings.", value, c.name)
 				return false
