@@ -152,13 +152,17 @@ func (h APIHandler) UpdateUser(w http.ResponseWriter, r *http.Request, ps httpro
 
 func (h APIHandler) DeleteUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
-	//localUser, err := biz.FromUserContext(r.Context())
-	//if err != nil {
-	//	log.Error(err.Error())
-	//	h.ErrorInternalServer(w, err.Error())
-	//	return
-	//}
-	err := h.User.Delete(id)
+	user, err := rbac.FromUserContext(r.Context())
+	if err != nil {
+		log.Error("failed to get user from context, err: %v", err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if user != nil && user.UserId == id {
+		h.WriteError(w, "can not delete yourself", http.StatusInternalServerError)
+		return
+	}
+	err = h.User.Delete(id)
 	if errors.Is(err, elastic.ErrNotFound) {
 		h.WriteJSON(w, api.NotFoundResponse(id), http.StatusNotFound)
 		return
