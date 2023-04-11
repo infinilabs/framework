@@ -198,7 +198,7 @@ func (h APIHandler) SearchUser(w http.ResponseWriter, r *http.Request, ps httpro
 	if buf[len(buf)-1] == ',' {
 		buf[len(buf)-1] = ']'
 	}else{
-		hitsBuf.Write([]byte("["))
+		hitsBuf.Write([]byte("]"))
 	}
 	res.Raw, err = jsonparser.Set(res.Raw, hitsBuf.Bytes(), "hits", "hits")
 	if err != nil {
