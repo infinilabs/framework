@@ -27,13 +27,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/zstd"
 	"io"
 	"math/rand"
 	"os"
@@ -41,6 +34,14 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/rate"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/util/zstd"
 )
 
 // providing a filesystem backed FIFO queue
@@ -108,15 +109,15 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		//maxBytesPerFile:   maxBytesPerFile,
 		//minMsgSize:        minMsgSize,
 		//maxMsgSize:        maxMsgSize,
-		cfg:               cfg,
-		readChan:          make(chan []byte, cfg.ReadChanBuffer),
-		depthChan:         make(chan int64),
-		writeChan:         make(chan []byte, cfg.WriteChanBuffer),
-		writeResponseChan: make(chan error),
-		emptyChan:         make(chan int),
-		emptyResponseChan: make(chan error),
-		exitChan:          make(chan int),
-		exitSyncChan:      make(chan int, 10),
+		cfg:                cfg,
+		readChan:           make(chan []byte, cfg.ReadChanBuffer),
+		depthChan:          make(chan int64),
+		writeChan:          make(chan []byte, cfg.WriteChanBuffer),
+		writeResponseChan:  make(chan error),
+		emptyChan:          make(chan int),
+		emptyResponseChan:  make(chan error),
+		exitChan:           make(chan int),
+		exitSyncChan:       make(chan int, 10),
 		consumersInReading: sync.Map{},
 		//syncEvery:         syncEvery,
 		//syncTimeout:       syncTimeout,
@@ -152,7 +153,7 @@ func (d *DiskBasedQueue) ReadContext() Context {
 }
 
 func (d *DiskBasedQueue) LatestOffset() string {
-	return queue.Itoa64(d.writeSegmentNum)+","+queue.Itoa64(d.writePos)
+	return queue.Itoa64(d.writeSegmentNum) + "," + queue.Itoa64(d.writePos)
 	//return fmt.Sprintf("%v,%v", d.writeSegmentNum, d.writePos)
 }
 
@@ -201,6 +202,26 @@ func (d *DiskBasedQueue) Close() error {
 		return err
 	}
 	return d.sync()
+}
+
+// Destroy cleans up all data for the specified queue
+func (d *DiskBasedQueue) Destroy() error {
+	err := d.Close()
+	if err != nil {
+		log.Errorf("failed to close queue [%v], err: %v", d.name, err)
+		return err
+	}
+	if d.name == "" {
+		log.Errorf("invalid queue name")
+		return nil
+	}
+	dataPath := GetDataPath(d.name)
+	err = os.RemoveAll(dataPath)
+	if err != nil {
+		log.Errorf("failed to delete queue [%v] path [%v], err: %v", d.name, dataPath, err)
+		return err
+	}
+	return nil
 }
 
 func (d *DiskBasedQueue) Delete() error {
@@ -266,13 +287,13 @@ func (d *DiskBasedQueue) deleteAllFiles() error {
 	return err
 }
 
-//删除中间的错误文件，跳转到最后一个可写文件
+// 删除中间的错误文件，跳转到最后一个可写文件
 func (d *DiskBasedQueue) skipToNextRWFile() error {
 	var err error
 
 	if d.readFile != nil {
-		err=d.readFile.Close()
-		if err!=nil{
+		err = d.readFile.Close()
+		if err != nil {
 			panic(err)
 		}
 		d.readFile = nil
@@ -280,8 +301,8 @@ func (d *DiskBasedQueue) skipToNextRWFile() error {
 
 	if d.writeFile != nil {
 		d.writeFile.Sync()
-		err=d.writeFile.Close()
-		if err!=nil{
+		err = d.writeFile.Close()
+		if err != nil {
 			panic(err)
 		}
 		d.writeFile = nil
@@ -501,7 +522,6 @@ func (d *DiskBasedQueue) writeOne(data []byte) error {
 
 	return err
 }
-
 
 // sync fsyncs the current writeFile and persists metadata
 func (d *DiskBasedQueue) sync() error {
@@ -816,7 +836,7 @@ exit:
 }
 
 func (d *DiskBasedQueue) UpdateSegmentConsumerInReading(consumerID string, segment int64) {
-	d.consumersInReading.Store(consumerID,segment)
+	d.consumersInReading.Store(consumerID, segment)
 }
 
 func (d *DiskBasedQueue) DeleteSegmentConsumerInReading(consumerID string) {

@@ -74,6 +74,7 @@ type QueueAPI interface {
 	//segment means the sequence id of the queue, offset is within the segment, count means how many messages will be fetching
 	Close(string) error
 	Depth(string) int64
+	Destroy(string) error
 
 	Consume(queue *QueueConfig, consumer *ConsumerConfig, offset string) (*Context, []Message, bool, error)
 	LatestOffset(string) string
@@ -781,6 +782,18 @@ func Depth(k *QueueConfig) int64 {
 			stats.Increment("queue", k.Id, "call_depth")
 		}
 		return o
+	}
+	panic(errors.New("handler is not registered"))
+}
+
+func Destroy(k *QueueConfig) error {
+	if k == nil || k.Id == "" {
+		panic(errors.New("queue name can't be nil"))
+	}
+
+	handler := getHandler(k)
+	if handler != nil {
+		return handler.Destroy(k.Id)
 	}
 	panic(errors.New("handler is not registered"))
 }

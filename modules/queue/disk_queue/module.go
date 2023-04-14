@@ -5,6 +5,14 @@ package queue
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/env"
@@ -15,21 +23,14 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
 	"infini.sh/framework/modules/queue/common"
-	"os"
-	"path"
-	"path/filepath"
-	"runtime"
-	"strings"
-	"sync"
-	"time"
 )
 
 type DiskQueue struct {
 	cfg        *DiskQueueConfig
 	initLocker sync.Mutex
 	api.Handler
-	queues             sync.Map
-	messages           chan Event
+	queues   sync.Map
+	messages chan Event
 }
 
 func (module *DiskQueue) Name() string {
@@ -56,14 +57,14 @@ type DiskQueueConfig struct {
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer  int   `config:"write_chan_buffer_size"`
 
-	EOFRetryDelayInMs   int64   `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
+	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 
 	MaxUsedBytes      uint64 `config:"max_used_bytes"`
 	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
 	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
 
-	UploadToS3 		  bool   `config:"upload_to_s3"`
-	AlwaysDownload    bool   `config:"always_download"`
+	UploadToS3     bool `config:"upload_to_s3"`
+	AlwaysDownload bool `config:"always_download"`
 
 	PrepareFilesToRead bool `config:"prepare_files_to_read"`
 
@@ -72,7 +73,6 @@ type DiskQueueConfig struct {
 	//default queue adaptor
 	Default bool `config:"default"`
 	Enabled bool `config:"enabled"`
-
 
 	SkipZeroConsumers bool `config:"skip_zero_consumers"`
 
@@ -89,11 +89,11 @@ type DiskQueueConfig struct {
 }
 
 type DiskCompress struct {
-	DeleteAfterCompress  						bool `config:"delete_after_compress"`
-	Message       CompressConfig `config:"message"`
-	Segment       CompressConfig `config:"segment"`
-	IdleThreshold int64            				`config:"idle_threshold"`
-	NumOfFilesDecompressAhead int64             `config:"num_of_files_decompress_ahead"`
+	DeleteAfterCompress       bool           `config:"delete_after_compress"`
+	Message                   CompressConfig `config:"message"`
+	Segment                   CompressConfig `config:"segment"`
+	IdleThreshold             int64          `config:"idle_threshold"`
+	NumOfFilesDecompressAhead int64          `config:"num_of_files_decompress_ahead"`
 }
 
 type CompressConfig struct {
@@ -145,11 +145,10 @@ func (module *DiskQueue) Init(name string) error {
 
 	module.queues.Store(name, tempQueue)
 
-	if module.cfg.CompressAndCleanupDuringInit{
+	if module.cfg.CompressAndCleanupDuringInit {
 		module.compressFiles(name, tempQueue.ReadContext().WriteFileNum)
 		module.deleteUnusedFiles(name, tempQueue.ReadContext().WriteFileNum)
 	}
-
 
 	return nil
 }
@@ -165,33 +164,33 @@ func GetFileName(queueID string, segmentID int64) string {
 func (module *DiskQueue) Setup() {
 
 	module.cfg = &DiskQueueConfig{
-		Enabled:           true,
-		Default:           true,
-		UploadToS3:        false,
-		Retention:         RetentionConfig{MaxNumOfLocalFiles: 10},
-		MinMsgSize:        1,
-		MaxMsgSize:        104857600,         //100MB
-		MaxBytesPerFile:   100 * 1024 * 1024, //100MB
+		Enabled:            true,
+		Default:            true,
+		UploadToS3:         false,
+		Retention:          RetentionConfig{MaxNumOfLocalFiles: 10},
+		MinMsgSize:         1,
+		MaxMsgSize:         104857600,         //100MB
+		MaxBytesPerFile:    100 * 1024 * 1024, //100MB
 		EOFRetryDelayInMs:  500,
-		SyncEveryRecords:  1000,
-		SyncTimeoutInMS:   1000,
-		NotifyChanBuffer:  100,
-		ReadChanBuffer:    0,
-		WriteChanBuffer:   0,
-		WarningFreeBytes:  10 * 1024 * 1024 * 1024,
-		ReservedFreeBytes: 5 * 1024 * 1024 * 1024,
+		SyncEveryRecords:   1000,
+		SyncTimeoutInMS:    1000,
+		NotifyChanBuffer:   100,
+		ReadChanBuffer:     0,
+		WriteChanBuffer:    0,
+		WarningFreeBytes:   10 * 1024 * 1024 * 1024,
+		ReservedFreeBytes:  5 * 1024 * 1024 * 1024,
 		PrepareFilesToRead: true,
 		Compress: DiskCompress{
-			IdleThreshold: 5,
-			DeleteAfterCompress: true,
+			IdleThreshold:             5,
+			DeleteAfterCompress:       true,
 			NumOfFilesDecompressAhead: 3,
 			Message: CompressConfig{
-			Enabled: false,
-			Level:   3,
-		}, Segment: CompressConfig{
-			Enabled: true,
-			Level:   11,
-		}},
+				Enabled: false,
+				Level:   3,
+			}, Segment: CompressConfig{
+				Enabled: true,
+				Level:   11,
+			}},
 	}
 
 	ok, err := env.ParseConfig("disk_queue", module.cfg)
@@ -228,6 +227,19 @@ func (module *DiskQueue) Setup() {
 
 	module.RegisterAPI()
 
+}
+
+func (module *DiskQueue) Destroy(k string) error {
+	q, ok := module.queues.Load(k)
+	if !ok {
+		return nil
+	}
+	err := (q.(*DiskBasedQueue)).Destroy()
+	if err != nil {
+		return err
+	}
+	module.queues.Delete(k)
+	return nil
 }
 
 func (module *DiskQueue) Push(k string, v []byte) error {
@@ -275,7 +287,7 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
-func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig,consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI,error){
+func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI, error) {
 	q, ok := module.queues.Load(qconfig.Id)
 	if !ok {
 		//try init
@@ -284,7 +296,7 @@ func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig,consumer *qu
 	}
 	if ok {
 		q1 := q.(*DiskBasedQueue)
-		return q1.AcquireConsumer(consumer,segment,offset)
+		return q1.AcquireConsumer(consumer, segment, offset)
 	}
 	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
 }
@@ -425,7 +437,7 @@ func (module *DiskQueue) Start() error {
 
 			for _, v := range cfgs {
 				last := GetLastS3UploadFileNum(v.Id)
-				log.Trace("last upload:",v.Id,",",last)
+				log.Trace("last upload:", v.Id, ",", last)
 				offsetStr := queue.LatestOffset(v)
 				segment, _ := queue.ConvertOffset(offsetStr)
 				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.Id, offsetStr, segment, last)
@@ -466,7 +478,7 @@ func (module *DiskQueue) Start() error {
 			switch evt.Type {
 			case WriteComplete:
 				//TODO, convert to signal, move to async
-				module.compressFiles(evt.Queue,evt.FileNum)
+				module.compressFiles(evt.Queue, evt.FileNum)
 
 				//upload old file to s3
 				module.uploadToS3(evt.Queue, evt.FileNum)
@@ -480,12 +492,12 @@ func (module *DiskQueue) Start() error {
 				break
 			case ReadComplete:
 
-				if module.cfg.PrepareFilesToRead{
-					if lastFilePrepared>0 && evt.FileNum<=lastFilePrepared{
+				if module.cfg.PrepareFilesToRead {
+					if lastFilePrepared > 0 && evt.FileNum <= lastFilePrepared {
 						break
 					}
 					//decompress ahead of # files
-					lastFilePrepared=module.prepareFilesToRead(evt.Queue,evt.FileNum)
+					lastFilePrepared = module.prepareFilesToRead(evt.Queue, evt.FileNum)
 				}
 
 				//delete old unused files
@@ -502,7 +514,7 @@ func (module *DiskQueue) Start() error {
 
 func (module *DiskQueue) Stop() error {
 
-	if module.cfg==nil{
+	if module.cfg == nil {
 		return nil
 	}
 

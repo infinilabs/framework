@@ -66,16 +66,29 @@ func (module *DiskQueue) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Re
 
 	queues := queue1.GetConfigBySelector(obj.Selector)
 	for _, queue := range queues {
-		queue1.RemoveConfig(queue.Name)
-		common.PersistQueueMetadata()
+		module.deleteQueueByID(queue.Name)
 	}
 	module.WriteAckOKJSON(w)
 }
 
 func (module *DiskQueue) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queue1.RemoveConfig(ps.ByName("id"))
-	common.PersistQueueMetadata()
+	id := ps.ByName("id")
+	module.deleteQueueByID(id)
 	module.WriteAckOKJSON(w)
+}
+
+func (module *DiskQueue) deleteQueueByID(id string) {
+	queueConfig, ok := queue1.GetConfigByKey(id)
+	if !ok {
+		return
+	}
+	err := queue1.Destroy(queueConfig)
+	if err != nil {
+		log.Errorf("failed to destroy queue [%v]", id)
+		return
+	}
+	queue1.RemoveConfig(id)
+	common.PersistQueueMetadata()
 }
 
 func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
