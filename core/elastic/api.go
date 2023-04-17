@@ -100,6 +100,8 @@ type API interface {
 
 	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error)
 	GetClusterSettings() (map[string]interface{}, error)
+	GetIndex(indexName string) (map[string]interface{}, error)
+	Exists(target string) (bool, error)
 }
 
 type TemplateAPI interface {

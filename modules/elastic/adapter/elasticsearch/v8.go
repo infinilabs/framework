@@ -191,16 +191,3 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 
 	return esResp, nil
 }
-
-func (c *ESAPIV8) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
-	indexName=util.UrlEncode(indexName)
-
-	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)
-	resp, err := c.Request(nil, util.Verb_POST, url, mappings)
-
-	if err != nil {
-		panic(err)
-	}
-
-	return resp.Body, err
-}

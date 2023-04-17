@@ -118,6 +118,9 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	case util.Verb_DELETE:
 		req = util.NewDeleteRequest(url, body)
 		break
+	case util.Verb_HEAD:
+		req = util.NewRequest(util.Verb_HEAD, url)
+		break
 	}
 	req.Context = ctx
 
@@ -1054,6 +1057,9 @@ func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, erro
 	if err != nil {
 		panic(err)
 	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
 
 	return resp.Body, nil
 }
@@ -1633,4 +1639,29 @@ func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error) {
 	data := map[string]interface{}{}
 	err = json.Unmarshal(resp.Body, &data)
 	return data, err
+}
+
+func (c *ESAPIV0) GetIndex(indexName string) (map[string]interface{}, error) {
+	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	data := map[string]interface{}{}
+	err = json.Unmarshal(resp.Body, &data)
+	return data, err
+}
+
+func (c *ESAPIV0) Exists(target string) (bool, error) {
+	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), target)
+	resp, err := c.Request(nil, util.Verb_HEAD, url, nil)
+	if err != nil {
+		return false, err
+	}
+	return resp.StatusCode == 200, nil
 }
