@@ -882,6 +882,18 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "times/s",
 	})
 
+	//scroll context
+	openContextMetric:=newMetricItem("scroll_open_contexts", 7, OperationGroupKey)
+	writeOperationsMetric.AddAxi("Scroll Open Contexts","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
+	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
+		Key: "scroll_open_contexts",
+		Field: "payload.elasticsearch.node_stats.indices.search.open_contexts",
+		ID: util.GetUUID(),
+		MetricItem: openContextMetric,
+		FormatType: "num",
+		Units: "",
+	})
+
 	aggs := generateGroupAggs(nodeMetricItems)
 	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
 	if err != nil {
