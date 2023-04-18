@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
@@ -12,23 +13,19 @@ import (
 )
 
 func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	resBody := map[string]interface{}{
-	}
-
 	targetClusterID := ps.ByName("id")
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusNotFound)
+		errStr := fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(errStr)
+		h.WriteError(w, errStr, http.StatusNotFound)
 		return
 	}
 
@@ -41,8 +38,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	err = h.DecodeJSON(req, &reqParams)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -79,9 +75,9 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	if ver.Distribution == "" || ver.Distribution == "elasticsearch" {
 		vr, err := util.VersionCompare(ver.Number, "7.2")
 		if err != nil {
-			resBody["error"] = fmt.Sprintf("version compare error: %v", err)
-			log.Error(resBody["error"])
-			h.WriteJSON(w, resBody, http.StatusInternalServerError)
+			errStr := fmt.Sprintf("version compare error: %v", err)
+			log.Error(errStr)
+			h.WriteJSON(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if vr < 0 {
@@ -110,8 +106,16 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 
 	searchRes, err := client.SearchWithRawQueryDSL(reqParams.Index, reqDSL)
 	if err != nil {
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if searchRes.StatusCode != http.StatusOK {
+		h.WriteError(w, string(searchRes.RawResult.Body), http.StatusInternalServerError)
+		return
+	}
+	failures, _, _, _ := jsonparser.Get(searchRes.RawResult.Body, "_shards", "failures")
+	if len(failures) > 0 {
+		h.WriteError(w, string(failures), http.StatusInternalServerError)
 		return
 	}
 	h.WriteJSON(w, searchRes,http.StatusOK)
