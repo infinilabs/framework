@@ -13,10 +13,13 @@ type ESAPIV6_6 struct {
 	ESAPIV6
 }
 
-func (s *ESAPIV6_6) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+func (s *ESAPIV6_6) UpdateMapping(indexName string, docType string, mappings []byte) ([]byte, error) {
 	indexName = util.UrlEncode(indexName)
+	if docType == "" {
+		docType = TypeName0
+	}
 
-	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, TypeName0)
+	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, docType)
 
 	resp, err := s.Request(nil, util.Verb_POST, url, mappings)
 

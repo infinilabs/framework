@@ -1044,13 +1044,16 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	return err
 }
 
-func (s *ESAPIV0) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+func (s *ESAPIV0) UpdateMapping(indexName string, docType string, mappings []byte) ([]byte, error) {
 	//es6.6 start support index_prefixes, index_phrases
 	mappings = bytes.Replace(mappings, []byte(`"index_prefixes":{},"index_phrases":"true",`), nil, -1)
 
 	indexName = util.UrlEncode(indexName)
+	if docType == "" {
+		docType = TypeName0
+	}
 
-	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, TypeName0)
+	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, docType)
 
 	resp, err := s.Request(nil, util.Verb_POST, url, mappings)
 

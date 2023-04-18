@@ -111,7 +111,7 @@ type TemplateAPI interface {
 
 type MappingAPI interface {
 	GetMapping(copyAllIndexes bool, indexNames string) (string, int, *util.MapStr, error)
-	UpdateMapping(indexName string, mappings []byte) ([]byte, error)
+	UpdateMapping(indexName string, docType string, mappings []byte) ([]byte, error)
 }
 
 type ScrollAPI interface {

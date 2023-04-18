@@ -134,7 +134,7 @@ func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName st
 
 		log.Trace(indexName,", mapping: ", json)
 
-		data, err := handler.Client.UpdateMapping(indexName, []byte(json))
+		data, err := handler.Client.UpdateMapping(indexName, "", []byte(json))
 		if err != nil {
 			panic(err)
 		}

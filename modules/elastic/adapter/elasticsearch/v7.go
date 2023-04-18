@@ -212,7 +212,7 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 	return esResp, nil
 }
 
-func (c *ESAPIV7) UpdateMapping(indexName string, mappings []byte) ([]byte, error) {
+func (c *ESAPIV7) UpdateMapping(indexName string, docType string, mappings []byte) ([]byte, error) {
 	indexName=util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_mapping", c.GetEndpoint(), indexName)
