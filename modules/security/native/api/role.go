@@ -84,7 +84,7 @@ func (h APIHandler) SearchRole(w http.ResponseWriter, r *http.Request, ps httpro
 	for _, v := range hits {
 		index = v.Index
 	}
-	for k, v := range rbac.BuildRoles {
+	for k, v := range rbac.BuiltinRoles {
 		mval := map[string]interface{}{}
 		vbytes := util.MustToJSONBytes(v)
 		util.MustFromJSONBytes(vbytes, &mval)
@@ -189,11 +189,11 @@ func (h APIHandler) UpdateRole(w http.ResponseWriter, r *http.Request, ps httpro
 func (h APIHandler) loadRolePermission() {
 	log.Trace("start loading roles from adapter")
 	rbac.RoleMap = make(map[string]rbac.Role)
-
-	for k, role := range rbac.BuildRoles {
+	for k, role := range rbac.BuiltinRoles {
 		rbac.RoleMap[k] = role
 	}
 
+	log.Debug("load security permissions,",rbac.RoleMap,rbac.BuiltinRoles)
 
 	res, err := h.Role.Search("", 0, 1000)
 	if err != nil {

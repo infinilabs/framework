@@ -17,7 +17,7 @@ type Role struct {
 
 func (dal *Role) Get(id string) (rbac.Role, error) {
 
-	r,ok:= rbac.BuildRoles[id]
+	r,ok:= rbac.BuiltinRoles[id]
 	if ok{
 		return r,nil
 	}

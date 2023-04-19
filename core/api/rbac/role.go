@@ -61,11 +61,12 @@ func IsAllowRoleType(roleType string) (err error) {
 	return
 }
 
-var BuildRoles = make(map[string]Role, 0)
+var BuiltinRoles = make(map[string]Role, 0)
 const RoleAdminName = "Administrator"
+
 func init(){
 	now:=time.Now()
-	BuildRoles[RoleAdminName] = Role{
+	BuiltinRoles[RoleAdminName] = Role{
 		ORMObjectBase: orm.ORMObjectBase{
 			ID: RoleAdminName,
 			Created:  &now,

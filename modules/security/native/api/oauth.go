@@ -83,7 +83,7 @@ func (h APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpro
 	session.Values["redirect_url"] = h.Get(r, "redirect_url", "")
 	err = session.Save(r, w)
 	if err != nil {
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
@@ -91,31 +91,38 @@ func (h APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpro
 	http.Redirect(w, r, url, 302)
 }
 
+func joinError(url string,err error)string  {
+	if err!=nil{
+		return url+"?err="+util.UrlEncode(err.Error())
+	}
+	return url
+}
+
 func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
 	session, err := api.GetSessionStore(r, oauthSession)
 	if err != nil {
-		log.Debug(w, "aborted")
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		log.Error(w, "failed to sso, aborted")
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
 	if r.URL.Query().Get("state") != session.Values["state"] {
-		log.Debug("no state match; possible csrf OR cookies not enabled")
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		log.Error("failed to sso, no state match; possible csrf OR cookies not enabled")
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
 	tkn, err := oauthCfg.Exchange(oauth2.NoContext, r.URL.Query().Get("code"))
 	if err != nil {
-		log.Debug("there was an issue getting your token")
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		log.Error("failed to sso, there was an issue getting your token")
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
 	if !tkn.Valid() {
-		log.Debug("retreived invalid token")
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		log.Error("failed to sso, retreived invalid token")
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
@@ -125,9 +132,9 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 	user, res, err := client.Users.Get(oauth2.NoContext, "")
 	if err != nil {
 		if res!=nil{
-			log.Debug("error getting name:",err,res.String())
+			log.Error("failed to sso, error getting name:",err,res.String())
 		}
-		http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 		return
 	}
 
@@ -146,8 +153,8 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 		}
 
 		if id==""{
-			log.Error("user id can't be nil")
-			http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+			log.Error("failed to sso, user id can't be nil")
+			http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 			return
 		}
 
@@ -168,7 +175,7 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 			u.ID=id
 			data, err := authorize(u,SSOProvider)
 			if err != nil {
-				http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+				http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 				return
 			}
 
@@ -181,7 +188,7 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 			return
 		}
 	}
-	http.Redirect(w, r, oAuthConfig.FailedPage, 302)
+	http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
 }
 
 func (h APIHandler) getRoleMapping(user *github.User) []rbac.UserRole {
