@@ -5,13 +5,12 @@
 package elastic
 
 import (
-	"context"
 	"fmt"
 	"github.com/buger/jsonparser"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
 )
 
 type PartitionQuery struct {
@@ -20,6 +19,7 @@ type PartitionQuery struct {
 	FieldName string `json:"field_name"`
 	Step      interface{}    `json:"step"`
 	Filter interface{} `json:"filter"`
+	DocType string `json:"doc_type"`
 }
 
 type PartitionInfo struct {
@@ -49,9 +49,26 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 	}
 	var (
 		vFilter interface{}
+		must []interface{}
 	)
 	if q.Filter != nil {
-		vFilter = q.Filter
+		must = append(must, q.Filter)
+	}
+	if docType := strings.TrimSpace(q.DocType); docType != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"_type": util.MapStr{
+					"value": docType,
+				},
+			},
+		})
+	}
+	if len(must) > 0 {
+		vFilter = util.MapStr{
+			"bool": util.MapStr{
+				"must": must,
+			},
+		}
 	}
 
 	switch q.FieldType {
@@ -82,7 +99,7 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 			}
 		}
 
-		result, err := getBoundValues(client, q.IndexName, q.FieldName, q.Filter)
+		result, err := getBoundValues(client, q.IndexName, q.FieldName, vFilter)
 		if err != nil {
 			return nil, err
 		}
@@ -90,55 +107,13 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 		if result.Min == -1 {
 			return nil, nil
 		}
+
 		var (
-			start = result.Min
-			end = start + step
 			partitions []PartitionInfo
 		)
-		for {
-			must := []interface{}{
-				util.MapStr{
-					"range": util.MapStr{
-						q.FieldName: util.MapStr{
-							"gte": start,
-							"lt": end,
-							"format": "epoch_millis",
-						},
-					},
-				},
-			}
-			if q.Filter != nil {
-				must = append(must, vFilter)
-			}
-
-			query :=  util.MapStr{
-				"bool": util.MapStr{
-					"must": must,
-				},
-			}
-			queryDsl := util.MapStr{
-				"query": query,
-			}
-
-			docCount, err := GetPartitionDocCount(client, q.IndexName, queryDsl)
-			if err != nil {
-				return nil, fmt.Errorf("get partition doc count error: %w", err)
-			}
-			partitions = append(partitions, PartitionInfo{
-				Start: start,
-				End: end,
-				Filter: query,
-				Docs: docCount,
-			})
-
-			if end >= result.Max {
-				break
-			}
-			start = end
-			end = start + step
-			if end >= result.Max {
-				end = result.Max + 1
-			}
+		partitions, err = getPartitionsByAgg(client, q.IndexName, q.FieldName, q.FieldType, step, vFilter)
+		if err != nil {
+			return nil, err
 		}
 		if result.Null > 0 {
 			partitions = append(partitions, PartitionInfo{
@@ -153,14 +128,90 @@ func GetPartitions(q *PartitionQuery, client API)([]PartitionInfo, error){
 	}
 }
 
-func GetPartitionDocCount( client API, indexName string, queryDsl interface{}) (int64 , error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
-	defer cancel()
-	res, err := client.Count(ctx, indexName, util.MustToJSONBytes(queryDsl))
-	if err != nil {
-		return 0, err
+func getPartitionsByAgg(client API, indexName string, fieldName, fieldType string, step float64, filter interface{}) ([]PartitionInfo, error){
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partitions": util.MapStr{
+				"histogram": util.MapStr{
+					"field": fieldName,
+					"interval": step,
+				},
+				"aggs": util.MapStr{
+					"min": util.MapStr{
+						"min": util.MapStr{
+							"field": fieldName,
+						},
+					},
+					"max": util.MapStr{
+						"max": util.MapStr{
+							"field": fieldName,
+						},
+					},
+				},
+			},
+		},
 	}
-	return res.Count, nil
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
+	if err != nil {
+		return nil, err
+	}
+	var partitions []PartitionInfo
+	for _, bk := range res.Aggregations["partitions"].Buckets {
+		var docCount float64
+		docCount, ok := bk["doc_count"].(float64)
+		if !ok || docCount == 0 {
+			continue
+		}
+		var (
+			min float64
+			max float64
+			minOK bool
+			maxOK bool
+		)
+		if minM, ok := bk["min"].(map[string]interface{}); ok {
+			min, minOK = minM["value"].(float64)
+		}
+		if maxM, ok := bk["max"].(map[string]interface{}); ok {
+			max, maxOK = maxM["value"].(float64)
+		}
+		if minOK && maxOK {
+			partition := PartitionInfo{
+				Start: min,
+				End: max,
+				Docs: int64(docCount),
+				Other: false,
+			}
+			rv := util.MapStr{
+				"gte": min,
+				"lte": max,
+			}
+			if fieldType == PartitionByDate {
+				rv["format"] = "epoch_millis"
+			}
+
+			must := []interface{}{
+				util.MapStr{
+					"range": util.MapStr{
+						fieldName: rv,
+					},
+				},
+			}
+			if filter != nil {
+				must = append(must, filter)
+			}
+			partition.Filter = util.MapStr{
+				"bool": util.MapStr{
+					"must": must,
+				},
+			}
+			partitions = append(partitions, partition)
+		}
+	}
+	return partitions, nil
 }
 
 func getBoundValues(client API, indexName string, fieldName string, filter interface{}) (*BoundValuesResult, error) {
