@@ -251,6 +251,7 @@ func (h *APIHandler) searchCredential(w http.ResponseWriter, req *http.Request, 
 	if len(searchRes.Hits.Hits) > 0 {
 		for _, hit := range searchRes.Hits.Hits {
 			delete(hit.Source, "encrypt")
+			util.MapStr(hit.Source).Delete("payload.basic_auth.password")
 		}
 	}
 
@@ -270,12 +271,6 @@ func (h *APIHandler) getCredential(w http.ResponseWriter, req *http.Request, ps 
 		}, http.StatusNotFound)
 		return
 	}
-	dv, err := obj.Decode()
-	if err != nil {
-		log.Error(err)
-	}
-	if basicAuth, ok := dv.(elastic.BasicAuth); ok {
-		obj.Payload[credential.BasicAuth] = basicAuth
-	}
+	util.MapStr(obj.Payload).Delete("basic_auth.password")
 	h.WriteGetOKJSON(w, id, obj)
 }
