@@ -1,4 +1,3 @@
-// +build linux !darwin
 // +build !arm64
 
 package daemon
@@ -236,7 +235,7 @@ func (d *Context) child() (err error) {
 	if err = syscall.Close(0); err != nil {
 		return
 	}
-	if err = syscall.Dup3(3, 0,0); err != nil {
+	if err = syscall.Dup2(3, 0); err != nil {
 		return
 	}
 

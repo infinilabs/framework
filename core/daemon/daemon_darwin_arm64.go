@@ -3,12 +3,11 @@
 package daemon
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
+	"github.com/kardianos/osext"
+	"github.com/segmentio/encoding/json"
 	"os"
 	"syscall"
-
-	"github.com/kardianos/osext"
 )
 
 // Mark of daemon process - system environment variable _GO_DAEMON=1
