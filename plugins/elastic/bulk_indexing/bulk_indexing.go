@@ -519,7 +519,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 			if global.Env().IsDebug {
 				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err)
 			}
-			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err))
+			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
 		}
 		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
 	}()
@@ -731,13 +731,13 @@ READ_DOCS:
 					}
 
 					//submit request
-					continueRequest, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
-					if !continueRequest {
+					continueNext, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+					if !continueNext {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(), "code 429") {
 							//skipFinalDocsProcess=true
 							//return
-							panic(errors.Errorf("error between queue:[%v], slice_id:%v, offset [%v]-[%v], host:%v, err:%v", qConfig.Id, sliceID, initOffset, offset, host, err))
+							panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host:%v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
 						}
 						time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
 						continue
@@ -792,7 +792,7 @@ CLEAN_BUFFER:
 		if !util.ContainStr(err.Error(), "429") {
 			//skipFinalDocsProcess=true
 			//return
-			panic(errors.Errorf("slice_worker, queue:%v, slice_id:%v, error between offset [%v]-[%v], err:%v", qConfig.Name, sliceID, initOffset, offset, err))
+			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
 		}
 		time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
 		goto CLEAN_BUFFER
