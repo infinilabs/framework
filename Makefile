@@ -144,6 +144,7 @@ build-linux: config
 	GOOS=linux  GOARCH=mipsle    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mipsle
 	GOOS=linux  GOARCH=mips64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64
 	GOOS=linux  GOARCH=mips64le    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64le
+	GOOS=linux  GOARCH=loong64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-loong64
 	@$(MAKE) restore-generated-file
 
 build-arm: config
@@ -254,11 +255,12 @@ package-darwin-platform:
 package-linux-platform:
 	@echo "Packaging Linux"
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-amd64.tar.gz     $(APP_NAME)-linux-amd64 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-386.tar.gz     $(APP_NAME)-linux-386 $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips.tar.gz     $(APP_NAME)-linux-mips $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mipsle.tar.gz     $(APP_NAME)-linux-mipsle $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64.tar.gz     $(APP_NAME)-linux-mips64 $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64le.tar.gz     $(APP_NAME)-linux-mips64le $(APP_CONFIG)
-	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-386.tar.gz     $(APP_NAME)-linux-386 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-loong64.tar.gz     $(APP_NAME)-linux-loong64 $(APP_CONFIG)
 
 package-linux-arm-platform:
 	@echo "Packaging Linux (ARM)"
