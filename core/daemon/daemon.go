@@ -1,4 +1,4 @@
-// +build linux !darwin
+// +build linux
 // +build !arm64
 
 package daemon
