@@ -32,8 +32,10 @@ func (module *DiskQueue) RegisterAPI() {
 	//get consumer offset
 	api.HandleAPIMethod(api.GET, "/queue/:id/consumer/:consumer_id/offset", module.QueueGetConsumerOffset)
 
-	//delete consumer
-	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerOffset)
+	// delete consumer and it's offset
+	api.HandleAPIMethod(api.DELETE, "/queue/:id/consumer/:consumer_id", module.QueueDeleteConsumerByID)
+	// delete all consumers of queues specified by query
+	api.HandleAPIMethod(api.DELETE, "/queue/consumer/_search", module.DeleteConsumersByQuery)
 }
 
 func (module *DiskQueue) SingleQueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -266,25 +268,78 @@ func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http
 	module.WriteJSON(w, obj, status)
 }
 
-func (module *DiskQueue) QueueDeleteConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *DiskQueue) QueueDeleteConsumerByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
-	cfg, ok := queue1.SmartGetConfig(queueID)
-	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
-	obj := util.MapStr{}
-	var status = 404
-	if ok && ok1 {
-		_, err := queue1.RemoveConsumer(cfg.Id, cfg1.Key())
-		if err != nil {
-			obj["error"] = err.Error()
-		} else {
-			obj["result"] = "deleted"
-		}
-		status = 200
-	} else {
-		obj["result"] = "not_found"
+
+	queueConfig, ok := queue1.SmartGetConfig(queueID)
+	consumerConfig, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
+
+	if !ok || !ok1 {
+		module.WriteJSON(w, util.MapStr{
+			"result": "not_found",
+		}, 404)
+		return
 	}
-	module.WriteJSON(w, obj, status)
+
+	err := module.deleteQueueConsumer(queueConfig, consumerConfig)
+	if err != nil {
+		module.WriteJSON(w, util.MapStr{
+			"result": "error",
+			"error":  err.Error(),
+		}, 500)
+		return
+	}
+
+	module.WriteJSON(w, util.MapStr{
+		"result": "ok",
+	}, 200)
+}
+
+func (module *DiskQueue) deleteQueueConsumer(queueConfig *queue1.QueueConfig, consumerConfig *queue1.ConsumerConfig) error {
+	_, err := queue1.RemoveConsumer(queueConfig.Id, consumerConfig.Key())
+	if err != nil {
+		return fmt.Errorf("failed to delete consumer config, err: %v", err)
+	}
+
+	err = queue1.DeleteOffset(queueConfig, consumerConfig)
+	if err != nil {
+		return fmt.Errorf("failed to delete offset, err: %v", err)
+	}
+	return nil
+}
+
+type DeleteConsumersByQueryRequest struct {
+	Selector *queue1.QueueSelector `json:"selector"`
+}
+
+func (module *DiskQueue) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var obj = DeleteConsumersByQueryRequest{}
+	err := module.DecodeJSON(req, &obj)
+	if err != nil {
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
+		log.Error("failed to parse queue selector: ", err)
+		return
+	}
+	if obj.Selector == nil {
+		module.WriteError(w, "no selector specified", http.StatusBadRequest)
+		return
+	}
+
+	queues := queue1.GetConfigBySelector(obj.Selector)
+	for _, queue := range queues {
+		consumers, ok := queue1.GetConsumerConfigsByQueueID(queue.Id)
+		if !ok {
+			continue
+		}
+		for _, consumer := range consumers {
+			err := module.deleteQueueConsumer(queue, consumer)
+			if err != nil {
+				log.Warnf("failed to delete consumers of queue [%s], err: %v", queue.Name, err)
+			}
+		}
+	}
+	module.WriteAckOKJSON(w)
 }
 
 func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
