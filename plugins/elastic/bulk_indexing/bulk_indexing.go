@@ -74,6 +74,7 @@ type Config struct {
 	ValidateRequest   bool `config:"valid_request"`
 	SkipEmptyQueue    bool `config:"skip_empty_queue"`
 	SkipOnMissingInfo bool `config:"skip_info_missing"`
+	LogBulkError      bool `config:"log_bulk_error"`
 
 	BulkConfig elastic.BulkProcessorConfig `config:"bulk"`
 
@@ -114,6 +115,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		ValidateRequest:        false,
 		SkipEmptyQueue:         true,
 		SkipOnMissingInfo:      false,
+		LogBulkError:           true,
 		BulkConfig:             elastic.DefaultBulkProcessorConfig,
 		RetryDelayIntervalInMs: 5000,
 	}
@@ -829,15 +831,12 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		if global.Env().IsDebug {
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
-		if err != nil {
+		if err != nil && processor.config.LogBulkError {
 			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
-			if !util.ContainStr(err.Error(), "code 429") {
-				ctx.Error(err)
-			}
 		}
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
-		}else{
+		} else {
 			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
 		}
 		processor.updateContext(ctx, bulkResult)

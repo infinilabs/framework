@@ -540,18 +540,14 @@ DO:
 					// no retryable
 					continueNext = true
 				}
+				// skip all failure messages
 				if nonRetryableItems.GetMessageCount() > 0 {
-					continueNext = false
 					////handle 400 error
 					if joint.Config.InvalidRequestsQueue != "" {
 						queue.Push(queue.GetOrInitConfig(joint.Config.InvalidRequestsQueue), data)
-						continueNext = true
-					} else {
-						return continueNext, statsRet, bulkResult, errors.New("bulk contains invalid requests, but invalid_queue is not configured")
 					}
 				}
-
-				return continueNext, statsRet, bulkResult, nil
+				return continueNext, statsRet, bulkResult, errors.Errorf("bulk response contains error, config: %v, non-retryable docs: %v, retryable docs:%v", metadata.Config.Name, nonRetryableItems.GetMessageCount(), retryableItems.GetMessageCount())
 			}
 			return true, statsRet, bulkResult, nil
 		}
