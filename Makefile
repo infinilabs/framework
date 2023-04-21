@@ -145,6 +145,7 @@ build-linux: config
 	GOOS=linux  GOARCH=mips64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64
 	GOOS=linux  GOARCH=mips64le    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64le
 	GOOS=linux  GOARCH=loong64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-loong64
+	GOOS=linux  GOARCH=riscv64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-riscv64
 	@$(MAKE) restore-generated-file
 
 build-arm: config
@@ -261,6 +262,7 @@ package-linux-platform:
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64.tar.gz     $(APP_NAME)-linux-mips64 $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-mips64le.tar.gz     $(APP_NAME)-linux-mips64le $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-loong64.tar.gz     $(APP_NAME)-linux-loong64 $(APP_CONFIG)
+	cd $(OUTPUT_DIR) && tar cfz $(OUTPUT_DIR)/linux-riscv64.tar.gz     $(APP_NAME)-linux-riscv64 $(APP_CONFIG)
 
 package-linux-arm-platform:
 	@echo "Packaging Linux (ARM)"
