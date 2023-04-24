@@ -29,7 +29,7 @@ func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error){
 	if err != nil {
 		return nil, err
 	}
-	if result.Total == 0 {
+	if len(result.Result) == 0 {
 		return nil, nil
 	}
 	userBytes, err := util.ToJSONBytes(result.Result[0])
