@@ -56,6 +56,8 @@ const (
 	DataMigrationAll = "data_tools.migration:all"
 	DashboardRead = "insight.dashboard:read"
 	DashboardAll = "insight.dashboard:all"
+	DevtoolConsoleAll = "devtool.console:all"
+	DevtoolConsoleRead = "devtool.console:read"
 )
 
 const (
@@ -173,7 +175,7 @@ var AdminPrivilege = []string{
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
-	DataMigrationAll, DashboardAll,
+	DataMigrationAll, DashboardAll, DevtoolConsoleAll,
 }
 
 func init() {
