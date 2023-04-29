@@ -2130,6 +2130,11 @@ func (resp *Response) GetBodyLength() int {
 	return resp.bodyLength
 }
 
+func (res *Response) ClearContentEncoding() {
+	res.Header.Del(HeaderContentEncoding)
+	res.Header.Del(HeaderContentEncoding2)
+}
+
 func (res *Response) IsCompressed() (compressed bool, compressType []byte) {
 	ce := res.Header.PeekAny([]string{HeaderContentEncoding, HeaderContentEncoding2})
 	return len(ce) > 0, ce
@@ -2137,6 +2142,26 @@ func (res *Response) IsCompressed() (compressed bool, compressType []byte) {
 
 func (resp *Response) GetResponseLength() int {
 	return resp.GetBodyLength()
+}
+
+func (resp *Response) CopyMergeHeader(input *Response) {
+
+	resp.SetStatusCode(input.StatusCode())
+
+	//copy all headers from input
+	input.Header.VisitAll(func(key, value []byte) {
+		resp.Header.SetBytesKV(key,value)
+	})
+
+	resp.SetBody(input.Body())
+
+	compress, compressType := input.IsCompressed()
+	if compress {
+		resp.Header.Set(HeaderContentEncoding, string(compressType))
+	}else{
+		//remove content-encoding in case it exists
+		resp.ClearContentEncoding()
+	}
 }
 
 func getHTTPString(hw httpWriter) string {
