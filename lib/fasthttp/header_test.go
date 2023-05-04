@@ -1409,7 +1409,7 @@ func TestRequestContentTypeDefaultNotEmpty(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if string(h1.contentType) != "application/json" {
+	if string(h1.contentType) != "application/octet-stream" {
 		t.Fatalf("unexpected Content-Type %q. Expecting %q", h1.contentType, "application/octet-stream")
 	}
 }

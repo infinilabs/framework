@@ -43,9 +43,10 @@ type RequestCtx struct {
 
 	time time.Time
 
-	s   *Server
-	c   net.Conn
-	fbr firstByteReader
+	logger ctxLogger
+	s      *Server
+	c      net.Conn
+	fbr    firstByteReader
 
 	timeoutResponse *Response
 	timeoutCh       chan struct{}

@@ -18,6 +18,14 @@ import (
 	"time"
 )
 
+type TestLogger struct {
+	t *testing.T
+}
+
+func (t TestLogger) Printf(format string, args ...interface{}) {
+	t.t.Logf(format, args...)
+}
+
 func TestNewVHostPathRewriter(t *testing.T) {
 	t.Parallel()
 
@@ -25,7 +33,7 @@ func TestNewVHostPathRewriter(t *testing.T) {
 	var req Request
 	req.Header.SetHost("foobar.com")
 	req.SetRequestURI("/foo/bar/baz")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	f := NewVHostPathRewriter(0)
 	path := f(&ctx)
@@ -51,7 +59,7 @@ func TestNewVHostPathRewriterMaliciousHost(t *testing.T) {
 	var req Request
 	req.Header.SetHost("/../../../etc/passwd")
 	req.SetRequestURI("/foo/bar/baz")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	f := NewVHostPathRewriter(0)
 	path := f(&ctx)
@@ -65,7 +73,7 @@ func testPathNotFound(t *testing.T, pathNotFoundFunc RequestHandler) {
 	var ctx RequestCtx
 	var req Request
 	req.SetRequestURI("http//some.url/file")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, TestLogger{t})
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -113,7 +121,7 @@ func TestServeFileHead(t *testing.T) {
 	var req Request
 	req.Header.SetMethod(MethodHead)
 	req.SetRequestURI("http://foobar.com/baz")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ServeFile(&ctx, "fs.go")
 
@@ -164,7 +172,7 @@ func TestServeFileSmallNoReadFrom(t *testing.T) {
 	var ctx RequestCtx
 	var req Request
 	req.SetRequestURI("http://foobar.com/baz")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ServeFile(&ctx, path.Join(tempdir, "hello"))
 
@@ -202,7 +210,7 @@ func TestServeFileCompressed(t *testing.T) {
 	// This test can't run parallel as files in / might by changed by other tests.
 
 	var ctx RequestCtx
-	ctx.Init(&Request{}, nil)
+	ctx.Init(&Request{}, nil, nil)
 
 	var resp Response
 
@@ -271,7 +279,7 @@ func TestServeFileUncompressed(t *testing.T) {
 	var req Request
 	req.SetRequestURI("http://foobar.com/baz")
 	req.Header.Set(HeaderAcceptEncoding, "gzip")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ServeFileUncompressed(&ctx, "fs.go")
 
@@ -350,7 +358,7 @@ func TestFSByteRangeSingleThread(t *testing.T) {
 
 func testFSByteRange(t *testing.T, h RequestHandler, filePath string) {
 	var ctx RequestCtx
-	ctx.Init(&Request{}, nil)
+	ctx.Init(&Request{}, nil, nil)
 
 	expectedBody, err := getFileContents(filePath)
 	if err != nil {
@@ -543,7 +551,7 @@ func testFSCompress(t *testing.T, h RequestHandler, filePath string) {
 	}
 
 	var ctx RequestCtx
-	ctx.Init(&Request{}, nil)
+	ctx.Init(&Request{}, nil, nil)
 
 	var resp Response
 
@@ -678,7 +686,7 @@ func TestFSHandlerConcurrent(t *testing.T) {
 func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []string) {
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 	ctx.Request.Header.SetHost("foobar.com")
 
 	filesTested := 0
@@ -701,7 +709,7 @@ func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []stri
 			t.Fatalf("cannot read file contents %q: %v", name, err)
 		}
 
-		ctx.PhantomURI().Update(name)
+		ctx.URI().Update(name)
 		requestHandler(&ctx)
 		if ctx.Response.bodyStream == nil {
 			t.Fatalf("response body stream must be non-empty")
@@ -720,7 +728,7 @@ func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []stri
 	}
 
 	// verify index page generation
-	ctx.PhantomURI().Update("/")
+	ctx.URI().Update("/")
 	requestHandler(&ctx)
 	if ctx.Response.bodyStream == nil {
 		t.Fatalf("response body stream must be non-empty")
@@ -793,7 +801,7 @@ func TestServeFileContentType(t *testing.T) {
 	var req Request
 	req.Header.SetMethod(MethodGet)
 	req.SetRequestURI("http://foobar.com/baz")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ServeFile(&ctx, "testdata/test.png")
 
@@ -820,7 +828,7 @@ func TestServeFileDirectoryRedirect(t *testing.T) {
 	var ctx RequestCtx
 	var req Request
 	req.SetRequestURI("http://foobar.com")
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ctx.Request.Reset()
 	ctx.Response.Reset()

@@ -131,9 +131,9 @@ func (h *RequestHeader) SetByteRange(startPos, endPos int) {
 
 // StatusCode returns response status code.
 func (h *ResponseHeader) StatusCode() int {
-	if h.statusCode == 0 {
-		return StatusOK
-	}
+	//if h.statusCode == 0 {
+	//	return StatusOK
+	//}
 	return h.statusCode
 }
 
@@ -2451,7 +2451,8 @@ func (h *ResponseHeader) parseTrailer(buf []byte) (int, error) {
 }
 
 func (h *RequestHeader) ignoreBody() bool {
-	return h.IsGet() || h.IsHead()
+	//return h.IsGet() //|| h.IsHead()
+	return h.IsHead()
 }
 
 func (h *RequestHeader) parse(buf []byte) (int, error) {

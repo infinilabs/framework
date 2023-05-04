@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestURICopyToQueryArgs(t *testing.T) {
@@ -232,7 +230,9 @@ func TestURICopyTo(t *testing.T) {
 	var u URI
 	var copyU URI
 	u.CopyTo(&copyU)
-	assert.Equal(t, u, copyU)
+	if !reflect.DeepEqual(u, copyU) { //nolint:govet
+		t.Fatalf("URICopyTo fail, u: \n%+v\ncopyu: \n%+v\n", u, copyU) //nolint:govet
+	}
 
 	u.UpdateBytes([]byte("https://example.com/foo?bar=baz&baraz#qqqq"))
 	u.CopyTo(&copyU)

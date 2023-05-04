@@ -589,7 +589,7 @@ func testRequestCtxRedirect(t *testing.T, origURL, redirectURL, expectedURL stri
 	var ctx RequestCtx
 	var req Request
 	req.SetRequestURI(origURL)
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	ctx.Redirect(redirectURL, StatusFound)
 	loc := ctx.Response.Header.Peek(HeaderLocation)
@@ -646,7 +646,7 @@ func TestServerResponseServerHeader(t *testing.T) {
 		if resp.StatusCode() != StatusNotFound {
 			t.Errorf("unexpected status code: %d. Expecting %d", resp.StatusCode(), StatusNotFound)
 		}
-		if string(resp.Body()) != notFoundMsg {
+		if string(resp.Body()) != "404 Page not found" {
 			t.Errorf("unexpected body: %q. Expecting %q", resp.Body(), "404 Page not found")
 		}
 		if string(resp.Header.Server()) != serverName {
@@ -1173,8 +1173,8 @@ func TestServerServeTLSEmbed(t *testing.T) {
 				ctx.Error("expecting tls", StatusBadRequest)
 				return
 			}
-			if !ctx.PhantomURI().isHttps() {
-				ctx.Error(fmt.Sprintf("unexpected scheme=%q. Expecting %q", ctx.PhantomURI().Scheme(), "https"), StatusBadRequest)
+			if !ctx.URI().isHttps() {
+				ctx.Error(fmt.Sprintf("unexpected scheme=%q. Expecting %q", ctx.URI().Scheme(), "https"), StatusBadRequest)
 				return
 			}
 			ctx.WriteString("success") //nolint:errcheck
@@ -1699,7 +1699,7 @@ func TestRequestCtxFormValue(t *testing.T) {
 	req.SetBodyString("qqq=port&mmm=sddd")
 	req.Header.SetContentType("application/x-www-form-urlencoded")
 
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, nil)
 
 	v := ctx.FormValue("baz")
 	if string(v) != "123" {
@@ -2141,7 +2141,7 @@ func TestServerErrorHandler(t *testing.T) {
 		}
 
 		if resultReqStr != expectedReqStr {
-			t.Errorf("[iter: %d] Request == %q, want %s", i, resultReqStr, expectedReqStr)
+			t.Errorf("[iter: %d] Request == %q, want %s", i, resultReqStr, reqStr)
 		}
 
 		if !respRegex.MatchString(resultRespStr) {
@@ -2253,7 +2253,7 @@ func TestRequestCtxSetBodyStreamWriter(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 
 	if ctx.IsBodyStream() {
 		t.Fatal("IsBodyStream must return false")
@@ -2289,7 +2289,7 @@ func TestRequestCtxIfModifiedSince(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 
 	lastModified := time.Now().Add(-time.Hour)
 
@@ -2319,7 +2319,7 @@ func TestRequestCtxSendFileNotModified(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 
 	filePath := "./server_test.go"
 	lastModified, err := FileLastModified(filePath)
@@ -2350,7 +2350,7 @@ func TestRequestCtxSendFileModified(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 
 	filePath := "./server_test.go"
 	lastModified, err := FileLastModified(filePath)
@@ -2393,7 +2393,7 @@ func TestRequestCtxSendFile(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil)
+	ctx.Init(&req, nil, defaultLogger)
 
 	filePath := "./server_test.go"
 	ctx.SendFile(filePath)
@@ -2617,6 +2617,25 @@ func TestRequestCtxNoHijackNoResponse(t *testing.T) {
 	resp.Read(bf) //nolint:errcheck
 	if got := string(resp.Body()); got != "test" {
 		t.Errorf(`expected "test", got %q`, got)
+	}
+}
+
+func TestRequestCtxInit(t *testing.T) {
+	// This test can't run parallel as it modifies globalConnID.
+
+	var ctx RequestCtx
+	var logger testLogger
+	globalConnID = 0x123456
+	ctx.Init(&ctx.Request, zeroTCPAddr, &logger)
+	ip := ctx.RemoteIP()
+	if !ip.IsUnspecified() {
+		t.Fatalf("unexpected ip for bare RequestCtx: %q. Expected 0.0.0.0", ip)
+	}
+	ctx.Logger().Printf("foo bar %d", 10)
+
+	expectedLog := "#0012345700000000 - 0.0.0.0:0<->0.0.0.0:0 - GET http:/// - foo bar 10\n"
+	if logger.out != expectedLog {
+		t.Fatalf("Unexpected log output: %q. Expected %q", logger.out, expectedLog)
 	}
 }
 
@@ -3068,6 +3087,54 @@ func TestServerEmptyResponse(t *testing.T) {
 
 	br := bufio.NewReader(&rw.w)
 	verifyResponse(t, br, 200, string(defaultContentType), "")
+}
+
+func TestServerLogger(t *testing.T) {
+	// This test can't run parallel as it modifies globalConnID.
+
+	cl := &testLogger{}
+	s := &Server{
+		Handler: func(ctx *RequestCtx) {
+			logger := ctx.Logger()
+			h := &ctx.Request.Header
+			logger.Printf("begin")
+			ctx.Success("text/html", []byte(fmt.Sprintf("requestURI=%s, body=%q, remoteAddr=%s",
+				h.RequestURI(), ctx.Request.Body(), ctx.RemoteAddr())))
+			logger.Printf("end")
+		},
+		Logger: cl,
+	}
+
+	rw := &readWriter{}
+	rw.r.WriteString("GET /foo1 HTTP/1.1\r\nHost: google.com\r\n\r\n")
+	rw.r.WriteString("POST /foo2 HTTP/1.1\r\nHost: aaa.com\r\nContent-Length: 5\r\nContent-Type: aa\r\n\r\nabcde")
+
+	rwx := &readWriterRemoteAddr{
+		rw: rw,
+		addr: &net.TCPAddr{
+			IP:   []byte{1, 2, 3, 4},
+			Port: 8765,
+		},
+	}
+
+	globalConnID = 0
+
+	if err := s.ServeConn(rwx); err != nil {
+		t.Fatalf("Unexpected error from serveConn: %v", err)
+	}
+
+	br := bufio.NewReader(&rw.w)
+	verifyResponse(t, br, 200, "text/html", "requestURI=/foo1, body=\"\", remoteAddr=1.2.3.4:8765")
+	verifyResponse(t, br, 200, "text/html", "requestURI=/foo2, body=\"abcde\", remoteAddr=1.2.3.4:8765")
+
+	expectedLogOut := `#0000000100000001 - 1.2.3.4:8765<->1.2.3.4:8765 - GET http://google.com/foo1 - begin
+#0000000100000001 - 1.2.3.4:8765<->1.2.3.4:8765 - GET http://google.com/foo1 - end
+#0000000100000002 - 1.2.3.4:8765<->1.2.3.4:8765 - POST http://aaa.com/foo2 - begin
+#0000000100000002 - 1.2.3.4:8765<->1.2.3.4:8765 - POST http://aaa.com/foo2 - end
+`
+	if cl.out != expectedLogOut {
+		t.Fatalf("Unexpected logger output: %q. Expected %q", cl.out, expectedLogOut)
+	}
 }
 
 func TestServerRemoteAddr(t *testing.T) {

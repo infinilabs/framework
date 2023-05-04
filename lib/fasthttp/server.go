@@ -7,6 +7,13 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"io"
 	"mime/multipart"
 	"net"
@@ -16,14 +23,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	log "github.com/cihub/seelog"
-	"github.com/emirpasic/gods/sets/hashset"
-	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
 )
 
 var errNoCertOrKeyProvided = errors.New("cert or key has not provided")
@@ -32,20 +31,6 @@ var (
 	// ErrAlreadyServing is returned when calling Serve on a Server
 	// that is already serving connections.
 	ErrAlreadyServing = errors.New("Server is already serving connections")
-)
-
-const (
-	notFoundMsg = "\n\n _  _    ___  _  _                                 \n" +
-		"| || |  / _ \\| || |                                \n" +
-		"| || |_| | | | || |_                               \n" +
-		"|__   _| |_| |__   _|                              \n" +
-		"   |_|  \\___/   |_|                                \n" +
-		"     __  ___  _____     ___  ___           __  ___ \n" +
-		"  /\\ \\ \\/___\\/__   \\   / __\\/___\\/\\ /\\  /\\ \\ \\/   \\\n" +
-		" /  \\/ //  //  / /\\/  / _\\ //  // / \\ \\/  \\/ / /\\ /\n" +
-		"/ /\\  / \\_//  / /    / /  / \\_//\\ \\_/ / /\\  / /_// \n" +
-		"\\_\\ \\/\\___/   \\/     \\/   \\___/  \\___/\\_\\ \\/___,'  \n\n\n" +
-		"©INFINI, All Rights Reserved."
 )
 
 // ServeConn serves HTTP requests from the given connection
@@ -449,10 +434,10 @@ type Server struct {
 	idleConns   map[net.Conn]time.Time
 	idleConnsMu sync.Mutex
 
-	mu          sync.Mutex
-	open        int32
-	stop        int32
-	done        chan struct{}
+	mu   sync.Mutex
+	open int32
+	stop int32
+	done chan struct{}
 	whiteIPList *hashset.Set
 	blackIPList *hashset.Set
 }
@@ -809,7 +794,7 @@ func (res *Response) Encode() []byte {
 	return data.Bytes()
 }
 
-// TODO optimize memmove issue, buffer read
+//TODO optimize memmove issue, buffer read
 func (res *Response) Decode(data []byte) error {
 
 	res.decodeLocker.Lock()
@@ -865,7 +850,6 @@ func (res *Response) Decode(data []byte) error {
 	res.SetStatusCode(int(util.BytesToUint32(statusCode)))
 	return nil
 }
-
 // ResetUserValues allows to reset user values from Request Context
 func (ctx *RequestCtx) ResetUserValues() {
 	ctx.userValues.Reset()
@@ -933,12 +917,12 @@ func (ctx *RequestCtx) Conn() net.Conn {
 	return ctx.c
 }
 
-// is all process finished
+//is all process finished
 func (ctx *RequestCtx) Finished() {
 	ctx.finished = true
 }
 
-// should filters continue to process
+//should filters continue to process
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
@@ -954,7 +938,7 @@ func (ctx *RequestCtx) ParseAPIKey() (exists bool, apiID, apiKey []byte) {
 	return len(ctx.Request.getURI().apiID) > 0, ctx.Request.getURI().apiID, ctx.Request.getURI().apiKey
 }
 
-// resume processing pipeline, allow filters continue
+//resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
 	ctx.finished = false
 	ctx.AddFlowProcess("||")
@@ -967,7 +951,7 @@ func (ctx *RequestCtx) reset() {
 		ctx.Parameters.ResetParameters()
 	}
 	ctx.finished = false
-	if ctx.flowProcess.Len() > 0 {
+	if ctx.flowProcess.Len()>0{
 		ctx.flowProcess.Reset()
 	}
 	ctx.destination = ctx.destination[0:0]
@@ -1032,6 +1016,20 @@ func (r *firstByteReader) Read(b []byte) (int, error) {
 type Logger interface {
 	// Printf must have the same semantics as log.Printf.
 	Printf(format string, args ...interface{})
+}
+
+var ctxLoggerLock sync.Mutex
+
+type ctxLogger struct {
+	ctx    *RequestCtx
+	logger Logger
+}
+
+func (cl *ctxLogger) Printf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	ctxLoggerLock.Lock()
+	cl.logger.Printf("%.3f %s - %s", time.Since(cl.ctx.ConnTime()).Seconds(), cl.ctx.String(), msg)
+	ctxLoggerLock.Unlock()
 }
 
 var zeroTCPAddr = &net.TCPAddr{
@@ -1442,7 +1440,7 @@ func (ctx *RequestCtx) ErrorInJSON(errMessage string, statusCode int) {
 
 	b, err := json.MarshalIndent(err1, "", "  ")
 	if err != nil {
-		log.Error(errMessage, err)
+		log.Error(errMessage,err)
 		return
 	}
 
@@ -1602,7 +1600,20 @@ func (ctx *RequestCtx) NotModified() {
 func (ctx *RequestCtx) NotFound() {
 	ctx.Response.Reset()
 	ctx.SetStatusCode(StatusNotFound)
-	ctx.SetBodyString(notFoundMsg)
+
+	msg := "\n\n _  _    ___  _  _                                 \n"
+	msg += "| || |  / _ \\| || |                                \n"
+	msg += "| || |_| | | | || |_                               \n"
+	msg += "|__   _| |_| |__   _|                              \n"
+	msg += "   |_|  \\___/   |_|                                \n"
+	msg += "     __  ___  _____     ___  ___           __  ___ \n"
+	msg += "  /\\ \\ \\/___\\/__   \\   / __\\/___\\/\\ /\\  /\\ \\ \\/   \\\n"
+	msg += " /  \\/ //  //  / /\\/  / _\\ //  // / \\ \\/  \\/ / /\\ /\n"
+	msg += "/ /\\  / \\_//  / /    / /  / \\_//\\ \\_/ / /\\  / /_// \n"
+	msg += "\\_\\ \\/\\___/   \\/     \\/   \\___/  \\___/\\_\\ \\/___,'  \n\n\n"
+	msg += "©INFINI, All Rights Reserved."
+
+	ctx.SetBodyString(msg)
 }
 
 // Write writes p into response body.
@@ -1658,6 +1669,7 @@ func (ctx *RequestCtx) SetBodyStreamWriter(sw StreamWriter) {
 func (ctx *RequestCtx) IsBodyStream() bool {
 	return ctx.Response.IsBodyStream()
 }
+
 
 // TimeoutError sets response status code to StatusRequestTimeout and sets
 // body to the given msg.
@@ -2258,9 +2270,9 @@ func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 					v = r.(string)
 				}
 				log.Error("error on handle request,", v)
-				err = errors.Error(v)
-				if ctx.Response.GetBodyLength() == 0 {
-					ctx.ErrorInJSON(err.Error(), 500)
+				err= errors.Error(v)
+				if ctx.Response.GetBodyLength()==0{
+					ctx.ErrorInJSON(err.Error(),500)
 				}
 			}
 		}
@@ -2292,27 +2304,27 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	defer s.serveConnCleanup()
 	atomic.AddUint32(&s.concurrency, 1)
 
-	if s.blackIPList != nil || s.whiteIPList != nil {
+	if s.blackIPList != nil||s.whiteIPList != nil {
 		ip := c.RemoteAddr().String()
 		if strings.Contains(ip, ":") {
 			ips := strings.Split(ip, ":")
-			ip = ips[0]
+			ip=ips[0]
 		}
 
-		if global.Env().IsDebug {
-			log.Tracef("check ip [%v] is permitted or denied", ip)
+		if global.Env().IsDebug{
+			log.Tracef("check ip [%v] is permitted or denied",ip)
 		}
 
 		//check black ip list
-		if s.blackIPList != nil {
+		if s.blackIPList != nil{
 			if s.blackIPList.Contains(ip) {
 				stats.Increment("request", "denied")
 				c.Write(deniedMsgBytes)
 				time.Sleep(100 * time.Millisecond)
 				c.Close()
 
-				if global.Env().IsDebug {
-					log.Debugf("ip [%v] denied", ip)
+				if global.Env().IsDebug{
+					log.Debugf("ip [%v] denied",ip)
 				}
 
 				return nil
@@ -2320,15 +2332,15 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		//check white ip list
-		if s.whiteIPList != nil {
+		if s.whiteIPList != nil{
 			if !s.whiteIPList.Contains(ip) {
 				stats.Increment("request", "denied")
 				c.Write(deniedMsgBytes)
 				time.Sleep(100 * time.Millisecond)
 				c.Close()
 
-				if global.Env().IsDebug {
-					log.Debugf("ip [%v] not permitted", ip)
+				if global.Env().IsDebug{
+					log.Debugf("ip [%v] not permitted",ip)
 				}
 
 				return nil
@@ -2369,6 +2381,12 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 	ctx := s.acquireCtx(c)
 
+	//TODO
+	//ctx.Reset()
+	//ctx.Request.resetSkipHeader() //Medcl-A
+	//ctx.Response.Reset()
+	//TODO
+
 	ctx.connTime = connTime
 	isTLS := ctx.IsTLS()
 	var (
@@ -2379,7 +2397,8 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		hijackHandler    HijackHandler
 		hijackNoResponse bool
 
-		connectionClose        bool
+		connectionClose bool
+		//reqReset               bool
 		continueReadingRequest bool = true
 	)
 	for {
@@ -2415,9 +2434,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		} else {
 			// If this is a keep-alive connection acquireByteReader will try to peek
 			// a couple of bytes already so the idle timeout will already be used.
-			if ctx.c == nil {
-				if c != nil {
-					ctx.c = c
+			if ctx.c==nil{
+				if c!=nil{
+					ctx.c=c
 				}
 			}
 			br, err = acquireByteReader(&ctx)
@@ -2597,9 +2616,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 
 		// If a client denies a request the handler should not be called
 		if continueReadingRequest {
-			err := s.handleRequest(ctx)
-			if err != nil {
-				if global.Env().IsDebug {
+			//ctx.Reset()
+			//ctx.Response.Reset()
+			err:=s.handleRequest(ctx)
+			if err!=nil{
+				if global.Env().IsDebug{
 					log.Error(err)
 				}
 				stats.Increment("http", "continue_error")
@@ -2610,10 +2631,16 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		if timeoutResponse != nil {
 			// Acquire a new ctx because the old one will still be in use by the timeout out handler.
 			ctx = s.acquireCtx(c)
+			//TODO
+			//ctx.Reset()
+			//ctx.Request.resetSkipHeader()
+			//ctx.Response.Reset()
+			//TODO
 
 			timeoutResponse.CopyTo(&ctx.Response)
 		}
 
+		//TODO if !ctx.IsGet() && ctx.IsHead() {
 		if ctx.IsHead() {
 			ctx.Response.SkipBody = true
 		}
@@ -2658,7 +2685,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 
-			if ctx.EnrichedMetadata && ctx.flowProcess.Len() > 0 {
+			if ctx.EnrichedMetadata&&ctx.flowProcess.Len()>0 {
 				ctx.Response.Header.Set("X-Filters", ctx.flowProcess.String())
 			}
 
@@ -2672,11 +2699,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			// in a TCP packet and send it back at once than waiting for a flush every request.
 			// In real world circumstances this behaviour could be argued as being wrong.
 			if br == nil || br.Buffered() == 0 || connectionClose {
-				err = bw.Flush()
-				if err != nil {
-					break
+					err = bw.Flush()
+					if err != nil {
+						break
+					}
 				}
-			}
 			if connectionClose {
 				break
 			}
@@ -2723,9 +2750,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		s.setState(c, StateIdle)
+		ctx.Reset()
 		ctx.userValues.Reset()
 		ctx.Request.Reset()
 		ctx.Response.Reset()
+		//reqReset = true
 
 		if atomic.LoadInt32(&s.stop) == 1 {
 			err = nil
@@ -2742,6 +2771,19 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	if hijackHandler == nil {
 		s.releaseCtx(ctx)
 	}
+
+	//if ctx != nil {
+	//	// in unexpected cases the for loop will break
+	//	// before request reset call. in such cases, call it before
+	//	// release to fix #548
+	//	if !reqReset {
+	//		ctx.Reset()
+	//		ctx.Request.resetSkipHeader()
+	//		ctx.Response.Reset()
+	//		ctx.Request.Reset()
+	//	}
+	//	s.releaseCtx(ctx)
+	//}
 
 	return
 }
@@ -2853,6 +2895,13 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 
 	ctx = s.acquireCtx(c)
 
+	//TODO
+	//ctx.Reset()
+	//ctx.Request.resetSkipHeader()
+	//ctx.Response.Reset()
+	//TODO
+
+
 	*ctxP = ctx
 	if err != nil {
 		// Treat all errors as EOF on unsuccessful read
@@ -2912,7 +2961,7 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 	if v == nil {
 		keepBodyBuffer := !s.ReduceMemoryUsage
 		ctx = new(RequestCtx)
-		ctx.EnrichedMetadata = true
+		ctx.EnrichedMetadata=true
 		ctx.Request.keepBodyBuffer = keepBodyBuffer
 		ctx.Response.keepBodyBuffer = keepBodyBuffer
 		ctx.s = s
@@ -2931,9 +2980,10 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 //
 // This function is intended for custom Server implementations.
 // See https://github.com/valyala/httpteleport for details.
-func (ctx *RequestCtx) Init2(conn net.Conn, reduceMemoryUsage bool) {
+func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage bool) {
 	ctx.c = conn
 	ctx.remoteAddr = nil
+	ctx.logger.logger = logger
 	ctx.connID = nextConnID()
 	ctx.s = fakeServer
 	ctx.connRequestNum = 0
@@ -2949,7 +2999,7 @@ func (ctx *RequestCtx) Init2(conn net.Conn, reduceMemoryUsage bool) {
 // remoteAddr and logger are optional. They are used by RequestCtx.Logger().
 //
 // This function is intended for custom Server implementations.
-func (ctx *RequestCtx) Init(req *Request, remoteAddr net.Addr) {
+func (ctx *RequestCtx) Init(req *Request, remoteAddr net.Addr, logger Logger) {
 	if remoteAddr == nil {
 		remoteAddr = zeroTCPAddr
 	}
@@ -2957,7 +3007,7 @@ func (ctx *RequestCtx) Init(req *Request, remoteAddr net.Addr) {
 		laddr: zeroTCPAddr,
 		raddr: remoteAddr,
 	}
-	ctx.Init2(c, true)
+	ctx.Init2(c, logger, true)
 	req.CopyTo(&ctx.Request)
 }
 
@@ -3024,7 +3074,6 @@ func (r *RequestCtx) GetFlowID() (string, bool) {
 func (r *RequestCtx) GetFlowIDOrDefault(d string) string {
 	return r.GetStringOrDefault(FLOWNAME, d)
 }
-
 var fakeServer = &Server{
 	// Initialize concurrencyCh for TimeoutHandler
 	concurrencyCh: make(chan struct{}, DefaultConcurrency),
