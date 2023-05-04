@@ -5,10 +5,13 @@
 package websocket
 
 import (
+	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/stats"
-	"github.com/segmentio/encoding/json"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -55,11 +58,40 @@ func (h *Hub) registerHandlers() {
 }
 
 // InitWebSocket start websocket
-func InitWebSocket() {
+func InitWebSocket(cfg config.WebsocketConfig) {
+	if cfg.SkipHostVerify {
+		upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true
+		}
+	}else{
+		if len(cfg.PermittedHosts) > 0 {
+			upgrader.CheckOrigin = func(r *http.Request) bool {
+				origin := r.Header["Origin"]
+				if len(origin) == 0 {
+					return true
+				}
+				u, err := url.Parse(origin[0])
+				if err != nil {
+					return false
+				}
+				if strings.EqualFold(u.Host, r.Host) {
+					return true
+				}
+				for _, oh := range cfg.PermittedHosts {
+					if strings.EqualFold(u.Host, oh) {
+						return true
+					}
+				}
+				return false
+			}
+
+		}
+	}
 	if !runningHub {
 		h.registerHandlers()
 		go h.runHub()
 	}
+
 }
 
 // HandleWebSocketCommand used to register command and handler

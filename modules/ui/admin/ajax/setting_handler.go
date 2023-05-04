@@ -17,10 +17,11 @@ limitations under the License.
 package ajax
 
 import (
-	"github.com/segmentio/encoding/json"
 	log "github.com/cihub/seelog"
+	"github.com/segmentio/encoding/json"
 	api "infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/global"
 	logging "infini.sh/framework/core/logger"
 	"net/http"
 )
@@ -62,7 +63,11 @@ func (ajax Ajax) LoggingSettingAction(w http.ResponseWriter, req *http.Request) 
 
 		log.Info("receive new settings:", configStr)
 
-		logging.UpdateLoggingConfig(&cfg)
+		var (
+			appName = global.Env().GetAppLowercaseName()
+			baseDir = global.Env().GetLogDir()
+		)
+		logging.SetLogging(&cfg, appName, baseDir)
 
 		ajax.WriteJSON(w, map[string]interface{}{"ok": true}, http.StatusOK)
 

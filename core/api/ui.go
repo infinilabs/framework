@@ -119,16 +119,14 @@ func StartUI(cfg *UIConfig) {
 		}
 	}
 
-
-
-	//init websocket,TODO configurable
-	websocket.InitWebSocket()
-	uiServeMux.HandleFunc("/ws", websocket.ServeWs)
-
-	if registeredWebSocketCommandHandler != nil {
-		for k, v := range registeredWebSocketCommandHandler {
-			log.Debug("register websocket handler: ", k, " ", v)
-			websocket.HandleWebSocketCommand(k, webSocketCommandUsage[k], v)
+	if cfg.WebsocketConfig.Enabled{
+		websocket.InitWebSocket(cfg.WebsocketConfig)
+		uiServeMux.HandleFunc("/ws", websocket.ServeWs)
+		if registeredWebSocketCommandHandler != nil {
+			for k, v := range registeredWebSocketCommandHandler {
+				log.Debug("register websocket handler: ", k, " ", v)
+				websocket.HandleWebSocketCommand(k, webSocketCommandUsage[k], v)
+			}
 		}
 	}
 

@@ -47,6 +47,9 @@ func (module *UIModule) Setup() {
 			Enabled: true,
 			Level:   gzip.BestCompression,
 		},
+		WebsocketConfig: WebsocketConfig{
+			Enabled: true,
+		},
 	}
 
 	env.ParseConfig("web", module.uiConfig)

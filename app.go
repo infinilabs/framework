@@ -135,7 +135,7 @@ func (app *App) Init(customFunc func()) {
 func (app *App) initWithFlags() {
 
 	showversion := flag.Bool("v", false, "version")
-	flag.StringVar(&app.logLevel, "log", "info", "the log level, options: trace,debug,info,warn,error,off")
+	flag.StringVar(&app.logLevel, "log", "", "the log level, options: trace,debug,info,warn,error,off")
 	flag.StringVar(&app.configFile, "config", app.environment.GetAppLowercaseName()+".yml", "the location of config file")
 
 	//TODO bug fix
@@ -192,8 +192,8 @@ func (app *App) initEnvironment(customFunc func()) {
 	app.environment.Init()
 
 	//allow use yml to configure the log level
-	if app.environment.SystemConfig.LoggingConfig.LogLevel != "" {
-		app.logLevel = app.environment.SystemConfig.LoggingConfig.LogLevel
+	if app.logLevel != "" {
+		app.environment.SystemConfig.LoggingConfig.LogLevel = app.logLevel
 	}
 	if app.environment.SystemConfig.LoggingConfig.IsDebug {
 		app.environment.IsDebug = app.environment.SystemConfig.LoggingConfig.IsDebug
@@ -201,7 +201,11 @@ func (app *App) initEnvironment(customFunc func()) {
 
 	app.environment.CheckSetup()
 
-	logger.SetLogging(app.environment, app.logLevel)
+	var (
+		appName = app.environment.GetAppLowercaseName()
+		baseDir = app.environment.GetLogDir()
+	)
+	logger.SetLogging(&app.environment.SystemConfig.LoggingConfig, appName, baseDir)
 
 	if customFunc != nil {
 		customFunc()

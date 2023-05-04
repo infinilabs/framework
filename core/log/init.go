@@ -8,5 +8,10 @@ import (
 
 func init() {
 	defaultLog.SetOutput(logger.EmptyLogger{})
-	logger.SetLogging(env.EmptyEnv(), "info")
+	e := env.EmptyEnv()
+	var (
+		appName = e.GetAppLowercaseName()
+		baseDir = e.GetLogDir()
+	)
+	logger.SetLogging(&e.SystemConfig.LoggingConfig, appName, baseDir )
 }

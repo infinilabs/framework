@@ -26,4 +26,5 @@ type UIConfig struct {
 	BasePath      string               `config:"base_path"`
 	EmbeddingAPI  bool                 `config:"embedding_api"`
 	Gzip          config.GzipConfig    `config:"gzip"`
+	WebsocketConfig config.WebsocketConfig `config:"websocket"`
 }

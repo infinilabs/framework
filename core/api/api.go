@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/errors"
 	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
@@ -15,6 +16,7 @@ import (
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"net"
@@ -113,6 +115,19 @@ func StartAPI() {
 
 	if !apiConfig.Enabled {
 		return
+	}
+	if apiConfig.WebsocketConfig.Enabled{
+		websocket.InitWebSocket(apiConfig.WebsocketConfig)
+		HandleAPIFunc("/ws", websocket.ServeWs)
+		logger.RegisterWebsocketHandler(func (message string, level log.LogLevel, context log.LogContextInterface) {
+			websocket.BroadcastMessage(message)
+		})
+		if registeredWebSocketCommandHandler != nil {
+			for k, v := range registeredWebSocketCommandHandler {
+				log.Debug("register websocket handler: ", k, " ", v)
+				websocket.HandleWebSocketCommand(k, webSocketCommandUsage[k], v)
+			}
+		}
 	}
 
 	c := cors.New(cors.Options{

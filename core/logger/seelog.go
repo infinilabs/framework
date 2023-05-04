@@ -25,15 +25,13 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ryanuber/go-glob"
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
 )
 
 var file string
+var loggingLock sync.RWMutex
 var loggingConfig *config.LoggingConfig
-var l sync.Mutex
-var e *env.Env
 
 var oldQuoteStr = []byte("\"")
 var newQuoteStr = []byte("”")
@@ -55,33 +53,16 @@ func init() {
 }
 
 // SetLogging init set logging
-func SetLogging(env *env.Env, logLevel string) {
-	if env == nil {
-		panic("empty env")
-	}
-	if env.SystemConfig == nil {
+func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string) {
+	if loggingCfg == nil {
 		panic("empty logging config")
 	}
-
-	e = env
-
-	l.Lock()
-	loggingConfig = &env.SystemConfig.LoggingConfig
-	l.Unlock()
-
-	appName := env.GetAppLowercaseName()
 	if appName == "" {
 		appName = "app"
 	}
-
-	if len(env.LoggingLevel) > 0 {
-		loggingConfig.LogLevel = strings.ToLower(env.LoggingLevel)
-	}
-
-	//overwrite env config
-	if len(logLevel) > 0 {
-		loggingConfig.LogLevel = strings.ToLower(logLevel)
-	}
+	loggingLock.Lock()
+	loggingConfig = loggingCfg
+	loggingLock.Unlock()
 
 	if loggingConfig.FuncFilterPattern == "" {
 		loggingConfig.FuncFilterPattern = "*"
@@ -114,7 +95,7 @@ func SetLogging(env *env.Env, logLevel string) {
 	receivers := []interface{}{consoleWriter}
 
 	if !loggingConfig.DisableFileOutput {
-		if baseDir := env.GetLogDir(); baseDir != "" {
+		if baseDir != "" {
 			file = path.Join(baseDir, appName+".log")
 		} else {
 			file = "./log/" + appName + ".log"
@@ -161,15 +142,9 @@ func SetLogging(env *env.Env, logLevel string) {
 
 // GetLoggingConfig return logging configs
 func GetLoggingConfig() *config.LoggingConfig {
+	loggingLock.RLock()
+	defer loggingLock.RUnlock()
 	return loggingConfig
-}
-
-// UpdateLoggingConfig update logging config
-func UpdateLoggingConfig(config *config.LoggingConfig) {
-	l.Lock()
-	loggingConfig = config
-	l.Unlock()
-	SetLogging(e, "")
 }
 
 // Flush is flush logs to output

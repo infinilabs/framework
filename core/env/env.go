@@ -203,6 +203,9 @@ var (
 				Binding:          "0.0.0.0:2900",
 				SkipOccupiedPort: true,
 			},
+			WebsocketConfig: config.WebsocketConfig{
+				Enabled: true,
+			},
 		},
 		LoggingConfig: config.LoggingConfig{
 			DisableFileOutput: false,
@@ -462,6 +465,7 @@ func EmptyEnv() *Env {
 	system.PathConfig.Data = os.TempDir()
 	system.PathConfig.Log = os.TempDir()
 	system.LoggingConfig.DisableFileOutput = true
+	system.LoggingConfig.LogLevel = "info"
 	return &Env{SystemConfig: &system}
 }
 

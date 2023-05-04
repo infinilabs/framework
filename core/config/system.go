@@ -155,6 +155,7 @@ type APIConfig struct {
 	CrossDomain struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
+	WebsocketConfig WebsocketConfig `config:"websocket"`
 }
 
 func (config *APIConfig) GetSchema() string {
@@ -192,4 +193,10 @@ type AuthConfig struct {
 type GzipConfig struct {
 	Enabled bool `config:"enabled"`
 	Level   int  `config:"level"`
+}
+
+type WebsocketConfig struct {
+	Enabled bool `config:"enabled"`
+	PermittedHosts   []string `config:"permitted_hosts"`
+	SkipHostVerify bool     `config:"skip_host_verify"`
 }
