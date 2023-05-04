@@ -66,10 +66,9 @@ type URI struct {
 
 	username []byte
 	password []byte
-	apiID []byte
-	apiKey []byte
+	apiID    []byte
+	apiKey   []byte
 }
-
 
 func (u *URI) ResetUser() {
 	u.username = u.username[:0]
@@ -247,7 +246,7 @@ func (u *URI) Reset() {
 	u.apiID = u.apiID[:0]
 	u.apiKey = u.apiKey[:0]
 
-	u.host = []byte{}//u.host[:0]
+	u.host = u.host[:0]
 	u.queryArgs.Reset()
 	u.parsedQueryArgs = false
 	u.DisablePathNormalizing = false

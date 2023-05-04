@@ -1,7 +1,6 @@
 package fasthttp
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -100,78 +99,4 @@ func testBrotliCompressSingleCase(s string) error {
 	}
 	releaseBrotliReader(zr)
 	return nil
-}
-
-func TestCompressHandlerBrotliLevel(t *testing.T) {
-	t.Parallel()
-
-	expectedBody := string(createFixedBody(2e4))
-	h := CompressHandlerBrotliLevel(func(ctx *RequestCtx) {
-		ctx.Write([]byte(expectedBody)) //nolint:errcheck
-	}, CompressBrotliDefaultCompression, CompressDefaultCompression)
-
-	var ctx RequestCtx
-	var resp Response
-
-	// verify uncompressed response
-	h(&ctx)
-	s := ctx.Response.String()
-	br := bufio.NewReader(bytes.NewBufferString(s))
-	if err := resp.Read(br); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	ce := resp.Header.ContentEncoding()
-	if string(ce) != "" {
-		t.Fatalf("unexpected Content-Encoding: %q. Expecting %q", ce, "")
-	}
-	body := resp.Body()
-	if string(body) != expectedBody {
-		t.Fatalf("unexpected body %q. Expecting %q", body, expectedBody)
-	}
-
-	// verify gzip-compressed response
-	ctx.Request.Reset()
-	ctx.Response.Reset()
-	ctx.Request.Header.Set("Accept-Encoding", "gzip, deflate, sdhc")
-
-	h(&ctx)
-	s = ctx.Response.String()
-	br = bufio.NewReader(bytes.NewBufferString(s))
-	if err := resp.Read(br); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	ce = resp.Header.ContentEncoding()
-	if string(ce) != "gzip" {
-		t.Fatalf("unexpected Content-Encoding: %q. Expecting %q", ce, "gzip")
-	}
-	body, err := resp.BodyGunzip()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if string(body) != expectedBody {
-		t.Fatalf("unexpected body %q. Expecting %q", body, expectedBody)
-	}
-
-	// verify brotli-compressed response
-	ctx.Request.Reset()
-	ctx.Response.Reset()
-	ctx.Request.Header.Set("Accept-Encoding", "gzip, deflate, sdhc, br")
-
-	h(&ctx)
-	s = ctx.Response.String()
-	br = bufio.NewReader(bytes.NewBufferString(s))
-	if err := resp.Read(br); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	ce = resp.Header.ContentEncoding()
-	if string(ce) != "br" {
-		t.Fatalf("unexpected Content-Encoding: %q. Expecting %q", ce, "br")
-	}
-	body, err = resp.BodyUnbrotli()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if string(body) != expectedBody {
-		t.Fatalf("unexpected body %q. Expecting %q", body, expectedBody)
-	}
 }

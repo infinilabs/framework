@@ -41,13 +41,13 @@ const (
 	HeaderProxyConnection = "Proxy-Connection"
 
 	// Content negotiation
-	HeaderAccept         = "Accept"
-	HeaderAcceptCharset  = "Accept-Charset"
-	HeaderAcceptEncoding = "Accept-Encoding"
+	HeaderAccept          = "Accept"
+	HeaderAcceptCharset   = "Accept-Charset"
+	HeaderAcceptEncoding  = "Accept-Encoding"
 	HeaderAcceptEncoding2 = "accept-encoding"
-	HeaderAcceptLanguage = "Accept-Language"
+	HeaderAcceptLanguage  = "Accept-Language"
 
-	HeaderXRealIP  = "X-Real-IP"
+	HeaderXRealIP = "X-Real-IP"
 
 	// Controls
 	HeaderCookie      = "Cookie"
@@ -76,12 +76,13 @@ const (
 	HeaderContentDisposition = "Content-Disposition"
 
 	// Message body information
-	HeaderContentEncoding = "content-encoding"
-	HeaderContentLanguage = "Content-Language"
-	HeaderContentLength   = "Content-Length"
-	HeaderContentLocation = "Content-Location"
-	HeaderContentType     = "content-type"
-	HeaderContentType2     = "Content-Type"
+	HeaderContentEncoding  = "Content-Encoding"
+	HeaderContentEncoding2 = "content-encoding"
+	HeaderContentLanguage  = "Content-Language"
+	HeaderContentLength    = "Content-Length"
+	HeaderContentLocation  = "Content-Location"
+	HeaderContentType      = "Content-Type"
+	HeaderContentType2     = "content-type"
 
 	// Proxies
 	HeaderForwarded       = "Forwarded"
@@ -166,5 +167,4 @@ const (
 	HeaderXRequestedWith      = "X-Requested-With"
 	HeaderXRobotsTag          = "X-Robots-Tag"
 	HeaderXUACompatible       = "X-UA-Compatible"
-
 )

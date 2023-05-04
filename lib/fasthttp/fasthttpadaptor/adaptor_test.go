@@ -111,7 +111,7 @@ func TestNewFastHTTPHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ctx.Init(&req, remoteAddr, nil)
+	ctx.Init(&req, remoteAddr)
 
 	fasthttpH(&ctx)
 
@@ -159,7 +159,7 @@ func TestContentType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ctx.Init(&req, remoteAddr, nil)
+	ctx.Init(&req, remoteAddr)
 
 	fasthttpH(&ctx)
 
