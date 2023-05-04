@@ -17,12 +17,13 @@ limitations under the License.
 package pipeline
 
 import (
+	"runtime"
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
-	"runtime"
-	"strings"
 )
 
 type ProcessorBase interface {
@@ -32,6 +33,10 @@ type ProcessorBase interface {
 type Processor interface {
 	ProcessorBase
 	Process(s *Context) error
+}
+
+type Releaser interface {
+	Release() error
 }
 
 type Processors struct {
@@ -158,6 +163,17 @@ func (procs *Processors) Close() error {
 	return errs.Err()
 }
 
+func (procs *Processors) Release() {
+	for _, p := range procs.List {
+		if releaser, ok := p.(Releaser); ok {
+			err := releaser.Release()
+			if err != nil {
+				log.Warnf("filter [%v] failed to release, err: %v", p.Name(), err)
+			}
+		}
+	}
+}
+
 func (procs *Processors) Process(ctx *Context) error {
 
 	defer func() {
@@ -186,7 +202,7 @@ func (procs *Processors) Process(ctx *Context) error {
 			return nil
 		}
 
-		if ctx.IsCanceled(){
+		if ctx.IsCanceled() {
 			if global.Env().IsDebug {
 				log.Debugf("filter [%v] canceled", p.Name())
 			}

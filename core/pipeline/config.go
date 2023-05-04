@@ -8,6 +8,7 @@ import (
 
 type PipelineConfigV2 struct {
 	Name           string `config:"name" json:"name,omitempty"`
+	Enabled        *bool  `config:"enabled" json:"enabled,omitempty"`
 	AutoStart      bool   `config:"auto_start" json:"auto_start"`
 	KeepRunning    bool   `config:"keep_running" json:"keep_running"`
 	RetryDelayInMs int    `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
@@ -25,6 +26,7 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 		this.AutoStart != target.AutoStart ||
 		this.KeepRunning != target.KeepRunning ||
 		this.RetryDelayInMs != target.RetryDelayInMs ||
+		this.Logging.Enabled != target.Logging.Enabled ||
 		!this.ProcessorsEquals(target) {
 		return false
 	}

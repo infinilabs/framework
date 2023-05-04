@@ -161,13 +161,16 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner.pool = pool
-	global.RegisterShutdownCallback(func() {
-		if runner.pool != nil {
-			runner.pool.Release()
-		}
-	})
 
 	return &runner, nil
+}
+
+func (processor *BulkIndexingProcessor) Release() error {
+	if processor.pool != nil {
+		processor.pool.Release()
+		processor.pool = nil
+	}
+	return nil
 }
 
 func (processor *BulkIndexingProcessor) Name() string {
