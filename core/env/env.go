@@ -217,6 +217,7 @@ var (
 			},
 			WebsocketConfig: config.WebsocketConfig{
 				Enabled: true,
+				SkipHostVerify: true,
 			},
 		},
 		LoggingConfig: config.LoggingConfig{

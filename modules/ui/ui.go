@@ -49,6 +49,7 @@ func (module *UIModule) Setup() {
 		},
 		WebsocketConfig: WebsocketConfig{
 			Enabled: true,
+			SkipHostVerify: true,
 		},
 	}
 
