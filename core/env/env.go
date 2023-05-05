@@ -68,10 +68,15 @@ type Env struct {
 	workingLogDir  string
 	pluginDir      string
 
+	allowSetup bool
 	setupRequired bool
 }
 
 func (env *Env) CheckSetup() error {
+	if !env.allowSetup{
+		return nil
+	}
+
 	env.setupRequired = false
 	//check is required
 	setupLock := path.Join(env.GetDataDir(), ".setup_lock")
@@ -79,6 +84,13 @@ func (env *Env) CheckSetup() error {
 		env.setupRequired = true
 	}
 	return nil
+}
+
+func (env *Env) EnableSetup(b bool) {
+	env.allowSetup=b
+	if b{
+		env.CheckSetup()
+	}
 }
 
 func (env *Env) SetupRequired() bool {
