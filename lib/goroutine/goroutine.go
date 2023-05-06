@@ -10,9 +10,11 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	log "github.com/cihub/seelog"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 )
 
 // A Group is a collection of goroutines working on subtasks that are part of
@@ -79,33 +81,35 @@ func (g *Group) do(f func(ctx context.Context) error) {
 		defer func() {
 			endTime = time.Now()
 
-			if r := recover(); r != nil {
-				isPanicRetry := true
-				buf := make([]byte, 4096) //nolint:gomnd
-				buf = buf[:runtime.Stack(buf, false)]
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					isPanicRetry := true
+					buf := make([]byte, 4096) //nolint:gomnd
+					buf = buf[:runtime.Stack(buf, false)]
 
-				if e, ok := r.(error); ok {
-					buf = append([]byte(fmt.Sprintf("%s\n", e.Error())), buf...)
-				}
-
-				if g.panicCb != nil {
-					isPanicRetry = g.panicCb(buf)
-				}
-
-				if isPanicRetry && panicTimes > 0 {
-					panicTimes--
-
-					if g.panicTimeout > 0 {
-						time.Sleep(g.panicTimeout)
+					if e, ok := r.(error); ok {
+						buf = append([]byte(fmt.Sprintf("%s\n", e.Error())), buf...)
 					}
 
-					run()
+					if g.panicCb != nil {
+						isPanicRetry = g.panicCb(buf)
+					}
 
-					return
+					if isPanicRetry && panicTimes > 0 {
+						panicTimes--
+
+						if g.panicTimeout > 0 {
+							time.Sleep(g.panicTimeout)
+						}
+
+						run()
+
+						return
+					}
+
+					err = fmt.Errorf("goroutine: panic recovered: %s", r)
+					log.Error(err)
 				}
-
-				err = fmt.Errorf("goroutine: panic recovered: %s", r)
-				log.Error(err)
 			}
 
 			if err != nil {
