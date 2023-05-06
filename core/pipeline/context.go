@@ -270,6 +270,10 @@ func (ctx *Context) Pause() {
 // Resume recovers pipeline from Pause
 func (ctx *Context) Resume() {
 	ctx.stateLock.Lock()
+	if !ctx.isPaused {
+		ctx.stateLock.Unlock()
+		return
+	}
 	ctx.isPaused = false
 	ctx.stateLock.Unlock()
 

@@ -362,7 +362,10 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	if _, ok := module.configs.Load(v.Name); ok {
+	v.Transient = transient
+
+	// NOTE: hold the slot before creating pipeline loops
+	if _, ok := module.configs.LoadOrStore(v.Name, v); ok {
 		log.Tracef("pipeline [%v] is already created, skip", v.Name)
 		return nil
 	}
@@ -374,11 +377,8 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return err
 	}
 
-	v.Transient = transient
-
 	ctx := pipeline.AcquireContext(v)
 
-	module.configs.Store(v.Name, v)
 	module.pipelines.Store(v.Name, processor)
 	module.contexts.Store(v.Name, ctx)
 
@@ -460,8 +460,11 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				// For IsExit, don't pause here, wait for STOPPED state, or we could Pause twice for STOPPED & IsExit.
 				if cfg.KeepRunning {
 					log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
-					time.Sleep(time.Duration(retryDelayInMs) * time.Millisecond)
-					ctx.Starting()
+					select {
+					case <-time.After(time.Duration(retryDelayInMs) * time.Millisecond):
+						ctx.Starting()
+					case <-ctx.Done():
+					}
 				} else {
 					ctx.Stopped()
 					ctx.Pause()
