@@ -11,22 +11,19 @@ import (
 )
 
 func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
-	resBody := map[string] interface{}{
-	}
 	targetClusterID := ps.ByName("id")
 	exists,client,err:=h.GetClusterClient(targetClusterID)
 
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusNotFound)
+		errStr := fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		log.Error(errStr)
+		h.WriteError(w, errStr, http.StatusInternalServerError)
 		return
 	}
 
@@ -35,8 +32,7 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 	err = h.DecodeJSON(req, aliasReq)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	esVersion := elastic.GetMetadata(targetClusterID).Config.Version
@@ -56,39 +52,33 @@ func (h *APIHandler) HandleAliasAction(w http.ResponseWriter, req *http.Request,
 	err = client.Alias(bodyBytes)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resBody["acknowledged"] = true
 
-	h.WriteJSON(w, resBody,http.StatusOK)
+	h.WriteAckOKJSON(w)
 }
 
 func (h *APIHandler) HandleGetAliasAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	resBody := map[string]interface{}{
-	}
 	targetClusterID := ps.ByName("id")
 	exists, client, err := h.GetClusterClient(targetClusterID)
 
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteJSON(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !exists {
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found", targetClusterID)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusNotFound)
+		errStr := fmt.Sprintf("cluster [%s] not found", targetClusterID)
+		log.Error(errStr)
+		h.WriteError(w, errStr, http.StatusInternalServerError)
 		return
 	}
 	res, err := client.GetAliasesDetail()
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	h.WriteJSON(w, res, http.StatusOK)

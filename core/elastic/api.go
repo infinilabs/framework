@@ -102,11 +102,15 @@ type API interface {
 	GetClusterSettings() (map[string]interface{}, error)
 	GetIndex(indexName string) (map[string]interface{}, error)
 	Exists(target string) (bool, error)
+	GetILMPolicy(target string) (map[string]interface{}, error)
+	PutILMPolicy(target string, policyConfig []byte) error
+	DeleteILMPolicy(target string) error
 }
 
 type TemplateAPI interface {
 	TemplateExists(templateName string) (bool, error)
 	PutTemplate(templateName string, template []byte) ([]byte, error)
+	GetTemplate(templateName string) (map[string]interface{}, error)
 }
 
 type MappingAPI interface {

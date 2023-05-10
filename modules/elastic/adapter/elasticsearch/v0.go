@@ -1205,6 +1205,25 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	return resp.Body, nil
 }
 
+func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, error){
+	url := fmt.Sprintf("%s/_template", c.GetEndpoint())
+	if templateName != "" {
+		url = fmt.Sprintf("%s/%s", url, templateName)
+	}
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+
+	data := map[string]interface{}{}
+	err = json.Unmarshal(resp.Body, &data)
+	return data, err
+}
+
 func (c *ESAPIV0) SearchTasksByIds(ids []string) (*elastic.SearchResponse, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("param ids can not be empty")
@@ -1501,8 +1520,14 @@ func (c *ESAPIV0) SearchTemplate(body map[string]interface{}) ([]byte, error) {
 
 func (c *ESAPIV0) Alias(body []byte) error {
 	url := fmt.Sprintf("%s/_aliases", c.GetEndpoint())
-	_, err := c.Request(nil, util.Verb_POST, url, body)
-	return err
+	res, err := c.Request(nil, util.Verb_POST, url, body)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(res.Body))
+	}
+	return nil
 }
 
 func (c *ESAPIV0) FieldCaps(target string) ([]byte, error) {
@@ -1667,4 +1692,16 @@ func (c *ESAPIV0) Exists(target string) (bool, error) {
 		return false, err
 	}
 	return resp.StatusCode == 200, nil
+}
+
+func (c *ESAPIV0) GetILMPolicy(target string) (map[string]interface{}, error) {
+	return nil, fmt.Errorf("unsupport feature")
+}
+
+func (c *ESAPIV0) PutILMPolicy(target string, policyConfig []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+
+func (c *ESAPIV0) DeleteILMPolicy(target string) error {
+	return fmt.Errorf("unsupport feature")
 }

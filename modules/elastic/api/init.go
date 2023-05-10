@@ -106,4 +106,11 @@ func InitAPI(cfg common.ModuleConfig) {
 	api.HandleAPIMethod(api.GET, "/host/:host_id/processes",clusterAPI.GetHostElasticProcess)
 	api.HandleAPIMethod(api.PUT, "/host/:host_id",clusterAPI.updateHost)
 	api.HandleAPIMethod(api.GET, "/host/:host_id/info",clusterAPI.GetHostOverviewInfo)
+
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/_ilm/policy", clusterAPI.HandleGetILMPolicyAction)
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/_ilm/policy/:policy", clusterAPI.HandleSaveILMPolicyAction)
+	api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/_ilm/policy/:policy", clusterAPI.HandleDeleteILMPolicyAction)
+
+	api.HandleAPIMethod(api.GET, "/elasticsearch/:id/_template", clusterAPI.HandleGetTemplateAction)
+	api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/_template/:template_name", clusterAPI.HandleSaveTemplateAction)
 }
