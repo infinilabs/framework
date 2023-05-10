@@ -59,10 +59,11 @@ func (module *PipeModule) getPipelineStatus(id string, config string, processor 
 		return nil
 	}
 	ret := &PipelineStatus{
-		State:     c1.GetRunningState(),
-		StartTime: c1.GetStartTime(),
-		EndTime:   c1.GetEndTime(),
-		Context:   c1.CloneData(),
+		State:      c1.GetRunningState(),
+		CreateTime: c1.GetCreateTime(),
+		StartTime:  c1.GetStartTime(),
+		EndTime:    c1.GetEndTime(),
+		Context:    c1.CloneData(),
 	}
 	if config != "false" {
 		v1, ok := module.configs.Load(id)

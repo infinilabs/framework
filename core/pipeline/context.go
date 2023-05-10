@@ -57,6 +57,7 @@ type Context struct {
 	config PipelineConfigV2
 
 	//private parameters
+	createTime     time.Time
 	startTime      *time.Time
 	endTime        *time.Time
 	runningState   RunningState
@@ -78,6 +79,7 @@ type Context struct {
 func AcquireContext(config PipelineConfigV2) *Context {
 	ctx := Context{}
 	ctx.ResetContext()
+	ctx.createTime = time.Now()
 	ctx.runningState = FINISHED
 	ctx.config = config
 	return &ctx
@@ -112,6 +114,10 @@ func (ctx *Context) IsLoopReleased() bool {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 	return ctx.loopReleased
+}
+
+func (ctx *Context) GetCreateTime() time.Time {
+	return ctx.createTime
 }
 
 func (ctx *Context) GetStartTime() *time.Time {
