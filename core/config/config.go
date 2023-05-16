@@ -182,33 +182,10 @@ func LoadFile(path string) (*Config, error) {
 	bytesStr := util.UnsafeBytesToString(cfgByes)
 	if util.ContainStr(bytesStr, "$[[") {
 
-		env1 := EnvConfig{}
-		var err error
-		configObject, err := internalLoadFile(path)
+		obj, err := LoadEnvVariables(path)
 		if err != nil {
 			panic(err)
 		}
-
-		if err := configObject.Unpack(&env1); err != nil {
-			panic(err)
-		}
-
-		log.Debugf("config contain variables, try to parse with environments")
-		environs := os.Environ()
-		obj := map[string]interface{}{}
-
-		for k, v := range env1.Environments {
-			obj[k] = v
-		}
-
-		for _, env := range environs {
-			kv := strings.Split(env, "=")
-			if len(kv) == 2 {
-				obj[kv[0]] = kv[1]
-			}
-		}
-
-		log.Trace("environments:", util.ToJson(obj, true))
 
 		envObj := util.MapStr{}
 		envObj.Put("env", obj)
@@ -220,6 +197,37 @@ func LoadFile(path string) (*Config, error) {
 		return NewConfigWithTemplate(tempConfig)
 	}
 	return internalLoadFile(path)
+}
+
+func LoadEnvVariables(path string) (map[string]interface{}, error) {
+	env1 := EnvConfig{}
+	var err error
+	configObject, err := internalLoadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := configObject.Unpack(&env1); err != nil {
+		return nil, err
+	}
+
+	log.Debugf("config contain variables, try to parse with environments")
+	environs := os.Environ()
+	obj := map[string]interface{}{}
+
+	for k, v := range env1.Environments {
+		obj[k] = v
+	}
+
+	for _, env := range environs {
+		kv := strings.Split(env, "=")
+		if len(kv) == 2 {
+			obj[kv[0]] = kv[1]
+		}
+	}
+
+	log.Trace("environments:", util.ToJson(obj, true))
+	return obj, nil
 }
 
 // internalLoadFile will load config from specify file
