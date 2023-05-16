@@ -64,6 +64,7 @@ type App struct {
 
 const (
 	env_SILENT_GREETINGS = "SILENT_GREETINGS"
+	env_SERVICE_NAME = "SERVICE_NAME"
 )
 
 func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *App {
@@ -466,8 +467,17 @@ func (app *App) Run() {
 		panic(err)
 	}
 
+
+	serviceName:=app.environment.GetAppLowercaseName()
+	if v, ok := os.LookupEnv(env_SERVICE_NAME); ok {
+		serviceName=util.TrimSpaces(v)
+		if global.Env().IsDebug{
+			log.Debug("customized service name: ",serviceName)
+		}
+	}
+
 	svcConfig := &service.Config{
-		Name:             app.environment.GetAppLowercaseName(),
+		Name:             serviceName,
 		DisplayName:      app.environment.GetAppName(),
 		Description:      app.environment.GetAppDesc(),
 		WorkingDirectory: workdir,
