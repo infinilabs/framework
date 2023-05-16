@@ -23,7 +23,6 @@ import (
 	"sync"
 
 	log "github.com/cihub/seelog"
-	"github.com/ryanuber/go-glob"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/rotate"
 	"infini.sh/framework/core/util"
@@ -92,7 +91,9 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 	pushl, _ := log.LogLevelFromString(strings.ToLower(loggingConfig.PushLogLevel))
 
 	//logging receivers
-	receivers := []interface{}{consoleWriter}
+	consoleReceiver := NewFileReceiver(consoleWriter, l)
+	consoleOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, consoleReceiver, "console", log.CustomReceiverInitArgs{})
+	receivers := []interface{}{consoleOutput}
 
 	if !loggingConfig.DisableFileOutput {
 		if baseDir != "" {
@@ -108,7 +109,22 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 			MaxFileSize:  1024,
 		}
 		fileHandler := rotate.GetFileHandler(file, cfg1)
-		receivers = append(receivers, fileHandler)
+		fileReceiver := NewFileReceiver(fileHandler, l)
+		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, fileReceiver, "file", log.CustomReceiverInitArgs{})
+		if err != nil {
+			fmt.Println(err)
+		}else{
+			receivers = append(receivers, realtimeOutput)
+		}
+	}
+	if loggingConfig.RealtimePushEnabled {
+		realtimeReceiver := &WebsocketReceiver{config: loggingConfig, minLogLevel: pushl, handleMessageFunc: websocketHandler}
+		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, realtimeReceiver, "websocket", log.CustomReceiverInitArgs{})
+		if err != nil {
+			fmt.Println(err)
+		}else{
+			receivers = append(receivers, realtimeOutput)
+		}
 	}
 
 	root, err := log.NewSplitDispatcher(formatter, receivers)
@@ -116,26 +132,17 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		fmt.Println(err)
 	}
 
-	golbalConstraints, err := log.NewMinMaxConstraints(l, log.Off)
+	globalConstraints, err := log.NewMinMaxConstraints(log.TraceLvl, log.Off)
 	if err != nil {
 		panic(err)
 	}
 
 	exceptions := []*log.LogLevelException{}
 
-	if loggingConfig.RealtimePushEnabled {
-
-		logger, err := log.LoggerFromCustomReceiver(&CustomReceiver{config: loggingConfig, minLogLevel: l, pushminLogLevel: pushl})
-		err = log.ReplaceLogger(logger)
-		if err != nil {
-			fmt.Println(err)
-		}
-	} else {
-		logger := log.NewAsyncLoopLogger(log.NewLoggerConfig(golbalConstraints, exceptions, root))
-		err = log.ReplaceLogger(logger)
-		if err != nil {
-			fmt.Println(err)
-		}
+	logger := log.NewAsyncLoopLogger(log.NewLoggerConfig(globalConstraints, exceptions, root))
+	err = log.ReplaceLogger(logger)
+	if err != nil {
+		fmt.Println(err)
 	}
 
 }
@@ -161,83 +168,4 @@ func RegisterWebsocketHandler(func1 func(message string, level log.LogLevel, con
 	if func1 != nil {
 		log.Debug("websocket logging ready")
 	}
-}
-
-// CustomReceiver is a struct of custom log receiver, which implements seelog.CustomReceiver
-type CustomReceiver struct {
-	config          *config.LoggingConfig
-	minLogLevel     log.LogLevel
-	pushminLogLevel log.LogLevel
-}
-
-// ReceiveMessage impl how to receive log message
-func (ar *CustomReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
-
-	//truncate huge message
-	if len(message) > 300 {
-		message = util.SubString(message, 0, 300) + "..."
-	}
-
-	f := context.Func()
-	spl := strings.Split(f, ".")
-	funcName := spl[len(spl)-1]
-
-	preparedMessage := fmt.Sprintf("[%s] [%s] [%s:%d] [%s] %s\n",
-		context.CallTime().Format("15:04:05"),
-		strings.ToUpper(level.String()),
-		context.FileName(),
-		context.Line(),
-		funcName,
-		message,
-	)
-
-	//console output
-	if level >= ar.minLogLevel {
-		fmt.Printf(preparedMessage)
-	}
-
-	if ar.config != nil {
-		if level < ar.pushminLogLevel {
-			return nil
-		}
-
-		if len(ar.config.FileFilterPattern) > 0 && ar.config.FileFilterPattern != "*" {
-			if !glob.Glob(ar.config.FileFilterPattern, context.FileName()) {
-				return nil
-			}
-		}
-		if len(ar.config.FuncFilterPattern) > 0 && ar.config.FuncFilterPattern != "*" {
-			if !glob.Glob(ar.config.FuncFilterPattern, funcName) {
-				return nil
-			}
-		}
-		if len(ar.config.MessageFilterPattern) > 0 && ar.config.MessageFilterPattern != "*" {
-			if !glob.Glob(ar.config.MessageFilterPattern, message) {
-				return nil
-			}
-		}
-	}
-
-	//push message to websocket
-	if websocketHandler != nil {
-
-		websocketHandler(preparedMessage, log.DebugLvl, nil)
-	}
-
-	return nil
-}
-
-// AfterParse nothing to do here
-func (ar *CustomReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
-	return nil
-}
-
-// Flush logs
-func (ar *CustomReceiver) Flush() {
-
-}
-
-// Close logs
-func (ar *CustomReceiver) Close() error {
-	return nil
 }
