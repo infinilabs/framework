@@ -65,6 +65,7 @@ type Context struct {
 	processErrs    []error
 	processHistory []string
 	// steps tracks the count of state transition, doesn't reset within the context lifecycle
+	id    string
 	steps int64
 
 	cancelFunc   context.CancelFunc
@@ -79,6 +80,7 @@ type Context struct {
 func AcquireContext(config PipelineConfigV2) *Context {
 	ctx := Context{}
 	ctx.ResetContext()
+	ctx.id = util.GetUUID()
 	ctx.createTime = time.Now()
 	ctx.runningState = FINISHED
 	ctx.config = config
@@ -350,7 +352,8 @@ func (ctx *Context) pushPipelineLog() {
 		},
 	}
 	labels := util.MapStr{
-		"task_id": ctx.config.Name,
+		"task_id":    ctx.config.Name,
+		"context_id": ctx.id,
 	}
 	for k, v := range ctx.config.Labels {
 		labels[k] = v
