@@ -4,9 +4,10 @@
 package rotate
 
 import (
+	"sync"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
-	"sync"
 )
 
 var fileHandlers = map[string]*RotateWriter{}
@@ -29,11 +30,13 @@ var DefaultConfig = RotateConfig{
 
 func GetFileHandler(path string, config RotateConfig) *RotateWriter {
 	lock.Lock()
-	if !callbackRegistered{
+	defer lock.Unlock()
+
+	if !callbackRegistered {
 		global.RegisterShutdownCallback(func() {
 			Close()
 		})
-		callbackRegistered=true
+		callbackRegistered = true
 	}
 	v, ok := fileHandlers[path]
 	if !ok {
@@ -46,8 +49,18 @@ func GetFileHandler(path string, config RotateConfig) *RotateWriter {
 		}
 		fileHandlers[path] = v
 	}
-	lock.Unlock()
 	return v
+}
+
+func ReleaseFileHandler(path string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	v, ok := fileHandlers[path]
+	if ok {
+		v.Close()
+		delete(fileHandlers, path)
+	}
 }
 
 func Close() {
