@@ -3,16 +3,16 @@ package enum
 var PermissionMap = make(map[string][]string)
 
 const (
-	UserRead    = "system.user:read"
-	UserAll     = "system.user:all"
-	RoleRead    = "system.role:read"
-	RoleAll     = "system.role:all"
-	SecurityRead    = "system.security:read"
-	SecurityAll     = "system.security:all"
-	ClusterAll  = "system.cluster:all"
-	ClusterRead = "system.cluster:read"
-	CommandAll  = "system.command:all"
-	CommandRead = "system.command:read"
+	UserRead       = "system.user:read"
+	UserAll        = "system.user:all"
+	RoleRead       = "system.role:read"
+	RoleAll        = "system.role:all"
+	SecurityRead   = "system.security:read"
+	SecurityAll    = "system.security:all"
+	ClusterAll     = "system.cluster:all"
+	ClusterRead    = "system.cluster:read"
+	CommandAll     = "system.command:all"
+	CommandRead    = "system.command:read"
 	CredentialAll  = "system.credential:all"
 	CredentialRead = "system.credential:read"
 
@@ -37,80 +37,84 @@ const (
 	DiscoverAll  = "data.discover:all"
 	DiscoverRead = "data.discover:read"
 
-	RuleRead    = "alerting.rule:read"
-	RuleAll     = "alerting.rule:all"
-	AlertRead   = "alerting.alert:read"
-	AlertAll    = "alerting.alert:all"
-	AlertMessageRead   = "alerting.message:read"
-	AlertMessageAll    = "alerting.message:all"
-	ChannelRead = "alerting.channel:read"
-	ChannelAll  = "alerting.channel:all"
+	RuleRead         = "alerting.rule:read"
+	RuleAll          = "alerting.rule:all"
+	AlertRead        = "alerting.alert:read"
+	AlertAll         = "alerting.alert:all"
+	AlertMessageRead = "alerting.message:read"
+	AlertMessageAll  = "alerting.message:all"
+	ChannelRead      = "alerting.channel:read"
+	ChannelAll       = "alerting.channel:all"
 
 	ClusterOverviewRead = "cluster.overview:read"
 	ClusterOverviewAll  = "cluster.overview:all"
-	MonitoringRead   = "cluster.monitoring:read"
-	MonitoringAll    = "cluster.monitoring:all"
+	MonitoringRead      = "cluster.monitoring:read"
+	MonitoringAll       = "cluster.monitoring:all"
 	ActivitiesRead      = "cluster.activities:read"
 	ActivitiesAll       = "cluster.activities:all"
-	DataMigrationRead = "data_tools.migration:read"
-	DataMigrationAll = "data_tools.migration:all"
-	DashboardRead = "insight.dashboard:read"
-	DashboardAll = "insight.dashboard:all"
-	DevtoolConsoleAll = "devtool.console:all"
-	DevtoolConsoleRead = "devtool.console:read"
+	DataMigrationRead   = "data_tools.migration:read"
+	DataMigrationAll    = "data_tools.migration:all"
+	DataComparisonRead  = "data_tools.comparison:read"
+	DataComparisonAll   = "data_tools.comparison:all"
+	DashboardRead       = "insight.dashboard:read"
+	DashboardAll        = "insight.dashboard:all"
+	DevtoolConsoleAll   = "devtool.console:all"
+	DevtoolConsoleRead  = "devtool.console:read"
 )
 
 const (
-	PermissionUserRead string = "user:read"
-	PermissionUserWrite = "user:write"
-	PermissionDisableBuiltinAdmin = "user:disable_builtin_admin"
-	PermissionRoleRead = "role:read"
-	PermissionRoleWrite = "role:write"
-	PermissionCommandRead = "command:read"
-	PermissionCommandWrite = "command:write"
-	PermissionElasticsearchClusterRead = "es.cluster:read"
-	PermissionElasticsearchClusterWrite = "es.cluster:write" // es cluster
-	PermissionElasticsearchIndexRead = "es.index:read"
-	PermissionElasticsearchIndexWrite = "es.index:write" // es index metadata
-	PermissionElasticsearchNodeRead = "es.node:read" //es node metadata
-	PermissionActivityRead = "activity:read"
-	PermissionActivityWrite = "activity:write"
-	PermissionAlertRuleRead = "alert.rule:read"
-	PermissionAlertRuleWrite = "alert.rule:write"
-	PermissionAlertHistoryRead = "alert.history:read"
-	PermissionAlertHistoryWrite = "alert.history:write"
-	PermissionAlertMessageRead = "alert.message:read"
-	PermissionAlertMessageWrite = "alert.message:write"
-	PermissionAlertChannelRead = "alert.channel:read"
-	PermissionAlertChannelWrite = "alert.channel:write"
-	PermissionViewRead = "view:read"
-	PermissionViewWrite = "view:write"
-	PermissionLayoutRead = "layout:read"
-	PermissionLayoutWrite = "layout:write"
-	PermissionGatewayInstanceRead = "gateway.instance:read"
-	PermissionGatewayInstanceWrite = "gateway.instance:write"
-	PermissionGatewayEntryRead = "gateway.entry:read"
-	PermissionGatewayEntryWrite = "gateway.entry:write"
-	PermissionGatewayRouterRead = "gateway.router:read"
-	PermissionGatewayRouterWrite = "gateway.router:write"
-	PermissionGatewayFlowRead = "gateway.flow:read"
-	PermissionGatewayFlowWrite = "gateway.flow:write"
-	PermissionElasticsearchMetricRead = "es.metric:read"
+	PermissionUserRead                  string = "user:read"
+	PermissionUserWrite                        = "user:write"
+	PermissionDisableBuiltinAdmin              = "user:disable_builtin_admin"
+	PermissionRoleRead                         = "role:read"
+	PermissionRoleWrite                        = "role:write"
+	PermissionCommandRead                      = "command:read"
+	PermissionCommandWrite                     = "command:write"
+	PermissionElasticsearchClusterRead         = "es.cluster:read"
+	PermissionElasticsearchClusterWrite        = "es.cluster:write" // es cluster
+	PermissionElasticsearchIndexRead           = "es.index:read"
+	PermissionElasticsearchIndexWrite          = "es.index:write" // es index metadata
+	PermissionElasticsearchNodeRead            = "es.node:read"   //es node metadata
+	PermissionActivityRead                     = "activity:read"
+	PermissionActivityWrite                    = "activity:write"
+	PermissionAlertRuleRead                    = "alert.rule:read"
+	PermissionAlertRuleWrite                   = "alert.rule:write"
+	PermissionAlertHistoryRead                 = "alert.history:read"
+	PermissionAlertHistoryWrite                = "alert.history:write"
+	PermissionAlertMessageRead                 = "alert.message:read"
+	PermissionAlertMessageWrite                = "alert.message:write"
+	PermissionAlertChannelRead                 = "alert.channel:read"
+	PermissionAlertChannelWrite                = "alert.channel:write"
+	PermissionViewRead                         = "view:read"
+	PermissionViewWrite                        = "view:write"
+	PermissionLayoutRead                       = "layout:read"
+	PermissionLayoutWrite                      = "layout:write"
+	PermissionGatewayInstanceRead              = "gateway.instance:read"
+	PermissionGatewayInstanceWrite             = "gateway.instance:write"
+	PermissionGatewayEntryRead                 = "gateway.entry:read"
+	PermissionGatewayEntryWrite                = "gateway.entry:write"
+	PermissionGatewayRouterRead                = "gateway.router:read"
+	PermissionGatewayRouterWrite               = "gateway.router:write"
+	PermissionGatewayFlowRead                  = "gateway.flow:read"
+	PermissionGatewayFlowWrite                 = "gateway.flow:write"
+	PermissionElasticsearchMetricRead          = "es.metric:read"
 
-	PermissionAgentInstanceRead = "agent.instance:read"
-	PermissionAgentInstanceWrite = "agent.instance:write"
-	PermissionCredentialRead = "credential:read"
-	PermissionCredentialWrite = "credential:write"
-	PermissionTaskRead = "task:read"
-	PermissionTaskWrite = "task:write"
+	PermissionAgentInstanceRead   = "agent.instance:read"
+	PermissionAgentInstanceWrite  = "agent.instance:write"
+	PermissionCredentialRead      = "credential:read"
+	PermissionCredentialWrite     = "credential:write"
+	PermissionMigrationTaskRead   = "task:read"
+	PermissionMigrationTaskWrite  = "task:write"
+	PermissionComparisonTaskRead  = "comparison_task:read"
+	PermissionComparisonTaskWrite = "comparison_task:write"
 )
 
 var (
 	UserReadPermission = []string{PermissionUserRead}
 	UserAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead}
 
-	RoleReadPermission = []string{PermissionRoleRead}
-	RoleAllPermission  = []string{PermissionRoleRead, PermissionRoleWrite}
+	RoleReadPermission     = []string{PermissionRoleRead}
+	RoleAllPermission      = []string{PermissionRoleRead, PermissionRoleWrite}
 	SecurityReadPermission = []string{PermissionUserRead, PermissionRoleRead}
 	SecurityAllPermission  = []string{PermissionUserRead, PermissionUserWrite, PermissionRoleRead, PermissionRoleWrite, PermissionDisableBuiltinAdmin}
 
@@ -141,30 +145,32 @@ var (
 	DiscoverReadPermission = []string{PermissionViewRead}
 	DiscoverAllPermission  = []string{PermissionViewRead}
 
-	RuleReadPermission    = []string{PermissionAlertRuleRead, PermissionAlertHistoryRead}
-	RuleAllPermission     = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite, PermissionAlertHistoryRead,PermissionElasticsearchClusterRead}
-	AlertReadPermission   = []string{PermissionAlertHistoryRead}
-	AlertAllPermission    = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
-	AlertMessageReadPermission   = []string{PermissionAlertMessageRead, PermissionAlertHistoryRead}
-	AlertMessageAllPermission   = []string{PermissionAlertMessageRead, PermissionAlertMessageWrite, PermissionAlertHistoryRead}
-	ChannelReadPermission = []string{PermissionAlertChannelRead}
-	ChannelAllPermission  = []string{PermissionAlertChannelRead, PermissionAlertChannelWrite}
+	RuleReadPermission         = []string{PermissionAlertRuleRead, PermissionAlertHistoryRead}
+	RuleAllPermission          = []string{PermissionAlertRuleRead, PermissionAlertRuleWrite, PermissionAlertHistoryRead, PermissionElasticsearchClusterRead}
+	AlertReadPermission        = []string{PermissionAlertHistoryRead}
+	AlertAllPermission         = []string{PermissionAlertHistoryRead, PermissionAlertHistoryWrite}
+	AlertMessageReadPermission = []string{PermissionAlertMessageRead, PermissionAlertHistoryRead}
+	AlertMessageAllPermission  = []string{PermissionAlertMessageRead, PermissionAlertMessageWrite, PermissionAlertHistoryRead}
+	ChannelReadPermission      = []string{PermissionAlertChannelRead}
+	ChannelAllPermission       = []string{PermissionAlertChannelRead, PermissionAlertChannelWrite}
 
 	ClusterOverviewReadPermission = []string{PermissionElasticsearchClusterRead, PermissionElasticsearchIndexRead, PermissionElasticsearchNodeRead, PermissionElasticsearchMetricRead}
 	ClusterOverviewAllPermission  = ClusterOverviewReadPermission
-	MonitoringReadPermission = ClusterOverviewAllPermission
+	MonitoringReadPermission      = ClusterOverviewAllPermission
 
 	ActivitiesReadPermission = []string{PermissionActivityRead}
 	ActivitiesAllPermission  = []string{PermissionActivityRead, PermissionActivityWrite}
 
-	AgentInstanceReadPermission = []string{PermissionAgentInstanceRead}
-	AgentInstanceAllPermission  = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
-	CredentialReadPermission = []string{PermissionCredentialRead}
-	CredentialAllPermission  = []string{PermissionCredentialRead, PermissionCredentialWrite}
-	DataMigrationReadPermission = []string{PermissionTaskRead}
-	DataMigrationAllPermission = []string{PermissionTaskRead, PermissionTaskWrite}
-	DashboardReadPermission= []string{PermissionLayoutRead}
-	DashboardAllPermission=[]string{PermissionLayoutRead, PermissionLayoutWrite}
+	AgentInstanceReadPermission  = []string{PermissionAgentInstanceRead}
+	AgentInstanceAllPermission   = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
+	CredentialReadPermission     = []string{PermissionCredentialRead}
+	CredentialAllPermission      = []string{PermissionCredentialRead, PermissionCredentialWrite}
+	DataMigrationReadPermission  = []string{PermissionMigrationTaskRead}
+	DataMigrationAllPermission   = []string{PermissionMigrationTaskRead, PermissionMigrationTaskWrite}
+	DataComparisonReadPermission = []string{PermissionComparisonTaskRead}
+	DataComparisonAllPermission  = []string{PermissionComparisonTaskRead, PermissionComparisonTaskWrite}
+	DashboardReadPermission      = []string{PermissionLayoutRead}
+	DashboardAllPermission       = []string{PermissionLayoutRead, PermissionLayoutWrite}
 )
 
 var AdminPrivilege = []string{
@@ -175,17 +181,17 @@ var AdminPrivilege = []string{
 	AlertMessageAll,
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
-	DataMigrationAll, DashboardAll, DevtoolConsoleAll,
+	DataMigrationAll, DataComparisonAll, DashboardAll, DevtoolConsoleAll,
 }
 
 func init() {
 
 	PermissionMap = map[string][]string{
-		UserRead:    UserReadPermission,
-		UserAll:     UserAllPermission,
-		RoleRead:    RoleReadPermission,
-		RoleAll:     RoleAllPermission,
-		SecurityAll: SecurityAllPermission,
+		UserRead:     UserReadPermission,
+		UserAll:      UserAllPermission,
+		RoleRead:     RoleReadPermission,
+		RoleAll:      RoleAllPermission,
+		SecurityAll:  SecurityAllPermission,
 		SecurityRead: SecurityReadPermission,
 
 		ClusterRead: ClusterReadPermission,
@@ -211,14 +217,14 @@ func init() {
 		DiscoverRead: DiscoverReadPermission,
 		DiscoverAll:  DiscoverAllPermission,
 
-		RuleRead:    RuleReadPermission,
-		RuleAll:     RuleAllPermission,
-		AlertRead:   AlertReadPermission,
-		AlertAll:    AlertAllPermission,
-		ChannelRead: ChannelReadPermission,
-		ChannelAll:  ChannelAllPermission,
+		RuleRead:         RuleReadPermission,
+		RuleAll:          RuleAllPermission,
+		AlertRead:        AlertReadPermission,
+		AlertAll:         AlertAllPermission,
+		ChannelRead:      ChannelReadPermission,
+		ChannelAll:       ChannelAllPermission,
 		AlertMessageRead: AlertMessageReadPermission,
-		AlertMessageAll: AlertMessageAllPermission,
+		AlertMessageAll:  AlertMessageAllPermission,
 
 		ClusterOverviewRead: ClusterOverviewReadPermission,
 		ClusterOverviewAll:  ClusterOverviewAllPermission,
@@ -226,14 +232,16 @@ func init() {
 		MonitoringRead:      MonitoringReadPermission,
 		ActivitiesAll:       ActivitiesAllPermission,
 		ActivitiesRead:      ActivitiesReadPermission,
-		AgentInstanceAll: AgentInstanceAllPermission,
-		AgentInstanceRead: AgentInstanceReadPermission,
-		CredentialAll: CredentialAllPermission,
-		CredentialRead: CredentialReadPermission,
-		DataMigrationRead: DataMigrationReadPermission,
-		DataMigrationAll: DataMigrationAllPermission,
-		DashboardRead: DashboardReadPermission,
-		DashboardAll: DashboardAllPermission,
+		AgentInstanceAll:    AgentInstanceAllPermission,
+		AgentInstanceRead:   AgentInstanceReadPermission,
+		CredentialAll:       CredentialAllPermission,
+		CredentialRead:      CredentialReadPermission,
+		DataMigrationRead:   DataMigrationReadPermission,
+		DataMigrationAll:    DataMigrationAllPermission,
+		DataComparisonRead:  DataComparisonReadPermission,
+		DataComparisonAll:   DataComparisonAllPermission,
+		DashboardRead:       DashboardReadPermission,
+		DashboardAll:        DashboardAllPermission,
 	}
 
 }
