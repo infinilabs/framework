@@ -19,6 +19,7 @@ package stats
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 
 	"github.com/segmentio/encoding/json"
@@ -82,6 +83,16 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 		handler.WriteJSONHeader(w)
 		handler.Write(w, bytes)
 	}
+
+	handler.WriteHeader(w, 200)
+}
+
+func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	buf := make([]byte, 2<<20)
+	n := runtime.Stack(buf, true)
+
+	handler.WriteTextHeader(w)
+	handler.Write(w, buf[:n])
 
 	handler.WriteHeader(w, 200)
 }

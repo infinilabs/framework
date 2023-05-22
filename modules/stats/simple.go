@@ -67,6 +67,7 @@ func (module *SimpleStatsModule) Setup() {
 
 	//register api
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
+	api.HandleAPIMethod(api.GET, "/goroutines", module.GoroutinesAction)
 
 	//if global.Env().IsDebug{
 	api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
@@ -299,10 +300,10 @@ func (s *Stats) StatsAll() string {
 		"cpu":          int64(cpuPercent),
 		"mem":          int64(mem.RSS),
 		"goroutines":   int64(runtime.NumGoroutine()),
-		"objects":   int64(m.HeapObjects),
-		"stack":   int64(m.StackInuse),
-		"mspan":   int64(m.MSpanInuse),
-		"gc":   int64(m.NumGC),
+		"objects":      int64(m.HeapObjects),
+		"stack":        int64(m.StackInuse),
+		"mspan":        int64(m.MSpanInuse),
+		"gc":           int64(m.NumGC),
 		"cgo_calls":    int64(runtime.NumCgoCall()),
 	}
 
