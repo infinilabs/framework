@@ -182,6 +182,9 @@ func (l *RotateWriter) close() error {
 	if l.file == nil {
 		return nil
 	}
+	if l.millCh != nil {
+		close(l.millCh)
+	}
 	err := l.file.Close()
 	l.file = nil
 	return err
