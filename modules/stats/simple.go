@@ -292,12 +292,19 @@ func (s *Stats) StatsAll() string {
 		log.Error(err)
 		return util.ToJson(result, false)
 	}
+	times, err := p.Times()
+	if err != nil {
+		log.Error(err)
+		return util.ToJson(result, false)
+	}
 
 	runtime.ReadMemStats(&m)
 
 	result["system"] = map[string]int64{
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
+		"user_in_ms":   int64(times.User * 1000),
+		"sys_in_ms":    int64(times.System * 1000),
 		"mem":          int64(mem.RSS),
 		"goroutines":   int64(runtime.NumGoroutine()),
 		"objects":      int64(m.HeapObjects),
