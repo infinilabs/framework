@@ -5,7 +5,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/agent"
@@ -171,95 +170,6 @@ func (h *APIHandler) updateHost(w http.ResponseWriter, req *http.Request, ps htt
 	}, 200)
 }
 
-func (h *APIHandler) enrollHost(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var reqBody []struct {
-		AgentID  string `json:"agent_id"`
-		HostName string `json:"host_name"`
-		IP       string `json:"ip"`
-		Source   string `json:"source"`
-		OSName string `json:"os_name"`
-		OSArch string `json:"os_arch"`
-		NodeID string `json:"node_uuid"`
-	}
-	err := h.DecodeJSON(req, &reqBody)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	errors := util.MapStr{}
-	sm := agent.GetStateManager()
-	for _, hi := range reqBody {
-		var (
-			hostInfo *host.HostInfo
-		)
-		switch hi.Source {
-		case "agent":
-			hostInfo, err = enrollHostFromAgent(hi.AgentID)
-			if err != nil {
-				errors[hi.IP] = util.MapStr{
-					"error": err.Error(),
-				}
-				log.Error(err)
-				continue
-			}
-			hostInfo.IP = hi.IP
-			hostInfo.AgentID = hi.AgentID
-			err = orm.Create(nil, hostInfo)
-			if err != nil {
-				errors[hi.IP] = util.MapStr{
-					"error": err.Error(),
-				}
-				log.Error(err)
-				continue
-			}
-		case "es_node":
-			hostInfo = &host.HostInfo{
-				IP: hi.IP,
-				OSInfo: host.OS{
-					Platform: hi.OSName,
-					KernelArch: hi.OSArch,
-				},
-				NodeID: hi.NodeID,
-			}
-		default:
-			errors[hi.IP] = util.MapStr{
-				"error": fmt.Errorf("unkonow source type"),
-			}
-			continue
-		}
-		hostInfo.Timestamp = time.Now()
-		err = orm.Create(nil, hostInfo)
-		if err != nil {
-			errors[hi.IP] = util.MapStr{
-				"error": err.Error(),
-			}
-			log.Error(err)
-			continue
-		}
-		if hi.Source == "agent" {
-			ag, _  := sm.GetAgent(hostInfo.AgentID)
-			err = sm.GetAgentClient().DiscoveredHost(nil, ag.GetEndpoint(), util.MapStr{
-				"host_id": hostInfo.ID,
-			})
-			if err != nil {
-				log.Error(err)
-			}
-		}
-
-	}
-	resBody :=  util.MapStr{
-		"success": true,
-	}
-	if len(errors) > 0 {
-		resBody["errors"] = errors
-		resBody["success"] = false
-	}
-
-	h.WriteJSON(w, resBody, http.StatusOK)
-}
-
 func (h *APIHandler) getDiscoverHosts(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	hosts, err := discoverHost()
 	if err != nil {
@@ -275,14 +185,14 @@ func (h *APIHandler) getDiscoverHosts(w http.ResponseWriter, req *http.Request, 
 	h.WriteJSON(w, hostlist, http.StatusOK)
 }
 
-func getHostSummary(hostIDs []string, metricName string, summary map[string]util.MapStr) error{
+func getHostSummary(agentIDs []string, metricName string, summary map[string]util.MapStr) error{
 	if summary == nil {
 		summary = map[string]util.MapStr{
 		}
 	}
 
-	if hostIDs==nil{
-		hostIDs=[]string{}
+	if len(agentIDs) == 0{
+		return fmt.Errorf("empty agent ids")
 	}
 
 	q1 := orm.Query{WildcardIndex: true}
@@ -295,7 +205,7 @@ func getHostSummary(hostIDs []string, metricName string, summary map[string]util
 			},
 		},
 		"collapse": util.MapStr{
-			"field": "agent.host_id",
+			"field": "agent.id",
 		},
 		"query": util.MapStr{
 			"bool": util.MapStr{
@@ -316,7 +226,7 @@ func getHostSummary(hostIDs []string, metricName string, summary map[string]util
 					},
 					{
 						"terms": util.MapStr{
-							"agent.host_id": hostIDs,
+							"agent.id": agentIDs,
 						},
 					},
 				},
@@ -332,15 +242,15 @@ func getHostSummary(hostIDs []string, metricName string, summary map[string]util
 	for _, v := range results.Result {
 		result, ok := v.(map[string]interface{})
 		if ok {
-			hostID, ok := util.GetMapValueByKeys([]string{"agent", "host_id"}, result)
+			agentID, ok := util.GetMapValueByKeys([]string{"agent", "id"}, result)
 			if ok {
 				metric, ok := util.GetMapValueByKeys([]string{"payload", "host", metricName}, result)
 				if ok {
-					strHostID := util.ToString(hostID)
-					if _, ok = summary[strHostID]; ok {
-						summary[strHostID][metricName] = metric
+					strAgentID := util.ToString(agentID)
+					if _, ok = summary[strAgentID]; ok {
+						summary[strAgentID][metricName] = metric
 					}else{
-						summary[strHostID] = util.MapStr{
+						summary[strAgentID] = util.MapStr{
 							metricName: metric,
 						}
 					}
@@ -407,17 +317,17 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 				summary[strNodeID] = util.MapStr{}
 				osCPUPercent, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "percent"}, result)
 				if ok {
-					summary[strNodeID]["cpu_usage"] = util.MapStr{
+					summary[strNodeID]["cpu"] = util.MapStr{
 						"used_percent": osCPUPercent,
 					}
 				}
 				osMem, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "mem"}, result)
 				if osMemM, ok := osMem.(map[string]interface{});ok {
 					summary[strNodeID]["memory"] = util.MapStr{
-						"used_percent": osMemM["used_percent"],
-						"available_in_bytes": osMemM["free_in_bytes"],
-						"total_in_bytes": osMemM["total_in_bytes"],
-						"used_in_bytes": osMemM["used_in_bytes"],
+						"used.percent": osMemM["used_percent"],
+						"available.bytes": osMemM["free_in_bytes"],
+						"total.bytes": osMemM["total_in_bytes"],
+						"used.bytes": osMemM["used_in_bytes"],
 					}
 				}
 				fsTotal, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total"}, result)
@@ -425,11 +335,11 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 					total, ok1 := fsM["total_in_bytes"].(float64)
 					free, ok2 := fsM["free_in_bytes"].(float64)
 					if ok1 && ok2 {
-						summary[strNodeID]["disk_usage_summary"] = util.MapStr{
-							"used_percent": (total-free)* 100/total,
-							"total_in_bytes": total,
-							"free_in_bytes": free,
-							"used_in_bytes": total-free,
+						summary[strNodeID]["filesystem_summary"] = util.MapStr{
+							"used.percent": (total-free)* 100/total,
+							"total.bytes": total,
+							"free.bytes": free,
+							"used.bytes": total-free,
 						}
 					}
 				}
@@ -439,17 +349,17 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 	return summary, nil
 }
 
-func getHostSummaryFromAgent(hostIDs []string) (map[string]util.MapStr, error){
+func getHostSummaryFromAgent(agentIDs []string) (map[string]util.MapStr, error){
 	summary := map[string]util.MapStr{}
-	err := getHostSummary(hostIDs, "cpu_usage", summary)
+	err := getHostSummary(agentIDs, "cpu", summary)
 	if err != nil {
 		return nil, err
 	}
-	err = getHostSummary(hostIDs, "memory", summary)
+	err = getHostSummary(agentIDs, "memory", summary)
 	if err != nil {
 		return nil, err
 	}
-	err = getHostSummary(hostIDs, "disk_usage_summary", summary)
+	err = getHostSummary(agentIDs, "filesystem_summary", summary)
 	return summary, err
 }
 
@@ -482,9 +392,10 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 		return
 	}
 
-	var hostIDsOfAgent []string
+	var agentIDs []string
 	var nodeIDs []string
 	var hostIDToNodeID = map[string]string{}
+	var	hostIDToAgentID = map[string]string{}
 	for _, row := range result.Result {
 		tempHost := host.HostInfo{}
 		buf := util.MustToJSONBytes(row)
@@ -494,7 +405,8 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 			continue
 		}
 		if tempHost.AgentID != "" {
-			hostIDsOfAgent = append(hostIDsOfAgent, tempHost.ID)
+			agentIDs = append(agentIDs, tempHost.AgentID)
+			hostIDToAgentID[tempHost.ID] = tempHost.AgentID
 			continue
 		}
 		if tempHost.NodeID != "" {
@@ -503,7 +415,7 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 		}
 	}
 
-	summaryFromAgent, err := getHostSummaryFromAgent(hostIDsOfAgent)
+	summaryFromAgent, err := getHostSummaryFromAgent(agentIDs)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -532,8 +444,8 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 	for _, hostID := range hostIDs {
 		source := util.MapStr{}
 
-		if _, ok := summaryFromAgent[hostID]; ok {
-			source["summary"] = summaryFromAgent[hostID]
+		if agentID, ok := hostIDToAgentID[hostID]; ok {
+			source["summary"] = summaryFromAgent[agentID]
 		}else{
 			if nid, ok := hostIDToNodeID[hostID]; ok {
 				source["summary"] = summaryFromNode[nid]
@@ -579,12 +491,12 @@ func (h *APIHandler) GetHostInfo(w http.ResponseWriter, req *http.Request, ps ht
 
 }
 
-func (h *APIHandler) getSingleHostMetric(hostID string, min, max int64, bucketSize int, metricItems []*common.MetricItem)  map[string]*common.MetricItem{
+func (h *APIHandler) getSingleHostMetric(agentID string, min, max int64, bucketSize int, metricItems []*common.MetricItem)  map[string]*common.MetricItem{
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"agent.host_id":util.MapStr{
-					"value": hostID,
+				"agent.id":util.MapStr{
+					"value": agentID,
 				},
 			},
 		},
@@ -714,25 +626,25 @@ func (h *APIHandler) GetSingleHostMetrics(w http.ResponseWriter, req *http.Reque
 	metricItems:= []*common.MetricItem{}
 	metricItem:=newMetricItem("cpu_used_percent", 1, SystemGroupKey)
 	metricItem.AddAxi("cpu","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("CPU Used Percent","CPU","cpu used percent of host.","group1","payload.host.cpu_usage.used_percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("CPU Used Percent","CPU","cpu used percent of host.","group1","payload.host.cpu.used_percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems = append(metricItems, metricItem)
 	if isOverview == 0 {
 		metricItem =newMetricItem("system_load", 1, SystemGroupKey)
 		metricItem.AddAxi("system_load","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-		metricItem.AddLine("Load1","Load1","system load1.","group1","payload.host.cpu_usage.load.load1","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-		metricItem.AddLine("Load5","Load5","system load5.","group1","payload.host.cpu_usage.load.load5","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
-		metricItem.AddLine("Load15","Load15","system load15.","group1","payload.host.cpu_usage.load.load15","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+		metricItem.AddLine("Load1","Load1","system load1.","group1","payload.host.cpu.load.load1","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+		metricItem.AddLine("Load5","Load5","system load5.","group1","payload.host.cpu.load.load5","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+		metricItem.AddLine("Load15","Load15","system load15.","group1","payload.host.cpu.load.load15","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 		metricItems = append(metricItems, metricItem)
 
 		metricItem =newMetricItem("cpu_iowait", 1, SystemGroupKey)
 		metricItem.AddAxi("cpu_iowait","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
-		metricItem.AddLine("iowait","iowait","cpu iowait.","group1","payload.host.cpu_usage.iowait","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
+		metricItem.AddLine("iowait","iowait","cpu iowait.","group1","payload.host.cpu.iowait","max",bucketSizeStr,"","num","0,0.[00]","0,0.[00]",false,false)
 		metricItems = append(metricItems, metricItem)
 	}
 
 	metricItem =newMetricItem("memory_used_percent", 1, SystemGroupKey)
 	metricItem.AddAxi("Memory","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("Memory Used Percent","Memory Used Percent","memory used percent of host.","group1","payload.host.memory.used_percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Memory Used Percent","Memory Used Percent","memory used percent of host.","group1","payload.host.memory.used.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems = append(metricItems, metricItem)
 	if isOverview == 0 {
 		metricItem =newMetricItem("swap_memory_used_percent", 1, SystemGroupKey)
@@ -743,35 +655,35 @@ func (h *APIHandler) GetSingleHostMetrics(w http.ResponseWriter, req *http.Reque
 
 	metricItem =newMetricItem("network_summary", 1, SystemGroupKey)
 	metricItem.AddAxi("network_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("Network In Rate","Network In Rate","network in rate of host.","group1","payload.host.network_summary.input_total_in_bytes","max",bucketSizeStr,"/s","bytes","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Network Out Rate","Network Out Rate","network out rate of host.","group1","payload.host.network_summary.output_total_in_bytes","max",bucketSizeStr,"/s","bytes","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Network In Rate","Network In Rate","network in rate of host.","group1","payload.host.network_summary.in.bytes","max",bucketSizeStr,"/s","bytes","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Network Out Rate","Network Out Rate","network out rate of host.","group1","payload.host.network_summary.out.bytes","max",bucketSizeStr,"/s","bytes","0,0.[00]","0,0.[00]",false,true)
 	metricItems = append(metricItems, metricItem)
 	if isOverview == 0 {
 		metricItem =newMetricItem("network_packets_summary", 1, SystemGroupKey)
 		metricItem.AddAxi("network_packets_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-		metricItem.AddLine("Network Packets In Rate","Network Packets In Rate","network packets in rate of host.","group1","payload.host.network_summary.input_total_packets","max",bucketSizeStr,"packets/s","num","0,0.[00]","0,0.[00]",false,true)
-		metricItem.AddLine("Network Packets Out Rate","Network Packets Out Rate","network packets out rate of host.","group1","payload.host.network_summary.output_total_packets","max",bucketSizeStr,"packets/s","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Network Packets In Rate","Network Packets In Rate","network packets in rate of host.","group1","payload.host.network_summary.in.packets","max",bucketSizeStr,"packets/s","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Network Packets Out Rate","Network Packets Out Rate","network packets out rate of host.","group1","payload.host.network_summary.out.packets","max",bucketSizeStr,"packets/s","num","0,0.[00]","0,0.[00]",false,true)
 		metricItems = append(metricItems, metricItem)
 	}
 
 	metricItem =newMetricItem("disk_used_percent", 1, SystemGroupKey)
 	metricItem.AddAxi("disk","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("Disk Used Percent","Disk Used Percent","disk used percent of host.","group1","payload.host.disk_usage_summary.used_percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
+	metricItem.AddLine("Disk Used Percent","Disk Used Percent","disk used percent of host.","group1","payload.host.filesystem_summary.used.percent","max",bucketSizeStr,"%","num","0,0.[00]","0,0.[00]",false,false)
 	metricItems = append(metricItems, metricItem)
 
 	metricItem =newMetricItem("disk_read_rate", 1, SystemGroupKey)
 	metricItem.AddAxi("disk_read_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("Disk Read Rate","Disk Read Rate","Disk read rate of host.","group1","payload.host.disk_io_summary.read_in_bytes","max",bucketSizeStr,"%","bytes","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Disk Read Rate","Disk Read Rate","Disk read rate of host.","group1","payload.host.diskio_summary.read.bytes","max",bucketSizeStr,"%","bytes","0,0.[00]","0,0.[00]",false,true)
 	metricItems = append(metricItems, metricItem)
 
 	metricItem =newMetricItem("disk_write_rate", 1, SystemGroupKey)
 	metricItem.AddAxi("disk_write_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
-	metricItem.AddLine("Disk Write Rate","Disk Write Rate","network write rate of host.","group1","payload.host.disk_io_summary.write_in_bytes","max",bucketSizeStr,"%","bytes","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Disk Write Rate","Disk Write Rate","network write rate of host.","group1","payload.host.diskio_summary.write.bytes","max",bucketSizeStr,"%","bytes","0,0.[00]","0,0.[00]",false,true)
 	metricItems = append(metricItems, metricItem)
 
-	hostMetrics := h.getSingleHostMetric(hostID, min, max, bucketSize, metricItems)
+	hostMetrics := h.getSingleHostMetric(hostInfo.AgentID, min, max, bucketSize, metricItems)
 	if isOverview == 0 {
-		groupMetrics := h.getGroupHostMetrics(hostID, min, max, bucketSize)
+		groupMetrics := h.getGroupHostMetrics(hostInfo.AgentID, min, max, bucketSize)
 		if hostMetrics == nil {
 			hostMetrics = map[string]*common.MetricItem{}
 		}
@@ -785,7 +697,7 @@ func (h *APIHandler) GetSingleHostMetrics(w http.ResponseWriter, req *http.Reque
 	h.WriteJSON(w, resBody, http.StatusOK)
 }
 
-func (h *APIHandler) getGroupHostMetrics(hostID string, min, max int64, bucketSize int)  map[string]*common.MetricItem{
+func (h *APIHandler) getGroupHostMetrics(agentID string, min, max int64, bucketSize int)  map[string]*common.MetricItem{
 	diskPartitionMetric := newMetricItem("disk_partition_usage", 2, SystemGroupKey)
 	diskPartitionMetric.AddAxi("Disk Partition Usage","group1",common.PositionLeft,"ratio","0.[0]","0.[0]",5,true)
 	hostMetricItems := []GroupMetricItem{
@@ -799,7 +711,7 @@ func (h *APIHandler) getGroupHostMetrics(hostID string, min, max int64, bucketSi
 			Units: "%",
 		},
 	}
-	hostMetrics := h.getGroupHostMetric(hostID, min, max, bucketSize, hostMetricItems, "payload.host.disk_partition_usage.partition")
+	hostMetrics := h.getGroupHostMetric(agentID, min, max, bucketSize, hostMetricItems, "payload.host.disk_partition_usage.partition")
 	networkOutputMetric := newMetricItem("network_interface_output_rate", 2, SystemGroupKey)
 	networkOutputMetric.AddAxi("Network interface output rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	hostMetricItems = []GroupMetricItem{
@@ -813,19 +725,19 @@ func (h *APIHandler) getGroupHostMetrics(hostID string, min, max int64, bucketSi
 			Units: "",
 		},
 	}
-	networkOutMetrics := h.getGroupHostMetric(hostID, min, max, bucketSize, hostMetricItems, "payload.host.network_interface.name")
+	networkOutMetrics := h.getGroupHostMetric(agentID, min, max, bucketSize, hostMetricItems, "payload.host.network_interface.name")
 	if networkOutMetrics != nil {
 		hostMetrics["network_interface_output_rate"] = networkOutMetrics["network_interface_output_rate"]
 	}
 	return hostMetrics
 }
 
-func (h *APIHandler) getGroupHostMetric(hostID string, min, max int64, bucketSize int, hostMetricItems []GroupMetricItem, groupField string)  map[string]*common.MetricItem{
+func (h *APIHandler) getGroupHostMetric(agentID string, min, max int64, bucketSize int, hostMetricItems []GroupMetricItem, groupField string)  map[string]*common.MetricItem{
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"agent.host_id":util.MapStr{
-					"value": hostID,
+				"agent.id":util.MapStr{
+					"value": agentID,
 				},
 			},
 		},
@@ -877,49 +789,31 @@ func (h *APIHandler) getGroupHostMetric(hostID string, min, max int64, bucketSiz
 	return h.getMetrics(query, hostMetricItems, bucketSize)
 }
 
-func (h *APIHandler) GetHostAgentInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	hostID := ps.MustGetParameter("host_id")
+func getHost(hostID string) (*host.HostInfo, error){
 	hostInfo := &host.HostInfo{}
 	hostInfo.ID = hostID
 	exists, err := orm.Get(hostInfo)
 	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("get host info error: %w", err)
 	}
 	if !exists {
-		h.WriteError(w, fmt.Sprintf("host [%s] not found", hostID), http.StatusNotFound)
+		return nil, fmt.Errorf("host [%s] not found", hostID)
+	}
+	return hostInfo, nil
+}
+
+func (h *APIHandler) GetHostMetricStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	hostID := ps.MustGetParameter("host_id")
+	hostInfo, err := getHost(hostID)
+	if err != nil {
+		log.Error(err)
+		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
 	if hostInfo.AgentID == "" {
 		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
-	sm := agent.GetStateManager()
-	ag, err := sm.GetAgent(hostInfo.AgentID)
-	if err != nil {
-		log.Error(err)
-		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
-		return
-	}
-	aversion, err := ag.GetVersion()
-	if err == nil {
-		ag.Version = aversion
-		orm.Save(nil, ag)
-	}
-	h.WriteJSON(w, util.MapStr{
-		"host_id": hostID,
-		"agent_id": ag.ID,
-		"version": ag.Version,
-		"status": ag.Status,
-		"schema": ag.Schema,
-		"ip": ag.RemoteIP,
-		"port": ag.Port,
-	}, http.StatusOK)
-}
-
-func (h *APIHandler) GetHostMetricStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	hostID := ps.MustGetParameter("host_id")
 	queryDSL := util.MapStr{
 		"sort": []util.MapStr{
 			{
@@ -936,8 +830,8 @@ func (h *APIHandler) GetHostMetricStats(w http.ResponseWriter, req *http.Request
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"agent.host_id": util.MapStr{
-								"value": hostID,
+							"agent.id": util.MapStr{
+								"value": hostInfo.AgentID,
 							},
 						},
 					},
@@ -951,11 +845,11 @@ func (h *APIHandler) GetHostMetricStats(w http.ResponseWriter, req *http.Request
 					{
 						"terms": util.MapStr{
 							"metadata.name": []string{
-								"disk_usage_summary",
-								"cpu_usage",
+								"filesystem_summary",
+								"cpu",
 								"memory",
-								"disk_io_summary",
 								"network_summary",
+								"network",
 							},
 						},
 					},
@@ -993,44 +887,6 @@ func (h *APIHandler) GetHostMetricStats(w http.ResponseWriter, req *http.Request
 		}
 	}
 	h.WriteJSON(w, metricStats, http.StatusOK)
-}
-
-func (h *APIHandler) GetHostElasticProcess(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	hostID := ps.MustGetParameter("host_id")
-	hostInfo := &host.HostInfo{}
-	hostInfo.ID = hostID
-	exists, err := orm.Get(hostInfo)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if !exists {
-		h.WriteError(w, fmt.Sprintf("host [%s] not found", hostID), http.StatusNotFound)
-		return
-	}
-	if hostInfo.AgentID == "" {
-		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
-		return
-	}
-	sm := agent.GetStateManager()
-	ag, err := sm.GetAgent(hostInfo.AgentID)
-	if err != nil {
-		log.Error(err)
-		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
-		return
-	}
-	ctx,cancel := context.WithTimeout(context.Background(), time.Second * 3)
-	defer cancel()
-	processInfo, err := sm.GetAgentClient().GetElasticProcess(ctx, ag.GetEndpoint(), hostInfo.AgentID)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	h.WriteJSON(w, util.MapStr{
-		"elastic_processes": processInfo,
-	}, http.StatusOK)
 }
 
 func (h *APIHandler) GetHostOverviewInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -1156,14 +1012,15 @@ func discoverHost() (map[string]interface{}, error) {
 	}
 
 	queryDsl = util.MapStr{
+		"size": 1000,
 		"_source": []string{"id", "ips", "remote_ip", "major_ip", "host"},
-		"query": util.MapStr{
-			"term": util.MapStr{
-				"enrolled": util.MapStr{
-					"value": true,
-				},
-			},
-		},
+		//"query": util.MapStr{
+		//	"term": util.MapStr{
+		//		"enrolled": util.MapStr{
+		//			"value": true,
+		//		},
+		//	},
+		//},
 	}
 	q = &orm.Query{RawQuery: util.MustToJSONBytes(queryDsl)}
 	err, result = orm.Search(agent.Instance{}, q)
@@ -1196,7 +1053,7 @@ func discoverHost() (map[string]interface{}, error) {
 		hostsFromAgent[ip] = util.MapStr{
 			"ip":         ip,
 			"agent_id":   ag.ID,
-			"agent_host": ag.RemoteIP,
+			"agent_host": ag.Endpoint,
 			"source":     "agent",
 			"os_name":    ag.Host.OS.Name,
 			"host_name":  ag.Host.Name,
@@ -1206,24 +1063,6 @@ func discoverHost() (map[string]interface{}, error) {
 	err = util.MergeFields(hostsFromES, hostsFromAgent, true)
 
 	return hostsFromES, err
-}
-
-func enrollHostFromAgent(agentID string) (*host.HostInfo, error){
-	sm := agent.GetStateManager()
-	ag, err := sm.GetAgent(agentID)
-	if err != nil {
-		return nil, err
-	}
-	if ag == nil {
-		return nil, fmt.Errorf("can not found agent [%s]", agentID)
-	}
-	agentClient := sm.GetAgentClient()
-	hostInfo, err :=  agentClient.GetHostInfo(nil, ag.GetEndpoint(), agentID)
-	if err != nil {
-		return nil, err
-	}
-	hostInfo.AgentStatus = ag.Status
-	return hostInfo, nil
 }
 
 func getAgentOnlineStatusOfRecentDay(hostIDs []string)(map[string][]interface{}, error){
