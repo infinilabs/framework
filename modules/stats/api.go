@@ -54,24 +54,8 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 
 	switch format {
 	case "prometheus":
-		kv := util.Flatten(metrics, false)
-		buffer := bytebufferpool.Get("stats")
-		defer bytebufferpool.Put("stats", buffer)
-		for k, v := range kv {
-			buffer.Write(util.UnsafeStringToBytes(util.PrometheusMetricReplacer.Replace(k)))
-			buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
-				global.Env().GetAppLowercaseName(),
-				global.Env().SystemConfig.NodeConfig.IP,
-				global.Env().SystemConfig.NodeConfig.Name,
-				global.Env().SystemConfig.NodeConfig.ID,
-			)))
-			buffer.Write(space)
-			buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
-			buffer.Write(newline)
-		}
-		handler.WriteTextHeader(w)
-		handler.Write(w, buffer.Bytes())
-		break
+		handler.PrometheusStatsAction(w,req,ps)
+		return
 	default:
 		statsLock.Lock()
 		defer statsLock.Unlock()
@@ -87,12 +71,42 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 	handler.WriteHeader(w, 200)
 }
 
+// StatsAction return stats information
+func (handler SimpleStatsModule) PrometheusStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	var err error
+	metrics, err := stats.StatsMap()
+	if err != nil {
+		handler.WriteError(w, "stats is nil", 500)
+		return
+	}
+
+	kv := util.Flatten(metrics, false)
+	buffer := bytebufferpool.Get("stats")
+	defer bytebufferpool.Put("stats", buffer)
+	for k, v := range kv {
+		buffer.Write(util.UnsafeStringToBytes(util.PrometheusMetricReplacer.Replace(k)))
+		buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
+			global.Env().GetAppLowercaseName(),
+			global.Env().SystemConfig.NodeConfig.IP,
+			global.Env().SystemConfig.NodeConfig.Name,
+			global.Env().SystemConfig.NodeConfig.ID,
+		)))
+		buffer.Write(space)
+		buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
+		buffer.Write(newline)
+	}
+	handler.WriteTextHeader(w)
+	handler.Write(w, buffer.Bytes())
+
+	handler.WriteHeader(w, 200)
+}
+
 func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	buf := make([]byte, 2<<20)
 	n := runtime.Stack(buf, true)
 
 	handler.WriteTextHeader(w)
 	handler.Write(w, buf[:n])
-
 	handler.WriteHeader(w, 200)
 }
