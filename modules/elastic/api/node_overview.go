@@ -138,6 +138,7 @@ func (h *APIHandler) SearchNodeMetadata(w http.ResponseWriter, req *http.Request
 		"highlight": elastic.BuildSearchHighlight(&reqBody.Highlight),
 		"query": util.MapStr{
 			"bool": util.MapStr{
+				"minimum_should_match": 1,
 				"filter": elastic.BuildSearchTermFilter(reqBody.Filter),
 				"should": should,
 				"must": must,
