@@ -1116,37 +1116,14 @@ func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSiz
 		log.Error(err)
 		return nil, err
 	}
-	var minDate, maxDate int64
 	metricData := []interface{}{}
 	metricItem:=newMetricItem("cluster_health", 1, MemoryGroupKey)
 	metricItem.AddLine("status","Status","","group1","payload.elasticsearch.cluster_stats.status","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
 
 	if response.StatusCode == 200 {
-		for _, bucket := range response.Aggregations["dates"].Buckets {
-			v, ok := bucket["key"].(float64)
-			if !ok {
-				log.Error("invalid bucket key")
-				return nil, fmt.Errorf("invalid bucket key")
-			}
-			dateTime := (int64(v))
-			minDate = util.MinInt64(minDate, dateTime)
-			maxDate = util.MaxInt64(maxDate, dateTime)
-			totalCount := bucket["doc_count"].(float64)
-			if grpStatus, ok := bucket["group_status"].(map[string]interface{}); ok {
-				if statusBks, ok := grpStatus["buckets"].([]interface{}); ok {
-					for _, statusBk := range statusBks {
-						if bkMap, ok := statusBk.(map[string]interface{}); ok {
-							statusKey := bkMap["key"].(string)
-							count := bkMap["doc_count"].(float64)
-							metricData = append(metricData, map[string]interface{}{
-								"x": dateTime,
-								"y": count/totalCount * 100,
-								"g": statusKey,
-							})
-						}
-					}
-				}
-			}
+		metricData, err = parseHealthMetricData(response.Aggregations["dates"].Buckets)
+		if err != nil {
+			return nil, err
 		}
 	}
 	metricItem.Lines[0].Data = metricData

@@ -857,3 +857,35 @@ func saveMetric(metricData *MetricData,group string, label , value interface{},b
 	(*metricData)[group]=v
 	//fmt.Printf("save:%v, %v=%v\n",group,label,value)
 }
+
+func parseHealthMetricData(buckets []elastic.BucketBase)([]interface{}, error){
+	metricData := []interface{}{}
+	var minDate, maxDate int64
+	for _, bucket := range buckets {
+		v, ok := bucket["key"].(float64)
+		if !ok {
+			log.Error("invalid bucket key")
+			return nil, fmt.Errorf("invalid bucket key")
+		}
+		dateTime := int64(v)
+		minDate = util.MinInt64(minDate, dateTime)
+		maxDate = util.MaxInt64(maxDate, dateTime)
+		totalCount := bucket["doc_count"].(float64)
+		if grpStatus, ok := bucket["group_status"].(map[string]interface{}); ok {
+			if statusBks, ok := grpStatus["buckets"].([]interface{}); ok {
+				for _, statusBk := range statusBks {
+					if bkMap, ok := statusBk.(map[string]interface{}); ok {
+						statusKey := bkMap["key"].(string)
+						count := bkMap["doc_count"].(float64)
+						metricData = append(metricData, map[string]interface{}{
+							"x": dateTime,
+							"y": count/totalCount * 100,
+							"g": statusKey,
+						})
+					}
+				}
+			}
+		}
+	}
+	return metricData, nil
+}

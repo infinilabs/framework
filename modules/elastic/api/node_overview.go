@@ -651,8 +651,71 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 		return value/value2
 	}
 	metricItems=append(metricItems,metricItem)
-	resBody["metrics"] = h.getSingleMetrics(metricItems,query, bucketSize)
+	metrics := h.getSingleMetrics(metricItems,query, bucketSize)
+	healthMetric, err := getNodeHealthMetric(query, bucketSize)
+	if err != nil {
+		log.Error(err)
+	}
+	metrics["node_health"] = healthMetric
+	resBody["metrics"] = metrics
 	h.WriteJSON(w, resBody, http.StatusOK)
+}
+
+func getNodeHealthMetric(query util.MapStr, bucketSize int)(*common.MetricItem, error){
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		return nil, err
+	}
+	query["aggs"] = util.MapStr{
+		"dates": util.MapStr{
+			"date_histogram": util.MapStr{
+				"field": "timestamp",
+				intervalField: bucketSizeStr,
+			},
+			"aggs": util.MapStr{
+				"min_uptime": util.MapStr{
+					"min": util.MapStr{
+						"field": "payload.elasticsearch.node_stats.jvm.uptime_in_millis",
+					},
+				},
+			},
+		},
+	}
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	metricItem:=newMetricItem("node_health", 0, "")
+	metricItem.AddLine("Node health","Node Health","","group1","payload.elasticsearch.node_stats.jvm.uptime_in_millis","min",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+
+	metricData := []interface{}{}
+	if response.StatusCode == 200 {
+		for _, bucket := range response.Aggregations["dates"].Buckets {
+			v, ok := bucket["key"].(float64)
+			if !ok {
+				log.Error("invalid bucket key")
+				return nil, fmt.Errorf("invalid bucket key")
+			}
+			dateTime := int64(v)
+			statusKey := "available"
+			if uptimeAgg, ok := bucket["min_uptime"].(map[string]interface{}); ok {
+				if _, ok = uptimeAgg["value"].(float64); !ok {
+					statusKey = "unavailable"
+				}
+				metricData = append(metricData, map[string]interface{}{
+					"x": dateTime,
+					"y": 100,
+					"g": statusKey,
+				})
+			}
+		}
+	}
+	metricItem.Lines[0].Data = metricData
+	metricItem.Lines[0].Type = common.GraphTypeBar
+	return metricItem, nil
 }
 
 func getNodeOnlineStatusOfRecentDay(nodeIDs []string)(map[string][]interface{}, error){
@@ -1014,6 +1077,25 @@ func (h *APIHandler) GetNodeShards(w http.ResponseWriter, req *http.Request, ps 
 		row, ok := result.Result[0].(map[string]interface{})
 		if ok {
 			shardInfo, ok = util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "shards"}, row)
+			qps, err := h.getIndexQPS(clusterID)
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if shards, ok := shardInfo.([]interface{}); ok {
+				for _, shard := range shards {
+					if shardM, ok := shard.(map[string]interface{}); ok {
+						if indexName, ok := shardM["index"].(string); ok {
+							if _, ok := qps[indexName]; ok {
+								shardM["index_qps"] = qps[indexName]["index"]
+								shardM["query_qps"] = qps[indexName]["query"]
+								shardM["index_bytes_qps"] = qps[indexName]["index_bytes"]
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 	if shardInfo == nil {

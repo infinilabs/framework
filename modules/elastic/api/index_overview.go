@@ -720,8 +720,103 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		return value/value2
 	}
 	metricItems=append(metricItems,metricItem)
-	resBody["metrics"] = h.getSingleMetrics(metricItems,query, bucketSize)
+	metrics := h.getSingleMetrics(metricItems,query, bucketSize)
+	healthMetric, err := h.getIndexHealthMetric(clusterID, indexName, min, max, bucketSize)
+	if err != nil {
+		log.Error(err)
+	}
+	metrics["index_health"] = healthMetric
+	resBody["metrics"] = metrics
 	h.WriteJSON(w, resBody, http.StatusOK)
+}
+
+func (h *APIHandler) getIndexHealthMetric(id, indexName string, min, max int64, bucketSize int)(*common.MetricItem, error){
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
+	if err != nil {
+		return nil, err
+	}
+	query := util.MapStr{
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": id,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "index_stats",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.labels.index_name": util.MapStr{
+								"value": indexName,
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+			},
+		},
+		"aggs": util.MapStr{
+			"dates": util.MapStr{
+				"date_histogram": util.MapStr{
+					"field": "timestamp",
+					intervalField: bucketSizeStr,
+				},
+				"aggs": util.MapStr{
+					"group_status": util.MapStr{
+						"terms": util.MapStr{
+							"field": "payload.elasticsearch.index_stats.index_info.health",
+							"size": 5,
+						},
+					},
+				},
+			},
+		},
+	}
+	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+
+	metricItem:=newMetricItem("index_health", 1, "")
+	metricItem.AddLine("health","Health","","group1","payload.elasticsearch.index_stats.index_info.health","max",bucketSizeStr,"%","ratio","0.[00]","0.[00]",false,false)
+
+	metricData := []interface{}{}
+	if response.StatusCode == 200 {
+		metricData, err = parseHealthMetricData(response.Aggregations["dates"].Buckets)
+		if err != nil {
+			return nil, err
+		}
+	}
+	metricItem.Lines[0].Data = metricData
+	metricItem.Lines[0].Type = common.GraphTypeBar
+	return metricItem, nil
 }
 
 
