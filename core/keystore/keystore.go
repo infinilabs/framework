@@ -6,6 +6,8 @@ package keystore
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
+	"github.com/fsnotify/fsnotify"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/go-ucfg"
@@ -38,9 +40,12 @@ func GetWriteableKeystore()(keystore.WritableKeystore, error) {
 	return keystore.AsWritableKeystore(ks)
 }
 
-func initKeystore() (keystore.Keystore, error){
+func getKeystorePath() string{
 	ksPath := GetKeystoreBasePath()
-	keystorePath := filepath.Join(ksPath, ".keystore")
+	return filepath.Join(ksPath, ".keystore")
+}
+func initKeystore() (keystore.Keystore, error){
+	keystorePath := getKeystorePath()
 	if !util.FileExists(keystorePath){
 		err := os.Mkdir(keystorePath, 0750)
 		if err != nil {
@@ -116,4 +121,44 @@ func GetVariableResolver() (ucfg.Option, error){
 		}
 		return "", parse.NoopConfig, ucfg.ErrMissing
 	}), nil
+}
+
+var watcher *fsnotify.Watcher
+func Watch(){
+	var err error
+	watcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		log.Error(err)
+	}
+	keystorePath := getKeystorePath()
+	keystoreFile := filepath.Join(keystorePath, "ks")
+	err = watcher.Add(keystoreFile)
+	if err != nil {
+		log.Error(err)
+	}
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Has(fsnotify.Create) {
+				defaultKeystore, err = initKeystore()
+				if err != nil {
+					log.Error("init keystore error: ", err)
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Error(err)
+		}
+	}
+}
+
+func CloseWatch(){
+	if watcher != nil {
+		watcher.Close()
+	}
 }

@@ -181,7 +181,9 @@ func (app *App) initWithFlags() {
 	if !util.FileExists(app.environment.GetLogDir()) {
 		os.MkdirAll(app.environment.GetLogDir(), 0755)
 	}
-
+	if len(os.Args) > 1 && os.Args[1] == "keystore" {
+		keystore.RunCmd(os.Args[2:])
+	}
 }
 
 func (app *App) initEnvironment(customFunc func()) {
@@ -190,6 +192,14 @@ func (app *App) initEnvironment(customFunc func()) {
 		panic(err)
 	}
 	config.RegisterOption("keystore", ksResolver)
+	err = task.RunWithContext("keystore", func(ctx context.Context) error {
+		keystore.Watch()
+		return nil
+	}, context.Background())
+	if err != nil {
+		panic(err)
+	}
+	global.RegisterShutdownCallback(keystore.CloseWatch)
 	app.environment.Init()
 
 	//allow use yml to configure the log level
