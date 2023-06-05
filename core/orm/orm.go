@@ -18,12 +18,14 @@ package orm
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"reflect"
-	"time"
 )
+
 type Context struct {
 	context.Context
 	Refresh string
@@ -50,7 +52,7 @@ type ORM interface {
 
 	GetBy(field string, value interface{}, o interface{}) (error, Result)
 
-	Count(o interface{}) (int64, error)
+	Count(o interface{}, query interface{}) (int64, error)
 
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 	DeleteBy(o interface{}, query interface{}) error
@@ -58,7 +60,7 @@ type ORM interface {
 }
 
 type ORMObjectBase struct {
-	ID      string    `config:"id"  json:"id,omitempty"    elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	ID      string     `config:"id"  json:"id,omitempty"    elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
 }
@@ -74,25 +76,25 @@ const ASC SortType = "asc"
 const DESC SortType = "desc"
 
 type Query struct {
-	Sort     *[]Sort
+	Sort          *[]Sort
 	QueryArgs     *[]util.KV
-	From     int
-	CollapseField     string
-	Size     int
-	Conds    []*Cond
-	RawQuery []byte
+	From          int
+	CollapseField string
+	Size          int
+	Conds         []*Cond
+	RawQuery      []byte
 	WildcardIndex bool
-	IndexName string
+	IndexName     string
 }
 
 func (q *Query) Collapse(field string) *Query {
-	q.CollapseField=field
+	q.CollapseField = field
 	return q
 }
 
 func (q *Query) AddSort(field string, sortType SortType) *Query {
-	if q.Sort==nil{
-		q.Sort=&[]Sort{}
+	if q.Sort == nil {
+		q.Sort = &[]Sort{}
 	}
 	*q.Sort = append(*q.Sort, Sort{Field: field, SortType: sortType})
 
@@ -100,10 +102,10 @@ func (q *Query) AddSort(field string, sortType SortType) *Query {
 }
 
 func (q *Query) AddQueryArgs(name string, value string) *Query {
-	if q.QueryArgs==nil{
-		q.QueryArgs=&[]util.KV{}
+	if q.QueryArgs == nil {
+		q.QueryArgs = &[]util.KV{}
 	}
-	*q.QueryArgs = append(*q.QueryArgs,util.KV{Key: name,Value: value} )
+	*q.QueryArgs = append(*q.QueryArgs, util.KV{Key: name, Value: value})
 
 	return q
 }
@@ -126,7 +128,7 @@ const Should BoolType = "should"
 const Term QueryType = "term"
 const Prefix QueryType = "prefix"
 const Wildcard QueryType = "wildcard"
-const Regexp QueryType = "regexp"//TODO check
+const Regexp QueryType = "regexp" //TODO check
 const Match QueryType = "match"
 const RangeGt QueryType = "gt"
 const RangeGte QueryType = "gte"
@@ -134,7 +136,6 @@ const RangeLt QueryType = "lt"
 const RangeLte QueryType = "lte"
 
 const Terms QueryType = "terms"
-
 
 func Eq(field string, value interface{}) *Cond {
 	c := Cond{}
@@ -279,18 +280,18 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 
 	if f.IsValid() {
 		if f.Type().String() == "*time.Time" { //处理time.Time时间类型
-			vType:=reflect.TypeOf(value).String()
-			if vType=="*time.Time"{
+			vType := reflect.TypeOf(value).String()
+			if vType == "*time.Time" {
 				f.Set(reflect.ValueOf(value))
 			}
-		}else if f.Type().String() == "time.Time" { //处理time.Time时间类型
+		} else if f.Type().String() == "time.Time" { //处理time.Time时间类型
 			//TODO fix this: https://www.cnblogs.com/marshhu/p/12837834.html
 			//vType:=reflect.TypeOf(value).String()
 			//if vType=="time.Time"{
 			//	timeValue := value.(time.Time)
 			//	f.Set(reflect.ValueOf(timeValue.String()))
 			//}
-		}else {
+		} else {
 			if f.CanSet() {
 				if f.Kind() == reflect.String {
 					f.SetString(value.(string))
@@ -335,8 +336,8 @@ func Save(ctx *Context, o interface{}) error {
 	//if !nameExists {
 	//	return errors.New("name was not found")
 	//}
-	t:=time.Now()
-	setFieldValue(rValue, "Updated",&t )
+	t := time.Now()
+	setFieldValue(rValue, "Updated", &t)
 	return getHandler().Save(ctx, o)
 }
 
@@ -357,7 +358,7 @@ func Update(ctx *Context, o interface{}) error {
 	//}
 
 	rValue := reflect.ValueOf(o)
-	t1:=time.Now()
+	t1 := time.Now()
 	setFieldValue(rValue, "Updated", &t1)
 
 	return Save(ctx, o)
@@ -373,8 +374,8 @@ func UpdateBy(o interface{}, query interface{}) error {
 	return getHandler().UpdateBy(o, query)
 }
 
-func Count(o interface{}) (int64, error) {
-	return getHandler().Count(o)
+func Count(o interface{}, query interface{}) (int64, error) {
+	return getHandler().Count(o, query)
 }
 
 func Search(o interface{}, q *Query) (error, Result) {

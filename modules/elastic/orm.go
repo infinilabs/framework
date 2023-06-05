@@ -2,14 +2,15 @@ package elastic
 
 import (
 	"fmt"
+	"net/http"
+
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
-	"net/http"
-	log "github.com/cihub/seelog"
 )
 
 var ErrNotFound = errors.New("record not found")
@@ -20,16 +21,17 @@ type ElasticORM struct {
 }
 
 var templateInited bool
-func InitTemplate(force bool)  {
-	if templateInited{
+
+func InitTemplate(force bool) {
+	if templateInited {
 		return
 	}
 
-	if force||moduleConfig.ORMConfig.InitTemplate {
+	if force || moduleConfig.ORMConfig.InitTemplate {
 		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 		client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 	}
-	templateInited=true
+	templateInited = true
 }
 
 func (handler ElasticORM) GetWildcardIndexName(o interface{}) string {
@@ -55,7 +57,7 @@ func (handler ElasticORM) Get(o interface{}) (bool, error) {
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
 
-	if global.Env().IsDebug{
+	if global.Env().IsDebug {
 		log.Debug(string(response.RawResult.Body))
 	}
 
@@ -122,17 +124,25 @@ func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
 func (handler ElasticORM) UpdateBy(o interface{}, query interface{}) error {
 	var (
 		queryBody []byte
-		ok bool
+		ok        bool
 	)
-	if queryBody, ok =  query.([]byte); !ok {
+	if queryBody, ok = query.([]byte); !ok {
 		return errors.New("type of param query should be byte array")
 	}
 	_, err := handler.Client.UpdateByQuery(handler.GetIndexName(o), queryBody)
 	return err
 }
 
-func (handler ElasticORM) Count(o interface{}) (int64, error) {
-	countResponse, err := handler.Client.Count(nil, handler.GetIndexName(o), nil)
+func (handler ElasticORM) Count(o interface{}, query interface{}) (int64, error) {
+	var queryBody []byte
+
+	if query != nil {
+		var ok bool
+		if queryBody, ok = query.([]byte); !ok {
+			return 0, errors.New("type of param query should be byte array")
+		}
+	}
+	countResponse, err := handler.Client.Count(nil, handler.GetIndexName(o), queryBody)
 	if err != nil {
 		return 0, err
 	}
