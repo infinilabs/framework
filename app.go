@@ -83,11 +83,6 @@ var debugInitFunc func()
 
 func (app *App) Init(customFunc func()) {
 	app.initWithFlags()
-	ksResolver, err := keystore.GetVariableResolver()
-	if err != nil {
-		panic(err)
-	}
-	config.RegisterOption("keystore", ksResolver)
 	app.initEnvironment(customFunc)
 
 	if debugInitFunc != nil {
@@ -111,6 +106,7 @@ func (app *App) Init(customFunc func()) {
 		debug.SetMemoryLimit(int64(maxMemInBytes))
 
 		var memoryInfoStat *process.MemoryInfoStat
+		var err error
 		//register memory OOM detector
 		task1 := task.ScheduleTask{
 			ID:          util.GetUUID(),

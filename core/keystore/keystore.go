@@ -28,6 +28,16 @@ func GetOrInitKeystore() (keystore.Keystore, error) {
 	var err error
 	keystoreOnce.Do(func() {
 		defaultKeystore, err = initKeystore()
+		if err != nil {
+			return
+		}
+		//save keystore file
+		ksw, err := keystore.AsWritableKeystore(defaultKeystore)
+		if err != nil {
+			return
+		}
+		_ = ksw.Store("nothing", []byte(""))
+		err = ksw.Save()
 	})
 	return defaultKeystore, err
 }
@@ -129,12 +139,14 @@ func Watch(){
 	watcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		log.Error(err)
+		return
 	}
 	keystorePath := getKeystorePath()
 	keystoreFile := filepath.Join(keystorePath, "ks")
 	err = watcher.Add(keystoreFile)
 	if err != nil {
 		log.Error(err)
+		return
 	}
 	for {
 		select {
