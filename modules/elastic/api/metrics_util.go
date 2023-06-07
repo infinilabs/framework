@@ -2,14 +2,15 @@ package api
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
-	"net/http"
-	log "github.com/cihub/seelog"
-	"strings"
-	"time"
 )
 
 func newMetricItem(metricKey string, order int, group string) *common.MetricItem {
@@ -89,6 +90,7 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
+		panic(err)
 	}
 	grpMetricItemsIndex := map[string]int{}
 	for i, item := range grpMetricItems {
@@ -132,7 +134,7 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 											v3, ok := v2["value"].(float64)
 											if ok {
 												metricID := mk1
-												if strings.HasSuffix( mk1,"_deriv") {
+												if strings.HasSuffix(mk1, "_deriv") {
 													metricID = strings.TrimSuffix(mk1, "_deriv")
 													if _, ok := bucketMap[mk1+"_field2"]; !ok {
 														v3 = v3 / float64(bucketSize)
@@ -144,7 +146,7 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 															v4 := field2Map["value"].(float64)
 															if v4 == 0 {
 																v3 = 0
-															}else{
+															} else {
 																v3 = grpMetricItems[idx].Calc(v3, v4)
 															}
 														}
@@ -184,7 +186,7 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 	return result
 }
 
-//defaultBucketSize 也就是每次聚合的时间间隔
+// defaultBucketSize 也就是每次聚合的时间间隔
 func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucketSize, defaultMetricCount int) (int, int64, int64, error) {
 	if defaultBucketSize <= 0 {
 		defaultBucketSize = 10
@@ -279,7 +281,7 @@ func GetMetricRangeAndBucketSize(minStr string, maxStr string, bucketSize int, m
 	return bucketSize, min, max, nil
 }
 
-//获取单个指标，可以包含多条曲线
+// 获取单个指标，可以包含多条曲线
 func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
 	metricData := map[string][][]interface{}{}
 
@@ -296,9 +298,9 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 					"field": line.Metric.Field,
 				},
 			}
-			if line.Metric.Field2 != ""{
-				aggs[line.Metric.ID + "_field2"]=util.MapStr{
-					"max":util.MapStr{
+			if line.Metric.Field2 != "" {
+				aggs[line.Metric.ID+"_field2"] = util.MapStr{
+					"max": util.MapStr{
 						"field": line.Metric.Field2,
 					},
 				}
@@ -312,8 +314,8 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 					},
 				}
 				if line.Metric.Field2 != "" {
-					aggs[line.Metric.ID + "_deriv_field2"]=util.MapStr{
-						"derivative":util.MapStr{
+					aggs[line.Metric.ID+"_deriv_field2"] = util.MapStr{
+						"derivative": util.MapStr{
 							"buckets_path": line.Metric.ID + "_field2",
 						},
 					}
@@ -333,7 +335,7 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 	query["aggs"] = util.MapStr{
 		"dates": util.MapStr{
 			"date_histogram": util.MapStr{
-				"field":          "timestamp",
+				"field":       "timestamp",
 				intervalField: bucketSizeStr,
 			},
 			"aggs": aggs,
@@ -363,28 +365,28 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 						if ok {
 							v3, ok := v2["value"].(float64)
 							if ok {
-									if strings.HasSuffix( mk1,"_deriv") {
-										if _, ok := bucket[mk1+"_field2"]; !ok {
-											v3 = v3 / float64(bucketSize)
-										}
+								if strings.HasSuffix(mk1, "_deriv") {
+									if _, ok := bucket[mk1+"_field2"]; !ok {
+										v3 = v3 / float64(bucketSize)
 									}
-									if field2, ok := bucket[mk1+"_field2"]; ok {
-										if line, ok := metricItemsMap[mk1]; ok {
-											if field2Map, ok := field2.(map[string]interface{}); ok {
-												v4 := field2Map["value"].(float64)
-												if v4 == 0 {
-													v3 = 0
-												}else{
-													v3 = line.Metric.Calc(v3, v4)
-												}
+								}
+								if field2, ok := bucket[mk1+"_field2"]; ok {
+									if line, ok := metricItemsMap[mk1]; ok {
+										if field2Map, ok := field2.(map[string]interface{}); ok {
+											v4 := field2Map["value"].(float64)
+											if v4 == 0 {
+												v3 = 0
+											} else {
+												v3 = line.Metric.Calc(v3, v4)
 											}
 										}
 									}
-									if v3 < 0 {
-										continue
-									}
-									points := []interface{}{dateTime, v3}
-									metricData[mk1] = append(mv1, points)
+								}
+								if v3 < 0 {
+									continue
+								}
+								points := []interface{}{dateTime, v3}
+								metricData[mk1] = append(mv1, points)
 							}
 
 						}
@@ -417,13 +419,14 @@ func (h *APIHandler) getBucketMetrics(query map[string]interface{}, bucketItems 
 	response, err := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		log.Error(err)
+		panic(err)
 	}
 	//grpMetricItemsIndex := map[string]int{}
 	for _, item := range *bucketItems {
 		//grpMetricItemsIndex[item.Key] = i
 
-		agg,ok:=response.Aggregations[item.Key]
-		if ok{
+		agg, ok := response.Aggregations[item.Key]
+		if ok {
 			fmt.Println(len(agg.Buckets))
 		}
 
@@ -509,7 +512,6 @@ func (h *APIHandler) getBucketMetrics(query map[string]interface{}, bucketItems 
 	return nil
 }
 
-
 func ConvertMetricItemsToAggQuery(metricItems []*common.MetricItem) map[string]interface{} {
 	aggs := map[string]interface{}{}
 	for _, metricItem := range metricItems {
@@ -532,13 +534,13 @@ func ConvertMetricItemsToAggQuery(metricItems []*common.MetricItem) map[string]i
 	return aggs
 }
 
-func ConvertBucketItemsToAggQuery(bucketItems []*common.BucketItem,metricItems []*common.MetricItem) util.MapStr {
+func ConvertBucketItemsToAggQuery(bucketItems []*common.BucketItem, metricItems []*common.MetricItem) util.MapStr {
 	aggs := util.MapStr{}
 
 	var currentAgg = util.MapStr{}
-	for _,bucketItem:=range bucketItems{
+	for _, bucketItem := range bucketItems {
 
-		bucketAgg:=util.MapStr{}
+		bucketAgg := util.MapStr{}
 
 		switch bucketItem.Type {
 		case "terms":
@@ -548,140 +550,136 @@ func ConvertBucketItemsToAggQuery(bucketItems []*common.BucketItem,metricItems [
 			break
 		case "date_histogram":
 			bucketAgg = util.MapStr{
-					"date_histogram": bucketItem.Parameters,
+				"date_histogram": bucketItem.Parameters,
 			}
 			break
 		case "date_range":
 			bucketAgg = util.MapStr{
-					"date_range": bucketItem.Parameters,
+				"date_range": bucketItem.Parameters,
 			}
 			break
 		}
 
 		//if bucketItem.Buckets!=nil&&len(bucketItem.Buckets)>0{
-			nestedAggs:=ConvertBucketItemsToAggQuery(bucketItem.Buckets,bucketItem.Metrics)
-			if len(nestedAggs)>0{
-				util.MergeFields(bucketAgg,nestedAggs,true)
-			}
+		nestedAggs := ConvertBucketItemsToAggQuery(bucketItem.Buckets, bucketItem.Metrics)
+		if len(nestedAggs) > 0 {
+			util.MergeFields(bucketAgg, nestedAggs, true)
+		}
 		//}
-		currentAgg[bucketItem.Key]=bucketAgg
+		currentAgg[bucketItem.Key] = bucketAgg
 	}
 
-	if metricItems!=nil&&len(metricItems)>0{
-		metricAggs:=ConvertMetricItemsToAggQuery(metricItems)
-		util.MergeFields(currentAgg,metricAggs,true)
+	if metricItems != nil && len(metricItems) > 0 {
+		metricAggs := ConvertMetricItemsToAggQuery(metricItems)
+		util.MergeFields(currentAgg, metricAggs, true)
 	}
 
 	aggs = util.MapStr{
 		"aggs": currentAgg,
 	}
 
-
 	return aggs
 }
 
 type BucketBase map[string]interface{}
 
-func (receiver BucketBase) GetChildBucket(name string)(map[string]interface{},bool)  {
-	bks,ok:=receiver[name]
-	if ok{
-		bks2,ok:= bks.(map[string]interface{})
-		return bks2,ok
+func (receiver BucketBase) GetChildBucket(name string) (map[string]interface{}, bool) {
+	bks, ok := receiver[name]
+	if ok {
+		bks2, ok := bks.(map[string]interface{})
+		return bks2, ok
 	}
-	return nil,false
+	return nil, false
 }
 
 type Bucket struct {
 	BucketBase //子 buckets
 
-	KeyAsString string `json:"key_as_string,omitempty"`
-	Key         interface{} `json:"key,omitempty"`
-	DocCount    int64       `json:"doc_count,omitempty"`
-	DocCountErrorUpperBound    int64       `json:"doc_count_error_upper_bound,omitempty"`
-	SumOtherDocCount    int64       `json:"sum_other_doc_count,omitempty"`
+	KeyAsString             string      `json:"key_as_string,omitempty"`
+	Key                     interface{} `json:"key,omitempty"`
+	DocCount                int64       `json:"doc_count,omitempty"`
+	DocCountErrorUpperBound int64       `json:"doc_count_error_upper_bound,omitempty"`
+	SumOtherDocCount        int64       `json:"sum_other_doc_count,omitempty"`
 
 	Buckets []Bucket `json:"buckets,omitempty"` //本 buckets
 }
 
 type SearchResponse struct {
-
 	Took     int  `json:"took"`
 	TimedOut bool `json:"timed_out"`
 	Hits     struct {
-		Total    interface{}     `json:"total"`
-		MaxScore float32         `json:"max_score"`
+		Total    interface{} `json:"total"`
+		MaxScore float32     `json:"max_score"`
 	} `json:"hits"`
 	Aggregations util.MapStr `json:"aggregations,omitempty"`
 }
 
-func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, resultLabelKey, resultValueKey string, resultItemHandle func())MetricData  {
+func ParseAggregationBucketResult(bucketSize int, aggsData util.MapStr, groupKey, resultLabelKey, resultValueKey string, resultItemHandle func()) MetricData {
 
-	metricData:=MetricData{}
-	for k,v:=range aggsData{
-		if k==groupKey{
+	metricData := MetricData{}
+	for k, v := range aggsData {
+		if k == groupKey {
 			//start to collect metric for each bucket
-			objcs,ok:=v.(map[string]interface{})
-			if ok{
+			objcs, ok := v.(map[string]interface{})
+			if ok {
 
-				bks,ok:=objcs["buckets"].([]interface{})
-				if ok{
-					for _,bk:=range bks{
+				bks, ok := objcs["buckets"].([]interface{})
+				if ok {
+					for _, bk := range bks {
 						//check each bucket, collecting metrics
-						bkMap,ok:=bk.(map[string]interface{})
-						if ok{
+						bkMap, ok := bk.(map[string]interface{})
+						if ok {
 
-
-							groupKeyValue,ok:=bkMap["key"]
-							if ok{
+							groupKeyValue, ok := bkMap["key"]
+							if ok {
 							}
-							bkHitMap,ok:=bkMap[resultLabelKey]
-							if ok{
+							bkHitMap, ok := bkMap[resultLabelKey]
+							if ok {
 								//hit label, 说明匹配到时间范围了
-								labelMap,ok:=bkHitMap.(map[string]interface{})
-								if ok{
-									labelBks,ok:=labelMap["buckets"]
-									if ok{
-										labelBksMap,ok:=labelBks.([]interface{})
-										if ok{
-											for _,labelItem:=range labelBksMap{
-												metrics,ok:=labelItem.(map[string]interface{})
+								labelMap, ok := bkHitMap.(map[string]interface{})
+								if ok {
+									labelBks, ok := labelMap["buckets"]
+									if ok {
+										labelBksMap, ok := labelBks.([]interface{})
+										if ok {
+											for _, labelItem := range labelBksMap {
+												metrics, ok := labelItem.(map[string]interface{})
 
-
-												labelKeyValue,ok:=metrics["to"] //TODO config
-												if !ok{
-													labelKeyValue,ok=metrics["from"] //TODO config
+												labelKeyValue, ok := metrics["to"] //TODO config
+												if !ok {
+													labelKeyValue, ok = metrics["from"] //TODO config
 												}
-												if !ok{
-													labelKeyValue,ok=metrics["key"] //TODO config
+												if !ok {
+													labelKeyValue, ok = metrics["key"] //TODO config
 												}
 
-												metric,ok:= metrics[resultValueKey]
-												if ok{
-													metricMap,ok:=metric.(map[string]interface{})
-													if ok{
-														t:="bucket"//metric, bucket
-														if t=="metric"{
-															metricValue,ok:=metricMap["value"]
-															if ok{
-																saveMetric(&metricData,groupKeyValue.(string),labelKeyValue,metricValue,bucketSize)
+												metric, ok := metrics[resultValueKey]
+												if ok {
+													metricMap, ok := metric.(map[string]interface{})
+													if ok {
+														t := "bucket" //metric, bucket
+														if t == "metric" {
+															metricValue, ok := metricMap["value"]
+															if ok {
+																saveMetric(&metricData, groupKeyValue.(string), labelKeyValue, metricValue, bucketSize)
 																continue
 															}
-														}else{
-															metricValue,ok:=metricMap["buckets"]
-															if ok{
-																buckets,ok:=metricValue.([]interface{})
-																if ok{
-																	var result string="unavailable"
-																	for _,v:=range buckets{
-																		x,ok:=v.(map[string]interface{})
-																		if ok{
+														} else {
+															metricValue, ok := metricMap["buckets"]
+															if ok {
+																buckets, ok := metricValue.([]interface{})
+																if ok {
+																	var result string = "unavailable"
+																	for _, v := range buckets {
+																		x, ok := v.(map[string]interface{})
+																		if ok {
 																			if x["key"] == "red" {
 																				result = "red"
 																				break
 																			}
 																			if x["key"] == "yellow" {
 																				result = "yellow"
-																			}else {
+																			} else {
 																				if result != "yellow" {
 																					result = x["key"].(string)
 																				}
@@ -689,16 +687,16 @@ func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, 
 																		}
 																	}
 
-																	v,ok:=(metricData)[groupKeyValue.(string)]
-																	if !ok{
-																		v=[][]interface{}{}
+																	v, ok := (metricData)[groupKeyValue.(string)]
+																	if !ok {
+																		v = [][]interface{}{}
 																	}
-																	v2:=[]interface{}{}
-																	v2=append(v2,labelKeyValue)
-																	v2=append(v2,result)
-																	v=append(v,v2)
+																	v2 := []interface{}{}
+																	v2 = append(v2, labelKeyValue)
+																	v2 = append(v2, result)
+																	v = append(v, v2)
 
-																	(metricData)[groupKeyValue.(string)]=v
+																	(metricData)[groupKeyValue.(string)] = v
 																}
 
 																continue
@@ -725,9 +723,9 @@ func ParseAggregationBucketResult(bucketSize int,aggsData util.MapStr,groupKey, 
 	return metricData
 }
 
-func ParseAggregationResult(bucketSize int,aggsData util.MapStr,groupKey,metricLabelKey,metricValueKey string)MetricData  {
+func ParseAggregationResult(bucketSize int, aggsData util.MapStr, groupKey, metricLabelKey, metricValueKey string) MetricData {
 
-	metricData:=MetricData{}
+	metricData := MetricData{}
 	//group bucket key: key1, 获取 key 的 buckets 作为分组的内容 map[group][]{Label，MetricValue}
 	//metric Label Key: key2, 获取其 key 作为 时间指标
 	//metric Value Key: c7qgjrqi4h92sqdaa9b0, 获取其 value 作为 point 内容
@@ -736,65 +734,64 @@ func ParseAggregationResult(bucketSize int,aggsData util.MapStr,groupKey,metricL
 	//metricLabelKey:="key2"
 	//metricValueKey:="c7qi5hii4h935v9bs920"
 
-//fmt.Println(groupKey," => ",metricLabelKey," => ",metricValueKey)
+	//fmt.Println(groupKey," => ",metricLabelKey," => ",metricValueKey)
 
-	for k,v:=range aggsData{
+	for k, v := range aggsData {
 		//fmt.Println("k:",k)
 		//fmt.Println("v:",v)
 
-		if k==groupKey{
+		if k == groupKey {
 			//fmt.Println("hit group key")
 			//start to collect metric for each bucket
-			objcs,ok:=v.(map[string]interface{})
-			if ok{
+			objcs, ok := v.(map[string]interface{})
+			if ok {
 
-				bks,ok:=objcs["buckets"].([]interface{})
-				if ok{
-					for _,bk:=range bks{
+				bks, ok := objcs["buckets"].([]interface{})
+				if ok {
+					for _, bk := range bks {
 						//check each bucket, collecting metrics
 						//fmt.Println("check bucket:",bk)
 
-						bkMap,ok:=bk.(map[string]interface{})
-						if ok{
+						bkMap, ok := bk.(map[string]interface{})
+						if ok {
 
-
-							groupKeyValue,ok:=bkMap["key"]
-							if ok{
+							groupKeyValue, ok := bkMap["key"]
+							if ok {
 								//fmt.Println("collecting bucket::",groupKeyValue)
 							}
-							bkHitMap,ok:=bkMap[metricLabelKey]
-							if ok{
+							bkHitMap, ok := bkMap[metricLabelKey]
+							if ok {
 								//hit label, 说明匹配到时间范围了
-								labelMap,ok:=bkHitMap.(map[string]interface{})
-								if ok{
+								labelMap, ok := bkHitMap.(map[string]interface{})
+								if ok {
 									//fmt.Println("bkHitMap",bkHitMap)
 
-									labelBks,ok:=labelMap["buckets"]
-									if ok{
+									labelBks, ok := labelMap["buckets"]
+									if ok {
 
-										labelBksMap,ok:=labelBks.([]interface{})
+										labelBksMap, ok := labelBks.([]interface{})
 										//fmt.Println("get label buckets",ok)
-										if ok{
+										if ok {
 											//fmt.Println("get label buckets",ok)
 
-											for _,labelItem:=range labelBksMap{
-												metrics,ok:=labelItem.(map[string]interface{})
+											for _, labelItem := range labelBksMap {
+												metrics, ok := labelItem.(map[string]interface{})
 
 												//fmt.Println(labelItem)
-												labelKeyValue,ok:=metrics["key"]
-												if ok{
+												labelKeyValue, ok := metrics["key"]
+												if ok {
 													//fmt.Println("collecting metric label::",int64(labelKeyValue.(float64)))
 												}
 
-												metric,ok:= metrics[metricValueKey]
-												if ok{
-													metricMap,ok:=metric.(map[string]interface{})
-													if ok{
-														metricValue,ok:=metricMap["value"]
-														if ok{
+												metric, ok := metrics[metricValueKey]
+												if ok {
+													metricMap, ok := metric.(map[string]interface{})
+													if ok {
+														metricValue, ok := metricMap["value"]
+														if ok {
 															//fmt.Println("collecting metric value::",metricValue.(float64))
 
-															saveMetric(&metricData,groupKeyValue.(string),labelKeyValue,metricValue,bucketSize)
+															saveMetric(&metricData, groupKeyValue.(string), labelKeyValue, metricValue, bucketSize)
 															continue
 														}
 													}
@@ -834,9 +831,9 @@ func ParseAggregationResult(bucketSize int,aggsData util.MapStr,groupKey,metricL
 	return metricData
 }
 
-func saveMetric(metricData *MetricData,group string, label , value interface{},bucketSize int) {
+func saveMetric(metricData *MetricData, group string, label, value interface{}, bucketSize int) {
 
-	if value==nil{
+	if value == nil {
 		return
 	}
 
@@ -845,20 +842,20 @@ func saveMetric(metricData *MetricData,group string, label , value interface{},b
 		value = v3 / float64(bucketSize)
 	}
 
-	v,ok:=(*metricData)[group]
-	if !ok{
-		v=[][]interface{}{}
+	v, ok := (*metricData)[group]
+	if !ok {
+		v = [][]interface{}{}
 	}
-	v2:=[]interface{}{}
-	v2=append(v2,label)
-	v2=append(v2,value)
-	v=append(v,v2)
+	v2 := []interface{}{}
+	v2 = append(v2, label)
+	v2 = append(v2, value)
+	v = append(v, v2)
 
-	(*metricData)[group]=v
+	(*metricData)[group] = v
 	//fmt.Printf("save:%v, %v=%v\n",group,label,value)
 }
 
-func parseHealthMetricData(buckets []elastic.BucketBase)([]interface{}, error){
+func parseHealthMetricData(buckets []elastic.BucketBase) ([]interface{}, error) {
 	metricData := []interface{}{}
 	var minDate, maxDate int64
 	for _, bucket := range buckets {
@@ -879,7 +876,7 @@ func parseHealthMetricData(buckets []elastic.BucketBase)([]interface{}, error){
 						count := bkMap["doc_count"].(float64)
 						metricData = append(metricData, map[string]interface{}{
 							"x": dateTime,
-							"y": count/totalCount * 100,
+							"y": count / totalCount * 100,
 							"g": statusKey,
 						})
 					}
