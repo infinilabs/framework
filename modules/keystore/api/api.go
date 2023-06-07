@@ -5,12 +5,12 @@
 package api
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/keystore"
 	"infini.sh/framework/core/util"
 	"net/http"
-	log "src/github.com/cihub/seelog"
 )
 
 type APIHandler struct {
@@ -52,30 +52,5 @@ func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, 
 	}
 	h.WriteJSON(w, util.MapStr{
 		"success": true,
-	}, http.StatusOK)
-}
-
-func (h *APIHandler) getKeystoreValue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	key := ps.MustGetParameter("key")
-	ks, err := keystore.GetOrInitKeystore()
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	secStr, err := ks.Retrieve(key)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	valueBytes, err := secStr.Get()
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	h.WriteJSON(w, util.MapStr{
-		"result": string(valueBytes),
 	}, http.StatusOK)
 }

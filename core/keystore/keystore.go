@@ -117,12 +117,12 @@ func SetValue(key string, value []byte) error {
 }
 
 func GetVariableResolver() (ucfg.Option, error){
-	ks, err := GetOrInitKeystore()
-	if err != nil {
-		return nil, err
-	}
 	return ucfg.Resolve(func(keyName string) (string, parse.Config, error) {
 		if strings.HasPrefix(keyName, "keystore."){
+			ks, err := GetOrInitKeystore()
+			if err != nil {
+				return "", parse.NoopConfig, err
+			}
 			v, pc, err := keystore.ResolverWrap(ks)(keyName[9:])
 			if err == ucfg.ErrMissing {
 				return "", parse.NoopConfig, nil
