@@ -189,6 +189,10 @@ func (app *App) initEnvironment(customFunc func()) {
 	}
 	config.RegisterOption("keystore", ksResolver)
 	err = task.RunWithContext("keystore", func(ctx context.Context) error {
+		_, err = keystore.GetOrInitKeystore()
+		if err != nil {
+			log.Error(err)
+		}
 		keystore.Watch()
 		return nil
 	}, context.Background())
