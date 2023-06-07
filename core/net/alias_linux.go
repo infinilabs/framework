@@ -2,18 +2,19 @@ package net
 
 import (
 	"fmt"
+	"os/exec"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"os/exec"
 )
 
 const alias = "infini"
 
-//Linux
-//sudo /sbin/ifconfig eth0:1 192.168.3.198 netmask 255.255.255.0
-//sudo /sbin/ifconfig eth0:1 down
+// Linux
+// sudo /sbin/ifconfig eth0:1 192.168.3.198 netmask 255.255.255.0
+// sudo /sbin/ifconfig eth0:1 down
 func SetupAlias(device, ip, netmask string) error {
 	checkPermission()
 	log.Debugf("setup net alias %s, %s, %s", device, ip, netmask)
@@ -41,13 +42,13 @@ func SetupAlias(device, ip, netmask string) error {
 	return nil
 }
 
-//sudo /sbin/ifconfig eth0:1 up
+// sudo /sbin/ifconfig eth0:1 up
 func EnableAlias(device, ip string, netmask string) error {
 
 	checkPermission()
 
 	log.Debugf("enable net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command( "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "up")
+	setupVIP := exec.Command("/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "up")
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to enable alias on interface: %s", err))
@@ -69,14 +70,14 @@ func EnableAlias(device, ip string, netmask string) error {
 //Linux
 ///sbin/ifdown device
 
-//Windows
-//netsh interface set interface name="INFINI Ethernet" admin=DISABLED
+// Windows
+// netsh interface set interface name="INFINI Ethernet" admin=DISABLED
 func DisableAlias(device, ip string, netmask string) error {
 
 	checkPermission()
 
-	log.Debugf("enable net alias %s, %s, %s", device, ip, netmask)
-	setupVIP := exec.Command( "/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "down")
+	log.Debugf("disable net alias %s, %s, %s", device, ip, netmask)
+	setupVIP := exec.Command("/sbin/ifconfig", fmt.Sprintf("%s:%s", device, alias), "down")
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to disable alias on interface: %s", err))
