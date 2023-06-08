@@ -527,7 +527,6 @@ func (env *Env) findWorkingDir() (string, string) {
 	if !util.FileExists(baseDir) {
 		if env.SystemConfig.NodeConfig.ID == "" {
 			env.SystemConfig.NodeConfig.ID = util.GetUUID()
-			env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 		}
 		return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
 	}
@@ -550,9 +549,7 @@ func (env *Env) findWorkingDir() (string, string) {
 			log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
 
 			if !util.FileExists(lockFile) {
-				env.SystemConfig.NodeConfig.ID = f.Name()
-				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
-				return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
+				return env.getNodeWorkingDir(f.Name())
 			}
 
 			//check if pid is alive
@@ -579,8 +576,6 @@ func (env *Env) findWorkingDir() (string, string) {
 					panic(err)
 				}
 				log.Debug("dead process with broken lock file, removed: ", lockFile)
-				env.SystemConfig.NodeConfig.ID = f.Name()
-				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 				return env.getNodeWorkingDir(f.Name())
 			}
 
@@ -589,7 +584,6 @@ func (env *Env) findWorkingDir() (string, string) {
 			//current folder is in use
 			if !env.SystemConfig.AllowMultiInstance {
 				env.SystemConfig.NodeConfig.ID = f.Name()
-				env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 				break
 			}
 
@@ -602,7 +596,6 @@ func (env *Env) findWorkingDir() (string, string) {
 	//final check
 	if env.SystemConfig.NodeConfig.ID == "" {
 		env.SystemConfig.NodeConfig.ID = util.GetUUID()
-		env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 	}
 
 	return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
@@ -652,7 +645,46 @@ tryEnvAgain:
 }
 
 func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
-	dir1 := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
-	dir2 := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
-	return dir1, dir2
+	env.SystemConfig.NodeConfig.ID = nodeID
+
+	dataDir := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	logDir := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+
+	//try get node name from meta file
+	metaFile:=path.Join(dataDir, ".meta")
+	if util.FileExists(metaFile) {
+		data,err:=util.FileGetContent(metaFile)
+		if err!=nil{
+			panic(err)
+		}
+		str:=string(data)
+		arr:=strings.Split(str,",")
+		if len(arr)==2{
+			env.SystemConfig.NodeConfig.Name=arr[1]
+		}
+	}
+
+	//meta was not exists or just in case meta file was broken
+	if env.SystemConfig.NodeConfig.Name==""{
+		env.SystemConfig.NodeConfig.Name = util.PickRandomName()
+	}
+
+
+	if !util.FileExists(metaFile) {
+
+		//persist meta, in case data was not found
+		if !util.FileExists(dataDir) {
+			err:=os.MkdirAll(dataDir,0755)
+			if err!=nil{
+				panic(err)
+			}
+		}
+
+		_,err:=util.FilePutContent(metaFile, fmt.Sprintf("%v,%v", env.SystemConfig.NodeConfig.ID, env.SystemConfig.NodeConfig.Name))
+		if err!=nil{
+			panic(err)
+		}
+	}
+
+	return dataDir, logDir
 }
