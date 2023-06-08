@@ -283,17 +283,17 @@ func (handler Handler) Write(w http.ResponseWriter, b []byte) (int, error) {
 
 // Error404 output 404 response
 func (handler Handler) Error404(w http.ResponseWriter) {
-	handler.WriteJSON(w, map[string]interface{}{"error": 404}, http.StatusNotFound)
+	handler.WriteError(w, "404", http.StatusNotFound)
 }
 
 // Error500 output 500 response
 func (handler Handler) Error500(w http.ResponseWriter, msg string) {
-	handler.WriteJSON(w, map[string]interface{}{"error": msg}, http.StatusInternalServerError)
+	handler.WriteError(w, msg, http.StatusInternalServerError)
 }
 
 // Error output custom error
 func (handler Handler) Error(w http.ResponseWriter, err error) {
-	handler.WriteJSON(w, map[string]interface{}{"error": err.Error()}, http.StatusInternalServerError)
+	handler.WriteError(w, err.Error(), http.StatusInternalServerError)
 }
 
 // Flush flush response message
