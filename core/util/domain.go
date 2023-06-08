@@ -1531,6 +1531,16 @@ var (
 	validPathElement = regexp.MustCompile(`^[-A-Za-z0-9~+][-A-Za-z0-9_.]*$`)
 )
 
+func IsValidEmail(email string) bool {
+	// Regular expression pattern for email validation
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	match, err := regexp.MatchString(pattern, email)
+	if err != nil {
+		return false
+	}
+	return match
+}
+
 // IsValidTLD returns true if tld is a valid tld, eg: com
 func IsValidTLD(tld string) bool {
 
