@@ -68,7 +68,7 @@ func (module *SimpleStatsModule) Setup() {
 	//register api
 	api.HandleAPIMethod(api.GET, "/stats", module.StatsAction)
 	api.HandleAPIMethod(api.GET, "/stats/prometheus", module.PrometheusStatsAction)
-	api.HandleAPIMethod(api.GET, "/goroutines", module.GoroutinesAction)
+	api.HandleAPIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction)
 
 	//if global.Env().IsDebug{
 	api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
