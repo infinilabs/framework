@@ -537,17 +537,21 @@ func (env *Env) findWorkingDir() (string, string) {
 		panic(err)
 	}
 
-	log.Trace("finding files in working dir:", files)
+	if env.IsDebug{
+		log.Trace("finding files in working dir:", files)
+	}
 
 	var instance = 0
 	for _, f := range files {
-		log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
+		if env.IsDebug{
+			log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
+		}
 		if f.IsDir() {
 			instance++
 			lockFile := path.Join(baseDir, f.Name(), ".lock")
-
-			log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
-
+			if env.IsDebug {
+				log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
+			}
 			if !util.FileExists(lockFile) {
 				return env.getNodeWorkingDir(f.Name())
 			}
@@ -566,21 +570,23 @@ func (env *Env) findWorkingDir() (string, string) {
 			}
 
 			procExists := util.CheckProcessExists(pid)
-
-			log.Tracef("process [%v] exists: ", pid, procExists)
-
+			if env.IsDebug {
+				log.Tracef("process [%v] exists: ", pid, procExists)
+			}
 			if !procExists {
 
 				err := util.FileDelete(lockFile)
 				if err != nil {
 					panic(err)
 				}
-				log.Debug("dead process with broken lock file, removed: ", lockFile)
+				if env.IsDebug {
+					log.Debug("dead process with broken lock file, removed: ", lockFile)
+				}
 				return env.getNodeWorkingDir(f.Name())
 			}
-
-			log.Tracef("data folder [%v] is in used by [%v], continue", f.Name(), pid)
-
+			if env.IsDebug {
+				log.Tracef("data folder [%v] is in used by [%v], continue", f.Name(), pid)
+			}
 			//current folder is in use
 			if !env.SystemConfig.AllowMultiInstance {
 				env.SystemConfig.NodeConfig.ID = f.Name()
