@@ -4,9 +4,12 @@
 package elasticsearch
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
@@ -17,9 +20,8 @@ type ESAPIV8 struct {
 	ESAPIV7_7
 }
 
-
-func (c *ESAPIV8) InitDefaultTemplate(templateName,indexPrefix string) {
-	c.initTemplate(templateName,indexPrefix)
+func (c *ESAPIV8) InitDefaultTemplate(templateName, indexPrefix string) {
+	c.initTemplate(templateName, indexPrefix)
 }
 
 func (c *ESAPIV8) getDefaultTemplate(indexPrefix string) string {
@@ -59,11 +61,11 @@ func (c *ESAPIV8) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1)
 }
 
-func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
+func (c *ESAPIV8) initTemplate(templateName, indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")
 	}
-	if templateName==""{
+	if templateName == "" {
 		templateName = global.Env().GetAppLowercaseName()
 	}
 	exist, err := c.TemplateExists(templateName)
@@ -86,12 +88,12 @@ func (c *ESAPIV8) initTemplate(templateName,indexPrefix string) {
 }
 
 // Delete used to delete document by id
-func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
-	indexName=util.UrlEncode(indexName)
+func (c *ESAPIV8) Delete(indexName, docType, id string, refresh ...string) (*elastic.DeleteResponse, error) {
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
 
-	if len(refresh)>0 {
+	if len(refresh) > 0 {
 		url = url + "?refresh=" + refresh[0]
 	}
 
@@ -102,23 +104,49 @@ func (c *ESAPIV8) Delete(indexName,docType, id string, refresh ...string) (*elas
 	}
 
 	esResp := &elastic.DeleteResponse{}
-	esResp.StatusCode=resp.StatusCode
-	esResp.RawResult=resp
+	esResp.StatusCode = resp.StatusCode
+	esResp.RawResult = resp
 	err = json.Unmarshal(resp.Body, esResp)
 
 	if err != nil {
 		return &elastic.DeleteResponse{}, err
 	}
-	if esResp.Result != "deleted" && esResp.Result!="not_found" {
+	if esResp.Result != "deleted" && esResp.Result != "not_found" {
 		return nil, errors.New(string(resp.Body))
 	}
 	return esResp, nil
 }
 
+func (c *ESAPIV8) CreateIndex(indexName string, settings map[string]interface{}) (err error) {
+	body := bytes.Buffer{}
+	if len(settings) > 0 {
+		enc := json.NewEncoder(&body)
+		enc.Encode(settings)
+	}
+
+	if global.Env().IsDebug {
+		log.Trace("start create index: ", indexName, ",", settings, ",", string(body.Bytes()))
+	}
+	indexName = util.UrlEncode(indexName)
+
+	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
+
+	result, err := c.Request(nil, util.Verb_PUT, url, body.Bytes())
+
+	if err != nil {
+		return err
+	}
+	if result.StatusCode != http.StatusOK {
+		return fmt.Errorf("code:%v,response:%v", result.StatusCode, string(result.Body))
+	}
+
+	return nil
+}
+
 // Get fetch document by id
 func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, error) {
 
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_doc/" + id
 
@@ -129,8 +157,8 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 		return nil, err
 	}
 
-	esResp.StatusCode=resp.StatusCode
-	esResp.RawResult=resp
+	esResp.StatusCode = resp.StatusCode
+	esResp.RawResult = resp
 
 	err = json.Unmarshal(resp.Body, esResp)
 	if err != nil {
@@ -143,23 +171,23 @@ func (c *ESAPIV8) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 // IndexDoc index a document into elasticsearch
 func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
-	indexName=util.UrlEncode(indexName)
+	indexName = util.UrlEncode(indexName)
 
 	url := fmt.Sprintf("%s/%s/_doc/%s", c.GetEndpoint(), indexName, id)
 
-	if id==""{
+	if id == "" {
 		url = fmt.Sprintf("%s/%s/_doc", c.GetEndpoint(), indexName)
 	}
 	if refresh != "" {
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
 	}
 	var (
-		js []byte
+		js  []byte
 		err error
 	)
 	if dataBytes, ok := data.([]byte); ok {
 		js = dataBytes
-	}else{
+	} else {
 		js, err = json.Marshal(data)
 	}
 
