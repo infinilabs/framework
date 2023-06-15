@@ -61,7 +61,8 @@ var (
 		ORMConfig: common.ORMConfig{
 			Enabled:      false,
 			InitTemplate: true,
-			IndexPrefix:  ".infini-",
+			InitSchema:   true,
+			IndexPrefix:  ".infini_",
 		},
 		StoreConfig: common.StoreConfig{
 			Enabled: false,
@@ -331,6 +332,9 @@ var schemaInited bool
 
 func InitSchema() {
 	if schemaInited {
+		return
+	}
+	if !moduleConfig.ORMConfig.InitSchema {
 		return
 	}
 	err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")

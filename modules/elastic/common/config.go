@@ -18,6 +18,7 @@ import (
 type ORMConfig struct {
 	Enabled      bool   `config:"enabled"`
 	InitTemplate bool   `config:"init_template"`
+	InitSchema   bool   `config:"init_schema"`
 	TemplateName string `config:"template_name"`
 	IndexPrefix  string `config:"index_prefix"`
 }
