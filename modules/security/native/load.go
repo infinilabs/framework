@@ -5,42 +5,51 @@
 package native
 
 import (
+	_ "embed"
+	"path"
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/api/routetree"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"os"
-	"path"
-	"strings"
 )
 
 type ElasticsearchAPIMetadata struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
 	Methods []string `json:"methods"`
-	Path string `json:"path"`
+	Path    string   `json:"path"`
 }
 type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
-func (list ElasticsearchAPIMetadataList) GetNames() []string{
+
+func (list ElasticsearchAPIMetadataList) GetNames() []string {
 	var names []string
 	for _, md := range list {
-		if !util.StringInArray(names, md.Name){
+		if !util.StringInArray(names, md.Name) {
 			names = append(names, md.Name)
 		}
 	}
 	return names
 }
 
-func loadJsonConfig() map[string]ElasticsearchAPIMetadataList {
-	pwd, _ := os.Getwd()
+//go:embed permission.json
+var permissionFile []byte
 
-	bytes, err := util.FileGetContent(path.Join(pwd, "/config/permission.json"))
-	if err != nil {
-		log.Errorf("load permission file error: %v", err)
-		return nil
+func loadJsonConfig() map[string]ElasticsearchAPIMetadataList {
+	externalConfig := path.Join(global.Env().GetConfigDir(), "permission.json")
+	if util.FileExists(externalConfig) {
+		log.Infof("loading permission file from %s", externalConfig)
+		bytes, err := util.FileGetContent(externalConfig)
+		if err != nil {
+			log.Errorf("load permission file failed, use embedded config, err: %v", err)
+		} else {
+			permissionFile = bytes
+		}
 	}
 	apis := map[string]ElasticsearchAPIMetadataList{}
-	err = json.Unmarshal(bytes, &apis)
+	err := json.Unmarshal(permissionFile, &apis)
 	if err != nil {
 		log.Error("json config unmarshal err " + err.Error())
 		return nil
