@@ -163,10 +163,10 @@ func FuncWithTimeout(ctx context.Context,f func()) error {
 	}
 }
 
-func RunBackgroundCallbacks(continueRun *int32) {
+func RunBackgroundCallbacks(state *int32) {
 	ctx := context.Background()
 	for {
-		if atomic.LoadInt32(continueRun)==1{
+		if state!=nil&&atomic.LoadInt32(state)>0{
 			log.Debug("exit background tasks")
 			return
 		}

@@ -59,7 +59,7 @@ type App struct {
 	svcFlag string
 
 	//atomic status
-	stopped int32 //0 means running, 1 means stopped
+	state int32 //0 means running, 1 means stopping, 2 means stopped
 }
 
 const (
@@ -413,9 +413,11 @@ func (p *App) run() error {
 				p.stop()
 			}
 
+			atomic.StoreInt32(&p.state, 1)
+
 			//wait modules to stop
 			module.Stop()
-			atomic.StoreInt32(&p.stopped, 1)
+			atomic.StoreInt32(&p.state, 2)
 			p.quitSignal <- true
 		}
 	}()
@@ -429,6 +431,8 @@ func (p *App) run() error {
 	}, Interval: 30 * time.Second})
 
 	stats.RegisterStats("goroutine", pipeline.GetPoolStats)
+
+	global.Register("APP_STATE",&p.state)
 
 	//background job
 	go func() {
@@ -448,7 +452,7 @@ func (p *App) run() error {
 				}
 			}
 		}()
-		global.RunBackgroundCallbacks(&p.stopped)
+		global.RunBackgroundCallbacks(&p.state)
 	}()
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())

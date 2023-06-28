@@ -398,6 +398,9 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 					log.Errorf("error on pipeline: %v, retry delay: %vms", cfg.Name, err)
 				}
 			}
+
+			ctx.SetLoopReleased()
+			p.Release()
 		}()
 
 		if !cfg.AutoStart {
@@ -416,7 +419,17 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 
 		started := false
 
+		var signal *int32
+			if temp:=global.Lookup("APP_STATE");temp!=nil {
+				signal=temp.(*int32)
+			}
+
 		for {
+			if signal!=nil&&atomic.LoadInt32(signal)>0{
+				log.Errorf("system is shutting down, pipeline [%v] will be stopped", cfg.Name)
+				break
+			}
+
 			if ctx.IsReleased() {
 				break
 			}
@@ -475,8 +488,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			}
 		}
 
-		ctx.SetLoopReleased()
-		p.Release()
+
 		log.Debugf("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
 	}(v, processor, ctx)
 

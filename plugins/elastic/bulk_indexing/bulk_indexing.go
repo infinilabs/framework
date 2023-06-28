@@ -69,6 +69,9 @@ type Config struct {
 	MaxWorkers int `config:"max_worker_size"`
 
 	DetectActiveQueue  bool `config:"detect_active_queue"`
+
+	VerboseBulkResult  bool `config:"verbose_bulk_result"`
+
 	DetectIntervalInMs int  `config:"detect_interval"`
 
 	ValidateRequest   bool `config:"valid_request"`
@@ -112,6 +115,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		DetectActiveQueue:      true,
+		VerboseBulkResult:      true,
 		ValidateRequest:        false,
 		SkipEmptyQueue:         true,
 		SkipOnMissingInfo:      false,
@@ -509,7 +513,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		//cleanup buffer before exit worker
-		continueNext, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		continueNext, err := processor.submitBulkRequest(ctx, qConfig,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 		mainBuf.ResetData()
 		if continueNext {
 			if offset != "" && initOffset != offset {
@@ -734,7 +738,7 @@ READ_DOCS:
 					}
 
 					//submit request
-					continueNext, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+					continueNext, err := processor.submitBulkRequest(ctx,qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 					if !continueNext {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(), "code 429") {
@@ -777,7 +781,7 @@ CLEAN_BUFFER:
 
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
-	continueNext, err := processor.submitBulkRequest(ctx, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+	continueNext, err := processor.submitBulkRequest(ctx,qConfig,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 
 	if continueNext {
 		//reset buffer
@@ -813,7 +817,7 @@ CLEAN_BUFFER:
 	}
 }
 
-func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context, tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
+func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context, qConfig *queue.QueueConfig,tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
 
 	if mainBuf == nil || meta == nil {
 		return true, errors.New("invalid buffer or meta")
@@ -838,9 +842,11 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
 		}
 		if global.Env().IsDebug {
-			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+			log.Info(tag,", ",meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
 		} else {
-			log.Info(meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
+			if processor.config.VerboseBulkResult{
+				log.Info("queue:", qConfig.Name,", ",meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
+			}
 		}
 		processor.updateContext(ctx, bulkResult)
 		return continueRequest, err
