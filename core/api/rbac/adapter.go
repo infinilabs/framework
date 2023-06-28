@@ -27,6 +27,13 @@ type IUser interface {
 	Search(keyword string, from, size int) (orm.Result, error)
 }
 
+
+type SecurityRealm interface {
+	GetType() string
+	Authenticate(username, password string) (bool,*User, error)	// Return true if authentication is successful, otherwise false
+	Authorize(user *User)(bool, error) 	// Return true if authorization is granted, otherwise false
+}
+
 type Adapter struct {
 	Role IRole
 	User IUser

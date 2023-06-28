@@ -9,18 +9,15 @@ import (
 	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/modules/security/native"
-	napi "infini.sh/framework/modules/security/native/api"
+	authapi "infini.sh/framework/modules/security/api"
+	"infini.sh/framework/modules/security/config"
 	credapi "infini.sh/framework/modules/security/credential/api"
+	"infini.sh/framework/modules/security/realm"
+	"infini.sh/framework/modules/security/realm/authc/oauth"
 )
 
-type Config struct {
-	Enabled           bool `config:"enabled"`
-	OAuth napi.OAuthConfig `config:"oauth"`
-}
-
 type Module struct {
-	cfg *Config
+	cfg *config.Config
 }
 
 func (module *Module) Name() string {
@@ -28,47 +25,54 @@ func (module *Module) Name() string {
 }
 
 func (module *Module) Setup() {
-	module.cfg=&Config{
-		Enabled:true,
-		OAuth: napi.OAuthConfig{
-		SuccessPage: "/#/user/sso/success",
-		FailedPage: "/#/user/sso/failed",
-	}}
+	module.cfg = &config.Config{
+		Enabled: true,
+		Authentication: config.AuthenticationConfig{
+			Realms: config.RealmsConfig{
+				Native: config.RealmConfig{
+					Enabled: true,
+				},
+			},
+		},
+		OAuthConfig: config.OAuthConfig{
+			SuccessPage: "/#/user/sso/success",
+			FailedPage:  "/#/user/sso/failed",
+		},
+	}
 
-	ok,err:=env.ParseConfig("security", &module.cfg)
-	if ok&&err!=nil{
+	ok, err := env.ParseConfig("security", &module.cfg)
+	if ok && err != nil {
 		panic(err)
 	}
 
-	if !module.cfg.Enabled{
+	if !module.cfg.Enabled {
 		return
 	}
-	napi.Init(module.cfg.OAuth)
+
 	credapi.Init()
+
+	if module.cfg.OAuthConfig.Enabled {
+		oauth.Init(module.cfg.OAuthConfig)
+	}
+
+	authapi.Init()
 }
 
-var securityInited bool
-func InitSecurity() {
-	if securityInited{
-		return
-	}
+
+func InitSchema() {
 	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
 	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
 	orm.RegisterSchemaWithIndexName(credential.Credential{}, "credential")
-	native.Init()
-
-	//load role from store
-	napi.LoadPermission()
-	securityInited=true
 }
 
 func (module *Module) Start() error {
-
 	if !module.cfg.Enabled {
 		return nil
 	}
 
-	InitSecurity()
+	InitSchema()
+
+	realm.Init(module.cfg)
 
 	return nil
 }
@@ -77,4 +81,3 @@ func (module *Module) Stop() error {
 
 	return nil
 }
-

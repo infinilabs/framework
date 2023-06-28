@@ -367,7 +367,7 @@ func (module *ElasticModule) Start() error {
 	if moduleConfig.ORMConfig.Enabled {
 		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-		orm.Register("elastic", handler)
+		orm.Register("elastic", &handler)
 	}
 
 	if moduleConfig.StoreConfig.Enabled {

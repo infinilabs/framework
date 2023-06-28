@@ -34,12 +34,12 @@ func InitTemplate(force bool) {
 	templateInited = true
 }
 
-func (handler ElasticORM) GetWildcardIndexName(o interface{}) string {
+func (handler *ElasticORM) GetWildcardIndexName(o interface{}) string {
 	name := handler.GetIndexName(o)
 	return fmt.Sprintf("%v*", name)
 }
 
-func (handler ElasticORM) GetIndexName(o interface{}) string {
+func (handler *ElasticORM) GetIndexName(o interface{}) string {
 	indexName := getIndexName(o)
 
 	if handler.Config.IndexPrefix == "" {
@@ -48,7 +48,7 @@ func (handler ElasticORM) GetIndexName(o interface{}) string {
 	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler ElasticORM) Get(o interface{}) (bool, error) {
+func (handler *ElasticORM) Get(o interface{}) (bool, error) {
 
 	id := getIndexID(o)
 	if id == "" {
@@ -80,14 +80,14 @@ func (handler ElasticORM) Get(o interface{}) (bool, error) {
 	return true, err
 }
 
-func (handler ElasticORM) GetBy(field string, value interface{}, t interface{}) (error, api.Result) {
+func (handler *ElasticORM) GetBy(field string, value interface{}, t interface{}) (error, api.Result) {
 
 	query := api.Query{}
 	query.Conds = api.And(api.Eq(field, value))
 	return handler.Search(t, &query)
 }
 
-func (handler ElasticORM) Save(ctx *api.Context, o interface{}) error {
+func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	var refresh string
 	if ctx != nil {
 		refresh = ctx.Refresh
@@ -96,11 +96,11 @@ func (handler ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
-func (handler ElasticORM) Update(ctx *api.Context, o interface{}) error {
+func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	return handler.Save(ctx, o)
 }
 
-func (handler ElasticORM) Delete(ctx *api.Context, o interface{}) error {
+func (handler *ElasticORM) Delete(ctx *api.Context, o interface{}) error {
 	var refresh string
 	if ctx != nil {
 		refresh = ctx.Refresh
@@ -109,7 +109,7 @@ func (handler ElasticORM) Delete(ctx *api.Context, o interface{}) error {
 	return err
 }
 
-func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
+func (handler *ElasticORM) DeleteBy(o interface{}, query interface{}) error {
 	var (
 		queryBody []byte
 		ok        bool
@@ -121,7 +121,7 @@ func (handler ElasticORM) DeleteBy(o interface{}, query interface{}) error {
 	return err
 }
 
-func (handler ElasticORM) UpdateBy(o interface{}, query interface{}) error {
+func (handler *ElasticORM) UpdateBy(o interface{}, query interface{}) error {
 	var (
 		queryBody []byte
 		ok        bool
@@ -133,7 +133,7 @@ func (handler ElasticORM) UpdateBy(o interface{}, query interface{}) error {
 	return err
 }
 
-func (handler ElasticORM) Count(o interface{}, query interface{}) (int64, error) {
+func (handler *ElasticORM) Count(o interface{}, query interface{}) (int64, error) {
 	var queryBody []byte
 
 	if query != nil {
@@ -180,7 +180,7 @@ func getQuery(c1 *api.Cond) interface{} {
 	panic(errors.Errorf("invalid query: %s", c1))
 }
 
-func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result) {
+func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result) {
 
 	var err error
 
@@ -264,7 +264,7 @@ func (handler ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result
 	return err, result
 }
 
-func (handler ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
+func (handler *ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 
 	//agg := elastic.NewTermsAggregation().Field(selectField).Size(10)
 	//

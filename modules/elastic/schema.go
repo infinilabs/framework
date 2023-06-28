@@ -81,8 +81,7 @@ func parseAnnotation(mapping []util.Annotation) string {
 }
 
 //elastic_mapping:"content: { type: binary, doc_values:false }"
-func (handler ElasticORM) RegisterSchema(t interface{}) error {
-
+func (handler *ElasticORM) RegisterSchema(t interface{}) error {
 	return handler.RegisterSchemaWithIndexName(t,"")
 }
 
@@ -107,8 +106,13 @@ func initIndexName(t interface{},indexName string)string  {
 	return indexName
 }
 
-func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName string) error {
+func (handler *ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName string) error {
 
+	if !handler.Config.Enabled{
+		log.Debugf("elastic ORM is disabled, skip schema registration")
+		return nil
+	}
+	
 	initIndexName(t,indexName)
 
 	indexName=orm.GetIndexName(t)
@@ -117,40 +121,34 @@ func (handler ElasticORM) RegisterSchemaWithIndexName(t interface{},indexName st
 
 	exist, err := handler.Client.IndexExists(indexName)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if !exist {
 		err = handler.Client.CreateIndex(indexName, nil)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		jsonFormat := `{ %s }`
 		mapping := getIndexMapping(t)
 
 		js := parseAnnotation(mapping)
-
 		json := fmt.Sprintf(jsonFormat, quoteJson(js))
 
 		log.Trace(indexName,", mapping: ", json)
 
 		data, err := handler.Client.UpdateMapping(indexName, "", []byte(json))
 		if err != nil {
-			panic(err)
+			return err
 		}
-
 		x,_,_,_:= jsonparser.Get(data,"error")
 		if x!=nil{
 			log.Errorf("error on update mapping: %v, %v",indexName,string(x))
 		}else{
 			log.Debugf("schema %v successful initialized", indexName)
 		}
-
-
-
 	}
-
-	return nil
+	return err
 }
 
 var quote int32 = 34     //"
