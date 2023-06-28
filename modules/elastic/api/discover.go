@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
-	"github.com/segmentio/encoding/json"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
@@ -38,7 +37,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	err = h.DecodeJSON(req, &reqParams)
 	if err != nil {
 		log.Error(err)
-		h.WriteJSON(w, err.Error(), http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -77,7 +76,7 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		if err != nil {
 			errStr := fmt.Sprintf("version compare error: %v", err)
 			log.Error(errStr)
-			h.WriteJSON(w, err.Error(), http.StatusInternalServerError)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if vr < 0 {
@@ -101,8 +100,27 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 			}
 		}
 	}
+	indices, hasAll := h.GetAllowedIndices(req, targetClusterID)
+	if !hasAll {
+		if len(indices) == 0 {
+			h.WriteJSON(w, elastic.SearchResponse{}, http.StatusOK)
+			return
+		}
+		reqParams.Body["query"] = util.MapStr{
+			"bool": util.MapStr{
+				"must": []interface{}{
+					util.MapStr{
+						"terms": util.MapStr{
+							"_index": indices,
+						},
+					},
+					reqParams.Body["query"],
+				},
+			},
+		}
+	}
 
-	reqDSL, _ := json.Marshal(reqParams.Body)
+	reqDSL := util.MustToJSONBytes(reqParams.Body)
 
 	searchRes, err := client.SearchWithRawQueryDSL(reqParams.Index, reqDSL)
 	if err != nil {
@@ -131,14 +149,13 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusNotFound)
+		errStr := fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		h.WriteError(w, errStr, http.StatusNotFound)
 		return
 	}
 
@@ -147,37 +164,56 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 		FieldName string `json:"field"`
 		Query string `json:"query"`
 	}{}
-
 	err = h.DecodeJSON(req, &reqParams)
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	indexName := ps.ByName("index")
-	var queryBody = `{"size": 0,"query": {"bool": {"filter": %s}},"aggs": {"suggestions": {
-        "terms": {
-          "field": "%s",
-          "include": "%s.*",
-          "execution_hint": "map",
-          "shard_size": 10
-        }
-      }
-    }
-  }`
-	byteFilters, _ := json.Marshal(reqParams.BoolFilter)
-
-	reqDSL := fmt.Sprintf(queryBody, string(byteFilters), reqParams.FieldName, reqParams.Query)
-
-	searchRes, err := client.SearchWithRawQueryDSL(indexName, []byte(reqDSL))
-	if err != nil {
-		log.Error(err)
-		resBody["error"] = err
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
-		return
+	boolQ := util.MapStr{
+		"filter": reqParams.BoolFilter,
 	}
 	var values = []interface{}{}
+	indices, hasAll := h.GetAllowedIndices(req, targetClusterID)
+	if !hasAll {
+		if len(indices) == 0 {
+			h.WriteJSON(w, values,http.StatusOK)
+			return
+		}
+		boolQ["must"] = []util.MapStr{
+			{
+				"terms": util.MapStr{
+					"_index": indices,
+				},
+			},
+		}
+	}
+	queryBody := util.MapStr{
+		"size": 0,
+		"query": util.MapStr{
+			"bool": boolQ,
+		},
+		"aggs": util.MapStr{
+			"suggestions": util.MapStr{
+				"terms": util.MapStr{
+					"field": reqParams.FieldName,
+					"include": reqParams.Query + ".*",
+					"execution_hint": "map",
+					"shard_size": 10,
+				},
+			},
+		},
+	}
+	var queryBodyBytes  = util.MustToJSONBytes(queryBody)
+
+	searchRes, err := client.SearchWithRawQueryDSL(indexName, queryBodyBytes)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	for _, bucket := range searchRes.Aggregations["suggestions"].Buckets {
 		values = append(values, bucket["key"])
 	}
@@ -185,7 +221,6 @@ func (h *APIHandler) HandleValueSuggestionAction(w http.ResponseWriter, req *htt
 }
 
 func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	resBody := util.MapStr{}
 	traceID := h.GetParameterOrDefault(req, "traceID", "")
 	traceIndex := h.GetParameterOrDefault(req, "traceIndex", orm.GetIndexName(elastic.TraceMeta{}))
 	traceField := h.GetParameterOrDefault(req, "traceField", "trace_id")
@@ -194,15 +229,13 @@ func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.
 
 	if err != nil {
 		log.Error(err)
-		resBody["error"] = err.Error()
-		h.WriteJSON(w, resBody, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !exists{
-		resBody["error"] = fmt.Sprintf("cluster [%s] not found",targetClusterID)
-		log.Error(resBody["error"])
-		h.WriteJSON(w, resBody, http.StatusNotFound)
+		errStr := fmt.Sprintf("cluster [%s] not found",targetClusterID)
+		h.WriteError(w, errStr, http.StatusNotFound)
 		return
 	}
 	var queryDSL = util.MapStr{
@@ -226,9 +259,7 @@ func (h *APIHandler) HandleTraceIDSearchAction(w http.ResponseWriter, req *http.
 	searchRes, err := client.SearchWithRawQueryDSL(traceIndex, util.MustToJSONBytes(queryDSL))
 	if err != nil {
 		log.Error(err)
-		h.WriteJSON(w, util.MapStr{
-			"error": err,
-		}, http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if searchRes.GetTotal() == 0 {

@@ -1,11 +1,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 
@@ -45,8 +48,14 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	}
 
 	authPath, _ := url.PathUnescape(path)
+	var realPath = authPath
+	//ccs search
+	if parts := strings.SplitN(authPath, "/", 2); strings.Contains(parts[0], ":") {
+		ccsParts := strings.SplitN(parts[0], ":", 2)
+		realPath = fmt.Sprintf("%s/%s", ccsParts[1], parts[1])
+	}
 	newReq := req.Clone(context.Background())
-	newURL, err := url.Parse(authPath)
+	newURL, err := url.Parse(realPath)
 	if err != nil {
 		log.Error(err)
 		resBody["error"] = err.Error()
@@ -115,7 +124,40 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	clonedURI.SetScheme(metadata.GetSchema())
 	freq.SetURI(clonedURI)
 
-	freq.SetBodyStream(req.Body, int(req.ContentLength))
+	if permission == "cluster.search" {
+		indices, hasAll := h.GetAllowedIndices(req, targetClusterID)
+		if !hasAll && len(indices) == 0 {
+			h.WriteJSON(w, elastic.SearchResponse{}, http.StatusOK)
+			return
+		}
+		if hasAll {
+			freq.SetBodyStream(req.Body, int(req.ContentLength))
+		}else{
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if len(body) == 0 {
+				body = []byte("{}")
+			}
+			v, _, _, _ := jsonparser.Get(body, "query")
+			newQ := bytes.NewBuffer([]byte(`{"bool": {"must": [{"terms": {"_index":`))
+			indicesBytes := util.MustToJSONBytes(indices)
+			newQ.Write(indicesBytes)
+			newQ.Write([]byte("}}"))
+			if len(v) > 0 {
+				newQ.Write([]byte(","))
+				newQ.Write(v)
+			}
+			newQ.Write([]byte(`]}}`))
+			body, _ = jsonparser.Set(body, newQ.Bytes(), "query")
+			freq.SetBody(body)
+		}
+	}else{
+		freq.SetBodyStream(req.Body, int(req.ContentLength))
+	}
 	defer req.Body.Close()
 
 	err = client.Do(freq, fres)

@@ -190,13 +190,27 @@ func (h *APIHandler) HandleResolveIndexAction(w http.ResponseWriter, req *http.R
 			return
 		}
 		indices := []elastic.AAIR_Indices{}
+		parts := strings.SplitN(wild, ":", 2)
+		if parts[1] == "" {
+			wild = "*"
+		}
+		var filterPattern *radix.Pattern
+		if !hasAllPrivilege {
+			filterPattern = radix.Compile(allowedIndices...)
+		}
+		inputPattern := radix.Compile(wild)
 		if agg, ok := searchRes.Aggregations["indices"]; ok {
 			for _, bk := range agg.Buckets {
 				if k, ok := bk["key"].(string); ok {
-					indices = append(indices, elastic.AAIR_Indices{
-						Name: k,
-						Attributes: []string{"open"},
-					})
+					if !hasAllPrivilege && !filterPattern.Match(k){
+						continue
+					}
+					if inputPattern.Match(k) {
+						indices = append(indices, elastic.AAIR_Indices{
+							Name: k,
+							Attributes: []string{"open"},
+						})
+					}
 				}
 			}
 		}
