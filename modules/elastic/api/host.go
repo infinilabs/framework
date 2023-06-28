@@ -351,6 +351,9 @@ func getHostSummaryFromNode(nodeIDs []string) (map[string]util.MapStr, error){
 
 func getHostSummaryFromAgent(agentIDs []string) (map[string]util.MapStr, error){
 	summary := map[string]util.MapStr{}
+	if len(agentIDs) == 0 {
+		return summary, nil
+	}
 	err := getHostSummary(agentIDs, "cpu", summary)
 	if err != nil {
 		return nil, err
