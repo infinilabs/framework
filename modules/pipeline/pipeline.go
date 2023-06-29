@@ -472,12 +472,33 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				// keep_running: true & not stopped manually by Exit()
 				// For IsExit, don't pause here, wait for STOPPED state, or we could Pause twice for STOPPED & IsExit.
 				if cfg.KeepRunning {
-					log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
-					select {
-					case <-time.After(time.Duration(retryDelayInMs) * time.Millisecond):
-						ctx.Starting()
-					case <-ctx.Done():
+					if global.Env().IsDebug{
+						log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
 					}
+
+					//timer:=util.AcquireTimer(time.Duration(retryDelayInMs) * time.Millisecond)
+					//timer.Reset(time.Duration(5) * time.Second)
+					//select {
+					//case <-timer.C:
+					////	log.Error("timeout")
+					//	// do something after timeout.
+					//	ctx.Starting()
+					//case <-ctx.Done(): //always done
+					////	log.Error("done")
+					//	// do something when context is finished and stop the timer.
+					//	if !timer.Stop() {
+					//		// if the timer has been stopped then read from the channel.
+					//		<-timer.C
+					//	}
+					//}
+					//util.ReleaseTimer(timer)
+
+					if cfg.RetryDelayInMs > 0 {
+						time.Sleep(time.Duration(cfg.RetryDelayInMs) * time.Millisecond)
+					}
+
+					// restart after delay.
+					ctx.Starting()
 				} else {
 					ctx.Stopped()
 					ctx.Pause()
