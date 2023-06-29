@@ -7,9 +7,9 @@ import (
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"infini.sh/gateway/lib/guardian/auth"
-	"infini.sh/gateway/lib/guardian/auth/strategies/basic"
-	"infini.sh/gateway/lib/guardian/auth/strategies/ldap"
+	"infini.sh/framework/lib/guardian/auth"
+	"infini.sh/framework/lib/guardian/auth/strategies/basic"
+	"infini.sh/framework/lib/guardian/auth/strategies/ldap"
 )
 
 type LDAPConfig struct {
@@ -33,27 +33,27 @@ type LDAPConfig struct {
 func (r *LDAPRealm) mapLDAPRoles(authInfo auth.Info) []string {
 	var ret []string
 
-	if global.Env().IsDebug{
-		log.Tracef("mapping LDAP authInfo: %v",authInfo)
+	if global.Env().IsDebug {
+		log.Tracef("mapping LDAP authInfo: %v", authInfo)
 	}
 
 	//check uid
-	uid:=authInfo.GetID()
-	if uid==""{
-		uid=authInfo.GetUserName()
+	uid := authInfo.GetID()
+	if uid == "" {
+		uid = authInfo.GetUserName()
 	}
 
-	if global.Env().IsDebug{
-		log.Tracef("ldap config: %v",util.MustToJSON(r.config))
+	if global.Env().IsDebug {
+		log.Tracef("ldap config: %v", util.MustToJSON(r.config))
 	}
 
 	if roles, ok := r.config.RoleMapping.Uid[uid]; ok {
 		ret = append(ret, roles...)
-	}else{
-		if global.Env().IsDebug{
-			log.Tracef("ldap uid mapping config: %v",r.config.RoleMapping.Uid)
+	} else {
+		if global.Env().IsDebug {
+			log.Tracef("ldap uid mapping config: %v", r.config.RoleMapping.Uid)
 		}
-		log.Debugf("LDAP uid: %v, user: %v",uid,authInfo)
+		log.Debugf("LDAP uid: %v, user: %v", uid, authInfo)
 	}
 
 	//map group
@@ -61,11 +61,11 @@ func (r *LDAPRealm) mapLDAPRoles(authInfo auth.Info) []string {
 		newRoles, ok := r.config.RoleMapping.Group[roleName]
 		if ok {
 			ret = append(ret, newRoles...)
-		}else{
-			if global.Env().IsDebug{
-				log.Tracef("ldap group mapping config: %v",r.config.RoleMapping.Group)
+		} else {
+			if global.Env().IsDebug {
+				log.Tracef("ldap group mapping config: %v", r.config.RoleMapping.Group)
 			}
-			log.Debugf("LDAP group: %v, roleName: %v, match: %v",uid,roleName,newRoles)
+			log.Debugf("LDAP group: %v, roleName: %v, match: %v", uid, roleName, newRoles)
 		}
 	}
 
@@ -102,7 +102,7 @@ type LDAPRealm struct {
 	ldapFunc basic.AuthenticateFunc
 }
 
-func (r *LDAPRealm) GetType() string{
+func (r *LDAPRealm) GetType() string {
 	return providerName
 }
 
@@ -118,23 +118,23 @@ func (r *LDAPRealm) Authenticate(username, password string) (bool, *rbac.User, e
 		Nickname:     authInfo.GetUserName(),
 		Email:        "",
 	}
-	u.Payload= &authInfo
+	u.Payload = &authInfo
 	u.ID = authInfo.GetUserName()
 	return true, u, err
 }
 
 func (r *LDAPRealm) Authorize(user *rbac.User) (bool, error) {
-	authInfo:=user.Payload.(*auth.Info)
-	if authInfo!=nil{
+	authInfo := user.Payload.(*auth.Info)
+	if authInfo != nil {
 		roles := r.mapLDAPRoles(*authInfo)
 		for _, roleName := range roles {
 			user.Roles = append(user.Roles, rbac.UserRole{
-				ID: roleName,
+				ID:   roleName,
 				Name: roleName,
 			})
 		}
-	}else{
-		log.Warnf("LDAP %v auth Info is nil",user.Username)
+	} else {
+		log.Warnf("LDAP %v auth Info is nil", user.Username)
 	}
 
 	var _, privilege = user.GetPermissions()
