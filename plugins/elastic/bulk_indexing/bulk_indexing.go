@@ -503,7 +503,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 					v = r.(string)
 				}
 				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
-				ctx.Error(fmt.Errorf("NewSlicedBulkWorker panic: %+v", r))
+				ctx.RecordError(fmt.Errorf("NewSlicedBulkWorker panic: %+v", r))
 				skipFinalDocsProcess = true
 			}
 		}

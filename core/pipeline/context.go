@@ -240,7 +240,7 @@ func (ctx *Context) Started() {
 	ctx.setRunningState(STARTED)
 }
 
-func (ctx *Context) Error(err error) {
+func (ctx *Context) RecordError(err error) {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 
