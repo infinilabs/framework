@@ -556,6 +556,12 @@ func (m MapStr) deepUpdateMap(d MapStr, overwrite bool) {
 	}
 }
 
+func (m *MapStr) Merge(vars map[string]interface{}) {
+	for k, v := range vars {
+		m.Put(k,v)
+	}
+}
+
 func deepUpdateValue(old interface{}, val MapStr, overwrite bool) interface{} {
 	switch sub := old.(type) {
 	case MapStr:
