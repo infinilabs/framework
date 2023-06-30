@@ -153,3 +153,24 @@ func RequestTimeout(ctx *elastic.APIContext, method, url string, body []byte, me
 	return result, nil
 
 }
+
+func GetClusterUUID(clusterID string) (string, error){
+	meta := elastic.GetMetadata(clusterID)
+	if meta == nil {
+		return "", fmt.Errorf("metadata can not be mepty")
+	}
+	if meta.ClusterState != nil {
+		return meta.ClusterState.ClusterUUID, nil
+	}
+	if meta.Config != nil && meta.Config.ClusterUUID != "" {
+		return meta.Config.ClusterUUID, nil
+	}
+	clusterInfo, err := ClusterVersion(meta)
+	if err != nil {
+		return "", err
+	}
+	if meta.Config != nil {
+		meta.Config.ClusterUUID = clusterInfo.ClusterUUID
+	}
+	return clusterInfo.ClusterUUID, nil
+}
