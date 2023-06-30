@@ -23,6 +23,7 @@
 package pipeline
 
 import (
+	"infini.sh/framework/core/global"
 	"runtime"
 	"time"
 )
@@ -53,16 +54,20 @@ func (w *goWorker) run() {
 	w.pool.incRunning()
 	go func() {
 		defer func() {
+
+
 			w.pool.decRunning()
 			w.pool.workerCache.Put(w)
-			if p := recover(); p != nil {
-				if ph := w.pool.options.PanicHandler; ph != nil {
-					ph(p)
-				} else {
-					w.pool.options.Logger.Printf("worker exits from a panic: %v\n", p)
-					var buf [4096]byte
-					n := runtime.Stack(buf[:], false)
-					w.pool.options.Logger.Printf("worker exits from panic: %s\n", string(buf[:n]))
+			if !global.Env().IsDebug {
+				if p := recover(); p != nil {
+					if ph := w.pool.options.PanicHandler; ph != nil {
+						ph(p)
+					} else {
+						w.pool.options.Logger.Printf("worker exits from a panic: %v\n", p)
+						var buf [4096]byte
+						n := runtime.Stack(buf[:], false)
+						w.pool.options.Logger.Printf("worker exits from panic: %s\n", string(buf[:n]))
+					}
 				}
 			}
 			// Call Signal() here in case there are goroutines waiting for available workers.

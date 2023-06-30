@@ -472,12 +472,16 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				// keep_running: true & not stopped manually by Exit()
 				// For IsExit, don't pause here, wait for STOPPED state, or we could Pause twice for STOPPED & IsExit.
 				if cfg.KeepRunning {
-					log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
-					select {
-					case <-time.After(time.Duration(retryDelayInMs) * time.Millisecond):
-						ctx.Starting()
-					case <-ctx.Done():
+					if global.Env().IsDebug{
+						log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
 					}
+
+					if cfg.RetryDelayInMs > 0 {
+						time.Sleep(time.Duration(cfg.RetryDelayInMs) * time.Millisecond)
+					}
+
+					// restart after delay.
+					ctx.Starting()
 				} else {
 					ctx.Stopped()
 					ctx.Pause()

@@ -188,7 +188,8 @@ func (procs *Processors) Process(ctx *Context) error {
 				case string:
 					err = r.(string)
 				}
-				log.Errorf("error on pipeline:%v, %v", procs.String(), err)
+				log.Errorf("internal error on pipeline:%v, %v", procs.String(), err)
+				ctx.Failed(errors.Errorf("internal error on pipeline:%v, %v", procs.String(), err))
 			}
 		}
 	}()

@@ -100,7 +100,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 					v = r.(string)
 				}
 				log.Errorf("error in flow_runner [%v], [%v]", processor.Name(), v)
-				ctx.Error(fmt.Errorf("replay processor panic: %v", r))
+				ctx.RecordError(fmt.Errorf("replay processor panic: %v", r))
 			}
 		}
 	}()

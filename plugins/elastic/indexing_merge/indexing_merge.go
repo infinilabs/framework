@@ -185,7 +185,7 @@ func (processor *IndexingMergeProcessor) NewBulkWorker(ctx *pipeline.Context, co
 					v = r.(string)
 				}
 				log.Error("error in json indexing worker,", v)
-				ctx.Error(fmt.Errorf("indexing merge panic: %v", r))
+				ctx.RecordError(fmt.Errorf("indexing merge panic: %v", r))
 			}
 		}
 		wg.Done()

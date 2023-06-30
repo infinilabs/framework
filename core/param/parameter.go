@@ -36,7 +36,58 @@ type Parameters struct {
 	Meta      util.MapStr `json:"-"`
 	l         sync.RWMutex
 	inited    bool
+	//contexts  []ValuesMap
 }
+
+//
+//func (this *Parameters) AddContext(ctx ValuesMap) *Parameters {
+//	if this.contexts == nil {
+//		this.contexts = []ValuesMap{}
+//	}
+//	this.contexts = append(this.contexts, ctx)
+//	return this
+//}
+//
+//func (this *Context) GetValue(k string) (interface{}, error) {
+//
+//	var err error
+//	//handle variables
+//	if util.ContainStr(k, "$[[") {
+//		t, ok := this.templates.Load(k)
+//		var template *fasttemplate.Template
+//		if !ok {
+//			template, err = fasttemplate.NewTemplate(k, "$[[", "]]")
+//			if err != nil {
+//				panic(err)
+//			}
+//			this.templates.Store(k, template)
+//		} else {
+//			template = t.(*fasttemplate.Template)
+//		}
+//
+//		k, err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
+//			variable, err := this.GetValue(tag)
+//			if err != nil {
+//				return 0, err
+//			}
+//			return w.Write([]byte(util.ToString(variable)))
+//		})
+//		if err == nil {
+//			return this.GetValue(k)
+//		}
+//	}
+//
+//	//check contexts
+//	for _, ctx := range this.contexts {
+//		v, err := ctx.GetValue(k)
+//		if err == nil {
+//			return v, err
+//		}
+//	}
+//
+//	return nil, errors.Errorf("key=%v", k)
+//}
+
 
 var byteReaderPool = &sync.Pool{
 	New: func() interface{} {
@@ -724,6 +775,31 @@ func (e *Parameters) GetValue(key string) (interface{}, error) {
 		return e.Meta.GetValue(subKey)
 	}
 	return e.Data.GetValue(key)
+}
+
+func (e *Parameters) Stats(key string)int  {
+	e.init()
+	e.l.Lock()
+	defer e.l.Unlock()
+	o,ok:=e.Data[key]
+	if !ok{
+		return 0
+	}else{
+		return o.(int)
+	}
+}
+func (e *Parameters) Increment(key string, v int)  {
+	e.init()
+	e.l.Lock()
+	defer e.l.Unlock()
+	o,ok:=e.Data[key]
+	if !ok{
+		o=1
+		e.Data[key]=v
+		return
+	}
+	o=o.(int)+v
+	e.Data[key]=o
 }
 
 func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {

@@ -64,6 +64,10 @@ type Message struct {
 	Data       []byte `config:"data" json:"data"  parquet:"data,zstd"`
 }
 
+func (m *Message)String() string {
+	return fmt.Sprintf("timestamp:%v, offset:%v, next_offset:%v, size:%v, data:%v", time.Unix(0, m.Timestamp), m.Offset, m.NextOffset, m.Size, string(m.Data))
+}
+
 type QueueAPI interface {
 	AdvancedQueueAPI
 
