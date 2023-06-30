@@ -26,7 +26,7 @@ func (module *Module) Name() string {
 
 func (module *Module) Setup() {
 	module.cfg = &config.Config{
-		Enabled: true,
+		Enabled: false,
 		Authentication: config.AuthenticationConfig{
 			Realms: config.RealmsConfig{
 				Native: config.RealmConfig{
