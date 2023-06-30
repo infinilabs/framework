@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"fmt"
+	"infini.sh/framework/core/errors"
 	"runtime"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ type QueueConsumerProcessor struct {
 	config               *Config
 	wg                   sync.WaitGroup
 	inFlightQueueConfigs sync.Map
+	failedQueueConfigs   sync.Map
 	detectorRunning      bool
 	id                   string
 	sync.RWMutex
@@ -33,23 +35,25 @@ type MessageHandlerAPI interface {
 }
 
 type Config struct {
-	NumOfSlices          int   `config:"num_of_slices"`
-	Slices               []int `config:"slices"`
-	enabledSlice         map[int]int
-	IdleTimeoutInSecond  int                    `config:"idle_timeout_in_seconds"`
-	MaxConnectionPerHost int                    `config:"max_connection_per_node"`
-	QueueLabels          map[string]interface{} `config:"queues,omitempty"`
-	Selector             queue.QueueSelector    `config:"queue_selector"`
-	Consumer             *queue.ConsumerConfig   `config:"consumer"`
-	MaxWorkers           int                    `config:"max_worker_size"`
-	DetectActiveQueue    bool                   `config:"detect_active_queue"`
-	DetectIntervalInMs   int                    `config:"detect_interval"`
+	NumOfSlices             int   `config:"num_of_slices"`
+	Slices                  []int `config:"slices"`
+	enabledSlice            map[int]int
+	IdleTimeoutInSecond     int                    `config:"idle_timeout_in_seconds"`
+	MaxConnectionPerHost    int                    `config:"max_connection_per_node"`
+	QueueLabels             map[string]interface{} `config:"queues,omitempty"`
+	Selector                queue.QueueSelector    `config:"queue_selector"`
+	Consumer                *queue.ConsumerConfig  `config:"consumer"`
+	MaxWorkers              int                    `config:"max_worker_size"`
+	DetectActiveQueue       bool                   `config:"detect_active_queue"`
+	DetectIntervalInMs      int                    `config:"detect_interval"`
+	QuitDetectAfterIdleInMs int                    `config:"quite_detect_after_idle_in_ms"`
 
 	MessageProcessors []*config.Config `config:"processor"`
 
-	SkipEmptyQueue  bool `config:"skip_empty_queue"`
-	QuitOnEOFQueue  bool `config:"quit_on_eof_queue"`
+	SkipEmptyQueue bool `config:"skip_empty_queue"`
+	QuitOnEOFQueue bool `config:"quit_on_eof_queue"`
 
+	MessageField           string   `config:"message_field"`
 	WaitingAfter           []string `config:"waiting_after"`
 	RetryDelayIntervalInMs int      `config:"retry_delay_interval"`
 }
@@ -67,6 +71,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		MaxConnectionPerHost: 1,
 		IdleTimeoutInSecond:  5,
 		DetectIntervalInMs:   5000,
+		QuitDetectAfterIdleInMs:   30000,
+		MessageField:         "messages",
 
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
@@ -123,11 +129,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	processor, err := pipeline.NewPipeline(runner.config.MessageProcessors)
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 
-	runner.processors=processor
+	runner.processors = processor
 
 	pool, err := pipeline.NewPoolWithTag(name, runner.config.MaxWorkers)
 	if err != nil {
@@ -169,7 +175,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 		}
 		log.Trace("exit consumer processor")
 	}()
-
+	//
 	//msg := []byte("{\"template\":\"trial_license\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
 	//queue.Push(queue.GetOrInitConfig("email_messages"), msg)
 
@@ -201,6 +207,8 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 					processor.wg.Done()
 				}()
 
+				var lastDispatch = time.Now()
+
 				for {
 					if c.IsCanceled() {
 						return
@@ -223,17 +231,32 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 						if c.IsCanceled() {
 							return
 						}
+
 						//if have depth and not in in flight
 						if !processor.config.SkipEmptyQueue || queue.HasLag(v) {
 							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
 							if !ok {
 								log.Tracef("detecting new queue: %v", v.Name)
-								processor.HandleQueueConfig(v, c)
+								lastDispatch = time.Now()
+								err := processor.HandleQueueConfig(v, c)
+								if err != nil {
+									panic(err)
+									//return
+								}
 							}
 						}
 					}
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
+					}
+
+					if time.Since(lastDispatch) > time.Millisecond*time.Duration(processor.config.QuitDetectAfterIdleInMs) {
+						log.Tracef("quite detect after idle for %v ms", processor.config.QuitDetectAfterIdleInMs)
+						inflight := util.MapLength(&processor.inFlightQueueConfigs)
+						if inflight == 0 {
+							log.Debugf("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs,inflight)
+							return
+						}
 					}
 				}
 			}(c)
@@ -243,7 +266,10 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 		log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
 		for _, v := range cfgs {
 			log.Tracef("checking queue: %v", v)
-			processor.HandleQueueConfig(v, c)
+			err := processor.HandleQueueConfig(v, c)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -252,12 +278,22 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
-func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueConfig, ctx *pipeline.Context) {
+func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueConfig, ctx *pipeline.Context) error {
+
+	log.Tracef("handle queue config:%v ", qConfig.Name)
+
 	if processor.config.SkipEmptyQueue && !queue.HasLag(qConfig) {
 		if global.Env().IsDebug {
 			log.Tracef("skip empty queue:[%v]", qConfig.Name)
 		}
-		return
+		return nil
+	}
+
+	var sliceStats = qConfig.Id + "FAILED_SLICES"
+
+	if ctx.Stats(sliceStats) >= processor.config.NumOfSlices {
+		log.Debugf("all slices failed for queue [%v], skip", qConfig.Name)
+		return errors.Errorf("all slices failed for queue [%v], skip", qConfig.Name)
 	}
 
 	//check slice
@@ -279,7 +315,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 
 		if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
 			log.Debugf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
-			return
+			return nil
 		}
 
 		processor.Lock()
@@ -293,12 +329,23 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v", workerID, qConfig.Name, sliceID)
 
 			processor.wg.Add(1)
+			contextForWorker := pipeline.Context{}
+			contextForWorker.ResetContext()
 			err := processor.pool.Submit(&pipeline.Task{
 				Handler: func(ctx *pipeline.Context, v ...interface{}) {
 					processor.NewSlicedWorker(ctx, v...)
+					//if slice worker failed, add to failed queue
+					if ctx.IsFailed() || ctx.HasError() {
+						if len(v) > 4 {
+							parentContext := v[4].(*pipeline.Context)
+							if parentContext != nil {
+								parentContext.Increment(sliceStats, 1)
+							}
+						}
+					}
 				},
-				Context: ctx,
-				Params:  []interface{}{qConfig, workerID, sliceID, processor.config.NumOfSlices}, //在创建任务时设置参数
+				Context: &contextForWorker,
+				Params:  []interface{}{qConfig, workerID, sliceID, processor.config.NumOfSlices, ctx}, //在创建任务时设置参数
 			})
 			processor.Unlock()
 			if err != nil {
@@ -306,6 +353,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			}
 		}
 	}
+	return nil
 }
 
 var xxHashPool = sync.Pool{
@@ -319,6 +367,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	workerID := v[1].(string)
 	sliceID := v[2].(int)
 	maxSlices := v[3].(int)
+	parentContext := v[4].(*pipeline.Context)
 
 	key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
 
@@ -355,28 +404,27 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 
 	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
 	//override consumer config with processor's consumer config
-	if processor.config.Consumer.EOFRetryDelayInMs>0{
-		consumerConfig.EOFRetryDelayInMs=processor.config.Consumer.EOFRetryDelayInMs
+	if processor.config.Consumer.EOFRetryDelayInMs > 0 {
+		consumerConfig.EOFRetryDelayInMs = processor.config.Consumer.EOFRetryDelayInMs
 	}
-	if processor.config.Consumer.FetchMaxMessages>0{
-		consumerConfig.FetchMaxMessages=processor.config.Consumer.FetchMaxMessages
+	if processor.config.Consumer.FetchMaxMessages > 0 {
+		consumerConfig.FetchMaxMessages = processor.config.Consumer.FetchMaxMessages
 	}
-	if processor.config.Consumer.FetchMaxWaitMs>0{
-		consumerConfig.FetchMaxWaitMs=processor.config.Consumer.FetchMaxWaitMs
+	if processor.config.Consumer.FetchMaxWaitMs > 0 {
+		consumerConfig.FetchMaxWaitMs = processor.config.Consumer.FetchMaxWaitMs
 	}
-	if processor.config.Consumer.FetchMinBytes>0{
-		consumerConfig.FetchMinBytes=processor.config.Consumer.FetchMinBytes
+	if processor.config.Consumer.FetchMinBytes > 0 {
+		consumerConfig.FetchMinBytes = processor.config.Consumer.FetchMinBytes
 	}
-	if processor.config.Consumer.FetchMaxBytes>0{
-		consumerConfig.FetchMaxBytes=processor.config.Consumer.FetchMaxBytes
+	if processor.config.Consumer.FetchMaxBytes > 0 {
+		consumerConfig.FetchMaxBytes = processor.config.Consumer.FetchMaxBytes
 	}
-
-	var skipFinalDocsProcess bool
 
 	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
 	defer xxHashPool.Put(xxHash)
 
 	defer func() {
+		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
 				var v string
@@ -389,18 +437,20 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 					v = r.(string)
 				}
 				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
-				ctx.Error(fmt.Errorf("NewSlicedBulkWorker panic: %+v", r))
-				skipFinalDocsProcess = true
+				ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
+				if parentContext != nil {
+					parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
+				}
 			}
 		}
 
-		if skipFinalDocsProcess {
+		if parentContext != nil && (parentContext.IsFailed()) || ctx.IsFailed() {
 			return
 		}
 
 		if processor.onCleanup != nil {
 			if !processor.onCleanup() {
-				log.Warnf("offset[%v], canceled[%v], errors[%v], failed cleanup on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
+				log.Warnf("failed to cleanup on queue:[%v], slice_id:%v, offset[%v]", qConfig.Name, sliceID, offset)
 				return
 			}
 		}
@@ -413,7 +463,6 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 			}
 			initOffset = offset
 		}
-		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
 	}()
 
 	processor.inFlightQueueConfigs.Store(key, workerID)
@@ -445,7 +494,7 @@ READ_DOCS:
 	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
 
 	for {
-		if ctx.IsCanceled() {
+		if ctx.IsCanceled() || ctx.IsFailed() || parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled()) {
 			goto CLEAN_BUFFER
 		}
 
@@ -469,8 +518,6 @@ READ_DOCS:
 		if global.Env().IsDebug {
 			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
 		}
-
-		log.Errorf("consumerConfig.FetchMaxMessages: %v",consumerConfig.FetchMaxMessages)
 
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 
@@ -500,7 +547,7 @@ READ_DOCS:
 		}
 
 		if len(messages) > 0 {
-			_,err:=ctx.PutValue("queue_messages",messages)
+			_, err := ctx.PutValue(processor.config.MessageField, messages)
 			if err != nil {
 				panic(err)
 			}
@@ -519,6 +566,7 @@ READ_DOCS:
 			}
 			if processor.config.QuitOnEOFQueue {
 				ctx.CancelTask()
+				return
 			}
 			goto CLEAN_BUFFER
 		}
@@ -528,10 +576,10 @@ CLEAN_BUFFER:
 
 	lastCommit = time.Now()
 
-	if offset == "" || ctx.IsCanceled() || ctx.HasError() {
-		log.Debugf("offset[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
-		return
-	}
+	//if offset == "" || ctx.IsCanceled() || ctx.IsFailed() || ctx.HasError() || parentContext!=nil&&(parentContext.IsFailed() || parentContext.IsCanceled()) {
+	//	log.Debugf("offset[%v], failed[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsFailed(), ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
+	//	return
+	//}
 
 	if processor.onCleanup != nil {
 		if !processor.onCleanup() {
@@ -549,7 +597,7 @@ CLEAN_BUFFER:
 	}
 
 	log.Tracef("slice_worker, goto READ_DOCS, return on queue:[%v], slice_id:%v", qConfig.Name, sliceID)
-	if !ctx.IsCanceled() {
+	if !ctx.IsCanceled() && !(parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled())) {
 		goto READ_DOCS
 	}
 }
