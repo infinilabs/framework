@@ -9,6 +9,7 @@ import (
 	"github.com/valyala/fasttemplate"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
@@ -42,7 +43,6 @@ type Template struct {
 
 type Config struct {
 	DialTimeoutInSeconds int                    `config:"dial_timeout_in_seconds"`
-	IdleTimeoutInSeconds int                    `config:"idle_timeout_in_seconds"`
 	MessageField         param.ParaKey          `config:"message_field"`
 	VariableStartTag     string                 `config:"variable_start_tag"`
 	VariableEndTag       string                 `config:"variable_end_tag"`
@@ -57,8 +57,9 @@ type Config struct {
 	Auth struct {
 		Username string `config:"username"`
 		Password string `config:"password"`
-		SendFrom string `config:"from"`
 	} `config:"auth"`
+
+	SendFrom string `config:"sender"`
 
 	Recipients struct {
 		To  []string `config:"to"`
@@ -82,7 +83,6 @@ func init() {
 
 func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
-		IdleTimeoutInSeconds: 0,
 		DialTimeoutInSeconds: 30,
 		VariableStartTag:     "$[[",
 		VariableEndTag:       "]]",
@@ -97,8 +97,12 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		config: &cfg,
 	}
 
-	if processor.config.Auth.SendFrom == "" {
-		processor.config.Auth.SendFrom = processor.config.Auth.Username
+	if processor.config.Auth.Username == "" && processor.config.SendFrom != "" {
+		processor.config.Auth.Username = processor.config.SendFrom
+	}
+
+	if processor.config.SendFrom == "" && processor.config.Auth.Username != "" {
+		processor.config.SendFrom = processor.config.Auth.Username
 	}
 
 	for _, v := range processor.config.Templates {
@@ -148,7 +152,6 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 
 		for _, message := range messages {
 			//msg := []byte("{\"template\":\"trial_license\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
-			//log.Error("message is: ", message.String())
 			o := util.MapStr{}
 			err := util.FromJSONBytes(message.Data, &o)
 			if err != nil {
@@ -160,8 +163,34 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 
 			//validate email
 			vars := o["variables"].(map[string]interface{})
-			to := vars["email"].(string)
-			//name:=vars["name"].(string)
+			sendTo:=[]string{}
+			to,ok := o["email"].(string)
+			if ok&&to!=""{
+				sendTo=append(sendTo,to)
+			}else{
+				to1,ok := o["email"].([]string)
+				if ok{
+					for _,v:=range to1{
+						if v!=""{
+							sendTo=append(sendTo,v)
+						}
+					}
+				}else{
+					email,ok:=vars["email"]
+					if ok&&email!=nil{
+						emailStr:=email.(string)
+						sendTo=append(sendTo,emailStr)
+					}
+				}
+			}
+
+			if len(processor.config.Recipients.To)>0{
+				sendTo=append(sendTo,processor.config.Recipients.To...)
+			}
+
+			if global.Env().IsDebug{
+				log.Tracef("send to: %v",sendTo)
+			}
 
 			tpName := o["template"].(string)
 			tmplate, ok := processor.config.Templates[tpName]
@@ -203,7 +232,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 
 			//send email
-			err = processor.send(to, processor.config.Recipients.CC, subj, ctype, cBody, tmplate.Attachments)
+			err = processor.send(sendTo, processor.config.Recipients.CC, subj, ctype, cBody, tmplate.Attachments)
 			if err != nil {
 				panic(err)
 			}
@@ -229,14 +258,16 @@ func AddCC(msg *gomail.Message, ccs []map[string]string) {
 
 }
 
-func (processor *SMTPProcessor) send(to string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
+func (processor *SMTPProcessor) send(to []string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
 
-	//log.Error(to,ccs,subject,contentType,body,processor.config.Server.TLS,processor.config.Server.Host, processor.config.Server.Port, processor.config.Auth.SendFrom,processor.config.Auth.Username, processor.config.Auth.Password)
+	if len(to)==0{
+		return errors.New("no recipient found")
+	}
 
 	// Create a new message
 	message := gomail.NewMessage()
-	message.SetHeader("From", processor.config.Auth.SendFrom)
-	message.SetHeader("To", to)
+	message.SetHeader("From", processor.config.SendFrom)
+	message.SetHeader("To", to...)
 
 	if len(ccs) > 0 {
 		message.SetHeader("Cc", ccs...)

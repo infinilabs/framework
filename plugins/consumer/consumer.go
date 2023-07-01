@@ -66,13 +66,13 @@ func init() {
 
 func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
-		NumOfSlices:          1,
-		MaxWorkers:           10,
-		MaxConnectionPerHost: 1,
-		IdleTimeoutInSecond:  5,
-		DetectIntervalInMs:   5000,
-		QuitDetectAfterIdleInMs:   30000,
-		MessageField:         "messages",
+		NumOfSlices:             1,
+		MaxWorkers:              10,
+		MaxConnectionPerHost:    1,
+		IdleTimeoutInSecond:     5,
+		DetectIntervalInMs:      5000,
+		QuitDetectAfterIdleInMs: 30000,
+		MessageField:            "messages",
 
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
@@ -175,9 +175,6 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 		}
 		log.Trace("exit consumer processor")
 	}()
-	//
-	//msg := []byte("{\"template\":\"trial_license\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
-	//queue.Push(queue.GetOrInitConfig("email_messages"), msg)
 
 	//handle updates
 	if processor.config.DetectActiveQueue {
@@ -254,7 +251,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 						log.Tracef("quite detect after idle for %v ms", processor.config.QuitDetectAfterIdleInMs)
 						inflight := util.MapLength(&processor.inFlightQueueConfigs)
 						if inflight == 0 {
-							log.Debugf("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs,inflight)
+							log.Debugf("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs, inflight)
 							return
 						}
 					}
