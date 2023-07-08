@@ -167,19 +167,18 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			to,ok := o["email"].(string)
 			if ok&&to!=""{
 				sendTo=append(sendTo,to)
-			}else{
-				to1,ok := o["email"].([]string)
-				if ok{
-					for _,v:=range to1{
-						if v!=""{
-							sendTo=append(sendTo,v)
+			}else {
+				to1, ok := o["email"].([]interface{})
+				if ok {
+					for _, v := range to1 {
+						if vs, ok := v.(string); ok && vs != "" {
+							sendTo = append(sendTo, vs)
 						}
 					}
-				}else{
-					email,ok:=vars["email"]
-					if ok&&email!=nil{
-						emailStr:=email.(string)
-						sendTo=append(sendTo,emailStr)
+				} else {
+					email, ok := vars["email"].(string)
+					if ok && email != "" {
+						sendTo = append(sendTo, email)
 					}
 				}
 			}

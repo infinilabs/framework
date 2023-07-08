@@ -8,4 +8,6 @@ import (
 	_ "infini.sh/framework/plugins/elastic/indexing_merge"
 	_ "infini.sh/framework/plugins/elastic/json_indexing"
 	_ "infini.sh/framework/plugins/replay"
+	_ "infini.sh/framework/plugins/consumer"
+	_ "infini.sh/framework/plugins/smtp"
 )
