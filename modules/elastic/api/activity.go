@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
+	"strings"
 )
 
 func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
@@ -69,6 +70,73 @@ func (h *APIHandler) HandleSearchActivityAction(w http.ResponseWriter, req *http
 	}
 	if !hasAllPrivilege && clusterFilter != nil {
 		filter = append(filter, clusterFilter)
+	}
+
+	hasAllPrivilege, indexPrivilege := h.GetCurrentUserIndex(req)
+	if !hasAllPrivilege && len(indexPrivilege) == 0 {
+		h.WriteJSON(w, elastic.SearchResponse{
+
+		}, http.StatusOK)
+		return
+	}
+	if !hasAllPrivilege {
+		indexShould := make([]interface{}, 0, len(indexPrivilege))
+		for clusterID, indices := range indexPrivilege {
+			var (
+				wildcardIndices []string
+				normalIndices []string
+			)
+			for _, index := range indices {
+				if strings.Contains(index,"*") {
+					wildcardIndices = append(wildcardIndices, index)
+					continue
+				}
+				normalIndices = append(normalIndices, index)
+			}
+			subShould := []util.MapStr{}
+			if len(wildcardIndices) > 0 {
+				subShould = append(subShould, util.MapStr{
+					"query_string": util.MapStr{
+						"query": strings.Join(wildcardIndices, " "),
+						"fields": []string{"metadata.labels.index_name"},
+						"default_operator": "OR",
+					},
+				})
+			}
+			if len(normalIndices) > 0 {
+				subShould = append(subShould, util.MapStr{
+					"terms": util.MapStr{
+						"metadata.labels.index_name": normalIndices,
+					},
+				})
+			}
+			indexShould = append(indexShould, util.MapStr{
+				"bool": util.MapStr{
+					"must": []util.MapStr{
+						{
+							"wildcard": util.MapStr{
+								"metadata.labels.cluster_id": util.MapStr{
+									"value": clusterID,
+								},
+							},
+						},
+						{
+							"bool": util.MapStr{
+								"minimum_should_match": 1,
+								"should": subShould,
+							},
+						},
+					},
+				},
+			})
+		}
+		indexFilter := util.MapStr{
+			"bool": util.MapStr{
+				"minimum_should_match": 1,
+				"should": indexShould,
+			},
+		}
+		filter = append(filter, indexFilter)
 	}
 
 	var should = []util.MapStr{}

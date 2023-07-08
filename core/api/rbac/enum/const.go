@@ -60,6 +60,8 @@ const (
 	DashboardAll        = "insight.dashboard:all"
 	DevtoolConsoleAll   = "devtool.console:all"
 	DevtoolConsoleRead  = "devtool.console:read"
+	WorkbenchAll = "workbench:all"
+	WorkbenchRead = "workbench:read"
 )
 
 const (
@@ -171,6 +173,8 @@ var (
 	DataComparisonAllPermission  = []string{PermissionComparisonTaskRead, PermissionComparisonTaskWrite}
 	DashboardReadPermission      = []string{PermissionLayoutRead}
 	DashboardAllPermission       = []string{PermissionLayoutRead, PermissionLayoutWrite}
+	WorkbenchReadPermission = []string{PermissionElasticsearchClusterRead, PermissionActivityRead, PermissionAlertMessageRead, PermissionElasticsearchMetricRead}
+	WorkbenchAllPermission = WorkbenchReadPermission
 )
 
 var AdminPrivilege = []string{
@@ -182,6 +186,7 @@ var AdminPrivilege = []string{
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
 	DataMigrationAll, DataComparisonAll, DashboardAll, DevtoolConsoleAll,
+	WorkbenchAll,
 }
 
 func init() {
@@ -242,6 +247,8 @@ func init() {
 		DataComparisonAll:   DataComparisonAllPermission,
 		DashboardRead:       DashboardReadPermission,
 		DashboardAll:        DashboardAllPermission,
+		WorkbenchAll: WorkbenchAllPermission,
+		WorkbenchRead: WorkbenchReadPermission,
 	}
 
 }
