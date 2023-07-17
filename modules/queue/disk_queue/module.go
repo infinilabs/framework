@@ -250,6 +250,12 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 		q, ok = module.queues.Load(k)
 	}
 	if ok {
+
+		msgSize:=len(v)
+		if int32(msgSize) < module.cfg.MinMsgSize || int32(msgSize) > module.cfg.MaxMsgSize {
+			return errors.Errorf("queue:%v, invalid message size: %v, should between: %v TO %v", k, msgSize, module.cfg.MinMsgSize, module.cfg.MaxMsgSize)
+		}
+
 		return (q.(*DiskBasedQueue)).Put(v)
 	}
 	return errors.Errorf("queue [%v] not found", k)

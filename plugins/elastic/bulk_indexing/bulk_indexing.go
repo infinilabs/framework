@@ -480,6 +480,25 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	}
 
 	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
+
+	//override consumer config with processor's consumer config
+	if processor.config.Consumer.EOFRetryDelayInMs > 0 {
+		consumerConfig.EOFRetryDelayInMs = processor.config.Consumer.EOFRetryDelayInMs
+	}
+	if processor.config.Consumer.FetchMaxMessages > 0 {
+		consumerConfig.FetchMaxMessages = processor.config.Consumer.FetchMaxMessages
+	}
+	if processor.config.Consumer.FetchMaxWaitMs > 0 {
+		consumerConfig.FetchMaxWaitMs = processor.config.Consumer.FetchMaxWaitMs
+	}
+	if processor.config.Consumer.FetchMinBytes > 0 {
+		consumerConfig.FetchMinBytes = processor.config.Consumer.FetchMinBytes
+	}
+	if processor.config.Consumer.FetchMaxBytes > 0 {
+		consumerConfig.FetchMaxBytes = processor.config.Consumer.FetchMaxBytes
+	}
+
+
 	var skipFinalDocsProcess bool
 
 	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
