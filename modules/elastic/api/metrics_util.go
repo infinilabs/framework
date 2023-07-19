@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"infini.sh/framework/core/env"
 	"net/http"
 	"strings"
 	"time"
@@ -186,10 +187,24 @@ func (h *APIHandler) getMetrics(query map[string]interface{}, grpMetricItems []G
 	return result
 }
 
+func GetMinBucketSize() int {
+	metricsCfg := struct {
+		MinBucketSizeInSeconds int `config:"min_bucket_size_in_seconds"`
+	}{
+		MinBucketSizeInSeconds: 10,
+	}
+	_, _ = env.ParseConfig("insight", &metricsCfg)
+	if metricsCfg.MinBucketSizeInSeconds < 10 {
+		metricsCfg.MinBucketSizeInSeconds = 10
+	}
+	return metricsCfg.MinBucketSizeInSeconds
+}
+
 // defaultBucketSize 也就是每次聚合的时间间隔
 func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucketSize, defaultMetricCount int) (int, int64, int64, error) {
+	minBucketSizeInSeconds := GetMinBucketSize()
 	if defaultBucketSize <= 0 {
-		defaultBucketSize = 10
+		defaultBucketSize = minBucketSizeInSeconds
 	}
 	if defaultMetricCount <= 0 {
 		defaultMetricCount = 15 * 60
@@ -198,6 +213,9 @@ func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucke
 	bucketSize := h.GetIntOrDefault(req, "bucket_size", defaultBucketSize)    //默认 10，每个 bucket 的时间范围，单位秒
 	metricCount := h.GetIntOrDefault(req, "metric_count", defaultMetricCount) //默认 15分钟的区间，每分钟15个指标，也就是 15*6 个 bucket //90
 
+	if bucketSize < minBucketSizeInSeconds {
+		bucketSize = minBucketSizeInSeconds
+	}
 	//min,max are unix nanoseconds
 
 	minStr := h.Get(req, "min", "")
@@ -252,7 +270,7 @@ func GetMetricRangeAndBucketSize(minStr string, maxStr string, bucketSize int, m
 	if useMinMax {
 
 		if hours <= 0.25 {
-			bucketSize = 10
+			bucketSize = GetMinBucketSize()
 		} else if hours <= 0.5 {
 			bucketSize = 30
 		} else if hours <= 2 {
@@ -294,13 +312,13 @@ func (h *APIHandler) getSingleMetrics(metricItems []*common.MetricItem, query ma
 			metricData[line.Metric.GetDataKey()] = [][]interface{}{}
 
 			aggs[line.Metric.ID] = util.MapStr{
-				"max": util.MapStr{
+				line.Metric.MetricAgg: util.MapStr{
 					"field": line.Metric.Field,
 				},
 			}
 			if line.Metric.Field2 != "" {
 				aggs[line.Metric.ID+"_field2"] = util.MapStr{
-					"max": util.MapStr{
+					line.Metric.MetricAgg: util.MapStr{
 						"field": line.Metric.Field2,
 					},
 				}

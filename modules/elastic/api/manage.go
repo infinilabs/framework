@@ -784,6 +784,7 @@ const (
 	TransportGroupKey = "transport"
 	DocumentGroupKey = "document"
 	IOGroupKey = "io"
+	CircuitBreakerGroupKey = "circuit_breaker"
 )
 
 func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64) map[string]*common.MetricItem {
@@ -888,6 +889,12 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	for k, v := range clusterHealthMetricsResult {
 		indexMetricsResult[k] = v
 	}
+	// get CircuitBreaker metric
+	circuitBreakerMetricsResult := h.getCircuitBreakerMetric(id, min, max, bucketSize)
+	for k, v := range circuitBreakerMetricsResult {
+		indexMetricsResult[k] = v
+	}
+
 	return indexMetricsResult
 }
 func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max int64) map[string]*common.MetricItem {
@@ -1048,6 +1055,67 @@ func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) 
 	var clusterHealthMetrics []*common.MetricItem
 	clusterHealthMetrics = append(clusterHealthMetrics, metricItem)
 	return h.getSingleMetrics(clusterHealthMetrics, query, bucketSize)
+}
+
+func (h *APIHandler) getCircuitBreakerMetric(id string, min, max int64, bucketSize int) map[string]*common.MetricItem {
+	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	query := util.MapStr{
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"must": []util.MapStr{
+					{
+						"term": util.MapStr{
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": id,
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.category": util.MapStr{
+								"value": "elasticsearch",
+							},
+						},
+					},
+					{
+						"term": util.MapStr{
+							"metadata.name": util.MapStr{
+								"value": "node_stats",
+							},
+						},
+					},
+				},
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": min,
+								"lte": max,
+							},
+						},
+					},
+				},
+			},
+		},
+		"aggs": util.MapStr{
+			"dates": util.MapStr{
+				"date_histogram": util.MapStr{
+					"field": "timestamp",
+					"interval": bucketSizeStr,
+				},
+			},
+		},
+	}
+	metricItem := newMetricItem("circuit_breaker", 7, StorageGroupKey)
+	metricItem.AddAxi("Circuit Breaker", "group1", common.PositionLeft, "num", "0,0", "0,0.[00]", 5, false)
+	metricItem.AddLine("Parent Breaker Tripped", "Parent Tripped", "", "group1", "payload.elasticsearch.node_stats.breakers.parent.tripped", "sum", bucketSizeStr, "times/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	metricItem.AddLine("Fieldaata Breaker Tripped", "Fielddata Tripped", "", "group1", "payload.elasticsearch.node_stats.breakers.fielddata.tripped", "sum", bucketSizeStr, "times/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	metricItem.AddLine("Accounting Breaker Tripped", "Accounting Tripped", "", "group1", "payload.elasticsearch.node_stats.breakers.accounting.tripped", "sum", bucketSizeStr, "times/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	metricItem.AddLine("Request Breaker Tripped", "Request Tripped", "", "group1", "payload.elasticsearch.node_stats.breakers.request.tripped", "sum", bucketSizeStr, "times/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	metricItem.AddLine("In Flight Requests Breaker Tripped", "In Flight Requests Tripped", "", "group1", "payload.elasticsearch.node_stats.breakers.in_flight_requests.tripped", "sum", bucketSizeStr, "times/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	var circuitBreakerMetrics []*common.MetricItem
+	circuitBreakerMetrics = append(circuitBreakerMetrics, metricItem)
+	return h.getSingleMetrics(circuitBreakerMetrics, query, bucketSize)
 }
 
 func (h *APIHandler) getClusterStatusMetric(id string, min, max int64, bucketSize int)(*common.MetricItem, error){

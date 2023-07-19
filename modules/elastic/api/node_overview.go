@@ -651,6 +651,9 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 		return value/value2
 	}
 	metricItems=append(metricItems,metricItem)
+	metricItem =newMetricItem("parent_breaker", 8, SystemGroupKey)
+	metricItem.AddLine("Parent Breaker Tripped","Parent Breaker Tripped","Rate of the circuit breaker has been triggered and prevented an out of memory error.","group1","payload.elasticsearch.node_stats.breakers.parent.tripped","max",bucketSizeStr,"times/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItems=append(metricItems,metricItem)
 	metrics := h.getSingleMetrics(metricItems,query, bucketSize)
 	healthMetric, err := getNodeHealthMetric(query, bucketSize)
 	if err != nil {

@@ -894,6 +894,74 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 		Units: "",
 	})
 
+	// Circuit Breaker
+	parentBreakerMetric := newMetricItem("parent_breaker", 1, CircuitBreakerGroupKey)
+	parentBreakerMetric.AddAxi("Parent Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "parent_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.parent.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   parentBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+	accountingBreakerMetric := newMetricItem("accounting_breaker", 2, CircuitBreakerGroupKey)
+	accountingBreakerMetric.AddAxi("Accounting Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "accounting_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.accounting.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   accountingBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+	fielddataBreakerMetric := newMetricItem("fielddata_breaker", 3, CircuitBreakerGroupKey)
+	fielddataBreakerMetric.AddAxi("Fielddata Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "fielddata_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.fielddata.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   fielddataBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+	requestBreakerMetric := newMetricItem("request_breaker", 4, CircuitBreakerGroupKey)
+	requestBreakerMetric.AddAxi("Request Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "request_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.request.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   requestBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+	inFlightRequestBreakerMetric := newMetricItem("in_flight_requests_breaker", 5, CircuitBreakerGroupKey)
+	inFlightRequestBreakerMetric.AddAxi("In Flight Requests Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "in_flight_requests_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.in_flight_requests.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   inFlightRequestBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+	modelInferenceBreakerMetric := newMetricItem("model_inference_breaker", 6, CircuitBreakerGroupKey)
+	modelInferenceBreakerMetric.AddAxi("Model Inference Breaker","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
+	nodeMetricItems = append(nodeMetricItems, GroupMetricItem{
+		Key:          "model_inference_breaker",
+		Field:        "payload.elasticsearch.node_stats.breakers.model_inference.tripped",
+		ID:           util.GetUUID(),
+		IsDerivative: true,
+		MetricItem:   modelInferenceBreakerMetric,
+		FormatType:   "num",
+		Units:        "times/s",
+	})
+
 	aggs := generateGroupAggs(nodeMetricItems)
 	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
 	if err != nil {

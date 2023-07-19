@@ -468,16 +468,18 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	indexID := ps.MustGetParameter("index")
 	parts := strings.Split(indexID, ":")
 	if len(parts) > 1 && !h.IsIndexAllowed(req, clusterID, parts[1]) {
-		h.WriteJSON(w, util.MapStr{
-			"error": http.StatusText(http.StatusForbidden),
-		}, http.StatusForbidden)
+		h.WriteError(w,  http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+	if len(parts) < 2 {
+		h.WriteError(w, "invalid index id: "+ indexID, http.StatusInternalServerError)
 		return
 	}
 
 	q := orm.Query{
 		Size: 1,
 	}
-	q.Conds = orm.And(orm.Eq("metadata.index_id", indexID))
+	q.Conds = orm.And(orm.Eq("metadata.index_name", parts[1]), orm.Eq("metadata.cluster_id", clusterID))
 	q.AddSort("timestamp", orm.DESC)
 
 	err, res := orm.Search(&elastic.IndexConfig{}, &q)
@@ -500,7 +502,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
 		orm.Eq("metadata.name", "index_stats"),
-		orm.Eq("metadata.labels.index_id", indexID),
+		orm.Eq("metadata.labels.index_name", parts[1]),
 		orm.Eq("metadata.labels.cluster_id", clusterID),
 	)
 	q1.Collapse("metadata.labels.index_id")
