@@ -325,7 +325,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 					if _, ok := shardInfos[nodeID]; ok {
 						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 					}
-					m.SaveNodeStats(v.Config.ID, nodeID, stats.Nodes[nodeID], shardInfos[nodeID])
+					m.SaveNodeStats(v, nodeID, stats.Nodes[nodeID], shardInfos[nodeID])
 				}
 			} else {
 				host := v.GetActiveHost()
@@ -340,7 +340,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 							if _, ok := shardInfos[nodeID]; ok {
 								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 							}
-							m.SaveNodeStats(v.Config.ID, nodeID, nodeStats, shardInfos[nodeID])
+							m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
 						}
 					}
 				} else {
@@ -382,7 +382,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 				}
 
 				if m.AllIndexStats {
-					m.SaveIndexStats(v.Config.ID, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil)
+					m.SaveIndexStats(v, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil)
 				}
 
 				if m.IndexStats {
@@ -395,7 +395,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 						if shardInfos != nil {
 							shardInfo = shardInfos[x]
 						}
-						m.SaveIndexStats(v.Config.ID, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
+						m.SaveIndexStats(v, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
 					}
 				}
 			}
@@ -409,11 +409,11 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 	return true
 }
 
-func (m *Metric) SaveNodeStats(clusterId, nodeID string, f interface{}, shardInfo interface{}) {
+func (m *Metric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{}) {
 	//remove adaptive_selection
 	x, ok := f.(map[string]interface{})
 	if !ok {
-		log.Errorf("invalid node stats for [%v] [%v]", clusterId, nodeID)
+		log.Errorf("invalid node stats for [%v] [%v]", v.Config.ID, nodeID)
 		return
 	}
 
@@ -432,8 +432,8 @@ func (m *Metric) SaveNodeStats(clusterId, nodeID string, f interface{}, shardInf
 			Name:     "node_stats",
 			Datatype: "snapshot",
 			Labels: util.MapStr{
-				"cluster_id": clusterId,
-				//"cluster_uuid": stats.ClusterUUID,
+				"cluster_id": v.Config.ID,
+				"cluster_uuid": v.Config.ClusterUUID,
 				"node_id":           nodeID,
 				"node_name":         nodeName,
 				"ip":                nodeIP,
@@ -452,8 +452,8 @@ func (m *Metric) SaveNodeStats(clusterId, nodeID string, f interface{}, shardInf
 	}
 }
 
-func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
-	newIndexID := fmt.Sprintf("%s:%s", clusterId, indexName)
+func (m *Metric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
+	newIndexID := fmt.Sprintf("%s:%s", v.Config.ID, indexName)
 	if indexID == "_all" {
 		newIndexID = indexID
 	}
@@ -463,8 +463,8 @@ func (m *Metric) SaveIndexStats(clusterId, indexID, indexName string, primary, t
 			Name:     "index_stats",
 			Datatype: "snapshot",
 			Labels: util.MapStr{
-				"cluster_id": clusterId,
-				//"cluster_uuid": clusterId,
+				"cluster_id": v.Config.ID,
+				"cluster_uuid": v.Config.ClusterUUID,
 
 				"index_id":   newIndexID,
 				"index_uuid": indexID,
@@ -514,6 +514,7 @@ func (m *Metric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata
 			Datatype: "snapshot",
 			Labels: util.MapStr{
 				"cluster_id": v.Config.ID,
+				"cluster_uuid": v.Config.ClusterUUID,
 			},
 		},
 	}
@@ -550,6 +551,7 @@ func (m *Metric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata)
 			Datatype: "snapshot",
 			Labels: util.MapStr{
 				"cluster_id": v.Config.ID,
+				"cluster_uuid": v.Config.ClusterUUID,
 			},
 		},
 	}
