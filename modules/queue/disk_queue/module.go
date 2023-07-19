@@ -63,6 +63,8 @@ type DiskQueueConfig struct {
 	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
 	ReservedFreeBytes uint64 `config:"reserved_free_bytes"`
 
+	AutoSkipCorruptFile bool `config:"auto_skip_corrupted_file"`
+
 	UploadToS3     bool `config:"upload_to_s3"`
 	AlwaysDownload bool `config:"always_download"`
 
@@ -164,22 +166,23 @@ func GetFileName(queueID string, segmentID int64) string {
 func (module *DiskQueue) Setup() {
 
 	module.cfg = &DiskQueueConfig{
-		Enabled:            true,
-		Default:            true,
-		UploadToS3:         false,
-		Retention:          RetentionConfig{MaxNumOfLocalFiles: 10},
-		MinMsgSize:         1,
-		MaxMsgSize:         104857600,         //100MB
-		MaxBytesPerFile:    100 * 1024 * 1024, //100MB
-		EOFRetryDelayInMs:  500,
-		SyncEveryRecords:   1000,
-		SyncTimeoutInMS:    1000,
-		NotifyChanBuffer:   100,
-		ReadChanBuffer:     0,
-		WriteChanBuffer:    0,
-		WarningFreeBytes:   10 * 1024 * 1024 * 1024,
-		ReservedFreeBytes:  5 * 1024 * 1024 * 1024,
-		PrepareFilesToRead: true,
+		Enabled:             true,
+		Default:             true,
+		AutoSkipCorruptFile: true,
+		UploadToS3:          false,
+		Retention:           RetentionConfig{MaxNumOfLocalFiles: 10},
+		MinMsgSize:          1,
+		MaxMsgSize:          104857600,         //100MB
+		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
+		EOFRetryDelayInMs:   500,
+		SyncEveryRecords:    1000,
+		SyncTimeoutInMS:     1000,
+		NotifyChanBuffer:    100,
+		ReadChanBuffer:      0,
+		WriteChanBuffer:     0,
+		WarningFreeBytes:    10 * 1024 * 1024 * 1024,
+		ReservedFreeBytes:   5 * 1024 * 1024 * 1024,
+		PrepareFilesToRead:  true,
 		Compress: DiskCompress{
 			IdleThreshold:             5,
 			DeleteAfterCompress:       true,
@@ -251,7 +254,7 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 	}
 	if ok {
 
-		msgSize:=len(v)
+		msgSize := len(v)
 		if int32(msgSize) < module.cfg.MinMsgSize || int32(msgSize) > module.cfg.MaxMsgSize {
 			return errors.Errorf("queue:%v, invalid message size: %v, should between: %v TO %v", k, msgSize, module.cfg.MinMsgSize, module.cfg.MaxMsgSize)
 		}

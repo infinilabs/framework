@@ -276,7 +276,7 @@ func (d *DiskBasedQueue) Empty() error {
 }
 
 func (d *DiskBasedQueue) deleteAllFiles() error {
-	err := d.skipToNextRWFile()
+	err := d.skipToNextRWFile(true)
 
 	innerErr := os.Remove(d.metaDataFileName())
 	if innerErr != nil && !os.IsNotExist(innerErr) {
@@ -288,7 +288,7 @@ func (d *DiskBasedQueue) deleteAllFiles() error {
 }
 
 // 删除中间的错误文件，跳转到最后一个可写文件
-func (d *DiskBasedQueue) skipToNextRWFile() error {
+func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
 	var err error
 
 	if d.readFile != nil {
@@ -308,16 +308,18 @@ func (d *DiskBasedQueue) skipToNextRWFile() error {
 		d.writeFile = nil
 	}
 
-	for i := d.readSegmentFileNum; i <= d.writeSegmentNum; i++ {
+	if delete{
+		for i := d.readSegmentFileNum; i <= d.writeSegmentNum; i++ {
 
-		//TODO, keep old files for a configure time window
+			//TODO, keep old files for a configure time window
 
-		fn := d.GetFileName(i)
-		//log.Error("delete:",fn)
-		innerErr := os.Remove(fn)
-		if innerErr != nil && !os.IsNotExist(innerErr) {
-			log.Errorf("diskqueue(%s) failed to remove data file - %s", d.name, innerErr)
-			err = innerErr
+			fn := d.GetFileName(i)
+			//log.Error("delete:",fn)
+			innerErr := os.Remove(fn)
+			if innerErr != nil && !os.IsNotExist(innerErr) {
+				log.Errorf("diskqueue(%s) failed to remove data file - %s", d.name, innerErr)
+				err = innerErr
+			}
 		}
 	}
 
@@ -651,7 +653,7 @@ func (d *DiskBasedQueue) checkTailCorruption(depth int64) {
 				d.name, d.readPos, d.writePos)
 		}
 
-		d.skipToNextRWFile()
+		d.skipToNextRWFile(true)
 		d.needSync = true
 	}
 }

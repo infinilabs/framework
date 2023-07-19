@@ -51,10 +51,12 @@ func InitQueueMetadata() {
 		}
 	}
 
-
 	//load queue information from directory
 
 	//load configs from remote elasticsearch
+
+	//if previous queue was not proper closed, we need to check if queue was corrupt or not
+
 
 
 	//register queue listener

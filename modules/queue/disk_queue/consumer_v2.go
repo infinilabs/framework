@@ -107,6 +107,7 @@ READ_MSG:
 				}
 				goto READ_MSG
 			}
+
 			nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
 			if exists || util.FileExists(nextFile) {
 				log.Trace("EOF, continue read:", nextFile)
@@ -167,6 +168,36 @@ READ_MSG:
 		if d.getFileSize() > d.maxBytesPerFileRead {
 			d.ResetOffset(d.segment, d.readPos)
 			return messages, false, err
+		}else{
+			if d.diskQueue.cfg.AutoSkipCorruptFile{
+				//invalid message size, assume current file is corrupted, try to read next file
+				nextSegment:=d.segment+1
+				nextFile, exists := SmartGetFileName(d.mCfg, d.queue, nextSegment)
+
+				log.Warnf("queue:%v, offset:%v,%v, invalid message size: %v, should between: %v TO %v, skip to next file: %v, exists: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize,nextFile,exists)
+
+				if exists || util.FileExists(nextFile) {
+					//update offset
+					ctx.UpdateNextOffset(nextSegment, 0)
+					err = d.ResetOffset(nextSegment, 0)
+
+					Notify(d.queue, ReadComplete, d.segment)
+					if err != nil {
+						if strings.Contains(err.Error(), "not found") {
+							return messages, false, nil
+						}
+						panic(err)
+					}
+					goto READ_MSG
+				}else{
+					if d.diskQueue.writeSegmentNum==d.segment{
+						log.Errorf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v",d.diskQueue.writeSegmentNum,d.segment)
+						d.diskQueue.skipToNextRWFile(false)
+						d.diskQueue.needSync = true
+					}
+					return messages, false, nil
+				}
+			}
 		}
 
 		err = errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize)
