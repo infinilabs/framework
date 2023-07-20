@@ -443,7 +443,8 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			// NOTE: state must be checked as the last step
 			state := ctx.GetRunningState()
 			if global.Env().IsDebug {
-				log.Infof("pipeline [%v], state: %v", cfg.Name, state)
+				log.Tracef("pipeline [%v], state: %v", cfg.Name, state)
+				time.Sleep(500*time.Millisecond)
 			}
 			switch state {
 			case pipeline.STARTING:
