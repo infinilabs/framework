@@ -254,16 +254,16 @@ func RegisterConfig(queueKey string, cfg *QueueConfig) (bool, error) {
 	}
 }
 
-func RemoveConfig(queueKey string) bool {
+func RemoveConfig(cfg *QueueConfig) bool {
+	if cfg == nil {
+		panic(errors.New("queue config can't be nil"))
+	}
+
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	cfg, ok := configs[queueKey]
-	if !ok {
-		return false
-	}
 	delete(idConfigs, cfg.Id)
-	delete(configs, queueKey)
+	delete(configs, cfg.Name)
 	return true
 }
 
