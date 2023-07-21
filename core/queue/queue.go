@@ -68,26 +68,39 @@ func (m *Message)String() string {
 	return fmt.Sprintf("timestamp:%v, offset:%v, next_offset:%v, size:%v, data:%v", time.Unix(0, m.Timestamp), m.Offset, m.NextOffset, m.Size, string(m.Data))
 }
 
-type QueueAPI interface {
-	AdvancedQueueAPI
 
+
+type QueueAPI interface {
+	BaseQueueAPI
+	AdvancedQueueAPI
+	SimpleQueueAPI
+	ProducerAPI
+	//segment means the sequence id of the queue, offset is within the segment, count means how many messages will be fetching
+	Consume(queue *QueueConfig, consumer *ConsumerConfig, offset string) (*Context, []Message, bool, error)
+
+}
+
+type BaseQueueAPI interface {
 	Name() string
 	Init(string) error
-	Push(string, []byte) error
-	Pop(string, time.Duration) (data []byte, timeout bool)
-	//segment means the sequence id of the queue, offset is within the segment, count means how many messages will be fetching
 	Close(string) error
-	Depth(string) int64
 	Destroy(string) error
-
-	Consume(queue *QueueConfig, consumer *ConsumerConfig, offset string) (*Context, []Message, bool, error)
-	LatestOffset(string) string
-
 	GetQueues() []string
 }
 
+type SimpleQueueAPI interface {
+	Push(string, []byte) error
+	Pop(string, time.Duration) (data []byte, timeout bool)
+	Depth(string) int64
+}
+
 type AdvancedQueueAPI interface {
+	//TODO add AcquireProducer
 	AcquireConsumer(qconfig *QueueConfig, consumer *ConsumerConfig, segment, readPos int64) (ConsumerAPI, error)
+}
+
+type ProducerAPI interface {
+	LatestOffset(string) string
 }
 
 type ConsumerAPI interface {
@@ -185,23 +198,6 @@ func getHandler(k *QueueConfig) QueueAPI {
 	return defaultHandler
 }
 
-func Push(k *QueueConfig, v []byte) error {
-	var err error = nil
-	if k == nil || k.Id == "" {
-		panic(errors.New("queue name can't be nil"))
-	}
-	handler := getHandler(k)
-	if handler != nil {
-		err = handler.Push(k.Id, v)
-		if err == nil {
-			stats.Increment("queue", k.Id, "push")
-			return nil
-		}
-		stats.Increment("queue", k.Id, "push_error")
-		return err
-	}
-	panic(errors.Errorf("handler for [%v] is not registered", k))
-}
 
 //var pauseMsg = errors.New("queue was paused to read")
 
@@ -506,29 +502,6 @@ func GetAllConfigs() map[string]*QueueConfig {
 	return configs
 }
 
-func Pop(k *QueueConfig) ([]byte, error) {
-	if k == nil || k.Id == "" {
-		panic(errors.New("queue name can't be nil"))
-	}
-
-	handler := getHandler(k)
-	if handler != nil {
-		//if pausedReadQueue.Contains(k) {
-		//	return nil, pauseMsg
-		//}
-
-		o, timeout := handler.Pop(k.Id, -1)
-		if !timeout {
-			stats.Increment("queue", k.Id, "pop")
-			return o, nil
-		}
-		if global.Env().IsDebug {
-			stats.Increment("queue", k.Id, "pop_timeout")
-		}
-		return o, errors.New("timeout")
-	}
-	panic(errors.New("handler is not registered"))
-}
 
 // consumer.Name,offset,processor.config.Consumer.FetchMaxMessages,time.Millisecond*time.Duration(processor.config.Consumer.FetchMaxWaitMs)
 func Consume(k *QueueConfig, consumer *ConsumerConfig, offset string) (ctx *Context, messages []Message, isTimeout bool, err error) {
@@ -577,35 +550,6 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, offset string) (C
 	if handler != nil {
 		segment, pos := ConvertOffset(offset)
 		return handler.AcquireConsumer(k, consumer, segment, pos)
-	}
-	panic(errors.New("handler is not registered"))
-}
-
-func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, timeout bool, err error) {
-	if k == nil || k.Id == "" {
-		panic(errors.New("queue name can't be nil"))
-	}
-
-	if timeoutInSeconds < 1 {
-		timeoutInSeconds = 5
-	}
-
-	handler := getHandler(k)
-
-	if handler != nil {
-		//if pausedReadQueue.Contains(k) {
-		//	return nil, false, pauseMsg
-		//}
-
-		o, timeout := handler.Pop(k.Id, timeoutInSeconds)
-		if !timeout {
-			stats.Increment("queue", k.Id, "pop")
-		}
-
-		if global.Env().IsDebug {
-			stats.Increment("queue", k.Id, "pop_timeout")
-		}
-		return o, timeout, nil
 	}
 	panic(errors.New("handler is not registered"))
 }
@@ -772,22 +716,6 @@ func CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset string) (bool
 	}
 
 	return true, nil
-}
-
-func Depth(k *QueueConfig) int64 {
-	if k == nil || k.Id == "" {
-		panic(errors.New("queue name can't be nil"))
-	}
-
-	handler := getHandler(k)
-	if handler != nil {
-		o := handler.Depth(k.Id)
-		if global.Env().IsDebug {
-			stats.Increment("queue", k.Id, "call_depth")
-		}
-		return o
-	}
-	panic(errors.New("handler is not registered"))
 }
 
 func Destroy(k *QueueConfig) error {
