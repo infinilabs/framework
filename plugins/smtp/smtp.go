@@ -48,6 +48,12 @@ type Config struct {
 	VariableEndTag       string                 `config:"variable_end_tag"`
 	Variables            map[string]interface{} `config:"variables"`
 
+	Servers map[string]*ServerConfig `config:"servers"`
+
+	Templates map[string]*Template `config:"templates"`
+}
+
+type ServerConfig struct {
 	Server struct {
 		Host string `config:"host"`
 		Port int    `config:"port"`
@@ -66,8 +72,6 @@ type Config struct {
 		CC  []string `config:"cc"`
 		BCC []string `config:"bcc"`
 	} `config:"recipients"`
-
-	Templates map[string]*Template `config:"templates"`
 }
 
 type Attachment struct {
@@ -97,12 +101,14 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		config: &cfg,
 	}
 
-	if processor.config.Auth.Username == "" && processor.config.SendFrom != "" {
-		processor.config.Auth.Username = processor.config.SendFrom
-	}
+	for _, v := range processor.config.Servers {
+		if v.Auth.Username == "" && v.SendFrom != "" {
+			v.Auth.Username = v.SendFrom
+		}
 
-	if processor.config.SendFrom == "" && processor.config.Auth.Username != "" {
-		processor.config.SendFrom = processor.config.Auth.Username
+		if v.SendFrom == "" && v.Auth.Username != "" {
+			v.SendFrom = v.Auth.Username
+		}
 	}
 
 	for _, v := range processor.config.Templates {
@@ -151,7 +157,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 		//parse template
 
 		for _, message := range messages {
-			//msg := []byte("{\"template\":\"trial_license\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
+			//msg := []byte("{\"template\":\"trial_license\",\"server_id\":\"infini_server\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
 			o := util.MapStr{}
 			err := util.FromJSONBytes(message.Data, &o)
 			if err != nil {
@@ -163,6 +169,16 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 
 			//validate email
 			vars := o["variables"].(map[string]interface{})
+			var srvCfg *ServerConfig
+			if serverID, ok := o["server_id"].(string); !ok {
+				panic(errors.Errorf("server_id is empty"))
+			}else{
+				srvCfg, ok = processor.config.Servers[serverID]
+				if !ok {
+					panic(errors.Errorf("server_id [%v] not found", serverID))
+				}
+			}
+
 			sendTo:=[]string{}
 			to,ok := o["email"].(string)
 			if ok&&to!=""{
@@ -183,8 +199,8 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 				}
 			}
 
-			if len(processor.config.Recipients.To)>0{
-				sendTo=append(sendTo,processor.config.Recipients.To...)
+			if len(srvCfg.Recipients.To)>0{
+				sendTo=append(sendTo,srvCfg.Recipients.To...)
 			}
 
 			if global.Env().IsDebug{
@@ -231,7 +247,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 
 			//send email
-			err = processor.send(sendTo, processor.config.Recipients.CC, subj, ctype, cBody, tmplate.Attachments)
+			err = processor.send(srvCfg, sendTo, srvCfg.Recipients.CC, subj, ctype, cBody, tmplate.Attachments)
 			if err != nil {
 				panic(err)
 			}
@@ -257,7 +273,7 @@ func AddCC(msg *gomail.Message, ccs []map[string]string) {
 
 }
 
-func (processor *SMTPProcessor) send(to []string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
+func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
 
 	if len(to)==0{
 		return errors.New("no recipient found")
@@ -265,7 +281,7 @@ func (processor *SMTPProcessor) send(to []string, ccs []string, subject, content
 
 	// Create a new message
 	message := gomail.NewMessage()
-	message.SetHeader("From", processor.config.SendFrom)
+	message.SetHeader("From", srvCfg.SendFrom)
 	message.SetHeader("To", to...)
 
 	if len(ccs) > 0 {
@@ -287,9 +303,9 @@ func (processor *SMTPProcessor) send(to []string, ccs []string, subject, content
 		message.Embed(attachment.File, gomail.SetHeader(h))
 	}
 
-	d := gomail.NewDialerWithTimeout(processor.config.Server.Host, processor.config.Server.Port, processor.config.Auth.Username, processor.config.Auth.Password, time.Duration(processor.config.DialTimeoutInSeconds)*time.Second)
+	d := gomail.NewDialerWithTimeout(srvCfg.Server.Host, srvCfg.Server.Port, srvCfg.Auth.Username, srvCfg.Auth.Password, time.Duration(processor.config.DialTimeoutInSeconds)*time.Second)
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-	d.SSL = processor.config.Server.TLS
+	d.SSL = srvCfg.Server.TLS
 	// Send the email to Bob, Cora and Dan.
 
 	return d.DialAndSend(message)

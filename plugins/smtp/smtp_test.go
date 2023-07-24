@@ -30,27 +30,31 @@ func Test1(t *testing.T) {
 	processor:=SMTPProcessor{
 		config: &Config{
 			Templates: map[string]*Template{},
-			Auth: struct {
-				Username string `config:"username"`
-				Password string `config:"password"`
-				SendFrom string `config:"from"`
-			}(struct {
-				Username string
-				Password string
-				SendFrom string
-			}{Username: "notify-test@infini.ltd", Password: "XXXX", SendFrom: "notify-test@infini.ltd"}),
-			Server: struct {
-			Host string `config:"host"`
-			Port int    `config:"port"`
-			TLS  bool   `config:"tls"`
-		}(struct {
-			Host string
-			Port int
-			TLS  bool
-		}{Host: "smtp.ym.163.com", Port: 994, TLS: true})},
+			Servers: map[string]*ServerConfig{
+				"notify-test": {
+					SendFrom: "notify-test@infini.ltd",
+					Auth: struct {
+						Username string `config:"username"`
+						Password string `config:"password"`
+					}(struct {
+						Username string
+						Password string
+					}{Username: "notify-test@infini.ltd", Password: "XXXX" }),
+					Server: struct {
+						Host string `config:"host"`
+						Port int    `config:"port"`
+						TLS  bool   `config:"tls"`
+					}(struct {
+						Host string
+						Port int
+						TLS  bool
+					}{Host: "smtp.ym.163.com", Port: 994, TLS: true})},
+
+				},
+			},
 	}
 
-	processor.send(to, cc, subject, "text/plain", htmlText, nil)
+	processor.send(processor.config.Servers["notify-test"], []string{to}, cc, subject, "text/plain", htmlText, nil)
 	//processor.send(to,cc,subject,"text/html",htmlContent)
 
 }
