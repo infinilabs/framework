@@ -443,19 +443,52 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 		return
 	}
 
+	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req, 60, 15)
+	if err != nil {
+		panic(err)
+		return
+	}
+	networkInMetricItem := newMetricItem("network_in_rate", 1, SystemGroupKey)
+	networkInMetricItem.AddAxi("network_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	networkOutMetricItem := newMetricItem("network_out_rate", 1, SystemGroupKey)
+	networkOutMetricItem.AddAxi("network_rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
+	hostMetricItems := []GroupMetricItem{
+		{
+			Key: "network_in_rate",
+			Field: "payload.host.network_summary.in.bytes",
+			ID: util.GetUUID(),
+			IsDerivative: true,
+			MetricItem: networkInMetricItem,
+			FormatType: "bytes",
+			Units: "/s",
+		},
+		{
+			Key: "network_out_rate",
+			Field: "payload.host.network_summary.out.bytes",
+			ID: util.GetUUID(),
+			IsDerivative: true,
+			MetricItem: networkOutMetricItem,
+			FormatType: "bytes",
+			Units: "/s",
+		},
+	}
+	hostMetrics := h.getGroupHostMetric(agentIDs, min, max, bucketSize, hostMetricItems, "agent.id")
+
+	networkMetrics := map[string]util.MapStr{}
+	for key, item := range hostMetrics {
+		for _, line := range item.Lines {
+			if _, ok := networkMetrics[line.Metric.Label]; !ok{
+				networkMetrics[line.Metric.Label] = util.MapStr{
+				}
+			}
+			networkMetrics[line.Metric.Label][key] = line.Data
+		}
+	}
+
 	infos := util.MapStr{}
 	for _, hostID := range hostIDs {
 		source := util.MapStr{}
-
-		if agentID, ok := hostIDToAgentID[hostID]; ok {
-			source["summary"] = summaryFromAgent[agentID]
-		}else{
-			if nid, ok := hostIDToNodeID[hostID]; ok {
-				source["summary"] = summaryFromNode[nid]
-			}
-		}
-
-		source["metrics"] = util.MapStr{
+		metrics := util.MapStr{
 			"agent_status": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Recent Agent Status",
@@ -464,6 +497,28 @@ func (h *APIHandler) FetchHostInfo(w http.ResponseWriter, req *http.Request, ps 
 				"data": statusMetric[hostID],
 			},
 		}
+		if agentID, ok := hostIDToAgentID[hostID]; ok {
+			source["summary"] = summaryFromAgent[agentID]
+			metrics["network_in_rate"] = util.MapStr{
+				"metric": util.MapStr{
+					"label": "Network In Rate",
+					"units": "",
+				},
+				"data": networkMetrics[agentID]["network_in_rate"],
+			}
+			metrics["network_out_rate"] = util.MapStr{
+				"metric": util.MapStr{
+					"label": "Network Out Rate",
+					"units": "",
+				},
+				"data": networkMetrics[agentID]["network_out_rate"],
+			}
+		}else{
+			if nid, ok := hostIDToNodeID[hostID]; ok {
+				source["summary"] = summaryFromNode[nid]
+			}
+		}
+		source["metrics"] = metrics
 		infos[hostID] = source
 	}
 	h.WriteJSON(w, infos, http.StatusOK)
@@ -714,7 +769,7 @@ func (h *APIHandler) getGroupHostMetrics(agentID string, min, max int64, bucketS
 			Units: "%",
 		},
 	}
-	hostMetrics := h.getGroupHostMetric(agentID, min, max, bucketSize, hostMetricItems, "payload.host.disk_partition_usage.partition")
+	hostMetrics := h.getGroupHostMetric([]string{agentID}, min, max, bucketSize, hostMetricItems, "payload.host.disk_partition_usage.partition")
 	networkOutputMetric := newMetricItem("network_interface_output_rate", 2, SystemGroupKey)
 	networkOutputMetric.AddAxi("Network interface output rate","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	hostMetricItems = []GroupMetricItem{
@@ -728,22 +783,15 @@ func (h *APIHandler) getGroupHostMetrics(agentID string, min, max int64, bucketS
 			Units: "",
 		},
 	}
-	networkOutMetrics := h.getGroupHostMetric(agentID, min, max, bucketSize, hostMetricItems, "payload.host.network_interface.name")
+	networkOutMetrics := h.getGroupHostMetric([]string{agentID}, min, max, bucketSize, hostMetricItems, "payload.host.network_interface.name")
 	if networkOutMetrics != nil {
 		hostMetrics["network_interface_output_rate"] = networkOutMetrics["network_interface_output_rate"]
 	}
 	return hostMetrics
 }
 
-func (h *APIHandler) getGroupHostMetric(agentID string, min, max int64, bucketSize int, hostMetricItems []GroupMetricItem, groupField string)  map[string]*common.MetricItem{
+func (h *APIHandler) getGroupHostMetric(agentIDs []string, min, max int64, bucketSize int, hostMetricItems []GroupMetricItem, groupField string)  map[string]*common.MetricItem{
 	var must = []util.MapStr{
-		{
-			"term":util.MapStr{
-				"agent.id":util.MapStr{
-					"value": agentID,
-				},
-			},
-		},
 		{
 			"term": util.MapStr{
 				"metadata.category": util.MapStr{
@@ -751,6 +799,13 @@ func (h *APIHandler) getGroupHostMetric(agentID string, min, max int64, bucketSi
 				},
 			},
 		},
+	}
+	if len(agentIDs) > 0 {
+		must = append(must, util.MapStr{
+			"terms":util.MapStr{
+				"agent.id": agentIDs,
+			},
+		})
 	}
 	query:=map[string]interface{}{
 		"size": 0,

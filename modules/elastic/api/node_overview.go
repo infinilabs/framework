@@ -252,6 +252,24 @@ func (h *APIHandler) FetchNodeInfo(w http.ResponseWriter, req *http.Request, ps 
 						"mem": jvmMem,
 					}
 				}
+				indices := util.MapStr{}
+				docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "indices", "docs"}, result)
+				if ok {
+					indices["docs"] = docs
+				}
+				source["indices"] = indices
+				shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info"}, result)
+				if ok {
+					source["shard_info"] = shardInfo
+				}
+				if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result); ok {
+					if clusterID, ok :=  tempClusterID.(string); ok {
+						log.Info(clusterID)
+						if data :=  elastic.GetMetadata(clusterID); data.ClusterState != nil {
+							source["is_master_node"] = data.ClusterState.MasterNode == nodeID
+						}
+					}
+				}
 
 				statusMap[util.ToString(nodeID)] = source
 			}
@@ -383,15 +401,6 @@ func (h *APIHandler) FetchNodeInfo(w http.ResponseWriter, req *http.Request, ps 
 	result := util.MapStr{}
 	for _, nodeID := range nodeIDs {
 		source := util.MapStr{}
-
-		//if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "cluster_id"}, source); ok {
-		//	if clusterID, ok :=  tempClusterID.(string); ok {
-		//		if data :=  elastic.GetMetadata(clusterID); data != nil {
-		//			source["cluster_name"] = data.Config.Name
-		//			source["cluster_id"] = clusterID
-		//		}
-		//	}
-		//}
 
 		source["summary"] = statusMap[nodeID]
 		source["metrics"] = util.MapStr{
