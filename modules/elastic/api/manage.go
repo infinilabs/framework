@@ -816,10 +816,12 @@ func (h *APIHandler) GetClusterMetrics(id string,bucketSize int, min, max int64)
 	metricItem=newMetricItem("node_count", 5, MemoryGroupKey)
 	metricItem.AddAxi("count","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	meta := elastic.GetMetadata(id)
-	if meta!=nil&& !meta.IsAvailable(){
-
+	if meta == nil {
+		err := fmt.Errorf("metadata of cluster [%s] is not found", id)
+		panic(err)
 	}
-	majorVersion:=meta.GetMajorVersion()
+	majorVersion := meta.GetMajorVersion()
+
 	metricItem.AddLine("Total", "Total Nodes", "", "group1", "payload.elasticsearch.cluster_stats.nodes.count.total", "max", bucketSizeStr, "", "num", "0.[00]", "0.[00]", false, false)
 
 	//TODO check version difference

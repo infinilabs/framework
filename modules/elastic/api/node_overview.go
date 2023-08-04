@@ -264,9 +264,8 @@ func (h *APIHandler) FetchNodeInfo(w http.ResponseWriter, req *http.Request, ps 
 				}
 				if tempClusterID, ok := util.GetMapValueByKeys([]string{"metadata", "labels", "cluster_id"}, result); ok {
 					if clusterID, ok :=  tempClusterID.(string); ok {
-						log.Info(clusterID)
-						if data :=  elastic.GetMetadata(clusterID); data.ClusterState != nil {
-							source["is_master_node"] = data.ClusterState.MasterNode == nodeID
+						if meta := elastic.GetMetadata(clusterID); meta != nil && meta.ClusterState != nil {
+							source["is_master_node"] = meta.ClusterState.MasterNode == nodeID
 						}
 					}
 				}
