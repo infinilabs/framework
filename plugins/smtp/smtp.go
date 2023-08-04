@@ -214,6 +214,9 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 			subj := tmplate.Subject
 			ctype := tmplate.ContentType
+			if contentType, ok := vars["content_type"].(string); ok && contentType != ""{
+				ctype = contentType
+			}
 			cBody := tmplate.Body
 
 			myctx := util.MapStr{}
