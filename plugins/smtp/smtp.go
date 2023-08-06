@@ -217,6 +217,19 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			if contentType, ok := vars["content_type"].(string); ok && contentType != ""{
 				ctype = contentType
 			}
+			cc := srvCfg.Recipients.CC
+			switch vars["cc"].(type) {
+			case string:
+				cc = append(cc, vars["cc"].(string))
+			case []interface{}:
+				ccArr := vars["cc"].([]interface{})
+				for _, cv := range ccArr {
+					if v, ok := cv.(string); ok {
+						cc = append(cc, v)
+					}
+				}
+			}
+
 			cBody := tmplate.Body
 
 			myctx := util.MapStr{}
@@ -250,7 +263,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 
 			//send email
-			err = processor.send(srvCfg, sendTo, srvCfg.Recipients.CC, subj, ctype, cBody, tmplate.Attachments)
+			err = processor.send(srvCfg, sendTo, cc, subj, ctype, cBody, tmplate.Attachments)
 			if err != nil {
 				panic(err)
 			}
