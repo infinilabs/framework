@@ -53,9 +53,22 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	}
 	if len(nodeNames) > 0 {
 		must = append(must, util.MapStr{
-			"terms": util.MapStr{
-				"metadata.labels.transport_address": nodeNames,
+			"bool": util.MapStr{
+				"minimum_should_match": 1,
+				"should": []util.MapStr{
+					{
+						"terms": util.MapStr{
+							"metadata.labels.transport_address": nodeNames,
+						},
+					},
+					{
+						"terms": util.MapStr{
+							"metadata.labels.node_id": nodeNames,
+						},
+					},
+				},
 			},
+
 		})
 	}
 
