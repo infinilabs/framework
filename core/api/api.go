@@ -6,16 +6,16 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"infini.sh/framework/core/api/websocket"
-	"infini.sh/framework/core/errors"
-	_ "infini.sh/framework/core/log"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
 	"infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	_ "infini.sh/framework/core/log"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/util"
 	"io/ioutil"
@@ -52,7 +52,7 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 	//}
 
 	registeredAPIFuncHandler[pattern] = handler
-	APIs[pattern+"*"]=util.KV{Key: "*",Value: pattern}
+	APIs[pattern+"*"] = util.KV{Key: "*", Value: pattern}
 
 	log.Debugf("register custom http handler: %v", pattern)
 	mux.HandleFunc(pattern, handler)
@@ -79,9 +79,9 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	//}
 
 	registeredAPIMethodHandler[m][pattern] = handler
-	APIs[pattern+m]=util.KV{Key: m,Value: pattern}
+	APIs[pattern+m] = util.KV{Key: m, Value: pattern}
 
-	log.Debugf("register http handler: %v %v, total apis: %v", m, pattern,len(APIs))
+	log.Debugf("register http handler: %v %v, total apis: %v", m, pattern, len(APIs))
 
 	router.Handle(m, pattern, handler)
 	l.Unlock()
@@ -99,13 +99,13 @@ var apiConfig *config.APIConfig
 
 var listenAddress string
 
-var notfoundHandler =http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+var notfoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 	rw.Write([]byte("{\"message\":\"not_found\"}"))
 	rw.WriteHeader(404)
 })
 
-func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request))  {
-	notfoundHandler=handler
+func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request)) {
+	notfoundHandler = handler
 }
 
 // StartAPI will start listen and act as the API server
@@ -116,10 +116,10 @@ func StartAPI() {
 	if !apiConfig.Enabled {
 		return
 	}
-	if apiConfig.WebsocketConfig.Enabled{
+	if apiConfig.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(apiConfig.WebsocketConfig)
 		HandleAPIFunc("/ws", websocket.ServeWs)
-		logger.RegisterWebsocketHandler(func (message string, level log.LogLevel, context log.LogContextInterface) {
+		logger.RegisterWebsocketHandler(func(message string, level log.LogLevel, context log.LogContextInterface) {
 			websocket.BroadcastMessage(message)
 		})
 		if registeredWebSocketCommandHandler != nil {
@@ -131,9 +131,9 @@ func StartAPI() {
 	}
 
 	c := cors.New(cors.Options{
-		AllowedOrigins: apiConfig.CrossDomain.AllowedOrigins,
+		AllowedOrigins:   apiConfig.CrossDomain.AllowedOrigins,
 		AllowCredentials: true,
-		AllowedMethods: []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
+		AllowedMethods:   []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
 	if apiConfig.NetworkConfig.SkipOccupiedPort {
@@ -148,7 +148,7 @@ func StartAPI() {
 		panic(err)
 	}
 
-	router.NotFound=notfoundHandler
+	router.NotFound = notfoundHandler
 
 	schema := "http://"
 	if apiConfig.TLSConfig.TLSEnabled {
@@ -227,7 +227,7 @@ func StartAPI() {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       10 * time.Second,
 			Addr:              listenAddress,
-			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(router))) ,
+			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(router))),
 			TLSConfig:         cfg,
 			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
 				"spdy/3": func(s *http.Server, conn *tls.Conn, h http.Handler) {
@@ -299,7 +299,15 @@ func StartAPI() {
 
 	err = util.WaitServerUp(listenAddress, 30*time.Second)
 	if err != nil {
-		panic(errors.Wrap(err,fmt.Sprintf("failed to listen on: %v",listenAddress)))
+		panic(errors.Wrap(err, fmt.Sprintf("failed to listen on: %v", listenAddress)))
+	}
+
+	if util.ContainStr(listenAddress, "0.0.0.0") {
+		ips := util.GetLocalIPs()
+		if len(ips) > 0 {
+			log.Infof("local ips: %v", util.JoinArray(ips, ", "))
+		}
 	}
 	log.Info("api listen at: ", schema, listenAddress)
+
 }
