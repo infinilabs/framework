@@ -181,7 +181,6 @@ func LoadFile(path string) (*Config, error) {
 	//if hash variable, apply and re-unpack
 	bytesStr := util.UnsafeBytesToString(cfgByes)
 	if util.ContainStr(bytesStr, "$[[") {
-
 		obj, err := LoadEnvVariables(path)
 		if err != nil {
 			panic(err)
@@ -193,7 +192,6 @@ func LoadFile(path string) (*Config, error) {
 			Path:     path,
 			Variable: envObj,
 		}
-
 		return NewConfigWithTemplate(tempConfig)
 	}
 	return internalLoadFile(path)
@@ -277,7 +275,13 @@ func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 			if ok {
 				return str, true
 			} else {
-				return util.ToString(x), true
+				if util.TypeIsArray(x){
+					y:=x.([]interface{})
+					o:="['"+util.JoinInterfaceArray(y,"','",nil)+"']"
+					return o, true
+				}else{
+					return util.ToString(x), true
+				}
 			}
 		}
 	}
