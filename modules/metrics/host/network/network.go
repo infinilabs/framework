@@ -242,6 +242,9 @@ func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
 
 	for _, conn := range conns {
 		ip:=conn.Laddr.IP
+		if ip==""{
+			continue
+		}
 		s,ok:=ipStats[ip]
 		if!ok{
 			s=&SocketStats{}
