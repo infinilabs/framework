@@ -9,9 +9,11 @@ import (
 type PipelineConfigV2 struct {
 	Name           string `config:"name" json:"name,omitempty"`
 	Enabled        *bool  `config:"enabled" json:"enabled,omitempty"`
+	Singleton      bool   `config:"singleton" json:"singleton"`
 	AutoStart      bool   `config:"auto_start" json:"auto_start"`
 	KeepRunning    bool   `config:"keep_running" json:"keep_running"`
 	RetryDelayInMs int    `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
+	MaxRunningInMs int    `config:"max_running_in_ms" json:"max_running_in_ms"`
 	Logging        struct {
 		Enabled bool `config:"enabled" json:"enabled"`
 	} `config:"logging" json:"logging"`

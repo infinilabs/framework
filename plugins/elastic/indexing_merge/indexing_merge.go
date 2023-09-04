@@ -127,6 +127,9 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		queueConfig.Labels["elasticsearch"] = cfg.Elasticsearch
 	}
 
+	//update queue config
+	queue.RegisterConfig(queueConfig)
+
 	diff.outputQueueConfig = queueConfig
 
 	return diff, nil

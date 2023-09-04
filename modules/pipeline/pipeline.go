@@ -1,22 +1,7 @@
-/*
-Copyright 2016 Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package pipeline
 
 import (
+	"infini.sh/framework/core/locker"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -43,15 +28,21 @@ type PipeModule struct {
 }
 
 func (module PipeModule) Name() string {
-	return "Pipeline"
+	return "pipeline"
 }
 
 var moduleCfg = struct {
-}{}
+	PipelineEnabledByDefault bool `config:"pipeline_enabled_by_default"`
+}{PipelineEnabledByDefault: true}
 
 func (module *PipeModule) Setup() {
 	if global.Env().IsDebug {
 		log.Debug("pipeline framework config: ", moduleCfg)
+	}
+
+	ok, err := env.ParseConfig("preference", &moduleCfg)
+	if ok && err != nil {
+		panic(err)
 	}
 
 	module.pipelines = sync.Map{}
@@ -68,6 +59,107 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startTaskHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopTaskHandler)
+
+}
+
+func (module *PipeModule) startTask(taskID string) (exists bool) {
+	if module.closed.Load() {
+		return false
+	}
+
+	ctx, ok := module.contexts.Load(taskID)
+	if !ok {
+		return
+	}
+	v1, ok := ctx.(*pipeline.Context)
+	if !ok {
+		return
+	}
+
+	exists = true
+
+	// Mark exited pipeline to start again
+	if v1.IsExit() {
+		v1.Restart()
+	}
+	// Resume pipeline loop
+	if v1.IsPause() {
+		// Mark pipeline status as starting
+		v1.Starting()
+		v1.Resume()
+	}
+
+	return
+}
+
+// stopTask will cancel the current pipeline context, abort the pipeline execution.
+func (module *PipeModule) stopTask(taskID string) (exists bool) {
+	ctx, ok := module.contexts.Load(taskID)
+	if !ok {
+		return
+	}
+	v1, ok := ctx.(*pipeline.Context)
+	if !ok {
+		return
+	}
+
+	exists = true
+
+	if global.Env().IsDebug {
+		if rate.GetRateLimiterPerSecond("pipeline", "shutdown "+taskID+string(v1.GetRunningState()), 1).Allow() {
+			log.Trace("start shutting down pipeline:", taskID, ",state:", v1.GetRunningState())
+		}
+	}
+
+	// Mark pipeline as exited
+	v1.Exit()
+	// Mark pipeline as STOPPING as needed
+	v1.Stopping()
+	// call cancelFunc(), will mark IsCanceled asynchronously
+	v1.CancelTask()
+
+	return
+}
+
+// deleteTask will clean all in-memory states and release the pipeline context
+func (module *PipeModule) deleteTask(taskID string) {
+	module.pipelines.Delete(taskID)
+	module.configs.Delete(taskID)
+	module.releaseContext(taskID)
+	module.contexts.Delete(taskID)
+}
+
+// releaseContext will release the task context
+func (module *PipeModule) releaseContext(taskID string) {
+	ctx, ok := module.contexts.Load(taskID)
+	if ok {
+		v1, ok := ctx.(*pipeline.Context)
+		if ok {
+			pipeline.ReleaseContext(v1)
+			if v1.IsPause() {
+				// release loop
+				v1.Resume()
+			}
+		}
+	}
+}
+
+func (module *PipeModule) Start() error {
+	//load pipeline from configs
+	var pipelines []pipeline.PipelineConfigV2
+	ok, err := env.ParseConfig("pipeline", &pipelines)
+	if ok && err != nil {
+		panic(err)
+	}
+	if ok {
+		for _, v := range pipelines {
+			err := module.createPipeline(v, false)
+			if err != nil {
+				log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
+				continue
+			}
+		}
+	}
 
 	//listen on changes
 	config.NotifyOnConfigChange(func() {
@@ -173,106 +265,6 @@ func (module *PipeModule) Setup() {
 			}
 		}
 	})
-}
-
-func (module *PipeModule) startTask(taskID string) (exists bool) {
-	if module.closed.Load() {
-		return false
-	}
-
-	ctx, ok := module.contexts.Load(taskID)
-	if !ok {
-		return
-	}
-	v1, ok := ctx.(*pipeline.Context)
-	if !ok {
-		return
-	}
-
-	exists = true
-
-	// Mark exited pipeline to start again
-	if v1.IsExit() {
-		v1.Restart()
-	}
-	// Resume pipeline loop
-	if v1.IsPause() {
-		// Mark pipeline status as starting
-		v1.Starting()
-		v1.Resume()
-	}
-
-	return
-}
-
-// stopTask will cancel the current pipeline context, abort the pipeline execution.
-func (module *PipeModule) stopTask(taskID string) (exists bool) {
-	ctx, ok := module.contexts.Load(taskID)
-	if !ok {
-		return
-	}
-	v1, ok := ctx.(*pipeline.Context)
-	if !ok {
-		return
-	}
-
-	exists = true
-
-	if global.Env().IsDebug {
-		if rate.GetRateLimiterPerSecond("pipeline", "shutdown "+taskID+string(v1.GetRunningState()), 1).Allow() {
-			log.Trace("start shutting down pipeline:", taskID, ",state:", v1.GetRunningState())
-		}
-	}
-
-	// Mark pipeline as exited
-	v1.Exit()
-	// Mark pipeline as STOPPING as needed
-	v1.Stopping()
-	// call cancelFunc(), will mark IsCanceled asynchronously
-	v1.CancelTask()
-
-	return
-}
-
-// deleteTask will clean all in-memory states and release the pipeline context
-func (module *PipeModule) deleteTask(taskID string) {
-	module.pipelines.Delete(taskID)
-	module.configs.Delete(taskID)
-	module.releaseContext(taskID)
-	module.contexts.Delete(taskID)
-}
-
-// releaseContext will release the task context
-func (module *PipeModule) releaseContext(taskID string) {
-	ctx, ok := module.contexts.Load(taskID)
-	if ok {
-		v1, ok := ctx.(*pipeline.Context)
-		if ok {
-			pipeline.ReleaseContext(v1)
-			if v1.IsPause() {
-				// release loop
-				v1.Resume()
-			}
-		}
-	}
-}
-
-func (module *PipeModule) Start() error {
-	//load pipeline from configs
-	var pipelines []pipeline.PipelineConfigV2
-	ok, err := env.ParseConfig("pipeline", &pipelines)
-	if ok && err != nil {
-		panic(err)
-	}
-	if ok {
-		for _, v := range pipelines {
-			err := module.createPipeline(v, false)
-			if err != nil {
-				log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
-				continue
-			}
-		}
-	}
 
 	return nil
 }
@@ -352,6 +344,8 @@ func (module *PipeModule) stopAndWaitForRelease(taskIDs []string, timeout time.D
 	}
 }
 
+const pipelineSingleton = "pipeline_singleton"
+
 func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
 		return errors.New("module closed")
@@ -370,7 +364,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	log.Info("creating pipeline: " + v.Name)
+	log.Info("creating pipeline: "+v.Name+", singleton: ", v.Singleton)
 
 	processor, err := pipeline.NewPipeline(v.Processors)
 	if err != nil {
@@ -419,14 +413,9 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 
 		started := false
 
-		var signal *int32
-			if temp:=global.Lookup("APP_STATE");temp!=nil {
-				signal=temp.(*int32)
-			}
-
 		for {
-			if signal!=nil&&atomic.LoadInt32(signal)>0{
-				log.Errorf("system is shutting down, pipeline [%v] will be stopped", cfg.Name)
+			if global.ShuttingDown() {
+				log.Debugf("system is shutting down, pipeline [%v] will be stopped", cfg.Name)
 				break
 			}
 
@@ -444,10 +433,24 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			state := ctx.GetRunningState()
 			if global.Env().IsDebug {
 				log.Tracef("pipeline [%v], state: %v", cfg.Name, state)
-				time.Sleep(500*time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 			}
 			switch state {
 			case pipeline.STARTING:
+
+				//check
+				if v.Singleton {
+					if v.MaxRunningInMs <= 0 {
+						v.MaxRunningInMs = 60000
+					}
+					ok, err := locker.Hold(pipelineSingleton, v.Name, global.Env().SystemConfig.NodeConfig.ID, time.Duration(v.MaxRunningInMs)*time.Millisecond, true)
+					if !ok {
+						log.Debugf("pipeline [%v] is already running somewhere, %v", cfg.Name, err)
+						ctx.Finished()
+						continue
+					}
+				}
+
 				// Pipeline needs to run
 				if started {
 					log.Errorf("pipeline [%v] started twice, should not happen", cfg.Name)
@@ -462,7 +465,9 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 					log.Errorf("error on pipeline:%v, %v", cfg.Name, err)
 					ctx.Failed(err)
 				} else {
-					log.Debugf("pipeline [%v] end running", cfg.Name)
+					if global.Env().IsDebug {
+						log.Debugf("pipeline [%v] end running", cfg.Name)
+					}
 					ctx.Finished()
 				}
 				started = false
@@ -473,12 +478,14 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				// keep_running: true & not stopped manually by Exit()
 				// For IsExit, don't pause here, wait for STOPPED state, or we could Pause twice for STOPPED & IsExit.
 				if cfg.KeepRunning {
-					if global.Env().IsDebug{
+					if global.Env().IsDebug {
 						log.Tracef("pipeline [%v] end running, restart again, retry in [%v]ms", cfg.Name, retryDelayInMs)
 					}
 
-					if cfg.RetryDelayInMs > 0 {
-						time.Sleep(time.Duration(cfg.RetryDelayInMs) * time.Millisecond)
+					if retryDelayInMs > 0 {
+						log.Tracef("start sleep [%v]ms", retryDelayInMs)
+						time.Sleep(time.Duration(retryDelayInMs) * time.Millisecond)
+						log.Tracef("end sleep [%v]ms", retryDelayInMs)
 					}
 
 					// restart after delay.
@@ -493,7 +500,6 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			}
 		}
 
-
 		log.Debugf("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
 	}(v, processor, ctx)
 
@@ -503,7 +509,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 func isPipelineEnabled(enabled *bool) bool {
 	// if not configured `enabled: true`, by default true
 	if enabled == nil {
-		return true
+		return moduleCfg.PipelineEnabledByDefault
 	}
 	return *enabled
 }

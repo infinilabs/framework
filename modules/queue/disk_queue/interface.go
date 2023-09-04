@@ -16,17 +16,8 @@ type Message struct {
 }
 
 type Context struct {
-	//Metadata       map[string]interface{} `json:"metadata"`
-
 	WriteFile           string             `json:"write_file_path"`
-
-	//Depth          int64                  `json:"queue_depth"`
-	//PartitionID    int64                  `json:"partition_id"`
-
-	//MinFileNum        int64               `json:"min_file_num"`
 	WriteFileNum        int64             `json:"write_file_num"`
-	//NextReadOffset int64                  `json:"next_read_offset"`
-	//MaxLength      int64                  `json:"max_length"`
 }
 
 type EventType string

@@ -7,8 +7,6 @@ package common
 import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 )
 
 //Init queue metadata
@@ -23,41 +21,11 @@ func InitQueueMetadata() {
 
 	for _,v:=range configs{
 		v.Source="file"
-		if v.Id==""{
-			v.Id=v.Name
+		if v.ID ==""{
+			v.ID =v.Name
 		}
-		queue.RegisterConfig(v.Name,&v)
+		queue.RegisterConfig(&v)
 	}
-
-	//load configs from local metadata
-	if util.FileExists(GetLocalQueueConfigPath()){
-		data,err:=util.FileGetContent(GetLocalQueueConfigPath())
-		if err!=nil{
-			panic(err)
-		}
-
-		cfgs := map[string]*queue.QueueConfig{}
-		err=util.FromJSONBytes(data,&cfgs)
-		if err!=nil{
-			panic(err)
-		}
-
-		for _,v:=range cfgs{
-			if v.Id==""{
-				v.Id=v.Name
-			}
-			log.Debugf("init config:%v, type:%v",v.Name,v.Type)
-			queue.RegisterConfig(v.Name,v)
-		}
-	}
-
-	//load queue information from directory
-
-	//load configs from remote elasticsearch
-
-	//if previous queue was not proper closed, we need to check if queue was corrupt or not
-
-
 
 	//register queue listener
 	queue.RegisterQueueConfigChangeListener(func(v *queue.QueueConfig) {

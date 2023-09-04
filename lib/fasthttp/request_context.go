@@ -7,15 +7,14 @@ package fasthttp
 import (
 	"bytes"
 	"context"
-	"net"
-	"strings"
-	"time"
-
 	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
+	"net"
+	"strings"
+	"time"
 )
 
 type RequestCtx struct {
@@ -389,6 +388,28 @@ func (para *RequestCtx) GetValue(s string) (interface{}, error) {
 							return util.GetLowPrecisionCurrentTime().Minute(), nil
 						case "second_of_now":
 							return util.GetLowPrecisionCurrentTime().Second(), nil
+						case "unix_timestamp_of_now":
+							return util.GetLowPrecisionCurrentTime().Unix(), nil
+						case "unix_timestamp_milli_of_now":
+							return time.Now().UnixMilli(), nil
+						}
+					}
+				}
+				break
+			case "_util":
+				if len(keys) >= 2 {
+					rootFied := keys[1]
+					if rootFied != "" {
+						switch rootFied {
+						case "generate_uuid":
+							return util.GetUUID(), nil
+						case "increment_id":
+							bucket := "default"
+							if len(keys) >= 3 {
+								bucket = keys[2]
+							}
+							id := util.GetIncrementID64(bucket)
+							return util.ToString(id), nil
 						}
 					}
 				}

@@ -25,3 +25,13 @@ func TestGetLowPrecisionCurrentTime(t *testing.T) {
 	}
 
 }
+
+func TestFromUnixTimestamp(t *testing.T) {
+	str:=GetLowPrecisionCurrentTime().Unix()
+
+	fmt.Println(str)
+
+	timestamp := FromUnixTimestamp(str)
+
+	fmt.Println(timestamp)
+}

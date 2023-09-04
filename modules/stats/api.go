@@ -1,25 +1,15 @@
-/*
-Copyright 2016 Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
 
 package stats
 
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/segmentio/encoding/json"
@@ -54,7 +44,7 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 
 	switch format {
 	case "prometheus":
-		handler.PrometheusStatsAction(w,req,ps)
+		handler.PrometheusStatsAction(w, req, ps)
 		return
 	default:
 		statsLock.Lock()
@@ -102,11 +92,45 @@ func (handler SimpleStatsModule) PrometheusStatsAction(w http.ResponseWriter, re
 	handler.WriteHeader(w, 200)
 }
 
+//func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+//	buf := make([]byte, 2<<20)
+//	n := runtime.Stack(buf, true)
+//
+//	handler.WriteTextHeader(w)
+//	handler.Write(w, buf[:n])
+//	handler.WriteHeader(w, 200)
+//}
+
 func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	buf := make([]byte, 2<<20)
 	n := runtime.Stack(buf, true)
 
-	handler.WriteTextHeader(w)
-	handler.Write(w, buf[:n])
-	handler.WriteHeader(w, 200)
+	stacks := strings.Split(string(buf[:n]), "\n\n")
+	grouped := make(map[string]int)
+	patternMem, err := regexp.Compile("\\+?0x[\\d\\w]+")
+	if err != nil {
+		panic(err)
+	}
+	patternID, err := regexp.Compile("^goroutine \\d+")
+	if err != nil {
+		panic(err)
+	}
+	for _, stack := range stacks {
+		newStack := patternMem.ReplaceAll([]byte(stack), []byte("_address_"))
+		newStack = patternID.ReplaceAll(newStack, []byte("goroutine _id_"))
+		grouped[string(newStack)]++
+	}
+
+	sorted := util.SortMapStrIntToKV(grouped)
+
+	m := []util.MapStr{}
+	for _, v := range sorted {
+		o := util.MapStr{}
+		o["goroutine"] = v.Key
+		o["count"] = v.Value
+		m = append(m, o)
+	}
+
+	handler.WriteJSON(w, m, 200)
+
 }

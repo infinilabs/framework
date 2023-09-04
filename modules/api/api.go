@@ -27,7 +27,7 @@ import (
 
 // Name return API
 func (module *APIModule) Name() string {
-	return "API"
+	return "api"
 }
 
 const whoisAPI = "/_framework/api/_whoami"

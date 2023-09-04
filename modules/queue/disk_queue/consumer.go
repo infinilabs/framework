@@ -1,268 +1,402 @@
-/* ©INFINI, All Rights Reserved.
- * mail: contact#infini.ltd */
+/* Copyright © INFINI LTD. All rights reserved.
+ * Web: https://infinilabs.com
+ * Email: hello#infini.ltd */
 
 package queue
 
 import (
 	"bufio"
 	"encoding/binary"
+	"infini.sh/framework/core/kv"
+	"io"
+	"os"
+	"strings"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
-	io "io"
-	"os"
-	"time"
 )
 
-//if local file not found, try to download from s3
-func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (string,bool) {
-	filePath:= GetFileName(queueID,segmentID)
-	exists:=util.FileExists(filePath)
-	if !exists{
-		if cfg.Compress.Segment.Enabled{
-			//check local compressed file
-			compressedFile:=filePath+compressFileSuffix
-			if util.FileExists(compressedFile){
-				err:=zstd.DecompressFile(&compressLocker,compressedFile,filePath)
-				if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
-					panic(err)
-				}
-			}
-		}
+// NOTE: Consumer is not thread-safe
+type Consumer struct {
+	ID        string
+	diskQueue *DiskBasedQueue
 
-		if cfg.UploadToS3||cfg.AlwaysDownload{
+	mCfg *DiskQueueConfig
+	qCfg *queue.QueueConfig
+	cCfg *queue.ConsumerConfig
 
-			//download from s3 if that is possible
-			lastFileNum:= GetLastS3UploadFileNum(queueID)
-			if cfg.AlwaysDownload || lastFileNum>=segmentID{
-				var fileToDownload=filePath
-				//download compressed segments, check config, un-compress and rename
-				if cfg.Compress.Segment.Enabled{
-					fileToDownload=filePath+compressFileSuffix
-				}
-				s3Object:= getS3FileLocation(fileToDownload)
+	fileName            string
+	maxBytesPerFileRead int64
 
-				// download remote file
-				_,err:=s3.SyncDownload(fileToDownload,cfg.S3.Server,cfg.S3.Location,cfg.S3.Bucket,s3Object)
-				if err!=nil{
-					if util.ContainStr(err.Error(),"exist") && cfg.AlwaysDownload{
-						return filePath,false
-					}
-					panic(err)
-				}
+	reader   *bufio.Reader
+	readFile *os.File
 
-				//uncompress after download
-				if cfg.Compress.Segment.Enabled&&fileToDownload!=filePath{
-					err:=zstd.DecompressFile(&compressLocker,fileToDownload,filePath)
-					if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
-						panic(err)
-					}
-				}
-			}
-		}
-
-	}
-	return filePath,exists
+	queue   string
+	segment int64
+	readPos int64
 }
 
-//每个 consumer 维护自己的元数据，part 自动切换，offset 表示文件级别的读取偏移，messageCount 表示消息的返回条数
-func (d *DiskBasedQueue) Consume(consumer *queue.ConsumerConfig, part, readPos int64) (ctx *queue.Context, messages []queue.Message, isTimeout bool, err error) {
-	messages = []queue.Message{}
-	var totalMessageSize int = 0
-	ctx = &queue.Context{}
-	ctx.UpdateInitOffset(part,readPos)
-	//initOffset := queue.AcquireOffset(part,readPos)//fmt.Sprintf("%v,%v", part, readPos)
-	//defer func() {
-	//	ctx.InitOffset = initOffset
-	//}()
-
-RELOCATE_FILE:
-
-	log.Tracef("[%v] consumer[%v] %v,%v, max fetch count:%v", d.dataPath, consumer.Name, part, readPos, consumer.FetchMaxMessages)
-	//ctx.InitOffset = queue.AcquireOffset(part,readPos)// fmt.Sprintf("%v,%v", part, readPos)
-	ctx.UpdateInitOffset(part,readPos)
-	ctx.NextOffset = ctx.InitOffset
-	fileName,exists := SmartGetFileName(d.cfg,d.name, part)
-	if !exists{
-		if !util.FileExists(fileName) {
-			return ctx, messages, false, err
-		}
-	}
-
-	var msgSize int32
-	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
-	if readFile != nil {
-		defer readFile.Close()
-	}
+func (c *Consumer) getFileSize() int64 {
+	var err error
+	readFile, err := os.OpenFile(c.fileName, os.O_RDONLY, 0600)
 	if err != nil {
-		log.Debug(err)
-		return ctx, messages, false, err
+		log.Error(c.diskQueue.writeSegmentNum, ",", err)
+		return -1
 	}
-
-	var maxBytesPerFileRead int64= d.cfg.MaxBytesPerFile
+	defer readFile.Close()
 	var stat os.FileInfo
 	stat, err = readFile.Stat()
-	if err!=nil{
-		log.Debug(err)
-		if err.Error()=="EOF" {
-			err=nil
-		}
-		return ctx,messages,false,err
-	}
-	maxBytesPerFileRead = stat.Size()
-
-	if readPos > 0 {
-		_, err = readFile.Seek(readPos, 0)
-		if err != nil {
-			log.Debug(err)
-			return ctx,messages,false,err
-		}
-	}
-
-	var reader= bufio.NewReader(readFile)
-
-	var messageOffset=0
-
-	READ_MSG:
-
-	//read message size
-	err = binary.Read(reader, binary.BigEndian, &msgSize)
 	if err != nil {
-		if err.Error()=="EOF"{
-			log.Tracef("[%v] EOF err:%v, move to next file,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
-			nextFile,exists:= SmartGetFileName(d.cfg,d.name,part+1)
-			if exists||util.FileExists(nextFile){
-				log.Trace("EOF, continue read:",nextFile)
-				Notify(d.name, ReadComplete,part)
-				part=part+1
-				readPos=0
-				if readFile!=nil{
-					readFile.Close()
-				}
-				goto RELOCATE_FILE
-			}else{
-				log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages:%v, newFile:%v", nextFile, len(messages), part < d.writeSegmentNum)
+		log.Error(err)
+		return -1
+	}
+	return stat.Size()
+}
 
-				if part < d.writeSegmentNum {
-					oldPart := part
-					Notify(d.name, ReadComplete, part)
-					part = part + 1
-					readPos = 0
-					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, part)
-					if readFile != nil {
-						readFile.Close()
+func (d *DiskBasedQueue) AcquireConsumer(qconfig *queue.QueueConfig,consumer *queue.ConsumerConfig, segment, readPos int64) (queue.ConsumerAPI, error) {
+	output := Consumer{
+		ID:        util.ToString(util.GetIncrementID("consumer")),
+		mCfg:      d.cfg,
+		diskQueue: d,
+		qCfg:      qconfig,
+		cCfg:      consumer,
+		queue:     d.name,
+	}
+
+	if global.Env().IsDebug {
+		log.Debugf("acquire consumer:%v, %v, %v, %v-%v", output.ID, d.name, consumer.Key(), segment, readPos)
+	}
+	err := output.ResetOffset(segment, readPos)
+	return &output, err
+}
+
+func (this *Consumer) CommitOffset(offset queue.Offset) error{
+
+	if global.Env().IsDebug{
+		log.Debug("queue:",this.qCfg.ID,"(",this.qCfg.Name,"), commit offset:",offset.String())
+	}
+	return kv.AddValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(this.qCfg, this.cCfg)), []byte(offset.String()))
+}
+
+func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
+	var msgSize int32
+	var totalMessageSize int = 0
+	ctx.MessageCount=0
+
+	ctx.UpdateInitOffset(d.segment, d.readPos)
+	ctx.NextOffset = ctx.InitOffset
+
+	messages = []queue.Message{}
+
+READ_MSG:
+	//read message size
+	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
+	if err != nil {
+		if global.Env().IsDebug{
+			log.Trace(err)
+		}
+		errMsg := err.Error()
+		if util.ContainStr(errMsg, "EOF") || util.ContainStr(errMsg, "file already closed") {
+			//current have changes, reload file with new position
+			if d.getFileSize() > d.readPos {
+				log.Debug("current file have changes, reload:", d.queue, ",", d.getFileSize(), " > ", d.readPos)
+				if d.cCfg.EOFRetryDelayInMs > 0 {
+					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
+				}
+				ctx.UpdateNextOffset(d.segment, d.readPos)
+				err = d.ResetOffset(d.segment, d.readPos)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") {
+						return messages, false, nil
 					}
-					ctx.UpdateNextOffset(part,readPos)//.NextOffset = fmt.Sprintf("%v,%v", part, readPos)
-					return ctx, messages, false, err
+					panic(err)
+				}
+				goto READ_MSG
+			}
+
+			nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
+			if exists || util.FileExists(nextFile) {
+				log.Trace("EOF, continue read:", nextFile)
+				Notify(d.queue, ReadComplete, d.segment)
+				ctx.UpdateNextOffset(d.segment, d.readPos)
+				err = d.ResetOffset(d.segment+1, 0)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") {
+						return messages, false, nil
+					}
+					panic(err)
+				}
+				goto READ_MSG
+			} else {
+				log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages count: %v, readPos: %d, newFile:%v", nextFile, len(messages), d.readPos, d.segment < d.diskQueue.writeSegmentNum)
+
+				if d.diskQueue == nil {
+					panic("queue can't be nil")
+				}
+
+				if d.segment < d.diskQueue.writeSegmentNum {
+					oldPart := d.segment
+					Notify(d.queue, ReadComplete, d.segment)
+					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.segment)
+					ctx.UpdateNextOffset(d.segment, d.readPos)
+					err = d.ResetOffset(d.segment+1, 0)
+					if err != nil {
+						if strings.Contains(err.Error(), "not found") {
+							return messages, false, nil
+						}
+						panic(err)
+					}
+
+					ctx.UpdateNextOffset(d.segment, d.readPos)
+					return messages, false, err
 				}
 
 				if len(messages) == 0 {
 					if global.Env().IsDebug {
-						log.Tracef("no message found in queue: %v, sleep 1s", d.name)
+						log.Tracef("no message found in queue: %v, sleep 1s", d.queue)
 					}
-					if d.cfg.EOFRetryDelayInMs>0{
-						time.Sleep(time.Duration(d.cfg.EOFRetryDelayInMs)*time.Millisecond)
+					if d.cCfg.EOFRetryDelayInMs > 0 {
+						time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
 					}
 				}
 			}
 			//No error for EOF error
-			err=nil
-		}else{
-			log.Debugf("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v",fileName,err,msgSize,maxBytesPerFileRead,len(messages))
+			err = nil
+		} else {
+			log.Error("[%v] err:%v,msgSizeDataRead:%v,maxPerFileRead:%v,msg:%v", d.fileName, err, msgSize, d.maxBytesPerFileRead, len(messages))
 		}
-
-		return ctx,messages,false,err
+		return messages, false, err
 	}
 
-	if int32(msgSize) < d.cfg.MinMsgSize || int32(msgSize) > d.cfg.MaxMsgSize {
-		err=errors.Errorf("queue:%v,offset:%v,%v, invalid message, size: %v, should between: %v TO %v",d.name,part,readPos,msgSize,d.cfg.MinMsgSize,d.cfg.MaxMsgSize)
-		return ctx,messages,false,err
+	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
+
+		//current have changes, reload file with new position
+		if d.getFileSize() > d.maxBytesPerFileRead {
+			d.ResetOffset(d.segment, d.readPos)
+			return messages, false, err
+		}else{
+			if d.diskQueue.cfg.AutoSkipCorruptFile{
+				//invalid message size, assume current file is corrupted, try to read next file
+				nextSegment:=d.segment+1
+				nextFile, exists := SmartGetFileName(d.mCfg, d.queue, nextSegment)
+
+				log.Warnf("queue:%v, offset:%v,%v, invalid message size: %v, should between: %v TO %v, skip to next file: %v, exists: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize,nextFile,exists)
+
+				if exists || util.FileExists(nextFile) {
+					//update offset
+					ctx.UpdateNextOffset(nextSegment, 0)
+					err = d.ResetOffset(nextSegment, 0)
+
+					Notify(d.queue, ReadComplete, d.segment)
+					if err != nil {
+						if strings.Contains(err.Error(), "not found") {
+							return messages, false, nil
+						}
+						panic(err)
+					}
+					goto READ_MSG
+				}else{
+					if d.diskQueue.writeSegmentNum==d.segment{
+						log.Errorf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v",d.diskQueue.writeSegmentNum,d.segment)
+						d.diskQueue.skipToNextRWFile(false)
+						d.diskQueue.needSync = true
+					}
+					return messages, false, nil
+				}
+			}
+		}
+
+		err = errors.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize)
+		return messages, false, err
 	}
 
 	//read message
 	readBuf := make([]byte, msgSize)
-	_, err = io.ReadFull(reader, readBuf)
-	if err != nil {
-		log.Debug(err)
-		if err.Error()=="EOF" {
-			err=nil
-		}
-		return ctx,messages,false,err
-	}
+	_, err = io.ReadFull(d.reader, readBuf)
 
 	totalBytes := int(4 + msgSize)
-	nextReadPos := readPos + int64(totalBytes)
-	previousPos:=readPos
-	readPos=nextReadPos
+	nextReadPos := d.readPos + int64(totalBytes)
+	previousPos := d.readPos
+	d.readPos = nextReadPos
 
-	if d.cfg.Compress.Message.Enabled{
-		//option 1
-		newData,err:= zstd.ZSTDDecompress(nil,readBuf)
-		if err!=nil{
-			log.Debug(err)
-			ctx.UpdateNextOffset(part,nextReadPos)//.NextOffset=fmt.Sprintf("%v,%v",part,nextReadPos)
-			return ctx,messages,false,err
-		}
-		readBuf=newData
-
-		//option 2
-		////TODO release buffer in after context released
-		//dataReader:=bytes.Reader{}
-		//dataReader.Reset(readBuf)
-		//dataWriter:=bytebufferpool.Get()
-		//
-		//err:= zstd.ZSTDReusedDecompress(dataWriter,&dataReader)
-		//if err!=nil{
-		//	log.Debug(err)
-		//	return ctx,messages,false,err
-		//}
-		//readBuf=dataWriter.Bytes()
-
-	}
-
-	message := queue.Message{
-		Data:       readBuf,
-		Size:       totalBytes,
-		Offset:     (queue.Itoa64(part)+",")+queue.Itoa64(previousPos), // fmt.Sprintf("%v,%v", part, previousPos),
-		NextOffset: queue.Itoa64(part)+","+queue.Itoa64(nextReadPos),   //fmt.Sprintf("%v,%v", part, nextReadPos),
-	}
-
-	ctx.UpdateNextOffset(part,nextReadPos)//.NextOffset = fmt.Sprintf("%v,%v", part, nextReadPos)
-
-	messages = append(messages, message)
-	totalMessageSize += message.Size
-
-	if len(messages) >= consumer.FetchMaxMessages {
-		log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.name, consumer.Name, len(messages), consumer.FetchMaxMessages)
-		return ctx, messages, false, err
-	}
-
-	if totalMessageSize > consumer.FetchMaxBytes && consumer.FetchMaxBytes > 0 {
-		log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.name, consumer.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(consumer.FetchMaxBytes)))
-		return ctx, messages, false, err
-	}
-
-	if nextReadPos >= maxBytesPerFileRead {
-		//TODO checking the current file whether to have new changes or not during read
-		nextFile,exists := SmartGetFileName(d.cfg,d.name, part+1)
-		if exists||util.FileExists(nextFile) {
-			log.Trace("EOF, continue read:", nextFile)
-			Notify(d.name, ReadComplete, part)
-			part = part + 1
-			readPos = 0
-			if readFile != nil {
-				readFile.Close()
+	//check read error
+	if err != nil {
+		if util.ContainStr(err.Error(), "EOF") {
+			if d.readPos >= d.maxBytesPerFileRead || d.maxBytesPerFileRead==d.getFileSize() {
+				//next file exists, and current file is EOF
+				log.Debug("EOF, relocate to next file: ",nextReadPos >= d.maxBytesPerFileRead,",",d.readPos,",",d.maxBytesPerFileRead,",",d.getFileSize())
+				goto RELOAD_FILE
 			}
-			goto RELOCATE_FILE
+			err = nil
+		} else {
+			log.Error(err)
 		}
-		return ctx, messages, false, err
+		return messages, false, err
+	}else{
+		if d.mCfg.Compress.Message.Enabled {
+			newData, err := zstd.ZSTDDecompress(nil, readBuf)
+			if err != nil {
+				log.Error(err)
+				ctx.UpdateNextOffset(d.segment, nextReadPos)
+				return messages, false, err
+			}
+			readBuf = newData
+		}
+
+		message := queue.Message{
+			Data:       readBuf,
+			Size:       totalBytes,
+			Offset:     queue.NewOffset(d.segment,previousPos),
+			NextOffset: queue.NewOffset(d.segment,nextReadPos),
+		}
+
+		ctx.UpdateNextOffset(d.segment, nextReadPos)
+
+		messages = append(messages, message)
+		ctx.MessageCount++
+		totalMessageSize += message.Size
+
+		if len(messages) >= d.cCfg.FetchMaxMessages || (len(messages) >= numOfMessages&&numOfMessages>0){
+			log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.queue, d.cCfg.Name, len(messages), d.cCfg.FetchMaxMessages)
+			return messages, false, err
+		}
+
+		if totalMessageSize > d.cCfg.FetchMaxBytes && d.cCfg.FetchMaxBytes > 0 {
+			log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.queue, d.cCfg.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(d.cCfg.FetchMaxBytes)))
+			return messages, false, err
+		}
 	}
 
-	messageOffset++
-	goto READ_MSG
+	RELOAD_FILE:
+	if nextReadPos >= d.maxBytesPerFileRead {
 
+		log.Trace("try to relocate to next file: ",nextReadPos >= d.maxBytesPerFileRead,",",d.readPos,",",d.maxBytesPerFileRead,",",d.getFileSize())
+
+		nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
+		if exists || util.FileExists(nextFile) {
+			//current have changes, reload file with new position
+			if d.getFileSize() > d.readPos {
+				if global.Env().IsDebug {
+					log.Debug("current file have changes, reload:", d.queue, ",", d.getFileSize(), " > ", d.readPos)
+				}
+				ctx.UpdateNextOffset(d.segment, d.readPos)
+				err = d.ResetOffset(d.segment, d.readPos)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") {
+						return messages, false, nil
+					}
+					panic(err)
+				}
+
+				if d.cCfg.EOFRetryDelayInMs > 0 {
+					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
+				}
+
+				goto READ_MSG
+			}
+
+			log.Trace("EOF, continue read:", nextFile)
+
+			Notify(d.queue, ReadComplete, d.segment)
+			ctx.UpdateNextOffset(d.segment, d.readPos)
+			err = d.ResetOffset(d.segment+1, 0)
+			if err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					return messages, false, nil
+				}
+				panic(err)
+			}
+			goto READ_MSG
+		}
+		return messages, false, err
+	}
+
+	goto READ_MSG
+}
+
+func (d *Consumer) Close() error {
+	d.diskQueue.DeleteSegmentConsumerInReading(d.ID)
+	if d.readFile != nil {
+		err := d.readFile.Close()
+		if err != nil && !util.ContainStr(err.Error(), "already") {
+			log.Error(err)
+			panic(err)
+		}
+		d.readFile = nil
+		return err
+	}
+	return nil
+}
+
+func (d *Consumer) ResetOffset(segment, readPos int64) error {
+
+	if global.Env().IsDebug {
+		log.Debugf("reset offset: %v,%v, file: %v, queue:%v", segment, readPos, d.fileName,d.queue)
+	}
+
+	if segment > d.diskQueue.writeSegmentNum {
+		log.Errorf("reading segment [%v] is greater than writing segment [%v]", segment, d.diskQueue.writeSegmentNum)
+		return io.EOF
+	}
+
+	if d.segment != segment {
+		if global.Env().IsDebug {
+			log.Debugf("start to switch segment, previous:%v,%v, now: %v,%v", d.segment, d.readPos, segment, readPos)
+		}
+		//potential file handler leak
+		if d.readFile != nil {
+			d.readFile.Close()
+		}
+	}
+
+	d.segment = segment
+	d.readPos = readPos
+	d.maxBytesPerFileRead = 0
+
+	d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+
+	fileName, exists := SmartGetFileName(d.mCfg, d.queue, segment)
+	if !exists {
+		if !util.FileExists(fileName) {
+			return errors.New(fileName + " not found")
+		}
+	}
+
+	var err error
+	readFile, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	d.readFile = readFile
+	var maxBytesPerFileRead int64 = d.mCfg.MaxBytesPerFile
+	var stat os.FileInfo
+	stat, err = readFile.Stat()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	maxBytesPerFileRead = stat.Size()
+
+	if d.readPos > 0 {
+		_, err = readFile.Seek(d.readPos, 0)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+	}
+
+	d.maxBytesPerFileRead = maxBytesPerFileRead
+	if d.reader != nil {
+		d.reader.Reset(d.readFile)
+	} else {
+		d.reader = bufio.NewReader(d.readFile)
+	}
+	d.fileName = fileName
+	return nil
 }

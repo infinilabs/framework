@@ -1,3 +1,7 @@
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
+
 package stats
 
 import (
@@ -23,7 +27,7 @@ import (
 )
 
 func (module SimpleStatsModule) Name() string {
-	return "Stats"
+	return "simple_stats"
 }
 
 type SimpleStatsConfig struct {

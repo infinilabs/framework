@@ -1,3 +1,7 @@
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
+
 package elastic
 
 import (
@@ -136,14 +140,14 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 }
 
 // update cluster state, on state version change
-func (module *ElasticModule) updateClusterState(clusterId string) {
+func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
 
 	meta := elastic.GetMetadata(clusterId)
 	if meta == nil {
 		return
 	}
 
-	if !meta.IsAvailable() {
+	if !force&&!meta.IsAvailable() {
 		return
 	}
 
@@ -647,7 +651,10 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 
 // on demand, on state version change
 func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool, discovery bool) {
-	if !meta.IsAvailable() {
+
+	log.Trace("update node info")
+
+	if !force&&!meta.IsAvailable() {
 		if !force {
 			setNodeUnknown(meta.Config.ID)
 		}
@@ -674,7 +681,9 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	if !discovery {
 		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID))
 		if err != nil {
-			log.Errorf("read node metadata error: %v", err)
+			if global.Env().IsDebug{
+				log.Debugf("read node metadata error: %v", err)
+			}
 			return
 		}
 		if len(buf) > 0 {
@@ -1089,9 +1098,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 //}
 
 // on demand, on state version change
-func updateAliases(meta *elastic.ElasticsearchMetadata) {
+func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
 
-	if !meta.IsAvailable() {
+	if !force&&!meta.IsAvailable() {
 		return
 	}
 

@@ -54,7 +54,7 @@ type Context struct {
 	context.Context  `json:"-"`
 	param.Parameters `json:"parameters,omitempty"`
 
-	config PipelineConfigV2
+	Config PipelineConfigV2  `json:"-"`
 
 	//private parameters
 	createTime     time.Time
@@ -83,7 +83,7 @@ func AcquireContext(config PipelineConfigV2) *Context {
 	ctx.id = util.GetUUID()
 	ctx.createTime = time.Now()
 	ctx.runningState = FINISHED
-	ctx.config = config
+	ctx.Config = config
 	return &ctx
 }
 
@@ -334,7 +334,7 @@ func (ctx *Context) setRunningState(newState RunningState) {
 	if oldState != newState {
 		ctx.steps++
 
-		if ctx.config.Logging.Enabled {
+		if ctx.Config.Logging.Enabled {
 			ctx.pushPipelineLog()
 		}
 	}
@@ -342,7 +342,7 @@ func (ctx *Context) setRunningState(newState RunningState) {
 
 func (ctx *Context) pushPipelineLog() {
 	if global.Env().IsDebug {
-		log.Info("received pipeline state change, id: ", ctx.config.Name, ", state: ", ctx.runningState)
+		log.Info("received pipeline state change, id: ", ctx.Config.Name, ", state: ", ctx.runningState)
 	}
 	eventData := event.Event{
 		Metadata: event.EventMetadata{
@@ -352,17 +352,17 @@ func (ctx *Context) pushPipelineLog() {
 		},
 	}
 	labels := util.MapStr{
-		"task_id":    ctx.config.Name,
+		"task_id":    ctx.Config.Name,
 		"context_id": ctx.id,
 	}
-	for k, v := range ctx.config.Labels {
+	for k, v := range ctx.Config.Labels {
 		labels[k] = v
 	}
 	eventData.Metadata.Labels = labels
 	payload := util.MapStr{
 		"steps":   ctx.steps,
 		"status":  string(ctx.runningState),
-		"config":  util.MustToJSON(ctx.config),
+		"config":  util.MustToJSON(ctx.Config),
 		"context": ctx.Parameters.CloneData(),
 	}
 	if ctx.runningState.IsEnded() {

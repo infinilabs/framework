@@ -35,18 +35,18 @@ func (c ConsumerHasLag) Check(event ValuesMap) bool {
 		if ok{
 			latestProduceOffset:=queue.LatestOffset(qConfig)
 			if c.Group!=""&&c.Consumer!=""{
-				cConfig,ok:=queue.GetConsumerConfig(qConfig.Id,c.Group,c.Consumer)
+				cConfig,ok:=queue.GetConsumerConfig(qConfig.ID,c.Group,c.Consumer)
 				if ok{
 					consumerOffset,err:=queue.GetOffset(qConfig,cConfig)
 					if err!=nil{
 						panic(err)
 					}
-					if consumerOffset!=latestProduceOffset{
+					if !consumerOffset.Equals(latestProduceOffset){
 						return true
 					}
 				}
 			}else{
-				offset:=queue.GetEarlierOffsetStrByQueueID(qConfig.Id)
+				offset:=queue.GetEarlierOffsetStrByQueueID(qConfig.ID)
 				if latestProduceOffset!=offset{
 					return true
 				}

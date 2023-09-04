@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/rate"
 	"net"
 	"net/http"
 	"strconv"
@@ -105,6 +106,9 @@ func TestTCPPort(host string,port int,duration time.Duration)bool  {
 }
 
 func TestTCPAddress(host string,timeout time.Duration)bool  {
+	if !rate.GetRateLimiterPerSecond("test_tcp_address",host,1).Allow(){
+		time.Sleep(1*time.Second)
+	}
 	log.Debug("testing ip:",host,",timeout:",timeout)
 	conn, err := net.DialTimeout("tcp", host, timeout)
 	if conn!=nil{

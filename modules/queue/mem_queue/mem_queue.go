@@ -139,7 +139,7 @@ func (this *MemoryQueue)Depth(q string) int64{
 
 func (this *MemoryQueue) Consume(q *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (*queue.Context, []queue.Message, bool, error) {
 	ctx := &queue.Context{}
-	d, t := this.Pop(q.Id, consumer.GetFetchMaxWaitMs())
+	d, t := this.Pop(q.ID, consumer.GetFetchMaxWaitMs())
 	msg := queue.Message{Data: d}
 	msgs := []queue.Message{msg}
 	return ctx, msgs, t, nil

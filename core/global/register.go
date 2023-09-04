@@ -20,9 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/env"
 	"runtime"
-	log "github.com/cihub/seelog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -69,14 +69,14 @@ func Register(k RegisterKey, v interface{}) {
 }
 
 func MustLookupString(k RegisterKey) string {
-	v:=MustLookup(k)
+	v := MustLookup(k)
 	return v.(string)
 }
 
 func MustLookup(k RegisterKey) interface{} {
-	v:=Lookup(k)
-	if v==nil{
-		panic(errors.New(fmt.Sprintf("invalid key: %v",k)))
+	v := Lookup(k)
+	if v == nil {
+		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
 	}
 	return v
 }
@@ -122,21 +122,21 @@ func ShutdownCallback() []func() {
 }
 
 type BackgroundTask struct {
-	Tag string
-	Func func()
+	Tag         string
+	Func        func()
 	lastRunning time.Time
-	Interval time.Duration
+	Interval    time.Duration
 }
 
 var backgroundCallback = sync.Map{}
-var registerLock=sync.Mutex{}
+var registerLock = sync.Mutex{}
+
 func RegisterBackgroundCallback(task *BackgroundTask) {
-	backgroundCallback.Store(task.Tag,task)
+	backgroundCallback.Store(task.Tag, task)
 }
 
-
-func FuncWithTimeout(ctx context.Context,f func()) error {
-	ctx, cancel := context.WithTimeout(ctx,1*time.Second)
+func FuncWithTimeout(ctx context.Context, f func()) error {
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer func() {
 		if r := recover(); r != nil {
 			var v string
@@ -166,26 +166,37 @@ func FuncWithTimeout(ctx context.Context,f func()) error {
 func RunBackgroundCallbacks(state *int32) {
 	ctx := context.Background()
 	for {
-		if state!=nil&&atomic.LoadInt32(state)>0{
+		if state != nil && atomic.LoadInt32(state) > 0 {
 			log.Debug("exit background tasks")
 			return
 		}
-		timeStart:=time.Now()
+		timeStart := time.Now()
 		backgroundCallback.Range(func(key, value any) bool {
-			v:=value.(*BackgroundTask)
-			if time.Since(v.lastRunning)>v.Interval{
-				log.Debugf("run background job:%v, interval:%v", key,v.Interval)
-				err := FuncWithTimeout(ctx,v.Func)
+			v := value.(*BackgroundTask)
+			if time.Since(v.lastRunning) > v.Interval {
+				log.Debugf("run background job:%v, interval:%v", key, v.Interval)
+				err := FuncWithTimeout(ctx, v.Func)
 				if err != nil {
-					log.Error(fmt.Sprintf("error on running background job: %v, %v",key,err))
+					log.Error(fmt.Sprintf("error on running background job: %v, %v", key, err))
 				}
-				v.lastRunning=time.Now()
+				v.lastRunning = time.Now()
 			}
 			return true
 		})
 
-		if time.Since(timeStart)<time.Second{
-			time.Sleep(10*time.Second)
+		if time.Since(timeStart) < time.Second {
+			time.Sleep(10 * time.Second)
 		}
 	}
+}
+
+func ShuttingDown() bool {
+	var signal *int32
+	if temp := Lookup("APP_STATE"); temp != nil {
+		signal = temp.(*int32)
+	}
+	if signal != nil && atomic.LoadInt32(signal) > 0 {
+		return true
+	}
+	return false
 }

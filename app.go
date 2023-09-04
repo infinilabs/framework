@@ -28,6 +28,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/keystore"
 	_ "infini.sh/framework/core/log"
+	_ "infini.sh/framework/modules/queue"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/pipeline"

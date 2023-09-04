@@ -183,7 +183,7 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 }
 
 func (module *S3Module) Name() string {
-	return "S3"
+	return "s3"
 }
 
 func (module *S3Module) Setup() {

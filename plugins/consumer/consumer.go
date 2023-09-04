@@ -3,6 +3,7 @@ package consumer
 import (
 	"fmt"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/locker"
 	"runtime"
 	"sync"
 	"time"
@@ -79,13 +80,14 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		Consumer: &queue.ConsumerConfig{
-			Group:             "group-001",
-			Name:              "consumer-001",
-			FetchMinBytes:     1,
-			FetchMaxBytes:     10 * 1024 * 1024,
-			FetchMaxMessages:  500,
-			EOFRetryDelayInMs: 500,
-			FetchMaxWaitMs:    10000,
+			Group:                  "group-001",
+			Name:                   "consumer-001",
+			FetchMinBytes:          1,
+			FetchMaxBytes:          20 * 1024 * 1024,
+			FetchMaxMessages:       500,
+			EOFRetryDelayInMs:      500,
+			FetchMaxWaitMs:         10000,
+			ClientExpiredInSeconds: 60,
 		},
 
 		DetectActiveQueue:      true,
@@ -173,7 +175,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 				log.Error("error in consumer processor,", v)
 			}
 		}
-		log.Trace("exit consumer processor")
+		log.Debug("exit consumer processor")
 	}()
 
 	//handle updates
@@ -222,7 +224,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 
 					cfgs := queue.GetConfigBySelector(&processor.config.Selector)
 
-					log.Tracef("get %v queues", len(cfgs))
+					log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
 
 					for _, v := range cfgs {
 						if c.IsCanceled() {
@@ -231,7 +233,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 
 						//if have depth and not in in flight
 						if !processor.config.SkipEmptyQueue || queue.HasLag(v) {
-							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
+							_, ok := processor.inFlightQueueConfigs.Load(v.ID)
 							if !ok {
 								log.Tracef("detecting new queue: %v", v.Name)
 								lastDispatch = time.Now()
@@ -275,9 +277,17 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
+const queueConsumerHandleSingleton = "queue_consumer_handler_singleton"
+
 func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueConfig, ctx *pipeline.Context) error {
 
 	log.Tracef("handle queue config:%v ", qConfig.Name)
+
+	ok, _ := locker.Hold(queueConsumerHandleSingleton, qConfig.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
+	if !ok {
+		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", qConfig.ID)
+		return nil
+	}
 
 	if processor.config.SkipEmptyQueue && !queue.HasLag(qConfig) {
 		if global.Env().IsDebug {
@@ -286,7 +296,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 		return nil
 	}
 
-	var sliceStats = qConfig.Id + "FAILED_SLICES"
+	var sliceStats = qConfig.ID + "FAILED_SLICES"
 
 	if ctx.Stats(sliceStats) >= processor.config.NumOfSlices {
 		log.Debugf("all slices failed for queue [%v], skip", qConfig.Name)
@@ -308,7 +318,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 		}
 
 		//queue-slice
-		key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
+		key := fmt.Sprintf("%v-%v", qConfig.ID, sliceID)
 
 		if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
 			log.Debugf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
@@ -318,7 +328,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 		processor.Lock()
 		v2, exists := processor.inFlightQueueConfigs.Load(key)
 		if exists {
-			log.Debugf("queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", qConfig.Id, sliceID, key, v2)
+			log.Debugf("queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", qConfig.ID, sliceID, key, v2)
 			processor.Unlock()
 			continue
 		} else {
@@ -366,10 +376,10 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	maxSlices := v[3].(int)
 	parentContext := v[4].(*pipeline.Context)
 
-	key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
+	key := fmt.Sprintf("%v-%v", qConfig.ID, sliceID)
 
 	if global.Env().IsDebug {
-		log.Debugf("new slice_worker: %v, %v, %v, %v", key, workerID, sliceID, qConfig.Id)
+		log.Debugf("new slice_worker: %v, %v, %v, %v", key, workerID, sliceID, qConfig.ID)
 	}
 
 	defer func() {
@@ -384,22 +394,22 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.Id, sliceID)
+				log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
 		processor.wg.Done()
-		log.Tracef("exit slice_worker, queue:%v, slice_id:%v, key:%v", qConfig.Id, sliceID, key)
+		log.Tracef("exit slice_worker, queue:%v, slice_id:%v, key:%v", qConfig.ID, sliceID, key)
 	}()
 
-	var initOffset string
-	var offset string
+	var initOffset queue.Offset
+	var offset queue.Offset
 	var groupName = processor.config.Consumer.Group
 	if maxSlices > 1 {
-		groupName = fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
+		groupName = fmt.Sprintf("%v-%v-%v", processor.config.Consumer.Group, qConfig.ID, sliceID)
 	}
 
-	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
+	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.ID, groupName, processor.config.Consumer.Name)
 	//override consumer config with processor's consumer config
 	if processor.config.Consumer.EOFRetryDelayInMs > 0 {
 		consumerConfig.EOFRetryDelayInMs = processor.config.Consumer.EOFRetryDelayInMs
@@ -421,7 +431,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	defer xxHashPool.Put(xxHash)
 
 	defer func() {
-		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
+		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
 				var v string
@@ -433,7 +443,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
+				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
 				ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
 				if parentContext != nil {
 					parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
@@ -453,7 +463,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 		}
 
 		//cleanup buffer before exit worker
-		if offset != "" && offset != initOffset {
+		if !offset.Equals(initOffset) {
 			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
 			if !ok || err != nil {
 				panic(err)
@@ -464,7 +474,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 
 	processor.inFlightQueueConfigs.Store(key, workerID)
 
-	log.Tracef("place slice_worker lock, queue [%v], slice_id:%v, key:%v,v:%v", qConfig.Id, sliceID, key, workerID)
+	log.Tracef("place slice_worker lock, queue [%v], slice_id:%v, key:%v,v:%v", qConfig.ID, sliceID, key, workerID)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSecond) * time.Second
 
@@ -472,14 +482,22 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
 
 	if global.Env().IsDebug {
-		log.Debugf("slice_worker, get init offset: %v for consumer:%v,%v", initOffset, consumerConfig.Group, consumerConfig.Name)
+		log.Debugf("slice_worker, get init offset: %v for consumer:%v,%v", initOffset, groupName, consumerConfig.Name)
 	}
 	offset = initOffset
 
-	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig, offset)
-	if consumerInstance != nil {
-		defer consumerInstance.Close()
+	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig)
+	defer queue.ReleaseConsumer(qConfig, consumerConfig, consumerInstance)
+
+	if err != nil {
+		if util.ContainStr(err.Error(), "already owning this topic") {
+			if global.Env().IsDebug {
+				log.Infof("other consumer already owning this topic, queue:%v-%v, slice_id:%v, skipping...", qConfig.Name, qConfig.ID, sliceID)
+			}
+			return
+		}
 	}
+
 	if err != nil || consumerInstance == nil {
 		panic(err)
 	}
@@ -488,10 +506,11 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 
 READ_DOCS:
 
-	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
-
+	//TODO
+	//consumerInstance.ResetOffset(queue.ConvertOffset(offset))
+	EOF := false
 	for {
-		if ctx.IsCanceled() || ctx.IsFailed() || parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled()) {
+		if global.ShuttingDown() || ctx.IsCanceled() || ctx.IsFailed() || parentContext != nil && (parentContext.IsFailed() || parentContext.IsCanceled()) {
 			goto CLEAN_BUFFER
 		}
 
@@ -513,7 +532,7 @@ READ_DOCS:
 		}
 
 		if global.Env().IsDebug {
-			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
+			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.ID, sliceID, offset)
 		}
 
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
@@ -552,18 +571,18 @@ READ_DOCS:
 			if err != nil {
 				panic(err)
 			}
+			offset = ctx1.NextOffset //TODO
+		} else {
+			EOF = true
 		}
 
-		//should be able to commit
-		offset = ctx1.NextOffset.String() //TODO
+		if global.Env().IsDebug{
+			log.Debug(time.Since(lastCommit) > idleDuration || len(messages) == 0, time.Since(lastCommit) > idleDuration)
+		}
 
 		if time.Since(lastCommit) > idleDuration || len(messages) == 0 {
 			if global.Env().IsDebug {
 				log.Trace("slice_worker, hit idle timeout or empty message ", idleDuration.String())
-			}
-			if processor.config.QuitOnEOFQueue {
-				ctx.CancelTask()
-				return
 			}
 			goto CLEAN_BUFFER
 		}
@@ -573,10 +592,9 @@ CLEAN_BUFFER:
 
 	lastCommit = time.Now()
 
-	//if offset == "" || ctx.IsCanceled() || ctx.IsFailed() || ctx.HasError() || parentContext!=nil&&(parentContext.IsFailed() || parentContext.IsCanceled()) {
-	//	log.Debugf("offset[%v], failed[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsFailed(), ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
-	//	return
-	//}
+	if global.Env().IsDebug{
+		log.Info("commit offset: ", offset, ",", qConfig.Name)
+	}
 
 	if processor.onCleanup != nil {
 		if !processor.onCleanup() {
@@ -585,12 +603,21 @@ CLEAN_BUFFER:
 		}
 	}
 
-	if offset != "" && offset != initOffset {
+	if !offset.Equals(initOffset) {
 		ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
 		if !ok || err != nil {
 			panic(err)
 		}
 		initOffset = offset
+	}
+
+	if global.ShuttingDown() {
+		return
+	}
+
+	if processor.config.QuitOnEOFQueue && EOF {
+		ctx.CancelTask()
+		return
 	}
 
 	log.Tracef("slice_worker, goto READ_DOCS, return on queue:[%v], slice_id:%v", qConfig.Name, sliceID)

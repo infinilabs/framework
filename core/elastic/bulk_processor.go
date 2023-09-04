@@ -110,7 +110,7 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 					if util.ContainStr(err.Error(), "invalid_meta_buffer") {
 						if i > 0 {
 							previous := lines[i-1]
-							log.Info("line:", i, ",previous line:", string(previous), ",raw:", string(lines[i]), ",invalid:", string(line), ",full message:", string(data))
+							log.Info("line:", i, ",previous line:", string(previous), ",raw:", string(lines[i]), ",invalid:", string(line))
 						}
 					}
 				}
@@ -657,7 +657,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 		})
 
 		if global.Env().IsDebug {
-			log.Debug(tag, " bulk status:", statsCodeStats, ",invalid status:", invalidDocStatus)
+			log.Trace(tag, " bulk status:", statsCodeStats, ",invalid status:", invalidDocStatus)
 		}
 	}
 

@@ -1,18 +1,6 @@
-/*
-Copyright 2016 Medcl (m AT medcl.net)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
 
 package elastic
 
@@ -40,7 +28,7 @@ import (
 )
 
 func (module *ElasticModule) Name() string {
-	return "Elastic"
+	return "elasticsearch"
 }
 
 var (
@@ -216,6 +204,10 @@ func nodeAvailabilityCheck() {
 		Interval:    "10s",
 		Task: func(ctx context.Context) {
 			elastic.WalkHosts(func(key, value interface{}) bool {
+				if global.ShuttingDown(){
+					return true
+				}
+
 				k := key.(string)
 
 				if value == nil {
@@ -273,7 +265,7 @@ func nodeAvailabilityCheck() {
 	task.RegisterScheduleTask(task2)
 }
 
-func (module *ElasticModule) clusterStateRefresh() {
+func (module *ElasticModule) registerClusterStateRefreshTask() {
 	module.stateMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch state refresh",
@@ -282,6 +274,9 @@ func (module *ElasticModule) clusterStateRefresh() {
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
 				log.Trace("walk metadata: ", key)
+				if global.ShuttingDown(){
+					return true
+				}
 
 				if value == nil {
 					return true
@@ -316,7 +311,7 @@ func (module *ElasticModule) clusterStateRefresh() {
 
 					task.RunWithContext("refresh_cluster_state", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
-						module.updateClusterState(clusterID)
+						module.updateClusterState(clusterID,false)
 						module.stateMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
@@ -400,12 +395,25 @@ func (module *ElasticModule) Start() error {
 
 	//init elasticsearch
 	elastic.WalkConfigs(func(key, value interface{}) bool {
+		if global.ShuttingDown(){
+			return true
+		}
+
+		log.Trace("init cluster: ", key)
+
 		cfg1, ok := value.(*elastic.ElasticsearchConfig)
 		if ok && cfg1 != nil {
 			log.Tracef("init elasticsearch config: %v", cfg1.Name)
 			metadata := elastic.GetMetadata(cfg1.ID)
 			if metadata != nil {
+				//update nodes
 				module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
+
+				//update alias
+				updateAliases(metadata,true)
+
+				//update
+				module.updateClusterState(cfg1.ID,true)
 			}
 
 			task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
@@ -425,6 +433,9 @@ func (module *ElasticModule) Start() error {
 			Interval:    moduleConfig.HealthCheckConfig.Interval,
 			Task: func(ctx context.Context) {
 				elastic.WalkConfigs(func(key, value interface{}) bool {
+					if global.ShuttingDown(){
+						return true
+					}
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
 						if !cfg1.Enabled || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
@@ -472,7 +483,7 @@ func (module *ElasticModule) Start() error {
 
 	if moduleConfig.MetadataRefresh.Enabled {
 		//refresh cluster state
-		module.clusterStateRefresh()
+		module.registerClusterStateRefreshTask()
 
 		//refresh nodes
 		task2 := task.ScheduleTask{
@@ -480,17 +491,7 @@ func (module *ElasticModule) Start() error {
 			Type:        "interval",
 			Interval:    "60s",
 			Task: func(ctx context.Context) {
-				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value == nil {
-						return true
-					}
-
-					v, ok := value.(*elastic.ElasticsearchMetadata)
-					if ok {
-						module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
-					}
-					return true
-				})
+				module.refreshAllClusterMetadata()
 			},
 		}
 		task.RegisterScheduleTask(task2)
@@ -521,16 +522,7 @@ func (module *ElasticModule) Start() error {
 			Type:        "interval",
 			Interval:    "30s",
 			Task: func(ctx context.Context) {
-				elastic.WalkMetadata(func(key, value interface{}) bool {
-					if value == nil {
-						return true
-					}
-					v, ok := value.(*elastic.ElasticsearchMetadata)
-					if ok {
-						updateAliases(v)
-					}
-					return true
-				})
+				module.refreshAllClusterAlias(false)
 			},
 		}
 		task.RegisterScheduleTask(task2)
@@ -557,7 +549,7 @@ func (module *ElasticModule) Start() error {
 	}
 
 	if moduleConfig.ClusterSettingsCheckConfig.Enabled {
-		module.clusterSettingsRefresh()
+		module.registerClusterSettingsRefreshTask()
 	}
 
 	config.NotifyOnConfigSectionChange("elasticsearch", func(pCfg, cCfg *config.Config) {
@@ -595,7 +587,7 @@ func (module *ElasticModule) Start() error {
 
 }
 
-func (module *ElasticModule) clusterSettingsRefresh() {
+func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 	module.settingsMap = sync.Map{}
 	task2 := task.ScheduleTask{
 		Description: "elasticsearch settings refresh",
@@ -603,6 +595,10 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 		Interval:    moduleConfig.ClusterSettingsCheckConfig.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
+				if global.ShuttingDown(){
+					return true
+				}
+
 				log.Trace("walk metadata: ", key)
 
 				if value == nil {
@@ -643,6 +639,37 @@ func (module *ElasticModule) clusterSettingsRefresh() {
 	}
 	task.RegisterScheduleTask(task2)
 
+}
+
+func (module *ElasticModule) refreshAllClusterMetadata() {
+	elastic.WalkMetadata(func(key, value interface{}) bool {
+		if global.ShuttingDown(){
+			return true
+		}
+
+		if value == nil {
+			return true
+		}
+
+		v, ok := value.(*elastic.ElasticsearchMetadata)
+		if ok {
+			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
+		}
+		return true
+	})
+}
+
+func (module *ElasticModule) refreshAllClusterAlias(force bool) {
+	elastic.WalkMetadata(func(key, value interface{}) bool {
+		if value == nil {
+			return true
+		}
+		v, ok := value.(*elastic.ElasticsearchMetadata)
+		if ok {
+			updateAliases(v,force)
+		}
+		return true
+	})
 }
 
 type ElasticModule struct {

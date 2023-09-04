@@ -2,6 +2,7 @@ package bulk_indexing
 
 import (
 	"fmt"
+	"infini.sh/framework/core/locker"
 	"runtime"
 	"sync"
 	"time"
@@ -68,11 +69,11 @@ type Config struct {
 
 	MaxWorkers int `config:"max_worker_size"`
 
-	DetectActiveQueue  bool `config:"detect_active_queue"`
+	DetectActiveQueue bool `config:"detect_active_queue"`
 
-	VerboseBulkResult  bool `config:"verbose_bulk_result"`
+	VerboseBulkResult bool `config:"verbose_bulk_result"`
 
-	DetectIntervalInMs int  `config:"detect_interval"`
+	DetectIntervalInMs int `config:"detect_interval"`
 
 	ValidateRequest   bool `config:"valid_request"`
 	SkipEmptyQueue    bool `config:"skip_empty_queue"`
@@ -105,13 +106,14 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		Consumer: queue.ConsumerConfig{
-			Group:             "group-001",
-			Name:              "consumer-001",
-			FetchMinBytes:     1,
-			FetchMaxBytes:     10 * 1024 * 1024,
-			FetchMaxMessages:  500,
-			EOFRetryDelayInMs: 500,
-			FetchMaxWaitMs:    10000,
+			Group:                  "group-001",
+			Name:                   "consumer-001",
+			FetchMinBytes:          1,
+			FetchMaxBytes:          20 * 1024 * 1024,
+			FetchMaxMessages:       500,
+			EOFRetryDelayInMs:      500,
+			FetchMaxWaitMs:         10000,
+			ClientExpiredInSeconds: 60,
 		},
 
 		DetectActiveQueue:      true,
@@ -155,7 +157,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	runner.wg = sync.WaitGroup{}
 
-	if runner.config.MaxWorkers < 10 {
+	if runner.config.MaxWorkers < 0 {
 		runner.config.MaxWorkers = 10
 	}
 
@@ -222,7 +224,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 							case string:
 								v = r.(string)
 							}
-							log.Error("error in bulk indexing processor,", v)
+							log.Errorf("pipeline: %v, error in bulk indexing processor, %v",c.Config.Name, v)
 						}
 					}
 					processor.detectorRunning = false
@@ -231,6 +233,11 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 				}()
 
 				for {
+
+					if global.ShuttingDown() {
+						break
+					}
+
 					if c.IsCanceled() {
 						return
 					}
@@ -254,11 +261,13 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						}
 						//if have depth and not in in flight
 						if !processor.config.SkipEmptyQueue || queue.HasLag(v) {
-							_, ok := processor.inFlightQueueConfigs.Load(v.Id)
+							_, ok := processor.inFlightQueueConfigs.Load(v.ID)
 							if !ok {
 								log.Tracef("detecting new queue: %v", v.Name)
 								processor.HandleQueueConfig(v, c)
 							}
+						} else {
+							log.Tracef("skipping empty queue: %v", v.Name)
 						}
 					}
 					if processor.config.DetectIntervalInMs > 0 {
@@ -281,7 +290,16 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
+const queueHandleSingleton = "queue_handler_singleton"
+
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, c *pipeline.Context) {
+
+	ok, _ := locker.Hold(queueHandleSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
+	if !ok {
+		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
+		return
+	}
+
 	if processor.config.SkipEmptyQueue && !queue.HasLag(v) {
 		if global.Env().IsDebug {
 			log.Tracef("skip empty queue:[%v]", v.Name)
@@ -360,7 +378,7 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 	}
 
 	host := meta.GetActiveHost()
-	log.Tracef("random choose node [%v] to consume queue [%v]", host, v.Id)
+	log.Tracef("random choose node [%v] to consume queue [%v]", host, v.ID)
 	processor.NewBulkWorker("bulk_indexing_"+host, c, processor.config.BulkConfig.GetBulkSizeInBytes(), v, host)
 }
 
@@ -368,6 +386,11 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
+
+		if global.ShuttingDown() {
+			break
+		}
+
 		if global.Env().IsDebug {
 			log.Tracef("checking slice_id: %v", sliceID)
 		}
@@ -380,7 +403,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		}
 
 		//queue-slice
-		key := fmt.Sprintf("%v-%v", qConfig.Id, sliceID)
+		key := fmt.Sprintf("%v-%v", qConfig.ID, sliceID)
 
 		if processor.config.MaxWorkers > 0 && util.MapLength(&processor.inFlightQueueConfigs) > processor.config.MaxWorkers {
 			log.Debugf("reached max num of workers, skip init [%v], slice_id:%v", qConfig.Name, sliceID)
@@ -390,7 +413,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(tag string, ctx *pipeline.
 		processor.Lock()
 		v2, exists := processor.inFlightQueueConfigs.Load(key)
 		if exists {
-			log.Debugf("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", tag, qConfig.Id, sliceID, key, v2)
+			log.Tracef("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", tag, qConfig.ID, sliceID, key, v2)
 			processor.Unlock()
 			continue
 		} else {
@@ -442,7 +465,7 @@ var xxHashPool = sync.Pool{
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string, sliceID, maxSlices int, tag string, ctx *pipeline.Context, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
 
 	if global.Env().IsDebug {
-		log.Debugf("new slice_worker: %v, %v, %v, %v, %v", key, workerID, sliceID, tag, qConfig.Id)
+		log.Debugf("new slice_worker: %v, %v, %v, %v, %v", key, workerID, sliceID, tag, qConfig.ID)
 	}
 
 	defer func() {
@@ -457,29 +480,29 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error in bulk indexing processor, %v, queue:%v, slice_id:%v", v, qConfig.Id, sliceID)
+				log.Errorf("error in bulk indexing processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
 		processor.wg.Done()
-		log.Tracef("exit slice_worker, queue:%v, slice_id:%v, key:%v", qConfig.Id, sliceID, key)
+		log.Tracef("exit slice_worker, queue:%v, slice_id:%v, key:%v", qConfig.ID, sliceID, key)
 	}()
 
 	mainBuf := elastic.AcquireBulkBuffer()
-	mainBuf.Queue = qConfig.Id
+	mainBuf.Queue = qConfig.ID
 	defer elastic.ReturnBulkBuffer(mainBuf)
 
 	var bulkProcessor elastic.BulkProcessor
 	var esClusterID string
 	var meta *elastic.ElasticsearchMetadata
-	var initOffset string
-	var offset string
+	var initOffset queue.Offset
+	var offset queue.Offset
 	var groupName = processor.config.Consumer.Group
 	if maxSlices > 1 {
-		groupName = fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
+		groupName = fmt.Sprintf("%v-%v-%v", processor.config.Consumer.Group, qConfig.ID, sliceID)
 	}
 
-	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.Id, groupName, processor.config.Consumer.Name)
+	var consumerConfig = queue.GetOrInitConsumerConfig(qConfig.ID, groupName, processor.config.Consumer.Name)
 
 	//override consumer config with processor's consumer config
 	if processor.config.Consumer.EOFRetryDelayInMs > 0 {
@@ -498,16 +521,29 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		consumerConfig.FetchMaxBytes = processor.config.Consumer.FetchMaxBytes
 	}
 
+	//try to get consumer instance
+	var err error
+	var consumerInstance queue.ConsumerAPI
+	consumerInstance, err = queue.AcquireConsumer(qConfig, consumerConfig)
+	defer queue.ReleaseConsumer(qConfig, consumerConfig,consumerInstance)
+
+	if err != nil {
+		if util.ContainStr(err.Error(), "already owning this topic") {
+			if global.Env().IsDebug {
+				log.Warnf("other consumer already owning this topic, queue:%v-%v, slice_id:%v", qConfig.Name, qConfig.ID, sliceID)
+			}
+			return
+		}
+	}
+
+	if err != nil || consumerInstance == nil {
+		panic(err)
+	}
 
 	var skipFinalDocsProcess bool
 
 	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
 	defer xxHashPool.Put(xxHash)
-
-	//TODO check lag
-	//if !queue.HasLag(qConfig) {
-	//	return
-	//}
 
 	defer func() {
 		if !global.Env().IsDebug {
@@ -521,7 +557,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.Id, sliceID, initOffset, offset, v)
+				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
 				ctx.RecordError(fmt.Errorf("NewSlicedBulkWorker panic: %+v", r))
 				skipFinalDocsProcess = true
 			}
@@ -532,27 +568,36 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		//cleanup buffer before exit worker
-		continueNext, err := processor.submitBulkRequest(ctx, qConfig,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		log.Debug("start to submit:",qConfig.ID,",",esClusterID,",",offset.String())
+		continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 		mainBuf.ResetData()
 		if continueNext {
-			if offset != "" && initOffset != offset {
-				ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
-				if !ok || err != nil {
-					panic(err)
+			if !offset.Equals(initOffset) {
+				if consumerInstance != nil {
+					if global.Env().IsDebug {
+						log.Debugf("queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.ID, offset, initOffset)
+					}
+					err := consumerInstance.CommitOffset(offset)
+					if err != nil {
+						panic(err)
+					}
+					initOffset = offset
+				} else {
+					panic("invalid consumer instance")
 				}
 			}
 		} else {
 			if global.Env().IsDebug {
-				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.Id, sliceID, initOffset, offset, err)
+				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.ID, sliceID, initOffset, offset, err)
 			}
-			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
+			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
 		}
-		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.Id, sliceID)
+		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 	}()
 
 	processor.inFlightQueueConfigs.Store(key, workerID)
 
-	log.Tracef("place slice_worker lock: [%v], queue [%v], slice_id:%v, key:%v,v:%v", tag, qConfig.Id, sliceID, key, workerID)
+	log.Tracef("place slice_worker lock: [%v], queue [%v], slice_id:%v, key:%v,v:%v", tag, qConfig.ID, sliceID, key, workerID)
 
 	idleDuration := time.Duration(processor.config.IdleTimeoutInSecond) * time.Second
 	esClusterID, meta = processor.getElasticsearchMeatadata(qConfig)
@@ -588,30 +633,29 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
 
 	if global.Env().IsDebug {
-		log.Debugf("slice_worker, get init offset: %v for consumer:%v,%v", initOffset, consumerConfig.Group, consumerConfig.Name)
+		log.Debugf("slice_worker, get init offset: %v for consumer:%v,%v", initOffset, groupName, consumerConfig.Name)
 	}
 	offset = initOffset
-
-	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig, offset)
-	if consumerInstance != nil {
-		defer consumerInstance.Close()
-	}
-	if err != nil || consumerInstance == nil {
-		panic(err)
-	}
 
 	ctx1 := &queue.Context{}
 
 READ_DOCS:
 
-	consumerInstance.ResetOffset(queue.ConvertOffset(offset))
+	//TODO
+	//consumerInstance.ResetOffset(queue.ConvertOffset(offset))
 
 	for {
+
+		if global.ShuttingDown() {
+			break
+		}
+
 		if ctx.IsCanceled() {
 			goto CLEAN_BUFFER
 		}
 
 		//TODO add config to enable check or not, panic or skip
+		log.Tracef("check host available: %v", host)
 		if !elastic.IsHostAvailable(host) {
 			if elastic.IsHostDead(host) {
 				host1 := host
@@ -637,6 +681,7 @@ READ_DOCS:
 			goto READ_DOCS
 		}
 
+		log.Tracef("check waiting queue: %v", processor.config.WaitingAfter)
 		if len(processor.config.WaitingAfter) > 0 {
 			for _, v := range processor.config.WaitingAfter {
 				qCfg := queue.GetOrInitConfig(v)
@@ -656,7 +701,7 @@ READ_DOCS:
 
 		//each message is complete bulk message, must be end with \n
 		if global.Env().IsDebug {
-			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.Id, sliceID, offset)
+			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.ID, sliceID, offset)
 		}
 
 		if global.Env().IsDebug {
@@ -664,6 +709,7 @@ READ_DOCS:
 		}
 
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
+		stats.IncrementBy("queue", qConfig.ID+".docs_fetched_from_queue", int64(len(messages)))
 
 		if global.Env().IsDebug {
 			log.Tracef("slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
@@ -693,6 +739,10 @@ READ_DOCS:
 		}
 
 		if len(messages) > 0 {
+
+			if global.Env().IsDebug {
+				log.Trace("total messages return from consumer: ", len(messages))
+			}
 			for msgOffset, pop := range messages {
 
 				if processor.config.ValidateRequest {
@@ -715,8 +765,7 @@ READ_DOCS:
 							xxHash.WriteString(id)
 							partitionID = int(xxHash.Sum32()) % maxSlices
 						} else {
-							_, msgOffset := queue.ConvertOffset(pop.Offset)
-							partitionID = int(msgOffset) % maxSlices
+							partitionID = int(pop.Offset.Position) % maxSlices
 							msgID = fmt.Sprintf("%v", msgOffset)
 						}
 
@@ -740,7 +789,7 @@ READ_DOCS:
 						}
 					})
 				} else {
-					mainBuf.WriteMessageID(pop.Offset)
+					mainBuf.WriteMessageID(pop.Offset.String())
 					mainBuf.WriteByteBuffer(pop.Data)
 				}
 
@@ -753,26 +802,25 @@ READ_DOCS:
 
 				if (bulkSizeInByte > 0 && msgSize > (bulkSizeInByte)) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
 					if global.Env().IsDebug {
-						log.Tracef("slice_worker, consuming [%v], slice_id:%v, hit buffer limit, size:%v, count:%v, submit now", qConfig.Name, sliceID, msgSize, msgCount)
+						log.Debugf("slice_worker, consuming [%v], slice_id:%v, hit buffer limit, size:%v, count:%v, submit now", qConfig.Name, sliceID, msgSize, msgCount)
 					}
 
 					//submit request
-					continueNext, err := processor.submitBulkRequest(ctx,qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+					continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 					if !continueNext {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(), "code 429") {
-							//skipFinalDocsProcess=true
-							//return
-							panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host:%v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
+							panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host:%v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
 						}
+						log.Errorf("error on submit bulk_requests, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
 						time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
 						continue
 					} else {
 						//reset buffer
 						mainBuf.ResetData()
-						if pop.NextOffset != "" && pop.NextOffset != initOffset {
-							ok, err := queue.CommitOffset(qConfig, consumerConfig, pop.NextOffset)
-							if !ok || err != nil {
+						if !pop.NextOffset.Equals(initOffset) {
+							err := consumerInstance.CommitOffset(pop.NextOffset)
+							if err != nil {
 								panic(err)
 							}
 							initOffset = pop.NextOffset
@@ -780,9 +828,20 @@ READ_DOCS:
 						offset = pop.NextOffset
 					}
 				}
+
 			}
 		}
-		offset = ctx1.NextOffset.String() //TODO
+
+		if global.Env().IsDebug {
+			log.Tracef("valid:%v, offset: %v, new:%v", ctx1.Valid(), offset, ctx1.NextOffset.String())
+		}
+
+		if ctx1.Valid() {
+			offset = ctx1.NextOffset //TODO
+			if global.Env().IsDebug {
+				log.Tracef("update next offset: %v", offset)
+			}
+		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
 			if global.Env().IsDebug {
@@ -791,23 +850,34 @@ READ_DOCS:
 			goto CLEAN_BUFFER
 		}
 		if len(messages) == 0 && mainBuf.GetMessageSize() == 0 {
-			log.Trace("slice_worker, no message found in queue: " + qConfig.Id)
+			log.Trace("slice_worker, no message found in queue: " + qConfig.ID)
 			return
 		}
 	}
 
 CLEAN_BUFFER:
 
+	if global.Env().IsDebug {
+		log.Debugf("cleanup buffer, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
+	}
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
-	continueNext, err := processor.submitBulkRequest(ctx,qConfig,tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+	continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+
+	if !continueNext {
+		log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
+	}
+
+	if global.Env().IsDebug {
+		log.Debug(qConfig.ID, ",", qConfig.Name, ",", offset, ",", initOffset, ",", continueNext, ",", err)
+	}
 
 	if continueNext {
 		//reset buffer
 		mainBuf.ResetData()
-		if offset != "" && offset != initOffset {
-			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
-			if !ok || err != nil {
+		if !offset.Equals(initOffset) {
+			err := consumerInstance.CommitOffset(offset)
+			if err != nil {
 				panic(err)
 			}
 			initOffset = offset
@@ -816,27 +886,32 @@ CLEAN_BUFFER:
 		//logging failure offset boundry
 		//TODO handle 429 gracefully
 		if !util.ContainStr(err.Error(), "429") {
-			//skipFinalDocsProcess=true
-			//return
-			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.Id, sliceID, initOffset, offset, host, err))
+			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
 		}
+		log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
 		time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
 		goto CLEAN_BUFFER
 	}
 
-	if offset == "" || ctx.IsCanceled() || ctx.HasError() {
+	if ctx.IsCanceled() || ctx.HasError() {
 		log.Debugf("offset[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
 		return
 	}
 
 	log.Tracef("slice_worker, goto READ_DOCS, return on queue:[%v], slice_id:%v", qConfig.Name, sliceID)
 
+	if global.ShuttingDown() {
+		return
+	}
+
 	if !ctx.IsCanceled() {
 		goto READ_DOCS
 	}
 }
 
-func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context, qConfig *queue.QueueConfig,tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
+func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context, qConfig *queue.QueueConfig, tag, esClusterID string, meta *elastic.ElasticsearchMetadata, host string, bulkProcessor elastic.BulkProcessor, mainBuf *elastic.BulkBuffer) (bool, error) {
+
+	stats.IncrementBy("queue", qConfig.ID+".docs_submit_bulk", int64(mainBuf.GetMessageCount()))
 
 	if mainBuf == nil || meta == nil {
 		return true, errors.New("invalid buffer or meta")
@@ -844,6 +919,10 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 
 	count := mainBuf.GetMessageCount()
 	size := mainBuf.GetMessageSize()
+
+	if global.Env().IsDebug {
+		log.Infof("submit bulk request, count: %v, size:%v", count, size)
+	}
 
 	if count > 0 && size == 0 || count == 0 && size > 0 {
 		panic(errors.Errorf("invalid bulk message, count: %v, size:%v, msg: %v", mainBuf.GetMessageCount(), mainBuf.GetMessageSize(), string(mainBuf.GetMessageBytes())))
@@ -857,14 +936,20 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		if global.Env().IsDebug {
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
-		if err != nil && processor.config.LogBulkError {
-			log.Errorf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
+
+		for k, v := range statsMap {
+			stats.IncrementBy("queue", qConfig.ID+".docs_status_code."+util.ToString(k), int64(v))
 		}
+
+		if err != nil && processor.config.LogBulkError {
+			log.Warnf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
+		}
+
 		if global.Env().IsDebug {
-			log.Info(tag,", ",meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+			log.Info(tag, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
 		} else {
-			if processor.config.VerboseBulkResult{
-				log.Info("queue:", qConfig.Name,", ",meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
+			if processor.config.VerboseBulkResult {
+				log.Info("queue:", qConfig.Name, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
 			}
 		}
 		processor.updateContext(ctx, bulkResult)
@@ -913,14 +998,15 @@ func appendStrArr(arr []string, size int, elems []string) []string {
 }
 
 func (processor *BulkIndexingProcessor) getElasticsearchMeatadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {
+
 	elasticsearch, ok := qConfig.Labels["elasticsearch"]
 	if !ok {
 		if processor.config.Elasticsearch == "" {
-			log.Errorf("slice_worker, label [elasticsearch] was not found in: %v", qConfig)
-		} else {
-			elasticsearch = processor.config.Elasticsearch
+			panic(errors.Errorf("slice_worker, label [elasticsearch] was not found in: %v", qConfig))
 		}
+		elasticsearch = processor.config.Elasticsearch
 	}
+
 	esClusterID := util.ToString(elasticsearch)
 	meta := elastic.GetMetadata(esClusterID)
 	if meta == nil {

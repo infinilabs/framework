@@ -27,12 +27,12 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 
 		cfg:=queue.GetOrInitConfig(field)
 
-		consumers,ok:=queue.GetConsumerConfigsByQueueID(cfg.Id)
+		consumers,ok:=queue.GetConsumerConfigsByQueueID(cfg.ID)
 
 		if global.Env().IsDebug{
 			if ok{
 				for k,v:=range consumers{
-					log.Trace(k,v.Id,v.Group,v.Name)
+					log.Trace(k,v.ID,v.Group,v.Name)
 				}
 			}
 			log.Trace(field,len(consumers),ok)

@@ -5,6 +5,8 @@ package queue
 
 import (
 	"fmt"
+	"infini.sh/framework/core/global"
+	queue "infini.sh/framework/modules/queue/disk_queue"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -16,7 +18,12 @@ import (
 	"infini.sh/framework/modules/queue/common"
 )
 
-func (module *DiskQueue) RegisterAPI() {
+type API struct {
+	api.Handler
+}
+
+func init() {
+	module := API{}
 	api.HandleAPIMethod(api.GET, "/queue/stats", module.QueueStatsAction)
 	api.HandleAPIMethod(api.GET, "/queue/:id/stats", module.SingleQueueStatsAction)
 	api.HandleAPIMethod(api.GET, "/queue/:id/_scroll", module.QueueExplore)
@@ -38,14 +45,14 @@ func (module *DiskQueue) RegisterAPI() {
 	api.HandleAPIMethod(api.DELETE, "/queue/consumer/_search", module.DeleteConsumersByQuery)
 }
 
-func (module *DiskQueue) SingleQueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) SingleQueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	metadata := module.Get(req, "metadata", "true")
 	consumer := module.Get(req, "consumers", "true")
 	useKey := module.Get(req, "use_key", "false")
 
 	data := util.MapStr{}
-	module.getQueueStats(ps.ByName("id"), metadata, consumer, useKey, data)
+	module.getQueueStats("", ps.ByName("id"), metadata, consumer, useKey, data)
 	module.WriteJSON(w, data, 200)
 }
 
@@ -53,7 +60,7 @@ type DeleteQueuesByQueryRequest struct {
 	Selector *queue1.QueueSelector `json:"selector"`
 }
 
-func (module *DiskQueue) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = DeleteQueuesByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
@@ -61,6 +68,7 @@ func (module *DiskQueue) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Re
 		log.Error("failed to parse queue selector: ", err)
 		return
 	}
+
 	if obj.Selector == nil {
 		module.WriteError(w, "no selector specified", http.StatusBadRequest)
 		return
@@ -68,20 +76,21 @@ func (module *DiskQueue) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Re
 
 	queues := queue1.GetConfigBySelector(obj.Selector)
 	for _, queue := range queues {
-		module.deleteQueueByID(queue.Id)
+		module.deleteQueueByID(queue.ID)
 	}
 	module.WriteAckOKJSON(w)
 }
 
-func (module *DiskQueue) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	module.deleteQueueByID(id)
 	module.WriteAckOKJSON(w)
 }
 
-func (module *DiskQueue) deleteQueueByID(id string) {
+func (module *API) deleteQueueByID(id string) {
 	queueConfig, ok := queue1.SmartGetConfig(id)
-	if !ok ||queueConfig == nil {
+	if !ok || queueConfig == nil {
+		log.Errorf("invalid queue id [%v]", id)
 		return
 	}
 	err := queue1.Destroy(queueConfig)
@@ -90,10 +99,12 @@ func (module *DiskQueue) deleteQueueByID(id string) {
 		return
 	}
 	queue1.RemoveConfig(queueConfig)
+	queue1.RemoveAllConsumers(queueConfig.ID)
+
 	common.PersistQueueMetadata()
 }
 
-func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) QueueStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	metadata := module.Get(req, "metadata", "true")
 	consumer := module.Get(req, "consumers", "true")
 	useKey := module.Get(req, "use_key", "false")
@@ -103,8 +114,12 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 	for t, qs := range queues {
 		data := util.MapStr{}
 		for _, q := range qs {
-			module.getQueueStats(q, metadata, consumer, useKey, data)
+			err := module.getQueueStats(t, q, metadata, consumer, useKey, data)
+			if err != nil {
+				panic(err)
+			}
 		}
+		log.Tracef("queue [%v] stats: %v", t, data)
 		datas[t] = data
 	}
 	module.WriteJSON(w, util.MapStr{
@@ -112,15 +127,32 @@ func (module *DiskQueue) QueueStatsAction(w http.ResponseWriter, req *http.Reque
 	}, 200)
 }
 
-func (module *DiskQueue) getQueueStats(q string, metadata string, consumer string, useKey string, data util.MapStr) error {
-	cfg, ok := queue1.SmartGetConfig(q)
-	if !ok {
-		return errors.Errorf("queue [%v] was not found", q)
+func (module *API) getQueueStats(t, q string, metadata string, consumer string, useKey string, data util.MapStr) error {
+
+	var cfg *queue1.QueueConfig
+	if t == "kafka" {
+		var ok bool
+		cfg, ok = queue1.GetConfigByUUID(q)
+		//new config loaded from kafka
+		//TODO load queue metadata from database
+		if !ok {
+			cfg = &queue1.QueueConfig{}
+			cfg.ID = q
+			cfg.Name = q
+			cfg.Type = "kafka"
+			queue1.RegisterConfig(cfg)
+		}
+	} else {
+		var ok bool
+		cfg, ok = queue1.SmartGetConfig(q)
+		if !ok {
+			return errors.Errorf("queue [%v] was not found", q)
+		}
 	}
 
 	qd := util.MapStr{}
 	if cfg.Type == "disk" || cfg.Type == "" {
-		storeSize := module.GetStorageSize(q)
+		storeSize := queue1.GetStorageSize(q)
 		qd["storage"] = util.MapStr{
 			"local_usage":          util.ByteSize(storeSize),
 			"local_usage_in_bytes": storeSize,
@@ -128,9 +160,7 @@ func (module *DiskQueue) getQueueStats(q string, metadata string, consumer strin
 	}
 
 	if metadata != "false" {
-		if ok {
-			qd["metadata"] = cfg
-		}
+		qd["metadata"] = cfg
 	}
 
 	var hasConsumers = false
@@ -141,12 +171,12 @@ func (module *DiskQueue) getQueueStats(q string, metadata string, consumer strin
 			for _, v := range cfg1 {
 				m := util.MapStr{}
 				m["source"] = v.Source
-				m["id"] = v.Id
+				m["id"] = v.ID
 				m["group"] = v.Group
 				m["name"] = v.Name
 				offset, err := queue1.GetOffset(cfg, v)
 				if err == nil {
-					m["offset"] = offset
+					m["offset"] = offset.String()
 				}
 				maps = append(maps, m)
 			}
@@ -160,13 +190,13 @@ func (module *DiskQueue) getQueueStats(q string, metadata string, consumer strin
 	if !hasConsumers {
 		qd["depth"] = queue1.Depth(cfg)
 	} else {
-
 		qd["messages"] = queue1.Depth(cfg)
-
-		qd["earliest_consumer_offset"] = queue1.GetEarlierOffsetStrByQueueID(q)
-		qd["offset"] = queue1.LatestOffset(cfg)
+		eoffset := queue1.GetEarlierOffsetStrByQueueID(q)
+		qd["earliest_consumer_offset"] = eoffset.String()
+		offset := queue1.LatestOffset(cfg)
+		qd["offset"] = offset.String()
 		qd["synchronization"] = util.MapStr{
-			"latest_segment": GetLastS3UploadFileNum(q),
+			"latest_segment": queue.GetLastS3UploadFileNum(q),
 		}
 	}
 
@@ -178,7 +208,7 @@ func (module *DiskQueue) getQueueStats(q string, metadata string, consumer strin
 	return nil
 }
 
-func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	queueID := ps.ByName("id")
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
@@ -189,7 +219,12 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 
 	dataIsString := true
 
-	var ctx *queue1.Context
+	var ctx *queue1.Context = &queue1.Context{
+		InitOffset: queue1.NewOffsetFromStr(offsetStr),
+	}
+
+	log.Debugf("queue explore [%v] offset [%v] size [%v]", queueID, offsetStr, size)
+
 	var err error
 	var timeout bool
 	messages := []queue1.Message{}
@@ -206,7 +241,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 				for _, v := range messages {
 					msg := util.MapStr{}
 					msg["message"] = string(v.Data)
-					msg["offset"] = v.Offset
+					msg["offset"] = v.Offset.String()
 					msg["size"] = v.Size
 					msgs = append(msgs, msg)
 				}
@@ -226,13 +261,24 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 		module.WriteJSON(w, result, status)
 	}()
 
-	_, ok := module.queues.Load(queueID)
+	_, ok := queue1.SmartGetConfig(queueID)
 	if ok {
-		consumer := queue1.NewConsumerConfig(group, name)
+		consumer := queue1.NewConsumerConfig(queueID, group, name)
 		consumer.FetchMaxMessages = size
+		consumer.FetchMaxWaitMs = 500
+		consumer.FetchMaxBytes = 1024 * 500
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
-			ctx, messages, timeout, err = module.Consume(qConfig, consumer, offsetStr)
+			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer)
+			defer queue1.ReleaseConsumer(qConfig,consumer, consumerAPI)
+			err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
+			if err != nil {
+				return
+			}
+			messages, timeout, err = consumerAPI.FetchMessages(ctx, size)
+			if global.Env().IsDebug {
+				log.Trace(len(messages), ",", timeout, ",", err)
+			}
 			if err != nil {
 				return
 			}
@@ -246,7 +292,7 @@ func (module *DiskQueue) QueueExplore(w http.ResponseWriter, req *http.Request, 
 
 }
 
-func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
 	cfg, ok := queue1.SmartGetConfig(queueID)
@@ -268,7 +314,7 @@ func (module *DiskQueue) QueueGetConsumerOffset(w http.ResponseWriter, req *http
 	module.WriteJSON(w, obj, status)
 }
 
-func (module *DiskQueue) QueueDeleteConsumerByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) QueueDeleteConsumerByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
 
@@ -296,8 +342,8 @@ func (module *DiskQueue) QueueDeleteConsumerByID(w http.ResponseWriter, req *htt
 	}, 200)
 }
 
-func (module *DiskQueue) deleteQueueConsumer(queueConfig *queue1.QueueConfig, consumerConfig *queue1.ConsumerConfig) error {
-	_, err := queue1.RemoveConsumer(queueConfig.Id, consumerConfig.Key())
+func (module *API) deleteQueueConsumer(queueConfig *queue1.QueueConfig, consumerConfig *queue1.ConsumerConfig) error {
+	_, err := queue1.RemoveConsumer(queueConfig.ID, consumerConfig.Key())
 	if err != nil {
 		return fmt.Errorf("failed to delete consumer config, err: %v", err)
 	}
@@ -313,7 +359,7 @@ type DeleteConsumersByQueryRequest struct {
 	Selector *queue1.QueueSelector `json:"selector"`
 }
 
-func (module *DiskQueue) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = DeleteConsumersByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
@@ -328,7 +374,7 @@ func (module *DiskQueue) DeleteConsumersByQuery(w http.ResponseWriter, req *http
 
 	queues := queue1.GetConfigBySelector(obj.Selector)
 	for _, queue := range queues {
-		consumers, ok := queue1.GetConsumerConfigsByQueueID(queue.Id)
+		consumers, ok := queue1.GetConsumerConfigsByQueueID(queue.ID)
 		if !ok {
 			continue
 		}
@@ -342,7 +388,7 @@ func (module *DiskQueue) DeleteConsumersByQuery(w http.ResponseWriter, req *http
 	module.WriteAckOKJSON(w)
 }
 
-func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
@@ -350,13 +396,14 @@ func (module *DiskQueue) QueueResetConsumerOffset(w http.ResponseWriter, req *ht
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
 	var ack = false
 	var status = 404
-	var obj = util.MapStr{}
 	if ok && ok1 {
-		queue1.CommitOffset(cfg, cfg1, offsetStr)
-		ack = true
+		ok, err := queue1.CommitOffset(cfg, cfg1, queue1.NewOffsetFromStr(offsetStr))
+		ack = ok
 		status = 200
-	} else {
-		obj["error"] = "not found"
+		if err != nil {
+			module.WriteError(w, err.Error(), http.StatusBadRequest)
+		}
 	}
+
 	module.WriteAckJSON(w, ack, status, nil)
 }

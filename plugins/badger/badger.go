@@ -23,11 +23,11 @@ var l sync.RWMutex
 var buckets = sync.Map{}
 
 func (filter *Module) Open() error {
-	if filter.Path == "" {
-		filter.Path = path.Join(global.Env().GetDataDir(), "badger")
+	if filter.cfg.Path == "" {
+		filter.cfg.Path = path.Join(global.Env().GetDataDir(), "badger")
 	}
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		filter.bucket = filter.getOrInitBucket("default")
 	}
 
@@ -39,7 +39,7 @@ func (filter *Module) mustGetBucket(bucket string) *badger.DB {
 		panic(errors.New("module closed"))
 	}
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		if filter.bucket == nil {
 			panic("invalid badger module")
 		}
@@ -70,23 +70,23 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 
 	log.Debugf("init badger database [%v]", bucket)
 
-	dir := path.Join(filter.Path, bucket)
+	dir := path.Join(filter.cfg.Path, bucket)
 
 	var err error
 	option := badger.DefaultOptions(dir)
-	option.InMemory = filter.InMemoryMode
-	option.MemTableSize = filter.MemTableSize
-	option.ValueLogMaxEntries = filter.ValueLogMaxEntries
-	option.ValueThreshold = filter.ValueThreshold
+	option.InMemory = filter.cfg.InMemoryMode
+	option.MemTableSize = filter.cfg.MemTableSize
+	option.ValueLogMaxEntries = filter.cfg.ValueLogMaxEntries
+	option.ValueThreshold = filter.cfg.ValueThreshold
 	option.NumGoroutines = 1
-	option.NumMemtables = filter.NumMemtables
+	option.NumMemtables = filter.cfg.NumMemtables
 	option.Compression = options.None
 	option.MetricsEnabled = false
-	option.NumLevelZeroTables = filter.NumLevelZeroTables
-	option.NumLevelZeroTablesStall = filter.NumLevelZeroTablesStall
-	option.SyncWrites = filter.SyncWrites
+	option.NumLevelZeroTables = filter.cfg.NumLevelZeroTables
+	option.NumLevelZeroTablesStall = filter.cfg.NumLevelZeroTablesStall
+	option.SyncWrites = filter.cfg.SyncWrites
 	option.CompactL0OnClose = true
-	option.ValueLogFileSize = filter.ValueLogFileSize
+	option.ValueLogFileSize = filter.cfg.ValueLogFileSize
 
 	if !global.Env().IsDebug {
 		option.Logger = nil
@@ -101,7 +101,7 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 }
 
 func (filter *Module) Close() error {
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		filter.bucket.Close()
 	}
 
@@ -120,7 +120,7 @@ func (filter *Module) Close() error {
 
 func (filter *Module) Exists(bucket string, key []byte) bool {
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 
@@ -143,7 +143,7 @@ func (filter *Module) Add(bucket string, key []byte) error {
 
 func (filter *Module) Delete(bucket string, key []byte) error {
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 
@@ -173,7 +173,7 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 		return nil, errors.New("module closed")
 	}
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 
@@ -230,7 +230,7 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 		return errors.New("module closed")
 	}
 
-	if filter.SingleBucketMode {
+	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 

@@ -5,6 +5,8 @@ package queue
 
 import (
 	"fmt"
+	"infini.sh/framework/core/kv"
+	"infini.sh/framework/modules/queue/common"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,7 +16,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -22,15 +23,14 @@ import (
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/status"
-	"infini.sh/framework/modules/queue/common"
 )
 
 type DiskQueue struct {
 	cfg        *DiskQueueConfig
 	initLocker sync.Mutex
-	api.Handler
-	queues   sync.Map
-	messages chan Event
+	queues     sync.Map
+	messages   chan Event
+	cfgs       map[string]*queue.QueueConfig
 }
 
 func (module *DiskQueue) Name() string {
@@ -164,13 +164,12 @@ func GetFileName(queueID string, segmentID int64) string {
 }
 
 func (module *DiskQueue) Setup() {
-
 	module.cfg = &DiskQueueConfig{
 		Enabled:             true,
 		Default:             true,
 		AutoSkipCorruptFile: true,
 		UploadToS3:          false,
-		Retention:           RetentionConfig{MaxNumOfLocalFiles: 10},
+		Retention:           RetentionConfig{MaxNumOfLocalFiles: 5},
 		MinMsgSize:          1,
 		MaxMsgSize:          104857600,         //100MB
 		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
@@ -184,7 +183,7 @@ func (module *DiskQueue) Setup() {
 		ReservedFreeBytes:   5 * 1024 * 1024 * 1024,
 		PrepareFilesToRead:  true,
 		Compress: DiskCompress{
-			IdleThreshold:             5,
+			IdleThreshold:             3,
 			DeleteAfterCompress:       true,
 			NumOfFilesDecompressAhead: 3,
 			Message: CompressConfig{
@@ -205,7 +204,20 @@ func (module *DiskQueue) Setup() {
 		return
 	}
 
-	common.InitQueueMetadata()
+	//load configs from local metadata
+	if util.FileExists(common.GetLocalQueueConfigPath()) {
+		data, err := util.FileGetContent(common.GetLocalQueueConfigPath())
+		if err != nil {
+			panic(err)
+		}
+
+		cfgs := map[string]*queue.QueueConfig{}
+		err = util.FromJSONBytes(data, &cfgs)
+		if err != nil {
+			panic(err)
+		}
+		module.cfgs = cfgs
+	}
 
 	module.queues = sync.Map{}
 
@@ -227,8 +239,6 @@ func (module *DiskQueue) Setup() {
 	if module.cfg.Default {
 		queue.RegisterDefaultHandler(module)
 	}
-
-	module.RegisterAPI()
 
 }
 
@@ -259,7 +269,8 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 			return errors.Errorf("queue:%v, invalid message size: %v, should between: %v TO %v", k, msgSize, module.cfg.MinMsgSize, module.cfg.MaxMsgSize)
 		}
 
-		return (q.(*DiskBasedQueue)).Put(v)
+		res:= (q.(*DiskBasedQueue)).Put(v)
+		return res.Error
 	}
 	return errors.Errorf("queue [%v] not found", k)
 }
@@ -296,40 +307,22 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
-func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, segment, offset int64) (queue.ConsumerAPI, error) {
-	q, ok := module.queues.Load(qconfig.Id)
-	if !ok {
-		//try init
-		module.Init(qconfig.Id)
-		q, ok = module.queues.Load(qconfig.Id)
-	}
-	if ok {
-		q1 := q.(*DiskBasedQueue)
-		return q1.AcquireConsumer(consumer, segment, offset)
-	}
-	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
+func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig,instance queue.ConsumerAPI) error {
+	return instance.Close()
 }
 
-func (module *DiskQueue) Consume(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, offsetStr string) (ctx *queue.Context, messages []queue.Message, timeout bool, err error) {
-
-	q, ok := module.queues.Load(qconfig.Id)
+func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.ConsumerAPI, error) {
+	offsetStr, _ := queue.GetOffset(qconfig, consumer)
+	q, ok := module.queues.Load(qconfig.ID)
 	if !ok {
 		//try init
-		module.Init(qconfig.Id)
-		q, ok = module.queues.Load(qconfig.Id)
+		module.Init(qconfig.ID)
+		q, ok = module.queues.Load(qconfig.ID)
 	}
 	if ok {
-		segment, offset := queue.ConvertOffset(offsetStr)
 		q1 := q.(*DiskBasedQueue)
-		ctx, messages, timeout, err := q1.Consume(consumer, segment, offset)
-
-		if global.Env().IsDebug {
-			log.Tracef("[%v] consumer [%v] [%v,%v] %v, fetched:%v, timeout:%v,next:%v, err:%v", qconfig.Name, consumer, segment, offset, consumer.FetchMaxMessages, len(messages), timeout, ctx.NextOffset, err)
-		}
-
-		return ctx, messages, timeout, err
+		return q1.AcquireConsumer(qconfig, consumer, offsetStr.Segment, offsetStr.Position)
 	}
-
 	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
 }
 
@@ -357,18 +350,18 @@ func (module *DiskQueue) GetStorageSize(k string) uint64 {
 	panic(errors.Errorf("queue [%v] not found", k))
 }
 
-func (module *DiskQueue) LatestOffset(k string) string {
-	q, ok := module.queues.Load(k)
+func (module *DiskQueue) LatestOffset(k *queue.QueueConfig) queue.Offset {
+	q, ok := module.queues.Load(k.ID)
 	if !ok {
 		//try init
-		module.Init(k)
-		q, ok = module.queues.Load(k)
+		module.Init(k.ID)
+		q, ok = module.queues.Load(k.ID)
 	}
 	if ok {
 		return (q.(*DiskBasedQueue)).LatestOffset()
 	}
 
-	panic(errors.Errorf("queue [%v] not found", k))
+	panic(errors.Errorf("queue [%v] not found", k.ID))
 }
 
 func (module *DiskQueue) Depth(k string) int64 {
@@ -387,7 +380,6 @@ func (module *DiskQueue) Depth(k string) int64 {
 
 func (module *DiskQueue) GetQueues() []string {
 	result := []string{}
-
 	module.queues.Range(func(key, value interface{}) bool {
 		result = append(result, key.(string))
 		return true
@@ -396,19 +388,15 @@ func (module *DiskQueue) GetQueues() []string {
 }
 
 func (module *DiskQueue) Start() error {
-	if !module.cfg.Enabled {
+	if module.cfg != nil && !module.cfg.Enabled {
 		return nil
 	}
 
-	//TODO move to dedicated queue module
-
 	//load configs from local file
-	cfgs := queue.GetAllConfigs()
-
-	if cfgs != nil && len(cfgs) > 0 {
-		for _, v := range cfgs {
-			if v.Id == "" {
-				v.Id = v.Name
+	if module.cfgs != nil {
+		for _, v := range module.cfgs {
+			if v.ID == "" {
+				v.ID = v.Name
 			}
 			if v.Type != "" && v.Type != "disk" {
 				continue
@@ -417,8 +405,8 @@ func (module *DiskQueue) Start() error {
 			if v.Type == "" && !module.cfg.Default {
 				continue
 			}
-
 			queue.IniQueue(v)
+			queue.RegisterConfig(v)
 		}
 	}
 
@@ -444,19 +432,18 @@ func (module *DiskQueue) Start() error {
 				}
 			}()
 
-			for _, v := range cfgs {
-				last := GetLastS3UploadFileNum(v.Id)
-				log.Trace("last upload:", v.Id, ",", last)
+			for _, v := range module.cfgs {
+				last := GetLastS3UploadFileNum(v.ID)
+				log.Trace("last upload:", v.ID, ",", last)
 				offsetStr := queue.LatestOffset(v)
-				segment, _ := queue.ConvertOffset(offsetStr)
-				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.Id, offsetStr, segment, last)
-				if segment > last {
-					for x := last; x < segment; x++ {
+				log.Tracef("check offset %v/%v/%v,%v, last upload:%v", v.Name, v.ID, offsetStr, offsetStr.Segment, last)
+				if offsetStr.Segment > last {
+					for x := last; x < offsetStr.Segment; x++ {
 						if x >= 0 {
 							if global.Env().IsDebug {
-								log.Tracef("try to upload %v/%v", v.Id, x)
+								log.Tracef("try to upload %v/%v", v.ID, x)
 							}
-							module.uploadToS3(v.Id, x)
+							module.uploadToS3(v.ID, x)
 						}
 					}
 				}
@@ -523,7 +510,7 @@ func (module *DiskQueue) Start() error {
 
 func (module *DiskQueue) Stop() error {
 
-	if module.cfg == nil {
+	if module.cfg != nil && module.cfg == nil {
 		return nil
 	}
 
@@ -542,7 +529,74 @@ func (module *DiskQueue) Stop() error {
 		}
 		return true
 	})
+	return nil
+}
 
-	common.PersistQueueMetadata()
+const consumerOffsetBucket = "queue_consumer_commit_offset"
+
+func getCommitKey(k *queue.QueueConfig, consumer *queue.ConsumerConfig) string {
+	return fmt.Sprintf("%v-%v", k.ID, consumer.ID)
+}
+
+func (module *DiskQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
+
+	bytes, err := kv.GetValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
+	if err != nil {
+		log.Error(err)
+	}
+
+	if bytes != nil && len(bytes) > 0 {
+		str := string(bytes)
+		off := queue.NewOffsetFromStr(str)
+		return off, nil
+	}
+
+	return queue.NewOffset(0, 0), nil
+}
+
+func (module *DiskQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
+	return kv.DeleteKey(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
+}
+
+func (module *DiskQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
+
+	if global.Env().IsDebug {
+		log.Tracef("queue [%v] [%v][%v] commit offset:%v", k.ID, consumer.Group, consumer.Name, offset)
+	}
+
+	err := kv.AddValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(offset.String()))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (module *DiskQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerAPI, error) {
+
+	if cfg == nil || cfg.ID == "" {
+		panic("queue config is nil")
+	}
+
+	q, ok := module.queues.Load(cfg.ID)
+	if !ok {
+		//try init
+		err := module.Init(cfg.ID)
+		if err != nil {
+			panic(err)
+		}
+		q, ok = module.queues.Load(cfg.ID)
+	}
+
+	if !ok {
+		return nil, errors.Errorf("queue:%v not found", cfg.ID)
+	}
+
+	producer := &Producer{q: q.(*DiskBasedQueue), cfg: cfg, diskQueueConfig:module.cfg}
+	return producer, nil
+}
+
+
+func (this *DiskQueue)  ReleaseProducer(k *queue.QueueConfig,producer queue.ProducerAPI) error{
 	return nil
 }
