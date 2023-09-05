@@ -542,7 +542,8 @@ func (env *Env) findWorkingDir() (string, string) {
 			//check if pid is alive
 			b, err := ioutil.ReadFile(lockFile)
 			if err != nil {
-				panic(err)
+				err := util.FileDelete(lockFile)
+				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
 			}
 			pid, err := util.ToInt(string(b))
 			if err != nil {
