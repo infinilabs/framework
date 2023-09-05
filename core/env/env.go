@@ -547,10 +547,12 @@ func (env *Env) findWorkingDir() (string, string) {
 			}
 			pid, err := util.ToInt(string(b))
 			if err != nil {
-				panic(err)
+				err := util.FileDelete(lockFile)
+				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
 			}
 			if pid <= 0 {
-				panic(errors.New("invalid pid"))
+				err := util.FileDelete(lockFile)
+				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
 			}
 
 			procExists := util.CheckProcessExists(pid)
