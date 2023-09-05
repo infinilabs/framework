@@ -228,6 +228,7 @@ config: init update-vfs update-generated-file update-plugins
 	@# $(GO) env
 	@mkdir -p $(OUTPUT_DIR)
 	@cp $(APP_CONFIG) $(OUTPUT_DIR)/$(APP_CONFIG)
+	(cd ../framework/  && make update-plugins) || true # build plugins in framework
 
 
 dist: cross-build package
