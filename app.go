@@ -8,11 +8,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/task"
+	"infini.sh/framework/core/wrapper/taskset"
 	"os"
 	"os/signal"
 	"runtime"
-	"github.com/shirou/gopsutil/v3/process"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -28,13 +29,13 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/keystore"
 	_ "infini.sh/framework/core/log"
-	_ "infini.sh/framework/modules/queue"
 	"infini.sh/framework/core/logger"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
+	_ "infini.sh/framework/modules/queue"
 	"infini.sh/license"
 )
 
@@ -65,7 +66,7 @@ type App struct {
 
 const (
 	env_SILENT_GREETINGS = "SILENT_GREETINGS"
-	env_SERVICE_NAME = "SERVICE_NAME"
+	env_SERVICE_NAME     = "SERVICE_NAME"
 )
 
 func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *App {
@@ -95,37 +96,39 @@ func (app *App) Init(customFunc func()) {
 
 	license.Verify()
 
-	//detect memory usage
-	maxMemInBytes:=uint64(app.environment.SystemConfig.MaxMemoryInBytes)
-	if app.maxMEM>0{
-		maxMemInBytes=uint64(app.maxMEM*1024*1024)
-	}
+	if app.environment.SystemConfig.ResourceLimit!=nil{
+		//detect memory usage
+		maxMemInBytes := uint64(app.environment.SystemConfig.ResourceLimit.Mem.MaxMemoryInBytes)
+		if app.maxMEM > 0 {
+			maxMemInBytes = uint64(app.maxMEM * 1024 * 1024)
+		}
 
-	if maxMemInBytes>0{
-		checkPid := os.Getpid()
-		p, _ := process.NewProcess(int32(checkPid))
-		debug.SetMemoryLimit(int64(maxMemInBytes))
+		if maxMemInBytes > 0 {
+			checkPid := os.Getpid()
+			p, _ := process.NewProcess(int32(checkPid))
+			debug.SetMemoryLimit(int64(maxMemInBytes))
 
-		var memoryInfoStat *process.MemoryInfoStat
-		var err error
-		//register memory OOM detector
-		task1 := task.ScheduleTask{
-			ID:          util.GetUUID(),
-			Interval:    "10s",
-			Description: "detect highly memory usage",
-			Task: func(ctx context.Context) {
-				memoryInfoStat, err = p.MemoryInfo()
-				if err!=nil{
-					log.Error(err)
-					return
-				}
-				if memoryInfoStat !=nil{
-					if memoryInfoStat.RSS>maxMemInBytes{
-						log.Warnf("reached max memory limit! used: %v, limit:%v",util.ByteSize(memoryInfoStat.RSS),util.ByteSize(maxMemInBytes))
+			var memoryInfoStat *process.MemoryInfoStat
+			var err error
+			//register memory OOM detector
+			task1 := task.ScheduleTask{
+				ID:          util.GetUUID(),
+				Interval:    "10s",
+				Description: "detect highly memory usage",
+				Task: func(ctx context.Context) {
+					memoryInfoStat, err = p.MemoryInfo()
+					if err != nil {
+						log.Error(err)
+						return
 					}
-				}
-			}}
-		task.RegisterScheduleTask(task1)
+					if memoryInfoStat != nil {
+						if memoryInfoStat.RSS > maxMemInBytes {
+							log.Warnf("reached max memory limit! used: %v, limit:%v", util.ByteSize(memoryInfoStat.RSS), util.ByteSize(maxMemInBytes))
+						}
+					}
+				}}
+			task.RegisterScheduleTask(task1)
+		}
 	}
 
 }
@@ -151,7 +154,7 @@ func (app *App) initWithFlags() {
 
 	flag.Parse()
 
-	app.environment.ISServiceMode=app.svcFlag!=""
+	app.environment.ISServiceMode = app.svcFlag != ""
 	if *showversion {
 		fmt.Println(app.environment.GetAppName(), app.environment.GetVersion(), app.environment.GetBuildNumber(), app.environment.GetBuildDate(), app.environment.GetEOLDate(), app.environment.GetLastCommitHash())
 		os.Exit(1)
@@ -235,17 +238,28 @@ func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bo
 		return true
 	}
 
+	if app.environment.SystemConfig.ResourceLimit != nil {
+		if app.environment.SystemConfig.ResourceLimit.CPU.MaxNumOfCPUs > 0 {
+			app.numCPU = app.environment.SystemConfig.ResourceLimit.CPU.MaxNumOfCPUs
+		}
+	}
+
 	if app.numCPU <= 0 {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	} else {
 		runtime.GOMAXPROCS(app.numCPU)
 	}
 
+	//limit cpu
+	if app.environment.SystemConfig.ResourceLimit!=nil&&app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList!="" {
+		taskset.SetCPUAffinityList(os.Getpid(),app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList)
+	}
+
 	if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
 		fmt.Println(app.environment.GetWelcomeMessage())
 	}
 
-	log.Infof("initializing %s", app.environment.GetAppName())
+	log.Infof("initializing %s, pid: %v", app.environment.GetAppName(),os.Getpid())
 	log.Infof("using config: %s", app.environment.GetConfigFile())
 
 	//daemon
@@ -433,7 +447,7 @@ func (p *App) run() error {
 
 	stats.RegisterStats("goroutine", pipeline.GetPoolStats)
 
-	global.Register("APP_STATE",&p.state)
+	global.Register("APP_STATE", &p.state)
 
 	//background job
 	go func() {
@@ -482,12 +496,11 @@ func (app *App) Run() {
 		panic(err)
 	}
 
-
-	serviceName:=app.environment.GetAppLowercaseName()
+	serviceName := app.environment.GetAppLowercaseName()
 	if v, ok := os.LookupEnv(env_SERVICE_NAME); ok {
-		serviceName=util.TrimSpaces(v)
-		if global.Env().IsDebug{
-			log.Debug("customized service name: ",serviceName)
+		serviceName = util.TrimSpaces(v)
+		if global.Env().IsDebug {
+			log.Debug("customized service name: ", serviceName)
 		}
 	}
 
