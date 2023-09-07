@@ -16,12 +16,13 @@ type DiskStatus struct {
 }
 
 // disk usage of path/disk
-func DiskUsage(path string) (disk DiskStatus) {
+func DiskPartitionUsage(path string) (disk DiskStatus) {
 	stat, err := disk2.Usage(path)
 	if err != nil {
-		log.Errorf("status.DiskUsage, err: %v", err)
+		log.Errorf("status.DiskPartitionUsage, err: %v", err)
 		return
 	}
+
 	disk.All = stat.Total
 	disk.Free = stat.Free
 	disk.Available = stat.Free
