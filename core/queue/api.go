@@ -436,6 +436,10 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 					if ok {
 						if util.ToString(z) == util.ToString(y) {
 							matched = true
+						}else{
+							//skip when it does not match label's value
+							matched = false
+							return true
 						}
 					}
 				}
@@ -446,6 +450,15 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 		}
 		return true
 	})
+
+	names:=[]string{}
+	for _, cfg := range cfgs {
+		names=append(names,cfg.Name)
+	}
+
+	if global.Env().IsDebug{
+		log.Debug("get config by labels, filter: %v, queues: %v",labels,names)
+	}
 
 	return cfgs
 }
