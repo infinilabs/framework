@@ -53,6 +53,10 @@ func New(cfg *config.Config) (*Metric, error) {
 
 func (m *Metric) Collect() error {
 
+	if !m.Enabled{
+		return nil
+	}
+
 	var err error
 	for _, v := range m.Metrics {
 		switch MetricType(strings.ToLower(v)) {
@@ -64,6 +68,9 @@ func (m *Metric) Collect() error {
 		case typeIOQS:
 			err = m.collectIO()
 			if err != nil {
+				if util.ContainStr(err.Error(), "not implemented yet") {
+					m.Enabled = false
+				}
 				log.Error(err)
 			}
 		}

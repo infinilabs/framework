@@ -53,10 +53,16 @@ func New(cfg *config.Config) (*Metric, error) {
 }
 
 func (m *Metric) Collect() error {
+	if !m.Enabled{
+		return nil
+	}
 
 	cpuTotal, err := cpu.Times(false)
 	if err != nil {
-		log.Errorf("error %v", err)
+		log.Errorf("%v", err)
+		if util.ContainStr(err.Error(), "not implemented") {
+			m.Enabled = false
+		}
 		return nil
 	}
 	if len(cpuTotal) == 0 {
