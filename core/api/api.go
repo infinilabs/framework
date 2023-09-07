@@ -142,6 +142,13 @@ func StartAPI() {
 		listenAddress = apiConfig.NetworkConfig.GetBindingAddr()
 	}
 
+	if util.ContainStr(listenAddress, "0.0.0.0") {
+		ips := util.GetLocalIPs()
+		if len(ips) > 0 {
+			log.Infof("local ips: %v", util.JoinArray(ips, ", "))
+		}
+	}
+
 	l, err := net.Listen("tcp", listenAddress)
 
 	if err != nil {
@@ -302,12 +309,6 @@ func StartAPI() {
 		panic(errors.Wrap(err, fmt.Sprintf("failed to listen on: %v", listenAddress)))
 	}
 
-	if util.ContainStr(listenAddress, "0.0.0.0") {
-		ips := util.GetLocalIPs()
-		if len(ips) > 0 {
-			log.Infof("local ips: %v", util.JoinArray(ips, ", "))
-		}
-	}
 	log.Info("api listen at: ", schema, listenAddress)
 
 }
