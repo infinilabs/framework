@@ -920,15 +920,15 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 	count := mainBuf.GetMessageCount()
 	size := mainBuf.GetMessageSize()
 
-	if global.Env().IsDebug {
-		log.Infof("submit bulk request, count: %v, size:%v", count, size)
-	}
-
 	if count > 0 && size == 0 || count == 0 && size > 0 {
 		panic(errors.Errorf("invalid bulk message, count: %v, size:%v, msg: %v", mainBuf.GetMessageCount(), mainBuf.GetMessageSize(), string(mainBuf.GetMessageBytes())))
 	}
 
 	if count > 0 && size > 0 {
+
+		if global.Env().IsDebug {
+			log.Infof("submit bulk request, count: %v, size:%v", count, size)
+		}
 
 		log.Trace(meta.Config.Name, ", starting submit bulk request")
 		start := time.Now()
@@ -946,7 +946,7 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		}
 
 		if global.Env().IsDebug {
-			log.Info(tag, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+			log.Debug(tag, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
 		} else {
 			if processor.config.VerboseBulkResult {
 				log.Info("queue:", qConfig.Name, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
