@@ -6,6 +6,7 @@ package badger
 
 import (
 	"errors"
+	"infini.sh/framework/core/stats"
 	"path"
 	"sync"
 
@@ -96,11 +97,13 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 	if err != nil {
 		panic(err)
 	}
+	stats.Increment("badger",bucket+"::init")
 	buckets.Store(bucket, h)
 	return h
 }
 
 func (filter *Module) Close() error {
+
 	if filter.cfg.SingleBucketMode {
 		filter.bucket.Close()
 	}
@@ -119,6 +122,8 @@ func (filter *Module) Close() error {
 }
 
 func (filter *Module) Exists(bucket string, key []byte) bool {
+
+	stats.Increment("badger",bucket+"::exists")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
@@ -142,6 +147,8 @@ func (filter *Module) Add(bucket string, key []byte) error {
 }
 
 func (filter *Module) Delete(bucket string, key []byte) error {
+
+	stats.Increment("badger",bucket+"::delete")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
@@ -172,6 +179,8 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 	if filter.closed {
 		return nil, errors.New("module closed")
 	}
+
+	stats.Increment("badger",bucket+"::get")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
@@ -204,6 +213,9 @@ func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, err
 	if len(d) == 0 {
 		return nil, nil
 	}
+
+	stats.Increment("badger",bucket+"::get_compress")
+
 	data, err := lz4.Decode(nil, d)
 	if err != nil {
 		log.Error("Failed to decode:", err)
@@ -218,6 +230,9 @@ func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) 
 		log.Error("Failed to encode:", err)
 		return err
 	}
+
+	stats.Increment("badger",bucket+"::add_compress")
+
 	return filter.AddValue(bucket, key, value)
 }
 
@@ -229,6 +244,12 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 	if filter.closed {
 		return errors.New("module closed")
 	}
+
+	//if global.Env().IsDebug{
+	//	log.Debug("add key:",bucket,",", string(key), " value length:", len(value))
+	//}
+
+	stats.Increment("badger",bucket+"::add")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
