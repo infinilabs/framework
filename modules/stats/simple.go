@@ -5,6 +5,7 @@
 package stats
 
 import (
+	"infini.sh/framework/lib/status"
 	"net/http"
 	"os"
 	"path"
@@ -31,21 +32,23 @@ func (module SimpleStatsModule) Name() string {
 }
 
 type SimpleStatsConfig struct {
-	Enabled           bool `config:"enabled"`
-	Persist           bool `config:"persist"`
-	NoBuffer          bool `config:"no_buffer"`
-	BufferSize        int  `config:"buffer_size"`
-	FlushIntervalInMs int  `config:"flush_interval_ms"`
+	Enabled                  bool `config:"enabled"`
+	Persist                  bool `config:"persist"`
+	NoBuffer                 bool `config:"no_buffer"`
+	IncludeStorageStatsInAPI bool `config:"include_storage_stats_in_api"`
+	BufferSize               int  `config:"buffer_size"`
+	FlushIntervalInMs        int  `config:"flush_interval_ms"`
 }
 
 func (module *SimpleStatsModule) Setup() {
 
 	module.config = &SimpleStatsConfig{
-		Enabled:           true,
-		Persist:           true,
-		NoBuffer:          true,
-		BufferSize:        1000,
-		FlushIntervalInMs: 1000,
+		Enabled:                  true,
+		Persist:                  true,
+		NoBuffer:                 true,
+		BufferSize:               1000,
+		IncludeStorageStatsInAPI: true,
+		FlushIntervalInMs:        1000,
 	}
 	env.ParseConfig("stats", module.config)
 
@@ -60,6 +63,7 @@ func (module *SimpleStatsModule) Setup() {
 
 	module.data = &Stats{
 		raw: module.config.NoBuffer,
+		cfg: module.config,
 	}
 	module.initStats("simple")
 
@@ -181,6 +185,7 @@ type Stats struct {
 	closed bool
 	raw    bool
 	q      *queue.EsQueue
+	cfg    *SimpleStatsConfig
 }
 
 func (s *Stats) initData(category, key string) {
@@ -305,7 +310,7 @@ func (s *Stats) StatsAll() string {
 
 	runtime.ReadMemStats(&m)
 
-	result["system"] = map[string]int64{
+	systemStats := map[string]int64{
 		"uptime_in_ms": time.Since(env.GetStartTime()).Milliseconds(),
 		"cpu":          int64(cpuPercent),
 		"user_in_ms":   int64(times.User * 1000),
@@ -318,6 +323,15 @@ func (s *Stats) StatsAll() string {
 		"gc":           int64(m.NumGC),
 		"cgo_calls":    int64(runtime.NumCgoCall()),
 	}
+
+	if s!=nil&&s.cfg.IncludeStorageStatsInAPI {
+		diskStats := status.DiskPartitionUsage(global.Env().GetDataDir())
+		result["disk"] = diskStats
+		storage, _ := status.DirSize(global.Env().GetDataDir())
+		systemStats["store"]=int64(storage) //maybe too heavy to call frequently
+	}
+
+	result["system"] = systemStats
 
 	return util.ToJson(result, false)
 }
