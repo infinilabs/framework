@@ -1,7 +1,9 @@
 package pipeline
 
 import (
+	"context"
 	"infini.sh/framework/core/locker"
+	"infini.sh/framework/core/task"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -163,8 +165,8 @@ func (module *PipeModule) Start() error {
 
 	//listen on changes
 	config.NotifyOnConfigChange(func() {
-		if module.closed.Load() {
-			log.Error("module closed, skip reloading pipelines")
+		if module.closed.Load() || global.ShuttingDown(){
+			log.Warn("module closed, skip reloading pipelines")
 			return
 		}
 
@@ -345,7 +347,7 @@ func (module *PipeModule) stopAndWaitForRelease(taskIDs []string, timeout time.D
 }
 
 const pipelineSingleton = "pipeline_singleton"
-
+var creatingLocker = sync.Mutex{}
 func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
 		return errors.New("module closed")
@@ -355,6 +357,9 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		// pipeline config explicitly disabled
 		return nil
 	}
+
+	creatingLocker.Lock()
+	defer creatingLocker.Unlock()
 
 	v.Transient = transient
 
@@ -366,17 +371,23 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 
 	log.Info("creating pipeline: "+v.Name+", singleton: ", v.Singleton)
 
-	processor, err := pipeline.NewPipeline(v.Processors)
-	if err != nil {
-		return err
-	}
+	return task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 
-	ctx := pipeline.AcquireContext(v)
+		cfgV:=taskCtx.Value("cfg")
+		cfg, ok := cfgV.(pipeline.PipelineConfigV2)
+		if !ok{
+			return errors.New("invalid pipeline config")
+		}
 
-	module.pipelines.Store(v.Name, processor)
-	module.contexts.Store(v.Name, ctx)
+		processor, err := pipeline.NewPipeline(v.Processors)
+		if err != nil {
+			return err
+		}
 
-	go func(cfg pipeline.PipelineConfigV2, p *pipeline.Processors, ctx *pipeline.Context) {
+		ctx := pipeline.AcquireContext(v)
+		module.pipelines.Store(v.Name, processor)
+		module.contexts.Store(v.Name, ctx)
+
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -394,7 +405,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			}
 
 			ctx.SetLoopReleased()
-			p.Release()
+			processor.Release()
 		}()
 
 		if !cfg.AutoStart {
@@ -459,7 +470,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				ctx.Started()
 				ctx.ResetContext()
 
-				err = p.Process(ctx)
+				err = processor.Process(ctx)
 
 				if err != nil {
 					log.Errorf("error on pipeline:%v, %v", cfg.Name, err)
@@ -501,9 +512,10 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		}
 
 		log.Debugf("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
-	}(v, processor, ctx)
 
-	return nil
+
+		return nil
+	} , context.WithValue(context.Background(), "cfg", v))
 }
 
 func isPipelineEnabled(enabled *bool) bool {

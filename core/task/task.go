@@ -16,30 +16,44 @@ import (
 var Tasks = sync.Map{}
 
 type State string
+
 const (
-	Running State = "running"
-	Canceled = "canceled"
+	Pending  State = "PENDING"
+	Running  State = "STARTED"
+	Canceled       = "CANCELED"
+	Finished       = "FINISHED"
 )
 
 //use task.Run instead of goroutine
 var defaultGoRoutingGroup = goroutine.NewGroup(goroutine.Option{Name: "default"})
-func RunWithinGroup(tag string,f func(ctx context.Context) error)  {
+
+func RunWithinGroup(tag string, f func(ctx context.Context) error) {
 	defaultGoRoutingGroup.Go(f)
 }
 
-func MustGetString(ctx context.Context,key string)string  {
-	v:=ctx.Value(key)
-	if v!=nil{
-		x,ok:=v.(string)
-		if ok{
+func MustGetString(ctx context.Context, key string) string {
+	v := ctx.Value(key)
+	if v != nil {
+		x, ok := v.(string)
+		if ok {
 			return x
 		}
 	}
-	panic(errors.Errorf("invalid key: %v",key))
+	panic(errors.Errorf("invalid key: %v", key))
 }
 
-func RunWithContext(tag string,f func(ctx context.Context) error,ctxInput context.Context) error {
-	go func(func2 func(ctx context.Context) error){
+func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) error {
+	task := ScheduleTask{}
+	task.ID = util.GetUUID()
+	task.Description = tag
+	task.Type = Transient
+	task.CreateTime=time.Now()
+	task.State = Pending
+	task.Ctx = ctxInput
+	Tasks.Store(task.ID, &task)
+
+	go func(func2 func(ctx context.Context) error) {
+
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -52,12 +66,20 @@ func RunWithContext(tag string,f func(ctx context.Context) error,ctxInput contex
 					case string:
 						v = r.(string)
 					}
-					log.Error(r,v)
+					log.Error(r, v)
 				}
 			}
+			task.State = Finished
+			t := time.Now()
+			task.EndTime = &t
+			Tasks.Delete(task.ID)
 		}()
-		err:=func2(ctxInput)
-		if err!=nil{
+
+		t:=time.Now()
+		task.StartTime = &t
+		task.State = Running
+		err := func2(ctxInput)
+		if err != nil {
 			log.Error(err)
 		}
 	}(f)
@@ -70,22 +92,26 @@ type ScheduleTask struct {
 	Type        string     `config:"type" json:"type,omitempty"`
 	Interval    string     `config:"interval" json:"interval,omitempty"`
 	Crontab     string     `config:"crontab" json:"crontab,omitempty"`
+	CreateTime   time.Time `config:"create_time" json:"create_time,omitempty"`
 	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
 	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
 
 	Task     func(ctx context.Context) `config:"-" json:"-"`
 	taskItem chrono.ScheduledTask
-	state State
+	State    State           `config:"state" json:"state,omitempty"`
+	Ctx      context.Context `config:"-" json:"-"` //for transient task
 }
 
 const Interval = "interval"
 const Crontab = "crontab"
+const Transient = "transient"
 
 func RegisterScheduleTask(task ScheduleTask) {
 	if task.ID == "" {
 		task.ID = util.GetUUID()
 	}
-
+	task.CreateTime=time.Now()
+	task.State =Pending
 	if task.Type == "" && task.Interval != "" {
 		task.Type = Interval
 	} else if task.Type == "" && task.Crontab != "" {
@@ -102,7 +128,7 @@ func RegisterScheduleTask(task ScheduleTask) {
 
 		t = time.Now()
 		task.EndTime = &t
-
+		task.State = Finished
 	}
 
 	_, ok := Tasks.Load(task.ID)
@@ -136,7 +162,7 @@ func RunTasks() {
 }
 
 func runTask(task *ScheduleTask) {
-	if task.state == Running {
+	if task.State == Running {
 		return
 	}
 	if global.Env().IsDebug {
@@ -149,7 +175,7 @@ func runTask(task *ScheduleTask) {
 		if err != nil {
 			log.Error("failed to scheduled interval task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
-		task.state = Running
+		task.State = Running
 		task.taskItem = task1
 		break
 	case Crontab:
@@ -157,8 +183,11 @@ func runTask(task *ScheduleTask) {
 		if err != nil {
 			log.Error("failed to scheduled crontab task:", task.Type, ",", task.Interval, ",", task.Description)
 		}
-		task.state = Running
+		task.State = Running
 		task.taskItem = task1
+		break
+	case Transient:
+		//no need to schedule
 		break
 	default:
 		log.Error("unknown task type:", task)
@@ -184,9 +213,26 @@ func StopTask(id string) {
 	if ok {
 		item, ok := task.(*ScheduleTask)
 		if ok {
-			if item != nil && item.taskItem != nil {
-				item.taskItem.Cancel()
-				item.state = Canceled
+			if item != nil{
+				switch item.Type {
+				case Interval:
+					if item.taskItem != nil {
+						item.taskItem.Cancel()
+						item.State = Canceled
+					}
+					break
+				case Crontab:
+					if item.taskItem != nil {
+						item.taskItem.Cancel()
+						item.State = Canceled
+					}
+					break
+				case Transient:
+					if item.Ctx != nil {
+						item.Ctx.Done()
+						item.State = Canceled
+					}
+				}
 			}
 		}
 	}
