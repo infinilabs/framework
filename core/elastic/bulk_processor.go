@@ -494,7 +494,7 @@ DO:
 			}
 
 			if retryTimes > 0 || global.Env().IsDebug {
-				log.Infof("#%v, code:%v, contain_err:%v, status:%v, success:%v, failure:%v, invalid:%v, result:%+v",
+				log.Debugf("#%v, code:%v, contain_err:%v, status:%v, success:%v, failure:%v, invalid:%v, result:%+v",
 					retryTimes, resp.StatusCode(), containError, statsCodeStats, successItems.GetMessageCount(), retryableItems.GetMessageCount(), nonRetryableItems.GetMessageCount(), bulkResult)
 			}
 
