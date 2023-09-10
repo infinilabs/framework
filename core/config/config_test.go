@@ -2,11 +2,11 @@ package config
 
 import (
 	"fmt"
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/yaml"
 	"github.com/magiconair/properties/assert"
 	"github.com/spf13/viper"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/lib/go-ucfg/yaml"
 	"os"
 	"testing"
 )
@@ -49,7 +49,7 @@ func TestLoadDefaultCfg(t *testing.T) {
 }
 
 type globalConfig struct {
-	Modules []*Config `config:"modules"`
+	Modules   []*Config `config:"modules"`
 	MapConfig []*Config `config:"config_map_array"`
 }
 
@@ -74,15 +74,21 @@ func TestLoadModules(t *testing.T) {
 		fmt.Println(err)
 	}
 
-	fmt.Println("map_config:",config)
-	for k,v:=range config.MapConfig{
-		fmt.Println("key:",k)
-		fmt.Println("value:",v)
-		if v.HasField("if"){
+	fmt.Println("map_config:", config)
+	for k, v := range config.MapConfig {
+		fmt.Println("key:", k)
+		fmt.Println("value:", v)
+		if v.HasField("if") {
 			fmt.Println("is if filter")
 		}
 	}
 
+	o := util.MapStr{}
+	if err := cfg.Unpack(&o); err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("o:", o)
 
 	crawlerCfg := defaultCrawlerConfig
 
@@ -92,16 +98,11 @@ func TestLoadModules(t *testing.T) {
 	assert.Equal(t, crawlerCfg.Namespace, "hello world")
 	assert.Equal(t, crawlerCfg.LikedCount, 1235)
 
-
-
 	parserConfig := struct {
 		ID string `config:"parser_id" validate:"required"`
 	}{}
 	cf1[1].Unpack(&parserConfig)
 	fmt.Println(parserConfig.ID)
-
-
-
 
 }
 
@@ -229,6 +230,111 @@ func TestMergeViperCfg(t *testing.T) {
 	//fmt.Println(viper.GetStringMapString("a1")["url"])
 	//fmt.Println(viper.GetStringMapString("b1")["filename"])
 }
+
+func TestNestedTemplate1(t *testing.T) {
+	temp := "prefix_$[[CLUSTER_ID]]_end"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["prefix_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	assert.Equal(t, configStr,"prefix_123_end")
+	fmt.Println(configStr)
+}
+
+func TestNestedTemplate2(t *testing.T) {
+	temp := "$[[prefix_$[[CLUSTER_ID]]_password]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["prefix_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t, configStr,"345")
+}
+
+func TestNestedTemplate3(t *testing.T) {
+	temp := "$[[$[[prefix_$[[CLUSTER_ID]]_password]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["prefix_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"$[[345")
+}
+
+func TestNestedTemplate4(t *testing.T) {
+	temp := "$[[$[[prefix_$[[CLUSTER_ID]]_password]]]]"
+	//temp := "$[[345]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["prefix_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"$[[345]]")
+}
+
+func TestNestedTemplate5(t *testing.T) {
+	temp := "$[[$[[prefix_$[[CLUSTER_ID]]_password]]]]]]"
+	//temp := "$[[345]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["prefix_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"$[[345]]]]")
+}
+
+func TestNestedTemplate6(t *testing.T) {
+	temp := "password: $[[keystore.$[[CLUSTER_ID]]_password]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"password: $[[keystore.123_password]]")
+}
+
+func TestNestedTemplate7(t *testing.T) {
+	temp := "      PASSWORD: $[[keystore_$[[CLUSTER_ID]]_password]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["keystore_123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"      PASSWORD: 345")
+}
+
+func TestNestedTemplate8(t *testing.T) {
+	//with nested key
+	temp := "      PASSWORD: $[[abc.$[[CLUSTER_ID]]_password]]"
+	runKv := map[string]interface{}{}
+	runKv["CLUSTER_ID"] = "123"
+	runKv["abc.123_password"] = "345"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"      PASSWORD: 345")
+}
+
+func TestNestedTemplate9(t *testing.T) {
+	//with more than one keys
+	temp := "      PASSWORD: $[[abc.$[[CLUSTER_ID]]_password]]\n  USERNAME: $[[abc.$[[USER]]_username]]"
+	runKv := map[string]interface{}{}
+	runKv["USER"] = "efg"
+	runKv["CLUSTER_ID"] = "123"
+	runKv["abc.123_password"] = "345"
+	runKv["abc.efg_username"] = "889"
+
+	configStr := NestedRenderingTemplate(temp, runKv)
+	fmt.Println(configStr)
+	assert.Equal(t,  configStr,"      PASSWORD: 345\n  USERNAME: 889")
+}
+
 
 func TestMergeFieldHandling(t *testing.T) {
 

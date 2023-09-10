@@ -13,10 +13,10 @@ import (
 	"infini.sh/framework/lib/go-ucfg/parse"
 
 	log "github.com/cihub/seelog"
-	"github.com/valyala/fasttemplate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/file"
+	"infini.sh/framework/lib/fasttemplate"
 	"infini.sh/framework/lib/go-ucfg"
 	cfgflag "infini.sh/framework/lib/go-ucfg/flag"
 	"infini.sh/framework/lib/go-ucfg/yaml"
@@ -267,8 +267,53 @@ func internalLoadFile(path string) (*Config, error) {
 	return pCfg, err
 }
 
+
+func NestedRenderingTemplate(temp string, runKv util.MapStr) string {
+	template, err := fasttemplate.NewTemplate(temp, "$[[", "]]")
+	if err != nil {
+		panic(err)
+	}
+
+	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		variable, ok := GetVariable(runKv, tag)
+		if ok {
+			return w.Write([]byte(variable))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+
+	if configStr!=temp&& strings.Contains(configStr, "$[[") && strings.Contains(configStr, "]]") &&strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]") {
+		newConfigStr:= NestedRenderingTemplate(configStr, runKv)
+		if newConfigStr != configStr {
+			configStr = newConfigStr
+		}
+		//fmt.Println("hit nested, and finished")
+	}else{
+		//fmt.Println("not hit nested template:",configStr!=temp,",",runKv,",",strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]"))
+	}
+	return configStr
+}
+
 func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 	if runtimeKV != nil {
+
+		if util.ContainStr(key,"$[[") {
+
+			template, err := fasttemplate.NewTemplate(string(key), "$[[", "]]")
+			if err != nil {
+				//log.Error(key)
+				panic(err)
+			}
+
+			key= template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+				variable, ok := GetVariable(runtimeKV, tag)
+				if ok {
+					return w.Write([]byte(variable))
+				}
+				return w.Write([]byte("$[[" + tag + "]]"))
+			})
+		}
+
 		x, err := runtimeKV.GetValue(key)
 		if err == nil {
 			str, ok := x.(string)
@@ -300,19 +345,9 @@ func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
 		return nil, err
 	}
 
-	template, err := fasttemplate.NewTemplate(string(tempBytes), "$[[", "]]")
-	if err != nil {
-		return nil, err
-	}
+	configStr:=NestedRenderingTemplate(string(tempBytes), v.Variable)
 
-	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
-		variable, ok := GetVariable(v.Variable, tag)
-		if ok {
-			return w.Write([]byte(variable))
-		}
-		// TODO: skip replacement during execute stage
-		return w.Write([]byte("$[[" + tag + "]]"))
-	})
+	//log.Error(configStr)
 
 	log.Trace("rendering templated config:\n", configStr)
 	return NewConfigWithYAML([]byte(configStr), "template")
