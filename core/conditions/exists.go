@@ -19,6 +19,7 @@ package conditions
 
 import (
 	"fmt"
+	"infini.sh/framework/core/util"
 )
 
 // Exists is a Condition for checking field existence.
@@ -32,9 +33,11 @@ func NewExistsCondition(fields []string) (hasFieldsCondition Exists) {
 // Check determines whether the given event matches this condition
 func (c Exists) Check(event ValuesMap) bool {
 	for _, field := range c {
-		_, err := event.GetValue(field)
-		//fmt.Println("has_field,",field,",",v,",",err)
+		v, err := event.GetValue(field)
 		if err != nil {
+			return false
+		}
+		if util.ToString(v) == "" {
 			return false
 		}
 	}
