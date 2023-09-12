@@ -52,8 +52,8 @@ func JoinPath(filenames ...string) string {
 }
 
 func FilesExists(path ...string) bool {
-	for _,v:=range path{
-		if !FileExists(v){
+	for _, v := range path {
+		if !FileExists(v) {
 			return false
 		}
 	}
@@ -190,7 +190,7 @@ func FileGetContent(file string) ([]byte, error) {
 	return b, nil
 }
 
-func FileLinesWalk(filePath string,f func([]byte))error  {
+func FileLinesWalk(filePath string, f func([]byte)) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
@@ -223,7 +223,6 @@ func FileGetLines(filePath string) []string {
 	return text
 }
 
-
 // IsFile returns false when it's a directory or does not exist.
 func IsFile(file string) bool {
 	f, e := os.Stat(file)
@@ -237,6 +236,24 @@ func IsFile(file string) bool {
 func IsExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || os.IsExist(err)
+}
+
+func IsFileWithinFolder(file, path string) bool {
+
+	aPath, err := filepath.Abs(path)
+	if err != nil {
+		panic(err)
+	}
+	aFile, err := filepath.Abs(file)
+	if err != nil {
+		panic(err)
+	}
+
+	if strings.HasPrefix(aFile, aPath) {
+		return true
+	} else {
+		return false
+	}
 }
 
 //CreateFile create file
@@ -292,26 +309,26 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 		return filename
 	} else {
 		if !ignoreMissing {
-			panic(errors.New("file not found:"+ filePath))
+			panic(errors.New("file not found:" + filePath))
 		}
 		return filePath
 	}
 }
 
-func ListAllFiles(path string) ([]string,error)  {
-	output:=[]string{}
-	err:= filepath.Walk(path, func(file string, info os.FileInfo, err error) error {
-		if info.IsDir(){
-			if file!=path{
-				files,err:=ListAllFiles(file)
+func ListAllFiles(path string) ([]string, error) {
+	output := []string{}
+	err := filepath.Walk(path, func(file string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			if file != path {
+				files, err := ListAllFiles(file)
 				if err != nil {
 					panic(err)
 				}
-				for _,v:=range files{
-					output=append(output,v)
+				for _, v := range files {
+					output = append(output, v)
 				}
 			}
-		}else{
+		} else {
 			output = append(output, file)
 		}
 		return nil

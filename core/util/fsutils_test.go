@@ -40,3 +40,18 @@ func TestJoinPath2(t *testing.T) {
 	fmt.Println(str)
 	assert.Equal(t, "wwww.baidu.com/blog/comments/1.html", str)
 }
+
+func TestIsFileWithinFolder(t *testing.T) {
+	file := "xxx.exe"
+	folder := "/blog/"
+	assert.Equal(t, true, IsFileWithinFolder(path.Join(folder,file), folder))
+
+	file = "/danger/xxx.exe"
+	folder = "/blog/"
+	assert.Equal(t, true, IsFileWithinFolder(path.Join(folder,file), folder))
+
+	file = "../../../danger/xxx.exe"
+	folder = "/blog/"
+	assert.Equal(t, true, IsFileWithinFolder(path.Join(folder,file), folder))
+
+}
