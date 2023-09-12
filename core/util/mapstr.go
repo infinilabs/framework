@@ -230,6 +230,14 @@ func toMapStr(v interface{}) (MapStr, error) {
 // The key is expressed in dot-notation (eg. x.y.z). When the key is found then
 // the given mapStrOperation is invoked.
 func walkMap(key string, data MapStr, op mapStrOperation) (interface{}, error) {
+
+	//try check map directly first
+	if v, ok := data[key]; ok {
+		if ok{
+			return v,nil
+		}
+	}
+
 	var err error
 	keyParts := strings.Split(key, ".")
 
