@@ -201,10 +201,10 @@ func nodeAvailabilityCheck() {
 	task2 := task.ScheduleTask{
 		Description: "check for elasticsearch node availability",
 		Type:        "interval",
-		Interval:    "10s",
+		Interval:    moduleConfig.NodeAvailabilityCheckConfig.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkHosts(func(key, value interface{}) bool {
-				if global.ShuttingDown(){
+				if global.ShuttingDown() {
 					return true
 				}
 
@@ -274,7 +274,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
 				log.Trace("walk metadata: ", key)
-				if global.ShuttingDown(){
+				if global.ShuttingDown() {
 					return true
 				}
 
@@ -311,7 +311,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 
 					task.RunWithContext("refresh_cluster_state", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
-						module.updateClusterState(clusterID,false)
+						module.updateClusterState(clusterID, false)
 						module.stateMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
@@ -352,6 +352,8 @@ func InitSchema() {
 	if err != nil {
 		panic(err)
 	}
+
+
 	schemaInited = true
 }
 
@@ -393,38 +395,39 @@ func (module *ElasticModule) Start() error {
 		}
 	}
 
-	//init elasticsearch
-	elastic.WalkConfigs(func(key, value interface{}) bool {
-		if global.ShuttingDown(){
-			return true
-		}
-
-		log.Trace("init cluster: ", key)
-
-		cfg1, ok := value.(*elastic.ElasticsearchConfig)
-		if ok && cfg1 != nil {
-			log.Tracef("init elasticsearch config: %v", cfg1.Name)
-			metadata := elastic.GetMetadata(cfg1.ID)
-			if metadata != nil {
-				//update nodes
-				module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
-
-				//update alias
-				updateAliases(metadata,true)
-
-				//update
-				module.updateClusterState(cfg1.ID,true)
+	if !moduleConfig.SkipInitMetadataOnStart {
+		//init elasticsearch
+		elastic.WalkConfigs(func(key, value interface{}) bool {
+			if global.ShuttingDown() {
+				return true
 			}
 
-			task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
-				id := task.MustGetString(ctx, "id")
-				module.clusterHealthCheck(id, true)
-				return nil
-			}, context.WithValue(context.Background(), "id", cfg1.ID))
-		}
-		return true
-	})
+			log.Trace("init cluster: ", key)
 
+			cfg1, ok := value.(*elastic.ElasticsearchConfig)
+			if ok && cfg1 != nil {
+				log.Tracef("init elasticsearch config: %v", cfg1.Name)
+				metadata := elastic.GetMetadata(cfg1.ID)
+				if metadata != nil {
+					//update nodes
+					module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
+
+					//update alias
+					updateAliases(metadata, true)
+
+					//update
+					module.updateClusterState(cfg1.ID, true)
+				}
+
+				task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
+					id := task.MustGetString(ctx, "id")
+					module.clusterHealthCheck(id, true)
+					return nil
+				}, context.WithValue(context.Background(), "id", cfg1.ID))
+			}
+			return true
+		})
+	}
 	if moduleConfig.HealthCheckConfig.Enabled {
 		module.healthMap = sync.Map{}
 		t := task.ScheduleTask{
@@ -433,7 +436,7 @@ func (module *ElasticModule) Start() error {
 			Interval:    moduleConfig.HealthCheckConfig.Interval,
 			Task: func(ctx context.Context) {
 				elastic.WalkConfigs(func(key, value interface{}) bool {
-					if global.ShuttingDown(){
+					if global.ShuttingDown() {
 						return true
 					}
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
@@ -595,7 +598,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 		Interval:    moduleConfig.ClusterSettingsCheckConfig.Interval,
 		Task: func(ctx context.Context) {
 			elastic.WalkConfigs(func(key, value interface{}) bool {
-				if global.ShuttingDown(){
+				if global.ShuttingDown() {
 					return true
 				}
 
@@ -643,7 +646,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 
 func (module *ElasticModule) refreshAllClusterMetadata() {
 	elastic.WalkMetadata(func(key, value interface{}) bool {
-		if global.ShuttingDown(){
+		if global.ShuttingDown() {
 			return true
 		}
 
@@ -666,7 +669,7 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 		}
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
-			updateAliases(v,force)
+			updateAliases(v, force)
 		}
 		return true
 	})
