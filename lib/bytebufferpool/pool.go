@@ -59,11 +59,11 @@ func (p *ObjectPool) Get() interface{} {
 	var x interface{}
 	select {
 	case x = <-p.pool: // Try to get one from the pool
-		atomic.AddUint32(&p.acquire, 1)
 	default: // All in use, create a new, temporary:
 		x = p.New()
 		atomic.AddUint32(&p.allocate, 1)
 	}
+	atomic.AddUint32(&p.acquire, 1)
 	return x
 }
 
