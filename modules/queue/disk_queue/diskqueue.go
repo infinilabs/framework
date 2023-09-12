@@ -231,7 +231,25 @@ func (d *DiskBasedQueue) Delete() error {
 
 func (d *DiskBasedQueue) exit(deleted bool) error {
 	d.Lock()
-	defer d.Unlock()
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error on exit disk_queue,", v)
+			}
+		}
+		defer d.Unlock()
+	}()
+
 
 	d.exitFlag = 1
 
