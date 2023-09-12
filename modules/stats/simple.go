@@ -79,7 +79,7 @@ func (module *SimpleStatsModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/debug/goroutines", module.GoroutinesAction)
 
 	//if global.Env().IsDebug{
-	api.HandleAPIMethod(api.GET, "/pool/bytes", module.BufferItemStatsAction)
+	api.HandleAPIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction)
 	//}
 }
 
