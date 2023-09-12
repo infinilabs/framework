@@ -159,6 +159,26 @@ func (c *ElasticsearchConfig) ParseMajorVersion() int {
 	return -1
 }
 
+func (c *ElasticsearchConfig) GetAnyEndpoint() string {
+	if c.Endpoint!=""{
+		return c.Endpoint
+	}
+	if c.Endpoints != nil && len(c.Endpoints) > 0 {
+		return c.Endpoints[0]
+	}
+
+	if c.Host!=""{
+		return fmt.Sprintf("%s://%s", c.Schema, c.Host)
+	}
+
+	if c.Hosts != nil && len(c.Hosts) > 0 {
+		return fmt.Sprintf("%s://%s", c.Schema, c.Hosts[0])
+	}
+
+	panic(fmt.Errorf("no endpoint was not found in config [%v] ", c.ID))
+}
+
+
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
 	versionLock.RLock()

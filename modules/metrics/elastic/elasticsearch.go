@@ -209,7 +209,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 		if canDoMonitor(k, "cluster_health", monitorConfigs.ClusterHealth.Interval, v.Config.Name) {
 			t1 := time.Now()
 			setLastMonitorTime(k, "cluster_health", collectStartTime)
-			log.Debugf("collect cluster health: %s, endpoint: %s\n", k, v.Config.Endpoint)
+			log.Debugf("collect cluster health: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
 			err = m.CollectClusterHealth(k, v)
 			log.Trace("time of CollectClusterHealth:", time.Since(t1).String())
 			if err != nil {
@@ -224,7 +224,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 		if canDoMonitor(k, "cluster_stats", monitorConfigs.ClusterStats.Interval, v.Config.Name) {
 			t1 := time.Now()
 			setLastMonitorTime(k, "cluster_stats", collectStartTime)
-			log.Debugf("collect cluster state: %s, endpoint: %s\n", k, v.Config.Endpoint)
+			log.Debugf("collect cluster state: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
 			err = m.CollectClusterState(k, v)
 			log.Trace("time of CollectClusterState:", time.Since(t1).String())
 			if err != nil {
@@ -243,7 +243,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 	if ((m.NodeStats && monitorConfigs.NodeStats.Enabled) || (m.IndexStats && monitorConfigs.IndexStats.Enabled)) && v.IsAvailable() {
 		t1 := time.Now()
 		if m.IsAgentMode {
-			shards, err = client.CatShardsSpecEndpoint(v.Config.Endpoint)
+			shards, err = client.CatShardsSpecEndpoint(v.Config.GetAnyEndpoint())
 		} else {
 			shards, err = client.CatShards()
 		}
@@ -498,7 +498,7 @@ func (m *Metric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata
 	var health *elastic.ClusterHealth
 	var err error
 	if m.IsAgentMode {
-		health, err = client.ClusterHealthSpecEndpoint(v.Config.Endpoint)
+		health, err = client.ClusterHealthSpecEndpoint(v.Config.GetAnyEndpoint())
 	} else {
 		health, err = client.ClusterHealth()
 	}
@@ -535,7 +535,7 @@ func (m *Metric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata)
 	var stats *elastic.ClusterStats
 	var err error
 	if m.IsAgentMode {
-		stats, err = client.GetClusterStatsSpecEndpoint("", v.Config.Endpoint)
+		stats, err = client.GetClusterStatsSpecEndpoint("", v.Config.GetAnyEndpoint())
 	} else {
 		stats, err = client.GetClusterStats("")
 	}
