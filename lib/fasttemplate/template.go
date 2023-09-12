@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	log "src/github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 
 	"infini.sh/framework/lib/bytebufferpool"
 )
