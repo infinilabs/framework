@@ -138,17 +138,19 @@ func RegisterBackgroundCallback(task *BackgroundTask) {
 func FuncWithTimeout(ctx context.Context, f func()) error {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer func() {
-		if r := recover(); r != nil {
-			var v string
-			switch r.(type) {
-			case error:
-				v = r.(error).Error()
-			case runtime.Error:
-				v = r.(runtime.Error).Error()
-			case string:
-				v = r.(string)
+		if !Env().IsDebug{
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error: ", v)
 			}
-			log.Error("error: ", v)
 		}
 		cancel()
 	}()
