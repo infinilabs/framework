@@ -96,7 +96,7 @@ func (app *App) Init(customFunc func()) {
 
 	license.Verify()
 
-	if app.environment.SystemConfig.ResourceLimit!=nil{
+	if app.environment.SystemConfig.ResourceLimit != nil {
 		//detect memory usage
 		maxMemInBytes := uint64(app.environment.SystemConfig.ResourceLimit.Mem.MaxMemoryInBytes)
 		if app.maxMEM > 0 {
@@ -251,15 +251,15 @@ func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bo
 	}
 
 	//limit cpu
-	if app.environment.SystemConfig.ResourceLimit!=nil&&app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList!="" {
-		taskset.SetCPUAffinityList(os.Getpid(),app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList)
+	if app.environment.SystemConfig.ResourceLimit != nil && app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList != "" {
+		taskset.SetCPUAffinityList(os.Getpid(), app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList)
 	}
 
 	if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
 		fmt.Println(app.environment.GetWelcomeMessage())
 	}
 
-	log.Infof("initializing %s, pid: %v", app.environment.GetAppName(),os.Getpid())
+	log.Infof("initializing %s, pid: %v", app.environment.GetAppName(), os.Getpid())
 	log.Infof("using config: %s", app.environment.GetConfigFile())
 
 	//daemon
@@ -450,7 +450,7 @@ func (p *App) run() error {
 	global.Register("APP_STATE", &p.state)
 
 	//background job
-	go func() {
+	task.RunWithContext("background_jobs", func(ctx context.Context) error {
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -468,7 +468,8 @@ func (p *App) run() error {
 			}
 		}()
 		global.RunBackgroundCallbacks(&p.state)
-	}()
+		return nil
+	}, context.Background())
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
