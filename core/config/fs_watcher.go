@@ -111,6 +111,15 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 				if !ok {
 					continue
 				}
+
+				if ev.Op==fsnotify.Chmod{
+					continue
+				}
+
+				if ev.Op==fsnotify.Rename{
+					continue
+				}
+
 				log.Trace("2 seconds wait, on:", ev.String())
 				time.Sleep(2 * time.Second)
 				log.Trace("2 seconds out, on:", ev.String())
@@ -124,7 +133,7 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 				// NotifyOnConfigChange
 
 				for _, v := range configCallbacks {
-					v()
+					v(ev)
 				}
 
 				// NotifyOnConfigSectionChange
@@ -227,7 +236,7 @@ func StopWatchers() {
 }
 
 var sectionCallbacks = map[string][]func(pCfg, cCfg *Config){}
-var configCallbacks = []func(){}
+var configCallbacks = []func(fsnotify.Event){}
 var cfgLocker = sync.RWMutex{}
 
 // NotifyOnConfigSectionChange will trigger callback when any configuration file change detected and
@@ -246,7 +255,7 @@ func NotifyOnConfigSectionChange(configKey string, f func(pCfg, cCfg *Config)) {
 }
 
 // NotifyOnConfigChange will trigger callback when any configuration file change detected
-func NotifyOnConfigChange(f func()) {
+func NotifyOnConfigChange(f func(fsnotify.Event)) {
 	cfgLocker.Lock()
 	defer cfgLocker.Unlock()
 
