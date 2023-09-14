@@ -5,6 +5,7 @@ import (
 	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/task"
 	"runtime"
+	"github.com/fsnotify/fsnotify"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -164,13 +165,13 @@ func (module *PipeModule) Start() error {
 	}
 
 	//listen on changes
-	config.NotifyOnConfigChange(func() {
+	config.NotifyOnConfigChange(func(ev fsnotify.Event) {
 		if module.closed.Load() || global.ShuttingDown(){
 			log.Warn("module closed, skip reloading pipelines")
 			return
 		}
 
-		log.Info("config changed, checking for new pipeline configs")
+		log.Infof("config changed, checking for new pipeline configs, %v, %v",ev.Op,ev.Name)
 
 		configFile := global.Env().GetConfigFile()
 		configDir := global.Env().GetConfigDir()
