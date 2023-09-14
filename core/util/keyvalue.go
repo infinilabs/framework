@@ -13,16 +13,26 @@ type KeyValue struct {
 	Value int
 }
 
-func SortMapStrIntToKV(data map[string]int)[]KeyValue  {
+func SortMapStrIntToKV(data map[string]int) []KeyValue {
 	var keyValuePairs []KeyValue
 
 	for k, v := range data {
 		keyValuePairs = append(keyValuePairs, KeyValue{k, v})
 	}
 
-	sort.Slice(keyValuePairs, func(i, j int) bool {
-		return keyValuePairs[i].Value > keyValuePairs[j].Value
-	})
+	keyValuePairs = SortKeyValueArray(keyValuePairs,false)
 
+	return keyValuePairs
+}
+
+//sort by value desc by default
+func SortKeyValueArray(keyValuePairs []KeyValue,revers bool) []KeyValue {
+	sort.Slice(keyValuePairs, func(i, j int) bool {
+		if revers{
+			return keyValuePairs[i].Value < keyValuePairs[j].Value
+		}else{
+			return keyValuePairs[i].Value > keyValuePairs[j].Value
+		}
+	})
 	return keyValuePairs
 }
