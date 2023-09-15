@@ -44,9 +44,9 @@ type Env struct {
 	// static configs
 	SystemConfig *config.SystemConfig
 
-	IsDebug      bool
-	IsDaemonMode bool
-	ISServiceMode   bool
+	IsDebug       bool
+	IsDaemonMode  bool
+	ISServiceMode bool
 
 	LoggingLevel string
 
@@ -56,12 +56,12 @@ type Env struct {
 	workingLogDir  string
 	pluginDir      string
 
-	allowSetup bool
+	allowSetup    bool
 	setupRequired bool
 }
 
 func (env *Env) CheckSetup() error {
-	if !env.allowSetup{
+	if !env.allowSetup {
 		return nil
 	}
 
@@ -75,8 +75,8 @@ func (env *Env) CheckSetup() error {
 }
 
 func (env *Env) EnableSetup(b bool) {
-	env.allowSetup=b
-	if b{
+	env.allowSetup = b
+	if b {
 		env.CheckSetup()
 	}
 }
@@ -199,7 +199,7 @@ var (
 				SkipOccupiedPort: true,
 			},
 			WebsocketConfig: config.WebsocketConfig{
-				Enabled: true,
+				Enabled:        true,
 				SkipHostVerify: true,
 			},
 		},
@@ -233,6 +233,13 @@ var (
 
 		AllowMultiInstance: false,
 		MaxNumOfInstance:   5,
+		Configs: config.ConfigsConfig{
+			Interval:   "30s",
+			AutoReload: true,
+			SoftDelete: true,
+			MaxBackupFiles:  10,
+			ValidConfigsExtensions: []string{".tpl", ".json", ".yml", ".yaml"},
+		},
 	}
 )
 
@@ -339,7 +346,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		if env.SystemConfig.Configs.AutoReload {
 			absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
 			if util.FileExists(absConfigPath) {
-				if !env.ISServiceMode{
+				if !env.ISServiceMode {
 					log.Info("watching config: ", absConfigPath)
 				}
 				config.EnableWatcher(env.SystemConfig.PathConfig.Config)
@@ -349,6 +356,11 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 			config.EnableWatcher(filename)
 
 		}
+
+		if len(env.SystemConfig.Configs.ValidConfigsExtensions)>0{
+			config.SetValidExtension(env.SystemConfig.Configs.ValidConfigsExtensions)
+		}
+
 	}
 
 	obj := map[string]interface{}{}
@@ -520,13 +532,13 @@ func (env *Env) findWorkingDir() (string, string) {
 		panic(err)
 	}
 
-	if env.IsDebug{
+	if env.IsDebug {
 		log.Trace("finding files in working dir:", files)
 	}
 
 	var instance = 0
 	for _, f := range files {
-		if env.IsDebug{
+		if env.IsDebug {
 			log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
 		}
 		if f.IsDir() {
@@ -543,16 +555,16 @@ func (env *Env) findWorkingDir() (string, string) {
 			b, err := ioutil.ReadFile(lockFile)
 			if err != nil {
 				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
+				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
 			}
 			pid, err := util.ToInt(string(b))
 			if err != nil {
 				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
+				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
 			}
 			if pid <= 0 {
 				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now",err))
+				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
 			}
 
 			procExists := util.CheckProcessExists(pid)
@@ -636,6 +648,12 @@ tryEnvAgain:
 	//TODO cache env for period time
 }
 
+func GetConfigAsJSON() string {
+	o := util.MapStr{}
+	configObject.Unpack(&o)
+	return util.MustToJSON(o)
+}
+
 func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
 	env.SystemConfig.NodeConfig.ID = nodeID
 
@@ -643,37 +661,36 @@ func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
 	logDir := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
 
 	//try get node name from meta file
-	metaFile:=path.Join(dataDir, ".meta")
+	metaFile := path.Join(dataDir, ".meta")
 	if util.FileExists(metaFile) {
-		data,err:=util.FileGetContent(metaFile)
-		if err!=nil{
+		data, err := util.FileGetContent(metaFile)
+		if err != nil {
 			panic(err)
 		}
-		str:=string(data)
-		arr:=strings.Split(str,",")
-		if len(arr)==2{
-			env.SystemConfig.NodeConfig.Name=arr[1]
+		str := string(data)
+		arr := strings.Split(str, ",")
+		if len(arr) == 2 {
+			env.SystemConfig.NodeConfig.Name = arr[1]
 		}
 	}
 
 	//meta was not exists or just in case meta file was broken
-	if env.SystemConfig.NodeConfig.Name==""{
+	if env.SystemConfig.NodeConfig.Name == "" {
 		env.SystemConfig.NodeConfig.Name = util.PickRandomName()
 	}
-
 
 	if !util.FileExists(metaFile) {
 
 		//persist meta, in case data was not found
 		if !util.FileExists(dataDir) {
-			err:=os.MkdirAll(dataDir,0755)
-			if err!=nil{
+			err := os.MkdirAll(dataDir, 0755)
+			if err != nil {
 				panic(err)
 			}
 		}
 
-		_,err:=util.FilePutContent(metaFile, fmt.Sprintf("%v,%v", env.SystemConfig.NodeConfig.ID, env.SystemConfig.NodeConfig.Name))
-		if err!=nil{
+		_, err := util.FilePutContent(metaFile, fmt.Sprintf("%v,%v", env.SystemConfig.NodeConfig.ID, env.SystemConfig.NodeConfig.Name))
+		if err != nil {
 			panic(err)
 		}
 	}

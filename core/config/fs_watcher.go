@@ -39,6 +39,12 @@ func loadConfigFile(file string) *Config {
 	return nil
 }
 
+var validExtensions = []string{".yml", ".yaml"}
+
+func SetValidExtension(v []string)  {
+	validExtensions=v
+}
+
 func EnableWatcher(path string) {
 	if !util.FileExists(path) {
 		log.Debugf("path: %v not exists, skip watcher", path)
@@ -117,6 +123,10 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 				}
 
 				if ev.Op==fsnotify.Rename{
+					continue
+				}
+
+				if len(validExtensions)>0 && !util.SuffixAnyInArray(ev.Name,validExtensions){
 					continue
 				}
 
