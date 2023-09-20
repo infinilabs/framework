@@ -457,7 +457,7 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 	}
 
 	if global.Env().IsDebug{
-		log.Debug("get config by labels, filter: %v, queues: %v",labels,names)
+		log.Debugf("get config by labels, filter: %v, queues: %v, total queues: %v",labels,names,util.GetSyncMapSize(&configs))
 	}
 
 	return cfgs
