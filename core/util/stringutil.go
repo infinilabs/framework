@@ -137,6 +137,15 @@ func ContainsAnyInArray(s string, v []string) bool {
 	return false
 }
 
+func SuffixAnyInArray(s string, v []string) bool {
+	for _, k := range v {
+		if SuffixStr(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
 func PrefixAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if PrefixStr(s, k) {
