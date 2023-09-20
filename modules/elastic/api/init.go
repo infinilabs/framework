@@ -89,7 +89,6 @@ func InitAPI(cfg common.ModuleConfig) {
 		api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleSaveTraceTemplateAction)
 		api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id/trace_template/:template_id", clusterAPI.HandleDeleteTraceTemplateAction)
 
-		api.HandleAPIMethod(api.DELETE, "/_framework/api/local_state/elasticsearch/:type/:target", clusterAPI.HandleRemoveLocalState)
 		api.HandleAPIMethod(api.POST, "/elasticsearch/activity/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchActivityAction, enum.PermissionActivityRead))
 
 		api.HandleAPIMethod(api.GET, "/host/_discover", clusterAPI.getDiscoverHosts)
