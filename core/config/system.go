@@ -98,6 +98,11 @@ type NodeConfig struct {
 	ID   string `json:"id,omitempty" config:"id"`
 	Name string `json:"name,omitempty" config:"name"`
 	IP   string `json:"ip,omitempty" config:"ip"`
+
+	//tagging for node
+	MajorIpPattern string            `config:"major_ip_pattern"`
+	Labels         map[string]string `config:"labels"`
+	Tags           []string          `config:"tags"`
 }
 
 func (config *NodeConfig) ToString() string {
@@ -136,14 +141,40 @@ type SystemConfig struct {
 
 	ResourceLimit *ResourceLimit `config:"resource_limit"`
 
-	Configs struct {
-		AutoReload bool `config:"auto_reload"`
-	} `config:"configs"`
+	Configs ConfigsConfig `config:"configs"`
 
 	//dynamic config enabled
 	Modules []*Config `config:"modules"`
 
 	Plugins []*Config `config:"plugins"`
+
+	HTTPClientConfig HTTPClientConfig `config:"http_client"`
+}
+
+type HTTPClientConfig struct {
+	HTTPProxy  string    `config:"http_proxy"`
+	HTTPSProxy string    `config:"https_proxy"`
+}
+
+type HTTPClientConfigs struct {
+	Default HTTPClientConfig `config:"default"`
+}
+
+type ConfigsConfig struct {
+	AutoReload             bool     `config:"auto_reload"`      //auto reload local files
+	Managed                bool     `config:"managed"`          //managed by remote config center
+	Servers                []string `config:"servers"`          //remote config center servers
+	ScheduledTask          bool     `config:"scheduled_task"`   //use dedicated schedule task or background, use background task will save one goroutine
+	Interval               string   `config:"interval"`         //sync interval in seconds
+	SoftDelete             bool     `config:"soft_delete"`      //soft delete config
+	MaxBackupFiles         int      `config:"max_backup_files"` //keep max num of file backup
+	ValidConfigsExtensions []string `config:"valid_config_extensions"`
+
+	TLSConfig  TLSConfig `config:"tls"`
+
+	ManagerConfig struct {
+		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
+	} `config:"manager"`
 }
 
 type ResourceLimit struct {
@@ -168,6 +199,10 @@ type APIConfig struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
 	WebsocketConfig WebsocketConfig `config:"websocket"`
+}
+
+func (config *APIConfig) GetEndpoint() string {
+	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
 }
 
 func (config *APIConfig) GetSchema() string {

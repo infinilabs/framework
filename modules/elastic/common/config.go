@@ -43,6 +43,7 @@ type ModuleConfig struct {
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
 	ClusterSettingsCheckConfig  CheckConfig `config:"cluster_settings_check"`
 	ClientTimeout               string      `config:"client_timeout"`
+	SkipInitMetadataOnStart     bool		`config:"skip_init_metadata_on_start"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {

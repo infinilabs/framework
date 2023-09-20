@@ -14,16 +14,17 @@ import (
 )
 
 func init(){
-	h := SettingHandler{}
 	HandleAPIFunc("/setting/logger", h.LoggingSettingAction)
 }
 
-type SettingHandler struct {
+var h = DefaultHandler{}
+
+type DefaultHandler struct {
 	Handler
 }
 
 // LoggingSettingAction is the ajax request to update logging config
-func (h SettingHandler) LoggingSettingAction(w http.ResponseWriter, req *http.Request) {
+func (h DefaultHandler) LoggingSettingAction(w http.ResponseWriter, req *http.Request) {
 	if req.Method == GET.String() {
 
 		cfg := logger.GetLoggingConfig()

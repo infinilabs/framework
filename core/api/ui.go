@@ -25,6 +25,7 @@ import (
 	"infini.sh/framework/core/api/gzip"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	_ "infini.sh/framework/core/log"
 	"infini.sh/framework/core/util"
@@ -42,6 +43,18 @@ var uiRouter *httprouter.Router
 var uiServeMux *http.ServeMux
 var uiMutex sync.Mutex
 var uiConfig *UIConfig
+
+
+type UIConfig struct {
+	Enabled         bool                   `config:"enabled"`
+	AuthConfig      config.AuthConfig      `config:"auth"`
+	TLSConfig       config.TLSConfig       `config:"tls"`
+	NetworkConfig   config.NetworkConfig   `config:"network"`
+	BasePath        string                 `config:"base_path"`
+	EmbeddingAPI    bool                   `config:"embedding_api"`
+	Gzip            config.GzipConfig      `config:"gzip"`
+	WebsocketConfig config.WebsocketConfig `config:"websocket"`
+}
 
 func GetUIConfig() UIConfig {
 	return *uiConfig
