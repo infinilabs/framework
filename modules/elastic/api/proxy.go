@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"io"
 	"net/http"
 	"net/url"
-	"github.com/buger/jsonparser"
 	"strings"
 	"time"
 
@@ -106,9 +106,6 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 	freq.SetRequestURI(endpoint)
 	method = strings.ToUpper(method)
-	if method == http.MethodGet && req.ContentLength > 0 {
-		method = http.MethodPost
-	}
 	freq.Header.SetMethod(method)
 	freq.Header.SetUserAgent(req.Header.Get("user-agent"))
 	freq.Header.SetReferer(endpoint)
