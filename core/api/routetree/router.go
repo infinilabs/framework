@@ -44,9 +44,10 @@ func (r *Router) Search(method string, path string) (handler HandlerFunc, params
 	matchNode, handler, paramValues = r.root.search(method, path)
 	params = map[string]string{}
 	if matchNode != nil {
-		if len(paramValues) > 0 && len(paramValues) == len(matchNode.leafWildcardNames){
+		length := len(paramValues)
+		if length > 0 && length == len(matchNode.leafWildcardNames){
 			for i, paramName := range matchNode.leafWildcardNames {
-				params[paramName] = paramValues[i]
+				params[paramName] = paramValues[length-i-1]
 			}
 		}
 		matched = true

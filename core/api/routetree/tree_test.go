@@ -6,22 +6,27 @@ package routetree
 
 import (
 	"encoding/json"
-	"fmt"
 	"infini.sh/framework/core/util"
-	"path"
 	"strings"
 	"testing"
 )
 
 func TestTree(t *testing.T) {
-	//tree := &node{path: "/"}
-	//addPath(tree, "get", "/_cat/indices", "cat.indices")
-	//addPath(tree, "get", "/_cluster/health", "cluster.health")
-	//addPath(tree, "get", "/:index_name/_flush", "indices.flush")
-	//addPath(tree, "post", "/_snapshot/:repo_name/_verify", "snapshot.verify_repository")
-	//addPath(tree, "post", "/_snapshot/:repo_name/:snapshot_name", "snapshot.create")
-	router := load()
-	path := "/_cat/indices"
+	router := New()
+	router.Handle("get", "/_cat/indices", "cat.indices")
+	router.Handle("get", "/_cluster/health", "cluster.health")
+	router.Handle("get", "/:index_name/_flush", "indices.flush")
+	router.Handle("post", "/_snapshot/:repo_name/_verify", "snapshot.verify_repository")
+	router.Handle("post", "/_snapshot/:repo_name/:snapshot_name", "snapshot.create")
+	router.Handle("put", "/:index_name/:doctype/:doc_id", "doc.update")
+	router.Handle("get", "/:index_name/_source/:doc_id", "doc.get")
+	router.Handle("get", "/:index_name/:doctype/:doc_id", "doc.get")
+	testRouter(t, router)
+}
+
+func testRouter(t *testing.T, router *Router){
+	// /:index_name/:doctype/:doc_id
+	path := "/test-update/_doc/1"
 	path = path[1:]
 	pathLen := len(path)
 	trailingSlash := path[pathLen-1] == '/' && pathLen > 1
@@ -29,20 +34,33 @@ func TestTree(t *testing.T) {
 	if trailingSlash && redirectTrailingSlash {
 		path = path[:pathLen-1]
 	}
-	//rnode, permission, params := tree.search("get", path)
-	//if rnode !=nil {
-	//	fmt.Println(rnode.leafWildcardNames)
-	//}
-	//fmt.Println(permission, params)
-	handler, _, _ := router.Search("get", path)
-	fmt.Println(handler)
+	permission, params, matched := router.Search("put", path)
+	if !matched {
+		t.Errorf("got matched equals %v, expect true", matched)
+		return
+	}
+	if permission != "doc.update" {
+		t.Errorf("got permission equals %v, expect doc.update", permission)
+		return
+	}
+	if params == nil {
+		t.Errorf("got empty params")
+		return
+	}
+	if params["index_name"] != "test-update" {
+		t.Errorf("got param index_name equals %v, expect test-update", params["index_name"])
+	}
+	if params["doctype"] != "_doc" {
+		t.Errorf("got param doctype equals %v, expect _doc", params["doctype"])
+	}
+	if params["doc_id"] != "1" {
+		t.Errorf("got param doc_id equals %v, expect 1", params["doc_id"])
+	}
 }
 
-func addPath(tree *node, method, path string, permission string){
-
-	n := tree.addPath(path[1:], nil, false)
-
-	n.setPermission(method, permission, false)
+func TestTreeFromFile(t *testing.T) {
+	router := load()
+	testRouter(t, router)
 }
 
 type ElasticsearchAPIMetadata struct {
@@ -52,7 +70,7 @@ type ElasticsearchAPIMetadata struct {
 }
 type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
 func load() *Router{
-	bytes, _ := util.FileGetContent(path.Join("/Users/liugq/go/src/infini.sh/console", "/config/permission.json"))
+	bytes, _ := util.FileGetContent("/Users/liugq/go/src/infini.sh/console/config/permission.json")
 
 	apis := map[string]ElasticsearchAPIMetadataList{}
 	json.Unmarshal(bytes, &apis)
