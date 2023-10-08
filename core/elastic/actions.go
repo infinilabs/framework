@@ -241,16 +241,19 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 	}
 
 	hosts := meta.GetSeedHosts()
-	for _, v := range hosts {
-		if IsHostAvailable(v){
-			//add to cache
-			info,ok:= GetHostAvailableInfo(v)
-			if ok&&info!=nil{
-				if info.IsAvailable(){
-					meta.activeHost=info
+
+	if hosts!=nil&&len(hosts)>0{
+		for _, v := range hosts {
+			if IsHostAvailable(v){
+				//add to cache
+				info,ok:= GetHostAvailableInfo(v)
+				if ok&&info!=nil{
+					if info.IsAvailable(){
+						meta.activeHost=info
+					}
 				}
+				return v
 			}
-			return v
 		}
 	}
 
@@ -270,6 +273,10 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 				}
 			}
 		}
+	}
+
+	if len(hosts) == 0 {
+		panic(errors.New("hosts is empty"))
 	}
 
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
