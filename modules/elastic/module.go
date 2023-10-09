@@ -7,6 +7,7 @@ package elastic
 import (
 	"context"
 	"fmt"
+	"infini.sh/framework/core/model"
 	"math"
 	"runtime"
 	"sync"
@@ -147,7 +148,7 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 								log.Error(err)
 								continue
 							}
-							if basicAuth, ok := obj.(elastic.BasicAuth); ok {
+							if basicAuth, ok := obj.(model.BasicAuth); ok {
 								configs[i].BasicAuth = &basicAuth
 							}
 

@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"infini.sh/framework/core/model"
 	"strings"
 
 	log "github.com/cihub/seelog"
@@ -197,7 +198,7 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	return client, err
 }
 
-func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth elastic.BasicAuth, err error) {
+func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth model.BasicAuth, err error) {
 	if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
 		basicAuth = *esConfig.BasicAuth
 		return
@@ -214,7 +215,7 @@ func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth elastic.Basi
 		if err != nil {
 			return
 		}
-		if auth, ok := dv.(elastic.BasicAuth); ok {
+		if auth, ok := dv.(model.BasicAuth); ok {
 			basicAuth = auth
 		}
 	}
