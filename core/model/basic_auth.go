@@ -6,5 +6,5 @@ package model
 
 type BasicAuth struct {
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
+	Password string `json:"-" config:"password" elastic_mapping:"password:{type:keyword}"` //password should not be logged, neither in json nor in log
 }
