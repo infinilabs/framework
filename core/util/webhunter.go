@@ -124,17 +124,18 @@ func getUrl(url string) (string, error) {
 type Request struct {
 	Agent       string
 	Method      string
+	Path        string
 	Url         string
 	Cookie      string
 	Proxy       string
 	Body        []byte
 	headers     map[string]string
 	ContentType string
-	Compress 	bool
+	Compress    bool
 
 	basicAuthUsername string
 	basicAuthPassword string
-	Context context.Context
+	Context           context.Context
 }
 
 func NewRequest(method, url string) *Request {
@@ -165,8 +166,6 @@ func NewPutRequest(url string, body []byte) *Request {
 	}
 	return &req
 }
-
-
 
 // NewGetRequest issue a simple http get request
 func NewGetRequest(url string, body []byte) *Request {
@@ -243,20 +242,24 @@ const ContentTypeForm = "application/x-www-form-urlencoded;charset=UTF-8"
 
 // ExecuteRequest issue a request
 func ExecuteRequest(req *Request) (result *Result, err error) {
-	return ExecuteRequestWithCatchFlag(req,true)
+	return ExecuteRequestWithCatchFlag(defaultClient, req, true)
 }
 
-func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, err error) {
+func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError bool) (result *Result, err error) {
 
-	if !catchError{
-		defer func()(result *Result, err error) {
-			result=&Result{}
-			if err := recover();err != nil {
+	if !catchError {
+		defer func() (result *Result, err error) {
+			result = &Result{}
+			if err := recover(); err != nil {
 				log.Errorf("error in request: %s\n", err)
-				return result,errors.Errorf("error in request: %s\n", err)
+				return result, errors.Errorf("error in request: %s\n", err)
 			}
 			return nil, err
 		}()
+	}
+
+	if client == nil {
+		client = defaultClient
 	}
 
 	//log.Trace("let's: " + req.Method + ", " + req.Url)
@@ -284,15 +287,12 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 		request.Header.Set("User-Agent", userAgent)
 	}
 
-
-
 	//request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	//request.Header.Set("Accept-Charset", "GBK,utf-8;q=0.7,*;q=0.3")
 
-	if req.Compress{
+	if req.Compress {
 		request.Header.Set("Accept-Encoding", "gzip,deflate")
 	}
-
 
 	if req.ContentType != "" {
 		request.Header.Set("Content-Type", req.ContentType)
@@ -362,11 +362,11 @@ func ExecuteRequestWithCatchFlag(req *Request,catchError bool) (result *Result, 
 	}
 
 	//handle ipv6
-	if strings.Contains(request.Host,"::"){
+	if strings.Contains(request.Host, "::") {
 		//TODO https://zandercodes.dev/post/how-create-ipv6-request-golang
 	}
 
-	return execute(request)
+	return execute(client, request)
 }
 
 // HttpGetWithCookie issue http request with cookie
@@ -422,13 +422,13 @@ var t = &http.Transport{
 	TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 }
 
-var client = &http.Client{
+var defaultClient = &http.Client{
 	Transport:     t,
 	Timeout:       timeout,
 	CheckRedirect: nil,
 }
 
-func execute(req *http.Request) (*Result, error) {
+func execute(client *http.Client, req *http.Request) (*Result, error) {
 	result := &Result{}
 	resp, err := client.Do(req)
 
@@ -485,7 +485,7 @@ func execute(req *http.Request) (*Result, error) {
 		io.Copy(ioutil.Discard, reader)
 		reader.Close()
 		if err != nil {
-			return result,nil
+			return result, nil
 			//panic(err)
 		}
 
