@@ -36,7 +36,7 @@ func LoggerReceiver(message string, level log.LogLevel, context log.LogContextIn
 }
 
 func (module *UIModule) Name() string {
-	return "Web"
+	return "web"
 }
 
 func (module *UIModule) Setup() {
