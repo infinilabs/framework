@@ -54,9 +54,14 @@ type Config struct {
 	SkipEmptyQueue bool `config:"skip_empty_queue"`
 	QuitOnEOFQueue bool `config:"quit_on_eof_queue"`
 
+	QuitNeedTag     bool   `config:"quit_need_tag"`      //need tag to quit, or wait for timeout
+	QuitNeedTagName string `config:"quit_need_tag_name"` //need tag to quit, or wait for timeout
+
+	QueueField             string   `config:"queue_name_field"`
 	MessageField           string   `config:"message_field"`
 	WaitingAfter           []string `config:"waiting_after"`
 	RetryDelayIntervalInMs int      `config:"retry_delay_interval"`
+	AutoCommitOffset       bool     `config:"auto_commit_offset"`
 }
 
 const name = "consumer"
@@ -73,8 +78,9 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		IdleTimeoutInSecond:     5,
 		DetectIntervalInMs:      5000,
 		QuitDetectAfterIdleInMs: 30000,
+		QueueField:              "queue_name",
 		MessageField:            "messages",
-
+		AutoCommitOffset:        true,
 		Selector: queue.QueueSelector{
 			Labels: map[string]interface{}{},
 		},
@@ -91,7 +97,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		DetectActiveQueue:      true,
-		SkipEmptyQueue:         true,
+		SkipEmptyQueue:         false,
 		QuitOnEOFQueue:         true,
 		RetryDelayIntervalInMs: 5000,
 	}
@@ -224,7 +230,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 
 					cfgs := queue.GetConfigBySelector(&processor.config.Selector)
 
-					log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
+					//log.Errorf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
 
 					for _, v := range cfgs {
 						if c.IsCanceled() {
@@ -286,13 +292,6 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 	ok, _ := locker.Hold(queueConsumerHandleSingleton, qConfig.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
 	if !ok {
 		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", qConfig.ID)
-		return nil
-	}
-
-	if processor.config.SkipEmptyQueue && !queue.HasLag(qConfig) {
-		if global.Env().IsDebug {
-			log.Tracef("skip empty queue:[%v]", qConfig.Name)
-		}
 		return nil
 	}
 
@@ -382,6 +381,8 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 		log.Debugf("new slice_worker: %v, %v, %v, %v", key, workerID, sliceID, qConfig.ID)
 	}
 
+	//defer log.Errorf("exit slice_worker: %v, %v, %v, %v", key, workerID, sliceID, qConfig.ID)
+
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -427,6 +428,14 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 		consumerConfig.FetchMaxBytes = processor.config.Consumer.FetchMaxBytes
 	}
 
+	//skip empty queue
+	if processor.config.SkipEmptyQueue && !queue.ConsumerHasLag(qConfig, consumerConfig) {
+		if global.Env().IsDebug {
+			log.Tracef("skip empty queue:[%v]", qConfig.Name)
+		}
+		return
+	}
+
 	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
 	defer xxHashPool.Put(xxHash)
 
@@ -462,14 +471,17 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 			}
 		}
 
-		//cleanup buffer before exit worker
-		if !offset.Equals(initOffset) {
-			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
-			if !ok || err != nil {
-				panic(err)
+		if processor.config.AutoCommitOffset {
+			//cleanup buffer before exit worker
+			if !offset.Equals(initOffset) {
+				ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
+				if !ok || err != nil {
+					panic(err)
+				}
+				initOffset = offset
 			}
-			initOffset = offset
 		}
+
 	}()
 
 	processor.inFlightQueueConfigs.Store(key, workerID)
@@ -506,6 +518,8 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 
 READ_DOCS:
 
+	//log.Error("read docs: ",qConfig.Name)
+
 	//TODO
 	//consumerInstance.ResetOffset(queue.ConvertOffset(offset))
 	EOF := false
@@ -538,7 +552,7 @@ READ_DOCS:
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 
 		if global.Env().IsDebug {
-			log.Tracef("slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			log.Infof("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		if err != nil {
@@ -547,40 +561,61 @@ READ_DOCS:
 					goto HANDLE_MESSAGE
 				}
 
-				log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
+				//log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
 				goto CLEAN_BUFFER
 				return
 			}
-			log.Errorf("slice_worker, error on queue:[%v], slice_id:%v, %v", qConfig.Name, sliceID, err)
+			//log.Errorf("slice_worker, error on queue:[%v], slice_id:%v, %v", qConfig.Name, sliceID, err)
 			log.Flush()
 			panic(err)
 		}
 
 	HANDLE_MESSAGE:
+		//log.Error("handle message: ",qConfig.Name,",",len(messages))
 		//update temp offset, not committed, continued reading
 		if ctx1 == nil {
 			goto CLEAN_BUFFER
 		}
 
 		if len(messages) > 0 {
-			_, err := ctx.PutValue(processor.config.MessageField, messages)
+			newCtx := pipeline.Context{}
+			newCtx.ParentContext = ctx
+			newCtx.Context = ctx.Context
+			newCtx.Data = ctx.CloneData()
+
+			_, err := newCtx.PutValue(processor.config.QueueField, qConfig.Name)
 			if err != nil {
 				panic(err)
 			}
-			err = processor.processors.Process(ctx)
+
+			_, err = newCtx.PutValue("QUEUE_CONFIG", qConfig)
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = newCtx.PutValue("CONSUMER_CONFIG", consumerConfig)
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = newCtx.PutValue(processor.config.MessageField, messages)
+			if err != nil {
+				panic(err)
+			}
+
+			//log.Error("start processing message:",len(messages),",",qConfig.Name)
+			err = processor.processors.Process(&newCtx)
+			//log.Error("end processing message:",len(messages),",",qConfig.Name,",",err)
 			if err != nil {
 				panic(err)
 			}
 			offset = ctx1.NextOffset //TODO
+			messages = nil
 		} else {
 			EOF = true
 		}
 
-		if global.Env().IsDebug{
-			log.Debug(time.Since(lastCommit) > idleDuration || len(messages) == 0, time.Since(lastCommit) > idleDuration)
-		}
-
-		if time.Since(lastCommit) > idleDuration || len(messages) == 0 {
+		if time.Since(lastCommit) > idleDuration || EOF {
 			if global.Env().IsDebug {
 				log.Trace("slice_worker, hit idle timeout or empty message ", idleDuration.String())
 			}
@@ -590,9 +625,11 @@ READ_DOCS:
 
 CLEAN_BUFFER:
 
+	//log.Error("clean buffer: ",qConfig.Name)
+
 	lastCommit = time.Now()
 
-	if global.Env().IsDebug{
+	if global.Env().IsDebug {
 		log.Info("commit offset: ", offset, ",", qConfig.Name)
 	}
 
@@ -603,12 +640,14 @@ CLEAN_BUFFER:
 		}
 	}
 
-	if !offset.Equals(initOffset) {
-		ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
-		if !ok || err != nil {
-			panic(err)
+	if processor.config.AutoCommitOffset {
+		if !offset.Equals(initOffset) {
+			ok, err := queue.CommitOffset(qConfig, consumerConfig, offset)
+			if !ok || err != nil {
+				panic(err)
+			}
+			initOffset = offset
 		}
-		initOffset = offset
 	}
 
 	if global.ShuttingDown() {
@@ -616,7 +655,15 @@ CLEAN_BUFFER:
 	}
 
 	if processor.config.QuitOnEOFQueue && EOF {
+
+		if processor.config.QuitNeedTag && processor.config.QuitNeedTagName != "" && !ctx.HasTag(processor.config.QuitNeedTagName) {
+			time.Sleep(1 * time.Second)
+			log.Debug("EOF without quit tag, sleep 1s: ", qConfig.Name)
+			goto READ_DOCS
+		}
+
 		ctx.CancelTask()
+		log.Debug("EOF, cancel task: ", qConfig.Name)
 		return
 	}
 
