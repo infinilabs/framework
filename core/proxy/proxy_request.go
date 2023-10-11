@@ -8,18 +8,18 @@ import (
 	"bytes"
 	"crypto/tls"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/agent"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/lib/fasthttp"
 	"io"
 	"time"
 )
 
 type Request struct {
-	Endpoint string
-	Path string
-	Method string
-	BasicAuth agent.BasicAuth
-	Body interface{}
+	Endpoint      string
+	Path          string
+	Method        string
+	BasicAuth     *model.BasicAuth
+	Body          interface{}
 	ContentLength int
 }
 
@@ -46,7 +46,7 @@ func DoProxyRequest(req *Request) (*Response, error){
 	}()
 	freq.SetRequestURI(req.Endpoint+ req.Path)
 	freq.Header.SetMethod(req.Method)
-	if req.BasicAuth.Username != ""{
+	if req.BasicAuth != nil{
 		freq.SetBasicAuth(req.BasicAuth.Username, req.BasicAuth.Password)
 	}
 	if req.Body != nil {
