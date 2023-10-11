@@ -546,7 +546,12 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 	}
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	resBody["metrics"] = h.getNodeMetrics(id, bucketSize, min, max, nodeName, top)
+	resBody["metrics"], err = h.getNodeMetrics(id, bucketSize, min, max, nodeName, top)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
 	if ver.Distribution == "" {
 		cr, err := util.VersionCompare(ver.Number, "6.1")

@@ -6,20 +6,25 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/adapter"
 	"infini.sh/framework/modules/elastic/common"
 	"sort"
 	"strings"
 	"time"
 )
 
-func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
+func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) (map[string]*common.MetricItem, error){
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
+				"metadata.labels.cluster_uuid":util.MapStr{
+					"value": clusterUUID,
 				},
 			},
 		},
@@ -40,7 +45,6 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 	}
 	var (
 		nodeNames []string
-		err error
 	)
 	if nodeName != "" {
 		nodeNames = strings.Split(nodeName, ",")
@@ -1000,7 +1004,7 @@ func (h *APIHandler) getNodeMetrics(clusterID string, bucketSize int, min, max i
 			},
 		},
 	}
-	return h.getMetrics(query, nodeMetricItems, bucketSize)
+	return h.getMetrics(query, nodeMetricItems, bucketSize), nil
 
 }
 
