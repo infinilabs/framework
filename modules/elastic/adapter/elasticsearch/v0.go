@@ -122,6 +122,11 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 		req = util.NewRequest(util.Verb_HEAD, url)
 		break
 	}
+
+	if req==nil{
+		panic(errors.Errorf("invalid request [%v] %v",method,url))
+	}
+
 	req.Context = ctx
 
 	req.SetContentType(util.ContentTypeJson)
@@ -147,8 +152,9 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 				count++
 				log.Errorf("error in request, sleep 1s and retry [%v]: %s\n", count, err)
 				time.Sleep(1 * time.Second)
-				resp, err = util.ExecuteRequestWithCatchFlag(req, true)
-				if err != nil {
+				var err1 error
+				resp, err1 = util.ExecuteRequest(req)
+				if err1 != nil {
 					log.Errorf("retry still have error in request, sleep 10s and retry [%v]: %s\n", count, err)
 					goto RETRY
 				}
