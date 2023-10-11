@@ -190,7 +190,6 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 		}()
 
 		//handle events merge
-		cache := util.NewCacheWithExpireOnAdd(1*time.Second, 5)
 		for {
 			select {
 			case ev := <-fsWatcher.Events:
@@ -199,15 +198,6 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 						log.Trace("skip temp file:", ev.String())
 						continue
 					}
-
-					//merge changes in 1 seconds
-					v := cache.Put(ev.Name, ev.Op)
-					if v != nil {
-						//old key exists
-						log.Trace("1 seconds within, skip:", ev.String())
-						continue
-					}
-
 					log.Trace("config changed:", ev.String())
 					events <- ev
 				}
