@@ -7,11 +7,11 @@ package api
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/agent"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/host"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
@@ -1071,7 +1071,7 @@ func discoverHost() (map[string]interface{}, error) {
 
 	queryDsl = util.MapStr{
 		"size": 1000,
-		"_source": []string{"id", "ips", "remote_ip", "major_ip", "host"},
+		"_source": []string{"id", "ip", "remote_ip", "major_ip", "host"},
 		//"query": util.MapStr{
 		//	"term": util.MapStr{
 		//		"enrolled": util.MapStr{
@@ -1081,23 +1081,23 @@ func discoverHost() (map[string]interface{}, error) {
 		//},
 	}
 	q = &orm.Query{RawQuery: util.MustToJSONBytes(queryDsl)}
-	err, result = orm.Search(agent.Instance{}, q)
+	err, result = orm.Search(model.Instance{}, q)
 	if err != nil {
 		return nil, fmt.Errorf("search agent error: %w", err)
 	}
 
 	hostsFromAgent := map[string]interface{}{}
 	for _, row := range result.Result {
-		ag := agent.Instance{}
+		ag := model.Instance{}
 		bytes := util.MustToJSONBytes(row)
 		err = util.FromJSONBytes(bytes, &ag)
 		if err != nil {
 			log.Errorf("got unexpected agent: %s, error: %v", string(bytes), err)
 			continue
 		}
-		var ip = ag.MajorIP
+		var ip = ag.Network.MajorIP
 		if ip = strings.TrimSpace(ip); ip == "" {
-			for _, ipr := range ag.IPS {
+			for _, ipr := range ag.Network.IP {
 				if net.ParseIP(ipr).IsPrivate() {
 					ip = ipr
 					break
@@ -1115,7 +1115,7 @@ func discoverHost() (map[string]interface{}, error) {
 			"source":     "agent",
 			"os_name":    ag.Host.OS.Name,
 			"host_name":  ag.Host.Name,
-			"os_arch": ag.Host.OS.Arch,
+			"os_arch": ag.Host.OS.Architecture,
 		}
 	}
 	err = util.MergeFields(hostsFromES, hostsFromAgent, true)
