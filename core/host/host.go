@@ -102,7 +102,6 @@ type SwapMemoryUsageInfo struct {
 	UsedPercent float64 `json:"used_percent" elastic_mapping:"used_percent: { type: keyword }"`
 }
 
-
 func UpdateHostAgentStatus(agentID, agentStatus string) {
 	err, result := orm.GetBy("agent_id", agentID, HostInfo{})
 	if err != nil {
