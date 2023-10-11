@@ -7,6 +7,7 @@ package fasthttp
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
@@ -459,4 +460,66 @@ func (ctx *RequestCtx) Reset() {
 	//reset flags and metadata
 	ctx.reset()
 
+}
+
+
+func (ctx *RequestCtx) Encode(buffer *bytes.Buffer)error{
+
+	buffer.Reset()
+
+	reqData:=ctx.Request.Encode()
+	buffer.Write(getLengthBytes(reqData))
+	buffer.Write(reqData)
+
+	resData:=ctx.Response.Encode()
+	buffer.Write(getLengthBytes(resData))
+	buffer.Write(resData)
+
+	return nil
+}
+
+func (ctx *RequestCtx) Decode(data []byte) error{
+	reader := &bytes.Reader{}
+	reader.Reset(data)
+
+	//decode request
+	readerBodyLengthBytes := make([]byte, 4)
+	_, err := reader.Read(readerBodyLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerBodyLength := binary.LittleEndian.Uint32(readerBodyLengthBytes)
+	if readerBodyLength > 0 {
+		readerBody := make([]byte, readerBodyLength)
+		_, err = reader.Read(readerBody)
+		if err != nil {
+			return err
+		}
+		err:=ctx.Request.Decode(readerBody)
+		if err!=nil{
+			return err
+		}
+	}
+
+	//decode response
+	readerBodyLengthBytes = make([]byte, 4)
+	_, err = reader.Read(readerBodyLengthBytes)
+	if err != nil {
+		return err
+	}
+
+	readerBodyLength = binary.LittleEndian.Uint32(readerBodyLengthBytes)
+	if readerBodyLength > 0 {
+		readerBody := make([]byte, readerBodyLength)
+		_, err = reader.Read(readerBody)
+		if err != nil {
+			return err
+		}
+		err:=ctx.Response.Decode(readerBody)
+		if err!=nil{
+			return err
+		}
+	}
+	return err
 }

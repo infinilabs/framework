@@ -1138,7 +1138,7 @@ func TestClientDoTimeoutDisablePathNormalizing(t *testing.T) {
 
 	s := &Server{
 		Handler: func(ctx *RequestCtx) {
-			uri := ctx.URI()
+			uri := ctx.PhantomURI()
 			uri.DisablePathNormalizing = true
 			ctx.Response.Header.Set("received-uri", string(uri.FullURI()))
 		},
@@ -1488,11 +1488,11 @@ func TestClientFollowRedirects(t *testing.T) {
 		Handler: func(ctx *RequestCtx) {
 			switch string(ctx.Path()) {
 			case "/foo":
-				u := ctx.URI()
+				u := ctx.PhantomURI()
 				u.Update("/xy?z=wer")
 				ctx.Redirect(u.String(), StatusFound)
 			case "/xy":
-				u := ctx.URI()
+				u := ctx.PhantomURI()
 				u.Update("/bar")
 				ctx.Redirect(u.String(), StatusFound)
 			default:
@@ -1964,7 +1964,7 @@ func TestClientRetryRequestWithCustomDecider(t *testing.T) {
 			panic("unreachable")
 		},
 		RetryIf: func(req *Request) bool {
-			return req.URI().String() == "http://foobar/a/b"
+			return req.PhantomURI().String() == "http://foobar/a/b"
 		},
 	}
 
@@ -2527,7 +2527,7 @@ func startEchoServerExt(t *testing.T, network, addr string, isTLS bool) *testEch
 	s := &Server{
 		Handler: func(ctx *RequestCtx) {
 			if ctx.IsGet() {
-				ctx.Success("text/plain", ctx.URI().FullURI())
+				ctx.Success("text/plain", ctx.PhantomURI().FullURI())
 			} else if ctx.IsPost() {
 				ctx.PostArgs().WriteTo(ctx) //nolint:errcheck
 			}
