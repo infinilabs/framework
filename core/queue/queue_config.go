@@ -127,6 +127,9 @@ func IsConfigExists(key string) bool {
 }
 
 func GetOrInitConfig(key string) *QueueConfig {
+	if key == "" {
+		panic(errors.New("queue config key can't be empty"))
+	}
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
