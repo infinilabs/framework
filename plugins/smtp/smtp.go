@@ -170,13 +170,21 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			//validate email
 			vars := o["variables"].(map[string]interface{})
 			var srvCfg *ServerConfig
-			if serverID, ok := o["server_id"].(string); !ok {
-				panic(errors.Errorf("server_id is empty"))
-			}else{
-				srvCfg, ok = processor.config.Servers[serverID]
-				if !ok {
-					panic(errors.Errorf("server_id [%v] not found", serverID))
+			var serverID string
+			var ok bool
+			if serverID, ok = o["server_id"].(string); !ok {
+				v,ok:=processor.config.Variables["server_id"]
+				if v!=nil{
+					serverID,ok=v.(string)
 				}
+				if !ok||serverID==""{
+					panic(errors.Errorf("server_id is empty"))
+				}
+			}
+
+			srvCfg, ok = processor.config.Servers[serverID]
+			if !ok {
+				panic(errors.Errorf("server_id [%v] not found", serverID))
 			}
 
 			sendTo:=[]string{}

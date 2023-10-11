@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/task"
 	"runtime"
@@ -30,7 +31,7 @@ type PipeModule struct {
 	contexts  sync.Map
 }
 
-func (module PipeModule) Name() string {
+func (module *PipeModule) Name() string {
 	return "pipeline"
 }
 
@@ -147,20 +148,49 @@ func (module *PipeModule) releaseContext(taskID string) {
 	}
 }
 
+func getPipelineConfig() ([]pipeline.PipelineConfigV2, error) {
+	configFile := global.Env().GetConfigFile()
+	configDir := global.Env().GetConfigDir()
+	parentCfg, err := config.LoadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config file: %v, path: %s", err, configFile)
+	}
+	childCfg, err := config.LoadPath(configDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config dir: %v, path: %s", err, configDir)
+	}
+	err = parentCfg.Merge(childCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge configs: %v", err)
+	}
+
+	pipelineCfg := []pipeline.PipelineConfigV2{}
+
+	if ok := parentCfg.HasField("pipeline"); ok {
+		parentCfg, err = parentCfg.Child("pipeline", -1)
+		if err != nil {
+			return nil, err
+		}
+		err = parentCfg.Unpack(&pipelineCfg)
+		return pipelineCfg, err
+	}
+	return pipelineCfg, nil
+}
+
 func (module *PipeModule) Start() error {
-	//load pipeline from configs
-	var pipelines []pipeline.PipelineConfigV2
-	ok, err := env.ParseConfig("pipeline", &pipelines)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	var (
+		pipelines []pipeline.PipelineConfigV2
+		err error
+	)
+	pipelines, err = getPipelineConfig()
+	if err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
-	if ok {
-		for _, v := range pipelines {
-			err := module.createPipeline(v, false)
-			if err != nil {
-				log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
-				continue
-			}
+	for _, v := range pipelines {
+		err := module.createPipeline(v, false)
+		if err != nil {
+			log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
+			continue
 		}
 	}
 
@@ -173,36 +203,11 @@ func (module *PipeModule) Start() error {
 
 		log.Infof("config changed, checking for new pipeline configs, %v, %v",ev.Op,ev.Name)
 
-		configFile := global.Env().GetConfigFile()
-		configDir := global.Env().GetConfigDir()
-		parentCfg, err := config.LoadFile(configFile)
-		if err != nil {
-			log.Error("failed to load config file: ", err, ", path: ", configFile)
-			return
-		}
-		childCfg, err := config.LoadPath(configDir)
-		if err != nil {
-			log.Error("failed to load config dir: ", err, ", path: ", configDir)
-			return
-		}
-		err = parentCfg.Merge(childCfg)
-		if err != nil {
-			log.Error("failed to merge configs: ", err)
-		}
-
 		newConfig := []pipeline.PipelineConfigV2{}
-
-		if ok := parentCfg.HasField("pipeline"); ok {
-			parentCfg, err = parentCfg.Child("pipeline", -1)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-			err := parentCfg.Unpack(&newConfig)
-			if err != nil {
-				log.Error(err)
-				return
-			}
+		newConfig, err = getPipelineConfig()
+		if err != nil {
+			log.Error(err)
+			return
 		}
 
 		defer func() {

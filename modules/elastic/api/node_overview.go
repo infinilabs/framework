@@ -14,6 +14,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/adapter"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"time"
@@ -539,12 +540,18 @@ func (h *APIHandler) GetNodeInfo(w http.ResponseWriter, req *http.Request, ps ht
 
 func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	nodeID := ps.MustGetParameter("node_id")
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
+				"metadata.labels.cluster_uuid":util.MapStr{
+					"value": clusterUUID,
 				},
 			},
 		},

@@ -20,6 +20,7 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"net"
+	"github.com/twmb/franz-go/pkg/sasl/scram"
 	"sync"
 	"time"
 )
@@ -42,7 +43,14 @@ type Config struct {
 	Brokers  []string `config:"brokers"`
 	Username string   `config:"username"`
 	Password string   `config:"password"`
+	TLS      bool     `config:"tls"`
+
+	Mechanism string `config:"mechanism"`
 }
+
+//const PLAIN_MECHANISM = "PLAIN"//
+const SCRAM_SHA_256_Mechanism = "SCRAM-SHA-256"
+const SCRAM_SHA_512_Mechanism = "SCRAM-SHA-512"
 
 type KafkaQueue struct {
 	cfg         *Config
@@ -62,17 +70,36 @@ func (this *KafkaQueue) newClient(opt []kgo.Opt) *kgo.Client {
 	}
 
 	if this.cfg.Username != "" {
-		tlsDialer := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 10 * time.Second}}
+		if this.cfg.TLS{
+			tlsDialer := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 10 * time.Second}}
+			opts = append(opts, kgo.Dialer(tlsDialer.DialContext))
+		}
 
 		// SASL Options
-		opts = append(opts,
-			kgo.SASL(plain.Auth{
-				User: this.cfg.Username,
-				Pass: this.cfg.Password,
-			}.AsMechanism()),
-
-			// Configure TLS. Uses SystemCertPool for RootCAs by default.
-			kgo.Dialer(tlsDialer.DialContext))
+		switch this.cfg.Mechanism {
+		case SCRAM_SHA_256_Mechanism:
+			opts = append(opts,
+				kgo.SASL(scram.Auth{
+					User: this.cfg.Username,
+					Pass: this.cfg.Password,
+				}.AsSha256Mechanism()),
+			)
+			break
+		case SCRAM_SHA_512_Mechanism:
+			opts = append(opts,
+				kgo.SASL(scram.Auth{
+					User: this.cfg.Username,
+					Pass: this.cfg.Password,
+				}.AsSha512Mechanism()),
+			)
+			break
+		default:
+			opts = append(opts,
+				kgo.SASL(plain.Auth{
+					User: this.cfg.Username,
+					Pass: this.cfg.Password,
+				}.AsMechanism()))
+		}
 	}
 
 	if opt != nil {
@@ -192,6 +219,7 @@ func (this *KafkaQueue) Setup() {
 	this.cfg = &Config{
 		Enabled:               false,
 		Compression:           false,
+		TLS:                   true,
 		NumOfPartition:        1,
 		ProducerBatchMaxBytes: 50 * 1024 * 1024,
 		MaxBufferedRecords:    10000,
@@ -358,7 +386,7 @@ func (this *KafkaQueue) LatestOffset(k *queue.QueueConfig) queue.Offset {
 
 	offset1, err := this.adminClient.ListEndOffsets(context.Background(), k.ID)
 	if err != nil {
-		log.Error(k.Name,", error on get offset:",offset1)
+		log.Error(k.Name, ", error on get offset:", offset1)
 		panic(err)
 	}
 	return queue.NewOffset(0, offset1[k.ID][0].Offset)
@@ -388,15 +416,15 @@ func (this *KafkaQueue) GetQueues() []string {
 	return q
 }
 
-var ignoredError=[]string{"NOT_COORDINATOR","UNKNOWN_TOPIC_OR_PARTITION"}
+var ignoredError = []string{"NOT_COORDINATOR", "UNKNOWN_TOPIC_OR_PARTITION"}
 
 func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
 
 	os, err := this.adminClient.FetchOffsetsForTopics(context.Background(), getGroupForKafka(consumer.Group, k.ID), k.ID)
 	if err != nil {
-		if util.ContainsAnyInArray(err.Error(),ignoredError) {
+		if util.ContainsAnyInArray(err.Error(), ignoredError) {
 			if global.Env().IsDebug {
-				log.Debugf("err on get offset %v %v %v", k.ID,err)
+				log.Debugf("err on get offset %v %v %v", k.ID, err)
 			}
 			return queue.NewOffset(0, 0), nil
 		}
@@ -409,8 +437,8 @@ func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.Consumer
 		offset = res.Offset.At
 	}
 
-	if offset<0{
-		offset=0
+	if offset < 0 {
+		offset = 0
 	}
 
 	str := queue.NewOffset(0, offset)

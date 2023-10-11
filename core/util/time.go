@@ -199,14 +199,16 @@ func ParseDuration(s string) (time.Duration, error) {
 	if s == "" {
 		return 0, fmt.Errorf("invalid duration: %s", s)
 	}
+	du, err := time.ParseDuration(s)
+	if err == nil {
+		return du, err
+	}
 	unit := s[len(s)-1]
 	num, err := strconv.Atoi(s[0 : len(s)-1])
 	if err != nil {
 		return 0, err
 	}
 	switch unit {
-	case 's', 'm', 'h':
-		return time.ParseDuration(s)
 	case 'd':
 		return time.Duration(num) * time.Hour * 24, nil
 	case 'w':

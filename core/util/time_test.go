@@ -35,3 +35,30 @@ func TestFromUnixTimestamp(t *testing.T) {
 
 	fmt.Println(timestamp)
 }
+
+func TestParseDuration(t *testing.T) {
+	var tests = []struct {
+		str string
+		want int64
+	}{
+		{"10ms", int64(time.Millisecond) * 10},
+		{"10s", int64(time.Second) * 10},
+		{"10m", int64(time.Minute) * 10 },
+		{"10h", int64(time.Hour)  * 10},
+		{"10d", int64(time.Hour) * 24 * 10},
+		{"2w", int64(time.Hour) * 24 * 14},
+		{"2M", int64(time.Hour) * 24 * 30 * 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.str, func(t *testing.T) {
+			ans, err := ParseDuration(tt.str)
+			if err != nil {
+				t.Errorf("got error: %v", err)
+			}
+			if int64(ans) != tt.want {
+				t.Errorf("got %d, want %d", ans, tt.want)
+			}
+		})
+	}
+}
