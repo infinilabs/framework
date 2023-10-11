@@ -101,10 +101,10 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 	}
 
 	//unify host
-	if util.ContainStr(host,"localhost") {
-		host=strings.Replace(host,"localhost", "127.0.0.1", -1)
-	}else if util.ContainStr(host,"::1") {
-		host=strings.Replace(host,"::1", "127.0.0.1", -1)
+	if util.ContainStr(host, "localhost") {
+		host = strings.Replace(host, "localhost", "127.0.0.1", -1)
+	} else if util.ContainStr(host, "::1") {
+		host = strings.Replace(host, "::1", "127.0.0.1", -1)
 	}
 
 	v1, loaded := hosts.Load(host)
@@ -162,14 +162,14 @@ func (c *ElasticsearchConfig) ParseMajorVersion() int {
 }
 
 func (c *ElasticsearchConfig) GetAnyEndpoint() string {
-	if c.Endpoint!=""{
+	if c.Endpoint != "" {
 		return c.Endpoint
 	}
 	if c.Endpoints != nil && len(c.Endpoints) > 0 {
 		return c.Endpoints[0]
 	}
 
-	if c.Host!=""{
+	if c.Host != "" {
 		return fmt.Sprintf("%s://%s", c.Schema, c.Host)
 	}
 
@@ -179,7 +179,6 @@ func (c *ElasticsearchConfig) GetAnyEndpoint() string {
 
 	panic(fmt.Errorf("no endpoint was not found in config [%v] ", c.ID))
 }
-
 
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
@@ -340,7 +339,7 @@ var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
 	if host == "" {
-		log.Error("host is nil")
+		panic("host is nil")
 		return false
 	}
 
@@ -354,7 +353,9 @@ func IsHostAvailable(host string) bool {
 		}
 	}
 
-	log.Tracef("no available info for host [%v]", host)
+	if global.Env().IsDebug {
+		log.Tracef("no available info for host [%v]", host)
+	}
 
 	v := nodeAvailCache.Get(host)
 	if v != nil {
@@ -518,7 +519,7 @@ func (metadata *ElasticsearchMetadata) LastSuccess() time.Time {
 }
 
 func (metadata *ElasticsearchMetadata) CheckNodeTrafficThrottle(node string, req, dataSize, maxWaitInMS int) {
-	if metadata.Config.TrafficControl != nil {
+	if metadata.Config.TrafficControl != nil && metadata.Config.TrafficControl.Enabled {
 
 		if metadata.Config.TrafficControl.MaxWaitTimeInMs <= 0 {
 			metadata.Config.TrafficControl.MaxWaitTimeInMs = 10 * 1000
