@@ -71,7 +71,7 @@ func getDefaultConfig() common.ModuleConfig {
 func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if exist && err != nil {
+	if exist && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 
@@ -178,7 +178,7 @@ func (module *ElasticModule) Setup() {
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
-	if exists && err != nil {
+	if exists && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if exists {

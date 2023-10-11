@@ -35,7 +35,7 @@ func (module *Module) Setup() {
 	module.StartFileLoadingMode="file_io"
 	module.SegmentSize=8 * 1024 * 1024
 	ok,err:=env.ParseConfig("nutsdb", module)
-	if ok&&err!=nil{
+	if ok&&err!=nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 

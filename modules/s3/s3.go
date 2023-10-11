@@ -190,7 +190,7 @@ func (module *S3Module) Setup() {
 	var err error
 	module.S3Configs=map[string]S3Config{}
 	ok,err:=env.ParseConfig("s3", &module.S3Configs)
-	if ok&&err!=nil{
+	if ok&&err!=nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 	if ok{

@@ -201,7 +201,7 @@ func (module *DiskQueue) Setup() {
 	}
 
 	ok, err := env.ParseConfig("disk_queue", module.cfg)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 

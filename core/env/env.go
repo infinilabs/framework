@@ -237,6 +237,7 @@ var (
 			Interval:   "30s",
 			AutoReload: true,
 			SoftDelete: true,
+			PanicOnConfigError: false,
 			MaxBackupFiles:  10,
 			ValidConfigsExtensions: []string{".tpl", ".json", ".yml", ".yaml"},
 		},

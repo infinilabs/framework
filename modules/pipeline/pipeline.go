@@ -44,7 +44,7 @@ func (module *PipeModule) Setup() {
 	}
 
 	ok, err := env.ParseConfig("preference", &moduleCfg)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 
@@ -151,7 +151,7 @@ func (module *PipeModule) Start() error {
 	//load pipeline from configs
 	var pipelines []pipeline.PipelineConfigV2
 	ok, err := env.ParseConfig("pipeline", &pipelines)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 	if ok {

@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
@@ -35,7 +36,7 @@ func (this *MemoryQueue) Setup() {
 	this.MemorySize=2*1024*1024
 	this.Capacity=10000
 	ok, err := env.ParseConfig("memory_queue", &this)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 	//queue.Register("memory",this)

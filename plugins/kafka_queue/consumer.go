@@ -59,7 +59,7 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	})
 
 	if global.Env().IsDebug {
-		log.Debugf("commit %v[%v] offset: %v", this.qCfg.Name, this.qCfg.ID, off.String())
+		log.Infof("commit %v[%v] offset: %v", this.qCfg.Name, this.qCfg.ID, off.String())
 	}
 	return ret
 }
