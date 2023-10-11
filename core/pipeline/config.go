@@ -25,6 +25,7 @@ type PipelineConfigV2 struct {
 
 func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 	if this.Name != target.Name ||
+		this.Enabled != target.Enabled ||
 		this.AutoStart != target.AutoStart ||
 		this.KeepRunning != target.KeepRunning ||
 		this.RetryDelayInMs != target.RetryDelayInMs ||
