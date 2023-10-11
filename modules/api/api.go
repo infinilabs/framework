@@ -20,9 +20,9 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/metrics"
 	"net/http"
 	"sort"
 )
@@ -75,7 +75,7 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 		OS: model.OSInfo{},
 	}
 	var err error
-	hostInfo.Name, _, hostInfo.OS.Name, _, hostInfo.OS.Version, hostInfo.OS.Architecture, err = metrics.GetOSInfo()
+	hostInfo.Name, _, hostInfo.OS.Name, _, hostInfo.OS.Version, hostInfo.OS.Architecture, err = host.GetOSInfo()
 	if err != nil {
 		panic(err)
 	}
