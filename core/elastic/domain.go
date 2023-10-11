@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"infini.sh/framework/core/model"
 	"sync"
 	"time"
 
@@ -425,11 +426,6 @@ type MetadataConfig struct {
 	NodeAvailabilityCheck TaskConfig `json:"node_availability_check"`
 }
 
-type BasicAuth struct {
-	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
-}
-
 const (
 	ElasticsearchConfigSourceFile          = "file"
 	ElasticsearchConfigSourceElasticsearch = "elastic"
@@ -461,13 +457,14 @@ type ElasticsearchConfig struct {
 
 	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
 
-	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	BasicAuth *model.BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {
-		MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
-		MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-		MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-		MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+		Enabled              bool `json:"enabled,omitempty" config:"enabled"`
+		MaxConnectionPerNode int  `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+		MaxWaitTimeInMs      int  `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+		MaxBytesPerNode      int  `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+		MaxQpsPerNode        int  `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
 
 	Discovery struct {
