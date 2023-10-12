@@ -123,8 +123,8 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 		break
 	}
 
-	if req==nil{
-		panic(errors.Errorf("invalid request [%v] %v",method,url))
+	if req == nil {
+		panic(errors.Errorf("invalid request [%v] %v", method, url))
 	}
 
 	req.Context = ctx
@@ -489,13 +489,19 @@ func (c *ESAPIV0) ClusterVersion() elastic.Version {
 	return c.GetVersion()
 }
 
-func (c *ESAPIV0) GetNodesStats(nodeID, host string) *elastic.NodesStats {
+func (c *ESAPIV0) GetNodesStats(nodeID, host string, level string) *elastic.NodesStats {
 
 	log.Tracef("get stats for node: %v-%v", nodeID, host)
 
-	url := fmt.Sprintf("%s/_nodes/_all/stats", c.GetEndpoint())
+	suffix := ""
+	if level != "" {
+		suffix = fmt.Sprintf("?level=%v&include_segment_file_sizes=true", level)
+	}
+
+	url := fmt.Sprintf("%s/_nodes/_all/stats%v", c.GetEndpoint(), suffix)
 	if nodeID != "" {
-		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetActivePreferredEndpoint(host), nodeID)
+		//fetch shard level metrics
+		url = fmt.Sprintf("%s/_nodes/%v/stats%v", c.GetActivePreferredEndpoint(host), nodeID, suffix)
 	}
 
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
@@ -1211,7 +1217,7 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	return resp.Body, nil
 }
 
-func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, error){
+func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/_template", c.GetEndpoint())
 	if templateName != "" {
 		url = fmt.Sprintf("%s/%s", url, templateName)

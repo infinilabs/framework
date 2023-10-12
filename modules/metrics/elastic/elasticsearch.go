@@ -314,7 +314,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 						}
 					}
 					log.Debugf("collect nodes stats, endpoint: %s", host)
-					stats := client.GetNodesStats(nodeID, host)
+					stats := client.GetNodesStats(nodeID, host,"")
 
 					log.Trace(y.GetHttpPublishHost(), " => ", host, stats.ErrorObject)
 
@@ -332,7 +332,7 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 				//published host is not a valid host
 				if !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
 					//host not dead and is not available, skip collecting
-					stats := client.GetNodesStats("", host)
+					stats := client.GetNodesStats("", host,"")
 					if stats.ErrorObject != nil {
 						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
 					} else {

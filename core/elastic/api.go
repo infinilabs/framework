@@ -39,7 +39,7 @@ type API interface {
 	GetClusterStats(node string) (*ClusterStats, error)
 	GetClusterStatsSpecEndpoint(node string, endPoint string) (*ClusterStats, error)
 
-	GetNodesStats(nodeID, host string) *NodesStats
+	GetNodesStats(nodeID, host string, level string) *NodesStats
 
 	GetIndicesStats() *IndicesStats
 
