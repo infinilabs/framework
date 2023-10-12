@@ -239,18 +239,18 @@ func (module *PipeModule) Start() error {
 		module.configs.Range(func(k, v any) bool {
 			oldC, ok := v.(pipeline.PipelineConfigV2)
 			if !ok {
-				log.Errorf("impossible value from configs: %v", v)
+				log.Warnf("impossible value from configs: %v", v)
 				return true
 			}
 			// Don't stop transient pipelines
 			if oldC.Transient {
-				log.Errorf("transient pipeline %v should not be reloaded", oldC.Name)
+				log.Infof("transient pipeline %v should not be reloaded", oldC.Name)
 				return true
 			}
 			newC, ok := newPipelines[oldC.Name]
 			// Skip condition: (old pipeline is present in the new pipeline configs, config is the same, new config is also enabled)
 			if ok && newC.Equals(oldC) && isPipelineEnabled(newC.Enabled) {
-				log.Errorf("pipeline %v config not changed, skip reloading", oldC.Name)
+				log.Infof("pipeline %v config not changed, skip reloading", oldC.Name)
 				return true
 			}
 			needStopAndClean = append(needStopAndClean, oldC.Name)
