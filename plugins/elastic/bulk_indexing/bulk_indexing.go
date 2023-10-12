@@ -121,7 +121,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		ValidateRequest:        false,
 		SkipEmptyQueue:         true,
 		SkipOnMissingInfo:      false,
-		LogBulkError:           false,
+		LogBulkError:           true,
 		BulkConfig:             elastic.DefaultBulkProcessorConfig,
 		RetryDelayIntervalInMs: 5000,
 	}
@@ -945,7 +945,11 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 		stats.IncrementBy("queue", qConfig.ID+".docs_fetched_from_queue", int64(total))
 
 		if err != nil && processor.config.LogBulkError {
-			log.Warnf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
+			var msg elastic.BulkDetail
+			if bulkResult!=nil{
+				msg=bulkResult.Detail
+			}
+			log.Warnf("elasticsearch [%v], stats:%v, detail: %v, err:%v", meta.Config.Name, statsMap, msg, err)
 		}
 
 		if global.Env().IsDebug {
