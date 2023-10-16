@@ -18,7 +18,7 @@ type ESAPIV6_6 struct {
 func (s *ESAPIV6_6) UpdateMapping(indexName string, docType string, mappings []byte) ([]byte, error) {
 	indexName = util.UrlEncode(indexName)
 	if docType == "" {
-		docType = TypeName0
+		docType = TypeName6
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/_mapping", s.GetEndpoint(), indexName, docType)

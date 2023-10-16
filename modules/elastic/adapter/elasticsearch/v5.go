@@ -176,3 +176,48 @@ func (c *ESAPIV5) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	err = json.Unmarshal(resp.Body, &data)
 	return data, err
 }
+
+
+
+func (c *ESAPIV5) Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+
+	if docType == "" {
+		docType = TypeName5
+	}
+
+	indexName = util.UrlEncode(indexName)
+
+	url := fmt.Sprintf("%s/%s/%s/%s/_update", c.GetEndpoint(), indexName, docType, id)
+
+	if id == "" {
+		panic(errors.New("id is required"))
+	}
+	if refresh != "" {
+		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
+	}
+
+	js:=util.MapStr{}
+	js["doc"]=data
+	js["detect_noop"]=false
+	js["doc_as_upsert"]=true
+
+	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
+	if err != nil {
+		return nil, err
+	}
+
+	if global.Env().IsDebug {
+		log.Trace("indexing response: ", string(resp.Body))
+	}
+
+	esResp := &elastic.InsertResponse{}
+	err = json.Unmarshal(resp.Body, esResp)
+	if err != nil {
+		return &elastic.InsertResponse{}, err
+	}
+	if !(esResp.Result == "created" || esResp.Result == "updated" || esResp.Shards.Successful > 0) {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	return esResp, nil
+}

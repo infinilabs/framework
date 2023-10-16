@@ -81,7 +81,6 @@ func (handler *ElasticORM) Get(o interface{}) (bool, error) {
 }
 
 func (handler *ElasticORM) GetBy(field string, value interface{}, t interface{}) (error, api.Result) {
-
 	query := api.Query{}
 	query.Conds = api.And(api.Eq(field, value))
 	return handler.Search(t, &query)
@@ -96,8 +95,14 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
+//update operation will merge the new data into the old data
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
-	return handler.Save(ctx, o)
+	var refresh string
+	if ctx != nil {
+		refresh = ctx.Refresh
+	}
+	_, err := handler.Client.Update(handler.GetIndexName(o), "", getIndexID(o), o, refresh)
+	return err
 }
 
 func (handler *ElasticORM) Delete(ctx *api.Context, o interface{}) error {
