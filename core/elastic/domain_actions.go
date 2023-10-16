@@ -100,12 +100,7 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 		return nil
 	}
 
-	//unify host
-	if util.ContainStr(host, "localhost") {
-		host = strings.Replace(host, "localhost", "127.0.0.1", -1)
-	} else if util.ContainStr(host, "::1") {
-		host = strings.Replace(host, "::1", "127.0.0.1", -1)
-	}
+	host=util.UnifyLocalAddress(host)
 
 	v1, loaded := hosts.Load(host)
 	if loaded {

@@ -325,3 +325,15 @@ func ClientIP(r *http.Request) string {
 
 	return ""
 }
+
+func UnifyLocalAddress(host string)string  {
+	//unify host
+	if ContainStr(host, "localhost") {
+		host = strings.Replace(host, "localhost", "127.0.0.1", -1)
+	} else if ContainStr(host, "[::1]") {
+		host = strings.Replace(host, "[::1]", "127.0.0.1", -1)
+	} else if ContainStr(host, "::1") {
+		host = strings.Replace(host, "::1", "127.0.0.1", -1)
+	}
+	return host
+}
