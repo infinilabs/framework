@@ -339,7 +339,7 @@ var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
 	if host == "" {
-		panic("host is nil")
+		log.Warn("host is nil")
 		return false
 	}
 

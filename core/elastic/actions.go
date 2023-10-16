@@ -244,15 +244,17 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 
 	if hosts!=nil&&len(hosts)>0{
 		for _, v := range hosts {
-			if IsHostAvailable(v){
-				//add to cache
-				info,ok:= GetHostAvailableInfo(v)
-				if ok&&info!=nil{
-					if info.IsAvailable(){
-						meta.activeHost=info
+			if v!=""{
+				if IsHostAvailable(v){
+					//add to cache
+					info,ok:= GetHostAvailableInfo(v)
+					if ok&&info!=nil{
+						if info.IsAvailable(){
+							meta.activeHost=info
+						}
 					}
+					return v
 				}
-				return v
 			}
 		}
 	}
