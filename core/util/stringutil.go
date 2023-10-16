@@ -484,6 +484,9 @@ func EscapeNewLine(input []byte) []byte {
 }
 
 func ToString(obj interface{}) string {
+	if obj==nil{
+		return ""
+	}
 	str, ok := obj.(string)
 	if ok {
 		return str
