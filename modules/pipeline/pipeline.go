@@ -244,13 +244,13 @@ func (module *PipeModule) Start() error {
 			}
 			// Don't stop transient pipelines
 			if oldC.Transient {
-				log.Infof("transient pipeline %v should not be reloaded", oldC.Name)
+				log.Debugf("transient pipeline %v should not be reloaded", oldC.Name)
 				return true
 			}
 			newC, ok := newPipelines[oldC.Name]
 			// Skip condition: (old pipeline is present in the new pipeline configs, config is the same, new config is also enabled)
 			if ok && newC.Equals(oldC) && isPipelineEnabled(newC.Enabled) {
-				log.Infof("pipeline %v config not changed, skip reloading", oldC.Name)
+				log.Debugf("pipeline %v config not changed, skip reloading", oldC.Name)
 				return true
 			}
 			needStopAndClean = append(needStopAndClean, oldC.Name)

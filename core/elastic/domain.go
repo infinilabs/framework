@@ -546,7 +546,7 @@ type NodeConfig struct {
 	ID         string       `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp  time.Time    `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata   NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
-	Fields     util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Payload     util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	SearchText string       `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 type NodeMetadata struct {

@@ -11,11 +11,13 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
+	elastic2 "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/proxy"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic"
+	common2 "infini.sh/framework/modules/elastic/common"
 	"infini.sh/framework/plugins/managed/common"
 	"net"
 	"net/http"
@@ -55,25 +57,13 @@ func init() {
 	api.HandleAPIMethod(api.GET, "/instance/_search", handler.RequirePermission(handler.searchInstance, enum.PermissionAgentInstanceRead))
 
 	api.HandleAPIMethod(api.POST, "/instance/stats", handler.RequirePermission(handler.getInstanceStatus, enum.PermissionAgentInstanceRead))
+
+	//delegate request to instance
 	api.HandleAPIMethod(api.POST, "/instance/:instance_id/_proxy", handler.RequirePermission(handler.proxy, enum.PermissionGatewayInstanceRead))
+	api.HandleAPIMethod(api.POST, "/instance/:instance_id/elasticsearch/try_connect", handler.RequireLogin(handler.tryESConnect))
+
+	//try to connect to instance
 	api.HandleAPIMethod(api.POST, "/instance/try_connect", handler.RequireLogin(handler.tryConnect))
-
-	//get elasticsearch node logs, direct fetch or via stored logs
-	api.HandleAPIMethod(api.GET,  "/elasticsearch/:id/node/:node_id/logs/_list", handler.RequirePermission(handler.getLogFilesByNode, enum.PermissionAgentInstanceRead))
-	api.HandleAPIMethod(api.POST, "/elasticsearch/:id/node/:node_id/logs/_read", handler.RequirePermission(handler.getLogFileContent, enum.PermissionAgentInstanceRead))
-
-	api.HandleAPIMethod(api.GET, "/instance/:instance_id/_nodes", handler.RequirePermission(handler.getESNodesInfo, enum.PermissionAgentInstanceRead))
-
-	api.HandleAPIMethod(api.POST, "/instance/:instance_id/_nodes/_refresh", handler.RequirePermission(handler.refreshESNodesInfo, enum.PermissionAgentInstanceWrite))
-	api.HandleAPIMethod(api.POST, "/instance/:instance_id/node/_auth", handler.RequirePermission(handler.authESNode, enum.PermissionAgentInstanceWrite))
-	api.HandleAPIMethod(api.DELETE, "/instance/:instance_id/_nodes", handler.RequirePermission(handler.deleteESNode, enum.PermissionAgentInstanceWrite))
-	api.HandleAPIMethod(api.POST, "/instance/:instance_id/node/_associate", handler.RequirePermission(handler.associateESNode, enum.PermissionAgentInstanceWrite))
-	api.HandleAPIMethod(api.POST, "/auto_associate", handler.RequirePermission(handler.autoAssociateESNode, enum.PermissionAgentInstanceWrite))
-
-	//api.HandleAPIMethod(api.POST, "/host/_enroll", handler.enrollHost)
-	//api.HandleAPIMethod(api.GET, "/host/:host_id/agent/info",handler.GetHostAgentInfo)
-	//api.HandleAPIMethod(api.GET, "/host/:host_id/processes",handler.GetHostElasticProcess)
-	//api.HandleAPIMethod(api.DELETE, "/host/:host_id",handler.deleteHost)
 
 	//delegate api to instances
 	api.HandleAPIFunc("/ws_proxy", func(w http.ResponseWriter, req *http.Request) {
@@ -85,13 +75,11 @@ func init() {
 		}
 		target, err := url.Parse(endpoint)
 		if err != nil {
-			log.Error(err)
-			return
+			panic(err)
 		}
 		newURL, err := url.Parse(path)
 		if err != nil {
-			log.Error(err)
-			return
+			panic(err)
 		}
 		req.URL.Path = newURL.Path
 		req.URL.RawPath = newURL.RawPath
@@ -519,34 +507,14 @@ func (h *APIHandler) proxy(w http.ResponseWriter, req *http.Request, ps httprout
 		path   = h.Get(req, "path", "")
 	)
 	instanceID := ps.MustGetParameter("instance_id")
-
-	obj := model.Instance{}
-	obj.ID = instanceID
-
-	exists, err := orm.Get(&obj)
+	_,obj,err:= getRuntimeInstanceByID(instanceID)
 	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
+		panic(err)
 	}
-	if !exists {
-		h.WriteJSON(w, util.MapStr{
-			"error": "gateway instance not found",
-		}, http.StatusNotFound)
-		return
-	}
-	res, err := proxy.DoProxyRequest(&proxy.Request{
-		Method:        method,
-		Endpoint:      obj.Endpoint,
-		Path:          path,
-		Body:          req.Body,
-		BasicAuth:     obj.BasicAuth,
-		ContentLength: int(req.ContentLength),
-	})
+
+	res,err:=proxyRequestToRuntimeInstance(obj.Endpoint, method, path, req.Body,req.ContentLength, obj.BasicAuth)
 	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		log.Error(err)
-		return
+		panic(err)
 	}
 	h.WriteHeader(w, res.StatusCode)
 	h.Write(w, res.Body)
@@ -588,4 +556,79 @@ func (h *APIHandler) tryConnect(w http.ResponseWriter, req *http.Request, ps htt
 		return
 	}
 	h.WriteJSON(w, connectRes, http.StatusOK)
+}
+
+func (h *APIHandler) tryESConnect(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	instanceID := ps.MustGetParameter("instance_id")
+
+	var reqBody = struct {
+		Host         string           `json:"host"`
+		Schema       string           `json:"schema"`
+		CredentialID string           `json:"credential_id"`
+		BasicAuth    *model.BasicAuth `json:"basic_auth"`
+	}{}
+
+	err := h.DecodeJSON(req, &reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	if reqBody.BasicAuth==nil{
+		//TODO remove `manual`
+		if reqBody.CredentialID!=""&&reqBody.CredentialID!="manual"{
+			cred,err:=common2.GetCredential(reqBody.CredentialID)
+			if err!=nil{
+				panic(err)
+			}
+			auth,err:=cred.DecodeBasicAuth()
+			reqBody.BasicAuth=auth
+		}
+	}
+
+	_,instance,err:= getRuntimeInstanceByID(instanceID)
+	if err!=nil{
+		panic(err)
+	}
+
+	esConfig:=elastic2.ElasticsearchConfig{Host: reqBody.Host,Schema: reqBody.Schema,BasicAuth: reqBody.BasicAuth}
+	body:=util.MustToJSONBytes(esConfig)
+
+	res,err:=proxyRequestToRuntimeInstance(instance.Endpoint, "POST", "/elasticsearch/try_connect",
+		body, int64(len(body)), reqBody.BasicAuth)
+
+	if err != nil {
+		panic(err)
+	}
+
+	h.WriteHeader(w, res.StatusCode)
+	h.Write(w, res.Body)
+}
+
+//TODO check permission by user
+func getRuntimeInstanceByID(instanceID string) (bool, *model.Instance, error) {
+	obj := model.Instance{}
+	obj.ID = instanceID
+	exists, err := orm.Get(&obj)
+	if !exists || err != nil {
+		if !exists {
+			err=fmt.Errorf("instance not found")
+		}
+		return exists, nil, err
+	}
+	return true, &obj, err
+}
+
+func proxyRequestToRuntimeInstance(endpoint, method, path string, body interface{}, contentLength int64, auth *model.BasicAuth) (*proxy.Response, error) {
+
+	res, err := proxy.DoProxyRequest(&proxy.Request{
+		Method:        method,
+		Endpoint:      endpoint,
+		Path:          path,
+		Body:          body,
+		BasicAuth:     auth,
+		ContentLength: int(contentLength),
+	})
+
+	return res, err
 }

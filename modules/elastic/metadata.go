@@ -891,7 +891,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
-				Fields: util.MapStr{
+				Payload: util.MapStr{
 					"node_state": nodeInfo,
 				},
 			}
@@ -966,7 +966,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						},
 						ID:        rid,
 						Timestamp: time.Now(),
-						Fields: util.MapStr{
+						Payload: util.MapStr{
 							"node_state": nodeInfo,
 						},
 					}

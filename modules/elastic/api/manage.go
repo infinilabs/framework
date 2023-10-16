@@ -71,7 +71,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 			h.WriteError(w, err.Error(), http.StatusInternalServerError)
 			return
 	}
-	conf.BasicAuth = &basicAuth
+	conf.BasicAuth = basicAuth
 	conf.Source = elastic.ElasticsearchConfigSourceElasticsearch
 	_, err = common.InitElasticInstance(*conf)
 	if err != nil {
@@ -198,11 +198,10 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 
 	basicAuth, err := common.GetBasicAuth(newConf)
 	if err != nil {
-		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	newConf.BasicAuth = &basicAuth
+	newConf.BasicAuth = basicAuth
 
 	//update config in heap
 	newConf.Source = elastic.ElasticsearchConfigSourceElasticsearch
