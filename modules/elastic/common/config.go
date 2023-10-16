@@ -198,28 +198,35 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	return client, err
 }
 
-func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth model.BasicAuth, err error) {
+func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.BasicAuth, err error) {
 	if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
-		basicAuth = *esConfig.BasicAuth
+		basicAuth = esConfig.BasicAuth
 		return
 	}
-	if esConfig.CredentialID != "" {
-		cred := credential.Credential{}
-		cred.ID = esConfig.CredentialID
-		_, err = orm.Get(&cred)
+
+	if esConfig.CredentialID != ""{
+		cred,err := GetCredential(esConfig.CredentialID)
 		if err != nil {
-			return
+			return basicAuth,err
 		}
-		var dv interface{}
-		dv, err = cred.Decode()
-		if err != nil {
-			return
-		}
-		if auth, ok := dv.(model.BasicAuth); ok {
-			basicAuth = auth
-		}
+
+		auth,err:=cred.DecodeBasicAuth()
+		return auth,err
 	}
 	return
+}
+
+func GetCredential(credentialID string) (*credential.Credential,error) {
+	if credentialID == "" {
+		panic("credentialID is empty")
+	}
+	cred := credential.Credential{}
+	cred.ID = credentialID
+	_, err := orm.Get(&cred)
+	if err != nil {
+		return nil,err
+	}
+	return &cred,nil
 }
 
 func GetElasticClient(clusterID string) (elastic.API, error) {
