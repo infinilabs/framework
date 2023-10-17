@@ -23,7 +23,7 @@ type QueueConfig struct {
 	Codec   string      `config:"codec" json:"codec,omitempty"`
 	Type    string      `config:"type" json:"type,omitempty"`
 	Created string      `config:"created" json:"created,omitempty"`
-	Labels  util.MapStr `config:"label" json:"label,omitempty"`
+	Labels  util.MapStr `config:"label" json:"label,omitempty"` //TODO fix fatal error: concurrent map read and map write
 }
 
 var queueConfigPool = sync.Pool{

@@ -64,6 +64,7 @@ type HardwareInfo struct {
 	Processor interface{} `json:"processor,omitempty" elastic_mapping:"processor: { type: object }"`
 	Disk      interface{} `json:"disk,omitempty" elastic_mapping:"disk: { type: object }"`
 }
+
 type OSInfo struct {
 	Name         string `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
 	Architecture string `json:"architecture,omitempty" elastic_mapping:"architecture: { type: keyword }"`

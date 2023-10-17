@@ -191,9 +191,13 @@ type NodesInfo struct {
 
 	TotalIndexingBuffer int64 `json:"total_indexing_buffer,omitempty"`
 
-	Settings   map[string]interface{} `json:"settings"`
-	Os         map[string]interface{} `json:"os"`
-	Process    map[string]interface{} `json:"process"`
+	Settings map[string]interface{} `json:"settings"`
+	Os       map[string]interface{} `json:"os"`
+	Process  struct {
+		RefreshIntervalInMillis int  `json:"refresh_interval_in_millis"`
+		Id                      int  `json:"id"`
+		Mlockall                bool `json:"mlockall"`
+	} `json:"process"`
 	Jvm        map[string]interface{} `json:"jvm"`
 	ThreadPool map[string]interface{} `json:"thread_pool"`
 	Transport  struct {
@@ -546,7 +550,7 @@ type NodeConfig struct {
 	ID         string       `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp  time.Time    `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata   NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
-	Payload     util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Payload    util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	SearchText string       `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 type NodeMetadata struct {
@@ -602,3 +606,15 @@ const (
 	Easysearch    = "easysearch"
 	Opensearch    = "opensearch"
 )
+
+type LocalNodeInfo struct {
+	Enrolled    bool                `json:"enrolled,omitempty,nocopy"` //whether this node is enrolled or not
+	ClusterID   string              `json:"cluster_id,omitempty,nocopy"`//infini system assigned cluster id
+	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
+	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
+}
+
+type DiscoveryResult struct {
+	Nodes          map[string]LocalNodeInfo `json:"nodes,omitempty,nocopy"`
+	UnknownProcess []model.ProcessInfo      `json:"unknown_process,omitempty,nocopy"`
+}

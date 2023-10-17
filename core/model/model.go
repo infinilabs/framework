@@ -60,3 +60,4 @@ type SettingsMetadata struct {
 	Name     string                 `json:"name" elastic_mapping:"name: { type: keyword }"`
 	Labels   util.MapStr `json:"labels" elastic_mapping:"labels: { type: object }"`
 }
+
