@@ -6,6 +6,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/adapter"
 	"infini.sh/framework/modules/elastic/common"
 	"strings"
 )
@@ -21,13 +22,17 @@ const (
 	ThreadPoolBulkGroupKey  = "thread_pool_bulk"
 )
 
-func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) map[string]*common.MetricItem{
+func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min, max int64, nodeName string, top int) (map[string]*common.MetricItem, error){
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
+				"metadata.labels.cluster_uuid":util.MapStr{
+					"value": clusterUUID,
 				},
 			},
 		},
@@ -48,7 +53,6 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 	}
 	var (
 		nodeNames []string
-		err error
 	)
 	if nodeName != "" {
 		nodeNames = strings.Split(nodeName, ",")
@@ -535,5 +539,5 @@ func (h *APIHandler) getThreadPoolMetrics(clusterID string, bucketSize int, min,
 			},
 		},
 	}
-	return h.getMetrics(query, queueMetricItems, bucketSize)
+	return h.getMetrics(query, queueMetricItems, bucketSize), nil
 }
