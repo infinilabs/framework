@@ -160,7 +160,9 @@ func (env *Env) Init() *Env {
 
 	err := env.loadConfig()
 	if err != nil {
-		panic(err)
+		if env.SystemConfig.Configs.PanicOnConfigError{
+			panic(err)
+		}
 	}
 
 	if env.IsDebug {
@@ -237,7 +239,7 @@ var (
 			Interval:   "30s",
 			AutoReload: true,
 			SoftDelete: true,
-			PanicOnConfigError: false,
+			PanicOnConfigError: true,
 			MaxBackupFiles:  10,
 			ValidConfigsExtensions: []string{".tpl", ".json", ".yml", ".yaml"},
 		},
@@ -322,7 +324,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 			v, err := config.LoadPath(env.SystemConfig.PathConfig.Config)
 			if err != nil {
-				panic(err)
+				if env.SystemConfig.Configs.PanicOnConfigError {
+					panic(err)
+				}
 				return err
 			}
 			if env.IsDebug {
@@ -333,7 +337,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 			err = configObject.Merge(v)
 			if err != nil {
-				panic(err)
+				if env.SystemConfig.Configs.PanicOnConfigError {
+					panic(err)
+				}
 				return err
 			}
 		}
@@ -366,7 +372,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 	obj := map[string]interface{}{}
 	if err := configObject.Unpack(obj); err != nil {
-		panic(err)
+		if env.SystemConfig.Configs.PanicOnConfigError {
+			panic(err)
+		}
 		return err
 	}
 	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)

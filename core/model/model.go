@@ -51,11 +51,11 @@ type ProcessInfo struct {
 
 type Setting struct {
 	orm.ORMObjectBase
-	Metadata SettingsMetadata       `json:"metadata" elastic_mapping:"metadata: { type: object }"`
+	Metadata Metadata    `json:"metadata" elastic_mapping:"metadata: { type: object }"`
 	Payload  util.MapStr `json:"payload" elastic_mapping:"payload: { type: object}"`
 }
 
-type SettingsMetadata struct {
+type Metadata struct {
 	Category string                 `json:"category" elastic_mapping:"category: { type: keyword }"`
 	Name     string                 `json:"name" elastic_mapping:"name: { type: keyword }"`
 	Labels   util.MapStr `json:"labels" elastic_mapping:"labels: { type: object }"`

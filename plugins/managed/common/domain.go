@@ -39,9 +39,10 @@ type ConfigUpdateRequest struct {
 }
 
 type ConfigSyncRequest struct {
-	Hash    string         `json:"hash"`
-	Client  model.Instance `json:"client"`
-	Configs ConfigList     `json:"configs"`
+	ForceSync bool           `json:"force_sync"`//ignore hash check in server
+	Hash      string         `json:"hash"`
+	Client    model.Instance `json:"client"`
+	Configs   ConfigList     `json:"configs"`
 }
 
 type ConfigSyncResponse struct {
@@ -75,7 +76,7 @@ type Secrets struct {
 }
 
 type KeystoreValue struct {
-	Type string `json:"type"`
+	Type  string `json:"type"`
 	Value string `json:"value"`
 }
 
@@ -87,5 +88,5 @@ type ConfigRepo struct {
 
 type InstanceSettings struct {
 	ConfigFiles []string `config:"configs"`
-	Secrets     []string    `config:"secrets"`
+	Secrets     []string `config:"secrets"`
 }

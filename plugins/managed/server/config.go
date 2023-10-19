@@ -15,9 +15,20 @@ import (
 	"infini.sh/framework/plugins/managed/config"
 	"net/http"
 	"path"
+	"sync"
 )
 
+var configProvidersLock=sync.RWMutex{}
+var configProviders=[]func(instance model.Instance) []*common.ConfigFile{}
+
+func RegisterConfigProvider(provider func(instance model.Instance) []*common.ConfigFile) {
+	configProvidersLock.Lock()
+	defer configProvidersLock.Unlock()
+	configProviders=append(configProviders,provider)
+}
+
 func refreshConfigsRepo() {
+
 	//load config settings from file
 	if global.Env().SystemConfig.Configs.ManagerConfig.LocalConfigsRepoPath != "" {
 		configRepo = common.ConfigRepo{}
@@ -83,8 +94,8 @@ func getSecretsForInstance(instance model.Instance) *common.Secrets {
 	return &secrets
 }
 
-func getConfigsForInstance(instance model.Instance) map[string]common.ConfigFile {
-	result := map[string]common.ConfigFile{}
+func getConfigsForInstance(instance model.Instance) []*common.ConfigFile {
+	result := []*common.ConfigFile{}
 
 	//get config files for static settings
 	serverInit.Do(func() {
@@ -103,14 +114,11 @@ func getConfigsForInstance(instance model.Instance) map[string]common.ConfigFile
 				}
 				if cfg != nil {
 					cfg.Managed = true
-					result[cfg.Name] = *cfg
+					result=append(result,cfg)
 				}
 			}
 		}
 	}
-
-	//get config files from remote db
-
 	return result
 }
 
@@ -131,6 +139,8 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 		log.Trace("request:", util.MustToJSON(obj))
 	}
 
+	//TODO, check the client's and the server's hash, if same, skip the sync
+
 	var res = common.ConfigSyncResponse{}
 	res.Configs.CreatedConfigs = map[string]common.ConfigFile{}
 	res.Configs.UpdatedConfigs = map[string]common.ConfigFile{}
@@ -148,6 +158,12 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 
 	//find out different configs, add or delete configs
 	cfgs := getConfigsForInstance(obj.Client)
+
+	newCfgs:=getConfigsFromExternalProviders(obj.Client)
+
+	if newCfgs!=nil && len(newCfgs)>0{
+		cfgs=append(cfgs,newCfgs...)
+	}
 
 	if global.Env().IsDebug {
 		log.Debugf("get configs for agent(%v): %v", obj.Client.ID, util.MustToJSON(cfgs))
@@ -171,10 +187,15 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 	//get configs from repo, let's diff and send to client
 	if len(cfgs) > 0 {
 
+		cfgMap:=map[string]common.ConfigFile{}
+		for _,c:=range cfgs{
+			cfgMap[c.Name]=*c
+		}
+
 		//find out which config content was changed, replace to new content
 		if len(obj.Configs.Configs) > 0 {
 			//check diff
-			for k, v := range cfgs {
+			for k, v := range cfgMap {
 				x, ok := obj.Configs.Configs[k]
 				//both exists
 				if ok {
@@ -206,7 +227,7 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 
 			//check removed files
 			for k, v := range obj.Configs.Configs {
-				_, ok := cfgs[k]
+				_, ok := cfgMap[k]
 				if !ok {
 					//missing in server's config
 					res.Configs.DeletedConfigs[k] = v
@@ -221,7 +242,7 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 				log.Tracef("found %v new configs", len(cfgs))
 			}
 			res.Changed = true
-			res.Configs.CreatedConfigs = cfgs
+			res.Configs.CreatedConfigs = cfgMap
 		}
 	}
 
@@ -233,4 +254,17 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 
 	h.WriteJSON(w, res, 200)
 
+}
+
+func getConfigsFromExternalProviders(client model.Instance) []*common.ConfigFile {
+	configProvidersLock.Lock()
+	defer configProvidersLock.Unlock()
+	var cfgs []*common.ConfigFile
+	for _, p := range configProviders {
+		c := p(client)
+		if c != nil && len(c) > 0 {
+			cfgs = append(cfgs, c...)
+		}
+	}
+	return cfgs
 }

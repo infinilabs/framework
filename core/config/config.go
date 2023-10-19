@@ -335,7 +335,7 @@ func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 
 func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
 
-	cfgFile := util.TryGetFileAbsPath(v.Path, false)
+	cfgFile := util.TryGetFileAbsPath(v.Path, true)
 	if !util.FileExists(cfgFile) {
 		return nil, errors.Errorf("template %v not exists", cfgFile)
 	}

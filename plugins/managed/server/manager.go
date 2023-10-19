@@ -484,7 +484,7 @@ func (h *APIHandler) getInstanceStatus(w http.ResponseWriter, req *http.Request,
 
 		res, err := proxy.DoProxyRequest(req)
 		if err != nil {
-			log.Error(err)
+			log.Error(endpoint,",",err)
 			result[gid.(string)] = util.MapStr{}
 			continue
 		}
