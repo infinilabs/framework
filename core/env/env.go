@@ -180,7 +180,7 @@ func (env *Env) InitPaths(cfgPath string) error {
 		err    error
 	)
 	if cfgObj, err = config.LoadFile(cfgPath); err != nil {
-		return fmt.Errorf("error loading confiuration file: %w", err)
+		return fmt.Errorf("error loading confiuration file: %v, %w", cfgPath,err)
 	}
 
 	return cfgObj.Unpack(&env.SystemConfig)
