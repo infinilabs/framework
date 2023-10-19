@@ -615,6 +615,6 @@ type LocalNodeInfo struct {
 }
 
 type DiscoveryResult struct {
-	Nodes          map[string]LocalNodeInfo `json:"nodes,omitempty,nocopy"`
+	Nodes          map[string]*LocalNodeInfo `json:"nodes,omitempty,nocopy"`
 	UnknownProcess []model.ProcessInfo      `json:"unknown_process,omitempty,nocopy"`
 }
