@@ -504,7 +504,12 @@ type ElasticsearchConfig struct {
 	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
 	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
 	CredentialID    string          `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
-	Distribution    string          `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
+
+	//TODO merge to cluster settings
+	AgentCredentialID string           `json:"agent_credential_id,omitempty" elastic_mapping:"agent_credential_id:{type:keyword}"`
+	AgentBasicAuth    *model.BasicAuth `config:"agent_basic_auth" json:"agent_basic_auth,omitempty" elastic_mapping:"agent_basic_auth:{type:object}"`
+
+	Distribution string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 }
 
 type GeoLocation struct {
@@ -608,13 +613,13 @@ const (
 )
 
 type LocalNodeInfo struct {
-	Enrolled    bool                `json:"enrolled,omitempty,nocopy"` //whether this node is enrolled or not
-	ClusterID   string              `json:"cluster_id,omitempty,nocopy"`//infini system assigned cluster id
+	Enrolled    bool                `json:"enrolled,omitempty,nocopy"`   //whether this node is enrolled or not
+	ClusterID   string              `json:"cluster_id,omitempty,nocopy"` //infini system assigned cluster id
 	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
 	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
 }
 
 type DiscoveryResult struct {
 	Nodes          map[string]*LocalNodeInfo `json:"nodes,omitempty,nocopy"`
-	UnknownProcess []model.ProcessInfo      `json:"unknown_process,omitempty,nocopy"`
+	UnknownProcess []model.ProcessInfo       `json:"unknown_process,omitempty,nocopy"`
 }

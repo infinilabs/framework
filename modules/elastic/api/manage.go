@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
@@ -48,7 +49,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		Refresh: "wait_for",
 	}
 	if conf.CredentialID == "" && conf.BasicAuth != nil && conf.BasicAuth.Username != ""{
-		credentialID, err := saveBasicAuthToCredential(conf)
+		credentialID, err := saveBasicAuthToCredential(conf.Name+"_platform("+conf.ID+")",conf.BasicAuth)
 		if err != nil {
 			log.Error(err)
 			h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -57,6 +58,19 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		conf.CredentialID = credentialID
 	}
 	conf.BasicAuth = nil
+
+
+	if conf.AgentCredentialID == "" && conf.AgentBasicAuth != nil && conf.AgentBasicAuth.Username != ""{
+		credentialID, err := saveBasicAuthToCredential(conf.Name+"_agent("+conf.ID+")",conf.AgentBasicAuth)
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		conf.AgentCredentialID = credentialID
+	}
+	conf.AgentBasicAuth = nil
+
 	if conf.Distribution == "" {
 		conf.Distribution = elastic.Elasticsearch
 	}
@@ -82,18 +96,15 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	h.WriteCreatedOKJSON(w, conf.ID)
 }
 
-func saveBasicAuthToCredential(conf *elastic.ElasticsearchConfig)(string, error){
-	if conf == nil {
-		return "", fmt.Errorf("param elasticsearh config can not be empty")
-	}
+func saveBasicAuthToCredential(name string,auth *model.BasicAuth)(string, error){
 	cred := credential.Credential{
-		Name: conf.Name,
+		Name: name,
 		Type: credential.BasicAuth,
 		Tags: []string{"ES"},
 		Payload: map[string]interface{}{
 			"basic_auth": map[string]interface{}{
-				"username": conf.BasicAuth.Username,
-				"password": conf.BasicAuth.Password,
+				"username": auth.Username,
+				"password": auth.Password,
 			},
 		},
 	}
@@ -175,9 +186,11 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
+
+
 	if conf["credential_id"] == nil {
 		if newConf.BasicAuth != nil && newConf.BasicAuth.Username != "" {
-			credentialID, err := saveBasicAuthToCredential(newConf)
+			credentialID, err := saveBasicAuthToCredential(newConf.Name+"_platform("+newConf.ID+")",newConf.BasicAuth)
 			if err != nil {
 				log.Error(err)
 				h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -189,6 +202,23 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 			newConf.CredentialID = ""
 		}
 	}
+
+	if conf["agent_credential_id"] == nil {
+		if newConf.AgentBasicAuth != nil && newConf.AgentBasicAuth.Username != "" {
+			credentialID, err := saveBasicAuthToCredential(newConf.Name+"_agent("+newConf.ID+")",newConf.AgentBasicAuth)
+			if err != nil {
+				log.Error(err)
+				h.WriteError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			newConf.AgentCredentialID = credentialID
+			newConf.AgentBasicAuth = nil
+		}else{
+			newConf.AgentCredentialID = ""
+		}
+	}
+
+
 	err = orm.Update(ctx, newConf)
 	if err != nil {
 		log.Error(err)
