@@ -161,18 +161,24 @@ func (app *App) initWithFlags() {
 	}
 
 	app.environment.IsDebug = app.isDebug
-	if app.configFile != "" {
-		path := util.TryGetFileAbsPath(app.configFile, true)
-		if !util.FileExists(path) {
-			fmt.Println(errors.Errorf("config file [%v] not exists", path))
-			os.Exit(1)
-		}
-		app.environment.SetConfigFile(path)
+
+	if app.configFile == "" {
+		app.configFile = app.environment.GetAppLowercaseName() + ".yml"
 	}
+
+	app.configFile = util.TryGetFileAbsPath(app.configFile, false)
+	if !util.FileExists(app.configFile ) {
+		fmt.Println(errors.Errorf("config file [%v] not exists", app.configFile ))
+		os.Exit(1)
+	}
+
+	app.environment.SetConfigFile(app.configFile )
+
 	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
 		panic(err)
 	}
+
 	global.RegisterEnv(app.environment)
 
 	if !util.FileExists(app.environment.GetDataDir()) {

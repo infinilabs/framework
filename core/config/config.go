@@ -175,7 +175,7 @@ func LoadFile(path string) (*Config, error) {
 	//check templated file
 	cfgByes, err := util.FileGetContent(path)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("%v, %v",path,err))
 	}
 
 	//if hash variable, apply and re-unpack
