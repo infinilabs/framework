@@ -669,7 +669,12 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 			bucketSize = int(du.Seconds())
 		}
 	}
-	resBody["metrics"] = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
+	resBody["metrics"], err = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
 	if ver.Distribution == "" {
 		cr, err := util.VersionCompare(ver.Number, "6.1")
