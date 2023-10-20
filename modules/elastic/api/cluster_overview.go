@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"infini.sh/framework/modules/elastic/adapter"
 	"net/http"
 	"strings"
 	"time"
@@ -716,6 +717,10 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 	if err != nil {
 		return nil, err
 	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 	query := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -731,19 +736,47 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 							intervalField: "10s",
 						},
 						"aggs": util.MapStr{
+							"term_shard": util.MapStr{
+								"terms": util.MapStr{
+									"field": "metadata.labels.shard_id",
+									"size": 1000,
+								},
+								"aggs": util.MapStr{
+									"filter_pri": util.MapStr{
+										"filter": util.MapStr{ "term": util.MapStr{ "payload.elasticsearch.shard_stats.routing.primary": true } },
+										"aggs": util.MapStr{
+											"index_total": util.MapStr{
+												"max": util.MapStr{
+													"field": "payload.elasticsearch.shard_stats.indexing.index_total",
+												},
+											},
+											"index_bytes_total": util.MapStr{
+												"max": util.MapStr{
+													"field": "payload.elasticsearch.shard_stats.store.size_in_bytes",
+												},
+											},
+										},
+									},
+									"query_total": util.MapStr{
+										"max": util.MapStr{
+											"field": "payload.elasticsearch.shard_stats.search.query_total",
+										},
+									},
+								},
+							},
 							"index_total": util.MapStr{
-								"max": util.MapStr{
-									"field": "payload.elasticsearch.index_stats.primaries.indexing.index_total",
+								"sum_bucket": util.MapStr{
+									"buckets_path": "term_shard>filter_pri>index_total",
 								},
 							},
 							"query_total": util.MapStr{
-								"max": util.MapStr{
-									"field": "payload.elasticsearch.index_stats.total.search.query_total",
+								"sum_bucket": util.MapStr{
+									"buckets_path": "term_shard>query_total",
 								},
 							},
 							"index_bytes_total": util.MapStr{
-								"max": util.MapStr{
-									"field": "payload.elasticsearch.index_stats.primaries.store.size_in_bytes",
+								"sum_bucket": util.MapStr{
+									"buckets_path": "term_shard>filter_pri>index_bytes_total",
 								},
 							},
 							"index_rate": util.MapStr{
@@ -781,15 +814,15 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": clusterID,
+							"metadata.labels.cluster_uuid": util.MapStr{
+								"value": clusterUUID,
 							},
 						},
 					},
 					{
 						"term": util.MapStr{
 							"metadata.name": util.MapStr{
-								"value": "index_stats",
+								"value": "shard_stats",
 							},
 						},
 					},
