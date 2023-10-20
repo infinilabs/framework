@@ -19,6 +19,9 @@ package conditions
 
 import (
 	"fmt"
+
+	logger "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -32,14 +35,22 @@ func NewExistsCondition(fields []string) (hasFieldsCondition Exists) {
 
 // Check determines whether the given event matches this condition
 func (c Exists) Check(event ValuesMap) bool {
+	isDebug := global.Env().IsDebug
 	for _, field := range c {
 		v, err := event.GetValue(field)
 		if err != nil {
+			if isDebug {
+				logger.Warnf("'%s' does not exist: %s", field, err)
+			}
 			return false
 		}
-		if util.ToString(v) == "" {
-			return false
+		if util.ToString(v) != "" {
+			continue
 		}
+		if isDebug {
+			logger.Warnf("'%s' is empty", field)
+		}
+		return false
 	}
 	return true
 }

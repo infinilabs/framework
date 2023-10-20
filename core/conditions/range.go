@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	logger "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -107,10 +108,14 @@ func (c Range) Check(event ValuesMap) bool {
 		return true
 	}
 
+	isDebug := global.Env().IsDebug
 	for field, rangeValue := range c {
 
 		value, err := event.GetValue(field)
 		if err != nil {
+			if isDebug {
+				logger.Warnf("'%s' does not exist: %s", field, err)
+			}
 			return false
 		}
 
@@ -118,30 +123,36 @@ func (c Range) Check(event ValuesMap) bool {
 		case int, int8, int16, int32, int64:
 			intValue := reflect.ValueOf(value).Int()
 
-			if !checkValue(float64(intValue), rangeValue) {
-				return false
+			if checkValue(float64(intValue), rangeValue) {
+				continue
 			}
 
 		case uint, uint8, uint16, uint32, uint64:
 			uintValue := reflect.ValueOf(value).Uint()
 
-			if !checkValue(float64(uintValue), rangeValue) {
-				return false
+			if checkValue(float64(uintValue), rangeValue) {
+				continue
 			}
 
 		case float64, float32:
 			//case float64, float32, common.Float:
 			floatValue := reflect.ValueOf(value).Float()
 
-			if !checkValue(floatValue, rangeValue) {
-				return false
+			if checkValue(floatValue, rangeValue) {
+				continue
 			}
 
 		default:
-			logger.Warnf("unexpected type %T in range condition.", value)
+			if isDebug {
+				logger.Warnf("unexpected type %T in range condition.", value)
+			}
 			return false
 		}
 
+		if isDebug {
+			logger.Warnf("%s is not in expected range: %v", field, value)
+		}
+		return false
 	}
 	return true
 }
