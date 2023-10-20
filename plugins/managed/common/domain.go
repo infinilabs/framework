@@ -7,11 +7,7 @@ package common
 import "infini.sh/framework/core/model"
 
 const REGISTER_API = "/instance/_register"
-const ENROLL_API = "/instance/_enroll"
-
 const SYNC_API = "/configs/_sync"
-
-const GEN_INSTALL_SCRIPT_API = "/instance/_generate_install_script"
 const GET_INSTALL_SCRIPT_API = "/instance/_get_install_script"
 
 type ConfigFile struct {
@@ -39,7 +35,7 @@ type ConfigUpdateRequest struct {
 }
 
 type ConfigSyncRequest struct {
-	ForceSync bool           `json:"force_sync"`//ignore hash check in server
+	ForceSync bool           `json:"force_sync"` //ignore hash check in server
 	Hash      string         `json:"hash"`
 	Client    model.Instance `json:"client"`
 	Configs   ConfigList     `json:"configs"`

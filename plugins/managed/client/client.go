@@ -26,7 +26,6 @@ import (
 )
 
 const bucketName = "instance_registered"
-
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 
 func ConnectToManager() error {

@@ -28,7 +28,6 @@ func init() {
 	api.HandleAPIMethod(api.PUT, "/config/", h.saveConfigAction)
 	api.HandleAPIMethod(api.DELETE, "/config/", h.deleteConfigAction)
 	api.HandleAPIMethod(api.GET, "/config/runtime", h.getConfigAction)
-
 	api.HandleAPIMethod(api.GET, "/environments", h.getEnvAction)
 
 }
