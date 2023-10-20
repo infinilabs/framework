@@ -8,9 +8,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
+	common2 "infini.sh/console/modules/agent/common"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/plugins/managed/common"
 	"net"
@@ -30,7 +30,7 @@ var handler = APIHandler{}
 
 func init() {
 
-	api.HandleAPIMethod(api.POST, common.SYNC_API, handler.syncConfigs)          //client sync configs from config servers
+	api.HandleAPIMethod(api.POST, common.SYNC_API, handler.syncConfigs)           //client sync configs from config servers
 	api.HandleAPIMethod(api.POST, "/configs/_reload", handler.refreshConfigsRepo) //client sync configs from config servers
 	//delegate api to instances
 	api.HandleAPIFunc("/ws_proxy", func(w http.ResponseWriter, req *http.Request) {
@@ -64,27 +64,31 @@ func init() {
 	})
 }
 
-
 var mTLSClient *http.Client //TODO get mTLSClient
 var initOnce = sync.Once{}
 
-func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMarshall interface{}) (*util.Result,error) {
+func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMarshall interface{}) (*util.Result, error) {
 	var err error
 	var res *util.Result
 
 	initOnce.Do(func() {
-		if global.Env().SystemConfig.Configs.TLSConfig.TLSEnabled && global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile != "" {
 
-			//init client
-			hClient, err := util.NewMTLSClient(
-				global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile,
-				global.Env().SystemConfig.Configs.TLSConfig.TLSCertFile,
-				global.Env().SystemConfig.Configs.TLSConfig.TLSKeyFile)
-			if err != nil {
-				panic(err)
-			}
-			mTLSClient = hClient
+		//get ca files
+		agCfg := common2.GetAgentConfig()
+		clientTLSCertFile, clientTLSKeyFile, err := common2.GetAgentInstanceCerts(agCfg.Setup.CACertFile, agCfg.Setup.CAKeyFile)
+		if err != nil {
+			panic(err)
 		}
+
+		//init client
+		hClient, err := util.NewMTLSClient(
+			agCfg.Setup.CACertFile,
+			clientTLSCertFile,
+			clientTLSKeyFile)
+		if err != nil {
+			panic(err)
+		}
+		mTLSClient = hClient
 	})
 
 	req.Url, err = url.JoinPath(endpoint, req.Path)
@@ -94,16 +98,16 @@ func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMar
 		if res != nil {
 			body = string(res.Body)
 		}
-		return res,errors.New(fmt.Sprintf("request error: %v, %v", err, body))
+		return res, errors.New(fmt.Sprintf("request error: %v, %v", err, body))
 	}
 
 	if res != nil {
 		if res.Body != nil {
 			if responseObjectToUnMarshall != nil {
-				return res,util.FromJSONBytes(res.Body, responseObjectToUnMarshall)
+				return res, util.FromJSONBytes(res.Body, responseObjectToUnMarshall)
 			}
 		}
 	}
 
-	return res,err
+	return res, err
 }

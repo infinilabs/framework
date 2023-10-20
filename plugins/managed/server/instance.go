@@ -352,7 +352,7 @@ func (h *APIHandler) proxy(w http.ResponseWriter, req *http.Request, ps httprout
 		path   = h.Get(req, "path", "")
 	)
 	instanceID := ps.MustGetParameter("instance_id")
-	_, obj, err := getRuntimeInstanceByID(instanceID)
+	_, obj, err := GetRuntimeInstanceByID(instanceID)
 	if err != nil {
 		panic(err)
 	}
@@ -445,7 +445,7 @@ func (h *APIHandler) tryESConnect(w http.ResponseWriter, req *http.Request, ps h
 		}
 	}
 
-	_, instance, err := getRuntimeInstanceByID(instanceID)
+	_, instance, err := GetRuntimeInstanceByID(instanceID)
 	if err != nil {
 		panic(err)
 	}
@@ -482,7 +482,7 @@ func (h *APIHandler) tryESConnect(w http.ResponseWriter, req *http.Request, ps h
 }
 
 //TODO check permission by user
-func getRuntimeInstanceByID(instanceID string) (bool, *model.Instance, error) {
+func GetRuntimeInstanceByID(instanceID string) (bool, *model.Instance, error) {
 	obj := model.Instance{}
 	obj.ID = instanceID
 	exists, err := orm.Get(&obj)
