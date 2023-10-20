@@ -29,6 +29,7 @@ type Token struct {
 }
 
 const ExpiredIn = time.Millisecond * 1000 * 60 * 60
+
 var expiredTokenCache=	util.NewCacheWithExpireOnAdd(ExpiredIn,100)
 
 func (h *APIHandler) generateInstallCommand(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
