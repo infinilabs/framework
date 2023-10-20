@@ -5,22 +5,23 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
 	elastic2 "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/proxy"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic"
 	common2 "infini.sh/framework/modules/elastic/common"
 	"infini.sh/framework/plugins/managed/common"
 	"net/http"
-	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var instanceConfigFiles = map[string][]string{}     //map instance->config files TODO lru cache, short life instance should be removed
@@ -272,6 +273,7 @@ func (h *APIHandler) searchInstance(w http.ResponseWriter, req *http.Request, ps
 	h.Write(w, res.Raw)
 }
 
+//TODO replace proxy
 func (h *APIHandler) getInstanceStatus(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var instanceIDs = []string{}
 	err := h.DecodeJSON(req, &instanceIDs)
@@ -311,37 +313,34 @@ func (h *APIHandler) getInstanceStatus(w http.ResponseWriter, req *http.Request,
 
 		gid, _ := instance.GetValue("id")
 
-		req := &proxy.Request{
-			Endpoint: endpoint.(string),
-			Method:   http.MethodGet,
-			Path:     "/stats",
+		//req := &proxy.Request{
+		//	Endpoint: endpoint.(string),
+		//	Method:   http.MethodGet,
+		//	Path:     "/stats",
+		//}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		req := &util.Request{
+			Method:  http.MethodGet,
+			Path:    "/stats",
+			Context: ctx,
 		}
 
 		username, _ := instance.GetValue("basic_auth.username")
 		if username != nil && username.(string) != "" {
 			password, _ := instance.GetValue("basic_auth.password")
 			if password != nil && password.(string) != "" {
-				req.BasicAuth = &model.BasicAuth{
-					Username: username.(string),
-					Password: password.(string),
-				}
+				req.SetBasicAuth(username.(string), password.(string))
 			}
 		}
 
-		res, err := proxy.DoProxyRequest(req)
+		var resMap = util.MapStr{}
+		_, err := ProxyAgentRequest(endpoint.(string), req, &resMap)
 		if err != nil {
 			log.Error(endpoint, ",", err)
 			result[gid.(string)] = util.MapStr{}
 			continue
 		}
-		var resMap = util.MapStr{}
-		err = util.FromJSONBytes(res.Body, &resMap)
-		if err != nil {
-			result[gid.(string)] = util.MapStr{}
-			log.Errorf("get stats of %v error: %v", endpoint, err)
-			continue
-		}
-
 		result[gid.(string)] = resMap
 	}
 	h.WriteJSON(w, result, http.StatusOK)
@@ -358,31 +357,45 @@ func (h *APIHandler) proxy(w http.ResponseWriter, req *http.Request, ps httprout
 		panic(err)
 	}
 
-	res, err := ProxyRequestToRuntimeInstance(obj.Endpoint, method, path, req.Body, req.ContentLength, obj.BasicAuth)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	reqBody, _ := h.GetRawBody(req)
+	req1 := &util.Request{
+		Method:  method,
+		Path:    path,
+		Context: ctx,
+		Body:    reqBody,
+	}
+	if obj.BasicAuth != nil {
+		req1.SetBasicAuth(obj.BasicAuth.Username, obj.BasicAuth.Password)
+	}
+
+	res, err := ProxyAgentRequest(obj.GetEndpoint(), req1, &obj)
 	if err != nil {
 		panic(err)
 	}
+
 	h.WriteHeader(w, res.StatusCode)
 	h.Write(w, res.Body)
 }
 
 func (h *APIHandler) getInstanceInfo(endpoint string, basicAuth *model.BasicAuth) (*model.Instance, error) {
-	res, err := proxy.DoProxyRequest(&proxy.Request{
-		Method:    http.MethodGet,
-		Endpoint:  endpoint,
-		Path:      "/_info",
-		BasicAuth: basicAuth,
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	req1 := &util.Request{
+		Method:  http.MethodGet,
+		Path:    "/_info",
+		Context: ctx,
+	}
+	if basicAuth != nil {
+		req1.SetBasicAuth(basicAuth.Username, basicAuth.Password)
+	}
+	obj := &model.Instance{}
+	_, err := ProxyAgentRequest(endpoint, req1, obj)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	if res.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("unknow gateway version")
-	}
-	b := res.Body
-	gres := &model.Instance{}
-	err = util.FromJSONBytes(b, gres)
-	return gres, err
+	return obj, err
 
 }
 
@@ -440,12 +453,29 @@ func (h *APIHandler) tryESConnect(w http.ResponseWriter, req *http.Request, ps h
 	esConfig := elastic2.ElasticsearchConfig{Host: reqBody.Host, Schema: reqBody.Schema, BasicAuth: reqBody.BasicAuth}
 	body := util.MustToJSONBytes(esConfig)
 
-	res, err := ProxyRequestToRuntimeInstance(instance.Endpoint, "POST", "/elasticsearch/try_connect",
-		body, int64(len(body)), reqBody.BasicAuth)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	req1 := &util.Request{
+		Method:  http.MethodPost,
+		Path:    "/elasticsearch/try_connect",
+		Context: ctx,
+		Body:    body,
+	}
+	if reqBody.BasicAuth != nil {
+		req1.SetBasicAuth(reqBody.BasicAuth.Username, reqBody.BasicAuth.Password)
+	}
 
+	res, err := ProxyAgentRequest(instance.GetEndpoint(), req1, nil)
 	if err != nil {
 		panic(err)
 	}
+
+	//res, err := ProxyRequestToRuntimeInstance(instance.Endpoint, "POST", "/elasticsearch/try_connect",
+	//	body, int64(len(body)), reqBody.BasicAuth)
+	//
+	//if err != nil {
+	//	panic(err)
+	//}
 
 	h.WriteHeader(w, res.StatusCode)
 	h.Write(w, res.Body)

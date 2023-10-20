@@ -6,11 +6,11 @@ package server
 
 import (
 	"crypto/tls"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/model"
-	"infini.sh/framework/core/proxy"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/plugins/managed/common"
 	"net"
@@ -64,32 +64,46 @@ func init() {
 	})
 }
 
-func ProxyRequestToRuntimeInstance(endpoint, method, path string, body interface{}, contentLength int64, auth *model.BasicAuth) (*proxy.Response, error) {
 
-	req := &proxy.Request{
-		Method:        method,
-		Endpoint:      endpoint,
-		Path:          path,
-		Body:          body,
-		BasicAuth:     auth,
-		ContentLength: int(contentLength),
-	}
+var mTLSClient *http.Client //TODO get mTLSClient
+var initOnce = sync.Once{}
 
-	if global.Env().IsDebug {
-		log.Debug(util.MustToJSON(req))
-	}
+func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMarshall interface{}) (*util.Result,error) {
+	var err error
+	var res *util.Result
 
-	res, err := proxy.DoProxyRequest(req)
+	initOnce.Do(func() {
+		if global.Env().SystemConfig.Configs.TLSConfig.TLSEnabled && global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile != "" {
 
-	if global.Env().IsDebug {
-		if err != nil {
-			log.Debug(err)
+			//init client
+			hClient, err := util.NewMTLSClient(
+				global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile,
+				global.Env().SystemConfig.Configs.TLSConfig.TLSCertFile,
+				global.Env().SystemConfig.Configs.TLSConfig.TLSKeyFile)
+			if err != nil {
+				panic(err)
+			}
+			mTLSClient = hClient
 		}
+	})
 
+	req.Url, err = url.JoinPath(endpoint, req.Path)
+	res, err = util.ExecuteRequestWithCatchFlag(mTLSClient, req, true)
+	if err != nil || res.StatusCode != 200 {
+		body := ""
 		if res != nil {
-			log.Debug(res.StatusCode, string(res.Body))
+			body = string(res.Body)
+		}
+		return res,errors.New(fmt.Sprintf("request error: %v, %v", err, body))
+	}
+
+	if res != nil {
+		if res.Body != nil {
+			if responseObjectToUnMarshall != nil {
+				return res,util.FromJSONBytes(res.Body, responseObjectToUnMarshall)
+			}
 		}
 	}
 
-	return res, err
+	return res,err
 }
