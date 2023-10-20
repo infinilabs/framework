@@ -20,6 +20,7 @@ package conditions
 import (
 	"fmt"
 
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
 
@@ -72,6 +73,7 @@ func NewMatcherCondition(
 
 // Check determines whether the given event matches this condition.
 func (c Matcher) Check(event ValuesMap) bool {
+	isDebug := global.Env().IsDebug
 	if c.matchers == nil {
 		return true
 	}
@@ -79,30 +81,40 @@ func (c Matcher) Check(event ValuesMap) bool {
 	for field, matcher := range c.matchers {
 		value, err := event.GetValue(field)
 		if err != nil {
+			if isDebug {
+				logger.Warnf("'%s' does not exist: %s", field, err)
+			}
 			return false
 		}
 
 		switch v := value.(type) {
 		case string:
-			if !matcher.MatchString(v) {
-				return false
+			if matcher.MatchString(v) {
+				continue
 			}
 
 		case []interface{}, []string:
-			if !matcher.MatchAnyString(v) {
-				return false
+			if matcher.MatchAnyString(v) {
+				continue
 			}
 		default:
 			str, err := util.ExtractString(value)
 			if err != nil {
-				logger.Warnf("unexpected type %T in %v condition as it accepts only strings.", value, c.name)
+				if isDebug {
+					logger.Warnf("unexpected type %T in %v condition as it accepts only strings.", value, c.name)
+				}
 				return false
 			}
 
-			if !matcher.MatchString(str) {
-				return false
+			if matcher.MatchString(str) {
+				continue
 			}
 		}
+
+		if isDebug {
+			logger.Warnf("'%s' does not match expected patterns: %v", field, value)
+		}
+		return false
 	}
 
 	return true

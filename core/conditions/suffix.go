@@ -3,6 +3,9 @@ package conditions
 import (
 	"errors"
 	"fmt"
+
+	logger "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -32,15 +35,23 @@ func NewSuffixCondition(fields map[string]interface{}) (hasFieldsCondition Suffi
 
 // Check determines whether the given event matches this condition
 func (c Suffix) Check(event ValuesMap) bool {
+	isDebug := global.Env().IsDebug
 	value, err := event.GetValue(c.Field)
 	if err != nil {
+		if isDebug {
+			logger.Warnf("'%s' does not exist: %s", c.Field, err)
+		}
 		return false
 	}
-	str,ok:=value.(string)
-	if ok{
-		if util.SuffixStr(str,c.Data){
+	str, ok := value.(string)
+	if ok {
+		if util.SuffixStr(str, c.Data) {
 			return true
 		}
+	}
+
+	if isDebug {
+		logger.Warnf("'%s' does not has expected suffix: %v", c.Field, value)
 	}
 	return false
 }

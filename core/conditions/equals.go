@@ -22,6 +22,7 @@ import (
 
 	logger "github.com/cihub/seelog"
 
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -107,13 +108,20 @@ func NewEqualsCondition(fields map[string]interface{}) (c Equals, err error) {
 
 // Check determines whether the given event matches this condition.
 func (c Equals) Check(event ValuesMap) bool {
+	isDebug := global.Env().IsDebug
 	for field, equalValue := range c {
 		value, err := event.GetValue(field)
 		if err != nil {
+			if isDebug {
+				logger.Warnf("'%s' does not exist: %s", field, err)
+			}
 			return false
 		}
 
 		if !equalValue(value) {
+			if isDebug {
+				logger.Warnf("'%s' is not equal to expected value: %v", field, value)
+			}
 			return false
 		}
 	}

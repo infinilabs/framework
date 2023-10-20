@@ -20,6 +20,9 @@ package conditions
 import (
 	"errors"
 	"fmt"
+
+	logger "github.com/cihub/seelog"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 )
 
@@ -44,16 +47,22 @@ func NewInArrayCondition(fields map[string]interface{}) (c InArray, err error) {
 }
 
 func (c InArray) Check(event ValuesMap) bool {
-
+	isDebug := global.Env().IsDebug
 	value, err := event.GetValue(c.Field)
 
 	if err != nil {
+		if isDebug {
+			logger.Warnf("'%s' does not exist: %s", c.Field, err)
+		}
 		return false
 	}
 
-	if util.ContainsAnyInAnyIntArray(value,c.Data){
+	if util.ContainsAnyInAnyIntArray(value, c.Data) {
 		return true
-	}else{
+	} else {
+		if isDebug {
+			logger.Warnf("'%s' does not contain expected value: %v", c.Field, value)
+		}
 		return false
 	}
 }
