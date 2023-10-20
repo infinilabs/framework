@@ -575,30 +575,69 @@ func (h *APIHandler) GetIndexShards(w http.ResponseWriter, req *http.Request, ps
 	clusterID := ps.MustGetParameter("id")
 	indexName := ps.MustGetParameter("index")
 	q1 := orm.Query{
-		Size: 1,
+		Size: 1000,
 		WildcardIndex: true,
+	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "index_stats"),
+		orm.Eq("metadata.name", "shard_stats"),
 		orm.Eq("metadata.labels.index_name", indexName),
-		orm.Eq("metadata.labels.cluster_id", clusterID),
+		orm.Eq("metadata.labels.cluster_uuid", clusterUUID),
+		orm.Ge("timestamp", "now-15m"),
 	)
-	q1.Collapse("metadata.labels.index_id")
+	q1.Collapse("metadata.labels.shard_id")
 	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	if err != nil {
-		h.WriteJSON(w,util.MapStr{
-			"error": err.Error(),
-		}, http.StatusInternalServerError )
+		log.Error(err)
+		h.WriteError(w,err.Error(), http.StatusInternalServerError )
 		return
 	}
 	var shardInfo interface{} = []interface{}{}
 	if len(result.Result) > 0 {
-		row, ok := result.Result[0].(map[string]interface{})
-		if ok {
-			shardInfo, ok = util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, row)
+		q := &orm.Query{
+			Size: 500,
 		}
+		q.Conds = orm.And(
+			orm.Eq("metadata.cluster_id", clusterID),
+		)
+		err, nodesResult := orm.Search(elastic.NodeConfig{}, q)
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w,err.Error(), http.StatusInternalServerError )
+			return
+		}
+		nodeIDToName := util.MapStr{}
+		for _, row := range nodesResult.Result {
+			if rowM, ok := row.(map[string]interface{}); ok {
+				nodeName, _ := util.MapStr(rowM).GetValue("metadata.node_name")
+				nodeID, _ := util.MapStr(rowM).GetValue("metadata.node_id")
+				if v, ok := nodeID.(string); ok {
+					nodeIDToName[v] = nodeName
+				}
+			}
+		}
+		for _, item := range result.Result {
+			row, ok := item.(map[string]interface{})
+			if ok {
+				source := util.MapStr(row)
+				nodeID, _ := source.GetValue("metadata.labels.node_id")
+				if v, ok := nodeID.(string); ok {
+					if v, ok := nodeIDToName[v]; ok {
+						source.Put("metadata.labels.node_name", v)
+					}
+
+				}
+				//todo add index qps info
+			}
+		}
+		shardInfo = result.Result
 	}
 
 	h.WriteJSON(w, shardInfo, http.StatusOK)
