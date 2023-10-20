@@ -616,6 +616,7 @@ type LocalNodeInfo struct {
 	Enrolled    bool                `json:"enrolled,omitempty,nocopy"`   //whether this node is enrolled or not
 	ClusterID   string              `json:"cluster_id,omitempty,nocopy"` //infini system assigned cluster id
 	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
+	NodeUUID      string              `json:"node_id,omitempty,nocopy"`
 	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
 }
 

@@ -216,6 +216,24 @@ func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.Basic
 	return
 }
 
+func GetAgentBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.BasicAuth, err error) {
+	if esConfig.AgentBasicAuth != nil && esConfig.AgentBasicAuth.Username != "" {
+		basicAuth = esConfig.AgentBasicAuth
+		return
+	}
+
+	if esConfig.AgentCredentialID != ""{
+		cred,err := GetCredential(esConfig.AgentCredentialID)
+		if err != nil {
+			return basicAuth,err
+		}
+
+		auth,err:=cred.DecodeBasicAuth()
+		return auth,err
+	}
+	return
+}
+
 func GetCredential(credentialID string) (*credential.Credential,error) {
 	if credentialID == "" {
 		panic("credentialID is empty")

@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/core/api/rbac/enum"
 	httprouter "infini.sh/framework/core/api/router"
 	elastic2 "infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/proxy"
@@ -484,7 +485,7 @@ func (h *APIHandler) getInstanceStatus(w http.ResponseWriter, req *http.Request,
 
 		res, err := proxy.DoProxyRequest(req)
 		if err != nil {
-			log.Error(endpoint,",",err)
+			log.Error(endpoint, ",", err)
 			result[gid.(string)] = util.MapStr{}
 			continue
 		}
@@ -507,12 +508,12 @@ func (h *APIHandler) proxy(w http.ResponseWriter, req *http.Request, ps httprout
 		path   = h.Get(req, "path", "")
 	)
 	instanceID := ps.MustGetParameter("instance_id")
-	_,obj,err:= getRuntimeInstanceByID(instanceID)
+	_, obj, err := getRuntimeInstanceByID(instanceID)
 	if err != nil {
 		panic(err)
 	}
 
-	res,err:=proxyRequestToRuntimeInstance(obj.Endpoint, method, path, req.Body,req.ContentLength, obj.BasicAuth)
+	res, err := ProxyRequestToRuntimeInstance(obj.Endpoint, method, path, req.Body, req.ContentLength, obj.BasicAuth)
 	if err != nil {
 		panic(err)
 	}
@@ -574,27 +575,27 @@ func (h *APIHandler) tryESConnect(w http.ResponseWriter, req *http.Request, ps h
 		panic(err)
 	}
 
-	if reqBody.BasicAuth==nil{
+	if reqBody.BasicAuth == nil {
 		//TODO remove `manual`
-		if reqBody.CredentialID!=""&&reqBody.CredentialID!="manual"{
-			cred,err:=common2.GetCredential(reqBody.CredentialID)
-			if err!=nil{
+		if reqBody.CredentialID != "" && reqBody.CredentialID != "manual" {
+			cred, err := common2.GetCredential(reqBody.CredentialID)
+			if err != nil {
 				panic(err)
 			}
-			auth,err:=cred.DecodeBasicAuth()
-			reqBody.BasicAuth=auth
+			auth, err := cred.DecodeBasicAuth()
+			reqBody.BasicAuth = auth
 		}
 	}
 
-	_,instance,err:= getRuntimeInstanceByID(instanceID)
-	if err!=nil{
+	_, instance, err := getRuntimeInstanceByID(instanceID)
+	if err != nil {
 		panic(err)
 	}
 
-	esConfig:=elastic2.ElasticsearchConfig{Host: reqBody.Host,Schema: reqBody.Schema,BasicAuth: reqBody.BasicAuth}
-	body:=util.MustToJSONBytes(esConfig)
+	esConfig := elastic2.ElasticsearchConfig{Host: reqBody.Host, Schema: reqBody.Schema, BasicAuth: reqBody.BasicAuth}
+	body := util.MustToJSONBytes(esConfig)
 
-	res,err:=proxyRequestToRuntimeInstance(instance.Endpoint, "POST", "/elasticsearch/try_connect",
+	res, err := ProxyRequestToRuntimeInstance(instance.Endpoint, "POST", "/elasticsearch/try_connect",
 		body, int64(len(body)), reqBody.BasicAuth)
 
 	if err != nil {
@@ -612,23 +613,39 @@ func getRuntimeInstanceByID(instanceID string) (bool, *model.Instance, error) {
 	exists, err := orm.Get(&obj)
 	if !exists || err != nil {
 		if !exists {
-			err=fmt.Errorf("instance not found")
+			err = fmt.Errorf("instance not found")
 		}
 		return exists, nil, err
 	}
 	return true, &obj, err
 }
 
-func proxyRequestToRuntimeInstance(endpoint, method, path string, body interface{}, contentLength int64, auth *model.BasicAuth) (*proxy.Response, error) {
+func ProxyRequestToRuntimeInstance(endpoint, method, path string, body interface{}, contentLength int64, auth *model.BasicAuth) (*proxy.Response, error) {
 
-	res, err := proxy.DoProxyRequest(&proxy.Request{
+	req := &proxy.Request{
 		Method:        method,
 		Endpoint:      endpoint,
 		Path:          path,
 		Body:          body,
 		BasicAuth:     auth,
 		ContentLength: int(contentLength),
-	})
+	}
+
+	if global.Env().IsDebug {
+		log.Debug(util.MustToJSON(req))
+	}
+
+	res, err := proxy.DoProxyRequest(req)
+
+	if global.Env().IsDebug {
+		if err != nil {
+			log.Debug(err)
+		}
+
+		if res != nil {
+			log.Debug(res.StatusCode, string(res.Body))
+		}
+	}
 
 	return res, err
 }
