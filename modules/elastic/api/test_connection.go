@@ -102,9 +102,9 @@ func (h TestAPI) HandleTestConnectionAction(w http.ResponseWriter, req *http.Req
 	}
 
 	var statusCode = fres.StatusCode()
-	if statusCode != http.StatusOK {
+	if statusCode>300 ||statusCode==0 {
 		resBody["error"] = fmt.Sprintf("invalid status code: %d", statusCode)
-		h.WriteJSON(w, resBody, statusCode)
+		h.WriteJSON(w, resBody, 500)
 		return
 	}
 
