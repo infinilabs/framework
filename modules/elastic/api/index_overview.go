@@ -319,11 +319,12 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 	}
 	// 索引速率
 	indexMetric:=newMetricItem("indexing", 1, OperationGroupKey)
+	indexMetric.OnlyPrimary = true
 	indexMetric.AddAxi("indexing rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems := []GroupMetricItem{}
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "indexing",
-		Field: "payload.elasticsearch.index_stats.primaries.indexing.index_total",
+		Field: "payload.elasticsearch.shard_stats.indexing.index_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: indexMetric,
@@ -334,13 +335,42 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 	queryMetric.AddAxi("query rate","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	nodeMetricItems=append(nodeMetricItems, GroupMetricItem{
 		Key: "search",
-		Field: "payload.elasticsearch.index_stats.total.search.query_total",
+		Field: "payload.elasticsearch.shard_stats.search.query_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryMetric,
 		FormatType: "num",
 		Units: "Search/s",
 	})
+
+	// map indexIDs(cluster_id:index_name => cluster_uuid:indexName)
+	var (
+		indexIDM = map[string]string{}
+		newIndexIDs []string
+		clusterIndexNames = map[string][]string{}
+	)
+	for _, indexID := range indexIDs {
+		if v, ok := indexID.(string); ok {
+			parts := strings.Split(v, ":")
+			if len(parts) != 2 {
+				log.Warnf("got wrong index_id: %s", v)
+				continue
+			}
+			clusterIndexNames[parts[0]] = append(clusterIndexNames[parts[0]], parts[1])
+		}
+	}
+	for clusterID, indexNames := range clusterIndexNames {
+		clusterUUID, err  := adapter.GetClusterUUID(clusterID)
+		if err != nil {
+			log.Warnf("get cluster uuid error: %v", err)
+			continue
+		}
+		for _, indexName := range indexNames {
+			newIndexID := fmt.Sprintf("%s:%s", clusterUUID, indexName)
+			newIndexIDs = append(newIndexIDs, newIndexID)
+			indexIDM[fmt.Sprintf("%s:%s", clusterID, indexName)] = newIndexID
+		}
+	}
 
 	aggs:=map[string]interface{}{}
 	query :=map[string]interface{}{}
@@ -357,13 +387,13 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 				{
 					"term": util.MapStr{
 						"metadata.name": util.MapStr{
-							"value": "index_stats",
+							"value": "shard_stats",
 						},
 					},
 				},
 				{
 					"terms": util.MapStr{
-						"metadata.labels.index_id": indexIDs,
+						"metadata.labels.index_id": newIndexIDs,
 					},
 				},
 			},
@@ -380,19 +410,52 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 		},
 	}
 
+	sumAggs := util.MapStr{}
 	for _,metricItem:=range nodeMetricItems{
-		aggs[metricItem.ID]=util.MapStr{
+		leafAgg := util.MapStr{
 			"max":util.MapStr{
 				"field": metricItem.Field,
 			},
 		}
+		var sumBucketPath = "term_shard>"+ metricItem.ID
+		if metricItem.MetricItem.OnlyPrimary {
+			filterSubAggs := util.MapStr{
+				metricItem.ID: leafAgg,
+			}
+			aggs["filter_pri"]=util.MapStr{
+				"filter": util.MapStr{
+					"term": util.MapStr{
+						"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
+							"value": true,
+						},
+					},
+				},
+				"aggs": filterSubAggs,
+			}
+			sumBucketPath = "term_shard>filter_pri>"+ metricItem.ID
+		}else{
+			aggs[metricItem.ID] = leafAgg
+		}
+
+		sumAggs[metricItem.ID] = util.MapStr{
+			"sum_bucket": util.MapStr{
+				"buckets_path": sumBucketPath,
+			},
+		}
 		if metricItem.IsDerivative{
-			aggs[metricItem.ID+"_deriv"]=util.MapStr{
+			sumAggs[metricItem.ID+"_deriv"]=util.MapStr{
 				"derivative":util.MapStr{
 					"buckets_path": metricItem.ID,
 				},
 			}
 		}
+	}
+	sumAggs["term_shard"]= util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.labels.shard_id",
+			"size": 10000,
+		},
+		"aggs": aggs,
 	}
 
 	bucketSizeStr := fmt.Sprintf("%ds", bucketSize)
@@ -413,7 +476,7 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 						"field": "timestamp",
 						intervalField: bucketSizeStr,
 					},
-					"aggs":aggs,
+					"aggs":sumAggs,
 				},
 			},
 		},
@@ -434,8 +497,9 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 		result := util.MapStr{}
 
 		indexID := tempIndexID.(string)
+		newIndexID := indexIDM[indexID]
 
-		result["summary"] = summaryMap[indexID]
+		result["summary"] = summaryMap[newIndexID]
 		result["metrics"] = util.MapStr{
 			"status": util.MapStr{
 				"metric": util.MapStr{
@@ -449,14 +513,14 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 					"label": "Indexing",
 					"units": "s",
 				},
-				"data": indexMetrics[indexID]["indexing"],
+				"data": indexMetrics[newIndexID]["indexing"],
 			},
 			"search": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Search",
 					"units": "s",
 				},
-				"data": indexMetrics[indexID]["search"],
+				"data": indexMetrics[newIndexID]["search"],
 			},
 		}
 		infos[indexID] = result
@@ -496,15 +560,21 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	q1 := orm.Query{
 		Size: 1,
 		WildcardIndex: true,
 	}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "index_stats"),
+		orm.Eq("metadata.name", "shard_stats"),
 		orm.Eq("metadata.labels.index_name", parts[1]),
-		orm.Eq("metadata.labels.cluster_id", clusterID),
+		orm.Eq("metadata.labels.cluster_uuid", clusterUUID),
 	)
 	q1.Collapse("metadata.labels.index_id")
 	q1.AddSort("timestamp", orm.DESC)
@@ -521,12 +591,6 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 			"status": state,
 		}
 	}
-	//if mappings, ok := util.GetMapValueByKeys([]string{"metadata", "mappings"}, hit); ok {
-	//	summary["mappings"] = mappings
-	//}
-	//if settings, ok := util.GetMapValueByKeys([]string{"metadata", "settings"}, hit); ok {
-	//	summary["settings"] = settings
-	//}
 	if len(result.Result) > 0 {
 		result, ok := result.Result[0].(map[string]interface{})
 		if ok {
