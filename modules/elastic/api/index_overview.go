@@ -567,7 +567,7 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 		return
 	}
 	q1 := orm.Query{
-		Size: 1,
+		Size: 1000,
 		WildcardIndex: true,
 	}
 	q1.Conds = orm.And(
@@ -575,62 +575,70 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 		orm.Eq("metadata.name", "shard_stats"),
 		orm.Eq("metadata.labels.index_name", parts[1]),
 		orm.Eq("metadata.labels.cluster_uuid", clusterUUID),
+		orm.Ge("timestamp", "now-15m"),
 	)
-	q1.Collapse("metadata.labels.index_id")
+	q1.Collapse("metadata.labels.shard_id")
 	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	summary := util.MapStr{}
 	hit := response.Hits.Hits[0].Source
+	var (
+		shardsNum int
+		replicasNum int
+		indexInfo = util.MapStr{
+			"index": parts[1],
+		}
+	)
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
 		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit)
 		state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hit)
+		shards, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_shards"}, hit)
+		replicas, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_replicas"}, hit)
+		shardsNum, _ = util.ToInt(shards.(string))
+		replicasNum, _ = util.ToInt(replicas.(string))
 		summary["aliases"] = aliases
 		summary["timestamp"] = hit["timestamp"]
-		summary["index_info"] = util.MapStr{
-			"health":health,
-			"status": state,
+		if state == "delete" {
+			health = "N/A"
 		}
+		indexInfo["health"] = health
+		indexInfo["status"] = state
 	}
 	if len(result.Result) > 0 {
-		result, ok := result.Result[0].(map[string]interface{})
-		if ok {
-			if docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "total", "docs"}, result); ok {
-				summary["docs"] = docs
-			}
-			if indexInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, result); ok {
-				if infoM, ok := indexInfo.(map[string]interface{}); ok {
-					if tm, ok := result["timestamp"].(string); ok {
-						issueTime, _ := time.Parse(time.RFC3339, tm)
-						if time.Now().Sub(issueTime).Seconds() > 30 {
-							health, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, response.Hits.Hits[0].Source)
-							infoM["health"] = health
-						}
-					}
-					state, _:= util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, response.Hits.Hits[0].Source)
-					if state == "delete" {
-						infoM["status"] = "delete"
-						infoM["health"] = "N/A"
+		shardSum := ShardsSummary{}
+		for _, row := range result.Result {
+			resultM, ok := row.(map[string]interface{})
+			if ok {
+				primary, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "routing", "primary"}, resultM)
+				storeInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "store", "size_in_bytes"}, resultM)
+				if docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "docs", "count"}, resultM); ok {
+					//summary["docs"] = docs
+					if v, ok := docs.(float64); ok && primary == true{
+						shardSum.DocsCount += int64(v)
 					}
 				}
-				summary["index_info"] = indexInfo
-			}
-			if shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, result); ok {
-				if sinfo, ok := shardInfo.([]interface{}); ok {
-					unassignedCount := 0
-					for _, item := range sinfo {
-						if itemMap, ok := item.(map[string]interface{}); ok{
-							if itemMap["state"] == "UNASSIGNED" {
-								unassignedCount++
-							}
-						}
-
+				if storeSize, ok := storeInBytes.(float64); ok {
+					shardSum.StoreInBytes += int64(storeSize)
+					if primary == true {
+						shardSum.PriStoreInBytes += int64(storeSize)
 					}
-					summary["unassigned_shards"] = unassignedCount
+				}
+				if primary == true {
+					shardSum.Shards++
+				}else{
+					shardSum.Replicas++
 				}
 			}
+			summary["timestamp"] = resultM["timestamp"]
 		}
-		summary["timestamp"] = result["timestamp"]
+		indexInfo["docs_count"] = shardSum.DocsCount
+		indexInfo["pri_store_size"] = util.FormatBytes(float64(shardSum.PriStoreInBytes), 1)
+		indexInfo["store_size"] = util.FormatBytes(float64(shardSum.StoreInBytes), 1)
+		indexInfo["shards"] = shardSum.Shards + shardSum.Replicas
+
+		summary["unassigned_shards"] = (replicasNum + 1) * shardsNum - shardSum.Shards - shardSum.Replicas
 	}
+	summary["index_info"] = indexInfo
 
 	h.WriteJSON(w, summary, http.StatusOK)
 }

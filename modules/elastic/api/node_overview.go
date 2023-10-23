@@ -961,6 +961,7 @@ type ShardsSummary struct {
 	Replicas     int
 	DocsCount    int64
 	StoreInBytes int64
+	PriStoreInBytes int64
 	Timestamp interface{}
 }
 func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
