@@ -78,6 +78,7 @@ type MetricItem struct {
 	Lines []*MetricLine `json:"lines"`
 	Group string `json:"group"`
 	Order int `json:"order"`
+	OnlyPrimary bool `json:"only_primary"`
 }
 
 const TermsBucket string="terms"
