@@ -955,18 +955,30 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 	h.WriteJSON(w, indices, http.StatusOK)
 }
 
+type ShardsSummary struct {
+	Index        string
+	Shards       int
+	Replicas     int
+	DocsCount    int64
+	StoreInBytes int64
+	Timestamp interface{}
+}
 func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
 	//filter indices
 	allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
 	if !hasAllPrivilege && len(allowedIndices) == 0 {
 		return []interface{}{}, nil
 	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 
 	query := util.MapStr{
-		"size":    2000,
-		"_source": []string{"metadata", "payload.elasticsearch.index_stats.index_info", "timestamp"},
+		"size":    10000,
+		"_source": []string{"metadata.labels.index_name", "payload.elasticsearch.shard_stats.docs","payload.elasticsearch.shard_stats.store", "payload.elasticsearch.shard_stats.routing", "timestamp"},
 		"collapse": util.MapStr{
-			"field": "metadata.labels.index_name",
+			"field": "metadata.labels.shard_id",
 		},
 		"sort": []util.MapStr{
 			{
@@ -997,15 +1009,15 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 					},
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": clusterID,
+							"metadata.labels.cluster_uuid": util.MapStr{
+								"value": clusterUUID,
 							},
 						},
 					},
 					{
 						"term": util.MapStr{
 							"metadata.name": util.MapStr{
-								"value": "index_stats",
+								"value": "shard_stats",
 							},
 						},
 					},
@@ -1018,18 +1030,30 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 	if err != nil {
 		return nil, err
 	}
-	indexInfos := map[string]util.MapStr{}
+	indexInfos := map[string]*ShardsSummary{}
 	for _, hit := range searchResult.Result {
 		if hitM, ok := hit.(map[string]interface{}); ok {
-			indexInfo, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, hitM)
+			shardDocCount, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "docs", "count"}, hitM)
+			storeInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "store", "size_in_bytes"}, hitM)
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
+			primary, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "routing", "primary"}, hitM)
 			if v, ok := indexName.(string); ok {
-				if infoM, ok := indexInfo.(map[string]interface{}); ok {
-					if _, ok = infoM["index"].(string); ok {
-						infoM["timestamp"] = hitM["timestamp"]
-						indexInfos[v] = infoM
-					}
+				if _, ok = indexInfos[v]; !ok {
+					indexInfos[v] = &ShardsSummary{}
 				}
+				indexInfo := indexInfos[v]
+				indexInfo.Index = v
+				if count, ok := shardDocCount.(float64); ok && primary == true {
+					indexInfo.DocsCount += int64(count)
+				}
+				if storeSize, ok := storeInBytes.(float64); ok {
+					indexInfo.StoreInBytes += int64(storeSize)
+				}
+				indexInfo.Shards++
+				if primary == false {
+					indexInfo.Replicas++
+				}
+				indexInfo.Timestamp = hitM["timestamp"]
 			}
 		}
 	}
@@ -1043,6 +1067,14 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 		if hitM, ok := hit.(map[string]interface{}); ok {
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
 			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
+			health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hitM)
+			if state == "delete" {
+				health = "N/A"
+			}
+			shards, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_shards"}, hitM)
+			replicas, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_replicas"}, hitM)
+			shardsNum, _ := util.ToInt(shards.(string))
+			replicasNum, _ := util.ToInt(replicas.(string))
 			if v, ok := indexName.(string); ok {
 				if indexPattern != nil {
 					if !indexPattern.Match(v) {
@@ -1050,15 +1082,22 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 					}
 				}
 				if indexInfos[v] != nil {
-					if state == "delete" {
-						indexInfos[v]["status"] = "delete"
-						indexInfos[v]["health"] = "N/A"
-					}
-					indices = append(indices, indexInfos[v])
+					indices = append(indices, util.MapStr{
+						"index":     v,
+						"status":    state,
+						"health": health,
+						"timestamp": indexInfos[v].Timestamp,
+						"docs_count": indexInfos[v].DocsCount,
+						"shards": indexInfos[v].Shards,
+						"replicas": replicasNum,
+						"unassigned_shards": (replicasNum + 1) * shardsNum - indexInfos[v].Shards - replicasNum,
+						"store_size": util.FormatBytes(float64(indexInfos[v].StoreInBytes), 1),
+					})
 				} else {
 					indices = append(indices, util.MapStr{
 						"index":     v,
 						"status":    state,
+						"health": health,
 						"timestamp": hitM["timestamp"],
 					})
 				}
