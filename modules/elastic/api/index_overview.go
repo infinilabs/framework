@@ -591,6 +591,8 @@ func (h *APIHandler) GetIndexInfo(w http.ResponseWriter, req *http.Request, ps h
 	)
 	if aliases, ok := util.GetMapValueByKeys([]string{"metadata", "aliases"}, hit); ok {
 		health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hit)
+		indexUUID, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_uuid"}, hit)
+		indexInfo["id"] = indexUUID
 		state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hit)
 		shards, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_shards"}, hit)
 		replicas, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_replicas"}, hit)
