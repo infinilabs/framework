@@ -491,6 +491,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 	}
+	clusterUUID, err := adapter.GetClusterUUID(id)
 	query := util.MapStr{
 		"size": 1000,
 		"collapse": util.MapStr{
@@ -525,8 +526,8 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					},
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": id,
+							"metadata.labels.cluster_uuid": util.MapStr{
+								"value": clusterUUID,
 							},
 						},
 					},
@@ -566,11 +567,17 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 			cpu, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "percent"}, hitM)
 			load, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "load_average", "1m"}, hitM)
 			heapUsage, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem", "heap_used_percent"}, hitM)
-			freeDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "free_in_bytes"}, hitM)
+			availDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "available_in_bytes"}, hitM)
+			totalDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "total_in_bytes"}, hitM)
 			nodeID, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "node_id"}, hitM)
-			if v, ok := freeDisk.(float64); ok {
-				freeDisk = util.ByteSize(uint64(v))
+			var usedDisk string
+			if v, ok := availDisk.(float64); ok {
+				availDisk = util.ByteSize(uint64(v))
+				if v1, ok := totalDisk.(float64); ok {
+					usedDisk = util.ByteSize(uint64(v1 - v))
+				}
 			}
+
 
 			if v, ok := nodeID.(string); ok {
 				nodeInfos[v] = util.MapStr{
@@ -579,7 +586,8 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					"cpu":          cpu,
 					"load_1m":      load,
 					"heap.percent": heapUsage,
-					"disk.avail":   freeDisk,
+					"disk.avail":   availDisk,
+					"disk.used": usedDisk,
 					"uptime":       uptime,
 				}
 
@@ -645,7 +653,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 		}, http.StatusNotFound)
 		return
 	}
-	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,disk.avail,cpu,load_1m,uptime")
+	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,disk.avail,disk.used,cpu,load_1m,uptime")
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),

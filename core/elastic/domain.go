@@ -320,6 +320,7 @@ type CatNodeResponse struct {
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
 	DiskAvail   string      `json:"disk.avail"`
+	DiskUsed   string      `json:"disk.used"`
 	Shards      int         `json:"shards,omitempty"`
 	Uptime      string      `json:"uptime"`
 }
