@@ -243,29 +243,50 @@ func (h *APIHandler) SearchIndexMetadata(w http.ResponseWriter, req *http.Reques
 
 }
 func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, ps httprouter.Params) {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Error(err)
-		}
-	}()
 	var indexIDs []interface{}
-
-
 	h.DecodeJSON(req, &indexIDs)
 
 	if len(indexIDs) == 0 {
 		h.WriteJSON(w, util.MapStr{}, http.StatusOK)
 		return
 	}
+	// map indexIDs(cluster_id:index_name => cluster_uuid:indexName)
+	var (
+		indexIDM = map[string]string{}
+		newIndexIDs []interface{}
+		clusterIndexNames = map[string][]string{}
+	)
+	for _, indexID := range indexIDs {
+		if v, ok := indexID.(string); ok {
+			parts := strings.Split(v, ":")
+			if len(parts) != 2 {
+				log.Warnf("got wrong index_id: %s", v)
+				continue
+			}
+			clusterIndexNames[parts[0]] = append(clusterIndexNames[parts[0]], parts[1])
+		}
+	}
+	for clusterID, indexNames := range clusterIndexNames {
+		clusterUUID, err  := adapter.GetClusterUUID(clusterID)
+		if err != nil {
+			log.Warnf("get cluster uuid error: %v", err)
+			continue
+		}
+		for _, indexName := range indexNames {
+			newIndexID := fmt.Sprintf("%s:%s", clusterUUID, indexName)
+			newIndexIDs = append(newIndexIDs, newIndexID)
+			indexIDM[fmt.Sprintf("%s:%s", clusterID, indexName)] = newIndexID
+		}
+	}
 	q1 := orm.Query{WildcardIndex: true}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "index_stats"),
-		orm.In("metadata.labels.index_id", indexIDs),
+		orm.Eq("metadata.name", "shard_stats"),
+		orm.In("metadata.labels.index_id", newIndexIDs),
 	)
-	q1.Collapse("metadata.labels.index_id")
+	q1.Collapse("metadata.labels.shard_id")
 	q1.AddSort("timestamp", orm.DESC)
-	q1.Size = len(indexIDs) + 1
+	q1.Size = 20000
 
 	err, results := orm.Search(&event.Event{}, &q1)
 	if err != nil {
@@ -273,34 +294,42 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 			"error": err.Error(),
 		}, http.StatusInternalServerError)
 	}
-
-	summaryMap := util.MapStr{}
-	for _, v := range results.Result {
-		result, ok := v.(map[string]interface{})
-		if ok {
-			if indexID, ok :=  util.GetMapValueByKeys([]string{"metadata", "labels", "index_id"}, result); ok {
-				summary := map[string]interface{}{}
-				if docs, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "total", "docs"}, result); ok {
-					summary["docs"] = docs
+	
+	summaryMap := map[string]*ShardsSummary{}
+	for _, hit := range results.Result {
+		if hitM, ok := hit.(map[string]interface{}); ok {
+			shardDocCount, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "docs", "count"}, hitM)
+			shardDocDeleted, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "docs", "deleted"}, hitM)
+			storeInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "store", "size_in_bytes"}, hitM)
+			indexID, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_id"}, hitM)
+			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
+			primary, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "routing", "primary"}, hitM)
+			if v, ok := indexID.(string); ok {
+				if _, ok = summaryMap[v]; !ok {
+					summaryMap[v] = &ShardsSummary{}
 				}
-				if indexInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, result); ok {
-					summary["index_info"] = indexInfo
+				indexInfo := summaryMap[v]
+				if iv, ok := indexName.(string); ok {
+					indexInfo.Index = iv
 				}
-				if shardInfo, ok := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "shard_info"}, result); ok {
-					if sinfo, ok := shardInfo.([]interface{}); ok {
-						unassignedCount := 0
-						for _, item := range sinfo {
-							if itemMap, ok := item.(map[string]interface{}); ok{
-								if itemMap["state"] == "UNASSIGNED" {
-									unassignedCount++
-								}
-							}
-
-						}
-						summary["unassigned_shards"] = unassignedCount
+				if count, ok := shardDocCount.(float64); ok && primary == true {
+					indexInfo.DocsCount += int64(count)
+				}
+				if deleted, ok := shardDocDeleted.(float64); ok && primary == true {
+					indexInfo.DocsDeleted += int64(deleted)
+				}
+				if storeSize, ok := storeInBytes.(float64); ok {
+					indexInfo.StoreInBytes += int64(storeSize)
+					if primary == true {
+						indexInfo.PriStoreInBytes += int64(storeSize)
 					}
 				}
-				summaryMap[indexID.(string)] = summary
+				if primary == true {
+					indexInfo.Shards++
+				}else{
+					indexInfo.Replicas++
+				}
+				indexInfo.Timestamp = hitM["timestamp"]
 			}
 		}
 	}
@@ -342,35 +371,6 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 		FormatType: "num",
 		Units: "Search/s",
 	})
-
-	// map indexIDs(cluster_id:index_name => cluster_uuid:indexName)
-	var (
-		indexIDM = map[string]string{}
-		newIndexIDs []string
-		clusterIndexNames = map[string][]string{}
-	)
-	for _, indexID := range indexIDs {
-		if v, ok := indexID.(string); ok {
-			parts := strings.Split(v, ":")
-			if len(parts) != 2 {
-				log.Warnf("got wrong index_id: %s", v)
-				continue
-			}
-			clusterIndexNames[parts[0]] = append(clusterIndexNames[parts[0]], parts[1])
-		}
-	}
-	for clusterID, indexNames := range clusterIndexNames {
-		clusterUUID, err  := adapter.GetClusterUUID(clusterID)
-		if err != nil {
-			log.Warnf("get cluster uuid error: %v", err)
-			continue
-		}
-		for _, indexName := range indexNames {
-			newIndexID := fmt.Sprintf("%s:%s", clusterUUID, indexName)
-			newIndexIDs = append(newIndexIDs, newIndexID)
-			indexIDM[fmt.Sprintf("%s:%s", clusterID, indexName)] = newIndexID
-		}
-	}
 
 	aggs:=map[string]interface{}{}
 	query :=map[string]interface{}{}
