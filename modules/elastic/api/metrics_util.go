@@ -911,6 +911,7 @@ func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, que
 	aggs := util.MapStr{}
 	metricItemsMap := map[string]*common.MetricLine{}
 	sumAggs := util.MapStr{}
+	var filterSubAggs = util.MapStr{}
 
 	for _, metricItem := range metricItems {
 		for _, line := range metricItem.Lines {
@@ -923,11 +924,8 @@ func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, que
 				},
 			}
 			var sumBucketPath = "term_shard>"+ line.Metric.ID
-			var filterSubAggs util.MapStr
 			if line.Metric.OnlyPrimary {
-				filterSubAggs = util.MapStr{
-					line.Metric.ID: leafAgg,
-				}
+				filterSubAggs[line.Metric.ID] = leafAgg
 				aggs["filter_pri"]=util.MapStr{
 					"filter": util.MapStr{
 						"term": util.MapStr{
