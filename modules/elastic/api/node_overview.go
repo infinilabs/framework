@@ -956,13 +956,14 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 }
 
 type ShardsSummary struct {
-	Index        string
-	Shards       int
-	Replicas     int
-	DocsCount    int64
-	StoreInBytes int64
-	PriStoreInBytes int64
-	Timestamp interface{}
+	Index        string `json:"index"`
+	Shards       int `json:"shards"`
+	Replicas     int `json:"replicas"`
+	DocsCount    int64 `json:"docs_count"`
+	DocsDeleted    int64 `json:"docs_deleted"`
+	StoreInBytes int64 `json:"store_in_bytes"`
+	PriStoreInBytes int64 `json:"pri_store_in_bytes"`
+	Timestamp interface{} `json:"timestamp"`
 }
 func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
 	//filter indices
@@ -1050,8 +1051,9 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 				if storeSize, ok := storeInBytes.(float64); ok {
 					indexInfo.StoreInBytes += int64(storeSize)
 				}
-				indexInfo.Shards++
-				if primary == false {
+				if primary == true {
+					indexInfo.Shards++
+				}else{
 					indexInfo.Replicas++
 				}
 				indexInfo.Timestamp = hitM["timestamp"]

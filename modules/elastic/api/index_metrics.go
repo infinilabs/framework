@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucketSize int, min, max int64, indexName string, top int) (map[string]*common.MetricItem, error){
+func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucketSize int, min, max int64, indexName string, top int, shardID string) (map[string]*common.MetricItem, error){
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
 	clusterUUID, err := adapter.GetClusterUUID(clusterID)
 	if err != nil {
@@ -44,6 +44,15 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 				},
 			},
 		},
+	}
+	if v := strings.TrimSpace(shardID); v != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.labels.shard_id": util.MapStr{
+					"value": shardID,
+				},
+			},
+		})
 	}
 	var (
 		indexNames []string

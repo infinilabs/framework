@@ -922,6 +922,10 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 	if err != nil {
 		return nil, err
 	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 	query := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -987,8 +991,8 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": clusterID,
+							"metadata.labels.cluster_uuid": util.MapStr{
+								"value": clusterUUID,
 							},
 						},
 					},
