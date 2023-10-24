@@ -917,26 +917,52 @@ func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, que
 			dk := line.Metric.GetDataKey()
 			metricItemsMap[dk] = line
 			metricData[dk] = [][]interface{}{}
-
-			aggs[line.Metric.ID] = util.MapStr{
+			leafAgg := util.MapStr{
 				line.Metric.MetricAgg: util.MapStr{
 					"field": line.Metric.Field,
 				},
 			}
+			var sumBucketPath = "term_shard>"+ line.Metric.ID
+			var filterSubAggs util.MapStr
+			if line.Metric.OnlyPrimary {
+				filterSubAggs = util.MapStr{
+					line.Metric.ID: leafAgg,
+				}
+				aggs["filter_pri"]=util.MapStr{
+					"filter": util.MapStr{
+						"term": util.MapStr{
+							"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
+								"value": true,
+							},
+						},
+					},
+					"aggs": filterSubAggs,
+				}
+				sumBucketPath = "term_shard>filter_pri>"+ line.Metric.ID
+			}else{
+				aggs[line.Metric.ID] = leafAgg
+			}
+
 			sumAggs[line.Metric.ID] = util.MapStr{
 				"sum_bucket": util.MapStr{
-					"buckets_path": "term_shard>"+line.Metric.ID,
+					"buckets_path":  sumBucketPath,
 				},
 			}
 			if line.Metric.Field2 != "" {
-				aggs[line.Metric.ID+"_field2"] = util.MapStr{
+				leafAgg2 := util.MapStr{
 					line.Metric.MetricAgg: util.MapStr{
 						"field": line.Metric.Field2,
 					},
 				}
+				if line.Metric.OnlyPrimary {
+					filterSubAggs[line.Metric.ID+"_field2"] = leafAgg2
+				}else{
+					aggs[line.Metric.ID+"_field2"] = leafAgg2
+				}
+
 				sumAggs[line.Metric.ID + "_field2"] = util.MapStr{
 					"sum_bucket": util.MapStr{
-						"buckets_path": "term_shard>"+line.Metric.ID+"_field2",
+						"buckets_path": sumBucketPath+"_field2",
 					},
 				}
 			}
