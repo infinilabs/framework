@@ -247,6 +247,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	//写入速率
 	indexingRateMetric := newMetricItem("indexing_rate", 1, OperationGroupKey)
+	indexingRateMetric.OnlyPrimary = true
 	indexingRateMetric.AddAxi("Indexing rate","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_rate",
@@ -258,6 +259,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		Units: "doc/s",
 	})
 	indexingBytesMetric := newMetricItem("indexing_bytes", 2, OperationGroupKey)
+	indexingBytesMetric.OnlyPrimary = true
 	indexingBytesMetric.AddAxi("Indexing bytes","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key:          "indexing_bytes",
@@ -270,6 +272,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	})
 	//写入时延
 	indexingLatencyMetric := newMetricItem("indexing_latency", 1, LatencyGroupKey)
+	indexingLatencyMetric.OnlyPrimary = true
 	indexingLatencyMetric.AddAxi("Indexing latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_latency",
@@ -570,28 +573,52 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	aggs:=map[string]interface{}{}
 	sumAggs := util.MapStr{}
+	var filterSubAggs = util.MapStr{}
 
 	for _,metricItem:=range indexMetricItems {
-		aggs[metricItem.ID]=util.MapStr{
+		leafAgg := util.MapStr{
 			"max":util.MapStr{
 				"field": metricItem.Field,
 			},
 		}
+		var sumBucketPath = "term_shard>"+ metricItem.ID
+		if metricItem.MetricItem.OnlyPrimary {
+			filterSubAggs[metricItem.ID] = leafAgg
+			aggs["filter_pri"]=util.MapStr{
+				"filter": util.MapStr{
+					"term": util.MapStr{
+						"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
+							"value": true,
+						},
+					},
+				},
+				"aggs": filterSubAggs,
+			}
+			sumBucketPath = "term_shard>filter_pri>"+ metricItem.ID
+		}else{
+			aggs[metricItem.ID]= leafAgg
+		}
+
 		sumAggs[metricItem.ID] = util.MapStr{
 			"sum_bucket": util.MapStr{
-				"buckets_path": "term_shard>"+ metricItem.ID,
+				"buckets_path": sumBucketPath,
 			},
 		}
 
 		if metricItem.Field2 != ""{
-			aggs[metricItem.ID + "_field2"]=util.MapStr{
+			leafAgg2 := util.MapStr{
 				"max":util.MapStr{
 					"field": metricItem.Field2,
 				},
 			}
+			if metricItem.MetricItem.OnlyPrimary {
+				filterSubAggs[metricItem.ID+"_field2"] = leafAgg2
+			}else{
+				aggs[metricItem.ID+"_field2"] = leafAgg2
+			}
 			sumAggs[metricItem.ID + "_field2"] = util.MapStr{
 				"sum_bucket": util.MapStr{
-					"buckets_path": "term_shard>"+ metricItem.ID + "_field2",
+					"buckets_path": sumBucketPath + "_field2",
 				},
 			}
 		}
