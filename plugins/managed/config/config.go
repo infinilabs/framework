@@ -334,6 +334,7 @@ func (handler DefaultHandler) reloadConfigAction(w http.ResponseWriter, req *htt
 	log.Infof("refresh config")
 	err:=global.Env().RefreshConfig()
 	if err!=nil{
-		log.Error(err)
+		panic(err)
 	}
+	handler.WriteAckOKJSON(w)
 }
