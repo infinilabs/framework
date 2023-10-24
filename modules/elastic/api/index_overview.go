@@ -294,7 +294,7 @@ func (h *APIHandler) FetchIndexInfo(w http.ResponseWriter,  req *http.Request, p
 			"error": err.Error(),
 		}, http.StatusInternalServerError)
 	}
-	
+
 	summaryMap := map[string]*ShardsSummary{}
 	for _, hit := range results.Result {
 		if hitM, ok := hit.(map[string]interface{}); ok {
@@ -730,6 +730,8 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	shardID := h.GetParameterOrDefault(req, "shard_id", "")
+
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -759,6 +761,15 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 				},
 			},
 		},
+	}
+	if shardID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.labels.shard_id": util.MapStr{
+					"value": shardID,
+				},
+			},
+		})
 	}
 	resBody := map[string]interface{}{}
 	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req, 10, 60)

@@ -618,7 +618,8 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	metrics, err := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
+	shardID := h.Get(req, "shard_id", "")
+	metrics, err := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top, shardID)
 	if err != nil {
 		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)

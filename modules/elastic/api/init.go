@@ -106,6 +106,7 @@ func InitAPI(cfg common.ModuleConfig) {
 
 		api.HandleAPIMethod(api.GET, "/elasticsearch/:id/_template", clusterAPI.HandleGetTemplateAction)
 		api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/_template/:template_name", clusterAPI.HandleSaveTemplateAction)
+		api.HandleAPIMethod(api.GET, "/elasticsearch/:id/shard/:shard_id/info", clusterAPI.RequirePermission(clusterAPI.GetShardInfo, enum.PermissionElasticsearchMetricRead))
 	}
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))
