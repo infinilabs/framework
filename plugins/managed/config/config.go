@@ -326,8 +326,6 @@ func (handler DefaultHandler) saveConfigAction(w http.ResponseWriter, req *http.
 		}
 	}
 	handler.WriteAckOKJSON(w)
-
-	return
 }
 
 func (handler DefaultHandler) reloadConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

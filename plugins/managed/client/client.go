@@ -56,13 +56,15 @@ func ConnectToManager() error {
 	req.Body = util.MustToJSONBytes(info)
 
 	server, _, err := submitRequestToManager(&req)
-	if err == nil {
+	if err == nil &&server != ""{
 		log.Infof("success register to config manager: %v", string(server))
 		err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
 		if err != nil {
 			panic(err)
 		}
 		global.Register(configRegisterEnvKey, true)
+	}else{
+		log.Error("failed to register to config manager,",err,",",server)
 	}
 	return err
 }

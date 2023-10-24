@@ -19,6 +19,7 @@ type ConfigFile struct {
 	Size     int64  `json:"size,omitempty"`
 	Readonly bool   `json:"readonly,omitempty"`
 	Managed  bool   `json:"managed"`
+	Hash     string `json:"hash,omitempty"`
 }
 
 type ConfigList struct {

@@ -891,9 +891,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
-				Payload: util.MapStr{
-					"node_state": nodeInfo,
-				},
+				Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
 			}
 			err = orm.Save(nil, nodeMetadata)
 			if err != nil {
@@ -966,9 +964,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						},
 						ID:        rid,
 						Timestamp: time.Now(),
-						Payload: util.MapStr{
-							"node_state": nodeInfo,
-						},
+						Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
 					err = orm.Save(nil, nodeMetadata)
 					if err != nil {

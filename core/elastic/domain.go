@@ -555,9 +555,14 @@ type NodeConfig struct {
 	ID         string       `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp  time.Time    `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata   NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
-	Payload    util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Payload    NodePayload  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	SearchText string       `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
+
+type NodePayload struct {
+	NodeInfo *NodesInfo `json:"node_state,omitempty" elastic_mapping:"node_state:{type:object,enabled:false}"`
+}
+
 type NodeMetadata struct {
 	ClusterID   string      `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	ClusterName string      `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
@@ -616,8 +621,9 @@ type LocalNodeInfo struct {
 	Enrolled    bool                `json:"enrolled,omitempty,nocopy"`   //whether this node is enrolled or not
 	ClusterID   string              `json:"cluster_id,omitempty,nocopy"` //infini system assigned cluster id
 	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
-	NodeUUID      string              `json:"node_id,omitempty,nocopy"`
+	NodeUUID    string              `json:"node_id,omitempty,nocopy"`
 	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
+	Status      string                `json:"status,omitempty,nocopy"`
 }
 
 type DiscoveryResult struct {

@@ -240,6 +240,26 @@ func GetLocalIPs() []string {
 	return ips
 }
 
+// IsLocalAddress check if the address is local address
+func IsLocalAddress(address []string,localIPs []string)bool  {
+	for _,add:=range address{
+		if UnifyLocalAddress(add)==LOCAL_ADDRESS{
+			continue
+		}
+
+		if add=="0.0.0.0"{
+			continue
+		}
+
+		for _,ip:=range localIPs{
+			if PrefixStr(add,ip){
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func CheckIPBinding(ip string) (bool, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -326,14 +346,15 @@ func ClientIP(r *http.Request) string {
 	return ""
 }
 
+const LOCAL_ADDRESS ="127.0.0.1"
 func UnifyLocalAddress(host string)string  {
 	//unify host
 	if ContainStr(host, "localhost") {
-		host = strings.Replace(host, "localhost", "127.0.0.1", -1)
+		host = strings.Replace(host, "localhost", LOCAL_ADDRESS, -1)
 	} else if ContainStr(host, "[::1]") {
-		host = strings.Replace(host, "[::1]", "127.0.0.1", -1)
+		host = strings.Replace(host, "[::1]", LOCAL_ADDRESS, -1)
 	} else if ContainStr(host, "::1") {
-		host = strings.Replace(host, "::1", "127.0.0.1", -1)
+		host = strings.Replace(host, "::1", LOCAL_ADDRESS, -1)
 	}
 	return host
 }
