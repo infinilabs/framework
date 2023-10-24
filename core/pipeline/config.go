@@ -24,8 +24,12 @@ type PipelineConfigV2 struct {
 }
 
 func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
+
+	if util.MustToJSON(this) == util.MustToJSON(target) {
+		return true
+	}
+
 	if this.Name != target.Name ||
-		this.Enabled != target.Enabled ||
 		this.AutoStart != target.AutoStart ||
 		this.KeepRunning != target.KeepRunning ||
 		this.RetryDelayInMs != target.RetryDelayInMs ||
@@ -33,6 +37,12 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 		!this.ProcessorsEquals(target) {
 		return false
 	}
+
+	if this.Enabled != nil && target.Enabled != nil && *this.Enabled != *target.Enabled {
+		return false
+	}
+
+
 	return true
 }
 

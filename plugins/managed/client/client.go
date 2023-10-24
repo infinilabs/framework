@@ -194,7 +194,7 @@ func ListenConfigChanges() error {
 								return nil
 							}
 
-							keyValuePairs = append(keyValuePairs, util.KeyValue{Key: file, Value: int(f.ModTime().Unix())})
+							keyValuePairs = append(keyValuePairs, util.KeyValue{Key: file, Value: f.ModTime().Unix()})
 							return nil
 						})
 						if len(keyValuePairs) > 0 {

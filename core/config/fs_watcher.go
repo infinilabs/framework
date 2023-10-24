@@ -122,10 +122,6 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 					continue
 				}
 
-				if ev.Op==fsnotify.Rename{
-					continue
-				}
-
 				if len(validExtensions)>0 && !util.SuffixAnyInArray(ev.Name,validExtensions){
 					continue
 				}

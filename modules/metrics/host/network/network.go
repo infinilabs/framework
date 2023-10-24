@@ -21,7 +21,7 @@ type Metric struct {
 
 	Enabled    bool     `config:"enabled"`
 	Summary    bool     `config:"summary"`
-	Sockets bool     `config:"sockets"`
+	Sockets    bool     `config:"sockets"`
 	Throughput bool     `config:"throughput"`
 	Detail     bool     `config:"details"`
 	Interfaces []string `config:"interfaces"`
@@ -158,7 +158,7 @@ func (m *Metric) Collect() error {
 		}
 	}
 
-	if m.Sockets{
+	if m.Sockets {
 		// all network connections
 		conns, err := connections("inet")
 		if err != nil {
@@ -166,7 +166,7 @@ func (m *Metric) Collect() error {
 		}
 
 		stats := calculateConnStats(conns)
-		stats,_=applyEnhancements(stats)
+		stats, _ = applyEnhancements(stats)
 
 		if m.prevCounters != (networkCounter{}) {
 			event.Save(event.Event{
@@ -238,17 +238,17 @@ func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
 		udpConns       = 0
 	)
 
-	ipStats:=map[string]*SocketStats{}
+	ipStats := map[string]*SocketStats{}
 
 	for _, conn := range conns {
-		ip:=conn.Laddr.IP
-		if ip==""{
+		ip := conn.Laddr.IP
+		if ip == "" {
 			continue
 		}
-		s,ok:=ipStats[ip]
-		if!ok{
-			s=&SocketStats{}
-			ipStats[ip]=s
+		s, ok := ipStats[ip]
+		if !ok {
+			s = &SocketStats{}
+			ipStats[ip] = s
 		}
 
 		if conn.Status == "LISTEN" {
@@ -297,8 +297,8 @@ func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
 		"all": util.MapStr{
 			"connections": allConns,
 			"established": allEstablished,
-			"listening": allListening,
-			"udp": udpConns,
+			"listening":   allListening,
+			"udp":         udpConns,
 		},
 		"tcp": ipStats,
 	}

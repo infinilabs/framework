@@ -91,7 +91,9 @@ func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMar
 		mTLSClient = hClient
 	})
 
-	req.Url, err = url.JoinPath(endpoint, req.Path)
+	req.Url=endpoint+req.Path
+
+
 	res, err = util.ExecuteRequestWithCatchFlag(mTLSClient, req, true)
 	if err != nil || res.StatusCode != 200 {
 		body := ""

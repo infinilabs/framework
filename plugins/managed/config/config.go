@@ -27,6 +27,7 @@ func init() {
 	api.HandleAPIMethod(api.GET, "/config/", h.listConfigAction)
 	api.HandleAPIMethod(api.PUT, "/config/", h.saveConfigAction)
 	api.HandleAPIMethod(api.DELETE, "/config/", h.deleteConfigAction)
+	api.HandleAPIMethod(api.POST, "/config/_reload", h.reloadConfigAction)
 	api.HandleAPIMethod(api.GET, "/config/runtime", h.getConfigAction)
 	api.HandleAPIMethod(api.GET, "/environments", h.getEnvAction)
 
@@ -327,4 +328,13 @@ func (handler DefaultHandler) saveConfigAction(w http.ResponseWriter, req *http.
 	handler.WriteAckOKJSON(w)
 
 	return
+}
+
+func (handler DefaultHandler) reloadConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	log.Infof("refresh config")
+	err:=global.Env().RefreshConfig()
+	if err!=nil{
+		panic(err)
+	}
+	handler.WriteAckOKJSON(w)
 }
