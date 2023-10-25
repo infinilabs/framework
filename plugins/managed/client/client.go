@@ -75,7 +75,7 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	for _, server := range global.Env().SystemConfig.Configs.Servers {
 		req.Url, err = url.JoinPath(server, req.Path)
 		if err != nil {
-			panic(err)
+			continue
 		}
 		res, err = util.ExecuteRequestWithCatchFlag(mTLSClient,req,true)
 		if err == nil && res.StatusCode == 200 {
