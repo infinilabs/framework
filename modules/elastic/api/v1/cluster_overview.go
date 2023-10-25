@@ -1,8 +1,7 @@
-package api
+package v1
 
 import (
 	"fmt"
-	"infini.sh/framework/modules/elastic/adapter"
 	"net/http"
 	"strings"
 	"time"
@@ -95,64 +94,13 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	var (
-		// cluster_id => cluster_uuid
-		clustersM  = map[string]string{}
-		clusterUUIDs []string
-	)
-	for _, cid := range clusterIDs {
-		clusterUUID, err := adapter.GetClusterUUID(cid)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		clusterUUIDs = append(clusterUUIDs, clusterUUID)
-		clustersM[cid] = clusterUUID
-	}
-	query := util.MapStr{
-		"size": 0,
-	}
-
-	var top = len(clusterIDs) + 1
-
-	var bucketSizeStr = fmt.Sprintf("%vs", bucketSize)
-	indexMetricItems := []GroupMetricItem{}
-	metricItem := newMetricItem("cluster_indexing", 2, "cluster")
-	metricItem.OnlyPrimary = true
-	indexMetricItems=append(indexMetricItems, GroupMetricItem{
-		Key: "cluster_indexing",
-		Field: "payload.elasticsearch.shard_stats.indexing.index_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: metricItem,
-		FormatType: "num",
-		Units: "doc/s",
-	})
-
-	metricItem = newMetricItem("cluster_search", 2, "cluster")
-	indexMetricItems=append(indexMetricItems, GroupMetricItem{
-		Key: "cluster_search",
-		Field: "payload.elasticsearch.shard_stats.search.query_total",
-		ID: util.GetUUID(),
-		IsDerivative: true,
-		MetricItem: metricItem,
-		FormatType: "num",
-		Units: "query/s",
-	})
-
-
-	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
-	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
-	if err != nil {
-		panic(err)
-	}
-
+	query := util.MapStr{}
 	query["query"] = util.MapStr{
 		"bool": util.MapStr{
 			"must": []util.MapStr{
 				{
 					"terms": util.MapStr{
-						"metadata.labels.cluster_uuid": clusterUUIDs,
+						"metadata.labels.cluster_id": clusterIDs,
 					},
 				},
 				{
@@ -165,7 +113,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				{
 					"term": util.MapStr{
 						"metadata.name": util.MapStr{
-							"value": "shard_stats",
+							"value": "index_stats",
 						},
 					},
 				},
@@ -182,97 +130,65 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 			},
 		},
 	}
-	aggs:=map[string]interface{}{}
-	sumAggs := util.MapStr{}
 
-	for _,metricItem:=range indexMetricItems {
-		leafAgg := util.MapStr{
-			"max":util.MapStr{
-				"field": metricItem.Field,
-			},
-		}
-		var sumBucketPath = "term_shard>"+ metricItem.ID
-		if metricItem.MetricItem.OnlyPrimary {
-			filterSubAggs := util.MapStr{
-				metricItem.ID: leafAgg,
-			}
-			aggs["filter_pri"]=util.MapStr{
-				"filter": util.MapStr{
-					"term": util.MapStr{
-						"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
-							"value": true,
-						},
-					},
-				},
-				"aggs": filterSubAggs,
-			}
-			sumBucketPath = "term_shard>filter_pri>"+ metricItem.ID
-		}else{
-			aggs[metricItem.ID] = leafAgg
-		}
+	var top = len(clusterIDs) + 1
 
-		sumAggs[metricItem.ID] = util.MapStr{
-			"sum_bucket": util.MapStr{
-				"buckets_path": sumBucketPath,
-			},
-		}
-		if metricItem.IsDerivative{
-			sumAggs[metricItem.ID+"_deriv"]=util.MapStr{
-				"derivative":util.MapStr{
-					"buckets_path": metricItem.ID,
-				},
-			}
-		}
-	}
-	sumAggs["term_shard"]= util.MapStr{
-		"terms": util.MapStr{
-			"field": "metadata.labels.shard_id",
-			"size": 10000,
-		},
-		"aggs": aggs,
-	}
-	query["aggs"]= util.MapStr{
-		"group_by_level": util.MapStr{
-			"terms": util.MapStr{
-				"field": "metadata.labels.cluster_uuid",
-				"size":  top,
-			},
-			"aggs": util.MapStr{
-				"dates": util.MapStr{
-					"date_histogram":util.MapStr{
-						"field": "timestamp",
-						intervalField: bucketSizeStr,
-					},
-					"aggs":sumAggs,
-				},
-			},
-		},
-	}
-	indexMetrics := h.getMetrics(query, indexMetricItems, bucketSize)
-	indexingMetricData := util.MapStr{}
-	for _, line := range indexMetrics["cluster_indexing"].Lines {
-		indexingMetricData[line.Metric.Label] = line.Data
-	}
-	searchMetricData := util.MapStr{}
-	for _, line := range indexMetrics["cluster_search"].Lines {
-		searchMetricData[line.Metric.Label] = line.Data
-	}
+	metricItems := []*common.MetricItem{}
+	var bucketSizeStr = fmt.Sprintf("%vs", bucketSize)
+	metricItem := newMetricItem("cluster_summary", 2, "cluster")
+	indexLine := metricItem.AddLine("Indexing", "Total Indexing", "Number of documents being indexed for primary and replica shards.", "group1",
+		"payload.elasticsearch.index_stats.total.indexing.index_total", "max", bucketSizeStr, "doc/s", "num", "0,0.[00]", "0,0.[00]", false, true)
 
-	searchR1, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
-	if err != nil {
-		panic(err)
-	}
+	searchLine := metricItem.AddLine("Search", "Total Search", "Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!", "group1",
+		"payload.elasticsearch.index_stats.total.search.query_total", "max", bucketSizeStr, "query/s", "num", "0,0.[00]", "0,0.[00]", false, true)
+	metricItems = append(metricItems, metricItem)
 
-
-	//fetch recent cluster health status
 	bucketItem := common.NewBucketItem(
 		common.TermsBucket, util.MapStr{
 			"field": "metadata.labels.cluster_id",
 			"size":  top,
 		})
 
-	bucketSizeStr = "1d"
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
 	histgram := common.NewBucketItem(
+		common.DateHistogramBucket, util.MapStr{
+			"field":          "timestamp",
+			intervalField: bucketSizeStr,
+		})
+	histgram.AddMetricItems(metricItems...)
+
+	bucketItem.AddNestBucket(histgram)
+
+	query["size"] = 0
+
+	aggs := ConvertBucketItemsToAggQuery([]*common.BucketItem{bucketItem}, nil)
+
+	util.MergeFields(query, aggs, true)
+
+	searchR1, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		panic(err)
+	}
+
+	searchResponse := SearchResponse{}
+	util.FromJSONBytes(searchR1.RawResult.Body, &searchResponse)
+
+	m1 := ParseAggregationResult(bucketSize, searchResponse.Aggregations, bucketItem.Key, histgram.Key, indexLine.Metric.GetDataKey())
+	m2 := ParseAggregationResult(bucketSize, searchResponse.Aggregations, bucketItem.Key, histgram.Key, searchLine.Metric.GetDataKey())
+
+	//fetch recent cluster health status
+	bucketItem = common.NewBucketItem(
+		common.TermsBucket, util.MapStr{
+			"field": "metadata.labels.cluster_id",
+			"size":  top,
+		})
+
+	bucketSizeStr = "1d"
+	histgram = common.NewBucketItem(
 		common.DateRangeBucket, util.MapStr{
 			"field":     "timestamp",
 			"format":    "yyyy-MM-dd",
@@ -385,7 +301,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 	if err != nil {
 		panic(err)
 	}
-	searchResponse := SearchResponse{}
+	searchResponse = SearchResponse{}
 	util.FromJSONBytes(searchR1.RawResult.Body, &searchResponse)
 	m3 := ParseAggregationBucketResult(bucketSize, searchResponse.Aggregations, bucketItem.Key, histgram.Key, termBucket.Key, nil)
 
@@ -426,14 +342,14 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 					"label": "Indexing",
 					"units": "s",
 				},
-				"data": indexingMetricData[clustersM[clusterID]],
+				"data": getClusterMetrics(clusterID, m1),
 			},
 			"search": util.MapStr{
 				"metric": util.MapStr{
 					"label": "Search",
 					"units": "s",
 				},
-				"data": searchMetricData[clustersM[clusterID]],
+				"data": getClusterMetrics(clusterID, m2),
 			},
 		}
 		infos[clusterID] = result
@@ -491,7 +407,6 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 	}
-	clusterUUID, err := adapter.GetClusterUUID(id)
 	query := util.MapStr{
 		"size": 1000,
 		"collapse": util.MapStr{
@@ -526,8 +441,8 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					},
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_uuid": util.MapStr{
-								"value": clusterUUID,
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": id,
 							},
 						},
 					},
@@ -567,17 +482,11 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 			cpu, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "percent"}, hitM)
 			load, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "os", "cpu", "load_average", "1m"}, hitM)
 			heapUsage, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "jvm", "mem", "heap_used_percent"}, hitM)
-			availDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "available_in_bytes"}, hitM)
-			totalDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "total_in_bytes"}, hitM)
+			freeDisk, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "fs", "total", "free_in_bytes"}, hitM)
 			nodeID, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "node_id"}, hitM)
-			var usedDisk string
-			if v, ok := availDisk.(float64); ok {
-				availDisk = util.ByteSize(uint64(v))
-				if v1, ok := totalDisk.(float64); ok {
-					usedDisk = util.ByteSize(uint64(v1 - v))
-				}
+			if v, ok := freeDisk.(float64); ok {
+				freeDisk = util.ByteSize(uint64(v))
 			}
-
 
 			if v, ok := nodeID.(string); ok {
 				nodeInfos[v] = util.MapStr{
@@ -586,8 +495,7 @@ func (h *APIHandler) GetClusterNodes(w http.ResponseWriter, req *http.Request, p
 					"cpu":          cpu,
 					"load_1m":      load,
 					"heap.percent": heapUsage,
-					"disk.avail":   availDisk,
-					"disk.used": usedDisk,
+					"disk.avail":   freeDisk,
 					"uptime":       uptime,
 				}
 
@@ -653,7 +561,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 		}, http.StatusNotFound)
 		return
 	}
-	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,disk.avail,disk.used,cpu,load_1m,uptime")
+	catNodesInfo, err := esClient.CatNodes("id,name,ip,port,master,heap.percent,disk.avail,cpu,load_1m,uptime")
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
@@ -704,11 +612,6 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 }
 
 func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
-	if GetMonitorState(id) == Console {
-		h.APIHandler.GetClusterIndices(w, req, ps)
-		return
-	}
 	var (
 		//size        = h.GetIntOrDefault(req, "size", 20)
 		//from        = h.GetIntOrDefault(req, "from", 0)
@@ -716,6 +619,7 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 		max = h.GetParameterOrDefault(req, "max", "now")
 	)
 	resBody := map[string]interface{}{}
+	id := ps.ByName("id")
 	q := &orm.Query{Size: 2000}
 	q.AddSort("timestamp", orm.DESC)
 	q.Conds = orm.And(
@@ -741,10 +645,6 @@ func (h *APIHandler) GetClusterIndices(w http.ResponseWriter, req *http.Request,
 func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
-	if GetMonitorState(id) == Console {
-		h.APIHandler.GetRealtimeClusterIndices(w, req, ps)
-		return
-	}
 	meta := elastic.GetMetadata(id)
 	if meta == nil || !meta.IsAvailable() {
 		h.WriteJSON(w, []interface{}{}, http.StatusOK)
@@ -816,10 +716,6 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 	if err != nil {
 		return nil, err
 	}
-	clusterUUID, err := adapter.GetClusterUUID(clusterID)
-	if err != nil {
-		return nil, err
-	}
 	query := util.MapStr{
 		"size": 0,
 		"aggs": util.MapStr{
@@ -835,47 +731,19 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 							intervalField: "10s",
 						},
 						"aggs": util.MapStr{
-							"term_shard": util.MapStr{
-								"terms": util.MapStr{
-									"field": "metadata.labels.shard_id",
-									"size": 1000,
-								},
-								"aggs": util.MapStr{
-									"filter_pri": util.MapStr{
-										"filter": util.MapStr{ "term": util.MapStr{ "payload.elasticsearch.shard_stats.routing.primary": true } },
-										"aggs": util.MapStr{
-											"index_total": util.MapStr{
-												"max": util.MapStr{
-													"field": "payload.elasticsearch.shard_stats.indexing.index_total",
-												},
-											},
-											"index_bytes_total": util.MapStr{
-												"max": util.MapStr{
-													"field": "payload.elasticsearch.shard_stats.store.size_in_bytes",
-												},
-											},
-										},
-									},
-									"query_total": util.MapStr{
-										"max": util.MapStr{
-											"field": "payload.elasticsearch.shard_stats.search.query_total",
-										},
-									},
-								},
-							},
 							"index_total": util.MapStr{
-								"sum_bucket": util.MapStr{
-									"buckets_path": "term_shard>filter_pri>index_total",
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.primaries.indexing.index_total",
 								},
 							},
 							"query_total": util.MapStr{
-								"sum_bucket": util.MapStr{
-									"buckets_path": "term_shard>query_total",
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.total.search.query_total",
 								},
 							},
 							"index_bytes_total": util.MapStr{
-								"sum_bucket": util.MapStr{
-									"buckets_path": "term_shard>filter_pri>index_bytes_total",
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.index_stats.primaries.store.size_in_bytes",
 								},
 							},
 							"index_rate": util.MapStr{
@@ -913,15 +781,15 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_uuid": util.MapStr{
-								"value": clusterUUID,
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
 							},
 						},
 					},
 					{
 						"term": util.MapStr{
 							"metadata.name": util.MapStr{
-								"value": "shard_stats",
+								"value": "index_stats",
 							},
 						},
 					},
@@ -935,10 +803,6 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error) {
 	ver := h.Client().GetVersion()
 	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, "10s")
-	if err != nil {
-		return nil, err
-	}
-	clusterUUID, err := adapter.GetClusterUUID(clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -1007,8 +871,8 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 				"must": []util.MapStr{
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_uuid": util.MapStr{
-								"value": clusterUUID,
+							"metadata.labels.cluster_id": util.MapStr{
+								"value": clusterID,
 							},
 						},
 					},

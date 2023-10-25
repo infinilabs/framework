@@ -1,4 +1,4 @@
-package api
+package v1
 
 import (
 	"encoding/json"
@@ -10,11 +10,8 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/adapter"
-	v1 "infini.sh/framework/modules/elastic/api/v1"
 	"infini.sh/framework/modules/elastic/common"
 	"math"
 	"net/http"
@@ -27,7 +24,6 @@ import (
 type APIHandler struct {
 	api.Handler
 	Config common.ModuleConfig
-	v1.APIHandler
 }
 
 func (h *APIHandler) Client() elastic.API {
@@ -51,7 +47,7 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		Refresh: "wait_for",
 	}
 	if conf.CredentialID == "" && conf.BasicAuth != nil && conf.BasicAuth.Username != ""{
-		credentialID, err := saveBasicAuthToCredential(conf.Name+"_platform("+conf.ID+")",conf.BasicAuth)
+		credentialID, err := saveBasicAuthToCredential(conf)
 		if err != nil {
 			log.Error(err)
 			h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -60,19 +56,6 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 		conf.CredentialID = credentialID
 	}
 	conf.BasicAuth = nil
-
-
-	if conf.AgentCredentialID == "" && conf.AgentBasicAuth != nil && conf.AgentBasicAuth.Username != ""{
-		credentialID, err := saveBasicAuthToCredential(conf.Name+"_agent("+conf.ID+")",conf.AgentBasicAuth)
-		if err != nil {
-			log.Error(err)
-			h.WriteError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		conf.AgentCredentialID = credentialID
-	}
-	conf.AgentBasicAuth = nil
-
 	if conf.Distribution == "" {
 		conf.Distribution = elastic.Elasticsearch
 	}
@@ -98,15 +81,18 @@ func (h *APIHandler) HandleCreateClusterAction(w http.ResponseWriter, req *http.
 	h.WriteCreatedOKJSON(w, conf.ID)
 }
 
-func saveBasicAuthToCredential(name string,auth *model.BasicAuth)(string, error){
+func saveBasicAuthToCredential(conf *elastic.ElasticsearchConfig)(string, error){
+	if conf == nil {
+		return "", fmt.Errorf("param elasticsearh config can not be empty")
+	}
 	cred := credential.Credential{
-		Name: name,
+		Name: conf.Name,
 		Type: credential.BasicAuth,
 		Tags: []string{"ES"},
 		Payload: map[string]interface{}{
 			"basic_auth": map[string]interface{}{
-				"username": auth.Username,
-				"password": auth.Password,
+				"username": conf.BasicAuth.Username,
+				"password": conf.BasicAuth.Password,
 			},
 		},
 	}
@@ -188,11 +174,9 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 	newConf := &elastic.ElasticsearchConfig{}
 	json.Unmarshal(confBytes, newConf)
 	newConf.ID = id
-
-
 	if conf["credential_id"] == nil {
 		if newConf.BasicAuth != nil && newConf.BasicAuth.Username != "" {
-			credentialID, err := saveBasicAuthToCredential(newConf.Name+"_platform("+newConf.ID+")",newConf.BasicAuth)
+			credentialID, err := saveBasicAuthToCredential(newConf)
 			if err != nil {
 				log.Error(err)
 				h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -204,23 +188,6 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 			newConf.CredentialID = ""
 		}
 	}
-
-	if conf["agent_credential_id"] == nil {
-		if newConf.AgentBasicAuth != nil && newConf.AgentBasicAuth.Username != "" {
-			credentialID, err := saveBasicAuthToCredential(newConf.Name+"_agent("+newConf.ID+")",newConf.AgentBasicAuth)
-			if err != nil {
-				log.Error(err)
-				h.WriteError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			newConf.AgentCredentialID = credentialID
-			newConf.AgentBasicAuth = nil
-		}else{
-			newConf.AgentCredentialID = ""
-		}
-	}
-
-
 	err = orm.Update(ctx, newConf)
 	if err != nil {
 		log.Error(err)
@@ -231,6 +198,7 @@ func (h *APIHandler) HandleUpdateClusterAction(w http.ResponseWriter, req *http.
 
 	basicAuth, err := common.GetBasicAuth(newConf)
 	if err != nil {
+		log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -513,10 +481,6 @@ func (h *APIHandler) HandleMetricsSummaryAction(w http.ResponseWriter, req *http
 func (h *APIHandler) HandleClusterMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params){
 	resBody := map[string] interface{}{}
 	id := ps.ByName("id")
-	if GetMonitorState(id) == Console {
-		h.APIHandler.HandleClusterMetricsAction(w, req, ps)
-		return
-	}
 
 	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
@@ -608,10 +572,6 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	resBody := map[string]interface{}{}
 	id := ps.ByName("id")
-	if GetMonitorState(id) == Console {
-		h.APIHandler.HandleIndexMetricsAction(w, req, ps)
-		return
-	}
 	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req,10,90)
 	if err != nil {
 		log.Error(err)
@@ -628,14 +588,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 	}
 	indexName := h.Get(req, "index_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
-	shardID := h.Get(req, "shard_id", "")
-	metrics, err := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top, shardID)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	metrics := h.getIndexMetrics(req, id, bucketSize, min, max, indexName, top)
 	if metrics["doc_count"] != nil && metrics["docs_deleted"] != nil && len(metrics["doc_count"].Lines) > 0 && len(metrics["docs_deleted"].Lines) > 0  {
 		metricA := metrics["doc_count"]
 		metricB := metrics["docs_deleted"]
@@ -717,12 +670,7 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 			bucketSize = int(du.Seconds())
 		}
 	}
-	resBody["metrics"], err = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
-	if err != nil {
-		log.Error(err)
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	resBody["metrics"] = h.getThreadPoolMetrics(id, bucketSize, min, max, nodeName, top)
 	ver := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID)).GetVersion()
 	if ver.Distribution == "" {
 		cr, err := util.VersionCompare(ver.Number, "6.1")
@@ -961,66 +909,59 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 	metricItems:=[]*common.MetricItem{}
 	metricItem:=newMetricItem("index_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for primary shards.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.OnlyPrimary = true
+	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","payload.elasticsearch.index_stats.total.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for primary shards.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Search Rate","Total Query",
 		"Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!",
-		"group1","payload.elasticsearch.shard_stats.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
+		"group1","payload.elasticsearch.index_stats.total.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 
-	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.shard_stats.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.index_total"
+	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.index_stats.primaries.indexing.index_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.Lines[0].Metric.OnlyPrimary = true
-	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.shard_stats.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.delete_total"
+	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.index_stats.primaries.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.index_stats.primaries.indexing.delete_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.Lines[1].Metric.OnlyPrimary = true
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 
-	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.shard_stats.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.shard_stats.search.query_total"
+	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.index_stats.total.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.index_stats.total.search.query_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.shard_stats.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.shard_stats.search.fetch_total"
+	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.index_stats.total.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.index_stats.total.search.fetch_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.shard_stats.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[2].Metric.Field2 = "payload.elasticsearch.shard_stats.search.scroll_total"
+	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.index_stats.total.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[2].Metric.Field2 = "payload.elasticsearch.index_stats.total.search.scroll_total"
 	metricItem.Lines[2].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
 	metricItems=append(metricItems,metricItem)
 	query:=map[string]interface{}{}
-	clusterUUID, err := adapter.GetClusterUUID(id)
-	if err != nil {
-		panic(err)
-	}
 	query["query"]=util.MapStr{
 		"bool": util.MapStr{
 			"must": []util.MapStr{
 				{
 					"term":util.MapStr{
-						"metadata.labels.cluster_uuid":util.MapStr{
-							"value": clusterUUID,
+						"metadata.labels.cluster_id":util.MapStr{
+							"value": id,
 						},
 					},
 				},
@@ -1034,7 +975,14 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 				{
 					"term": util.MapStr{
 						"metadata.name": util.MapStr{
-							"value": "shard_stats",
+							"value": "index_stats",
+						},
+					},
+				},
+				{
+					"term": util.MapStr{
+						"metadata.labels.index_id": util.MapStr{
+							"value": "_all",
 						},
 					},
 				},
@@ -1051,7 +999,7 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 			},
 		},
 	}
-	return h.getSingleIndexMetrics(metricItems, query, bucketSize)
+	return h.getSingleMetrics(metricItems, query, bucketSize)
 }
 
 func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) map[string]*common.MetricItem {
