@@ -52,19 +52,21 @@ func ConnectToManager() error {
 
 	req := util.Request{Method: util.Verb_POST}
 	req.ContentType = "application/json"
-	req.Path=common.REGISTER_API
+	req.Path = common.REGISTER_API
 	req.Body = util.MustToJSONBytes(info)
 
-	server, _, err := submitRequestToManager(&req)
-	if err == nil &&server != ""{
-		log.Infof("success register to config manager: %v", string(server))
-		err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
-		if err != nil {
-			panic(err)
+	server, res, err := submitRequestToManager(&req)
+	if err == nil && server != "" {
+		if res.StatusCode == 200 || util.ContainStr(string(res.Body), "exists") {
+			log.Infof("success register to config manager: %v", string(server))
+			err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
+			if err != nil {
+				panic(err)
+			}
+			global.Register(configRegisterEnvKey, true)
 		}
-		global.Register(configRegisterEnvKey, true)
-	}else{
-		log.Error("failed to register to config manager,",err,",",server)
+	} else {
+		log.Error("failed to register to config manager,", err, ",", server)
 	}
 	return err
 }
@@ -77,10 +79,11 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 		if err != nil {
 			continue
 		}
-		res, err = util.ExecuteRequestWithCatchFlag(mTLSClient,req,true)
-		if err == nil && res.StatusCode == 200 {
-			return server, res, nil
+		res, err = util.ExecuteRequestWithCatchFlag(mTLSClient, req, true)
+		if err != nil {
+			continue
 		}
+		return server, res, nil
 	}
 	return "", nil, err
 }
@@ -122,7 +125,7 @@ func ListenConfigChanges() error {
 				//fetch configs from manager
 				request := util.Request{Method: util.Verb_POST}
 				request.ContentType = "application/json"
-				request.Path=common.SYNC_API
+				request.Path = common.SYNC_API
 				request.Body = util.MustToJSONBytes(req)
 
 				if global.Env().IsDebug {
@@ -131,7 +134,7 @@ func ListenConfigChanges() error {
 
 				_, res, err := submitRequestToManager(&request)
 				if err != nil {
-					log.Error("failed to submit request to config manager,",err)
+					log.Error("failed to submit request to config manager,", err)
 					return
 				}
 
@@ -149,12 +152,12 @@ func ListenConfigChanges() error {
 					if obj.Changed {
 
 						//update secrets //TODO client send salt to manager first, manager encrypt secrets with salt and send back
-						if obj.Secrets!= nil {
+						if obj.Secrets != nil {
 							for k, v := range obj.Secrets.Keystore {
-								if v.Type=="plaintext"{
-									err:=saveKeystore(k, v.Value)
-									if err!=nil{
-										log.Error("error on save keystore:",k,",",err)
+								if v.Type == "plaintext" {
+									err := saveKeystore(k, v.Value)
+									if err != nil {
+										log.Error("error on save keystore:", k, ",", err)
 									}
 								}
 							}
@@ -241,9 +244,9 @@ func ListenConfigChanges() error {
 	return nil
 }
 
-func saveKeystore(k string, v string) error{
+func saveKeystore(k string, v string) error {
 
-	log.Debug("save keystore:",k)
+	log.Debug("save keystore:", k)
 
 	ks, err := keystore.GetWriteableKeystore()
 	if err != nil {
