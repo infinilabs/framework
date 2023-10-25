@@ -674,7 +674,7 @@ func (h *APIHandler) GetRealtimeClusterNodes(w http.ResponseWriter, req *http.Re
 			shardCounts[shardInfo.NodeName] = 1
 		}
 	}
-	qps, err := h.getNodeQPS(id)
+	qps, err := h.getNodeQPS(id, 20)
 	if err != nil {
 		h.WriteJSON(w, util.MapStr{
 			"error": err.Error(),
@@ -775,7 +775,7 @@ func (h *APIHandler) GetRealtimeClusterIndices(w http.ResponseWriter, req *http.
 		indexInfos = &filterIndices
 	}
 
-	qps, err := h.getIndexQPS(id)
+	qps, err := h.getIndexQPS(id, 20)
 	if err != nil {
 		resBody["error"] = err.Error()
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
@@ -810,9 +810,10 @@ type RealtimeNodeInfo struct {
 	CatNodeResponse
 }
 
-func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, error) {
+func (h *APIHandler) getIndexQPS(clusterID string, bucketSizeInSeconds int) (map[string]util.MapStr, error) {
 	ver := h.Client().GetVersion()
-	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, "10s")
+	bucketSizeStr :=  fmt.Sprintf("%ds", bucketSizeInSeconds)
+	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, bucketSizeStr)
 	if err != nil {
 		return nil, err
 	}
@@ -832,7 +833,7 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 					"date": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							intervalField: "10s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"term_shard": util.MapStr{
@@ -929,12 +930,127 @@ func (h *APIHandler) getIndexQPS(clusterID string) (map[string]util.MapStr, erro
 			},
 		},
 	}
-	return h.queryQPS(query)
+	return h.queryQPS(query, bucketSizeInSeconds)
 }
 
-func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error) {
+func (h *APIHandler) getShardQPS(clusterID string, nodeUUID string, indexName string, bucketSizeInSeconds int) (map[string]util.MapStr, error) {
 	ver := h.Client().GetVersion()
-	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, "10s")
+	bucketSizeStr :=  fmt.Sprintf("%ds", bucketSizeInSeconds)
+	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, bucketSizeStr)
+	if err != nil {
+		return nil, err
+	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
+	must := []util.MapStr{
+		{
+			"term": util.MapStr{
+				"metadata.labels.cluster_uuid": util.MapStr{
+					"value": clusterUUID,
+				},
+			},
+		},
+		{
+			"term": util.MapStr{
+				"metadata.name": util.MapStr{
+					"value": "shard_stats",
+				},
+			},
+		},
+	}
+	if nodeUUID != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.labels.node_id": util.MapStr{
+					"value": nodeUUID,
+				},
+			},
+		})
+	}
+	if indexName != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.labels.index_name": util.MapStr{
+					"value": indexName,
+				},
+			},
+		})
+	}
+	query := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"term_shard_id": util.MapStr{
+				"terms": util.MapStr{
+					"field": "metadata.labels.shard_id",
+					"size":  5000,
+				},
+				"aggs": util.MapStr{
+					"date": util.MapStr{
+						"date_histogram": util.MapStr{
+							"field":    "timestamp",
+							intervalField: bucketSizeStr,
+						},
+						"aggs": util.MapStr{
+							"query_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.shard_stats.search.query_total",
+								},
+							},
+							"index_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.shard_stats.indexing.index_total",
+								},
+							},
+							"index_bytes_total": util.MapStr{
+								"max": util.MapStr{
+									"field": "payload.elasticsearch.shard_stats.store.size_in_bytes",
+								},
+							},
+							"index_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_total",
+								},
+							},
+							"query_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "query_total",
+								},
+							},
+							"index_bytes_rate": util.MapStr{
+								"derivative": util.MapStr{
+									"buckets_path": "index_bytes_total",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"query": util.MapStr{
+			"bool": util.MapStr{
+				"filter": []util.MapStr{
+					{
+						"range": util.MapStr{
+							"timestamp": util.MapStr{
+								"gte": "now-1m",
+								"lte": "now",
+							},
+						},
+					},
+				},
+				"must": must,
+			},
+		},
+	}
+	return h.queryQPS(query, bucketSizeInSeconds)
+}
+
+func (h *APIHandler) getNodeQPS(clusterID string, bucketSizeInSeconds int) (map[string]util.MapStr, error) {
+	ver := h.Client().GetVersion()
+	bucketSizeStr :=  fmt.Sprintf("%ds", bucketSizeInSeconds)
+	intervalField, err  := elastic.GetDateHistogramIntervalField(ver.Distribution, ver.Number, bucketSizeStr)
 	if err != nil {
 		return nil, err
 	}
@@ -954,7 +1070,7 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 					"date": util.MapStr{
 						"date_histogram": util.MapStr{
 							"field":    "timestamp",
-							intervalField: "10s",
+							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
 							"index_total": util.MapStr{
@@ -1023,10 +1139,10 @@ func (h *APIHandler) getNodeQPS(clusterID string) (map[string]util.MapStr, error
 			},
 		},
 	}
-	return h.queryQPS(query)
+	return h.queryQPS(query, bucketSizeInSeconds)
 }
 
-func (h *APIHandler) queryQPS(query util.MapStr) (map[string]util.MapStr, error) {
+func (h *APIHandler) queryQPS(query util.MapStr, bucketSizeInSeconds int) (map[string]util.MapStr, error) {
 	esClient := h.Client()
 	searchRes, err := esClient.SearchWithRawQueryDSL(orm.GetWildcardIndexName(event.Event{}), util.MustToJSONBytes(query))
 	if err != nil {
@@ -1064,9 +1180,9 @@ func (h *APIHandler) queryQPS(query util.MapStr) (map[string]util.MapStr, error)
 							}
 
 						}
-						indexQPS[k]["index"] = maxIndexRate / 10
-						indexQPS[k]["query"] = maxQueryRate / 10
-						indexQPS[k]["index_bytes"] = maxIndexBytesRate / 10
+						indexQPS[k]["index"] = maxIndexRate / float64(bucketSizeInSeconds)
+						indexQPS[k]["query"] = maxQueryRate / float64(bucketSizeInSeconds)
+						indexQPS[k]["index_bytes"] = maxIndexBytesRate / float64(bucketSizeInSeconds)
 					}
 				}
 			}

@@ -1145,7 +1145,7 @@ func (h *APIHandler) GetNodeShards(w http.ResponseWriter, req *http.Request, ps 
 	}
 	var shards = []interface{}{}
 	if len(result.Result) > 0 {
-		qps, err := h.getIndexQPS(clusterID)
+		qps, err := h.getShardQPS(clusterID, nodeID, "", 20)
 		if err != nil {
 			log.Error(err)
 			h.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -1180,7 +1180,7 @@ func (h *APIHandler) GetNodeShards(w http.ResponseWriter, req *http.Request, ps 
 					shardInfo["store_in_bytes"], _ = shardM.GetValue("store.size_in_bytes")
 				}
 
-				if v, ok := shardInfo["index"].(string); ok {
+				if v, ok := shardInfo["shard_id"].(string); ok {
 					shardInfo["index_qps"] = qps[v]["index"]
 					shardInfo["query_qps"] = qps[v]["query"]
 					shardInfo["index_bytes_qps"] = qps[v]["index_bytes"]
