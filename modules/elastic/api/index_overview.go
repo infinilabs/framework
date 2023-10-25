@@ -705,6 +705,12 @@ func (h *APIHandler) GetIndexShards(w http.ResponseWriter, req *http.Request, ps
 				}
 			}
 		}
+		qps, err := h.getShardQPS(clusterID, "", indexName, 20)
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		for _, item := range result.Result {
 			row, ok := item.(map[string]interface{})
 			if ok {
@@ -739,9 +745,12 @@ func (h *APIHandler) GetIndexShards(w http.ResponseWriter, req *http.Request, ps
 					shardInfo["state"], _ = shardM.GetValue("routing.state")
 					shardInfo["store_in_bytes"], _ = shardM.GetValue("store.size_in_bytes")
 				}
-
+				if v, ok := shardInfo["shard_id"].(string); ok {
+					shardInfo["index_qps"] = qps[v]["index"]
+					shardInfo["query_qps"] = qps[v]["query"]
+					shardInfo["index_bytes_qps"] = qps[v]["index_bytes"]
+				}
 				shards = append(shards, shardInfo)
-				//todo add index qps info
 			}
 		}
 	}
