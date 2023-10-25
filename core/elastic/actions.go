@@ -206,6 +206,10 @@ func (meta *ElasticsearchMetadata) GetActivePreferredEndpoints(hosts []string) s
 	return fmt.Sprintf("%s://%s", meta.GetSchema(), meta.GetActiveHost())
 }
 
+func (meta *ElasticsearchMetadata) PrepareEndpoint(host string) string {
+	return fmt.Sprintf("%s://%s", meta.GetSchema(), host)
+}
+
 func (meta *ElasticsearchMetadata) GetActiveHosts() int {
 	hash:=hashset.New()
 	hosts := meta.GetSeedHosts()
