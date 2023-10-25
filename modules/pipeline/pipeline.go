@@ -391,7 +391,12 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	log.Info("creating pipeline: "+v.Name+", singleton: ", v.Singleton)
+	if v.Singleton{
+		log.Info("creating pipeline: "+v.Name+", singleton")
+	}else{
+		log.Info("creating pipeline: "+v.Name)
+	}
+
 
 	return task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 
