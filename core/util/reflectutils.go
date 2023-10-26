@@ -205,12 +205,24 @@ func GetInt64Value(any interface{}) int64 {
 		v := any.(int64)
 		var y = int64(v)
 		return y
+	} else if vt.String() == "int32" {
+		v := any.(int32)
+		var y = int64(v)
+		return y
 	} else if vt.String() == "uint64" {
 		v := any.(uint64)
 		var y = int64(v)
 		return y
+	}else if vt.String() == "uint32" {
+		v := any.(uint32)
+		var y = int64(v)
+		return y
 	} else if vt.String() == "uint" {
 		v := any.(uint)
+		var y = int64(v)
+		return y
+	} else if vt.String() == "int" {
+		v := any.(int)
 		var y = int64(v)
 		return y
 	}

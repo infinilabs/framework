@@ -7,9 +7,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"hash"
-	log "github.com/cihub/seelog"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +32,6 @@ func MinDuration(d1 time.Duration, d2 time.Duration) time.Duration {
 		return d2
 	}
 }
-
 
 // TsLayout is the layout to be used in the timestamp marshaling/unmarshaling everywhere.
 // The timezone must always be UTC.
@@ -74,7 +73,6 @@ func ParseStandardTime(value string) (time.Time, error) {
 	return t, err
 }
 
-
 func (t Time) String() string {
 	return time.Time(t).Format(TsLayout)
 }
@@ -90,16 +88,15 @@ func MustParseTime(value string) Time {
 	return ts
 }
 
-
 //old
 
 func FormatTime(date time.Time) string {
 	return date.Format("2006-01-02 15:04:05")
 }
 
-func ParseTime(str string) time.Time  {
-	v,err:= time.Parse("2006-01-02 15:04:05",str)
-	if err!=nil{
+func ParseTime(str string) time.Time {
+	v, err := time.Parse("2006-01-02 15:04:05", str)
+	if err != nil {
 		panic(err)
 	}
 	return v
@@ -113,8 +110,17 @@ func FormatUnixTimestamp(unix int64) string {
 	date := FromUnixTimestamp(unix)
 	return date.Format("2006-01-02 15:04:05")
 }
+
 func FromUnixTimestamp(unix int64) time.Time {
 	return time.Unix(unix, 0)
+}
+
+func FromUnixTimestampInMilli(unix int64) time.Time {
+	return time.UnixMilli(unix)
+}
+
+func FromUnixTimestampInMicro(unix int64) time.Time {
+	return time.UnixMicro(unix)
 }
 
 func FormatTimeWithLocalTZ(date time.Time) string {
@@ -158,13 +164,18 @@ func GetLowPrecisionCurrentTime() time.Time {
 	return time.Unix(0, atomic.LoadInt64(&nowNano))
 }
 
+func Since(t1 time.Time) time.Duration {
+	var now = GetLowPrecisionCurrentTime()
+	return now.Sub(t1)
+}
+
 func SetupTimeNowRefresh() {
 
 	if !refreshRunning {
 		setupLock.Lock()
 		defer setupLock.Unlock()
 
-		if refreshRunning{
+		if refreshRunning {
 			return
 		}
 
@@ -183,7 +194,7 @@ func SetupTimeNowRefresh() {
 	}
 }
 
-func ParseDuration(s string) (time.Duration, error){
+func ParseDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return 0, fmt.Errorf("invalid duration: %s", s)
@@ -193,7 +204,7 @@ func ParseDuration(s string) (time.Duration, error){
 		return du, err
 	}
 	unit := s[len(s)-1]
-	num, err := strconv.Atoi(s[0:len(s)-1])
+	num, err := strconv.Atoi(s[0 : len(s)-1])
 	if err != nil {
 		return 0, err
 	}

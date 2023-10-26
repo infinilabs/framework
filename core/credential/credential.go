@@ -6,6 +6,7 @@ package credential
 
 import (
 	"fmt"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
 )
 
@@ -43,6 +44,19 @@ func (cred *Credential) Encode() error{
 		return fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
 }
+func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
+	var dv interface{}
+	dv, err := cred.Decode()
+	if err != nil {
+		panic(err)
+	}
+
+	if auth, ok := dv.(model.BasicAuth); ok {
+		return &auth,nil
+	}
+	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
+}
+
 func (cred *Credential) Decode() (interface{}, error) {
 	switch cred.Type {
 	case BasicAuth:
@@ -55,3 +69,4 @@ func (cred *Credential) Decode() (interface{}, error) {
 const (
 	BasicAuth string = "basic_auth"
 )
+

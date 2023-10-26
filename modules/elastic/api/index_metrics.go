@@ -7,6 +7,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/radix"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/elastic/adapter"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
 	"sort"
@@ -14,14 +15,18 @@ import (
 	"time"
 )
 
-func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucketSize int, min, max int64, indexName string, top int) map[string]*common.MetricItem{
+func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucketSize int, min, max int64, indexName string, top int, shardID string) (map[string]*common.MetricItem, error){
 	bucketSizeStr:=fmt.Sprintf("%vs",bucketSize)
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 
 	var must = []util.MapStr{
 		{
 			"term":util.MapStr{
-				"metadata.labels.cluster_id":util.MapStr{
-					"value": clusterID,
+				"metadata.labels.cluster_uuid":util.MapStr{
+					"value": clusterUUID,
 				},
 			},
 		},
@@ -35,20 +40,28 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		{
 			"term": util.MapStr{
 				"metadata.name": util.MapStr{
-					"value": "index_stats",
+					"value": "shard_stats",
 				},
 			},
 		},
 	}
+	if v := strings.TrimSpace(shardID); v != "" {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.labels.shard_id": util.MapStr{
+					"value": shardID,
+				},
+			},
+		})
+	}
 	var (
 		indexNames []string
-		err error
 	)
 	if indexName != "" {
 		indexNames = strings.Split(indexName, ",")
 		allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
 		if !hasAllPrivilege && len(allowedIndices) == 0 {
-			return nil
+			return nil, nil
 		}
 		if !hasAllPrivilege{
 			namePattern := radix.Compile(allowedIndices...)
@@ -59,7 +72,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 				}
 			}
 			if len(filterNames) == 0 {
-				return nil
+				return nil, nil
 			}
 			indexNames = filterNames
 		}
@@ -68,7 +81,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	}else{
 		indexNames, err = h.getTopIndexName(req, clusterID, top, 15)
 		if err != nil {
-			log.Error(err)
+			return nil, err
 		}
 
 	}
@@ -112,7 +125,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	indexMetricItems := []GroupMetricItem{
 		{
 			Key: "index_storage",
-			Field: "payload.elasticsearch.index_stats.total.store.size_in_bytes",
+			Field: "payload.elasticsearch.shard_stats.store.size_in_bytes",
 			ID: util.GetUUID(),
 			IsDerivative: false,
 			MetricItem: indexStorageMetric,
@@ -125,7 +138,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	segmentCountMetric.AddAxi("segment count","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "segment_count",
-		Field: "payload.elasticsearch.index_stats.total.segments.count",
+		Field: "payload.elasticsearch.shard_stats.segments.count",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: segmentCountMetric,
@@ -138,7 +151,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "doc_count",
-		Field: "payload.elasticsearch.index_stats.total.docs.count",
+		Field: "payload.elasticsearch.shard_stats.docs.count",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: docCountMetric,
@@ -150,7 +163,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	docsDeletedMetric.AddAxi("docs deleted","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "docs_deleted",
-		Field: "payload.elasticsearch.index_stats.total.docs.deleted",
+		Field: "payload.elasticsearch.shard_stats.docs.deleted",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: docsDeletedMetric,
@@ -163,7 +176,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "query_times",
-		Field: "payload.elasticsearch.index_stats.total.search.query_total",
+		Field: "payload.elasticsearch.shard_stats.search.query_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryTimesMetric,
@@ -176,7 +189,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	fetchTimesMetric.AddAxi("Fetch times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "fetch_times",
-		Field: "payload.elasticsearch.index_stats.total.search.fetch_total",
+		Field: "payload.elasticsearch.shard_stats.search.fetch_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: fetchTimesMetric,
@@ -188,7 +201,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	scrollTimesMetric.AddAxi("scroll times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "scroll_times",
-		Field: "payload.elasticsearch.index_stats.total.search.scroll_total",
+		Field: "payload.elasticsearch.shard_stats.search.scroll_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: scrollTimesMetric,
@@ -200,7 +213,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	mergeTimesMetric.AddAxi("Merge times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "merge_times",
-		Field: "payload.elasticsearch.index_stats.total.merges.total",
+		Field: "payload.elasticsearch.shard_stats.merges.total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: mergeTimesMetric,
@@ -212,7 +225,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	refreshTimesMetric.AddAxi("Refresh times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "refresh_times",
-		Field: "payload.elasticsearch.index_stats.total.refresh.total",
+		Field: "payload.elasticsearch.shard_stats.refresh.total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: refreshTimesMetric,
@@ -224,7 +237,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	flushTimesMetric.AddAxi("flush times","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "flush_times",
-		Field: "payload.elasticsearch.index_stats.total.flush.total",
+		Field: "payload.elasticsearch.shard_stats.flush.total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: flushTimesMetric,
@@ -234,10 +247,11 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	//写入速率
 	indexingRateMetric := newMetricItem("indexing_rate", 1, OperationGroupKey)
+	indexingRateMetric.OnlyPrimary = true
 	indexingRateMetric.AddAxi("Indexing rate","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_rate",
-		Field: "payload.elasticsearch.index_stats.primaries.indexing.index_total",
+		Field: "payload.elasticsearch.shard_stats.indexing.index_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: indexingRateMetric,
@@ -245,10 +259,11 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		Units: "doc/s",
 	})
 	indexingBytesMetric := newMetricItem("indexing_bytes", 2, OperationGroupKey)
+	indexingBytesMetric.OnlyPrimary = true
 	indexingBytesMetric.AddAxi("Indexing bytes","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key:          "indexing_bytes",
-		Field:        "payload.elasticsearch.index_stats.primaries.store.size_in_bytes",
+		Field:        "payload.elasticsearch.shard_stats.store.size_in_bytes",
 		ID:           util.GetUUID(),
 		IsDerivative: true,
 		MetricItem:   indexingBytesMetric,
@@ -257,11 +272,12 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	})
 	//写入时延
 	indexingLatencyMetric := newMetricItem("indexing_latency", 1, LatencyGroupKey)
+	indexingLatencyMetric.OnlyPrimary = true
 	indexingLatencyMetric.AddAxi("Indexing latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_latency",
-		Field: "payload.elasticsearch.index_stats.primaries.indexing.index_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.primaries.indexing.index_total",
+		Field: "payload.elasticsearch.shard_stats.indexing.index_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.indexing.index_total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -277,8 +293,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	queryLatencyMetric.AddAxi("Query latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "query_latency",
-		Field: "payload.elasticsearch.index_stats.total.search.query_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.search.query_total",
+		Field: "payload.elasticsearch.shard_stats.search.query_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.search.query_total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -293,8 +309,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	fetchLatencyMetric.AddAxi("Fetch latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "fetch_latency",
-		Field: "payload.elasticsearch.index_stats.total.search.fetch_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.search.fetch_total",
+		Field: "payload.elasticsearch.shard_stats.search.fetch_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.search.fetch_total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -310,8 +326,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	mergeLatencyMetric.AddAxi("Merge latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "merge_latency",
-		Field: "payload.elasticsearch.index_stats.total.merges.total_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.merges.total",
+		Field: "payload.elasticsearch.shard_stats.merges.total_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.merges.total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -326,8 +342,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	refreshLatencyMetric.AddAxi("Refresh latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "refresh_latency",
-		Field: "payload.elasticsearch.index_stats.total.refresh.total_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.refresh.total",
+		Field: "payload.elasticsearch.shard_stats.refresh.total_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.refresh.total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -342,8 +358,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	scrollLatencyMetric.AddAxi("Scroll Latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "scroll_latency",
-		Field: "payload.elasticsearch.index_stats.total.search.scroll_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.search.scroll_total",
+		Field: "payload.elasticsearch.shard_stats.search.scroll_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.search.scroll_total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -358,8 +374,8 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	flushLatencyMetric.AddAxi("Flush latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "flush_latency",
-		Field: "payload.elasticsearch.index_stats.total.flush.total_time_in_millis",
-		Field2: "payload.elasticsearch.index_stats.total.flush.total",
+		Field: "payload.elasticsearch.shard_stats.flush.total_time_in_millis",
+		Field2: "payload.elasticsearch.shard_stats.flush.total",
 		Calc: func(value, value2 float64) float64 {
 			return value/value2
 		},
@@ -374,7 +390,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	queryCacheMetric.AddAxi("Query cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.memory_size_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.query_cache.memory_size_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: queryCacheMetric,
@@ -386,7 +402,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	requestCacheMetric.AddAxi("request cache","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache",
-		Field: "payload.elasticsearch.index_stats.total.request_cache.memory_size_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.request_cache.memory_size_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: requestCacheMetric,
@@ -398,7 +414,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	requestCacheHitMetric.AddAxi("request cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache_hit",
-		Field: "payload.elasticsearch.index_stats.total.request_cache.hit_count",
+		Field: "payload.elasticsearch.shard_stats.request_cache.hit_count",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: requestCacheHitMetric,
@@ -410,7 +426,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	requestCacheMissMetric.AddAxi("request cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "request_cache_miss",
-		Field: "payload.elasticsearch.index_stats.total.request_cache.miss_count",
+		Field: "payload.elasticsearch.shard_stats.request_cache.miss_count",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: requestCacheMissMetric,
@@ -422,7 +438,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	queryCacheCountMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_count",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.cache_count",
+		Field: "payload.elasticsearch.shard_stats.query_cache.cache_count",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryCacheCountMetric,
@@ -434,7 +450,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	queryCacheHitMetric.AddAxi("query cache hit","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_hit",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.hit_count",
+		Field: "payload.elasticsearch.shard_stats.query_cache.hit_count",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryCacheHitMetric,
@@ -460,7 +476,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	queryCacheMissMetric.AddAxi("query cache miss","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "query_cache_miss",
-		Field: "payload.elasticsearch.index_stats.total.query_cache.miss_count",
+		Field: "payload.elasticsearch.shard_stats.query_cache.miss_count",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: queryCacheMissMetric,
@@ -472,7 +488,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	fieldDataCacheMetric.AddAxi("FieldData Cache","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "fielddata_cache",
-		Field: "payload.elasticsearch.index_stats.total.fielddata.memory_size_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.fielddata.memory_size_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: fieldDataCacheMetric,
@@ -484,7 +500,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	segmentMemoryMetric.AddAxi("Segment memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "segment_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.memory_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.segments.memory_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: segmentMemoryMetric,
@@ -497,7 +513,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	docValuesMemoryMetric.AddAxi("Segment Doc values Memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "segment_doc_values_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.doc_values_memory_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.segments.doc_values_memory_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: docValuesMemoryMetric,
@@ -510,7 +526,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	termsMemoryMetric.AddAxi("Segment Terms Memory","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "segment_terms_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.terms_memory_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.segments.terms_memory_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: termsMemoryMetric,
@@ -535,7 +551,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	segmentIndexWriterMemoryMetric.AddAxi("segment doc values memory","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "segment_index_writer_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.index_writer_memory_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.segments.index_writer_memory_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: segmentIndexWriterMemoryMetric,
@@ -547,7 +563,7 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	segmentTermVectorsMemoryMetric.AddAxi("segment term vectors memory","group1",common.PositionLeft,"bytes","0,0","0,0.[00]",5,true)
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "segment_term_vectors_memory",
-		Field: "payload.elasticsearch.index_stats.total.segments.term_vectors_memory_in_bytes",
+		Field: "payload.elasticsearch.shard_stats.segments.term_vectors_memory_in_bytes",
 		ID: util.GetUUID(),
 		IsDerivative: false,
 		MetricItem: segmentTermVectorsMemoryMetric,
@@ -556,36 +572,78 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	})
 
 	aggs:=map[string]interface{}{}
+	sumAggs := util.MapStr{}
+	var filterSubAggs = util.MapStr{}
 
 	for _,metricItem:=range indexMetricItems {
-		aggs[metricItem.ID]=util.MapStr{
+		leafAgg := util.MapStr{
 			"max":util.MapStr{
 				"field": metricItem.Field,
 			},
 		}
+		var sumBucketPath = "term_shard>"+ metricItem.ID
+		if metricItem.MetricItem.OnlyPrimary {
+			filterSubAggs[metricItem.ID] = leafAgg
+			aggs["filter_pri"]=util.MapStr{
+				"filter": util.MapStr{
+					"term": util.MapStr{
+						"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
+							"value": true,
+						},
+					},
+				},
+				"aggs": filterSubAggs,
+			}
+			sumBucketPath = "term_shard>filter_pri>"+ metricItem.ID
+		}else{
+			aggs[metricItem.ID]= leafAgg
+		}
+
+		sumAggs[metricItem.ID] = util.MapStr{
+			"sum_bucket": util.MapStr{
+				"buckets_path": sumBucketPath,
+			},
+		}
 
 		if metricItem.Field2 != ""{
-			aggs[metricItem.ID + "_field2"]=util.MapStr{
+			leafAgg2 := util.MapStr{
 				"max":util.MapStr{
 					"field": metricItem.Field2,
+				},
+			}
+			if metricItem.MetricItem.OnlyPrimary {
+				filterSubAggs[metricItem.ID+"_field2"] = leafAgg2
+			}else{
+				aggs[metricItem.ID+"_field2"] = leafAgg2
+			}
+			sumAggs[metricItem.ID + "_field2"] = util.MapStr{
+				"sum_bucket": util.MapStr{
+					"buckets_path": sumBucketPath + "_field2",
 				},
 			}
 		}
 
 		if metricItem.IsDerivative{
-			aggs[metricItem.ID+"_deriv"]=util.MapStr{
+			sumAggs[metricItem.ID+"_deriv"]=util.MapStr{
 				"derivative":util.MapStr{
 					"buckets_path": metricItem.ID,
 				},
 			}
 			if metricItem.Field2 != "" {
-				aggs[metricItem.ID + "_deriv_field2"]=util.MapStr{
+				sumAggs[metricItem.ID + "_deriv_field2"]=util.MapStr{
 					"derivative":util.MapStr{
 						"buckets_path": metricItem.ID + "_field2",
 					},
 				}
 			}
 		}
+	}
+	sumAggs["term_shard"]= util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.labels.shard_id",
+			"size": 10000,
+		},
+		"aggs": aggs,
 	}
 	intervalField, err := getDateHistogramIntervalField(global.MustLookupString(elastic.GlobalSystemElasticsearchID), bucketSizeStr)
 	if err != nil {
@@ -599,9 +657,10 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 			"terms": util.MapStr{
 				"field": "metadata.labels.index_name",
 				"size":  top,
-				"order": util.MapStr{
-					"max_store": "desc",
-				},
+				// max_store is a pipeline agg, sort not support
+				//"order": util.MapStr{
+				//	"max_store": "desc",
+				//},
 			},
 			"aggs": util.MapStr{
 				"dates": util.MapStr{
@@ -609,17 +668,37 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 						"field": "timestamp",
 						intervalField: bucketSizeStr,
 					},
-					"aggs":aggs,
+					"aggs":sumAggs,
+				},
+				"max_store_bucket_sort": util.MapStr{
+					"bucket_sort": util.MapStr{
+						"sort": []util.MapStr{
+							{"max_store": util.MapStr{"order": "desc"}}},
+						"size": top,
+					},
+				},
+				"term_shard": util.MapStr{
+					"terms": util.MapStr{
+						"field": "metadata.labels.shard_id",
+						"size":  10000,
+					},
+					"aggs": util.MapStr{
+						"max_store": util.MapStr{
+							"max": util.MapStr{
+								"field": "payload.elasticsearch.shard_stats.store.size_in_bytes",
+							},
+						},
+					},
 				},
 				"max_store": util.MapStr{
-					"max": util.MapStr{
-						"field": "payload.elasticsearch.index_stats.total.store.size_in_bytes",
+					"sum_bucket": util.MapStr{
+						"buckets_path": "term_shard>max_store",
 					},
 				},
 			},
 		},
 	}
-	return h.getMetrics(query, indexMetricItems, bucketSize)
+	return h.getMetrics(query, indexMetricItems, bucketSize), nil
 
 }
 
@@ -634,6 +713,10 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 		max = now.UnixNano()/1e6
 		min = now.Add(-time.Duration(lastMinutes) * time.Minute).UnixNano()/1e6
 	)
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 	var must = []util.MapStr{
 		{
 			"term": util.MapStr{
@@ -645,14 +728,14 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 		{
 			"term": util.MapStr{
 				"metadata.name": util.MapStr{
-					"value": "index_stats",
+					"value": "shard_stats",
 				},
 			},
 		},
 		{
 			"term": util.MapStr{
-				"metadata.labels.cluster_id": util.MapStr{
-					"value": clusterID,
+				"metadata.labels.cluster_uuid": util.MapStr{
+					"value": clusterUUID,
 				},
 			},
 		},
@@ -727,14 +810,27 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
-							"search_query_total": util.MapStr{
-								"max": util.MapStr{
-									"field": "payload.elasticsearch.index_stats.total.search.query_total",
+							"term_shard": util.MapStr{
+								"terms": util.MapStr{
+									"field": "metadata.labels.shard_id",
+									"size":  10000,
+								},
+								"aggs": util.MapStr{
+									"search_query_total": util.MapStr{
+										"max": util.MapStr{
+											"field": "payload.elasticsearch.shard_stats.search.query_total",
+										},
+									},
+								},
+							},
+							"sum_search_query_total": util.MapStr{
+								"sum_bucket": util.MapStr{
+									"buckets_path": "term_shard>search_query_total",
 								},
 							},
 							"search_qps": util.MapStr{
 								"derivative": util.MapStr{
-									"buckets_path": "search_query_total",
+									"buckets_path": "sum_search_query_total",
 								},
 							},
 						},
@@ -766,14 +862,27 @@ func (h *APIHandler) getTopIndexName(req *http.Request, clusterID string, top in
 							intervalField: bucketSizeStr,
 						},
 						"aggs": util.MapStr{
-							"index_total": util.MapStr{
-								"max": util.MapStr{
-									"field": "payload.elasticsearch.index_stats.total.indexing.index_total",
+							"term_shard": util.MapStr{
+								"terms": util.MapStr{
+									"field": "metadata.labels.shard_id",
+									"size":  10000,
+								},
+								"aggs": util.MapStr{
+									"index_total": util.MapStr{
+										"max": util.MapStr{
+											"field": "payload.elasticsearch.shard_stats.indexing.index_total",
+										},
+									},
+								},
+							},
+							"sum_index_total": util.MapStr{
+								"sum_bucket": util.MapStr{
+									"buckets_path": "term_shard>index_total",
 								},
 							},
 							"index_qps": util.MapStr{
 								"derivative": util.MapStr{
-									"buckets_path": "index_total",
+									"buckets_path": "sum_index_total",
 								},
 							},
 						},

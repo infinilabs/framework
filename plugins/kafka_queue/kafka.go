@@ -227,7 +227,7 @@ func (this *KafkaQueue) Setup() {
 	}
 
 	ok, err := env.ParseConfig("kafka_queue", this.cfg)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 

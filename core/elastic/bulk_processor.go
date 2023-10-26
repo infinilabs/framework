@@ -22,20 +22,44 @@ import (
 var NEWLINEBYTES = []byte("\n")
 
 type BulkResult struct {
-	Error     bool        `json:"error,omitempty"`
-	ErrorMsgs []string    `json:"error_msgs,omitempty"`
-	Codes     []int       `json:"codes,omitempty"`
-	Indices   []string    `json:"indices,omitempty"`
-	Actions   []string    `json:"actions,omitempty"`
-	Summary   BulkSummary `json:"summary,omitempty"`
-	Stats     BulkStats   `json:"stats,omitempty"`
-	Detail    BulkDetail  `json:"detail,omitempty"`
+	Error     bool          `json:"error,omitempty"`
+	ErrorMsgs []string      `json:"error_msgs,omitempty"`
+	Codes     []int         `json:"codes,omitempty"`
+	Indices   []string      `json:"indices,omitempty"`
+	Actions   []string      `json:"actions,omitempty"`
+	Summary   BulkSummary   `json:"summary,omitempty"`
+	Stats     BulkStats     `json:"stats,omitempty"`
+	Detail    BulkDetail    `json:"detail,omitempty"`
+	Versions  []VersionInfo `json:"versions,omitempty"`
 }
 
 type BulkSummary struct {
 	Failure BulkSummaryItem `json:"failure,omitempty"`
 	Invalid BulkSummaryItem `json:"invalid,omitempty"`
 	Success BulkSummaryItem `json:"success,omitempty"`
+}
+
+type VersionInfo struct {
+	Path           string `json:"path"`
+	Index          string `json:"_index"`
+	ID             string `json:"_id"`
+	Version        int64  `json:"_version"`
+	PrimaryTerm    int64  `json:"_primary_term"`
+	SequenceNumber int64  `json:"_seq_no"`
+	Status         int64  `json:"status"`
+
+	Payload [][]byte `json:"-"` //request
+
+	Time              time.Time    //Not record time, but local access time
+	DocOffset         int          `json:"doc_offset,omitempty"`
+	MessageOffset     string       `json:"msg_offset,omitempty"`
+	ThisMessageOffset queue.Offset `json:"this_msg_offset,omitempty"`
+	ReplicationID     string       `json:"replication_id,omitempty"`
+	MessageTime       time.Time
+}
+
+func (ver *VersionInfo) GetKey() string {
+	return ver.Path
 }
 
 type BulkSummaryItem struct {
@@ -59,7 +83,10 @@ type BulkDetailItem struct {
 	Reasons   []string `json:"reasons,omitempty"`
 }
 
-func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool), metaFunc func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error), payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id, routing string)) (int, error) {
+func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool),
+	metaFunc func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error),
+	payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id, routing string),
+	operationFunc func(actionStr, index, typeName, id, routing string)) (int, error) {
 
 	nextIsMeta := true
 	skipNextLineProcessing := false
@@ -126,11 +153,22 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 
 			if actionStr == ActionDelete {
 				nextIsMeta = true
+
+				//for operation without body
+				if operationFunc != nil {
+					operationFunc(actionStr, index, typeName, id, routing)
+				}
 			}
 		} else {
 			nextIsMeta = true
 			payloadFunc(line, actionStr, index, typeName, id, routing)
+
+			//for operation with body
+			if operationFunc != nil {
+				operationFunc(actionStr, index, typeName, id, routing)
+			}
 		}
+
 	}
 
 	if global.Env().IsDebug {
@@ -200,6 +238,10 @@ type BulkResponseParseConfig struct {
 	SaveSuccessBulkResultToMessageQueue bool `config:"save_success_results"`
 	SaveErrorBulkResultToMessageQueue   bool `config:"save_error_results"`
 	SaveBusyBulkResultToMessageQueue    bool `config:"save_busy_results"`
+
+	//save bulk results to message queue, include versions
+	OutputVersions          bool   `config:"output_result_versions"`
+	ResultVersionsQueueName string `config:"result_versions_queue_name"`
 
 	OutputBulkStats    bool `config:"output_bulk_stats"`
 	IncludeIndexStats  bool `config:"include_index_stats"`
@@ -608,6 +650,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 
 	var indexStatsData map[string]int = map[string]int{}
 	var actionStatsData map[string]int = map[string]int{}
+	var versions = []VersionInfo{}
 
 	items, _, _, err := jsonparser.Get(resbody, "items")
 	if err == nil {
@@ -624,7 +667,6 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 				}
 			}
 			if err == nil {
-
 				//id can be nil
 				docId, err := jsonparser.GetUnsafeString(item, "_id")
 				if err != nil {
@@ -633,6 +675,17 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 				if err == nil {
 					docId = strings.Clone(docId) //TODO
 					//docId=docId //TODO
+				}
+
+				if options.OutputVersions {
+					//_version/_primary_term/_seq_no
+					version := VersionInfo{}
+					version.Version, _ = jsonparser.GetInt(item, "_version")
+					version.PrimaryTerm, _ = jsonparser.GetInt(item, "_primary_term")
+					version.SequenceNumber, _ = jsonparser.GetInt(item, "_seq_no")
+					version.Index, _ = jsonparser.GetUnsafeString(item, "_index")
+					version.ID = docId
+					versions = append(versions, version)
 				}
 
 				code1, err := jsonparser.GetInt(item, "status")
@@ -652,6 +705,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 					invalidDocStatus[docOffset] = code
 					invalidDocError[docOffset] = string(erObj)
 				}
+
 			}
 			docOffset++
 		})
@@ -757,7 +811,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 				successItems.WriteNewByteBufferLine("success", payloadBytes)
 			}
 		}
-	})
+	}, nil)
 
 	//save log and stats
 	var bulkResult *BulkResult
@@ -767,7 +821,11 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 		return containError, statsCodeStats, bulkResult
 	}
 
-	if options.OutputBulkStats || options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
+	if options.OutputBulkStats || options.OutputVersions || options.SaveErrorBulkResultToMessageQueue || options.SaveSuccessBulkResultToMessageQueue {
+
+		if options.OutputVersions {
+			queue.Push(queue.GetOrInitConfig(options.ResultVersionsQueueName), util.MustToJSONBytes(versions))
+		}
 
 		bulkResult = &BulkResult{
 			Error:     containError,
@@ -775,6 +833,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 			Codes:     util.GetIntMapKeys(statsCodeStats),
 			Indices:   util.GetStringIntMapKeys(indexStatsData),
 			Actions:   util.GetStringIntMapKeys(actionStatsData),
+			Versions:  versions,
 			Summary: BulkSummary{
 				Failure: BulkSummaryItem{
 					Count: retryableItems.GetMessageCount(),

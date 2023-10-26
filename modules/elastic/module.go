@@ -7,6 +7,7 @@ package elastic
 import (
 	"context"
 	"fmt"
+	"infini.sh/framework/core/model"
 	"math"
 	"runtime"
 	"sync"
@@ -70,7 +71,7 @@ func getDefaultConfig() common.ModuleConfig {
 func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if exist && err != nil {
+	if exist && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 
@@ -147,7 +148,7 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 								log.Error(err)
 								continue
 							}
-							if basicAuth, ok := obj.(elastic.BasicAuth); ok {
+							if basicAuth, ok := obj.(model.BasicAuth); ok {
 								configs[i].BasicAuth = &basicAuth
 							}
 
@@ -177,7 +178,7 @@ func (module *ElasticModule) Setup() {
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
-	if exists && err != nil {
+	if exists && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if exists {

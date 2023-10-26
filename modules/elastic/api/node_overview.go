@@ -955,18 +955,32 @@ func (h *APIHandler) getNodeIndices(w http.ResponseWriter, req *http.Request, ps
 	h.WriteJSON(w, indices, http.StatusOK)
 }
 
+type ShardsSummary struct {
+	Index        string `json:"index"`
+	Shards       int `json:"shards"`
+	Replicas     int `json:"replicas"`
+	DocsCount    int64 `json:"docs_count"`
+	DocsDeleted    int64 `json:"docs_deleted"`
+	StoreInBytes int64 `json:"store_in_bytes"`
+	PriStoreInBytes int64 `json:"pri_store_in_bytes"`
+	Timestamp interface{} `json:"timestamp"`
+}
 func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string, clusterID string, result *orm.Result) ([]interface{}, error) {
 	//filter indices
 	allowedIndices, hasAllPrivilege := h.GetAllowedIndices(req, clusterID)
 	if !hasAllPrivilege && len(allowedIndices) == 0 {
 		return []interface{}{}, nil
 	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		return nil, err
+	}
 
 	query := util.MapStr{
-		"size":    2000,
-		"_source": []string{"metadata", "payload.elasticsearch.index_stats.index_info", "timestamp"},
+		"size":    10000,
+		"_source": []string{"metadata.labels.index_name", "payload.elasticsearch.shard_stats.docs","payload.elasticsearch.shard_stats.store", "payload.elasticsearch.shard_stats.routing", "timestamp"},
 		"collapse": util.MapStr{
-			"field": "metadata.labels.index_name",
+			"field": "metadata.labels.shard_id",
 		},
 		"sort": []util.MapStr{
 			{
@@ -997,15 +1011,15 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 					},
 					{
 						"term": util.MapStr{
-							"metadata.labels.cluster_id": util.MapStr{
-								"value": clusterID,
+							"metadata.labels.cluster_uuid": util.MapStr{
+								"value": clusterUUID,
 							},
 						},
 					},
 					{
 						"term": util.MapStr{
 							"metadata.name": util.MapStr{
-								"value": "index_stats",
+								"value": "shard_stats",
 							},
 						},
 					},
@@ -1018,18 +1032,31 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 	if err != nil {
 		return nil, err
 	}
-	indexInfos := map[string]util.MapStr{}
+	indexInfos := map[string]*ShardsSummary{}
 	for _, hit := range searchResult.Result {
 		if hitM, ok := hit.(map[string]interface{}); ok {
-			indexInfo, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "index_stats", "index_info"}, hitM)
+			shardDocCount, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "docs", "count"}, hitM)
+			storeInBytes, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "store", "size_in_bytes"}, hitM)
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "index_name"}, hitM)
+			primary, _ := util.GetMapValueByKeys([]string{"payload", "elasticsearch", "shard_stats", "routing", "primary"}, hitM)
 			if v, ok := indexName.(string); ok {
-				if infoM, ok := indexInfo.(map[string]interface{}); ok {
-					if _, ok = infoM["index"].(string); ok {
-						infoM["timestamp"] = hitM["timestamp"]
-						indexInfos[v] = infoM
-					}
+				if _, ok = indexInfos[v]; !ok {
+					indexInfos[v] = &ShardsSummary{}
 				}
+				indexInfo := indexInfos[v]
+				indexInfo.Index = v
+				if count, ok := shardDocCount.(float64); ok && primary == true {
+					indexInfo.DocsCount += int64(count)
+				}
+				if storeSize, ok := storeInBytes.(float64); ok {
+					indexInfo.StoreInBytes += int64(storeSize)
+				}
+				if primary == true {
+					indexInfo.Shards++
+				}else{
+					indexInfo.Replicas++
+				}
+				indexInfo.Timestamp = hitM["timestamp"]
 			}
 		}
 	}
@@ -1043,6 +1070,14 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 		if hitM, ok := hit.(map[string]interface{}); ok {
 			indexName, _ := util.GetMapValueByKeys([]string{"metadata", "index_name"}, hitM)
 			state, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "state"}, hitM)
+			health, _ := util.GetMapValueByKeys([]string{"metadata", "labels", "health_status"}, hitM)
+			if state == "delete" {
+				health = "N/A"
+			}
+			shards, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_shards"}, hitM)
+			replicas, _ := util.GetMapValueByKeys([]string{"payload", "index_state", "settings", "index", "number_of_replicas"}, hitM)
+			shardsNum, _ := util.ToInt(shards.(string))
+			replicasNum, _ := util.ToInt(replicas.(string))
 			if v, ok := indexName.(string); ok {
 				if indexPattern != nil {
 					if !indexPattern.Match(v) {
@@ -1050,15 +1085,22 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 					}
 				}
 				if indexInfos[v] != nil {
-					if state == "delete" {
-						indexInfos[v]["status"] = "delete"
-						indexInfos[v]["health"] = "N/A"
-					}
-					indices = append(indices, indexInfos[v])
+					indices = append(indices, util.MapStr{
+						"index":     v,
+						"status":    state,
+						"health": health,
+						"timestamp": indexInfos[v].Timestamp,
+						"docs_count": indexInfos[v].DocsCount,
+						"shards": indexInfos[v].Shards,
+						"replicas": replicasNum,
+						"unassigned_shards": (replicasNum + 1) * shardsNum - indexInfos[v].Shards - replicasNum,
+						"store_size": util.FormatBytes(float64(indexInfos[v].StoreInBytes), 1),
+					})
 				} else {
 					indices = append(indices, util.MapStr{
 						"index":     v,
 						"status":    state,
+						"health": health,
 						"timestamp": hitM["timestamp"],
 					})
 				}
@@ -1071,54 +1113,82 @@ func (h *APIHandler) getLatestIndices(req *http.Request, min string, max string,
 
 func (h *APIHandler) GetNodeShards(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	clusterID := ps.MustGetParameter("id")
+	if GetMonitorState(clusterID) == Console {
+		h.APIHandler.GetNodeShards(w, req, ps)
+		return
+	}
 	nodeID := ps.MustGetParameter("node_id")
 	q1 := orm.Query{
-		Size: 1,
+		Size: 1000,
 		WildcardIndex: true,
+		CollapseField: "metadata.labels.shard_id",
+	}
+	clusterUUID, err := adapter.GetClusterUUID(clusterID)
+	if err != nil {
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
-		orm.Eq("metadata.name", "node_stats"),
+		orm.Eq("metadata.name", "shard_stats"),
 		orm.Eq("metadata.labels.node_id", nodeID),
-		orm.Eq("metadata.labels.cluster_id", clusterID),
+		orm.Eq("metadata.labels.cluster_uuid", clusterUUID),
+		orm.Ge("timestamp", "now-15m"),
 	)
 	q1.AddSort("timestamp", orm.DESC)
 	err, result := orm.Search(&event.Event{}, &q1)
 	if err != nil {
-		h.WriteJSON(w,util.MapStr{
-			"error": err.Error(),
-		}, http.StatusInternalServerError )
+		log.Error(err)
+		h.WriteError(w, err.Error(), http.StatusInternalServerError )
 		return
 	}
-	var shardInfo interface{} = []interface{}{}
+	var shards = []interface{}{}
 	if len(result.Result) > 0 {
-		row, ok := result.Result[0].(map[string]interface{})
-		if ok {
-			shardInfo, ok = util.GetMapValueByKeys([]string{"payload", "elasticsearch", "node_stats", "shard_info", "shards"}, row)
-			qps, err := h.getIndexQPS(clusterID)
-			if err != nil {
-				log.Error(err)
-				h.WriteError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if shards, ok := shardInfo.([]interface{}); ok {
-				for _, shard := range shards {
-					if shardM, ok := shard.(map[string]interface{}); ok {
-						if indexName, ok := shardM["index"].(string); ok {
-							if _, ok := qps[indexName]; ok {
-								shardM["index_qps"] = qps[indexName]["index"]
-								shardM["query_qps"] = qps[indexName]["query"]
-								shardM["index_bytes_qps"] = qps[indexName]["index_bytes"]
-							}
-						}
-					}
+		qps, err := h.getShardQPS(clusterID, nodeID, "", 20)
+		if err != nil {
+			log.Error(err)
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		for _, item := range result.Result {
+			row, ok := item.(map[string]interface{})
+			if ok {
+				source := util.MapStr(row)
+				shardV, err := source.GetValue("payload.elasticsearch.shard_stats")
+				if err != nil {
+					log.Error(err)
+					continue
 				}
+				shardInfo := util.MapStr{}
+				shardInfo["id"], _ = source.GetValue("metadata.labels.node_id")
+				shardInfo["index"], _ = source.GetValue("metadata.labels.index_name")
+				shardInfo["ip"], _ = source.GetValue("metadata.labels.ip")
+				shardInfo["node"], _ = source.GetValue("metadata.labels.node_name")
+				shardInfo["shard"], _ = source.GetValue("metadata.labels.shard")
+				shardInfo["shard_id"], _ = source.GetValue("metadata.labels.shard_id")
+				if v, ok := shardV.(map[string]interface{}); ok {
+					shardM := util.MapStr(v)
+					shardInfo["docs"], _ = shardM.GetValue("docs.count")
+					primary, _ := shardM.GetValue("routing.primary")
+					if primary == true {
+						shardInfo["prirep"] = "p"
+					}else{
+						shardInfo["prirep"] = "r"
+					}
+					shardInfo["state"], _ = shardM.GetValue("routing.state")
+					shardInfo["store_in_bytes"], _ = shardM.GetValue("store.size_in_bytes")
+				}
+
+				if v, ok := shardInfo["shard_id"].(string); ok {
+					shardInfo["index_qps"] = qps[v]["index"]
+					shardInfo["query_qps"] = qps[v]["query"]
+					shardInfo["index_bytes_qps"] = qps[v]["index_bytes"]
+				}
+				shards = append(shards, shardInfo)
 			}
 		}
 	}
-	if shardInfo == nil {
-		shardInfo = []interface{}{}
-	}
 
-	h.WriteJSON(w, shardInfo, http.StatusOK)
+	h.WriteJSON(w, shards, http.StatusOK)
 }

@@ -21,7 +21,6 @@ import (
 
 type MetricConfig struct {
 	Enabled        bool   `config:"enabled"`
-	MajorIPPattern string `config:"major_ip_pattern"`
 	MetricQueue    string `config:"queue"`
 	LoggingQueue   string `config:"logging_queue"`
 
@@ -275,7 +274,7 @@ func (module *MetricsModule) Stop() error {
 }
 
 func (module *MetricsModule) buildAgentMeta() event.AgentMeta {
-	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(module.config.MajorIPPattern)
+	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 	return event.AgentMeta{
 		AgentID:          global.Env().SystemConfig.NodeConfig.ID,
 		MajorIP:          publicIP,

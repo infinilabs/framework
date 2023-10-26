@@ -182,6 +182,17 @@ func (para *Parameters) GetBool(key ParaKey, defaultV bool) bool {
 	return defaultV
 }
 
+func (para *Parameters) HasTag(key string) bool {
+	tags, ok := para.GetTags()
+	if ok {
+		_, ok = tags[key]
+		if ok{
+			return true
+		}
+	}
+	return false
+}
+
 func (para *Parameters) Has(key ParaKey) bool {
 	para.init()
 	para.l.Lock()

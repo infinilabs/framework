@@ -129,7 +129,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		}
 		if hasAll {
 			freq.SetBodyStream(req.Body, int(req.ContentLength))
-		}else{
+		} else {
 			body, err := io.ReadAll(req.Body)
 			if err != nil {
 				log.Error(err)
@@ -152,7 +152,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 			body, _ = jsonparser.Set(body, newQ.Bytes(), "query")
 			freq.SetBody(body)
 		}
-	}else{
+	} else {
 		freq.SetBodyStream(req.Body, int(req.ContentLength))
 	}
 	defer req.Body.Close()
@@ -185,4 +185,5 @@ var client = fasthttp.Client{
 	ReadTimeout:     60 * time.Second,
 	WriteTimeout:    60 * time.Second,
 	DialDualStack:   true,
+	//Dial:            fasthttpproxy.FasthttpProxyHTTPDialerTimeout(time.Second * 2),
 }

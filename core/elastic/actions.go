@@ -21,9 +21,9 @@ func (node *NodeAvailable) ReportFailure() {
 	defer node.configLock.Unlock()
 
 	if !node.available {
-		if !node.isDead{
-			if time.Since(node.lastSuccess)>1*time.Hour{
-				node.isDead=true
+		if !node.isDead {
+			if time.Since(node.lastSuccess) > 1*time.Hour {
+				node.isDead = true
 				log.Debugf("node [%v] is dead, lost >1 hour: %v", node.Host, node.lastSuccess)
 			}
 		}
@@ -62,7 +62,7 @@ func (node *NodeAvailable) ReportSuccess() {
 	node.configLock.Lock()
 	defer node.configLock.Unlock()
 
-	if  !node.available {
+	if !node.available {
 		if rate.GetRateLimiter("node_available", node.Host, 1, 1, time.Second*1).Allow() {
 			log.Debugf("vote success ticket++ for elasticsearch [%v]", node.Host)
 			node.isDead = false
@@ -94,7 +94,7 @@ func (node *NodeAvailable) IsDead() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	if meta.Config==nil||!meta.Config.Enabled {
+	if meta.Config == nil || !meta.Config.Enabled {
 		return false
 	}
 	return meta.clusterAvailable
@@ -117,25 +117,23 @@ func (meta *BulkActionMetadata) GetItem() *BulkIndexMetadata {
 	}
 }
 
-func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID string) (*IndexShardRouting,error) {
+func (meta *ElasticsearchMetadata) GetPrimaryShardInfo(index string, shardID string) (*IndexShardRouting, error) {
 
-
-	table,err:=meta.GetIndexRoutingTable(index)
-	if err!=nil{
-		return nil,err
+	table, err := meta.GetIndexRoutingTable(index)
+	if err != nil {
+		return nil, err
 	}
 
-	shards,ok:=table[shardID]
-	if ok{
-		for _,v:=range shards{
-			if v.Primary{
-				return &v,nil
+	shards, ok := table[shardID]
+	if ok {
+		for _, v := range shards {
+			if v.Primary {
+				return &v, nil
 			}
 		}
 	}
 
-
-	return nil, errors.Errorf("primary shard info for shard [%v][%v] was not found",index,shardID)
+	return nil, errors.Errorf("primary shard info for shard [%v][%v] was not found", index, shardID)
 
 }
 
@@ -147,7 +145,7 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 		}
 	}
 
-	info,_:=GetClient(meta.Config.ID).GetNodeInfo(nodeID)
+	info, _ := GetClient(meta.Config.ID).GetNodeInfo(nodeID)
 
 	return info
 }
@@ -156,13 +154,11 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 	return fmt.Sprintf("%s://%s", meta.GetSchema(), meta.GetActiveHost())
 }
 
-
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedHost() string {
-	hosts:= meta.GetSeedHosts()
-	if len(hosts)>0{
-		for _,v:=range hosts{
-			available := IsHostAvailable(v)
-			if available{
+	hosts := meta.GetSeedHosts()
+	if len(hosts) > 0 {
+		for _, v := range hosts {
+			if v != "" && IsHostAvailable(v) {
 				return v
 			}
 		}
@@ -172,10 +168,10 @@ func (meta *ElasticsearchMetadata) GetActivePreferredSeedHost() string {
 
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedEndpoint() string {
 	var endpoint string
-	hosts:= meta.GetSeedHosts()
-	if len(hosts)>0{
+	hosts := meta.GetSeedHosts()
+	if len(hosts) > 0 {
 		endpoint = meta.GetActivePreferredEndpoints(hosts)
-	}else{
+	} else {
 		endpoint = meta.GetActiveEndpoint()
 	}
 	if strings.TrimSpace(endpoint) == "" {
@@ -192,13 +188,12 @@ func (meta *ElasticsearchMetadata) GetActivePreferredEndpoint(host string) strin
 }
 
 func (meta *ElasticsearchMetadata) GetActivePreferredEndpoints(hosts []string) string {
-	if len(hosts)==0{
+	if len(hosts) == 0 {
 		panic(errors.New("hosts is empty"))
 	}
 
-	for _,v:=range hosts{
-		available := IsHostAvailable(v)
-		if available {
+	for _, v := range hosts {
+		if v != "" && IsHostAvailable(v) {
 			return fmt.Sprintf("%s://%s", meta.GetSchema(), v)
 		}
 	}
@@ -206,22 +201,26 @@ func (meta *ElasticsearchMetadata) GetActivePreferredEndpoints(hosts []string) s
 	return fmt.Sprintf("%s://%s", meta.GetSchema(), meta.GetActiveHost())
 }
 
+func (meta *ElasticsearchMetadata) PrepareEndpoint(host string) string {
+	return fmt.Sprintf("%s://%s", meta.GetSchema(), host)
+}
+
 func (meta *ElasticsearchMetadata) GetActiveHosts() int {
-	hash:=hashset.New()
+	hash := hashset.New()
 	hosts := meta.GetSeedHosts()
 	for _, v := range hosts {
-		if IsHostAvailable(v) {
+		if v != "" && IsHostAvailable(v) {
 			hash.Add(v)
 		}
 	}
-	if meta.Config.Discovery.Enabled{
-		if meta.Nodes!=nil{
-			for _,v1:=range *meta.Nodes{
-				v:=v1.GetHttpPublishHost()
-				if IsHostAvailable(v){
+	if meta.Config.Discovery.Enabled {
+		if meta.Nodes != nil {
+			for _, v1 := range *meta.Nodes {
+				v := v1.GetHttpPublishHost()
+				if v != "" && IsHostAvailable(v) {
 					//add to cache
-					info,ok:= GetHostAvailableInfo(v)
-					if ok&&info!=nil{
+					info, ok := GetHostAvailableInfo(v)
+					if ok && info != nil {
 						hash.Add(v)
 					}
 				}
@@ -234,42 +233,53 @@ func (meta *ElasticsearchMetadata) GetActiveHosts() int {
 
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
 
-	if meta.activeHost!=nil{
-		if meta.activeHost.IsAvailable(){
+	if meta.activeHost != nil {
+		if meta.activeHost.IsAvailable() {
 			return meta.activeHost.Host
 		}
 	}
 
 	hosts := meta.GetSeedHosts()
-	for _, v := range hosts {
-		if IsHostAvailable(v){
-			//add to cache
-			info,ok:= GetHostAvailableInfo(v)
-			if ok&&info!=nil{
-				if info.IsAvailable(){
-					meta.activeHost=info
-				}
-			}
-			return v
-		}
-	}
-
-	if meta.Config.Discovery.Enabled{
-		if meta.Nodes!=nil{
-			for _,v1:=range *meta.Nodes{
-				v:=v1.GetHttpPublishHost()
-				if IsHostAvailable(v){
+	if hosts != nil && len(hosts) > 0 {
+		for _, v := range hosts {
+			if v != "" {
+				if IsHostAvailable(v) {
 					//add to cache
-					info,ok:= GetHostAvailableInfo(v)
-					if ok&&info!=nil{
-						if info.IsAvailable(){
-							meta.activeHost=info
+					info, ok := GetHostAvailableInfo(v)
+					if ok && info != nil {
+						if info.IsAvailable() {
+							meta.activeHost = info
 						}
 					}
 					return v
+
 				}
 			}
 		}
+	}
+
+	if meta.Config.Discovery.Enabled {
+		if meta.Nodes != nil {
+			for _, v1 := range *meta.Nodes {
+				v := v1.GetHttpPublishHost()
+				if v != "" {
+					if IsHostAvailable(v) {
+						//add to cache
+						info, ok := GetHostAvailableInfo(v)
+						if ok && info != nil {
+							if info.IsAvailable() {
+								meta.activeHost = info
+							}
+						}
+						return v
+					}
+				}
+			}
+		}
+	}
+
+	if len(hosts) == 0 {
+		panic(errors.New("hosts is empty"))
 	}
 
 	if rate.GetRateLimiter("cluster_available", meta.Config.Name, 1, 1, time.Second*10).Allow() {
@@ -344,10 +354,10 @@ func (meta *ElasticsearchMetadata) ReportFailure(errorMessage error) bool {
 				return true
 			}
 
-			num:=meta.GetActiveHosts()
-			log.Infof("%v has active hosts: %v",meta.Config.Name,num)
-			if num>0{
-				log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name,num)
+			num := meta.GetActiveHosts()
+			log.Infof("%v has active hosts: %v", meta.Config.Name, num)
+			if num > 0 {
+				log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name, num)
 				return false
 			}
 

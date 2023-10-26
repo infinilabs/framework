@@ -17,7 +17,6 @@ limitations under the License.
 package adapter
 
 import (
-	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
@@ -53,39 +52,26 @@ var timeout = 30 * time.Second
 
 func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterInformation, error) {
 	url := fmt.Sprintf("%v://%v", metadata.GetSchema(), metadata.GetActiveHost())
-
 	if metadata.Config.RequestTimeout <= 0 {
 		metadata.Config.RequestTimeout = 30
 	}
-	var req = fasthttp.AcquireRequest()
-	var res = fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(res)
 
-	ctx := elastic.APIContext{
-		Client: &fasthttp.Client{
-			MaxConnsPerHost:     1000,
-			TLSConfig:           &tls.Config{InsecureSkipVerify: true},
-			MaxConnWaitTimeout:  timeout,
-			MaxIdleConnDuration: timeout,
-			WriteTimeout:        timeout,
-			ReadTimeout:         timeout,
-			DialDualStack:       true,
-		},
-		Request:  req,
-		Response: res,
+	req:=util.Request{Method: fasthttp.MethodGet,Url: url}
+	if metadata.Config.BasicAuth != nil {
+		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
-	result, err := RequestTimeout(&ctx, "GET", url, nil, metadata, time.Duration(metadata.Config.RequestTimeout)*time.Second)
+
+	res, err := util.ExecuteRequestWithCatchFlag(nil, &req, true)
 	if err != nil {
 		return nil, err
 	}
 
-	if result.StatusCode != 200 {
-		return nil, errors.New(string(result.Body))
+	if res.StatusCode != 200 {
+		return nil, errors.New(string(res.Body))
 	}
 
 	version := elastic.ClusterInformation{}
-	err = json.Unmarshal(result.Body, &version)
+	err = json.Unmarshal(res.Body, &version)
 	if err != nil {
 		return nil, err
 	}

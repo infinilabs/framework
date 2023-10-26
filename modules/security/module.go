@@ -8,6 +8,7 @@ import (
 	"infini.sh/framework/core/api/rbac"
 	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	authapi "infini.sh/framework/modules/security/api"
 	"infini.sh/framework/modules/security/config"
@@ -41,7 +42,7 @@ func (module *Module) Setup() {
 	}
 
 	ok, err := env.ParseConfig("security", &module.cfg)
-	if ok && err != nil {
+	if ok && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 

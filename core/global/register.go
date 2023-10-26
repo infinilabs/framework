@@ -70,7 +70,11 @@ func Register(k RegisterKey, v interface{}) {
 
 func MustLookupString(k RegisterKey) string {
 	v := MustLookup(k)
-	return v.(string)
+	x:= v.(string)
+	if x == "" {
+		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
+	}
+	return x
 }
 
 func MustLookup(k RegisterKey) interface{} {

@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/core/api/rbac/enum"
 	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 )
@@ -42,7 +43,7 @@ func Init() {
 					log.Error(err)
 					continue
 				}
-				if v, ok := obj.(elastic.BasicAuth); ok {
+				if v, ok := obj.(model.BasicAuth); ok {
 					newConf := *conf
 					newConf.BasicAuth = &v
 					_, err = common.InitElasticInstance(newConf)

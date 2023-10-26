@@ -904,3 +904,261 @@ func parseHealthMetricData(buckets []elastic.BucketBase) ([]interface{}, error) 
 	}
 	return metricData, nil
 }
+
+func (h *APIHandler) getSingleIndexMetricsByNodeStats(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
+	metricData := map[string][][]interface{}{}
+
+	aggs := util.MapStr{}
+	metricItemsMap := map[string]*common.MetricLine{}
+	sumAggs := util.MapStr{}
+
+	for _, metricItem := range metricItems {
+		for _, line := range metricItem.Lines {
+			dk := line.Metric.GetDataKey()
+			metricItemsMap[dk] = line
+			metricData[dk] = [][]interface{}{}
+			leafAgg := util.MapStr{
+				line.Metric.MetricAgg: util.MapStr{
+					"field": line.Metric.Field,
+				},
+			}
+			var sumBucketPath = "term_node>"+ line.Metric.ID
+			aggs[line.Metric.ID] = leafAgg
+
+			sumAggs[line.Metric.ID] = util.MapStr{
+				"sum_bucket": util.MapStr{
+					"buckets_path":  sumBucketPath,
+				},
+			}
+			if line.Metric.Field2 != "" {
+				leafAgg2 := util.MapStr{
+					line.Metric.MetricAgg: util.MapStr{
+						"field": line.Metric.Field2,
+					},
+				}
+
+				aggs[line.Metric.ID+"_field2"] = leafAgg2
+				sumAggs[line.Metric.ID + "_field2"] = util.MapStr{
+					"sum_bucket": util.MapStr{
+						"buckets_path": sumBucketPath+"_field2",
+					},
+				}
+			}
+
+			if line.Metric.IsDerivative {
+				//add which metric keys to extract
+				sumAggs[line.Metric.ID+"_deriv"] = util.MapStr{
+					"derivative": util.MapStr{
+						"buckets_path": line.Metric.ID,
+					},
+				}
+				if line.Metric.Field2 != "" {
+					sumAggs[line.Metric.ID+"_deriv_field2"] = util.MapStr{
+						"derivative": util.MapStr{
+							"buckets_path": line.Metric.ID + "_field2",
+						},
+					}
+				}
+			}
+		}
+	}
+
+	sumAggs["term_node"]= util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.labels.node_id",
+			"size": 1000,
+		},
+		"aggs": aggs,
+	}
+	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
+
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
+	query["size"] = 0
+	query["aggs"] = util.MapStr{
+		"dates": util.MapStr{
+			"date_histogram": util.MapStr{
+				"field":       "timestamp",
+				intervalField: bucketSizeStr,
+			},
+			"aggs": sumAggs,
+		},
+	}
+	return parseSingleIndexMetrics(clusterID, metricItems, query, bucketSize,metricData, metricItemsMap)
+}
+
+func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
+	metricData := map[string][][]interface{}{}
+
+	aggs := util.MapStr{}
+	metricItemsMap := map[string]*common.MetricLine{}
+	sumAggs := util.MapStr{}
+	var filterSubAggs = util.MapStr{}
+
+	for _, metricItem := range metricItems {
+		for _, line := range metricItem.Lines {
+			dk := line.Metric.GetDataKey()
+			metricItemsMap[dk] = line
+			metricData[dk] = [][]interface{}{}
+			leafAgg := util.MapStr{
+				line.Metric.MetricAgg: util.MapStr{
+					"field": line.Metric.Field,
+				},
+			}
+			var sumBucketPath = "term_shard>"+ line.Metric.ID
+			if line.Metric.OnlyPrimary {
+				filterSubAggs[line.Metric.ID] = leafAgg
+				aggs["filter_pri"]=util.MapStr{
+					"filter": util.MapStr{
+						"term": util.MapStr{
+							"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
+								"value": true,
+							},
+						},
+					},
+					"aggs": filterSubAggs,
+				}
+				sumBucketPath = "term_shard>filter_pri>"+ line.Metric.ID
+			}else{
+				aggs[line.Metric.ID] = leafAgg
+			}
+
+			sumAggs[line.Metric.ID] = util.MapStr{
+				"sum_bucket": util.MapStr{
+					"buckets_path":  sumBucketPath,
+				},
+			}
+			if line.Metric.Field2 != "" {
+				leafAgg2 := util.MapStr{
+					line.Metric.MetricAgg: util.MapStr{
+						"field": line.Metric.Field2,
+					},
+				}
+				if line.Metric.OnlyPrimary {
+					filterSubAggs[line.Metric.ID+"_field2"] = leafAgg2
+				}else{
+					aggs[line.Metric.ID+"_field2"] = leafAgg2
+				}
+
+				sumAggs[line.Metric.ID + "_field2"] = util.MapStr{
+					"sum_bucket": util.MapStr{
+						"buckets_path": sumBucketPath+"_field2",
+					},
+				}
+			}
+
+			if line.Metric.IsDerivative {
+				//add which metric keys to extract
+				sumAggs[line.Metric.ID+"_deriv"] = util.MapStr{
+					"derivative": util.MapStr{
+						"buckets_path": line.Metric.ID,
+					},
+				}
+				if line.Metric.Field2 != "" {
+					sumAggs[line.Metric.ID+"_deriv_field2"] = util.MapStr{
+						"derivative": util.MapStr{
+							"buckets_path": line.Metric.ID + "_field2",
+						},
+					}
+				}
+			}
+		}
+	}
+
+	sumAggs["term_shard"]= util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.labels.shard_id",
+			"size": 100000,
+		},
+		"aggs": aggs,
+	}
+	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
+
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
+	query["size"] = 0
+	query["aggs"] = util.MapStr{
+		"dates": util.MapStr{
+			"date_histogram": util.MapStr{
+				"field":       "timestamp",
+				intervalField: bucketSizeStr,
+			},
+			"aggs": sumAggs,
+		},
+	}
+	return parseSingleIndexMetrics(clusterID, metricItems, query, bucketSize,metricData, metricItemsMap)
+}
+
+func parseSingleIndexMetrics(clusterID string, metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int, metricData map[string][][]interface{}, metricItemsMap map[string]*common.MetricLine) map[string]*common.MetricItem {
+	response, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
+	if err != nil {
+		panic(err)
+	}
+
+	var minDate, maxDate int64
+	if response.StatusCode == 200 {
+		for _, v := range response.Aggregations {
+			for _, bucket := range v.Buckets {
+				v, ok := bucket["key"].(float64)
+				if !ok {
+					panic("invalid bucket key")
+				}
+				dateTime := (int64(v))
+				minDate = util.MinInt64(minDate, dateTime)
+				maxDate = util.MaxInt64(maxDate, dateTime)
+				for mk1, mv1 := range metricData {
+					v1, ok := bucket[mk1]
+					if ok {
+						v2, ok := v1.(map[string]interface{})
+						if ok {
+							v3, ok := v2["value"].(float64)
+							if ok {
+								if strings.HasSuffix(mk1, "_deriv") {
+									if _, ok := bucket[mk1+"_field2"]; !ok {
+										v3 = v3 / float64(bucketSize)
+									}
+								}
+								if field2, ok := bucket[mk1+"_field2"]; ok {
+									if line, ok := metricItemsMap[mk1]; ok {
+										if field2Map, ok := field2.(map[string]interface{}); ok {
+											v4 := field2Map["value"].(float64)
+											if v4 == 0 {
+												v3 = 0
+											} else {
+												v3 = line.Metric.Calc(v3, v4)
+											}
+										}
+									}
+								}
+								if v3 < 0 {
+									continue
+								}
+								points := []interface{}{dateTime, v3}
+								metricData[mk1] = append(mv1, points)
+							}
+
+						}
+					}
+				}
+			}
+		}
+	}
+
+	result := map[string]*common.MetricItem{}
+
+	for _, metricItem := range metricItems {
+		for _, line := range metricItem.Lines {
+			line.TimeRange = common.TimeRange{Min: minDate, Max: maxDate}
+			line.Data = metricData[line.Metric.GetDataKey()]
+		}
+		result[metricItem.Key] = metricItem
+	}
+
+	return result
+}

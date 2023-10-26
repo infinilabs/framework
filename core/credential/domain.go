@@ -6,8 +6,8 @@ package credential
 
 import (
 	"fmt"
-	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/keystore"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/util"
 	keystore2 "infini.sh/framework/lib/keystore"
 )
@@ -93,7 +93,7 @@ func encodeBasicAuth(cred *Credential) error {
 	return nil
 }
 
-func decodeBasicAuth(cred *Credential) (basicAuth elastic.BasicAuth, err error) {
+func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 	var (
 		params map[string]interface{}
 		ok bool

@@ -135,6 +135,7 @@ const RangeGte QueryType = "gte"
 const RangeLt QueryType = "lt"
 const RangeLte QueryType = "lte"
 
+const StringTerms QueryType = "string_terms"
 const Terms QueryType = "terms"
 
 func Eq(field string, value interface{}) *Cond {
@@ -163,6 +164,16 @@ func In(field string, value []interface{}) *Cond {
 	c.Value = value
 	c.SQLOperator = " in "
 	c.QueryType = Terms
+	c.BoolType = Must
+	return &c
+}
+
+func InStringArray(field string, value []string) *Cond {
+	c := Cond{}
+	c.Field = field
+	c.Value = value
+	c.SQLOperator = " in "
+	c.QueryType = StringTerms
 	c.BoolType = Must
 	return &c
 }
