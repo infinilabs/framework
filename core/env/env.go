@@ -199,13 +199,12 @@ func (env *Env) InitPaths(cfgPath string) error {
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	env.SystemConfig.Configs.PanicOnConfigError=!env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
+
 	var (
 		cfgObj *config.Config
 		err    error
 	)
-	if cfgObj, err = config.LoadFile(cfgPath); err != nil {
-		return fmt.Errorf("error loading confiuration file: %v, %w", cfgPath, err)
-	}
+
 
 	if util.FileExists(cfgPath) {
 		if cfgObj, err = config.LoadFile(cfgPath); err != nil {
