@@ -170,9 +170,7 @@ type ConfigsConfig struct {
 	PanicOnConfigError     bool     `config:"panic_on_config_error"` //panic on config error
 	MaxBackupFiles         int      `config:"max_backup_files"`      //keep max num of file backup
 	ValidConfigsExtensions []string `config:"valid_config_extensions"`
-
 	TLSConfig TLSConfig `config:"tls"`
-
 	ManagerConfig struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`

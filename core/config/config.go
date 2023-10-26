@@ -175,7 +175,7 @@ func LoadFile(path string) (*Config, error) {
 	//check templated file
 	cfgByes, err := util.FileGetContent(path)
 	if err != nil {
-		panic(fmt.Sprintf("%v, %v",path,err))
+		return nil,errors.New(fmt.Sprintf("%v, %v",path,err))
 	}
 
 	//if hash variable, apply and re-unpack
@@ -183,7 +183,7 @@ func LoadFile(path string) (*Config, error) {
 	if util.ContainStr(bytesStr, "$[[") {
 		obj, err := LoadEnvVariables(path)
 		if err != nil {
-			panic(err)
+			return nil,err
 		}
 
 		envObj := util.MapStr{}
