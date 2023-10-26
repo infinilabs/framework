@@ -334,6 +334,9 @@ var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
 	if host == "" {
+		if global.Env().IsDebug{
+			panic("host is nil")
+		}
 		log.Warn("host is nil")
 		return false
 	}
@@ -396,7 +399,9 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	hosts := []string{}
 	if len(meta.Config.Hosts) > 0 {
 		for _, h := range meta.Config.Hosts {
-			hosts = append(hosts, h)
+			if h!=""{
+				hosts = append(hosts, h)
+			}
 		}
 	}
 	if len(meta.Config.Host) > 0 {
@@ -408,7 +413,9 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 		if err != nil {
 			panic(err)
 		}
-		hosts = append(hosts, i.Host)
+		if i.Host!=""{
+			hosts = append(hosts, i.Host)
+		}
 	}
 	if len(meta.Config.Endpoints) > 0 {
 		for _, h := range meta.Config.Endpoints {
@@ -416,7 +423,9 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 			if err != nil {
 				panic(err)
 			}
-			hosts = append(hosts, i.Host)
+			if i.Host!=""{
+				hosts = append(hosts, i.Host)
+			}
 		}
 	}
 	if len(hosts) == 0 {
@@ -433,9 +442,16 @@ func (node *NodesInfo) GetHttpPublishHost() string {
 		}
 		arr := strings.Split(node.Http.PublishAddress, "/")
 		if len(arr) == 2 {
-			return arr[1]
+			if  arr[1] !=""{
+				return arr[1]
+			}
 		}
 	}
+
+	if node.Http.PublishAddress == "" {
+		panic(errors.Errorf("node's public address is empty, %v",node.Name))
+	}
+
 	return node.Http.PublishAddress
 }
 
