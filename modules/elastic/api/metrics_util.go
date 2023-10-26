@@ -209,13 +209,23 @@ func (h *APIHandler) getMetricRangeAndBucketSize(req *http.Request, defaultBucke
 	if defaultMetricCount <= 0 {
 		defaultMetricCount = 15 * 60
 	}
+	bucketSize := defaultBucketSize
 
-	bucketSize := h.GetIntOrDefault(req, "bucket_size", defaultBucketSize)    //默认 10，每个 bucket 的时间范围，单位秒
-	metricCount := h.GetIntOrDefault(req, "metric_count", defaultMetricCount) //默认 15分钟的区间，每分钟15个指标，也就是 15*6 个 bucket //90
+	bucketSizeStr := h.GetParameterOrDefault(req, "bucket_size", "")    //默认 10，每个 bucket 的时间范围，单位秒
+	if bucketSizeStr != "" {
+		du, err := util.ParseDuration(bucketSizeStr)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		bucketSize = int(du.Seconds())
+		if bucketSize < minBucketSizeInSeconds {
+			bucketSize = minBucketSizeInSeconds
+		}
 
-	if bucketSize < minBucketSizeInSeconds {
-		bucketSize = minBucketSizeInSeconds
+	}else {
+		bucketSize = 0
 	}
+	metricCount := h.GetIntOrDefault(req, "metric_count", defaultMetricCount) //默认 15分钟的区间，每分钟15个指标，也就是 15*6 个 bucket //90
 	//min,max are unix nanoseconds
 
 	minStr := h.Get(req, "min", "")
@@ -228,7 +238,7 @@ func GetMetricRangeAndBucketSize(minStr string, maxStr string, bucketSize int, m
 	var min, max int64
 	var rangeFrom, rangeTo time.Time
 	var err error
-	var useMinMax bool
+	var useMinMax = bucketSize == 0
 	now := time.Now()
 	if minStr == "" {
 		rangeFrom = now.Add(-time.Second * time.Duration(bucketSize*metricCount+1))
@@ -245,7 +255,6 @@ func GetMetricRangeAndBucketSize(minStr string, maxStr string, bucketSize int, m
 				rangeFrom = util.FromUnixTimestamp(v / 1000)
 			}
 		}
-		useMinMax = true
 	}
 
 	if maxStr == "" {
