@@ -83,6 +83,10 @@ func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHe
 var debugFlagInitFunc func()
 var debugInitFunc func()
 
+func (app *App) IgnoreMainConfigMissing() {
+	app.environment.IgnoreOnConfigMissing = true
+}
+
 func (app *App) Init(customFunc func()) {
 	app.initWithFlags()
 	app.initEnvironment(customFunc)
@@ -161,14 +165,21 @@ func (app *App) initWithFlags() {
 	}
 
 	app.environment.IsDebug = app.isDebug
-	if app.configFile != "" {
-		path := util.TryGetFileAbsPath(app.configFile, true)
-		if !util.FileExists(path) {
-			fmt.Println(errors.Errorf("config file [%v] not exists", path))
+
+	if app.configFile == "" {
+		app.configFile = app.environment.GetAppLowercaseName() + ".yml"
+	}
+
+	app.configFile = util.TryGetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
+
+	if !util.FileExists(app.configFile ) {
+		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile ))
+		if !app.environment.IgnoreOnConfigMissing{
 			os.Exit(1)
 		}
-		app.environment.SetConfigFile(path)
 	}
+
+	app.environment.SetConfigFile(app.configFile )
 	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
 		panic(err)

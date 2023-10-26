@@ -56,8 +56,9 @@ type Env struct {
 	workingLogDir  string
 	pluginDir      string
 
-	allowSetup    bool
-	setupRequired bool
+	allowSetup            bool
+	setupRequired         bool
+	IgnoreOnConfigMissing bool
 }
 
 func (env *Env) CheckSetup() error {
@@ -175,6 +176,7 @@ func (env *Env) InitPaths(cfgPath string) error {
 	_, defaultSystemConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
+	env.SystemConfig.Configs.PanicOnConfigError=!env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
 	var (
 		cfgObj *config.Config
 		err    error
@@ -183,7 +185,17 @@ func (env *Env) InitPaths(cfgPath string) error {
 		return fmt.Errorf("error loading confiuration file: %w", err)
 	}
 
-	return cfgObj.Unpack(&env.SystemConfig)
+	if util.FileExists(cfgPath) {
+		if cfgObj, err = config.LoadFile(cfgPath); err != nil {
+			return fmt.Errorf("error loading confiuration file: %v, %w", cfgPath, err)
+		}
+		return cfgObj.Unpack(&env.SystemConfig)
+	}else {
+		if !env.IgnoreOnConfigMissing {
+			return errors.Errorf("config file %v not found",cfgPath)
+		}
+	}
+	return nil
 }
 
 var moduleConfig map[string]*config.Config
@@ -247,10 +259,8 @@ var configObject *config.Config
 
 func (env *Env) loadConfig() error {
 
-	var ignoreFileMissing = false
 	if env.configFile == "" {
 		env.configFile = "./" + env.GetAppLowercaseName() + ".yml"
-		ignoreFileMissing = true
 	}
 
 	filename, _ := filepath.Abs(env.configFile)
@@ -287,7 +297,7 @@ func (env *Env) loadConfig() error {
 			return err
 		}
 	} else {
-		if !ignoreFileMissing {
+		if !env.IgnoreOnConfigMissing {
 			return errors.Errorf("config not found: %s", filename)
 		}
 	}
