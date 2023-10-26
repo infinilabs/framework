@@ -39,10 +39,10 @@ func loadConfigFile(file string) *Config {
 	return nil
 }
 
-var validExtensions = []string{".yml", ".yaml"}
+var validExtensions = []string{".yml", ".yaml", ".tpl"}
 
-func SetValidExtension(v []string)  {
-	validExtensions=v
+func SetValidExtension(v []string) {
+	validExtensions = v
 }
 
 func EnableWatcher(path string) {
@@ -118,11 +118,11 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 					continue
 				}
 
-				if ev.Op==fsnotify.Chmod{
+				if ev.Op == fsnotify.Chmod {
 					continue
 				}
 
-				if len(validExtensions)>0 && !util.SuffixAnyInArray(ev.Name,validExtensions){
+				if len(validExtensions) > 0 && !util.SuffixAnyInArray(ev.Name, validExtensions) {
 					continue
 				}
 
