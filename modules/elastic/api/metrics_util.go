@@ -905,6 +905,91 @@ func parseHealthMetricData(buckets []elastic.BucketBase) ([]interface{}, error) 
 	return metricData, nil
 }
 
+func (h *APIHandler) getSingleIndexMetricsByNodeStats(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
+	metricData := map[string][][]interface{}{}
+
+	aggs := util.MapStr{}
+	metricItemsMap := map[string]*common.MetricLine{}
+	sumAggs := util.MapStr{}
+
+	for _, metricItem := range metricItems {
+		for _, line := range metricItem.Lines {
+			dk := line.Metric.GetDataKey()
+			metricItemsMap[dk] = line
+			metricData[dk] = [][]interface{}{}
+			leafAgg := util.MapStr{
+				line.Metric.MetricAgg: util.MapStr{
+					"field": line.Metric.Field,
+				},
+			}
+			var sumBucketPath = "term_node>"+ line.Metric.ID
+			aggs[line.Metric.ID] = leafAgg
+
+			sumAggs[line.Metric.ID] = util.MapStr{
+				"sum_bucket": util.MapStr{
+					"buckets_path":  sumBucketPath,
+				},
+			}
+			if line.Metric.Field2 != "" {
+				leafAgg2 := util.MapStr{
+					line.Metric.MetricAgg: util.MapStr{
+						"field": line.Metric.Field2,
+					},
+				}
+
+				aggs[line.Metric.ID+"_field2"] = leafAgg2
+				sumAggs[line.Metric.ID + "_field2"] = util.MapStr{
+					"sum_bucket": util.MapStr{
+						"buckets_path": sumBucketPath+"_field2",
+					},
+				}
+			}
+
+			if line.Metric.IsDerivative {
+				//add which metric keys to extract
+				sumAggs[line.Metric.ID+"_deriv"] = util.MapStr{
+					"derivative": util.MapStr{
+						"buckets_path": line.Metric.ID,
+					},
+				}
+				if line.Metric.Field2 != "" {
+					sumAggs[line.Metric.ID+"_deriv_field2"] = util.MapStr{
+						"derivative": util.MapStr{
+							"buckets_path": line.Metric.ID + "_field2",
+						},
+					}
+				}
+			}
+		}
+	}
+
+	sumAggs["term_node"]= util.MapStr{
+		"terms": util.MapStr{
+			"field": "metadata.labels.node_id",
+			"size": 1000,
+		},
+		"aggs": aggs,
+	}
+	bucketSizeStr := fmt.Sprintf("%vs", bucketSize)
+
+	clusterID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	intervalField, err := getDateHistogramIntervalField(clusterID, bucketSizeStr)
+	if err != nil {
+		panic(err)
+	}
+	query["size"] = 0
+	query["aggs"] = util.MapStr{
+		"dates": util.MapStr{
+			"date_histogram": util.MapStr{
+				"field":       "timestamp",
+				intervalField: bucketSizeStr,
+			},
+			"aggs": sumAggs,
+		},
+	}
+	return parseSingleIndexMetrics(clusterID, metricItems, query, bucketSize,metricData, metricItemsMap)
+}
+
 func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int) map[string]*common.MetricItem {
 	metricData := map[string][][]interface{}{}
 
@@ -1007,6 +1092,10 @@ func (h *APIHandler) getSingleIndexMetrics(metricItems []*common.MetricItem, que
 			"aggs": sumAggs,
 		},
 	}
+	return parseSingleIndexMetrics(clusterID, metricItems, query, bucketSize,metricData, metricItemsMap)
+}
+
+func parseSingleIndexMetrics(clusterID string, metricItems []*common.MetricItem, query map[string]interface{}, bucketSize int, metricData map[string][][]interface{}, metricItemsMap map[string]*common.MetricLine) map[string]*common.MetricItem {
 	response, err := elastic.GetClient(clusterID).SearchWithRawQueryDSL(getAllMetricsIndex(), util.MustToJSONBytes(query))
 	if err != nil {
 		panic(err)

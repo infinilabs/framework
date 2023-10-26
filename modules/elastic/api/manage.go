@@ -961,50 +961,46 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 	metricItems:=[]*common.MetricItem{}
 	metricItem:=newMetricItem("index_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for primary shards.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.OnlyPrimary = true
+	metricItem.AddLine("Indexing Rate","Total Indexing","Number of documents being indexed for primary and replica shards.","group1","payload.elasticsearch.node_stats.indices.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 	metricItem.AddLine("Search Rate","Total Query",
 		"Number of search requests being executed across primary and replica shards. A single search can run against multiple shards!",
-		"group1","payload.elasticsearch.shard_stats.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
+		"group1","payload.elasticsearch.node_stats.indices.search.query_total","max",bucketSizeStr,"query/s","num","0,0.[00]","0,0.[00]",false,true)
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
 
-	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.shard_stats.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.index_total"
+	metricItem.AddLine("Indexing","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.node_stats.indices.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.node_stats.indices.indexing.index_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.Lines[0].Metric.OnlyPrimary = true
-	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.shard_stats.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.delete_total"
+	metricItem.AddLine("Indexing","Delete Latency","Average latency for delete documents.","group1","payload.elasticsearch.node_stats.indices.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.node_stats.indices.indexing.delete_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.Lines[1].Metric.OnlyPrimary = true
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("search_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("searching","group2",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
 
-	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.shard_stats.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.shard_stats.search.query_total"
+	metricItem.AddLine("Searching","Query Latency","Average latency for searching query.","group2","payload.elasticsearch.node_stats.indices.search.query_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.query_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.shard_stats.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.shard_stats.search.fetch_total"
+	metricItem.AddLine("Searching","Fetch Latency","Average latency for searching fetch.","group2","payload.elasticsearch.node_stats.indices.search.fetch_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.fetch_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.shard_stats.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[2].Metric.Field2 = "payload.elasticsearch.shard_stats.search.scroll_total"
+	metricItem.AddLine("Searching","Scroll Latency","Average latency for searching fetch.","group2","payload.elasticsearch.node_stats.indices.search.scroll_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	metricItem.Lines[2].Metric.Field2 = "payload.elasticsearch.node_stats.indices.search.scroll_total"
 	metricItem.Lines[2].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
@@ -1034,7 +1030,7 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 				{
 					"term": util.MapStr{
 						"metadata.name": util.MapStr{
-							"value": "shard_stats",
+							"value": "node_stats",
 						},
 					},
 				},
@@ -1051,7 +1047,7 @@ func (h *APIHandler) GetClusterIndexMetrics(id string,bucketSize int, min, max i
 			},
 		},
 	}
-	return h.getSingleIndexMetrics(metricItems, query, bucketSize)
+	return h.getSingleIndexMetricsByNodeStats(metricItems, query, bucketSize)
 }
 
 func (h *APIHandler) getShardsMetric(id string, min, max int64, bucketSize int) map[string]*common.MetricItem {

@@ -121,7 +121,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 	metricItem.OnlyPrimary = true
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "cluster_indexing",
-		Field: "payload.elasticsearch.shard_stats.indexing.index_total",
+		Field: "payload.elasticsearch.node_stats.indices.indexing.index_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: metricItem,
@@ -132,7 +132,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 	metricItem = newMetricItem("cluster_search", 2, "cluster")
 	indexMetricItems=append(indexMetricItems, GroupMetricItem{
 		Key: "cluster_search",
-		Field: "payload.elasticsearch.shard_stats.search.query_total",
+		Field: "payload.elasticsearch.node_stats.indices.search.query_total",
 		ID: util.GetUUID(),
 		IsDerivative: true,
 		MetricItem: metricItem,
@@ -165,7 +165,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				{
 					"term": util.MapStr{
 						"metadata.name": util.MapStr{
-							"value": "shard_stats",
+							"value": "node_stats",
 						},
 					},
 				},
@@ -191,25 +191,8 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				"field": metricItem.Field,
 			},
 		}
-		var sumBucketPath = "term_shard>"+ metricItem.ID
-		if metricItem.MetricItem.OnlyPrimary {
-			filterSubAggs := util.MapStr{
-				metricItem.ID: leafAgg,
-			}
-			aggs["filter_pri"]=util.MapStr{
-				"filter": util.MapStr{
-					"term": util.MapStr{
-						"payload.elasticsearch.shard_stats.routing.primary": util.MapStr{
-							"value": true,
-						},
-					},
-				},
-				"aggs": filterSubAggs,
-			}
-			sumBucketPath = "term_shard>filter_pri>"+ metricItem.ID
-		}else{
-			aggs[metricItem.ID] = leafAgg
-		}
+		var sumBucketPath = "term_node>"+ metricItem.ID
+		aggs[metricItem.ID] = leafAgg
 
 		sumAggs[metricItem.ID] = util.MapStr{
 			"sum_bucket": util.MapStr{
@@ -224,10 +207,10 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 			}
 		}
 	}
-	sumAggs["term_shard"]= util.MapStr{
+	sumAggs["term_node"]= util.MapStr{
 		"terms": util.MapStr{
-			"field": "metadata.labels.shard_id",
-			"size": 10000,
+			"field": "metadata.labels.node_id",
+			"size": 1000,
 		},
 		"aggs": aggs,
 	}
