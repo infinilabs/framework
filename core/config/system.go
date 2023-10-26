@@ -167,6 +167,7 @@ type ConfigsConfig struct {
 	ScheduledTask          bool     `config:"scheduled_task"`   //use dedicated schedule task or background, use background task will save one goroutine
 	Interval               string   `config:"interval"`         //sync interval in seconds
 	SoftDelete             bool     `config:"soft_delete"`      //soft delete config
+	PanicOnConfigError     bool     `config:"panic_on_config_error"` //panic on config error
 	MaxBackupFiles         int      `config:"max_backup_files"` //keep max num of file backup
 	ValidConfigsExtensions []string `config:"valid_config_extensions"`
 
