@@ -247,7 +247,9 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 
 	//写入速率
 	indexingRateMetric := newMetricItem("indexing_rate", 1, OperationGroupKey)
-	indexingRateMetric.OnlyPrimary = true
+	if shardID == "" {
+		indexingRateMetric.OnlyPrimary = true
+	}
 	indexingRateMetric.AddAxi("Indexing rate","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_rate",
@@ -259,7 +261,9 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 		Units: "doc/s",
 	})
 	indexingBytesMetric := newMetricItem("indexing_bytes", 2, OperationGroupKey)
-	indexingBytesMetric.OnlyPrimary = true
+	if shardID == "" {
+		indexingBytesMetric.OnlyPrimary = true
+	}
 	indexingBytesMetric.AddAxi("Indexing bytes","group1",common.PositionLeft,"bytes","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key:          "indexing_bytes",
@@ -272,7 +276,9 @@ func (h *APIHandler) getIndexMetrics(req *http.Request, clusterID string, bucket
 	})
 	//写入时延
 	indexingLatencyMetric := newMetricItem("indexing_latency", 1, LatencyGroupKey)
-	indexingLatencyMetric.OnlyPrimary = true
+	if shardID == "" {
+		indexingLatencyMetric.OnlyPrimary = true
+	}
 	indexingLatencyMetric.AddAxi("Indexing latency","group1",common.PositionLeft,"num","0.[0]","0.[0]",5,true)
 	indexMetricItems = append(indexMetricItems, GroupMetricItem{
 		Key: "indexing_latency",

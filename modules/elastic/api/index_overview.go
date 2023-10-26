@@ -854,10 +854,15 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 	metricItems := []*common.MetricItem{}
 	metricItem:=newMetricItem("index_throughput", 1, OperationGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-	metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for node.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.AddLine("Deleting Rate","Primary Deleting","Number of documents being deleted for node.","group1","payload.elasticsearch.shard_stats.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
-	metricItem.Lines[0].Metric.OnlyPrimary = true
-	metricItem.Lines[1].Metric.OnlyPrimary = true
+	if shardID == "" {
+		metricItem.AddLine("Indexing Rate","Primary Indexing","Number of documents being indexed for node.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Deleting Rate","Primary Deleting","Number of documents being deleted for node.","group1","payload.elasticsearch.shard_stats.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.Lines[0].Metric.OnlyPrimary = true
+		metricItem.Lines[1].Metric.OnlyPrimary = true
+	}else{
+		metricItem.AddLine("Indexing Rate","Indexing Rate","Number of documents being indexed for node.","group1","payload.elasticsearch.shard_stats.indexing.index_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Deleting Rate","Deleting Rate","Number of documents being deleted for node.","group1","payload.elasticsearch.shard_stats.indexing.delete_total","max",bucketSizeStr,"doc/s","num","0,0.[00]","0,0.[00]",false,true)
+	}
 	metricItems=append(metricItems,metricItem)
 	metricItem=newMetricItem("search_throughput", 2, OperationGroupKey)
 	metricItem.AddAxi("searching","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,false)
@@ -868,19 +873,23 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 
 	metricItem=newMetricItem("index_latency", 3, LatencyGroupKey)
 	metricItem.AddAxi("indexing","group1",common.PositionLeft,"num","0,0","0,0.[00]",5,true)
-
-	metricItem.AddLine("Indexing Latency","Primary Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.shard_stats.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	if shardID == "" { //index level
+		metricItem.AddLine("Indexing Latency","Primary Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.shard_stats.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Deleting Latency","Primary Deleting Latency","Average latency for delete documents.","group1","payload.elasticsearch.shard_stats.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.Lines[0].Metric.OnlyPrimary = true
+		metricItem.Lines[1].Metric.OnlyPrimary = true
+	}else{ // shard level
+		metricItem.AddLine("Indexing Latency","Indexing Latency","Average latency for indexing documents.","group1","payload.elasticsearch.shard_stats.indexing.index_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+		metricItem.AddLine("Deleting Latency","Deleting Latency","Average latency for delete documents.","group1","payload.elasticsearch.shard_stats.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
+	}
 	metricItem.Lines[0].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.index_total"
 	metricItem.Lines[0].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.AddLine("Deleting Latency","Primary Deleting Latency","Average latency for delete documents.","group1","payload.elasticsearch.shard_stats.indexing.delete_time_in_millis","max",bucketSizeStr,"ms","num","0,0.[00]","0,0.[00]",false,true)
 	metricItem.Lines[1].Metric.Field2 = "payload.elasticsearch.shard_stats.indexing.delete_total"
 	metricItem.Lines[1].Metric.Calc = func(value, value2 float64) float64 {
 		return value/value2
 	}
-	metricItem.Lines[0].Metric.OnlyPrimary = true
-	metricItem.Lines[1].Metric.OnlyPrimary = true
 	metricItems=append(metricItems,metricItem)
 
 	metricItem=newMetricItem("search_latency", 4, LatencyGroupKey)
