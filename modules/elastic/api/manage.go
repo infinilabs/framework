@@ -574,7 +574,7 @@ func (h *APIHandler) HandleNodeMetricsAction(w http.ResponseWriter, req *http.Re
 		return
 	}
 	meta := elastic.GetMetadata(id)
-	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Enabled && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
 		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.NodeStats.Interval)
 		if bucketSize < int(du.Seconds()) {
 			bucketSize = int(du.Seconds())
@@ -620,7 +620,7 @@ func (h *APIHandler) HandleIndexMetricsAction(w http.ResponseWriter, req *http.R
 		return
 	}
 	meta := elastic.GetMetadata(id)
-	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Enabled && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
 		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.IndexStats.Interval)
 		if bucketSize < int(du.Seconds()) {
 			bucketSize = int(du.Seconds())
@@ -711,7 +711,7 @@ func (h *APIHandler) HandleQueueMetricsAction(w http.ResponseWriter, req *http.R
 	nodeName := h.Get(req, "node_name", "")
 	top := h.GetIntOrDefault(req, "top", 5)
 	meta := elastic.GetMetadata(id)
-	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Enabled && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
 		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.NodeStats.Interval)
 		if bucketSize < int(du.Seconds()) {
 			bucketSize = int(du.Seconds())

@@ -827,7 +827,7 @@ func (h *APIHandler) GetSingleIndexMetrics(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	meta := elastic.GetMetadata(clusterID)
-	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.IndexStats.Enabled && meta.Config.MonitorConfigs.IndexStats.Interval != "" {
 		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.IndexStats.Interval)
 		if bucketSize < int(du.Seconds()) {
 			bucketSize = int(du.Seconds())

@@ -586,7 +586,7 @@ func (h *APIHandler) GetSingleNodeMetrics(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	meta := elastic.GetMetadata(clusterID)
-	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
+	if meta != nil && meta.Config.MonitorConfigs != nil && meta.Config.MonitorConfigs.NodeStats.Enabled && meta.Config.MonitorConfigs.NodeStats.Interval != "" {
 		du, _ := time.ParseDuration(meta.Config.MonitorConfigs.NodeStats.Interval)
 		if bucketSize < int(du.Seconds()) {
 			bucketSize = int(du.Seconds())
