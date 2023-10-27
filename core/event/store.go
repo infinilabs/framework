@@ -32,10 +32,10 @@ func UpdateAgentID(agentID string) {
 	}
 }
 
-func Save(event Event) error {
+func SaveWithTimestamp(event Event, time2 time.Time) error {
 
-	event.Timestamp = time.Now()
 	event.Agent = getMeta()
+	event.Timestamp = time2
 
 	if getMeta().MetricQueueName == "" {
 		panic("queue can't be nil")
@@ -46,13 +46,11 @@ func Save(event Event) error {
 	}
 
 	stats.Increment("metrics.save", event.Metadata.Category, event.Metadata.Name)
+	return queue.Push(queue.GetOrInitConfig(getMeta().MetricQueueName), util.MustToJSONBytes(event))
+}
 
-	err := queue.Push(queue.GetOrInitConfig(getMeta().MetricQueueName), util.MustToJSONBytes(event))
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
+func Save(event Event) error {
+	return SaveWithTimestamp(event, time.Now())
 }
 
 func SaveLog(event Event) error {
