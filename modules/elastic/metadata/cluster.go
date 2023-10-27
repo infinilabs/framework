@@ -6,10 +6,10 @@ package metadata
 
 import (
 	"errors"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 )
 
 //get elasticsearch meta from system cluster
@@ -48,20 +48,32 @@ func GetClusterConfig(clusterID string) (*elastic.ElasticsearchConfig, error) {
 	return nil, errors.New("not found")
 }
 
-func GetNodeInformation(clusterID string, nodeUUIDs []string) ([]*elastic.NodesInfo, error) {
-	res, err := GetNodeConfig(clusterID, nodeUUIDs)
+func GetNodeInformation(clusterID string, nodeUUIDs []string) (map[string]*elastic.NodesInfo, error) {
+	res, err := GetNodeConfigs(clusterID, nodeUUIDs)
 	if err != nil {
-		log.Error(err,len(res))
+		log.Error(err, len(res))
 		return nil, err
 	}
-	results := []*elastic.NodesInfo{}
-	for _, v := range res {
-		results = append(results, v.Payload.NodeInfo)
+	results := map[string]*elastic.NodesInfo{}
+	for k, v := range res {
+		results[k] = v.Payload.NodeInfo
 	}
 	return results, nil
 }
 
-func GetNodeConfig(clusterID string, nodeUUIDs []string) ([]*elastic.NodeConfig, error) {
+func GetNodeConfig(clusterID string, nodeUUIDs string) (*elastic.NodeConfig, error) {
+	res, err := GetNodeConfigs(clusterID, []string{nodeUUIDs})
+	if err != nil {
+		return nil, err
+	}
+	info, ok := res[nodeUUIDs]
+	if !ok || info == nil {
+		return nil, errors.New("not found")
+	}
+	return info, nil
+}
+
+func GetNodeConfigs(clusterID string, nodeUUIDs []string) (map[string]*elastic.NodeConfig, error) {
 	q1 := &orm.Query{Size: 1000}
 	q1.Conds = orm.And(
 		orm.Eq("metadata.category", "elasticsearch"),
@@ -74,7 +86,7 @@ func GetNodeConfig(clusterID string, nodeUUIDs []string) ([]*elastic.NodeConfig,
 		log.Error(err)
 		return nil, err
 	}
-	results := []*elastic.NodeConfig{}
+	results := map[string]*elastic.NodeConfig{}
 	if len(result.Result) > 0 {
 		for _, v := range result.Result {
 			bytes := util.MustToJSONBytes(v)
@@ -84,7 +96,7 @@ func GetNodeConfig(clusterID string, nodeUUIDs []string) ([]*elastic.NodeConfig,
 				log.Error(err)
 				continue
 			}
-			results = append(results, info)
+			results[info.Metadata.NodeID] = info
 		}
 		return results, nil
 	}

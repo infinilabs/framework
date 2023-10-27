@@ -20,11 +20,6 @@ import (
 	"infini.sh/framework/lib/bytebufferpool"
 )
 
-func getMapValue(mapData map[string]int, key string, defaultValue int32) int {
-	data := mapData[key]
-	return data
-}
-
 var space = []byte(" ")
 var newline = []byte("\n")
 var statsLock = sync.RWMutex{}
@@ -91,15 +86,6 @@ func (handler SimpleStatsModule) PrometheusStatsAction(w http.ResponseWriter, re
 
 	handler.WriteHeader(w, 200)
 }
-
-//func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-//	buf := make([]byte, 2<<20)
-//	n := runtime.Stack(buf, true)
-//
-//	handler.WriteTextHeader(w)
-//	handler.Write(w, buf[:n])
-//	handler.WriteHeader(w, 200)
-//}
 
 func (handler SimpleStatsModule) GoroutinesAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	buf := make([]byte, 2<<20)

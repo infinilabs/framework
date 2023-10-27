@@ -435,6 +435,22 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	return meta.seedHosts
 }
 
+func (node *NodesInfo) GetPathLogs() string {
+	path,ok:=node.Settings["path"]
+	if ok {
+		if pathObj,ok:=path.(map[string]interface{});ok{
+			if logs,ok:=pathObj["logs"];ok{
+				if logsObj,ok:=logs.(string);ok{
+					if logsObj!=""{
+						return logsObj
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func (node *NodesInfo) GetHttpPublishHost() string {
 	if util.ContainStr(node.Http.PublishAddress, "/") {
 		if global.Env().IsDebug {
