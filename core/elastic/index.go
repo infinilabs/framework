@@ -332,6 +332,17 @@ func (match *TermsQuery) Set(field string, v []interface{}) {
 	match.Match[field] = v
 }
 
+func (match *TermsQuery) SetStringArray(field string, v []string) {
+	match.Match = map[string][]interface{}{}
+	obj:=[]interface{}{}
+	for _, s := range v {
+		if s!="" {
+			obj = append(obj, s)
+		}
+	}
+	match.Match[field] = obj
+}
+
 type QueryStringQuery struct {
 	Query map[string]interface{} `json:"query_string,omitempty"`
 }

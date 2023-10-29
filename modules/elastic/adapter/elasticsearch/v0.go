@@ -122,6 +122,11 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 		req = util.NewRequest(util.Verb_HEAD, url)
 		break
 	}
+
+	if req == nil {
+		panic(errors.Errorf("invalid request [%v] %v", method, url))
+	}
+
 	req.Context = ctx
 
 	req.SetContentType(util.ContentTypeJson)
@@ -147,8 +152,9 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 				count++
 				log.Errorf("error in request, sleep 1s and retry [%v]: %s\n", count, err)
 				time.Sleep(1 * time.Second)
-				resp, err = util.ExecuteRequestWithCatchFlag(req, true)
-				if err != nil {
+				var err1 error
+				resp, err1 = util.ExecuteRequest(req)
+				if err1 != nil {
 					log.Errorf("retry still have error in request, sleep 10s and retry [%v]: %s\n", count, err)
 					goto RETRY
 				}
@@ -269,7 +275,49 @@ func (c *ESAPIV0) Index(indexName, docType string, id interface{}, data interfac
 	resp, err := c.Request(nil, util.Verb_POST, url, js)
 
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+
+	if global.Env().IsDebug {
+		log.Trace("indexing response: ", string(resp.Body))
+	}
+
+	esResp := &elastic.InsertResponse{}
+	err = json.Unmarshal(resp.Body, esResp)
+	if err != nil {
+		return &elastic.InsertResponse{}, err
+	}
+	if !(esResp.Result == "created" || esResp.Result == "updated" || esResp.Shards.Successful > 0) {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	return esResp, nil
+}
+
+func (c *ESAPIV0) Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+
+	if docType == "" {
+		docType = TypeName0
+	}
+
+	indexName = util.UrlEncode(indexName)
+
+	url := fmt.Sprintf("%s/%s/%s/%s/_update", c.GetEndpoint(), indexName, docType, id)
+
+	if id == "" {
+		panic(errors.New("id is required"))
+	}
+	if refresh != "" {
+		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
+	}
+
+	js:=util.MapStr{}
+	js["doc"]=data
+	js["detect_noop"]=false
+	js["doc_as_upsert"]=true
+
+	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
+	if err != nil {
 		return nil, err
 	}
 
@@ -483,13 +531,19 @@ func (c *ESAPIV0) ClusterVersion() elastic.Version {
 	return c.GetVersion()
 }
 
-func (c *ESAPIV0) GetNodesStats(nodeID, host string) *elastic.NodesStats {
+func (c *ESAPIV0) GetNodesStats(nodeID, host string, level string) *elastic.NodesStats {
 
 	log.Tracef("get stats for node: %v-%v", nodeID, host)
 
-	url := fmt.Sprintf("%s/_nodes/_all/stats", c.GetEndpoint())
+	suffix := ""
+	if level != "" {
+		suffix = fmt.Sprintf("?level=%v&include_segment_file_sizes=true", level)
+	}
+
+	url := fmt.Sprintf("%s/_nodes/_all/stats%v", c.GetEndpoint(), suffix)
 	if nodeID != "" {
-		url = fmt.Sprintf("%s/_nodes/%v/stats", c.GetActivePreferredEndpoint(host), nodeID)
+		//fetch shard level metrics
+		url = fmt.Sprintf("%s/_nodes/%v/stats%v", c.GetActivePreferredEndpoint(host), nodeID, suffix)
 	}
 
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
@@ -1205,7 +1259,7 @@ func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, err
 	return resp.Body, nil
 }
 
-func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, error){
+func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/_template", c.GetEndpoint())
 	if templateName != "" {
 		url = fmt.Sprintf("%s/%s", url, templateName)

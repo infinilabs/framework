@@ -6,6 +6,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"infini.sh/framework/core/global"
 	"sync"
 	"time"
 
@@ -39,7 +40,7 @@ func (module *RedisModule) Setup() {
 		PoolSize: 1000,
 	}
 	ok, err := env.ParseConfig("redis", &module.config)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 }

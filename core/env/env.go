@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -161,7 +162,28 @@ func (env *Env) Init() *Env {
 
 	err := env.loadConfig()
 	if err != nil {
-		panic(err)
+		if env.SystemConfig.Configs.PanicOnConfigError {
+			panic(err)
+		}
+	}
+
+	//init config watcher
+	if env.SystemConfig.Configs.AutoReload {
+		log.Info("configuration auto reload enabled")
+		absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
+		if util.FileExists(absConfigPath) {
+			if !env.ISServiceMode {
+				log.Info("watching config: ", absConfigPath)
+			}
+			config.EnableWatcher(env.SystemConfig.PathConfig.Config)
+		}
+
+		//watching self
+		config.EnableWatcher(env.GetConfigFile())
+	}
+
+	if len(env.SystemConfig.Configs.ValidConfigsExtensions) > 0 {
+		config.SetValidExtension(env.SystemConfig.Configs.ValidConfigsExtensions)
 	}
 
 	if env.IsDebug {
@@ -177,10 +199,12 @@ func (env *Env) InitPaths(cfgPath string) error {
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	env.SystemConfig.Configs.PanicOnConfigError=!env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
+
 	var (
 		cfgObj *config.Config
 		err    error
 	)
+
 
 	if util.FileExists(cfgPath) {
 		if cfgObj, err = config.LoadFile(cfgPath); err != nil {
@@ -243,16 +267,15 @@ var (
 		AllowMultiInstance: false,
 		MaxNumOfInstance:   5,
 		Configs: config.ConfigsConfig{
-			Interval:   "30s",
-			AutoReload: true,
-			SoftDelete: true,
-			MaxBackupFiles:  10,
+			Interval:               "30s",
+			AutoReload:             true,
+			SoftDelete:             true,
+			PanicOnConfigError:     true,
+			MaxBackupFiles:         10,
 			ValidConfigsExtensions: []string{".tpl", ".json", ".yml", ".yaml"},
 		},
 	}
 )
-
-var configObject *config.Config
 
 func (env *Env) loadConfig() error {
 
@@ -302,16 +325,25 @@ func (env *Env) loadConfig() error {
 	return nil
 }
 
+func (env *Env) RefreshConfig() error {
+	return env.loadEnvFromConfigFile(env.GetConfigFile())
+}
+
+var configObject *config.Config
+var refreshLock = sync.Mutex{}
+
 func (env *Env) loadEnvFromConfigFile(filename string) error {
+	refreshLock.Lock()
+	defer refreshLock.Unlock()
+
 	log.Debug("loading config file:", filename)
-	var err error
-	configObject, err = config.LoadFile(filename)
+	tempConfig, err := config.LoadFile(filename)
 	if err != nil {
 		panic(err)
 		return err
 	}
 
-	if err := configObject.Unpack(env.SystemConfig); err != nil {
+	if err := tempConfig.Unpack(env.SystemConfig); err != nil {
 		panic(err)
 		return err
 	}
@@ -328,7 +360,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 			v, err := config.LoadPath(env.SystemConfig.PathConfig.Config)
 			if err != nil {
-				panic(err)
+				if env.SystemConfig.Configs.PanicOnConfigError {
+					panic(err)
+				}
 				return err
 			}
 			if env.IsDebug {
@@ -337,44 +371,33 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 				log.Trace(util.ToJson(obj, true))
 			}
 
-			err = configObject.Merge(v)
+			err = tempConfig.Merge(v)
 			if err != nil {
-				panic(err)
+				if env.SystemConfig.Configs.PanicOnConfigError {
+					panic(err)
+				}
 				return err
 			}
 		}
 
 		if env.IsDebug {
 			obj := map[string]interface{}{}
-			configObject.Unpack(&obj)
+			tempConfig.Unpack(&obj)
 			log.Trace(util.ToJson(obj, true))
-		}
-
-		if env.SystemConfig.Configs.AutoReload {
-			absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
-			if util.FileExists(absConfigPath) {
-				if !env.ISServiceMode {
-					log.Info("watching config: ", absConfigPath)
-				}
-				config.EnableWatcher(env.SystemConfig.PathConfig.Config)
-			}
-
-			//watching self
-			config.EnableWatcher(filename)
-
-		}
-
-		if len(env.SystemConfig.Configs.ValidConfigsExtensions)>0{
-			config.SetValidExtension(env.SystemConfig.Configs.ValidConfigsExtensions)
 		}
 
 	}
 
 	obj := map[string]interface{}{}
-	if err := configObject.Unpack(obj); err != nil {
-		panic(err)
+	if err := tempConfig.Unpack(obj); err != nil {
+		if env.SystemConfig.Configs.PanicOnConfigError {
+			panic(err)
+		}
 		return err
 	}
+
+	configObject = tempConfig
+
 	pluginConfig = parseModuleConfig(env.SystemConfig.Plugins)
 	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 

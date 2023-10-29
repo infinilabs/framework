@@ -211,8 +211,9 @@ func (procs *Processors) Process(ctx *Context) error {
 			return nil
 		}
 
+		log.Trace("pipeline: ",ctx.Config.Name,", start processing:",ctx.processHistory,"->",p.Name())
+
 		ctx.AddFlowProcess(p.Name())
-		log.Trace("start processing:", p.Name())
 		err := p.Process(ctx)
 		//event, err = p.Filter(filterCfg,ctx)
 		if err != nil {

@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"infini.sh/framework/core/model"
 	"sync"
 	"time"
 
@@ -190,9 +191,13 @@ type NodesInfo struct {
 
 	TotalIndexingBuffer int64 `json:"total_indexing_buffer,omitempty"`
 
-	Settings   map[string]interface{} `json:"settings"`
-	Os         map[string]interface{} `json:"os"`
-	Process    map[string]interface{} `json:"process"`
+	Settings map[string]interface{} `json:"settings"`
+	Os       map[string]interface{} `json:"os"`
+	Process  struct {
+		RefreshIntervalInMillis int  `json:"refresh_interval_in_millis"`
+		Id                      int  `json:"id"`
+		Mlockall                bool `json:"mlockall"`
+	} `json:"process"`
 	Jvm        map[string]interface{} `json:"jvm"`
 	ThreadPool map[string]interface{} `json:"thread_pool"`
 	Transport  struct {
@@ -315,6 +320,7 @@ type CatNodeResponse struct {
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
 	DiskAvail   string      `json:"disk.avail"`
+	DiskUsed   string      `json:"disk.used"`
 	Shards      int         `json:"shards,omitempty"`
 	Uptime      string      `json:"uptime"`
 }
@@ -425,11 +431,6 @@ type MetadataConfig struct {
 	NodeAvailabilityCheck TaskConfig `json:"node_availability_check"`
 }
 
-type BasicAuth struct {
-	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
-}
-
 const (
 	ElasticsearchConfigSourceFile          = "file"
 	ElasticsearchConfigSourceElasticsearch = "elastic"
@@ -461,13 +462,14 @@ type ElasticsearchConfig struct {
 
 	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
 
-	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	BasicAuth *model.BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
 	TrafficControl *struct {
-		MaxConnectionPerNode int `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
-		MaxWaitTimeInMs      int `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
-		MaxBytesPerNode      int `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
-		MaxQpsPerNode        int `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
+		Enabled              bool `json:"enabled,omitempty" config:"enabled"`
+		MaxConnectionPerNode int  `json:"max_connection_per_node,omitempty" config:"max_connection_per_node" elastic_mapping:"max_connection_per_node:{type:keyword}"`
+		MaxWaitTimeInMs      int  `json:"max_wait_time_in_ms,omitempty" config:"max_wait_time_in_ms" elastic_mapping:"max_wait_time_in_ms:{type:keyword}"`
+		MaxBytesPerNode      int  `json:"max_bytes_per_node,omitempty" config:"max_bytes_per_node" elastic_mapping:"max_bytes_per_node:{type:keyword}"`
+		MaxQpsPerNode        int  `json:"max_qps_per_node,omitempty" config:"max_qps_per_node" elastic_mapping:"max_qps_per_node:{type:keyword}"`
 	} `config:"traffic_control" json:"traffic_control,omitempty" elastic_mapping:"traffic_control:{type:object}"`
 
 	Discovery struct {
@@ -503,7 +505,12 @@ type ElasticsearchConfig struct {
 	ClusterUUID     string          `json:"cluster_uuid,omitempty" elastic_mapping:"cluster_uuid:{type:keyword}"`
 	RawName         string          `json:"raw_name,omitempty" elastic_mapping:"raw_name:{type:keyword}"`
 	CredentialID    string          `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
-	Distribution    string          `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
+
+	//TODO merge to cluster settings
+	AgentCredentialID string           `json:"agent_credential_id,omitempty" elastic_mapping:"agent_credential_id:{type:keyword}"`
+	AgentBasicAuth    *model.BasicAuth `config:"agent_basic_auth" json:"agent_basic_auth,omitempty" elastic_mapping:"agent_basic_auth:{type:object}"`
+
+	Distribution string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 }
 
 type GeoLocation struct {
@@ -549,9 +556,14 @@ type NodeConfig struct {
 	ID         string       `json:"id,omitempty"      elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Timestamp  time.Time    `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata   NodeMetadata `json:"metadata" elastic_mapping:"metadata: { type: object }"`
-	Fields     util.MapStr  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Payload    NodePayload  `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	SearchText string       `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
+
+type NodePayload struct {
+	NodeInfo *NodesInfo `json:"node_state,omitempty" elastic_mapping:"node_state:{type:object,enabled:false}"`
+}
+
 type NodeMetadata struct {
 	ClusterID   string      `json:"cluster_id" elastic_mapping:"cluster_id:{type:keyword}"`
 	ClusterName string      `json:"cluster_name" elastic_mapping:"cluster_name:{type:keyword,copy_to:search_text}"`
@@ -605,3 +617,17 @@ const (
 	Easysearch    = "easysearch"
 	Opensearch    = "opensearch"
 )
+
+type LocalNodeInfo struct {
+	Enrolled    bool                `json:"enrolled,omitempty,nocopy"`   //whether this node is enrolled or not
+	ClusterID   string              `json:"cluster_id,omitempty,nocopy"` //infini system assigned cluster id
+	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
+	NodeUUID    string              `json:"node_id,omitempty,nocopy"`
+	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
+	Status      string                `json:"status,omitempty,nocopy"`
+}
+
+type DiscoveryResult struct {
+	Nodes          map[string]*LocalNodeInfo `json:"nodes,omitempty,nocopy"`
+	UnknownProcess []model.ProcessInfo       `json:"unknown_process,omitempty,nocopy"`
+}

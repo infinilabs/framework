@@ -6,8 +6,9 @@ import (
 	"infini.sh/framework/modules/elastic/common"
 )
 
+var clusterAPI APIHandler
 func InitAPI(cfg common.ModuleConfig) {
-	clusterAPI := APIHandler{Config: cfg}
+	clusterAPI = APIHandler{Config: cfg}
 
 	InitTestAPI()
 
@@ -24,7 +25,6 @@ func InitAPI(cfg common.ModuleConfig) {
 		api.HandleAPIMethod(api.GET, "/elasticsearch/indices", clusterAPI.RequireLogin(clusterAPI.ListIndex))
 		api.HandleAPIMethod(api.GET, "/elasticsearch/status", clusterAPI.RequireLogin(clusterAPI.GetClusterStatusAction))
 		api.HandleAPIMethod(api.GET, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleGetClusterAction, enum.PermissionElasticsearchClusterRead)))
-		//api.HandleAPIMethod(api.GET, "/elasticsearch/:id/nodes/kv", clusterAPI.HandleGetNodesAction)
 		api.HandleAPIMethod(api.PUT, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleUpdateClusterAction, enum.PermissionElasticsearchClusterWrite)))
 		api.HandleAPIMethod(api.DELETE, "/elasticsearch/:id", clusterAPI.RequireClusterPermission(clusterAPI.RequirePermission(clusterAPI.HandleDeleteClusterAction, enum.PermissionElasticsearchClusterWrite)))
 		api.HandleAPIMethod(api.GET, "/elasticsearch/_search", clusterAPI.RequirePermission(clusterAPI.HandleSearchClusterAction, enum.PermissionElasticsearchClusterRead))
@@ -106,13 +106,10 @@ func InitAPI(cfg common.ModuleConfig) {
 
 		api.HandleAPIMethod(api.GET, "/elasticsearch/:id/_template", clusterAPI.HandleGetTemplateAction)
 		api.HandleAPIMethod(api.PUT, "/elasticsearch/:id/_template/:template_name", clusterAPI.HandleSaveTemplateAction)
+		api.HandleAPIMethod(api.GET, "/elasticsearch/:id/shard/:shard_id/info", clusterAPI.RequirePermission(clusterAPI.GetShardInfo, enum.PermissionElasticsearchMetricRead))
 	}
-
 
 	api.HandleAPIMethod(api.GET, "/elasticsearch/metadata", clusterAPI.RequireLogin(clusterAPI.GetMetadata))
 	api.HandleAPIMethod(api.GET, "/elasticsearch/hosts",  clusterAPI.RequireLogin(clusterAPI.GetHosts))
-
-
-
 
 }

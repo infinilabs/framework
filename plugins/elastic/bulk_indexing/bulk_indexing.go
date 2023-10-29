@@ -117,7 +117,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		DetectActiveQueue:      true,
-		VerboseBulkResult:      true,
+		VerboseBulkResult:      false,
 		ValidateRequest:        false,
 		SkipEmptyQueue:         true,
 		SkipOnMissingInfo:      false,
@@ -709,7 +709,7 @@ READ_DOCS:
 		}
 
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-		stats.IncrementBy("queue", qConfig.ID+".docs_fetched_from_queue", int64(len(messages)))
+		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
 
 		if global.Env().IsDebug {
 			log.Tracef("slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
@@ -744,7 +744,6 @@ READ_DOCS:
 				log.Trace("total messages return from consumer: ", len(messages))
 			}
 			for msgOffset, pop := range messages {
-
 				if processor.config.ValidateRequest {
 					elastic.ValidateBulkRequest("write_pop", string(pop.Data))
 				}
@@ -787,7 +786,7 @@ READ_DOCS:
 							mainBuf.WriteNewByteBufferLine("payload1", payloadBytes)
 							collectMeta = false
 						}
-					})
+					},nil)
 				} else {
 					mainBuf.WriteMessageID(pop.Offset.String())
 					mainBuf.WriteByteBuffer(pop.Data)
@@ -937,12 +936,20 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 			stats.Timing("elasticsearch."+esClusterID+".bulk", "elapsed_ms", time.Since(start).Milliseconds())
 		}
 
+		total:=0
 		for k, v := range statsMap {
 			stats.IncrementBy("queue", qConfig.ID+".docs_status_code."+util.ToString(k), int64(v))
+			total+=v
 		}
 
+		stats.IncrementBy("queue", qConfig.ID+".docs_fetched_from_queue", int64(total))
+
 		if err != nil && processor.config.LogBulkError {
-			log.Warnf("submit bulk requests to elasticsearch [%v] failed, err:%v", meta.Config.Name, err)
+			var msg elastic.BulkDetail
+			if bulkResult!=nil{
+				msg=bulkResult.Detail
+			}
+			log.Warnf("elasticsearch [%v], stats:%v, detail: %v, err:%v", meta.Config.Name, statsMap, msg, err)
 		}
 
 		if global.Env().IsDebug {

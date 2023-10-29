@@ -54,7 +54,7 @@ func (module *Module) Setup() {
 		SingleBucketMode:        true,
 	}
 	ok, err := env.ParseConfig("badger", module.cfg)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 	if module.cfg.Path == "" {

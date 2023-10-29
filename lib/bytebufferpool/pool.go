@@ -284,6 +284,9 @@ func BuffStats() map[string]interface{} {
 	var result = map[string]interface{}{}
 	var pool *Pool
 	bytesBuffer := map[string]interface{}{}
+
+	allItem := map[string]interface{}{}
+
 	pools.Range(func(key, value any) bool {
 		pool = value.(*Pool)
 		if pool == nil {
@@ -298,13 +301,22 @@ func BuffStats() map[string]interface{} {
 		addIfNotZero(item, "throttled", pool.throttle)
 		addIfNotZero(item, "inuse", uint32(pool.inuse))
 		addIfNotZero(item, "invalid", uint32(pool.invalid))
-		addIfNotZero(item, "pool_size", uint32(pool.getPoolByteSize()))
-		addIfNotZero(item, "pool_items", uint32(atomic.LoadInt32(&pool.poolItems)))
+
+		poolSize:=uint32(pool.getPoolByteSize())
+		addIfNotZero(item, "pool_size", poolSize)
+		addIfNotZero(allItem, "pool_size", poolSize)
+
+		poolItems:=uint32(atomic.LoadInt32(&pool.poolItems))
+		addIfNotZero(item, "pool_items", poolItems)
+		addIfNotZero(allItem, "pool_items", poolItems)
+
 		if len(item) > 0 {
 			bytesBuffer[key.(string)] = item
 		}
 		return true
 	})
+
+	bytesBuffer["_all"]=allItem
 
 	if len(bytesBuffer) > 0 {
 		result["bytes"] = bytesBuffer

@@ -10,14 +10,15 @@ import (
 
 type KeyValue struct {
 	Key   string
-	Value int
+	Value int64
+	Payload interface{}
 }
 
 func SortMapStrIntToKV(data map[string]int) []KeyValue {
 	var keyValuePairs []KeyValue
 
 	for k, v := range data {
-		keyValuePairs = append(keyValuePairs, KeyValue{k, v})
+		keyValuePairs = append(keyValuePairs, KeyValue{k, int64(v),nil})
 	}
 
 	keyValuePairs = SortKeyValueArray(keyValuePairs,false)

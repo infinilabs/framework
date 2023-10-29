@@ -20,6 +20,8 @@ import (
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/host"
+	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"sort"
@@ -30,12 +32,11 @@ func (module *APIModule) Name() string {
 	return "api"
 }
 
-const whoisAPI = "/_framework/api/_whoami"
-const versionAPI = "/_framework/api/_version"
-const infoAPI = "/_framework/api/_info"
-const authAPI = "/_framework/api/_auth"
+const whoisAPI = "/_whoami"
+const versionAPI = "/_version"
+const infoAPI = "/_info"
+const authAPI = "/setting/auth" //TODO, merge with /_settings
 const healthAPI = "/health"
-
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
@@ -51,17 +52,17 @@ func versionAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.P
 
 func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	obj:=util.MapStr{
-		"status":global.Env().GetOverallHealth().ToString(),
+	obj := util.MapStr{
+		"status": global.Env().GetOverallHealth().ToString(),
 	}
 
-	services:=global.Env().GetServicesHealth()
-	if len(services)>0{
-		obj["services"]=services
+	services := global.Env().GetServicesHealth()
+	if len(services) > 0 {
+		obj["services"] = services
 	}
 
-	if global.Env().SetupRequired(){
-		obj["setup_required"]=global.Env().SetupRequired()
+	if global.Env().SetupRequired() {
+		obj["setup_required"] = global.Env().SetupRequired()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -70,20 +71,19 @@ func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 }
 
 func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	obj:=util.MapStr{
-		"id":global.Env().SystemConfig.NodeConfig.ID,
-		"name":global.Env().SystemConfig.NodeConfig.Name,
-		"tagline":global.Env().GetAppDesc(),
-		"version":util.MapStr{
-			"number":       global.Env().GetVersion(),
-			"build_date":   global.Env().GetBuildDate(),
-			"build_hash":   global.Env().GetLastCommitHash(),
-			"build_number": global.Env().GetBuildNumber(),
-			"eol_date":     global.Env().GetEOLDate(),
-		},
+	hostInfo := model.HostInfo{
+		OS: model.OSInfo{},
 	}
+	var err error
+	hostInfo.Name, _, hostInfo.OS.Name, _, hostInfo.OS.Version, hostInfo.OS.Architecture, err = host.GetOSInfo()
+	if err != nil {
+		panic(err)
+	}
+
+	info := model.GetInstanceInfo()
+	info.Host = &hostInfo
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(util.MustToJSONBytes(obj))
+	w.Write(util.MustToJSONBytes(info))
 	w.WriteHeader(200)
 }
 
@@ -103,7 +103,6 @@ func init() {
 	api.HandleAPIMethod(api.GET, healthAPI, healthAPIHandler)
 }
 
-
 // Start api server
 func (module *APIModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -122,12 +121,12 @@ func (module *APIModule) Setup() {
 
 		w.Write([]byte("API Directory:\n"))
 
-		apis:=util.GetMapKeys(api.APIs)
+		apis := util.GetMapKeys(api.APIs)
 		sort.Strings(apis)
 
-		for _,k:=range apis{
-			v,ok:=api.APIs[k]
-			if ok{
+		for _, k := range apis {
+			v, ok := api.APIs[k]
+			if ok {
 				w.Write([]byte(v.Key))
 				w.Write([]byte("\t"))
 				w.Write([]byte(v.Value))

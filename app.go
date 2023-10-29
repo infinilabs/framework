@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"github.com/fsnotify/fsnotify"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -180,10 +181,12 @@ func (app *App) initWithFlags() {
 	}
 
 	app.environment.SetConfigFile(app.configFile )
+
 	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
 		panic(err)
 	}
+
 	global.RegisterEnv(app.environment)
 
 	if !util.FileExists(app.environment.GetDataDir()) {
@@ -195,6 +198,16 @@ func (app *App) initWithFlags() {
 	if len(os.Args) > 1 && os.Args[1] == "keystore" {
 		keystore.RunCmd(os.Args[2:])
 	}
+
+	config.NotifyOnConfigChange(func(ev fsnotify.Event){
+		if ev.Op==fsnotify.Remove||ev.Op==fsnotify.Rename{
+			log.Infof("config file [%v] removed, reload config",ev.Name)
+			err:=global.Env().RefreshConfig()
+			if err!=nil{
+				log.Error(err)
+			}
+		}
+	})
 }
 
 func (app *App) initEnvironment(customFunc func()) {

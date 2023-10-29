@@ -3,10 +3,10 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/task"
 	"runtime"
-	"github.com/fsnotify/fsnotify"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,7 +31,7 @@ type PipeModule struct {
 	contexts  sync.Map
 }
 
-func (module PipeModule) Name() string {
+func (module *PipeModule) Name() string {
 	return "pipeline"
 }
 
@@ -45,7 +45,7 @@ func (module *PipeModule) Setup() {
 	}
 
 	ok, err := env.ParseConfig("preference", &moduleCfg)
-	if ok && err != nil {
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -178,13 +178,12 @@ func getPipelineConfig() ([]pipeline.PipelineConfigV2, error) {
 }
 
 func (module *PipeModule) Start() error {
-	//load pipeline from configs
 	var (
 		pipelines []pipeline.PipelineConfigV2
-		err error
+		err       error
 	)
 	pipelines, err = getPipelineConfig()
-	if err != nil {
+	if err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	for _, v := range pipelines {
@@ -197,19 +196,21 @@ func (module *PipeModule) Start() error {
 
 	//listen on changes
 	config.NotifyOnConfigChange(func(ev fsnotify.Event) {
-		if module.closed.Load() || global.ShuttingDown(){
+		if module.closed.Load() || global.ShuttingDown() {
 			log.Warn("module closed, skip reloading pipelines")
 			return
 		}
 
-		log.Infof("config changed, checking for new pipeline configs, %v, %v",ev.Op,ev.Name)
+		log.Infof("config changed, checking for new pipeline configs, %v, %v", ev.Op, ev.Name)
 
 		newConfig := []pipeline.PipelineConfigV2{}
 		newConfig, err = getPipelineConfig()
+
 		if err != nil {
 			log.Error(err)
 			return
 		}
+
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -228,37 +229,49 @@ func (module *PipeModule) Start() error {
 			}
 		}()
 
+
 		needStopAndClean := []string{}
 		newPipelines := map[string]pipeline.PipelineConfigV2{}
 
+		newPipelineNames := []string{}
 		for _, v := range newConfig {
 			newPipelines[v.Name] = v
+			newPipelineNames = append(newPipelineNames, v.Name)
 		}
+
+		log.Debugf("we now have %v new pipelines: %v", len(newPipelineNames), newPipelineNames)
 
 		module.configs.Range(func(k, v any) bool {
 			oldC, ok := v.(pipeline.PipelineConfigV2)
 			if !ok {
-				log.Errorf("impossible value from configs: %t", v)
+				log.Warnf("impossible value from configs: %v", v)
 				return true
 			}
+
 			// Don't stop transient pipelines
 			if oldC.Transient {
+				log.Debugf("transient pipeline %v should not be reloaded", oldC.Name)
 				return true
 			}
 			newC, ok := newPipelines[oldC.Name]
 			// Skip condition: (old pipeline is present in the new pipeline configs, config is the same, new config is also enabled)
 			if ok && newC.Equals(oldC) && isPipelineEnabled(newC.Enabled) {
+				log.Debugf("pipeline %v config not changed, skip reloading", oldC.Name)
 				return true
 			}
+
+			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC,",",ok,",",newC.Equals(oldC),",",isPipelineEnabled(newC.Enabled))
+
 			needStopAndClean = append(needStopAndClean, oldC.Name)
 			return true
 		})
 
-		if len(needStopAndClean) > 0 {
-			log.Debug("stop and wait for pipelines to release")
+		log.Debugf("we now have %v old pipelines need to clean: %v", len(needStopAndClean), needStopAndClean)
 
+		if len(needStopAndClean) > 0 {
+			log.Trace("stop and wait for pipelines to release: ", needStopAndClean)
 			module.stopAndWaitForRelease(needStopAndClean, time.Minute)
-			log.Info("old pipelines released")
+			log.Debug("old pipelines released")
 
 			for _, taskID := range needStopAndClean {
 				log.Infof("removing pipeline [%s]", taskID)
@@ -354,7 +367,9 @@ func (module *PipeModule) stopAndWaitForRelease(taskIDs []string, timeout time.D
 }
 
 const pipelineSingleton = "pipeline_singleton"
+
 var creatingLocker = sync.Mutex{}
+
 func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
 		return errors.New("module closed")
@@ -376,13 +391,18 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	log.Info("creating pipeline: "+v.Name+", singleton: ", v.Singleton)
+	if v.Singleton{
+		log.Info("creating pipeline: "+v.Name+", singleton")
+	}else{
+		log.Info("creating pipeline: "+v.Name)
+	}
+
 
 	return task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 
-		cfgV:=taskCtx.Value("cfg")
+		cfgV := taskCtx.Value("cfg")
 		cfg, ok := cfgV.(pipeline.PipelineConfigV2)
-		if !ok{
+		if !ok {
 			return errors.New("invalid pipeline config")
 		}
 
@@ -520,9 +540,8 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 
 		log.Debugf("pipeline [%v] loop exited with state [%v]", cfg.Name, ctx.GetRunningState())
 
-
 		return nil
-	} , context.WithValue(context.Background(), "cfg", v))
+	}, context.WithValue(context.Background(), "cfg", v))
 }
 
 func isPipelineEnabled(enabled *bool) bool {

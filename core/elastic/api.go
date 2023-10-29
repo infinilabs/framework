@@ -39,7 +39,7 @@ type API interface {
 	GetClusterStats(node string) (*ClusterStats, error)
 	GetClusterStatsSpecEndpoint(node string, endPoint string) (*ClusterStats, error)
 
-	GetNodesStats(nodeID, host string) *NodesStats
+	GetNodesStats(nodeID, host string, level string) *NodesStats
 
 	GetIndicesStats() *IndicesStats
 
@@ -48,6 +48,8 @@ type API interface {
 	CreateIndex(name string, settings map[string]interface{}) error
 
 	Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
+
+	Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
 
 	Bulk(data []byte) (*util.Result, error)
 

@@ -51,6 +51,9 @@ type StateItem struct {
 }
 
 type Context struct {
+
+	ParentContext *Context `json:"-"`
+
 	context.Context  `json:"-"`
 	param.Parameters `json:"parameters,omitempty"`
 

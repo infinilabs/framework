@@ -28,7 +28,7 @@ func (module *TaskModule) Setup() {
 	module.TimeZone = "UTC"
 	module.MaxConcurrentNumOfTasks = 100
 	ok, err := env.ParseConfig("task", &module)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 

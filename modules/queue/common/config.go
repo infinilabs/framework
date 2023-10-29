@@ -6,6 +6,7 @@ package common
 
 import (
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/queue"
 )
 
@@ -15,7 +16,7 @@ func InitQueueMetadata() {
 	//load configs from static config
 	configs := []queue.QueueConfig{}
 	ok, err := env.ParseConfig("queue", &configs)
-	if ok && err != nil {
+	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
 	}
 

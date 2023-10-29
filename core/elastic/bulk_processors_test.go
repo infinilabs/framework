@@ -25,7 +25,7 @@ func TestBulkWalkLines(t *testing.T) {
 		return nil
 	}, func(payloadBytes []byte, actionStr, index, typeName, id,routing string) {
 		fmt.Println(string(payloadBytes))
-	})
+	},nil)
 }
 
 func TestBulkStats(t *testing.T) {
