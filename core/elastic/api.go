@@ -58,7 +58,7 @@ type API interface {
 	Count(ctx context.Context, indexName string, body []byte) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 
-	QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)
+	QueryDSL(ctx context.Context, indexName string, queryArgs *[]util.KV, queryDSL []byte) (*SearchResponse, error)
 
 	SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*SearchResponse, error)
 

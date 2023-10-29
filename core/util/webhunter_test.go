@@ -17,9 +17,12 @@ limitations under the License.
 package util
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/magiconair/properties/assert"
 	"testing"
+	"time"
 )
 
 func TestGet(t *testing.T) {
@@ -93,3 +96,43 @@ func BenchmarkGet(b *testing.B) {
 //		//fmt.Printf("%8d\r", i)
 //	}
 //}
+
+func TestDefaultTimeout(t *testing.T){
+	req := &Request{
+		Method: "GET",
+		Url: "http://localhost:8090/hello", // server time delay is 80s
+	}
+	_, err := ExecuteRequest(req)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("expect error of context deadline exceeded")
+	}
+}
+
+func TestTimeoutWithContext(t *testing.T){
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 90)
+	defer cancel()
+	req := &Request{
+		Method: "GET",
+		Url: "http://localhost:8090/hello",
+		Context: ctx,
+	}
+	result, err := ExecuteRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, string(result.Body), "hello\n")
+}
+
+func TestFiveSecondsTimeoutWithContext(t *testing.T){
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * 5)
+	defer cancel()
+	req := &Request{
+		Method: "GET",
+		Url: "http://localhost:8090/hello",
+		Context: ctx,
+	}
+	_, err := ExecuteRequest(req)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("expect error of context deadline exceeded")
+	}
+}

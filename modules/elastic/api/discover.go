@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
@@ -9,6 +10,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
+	"time"
 )
 
 func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -121,8 +123,28 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 	}
 
 	reqDSL := util.MustToJSONBytes(reqParams.Body)
+	timeout := h.GetParameterOrDefault(req, "timeout", "")
+	var queryArgs *[]util.KV
+	var ctx context.Context
+	if timeout != "" {
+		queryArgs = &[]util.KV{
+			{
+				Key: "timeout",
+				Value: timeout,
+			},
+		}
+		du, err := util.ParseDuration(timeout)
+		if err != nil {
+			h.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var cancel context.CancelFunc
+		// here add one second for network delay
+		ctx, cancel = context.WithTimeout(context.Background(), du + time.Second)
+		defer cancel()
+	}
 
-	searchRes, err := client.SearchWithRawQueryDSL(reqParams.Index, reqDSL)
+	searchRes, err := client.QueryDSL(ctx, reqParams.Index, queryArgs, reqDSL)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return

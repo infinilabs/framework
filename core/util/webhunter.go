@@ -271,8 +271,17 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 	} else {
 		request, err = http.NewRequest(string(req.Method), req.Url, nil)
 	}
+	var parentCtx = context.Background()
 	if req.Context != nil {
+		parentCtx = req.Context
+	}
+	if _, ok := parentCtx.Deadline(); ok {
 		request = request.WithContext(req.Context)
+	} else{
+		// use context to control default timeout
+		timeCtx, cancel := context.WithTimeout(parentCtx, timeout)
+		defer cancel()
+		request = request.WithContext(timeCtx)
 	}
 
 	if err != nil {
@@ -410,7 +419,6 @@ var t = &http.Transport{
 		KeepAlive: timeout,
 		DualStack: true,
 	}).DialContext,
-	ResponseHeaderTimeout: timeout,
 	IdleConnTimeout:       timeout,
 	TLSHandshakeTimeout:   timeout,
 	ExpectContinueTimeout: timeout,
@@ -424,7 +432,6 @@ var t = &http.Transport{
 
 var defaultClient = &http.Client{
 	Transport:     t,
-	Timeout:       timeout,
 	CheckRedirect: nil,
 }
 

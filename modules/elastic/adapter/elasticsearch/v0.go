@@ -452,7 +452,7 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 	return c.SearchWithRawQueryDSL(indexName, util.UnsafeStringToBytes(js))
 }
 
-func (c *ESAPIV0) QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
+func (c *ESAPIV0) QueryDSL(ctx context.Context, indexName string, queryArgs *[]util.KV, queryDSL []byte) (*elastic.SearchResponse, error) {
 	indexName = util.UrlEncode(indexName)
 
 	url := c.GetEndpoint() + "/" + indexName + "/_search"
@@ -475,7 +475,7 @@ func (c *ESAPIV0) QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []by
 		log.Trace("search: ", url, ",", string(queryDSL))
 	}
 
-	resp, err := c.Request(nil, util.Verb_POST, url, queryDSL)
+	resp, err := c.Request(ctx, util.Verb_POST, url, queryDSL)
 	if resp != nil {
 		esResp.StatusCode = resp.StatusCode
 		esResp.RawResult = resp
@@ -503,7 +503,7 @@ func (c *ESAPIV0) QueryDSL(indexName string, queryArgs *[]util.KV, queryDSL []by
 }
 
 func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
-	return c.QueryDSL(indexName, nil, queryDSL)
+	return c.QueryDSL(nil, indexName, nil, queryDSL)
 }
 
 func (c *ESAPIV0) IndexExists(indexName string) (bool, error) {

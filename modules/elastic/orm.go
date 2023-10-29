@@ -214,7 +214,7 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 	}
 
 	if len(q.RawQuery) > 0 {
-		searchResponse, err = handler.Client.QueryDSL(indexName, q.QueryArgs, q.RawQuery)
+		searchResponse, err = handler.Client.QueryDSL(nil, indexName, q.QueryArgs, q.RawQuery)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
