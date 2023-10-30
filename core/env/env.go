@@ -198,22 +198,21 @@ func (env *Env) InitPaths(cfgPath string) error {
 	_, defaultSystemConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultSystemConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
-	env.SystemConfig.Configs.PanicOnConfigError=!env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
+	env.SystemConfig.Configs.PanicOnConfigError = !env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
 
 	var (
 		cfgObj *config.Config
 		err    error
 	)
 
-
 	if util.FileExists(cfgPath) {
 		if cfgObj, err = config.LoadFile(cfgPath); err != nil {
 			return fmt.Errorf("error loading confiuration file: %v, %w", cfgPath, err)
 		}
 		return cfgObj.Unpack(&env.SystemConfig)
-	}else {
+	} else {
 		if !env.IgnoreOnConfigMissing {
-			return errors.Errorf("config file %v not found",cfgPath)
+			return errors.Errorf("config file %v not found", cfgPath)
 		}
 	}
 	return nil
@@ -435,6 +434,28 @@ func GetModuleConfig(name string) *config.Config {
 func GetPluginConfig(name string) *config.Config {
 	cfg := pluginConfig[strings.ToLower(name)]
 	return cfg
+}
+
+// LoadConfigContents reads contents from the given path, and renders template
+// variables if necessary.
+func LoadConfigContents(path string) (contents string, err error) {
+	bytes, err := util.FileGetContent(path)
+	if err != nil {
+		return
+	}
+	contents = string(bytes)
+
+	if !util.ContainStr(contents, "$[[") {
+		return
+	}
+
+	variables, err := config.NewTemplateVariablesFromConfig(configObject)
+	if err != nil {
+		return
+	}
+	contents = config.NestedRenderingTemplate(contents, variables)
+
+	return
 }
 
 func ParseConfig(configKey string, configInstance interface{}) (exist bool, err error) {

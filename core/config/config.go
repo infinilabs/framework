@@ -175,19 +175,17 @@ func LoadFile(path string) (*Config, error) {
 	//check templated file
 	cfgByes, err := util.FileGetContent(path)
 	if err != nil {
-		return nil,errors.New(fmt.Sprintf("%v, %v",path,err))
+		return nil, errors.New(fmt.Sprintf("%v, %v", path, err))
 	}
 
 	//if hash variable, apply and re-unpack
 	bytesStr := util.UnsafeBytesToString(cfgByes)
 	if util.ContainStr(bytesStr, "$[[") {
-		obj, err := LoadEnvVariables(path)
+		envObj, err := NewTemplateVariables(path)
 		if err != nil {
-			return nil,err
+			return nil, err
 		}
 
-		envObj := util.MapStr{}
-		envObj.Put("env", obj)
 		tempConfig := ConfigTemplate{
 			Path:     path,
 			Variable: envObj,
@@ -198,12 +196,16 @@ func LoadFile(path string) (*Config, error) {
 }
 
 func LoadEnvVariables(path string) (map[string]interface{}, error) {
-	env1 := EnvConfig{}
-	var err error
 	configObject, err := internalLoadFile(path)
 	if err != nil {
 		return nil, err
 	}
+
+	return LoadEnvVariablesFromConfig(configObject)
+}
+
+func LoadEnvVariablesFromConfig(configObject *Config) (map[string]interface{}, error) {
+	env1 := EnvConfig{}
 
 	if err := configObject.Unpack(&env1); err != nil {
 		return nil, err
@@ -226,6 +228,27 @@ func LoadEnvVariables(path string) (map[string]interface{}, error) {
 
 	log.Trace("environments:", util.ToJson(obj, true))
 	return obj, nil
+
+}
+
+func NewTemplateVariables(path string) (util.MapStr, error) {
+	configObject, err := internalLoadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTemplateVariablesFromConfig(configObject)
+}
+
+func NewTemplateVariablesFromConfig(configObject *Config) (util.MapStr, error) {
+	obj, err := LoadEnvVariablesFromConfig(configObject)
+	if err != nil {
+		return nil, err
+	}
+
+	envObj := util.MapStr{}
+	envObj.Put("env", obj)
+	return envObj, nil
 }
 
 // internalLoadFile will load config from specify file
@@ -267,7 +290,6 @@ func internalLoadFile(path string) (*Config, error) {
 	return pCfg, err
 }
 
-
 func NestedRenderingTemplate(temp string, runKv util.MapStr) string {
 	template, err := fasttemplate.NewTemplate(temp, "$[[", "]]")
 	if err != nil {
@@ -282,13 +304,13 @@ func NestedRenderingTemplate(temp string, runKv util.MapStr) string {
 		return w.Write([]byte("$[[" + tag + "]]"))
 	})
 
-	if configStr!=temp&& strings.Contains(configStr, "$[[") && strings.Contains(configStr, "]]") &&strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]") {
-		newConfigStr:= NestedRenderingTemplate(configStr, runKv)
+	if configStr != temp && strings.Contains(configStr, "$[[") && strings.Contains(configStr, "]]") && strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]") {
+		newConfigStr := NestedRenderingTemplate(configStr, runKv)
 		if newConfigStr != configStr {
 			configStr = newConfigStr
 		}
 		//fmt.Println("hit nested, and finished")
-	}else{
+	} else {
 		//fmt.Println("not hit nested template:",configStr!=temp,",",runKv,",",strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]"))
 	}
 	return configStr
@@ -297,7 +319,7 @@ func NestedRenderingTemplate(temp string, runKv util.MapStr) string {
 func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 	if runtimeKV != nil {
 
-		if util.ContainStr(key,"$[[") {
+		if util.ContainStr(key, "$[[") {
 
 			template, err := fasttemplate.NewTemplate(string(key), "$[[", "]]")
 			if err != nil {
@@ -305,7 +327,7 @@ func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 				panic(err)
 			}
 
-			key= template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+			key = template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
 				variable, ok := GetVariable(runtimeKV, tag)
 				if ok {
 					return w.Write([]byte(variable))
@@ -320,11 +342,11 @@ func GetVariable(runtimeKV util.MapStr, key string) (string, bool) {
 			if ok {
 				return str, true
 			} else {
-				if util.TypeIsArray(x){
-					y:=x.([]interface{})
-					o:="['"+util.JoinInterfaceArray(y,"','",nil)+"']"
+				if util.TypeIsArray(x) {
+					y := x.([]interface{})
+					o := "['" + util.JoinInterfaceArray(y, "','", nil) + "']"
 					return o, true
-				}else{
+				} else {
 					return util.ToString(x), true
 				}
 			}
@@ -345,7 +367,7 @@ func NewConfigWithTemplate(v ConfigTemplate) (*Config, error) {
 		return nil, err
 	}
 
-	configStr:=NestedRenderingTemplate(string(tempBytes), v.Variable)
+	configStr := NestedRenderingTemplate(string(tempBytes), v.Variable)
 
 	//log.Error(configStr)
 
