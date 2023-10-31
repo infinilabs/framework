@@ -307,7 +307,7 @@ func GetConfigFromFile(cfgDir, filename string) (*common.ConfigFile, error) {
 	}
 
 	cfg.Content = content
-	cfg.Managed = parseConfigManaged(content, cfg.Version > 0)
+	cfg.Managed = parseConfigManaged(content, cfg.Version > 0 || global.Env().SystemConfig.Configs.ConfigFileManagedByDefault)
 
 	return &cfg, nil
 }
@@ -330,8 +330,8 @@ func (handler DefaultHandler) saveConfigAction(w http.ResponseWriter, req *http.
 
 func (handler DefaultHandler) reloadConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	log.Infof("refresh config")
-	err:=global.Env().RefreshConfig()
-	if err!=nil{
+	err := global.Env().RefreshConfig()
+	if err != nil {
 		panic(err)
 	}
 	handler.WriteAckOKJSON(w)

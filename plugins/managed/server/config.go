@@ -18,13 +18,13 @@ import (
 	"sync"
 )
 
-var configProvidersLock=sync.RWMutex{}
-var configProviders=[]func(instance model.Instance) []*common.ConfigFile{}
+var configProvidersLock = sync.RWMutex{}
+var configProviders = []func(instance model.Instance) []*common.ConfigFile{}
 
 func RegisterConfigProvider(provider func(instance model.Instance) []*common.ConfigFile) {
 	configProvidersLock.Lock()
 	defer configProvidersLock.Unlock()
-	configProviders=append(configProviders,provider)
+	configProviders = append(configProviders, provider)
 }
 
 func refreshConfigsRepo() {
@@ -114,7 +114,7 @@ func getConfigsForInstance(instance model.Instance) []*common.ConfigFile {
 				}
 				if cfg != nil {
 					cfg.Managed = true
-					result=append(result,cfg)
+					result = append(result, cfg)
 				}
 			}
 		}
@@ -159,10 +159,10 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 	//find out different configs, add or delete configs
 	cfgs := getConfigsForInstance(obj.Client)
 
-	newCfgs:=getConfigsFromExternalProviders(obj.Client)
+	newCfgs := getConfigsFromExternalProviders(obj.Client)
 
-	if newCfgs!=nil && len(newCfgs)>0{
-		cfgs=append(cfgs,newCfgs...)
+	if newCfgs != nil && len(newCfgs) > 0 {
+		cfgs = append(cfgs, newCfgs...)
 	}
 
 	if global.Env().IsDebug {
@@ -187,9 +187,9 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 	//get configs from repo, let's diff and send to client
 	if len(cfgs) > 0 {
 
-		cfgMap:=map[string]common.ConfigFile{}
-		for _,c:=range cfgs{
-			cfgMap[c.Name]=*c
+		cfgMap := map[string]common.ConfigFile{}
+		for _, c := range cfgs {
+			cfgMap[c.Name] = *c
 		}
 
 		//find out which config content was changed, replace to new content
@@ -202,6 +202,16 @@ func (h APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, ps htt
 					if global.Env().IsDebug {
 						log.Trace("both exists: ", k, ", checking version: ", v.Version, " vs ", x.Version)
 					}
+
+					if !x.Managed {
+						log.Debugf("config %v was marked as not to be managed, skip", k)
+						continue
+					}
+
+					if global.Env().IsDebug {
+						log.Debugf("check version for config %v, %v vs %v, %v", k, v.Version, x.Version, x.Managed)
+					}
+
 					//let's diff the version
 					if v.Version > x.Version {
 						if global.Env().IsDebug {

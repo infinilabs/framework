@@ -266,12 +266,13 @@ var (
 		AllowMultiInstance: false,
 		MaxNumOfInstance:   5,
 		Configs: config.ConfigsConfig{
-			Interval:               "30s",
-			AutoReload:             true,
-			SoftDelete:             true,
-			PanicOnConfigError:     true,
-			MaxBackupFiles:         10,
-			ValidConfigsExtensions: []string{".tpl", ".json", ".yml", ".yaml"},
+			Interval:                   "30s",
+			AutoReload:                 true,
+			SoftDelete:                 true,
+			ConfigFileManagedByDefault: true,
+			PanicOnConfigError:         true,
+			MaxBackupFiles:             10,
+			ValidConfigsExtensions:     []string{".tpl", ".json", ".yml", ".yaml"},
 		},
 	}
 )

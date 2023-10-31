@@ -118,7 +118,7 @@ func ListenConfigChanges() error {
 					log.Trace("fetch configs from manger")
 				}
 
-				cfgs := config.GetConfigs(false, true)
+				cfgs := config.GetConfigs(false, false)
 				req.Configs = cfgs
 				req.Hash = util.MD5digestString(util.MustToJSONBytes(cfgs))
 

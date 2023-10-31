@@ -161,17 +161,18 @@ type HTTPClientConfigs struct {
 }
 
 type ConfigsConfig struct {
-	AutoReload             bool     `config:"auto_reload"`           //auto reload local files
-	Managed                bool     `config:"managed"`               //managed by remote config center
-	Servers                []string `config:"servers"`               //remote config center servers
-	ScheduledTask          bool     `config:"scheduled_task"`        //use dedicated schedule task or background, use background task will save one goroutine
-	Interval               string   `config:"interval"`              //sync interval in seconds
-	SoftDelete             bool     `config:"soft_delete"`           //soft delete config
-	PanicOnConfigError     bool     `config:"panic_on_config_error"` //panic on config error
-	MaxBackupFiles         int      `config:"max_backup_files"`      //keep max num of file backup
-	ValidConfigsExtensions []string `config:"valid_config_extensions"`
-	TLSConfig TLSConfig `config:"tls"`
-	ManagerConfig struct {
+	AutoReload                 bool      `config:"auto_reload"`                    //auto reload local files
+	Managed                    bool      `config:"managed"`                        //managed by remote config center
+	ConfigFileManagedByDefault bool      `config:"config_file_managed_by_default"` //config file managed by default
+	Servers                    []string  `config:"servers"`                        //remote config center servers
+	ScheduledTask              bool      `config:"scheduled_task"`                 //use dedicated schedule task or background, use background task will save one goroutine
+	Interval                   string    `config:"interval"`                       //sync interval in seconds
+	SoftDelete                 bool      `config:"soft_delete"`                    //soft delete config
+	PanicOnConfigError         bool      `config:"panic_on_config_error"`          //panic on config error
+	MaxBackupFiles             int       `config:"max_backup_files"`               //keep max num of file backup
+	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
+	TLSConfig                  TLSConfig `config:"tls"`
+	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`
 }
