@@ -13,9 +13,9 @@ import (
 func TestSortKeyValueArray(t *testing.T) {
 
 	kv:=[]KeyValue{}
-	kv=append(kv,KeyValue{"a",1})
-	kv=append(kv,KeyValue{"b",2})
-	kv=append(kv,KeyValue{"c",3})
+	kv=append(kv,KeyValue{"a",1,nil})
+	kv=append(kv,KeyValue{"b",2,nil})
+	kv=append(kv,KeyValue{"c",3,nil})
 
 	kv=SortKeyValueArray(kv,false)
 
