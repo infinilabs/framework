@@ -86,6 +86,34 @@ func TestMapStrCopyFieldsTo(t *testing.T) {
 	err = m.CopyFieldsTo(c, "c.c3.c32")
 	assert.Equal(nil, err)
 	assert.Equal(MapStr{"a": MapStr{"a1": 2, "a2": 3}, "c": MapStr{"c1": 1, "c3": MapStr{"c32": 2}}, "b": 2}, c)
+
+	m = MapStr{
+		"c": []MapStr{
+			MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+	c = MapStr{}
+
+	err = m.CopyFieldsTo(c, "c.0.c2")
+	assert.Nil(err)
+	assert.Equal(MapStr{"c": MapStr{"0": MapStr{"c2": 2}}}, c)
+
+	m = MapStr{
+		"c": MapStr{
+			"0": MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+	c = MapStr{}
+
+	err = m.CopyFieldsTo(c, "c.0.c2")
+	assert.Nil(err)
+	assert.Equal(MapStr{"c": MapStr{"0": MapStr{"c2": 2}}}, c)
 }
 
 func TestMapStrDelete(t *testing.T) {
@@ -117,6 +145,32 @@ func TestMapStrDelete(t *testing.T) {
 	err = m.Delete("c")
 	assert.Equal(nil, err)
 	assert.Equal(MapStr{}, m)
+
+	m = MapStr{
+		"c": []MapStr{
+			MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+
+	err = m.Delete("c.0.c2")
+	assert.Nil(err)
+	assert.Equal(MapStr{"c": []MapStr{MapStr{"c1": 1}}}, m)
+
+	m = MapStr{
+		"c": MapStr{
+			"0": MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+
+	err = m.Delete("c.0.c2")
+	assert.Nil(err)
+	assert.Equal(MapStr{"c": MapStr{"0": MapStr{"c1": 1}}}, m)
 }
 
 func TestHasKey(t *testing.T) {
@@ -148,6 +202,40 @@ func TestHasKey(t *testing.T) {
 	hasKey, err = m.HasKey("dd")
 	assert.Equal(nil, err)
 	assert.Equal(false, hasKey)
+
+	m = MapStr{
+		"c": []MapStr{
+			MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+
+	hasKey, err = m.HasKey("c.0.c2")
+	assert.Nil(err)
+	assert.Equal(true, hasKey)
+
+	hasKey, err = m.HasKey("c.1.c2")
+	assert.Nil(err)
+	assert.Equal(true, hasKey)
+
+	m = MapStr{
+		"c": MapStr{
+			"0": MapStr{
+				"c1": 1,
+				"c2": 2,
+			},
+		},
+	}
+
+	hasKey, err = m.HasKey("c.0.c2")
+	assert.Nil(err)
+	assert.Equal(true, hasKey)
+
+	hasKey, err = m.HasKey("c.1.c2")
+	assert.Nil(err)
+	assert.Equal(true, hasKey)
 }
 
 func TestMapStrPut(t *testing.T) {
@@ -181,6 +269,32 @@ func TestMapStrPut(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, v)
 	assert.Equal(t, MapStr{"subMap": MapStr{"newMap": MapStr{"a": 1}}}, m)
+
+	m = MapStr{
+		"c": []MapStr{
+			MapStr{
+				"c1": 1,
+			},
+		},
+	}
+
+	v, err = m.Put("c.0.c2", 2)
+	assert.Nil(t, err)
+	assert.Nil(t, v)
+	assert.Equal(t, MapStr{"c": []MapStr{MapStr{"c1": 1, "c2": 2}}}, m)
+
+	m = MapStr{
+		"c": MapStr{
+			"0": MapStr{
+				"c1": 1,
+			},
+		},
+	}
+
+	v, err = m.Put("c.0.c2", 2)
+	assert.Nil(t, err)
+	assert.Nil(t, v)
+	assert.Equal(t, MapStr{"c": MapStr{"0": MapStr{"c1": 1, "c2": 2}}}, m)
 }
 
 func TestClone(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -222,6 +223,15 @@ func toMapStr(v interface{}) (MapStr, error) {
 		m := v.(map[string]interface{})
 		return MapStr(m), nil
 	default:
+		// Convert slices to maps for array indices support.
+		if kind := reflect.TypeOf(v).Kind(); kind == reflect.Slice || kind == reflect.Array {
+			m := map[string]interface{}{}
+			s := reflect.ValueOf(v)
+			for i := 0; i < s.Len(); i++ {
+				m[strconv.Itoa(i)] = s.Index(i).Interface()
+			}
+			return MapStr(m), nil
+		}
 		return nil, errors.Errorf("expected map but type is %T", v)
 	}
 }
@@ -232,9 +242,9 @@ func toMapStr(v interface{}) (MapStr, error) {
 func walkMap(key string, data MapStr, op mapStrOperation) (interface{}, error) {
 
 	//try check map directly first
-	if v, ok := data[key]; ok {
+	if _, ok := data[key]; ok {
 		if ok{
-			return v,nil
+			return op.Do(key, data)
 		}
 	}
 
