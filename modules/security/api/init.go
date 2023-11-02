@@ -36,8 +36,6 @@ func Init() {
 	api.HandleAPIMethod(api.GET, "/user/_search", apiHandler.RequirePermission(apiHandler.SearchUser, enum.UserReadPermission...))
 	api.HandleAPIMethod(api.PUT, "/user/:id/password", apiHandler.RequirePermission(apiHandler.UpdateUserPassword, enum.UserAllPermission...))
 
-	api.HandleAPIMethod(api.GET, "/account/current_user", apiHandler.RequireLogin(apiHandler.CurrentUser))
-
 	api.HandleAPIMethod(api.POST, "/account/login", apiHandler.Login)
 	api.HandleAPIMethod(api.POST, "/account/logout", apiHandler.Logout)
 	api.HandleAPIMethod(api.DELETE, "/account/logout", apiHandler.Logout)

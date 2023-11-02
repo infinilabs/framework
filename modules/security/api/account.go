@@ -21,50 +21,6 @@ const userInSession = "user_session:"
 const NativeProvider = "native"
 //const LDAPProvider = "ldap"
 
-func (h APIHandler) CurrentUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-	exists, user := api.GetSession(w, req, userInSession)
-	if exists {
-		data := util.MapStr{
-			"name":      user,
-			"avatar":    "",
-			"userid":    "10001",
-			"email":     "hello@infini.ltd",
-			"signature": "极限科技 - 专业的开源搜索与实时数据分析整体解决方案提供商。",
-			"title":     "首席设计师",
-			"group":     "INFINI Labs",
-			"tags": []util.MapStr{
-				{
-					"key":   "0",
-					"label": "很有想法的",
-				}},
-			"notifyCount": 12,
-			"country":     "China",
-			"geographic": util.MapStr{
-				"province": util.MapStr{
-					"label": "湖南省",
-					"key":   "330000",
-				},
-				"city": util.MapStr{
-					"label": "长沙市",
-					"key":   "330100",
-				},
-			},
-			"address": "岳麓区湘江金融中心",
-			"phone":   "4001399200",
-		}
-
-		h.WriteJSON(w, data, 200)
-	} else {
-		data := util.MapStr{
-			"status":           "error",
-			"type":             "account",
-			"currentAuthority": "guest",
-		}
-		h.WriteJSON(w, data, 403)
-	}
-}
-
 func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {
