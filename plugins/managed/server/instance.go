@@ -135,7 +135,7 @@ func (h *APIHandler) createInstance(w http.ResponseWriter, req *http.Request, ps
 	if len(res.Tags) > 0 {
 		obj.Tags = res.Tags
 	}
-	if res.Name != "" {
+	if res.Name != "" && obj.Name == "" {
 		obj.Name = res.Name
 	}
 	obj.Application = res.Application
