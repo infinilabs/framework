@@ -6,12 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/buger/jsonparser"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
-
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api"
@@ -19,6 +13,11 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 )
 
 func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -31,7 +30,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
-	exists, _, err := h.GetClusterClient(targetClusterID)
+	exists, esClient, err := h.GetClusterClient(targetClusterID)
 
 	if err != nil {
 		log.Error(err)
@@ -49,12 +48,6 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 	authPath, _ := url.PathUnescape(path)
 	var realPath = authPath
-	//ccs search
-	if parts := strings.SplitN(authPath, "/", 2); strings.Contains(parts[0], ":") {
-		ccsParts := strings.SplitN(parts[0], ":", 2)
-		realPath = fmt.Sprintf("%s/%s", ccsParts[1], parts[1])
-	}
-	newReq := req.Clone(context.Background())
 	newURL, err := url.Parse(realPath)
 	if err != nil {
 		log.Error(err)
@@ -62,6 +55,39 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
 		return
 	}
+	if strings.Trim(newURL.Path, "/") == "_sql" {
+		indexName, err := getQueryIndexFromSqlRequest(req)
+		if err != nil {
+			h.WriteError(w, err.Error() , http.StatusInternalServerError)
+			return
+		}
+		if !h.IsIndexAllowed(req, targetClusterID, indexName) {
+			h.WriteError(w, fmt.Sprintf("forbidden to access index %s", indexName) , http.StatusForbidden)
+			return
+		}
+		q, _ := url.ParseQuery(newURL.RawQuery)
+		hasFormat := q.Has("format")
+		switch esClient.GetVersion().Distribution {
+		case elastic.Opensearch:
+			path = "_plugins/_sql?format=raw"
+		case elastic.Easysearch:
+			if !hasFormat {
+				q.Add("format", "raw")
+			}
+			path = "_sql?" + q.Encode()
+		default:
+			if !hasFormat {
+				q.Add("format", "txt")
+			}
+			path = "_sql?" + q.Encode()
+		}
+	}
+	//ccs search
+	if parts := strings.SplitN(authPath, "/", 2); strings.Contains(parts[0], ":") {
+		ccsParts := strings.SplitN(parts[0], ":", 2)
+		realPath = fmt.Sprintf("%s/%s", ccsParts[1], parts[1])
+	}
+	newReq := req.Clone(context.Background())
 	newReq.URL = newURL
 	newReq.Method = method
 	isSuperAdmin, permission, err := h.ValidateProxyRequest(newReq, targetClusterID)
@@ -177,6 +203,27 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 	w.WriteHeader(fres.StatusCode())
 	json.NewEncoder(w).Encode(okBody)
 
+}
+
+func getQueryIndexFromSqlRequest(req *http.Request) (string, error){
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(req.Body); err != nil {
+		return "", err
+	}
+	if err := req.Body.Close(); err != nil {
+		return "", err
+	}
+	req.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
+	sqlQuery, err := jsonparser.GetString(buf.Bytes(), "query")
+	if err != nil {
+		return "", fmt.Errorf("parse query from request body error: %w", err)
+	}
+	q := util.NewSQLQueryString(sqlQuery)
+	tableNames, err := q.TableNames()
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(tableNames, ","), nil
 }
 
 var client = fasthttp.Client{
