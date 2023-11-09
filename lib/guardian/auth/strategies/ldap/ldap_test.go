@@ -1,19 +1,19 @@
 package ldap
-//
-//import (
-//	"context"
-//	"crypto/tls"
-//	"fmt"
-//	"net/http"
-//	"net/http/httptest"
-//	"net/url"
-//	"testing"
-//
-//	"github.com/go-ldap/ldap/v3"
-//	"github.com/stretchr/testify/assert"
-//	"github.com/stretchr/testify/mock"
-//)
-//
+
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+	//	"context"
+	//	"crypto/tls"
+	//	"fmt"
+	//	"net/http"
+	//	"net/http/httptest"
+	//	"net/url"
+	//
+	//	"github.com/go-ldap/ldap/v3"
+	//	"github.com/stretchr/testify/mock"
+)
+
 //func TestLdap(t *testing.T) {
 //	table := []struct {
 //		name        string
@@ -209,3 +209,22 @@ package ldap
 //}
 //
 //func (m *mockConn) Close() {}
+
+func TestExtractFirstGroupFromDB(t *testing.T)  {
+	testCases := []struct {
+		name string
+		dn  string
+		groupAttr string
+		want string
+	}{
+		{"standard", "CN=张三,OU=配置管理,OU=外包人员,OU=极限科技,DC=infinilabs,DC=com", "OU", "配置管理"},
+		{"not found", "CN=张三,OU=配置管理,OU=外包人员,OU=极限科技,DC=infinilabs,DC=com", "DD", ""},
+		{"wrong dn", `CN=张三OU=配置管理OU=外包人员OU=极限科技DC=infinilabsDC=com"`, "OU", ""},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			grp := extractFirstGroupFromDN(tc.dn, tc.groupAttr)
+			assert.Equal(t, tc.want, grp)
+		})
+	}
+}

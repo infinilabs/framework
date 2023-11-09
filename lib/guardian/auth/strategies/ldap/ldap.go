@@ -12,6 +12,7 @@ import (
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/lib/guardian/auth"
 	"infini.sh/framework/lib/guardian/auth/strategies/basic"
+	"strings"
 )
 
 // ErrEntries is returned by ldap authenticate function,
@@ -130,6 +131,12 @@ func (c client) authenticate(ctx context.Context, r *fasthttp.Request, userName,
 
 		ext[name] = values
 	}
+	if len(groups) == 0 {
+		//try to extract first group from dn
+		if grp := extractFirstGroupFromDN(result.Entries[0].DN, c.cfg.GroupAttribute); grp != "" {
+			groups = append(groups, grp)
+		}
+	}
 
 	//
 	//result, err = l.Search(ldap.NewSearchRequest(
@@ -171,4 +178,16 @@ func New(cfg *Config, opts ...auth.Option) auth.Strategy {
 func NewCached(cfg *Config, c auth.Cache, opts ...auth.Option) auth.Strategy {
 	fn := GetAuthenticateFunc(cfg, opts...)
 	return basic.NewCached(fn, c, opts...)
+}
+
+//extractFirstGroupFromDN try to extract first group from dn
+func extractFirstGroupFromDN(dn string, groupAttr string) string {
+	dnParts := strings.Split(dn, ",")
+	for _, part := range dnParts {
+		kvs := strings.Split(part, "=")
+		if kvs[0] == groupAttr && len(kvs) == 2 {
+			return kvs[1]
+		}
+	}
+	return ""
 }
