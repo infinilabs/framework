@@ -169,7 +169,11 @@ func (env *Env) Init() *Env {
 
 	//init config watcher
 	if env.SystemConfig.Configs.AutoReload {
-		log.Info("configuration auto reload enabled")
+
+		if !env.ISServiceMode {
+			log.Info("configuration auto reload enabled")
+		}
+
 		absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
 		if util.FileExists(absConfigPath) {
 			if !env.ISServiceMode {
