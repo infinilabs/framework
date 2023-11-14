@@ -17,6 +17,7 @@ type SQLQueryString struct {
 }
 
 func NewSQLQueryString(query string) *SQLQueryString {
+	query = strings.TrimSpace(query)
 	return &SQLQueryString{
 		query:   query,
 		lowered: strings.ToLower(query),
