@@ -106,26 +106,28 @@ type CompressConfig struct {
 var preventRead bool
 
 func checkCapacity(cfg *DiskQueueConfig) error {
-	if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
-		pathUsed,err := status.DirSize(global.Env().GetDataDir())
-		if err!=nil{
-			panic(err)
-		}
-
-		partitonStats := status.DiskPartitionUsage(global.Env().GetDataDir())
-		if cfg.MaxUsedBytes > 0 && pathUsed >= cfg.MaxUsedBytes {
-			preventRead = true
-			return errors.Errorf("disk usage [%v] > threshold [%v]", util.ByteSize(pathUsed), util.ByteSize(cfg.MaxUsedBytes))
-		} else if cfg.ReservedFreeBytes > 0 && partitonStats.Free <= uint64(cfg.ReservedFreeBytes) {
-			preventRead = true
-			return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(partitonStats.Free), util.ByteSize(cfg.ReservedFreeBytes))
-		} else if cfg.WarningFreeBytes > 0 && partitonStats.Free <= uint64(cfg.WarningFreeBytes) {
-			if rate.GetRateLimiterPerSecond("queue", "disk_full_warning", 1).Allow() {
-				log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(partitonStats.Free), util.ByteSize(cfg.WarningFreeBytes))
+	if rate.GetRateLimiter("disk_queue","check_capacity",1,10,time.Second).Allow(){
+		if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
+			pathUsed,err := status.DirSize(global.Env().GetDataDir())
+			if err!=nil{
+				panic(err)
 			}
-		}
-		if preventRead {
-			preventRead = false
+
+			partitonStats := status.DiskPartitionUsage(global.Env().GetDataDir())
+			if cfg.MaxUsedBytes > 0 && pathUsed >= cfg.MaxUsedBytes {
+				preventRead = true
+				return errors.Errorf("disk usage [%v] > threshold [%v]", util.ByteSize(pathUsed), util.ByteSize(cfg.MaxUsedBytes))
+			} else if cfg.ReservedFreeBytes > 0 && partitonStats.Free <= uint64(cfg.ReservedFreeBytes) {
+				preventRead = true
+				return errors.Errorf("disk free space [%v] < threshold [%v]", util.ByteSize(partitonStats.Free), util.ByteSize(cfg.ReservedFreeBytes))
+			} else if cfg.WarningFreeBytes > 0 && partitonStats.Free <= uint64(cfg.WarningFreeBytes) {
+				if rate.GetRateLimiterPerSecond("queue", "disk_full_warning", 1).Allow() {
+					log.Warnf("disk free space [%v] < threshold [%v]", util.ByteSize(partitonStats.Free), util.ByteSize(cfg.WarningFreeBytes))
+				}
+			}
+			if preventRead {
+				preventRead = false
+			}
 		}
 	}
 	return nil
