@@ -16,12 +16,14 @@ func GenerateAccessToken(user *User) (map[string]interface{}, error) {
 	var data map[string]interface{}
 	roles, privilege := user.GetPermissions()
 
+
 	token1 := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
 		ShortUser: &ShortUser{
 			Provider: user.AuthProvider,
 			Username: user.Username,
 			UserId:   user.ID,
 			Roles:    roles,
+			Tenant: user.Tenant,
 		},
 		RegisteredClaims: &jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
@@ -43,6 +45,7 @@ func GenerateAccessToken(user *User) (map[string]interface{}, error) {
 		"expire_in":    86400,
 		"roles":        roles,
 		"privilege":    privilege,
+		"tenant": user.Tenant,
 	}
 
 	data["status"] = "ok"

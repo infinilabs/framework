@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang-jwt/jwt"
+	"infini.sh/framework/core/model"
 )
 
 const ctxUserKey = "user"
@@ -18,10 +19,12 @@ type UserClaims struct {
 }
 
 type ShortUser struct {
-	Provider string     `json:"provider"`
+	Provider string   `json:"provider"`
 	Username string   `json:"username"`
 	UserId   string   `json:"user_id"`
 	Roles    []string `json:"roles"`
+
+	Tenant *model.TenantInfo `json:"tenant" elastic_mapping:"tenant: { type: object }"` //tenant info for multi-tenant platform user
 }
 
 const Secret = "console"

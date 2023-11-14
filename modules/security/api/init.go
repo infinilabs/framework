@@ -21,7 +21,8 @@ var apiHandler = APIHandler{Adapter: rbac.GetAdapter(adapterType)} //TODO handle
 
 func Init() {
 
-	api.HandleAPIMethod(api.GET, "/permission/:type", apiHandler.ListPermission)
+	
+	api.HandleAPIMethod(api.GET, "/permission/:type", apiHandler.RequireLogin(apiHandler.ListPermission))
 
 	api.HandleAPIMethod(api.POST, "/role/:type", apiHandler.RequirePermission(apiHandler.CreateRole, enum.RoleAllPermission...))
 	api.HandleAPIMethod(api.GET, "/role/:id", apiHandler.RequirePermission(apiHandler.GetRole, enum.RoleReadPermission...))

@@ -42,7 +42,7 @@ func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error){
 
 func (dal *User) Update(user *rbac.User) error {
 
-	return orm.Save(nil, user)
+	return orm.Update(nil, user)
 }
 
 func (dal *User) Create(user *rbac.User) (string, error){

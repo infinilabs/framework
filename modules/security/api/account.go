@@ -19,6 +19,7 @@ const userInSession = "user_session:"
 
 //const SSOProvider = "sso"
 const NativeProvider = "native"
+
 //const LDAPProvider = "ldap"
 
 func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -58,8 +59,17 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 			"nick_name": user.Nickname,
 			"phone":     user.Phone,
 		}
+
+		//only for native realm provider
+		if user.Tenant != nil {
+			u["tenant"] = user.Tenant
+		}
+
 		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
 	} else {
+
+		//TODO fetch external profile
+
 		u := util.MapStr{
 			"user_id":   reqUser.UserId,
 			"name":      reqUser.Username,
@@ -160,14 +170,14 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 	var user *rbac.User
 
 	//check user validation
-	ok,user, err := realm.Authenticate(req.Username, req.Password)
+	ok, user, err := realm.Authenticate(req.Username, req.Password)
 	if err != nil {
-		h.WriteError(w,err.Error(),500)
+		h.WriteError(w, err.Error(), 500)
 		return
 	}
 
-	if !ok{
-		h.WriteError(w,"invalid username or password",403)
+	if !ok {
+		h.WriteError(w, "invalid username or password", 403)
 		return
 	}
 
@@ -177,8 +187,8 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 	}
 
 	//check permissions
-	ok,err=realm.Authorize(user)
-	if err != nil||!ok {
+	ok, err = realm.Authorize(user)
+	if err != nil || !ok {
 		h.ErrorInternalServer(w, fmt.Sprintf("failed to authorize user: %v", req.Username))
 		return
 	}
@@ -191,7 +201,7 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 
 	//generate access token
 	token, err := rbac.GenerateAccessToken(user)
-	if err != nil{
+	if err != nil {
 		h.ErrorInternalServer(w, fmt.Sprintf("failed to authorize user: %v", req.Username))
 		return
 	}
@@ -199,4 +209,3 @@ func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.
 	//api.SetSession(w, r, userInSession+req.Username, req.Username)
 	h.WriteOKJSON(w, token)
 }
-

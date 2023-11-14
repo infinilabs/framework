@@ -60,8 +60,14 @@ const (
 	DashboardAll        = "insight.dashboard:all"
 	DevtoolConsoleAll   = "devtool.console:all"
 	DevtoolConsoleRead  = "devtool.console:read"
-	WorkbenchAll = "workbench:all"
-	WorkbenchRead = "workbench:read"
+	WorkbenchAll        = "workbench:all"
+	WorkbenchRead       = "workbench:read"
+
+	TenantCustomerRead = "tenant.customer:read"
+	TenantCustomerAll  = "tenant.customer:all"
+
+	SubscriptionRead = "tenant.subscription:read"
+	SubscriptionAll  = "tenant.subscription:all"
 )
 
 const (
@@ -163,6 +169,12 @@ var (
 	ActivitiesReadPermission = []string{PermissionActivityRead}
 	ActivitiesAllPermission  = []string{PermissionActivityRead, PermissionActivityWrite}
 
+	TenantCustomerReadPermission = []string{TenantCustomerRead}
+	TenantCustomerAllPermission  = []string{TenantCustomerRead, TenantCustomerAll}
+
+	SubscriptionReadPermission = []string{SubscriptionRead}
+	SubscriptionAllPermission  = []string{SubscriptionRead, SubscriptionAll}
+
 	AgentInstanceReadPermission  = []string{PermissionAgentInstanceRead}
 	AgentInstanceAllPermission   = []string{PermissionAgentInstanceRead, PermissionAgentInstanceWrite}
 	CredentialReadPermission     = []string{PermissionCredentialRead}
@@ -173,8 +185,8 @@ var (
 	DataComparisonAllPermission  = []string{PermissionComparisonTaskRead, PermissionComparisonTaskWrite}
 	DashboardReadPermission      = []string{PermissionLayoutRead}
 	DashboardAllPermission       = []string{PermissionLayoutRead, PermissionLayoutWrite}
-	WorkbenchReadPermission = []string{PermissionElasticsearchClusterRead, PermissionActivityRead, PermissionAlertMessageRead, PermissionElasticsearchMetricRead}
-	WorkbenchAllPermission = WorkbenchReadPermission
+	WorkbenchReadPermission      = []string{PermissionElasticsearchClusterRead, PermissionActivityRead, PermissionAlertMessageRead, PermissionElasticsearchMetricRead}
+	WorkbenchAllPermission       = WorkbenchReadPermission
 )
 
 var AdminPrivilege = []string{
@@ -186,7 +198,7 @@ var AdminPrivilege = []string{
 	ClusterOverviewAll, MonitoringAll, ActivitiesAll,
 	AliasAll, AgentInstanceAll, CredentialAll,
 	DataMigrationAll, DataComparisonAll, DashboardAll, DevtoolConsoleAll,
-	WorkbenchAll,
+	WorkbenchAll, TenantCustomerAll,SubscriptionAll,
 }
 
 func init() {
@@ -239,16 +251,21 @@ func init() {
 		ActivitiesRead:      ActivitiesReadPermission,
 		AgentInstanceAll:    AgentInstanceAllPermission,
 		AgentInstanceRead:   AgentInstanceReadPermission,
-		CredentialAll:       CredentialAllPermission,
-		CredentialRead:      CredentialReadPermission,
-		DataMigrationRead:   DataMigrationReadPermission,
-		DataMigrationAll:    DataMigrationAllPermission,
-		DataComparisonRead:  DataComparisonReadPermission,
-		DataComparisonAll:   DataComparisonAllPermission,
-		DashboardRead:       DashboardReadPermission,
-		DashboardAll:        DashboardAllPermission,
-		WorkbenchAll: WorkbenchAllPermission,
-		WorkbenchRead: WorkbenchReadPermission,
+		CredentialAll:      CredentialAllPermission,
+		CredentialRead:     CredentialReadPermission,
+		DataMigrationRead:  DataMigrationReadPermission,
+		DataMigrationAll:   DataMigrationAllPermission,
+		DataComparisonRead: DataComparisonReadPermission,
+		DataComparisonAll:  DataComparisonAllPermission,
+		DashboardRead:      DashboardReadPermission,
+		DashboardAll:       DashboardAllPermission,
+		WorkbenchAll:       WorkbenchAllPermission,
+		WorkbenchRead:      WorkbenchReadPermission,
+		TenantCustomerRead: TenantCustomerReadPermission,
+		TenantCustomerAll:  TenantCustomerAllPermission,
+
+		SubscriptionRead: SubscriptionReadPermission,
+		SubscriptionAll:  SubscriptionAllPermission,
 	}
 
 }
