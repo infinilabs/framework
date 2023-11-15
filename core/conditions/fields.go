@@ -44,7 +44,9 @@ func (f *Fields) Unpack(to interface{}) error {
 			}
 		case []interface{}:
 			for i := range v {
-				expand(fmt.Sprintf("%v.%v", key, i), v[i])
+				if v[i] != nil {
+					expand(fmt.Sprintf("%v.%v", key, i), v[i])
+				}
 			}
 		default:
 			f.fields[key] = value
