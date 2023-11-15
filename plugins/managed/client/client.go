@@ -97,10 +97,10 @@ func ListenConfigChanges() error {
 
 		if global.Env().SystemConfig.Configs.Managed {
 
-			if global.Env().SystemConfig.Configs.TLSConfig.TLSEnabled && global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile != "" {
+			if global.Env().SystemConfig.Configs.TLSConfig.TLSEnabled && global.Env().SystemConfig.Configs.TLSConfig.TLSCACertFile != "" {
 				//init client
 				hClient, err := util.NewMTLSClient(
-					global.Env().SystemConfig.Configs.TLSConfig.TLSCAFile,
+					global.Env().SystemConfig.Configs.TLSConfig.TLSCACertFile,
 					global.Env().SystemConfig.Configs.TLSConfig.TLSCertFile,
 					global.Env().SystemConfig.Configs.TLSConfig.TLSKeyFile)
 				if err != nil {
