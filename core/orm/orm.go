@@ -64,6 +64,17 @@ type ORMObjectBase struct {
 	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
 }
+func ( obj *ORMObjectBase) GetID() string{
+	return obj.ID
+}
+func ( obj *ORMObjectBase) SetID( ID string){
+	obj.ID = ID
+}
+
+type ObjectBase interface {
+	GetID() string
+	SetID(ID string)
+}
 
 type Sort struct {
 	Field    string
