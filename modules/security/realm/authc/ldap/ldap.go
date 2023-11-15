@@ -10,6 +10,7 @@ import (
 	"infini.sh/framework/lib/guardian/auth"
 	"infini.sh/framework/lib/guardian/auth/strategies/basic"
 	"infini.sh/framework/lib/guardian/auth/strategies/ldap"
+	"time"
 )
 
 type LDAPConfig struct {
@@ -107,7 +108,9 @@ func (r *LDAPRealm) GetType() string {
 }
 
 func (r *LDAPRealm) Authenticate(username, password string) (bool, *rbac.User, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
+	defer cancel()
+
 	authInfo, err := r.ldapFunc(ctx, nil, []byte(username), []byte(password))
 	if err != nil {
 		return false, nil, err

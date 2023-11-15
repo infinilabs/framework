@@ -41,7 +41,11 @@ func (p *Producer) Produce(reqs *[]queue.ProduceRequest) (*[]queue.ProduceRespon
 
 	results := []queue.ProduceResponse{}
 
-	response := p.client.ProduceSync(context.Background(), messages...)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
+	defer cancel()
+
+	response := p.client.ProduceSync(ctx, messages...)
 
 	for _, r := range response {
 		if r.Err == nil {

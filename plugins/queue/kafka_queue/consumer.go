@@ -47,11 +47,14 @@ func (this *Consumer) ResetOffset(part, readPos int64) (err error) {
 
 func (this *Consumer) CommitOffset(off queue.Offset) error {
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
+	defer cancel()
+
 	var ret error
 	offset := map[string]map[int32]kgo.EpochOffset{}
 	offset[this.qCfg.ID] = map[int32]kgo.EpochOffset{}
 	offset[this.qCfg.ID][0] = kgo.EpochOffset{Offset: off.Position, Epoch: 0}
-	this.client.CommitOffsetsSync(context.Background(), offset, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
+	this.client.CommitOffsetsSync(ctx, offset, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
 		if ret != nil {
 			log.Error(ret)
 		}
@@ -67,7 +70,6 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
 
 	timeoutDuration := time.Duration(this.cCfg.FetchMaxWaitMs) * time.Millisecond
-
 	//place lock
 	k := []byte(getGroupForKafka(this.cCfg.Group, this.qCfg.ID))
 	ok, err := locker.Hold(queue.BucketWhoOwnsThisTopic, string(k), global.Env().SystemConfig.NodeConfig.ID, time.Duration(this.cCfg.ClientExpiredInSeconds)*time.Second, true)
