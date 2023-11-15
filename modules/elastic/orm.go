@@ -57,7 +57,7 @@ func (handler *ElasticORM) Get(o interface{}) (bool, error) {
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
 
-	if global.Env().IsDebug {
+	if global.Env().IsDebug &&response!=nil{
 		log.Debug(string(response.RawResult.Body))
 	}
 
