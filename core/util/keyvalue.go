@@ -9,29 +9,29 @@ import (
 )
 
 type KeyValue struct {
-	Key   string
-	Value int64
-	Payload interface{}
+	Key     string      `json:"key,omitempty"`
+	Value   int64       `json:"value,omitempty"`
+	Payload interface{} `json:"payload,omitempty"`
 }
 
 func SortMapStrIntToKV(data map[string]int) []KeyValue {
 	var keyValuePairs []KeyValue
 
 	for k, v := range data {
-		keyValuePairs = append(keyValuePairs, KeyValue{k, int64(v),nil})
+		keyValuePairs = append(keyValuePairs, KeyValue{k, int64(v), nil})
 	}
 
-	keyValuePairs = SortKeyValueArray(keyValuePairs,false)
+	keyValuePairs = SortKeyValueArray(keyValuePairs, false)
 
 	return keyValuePairs
 }
 
 //sort by value desc by default
-func SortKeyValueArray(keyValuePairs []KeyValue,revers bool) []KeyValue {
+func SortKeyValueArray(keyValuePairs []KeyValue, revers bool) []KeyValue {
 	sort.Slice(keyValuePairs, func(i, j int) bool {
-		if revers{
+		if revers {
 			return keyValuePairs[i].Value < keyValuePairs[j].Value
-		}else{
+		} else {
 			return keyValuePairs[i].Value > keyValuePairs[j].Value
 		}
 	})
