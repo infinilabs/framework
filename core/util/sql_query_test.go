@@ -18,11 +18,11 @@ func TestGetTableNames(t *testing.T) {
 	}{
 		{"simple", "SELECT * FROM tt", []string{"tt"}},
 		{"with fields", "SELECT id, name FROM tt", []string{"tt"}},
-		{"with quote", `SELECT id, name FROM ".tt"`, []string{".tt"}},
-		{"with comma", `SELECT id, name FROM ".tt";`, []string{".tt"}},
-		{"with order", `SELECT id, name FROM ".tt" where id='xxx' order by timestamp limit 1;`, []string{".tt"}},
+		{"with quote", `SELECT id, name FROM ".tt"`, []string{`".tt"`}},
+		{"with comma", `SELECT id, name FROM ".tt";`, []string{`".tt"`}},
+		{"with order", `SELECT id, name FROM ".tt" where id='xxx' order by timestamp limit 1;`, []string{`".tt"`}},
 		{"with join", "SELECT users.name, orders.order_date FROM users INNER JOIN orders ON users.id = orders.user_id", []string{"users", "orders"}},
-		{"with sub query", `SELECT id, name FROM (select * FROM ".tt" where id='xxx');`, []string{".tt"}},
+		{"with sub query", `SELECT id, name FROM (select * FROM ".tt" where id='xxx');`, []string{`".tt"`}},
 		{"with newline", "\n  SELECT * FROM test56 where x100=100 ORDER BY now_with_format DESC\n", []string{"test56"}},
 	}
 	for _, tc := range testCases {

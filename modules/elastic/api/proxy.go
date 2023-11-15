@@ -56,7 +56,8 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		return
 	}
 	if strings.Trim(newURL.Path, "/") == "_sql" {
-		indexName, err := getQueryIndexFromSqlRequest(req)
+		distribution := esClient.GetVersion().Distribution
+		indexName, err := rewriteTableNamesOfSqlRequest(req, distribution)
 		if err != nil {
 			h.WriteError(w, err.Error() , http.StatusInternalServerError)
 			return
@@ -67,7 +68,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 		}
 		q, _ := url.ParseQuery(newURL.RawQuery)
 		hasFormat := q.Has("format")
-		switch esClient.GetVersion().Distribution {
+		switch distribution {
 		case elastic.Opensearch:
 			path = "_plugins/_sql?format=raw"
 		case elastic.Easysearch:
@@ -205,7 +206,7 @@ func (h *APIHandler) HandleProxyAction(w http.ResponseWriter, req *http.Request,
 
 }
 
-func getQueryIndexFromSqlRequest(req *http.Request) (string, error){
+func rewriteTableNamesOfSqlRequest(req *http.Request, distribution string) (string, error){
 	var buf bytes.Buffer
 	if _, err := buf.ReadFrom(req.Body); err != nil {
 		return "", err
@@ -223,7 +224,36 @@ func getQueryIndexFromSqlRequest(req *http.Request) (string, error){
 	if err != nil {
 		return "", err
 	}
-	return strings.Join(tableNames, ","), nil
+	rewriteBody := false
+	switch distribution {
+	case elastic.Elasticsearch:
+		for _, tname := range tableNames {
+			if strings.ContainsAny(tname, "-.") && !strings.HasPrefix(tname, "\""){
+				//append quotes from table name
+				sqlQuery = strings.Replace(sqlQuery, tname, fmt.Sprintf(`\"%s\"`, tname), -1)
+				rewriteBody = true
+			}
+		}
+	case elastic.Opensearch, elastic.Easysearch:
+		for _, tname := range tableNames {
+			//remove quotes from table name
+			if strings.HasPrefix(tname, "\"") || strings.HasSuffix(tname, "\""){
+				sqlQuery = strings.Replace(sqlQuery, tname, strings.Trim(tname, "\""), -1)
+				rewriteBody = true
+			}
+		}
+	}
+	if rewriteBody {
+		sqlQuery = fmt.Sprintf(`"%s"`, sqlQuery)
+		reqBody, _ := jsonparser.Set(buf.Bytes(), []byte(sqlQuery), "query")
+		req.Body = io.NopCloser(bytes.NewReader(reqBody))
+		req.ContentLength = int64(len(reqBody))
+	}
+	var unescapedTableNames []string
+	for _, tname := range tableNames {
+		unescapedTableNames = append(unescapedTableNames, strings.Trim(tname, "\""))
+	}
+	return strings.Join(unescapedTableNames, ","), nil
 }
 
 var client = fasthttp.Client{

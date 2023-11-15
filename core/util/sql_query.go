@@ -84,7 +84,6 @@ func cleanName(name string) string {
 	if lastRune == ';' {
 		name = name[:len(name)-1]
 	}
-	name = strings.Trim(name,"\"")
 	return name
 }
 
