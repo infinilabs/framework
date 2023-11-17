@@ -88,13 +88,6 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 		}
 	}
 
-	//fetch cluster metrics
-	bucketSize, min, max, err := h.getMetricRangeAndBucketSize(req, 60, (15))
-	if err != nil {
-		panic(err)
-		return
-	}
-
 	var (
 		// cluster_id => cluster_uuid
 		clustersM  = map[string]string{}
@@ -115,6 +108,10 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 
 	var top = len(clusterIDs) + 1
 
+	bucketSize := GetMinBucketSize()
+	if bucketSize < 20 {
+		bucketSize = 20
+	}
 	var bucketSizeStr = fmt.Sprintf("%vs", bucketSize)
 	indexMetricItems := []GroupMetricItem{}
 	metricItem := newMetricItem("cluster_indexing", 2, "cluster")
@@ -174,8 +171,7 @@ func (h *APIHandler) FetchClusterInfo(w http.ResponseWriter, req *http.Request, 
 				{
 					"range": util.MapStr{
 						"timestamp": util.MapStr{
-							"gte": min,
-							"lte": max,
+							"gte": fmt.Sprintf("now-%ds", bucketSize * 15),
 						},
 					},
 				},
