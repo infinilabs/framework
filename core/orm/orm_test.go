@@ -57,3 +57,30 @@ func TestSetFieldTimeValue(t *testing.T) {
 //	fmt.Println("created:",a.T)
 //	assert.Equal(t,a.T,t1)
 //}
+
+func TestFilterUpdatableFields(t *testing.T) {
+	obj := struct {
+		Name string `json:"name" protected:"true"`
+		Age int `json:"age"`
+		Address *struct{
+			PostCode string `json:"post_code" protected:"true"`
+			Detail string `json:"detail"`
+		} `json:"address"`
+		Email string
+	}{
+		Name: "zhangsan",
+		Age: 20,
+		Address: &struct {
+			PostCode string `json:"post_code" protected:"true"`
+			Detail string `json:"detail"`
+		}{
+			PostCode: "100001",
+			Detail: "北京海淀",
+		},
+		Email: "xxx",
+	}
+	fields := FilterFieldsByProtected(obj, false)
+	assert.Equal(t, fields["name"], nil)
+	assert.Equal(t, fields["Email"], "xxx")
+	assert.Equal(t, fields["age"], float64(20))
+}

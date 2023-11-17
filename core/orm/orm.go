@@ -19,6 +19,7 @@ package orm
 import (
 	"context"
 	"reflect"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -383,7 +384,7 @@ func Update(ctx *Context, o interface{}) error {
 	t1 := time.Now()
 	setFieldValue(rValue, "Updated", &t1)
 
-	return Save(ctx, o)
+	return getHandler().Update(ctx, o)
 }
 
 func Delete(ctx *Context, o interface{}) error {
@@ -442,4 +443,46 @@ func Register(name string, h ORM) {
 
 	log.Debug("register ORM handler: ", name)
 
+}
+
+type ProtectedFilterKeyType string
+const ProtectedFilterKey ProtectedFilterKeyType = "FILTER_PROTECTED"
+//FilterFieldsByProtected filter struct fields by tag protected recursively,
+//returns a filtered fields map
+func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interface{} {
+	buf := util.MustToJSONBytes(obj)
+	mapObj := map[string]interface{}{}
+	util.MustFromJSONBytes(buf, &mapObj)
+	t := reflect.TypeOf(obj)
+	v := reflect.ValueOf(obj)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+		v = v.Elem()
+	}
+	for i := 0; i < v.NumField(); i++ {
+		fieldType := t.Field(i)
+		var jsonTagName = fieldType.Name
+		switch jsonTag := fieldType.Tag.Get("json"); jsonTag {
+		case "-":
+		case "":
+		default:
+			parts := strings.Split(jsonTag, ",")
+			name := strings.TrimSpace(parts[0])
+			if name != "" {
+				jsonTagName = name
+			}
+		}
+		tagVal := fieldType.Tag.Get("protected")
+		if strings.ToLower(tagVal) != "true" && protected {
+			delete(mapObj, jsonTagName)
+			continue
+		}else if strings.ToLower(tagVal) == "true" && !protected {
+			delete(mapObj, jsonTagName)
+			continue
+		}
+		if v.Field(i).Kind() == reflect.Struct {
+			mapObj[jsonTagName] = FilterFieldsByProtected(v.Field(i).Interface(), protected)
+		}
+	}
+	return mapObj
 }
