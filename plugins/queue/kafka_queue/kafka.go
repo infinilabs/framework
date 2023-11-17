@@ -160,12 +160,12 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 
 		opts := []kgo.Opt{
 			kgo.InstanceID(consumer.ID),
-			kgo.SessionTimeout(30 * time.Second),
+			kgo.SessionTimeout(60 * time.Second),
 			kgo.HeartbeatInterval(10 * time.Second),
 			kgo.RetryTimeout(10 * time.Second),
 			kgo.RebalanceTimeout(10 * time.Second),
-			kgo.TransactionTimeout(10 * time.Second),
-			kgo.RequestTimeoutOverhead(10 * time.Second),
+			kgo.TransactionTimeout(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
+			kgo.RequestTimeoutOverhead(time.Duration(consumer.FetchMaxWaitMs) * time.Millisecond),
 			kgo.ClientID(global.Env().SystemConfig.NodeConfig.ID),
 			kgo.ConsumerGroup(getGroupForKafka(consumer.Group, qconfig.ID)),
 			kgo.ConsumeTopics(qconfig.ID),
@@ -204,7 +204,10 @@ func (this *KafkaQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *qu
 }
 
 func (this *KafkaQueue) Destroy(k string) error {
-	_, err := this.adminClient.DeleteTopics(context.Background(), k)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	_, err := this.adminClient.DeleteTopics(ctx, k)
 	if err != nil {
 		panic(err)
 	}
@@ -235,7 +238,11 @@ func (this *KafkaQueue) Setup() {
 		return
 	}
 
-	client := this.newClient(nil)
+	opts := []kgo.Opt{
+		kgo.InstanceID(global.Env().SystemConfig.NodeConfig.ID),
+	}
+
+	client := this.newClient(opts)
 	this.adminClient = kadm.NewClient(client)
 
 	queue.Register("kafka", this)
@@ -277,7 +284,10 @@ func (this *KafkaQueue) getRealTopicName(k string) string {
 }
 
 func (this *KafkaQueue) createTopic(topic string, partition, replica int) error {
-	res, err := this.adminClient.CreateTopic(context.Background(), int32(partition), int16(replica), nil, topic)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	res, err := this.adminClient.CreateTopic(ctx, int32(partition), int16(replica), nil, topic)
 	log.Tracef("create topic:%v, %v, %v, %v,%v", topic, partition, replica, res, err)
 	return err
 }
@@ -334,7 +344,10 @@ func (this *KafkaQueue) Push(q string, data []byte) error {
 
 	messages = append(messages, msg)
 
-	result := client.ProduceSync(context.Background(), messages...)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	result := client.ProduceSync(ctx, messages...)
 	return result.FirstErr()
 }
 
@@ -371,11 +384,15 @@ func (this *KafkaQueue) Close(string) error {
 }
 
 func (this *KafkaQueue) Depth(q string) int64 {
-	so, err := this.adminClient.ListStartOffsets(context.Background(), q)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	so, err := this.adminClient.ListStartOffsets(ctx, q)
 	if err != nil {
 		panic(err)
 	}
-	eo, err := this.adminClient.ListEndOffsets(context.Background(), q)
+	eo, err := this.adminClient.ListEndOffsets(ctx, q)
 	if err != nil {
 		panic(err)
 	}
@@ -384,7 +401,10 @@ func (this *KafkaQueue) Depth(q string) int64 {
 
 func (this *KafkaQueue) LatestOffset(k *queue.QueueConfig) queue.Offset {
 
-	offset1, err := this.adminClient.ListEndOffsets(context.Background(), k.ID)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	offset1, err := this.adminClient.ListEndOffsets(ctx, k.ID)
 	if err != nil {
 		log.Error(k.Name, ", error on get offset:", offset1)
 		panic(err)
@@ -403,7 +423,10 @@ func (this *KafkaQueue) GetQueues() []string {
 	})
 
 	log.Debugf("try to load from kafka")
-	topics, err := this.adminClient.ListTopics(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
+	topics, err := this.adminClient.ListTopics(ctx)
 	if err == nil && topics != nil {
 		q1 := topics.TopicsList().Topics()
 		log.Tracef("load queues from kafka %v", q1)
@@ -419,12 +442,14 @@ func (this *KafkaQueue) GetQueues() []string {
 var ignoredError = []string{"NOT_COORDINATOR", "UNKNOWN_TOPIC_OR_PARTITION"}
 
 func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*1))
+	defer cancel()
 
-	os, err := this.adminClient.FetchOffsetsForTopics(context.Background(), getGroupForKafka(consumer.Group, k.ID), k.ID)
+	os, err := this.adminClient.FetchOffsetsForTopics(ctx, getGroupForKafka(consumer.Group, k.ID), k.ID)
 	if err != nil {
 		if util.ContainsAnyInArray(err.Error(), ignoredError) {
 			if global.Env().IsDebug {
-				log.Debugf("err on get offset %v %v %v", k.ID, err)
+				log.Debugf("err on get offset %v %v", k.ID, err)
 			}
 			return queue.NewOffset(0, 0), nil
 		}
@@ -450,9 +475,12 @@ func (this *KafkaQueue) GetOffset(k *queue.QueueConfig, consumer *queue.Consumer
 }
 
 func (this *KafkaQueue) GetStorageSize(k string) uint64 {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
 	topic := kadm.TopicsSet{}
 	topic.Add(k, 0)
-	res, err := this.adminClient.DescribeAllLogDirs(context.Background(), topic)
+	res, err := this.adminClient.DescribeAllLogDirs(ctx, topic)
 	if err != nil {
 		log.Errorf("get storage size for %v, error:%v", k, err)
 		return 0
@@ -462,10 +490,13 @@ func (this *KafkaQueue) GetStorageSize(k string) uint64 {
 
 func (this *KafkaQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
 	_, err := this.CommitOffset(k, consumer, queue.NewOffset(0, 0))
 	topic := kadm.TopicsSet{}
 	topic.Add(k.ID)
-	_, err = this.adminClient.DeleteOffsets(context.Background(), getGroupForKafka(consumer.Group, k.ID), topic)
+	_, err = this.adminClient.DeleteOffsets(ctx, getGroupForKafka(consumer.Group, k.ID), topic)
 	return err
 }
 
@@ -484,8 +515,10 @@ func (this *KafkaQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.Consu
 			return true, nil
 		}
 	}
+	ctx1, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
 
-	res1, err := this.adminClient.FetchOffsets(context.Background(), "default")
+	res1, err := this.adminClient.FetchOffsets(ctx1, "default")
 	if err != nil {
 		panic(err)
 	}
@@ -493,7 +526,7 @@ func (this *KafkaQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.Consu
 
 	offsets := kadm.Offsets{}
 	offsets.AddOffset(k.ID, int32(offset.Segment), offset.Position, leaderO)
-	res, err := this.adminClient.CommitOffsets(context.Background(), group, offsets)
+	res, err := this.adminClient.CommitOffsets(ctx1, group, offsets)
 	if err != nil {
 		log.Error(util.MustToJSON(res))
 		panic(err)

@@ -98,7 +98,9 @@ func (uploader *S3Uploader) SyncUpload(filePath,location,bucketName,objectName s
 	log.Tracef("s3 server [%v] is online:%v\n", uploader.minioClient.EndpointURL(),uploader.minioClient.IsOnline())
 
 	var err error
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*60))
+	defer cancel()
+
 	err = uploader.minioClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{Region: location})
 	if err != nil {
 		exists, errBucketExists := uploader.minioClient.BucketExists(ctx, bucketName)
@@ -134,7 +136,9 @@ func (uploader *S3Uploader) SyncDownload(filePath,location,bucketName,objectName
 	}
 
 	var err error
-	ctx := context.Background()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*30))
+	defer cancel()
 
 	locker.Lock()
 	defer locker.Unlock()

@@ -29,7 +29,6 @@ type Instance struct {
 	Application env.Application `json:"application,omitempty" elastic_mapping:"application: { type: object }"`
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
-	//Owner       string                 `json:"owner,omitempty" config:"owner" elastic_mapping:"owner:{type:keyword}"`
 
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
@@ -100,31 +99,6 @@ func (inst *Instance) GetVersion() (map[string]interface{}, error) {
 	}
 	return nil, fmt.Errorf("unknow agent version")
 }
-
-//type ShortState struct {
-//	ClusterMetricTask ClusterMetricTaskState
-//	NodeMetricTask    NodeMetricTaskState
-//}
-//
-//type ClusterMetricTaskState struct {
-//	AgentID  string
-//	NodeUUID string
-//}
-//
-//type NodeMetricTaskState struct {
-//	AgentID string
-//	Nodes   []string
-//}
-
-//type BasicAuth struct {
-//	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-//	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
-//}
-
-//const (
-//	KVInstanceInfo   string = "agent_instance_info"
-//	KVInstanceBucket        = "agent_bucket"
-//)
 
 func GetInstanceInfo() Instance {
 	instance := Instance{}

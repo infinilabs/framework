@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
+	"infini.sh/framework/core/api/filter"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/config"
@@ -36,7 +37,13 @@ var registeredAPIMethodHandler = make(map[string]map[string]func(w http.Response
 
 var l sync.Mutex
 
-//var filters []filter.Filter
+var filters []filter.Filter
+
+func RegisterAPIFilter(f filter.Filter) {
+	l.Lock()
+	defer l.Unlock()
+	filters = append(filters, f)
+}
 
 var APIs = map[string]util.KV{}
 
@@ -46,18 +53,39 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 	if registeredAPIFuncHandler == nil {
 		registeredAPIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
 	}
-
-	//for _, f := range filters {
-	//	handler = f.FilterHttpHandlerFunc(pattern, handler)
-	//}
-
 	registeredAPIFuncHandler[pattern] = handler
-	APIs[pattern+"*"] = util.KV{Key: "*", Value: pattern}
-
-	log.Debugf("register custom http handler: %v", pattern)
-	mux.HandleFunc(pattern, handler)
-
 	l.Unlock()
+}
+
+func initializeAPI()  {
+	l.Lock()
+	defer l.Unlock()
+
+	for pattern,handler:=range registeredAPIFuncHandler{
+		for _, f := range filters {
+			handler = f.FilterHttpHandlerFunc(pattern, handler)
+		}
+
+		APIs[pattern+"*"] = util.KV{Key: "*", Value: pattern}
+
+		log.Debugf("register custom http handler: %v", pattern)
+		mux.HandleFunc(pattern, handler)
+	}
+
+	for m,handlers:=range registeredAPIMethodHandler{
+		for pattern,handler:=range handlers{
+			//Apply handler filters
+			for _, f := range filters {
+				handler = f.FilterHttpRouter(pattern, handler)
+			}
+
+			APIs[pattern+m] = util.KV{Key: m, Value: pattern}
+
+			log.Debugf("register http handler: %v %v, total apis: %v", m, pattern, len(APIs))
+
+			router.Handle(m, pattern, handler)
+		}
+	}
 }
 
 // HandleAPIMethod register api handler
@@ -72,18 +100,8 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	if m1 == nil {
 		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
-
-	////Apply handler filters
-	//for _, f := range filters {
-	//	handler = f.FilterHttpRouter(pattern, handler)
-	//}
-
 	registeredAPIMethodHandler[m][pattern] = handler
-	APIs[pattern+m] = util.KV{Key: m, Value: pattern}
 
-	log.Debugf("register http handler: %v %v, total apis: %v", m, pattern, len(APIs))
-
-	router.Handle(m, pattern, handler)
 	l.Unlock()
 }
 
@@ -136,6 +154,20 @@ func StartAPI() {
 		AllowedMethods:   []string{"HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
+	//init api handlers
+	if apiConfig.Security.Enabled{
+		apiBasicAuthFilter := BasicAuthFilter{
+			Username: apiConfig.Security.Username,
+			Password: apiConfig.Security.Password,
+		}
+
+		//register api filters
+		RegisterAPIFilter(&apiBasicAuthFilter)
+	}
+
+	//TODO support filter out specify api
+	initializeAPI()
+
 	if apiConfig.NetworkConfig.SkipOccupiedPort {
 		listenAddress = util.AutoGetAddress(apiConfig.NetworkConfig.GetBindingAddr())
 	} else {
@@ -187,9 +219,9 @@ func StartAPI() {
 			dataDir := global.Env().GetDataDir()
 			apiConfig.TLSConfig.TLSCertFile = path.Join(dataDir, "certs/instance.crt")
 			apiConfig.TLSConfig.TLSKeyFile = path.Join(dataDir, "certs/instance.key")
-			apiConfig.TLSConfig.TLSCAFile = path.Join(dataDir, "certs/ca.crt")
+			apiConfig.TLSConfig.TLSCACertFile = path.Join(dataDir, "certs/ca.crt")
 			caKey := path.Join(dataDir, "certs/ca.key")
-			if !(util.FileExists(apiConfig.TLSConfig.TLSCAFile) && util.FileExists(apiConfig.TLSConfig.TLSCertFile) && util.FileExists(apiConfig.TLSConfig.TLSKeyFile)) {
+			if !(util.FileExists(apiConfig.TLSConfig.TLSCACertFile) && util.FileExists(apiConfig.TLSConfig.TLSCertFile) && util.FileExists(apiConfig.TLSConfig.TLSKeyFile)) {
 				err = os.MkdirAll(path.Join(dataDir, "certs"), 0775)
 				if err != nil {
 					panic(err)
@@ -207,7 +239,7 @@ func StartAPI() {
 					Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
 				})
 				util.FilePutContentWithByte(caKey, caKeyPEM)
-				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCAFile, rootCertPEM)
+				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCACertFile, rootCertPEM)
 				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCertFile, instanceCertPEM)
 				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSKeyFile, instanceKeyPEM)
 			}
@@ -218,7 +250,7 @@ func StartAPI() {
 				certPool = x509.NewCertPool()
 			}
 			if len(rootCertPEM) == 0 {
-				rootCertPEM, err = ioutil.ReadFile(apiConfig.TLSConfig.TLSCAFile)
+				rootCertPEM, err = ioutil.ReadFile(apiConfig.TLSConfig.TLSCACertFile)
 				if err != nil {
 					panic(err)
 				}

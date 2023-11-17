@@ -17,11 +17,11 @@ limitations under the License.
 package api
 
 import (
+	ctx "context"
 	"crypto/tls"
 	"errors"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
-	ctx "context"
 	"infini.sh/framework/core/api/gzip"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
@@ -44,13 +44,13 @@ var uiServeMux *http.ServeMux
 var uiMutex sync.Mutex
 var uiConfig *UIConfig
 
-
 type UIConfig struct {
 	Enabled         bool                   `config:"enabled"`
-	AuthConfig      config.AuthConfig      `config:"auth"`
+	AuthConfig      config.AuthConfig      `config:"auth"` //TODO tobe removed
 	TLSConfig       config.TLSConfig       `config:"tls"`
 	NetworkConfig   config.NetworkConfig   `config:"network"`
 	BasePath        string                 `config:"base_path"`
+	Domain          string                 `config:"domain"`
 	EmbeddingAPI    bool                   `config:"embedding_api"`
 	Gzip            config.GzipConfig      `config:"gzip"`
 	WebsocketConfig config.WebsocketConfig `config:"websocket"`
@@ -67,11 +67,11 @@ func GetBindAddress() string {
 }
 
 func StopUI(cfg *UIConfig) {
-	if srv!=nil{
+	if srv != nil {
 		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
 		defer cancel()
-		err:=srv.Shutdown(ctx1)
-		if err!=nil{
+		err := srv.Shutdown(ctx1)
+		if err != nil {
 			panic(err)
 		}
 
@@ -88,7 +88,7 @@ func StartUI(cfg *UIConfig) {
 	//uiRouter.RedirectTrailingSlash=false
 	//uiRouter.RedirectFixedPath=false
 
-	uiRouter.NotFound= http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	uiRouter.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Write([]byte("my 404"))
 		rw.WriteHeader(404)
 	})
@@ -115,7 +115,7 @@ func StartUI(cfg *UIConfig) {
 		}
 	}
 
-	if cfg.EmbeddingAPI{
+	if cfg.EmbeddingAPI {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
 				for m, n := range v {
@@ -132,7 +132,7 @@ func StartUI(cfg *UIConfig) {
 		}
 	}
 
-	if cfg.WebsocketConfig.Enabled{
+	if cfg.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(cfg.WebsocketConfig)
 		uiServeMux.HandleFunc("/ws", websocket.ServeWs)
 		if registeredWebSocketCommandHandler != nil {
@@ -194,7 +194,6 @@ func StartUI(cfg *UIConfig) {
 			},
 		}
 
-
 		srv = &http.Server{
 			Addr:         bindAddress,
 			Handler:      RecoveryHandler()(handler),
@@ -221,14 +220,14 @@ func StartUI(cfg *UIConfig) {
 			}()
 
 			err = srv.ListenAndServeTLS(certFile, keyFile)
-			if err != nil&& err != http.ErrServerClosed {
+			if err != nil && err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
 			}
 		}(srv)
 
 	} else {
-		srv= &http.Server{Addr: bindAddress, Handler: RecoveryHandler()(handler)}
+		srv = &http.Server{Addr: bindAddress, Handler: RecoveryHandler()(handler)}
 		go func(srv *http.Server) {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -247,8 +246,8 @@ func StartUI(cfg *UIConfig) {
 				}
 			}()
 
-			err :=  srv.ListenAndServe()
-			if err != nil&& err != http.ErrServerClosed {
+			err := srv.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
 			}
@@ -266,6 +265,7 @@ func StartUI(cfg *UIConfig) {
 }
 
 var srv *http.Server
+
 // RegisteredUIHandler is a hub for registered ui handler
 var registeredUIHandler map[string]http.Handler
 
