@@ -3,6 +3,7 @@ package orm
 import (
 	"fmt"
 	"github.com/magiconair/properties/assert"
+	"infini.sh/framework/core/util"
 	"reflect"
 	"testing"
 	"time"
@@ -83,4 +84,8 @@ func TestFilterUpdatableFields(t *testing.T) {
 	assert.Equal(t, fields["name"], nil)
 	assert.Equal(t, fields["Email"], "xxx")
 	assert.Equal(t, fields["age"], float64(20))
+	_, exists := util.GetMapValueByKeys([]string{"address", "post_code"}, fields)
+	assert.Equal(t, exists, false)
+	v, _ := util.GetMapValueByKeys([]string{"address", "detail"}, fields)
+	assert.Equal(t, v, "北京海淀")
 }

@@ -461,7 +461,7 @@ func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interfa
 	}
 	for i := 0; i < v.NumField(); i++ {
 		fieldType := t.Field(i)
-		var jsonTagName = fieldType.Name
+		var jsonName = fieldType.Name
 		switch jsonTag := fieldType.Tag.Get("json"); jsonTag {
 		case "-":
 		case "":
@@ -469,19 +469,19 @@ func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interfa
 			parts := strings.Split(jsonTag, ",")
 			name := strings.TrimSpace(parts[0])
 			if name != "" {
-				jsonTagName = name
+				jsonName = name
 			}
 		}
 		tagVal := fieldType.Tag.Get("protected")
 		if strings.ToLower(tagVal) != "true" && protected {
-			delete(mapObj, jsonTagName)
+			delete(mapObj, jsonName)
 			continue
 		}else if strings.ToLower(tagVal) == "true" && !protected {
-			delete(mapObj, jsonTagName)
+			delete(mapObj, jsonName)
 			continue
 		}
-		if v.Field(i).Kind() == reflect.Struct {
-			mapObj[jsonTagName] = FilterFieldsByProtected(v.Field(i).Interface(), protected)
+		if fieldType.Type.Kind() == reflect.Struct || (fieldType.Type.Kind() == reflect.Ptr && fieldType.Type.Elem().Kind() == reflect.Struct){
+			mapObj[jsonName] = FilterFieldsByProtected(v.Field(i).Interface(), protected)
 		}
 	}
 	return mapObj
