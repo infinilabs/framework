@@ -58,8 +58,6 @@ type Config struct {
 	MaxRetryTimes       int `config:"max_retry_times"`
 	RetryDelayInMs      int `config:"retry_delay_in_ms"`
 
-	SkipCleanupHopHeaders bool `config:"skip_cleanup_hop_headers"`
-	SkipEnrichMetadata    bool `config:"skip_metadata_enrich"`
 
 	MaxConnWaitTimeout  time.Duration `config:"max_conn_wait_timeout"`
 	MaxIdleConnDuration time.Duration `config:"max_idle_conn_duration"`
@@ -79,6 +77,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
 		MessageField:        "messages",
 		ValidatedStatusCode: []int{200, 201},
+		Timeout: 10 * time.Second,
+		ReadTimeout: 10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		MaxIdleConnDuration: 10 * time.Second,
+		MaxConnWaitTimeout: 10 * time.Second,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {
@@ -123,6 +126,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 
+	//if global.Env().IsDebug{
+	//	log.Error("enter process http_replicator")
+	//	defer log.Error("exit process http_replicator")
+	//}
+
 	req := fasthttp.AcquireRequestWithTag("http_processor")
 	resp := fasthttp.AcquireResponseWithTag("http_processor")
 
@@ -161,12 +169,22 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 		}
 		//parse template
 		for _, message := range messages {
+
+			if global.ShuttingDown(){
+				panic(errors.Errorf("shutting down"))
+			}
+
 			req.ResetBody()
 			resp.ResetBody()
 			req.SetBody(message.Data)
 
 			var success = false
 			for _, v := range processor.config.Hosts {
+
+				if global.ShuttingDown(){
+					panic(errors.Errorf("shutting down"))
+				}
+
 				req.SetHost(v)
 
 				if global.ShuttingDown(){
@@ -191,7 +209,7 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 				break
 			}
 			if !success {
-				panic(errors.Errorf("http request failed, status code: %d", resp.StatusCode()))
+				panic(errors.Errorf("http request failed, status code: %d, %v, %v", resp.StatusCode(),string(req.String()),string(resp.String())))
 			}
 		}
 	}

@@ -266,6 +266,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		consumer := queue1.NewConsumerConfig(queueID, group, name)
 		consumer.FetchMaxMessages = size
 		consumer.FetchMaxWaitMs = 500
+		consumer.EOFMaxRetryTimes = 10
 		consumer.FetchMaxBytes = 1024 * 500
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {

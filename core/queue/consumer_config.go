@@ -29,6 +29,7 @@ type ConsumerConfig struct {
 	FetchMaxBytes     int   `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
 	FetchMaxMessages  int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
 	FetchMaxWaitMs    int64 `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	EOFMaxRetryTimes int `config:"eof_max_retry_times" json:"eof_max_retry_times,omitempty"`
 	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 
 	ClientExpiredInSeconds int64 `config:"client_expired_in_seconds" json:"client_expired_in_seconds,omitempty"` //client acquires lock for this long
@@ -181,6 +182,7 @@ func NewConsumerConfig(queueID,group, name string) *ConsumerConfig {
 		FetchMaxMessages:       500,
 		EOFRetryDelayInMs:      500,
 		FetchMaxWaitMs:         10000,
+		EOFMaxRetryTimes:         10,
 		ClientExpiredInSeconds: 60,
 	}
 	cfg.ID = util.MD5digest(fmt.Sprintf("%v_%v_%v",queueID,group,name))
