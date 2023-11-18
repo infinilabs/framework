@@ -12,14 +12,17 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/lib/fasttemplate"
 	"io"
+	rate2 "golang.org/x/time/rate"
 	"strings"
 	"time"
 )
@@ -28,7 +31,7 @@ type HTTPProcessor struct {
 	config       *Config
 	client       *fasthttp.Client
 	pathTemplate *fasttemplate.Template //path template
-
+	rater        *rate2.Limiter
 }
 
 func (processor *HTTPProcessor) Name() string {
@@ -49,6 +52,7 @@ type Config struct {
 	ValidatedStatusCode []int `config:"valid_status_code"` //validated status code, default 200
 
 	//host
+	MaxSendingQPS       int `config:"max_sending_qps"`
 	MaxConnection       int `config:"max_connection_per_node"`
 	MaxResponseBodySize int `config:"max_response_size"`
 	MaxRetryTimes       int `config:"max_retry_times"`
@@ -110,6 +114,10 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		}
 	}
 
+	if processor.config.MaxSendingQPS>0{
+		processor.rater=rate.GetRateLimiter("http_replicator","sending",processor.config.MaxSendingQPS,processor.config.MaxSendingQPS,time.Second)
+	}
+
 	return processor, nil
 }
 
@@ -157,21 +165,32 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 			resp.ResetBody()
 			req.SetBody(message.Data)
 
-			var success=false
-			for _,v:=range processor.config.Hosts{
+			var success = false
+			for _, v := range processor.config.Hosts {
 				req.SetHost(v)
+
+				if global.ShuttingDown(){
+					break
+				}
+
+				if processor.rater!=nil{
+					if !processor.rater.Allow(){
+						time.Sleep(100*time.Millisecond)
+					}
+				}
+
 				err := processor.client.DoTimeout(req, resp, processor.config.Timeout)
 				if err != nil {
-					log.Error(v,",",err)
+					log.Error(v, ",", err)
 					continue
 				}
-				if !util.ContainsInAnyInt32Array(resp.StatusCode(),processor.config.ValidatedStatusCode){
+				if !util.ContainsInAnyInt32Array(resp.StatusCode(), processor.config.ValidatedStatusCode) {
 					panic(errors.Errorf("http request failed, status code: %d", resp.StatusCode()))
 				}
-				success=true
+				success = true
 				break
 			}
-			if !success{
+			if !success {
 				panic(errors.Errorf("http request failed, status code: %d", resp.StatusCode()))
 			}
 		}
