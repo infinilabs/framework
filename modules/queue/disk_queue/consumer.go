@@ -94,6 +94,11 @@ func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (message
 	messages = []queue.Message{}
 
 READ_MSG:
+
+	if global.ShuttingDown(){
+		return messages, false, errors.New("shutting down")
+	}
+
 	//read message size
 	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
 	if err != nil {
