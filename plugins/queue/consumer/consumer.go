@@ -141,6 +141,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		panic(err)
 	}
 
+	processor.SkipCatchError=true //skip catch internal error
 	runner.processors = processor
 
 	pool, err := pipeline.NewPoolWithTag(name, runner.config.MaxWorkers)

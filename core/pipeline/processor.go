@@ -40,6 +40,7 @@ type Releaser interface {
 }
 
 type Processors struct {
+	SkipCatchError bool // skip catch internal error
 	List []Processor
 }
 
@@ -176,23 +177,25 @@ func (procs *Processors) Release() {
 
 func (procs *Processors) Process(ctx *Context) error {
 
-	defer func() {
-		if !global.Env().IsDebug {
-			if r := recover(); r != nil {
-				var err string
-				switch r.(type) {
-				case error:
-					err = r.(error).Error()
-				case runtime.Error:
-					err = r.(runtime.Error).Error()
-				case string:
-					err = r.(string)
+	if !procs.SkipCatchError{
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var err string
+					switch r.(type) {
+					case error:
+						err = r.(error).Error()
+					case runtime.Error:
+						err = r.(runtime.Error).Error()
+					case string:
+						err = r.(string)
+					}
+					log.Errorf("internal error on pipeline:%v, %v", procs.String(), err)
+					ctx.Failed(errors.Errorf("internal error on pipeline:%v, %v", procs.String(), err))
 				}
-				log.Errorf("internal error on pipeline:%v, %v", procs.String(), err)
-				ctx.Failed(errors.Errorf("internal error on pipeline:%v, %v", procs.String(), err))
 			}
-		}
-	}()
+		}()
+	}
 
 	for _, p := range procs.List {
 		if !ctx.ShouldContinue() {

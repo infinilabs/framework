@@ -188,6 +188,9 @@ func newPool(defaultSize, maxSize, maxItems uint32) *Pool {
 var pools = sync.Map{}
 var lock = sync.RWMutex{}
 
+var defaultPoolMaxItems uint32 = 10000
+var defaultPoolMaxSize uint32 = 1024 * 1024 * 1024
+
 func getPoolByTag(tag string) (pool *Pool) {
 
 	if x, ok := pools.Load(tag); ok {
@@ -198,7 +201,7 @@ func getPoolByTag(tag string) (pool *Pool) {
 	} else {
 		lock.Lock()
 		if x, ok := pools.Load(tag); !ok {
-			pool = NewTaggedPool(tag, 0, 1024*1024*1024, 100000)
+			pool = NewTaggedPool(tag, 0, defaultPoolMaxSize, defaultPoolMaxItems)
 		} else {
 			pool = x.(*Pool)
 		}
@@ -302,11 +305,11 @@ func BuffStats() map[string]interface{} {
 		addIfNotZero(item, "inuse", uint32(pool.inuse))
 		addIfNotZero(item, "invalid", uint32(pool.invalid))
 
-		poolSize:=uint32(pool.getPoolByteSize())
+		poolSize := uint32(pool.getPoolByteSize())
 		addIfNotZero(item, "pool_size", poolSize)
 		addIfNotZero(allItem, "pool_size", poolSize)
 
-		poolItems:=uint32(atomic.LoadInt32(&pool.poolItems))
+		poolItems := uint32(atomic.LoadInt32(&pool.poolItems))
 		addIfNotZero(item, "pool_items", poolItems)
 		addIfNotZero(allItem, "pool_items", poolItems)
 
@@ -316,7 +319,7 @@ func BuffStats() map[string]interface{} {
 		return true
 	})
 
-	bytesBuffer["_all"]=allItem
+	bytesBuffer["_all"] = allItem
 
 	if len(bytesBuffer) > 0 {
 		result["bytes"] = bytesBuffer

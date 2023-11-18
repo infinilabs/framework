@@ -497,8 +497,6 @@ func (t *Template) ExecuteFuncStringExtend(output io.Writer, f TagFunc) {
 //
 // This function is optimized for frozen templates.
 // Use ExecuteFuncString for constantly changing templates.
-var templateBytesPool = bytebufferpool.NewTaggedPool("template", 0, 100*1024*1024, 10000)
-
 func (t *Template) ExecuteFuncStringWithErr(f TagFunc) (string, error) {
 	//bb := templateBytesPool.Get()
 	//defer templateBytesPool.Put(bb)
