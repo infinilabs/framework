@@ -102,7 +102,7 @@ func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 		refresh = ctx.Refresh
 	}
 	toUpdateObj := o
-	if ctx != nil && ctx.Value(api.ProtectedFilterKey) == true {
+	if ctx == nil || ctx.Context == nil || ctx.Value(api.ProtectedFilterKey) != false {
 		toUpdateObj = api.FilterFieldsByProtected(o, false)
 	}
 	_, err := handler.Client.Update(handler.GetIndexName(o), "", getIndexID(o), toUpdateObj, refresh)
