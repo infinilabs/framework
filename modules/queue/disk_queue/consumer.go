@@ -39,6 +39,8 @@ type Consumer struct {
 	queue   string
 	segment int64
 	readPos int64
+
+	lastFileSize int64
 }
 
 func (c *Consumer) getFileSize() int64 {
@@ -84,6 +86,10 @@ func (this *Consumer) CommitOffset(offset queue.Offset) error{
 }
 
 func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
+
+	//log.Error("start fetch messages:", d.queue, ",", d.segment, ",", d.readPos, ",", numOfMessages)
+	//defer log.Error("end fetch messages:", d.queue, ",", d.segment, ",", d.readPos, ",", numOfMessages)
+
 	var msgSize int32
 	var totalMessageSize int = 0
 	ctx.MessageCount=0
@@ -93,10 +99,24 @@ func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (message
 
 	messages = []queue.Message{}
 
+	var retryTimes int=0
+
 READ_MSG:
+
+	//log.Error("start read message:",d.segment,",", d.readPos)
 
 	if global.ShuttingDown(){
 		return messages, false, errors.New("shutting down")
+	}
+
+	if retryTimes>0{
+		if d.cCfg.EOFMaxRetryTimes>0&& retryTimes >= d.cCfg.EOFMaxRetryTimes{
+			return messages, false, errors.New("too many retry times")
+		}
+
+		if retryTimes>10{
+			log.Warn("still retry:", d.queue, ",", d.lastFileSize, " > ", d.readPos,", retry times:",retryTimes)
+		}
 	}
 
 	//read message size
@@ -108,8 +128,10 @@ READ_MSG:
 		errMsg := err.Error()
 		if util.ContainStr(errMsg, "EOF") || util.ContainStr(errMsg, "file already closed") {
 			//current have changes, reload file with new position
-			if d.getFileSize() > d.readPos {
-				log.Debug("current file have changes, reload:", d.queue, ",", d.getFileSize(), " > ", d.readPos)
+			newFileSize:=d.getFileSize()
+			if d.lastFileSize!=newFileSize&&newFileSize > d.readPos {
+				d.lastFileSize=newFileSize
+				log.Debug("current file have changes, reload:", d.queue, ",", newFileSize, " > ", d.readPos)
 				if d.cCfg.EOFRetryDelayInMs > 0 {
 					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
 				}
@@ -121,6 +143,7 @@ READ_MSG:
 					}
 					panic(err)
 				}
+				retryTimes++
 				goto READ_MSG
 			}
 
@@ -136,6 +159,7 @@ READ_MSG:
 					}
 					panic(err)
 				}
+				retryTimes=0
 				goto READ_MSG
 			} else {
 				log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages count: %v, readPos: %d, newFile:%v", nextFile, len(messages), d.readPos, d.segment < d.diskQueue.writeSegmentNum)
@@ -181,7 +205,9 @@ READ_MSG:
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
 
 		//current have changes, reload file with new position
-		if d.getFileSize() > d.maxBytesPerFileRead {
+		newFileSize:=d.getFileSize()
+		if d.lastFileSize!=newFileSize&&newFileSize > d.maxBytesPerFileRead {
+			d.lastFileSize=newFileSize
 			d.ResetOffset(d.segment, d.readPos)
 			return messages, false, err
 		}else{
@@ -204,7 +230,8 @@ READ_MSG:
 						}
 						panic(err)
 					}
-					goto READ_MSG
+					retryTimes=0
+					goto READ_MSG //reset since we moved to next file
 				}else{
 					if d.diskQueue.writeSegmentNum==d.segment{
 						log.Errorf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v",d.diskQueue.writeSegmentNum,d.segment)
@@ -285,9 +312,14 @@ READ_MSG:
 		nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
 		if exists || util.FileExists(nextFile) {
 			//current have changes, reload file with new position
-			if d.getFileSize() > d.readPos {
+			newFileSize:=d.getFileSize()
+			if d.lastFileSize!=newFileSize&&newFileSize > d.readPos {
+
+				//update last file size
+				d.lastFileSize=newFileSize
+
 				if global.Env().IsDebug {
-					log.Debug("current file have changes, reload:", d.queue, ",", d.getFileSize(), " > ", d.readPos)
+					log.Debug("current file have changes, reload:", d.queue, ",", newFileSize, " > ", d.readPos)
 				}
 				ctx.UpdateNextOffset(d.segment, d.readPos)
 				err = d.ResetOffset(d.segment, d.readPos)
@@ -302,6 +334,7 @@ READ_MSG:
 					time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
 				}
 
+				retryTimes++
 				goto READ_MSG
 			}
 
@@ -316,6 +349,7 @@ READ_MSG:
 				}
 				panic(err)
 			}
+			retryTimes=0 //reset since we moved to next file
 			goto READ_MSG
 		}
 		return messages, false, err
