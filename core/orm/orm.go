@@ -456,6 +456,9 @@ func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interfa
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
+		if v.IsZero() {
+			return nil
+		}
 		t = t.Elem()
 		v = v.Elem()
 	}

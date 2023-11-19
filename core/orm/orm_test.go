@@ -68,6 +68,9 @@ func TestFilterUpdatableFields(t *testing.T) {
 			Detail string `json:"detail"`
 		} `json:"address"`
 		Email string
+		TestNil *struct{
+			Field1 string `json:"field1"`
+		} `json:"test_nil"`
 	}{
 		Name: "zhangsan",
 		Age: 20,
@@ -88,4 +91,6 @@ func TestFilterUpdatableFields(t *testing.T) {
 	assert.Equal(t, exists, false)
 	v, _ := util.GetMapValueByKeys([]string{"address", "detail"}, fields)
 	assert.Equal(t, v, "北京海淀")
+	var nilM map[string]interface{}
+	assert.Equal(t, fields["test_nil"], nilM)
 }
