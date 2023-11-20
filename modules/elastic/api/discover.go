@@ -158,7 +158,9 @@ func (h *APIHandler) HandleEseSearchAction(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, string(failures), http.StatusInternalServerError)
 		return
 	}
-	h.WriteJSON(w, searchRes,http.StatusOK)
+	h.WriteJSONHeader(w)
+	h.WriteHeader(w, http.StatusOK)
+	h.Write(w, searchRes.RawResult.Body)
 }
 
 
