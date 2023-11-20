@@ -384,7 +384,7 @@ func Update(ctx *Context, o interface{}) error {
 	t1 := time.Now()
 	setFieldValue(rValue, "Updated", &t1)
 
-	return getHandler().Update(ctx, o)
+	return Save(ctx, o)
 }
 
 func Delete(ctx *Context, o interface{}) error {
