@@ -167,11 +167,8 @@ func (wal *WAL) writeEntry(key string, value []byte) error {
 
 // Periodically save the current state to the last state file.
 func (kv *KVStore) periodicSaveState() {
-	ticker := time.NewTicker(30 * time.Second) // Adjust the interval as needed
-	for range ticker.C {
-		kv.saveToLastState()
-		kv.createNewWAL()
-	}
+	kv.saveToLastState()
+	kv.createNewWAL()
 }
 
 // Save the current state to the last state file in JSON format.
@@ -197,7 +194,7 @@ func (kv *KVStore) createNewWAL() {
 	defer kv.wal.mu.Unlock()
 
 	kv.wal.Close()
-	if err := os.Rename(kv.wal.filename,kv.wal.filename+".bak"); err != nil {
+	if err := os.Rename(kv.wal.filename, kv.wal.filename+".bak"); err != nil {
 		log.Errorf("Error renmae old WAL file: %v", err)
 	}
 	kv.wal.Open()

@@ -221,13 +221,17 @@ func ListenConfigChanges() error {
 
 			}
 
+			syncFunc()
+
 			if !global.Env().SystemConfig.Configs.ScheduledTask {
+				log.Debug("register background task for checking configs changes")
 				global.RegisterBackgroundCallback(&global.BackgroundTask{
 					Tag:      "checking configs changes",
 					Interval: util.GetDurationOrDefault(global.Env().SystemConfig.Configs.Interval, time.Duration(30)*time.Second),
 					Func:     syncFunc,
 				})
 			} else {
+				log.Debug("register schedule task for checking configs changes")
 				task.RegisterScheduleTask(task.ScheduleTask{
 					Description: fmt.Sprintf("sync configs from manager"),
 					Type:        "interval",

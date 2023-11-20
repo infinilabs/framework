@@ -170,7 +170,6 @@ func FuncWithTimeout(ctx context.Context, f func()) error {
 }
 
 func RunBackgroundCallbacks(state *int32) {
-	ctx := context.Background()
 	for {
 		if state != nil && atomic.LoadInt32(state) > 0 {
 			log.Debug("exit background tasks")
@@ -180,12 +179,15 @@ func RunBackgroundCallbacks(state *int32) {
 		backgroundCallback.Range(func(key, value any) bool {
 			v := value.(*BackgroundTask)
 			if time.Since(v.lastRunning) > v.Interval {
-				log.Debugf("run background job:%v, interval:%v", key, v.Interval)
+				log.Debugf("start run background job:%v, interval:%v", key, v.Interval)
+				ctx, cancel := context.WithTimeout(context.Background(), v.Interval)
+				defer cancel()
 				err := FuncWithTimeout(ctx, v.Func)
 				if err != nil {
 					log.Error(fmt.Sprintf("error on running background job: %v, %v", key, err))
 				}
 				v.lastRunning = time.Now()
+				log.Debugf("end run background job:%v, interval:%v", key, v.Interval)
 			}
 			return true
 		})
