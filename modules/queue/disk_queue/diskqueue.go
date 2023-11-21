@@ -47,6 +47,7 @@ import (
 // providing a filesystem backed FIFO queue
 type DiskBasedQueue struct {
 	sync.RWMutex
+	metaLock sync.RWMutex
 
 	// 64bit atomic vars need to be first for proper alignment on 32bit platforms
 	writePos        int64
@@ -119,6 +120,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		exitChan:           make(chan int),
 		exitSyncChan:       make(chan int, 10),
 		consumersInReading: sync.Map{},
+		metaLock: sync.RWMutex{},
 		//syncEvery:         syncEvery,
 		//syncTimeout:       syncTimeout,
 		//maxUsedBytes:		maxUsedBytes,
@@ -247,7 +249,7 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 				log.Error("error on exit disk_queue,", v)
 			}
 		}
-		defer d.Unlock()
+		d.Unlock()
 	}()
 
 
@@ -613,6 +615,25 @@ func (d *DiskBasedQueue) retrieveMetaData() error {
 
 // persistMetaData atomically writes state to the filesystem
 func (d *DiskBasedQueue) persistMetaData() error {
+	d.metaLock.Lock()
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error on persist disk_queue metadata,", v)
+			}
+		}
+		d.metaLock.Unlock()
+	}()
+
 	var f *os.File
 	var err error
 

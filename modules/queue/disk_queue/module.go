@@ -106,6 +106,24 @@ type CompressConfig struct {
 var preventRead bool
 
 func checkCapacity(cfg *DiskQueueConfig) error {
+
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Errorf("error during checking disk capacity [%v]", v)
+			}
+		}
+	}()
+
 	if rate.GetRateLimiter("disk_queue","check_capacity",1,10,time.Second).Allow(){
 		if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
 			pathUsed,err := status.DirSize(global.Env().GetDataDir())
@@ -475,37 +493,20 @@ func (module *DiskQueue) Start() error {
 				}
 			}
 		}()
+
+		//keep this worker always running in background
 		var lastFilePrepared int64
 		for {
 			evt := <-module.messages
 			switch evt.Type {
 			case WriteComplete:
-				//TODO, convert to signal, move to async
-				module.compressFiles(evt.Queue, evt.FileNum)
-
-				//upload old file to s3
-				module.uploadToS3(evt.Queue, evt.FileNum)
-
-				//check capacity
-				checkCapacity(module.cfg)
-
-				//delete old unused files
-				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
-
+				module.onWriteComplete(evt)
 				break
 			case ReadComplete:
-
-				if module.cfg.PrepareFilesToRead {
-					if lastFilePrepared > 0 && evt.FileNum <= lastFilePrepared {
-						break
-					}
-					//decompress ahead of # files
-					lastFilePrepared = module.prepareFilesToRead(evt.Queue, evt.FileNum)
+				v:=module.onReadComplete(evt,lastFilePrepared)
+				if v>0{
+					lastFilePrepared=v
 				}
-
-				//delete old unused files
-				module.deleteUnusedFiles(evt.Queue, evt.FileNum)
-
 				break
 			}
 		}
@@ -513,6 +514,71 @@ func (module *DiskQueue) Start() error {
 	}()
 
 	return nil
+}
+
+
+
+func (module *DiskQueue) onWriteComplete(evt Event) {
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Errorf("error on handling write complete event [%v][%v]", v,evt)
+			}
+		}
+	}()
+
+	//TODO, convert to signal, move to async
+	module.compressFiles(evt.Queue, evt.FileNum)
+
+	//upload old file to s3
+	module.uploadToS3(evt.Queue, evt.FileNum)
+
+	//check capacity
+	checkCapacity(module.cfg)
+
+	//delete old unused files
+	module.deleteUnusedFiles(evt.Queue, evt.FileNum)
+
+}
+
+func (module *DiskQueue) onReadComplete(evt Event, lastFilePrepared int64)int64 {
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Errorf("error on handling read complete event [%v][%v]", v,evt)
+			}
+		}
+	}()
+
+	if module.cfg.PrepareFilesToRead {
+		if lastFilePrepared > 0 && evt.FileNum <= lastFilePrepared {
+			return -1
+		}
+		//decompress ahead of # files
+		lastFilePrepared = module.prepareFilesToRead(evt.Queue, evt.FileNum)
+	}
+
+	//delete old unused files
+	module.deleteUnusedFiles(evt.Queue, evt.FileNum)
+	return -1
 }
 
 func (module *DiskQueue) Stop() error {
