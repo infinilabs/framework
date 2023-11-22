@@ -310,6 +310,8 @@ func (d *DiskBasedQueue) deleteAllFiles() error {
 
 // 删除中间的错误文件，跳转到最后一个可写文件
 func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
+	d.Lock()
+	defer d.Unlock()
 	var err error
 
 	if d.readFile != nil {
