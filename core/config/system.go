@@ -154,6 +154,13 @@ type SystemConfig struct {
 type HTTPClientConfig struct {
 	HTTPProxy  string `config:"http_proxy"`
 	HTTPSProxy string `config:"https_proxy"`
+
+	ReadTimeout           string `config:"read_timeout"`
+	WriteTimeout          string `config:"write_timeout"`
+	ReadBufferSize        int           `config:"read_buffer_size"`
+	WriteBufferSize       int           `config:"write_buffer_size"`
+	TLSInsecureSkipVerify bool          `config:"tls_insecure_skip_verify"`
+	MaxConnectionPerHost       int `config:"max_connection_per_host"`
 }
 
 type HTTPClientConfigs struct {

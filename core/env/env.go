@@ -278,6 +278,14 @@ var (
 			MaxBackupFiles:             10,
 			ValidConfigsExtensions:     []string{".tpl", ".json", ".yml", ".yaml"},
 		},
+		HTTPClientConfig: config.HTTPClientConfig{
+			TLSInsecureSkipVerify: true,
+			ReadBufferSize: 100 * 1024,
+			WriteBufferSize: 100 * 1024,
+			ReadTimeout:    "60s",
+			WriteTimeout:    "60s",
+			MaxConnectionPerHost: 1000,
+		},
 	}
 )
 
