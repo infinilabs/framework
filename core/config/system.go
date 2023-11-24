@@ -126,6 +126,8 @@ type SystemConfig struct {
 
 	APIConfig APIConfig `config:"api"`
 
+	WebAppConfig WebAppConfig `config:"web"`
+
 	NodeConfig NodeConfig `config:"node"`
 
 	PathConfig PathConfig `config:"path"`
@@ -178,7 +180,7 @@ type ConfigsConfig struct {
 	PanicOnConfigError         bool      `config:"panic_on_config_error"`          //panic on config error
 	MaxBackupFiles             int       `config:"max_backup_files"`               //keep max num of file backup
 	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
-	TLSConfig                  TLSConfig `config:"tls"`
+	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`
@@ -200,6 +202,44 @@ type APISecurityConfig struct {
 	Enabled  bool   `config:"enabled"`
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
 	Password string `json:"password,omitempty" config:"password" elastic_mapping:"password:{type:keyword}"`
+}
+
+type WebAppConfig struct {
+
+	//same with API Config
+	Enabled       bool          `config:"enabled"`
+	TLSConfig     TLSConfig     `config:"tls"`
+	NetworkConfig NetworkConfig `config:"network"`
+	Security APISecurityConfig `config:"security"`
+	CrossDomain struct {
+		AllowedOrigins []string `config:"allowed_origins"`
+	} `config:"cors"`
+	WebsocketConfig WebsocketConfig `config:"websocket"`
+	//same with API Config
+
+	AuthConfig      AuthConfig      `config:"auth"` //enable access control for UI or not
+	UI              UIConfig        `config:"ui"`
+	BasePath        string          `config:"base_path"`
+	Domain          string          `config:"domain"`
+	EmbeddingAPI    bool            `config:"embedding_api"`
+	Gzip            GzipConfig      `config:"gzip"`
+}
+
+func (config *WebAppConfig) GetEndpoint() string {
+	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+}
+
+func (config *WebAppConfig) GetSchema() string {
+	if config.TLSConfig.TLSEnabled {
+		return "https"
+	}
+	return "http"
+}
+
+type UIConfig struct {
+	LocalPath    string `config:"path"`
+	LocalEnabled bool   `config:"local"`
+	VFSEnabled   bool   `config:"vfs"`
 }
 
 type APIConfig struct {

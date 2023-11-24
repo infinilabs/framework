@@ -68,11 +68,6 @@ func parseAnnotation(mapping []util.Annotation) string {
 	return json
 }
 
-//elastic_mapping:"content: { type: binary, doc_values:false }"
-func (handler *ElasticORM) RegisterSchema(t interface{}) error {
-	return handler.RegisterSchemaWithIndexName(t,"")
-}
-
 func initIndexName(t interface{},indexName string)string  {
 	pkg,ojbType:=util.GetTypeAndPackageName(t, true)
 	key:=fmt.Sprintf("%s-%s",pkg,ojbType)

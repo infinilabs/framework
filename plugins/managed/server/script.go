@@ -8,12 +8,11 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/valyala/fasttemplate"
-	"infini.sh/console/modules/agent/common"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	common2 "infini.sh/framework/plugins/managed/common"
+	"infini.sh/framework/plugins/managed/common"
 	"net/url"
 	"os"
 
@@ -63,7 +62,7 @@ func (h *APIHandler) generateInstallCommand(w http.ResponseWriter, req *http.Req
 		consoleEndpoint = getDefaultEndpoint(req)
 	}
 
-	endpoint,err:=url.JoinPath(consoleEndpoint,common2.GET_INSTALL_SCRIPT_API)
+	endpoint,err:=url.JoinPath(consoleEndpoint,common.GET_INSTALL_SCRIPT_API)
 	if err!=nil{
 		panic(err)
 	}

@@ -5,6 +5,7 @@
 package env
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -239,6 +240,22 @@ var (
 				SkipHostVerify: true,
 			},
 		},
+		WebAppConfig: config.WebAppConfig{
+			UI: config.UIConfig{
+				LocalPath:    ".public",
+				VFSEnabled:   true,
+				LocalEnabled: true,
+			}, Gzip: config.GzipConfig{
+				Enabled: true,
+				Level:   gzip.BestCompression,
+			},
+			AuthConfig: config.AuthConfig{
+				Enabled: true,
+			},
+			WebsocketConfig: config.WebsocketConfig{
+				Enabled:        true,
+				SkipHostVerify: true,
+			}},
 		LoggingConfig: config.LoggingConfig{
 			DisableFileOutput: false,
 		},

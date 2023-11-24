@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
-	common2 "infini.sh/console/modules/agent/common"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -74,8 +73,8 @@ func ProxyAgentRequest(endpoint string, req *util.Request, responseObjectToUnMar
 	initOnce.Do(func() {
 
 		//get ca files
-		agCfg := common2.GetAgentConfig()
-		clientTLSCertFile, clientTLSKeyFile, err := common2.GetAgentInstanceCerts(agCfg.Setup.CACertFile, agCfg.Setup.CAKeyFile)
+		agCfg := common.GetAgentConfig()
+		clientTLSCertFile, clientTLSKeyFile, err := common.GetAgentInstanceCerts(agCfg.Setup.CACertFile, agCfg.Setup.CAKeyFile)
 		if err != nil {
 			panic(err)
 		}

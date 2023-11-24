@@ -333,6 +333,8 @@ func InitSchema() {
 	if !moduleConfig.ORMConfig.InitSchema {
 		return
 	}
+
+	//TODO move to dedicated module
 	err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
 	if err != nil {
 		panic(err)
@@ -354,6 +356,9 @@ func InitSchema() {
 		panic(err)
 	}
 
+
+	//init schemas
+	orm.InitSchema()
 
 	schemaInited = true
 }

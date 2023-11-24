@@ -33,7 +33,6 @@ type Context struct {
 }
 
 type ORM interface {
-	RegisterSchema(t interface{}) error
 
 	RegisterSchemaWithIndexName(t interface{}, indexName string) error
 
@@ -293,6 +292,20 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 	return false, ""
 }
 
+func existsField(rValue reflect.Value, fieldName string) (bool) {
+
+	if rValue.Kind() == reflect.Ptr {
+		rValue = reflect.Indirect(rValue)
+	}
+
+	f := rValue.FieldByName(fieldName)
+
+	if f.IsValid(){
+		return true
+	}
+	return false
+}
+
 func setFieldValue(v reflect.Value, param string, value interface{}) {
 
 	if v.Kind() == reflect.Ptr {
@@ -350,17 +363,18 @@ func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
-	//nameExists, _ := getFieldStringValue(rValue, "Name")
+	createdExists:= existsField(rValue, "Created")
 
 	if !idExists {
 		return errors.New("id was not found")
 	}
 
-	//if !nameExists {
-	//	return errors.New("name was not found")
-	//}
 	t := time.Now()
 	setFieldValue(rValue, "Updated", &t)
+	if !createdExists{
+		setFieldValue(rValue, "Created", &t)
+	}
+
 	return getHandler().Save(ctx, o)
 }
 
@@ -409,12 +423,21 @@ func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
 
+var registeredSchemas=[]util.KeyValue{}
+
 func RegisterSchemaWithIndexName(t interface{}, index string) error {
-	return getHandler().RegisterSchemaWithIndexName(t, index)
+	registeredSchemas=append(registeredSchemas,util.KeyValue{Key: index, Payload: t})
+	return nil
 }
 
-func RegisterSchema(t interface{}) error {
-	return getHandler().RegisterSchema(t)
+func InitSchema()  error{
+	for _,v:=range registeredSchemas{
+		err:=getHandler().RegisterSchemaWithIndexName(v.Payload, v.Key)
+		if err!=nil{
+			return err
+		}
+	}
+	return nil
 }
 
 var handler ORM

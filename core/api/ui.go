@@ -42,23 +42,6 @@ import (
 var uiRouter *httprouter.Router
 var uiServeMux *http.ServeMux
 var uiMutex sync.Mutex
-var uiConfig *UIConfig
-
-type UIConfig struct {
-	Enabled         bool                   `config:"enabled"`
-	AuthConfig      config.AuthConfig      `config:"auth"` //TODO tobe removed
-	TLSConfig       config.TLSConfig       `config:"tls"`
-	NetworkConfig   config.NetworkConfig   `config:"network"`
-	BasePath        string                 `config:"base_path"`
-	Domain          string                 `config:"domain"`
-	EmbeddingAPI    bool                   `config:"embedding_api"`
-	Gzip            config.GzipConfig      `config:"gzip"`
-	WebsocketConfig config.WebsocketConfig `config:"websocket"`
-}
-
-func GetUIConfig() UIConfig {
-	return *uiConfig
-}
 
 var bindAddress string
 
@@ -66,7 +49,7 @@ func GetBindAddress() string {
 	return bindAddress
 }
 
-func StopUI(cfg *UIConfig) {
+func StopUI(cfg config.WebAppConfig) {
 	if srv != nil {
 		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
 		defer cancel()
@@ -79,8 +62,7 @@ func StopUI(cfg *UIConfig) {
 	}
 }
 
-func StartUI(cfg *UIConfig) {
-	uiConfig = cfg
+func StartUI(cfg config.WebAppConfig) {
 	//start web ui
 	uiServeMux = http.NewServeMux()
 
@@ -145,19 +127,19 @@ func StartUI(cfg *UIConfig) {
 
 	schema := "http://"
 
-	if uiConfig.NetworkConfig.SkipOccupiedPort {
-		bindAddress = util.AutoGetAddress(uiConfig.NetworkConfig.GetBindingAddr())
+	if cfg.NetworkConfig.SkipOccupiedPort {
+		bindAddress = util.AutoGetAddress(cfg.NetworkConfig.GetBindingAddr())
 	} else {
-		bindAddress = uiConfig.NetworkConfig.GetBindingAddr()
+		bindAddress = cfg.NetworkConfig.GetBindingAddr()
 	}
 
 	handler := context.ClearHandler(uiRouter)
-	if uiConfig.Gzip.Enabled {
+	if cfg.Gzip.Enabled {
 		log.Debug("gzip enabled")
-		wrapper, _ := gzip.NewGzipLevelHandler(uiConfig.Gzip.Level)
+		wrapper, _ := gzip.NewGzipLevelHandler(cfg.Gzip.Level)
 		handler = wrapper(handler)
 	}
-	if uiConfig.TLSConfig.TLSEnabled {
+	if cfg.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
 		schema = "https://"
