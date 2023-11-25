@@ -21,6 +21,24 @@ func TestGetFieldStringValue(t *testing.T) {
 	fmt.Println(exists, value)
 
 }
+
+
+func TestCheckCreated(t *testing.T) {
+
+	t1:=time.Now()
+	obj := &ORMObjectBase{}
+	obj.Updated=&t1
+
+	rValue := reflect.ValueOf(obj)
+	ok:=existsNonNullField(rValue,"Updated")
+	assert.Equal(t,true,ok)
+
+	ok=existsNonNullField(rValue,"Created")
+	assert.Equal(t,false,ok)
+
+}
+
+
 func TestSetFieldValue(t *testing.T) {
 
 	obj := &ORMObjectBase{}

@@ -60,7 +60,7 @@ type ORM interface {
 }
 
 type ORMObjectBase struct {
-	ID      string     `config:"id"  json:"id,omitempty"    elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	ID      string     `config:"id"  json:"id,omitempty" protected:"true"   elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
 }
@@ -292,15 +292,14 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 	return false, ""
 }
 
-func existsField(rValue reflect.Value, fieldName string) (bool) {
+func existsNonNullField(rValue reflect.Value, fieldName string) (bool) {
 
 	if rValue.Kind() == reflect.Ptr {
 		rValue = reflect.Indirect(rValue)
 	}
 
 	f := rValue.FieldByName(fieldName)
-
-	if f.IsValid(){
+	if f.IsValid()&&!f.IsNil(){
 		return true
 	}
 	return false
@@ -363,12 +362,11 @@ func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
-	createdExists:= existsField(rValue, "Created")
-
 	if !idExists {
 		return errors.New("id was not found")
 	}
 
+	createdExists:= existsNonNullField(rValue, "Created")
 	t := time.Now()
 	setFieldValue(rValue, "Updated", &t)
 	if !createdExists{
