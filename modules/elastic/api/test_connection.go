@@ -95,7 +95,7 @@ func (h TestAPI) HandleTestConnectionAction(w http.ResponseWriter, req *http.Req
 		freq.SetBasicAuth(config.BasicAuth.Username, config.BasicAuth.Password)
 	}
 
-	err = client.DoTimeout(freq, fres,10*time.Second)
+	err = getHttpClient().DoTimeout(freq, fres,10*time.Second)
 
 	if err != nil {
 		panic(err)
@@ -123,7 +123,7 @@ func (h TestAPI) HandleTestConnectionAction(w http.ResponseWriter, req *http.Req
 	//fetch cluster health info
 	freq.SetRequestURI(fmt.Sprintf("%s/_cluster/health", config.Endpoint))
 	fres.Reset()
-	err = client.Do(freq, fres)
+	err = getHttpClient().Do(freq, fres)
 	if err != nil {
 		resBody["error"] = fmt.Sprintf("error on get cluster health: %v", err)
 		h.WriteJSON(w, resBody, http.StatusInternalServerError)
