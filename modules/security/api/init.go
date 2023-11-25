@@ -21,7 +21,6 @@ var apiHandler = APIHandler{Adapter: rbac.GetAdapter(adapterType)} //TODO handle
 
 func Init() {
 
-	
 	api.HandleAPIMethod(api.GET, "/permission/:type", apiHandler.RequireLogin(apiHandler.ListPermission))
 
 	api.HandleAPIMethod(api.POST, "/role/:type", apiHandler.RequirePermission(apiHandler.CreateRole, enum.RoleAllPermission...))
@@ -42,6 +41,12 @@ func Init() {
 	api.HandleAPIMethod(api.DELETE, "/account/logout", apiHandler.Logout)
 
 	api.HandleAPIMethod(api.GET, "/account/profile", apiHandler.RequireLogin(apiHandler.Profile))
+	api.HandleAPIMethod(api.PUT, "/account/profile", apiHandler.RequireLogin(apiHandler.UpdateProfile))
 	api.HandleAPIMethod(api.PUT, "/account/password", apiHandler.RequireLogin(apiHandler.UpdatePassword))
+
+	//verify email by sending a link to email's box
+	api.HandleAPIMethod(api.POST, "/account/profile/_verify_email", apiHandler.RequireLogin(apiHandler.VerifyProfileEmail))
+	//public link
+	api.HandleAPIMethod(api.GET, "/link/_verify_account_email", apiHandler.ClickVerifyEmailLink)
 
 }

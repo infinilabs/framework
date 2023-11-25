@@ -42,7 +42,7 @@ func (module *Module) Setup() {
 	}
 
 	ok, err := env.ParseConfig("security", &module.cfg)
-	if ok && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -58,7 +58,6 @@ func (module *Module) Setup() {
 
 	authapi.Init()
 }
-
 
 func InitSchema() {
 	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")

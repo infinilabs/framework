@@ -76,40 +76,6 @@ func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps ht
 	return
 }
 
-func (h APIHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	reqUser, err := rbac.FromUserContext(r.Context())
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-	var req struct {
-		Nickname string `json:"nickname"`
-		Phone    string `json:"phone"`
-		Email    string `json:"email"`
-	}
-	err = h.DecodeJSON(r, &req)
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-	user, err := h.User.Get(reqUser.UserId)
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-	user.Nickname = req.Nickname
-	user.Email = req.Email
-	user.EmailVerified=false
-	user.Phone = req.Phone
-	err = h.User.Update(user)
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-	h.WriteOKJSON(w, api.UpdateResponse(reqUser.UserId))
-	return
-}
-
 func (h APIHandler) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var req struct {
 		Username string `json:"username"`
