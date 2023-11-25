@@ -127,6 +127,7 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 			}
 			break
 		}
+
 		roles := []rbac.UserRole{}
 		//get by roleMapping
 		roles = h.getRoleMapping(*user.Login)
@@ -135,14 +136,20 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 			u := &rbac.User{
 				AuthProvider: ProviderGithub,
 				Username:     *user.Login,
-				AvatarUrl:    *user.AvatarURL,
-				Nickname:     *user.Name,
-				Email:        *user.Email,
 				Roles:        roles,
 				Payload:      *user,
 			}
 
-			if u.Email != "" {
+			if user.Name != nil && *user.Name != "" {
+				u.Nickname = *user.Name
+			}
+
+			if user.AvatarURL != nil && *user.AvatarURL != "" {
+				u.AvatarUrl = *user.AvatarURL
+			}
+
+			if user.Email != nil && *user.Email != "" {
+				u.Email = *user.Email
 				u.EmailVerified = true
 			}
 
