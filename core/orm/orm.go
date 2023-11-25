@@ -299,7 +299,11 @@ func existsNonNullField(rValue reflect.Value, fieldName string) (bool) {
 	}
 
 	f := rValue.FieldByName(fieldName)
-	if f.IsValid()&&!f.IsNil(){
+	if f.Kind()==reflect.Ptr{
+		return !f.IsNil()
+	}
+
+	if f.IsValid(){
 		return true
 	}
 	return false
