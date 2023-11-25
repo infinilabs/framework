@@ -8,17 +8,8 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/orm"
 	"net/http"
 )
-
-type Profile struct {
-	orm.ORMObjectBase
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Phone    string `json:"phone"`
-	Username string `json:"username"`
-}
 
 func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
