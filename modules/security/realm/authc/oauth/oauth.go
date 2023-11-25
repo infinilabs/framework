@@ -6,6 +6,7 @@ package oauth
 
 import (
 	"encoding/base64"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
@@ -19,43 +20,45 @@ import (
 	"time"
 )
 
-func (h APIHandler)  getDefaultRoles() []rbac.UserRole {
-	if len(oAuthConfig.DefaultRoles)==0{
+func (h APIHandler) getDefaultRoles() []rbac.UserRole {
+	if len(oAuthConfig.DefaultRoles) == 0 {
 		return nil
 	}
 
-	if len(defaultOAuthRoles)>0{
+	if len(defaultOAuthRoles) > 0 {
 		return defaultOAuthRoles
 	}
 
-	roles:=h.getRolesByRoleIDs(oAuthConfig.DefaultRoles)
-	if len(roles)>0{
-		defaultOAuthRoles=roles
+	roles := h.getRolesByRoleIDs(oAuthConfig.DefaultRoles)
+	if len(roles) > 0 {
+		defaultOAuthRoles = roles
 	}
 	return roles
 }
 
 func (h APIHandler) getRolesByRoleIDs(roles []string) []rbac.UserRole {
-	out:=[]rbac.UserRole{}
-	for _,v:=range roles{
+	out := []rbac.UserRole{}
+	for _, v := range roles {
 		role, err := h.Adapter.Role.Get(v)
-		if err!=nil{
-			if !strings.Contains(err.Error(),"record not found"){
+		if err != nil {
+			if !strings.Contains(err.Error(), "record not found") {
 				panic(err)
 			}
 
 			//try name
-			role,err=h.Adapter.Role.GetBy("name",v)
-			if err!=nil{
+			role, err = h.Adapter.Role.GetBy("name", v)
+			if err != nil {
 				continue
 			}
 		}
-		out=append(out,rbac.UserRole{ID: role.ID,Name: role.Name})
+		out = append(out, rbac.UserRole{ID: role.ID, Name: role.Name})
 	}
 	return out
 }
 
 const oauthSession string = "oauth-session"
+
+const ProviderGithub = "github"
 
 func (h APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	b := make([]byte, 16)
@@ -68,7 +71,7 @@ func (h APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpro
 	session.Values["redirect_url"] = h.Get(r, "redirect_url", "")
 	err = session.Save(r, w)
 	if err != nil {
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
@@ -76,9 +79,9 @@ func (h APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpro
 	http.Redirect(w, r, url, 302)
 }
 
-func joinError(url string,err error)string  {
-	if err!=nil{
-		return url+"?err="+util.UrlEncode(err.Error())
+func joinError(url string, err error) string {
+	if err != nil {
+		return url + "?err=" + util.UrlEncode(err.Error())
 	}
 	return url
 }
@@ -88,117 +91,110 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 	session, err := api.GetSessionStore(r, oauthSession)
 	if err != nil {
 		log.Error(w, "failed to sso, aborted")
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
 	if r.URL.Query().Get("state") != session.Values["state"] {
 		log.Error("failed to sso, no state match; possible csrf OR cookies not enabled")
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
 	tkn, err := oauthCfg.Exchange(oauth2.NoContext, r.URL.Query().Get("code"))
 	if err != nil {
 		log.Error("failed to sso, there was an issue getting your token")
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
 	if !tkn.Valid() {
 		log.Error("failed to sso, retreived invalid token")
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
-	//only for github, TODO
-	client := github.NewClient(oauthCfg.Client(oauth2.NoContext, tkn))
+	provider := p.ByNameWithDefault("provider", "default")
 
-	user, res, err := client.Users.Get(oauth2.NoContext, "")
-	if err != nil {
-		if res!=nil{
-			log.Error("failed to sso, error getting name:",err,res.String())
+	switch provider {
+	case ProviderGithub:
+		//get user info
+		client := github.NewClient(oauthCfg.Client(oauth2.NoContext, tkn))
+		user, res, err := client.Users.Get(oauth2.NoContext, "")
+		if err != nil || user == nil || *user.Login == "" {
+			if res != nil {
+				log.Error("failed to sso, error getting name:", err, res.String())
+			}
+			break
 		}
-		http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
-		return
-	}
-
-	if user != nil {
-		roles:=[]rbac.UserRole{}
-
-		var id,name,email string
-		if user.Login!=nil&&*user.Login!=""{
-			id=*user.Login
-		}
-		if user.Name!=nil&&*user.Name!=""{
-			name=*user.Name
-		}
-		if user.Email!=nil&&*user.Email!=""{
-			email=*user.Name
-		}
-
-		if id==""{
-			log.Error("failed to sso, user id can't be nil")
-			http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
-			return
-		}
-
-		if name==""{
-			name=id
-		}
-
+		roles := []rbac.UserRole{}
 		//get by roleMapping
-		roles=h.getRoleMapping(user)
-		if len(roles)>0{
-			u:=&rbac.User{
-				AuthProvider: "github",
-				Username:     id,
-				Nickname:     name,
-				Email:        email,
+		roles = h.getRoleMapping(*user.Login)
+		//login or reject
+		if len(roles) > 0 {
+			u := &rbac.User{
+				AuthProvider: ProviderGithub,
+				Username:     *user.Login,
+				AvatarUrl:    *user.AvatarURL,
+				Nickname:     *user.Name,
+				Email:        *user.Email,
 				Roles:        roles,
+				Payload:      *user,
 			}
 
-			u.ID=id
+			if u.Email != "" {
+				u.EmailVerified = true
+			}
+
+			u.ID = fmt.Sprintf("%v_%v", ProviderGithub, *user.Login)
+			//new user or already exists
+			dbUser, err := h.User.Get(u.ID)
+			if dbUser == nil && err != nil && strings.Contains(err.Error(), "not found") {
+				//new record, need to save to db
+				id, err := h.User.Create(u)
+				if err != nil {
+					log.Error(id, err)
+					break
+				}
+			}
 
 			//generate access token
 			data, err := rbac.GenerateAccessToken(u)
 			if err != nil {
-				http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
-				return
+				log.Error(data, err)
+				break
 			}
 
 			token := rbac.Token{ExpireIn: time.Now().Unix() + 86400}
 			rbac.SetUserToken(u.ID, token)
 
-			//data["status"] = "ok"
-			url:=oAuthConfig.SuccessPage+"?payload="+util.UrlEncode(util.MustToJSON(data))
+			url := oAuthConfig.SuccessPage + "?payload=" + util.UrlEncode(util.MustToJSON(data))
 			http.Redirect(w, r, url, 302)
 			return
 		}
+		break
 	}
-	http.Redirect(w, r, joinError(oAuthConfig.FailedPage,err), 302)
+
+	http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 }
 
-func (h APIHandler) getRoleMapping(user *github.User) []rbac.UserRole {
-	roles:=[]rbac.UserRole{}
+func (h APIHandler) getRoleMapping(username string) []rbac.UserRole {
+	roles := []rbac.UserRole{}
 
-	if user!=nil{
-		if len(oAuthConfig.RoleMapping)>0{
-			r,ok:=oAuthConfig.RoleMapping[*user.Login]
-			if ok{
-				roles=h.getRolesByRoleIDs(r)
+	if username != "" {
+		if len(oAuthConfig.RoleMapping) > 0 {
+			r, ok := oAuthConfig.RoleMapping[username]
+			if ok {
+				roles = h.getRolesByRoleIDs(r)
 			}
 		}
 	}
 
-	if len(roles)==0{
+	if len(roles) == 0 {
 		return h.getDefaultRoles()
 	}
 	return roles
 }
-
-
-
 
 const providerName = "oauth"
 

@@ -24,6 +24,7 @@ func Init(cfg config.OAuthConfig) {
 	if cfg.Enabled {
 		api.HandleUIMethod(api.GET, "/sso/login/", apiHandler.AuthHandler)
 		api.HandleUIMethod(api.GET, "/sso/callback/", apiHandler.CallbackHandler)
+		api.HandleUIMethod(api.GET, "/sso/callback/:provider", apiHandler.CallbackHandler)
 
 		oAuthConfig = cfg
 		oauthCfg = oauth2.Config{

@@ -245,7 +245,7 @@ func (h APIHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request, p
 	user.Password = string(hash)
 	//t:=time.Now()
 	//user.Updated =&t
-	err = h.User.Update(&user)
+	err = h.User.Update(user)
 	if err != nil {
 		_ = log.Error(err.Error())
 		h.ErrorInternalServer(w, err.Error())

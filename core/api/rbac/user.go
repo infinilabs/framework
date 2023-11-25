@@ -12,20 +12,24 @@ import (
 type User struct {
 	orm.ORMObjectBase
 
-	AuthProvider string   `json:"auth_provider"  elastic_mapping:"auth_provider: { type: keyword }"`
-	Username     string   `json:"name"  elastic_mapping:"name: { type: keyword }"`
-	Nickname     string   `json:"nick_name"  elastic_mapping:"nick_name: { type: keyword }"`
-	Password     string   `json:"password"  elastic_mapping:"password: { type: keyword }"`
-	Email        string   `json:"email" elastic_mapping:"email: { type: keyword }"`
-	Phone        string   `json:"phone" elastic_mapping:"phone: { type: keyword }"`
-	Tags         []string `json:"tags" elastic_mapping:"mobile: { type: keyword }"`
+	AuthProvider string `json:"auth_provider" protected:"true" elastic_mapping:"auth_provider: { type: keyword }"`
+	Username     string `json:"username" protected:"true" elastic_mapping:"name: { type: keyword }"`
+	Password     string `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
 
-	AvatarUrl string `json:"avatar_url" elastic_mapping:"avatar_url: { type: keyword }"`
+	Nickname string `json:"nickname,omitempty"  elastic_mapping:"nickname: { type: keyword }"`
 
-	Tenant *model.TenantInfo `json:"tenant" elastic_mapping:"tenant: { type: object }"` //tenant info for multi-tenant platform user
+	Email         string `json:"email,omitempty" protected:"true" elastic_mapping:"email: { type: keyword }"`
+	EmailVerified bool   `json:"email_verified" protected:"true" protected:"true" elastic_mapping:"email_verified: { type: keyword }"`
+	Phone         string `json:"phone,omitempty" protected:"true" elastic_mapping:"phone: { type: keyword }"`
 
-	Roles   []UserRole  `json:"roles" elastic_mapping:"roles: { type: object }"`
-	Payload interface{} `json:"-"` //used for storing additional data derived from auth provider
+	Tags []string `json:"tags,omitempty" elastic_mapping:"mobile: { type: keyword }"`
+
+	AvatarUrl string `json:"avatar_url,omitempty" elastic_mapping:"avatar_url: { type: keyword }"`
+
+	Tenant *model.TenantInfo `json:"tenant,omitempty" protected:"true" elastic_mapping:"tenant: { type: object }"` //tenant info for multi-tenant platform user
+	Roles  []UserRole        `json:"roles" protected:"true" elastic_mapping:"roles: { type: object }"`
+
+	Payload interface{} `json:"payload,omitempty" elastic_mapping:"payload: { type: object }"` //used for storing additional data derived from auth provider
 }
 
 func (user *User) GetPermissions() (roles []string, privileges []string) {

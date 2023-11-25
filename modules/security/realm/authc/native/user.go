@@ -7,6 +7,7 @@ package native
 import (
 	"fmt"
 	"infini.sh/framework/core/api/rbac"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"strings"
@@ -15,14 +16,17 @@ import (
 type User struct {
 }
 
-func (dal *User) Get(id string) (rbac.User, error) {
+func (dal *User) Get(id string) (*rbac.User, error) {
 	user := rbac.User{}
 	user.ID = id
-	_, err := orm.Get(&user)
-	return user, err
+	ok, err := orm.Get(&user)
+	if ok && err == nil {
+		return &user, err
+	}
+	return nil, errors.Error("failed to get user:%v, %v", id, err)
 }
 
-func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error){
+func (dal *User) GetBy(field string, value interface{}) (*rbac.User, error) {
 	user := &rbac.User{
 	}
 	err, result := orm.GetBy(field, value, rbac.User{})
@@ -45,8 +49,10 @@ func (dal *User) Update(user *rbac.User) error {
 	return orm.Update(nil, user)
 }
 
-func (dal *User) Create(user *rbac.User) (string, error){
-	user.ID = util.GetUUID()
+func (dal *User) Create(user *rbac.User) (string, error) {
+	if user.ID==""{
+		user.ID = util.GetUUID()
+	}
 	return user.ID, orm.Save(nil, user)
 }
 
@@ -56,7 +62,7 @@ func (dal *User) Delete(id string) error {
 	return orm.Delete(nil, user)
 }
 
-func (dal *User) Search(keyword string, from, size int) ( orm.Result, error){
+func (dal *User) Search(keyword string, from, size int) (orm.Result, error) {
 	query := orm.Query{}
 
 	queryDSL := `{"query":{"bool":{"must":[%s]}}, "from": %d,"size": %d}`
@@ -71,4 +77,3 @@ func (dal *User) Search(keyword string, from, size int) ( orm.Result, error){
 	err, result := orm.Search(rbac.User{}, &query)
 	return result, err
 }
-

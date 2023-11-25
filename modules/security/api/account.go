@@ -35,52 +35,6 @@ func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter
 	})
 }
 
-func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	reqUser, err := rbac.FromUserContext(r.Context())
-	if err != nil {
-		h.ErrorInternalServer(w, err.Error())
-		return
-	}
-
-	if reqUser.Provider == NativeProvider {
-		user, err := h.User.Get(reqUser.UserId)
-		if err != nil {
-			h.ErrorInternalServer(w, err.Error())
-			return
-		}
-		if user.Nickname == "" {
-			user.Nickname = user.Username
-		}
-
-		u := util.MapStr{
-			"user_id":   user.ID,
-			"name":      user.Username,
-			"email":     user.Email,
-			"nick_name": user.Nickname,
-			"phone":     user.Phone,
-		}
-
-		//only for native realm provider
-		if user.Tenant != nil {
-			u["tenant"] = user.Tenant
-		}
-
-		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
-	} else {
-
-		//TODO fetch external profile
-
-		u := util.MapStr{
-			"user_id":   reqUser.UserId,
-			"name":      reqUser.Username,
-			"email":     "",               //TOOD, save user profile come from SSO
-			"nick_name": reqUser.Username, //TODO
-			"phone":     "",               //TODO
-		}
-		h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, u))
-	}
-
-}
 
 func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
@@ -114,7 +68,7 @@ func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps ht
 		return
 	}
 	user.Password = string(hash)
-	err = h.User.Update(&user)
+	err = h.User.Update(user)
 	if err != nil {
 		h.ErrorInternalServer(w, err.Error())
 		return
@@ -147,7 +101,7 @@ func (h APIHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, ps htt
 	user.Username = req.Name
 	user.Email = req.Email
 	user.Phone = req.Phone
-	err = h.User.Update(&user)
+	err = h.User.Update(user)
 	if err != nil {
 		h.ErrorInternalServer(w, err.Error())
 		return
