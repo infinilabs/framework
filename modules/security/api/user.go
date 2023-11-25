@@ -68,7 +68,7 @@ func (h APIHandler) CreateUser(w http.ResponseWriter, r *http.Request, ps httpro
 }
 
 func (h APIHandler) userNameExists(w http.ResponseWriter, name string) bool {
-	u, err := h.User.GetBy("name", name)
+	u, err := h.User.GetBy("username", name)
 	if err != nil {
 		_ = log.Error(err.Error())
 		h.ErrorInternalServer(w, err.Error())

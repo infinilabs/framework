@@ -35,7 +35,6 @@ func (h APIHandler) Logout(w http.ResponseWriter, r *http.Request, ps httprouter
 	})
 }
 
-
 func (h APIHandler) UpdatePassword(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	reqUser, err := rbac.FromUserContext(r.Context())
 	if err != nil {
@@ -84,9 +83,9 @@ func (h APIHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 	var req struct {
-		Name  string `json:"name"`
-		Phone string `json:"phone"`
-		Email string `json:"email"`
+		Nickname string `json:"nickname"`
+		Phone    string `json:"phone"`
+		Email    string `json:"email"`
 	}
 	err = h.DecodeJSON(r, &req)
 	if err != nil {
@@ -98,8 +97,9 @@ func (h APIHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, ps htt
 		h.ErrorInternalServer(w, err.Error())
 		return
 	}
-	user.Username = req.Name
+	user.Nickname = req.Nickname
 	user.Email = req.Email
+	user.EmailVerified=false
 	user.Phone = req.Phone
 	err = h.User.Update(user)
 	if err != nil {

@@ -36,7 +36,7 @@ func (r *NativeRealm) Authenticate(username, password string) (bool, *rbac.User,
 	// Retrieve the user profile upon successful authentication
 	// Return the authentication result, user profile, and any potential error
 
-	user, err := handler.User.GetBy("name", username)
+	user, err := handler.User.GetBy("username", username)
 	if err != nil {
 		return false,user, err
 	}
