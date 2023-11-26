@@ -29,13 +29,6 @@ func (h APIHandler) Profile(w http.ResponseWriter, r *http.Request, ps httproute
 		h.WriteJSON(w, api.NotFoundResponse(reqUser.UserId), 404)
 		return
 	}
-
-	////handle tenant
-	////only for native realm provider
-	//if user.Tenant != nil {
-	//	u["tenant"] = user.Tenant
-	//}
-
 	user.Payload = nil
 	user.Password = ""
 	h.WriteOKJSON(w, api.FoundResponse(reqUser.UserId, user))

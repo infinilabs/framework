@@ -12,8 +12,8 @@ import (
 type User struct {
 	orm.ORMObjectBase
 
-	AuthProvider string `json:"auth_provider" protected:"true" elastic_mapping:"auth_provider: { type: keyword }"`
-	Username     string `json:"username" protected:"true" elastic_mapping:"name: { type: keyword }"`
+	AuthProvider string `json:"auth_provider,omitempty" protected:"true" elastic_mapping:"auth_provider: { type: keyword }"`
+	Username     string `json:"username,omitempty" protected:"true" elastic_mapping:"name: { type: keyword }"`
 	Password     string `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
 
 	Nickname string `json:"nickname,omitempty"  elastic_mapping:"nickname: { type: keyword }"`
@@ -27,7 +27,7 @@ type User struct {
 	AvatarUrl string `json:"avatar_url,omitempty" elastic_mapping:"avatar_url: { type: keyword }"`
 
 	Tenant *model.TenantInfo `json:"tenant,omitempty" protected:"true" elastic_mapping:"tenant: { type: object }"` //tenant info for multi-tenant platform user
-	Roles  []UserRole        `json:"roles" protected:"true" elastic_mapping:"roles: { type: object }"`
+	Roles  []UserRole        `json:"roles,omitempty" protected:"true" elastic_mapping:"roles: { type: object }"`
 
 	Payload interface{} `json:"payload,omitempty" elastic_mapping:"payload: { type: object }"` //used for storing additional data derived from auth provider
 }

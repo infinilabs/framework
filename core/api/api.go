@@ -126,6 +126,8 @@ func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request)) {
 	notfoundHandler = handler
 }
 
+var DefaultAPI =Handler{}
+
 // StartAPI will start listen and act as the API server
 func StartAPI() {
 

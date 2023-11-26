@@ -59,7 +59,7 @@ func (module *Module) Setup() {
 	authapi.Init()
 }
 
-func InitSchema() {
+func init() {
 	orm.RegisterSchemaWithIndexName(rbac.Role{}, "rbac-role")
 	orm.RegisterSchemaWithIndexName(rbac.User{}, "rbac-user")
 	orm.RegisterSchemaWithIndexName(credential.Credential{}, "credential")
@@ -69,8 +69,6 @@ func (module *Module) Start() error {
 	if !module.cfg.Enabled {
 		return nil
 	}
-
-	InitSchema()
 
 	realm.Init(module.cfg)
 
