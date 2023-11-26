@@ -165,6 +165,10 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 				}
 			}
 
+			if dbUser!=nil&&dbUser.Tenant!=nil{
+				u.Tenant=dbUser.Tenant
+			}
+
 			//generate access token
 			data, err := rbac.GenerateAccessToken(u)
 			if err != nil {
