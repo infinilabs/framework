@@ -71,7 +71,7 @@ func ( obj *ORMObjectBase) SetID( ID string){
 	obj.ID = ID
 }
 
-type ObjectBase interface {
+type Object interface {
 	GetID() string
 	SetID(ID string)
 }
