@@ -778,7 +778,7 @@ func (d *DiskBasedQueue) handleReadError() {
 	if util.FileExists(badFn) {
 
 		badRenameFn := badFn + ".bad"
-		log.Infof(
+		log.Warnf(
 			"diskqueue(%s) jump to next file and saving bad file as %s",
 			d.name, badRenameFn)
 
