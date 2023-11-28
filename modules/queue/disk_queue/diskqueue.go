@@ -59,14 +59,8 @@ type DiskBasedQueue struct {
 	name     string
 	dataPath string
 
-	//maxBytesPerFile     int64 // cannot change once created
-
 	maxBytesPerFileRead int64
 
-	//minMsgSize          int32
-	//maxMsgSize          int32
-	//syncEvery           int64         // number of writes per fsync
-	//syncTimeout         time.Duration // duration of time per fsync
 	exitFlag int32
 	needSync bool
 
@@ -80,7 +74,6 @@ type DiskBasedQueue struct {
 	nextReadFileNum    int64
 	reader             *bufio.Reader
 	readFile           *os.File
-	// exposed via ReadChan()
 	readChan chan []byte
 
 	// internal channels
@@ -94,10 +87,6 @@ type DiskBasedQueue struct {
 
 	consumersInReading sync.Map
 
-	//maxUsedBytes   uint64
-	//warningFreeBytes   uint64
-	//reservedFreeBytes   uint64
-
 	cfg *DiskQueueConfig
 }
 
@@ -107,9 +96,6 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 	d := DiskBasedQueue{
 		name:     name,
 		dataPath: dataPath,
-		//maxBytesPerFile:   maxBytesPerFile,
-		//minMsgSize:        minMsgSize,
-		//maxMsgSize:        maxMsgSize,
 		cfg:                cfg,
 		readChan:           make(chan []byte, cfg.ReadChanBuffer),
 		depthChan:          make(chan int64),
@@ -121,12 +107,6 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		exitSyncChan:       make(chan int, 10),
 		consumersInReading: sync.Map{},
 		metaLock: sync.RWMutex{},
-		//syncEvery:         syncEvery,
-		//syncTimeout:       syncTimeout,
-		//maxUsedBytes:		maxUsedBytes,
-		//warningFreeBytes:	warningFreeBytes,
-		//reservedFreeBytes:	reservedFreeBytes,
-
 	}
 
 	// no need to lock here, nothing else could possibly be touching this instance
@@ -147,9 +127,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 // Depth returns the depth of the queue
 func (d *DiskBasedQueue) ReadContext() Context {
 	ctx := Context{}
-	//ctx.Depth=d.depth
 	ctx.WriteFileNum = d.writeSegmentNum
-	//ctx.MaxLength=d.maxBytesPerFileRead
 	ctx.WriteFile = d.GetFileName(ctx.WriteFileNum)
 	return ctx
 }
@@ -175,7 +153,24 @@ func (d *DiskBasedQueue) ReadChan() <-chan []byte {
 // Put writes a []byte to the queue
 func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 	d.RLock()
-	defer d.RUnlock()
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error on put disk_queue,", v)
+			}
+		}
+		d.RUnlock()
+	}()
+
 	res:=WriteResponse{}
 	if d.exitFlag == 1 {
 		log.Errorf("queue [%v] exiting, data maybe lost", d.name)
@@ -284,7 +279,23 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 // by fast forwarding read positions and removing intermediate files
 func (d *DiskBasedQueue) Empty() error {
 	d.RLock()
-	defer d.RUnlock()
+	defer func() {
+		if !global.Env().IsDebug {
+			if r := recover(); r != nil {
+				var v string
+				switch r.(type) {
+				case error:
+					v = r.(error).Error()
+				case runtime.Error:
+					v = r.(runtime.Error).Error()
+				case string:
+					v = r.(string)
+				}
+				log.Error("error on empty disk_queue,", v)
+			}
+		}
+		d.RUnlock()
+	}()
 
 	if d.exitFlag == 1 {
 		return errors.New("exiting")
@@ -310,8 +321,6 @@ func (d *DiskBasedQueue) deleteAllFiles() error {
 
 // 删除中间的错误文件，跳转到最后一个可写文件
 func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
-	d.Lock()
-	defer d.Unlock()
 	var err error
 
 	if d.readFile != nil {
