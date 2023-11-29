@@ -64,7 +64,7 @@ func (method Method) String() string {
 // Handler is the object of http handler
 type Handler struct {
 	wroteHeader bool
-	formParsed bool
+	formParsed  bool
 }
 
 // WriteHeader write status code to http header
@@ -341,4 +341,8 @@ func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{}
 		"_id":     id,
 		"_source": obj,
 	}, 200)
+}
+
+func (handler Handler) Redirect(w http.ResponseWriter, r *http.Request, url string) {
+	http.Redirect(w, r, url, http.StatusSeeOther)
 }

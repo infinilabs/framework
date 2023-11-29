@@ -10,7 +10,9 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -100,21 +102,35 @@ func (h APIHandler) VerifyProfileEmail(w http.ResponseWriter, r *http.Request, p
 	if req.Email != "" && user.Email == req.Email {
 		//tobe updated
 		token := util.GetUUID() + util.GenerateRandomString(128)
-		req := util.MapStr{
+		cacheObject := util.MapStr{
 			"user_id": user.ID,
 			"token":   token,
 			"email":   req.Email,
 			"created": util.ToString(util.GetLowPrecisionCurrentTime().Unix()), //expire after 120s
 		}
 
-		err := kv.AddValue("email_verify_token", []byte(user.ID), util.MustToJSONBytes(req))
+		err := kv.AddValue("email_verify_token", []byte(user.ID), util.MustToJSONBytes(cacheObject))
 		if err != nil {
 			panic(err)
 		}
 
 		//send this to email queue
-		link := fmt.Sprintf("/link/_verify_account_email?user=%v&token=%v", user.ID, token)
-		log.Info(link) //TODO
+		link := fmt.Sprintf("%v/link/_verify_account_email?user=%v&token=%v",
+			global.Env().SystemConfig.WebAppConfig.Domain,
+			user.ID, token)
+		email := util.MapStr{
+			"template":  "verify_account_email_en_US",
+			"server_id": "infinilabs",
+			"email":     req.Email,
+			"variables": util.MapStr{
+				"name": user.Nickname,
+				"link": link,
+			},
+		}
+		err = queue.Push(queue.GetOrInitConfig("email_messages"), util.MustToJSONBytes(email))
+		if err != nil {
+			panic(err)
+		}
 
 		h.WriteAckOKJSON(w)
 		return
@@ -187,5 +203,5 @@ func (h APIHandler) ClickVerifyEmailLink(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	//TODO redirect to success page
+	api.DefaultAPI.Redirect(w,r,"/")
 }

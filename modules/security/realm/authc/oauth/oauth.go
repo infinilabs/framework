@@ -150,7 +150,7 @@ func (h APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p ht
 
 			if user.Email != nil && *user.Email != "" {
 				u.Email = *user.Email
-				u.EmailVerified = true
+				//u.EmailVerified = true
 			}
 
 			u.ID = fmt.Sprintf("%v_%v", ProviderGithub, *user.Login)

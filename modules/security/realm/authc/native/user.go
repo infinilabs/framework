@@ -21,6 +21,10 @@ func (dal *User) Get(id string) (*rbac.User, error) {
 	user.ID = id
 	ok, err := orm.Get(&user)
 	if ok && err == nil {
+		//nickname always has value
+		if user.Nickname==""&&user.Username!=""{
+			user.Nickname=user.Username
+		}
 		return &user, err
 	}
 	return nil, errors.Error("failed to get user:%v, %v", id, err)
