@@ -113,7 +113,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	for _, v := range processor.config.Templates {
 		if v.BodyFile != "" {
-			b, err := util.FileGetContent(v.BodyFile)
+			file,_:=filepath.Abs(v.BodyFile)
+			b, err := util.FileGetContent(file)
 			if err != nil {
 				panic(err)
 			}
@@ -157,7 +158,6 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 		//parse template
 
 		for _, message := range messages {
-			//msg := []byte("{\"template\":\"trial_license\",\"server_id\":\"infini_server\", \"variables\":{ \"email\":\"m@medcl.net\",\"name\":\"Medcl\",\"company\":\"INFINI Labs\",\"phone\":\"400-139-9200\"}}")
 			o := util.MapStr{}
 			err := util.FromJSONBytes(message.Data, &o)
 			if err != nil {
@@ -173,11 +173,11 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			var serverID string
 			var ok bool
 			if serverID, ok = o["server_id"].(string); !ok {
-				v,ok:=processor.config.Variables["server_id"]
-				if v!=nil{
-					serverID,ok=v.(string)
+				v, ok := processor.config.Variables["server_id"]
+				if v != nil {
+					serverID, ok = v.(string)
 				}
-				if !ok||serverID==""{
+				if !ok || serverID == "" {
 					panic(errors.Errorf("server_id is empty"))
 				}
 			}
@@ -187,11 +187,11 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 				panic(errors.Errorf("server_id [%v] not found", serverID))
 			}
 
-			sendTo:=[]string{}
-			to,ok := o["email"].(string)
-			if ok&&to!=""{
-				sendTo=append(sendTo,to)
-			}else {
+			sendTo := []string{}
+			to, ok := o["email"].(string)
+			if ok && to != "" {
+				sendTo = append(sendTo, to)
+			} else {
 				to1, ok := o["email"].([]interface{})
 				if ok {
 					for _, v := range to1 {
@@ -207,12 +207,12 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 				}
 			}
 
-			if len(srvCfg.Recipients.To)>0{
-				sendTo=append(sendTo,srvCfg.Recipients.To...)
+			if len(srvCfg.Recipients.To) > 0 {
+				sendTo = append(sendTo, srvCfg.Recipients.To...)
 			}
 
-			if global.Env().IsDebug{
-				log.Tracef("send to: %v",sendTo)
+			if global.Env().IsDebug {
+				log.Tracef("send to: %v", sendTo)
 			}
 
 			tpName := o["template"].(string)
@@ -222,7 +222,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 			subj := tmplate.Subject
 			ctype := tmplate.ContentType
-			if contentType, ok := vars["content_type"].(string); ok && contentType != ""{
+			if contentType, ok := vars["content_type"].(string); ok && contentType != "" {
 				ctype = contentType
 			}
 			cc := srvCfg.Recipients.CC
@@ -299,7 +299,7 @@ func AddCC(msg *gomail.Message, ccs []map[string]string) {
 
 func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
 
-	if len(to)==0{
+	if len(to) == 0 {
 		return errors.New("no recipient found")
 	}
 
