@@ -10,8 +10,10 @@ import (
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/rbac"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
@@ -100,6 +102,12 @@ func (h APIHandler) VerifyProfileEmail(w http.ResponseWriter, r *http.Request, p
 	}
 
 	if req.Email != "" && user.Email == req.Email {
+
+		err:=chekIfOtherUserAlreadyHoldThisEmail(user.Username,user.Email)
+		if err!=nil{
+			panic(err)
+		}
+
 		//tobe updated
 		token := util.GetUUID() + util.GenerateRandomString(128)
 		cacheObject := util.MapStr{
@@ -109,7 +117,7 @@ func (h APIHandler) VerifyProfileEmail(w http.ResponseWriter, r *http.Request, p
 			"created": util.ToString(util.GetLowPrecisionCurrentTime().Unix()), //expire after 120s
 		}
 
-		err := kv.AddValue("email_verify_token", []byte(user.ID), util.MustToJSONBytes(cacheObject))
+		err = kv.AddValue("email_verify_token", []byte(user.ID), util.MustToJSONBytes(cacheObject))
 		if err != nil {
 			panic(err)
 		}
@@ -174,10 +182,17 @@ func (h APIHandler) ClickVerifyEmailLink(w http.ResponseWriter, r *http.Request,
 											if err != nil {
 												panic(err)
 											}
+
 											if old.Email == email {
+
+												err:=chekIfOtherUserAlreadyHoldThisEmail(old.Username,old.Email)
+												if err!=nil{
+													panic(err)
+												}
+
 												old.ID = user
 												old.EmailVerified = true
-												err := h.User.Update(old)
+												err = h.User.Update(old)
 												if err != nil {
 													panic(err)
 												}
@@ -203,5 +218,22 @@ func (h APIHandler) ClickVerifyEmailLink(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	api.DefaultAPI.Redirect(w,r,"/")
+	api.DefaultAPI.Redirect(w, r, "/")
+}
+
+func chekIfOtherUserAlreadyHoldThisEmail(username, email string) error{
+	//if no others with this email already verified
+	u := rbac.User{}
+	cond:=orm.And(orm.Eq("email_verified", true),
+		orm.Eq("email", email), orm.NotEq("username", username))
+	q:=orm.Query{}
+	q.Conds=cond
+	err,v:=orm.Search(u, &q)
+	if err!=nil{
+		return err
+	}
+	if v.Total>0{
+		return errors.Error("this email address has been used by someone")
+	}
+	return nil
 }
