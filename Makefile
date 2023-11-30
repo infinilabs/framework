@@ -49,10 +49,15 @@ OUTPUT_DIR := $(CURDIR)/bin
 INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh/
 FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)/framework/
 FRAMEWORK_REPO := ssh://git@git.infini.ltd:64221/infini/framework.git
-FRAMEWORK_BRANCH := master
+ifeq "$(FRAMEWORK_BRANCH)" ""
+	FRAMEWORK_BRANCH := master
+endif
+
 FRAMEWORK_VENDOR_FOLDER := $(FRAMEWORK_FOLDER)/../vendor/
 FRAMEWORK_VENDOR_REPO :=  ssh://git@git.infini.ltd:64221/infini/framework-vendor.git
-FRAMEWORK_VENDOR_BRANCH := master
+ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
+	FRAMEWORK_VENDOR_BRANCH := master
+endif
 
 ifneq "$(DEV)" ""
    FRAMEWORK_DEVEL_BUILD := -tags dev
