@@ -50,17 +50,17 @@ INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh/
 FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)/framework/
 FRAMEWORK_REPO := ssh://git@git.infini.ltd:64221/infini/framework.git
 ifeq "$(FRAMEWORK_BRANCH)" ""
-	FRAMEWORK_BRANCH := master
+  FRAMEWORK_BRANCH := master
 endif
 
 FRAMEWORK_VENDOR_FOLDER := $(FRAMEWORK_FOLDER)/../vendor/
 FRAMEWORK_VENDOR_REPO :=  ssh://git@git.infini.ltd:64221/infini/framework-vendor.git
 ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
-	FRAMEWORK_VENDOR_BRANCH := master
+  FRAMEWORK_VENDOR_BRANCH := master
 endif
 
 ifneq "$(DEV)" ""
-   FRAMEWORK_DEVEL_BUILD := -tags dev
+  FRAMEWORK_DEVEL_BUILD := -tags dev
 endif
 
 NEWGOPATH:= $(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
@@ -78,7 +78,7 @@ PKGS=$(go list ./... | grep -v /vendor/)
 
 FRAMEWORK_OFFLINE_BUILD := ""
 ifneq "$(OFFLINE_BUILD)" ""
-   FRAMEWORK_OFFLINE_BUILD := $(OFFLINE_BUILD)
+  FRAMEWORK_OFFLINE_BUILD := $(OFFLINE_BUILD)
 endif
 
 
@@ -198,7 +198,7 @@ clean: clean_data
 	mkdir $(OUTPUT_DIR)
 
 init:
-	@echo building $(APP_NAME) $(APP_VERSION)
+	@echo building $(APP_NAME) $(APP_VERSION) $(FRAMEWORK_BRANCH)
 	@echo $(CURDIR)
 	@mkdir -p $(INFINI_BASE_FOLDER)
 	@echo "framework path: " $(FRAMEWORK_FOLDER)
