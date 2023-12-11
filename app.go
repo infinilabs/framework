@@ -89,6 +89,11 @@ func (app *App) IgnoreMainConfigMissing() {
 }
 
 func (app *App) Init(customFunc func()) {
+
+	if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
+		fmt.Println(app.environment.GetWelcomeMessage())
+	}
+
 	app.initWithFlags()
 	app.initEnvironment(customFunc)
 
@@ -277,10 +282,6 @@ func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bo
 	//limit cpu
 	if app.environment.SystemConfig.ResourceLimit != nil && app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList != "" {
 		taskset.SetCPUAffinityList(os.Getpid(), app.environment.SystemConfig.ResourceLimit.CPU.CPUAffinityList)
-	}
-
-	if _, ok := os.LookupEnv(env_SILENT_GREETINGS); !ok {
-		fmt.Println(app.environment.GetWelcomeMessage())
 	}
 
 	log.Infof("initializing %s, pid: %v", app.environment.GetAppName(), os.Getpid())
