@@ -65,7 +65,7 @@ func ZSTDCompressBound(srcSize int) int {
 
 // Create a sync.Pool which returns wrapped *zstd.Decoder's.
 var decoderPool = NewDecoderPoolWrapper(zstd.WithDecoderConcurrency(1))
-var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedFastest))
+var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 
 // ZSTDDecompress decompresses a block using ZSTD algorithm.
 func ZSTDReusedDecompress(uncompressedDataWriter io.Writer, compressedDataReader io.Reader) (error) {

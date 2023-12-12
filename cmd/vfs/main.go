@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/util/zstd"
 	"io/ioutil"
 	"log"
 	"os"
@@ -126,14 +126,14 @@ func main() {
 		for b := path.Dir(fname); b != "/"; b = path.Dir(b) {
 			dirs[b] = true
 		}
-		var buf bytes.Buffer
-		gw := gzip.NewWriter(&buf)
-		if _, err := gw.Write(f.data); err != nil {
-			log.Fatal(err)
+
+		var buf= &bytes.Buffer{}
+		reader:=bytes.NewBuffer(f.data)
+		err=zstd.ZSTDReusedCompress(buf,reader)
+		if err!=nil{
+			panic(err)
 		}
-		if err := gw.Close(); err != nil {
-			log.Fatal(err)
-		}
+
 		t := f.fileinfo.ModTime().Unix()
 		if modTime != nil {
 			t = *modTime
@@ -144,7 +144,7 @@ func main() {
 		FileSize:   %v,
 		ModifyTime: %v,
 		Compressed: %s,
-	},%s`, fname, f.local, len(f.data), t, segment(&buf), "\n")
+	},%s`, fname, f.local, len(f.data), t, segment(buf), "\n")
 	}
 	for d := range dirs {
 		dirnames = append(dirnames, d)
@@ -207,13 +207,12 @@ const (
 
 import (
 	"bytes"
-	"compress/gzip"
+    "infini.sh/framework/core/util/zstd"
 	"encoding/base64"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/vfs"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -244,14 +243,14 @@ func (vfs StaticFS) prepare(name string) (*vfs.VFile, error) {
 		if f.FileSize == 0 {
 			return
 		}
-		var gr *gzip.Reader
+        var buf= &bytes.Buffer{}
 		b64 := base64.NewDecoder(base64.StdEncoding, bytes.NewBufferString(f.Compressed))
-		gr, err = gzip.NewReader(b64)
+       	err=zstd.ZSTDReusedDecompress(buf,b64)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		f.Data, err = ioutil.ReadAll(gr)
+		f.Data= buf.Bytes()
 	})
 	if err != nil {
 		log.Error(err)
