@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
-	p "infini.sh/framework/core/plugin"
 	"infini.sh/framework/core/util"
 	"strings"
 )
@@ -213,26 +212,6 @@ func (p processorPlugin) Plugin() ProcessorConstructor { return p.c }
 
 func (p filterPlugin) Plugin() FilterConstructor { return p.c }
 
-var pluginKey = "basic.processor"
-
-func ProcessorPlugin(name string, c ProcessorConstructor) map[string][]interface{} {
-	return p.MakePlugin(pluginKey, processorPlugin{name, c})
-}
-
-func FilterPlugin(name string, c FilterConstructor) map[string][]interface{} {
-	return p.MakePlugin(pluginKey, filterPlugin{name, c})
-}
-
-//func init() {
-//	p.MustRegisterLoader(pluginKey, func(ifc interface{}) error {
-//		p, ok := ifc.(processorPlugin)
-//		if !ok {
-//			return errors.New("plugin does not match processor plugin type")
-//		}
-//
-//		return registry.RegisterProcessor(p.name, p.constr)
-//	})
-//}
 
 type FilterConstructor func(config *config.Config) (Filter, error)
 
