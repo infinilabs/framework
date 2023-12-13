@@ -35,9 +35,6 @@ func init() {
 }
 
 func Initialize() error {
-
-	log.Error("Initialize plugins")
-
 	for _, path := range plugins.paths {
 		log.Infof("loading plugin: %v", path)
 		if err := LoadPlugins(path); err != nil {
