@@ -11,6 +11,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/wrapper/taskset"
+	"infini.sh/framework/modules/configs/client"
 	"os"
 	"os/signal"
 	"runtime"
@@ -399,6 +400,19 @@ func (p *App) Start(s service.Service) error {
 	if !p.environment.SystemConfig.SkipInstanceDetect {
 		//check instance lock
 		util.CheckInstanceLock(p.environment.GetDataDir())
+	}
+
+	//configs
+	if global.Env().SystemConfig.Configs.Managed{
+		err:= client.ConnectToManager()
+		if err!=nil{
+			log.Warn(err)
+		}
+
+		err= client.ListenConfigChanges()
+		if err!=nil{
+			log.Warn(err)
+		}
 	}
 
 	p.quitSignal = make(chan bool)
