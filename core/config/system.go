@@ -159,10 +159,10 @@ type HTTPClientConfig struct {
 
 	ReadTimeout           string `config:"read_timeout"`
 	WriteTimeout          string `config:"write_timeout"`
-	ReadBufferSize        int           `config:"read_buffer_size"`
-	WriteBufferSize       int           `config:"write_buffer_size"`
-	TLSInsecureSkipVerify bool          `config:"tls_insecure_skip_verify"`
-	MaxConnectionPerHost       int `config:"max_connection_per_host"`
+	ReadBufferSize        int    `config:"read_buffer_size"`
+	WriteBufferSize       int    `config:"write_buffer_size"`
+	TLSInsecureSkipVerify bool   `config:"tls_insecure_skip_verify"`
+	MaxConnectionPerHost  int    `config:"max_connection_per_host"`
 }
 
 type HTTPClientConfigs struct {
@@ -207,22 +207,22 @@ type APISecurityConfig struct {
 type WebAppConfig struct {
 
 	//same with API Config
-	Enabled       bool          `config:"enabled"`
-	TLSConfig     TLSConfig     `config:"tls"`
-	NetworkConfig NetworkConfig `config:"network"`
-	Security APISecurityConfig `config:"security"`
-	CrossDomain struct {
+	Enabled       bool              `config:"enabled"`
+	TLSConfig     TLSConfig         `config:"tls"`
+	NetworkConfig NetworkConfig     `config:"network"`
+	Security      APISecurityConfig `config:"security"`
+	CrossDomain   struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
 
-	AuthConfig      AuthConfig      `config:"auth"` //enable access control for UI or not
-	UI              UIConfig        `config:"ui"`
-	BasePath        string          `config:"base_path"`
-	Domain          string          `config:"domain"`
-	EmbeddingAPI    bool            `config:"embedding_api"`
-	Gzip            GzipConfig      `config:"gzip"`
+	AuthConfig   AuthConfig `config:"auth"` //enable access control for UI or not
+	UI           UIConfig   `config:"ui"`
+	BasePath     string     `config:"base_path"`
+	Domain       string     `config:"domain"`
+	EmbeddingAPI bool       `config:"embedding_api"`
+	Gzip         GzipConfig `config:"gzip"`
 }
 
 func (config *WebAppConfig) GetEndpoint() string {
@@ -253,6 +253,10 @@ type APIConfig struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
 	WebsocketConfig WebsocketConfig `config:"websocket"`
+
+	VerboseErrorRootCause bool   `config:"verbose_error_root_cause"` //return root_cause in api response
+	APIDirectoryPath      string `config:"api_directory_path"`
+	DisableAPIDirectory   bool   `config:"disable_api_directory"`
 }
 
 func (config *APIConfig) GetEndpoint() string {
