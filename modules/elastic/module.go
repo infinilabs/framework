@@ -24,7 +24,6 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/api"
 	"infini.sh/framework/modules/elastic/common"
 )
 
@@ -189,8 +188,6 @@ func (module *ElasticModule) Setup() {
 
 	m := loadFileBasedElasticConfig()
 	initElasticInstances(m, elastic.ElasticsearchConfigSourceFile)
-
-	api.InitAPI(moduleConfig)
 }
 
 func (module *ElasticModule) Stop() error {

@@ -32,11 +32,13 @@ func (module *APIModule) Name() string {
 	return "api"
 }
 
-const whoisAPI = "/_whoami"
-const versionAPI = "/_version"
-const infoAPI = "/_info"
-const authAPI = "/setting/auth" //TODO, merge with /_settings
-const healthAPI = "/health"
+func init() {
+	api.HandleAPIMethod(api.GET, "/", defaultHandler)
+	api.HandleAPIMethod(api.GET, "/_whoami", whoisAPIHandler)
+	api.HandleAPIMethod(api.GET, "/_version", versionAPIHandler)
+	api.HandleAPIMethod(api.GET, "/_info", infoAPIHandler)
+	api.HandleAPIMethod(api.GET, "/health", healthAPIHandler)
+}
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	w.Write([]byte(global.Env().SystemConfig.APIConfig.NetworkConfig.GetPublishAddr()))
@@ -87,72 +89,48 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	w.WriteHeader(200)
 }
 
-func authAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	obj := util.MapStr{
-		"enabled": api.IsAuthEnable(),
+func defaultHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	w.Write([]byte(global.Env().GetAppCapitalName()))
+	w.Write([]byte(", "))
+	w.Write([]byte(global.Env().GetVersion()))
+	w.Write([]byte(", "))
+	w.Write([]byte(global.Env().GetBuildNumber()))
+	w.Write([]byte(", "))
+	w.Write([]byte(util.FormatTime(global.Env().GetBuildDate())))
+	w.Write([]byte(", "))
+	w.Write([]byte(util.FormatTime(global.Env().GetEOLDate())))
+	w.Write([]byte(", "))
+	w.Write([]byte(global.Env().GetLastCommitHash()))
+	w.Write([]byte("\n\n"))
+
+	w.Write([]byte("API Directory:\n"))
+
+	apis := util.GetMapKeys(api.APIs)
+	sort.Strings(apis)
+
+	for _, k := range apis {
+		v, ok := api.APIs[k]
+		if ok {
+			w.Write([]byte(v.Key))
+			w.Write([]byte("\t"))
+			w.Write([]byte(v.Value))
+			w.Write([]byte("\n"))
+		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(util.MustToJSONBytes(obj))
 	w.WriteHeader(200)
 }
 
-func init() {
-	api.HandleAPIMethod(api.GET, versionAPI, versionAPIHandler)
-	api.HandleAPIMethod(api.GET, infoAPI, infoAPIHandler)
-	api.HandleAPIMethod(api.GET, authAPI, authAPIHandler)
-	api.HandleAPIMethod(api.GET, healthAPI, healthAPIHandler)
-}
-
-// Start api server
-func (module *APIModule) Setup() {
-	api.HandleAPIMethod(api.GET, "/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		w.Write([]byte(global.Env().GetAppCapitalName()))
-		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetVersion()))
-		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetBuildNumber()))
-		w.Write([]byte(", "))
-		w.Write([]byte(util.FormatTime(global.Env().GetBuildDate())))
-		w.Write([]byte(", "))
-		w.Write([]byte(util.FormatTime(global.Env().GetEOLDate())))
-		w.Write([]byte(", "))
-		w.Write([]byte(global.Env().GetLastCommitHash()))
-		w.Write([]byte("\n\n"))
-
-		w.Write([]byte("API Directory:\n"))
-
-		apis := util.GetMapKeys(api.APIs)
-		sort.Strings(apis)
-
-		for _, k := range apis {
-			v, ok := api.APIs[k]
-			if ok {
-				w.Write([]byte(v.Key))
-				w.Write([]byte("\t"))
-				w.Write([]byte(v.Value))
-				w.Write([]byte("\n"))
-			}
-		}
-
-		w.WriteHeader(200)
-	})
-	api.HandleAPIMethod(api.GET, whoisAPI, whoisAPIHandler)
-}
+func (module *APIModule) Setup() {}
 
 func (module *APIModule) Start() error {
-
-	//API server
 	api.StartAPI()
-
 	return nil
 }
 
-// Stop api server
 func (module *APIModule) Stop() error {
 	return nil
 }
 
-// APIModule is used to start API server
 type APIModule struct {
 	api.Handler
 }

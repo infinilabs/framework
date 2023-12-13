@@ -1,3 +1,7 @@
+/* Copyright © INFINI LTD. All rights reserved.
+ * Web: https://infinilabs.com
+ * Email: hello#infini.ltd */
+
 package api
 
 import (
@@ -47,6 +51,16 @@ func RegisterAPIFilter(f filter.Filter) {
 
 var APIs = map[string]util.KV{}
 
+var authEnabled = false
+
+func EnableAuth(enable bool) {
+	authEnabled = enable
+}
+
+func IsAuthEnable() bool {
+	return authEnabled //TODO moved to global registered variable
+}
+
 // HandleAPIFunc register api handler to specify pattern
 func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
 	l.Lock()
@@ -57,11 +71,11 @@ func HandleAPIFunc(pattern string, handler func(http.ResponseWriter, *http.Reque
 	l.Unlock()
 }
 
-func initializeAPI()  {
+func initializeAPI() {
 	l.Lock()
 	defer l.Unlock()
 
-	for pattern,handler:=range registeredAPIFuncHandler{
+	for pattern, handler := range registeredAPIFuncHandler {
 		for _, f := range filters {
 			handler = f.FilterHttpHandlerFunc(pattern, handler)
 		}
@@ -72,8 +86,8 @@ func initializeAPI()  {
 		mux.HandleFunc(pattern, handler)
 	}
 
-	for m,handlers:=range registeredAPIMethodHandler{
-		for pattern,handler:=range handlers{
+	for m, handlers := range registeredAPIMethodHandler {
+		for pattern, handler := range handlers {
 			//Apply handler filters
 			for _, f := range filters {
 				handler = f.FilterHttpRouter(pattern, handler)
@@ -126,7 +140,7 @@ func SetNotFoundHandler(handler func(rw http.ResponseWriter, r *http.Request)) {
 	notfoundHandler = handler
 }
 
-var DefaultAPI =Handler{}
+var DefaultAPI = Handler{}
 
 // StartAPI will start listen and act as the API server
 func StartAPI() {
@@ -157,7 +171,7 @@ func StartAPI() {
 	})
 
 	//init api handlers
-	if apiConfig.Security.Enabled{
+	if apiConfig.Security.Enabled {
 		apiBasicAuthFilter := BasicAuthFilter{
 			Username: apiConfig.Security.Username,
 			Password: apiConfig.Security.Password,
