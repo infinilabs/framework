@@ -33,7 +33,6 @@ func (module *APIModule) Name() string {
 }
 
 func init() {
-	api.HandleAPIMethod(api.GET, "/", defaultHandler)
 	api.HandleAPIMethod(api.GET, "/_whoami", whoisAPIHandler)
 	api.HandleAPIMethod(api.GET, "/_version", versionAPIHandler)
 	api.HandleAPIMethod(api.GET, "/_info", infoAPIHandler)
@@ -120,7 +119,16 @@ func defaultHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	w.WriteHeader(200)
 }
 
-func (module *APIModule) Setup() {}
+func (module *APIModule) Setup() {
+	//should not enable when UI module is enabled
+	if !global.Env().SystemConfig.APIConfig.DisableAPIDirectory {
+		p1 := global.Env().SystemConfig.APIConfig.APIDirectoryPath
+		if p1 == "" {
+			p1 = "/"
+		}
+		api.HandleAPIMethod(api.GET, p1, defaultHandler)
+	}
+}
 
 func (module *APIModule) Start() error {
 	api.StartAPI()
