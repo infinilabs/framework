@@ -66,12 +66,17 @@ func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				v = r.(string)
 			}
 
+			errObj:=util.MapStr{
+				"status":http.StatusInternalServerError,
+				"reason":v,
+			}
+
+			if global.Env().SystemConfig.APIConfig.VerboseErrorRootCause{
+				errObj["root_cause"]=string(debug.Stack())
+			}
+
 			var payload = util.MapStr{
-				"error": util.MapStr{
-					"status":http.StatusInternalServerError,
-					"reason":v,
-					"root_cause":string(debug.Stack()),
-				},
+				"error": errObj,
 			}
 			payloadBytes, jerr := json.Marshal(payload)
 			if jerr != nil {
