@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"path"
+	"path/filepath"
 	"testing"
 )
 
@@ -52,6 +53,12 @@ func TestIsFileWithinFolder(t *testing.T) {
 
 	file = "../../../danger/xxx.exe"
 	folder = "/blog/"
-	assert.Equal(t, true, IsFileWithinFolder(path.Join(folder,file), folder))
+
+	v1:=path.Join(folder,file)
+	v2:=folder
+	fmt.Println(filepath.Abs(v1))
+	fmt.Println(filepath.Abs(v2))
+
+	assert.Equal(t, false, IsFileWithinFolder(v1, folder))
 
 }

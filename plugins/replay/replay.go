@@ -3,6 +3,7 @@ package replay
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"path"
 	"runtime"
 	"strings"
@@ -236,6 +237,10 @@ func ReplayLines(ctx *pipeline.Context, lines []string, schema, host, username, 
 }
 
 func execute(req *fasthttp.Request, res *fasthttp.Response, buffer *bytebufferpool.ByteBuffer) error {
+	defer func() {
+		req.Reset()
+		res.Reset()
+	}()
 	if buffer.Len() > 0 {
 		if util.ContainStr(string(req.Header.RequestURI()), "_bulk") {
 			buffer.WriteString(newline)
@@ -253,13 +258,14 @@ func execute(req *fasthttp.Request, res *fasthttp.Response, buffer *bytebufferpo
 			log.Debug("request:", string(req.String()))
 			log.Debug("response:", string(res.String()))
 		}
+		method := strings.ToUpper(string(req.Header.Method()))
+		if res.StatusCode() != 404 || method != http.MethodDelete {
+			return fmt.Errorf("%s %s \n%s", method, string(req.Header.RequestURI()), string(res.GetRawBody()))
+		}
 	}
 
 	if global.Env().IsDebug {
 		log.Trace(string(res.GetRawBody()))
 	}
-
-	req.Reset()
-	res.Reset()
 	return nil
 }

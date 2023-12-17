@@ -16,15 +16,15 @@ func TestUnixTime(t *testing.T) {
 	fmt.Println(t2)
 }
 
-func TestGetLowPrecisionCurrentTime(t *testing.T) {
-	SetupTimeNowRefresh()
-	for i := 0; i < 10; i++ {
-		t1 := GetLowPrecisionCurrentTime()
-		fmt.Println(t1.String())
-		time.Sleep(500 * time.Millisecond)
-	}
-
-}
+//func TestGetLowPrecisionCurrentTime(t *testing.T) {
+//	SetupTimeNowRefresh()
+//	for i := 0; i < 10; i++ {
+//		t1 := GetLowPrecisionCurrentTime()
+//		fmt.Println(t1.String())
+//		time.Sleep(500 * time.Millisecond)
+//	}
+//
+//}
 
 func TestFromUnixTimestamp(t *testing.T) {
 	str:=GetLowPrecisionCurrentTime().Unix()

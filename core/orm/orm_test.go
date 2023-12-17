@@ -15,10 +15,12 @@ func TestGetFieldStringValue(t *testing.T) {
 
 	t1 := reflect.TypeOf(obj)
 	fmt.Println(t1.Kind() == reflect.Ptr)
+	assert.Equal(t,t1.Kind(),reflect.Ptr)
 
 	v := reflect.ValueOf(obj).Elem()
 	exists, value := getFieldStringValue(v, "ID")
 	fmt.Println(exists, value)
+	assert.Equal(t,value,"myid")
 
 }
 
@@ -29,21 +31,39 @@ type Obj1 struct {
 
 func TestCheckCreated(t *testing.T) {
 
-
-	t1:=time.Now()
+	t1 := time.Now()
 	obj := &Obj1{}
-	obj.Updated=&t1
+	obj.Updated = &t1
 
 	rValue := reflect.ValueOf(obj)
-	ok:=existsNonNullField(rValue,"Updated")
-	assert.Equal(t,true,ok)
+	ok := existsNonNullField(rValue, "Updated")
+	assert.Equal(t, true, ok)
 
-	ok=existsNonNullField(rValue,"Created")
-	assert.Equal(t,false,ok)
+	ok = existsNonNullField(rValue, "Created")
+	assert.Equal(t, false, ok)
 
-	ok=existsNonNullField(rValue,"T")
-	assert.Equal(t,true,ok)
+	ok = existsNonNullField(rValue, "T")
+	assert.Equal(t, true, ok)
+}
+type A struct {
+	ORMObjectBase
+	MyID string
+}
 
+func TestGetNestedFieldStringValue(t *testing.T) {
+
+	obj := &A{}
+	obj.ID= "myid"
+
+	t1 := reflect.TypeOf(obj)
+	fmt.Println(t1.Kind() == reflect.Ptr)
+
+	assert.Equal(t,t1.Kind(),reflect.Ptr)
+
+	v := reflect.ValueOf(obj).Elem()
+	exists, value := getFieldStringValue(v, "ID")
+	fmt.Println(exists, value)
+	assert.Equal(t,value,"myid")
 }
 
 

@@ -21,6 +21,12 @@ type Credential struct {
 		Params map[string]interface{} `json:"params"`
 	} `json:"encrypt" elastic_mapping:"encrypt:{type:object,enabled:false}"`
 	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
+	secret []byte
+	Invalid bool `json:"invalid" elastic_mapping:"invalid:{type:boolean}"`
+}
+
+func (cred *Credential) SetSecret(secret []byte) {
+	cred.secret = secret
 }
 
 func (cred *Credential) Validate() error {

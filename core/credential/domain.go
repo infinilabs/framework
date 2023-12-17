@@ -116,9 +116,12 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 		err = fmt.Errorf("credential encrypt parameters salt can not be empty")
 		return
 	}
-	secret, err := GetOrInitSecret()
-	if err != nil {
-		return basicAuth, err
+	var secret = cred.secret
+	if secret == nil {
+		secret, err = GetOrInitSecret()
+		if err != nil {
+			return basicAuth, err
+		}
 	}
 
 	plaintext, err := util.AesGcmDecrypt([]byte(pwd), secret, []byte(salt))

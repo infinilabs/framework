@@ -97,7 +97,7 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 			if field.Type.Kind() == reflect.Struct {
 				v1 := reflect.New(field.Type)
 				a.Annotation = GetTagsByTagName(v1.Interface(), tagName)
-				if field.Anonymous && len(a.Annotation) > 0{
+				if field.Anonymous && len(a.Annotation) > 0 {
 					result = append(result, a.Annotation...)
 					continue
 				}
@@ -113,9 +113,8 @@ func GetTagsByTagName(any interface{}, tagName string) []Annotation {
 	return result
 }
 
-// GetFieldValueByTagName return the field value which field was tagged with this tagName, only support string field
+// GetFieldValueByTagName returns the field value which field was tagged with the specified tagName, only supporting string fields.
 func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) string {
-
 	t := reflect.TypeOf(any)
 	v := reflect.ValueOf(any)
 
@@ -128,36 +127,47 @@ func GetFieldValueByTagName(any interface{}, tagName string, tagValue string) st
 		t = reflect.TypeOf(any).Elem()
 	}
 
-	for i := 0; i < v.NumField(); i++ {
-		switch v.Field(i).Kind() {
-		case reflect.Struct:
-			//判断是否是嵌套结构
-			if v.Field(i).Type().Kind() == reflect.Struct {
-				structField := v.Field(i).Type()
-				for j := 0; j < structField.NumField(); j++ {
-					v := structField.Field(j).Tag.Get(tagName)
-					if v != "" {
-						if ContainTags(tagValue, v) {
-							return reflect.Indirect(reflect.ValueOf(any)).FieldByName(structField.Field(i).Name).String()
-						}
-					}
+	value, err := getFieldByTagName(v, tagName, tagValue)
+	if err != nil {
+		panic(fmt.Errorf("tag [%v][%v] was not found: %v", tagName, tagValue, err))
+	}
+	return value
+}
+
+// getFieldByTagName is a recursive helper function for GetFieldValueByTagName.
+func getFieldByTagName(value reflect.Value, tagName string, tagValue string) (string, error) {
+	switch value.Kind() {
+	case reflect.Struct:
+		for i := 0; i < value.NumField(); i++ {
+			field := value.Field(i)
+			fieldType := value.Type().Field(i)
+
+			switch field.Kind() {
+			case reflect.Struct:
+				// Recursively search nested structures
+				if fieldValue, err := getFieldByTagName(field, tagName, tagValue); err == nil {
+					return fieldValue, nil
 				}
-				continue
-			}
-			break
-		default:
-			v := t.Field(i).Tag.Get(tagName)
-			if v != "" {
-				if ContainTags(tagValue, v) {
-					return reflect.Indirect(reflect.ValueOf(any)).FieldByName(t.Field(i).Name).String()
+			default:
+				tag := fieldType.Tag.Get(tagName)
+				if tag != "" && containTags(tagValue, tag) {
+					return field.String(), nil
 				}
 			}
-			break
 		}
 	}
+	return "", fmt.Errorf("tag not found")
+}
 
-	//TODO handle property in parent/inner objects
-	panic(fmt.Errorf("tag [%v][%v] was not found", tagName, tagValue))
+// containTags checks if tagValue is present in the comma-separated tags string.
+func containTags(tagValue string, tags string) bool {
+	tagList := strings.Split(tags, ",")
+	for _, tag := range tagList {
+		if strings.TrimSpace(tag) == tagValue {
+			return true
+		}
+	}
+	return false
 }
 
 func GetTypeName(any interface{}, lowercase bool) string {
@@ -213,7 +223,7 @@ func GetInt64Value(any interface{}) int64 {
 		v := any.(uint64)
 		var y = int64(v)
 		return y
-	}else if vt.String() == "uint32" {
+	} else if vt.String() == "uint32" {
 		v := any.(uint32)
 		var y = int64(v)
 		return y
@@ -242,9 +252,9 @@ func ContainTags(tag string, tags string) bool {
 }
 
 //return field and tags, field name is using key: NAME
-func GetFieldAndTags(any interface{},tags[]string) []map[string]string{
+func GetFieldAndTags(any interface{}, tags []string) []map[string]string {
 
-	fields:=[]map[string]string{}
+	fields := []map[string]string{}
 
 	t := reflect.TypeOf(any)
 	v := reflect.ValueOf(any)
@@ -260,14 +270,14 @@ func GetFieldAndTags(any interface{},tags[]string) []map[string]string{
 
 	for i := 0; i < v.NumField(); i++ {
 
-		field:=map[string]string{}
-		field["NAME"]=t.Field(i).Name
-		field["TYPE"]=t.Field(i).Type.Name()
-		field["KIND"]=v.Field(i).Kind().String()
+		field := map[string]string{}
+		field["NAME"] = t.Field(i).Name
+		field["TYPE"] = t.Field(i).Type.Name()
+		field["KIND"] = v.Field(i).Kind().String()
 
-		if v.Field(i).Kind()==reflect.Slice{
-			field["TYPE"]="array"
-			field["SUB_TYPE"]=v.Field(i).Type().Elem().String()
+		if v.Field(i).Kind() == reflect.Slice {
+			field["TYPE"] = "array"
+			field["SUB_TYPE"] = v.Field(i).Type().Elem().String()
 		}
 
 		switch v.Field(i).Kind() {
@@ -276,10 +286,10 @@ func GetFieldAndTags(any interface{},tags[]string) []map[string]string{
 			if v.Field(i).Type().Kind() == reflect.Struct {
 				structField := v.Field(i).Type()
 				for j := 0; j < structField.NumField(); j++ {
-					for _,tagName:=range tags{
+					for _, tagName := range tags {
 						v := structField.Field(j).Tag.Get(tagName)
-						if v!=""{
-							field[tagName]=v
+						if v != "" {
+							field[tagName] = v
 						}
 					}
 				}
@@ -287,15 +297,15 @@ func GetFieldAndTags(any interface{},tags[]string) []map[string]string{
 			}
 			break
 		default:
-			for _,tagName:=range tags{
+			for _, tagName := range tags {
 				v := t.Field(i).Tag.Get(tagName)
-				if v!=""{
-					field[tagName]=v
+				if v != "" {
+					field[tagName] = v
 				}
 			}
 			break
 		}
-		fields=append(fields,field)
+		fields = append(fields, field)
 	}
 
 	return fields
