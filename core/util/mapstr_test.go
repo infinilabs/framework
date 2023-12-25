@@ -217,8 +217,8 @@ func TestHasKey(t *testing.T) {
 	assert.Equal(true, hasKey)
 
 	hasKey, err = m.HasKey("c.1.c2")
-	assert.Nil(err)
-	assert.Equal(true, hasKey)
+	assert.NotNil(err)
+	assert.Equal(false, hasKey)
 
 	m = MapStr{
 		"c": MapStr{
@@ -234,8 +234,8 @@ func TestHasKey(t *testing.T) {
 	assert.Equal(true, hasKey)
 
 	hasKey, err = m.HasKey("c.1.c2")
-	assert.Nil(err)
-	assert.Equal(true, hasKey)
+	assert.NotNil(err)
+	assert.Equal(false, hasKey)
 }
 
 func TestMapStrPut(t *testing.T) {
