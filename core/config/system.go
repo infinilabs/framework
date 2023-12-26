@@ -134,7 +134,7 @@ type SystemConfig struct {
 
 	LoggingConfig LoggingConfig `config:"log"`
 
-	CookieSecret string `config:"cookie_secret"`
+	Cookie CookieConfig `config:"cookie"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
 	SkipInstanceDetect bool `config:"skip_instance_detect"`
@@ -151,6 +151,11 @@ type SystemConfig struct {
 	Plugins []*Config `config:"plugins"`
 
 	HTTPClientConfig HTTPClientConfig `config:"http_client"`
+}
+
+type CookieConfig struct {
+	Secret string `config:"secret"`
+	Domain string `config:"domain"`
 }
 
 type HTTPClientConfig struct {

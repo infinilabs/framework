@@ -19,7 +19,7 @@ func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 }
 
 // GetSession return session by session key
-func GetSession(w http.ResponseWriter, r *http.Request, key string) (bool, interface{}) {
+func GetSession(r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
 	session, err := s.Get(r, sessionName)
 	if err != nil {
@@ -84,19 +84,20 @@ func getStore() *sessions.CookieStore {
 		return store
 	}
 
-	secret := global.Env().SystemConfig.CookieSecret
-	if secret == "" {
+	cookieCfg := global.Env().SystemConfig.Cookie
+	if cookieCfg.Secret == "" {
 		log.Trace("use default cookie secret")
 		store = sessions.NewCookieStore([]byte("APP-SECRET"))
 	} else {
-		log.Trace("get cookie secret from config,", secret)
-		store = sessions.NewCookieStore([]byte(secret))
+		log.Trace("get cookie secret from config,", cookieCfg.Secret)
+		store = sessions.NewCookieStore([]byte(cookieCfg.Secret))
 	}
 
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 1,
 		HttpOnly: true,
+		Domain: cookieCfg.Domain,
 	}
 
 	return store
