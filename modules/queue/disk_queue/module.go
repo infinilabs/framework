@@ -119,7 +119,11 @@ func checkCapacity(cfg *DiskQueueConfig) error {
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error during checking disk capacity [%v]", v)
+				if util.ContainStr(v,"no such file or directory"){
+					log.Warnf("error during checking disk capacity [%v]", v)
+				}else{
+					log.Errorf("error during checking disk capacity [%v]", v)
+				}
 			}
 		}
 	}()
