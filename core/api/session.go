@@ -47,6 +47,22 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 	return true
 }
 
+// DestroySession remove session by creating a new empty session
+func DestroySession(w http.ResponseWriter, r *http.Request) bool {
+	s := getStore()
+	session, err := s.New(r, sessionName)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+	session.Options.MaxAge = -1
+	err = session.Save(r, w)
+	if err != nil {
+		log.Error(err)
+	}
+	return true
+}
+
 // GetFlash get flash value
 func GetFlash(w http.ResponseWriter, r *http.Request) (bool, []interface{}) {
 	log.Trace("get flash")
