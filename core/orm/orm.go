@@ -242,6 +242,16 @@ func Combine(conds ...[]*Cond) []*Cond {
 func And(conds ...*Cond) []*Cond {
 	t := []*Cond{}
 	for _, c := range conds {
+		c.BoolType = Must
+		t = append(t, c)
+	}
+	return t
+}
+
+func Or(conds ...*Cond) []*Cond {
+	t := []*Cond{}
+	for _, c := range conds {
+		c.BoolType = Should
 		t = append(t, c)
 	}
 	return t
