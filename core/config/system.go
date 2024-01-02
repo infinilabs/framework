@@ -228,6 +228,23 @@ type WebAppConfig struct {
 	Domain       string     `config:"domain"`
 	EmbeddingAPI bool       `config:"embedding_api"`
 	Gzip         GzipConfig `config:"gzip"`
+	S3Config S3BucketConfig `config:"s3"`
+}
+
+type S3Config struct {
+	Endpoint string `config:"endpoint" json:"endpoint,omitempty"`
+	AccessKey string `config:"access_key" json:"access_key,omitempty"`
+	AccessSecret string `config:"access_secret" json:"access_secret,omitempty"`
+	Token string `config:"token" json:"token,omitempty"`
+	SSL bool `config:"ssl" json:"ssl,omitempty"`
+	SkipInsecureVerify bool `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty"`
+}
+
+type S3BucketConfig struct {
+	Async    bool   `config:"async"`
+	Server   string `config:"server"`
+	Location string `config:"location"`
+	Bucket   string `config:"bucket"`
 }
 
 func (config *WebAppConfig) GetEndpoint() string {

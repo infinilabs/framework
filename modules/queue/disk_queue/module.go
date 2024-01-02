@@ -5,6 +5,7 @@ package queue
 
 import (
 	"fmt"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/modules/queue/common"
 	"os"
@@ -82,12 +83,7 @@ type DiskQueueConfig struct {
 
 	Retention RetentionConfig `config:"retention"`
 
-	S3 struct {
-		Async    bool   `config:"async"`
-		Server   string `config:"server"`
-		Location string `config:"location"`
-		Bucket   string `config:"bucket"`
-	} `config:"s3"`
+	S3 config.S3BucketConfig `config:"s3"`
 }
 
 type DiskCompress struct {

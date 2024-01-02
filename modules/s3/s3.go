@@ -10,6 +10,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -22,28 +23,21 @@ import (
 	"time"
 )
 
-type S3Config struct {
-	Endpoint string `config:"endpoint" json:"endpoint,omitempty"`
-	AccessKey string `config:"access_key" json:"access_key,omitempty"`
-	AccessSecret string `config:"access_secret" json:"access_secret,omitempty"`
-	Token string `config:"token" json:"token,omitempty"`
-	SSL bool `config:"ssl" json:"ssl,omitempty"`
-	SkipInsecureVerify bool `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty"`
-}
+
 
 type S3Module struct {
 
 	//LatestFile map[string]int64 `config:"latest" json:"latest,omitempty"`
 
-	S3Configs map[string] S3Config
+	S3Configs map[string] config.S3Config
 }
 
 type S3Uploader struct {
-	S3Config *S3Config
+	S3Config *config.S3Config
 	minioClient *minio.Client
 }
 
-func NewS3Uploader(cfg *S3Config)(*S3Uploader,error)  {
+func NewS3Uploader(cfg *config.S3Config)(*S3Uploader,error)  {
 
 	// Keep TLS config.
 	tlsConfig := &tls.Config{}
@@ -192,7 +186,7 @@ func (module *S3Module) Name() string {
 
 func (module *S3Module) Setup() {
 	var err error
-	module.S3Configs=map[string]S3Config{}
+	module.S3Configs=map[string]config.S3Config{}
 	ok,err:=env.ParseConfig("s3", &module.S3Configs)
 	if ok&&err!=nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
 		panic(err)
