@@ -58,6 +58,7 @@ type DiskQueueConfig struct {
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer  int   `config:"write_chan_buffer_size"`
 
+	WriteTimeoutInMS  int64 `config:"write_timeout_in_ms" json:"write_timeout_in_ms,omitempty"`
 	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 
 	MaxUsedBytes      uint64 `config:"max_used_bytes"`
@@ -115,19 +116,19 @@ func checkCapacity(cfg *DiskQueueConfig) error {
 				case string:
 					v = r.(string)
 				}
-				if util.ContainStr(v,"no such file or directory"){
+				if util.ContainStr(v, "no such file or directory") {
 					log.Warnf("error during checking disk capacity [%v]", v)
-				}else{
+				} else {
 					log.Errorf("error during checking disk capacity [%v]", v)
 				}
 			}
 		}
 	}()
 
-	if rate.GetRateLimiter("disk_queue","check_capacity",1,10,time.Second).Allow(){
+	if rate.GetRateLimiter("disk_queue", "check_capacity", 1, 10, time.Second).Allow() {
 		if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
-			pathUsed,err := status.DirSize(global.Env().GetDataDir())
-			if err!=nil{
+			pathUsed, err := status.DirSize(global.Env().GetDataDir())
+			if err != nil {
 				panic(err)
 			}
 
@@ -198,6 +199,7 @@ func (module *DiskQueue) Setup() {
 		MinMsgSize:          1,
 		MaxMsgSize:          104857600,         //100MB
 		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
+		WriteTimeoutInMS:    10000, //10s
 		EOFRetryDelayInMs:   500,
 		SyncEveryRecords:    1000,
 		SyncTimeoutInMS:     1000,
@@ -221,7 +223,7 @@ func (module *DiskQueue) Setup() {
 	}
 
 	ok, err := env.ParseConfig("disk_queue", module.cfg)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -294,7 +296,7 @@ func (module *DiskQueue) Push(k string, v []byte) error {
 			return errors.Errorf("queue:%v, invalid message size: %v, should between: %v TO %v", k, msgSize, module.cfg.MinMsgSize, module.cfg.MaxMsgSize)
 		}
 
-		res:= (q.(*DiskBasedQueue)).Put(v)
+		res := (q.(*DiskBasedQueue)).Put(v)
 		return res.Error
 	}
 	return errors.Errorf("queue [%v] not found", k)
@@ -332,7 +334,7 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 	}
 }
 
-func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig,instance queue.ConsumerAPI) error {
+func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, instance queue.ConsumerAPI) error {
 	return instance.Close()
 }
 
@@ -503,9 +505,9 @@ func (module *DiskQueue) Start() error {
 				module.onWriteComplete(evt)
 				break
 			case ReadComplete:
-				v:=module.onReadComplete(evt,lastFilePrepared)
-				if v>0{
-					lastFilePrepared=v
+				v := module.onReadComplete(evt, lastFilePrepared)
+				if v > 0 {
+					lastFilePrepared = v
 				}
 				break
 			}
@@ -515,8 +517,6 @@ func (module *DiskQueue) Start() error {
 
 	return nil
 }
-
-
 
 func (module *DiskQueue) onWriteComplete(evt Event) {
 	defer func() {
@@ -531,7 +531,7 @@ func (module *DiskQueue) onWriteComplete(evt Event) {
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error on handling write complete event [%v][%v]", v,evt)
+				log.Errorf("error on handling write complete event [%v][%v]", v, evt)
 			}
 		}
 	}()
@@ -550,7 +550,7 @@ func (module *DiskQueue) onWriteComplete(evt Event) {
 
 }
 
-func (module *DiskQueue) onReadComplete(evt Event, lastFilePrepared int64)int64 {
+func (module *DiskQueue) onReadComplete(evt Event, lastFilePrepared int64) int64 {
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -563,7 +563,7 @@ func (module *DiskQueue) onReadComplete(evt Event, lastFilePrepared int64)int64 
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error on handling read complete event [%v][%v]", v,evt)
+				log.Errorf("error on handling read complete event [%v][%v]", v, evt)
 			}
 		}
 	}()
@@ -665,11 +665,10 @@ func (module *DiskQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.Producer
 		return nil, errors.Errorf("queue:%v not found", cfg.ID)
 	}
 
-	producer := &Producer{q: q.(*DiskBasedQueue), cfg: cfg, diskQueueConfig:module.cfg}
+	producer := &Producer{q: q.(*DiskBasedQueue), cfg: cfg, diskQueueConfig: module.cfg}
 	return producer, nil
 }
 
-
-func (this *DiskQueue)  ReleaseProducer(k *queue.QueueConfig,producer queue.ProducerAPI) error{
+func (this *DiskQueue) ReleaseProducer(k *queue.QueueConfig, producer queue.ProducerAPI) error {
 	return nil
 }

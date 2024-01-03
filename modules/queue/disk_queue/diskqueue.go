@@ -25,6 +25,7 @@ package queue
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -74,7 +75,7 @@ type DiskBasedQueue struct {
 	nextReadFileNum    int64
 	reader             *bufio.Reader
 	readFile           *os.File
-	readChan chan []byte
+	readChan           chan []byte
 
 	// internal channels
 	depthChan         chan int64
@@ -87,7 +88,7 @@ type DiskBasedQueue struct {
 
 	consumersInReading sync.Map
 
-	cfg *DiskQueueConfig
+	cfg          *DiskQueueConfig
 }
 
 // NewDiskQueue instantiates a new instance of DiskBasedQueue, retrieving metadata
@@ -152,6 +153,9 @@ func (d *DiskBasedQueue) ReadChan() <-chan []byte {
 
 // Put writes a []byte to the queue
 func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.cfg.WriteTimeoutInMS)*time.Millisecond)
+	defer cancel()
+
 	d.RLock()
 	defer func() {
 		if !global.Env().IsDebug {
@@ -189,8 +193,14 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 		return res
 	}
 
-	d.writeChan <- data
-	return <-d.writeResponseChan
+	select {
+	case d.writeChan <- data:
+		return <-d.writeResponseChan
+	case <-ctx.Done():
+		// Handle timeout
+		res.Error = ctx.Err()
+		return res
+	}
 }
 
 // Close cleans up the queue and persists metadata
@@ -321,6 +331,9 @@ func (d *DiskBasedQueue) deleteAllFiles() error {
 
 // 删除中间的错误文件，跳转到最后一个可写文件
 func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
+	d.Lock()
+	defer d.Unlock()
+
 	var err error
 
 	if d.readFile != nil {
