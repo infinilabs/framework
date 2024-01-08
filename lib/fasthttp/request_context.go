@@ -48,6 +48,8 @@ type RequestCtx struct {
 	c      net.Conn
 	fbr    firstByteReader
 
+	initialRequestBodyLength int
+
 	timeoutResponse *Response
 	timeoutCh       chan struct{}
 	timeoutTimer    *time.Timer

@@ -282,6 +282,13 @@ type Server struct {
 	// By default keep-alive connections are enabled.
 	DisableKeepalive bool
 
+	// Maximum in-flight request size.
+	//
+	// The server will reject further requests when reaching this limit.
+	//
+	// Default is 0, no limit
+	MaxInflightRequestSize int
+
 	// Whether to enable tcp keep-alive connections.
 	//
 	// Whether the operating system should send tcp keep-alive messages on the tcp connection.
@@ -440,6 +447,7 @@ type Server struct {
 	done chan struct{}
 	whiteIPList *hashset.Set
 	blackIPList *hashset.Set
+	inflightRequestSize int64
 }
 
 func (this *Server) AddWhiteIPList(ip string) {
@@ -1982,15 +1990,22 @@ func (s *Server) Serve(ln net.Listener) error {
 		}
 		s.setState(c, StateNew)
 		atomic.AddInt32(&s.open, 1)
-		if !wp.Serve(c) {
-			atomic.AddInt32(&s.open, -1)
+
+		if global.Env().IsDebug{
+			stats.Gauge("fasthttp","inflight_data_size",s.inflightRequestSize)
+		}
+
+		if (s.MaxInflightRequestSize > 0 && atomic.LoadInt64(&s.inflightRequestSize) > int64(s.MaxInflightRequestSize)) || !wp.Serve(c) {
+			open := atomic.AddInt32(&s.open, -1)
+			stats.Increment("fasthttp","exceeded_limit")
 			s.writeFastError(c, StatusServiceUnavailable,
-				"The connection cannot be served because Server.Concurrency limit exceeded")
+				"The connection cannot be served because Server.Concurrency/MaxInflightRequestSize limit exceeded")
 			c.Close()
 			s.setState(c, StateClosed)
 			if time.Since(lastOverflowErrorTime) > time.Minute {
-				log.Errorf("The incoming connection cannot be served, because %d concurrent connections are served. "+
-					"Try increasing entry.max_concurrency", maxWorkersCount)
+				log.Errorf("The incoming connection cannot be served, served concurrent connections: %d, inflight request size (mb): %d. "+
+					"Try increasing server limits", open, atomic.LoadInt64(&s.inflightRequestSize)/1024/1024)
+
 				lastOverflowErrorTime = util.GetLowPrecisionCurrentTime()
 			}
 
@@ -2278,7 +2293,11 @@ func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 		}
 	}()
 
+	ctx.initialRequestBodyLength = ctx.Request.GetBodyLength()
+	atomic.AddInt64(&s.inflightRequestSize, int64(ctx.initialRequestBodyLength))
+
 	s.Handler(ctx)
+
 
 	return err
 }
@@ -2962,8 +2981,8 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 		keepBodyBuffer := !s.ReduceMemoryUsage
 		ctx = new(RequestCtx)
 		ctx.EnrichedMetadata=true
-		ctx.Request.keepBodyBuffer = keepBodyBuffer
-		ctx.Response.keepBodyBuffer = keepBodyBuffer
+		ctx.Request.BodyBufferEnabled = keepBodyBuffer
+		ctx.Response.BodyBufferEnabled = keepBodyBuffer
 		ctx.s = s
 	} else {
 		ctx = v.(*RequestCtx)
@@ -2990,8 +3009,8 @@ func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage boo
 	ctx.connTime = util.GetLowPrecisionCurrentTime()
 
 	keepBodyBuffer := !reduceMemoryUsage
-	ctx.Request.keepBodyBuffer = keepBodyBuffer
-	ctx.Response.keepBodyBuffer = keepBodyBuffer
+	ctx.Request.BodyBufferEnabled = keepBodyBuffer
+	ctx.Response.BodyBufferEnabled = keepBodyBuffer
 }
 
 // Init prepares ctx for passing to RequestHandler.
@@ -3109,6 +3128,10 @@ func (s *Server) releaseCtx(ctx *RequestCtx) {
 	if ctx.timeoutResponse != nil {
 		panic("BUG: cannot release timed out RequestCtx")
 	}
+
+	atomic.AddInt64(&s.inflightRequestSize, -1*int64(ctx.initialRequestBodyLength))
+	// Cannot reset in ctx.reset(), other routines will call it
+	ctx.initialRequestBodyLength = 0
 
 	ctx.reset()
 	s.ctxPool.Put(ctx)
