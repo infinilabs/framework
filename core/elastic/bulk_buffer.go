@@ -13,33 +13,45 @@ type BulkBuffer struct {
 	Reason []string
 }
 
-var bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects", func() interface{} {
-	v := new(BulkBuffer)
-	v.Reset()
-	return v
-}, func() interface{} {
-	return nil
-},10000,1024*1024*1024)
+type BulkBufferPool struct {
+	bulkBufferPool  *bytebufferpool.ObjectPool
+	bulkBytesBuffer *bytebufferpool.Pool
+}
 
-var bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer",0,1024*1024*1024,100000)
+func NewBulkBufferPool(tag string,maxSize,maxItems uint32) *BulkBufferPool {
+	pool:=BulkBufferPool{}
+	pool.bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects_"+tag, func() interface{} {
+		v := new(BulkBuffer)
+		v.Reset()
+		return v
+	}, func() interface{} {
+		return nil
+	}, int(maxItems), int(maxSize))
 
-func AcquireBulkBuffer() *BulkBuffer {
-	buff := bulkBufferPool.Get().(*BulkBuffer)
+	pool.bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer_"+tag,0,maxSize,maxItems)
+	return &pool
+}
+
+
+
+
+func (pool *BulkBufferPool)AcquireBulkBuffer() *BulkBuffer {
+	buff := pool.bulkBufferPool.Get().(*BulkBuffer)
 	if buff.bytesBuffer==nil{
-		buff.bytesBuffer = bulkBytesBuffer.Get()
+		buff.bytesBuffer = pool.bulkBytesBuffer.Get()
 	}
 	buff.Reset()
 	return buff
 }
 
-func ReturnBulkBuffer(item *BulkBuffer) {
+func (pool *BulkBufferPool)ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
 	if item.bytesBuffer!=nil{
 		//item.bytesBuffer.Reset()
-		bulkBytesBuffer.Put(item.bytesBuffer)
+		pool.bulkBytesBuffer.Put(item.bytesBuffer)
 		item.bytesBuffer=nil
 	}
-	bulkBufferPool.Put(item)
+	pool.bulkBufferPool.Put(item)
 }
 
 func (receiver *BulkBuffer) SafetyEndWithNewline() {
@@ -76,6 +88,12 @@ func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 
 func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte){
 	if len(data)<=0{
+		return
+	}
+
+	// Return early if buffer is empty or already ends with \n
+	if buffer.Len() == 0 || util.BytesHasSuffix(buffer.B, NEWLINEBYTES) {
+		buffer.Write(data)
 		return
 	}
 

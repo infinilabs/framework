@@ -53,22 +53,24 @@ func TestAllocationClient(t *testing.T) {
 	url := "http://test:test@" + ln.Addr().String() + "/foo?bar=baz"
 
 	n := testing.AllocsPerRun(100, func() {
-		req := AcquireRequest()
-		res := AcquireResponse()
+		req := defaultHTTPPool.AcquireRequest()
+		res := defaultHTTPPool.AcquireResponse()
 
 		req.SetRequestURI(url)
 		if err := c.Do(req, res); err != nil {
 			t.Fatal(err)
 		}
 
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 	})
 
 	if n != 0 {
 		t.Fatalf("expected 0 allocations, got %f", n)
 	}
 }
+
+var defaultHTTPPool=NewRequestResponsePool("default_http")
 
 func TestAllocationURI(t *testing.T) {
 	uri := []byte("http://username:password@hello.%e4%b8%96%e7%95%8c.com/some/path?foo=bar#test")

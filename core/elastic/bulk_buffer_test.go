@@ -6,7 +6,8 @@ import (
 )
 
 func TestBulkBuffer_Add(t *testing.T) {
-	buffer := AcquireBulkBuffer()
+	pool:=NewBulkBufferPool("test",1024*1024*1024,100000)
+	buffer := pool.AcquireBulkBuffer()
 	buffer.Add("0,1", []byte("message 0,1"))
 	buffer.Add("0,2", []byte("message 0,2"))
 	buffer.Add("0,3", []byte("message 0,3"))

@@ -73,8 +73,8 @@ func FasthttpHTTPDialerTimeout(proxy string, timeout time.Duration) fasthttp.Dia
 			return nil, err
 		}
 
-		res := fasthttp.AcquireResponse()
-		defer fasthttp.ReleaseResponse(res)
+		res := defaultHTTPPool.AcquireResponse()
+		defer defaultHTTPPool.ReleaseResponse(res)
 
 		res.SkipBody = true
 

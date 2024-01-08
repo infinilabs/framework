@@ -32,6 +32,7 @@ type HTTPProcessor struct {
 	client       *fasthttp.Client
 	pathTemplate *fasttemplate.Template //path template
 	rater        *rate2.Limiter
+	HTTPPool     *fasthttp.RequestResponsePool
 }
 
 func (processor *HTTPProcessor) Name() string {
@@ -121,6 +122,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		processor.rater=rate.GetRateLimiter("http_replicator","sending",processor.config.MaxSendingQPS,processor.config.MaxSendingQPS,time.Second)
 	}
 
+	processor.HTTPPool=fasthttp.NewRequestResponsePool("http_filter_"+util.GetUUID())
+
 	return processor, nil
 }
 
@@ -131,11 +134,11 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 	//	defer log.Error("exit process http_replicator")
 	//}
 
-	req := fasthttp.AcquireRequestWithTag("http_processor")
-	resp := fasthttp.AcquireResponseWithTag("http_processor")
+	req := processor.HTTPPool.AcquireRequestWithTag("http_processor")
+	resp := processor.HTTPPool.AcquireResponseWithTag("http_processor")
 
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
+	defer processor.HTTPPool.ReleaseRequest(req)
+	defer processor.HTTPPool.ReleaseResponse(resp)
 
 	path := processor.config.Path
 	if processor.pathTemplate != nil {

@@ -56,10 +56,10 @@ func TestRstConnResponseWhileSending(t *testing.T) {
 	client := HostClient{Addr: srv.Addr().String()}
 
 	for i := 0; i < 100; i++ {
-		req := AcquireRequest()
-		defer ReleaseRequest(req)
-		resp := AcquireResponse()
-		defer ReleaseResponse(resp)
+		req := defaultHTTPPool.AcquireRequest()
+		defer defaultHTTPPool.ReleaseRequest(req)
+		resp := defaultHTTPPool.AcquireResponse()
+		defer defaultHTTPPool.ReleaseResponse(resp)
 
 		req.Header.SetMethod("POST")
 		req.SetBodyStream(strings.NewReader(payload), len(payload))
@@ -118,10 +118,10 @@ func TestRstConnClosedWithoutResponse(t *testing.T) {
 	client := HostClient{Addr: srv.Addr().String()}
 
 	for i := 0; i < 100; i++ {
-		req := AcquireRequest()
-		defer ReleaseRequest(req)
-		resp := AcquireResponse()
-		defer ReleaseResponse(resp)
+		req := defaultHTTPPool.AcquireRequest()
+		defer defaultHTTPPool.ReleaseRequest(req)
+		resp := defaultHTTPPool.AcquireResponse()
+		defer defaultHTTPPool.ReleaseResponse(resp)
 
 		req.Header.SetMethod("POST")
 		req.SetBodyStream(strings.NewReader(payload), len(payload))

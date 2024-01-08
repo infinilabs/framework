@@ -364,8 +364,24 @@ var DefaultBulkProcessorConfig = BulkProcessorConfig{
 }
 
 type BulkProcessor struct {
-	Config BulkProcessorConfig
+	Config         BulkProcessorConfig
+	BulkBufferPool *BulkBufferPool
+	HttpPool       *fasthttp.RequestResponsePool
 }
+
+func NewBulkProcessor(tag,esClusterID string,cfg BulkProcessorConfig)BulkProcessor  {
+	bulkProcessor := BulkProcessor{
+		Config: cfg,
+	}
+	bulkProcessor.BulkBufferPool =	NewBulkBufferPool("bulk_processor_"+tag,1024*1024*1024,100000)
+	bulkProcessor.HttpPool=fasthttp.NewRequestResponsePool("bulk_processor_"+tag)
+	if bulkProcessor.Config.DeadletterRequestsQueue == "" {
+		bulkProcessor.Config.DeadletterRequestsQueue = fmt.Sprintf("%v-bulk-dead_letter-items", esClusterID)
+	}
+
+	return bulkProcessor
+}
+
 
 // bulkResult is valid only if max_reject_retry_times == 0
 func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, bulkResult *BulkResult, err error) {
@@ -391,10 +407,10 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 		url = fmt.Sprintf("http://%s/_bulk", host)
 	}
 
-	req := fasthttp.AcquireRequestWithTag("bulk_processing_request")
-	resp := fasthttp.AcquireResponseWithTag("bulk_processing_response")
-	defer fasthttp.ReleaseRequest(req)   // <- do not forget to release
-	defer fasthttp.ReleaseResponse(resp) // <- do not forget to release
+	req := joint.HttpPool.AcquireRequestWithTag("bulk_processing_request")
+	resp := joint.HttpPool.AcquireResponseWithTag("bulk_processing_response")
+	defer joint.HttpPool.ReleaseRequest(req)   // <- do not forget to release
+	defer joint.HttpPool.ReleaseResponse(resp) // <- do not forget to release
 
 	req.SetRequestURI(url)
 
@@ -451,13 +467,13 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 	}
 
 	retryTimes := 0
-	nonRetryableItems := AcquireBulkBuffer()
-	retryableItems := AcquireBulkBuffer()
-	successItems := AcquireBulkBuffer()
+	nonRetryableItems := joint.BulkBufferPool.AcquireBulkBuffer()
+	retryableItems := joint.BulkBufferPool.AcquireBulkBuffer()
+	successItems := joint.BulkBufferPool.AcquireBulkBuffer()
 
-	defer ReturnBulkBuffer(nonRetryableItems)
-	defer ReturnBulkBuffer(retryableItems)
-	defer ReturnBulkBuffer(successItems)
+	defer joint.BulkBufferPool.ReturnBulkBuffer(nonRetryableItems)
+	defer joint.BulkBufferPool.ReturnBulkBuffer(retryableItems)
+	defer joint.BulkBufferPool.ReturnBulkBuffer(successItems)
 
 DO:
 

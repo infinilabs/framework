@@ -32,6 +32,8 @@ func FasthttpProxyHTTPDialer() fasthttp.DialFunc {
 	return FasthttpProxyHTTPDialerTimeout(0)
 }
 
+var defaultHTTPPool=fasthttp.NewRequestResponsePool("default_http")
+
 // FasthttpProxyHTTPDialer returns a fasthttp.DialFunc that dials using
 // the env(HTTP_PROXY, HTTPS_PROXY and NO_PROXY) configured HTTP proxy using the given timeout.
 //
@@ -103,8 +105,8 @@ func FasthttpProxyHTTPDialerTimeout(timeout time.Duration) fasthttp.DialFunc {
 			return nil, err
 		}
 
-		res := fasthttp.AcquireResponse()
-		defer fasthttp.ReleaseResponse(res)
+		res := defaultHTTPPool.AcquireResponse()
+		defer defaultHTTPPool.ReleaseResponse(res)
 
 		res.SkipBody = true
 

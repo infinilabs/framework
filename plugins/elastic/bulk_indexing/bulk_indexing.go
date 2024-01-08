@@ -48,8 +48,9 @@ type BulkIndexingProcessor struct {
 	sync.RWMutex
 	pool *pipeline.Pool
 
-	bulkStats *elastic.BulkResult
-	statsLock sync.Mutex
+	bulkStats      *elastic.BulkResult
+	statsLock      sync.Mutex
+	bulkBufferPool *elastic.BulkBufferPool
 }
 
 type Config struct {
@@ -168,6 +169,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner.pool = pool
+
+	runner.bulkBufferPool=elastic.NewBulkBufferPool("bulk_indexing_main",1024*1024*1024,100000)
 
 	return &runner, nil
 }
@@ -489,9 +492,9 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		log.Tracef("exit slice_worker, queue:%v, slice_id:%v, key:%v", qConfig.ID, sliceID, key)
 	}()
 
-	mainBuf := elastic.AcquireBulkBuffer()
+	mainBuf := processor.bulkBufferPool.AcquireBulkBuffer()
 	mainBuf.Queue = qConfig.ID
-	defer elastic.ReturnBulkBuffer(mainBuf)
+	defer processor.bulkBufferPool.ReturnBulkBuffer(mainBuf)
 
 	var bulkProcessor elastic.BulkProcessor
 	var esClusterID string
@@ -626,13 +629,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		log.Trace("slice_worker, get final host:", host)
 	}
 
-	bulkProcessor = elastic.BulkProcessor{
-		Config: processor.config.BulkConfig,
-	}
-
-	if bulkProcessor.Config.DeadletterRequestsQueue == "" {
-		bulkProcessor.Config.DeadletterRequestsQueue = fmt.Sprintf("%v-bulk-dead_letter-items", esClusterID)
-	}
+	bulkProcessor = elastic.NewBulkProcessor("bulk_indexing",esClusterID,processor.config.BulkConfig)
 
 	var lastCommit time.Time = time.Now()
 	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)

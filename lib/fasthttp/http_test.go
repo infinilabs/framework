@@ -486,7 +486,7 @@ func TestResponseSwapBodyConcurrent(t *testing.T) {
 
 func testResponseSwapBody(t *testing.T) {
 	var b []byte
-	r := AcquireResponse()
+	r := defaultHTTPPool.AcquireResponse()
 	for i := 0; i < 20; i++ {
 		bOrig := r.Body()
 		b = r.SwapBody(b)
@@ -509,7 +509,7 @@ func testResponseSwapBody(t *testing.T) {
 			t.Fatalf("unexpected body with non-zero size returned: %q", b)
 		}
 	}
-	ReleaseResponse(r)
+	defaultHTTPPool.ReleaseResponse(r)
 }
 
 func TestRequestSwapBodySerial(t *testing.T) {
@@ -824,10 +824,10 @@ func TestUseHostHeader2(t *testing.T) {
 	defer testServer.Close()
 
 	client := &Client{}
-	req := AcquireRequest()
-	defer ReleaseRequest(req)
-	resp := AcquireResponse()
-	defer ReleaseResponse(resp)
+	req := defaultHTTPPool.AcquireRequest()
+	defer defaultHTTPPool.ReleaseRequest(req)
+	resp := defaultHTTPPool.AcquireResponse()
+	defer defaultHTTPPool.ReleaseResponse(resp)
 
 	req.SetRequestURI(testServer.URL)
 	req.UseHostHeader = true

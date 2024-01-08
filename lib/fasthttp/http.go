@@ -59,7 +59,7 @@ type Request struct {
 	parsedURI      bool
 	parsedPostArgs bool
 
-	keepBodyBuffer bool
+	BodyBufferEnabled bool
 
 	// Used by Server to indicate the request was received on a HTTPS endpoint.
 	// Client/HostClient shouldn't use this field but should depend on the uri.scheme instead.
@@ -110,7 +110,7 @@ type Response struct {
 	// Use it for writing HEAD responses.
 	SkipBody bool
 
-	keepBodyBuffer        bool
+	BodyBufferEnabled     bool
 	secureErrorLogMessage bool
 
 	// Remote TCPAddr from concurrently net.Conn
@@ -457,10 +457,14 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		if resp.Tag != "" {
-			resp.body = bytebufferpool.Get(resp.Tag)
-		} else {
-			resp.body = responseBodyPool.Get()
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				resp.body = bytebufferpool.Get(resp.Tag)
+			} else {
+				resp.body = getResponseBodyPool().Get()
+			}
+		}else{
+			resp.body=&bytebufferpool.ByteBuffer{}
 		}
 	}
 	return resp.body
@@ -473,19 +477,40 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		if req.Tag != "" {
-			req.body = bytebufferpool.Get(req.Tag)
-		} else {
-			req.body = requestBodyPool.Get()
+		if req.BodyBufferEnabled{
+			if req.Tag != "" {
+				req.body = bytebufferpool.Get(req.Tag)
+			} else {
+				req.body = getRequestBodyPool().Get()
+			}
+		}else{
+			req.body=&bytebufferpool.ByteBuffer{}
 		}
 	}
 	return req.body
 }
 
 var (
-	responseBodyPool = bytebufferpool.NewTaggedPool("default_response_body", 0, 1024*1024*1024, 100000)
-	requestBodyPool  = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
+	requestBodyPool *bytebufferpool.Pool
+	responseBodyPool  *bytebufferpool.Pool
 )
+
+var requestPoolInit=sync.Once{}
+var responsePoolInit=sync.Once{}
+
+func getRequestBodyPool() *bytebufferpool.Pool {
+	requestPoolInit.Do(func() {
+		requestBodyPool  = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
+	})
+	return requestBodyPool
+}
+func getResponseBodyPool() *bytebufferpool.Pool {
+	responsePoolInit.Do(func() {
+		responseBodyPool = bytebufferpool.NewTaggedPool("default_response_body", 0, 1024*1024*1024, 100000)
+	})
+	return responseBodyPool
+}
+
 
 // BodyGunzip returns un-gzipped body data.
 //
@@ -685,13 +710,15 @@ func (resp *Response) ResetBody() {
 	resp.bodyLength = -1
 	resp.closeBodyStream() //nolint:errcheck
 	if resp.body != nil {
-		if resp.keepBodyBuffer {
+		if resp.BodyBufferEnabled {
 			resp.body.Reset()
 		} else {
-			if resp.Tag != "" {
-				bytebufferpool.Put(resp.Tag, resp.body)
-			} else {
-				responseBodyPool.Put(resp.body)
+			if resp.BodyBufferEnabled{
+				if resp.Tag != "" {
+					bytebufferpool.Put(resp.Tag, resp.body)
+				} else {
+					getResponseBodyPool().Put(resp.body)
+				}
 			}
 			resp.body = nil
 		}
@@ -711,10 +738,12 @@ func (resp *Response) ReleaseBody(size int) {
 	}
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
-		if resp.Tag != "" {
-			bytebufferpool.Put(resp.Tag, resp.body)
-		} else {
-			responseBodyPool.Put(resp.body)
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
+				getResponseBodyPool().Put(resp.body)
+			}
 		}
 		resp.body = nil
 	}
@@ -733,10 +762,12 @@ func (req *Request) ReleaseBody(size int) {
 	}
 	if cap(req.body.B) > size {
 		req.closeBodyStream() //nolint:errcheck
-		if req.Tag != "" {
-			bytebufferpool.Put(req.Tag, req.body)
-		} else {
-			requestBodyPool.Put(req.body)
+		if req.BodyBufferEnabled {
+			if req.Tag != "" {
+				bytebufferpool.Put(req.Tag, req.body)
+			} else {
+				getRequestBodyPool().Put(req.body)
+			}
 		}
 		req.body = nil
 	}
@@ -848,14 +879,14 @@ func (req *Request) ResetBody() {
 	req.RemoveMultipartFormFiles()
 	req.closeBodyStream() //nolint:errcheck
 	if req.body != nil {
-		if req.keepBodyBuffer {
+		if req.BodyBufferEnabled {
 			req.body.Reset()
 		} else {
-			if req.Tag != "" {
-				bytebufferpool.Put(req.Tag, req.body)
-			} else {
-				requestBodyPool.Put(req.body)
-			}
+			//if req.Tag != "" {
+			//	bytebufferpool.Put(req.Tag, req.body)
+			//} else {
+			//	requestBodyPool.Put(req.body)
+			//}
 			req.body = nil
 		}
 	}
@@ -1781,20 +1812,26 @@ func (resp *Response) brotliBody(level int) error {
 		}
 
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag != "" {
-			w = bytebufferpool.Get(resp.Tag)
-		} else {
-			w = responseBodyPool.Get()
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				w = bytebufferpool.Get(resp.Tag)
+			} else {
+				w = getResponseBodyPool().Get()
+			}
+		}else{
+			w=&bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendBrotliBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag != "" {
-				bytebufferpool.Put(resp.Tag, resp.body)
-			} else {
-				responseBodyPool.Put(resp.body)
+			if resp.BodyBufferEnabled{
+				if resp.Tag != "" {
+					bytebufferpool.Put(resp.Tag, resp.body)
+				} else {
+					getResponseBodyPool().Put(resp.body)
+				}
 			}
 		}
 		resp.body = w
@@ -1845,19 +1882,26 @@ func (resp *Response) gzipBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag != "" {
-			w = bytebufferpool.Get(resp.Tag)
-		} else {
-			w = responseBodyPool.Get()
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				w = bytebufferpool.Get(resp.Tag)
+			} else {
+				w = getResponseBodyPool().Get()
+			}
+		}else{
+			w=&bytebufferpool.ByteBuffer{}
 		}
+
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag != "" {
-				bytebufferpool.Put(resp.Tag, resp.body)
-			} else {
-				responseBodyPool.Put(resp.body)
+			if resp.BodyBufferEnabled{
+				if resp.Tag != "" {
+					bytebufferpool.Put(resp.Tag, resp.body)
+				} else {
+					getResponseBodyPool().Put(resp.body)
+				}
 			}
 		}
 		resp.body = w
@@ -1908,19 +1952,27 @@ func (resp *Response) deflateBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.Tag != "" {
-			w = bytebufferpool.Get(resp.Tag)
-		} else {
-			w = responseBodyPool.Get()
+
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				w = bytebufferpool.Get(resp.Tag)
+			} else {
+				w = getResponseBodyPool().Get()
+			}
+		}else{
+			w=&bytebufferpool.ByteBuffer{}
 		}
+
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.Tag != "" {
-				bytebufferpool.Put(resp.Tag, resp.body)
-			} else {
-				responseBodyPool.Put(resp.body)
+			if resp.BodyBufferEnabled{
+				if resp.Tag != "" {
+					bytebufferpool.Put(resp.Tag, resp.body)
+				} else {
+					getResponseBodyPool().Put(resp.body)
+				}
 			}
 		}
 		resp.body = w

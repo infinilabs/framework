@@ -889,11 +889,11 @@ type clientDoer interface {
 }
 
 func clientGetURL(dst []byte, url string, c clientDoer) (statusCode int, body []byte, err error) {
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 
 	statusCode, body, err = doRequestFollowRedirectsBuffer(req, dst, url, c)
 
-	ReleaseRequest(req)
+	defaultHTTPPool.ReleaseRequest(req)
 	return statusCode, body, err
 }
 
@@ -933,7 +933,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 	var timedout, responded bool
 
 	go func() {
-		req := AcquireRequest()
+		req := defaultHTTPPool.AcquireRequest()
 
 		statusCodeCopy, bodyCopy, errCopy := doRequestFollowRedirectsBuffer(req, dst, url, c)
 		mu.Lock()
@@ -949,7 +949,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 		}
 		mu.Unlock()
 
-		ReleaseRequest(req)
+		defaultHTTPPool.ReleaseRequest(req)
 	}()
 
 	tc := AcquireTimer(timeout)
@@ -984,7 +984,7 @@ func clientGetURLDeadline(dst []byte, url string, deadline time.Time, c clientDo
 var clientURLResponseChPool sync.Pool
 
 func clientPostURL(dst []byte, url string, postArgs *Args, c clientDoer) (statusCode int, body []byte, err error) {
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	req.Header.SetMethod(MethodPost)
 	req.Header.SetContentTypeBytes(strPostArgsContentType)
 	if postArgs != nil {
@@ -995,7 +995,7 @@ func clientPostURL(dst []byte, url string, postArgs *Args, c clientDoer) (status
 
 	statusCode, body, err = doRequestFollowRedirectsBuffer(req, dst, url, c)
 
-	ReleaseRequest(req)
+	defaultHTTPPool.ReleaseRequest(req)
 	return statusCode, body, err
 }
 
@@ -1014,9 +1014,9 @@ var (
 const defaultMaxRedirectsCount = 16
 
 func doRequestFollowRedirectsBuffer(req *Request, dst []byte, url string, c clientDoer) (statusCode int, body []byte, err error) {
-	resp := AcquireResponse()
+	resp := defaultHTTPPool.AcquireResponse()
 	bodyBuf := resp.bodyBuffer()
-	resp.keepBodyBuffer = true
+	resp.BodyBufferEnabled = true
 	oldBody := bodyBuf.B
 	bodyBuf.B = dst
 
@@ -1024,8 +1024,8 @@ func doRequestFollowRedirectsBuffer(req *Request, dst []byte, url string, c clie
 
 	body = bodyBuf.B
 	bodyBuf.B = oldBody
-	resp.keepBodyBuffer = false
-	ReleaseResponse(resp)
+	resp.BodyBufferEnabled = false
+	defaultHTTPPool.ReleaseResponse(resp)
 
 	return statusCode, body, err
 }
@@ -1081,36 +1081,55 @@ func StatusCodeIsRedirect(statusCode int) bool {
 		statusCode == StatusPermanentRedirect
 }
 
-var (
-// requestPool  sync.Pool
-// responsePool sync.Pool
-)
+//var requestPool = bytebufferpool.NewObjectPool("request", func() interface{} {
+//	v := new(Request)
+//	return v
+//}, func() interface{} {
+//	return nil
+//}, 10000, 1024*1024*1024)
+//
+//var responsePool = bytebufferpool.NewObjectPool("response", func() interface{} {
+//	v := new(Response)
+//	return v
+//}, func() interface{} {
+//	return nil
+//}, 10000, 1024*1024*1024)
 
-var requestPool = bytebufferpool.NewObjectPool("request", func() interface{} {
-	v := new(Request)
-	return v
-}, func() interface{} {
-	return nil
-}, 10000, 1024*1024*1024)
 
-var responsePool = bytebufferpool.NewObjectPool("response", func() interface{} {
-	v := new(Response)
-	return v
-}, func() interface{} {
-	return nil
-}, 10000, 1024*1024*1024)
+type RequestResponsePool struct {
+	requestPool  *bytebufferpool.ObjectPool
+	responsePool *bytebufferpool.ObjectPool
+}
+
+func NewRequestResponsePool(tag string) *RequestResponsePool {
+	pool:=RequestResponsePool{}
+	pool.requestPool = bytebufferpool.NewObjectPool(tag, func() interface{} {
+		v := new(Request)
+		return v
+	}, func() interface{} {
+		return nil
+	}, 10000, 1024*1024*1024)
+
+	pool.responsePool = bytebufferpool.NewObjectPool(tag, func() interface{} {
+		v := new(Response)
+		return v
+	}, func() interface{} {
+		return nil
+	}, 10000, 1024*1024*1024)
+	return &pool
+}
 
 // AcquireRequest returns an empty Request instance from request pool.
 //
 // The returned Request instance may be passed to ReleaseRequest when it is
 // no longer needed. This allows Request recycling, reduces GC pressure
 // and usually improves performance.
-func AcquireRequest() *Request {
-	return AcquireRequestWithTag("")
+func  (pool *RequestResponsePool)AcquireRequest() *Request {
+	return pool.AcquireRequestWithTag("")
 }
 
-func AcquireRequestWithTag(tag string) *Request {
-	v := requestPool.Get()
+func (pool *RequestResponsePool)AcquireRequestWithTag(tag string) *Request {
+	v := pool.requestPool.Get()
 	if v == nil {
 		return &Request{Tag: tag}
 	}
@@ -1123,17 +1142,19 @@ func AcquireRequestWithTag(tag string) *Request {
 //
 // It is forbidden accessing req and/or its' members after returning
 // it to request pool.
-func ReleaseRequest(req *Request) {
+func(pool *RequestResponsePool) ReleaseRequest(req *Request) {
 	req.Reset()
 	if req.body != nil {
-		if req.Tag != "" {
-			bytebufferpool.Put(req.Tag, req.body)
-		} else {
-			requestBodyPool.Put(req.body)
+		if req.BodyBufferEnabled{
+			if req.Tag != "" {
+				bytebufferpool.Put(req.Tag, req.body)
+			} else {
+				getRequestBodyPool().Put(req.body)
+			}
 		}
 		req.body = nil
 	}
-	requestPool.Put(req)
+	pool.requestPool.Put(req)
 }
 
 // AcquireResponse returns an empty Response instance from response pool.
@@ -1141,12 +1162,12 @@ func ReleaseRequest(req *Request) {
 // The returned Response instance may be passed to ReleaseResponse when it is
 // no longer needed. This allows Response recycling, reduces GC pressure
 // and usually improves performance.
-func AcquireResponse() *Response {
-	return AcquireResponseWithTag("")
+func (pool *RequestResponsePool)AcquireResponse() *Response {
+	return pool.AcquireResponseWithTag("")
 }
 
-func AcquireResponseWithTag(tag string) *Response {
-	v := responsePool.Get()
+func (pool *RequestResponsePool)AcquireResponseWithTag(tag string) *Response {
+	v := pool.responsePool.Get()
 	if v == nil {
 		return &Response{Tag: tag}
 	}
@@ -1159,17 +1180,19 @@ func AcquireResponseWithTag(tag string) *Response {
 //
 // It is forbidden accessing resp and/or its' members after returning
 // it to response pool.
-func ReleaseResponse(resp *Response) {
+func (pool *RequestResponsePool)ReleaseResponse(resp *Response) {
 	resp.Reset()
 	if resp.body != nil {
-		if resp.Tag != "" {
-			bytebufferpool.Put(resp.Tag, resp.body)
-		} else {
-			responseBodyPool.Put(resp.body)
+		if resp.BodyBufferEnabled{
+			if resp.Tag != "" {
+				bytebufferpool.Put(resp.Tag, resp.body)
+			} else {
+				getResponseBodyPool().Put(resp.body)
+			}
 		}
 		resp.body = nil
 	}
-	responsePool.Put(resp)
+	pool.responsePool.Put(resp)
 }
 
 // DoTimeout performs the given request and waits for response during
@@ -1327,17 +1350,19 @@ func (c *HostClient) do(req *Request, resp *Response) (bool, error) {
 	nilResp := false
 	if resp == nil {
 		nilResp = true
-		resp = AcquireResponse()
+		resp = defaultHTTPPool.AcquireResponse()
 	}
 
 	ok, err := c.doNonNilReqResp(req, resp)
 
 	if nilResp {
-		ReleaseResponse(resp)
+		defaultHTTPPool.ReleaseResponse(resp)
 	}
 
 	return ok, err
 }
+
+var defaultHTTPPool=NewRequestResponsePool("default_http")
 
 func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error) {
 	if req == nil {

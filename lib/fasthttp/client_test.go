@@ -191,10 +191,10 @@ func TestClientInvalidURI(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req, res := AcquireRequest(), AcquireResponse()
+	req, res := defaultHTTPPool.AcquireRequest(), defaultHTTPPool.AcquireResponse()
 	defer func() {
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 	}()
 	req.Header.SetMethod(MethodGet)
 	req.SetRequestURI("http://example.com\r\n\r\nGET /\r\n\r\n")
@@ -223,10 +223,10 @@ func TestClientGetWithBody(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req, res := AcquireRequest(), AcquireResponse()
+	req, res := defaultHTTPPool.AcquireRequest(), defaultHTTPPool.AcquireResponse()
 	defer func() {
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 	}()
 	req.Header.SetMethod(MethodGet)
 	req.SetRequestURI("http://example.com")
@@ -346,10 +346,10 @@ func TestClientParseConn(t *testing.T) {
 	go s.Serve(ln) //nolint:errcheck
 	host := ln.Addr().String()
 	c := &Client{}
-	req, res := AcquireRequest(), AcquireResponse()
+	req, res := defaultHTTPPool.AcquireRequest(), defaultHTTPPool.AcquireResponse()
 	defer func() {
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 	}()
 	req.SetRequestURI("http://" + host + "")
 	if err := c.Do(req, res); err != nil {
@@ -387,10 +387,10 @@ func TestClientPostArgs(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req, res := AcquireRequest(), AcquireResponse()
+	req, res := defaultHTTPPool.AcquireRequest(), defaultHTTPPool.AcquireResponse()
 	defer func() {
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 	}()
 	args := req.PostArgs()
 	args.Add("addhttp2", "support")
@@ -668,13 +668,13 @@ func TestClientReadTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ReleaseRequest(req)
-	ReleaseResponse(res)
+	defaultHTTPPool.ReleaseRequest(req)
+	defaultHTTPPool.ReleaseResponse(res)
 
 	done := make(chan struct{})
 	go func() {
-		req := AcquireRequest()
-		res := AcquireResponse()
+		req := defaultHTTPPool.AcquireRequest()
+		res := defaultHTTPPool.AcquireResponse()
 
 		req.SetRequestURI("http://localhost")
 		req.SetConnectionClose()
@@ -683,8 +683,8 @@ func TestClientReadTimeout(t *testing.T) {
 			t.Errorf("expected ErrTimeout got %#v", err)
 		}
 
-		ReleaseRequest(req)
-		ReleaseResponse(res)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(res)
 		close(done)
 	}()
 
@@ -1003,8 +1003,8 @@ func testPipelineClientDo(t *testing.T, c *PipelineClient) {
 			time.Sleep(30 * time.Millisecond)
 		}
 	}
-	ReleaseRequest(req)
-	ReleaseResponse(resp)
+	defaultHTTPPool.ReleaseRequest(req)
+	defaultHTTPPool.ReleaseResponse(resp)
 }
 
 func TestPipelineClientDoDisableHeaderNamesNormalizing(t *testing.T) {
@@ -1320,11 +1320,11 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			req := AcquireRequest()
+			req := defaultHTTPPool.AcquireRequest()
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp := AcquireResponse()
+			resp :=defaultHTTPPool.AcquireResponse()
 
 			for {
 				if err := c.DoDeadline(req, resp, time.Now().Add(timeout)); err != nil {
@@ -1544,8 +1544,8 @@ func TestClientFollowRedirects(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		req := AcquireRequest()
-		resp := AcquireResponse()
+		req := defaultHTTPPool.AcquireRequest()
+		resp := defaultHTTPPool.AcquireResponse()
 
 		req.SetRequestURI("http://xxx/foo")
 
@@ -1562,12 +1562,12 @@ func TestClientFollowRedirects(t *testing.T) {
 			t.Fatalf("unexpected response %q. Expecting %q", body, "/bar")
 		}
 
-		ReleaseRequest(req)
-		ReleaseResponse(resp)
+		defaultHTTPPool.ReleaseRequest(req)
+		defaultHTTPPool.ReleaseResponse(resp)
 	}
 
-	req := AcquireRequest()
-	resp := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	resp := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://xxx/foo")
 
@@ -1576,8 +1576,8 @@ func TestClientFollowRedirects(t *testing.T) {
 		t.Fatalf("want error: %v, have %v", want, have)
 	}
 
-	ReleaseRequest(req)
-	ReleaseResponse(resp)
+	defaultHTTPPool.ReleaseRequest(req)
+	defaultHTTPPool.ReleaseResponse(resp)
 }
 
 func TestClientGetTimeoutSuccess(t *testing.T) {

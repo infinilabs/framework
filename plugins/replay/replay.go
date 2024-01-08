@@ -31,7 +31,8 @@ type Config struct {
 }
 
 type ReplayProcessor struct {
-	config *Config
+	config   *Config
+	HTTPPool *fasthttp.RequestResponsePool
 }
 
 var signalChannel = make(chan bool, 1)
@@ -52,6 +53,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner := ReplayProcessor{config: &cfg}
+	runner.HTTPPool=fasthttp.NewRequestResponsePool("replay_filter_"+util.GetUUID())
+
 	return &runner, nil
 }
 
@@ -121,7 +124,14 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 
 		var err error
 		var done bool
-		count, err, done = ReplayLines(ctx, lines, processor.config.Schema, processor.config.Host, processor.config.Username, processor.config.Password)
+
+		req := processor.HTTPPool.AcquireRequest()
+		res := processor.HTTPPool.AcquireResponse()
+
+		defer processor.HTTPPool.ReleaseRequest(req)
+		defer processor.HTTPPool.ReleaseResponse(res)
+
+		count, err, done = ReplayLines(req,res,ctx, lines, processor.config.Schema, processor.config.Host, processor.config.Username, processor.config.Password)
 		if done {
 			return err
 		}
@@ -136,16 +146,10 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func ReplayLines(ctx *pipeline.Context, lines []string, schema, host, username, password string) (int, error, bool) {
+func ReplayLines(req *fasthttp.Request,res *fasthttp.Response,ctx *pipeline.Context, lines []string, schema, host, username, password string) (int, error, bool) {
 
 	var buffer = bytebufferpool.Get("replay")
 	defer bytebufferpool.Put("replay", buffer)
-
-	req := fasthttp.AcquireRequest()
-	res := fasthttp.AcquireResponse()
-
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(res)
 
 	var requestIsSet bool
 	count := 0
