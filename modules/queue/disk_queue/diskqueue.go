@@ -28,6 +28,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"infini.sh/framework/core/stats"
 	"io"
 	"math/rand"
 	"os"
@@ -156,6 +157,9 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.cfg.WriteTimeoutInMS)*time.Millisecond)
 	defer cancel()
 
+	size:=int64(len(data))
+	stats.IncrementBy("disk_queue","inflight_data_size", size)
+
 	d.RLock()
 	defer func() {
 		if !global.Env().IsDebug {
@@ -173,6 +177,7 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 			}
 		}
 		d.RUnlock()
+		defer stats.IncrementBy("disk_queue","inflight_data_size", size*-1)
 	}()
 
 	res:=WriteResponse{}
