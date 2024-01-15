@@ -402,7 +402,29 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 	fileName, exists := SmartGetFileName(d.mCfg, d.queue, segment)
 	if !exists {
 		if !util.FileExists(fileName) {
-			return errors.New(fileName + " not found")
+			if d.mCfg.AutoSkipCorruptFile{
+				log.Warnf("queue:%v, offset:%v,%v, file missing: %v, auto skip to next file",
+					d.queue, d.segment, d.readPos, fileName)
+				nextSegment := d.segment + 1
+			RETRY_NEXT_FILE:
+				// there are segments in the middle
+				if segment<d.diskQueue.writeSegmentNum{
+					fileName, exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
+					log.Debugf("try skip to next file: %v, exists: %v", fileName, exists)
+					if exists || util.FileExists(fileName) {
+						d.segment = nextSegment
+						d.readPos=0
+					}else{
+						nextSegment++
+						log.Debugf("move to next file: %v",nextSegment)
+						goto RETRY_NEXT_FILE
+					}
+				}else{
+					return errors.New(fileName + " not found")
+				}
+			}else{
+				return errors.New(fileName + " not found")
+			}
 		}
 	}
 
