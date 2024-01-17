@@ -12,7 +12,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/locker"
 	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"time"
 )
@@ -86,8 +85,6 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 	msgs := []queue.Message{}
 	ctx.MessageCount = 0
-
-	defer stats.IncrementBy(this.qCfg.ID, "fetched_message", int64(ctx.MessageCount))
 
 	byteSize := 0
 	start := time.Now()
