@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/util"
 	"strings"
@@ -144,10 +145,14 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 			return &info
 		}
 	}
-
-	info, _ := GetClient(meta.Config.ID).GetNodeInfo(nodeID)
-
-	return info
+	info, err := GetClient(meta.Config.ID).GetNodeInfo(nodeID)
+	if err==nil{
+		return info
+	}
+	if global.Env().IsDebug{
+		log.Error(err)
+	}
+	return nil
 }
 
 func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {

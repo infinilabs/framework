@@ -763,14 +763,16 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 	if resp.StatusCode != 200 {
 		return nil, errors.New(string(resp.Body))
 	}
-
 	node := elastic.NodesResponse{}
 	err = util.FromJSONBytes(resp.Body, &node)
 	if err != nil {
 		return nil, err
 	}
-	nodeInfo, _ := node.Nodes[nodeID]
-	return &nodeInfo, nil
+	nodeInfo, ok := node.Nodes[nodeID]
+	if ok{
+		return &nodeInfo, nil
+	}
+	return nil, errors.Errorf("node info[%v] not found",nodeID)
 }
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
