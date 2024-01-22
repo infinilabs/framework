@@ -4,6 +4,7 @@
 package queue
 
 import (
+	"infini.sh/framework/core/kv"
 	"sync"
 	"time"
 
@@ -153,11 +154,11 @@ func Close(k *QueueConfig) error {
 }
 
 func GetEarlierOffsetStrByQueueID(queueID string) Offset {
-	_, seg, pos := GetEarlierOffsetByQueueID(queueID)
-	return NewOffset(seg, pos)
+	_, seg, pos,ver := GetEarlierOffsetByQueueID(queueID)
+	return NewOffsetWithVersion(seg, pos,ver)
 }
 
-func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {
+func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos, ver int64) {
 	q, ok := GetConfigByUUID(queueID)
 	if !ok {
 		q, ok = GetConfigByKey(queueID)
@@ -178,32 +179,35 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 		if global.Env().IsDebug {
 			log.Warnf("no consumer found for queue [%v]", queueID)
 		}
-		return 0, 0, 0
+		return 0, 0, 0,0
 	}
 	var iPart int64 = 0
 	var iPos int64 = 0
+	var iver int64=0
 	var init = true
 	for _, v := range consumers {
 		offset, err := GetOffset(q, v)
 		if err == nil {
-
 			if init {
 				iPart = offset.Segment
 				iPos = offset.Position
+				iver=offset.Version
 				init = false
 			} else {
-
-				if offset.Position < iPos {
-					iPos = offset.Position
-				}
 				if offset.Segment < iPart {
 					iPart = offset.Segment
 					iPos = offset.Position
+					iver=offset.Version
+				}else if offset.Segment == iPart{
+					if offset.Position < iPos {
+						iPos = offset.Position
+						iver=offset.Version
+					}
 				}
 			}
 		}
 	}
-	return len(consumers), iPart, iPos
+	return len(consumers), iPart, iPos,iver
 }
 
 func GetLatestOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {
@@ -270,6 +274,11 @@ func DeleteOffset(k *QueueConfig, consumer *ConsumerConfig) error {
 func CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset Offset) (bool, error) {
 	if k == nil || k.ID == "" {
 		panic(errors.New("queue name can't be nil"))
+	}
+
+	ok, _ := kv.ExistsKey(ConsumerBucket, util.UnsafeStringToBytes(k.ID))
+	if !ok{
+		return false,errors.Errorf("consumer %v for queue %v was not found",consumer.Key(),k.ID)
 	}
 
 	handler := getAdvancedHandler(k)

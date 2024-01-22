@@ -205,7 +205,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 				log.Error("error in bulk indexing processor,", v)
 			}
 		}
-		log.Trace("exit bulk indexing processor")
+		log.Debug("exit bulk indexing processor")
 	}()
 
 	//handle updates
@@ -572,6 +572,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		if skipFinalDocsProcess {
+			ctx.CancelTask()
 			return
 		}
 
@@ -714,7 +715,7 @@ READ_DOCS:
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
 
 		if global.Env().IsDebug {
-			log.Tracef("slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			log.Debugf("slice_worker, [%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。

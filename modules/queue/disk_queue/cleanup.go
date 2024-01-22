@@ -13,7 +13,7 @@ import (
 )
 
 func (module *DiskQueue)GetEarlierOffsetByQueueID(queueID string)(int,int64)  {
-	consumers, eSegmentNum, _ := queue.GetEarlierOffsetByQueueID(queueID)
+	consumers, eSegmentNum, _,_ := queue.GetEarlierOffsetByQueueID(queueID)
 	q,ok:=module.queues.Load(queueID)
 	if ok{
 		var c=0

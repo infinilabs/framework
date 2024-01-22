@@ -13,6 +13,7 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,8 @@ type ConsumerConfig struct {
 
 	ClientExpiredInSeconds int64 `config:"client_expired_in_seconds" json:"client_expired_in_seconds,omitempty"` //client acquires lock for this long
 	fetchMaxWaitMs         time.Duration
+
+	CommitLocker sync.Mutex
 }
 
 func (cfg *ConsumerConfig) Key() string {
@@ -56,18 +59,18 @@ func (cfg *ConsumerConfig) String() string {
 	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v", cfg.Group, cfg.Name, cfg.ID, cfg.Source)
 }
 
-const consumerBucket = "queue_consumers"
+const ConsumerBucket = "queue_consumers"
 
 func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 	consumerCfgLock.Lock()
 	defer consumerCfgLock.Unlock()
 
 	queueIDBytes := util.UnsafeStringToBytes(queueID)
-	ok, _ := kv.ExistsKey(consumerBucket, queueIDBytes)
+	ok, _ := kv.ExistsKey(ConsumerBucket, queueIDBytes)
 
 	cfgs := map[string]*ConsumerConfig{}
 	if ok {
-		data, err := kv.GetValue(consumerBucket, queueIDBytes)
+		data, err := kv.GetValue(ConsumerBucket, queueIDBytes)
 		if err != nil {
 			panic(err)
 		}
@@ -77,7 +80,7 @@ func RegisterConsumer(queueID string, consumer *ConsumerConfig) (bool, error) {
 		}
 	}
 	cfgs[consumer.Key()] = consumer
-	kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
+	kv.AddValue(ConsumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 
 	TriggerChangeEvent(queueID, cfgs, false)
 
@@ -115,14 +118,28 @@ func TriggerChangeEvent(queueID string, cfgs map[string]*ConsumerConfig, async b
 	}
 }
 
-func RemoveAllConsumers(queueID string) (bool, error) {
-	v, ok := GetConsumerConfigsByQueueID(queueID)
+func RemoveAllConsumers(qConfig *QueueConfig) (bool, error) {
+	v, ok := GetConsumerConfigsByQueueID(qConfig.ID)
 	if ok {
-		for _, v := range v {
-			RemoveConsumer(queueID, v.Key())
+		for k, v1 := range v {
+			ok, err := RemoveConsumer(qConfig.ID, v1.Key())
+			if err != nil {
+				log.Error(err)
+				return false, err
+			}
+			err = DeleteOffset(qConfig, v1)
+			if err != nil {
+				log.Errorf("delete consumer:%v %v, %v, %v, %v, %v", qConfig.ID, v1.Key(), ok, err, k, util.MustToJSON(v1))
+				return false, err
+			}
 		}
 	}
-	kv.DeleteKey(consumerBucket, util.UnsafeStringToBytes(queueID))
+	err := kv.DeleteKey(ConsumerBucket, util.UnsafeStringToBytes(qConfig.ID))
+	if err != nil {
+		log.Error(err)
+		return false, err
+	}
+	log.Debugf("success delete all consumers for queue:%v", qConfig.ID)
 	return true, nil
 }
 
@@ -131,10 +148,10 @@ func RemoveConsumer(queueID string, consumerKey string) (bool, error) {
 	defer consumerCfgLock.Unlock()
 
 	queueIDBytes := util.UnsafeStringToBytes(queueID)
-	ok, _ := kv.ExistsKey(consumerBucket, queueIDBytes)
+	ok, _ := kv.ExistsKey(ConsumerBucket, queueIDBytes)
 	cfgs := map[string]*ConsumerConfig{}
 	if ok {
-		data, err := kv.GetValue(consumerBucket, queueIDBytes)
+		data, err := kv.GetValue(ConsumerBucket, queueIDBytes)
 		if err != nil {
 			return false, err
 		}
@@ -143,7 +160,7 @@ func RemoveConsumer(queueID string, consumerKey string) (bool, error) {
 			return false, err
 		}
 		delete(cfgs, consumerKey)
-		err = kv.AddValue(consumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
+		err = kv.AddValue(ConsumerBucket, queueIDBytes, util.MustToJSONBytes(cfgs))
 		if err != nil {
 			return false, err
 		}
@@ -162,7 +179,7 @@ func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 
 	queueIDBytes := util.UnsafeStringToBytes(queueID)
 	cfgs := map[string]*ConsumerConfig{}
-	data, err := kv.GetValue(consumerBucket, queueIDBytes)
+	data, err := kv.GetValue(ConsumerBucket, queueIDBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -211,7 +228,7 @@ func GetConsumerConfigsByQueueID(queueID string) (map[string]*ConsumerConfig, bo
 
 	queueIDBytes := util.UnsafeStringToBytes(queueID)
 	cfgs := map[string]*ConsumerConfig{}
-	data, err := kv.GetValue(consumerBucket, queueIDBytes)
+	data, err := kv.GetValue(ConsumerBucket, queueIDBytes)
 	if err != nil {
 		panic(err)
 	}

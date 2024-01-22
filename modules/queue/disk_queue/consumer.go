@@ -7,7 +7,6 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"infini.sh/framework/core/kv"
 	"io"
 	"os"
 	"strings"
@@ -39,6 +38,7 @@ type Consumer struct {
 	queue   string
 	segment int64
 	readPos int64
+	version int64 //offset version
 
 	lastFileSize int64
 }
@@ -60,7 +60,7 @@ func (c *Consumer) getFileSize() int64 {
 	return stat.Size()
 }
 
-func (d *DiskBasedQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, segment, readPos int64) (queue.ConsumerAPI, error) {
+func (d *DiskBasedQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (queue.ConsumerAPI, error) {
 	output := Consumer{
 		ID:        util.ToString(util.GetIncrementID("consumer")),
 		mCfg:      d.cfg,
@@ -68,33 +68,28 @@ func (d *DiskBasedQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *q
 		qCfg:      qconfig,
 		cCfg:      consumer,
 		queue:     d.name,
+		version:   offset.Version,
 	}
 
 	if global.Env().IsDebug {
-		log.Debugf("acquire consumer:%v, %v, %v, %v-%v", output.ID, d.name, consumer.Key(), segment, readPos)
+		log.Debugf("acquire consumer:%v, %v, %v, %v", output.ID, d.name, consumer.Key(), offset.EncodeToString())
 	}
-	err := output.ResetOffset(segment, readPos)
+	err := output.ResetOffset(offset.Segment, offset.Position)
 	return &output, err
 }
 
 func (this *Consumer) CommitOffset(offset queue.Offset) error {
-
-	if global.Env().IsDebug {
-		log.Debug("queue:", this.qCfg.ID, "(", this.qCfg.Name, "), commit offset:", offset.String())
-	}
-	return kv.AddValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(this.qCfg, this.cCfg)), []byte(offset.String()))
+	_, err := saveOffset(this.qCfg, this.cCfg, offset)
+	return err
 }
 
 func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
-
-	//log.Error("start fetch messages:", d.queue, ",", d.segment, ",", d.readPos, ",", numOfMessages)
-	//defer log.Error("end fetch messages:", d.queue, ",", d.segment, ",", d.readPos, ",", numOfMessages)
 
 	var msgSize int32
 	var totalMessageSize int = 0
 	ctx.MessageCount = 0
 
-	ctx.UpdateInitOffset(d.segment, d.readPos)
+	ctx.UpdateInitOffset(d.segment, d.readPos, d.version)
 	ctx.NextOffset = ctx.InitOffset
 
 	messages = []queue.Message{}
@@ -214,7 +209,7 @@ READ_MSG:
 			//invalid message size, assume current file is corrupted, try to read next file
 			if d.diskQueue.cfg.AutoSkipCorruptFile {
 				log.Warnf("queue:%v, offset:%v,%v, invalid message size: %v, should between: %v TO %v, offset: %v,%v",
-					d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize,d.segment,d.readPos)
+					d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, d.segment, d.readPos)
 				nextSegment := d.segment + 1
 			RETRY_NEXT_FILE:
 				nextFile, exists := SmartGetFileName(d.mCfg, d.queue, nextSegment)
@@ -242,7 +237,7 @@ READ_MSG:
 					} else {
 						//let's continue move to next file
 						nextSegment++
-						log.Debugf("move to next file: %v",nextSegment)
+						log.Debugf("move to next file: %v", nextSegment)
 						goto RETRY_NEXT_FILE
 					}
 
@@ -291,8 +286,8 @@ READ_MSG:
 		message := queue.Message{
 			Data:       readBuf,
 			Size:       totalBytes,
-			Offset:     queue.NewOffset(d.segment, previousPos),
-			NextOffset: queue.NewOffset(d.segment, nextReadPos),
+			Offset:     queue.NewOffsetWithVersion(d.segment, previousPos,d.version),
+			NextOffset: queue.NewOffsetWithVersion(d.segment, nextReadPos,d.version),
 		}
 
 		ctx.UpdateNextOffset(d.segment, nextReadPos)
@@ -410,27 +405,27 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 	fileName, exists := SmartGetFileName(d.mCfg, d.queue, segment)
 	if !exists {
 		if !util.FileExists(fileName) {
-			if d.mCfg.AutoSkipCorruptFile{
+			if d.mCfg.AutoSkipCorruptFile {
 				log.Warnf("queue:%v, offset:%v,%v, file missing: %v, auto skip to next file",
 					d.queue, d.segment, d.readPos, fileName)
 				nextSegment := d.segment + 1
 			RETRY_NEXT_FILE:
 				// there are segments in the middle
-				if segment<d.diskQueue.writeSegmentNum{
+				if segment < d.diskQueue.writeSegmentNum {
 					fileName, exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
 					log.Debugf("try skip to next file: %v, exists: %v", fileName, exists)
 					if exists || util.FileExists(fileName) {
 						d.segment = nextSegment
-						d.readPos=0
-					}else{
+						d.readPos = 0
+					} else {
 						nextSegment++
-						log.Debugf("move to next file: %v",nextSegment)
+						log.Debugf("move to next file: %v", nextSegment)
 						goto RETRY_NEXT_FILE
 					}
-				}else{
+				} else {
 					return errors.New(fileName + " not found")
 				}
-			}else{
+			} else {
 				return errors.New(fileName + " not found")
 			}
 		}

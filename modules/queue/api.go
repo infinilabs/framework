@@ -93,14 +93,19 @@ func (module *API) deleteQueueByID(id string) {
 		log.Errorf("invalid queue id [%v]", id)
 		return
 	}
-	err := queue1.Destroy(queueConfig)
-	if err != nil {
-		log.Errorf("failed to destroy queue [%v]", id)
-		return
+	ok = queue1.RemoveConfig(queueConfig)
+	if ok {
+		ok, err := queue1.RemoveAllConsumers(queueConfig)
+		if ok && err != nil {
+			log.Errorf("failed to remove consumers for queue [%v]", id)
+			return
+		}
+		err = queue1.Destroy(queueConfig)
+		if err != nil {
+			log.Errorf("failed to destroy queue [%v]", id)
+			return
+		}
 	}
-	queue1.RemoveConfig(queueConfig)
-	queue1.RemoveAllConsumers(queueConfig.ID)
-
 	common.PersistQueueMetadata()
 }
 
@@ -176,7 +181,7 @@ func (module *API) getQueueStats(t, q string, metadata string, consumer string, 
 				m["name"] = v.Name
 				offset, err := queue1.GetOffset(cfg, v)
 				if err == nil {
-					m["offset"] = offset.String()
+					m["offset"] = offset.EncodeToString()
 				}
 				maps = append(maps, m)
 			}
@@ -220,7 +225,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 	dataIsString := true
 
 	var ctx *queue1.Context = &queue1.Context{
-		InitOffset: queue1.NewOffsetFromStr(offsetStr),
+		InitOffset: queue1.DecodeFromString(offsetStr),
 	}
 
 	log.Debugf("queue explore [%v] offset [%v] size [%v]", queueID, offsetStr, size)
@@ -271,7 +276,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
 			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer)
-			defer queue1.ReleaseConsumer(qConfig,consumer, consumerAPI)
+			defer queue1.ReleaseConsumer(qConfig, consumer, consumerAPI)
 			err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
 			if err != nil {
 				return
@@ -398,7 +403,14 @@ func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Req
 	var ack = false
 	var status = 404
 	if ok && ok1 {
-		ok, err := queue1.CommitOffset(cfg, cfg1, queue1.NewOffsetFromStr(offsetStr))
+		oldOffset, err := queue1.GetOffset(cfg, cfg1)
+		if err != nil {
+			panic(err)
+		}
+
+		newOffset := queue1.DecodeFromString(offsetStr)
+		newOffset.Version = oldOffset.Version + 1
+		ok, err := queue1.CommitOffset(cfg, cfg1, newOffset)
 		ack = ok
 		status = 200
 		if err != nil {

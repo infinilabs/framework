@@ -199,7 +199,7 @@ func (module *DiskQueue) Setup() {
 		MinMsgSize:          1,
 		MaxMsgSize:          104857600,         //100MB
 		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
-		WriteTimeoutInMS:    1000, //1s
+		WriteTimeoutInMS:    1000,              //1s
 		EOFRetryDelayInMs:   500,
 		SyncEveryRecords:    1000,
 		SyncTimeoutInMS:     1000,
@@ -339,7 +339,7 @@ func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *que
 }
 
 func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.ConsumerAPI, error) {
-	offsetStr, _ := queue.GetOffset(qconfig, consumer)
+	offset, _ := queue.GetOffset(qconfig, consumer)
 	q, ok := module.queues.Load(qconfig.ID)
 	if !ok {
 		//try init
@@ -348,7 +348,7 @@ func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *q
 	}
 	if ok {
 		q1 := q.(*DiskBasedQueue)
-		return q1.AcquireConsumer(qconfig, consumer, offsetStr.Segment, offsetStr.Position)
+		return q1.AcquireConsumer(qconfig, consumer, offset)
 	}
 	panic(errors.Errorf("queue [%v] not found", qconfig.Name))
 }
@@ -605,44 +605,99 @@ func (module *DiskQueue) Stop() error {
 	return nil
 }
 
-const consumerOffsetBucket = "queue_consumer_commit_offset"
+const ConsumerOffsetBucket = "queue_consumer_commit_offset"
 
 func getCommitKey(k *queue.QueueConfig, consumer *queue.ConsumerConfig) string {
 	return fmt.Sprintf("%v-%v", k.ID, consumer.ID)
 }
 
-func (module *DiskQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
-
-	bytes, err := kv.GetValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
+func loadOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
+	bytes, err := kv.GetValue(ConsumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
 	if err != nil {
 		log.Error(err)
 	}
 
 	if bytes != nil && len(bytes) > 0 {
 		str := string(bytes)
-		off := queue.NewOffsetFromStr(str)
-		return off, nil
+		offset := queue.DecodeFromString(str)
+		//log.Debugf("load offset: %v", offset.EncodeToString())
+		return offset, nil
 	}
+
+	//log.Debug("load default offset: 0,0")
 
 	return queue.NewOffset(0, 0), nil
 }
 
-func (module *DiskQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
-	return kv.DeleteKey(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
-}
+func saveOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
+	consumer.CommitLocker.Lock()
+	defer consumer.CommitLocker.Unlock()
 
-func (module *DiskQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
-
-	if global.Env().IsDebug {
-		log.Tracef("queue [%v] [%v][%v] commit offset:%v", k.ID, consumer.Group, consumer.Name, offset)
+	ok, _ := kv.ExistsKey(queue.ConsumerBucket, util.UnsafeStringToBytes(k.ID))
+	if !ok {
+		return false, errors.Errorf("consumer %v for queue %v was not found", consumer.Key(), k.ID)
 	}
 
-	err := kv.AddValue(consumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(offset.String()))
+	if global.Env().IsDebug {
+		log.Tracef("commit offset, queue [%v] [%v][%v] commit offset:%v", k.ID, consumer.Group, consumer.Name, offset)
+	}
+
+	//check before save, if previous value is great than current value, should panic
+	current, err := loadOffset(k, consumer)
+	if err == nil {
+		if current.LatestThan(offset) {
+			panic(errors.Errorf("current offset(%v) is larger than committed value(%v)", current, offset))
+		}
+	}
+
+	//log.Debugf("save offset: %v", offset.EncodeToString())
+
+	err = kv.AddValue(ConsumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(offset.EncodeToString()))
 	if err != nil {
 		return false, err
 	}
 
 	return true, nil
+}
+
+func deleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error  {
+	consumer.CommitLocker.Lock()
+	defer consumer.CommitLocker.Unlock()
+
+	ok, _ := kv.ExistsKey(queue.ConsumerBucket, util.UnsafeStringToBytes(k.ID))
+	if !ok {
+		return errors.Errorf("consumer %v for queue %v was not found", consumer.Key(), k.ID)
+	}
+
+	if global.Env().IsDebug {
+		log.Debug("delete offset:", k.ID, consumer.ID)
+	}
+
+	//in-fight request may carry latest offset, should be ignored if we reset the offset
+	//reset to zero instead of delete offset
+	oldOffset, err := loadOffset(k, consumer)
+	if err != nil {
+		panic(err)
+	}
+	//log.Debugf("start delete offset: %v", oldOffset.EncodeToString())
+	oldOffset.Segment = 0
+	oldOffset.Position = 0
+	oldOffset.Version = oldOffset.Version + 1
+	//log.Debugf("ok to delete offset: %v", oldOffset.EncodeToString())
+	return kv.AddValue(ConsumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(oldOffset.EncodeToString()))
+	//return kv.DeleteKey(ConsumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)))
+}
+
+func (module *DiskQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
+	return loadOffset(k,consumer)
+}
+
+func (module *DiskQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
+	return deleteOffset(k,consumer)
+}
+
+func (module *DiskQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
+	return saveOffset(k,consumer,offset)
 }
 
 func (module *DiskQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerAPI, error) {
