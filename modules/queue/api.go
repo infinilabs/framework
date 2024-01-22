@@ -52,7 +52,7 @@ func (module *API) SingleQueueStatsAction(w http.ResponseWriter, req *http.Reque
 	useKey := module.Get(req, "use_key", "false")
 
 	data := util.MapStr{}
-	module.getQueueStats("", ps.ByName("id"), metadata, consumer, useKey, data)
+	module.getQueueStats("", ps.MustGetParameter("id"), metadata, consumer, useKey, data)
 	module.WriteJSON(w, data, 200)
 }
 
@@ -82,7 +82,7 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 }
 
 func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+	id := ps.MustGetParameter("id")
 	module.deleteQueueByID(id)
 	module.WriteAckOKJSON(w)
 }
@@ -215,7 +215,7 @@ func (module *API) getQueueStats(t, q string, metadata string, consumer string, 
 
 func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	queueID := ps.ByName("id")
+	queueID := ps.MustGetParameter("id")
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
 	size := module.GetIntOrDefault(req, "size", 5)
 
@@ -299,8 +299,9 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 }
 
 func (module *API) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queueID := ps.ByName("id")
-	consumerID := ps.ByName("consumer_id")
+	queueID := ps.MustGetParameter("id")
+	consumerID := ps.MustGetParameter("consumer_id")
+
 	cfg, ok := queue1.SmartGetConfig(queueID)
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
 	obj := util.MapStr{}
@@ -321,8 +322,8 @@ func (module *API) QueueGetConsumerOffset(w http.ResponseWriter, req *http.Reque
 }
 
 func (module *API) QueueDeleteConsumerByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queueID := ps.ByName("id")
-	consumerID := ps.ByName("consumer_id")
+	queueID := ps.MustGetParameter("id")
+	consumerID := ps.MustGetParameter("consumer_id")
 
 	queueConfig, ok := queue1.SmartGetConfig(queueID)
 	consumerConfig, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
@@ -395,12 +396,8 @@ func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Reque
 }
 
 func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	queueID := ps.ByName("id")
-	consumerID := ps.ByName("consumer_id")
-
-	if queueID==""||consumerID==""{
-		panic(errors.New("invalid queue or consumer"))
-	}
+	queueID := ps.MustGetParameter("id")
+	consumerID := ps.MustGetParameter("consumer_id")
 
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
 	cfg, ok := queue1.SmartGetConfig(queueID)
