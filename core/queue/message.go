@@ -79,7 +79,6 @@ func (c *Offset) Equals(v Offset) bool {
 	if c.Position != v.Position {
 		return false
 	}
-
 	return true
 }
 
@@ -93,8 +92,10 @@ func (c *Offset) LatestThan(v Offset) bool {
 		return true
 	}
 
-	if c.Position > v.Position {
-		return true
+	if c.Version == v.Version && c.Segment==v.Segment{
+		if c.Position > v.Position {
+			return true
+		}
 	}
 
 	return false
