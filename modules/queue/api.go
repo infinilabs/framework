@@ -397,6 +397,11 @@ func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Reque
 func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	queueID := ps.ByName("id")
 	consumerID := ps.ByName("consumer_id")
+
+	if queueID==""||consumerID==""{
+		panic(errors.New("invalid queue or consumer"))
+	}
+
 	offsetStr := module.GetParameterOrDefault(req, "offset", "0,0")
 	cfg, ok := queue1.SmartGetConfig(queueID)
 	cfg1, ok1 := queue1.GetConsumerConfigID(queueID, consumerID)
