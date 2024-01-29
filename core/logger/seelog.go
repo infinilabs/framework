@@ -105,8 +105,8 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		cfg1 := rotate.RotateConfig{
 			Compress:     true,
 			MaxFileAge:   0,
-			MaxFileCount: 100,
-			MaxFileSize:  1024,
+			MaxFileCount: 10,
+			MaxFileSize:  100,
 		}
 		fileHandler := rotate.GetFileHandler(file, cfg1)
 		fileReceiver := NewFileReceiver(fileHandler, l)

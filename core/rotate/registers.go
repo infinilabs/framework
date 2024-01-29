@@ -25,7 +25,7 @@ var DefaultConfig = RotateConfig{
 	Compress:     true,
 	MaxFileAge:   0,
 	MaxFileCount: 10,
-	MaxFileSize:  1024,
+	MaxFileSize:  100,
 }
 
 func GetFileHandler(path string, config RotateConfig) *RotateWriter {
