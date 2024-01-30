@@ -95,7 +95,7 @@ func Hold(bucket, name string, clientID string, expireTimeout time.Duration, all
 		}else{
 
 			if global.Env().IsDebug{
-				log.Debug("it's me, let's hold the lock again, client_id:",info.ClientID)
+				log.Debug("it's me, let's hold the lock again, bucket:",bucket,", name:", name,", client_id:",info.ClientID)
 			}
 			//update timestamp to extend the lease
 			return placeLock(bucket, name, clientID)

@@ -45,7 +45,6 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 			if global.Env().IsDebug {
 				log.Trace(field,", ",offset, " vs ", latestProduceOffset)
 			}
-			//log.Error(field," offset:",latestProduceOffset==offset,",",latestProduceOffset,",",offset)
 			if latestProduceOffset==offset {
 				return false
 			}else{
@@ -58,8 +57,6 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 		if global.Env().IsDebug {
 			log.Trace(field, ",depth:", depth, ",", maxDepth)
 		}
-
-		//log.Error(field," depth:",depth>maxDepth,",",depth,",",maxDepth)
 
 		if depth>maxDepth {
 			return true
