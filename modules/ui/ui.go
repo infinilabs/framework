@@ -9,7 +9,7 @@ import (
 	uis "infini.sh/framework/core/api"
 	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/logger"
+	"infini.sh/framework/core/logging/logger"
 	_ "net/http/pprof"
 )
 

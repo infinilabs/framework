@@ -1,8 +1,8 @@
-package log
+package logging
 
 import (
 	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/logger"
+	"infini.sh/framework/core/logging/logger"
 	defaultLog "log"
 )
 

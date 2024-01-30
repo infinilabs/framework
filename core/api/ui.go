@@ -15,7 +15,7 @@ import (
 	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
-	_ "infini.sh/framework/core/log"
+	_ "infini.sh/framework/core/logging"
 	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
