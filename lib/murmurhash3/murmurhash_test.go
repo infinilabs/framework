@@ -1,3 +1,7 @@
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
+
 /*
 Copyright 2016 Medcl (m AT medcl.net)
 

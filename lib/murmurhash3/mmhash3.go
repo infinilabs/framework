@@ -1,3 +1,7 @@
+/* Copyright © INFINI Ltd. All rights reserved.
+ * web: https://infinilabs.com
+ * mail: hello#infini.ltd */
+
 // Copyright (c) 2012 The Go Authors. All rights reserved.
 // refer https://github.com/gwenn/murmurhash3
 
@@ -153,54 +157,36 @@ func IntToByte(num int64) []byte {
 
 func converToBianry(n int) string {
 	return fmt.Sprintf("%b", n)
-	//return strconv.FormatInt(int64(n), 2)
 }
 
 
 // MurmurHash3 for x86, 32-bit (MurmurHash3_x86_32)
 func Murmur3A(key []byte, seed uint32) int32 {
 	nblocks := len(key) / 4
-	//
-	//nblocks := len(key) & 0xfffffffc;  // round down to 4 byte block
-
-
 	var h1 = int32(seed)
 
 	var c1 uint32 = 0xcc9e2d51
 	var c2 uint32 = 0x1b873593
 
-	//fmt.Println("len:",len(key))
-	//fmt.Println("seed:",h1)
-	//fmt.Println("nblocks",nblocks)
-
 	// body
 	for i := 0; i < nblocks; i++ {
-		//fmt.Println("\n")
 		bt:=key[i*4:]
-		//fmt.Println(len(bt))
 		if len(bt)<=0{
 			continue
 		}
 		var k1 int32
 		k1 = int32(binary.LittleEndian.Uint32(bt)) // TODO Validate
-		//fmt.Println("k1:",k1,converToBianry(int(k1)))
 
 		k1 *= int32(c1)
-		//fmt.Println("k1 *= c1:",i,",k1:",k1,converToBianry(int(k1)))
 		k1 = int32(bits.RotateLeft32(uint32(k1), 15))
 		k1 *= int32(c2)
-		//fmt.Println("k1 *= c2:",i,",k1:",k1,converToBianry(int(k1)))
-		//fmt.Println("h1:",h1," = ",converToBianry(int(h1)))
 		h1 ^= k1
 		h1 = int32(bits.RotateLeft32(uint32(h1), 13))
-		//fmt.Println("h1 after:",h1,converToBianry(int(h1)))
 
 		h1 = h1*5
 		h1= int32(uint32(h1) + 0xe6546b64)
 
-		//fmt.Println("h1 after:",h1,converToBianry(int(h1)))
 	}
-	//fmt.Println("after for:",h1)
 
 	// tail
 	var tail = key[nblocks*4:] // TODO Validate
@@ -222,12 +208,7 @@ func Murmur3A(key []byte, seed uint32) int32 {
 
 	//finalization
 	h1 ^= int32(len(key))
-
-	//fmt.Println(h1)
-
 	h1 = int32(fmix32(uint32(h1)))
-	//fmt.Println(h1)
-
 	return int32(h1)
 }
 
