@@ -107,7 +107,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		ReadBufferSize:                processor.config.ReadBufferSize,
 		WriteBufferSize:               processor.config.WriteBufferSize,
 		DialDualStack:                 true,
-		TLSConfig:                     api.GetFastHTTPClientTLSConfig(processor.config.TLSConfig),
+		TLSConfig:                     api.SimpleGetTLSConfig(processor.config.TLSConfig),
 	}
 
 	var err error

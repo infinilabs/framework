@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/keystore"
@@ -96,13 +97,9 @@ func ListenConfigChanges() error {
 	clientInitLock.Do(func() {
 
 		if global.Env().SystemConfig.Configs.Managed {
-
-			if global.Env().SystemConfig.Configs.TLSConfig.TLSEnabled && global.Env().SystemConfig.Configs.TLSConfig.TLSCACertFile != "" {
-				//init client
-				hClient, err := util.NewMTLSClient(
-					global.Env().SystemConfig.Configs.TLSConfig.TLSCACertFile,
-					global.Env().SystemConfig.Configs.TLSConfig.TLSCertFile,
-					global.Env().SystemConfig.Configs.TLSConfig.TLSKeyFile)
+			cfg:=global.Env().GetClientConfigByEndpoint("configs","")
+			if cfg!=nil{
+				hClient, err := api.NewHTTPClient(cfg)
 				if err != nil {
 					panic(err)
 				}

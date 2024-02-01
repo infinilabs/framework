@@ -11,9 +11,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"io/ioutil"
 	"math/big"
-	"net/http"
 	"time"
 )
 
@@ -201,31 +199,6 @@ func GetSkipHostnameVerifyFunc(pool *x509.CertPool) func ([][]byte, [][]*x509.Ce
 		_, err := certs[0].Verify(opts)
 		return err
 	}
-}
-
-func NewMTLSClient(caFile, clientCertFile, clientKeyFile string) (*http.Client, error){
-	pool := x509.NewCertPool()
-	caCert, err := ioutil.ReadFile(caFile)
-	if err != nil {
-		return nil, err
-	}
-	pool.AppendCertsFromPEM(caCert)
-	clientCert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs: pool,
-			Certificates: []tls.Certificate{clientCert},
-			//use custom verify
-			InsecureSkipVerify: true,
-			VerifyPeerCertificate: GetSkipHostnameVerifyFunc(pool),
-		},
-	}
-	return  &http.Client{
-		Transport: tr,
-	}, nil
 }
 
 func ParsePrivateKey(der []byte) (any, error){

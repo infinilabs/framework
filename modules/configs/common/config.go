@@ -16,7 +16,6 @@ type AgentConfig struct {
 
 type SetupConfig struct {
 	DownloadURL               string      `config:"download_url"`
-	Version                   string      `config:"version"`
 	CACertFile                string      `config:"ca_cert"`
 	CAKeyFile                 string      `config:"ca_key"`
 	ConsoleEndpoint           string      `config:"console_endpoint"`
@@ -28,7 +27,6 @@ func GetAgentConfig() *AgentConfig {
 		Enabled: true,
 		Setup: &SetupConfig{
 			DownloadURL: "https://release.infinilabs.com/agent/stable",
-			Version: "0.7.0-364",
 		},
 	}
 	_, err := env.ParseConfig("agent", agentCfg )

@@ -159,20 +159,22 @@ type CookieConfig struct {
 }
 
 type HTTPClientConfig struct {
+	Name       string `config:"name"`
 	HTTPProxy  string `config:"http_proxy"`
 	HTTPSProxy string `config:"https_proxy"`
 
+	Timeout         string `config:"timeout"`
 	ReadTimeout           string `config:"read_timeout"`
 	WriteTimeout          string `config:"write_timeout"`
 	ReadBufferSize        int    `config:"read_buffer_size"`
 	WriteBufferSize       int    `config:"write_buffer_size"`
-	TLSInsecureSkipVerify bool   `config:"tls_insecure_skip_verify"`
+	TLSConfig            TLSConfig `config:"tls"` //server or client's certs
 	MaxConnectionPerHost  int    `config:"max_connection_per_host"`
 }
 
-type HTTPClientConfigs struct {
-	Default HTTPClientConfig `config:"default"`
-}
+//type HTTPClientConfigs struct {
+//	Default HTTPClientConfig `config:"default"`
+//}
 
 type ConfigsConfig struct {
 	AutoReload                 bool      `config:"auto_reload"`                    //auto reload local files
