@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -125,7 +126,9 @@ func splitLine(line []byte) [][]byte {
 func (kv *KVStore) loadFromWAL() {
 	kv.wal.mu.Lock()
 	defer kv.wal.mu.Unlock()
-
+    if !util.FileExists(kv.wal.filename){
+		return
+	}
 	file, err := os.Open(kv.wal.filename)
 	if err != nil {
 		log.Errorf("Error opening WAL file: %v", err)
