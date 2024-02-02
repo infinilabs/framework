@@ -115,6 +115,12 @@ func GetIncrementID64(bucket string) uint64 {
 	return v
 }
 
+func ClearAllID() {
+	count.l.Lock()
+	clear(count.ID)
+	count.l.Unlock()
+}
+
 // SnapshotPersistID will make a snapshot and persist id stats to disk
 func SnapshotPersistID() {
 	count.l.Lock()
