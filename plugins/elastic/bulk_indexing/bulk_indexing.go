@@ -333,6 +333,9 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 		} else {
 			log.Debugf("node_id not found: %v", v)
 		}
+		if processor.config.SkipOnMissingInfo {
+			return
+		}
 	} else if level == "shard" || level == "partition" {
 		index, ok := v.Labels["index"]
 		if ok {
