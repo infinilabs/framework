@@ -3,7 +3,7 @@ SHELL=/bin/bash
 # APP info
 APP_NAME?= framework
 APP_VERSION?= 1.0.0_SNAPSHOT
-APP_CONFIG := $(APP_NAME).yml
+APP_CONFIG ?= $(APP_NAME).yml
 APP_EOLDate ?= "2023-12-31T10:10:10Z"
 APP_STATIC_FOLDER ?= .public
 APP_STATIC_PACKAGE ?= public
@@ -98,7 +98,7 @@ build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
-build-cmd: 
+build-cmd:
 	for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
 	$(MAKE) restore-generated-file
 
@@ -232,7 +232,7 @@ config: init update-vfs update-generated-file update-plugins
 	@echo "update configs"
 	@# $(GO) env
 	@mkdir -p $(OUTPUT_DIR)
-	@cp $(APP_CONFIG) $(OUTPUT_DIR)/$(APP_CONFIG)
+	@cp $(APP_CONFIG) $(OUTPUT_DIR)
 	(cd ../framework/  && make update-plugins) || true # build plugins in framework
 
 
