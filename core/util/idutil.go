@@ -117,7 +117,7 @@ func GetIncrementID64(bucket string) uint64 {
 
 func ClearAllID() {
 	count.l.Lock()
-	clear(count.ID)
+	count.ID= make(map[string]*AtomicID)
 	count.l.Unlock()
 }
 
