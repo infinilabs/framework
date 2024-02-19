@@ -402,21 +402,9 @@ func (p *App) Start(s service.Service) error {
 		util.CheckInstanceLock(p.environment.GetDataDir())
 	}
 
-	//configs
-	if global.Env().SystemConfig.Configs.Managed{
-		err:= client.ConnectToManager()
-		if err!=nil{
-			log.Warn(err)
-		}
-
-		err= client.ListenConfigChanges()
-		if err!=nil{
-			log.Warn(err)
-		}
-	}
-
 	p.quitSignal = make(chan bool)
 	go p.run()
+
 	return nil
 }
 
@@ -509,6 +497,19 @@ func (p *App) run() error {
 		global.RunBackgroundCallbacks(&p.state)
 		return nil
 	}, context.Background())
+
+	// register to config manager
+	if global.Env().SystemConfig.Configs.Managed{
+		err:= client.ConnectToManager()
+		if err!=nil{
+			log.Warn(err)
+		}
+
+		err= client.ListenConfigChanges()
+		if err!=nil{
+			log.Warn(err)
+		}
+	}
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
 	return nil
