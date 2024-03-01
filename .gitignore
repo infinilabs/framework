@@ -50,7 +50,6 @@ vendor
 *.so
 /test/
 cmd/genfastjson/genfastjson
-/config/generated.go
 /config/generated_plugins.go
 generated_*.go
 *.swp
