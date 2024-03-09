@@ -60,6 +60,10 @@ func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	if c.metadata != nil {
 		return c.metadata
 	}
+	if meta := elastic.GetMetadata(c.Elasticsearch); meta !=nil {
+		c.metadata = meta
+		return c.metadata
+	}
 
 	cfg := elastic.GetConfig(c.Elasticsearch)
 	if cfg != nil {
