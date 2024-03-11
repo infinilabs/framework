@@ -29,6 +29,10 @@ type Config struct {
 
 	NumLevelZeroTables      int `config:"num_level0_tables"`
 	NumLevelZeroTablesStall int `config:"num_level0_tables_stall"`
+
+	ValueLogGCEnabled           bool    `config:"value_log_gc_enabled"`
+	ValueLogDiscardRatio        float64 `config:"value_log_gc_discard_ratio"`
+	ValueLogGCIntervalInSeconds int     `config:"value_log_gc_interval_in_seconds"`
 }
 
 type Module struct {
@@ -43,18 +47,22 @@ func (module *Module) Name() string {
 
 func (module *Module) Setup() {
 	module.cfg = &Config{
-		Enabled:                 true,
-		MemTableSize:            10 * 1024 * 1024,
-		ValueLogFileSize:        1<<30 - 1, //1g
-		ValueThreshold:          1048576,   //1m
-		ValueLogMaxEntries:      1000000,   //1million
+		Enabled:                     true,
+		MemTableSize:                10 * 1024 * 1024,
+		ValueLogFileSize:            1<<30 - 1, //1g
+		ValueThreshold:              1048576,   //1m
+		ValueLogMaxEntries:          1000000,   //1million
+		ValueLogGCEnabled:           true,
+		ValueLogGCIntervalInSeconds: 120,
+		ValueLogDiscardRatio:        0.5,
+
 		NumMemtables:            1,
 		NumLevelZeroTables:      1,
 		NumLevelZeroTablesStall: 2,
 		SingleBucketMode:        true,
 	}
 	ok, err := env.ParseConfig("badger", module.cfg)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if module.cfg.Path == "" {

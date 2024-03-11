@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/stats"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
@@ -30,6 +31,15 @@ func (filter *Module) Open() error {
 
 	if filter.cfg.SingleBucketMode {
 		filter.bucket = filter.getOrInitBucket("default")
+	}
+
+	if filter.cfg.ValueLogGCEnabled {
+		global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "badger_gc", Func: func() {
+			err := filter.bucket.RunValueLogGC(filter.cfg.ValueLogDiscardRatio)
+			if err != nil &&err!=badger.ErrNoRewrite{
+				log.Error(err)
+			}
+		}, Interval: time.Duration(filter.cfg.ValueLogGCIntervalInSeconds) * time.Second})
 	}
 
 	return nil
