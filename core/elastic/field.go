@@ -10,16 +10,7 @@ import (
 	"strings"
 )
 
-func GetFieldCaps(clusterID string, pattern string, metaFields []string) ([]ElasticField, error){
-	//exists,client,err:=h.GetClusterClient(clusterID)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if !exists{
-	//	return nil, fmt.Errorf("cluster [%s] not found", clusterID)
-	//}
-	client := GetClient(clusterID)
-
+func GetFieldCaps(client API, pattern string, metaFields []string) ([]ElasticField, error){
 	buf, err := client.FieldCaps(pattern)
 	if err != nil {
 		return nil, err
