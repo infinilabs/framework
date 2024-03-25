@@ -320,7 +320,7 @@ type CatNodeResponse struct {
 	Master      string      `json:"master"`
 	Name        string      `json:"name"`
 	DiskAvail   string      `json:"disk.avail"`
-	DiskUsed   string      `json:"disk.used"`
+	DiskUsed    string      `json:"disk.used"`
 	Shards      int         `json:"shards,omitempty"`
 	Uptime      string      `json:"uptime"`
 }
@@ -510,7 +510,8 @@ type ElasticsearchConfig struct {
 	AgentCredentialID string           `json:"agent_credential_id,omitempty" elastic_mapping:"agent_credential_id:{type:keyword}"`
 	AgentBasicAuth    *model.BasicAuth `config:"agent_basic_auth" json:"agent_basic_auth,omitempty" elastic_mapping:"agent_basic_auth:{type:object}"`
 
-	Distribution string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
+	Distribution          string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
+	NoDefaultAuthForAgent bool   `json:"no_default_auth_for_agent,omitempty" config:"no_default_auth_for_agent"`
 }
 
 type GeoLocation struct {
@@ -624,7 +625,7 @@ type LocalNodeInfo struct {
 	ClusterInfo *ClusterInformation `json:"cluster_info,omitempty,nocopy"`
 	NodeUUID    string              `json:"node_id,omitempty,nocopy"`
 	NodeInfo    *NodesInfo          `json:"node_info,omitempty,nocopy"`
-	Status      string                `json:"status,omitempty,nocopy"`
+	Status      string              `json:"status,omitempty,nocopy"`
 }
 
 type DiscoveryResult struct {

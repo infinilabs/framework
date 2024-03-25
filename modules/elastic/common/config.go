@@ -231,6 +231,25 @@ func GetAgentBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.
 		auth,err:=cred.DecodeBasicAuth()
 		return auth,err
 	}
+
+	//try default auth
+	if !esConfig.NoDefaultAuthForAgent{
+		if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
+			basicAuth = esConfig.BasicAuth
+			return
+		}
+
+		if esConfig.CredentialID != ""{
+			cred,err := GetCredential(esConfig.CredentialID)
+			if err != nil {
+				return basicAuth,err
+			}
+
+			auth,err:=cred.DecodeBasicAuth()
+			return auth,err
+		}
+	}
+
 	return
 }
 
