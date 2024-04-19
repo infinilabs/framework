@@ -166,7 +166,7 @@ func StartUI(cfg config.WebAppConfig) {
 
 		srv = &http.Server{
 			Addr:         bindAddress,
-			Handler:      RecoveryHandler()(handler),
+			Handler:      globalInterceptorHandler.Handler(RecoveryHandler()(handler)),
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -197,7 +197,7 @@ func StartUI(cfg config.WebAppConfig) {
 		}(srv)
 
 	} else {
-		srv = &http.Server{Addr: bindAddress, Handler: RecoveryHandler()(handler)}
+		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(handler))}
 		go func(srv *http.Server) {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -232,6 +232,64 @@ func StartUI(cfg config.WebAppConfig) {
 
 	log.Info("ui listen at: ", schema, bindAddress)
 
+}
+
+type Interceptor interface {
+	Match(request *http.Request) bool
+	PreHandle(c ctx.Context, writer http.ResponseWriter, request *http.Request) (ctx.Context, error)
+	PostHandle(c ctx.Context, writer http.ResponseWriter, request *http.Request)
+	Name() string
+}
+
+type InterceptorHandler struct {
+	interceptors []Interceptor
+}
+
+func (i *InterceptorHandler) AddInterceptors(interceptors ...Interceptor) {
+	for _, interceptor := range interceptors {
+		if interceptor != nil {
+			i.interceptors = append(i.interceptors, interceptor)
+		}
+	}
+}
+
+func (i *InterceptorHandler) Handler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var appliedInterceptors []Interceptor
+		var appliedContexts []ctx.Context
+		for _, interceptor := range i.interceptors {
+			if !interceptor.Match(request) {
+				continue
+			}
+			appliedInterceptors = append(appliedInterceptors, interceptor)
+			if c, err := interceptor.PreHandle(ctx.Background(), writer, request); err != nil {
+				log.Infof("encountered an error while calling the PreHandle method of %s, err: %s",
+					interceptor.Name(), err.Error())
+				return
+			} else {
+				appliedContexts = append(appliedContexts, c)
+			}
+		}
+		handler.ServeHTTP(writer, request)
+		for i := len(appliedInterceptors) - 1; i >= 0; i-- {
+			interceptor := appliedInterceptors[i]
+			c := appliedContexts[i]
+			interceptor.PostHandle(c, writer, request)
+		}
+	})
+}
+
+func NewInterceptorHandler() *InterceptorHandler {
+	return &InterceptorHandler{}
+}
+
+var globalInterceptorHandler = NewInterceptorHandler()
+var globalInterceptorHandlerMtx sync.Mutex
+
+func AddGlobalInterceptors(interceptors ...Interceptor) {
+	globalInterceptorHandlerMtx.Lock()
+	defer globalInterceptorHandlerMtx.Unlock()
+	globalInterceptorHandler.AddInterceptors(interceptors...)
 }
 
 var srv *http.Server
