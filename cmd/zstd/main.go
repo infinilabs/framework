@@ -12,7 +12,6 @@ import (
 	"infini.sh/framework/core/util/zstd"
 	log "github.com/cihub/seelog"
 	"sync"
-	"time"
 )
 
 
@@ -44,7 +43,6 @@ func main() {
 		}
 	}
 
-	time.Sleep(time.Second)
 }
 var suffix=".zstd"
 var locker=sync.RWMutex{}
