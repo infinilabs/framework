@@ -120,7 +120,7 @@ func (c Equals) Check(event ValuesMap) bool {
 
 		if !equalValue(value) {
 			if isDebug {
-				logger.Warnf("'%s' is not equal to expected value: %v", field, value)
+				logger.Warnf("'%s' is not equal to expected value, actual: %v", field, value)
 			}
 			return false
 		}
