@@ -29,6 +29,12 @@ func TestCompareOffset(t *testing.T) {
 	o2=NewOffsetWithVersion(0,0,1)
 
 	assert.Equal(t,o1.LatestThan(o2),false)
+
+	//32,83253693,00,0,1
+	o1=NewOffsetWithVersion(32,83253693,0)
+	o2=NewOffsetWithVersion(0,0,1)
+
+	assert.Equal(t,o1.LatestThan(o2),false)
 }
 
 func TestParseOffset(t *testing.T) {
