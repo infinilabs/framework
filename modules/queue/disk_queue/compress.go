@@ -38,7 +38,6 @@ func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64
 	var lastFile int64
 	for i:=int64(1);i<=module.cfg.Compress.NumOfFilesDecompressAhead;i++{
 		lastFile=int64(fileNum+int64(i))
-		log.Tracef("check file: %v",lastFile)
 		_,exists:=SmartGetFileName(module.cfg,queueID,lastFile)
 		if !exists{
 			return fileNum
@@ -75,13 +74,13 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	lastCompressedFileNum := GetLastCompressFileNum(queueID)
 
 	if global.Env().IsDebug {
-		log.Debugf("fileNum:%v, files start to compress:%v, last compress:%v, consumers:%v, last consumed file:%v",
+		log.Infof("fileNum:%v, files start to compress:%v, last compress:%v, consumers:%v, last consumed file:%v",
 			fileNum, fileStartToCompress, lastCompressedFileNum, consumers, earliestConsumedSegmentFileNum)
 	}
 
 	//skip compress file
 	if fileStartToCompress <= 0 || (module.cfg.SkipZeroConsumers&&consumers <= 0) || fileStartToCompress <= lastCompressedFileNum {
-		log.Debugf("skip compress %v", queueID)
+		log.Infof("skip compress %v", queueID)
 		return
 	}
 
@@ -118,6 +117,8 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 			if !module.cfg.Compress.DeleteAfterCompress{
 				continue
 			}
+
+			//TODO, make sure on one read this file before delete
 
 			//if compress ahead of compressed, delete original file
 			_, earliestConsumedSegmentFileNum = module.GetEarlierOffsetByQueueID(queueID)

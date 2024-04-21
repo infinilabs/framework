@@ -7,6 +7,7 @@ import (
 	"infini.sh/framework/core/s3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/zstd"
+	log "github.com/cihub/seelog"
 )
 
 //if local file not found, try to download from s3
@@ -15,9 +16,12 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 	exists:=util.FileExists(filePath)
 	if !exists{
 		if cfg.Compress.Segment.Enabled{
+
+
 			//check local compressed file
 			compressedFile:=filePath+compressFileSuffix
 			if util.FileExists(compressedFile){
+				log.Tracef("decompress file: %v", compressedFile)
 				err:=zstd.DecompressFile(&compressLocker,compressedFile,filePath)
 				if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
 					panic(err)
@@ -48,6 +52,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 
 				//uncompress after download
 				if cfg.Compress.Segment.Enabled&&fileToDownload!=filePath{
+					log.Tracef("decompress file: %v", fileToDownload)
 					err:=zstd.DecompressFile(&compressLocker,fileToDownload,filePath)
 					if err!=nil&&err.Error()!="unexpected EOF"&&util.ContainStr(err.Error(),"exists"){
 						panic(err)

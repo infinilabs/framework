@@ -211,7 +211,7 @@ func (module *DiskQueue) Setup() {
 		PrepareFilesToRead:  true,
 		Compress: DiskCompress{
 			IdleThreshold:             3,
-			DeleteAfterCompress:       true,
+			DeleteAfterCompress:       false,
 			NumOfFilesDecompressAhead: 3,
 			Message: CompressConfig{
 				Enabled: false,

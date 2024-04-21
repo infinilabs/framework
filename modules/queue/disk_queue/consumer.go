@@ -274,6 +274,9 @@ READ_MSG:
 		return messages, false, err
 	} else {
 		if d.mCfg.Compress.Message.Enabled {
+			if global.Env().IsDebug{
+				log.Tracef("decompress message: %v %v", d.fileName,d.segment)
+			}
 			newData, err := zstd.ZSTDDecompress(nil, readBuf)
 			if err != nil {
 				log.Error(err)

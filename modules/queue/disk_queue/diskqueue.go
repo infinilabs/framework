@@ -477,6 +477,9 @@ func (d *DiskBasedQueue) readOne() ([]byte, error) {
 	}
 
 	if d.cfg.Compress.Message.Enabled {
+		if global.Env().IsDebug {
+			log.Tracef("decompress message: %v %v", d.readSegmentFileNum, d.readPos)
+		}
 		newData, err := zstd.ZSTDDecompress(nil, readBuf)
 		if err != nil {
 			return nil, err
@@ -522,6 +525,9 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 
 	//compress data
 	if d.cfg.Compress.Message.Enabled {
+		if global.Env().IsDebug {
+			log.Tracef("compress message: %v %v", d.readSegmentFileNum, d.readPos)
+		}
 		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.Compress.Message.Level)
 		if err != nil {
 			res.Error=err
