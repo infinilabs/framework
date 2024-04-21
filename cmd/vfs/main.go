@@ -129,7 +129,7 @@ func main() {
 
 		var buf= &bytes.Buffer{}
 		reader:=bytes.NewBuffer(f.data)
-		err=zstd.ZSTDReusedCompress(buf,reader)
+		err=zstd.Compress(buf,reader)
 		if err!=nil{
 			panic(err)
 		}

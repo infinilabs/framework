@@ -2,7 +2,6 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-//https://github.com/dgraph-io/badger/pull/1706/files
 package zstd
 
 import (
@@ -18,10 +17,55 @@ import (
 )
 
 var (
-	decoder *zstd.Decoder
-	encoder *zstd.Encoder
 	encOnce, decOnce sync.Once
 )
+
+// Create a writer that caches compressors.
+// For this operation type we supply a nil Reader.
+var encoder, _ = zstd.NewWriter(nil,zstd.WithEncoderConcurrency(1))
+
+// Compress a buffer.
+// If you have a destination buffer, the allocation in the call can also be eliminated.
+func CompressBytes(src []byte) []byte {
+	return encoder.EncodeAll(src, make([]byte, 0, len(src)))
+}
+
+// Create a reader that caches decompressors.
+// For this operation type we supply a nil Reader.
+var decoder, _ = zstd.NewReader(nil, zstd.WithDecoderConcurrency(1))
+
+// Decompress a buffer. We don't supply a destination buffer,
+// so it will be allocated by the decoder.
+func DecompressBytes(src []byte) ([]byte, error) {
+	return decoder.DecodeAll(src, nil)
+}
+
+// Compress input to output.
+func Compress(in io.Reader, out io.Writer) error {
+	enc, err := zstd.NewWriter(out)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(enc, in)
+	if err != nil {
+		enc.Close()
+		return err
+	}
+	return enc.Close()
+}
+
+func Decompress(in io.Reader, out io.Writer) error {
+	d, err := zstd.NewReader(in)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+
+	// Copy content...
+	_, err = io.Copy(out, d)
+	return err
+}
+
 
 // ZSTDDecompress decompresses a block using ZSTD algorithm.
 func ZSTDDecompress(dst, src []byte) ([]byte, error) {
@@ -46,95 +90,6 @@ func ZSTDCompress(dst, src []byte, compressionLevel int) ([]byte, error) {
 		}
 	})
 	return encoder.EncodeAll(src, dst[:0]), nil
-}
-
-// ZSTDCompressBound returns the worst case size needed for a destination buffer.
-// Klauspost ZSTD library does not provide any API for Compression Bound. This
-// calculation is based on the DataDog ZSTD library.
-// See https://pkg.go.dev/github.com/DataDog/zstd#CompressBound
-func ZSTDCompressBound(srcSize int) int {
-	lowLimit := 128 << 10 // 128 kB
-	var margin int
-	if srcSize < lowLimit {
-		margin = (lowLimit - srcSize) >> 11
-	}
-	return srcSize + (srcSize >> 8) + margin
-
-}
-
-
-// Create a sync.Pool which returns wrapped *zstd.Decoder's.
-var decoderPool = NewDecoderPoolWrapper(zstd.WithDecoderConcurrency(1))
-var encoderPool = NewEncoderPoolWrapper(zstd.WithEncoderConcurrency(1),zstd.WithEncoderLevel(zstd.SpeedBestCompression))
-
-// ZSTDDecompress decompresses a block using ZSTD algorithm.
-func ZSTDReusedDecompress(uncompressedDataWriter io.Writer, compressedDataReader io.Reader) (error) {
-
-	decoder := decoderPool.Get(compressedDataReader)
-	defer decoderPool.Put(decoder)
-
-	_, err := io.Copy(uncompressedDataWriter, decoder)
-	return err
-}
-
-
-func ZSTDReusedCompress(compressedDataWriter io.Writer, uncompressedDataReader io.Reader) (err error) {
-
-	encoder := encoderPool.Get(compressedDataWriter)
-	defer encoderPool.Put(encoder)
-
-	_, err = io.Copy(encoder, uncompressedDataReader)
-
-	return err
-}
-
-
-func DecompressFile(locker *sync.RWMutex,file,to string) error {
-	locker.Lock()
-	defer locker.Unlock()
-	abs,err:=filepath.Abs(file)
-	if util.FileExists(to){
-		log.Debug("target file exists, skip "+to)
-		return nil
-	}
-
-	tmp:=to+".std_tmp"
-	if util.FileExists(tmp){
-		os.Remove(tmp)
-		log.Warn("temp file for decompress zstd file was exists, delete: ",tmp)
-	}
-
-	writer, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	reader, err := os.Open(abs)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if writer!=nil{
-			writer.Close()
-		}
-		if reader!=nil{
-			reader.Close()
-		}
-	}()
-
-	err=ZSTDReusedDecompress(writer,reader)
-	if err != nil && err.Error() != "unexpected EOF"  {
-		e:=os.Remove(tmp)
-		if e!=nil{
-			panic(e)
-		}
-	}else{
-		e:=os.Rename(tmp,to)
-		if e!=nil{
-			panic(e)
-		}
-	}
-	return err
 }
 
 func CompressFile(file,to string)error  {
@@ -169,24 +124,100 @@ func CompressFile(file,to string)error  {
 
 	defer func() {
 		if writer!=nil{
-			writer.Close()
+			err:=writer.Close()
+			if err!=nil{
+				panic(err)
+			}
 		}
 		if reader!=nil{
-			reader.Close()
+			err:=reader.Close()
+			if err!=nil{
+				panic(err)
+			}
 		}
 	}()
 
-	err= ZSTDReusedCompress(writer,reader)
+
+	err=Compress(reader,writer)
+	//err= ZSTDReusedCompress(writer,reader)
 	if err!=nil{
 		e:=os.Remove(tmp)
 		if e!=nil{
 			panic(e)
 		}
 	}else{
-		e:=os.Rename(tmp,to)
+		e:=writer.Sync()
+		if e!=nil{
+			panic(e)
+		}
+		e=os.Rename(tmp,to)
 		if e!=nil{
 			panic(e)
 		}
 	}
 	return err
 }
+
+func DecompressFile(locker *sync.RWMutex,file,to string) error {
+	locker.Lock()
+	defer locker.Unlock()
+	abs,err:=filepath.Abs(file)
+	if util.FileExists(to){
+		log.Debug("target file exists, skip "+to)
+		return nil
+	}
+
+	tmp:=to+".std_tmp"
+	if util.FileExists(tmp){
+		e:=os.Remove(tmp)
+		if e!=nil{
+			panic(e)
+		}
+		log.Warn("temp file for decompress zstd file was exists, delete: ",tmp)
+	}
+
+	writer, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	reader, err := os.Open(abs)
+	if err != nil {
+		return err
+	}
+
+
+	defer func() {
+		if writer!=nil{
+			e:=writer.Close()
+			if e!=nil{
+				panic(e)
+			}
+		}
+		if reader!=nil{
+			e:=reader.Close()
+			if e!=nil{
+				panic(e)
+			}
+		}
+	}()
+
+	err=Decompress(reader,writer)
+	//err=ZSTDReusedDecompress(writer,reader)
+	if err != nil && err.Error() != "unexpected EOF"  {
+		e:=os.Remove(tmp)
+		if e!=nil{
+			panic(e)
+		}
+	}else{
+		e:=writer.Sync()
+		if e!=nil{
+			panic(e)
+		}
+		e=os.Rename(tmp,to)
+		if e!=nil{
+			panic(e)
+		}
+	}
+	return err
+}
+
