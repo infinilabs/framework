@@ -74,13 +74,13 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	lastCompressedFileNum := GetLastCompressFileNum(queueID)
 
 	if global.Env().IsDebug {
-		log.Infof("fileNum:%v, files start to compress:%v, last compress:%v, consumers:%v, last consumed file:%v",
+		log.Debugf("fileNum:%v, files start to compress:%v, last compress:%v, consumers:%v, last consumed file:%v",
 			fileNum, fileStartToCompress, lastCompressedFileNum, consumers, earliestConsumedSegmentFileNum)
 	}
 
 	//skip compress file
 	if fileStartToCompress <= 0 || (module.cfg.SkipZeroConsumers&&consumers <= 0) || fileStartToCompress <= lastCompressedFileNum {
-		log.Infof("skip compress %v", queueID)
+		log.Debugf("skip compress %v", queueID)
 		return
 	}
 
