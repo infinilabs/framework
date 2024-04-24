@@ -555,6 +555,7 @@ func EmptyEnv() *Env {
 	system.PathConfig.Log = os.TempDir()
 	system.LoggingConfig.DisableFileOutput = true
 	system.LoggingConfig.LogLevel = "info"
+	system.Configs.PanicOnConfigError=false
 	return &Env{SystemConfig: &system}
 }
 
