@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"net/http"
@@ -117,6 +118,9 @@ func GetInstanceInfo() Instance {
 		IP:      util.GetLocalIPs(),
 		MajorIP: publicIP,
 	}
+	hostInfo := &HostInfo{}
+	hostInfo.Name, _, hostInfo.OS.Name, _, hostInfo.OS.Version, hostInfo.OS.Architecture, _ = host.GetOSInfo()
+	instance.Host = hostInfo
 
 	return instance
 }
