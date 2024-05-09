@@ -62,7 +62,6 @@ func ReleaseFileHandler(path string) {
 		delete(fileHandlers, path)
 	}
 }
-
 func Close() {
 	for k, v := range fileHandlers {
 		log.Trace("closing rotate writer: ", k)

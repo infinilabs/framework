@@ -309,7 +309,7 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 		return filename
 	} else {
 		if !ignoreMissing {
-			panic(errors.New("file not found:" + filePath))
+			panic(errors.New("file not found:" + filename))
 		}
 		return filePath
 	}

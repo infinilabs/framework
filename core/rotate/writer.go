@@ -116,6 +116,7 @@ type RotateWriter struct {
 
 	millCh    chan bool
 	startMill sync.Once
+	closed bool
 }
 
 var (
@@ -182,6 +183,11 @@ func (l *RotateWriter) close() error {
 	if l.file == nil {
 		return nil
 	}
+	if l.closed{
+		return nil
+	}
+	l.closed=true
+
 	if l.millCh != nil {
 		close(l.millCh)
 	}
