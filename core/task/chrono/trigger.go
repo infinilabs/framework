@@ -41,7 +41,7 @@ type Trigger interface {
 }
 
 type CronTrigger struct {
-	cronExpression *CronExpression
+	cronExpression CronExpression
 	location       *time.Location
 }
 

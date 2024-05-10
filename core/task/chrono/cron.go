@@ -78,12 +78,15 @@ func newFieldBits(typ fieldType) *cronFieldBits {
 const maxAttempts = 366
 const mask = 0xFFFFFFFFFFFFFFFF
 
-type CronExpression struct {
+type CronExpression interface {
+	NextTime(t time.Time) time.Time
+}
+type SimpleCronExpression struct {
 	fields []*cronFieldBits
 }
 
-func newCronExpression() *CronExpression {
-	exp := &CronExpression{
+func newCronExpression() *SimpleCronExpression {
+	exp := &SimpleCronExpression{
 		make([]*cronFieldBits, 0),
 	}
 
@@ -94,7 +97,7 @@ func newCronExpression() *CronExpression {
 	return exp
 }
 
-func (expression *CronExpression) NextTime(t time.Time) time.Time {
+func (expression *SimpleCronExpression) NextTime(t time.Time) time.Time {
 
 	t = t.Add(1 * time.Nanosecond)
 
@@ -111,7 +114,7 @@ func (expression *CronExpression) NextTime(t time.Time) time.Time {
 	return time.Time{}
 }
 
-func (expression *CronExpression) next(t time.Time) time.Time {
+func (expression *SimpleCronExpression) next(t time.Time) time.Time {
 	for _, field := range expression.fields {
 		t = expression.nextField(field, t)
 
@@ -123,7 +126,7 @@ func (expression *CronExpression) next(t time.Time) time.Time {
 	return t
 }
 
-func (expression *CronExpression) nextField(field *cronFieldBits, t time.Time) time.Time {
+func (expression *SimpleCronExpression) nextField(field *cronFieldBits, t time.Time) time.Time {
 	current := getTimeValue(t, field.Typ.Field)
 	next := setNextBit(field.Bits, current)
 
@@ -151,7 +154,46 @@ func (expression *CronExpression) nextField(field *cronFieldBits, t time.Time) t
 	}
 }
 
-func ParseCronExpression(expression string) (*CronExpression, error) {
+type MultiCronExpression struct {
+	cronExps []SimpleCronExpression
+}
+
+func (expression *MultiCronExpression) NextTime(t time.Time) time.Time {
+	var nearestTime time.Time
+	for _, cronExp := range expression.cronExps {
+		nextTime := cronExp.NextTime(t)
+		if nearestTime.IsZero() {
+			nearestTime = nextTime
+		}else{
+			if nextTime.Before(nearestTime) {
+				nearestTime = nextTime
+			}
+		}
+	}
+	return nearestTime
+}
+
+func ParseCronExpression(expression string) (CronExpression, error) {
+	if len(expression) == 0 {
+		return nil, errors.New("cron expression must not be empty")
+	}
+	parts := strings.Split(expression, "||")
+	if len(parts) == 0 {
+		return ParseSingleCronExpression(expression)
+	}
+	mExp := &MultiCronExpression{}
+	for _, exp := range parts {
+		exp = strings.TrimSpace(exp)
+		cronExp, err := ParseSingleCronExpression(exp)
+		if err != nil {
+			return nil, err
+		}
+		mExp.cronExps = append(mExp.cronExps, *cronExp)
+	}
+	return mExp, nil
+}
+
+func ParseSingleCronExpression(expression string) (*SimpleCronExpression, error) {
 	if len(expression) == 0 {
 		return nil, errors.New("cron expression must not be empty")
 	}
