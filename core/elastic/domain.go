@@ -512,7 +512,13 @@ type ElasticsearchConfig struct {
 
 	Distribution          string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 	NoDefaultAuthForAgent bool   `json:"no_default_auth_for_agent,omitempty" config:"no_default_auth_for_agent"`
+	MetricCollectionMode string `json:"metric_collection_mode,omitempty" elastic_mapping:"metric_collection_mode:{type:keyword}"`
 }
+
+const (
+	ModeAgent = "agent"
+	ModeAgentless = "agentless"
+)
 
 type GeoLocation struct {
 	Provider string `json:"provider,omitempty" elastic_mapping:"provider:{type:keyword}"`
