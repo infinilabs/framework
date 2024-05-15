@@ -10,6 +10,7 @@ APP_STATIC_PACKAGE ?= public
 APP_UI_FOLDER ?= ui
 APP_PLUGIN_FOLDER ?= plugins
 APP_PLUGIN_PKG ?= $(APP_PLUGIN_FOLDER)
+APP_NEED_CGO ?= 0
 
 # Get release version from environment
 ifneq '$(VERSION)' ''
@@ -66,7 +67,7 @@ endif
 NEWGOPATH:= $(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
 
