@@ -129,7 +129,7 @@ func main() {
 
 		var buf= &bytes.Buffer{}
 		reader:=bytes.NewBuffer(f.data)
-		err=zstd.Compress(buf,reader)
+		err=zstd.Compress(reader, buf)
 		if err!=nil{
 			panic(err)
 		}
@@ -245,7 +245,7 @@ func (vfs StaticFS) prepare(name string) (*vfs.VFile, error) {
 		}
         var buf= &bytes.Buffer{}
 		b64 := base64.NewDecoder(base64.StdEncoding, bytes.NewBufferString(f.Compressed))
-       	err=zstd.ZSTDReusedDecompress(buf,b64)
+       	err=zstd.Decompress(b64, buf)
 		if err != nil {
 			log.Error(err)
 			return
