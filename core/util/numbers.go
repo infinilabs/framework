@@ -4,6 +4,7 @@
 package util
 
 import (
+	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -176,4 +177,26 @@ func NearestThousandFormat(num float64) string {
 	}
 	final := xNumSlice[0] + afterDecimal + xPart
 	return final
+}
+
+func ToFloat(s string,defaultValue float64) (float64) {
+	v,err:=StringToFloat(s)
+	if err!=nil{
+		return defaultValue
+	}
+	return v
+}
+
+// StringToFloat converts a string to a float64
+// Returns an error if the conversion is not possible
+func StringToFloat(s string) (float64, error) {
+	if s == "" {
+		return 0, errors.New("input string is empty")
+	}
+
+	floatValue, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, err
+	}
+	return floatValue, nil
 }
