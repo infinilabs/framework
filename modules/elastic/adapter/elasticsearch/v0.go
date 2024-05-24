@@ -1815,6 +1815,9 @@ func (c *ESAPIV0) GetReplicationFollowerStats(followIndex string) ([]byte, error
 func (c *ESAPIV0) CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
+func (c *ESAPIV0) DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
 func (c *ESAPIV0) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
 	return nil, fmt.Errorf("unsupport feature")
 }

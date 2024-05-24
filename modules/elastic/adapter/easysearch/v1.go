@@ -107,6 +107,18 @@ func (c *APIV1) CreateAutoFollowReplication(autoFollowPatternName string, body [
 	}
 	return nil
 }
+
+func (c *APIV1) DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error {
+	url := fmt.Sprintf("%s/_replication/_autofollow", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_DELETE, url, body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(resp.Body))
+	}
+	return nil
+}
 func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
 	url := fmt.Sprintf("%s/_replication/autofollow_stats", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)

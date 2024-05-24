@@ -138,6 +138,7 @@ type ReplicationAPI interface {
 	GetReplicationFollowerStats(followIndex string) ([]byte, error)
 	CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error
 	GetAutoFollowStats(autoFollowPatternName string)([]byte, error)
+	DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error
 }
 
 type APIContext struct {
