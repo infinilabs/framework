@@ -1729,6 +1729,34 @@ func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error) {
 	return data, err
 }
 
+
+func (c *ESAPIV0) UpdateClusterSettings(body []byte) error {
+	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_PUT, url, body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(resp.Body))
+	}
+
+	return nil
+}
+
+func (c *ESAPIV0) GetRemoteInfo()([]byte, error){
+	url := fmt.Sprintf("%s/_remote/info", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+
+	return resp.Body, nil
+}
+
 func (c *ESAPIV0) GetIndex(indexName string) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/%s", c.GetEndpoint(), indexName)
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
@@ -1764,4 +1792,29 @@ func (c *ESAPIV0) PutILMPolicy(target string, policyConfig []byte) error {
 
 func (c *ESAPIV0) DeleteILMPolicy(target string) error {
 	return fmt.Errorf("unsupport feature")
+}
+
+func (c *ESAPIV0) StartReplication(followIndex string, body []byte) error{
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) StopReplication(indexName string, body []byte) error{
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) PauseReplication(followIndex string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) ResumeReplication(followIndex string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetReplicationStatus(followIndex string) ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetReplicationFollowerStats(followIndex string) ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
 }

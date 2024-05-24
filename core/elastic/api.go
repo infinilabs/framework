@@ -26,6 +26,7 @@ type API interface {
 	ScrollAPI
 	MappingAPI
 	TemplateAPI
+	ReplicationAPI
 
 	InitDefaultTemplate(templateName, indexPrefix string)
 
@@ -102,11 +103,13 @@ type API interface {
 
 	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error)
 	GetClusterSettings() (map[string]interface{}, error)
+	UpdateClusterSettings(body []byte) error
 	GetIndex(indexName string) (map[string]interface{}, error)
 	Exists(target string) (bool, error)
 	GetILMPolicy(target string) (map[string]interface{}, error)
 	PutILMPolicy(target string, policyConfig []byte) error
 	DeleteILMPolicy(target string) error
+	GetRemoteInfo()([]byte, error)
 }
 
 type TemplateAPI interface {
@@ -124,6 +127,17 @@ type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query *SearchRequest, slicedId, maxSlicedCount int) ([]byte, error)
 	NextScroll(ctx *APIContext, scrollTime string, scrollId string) ([]byte, error)
 	ClearScroll(scrollId string) error
+}
+
+type ReplicationAPI interface {
+	StartReplication(followIndex string, body []byte) error
+	StopReplication(indexName string, body []byte) error
+	PauseReplication(followIndex string, body []byte) error
+	ResumeReplication(followIndex string, body []byte) error
+	GetReplicationStatus(followIndex string) ([]byte, error)
+	GetReplicationFollowerStats(followIndex string) ([]byte, error)
+	CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error
+	GetAutoFollowStats(autoFollowPatternName string)([]byte, error)
 }
 
 type APIContext struct {
