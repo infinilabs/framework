@@ -84,7 +84,7 @@ func (c *APIV1) GetReplicationStatus(followIndex string) ([]byte, error){
 	return resp.Body, nil
 }
 func (c *APIV1) GetReplicationFollowerStats(followIndex string) ([]byte, error){
-	url := fmt.Sprintf("%s/_replication/follower_stats", c.GetEndpoint())
+	url := fmt.Sprintf("%s/_replication/all_status", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err
