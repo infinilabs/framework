@@ -18,7 +18,7 @@ import (
 
 func init() {
 	api.HandleAPIFunc("/setting/logger", LoggingSettingAction)
-	api.HandleAPIMethod(api.GET, "/setting/auth", authAPIHandler)
+	api.HandleAPIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
 }
 
 // LoggingSettingAction is the ajax request to update logging config
@@ -51,10 +51,12 @@ func LoggingSettingAction(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func authAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	obj := util.MapStr{
-		"enabled": api.IsAuthEnable(),
+		"auth_enabled": api.IsAuthEnable(),
 	}
+	appSettings := api.GetAppSettings()
+	obj.Merge(appSettings)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(util.MustToJSONBytes(obj))
 	w.WriteHeader(200)
