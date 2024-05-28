@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1713,8 +1714,11 @@ func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	return data, err
 }
 
-func (c *ESAPIV0) GetClusterSettings() (map[string]interface{}, error) {
+func (c *ESAPIV0) GetClusterSettings(values url.Values) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
+	if len(values) > 0 {
+		url += "?"+values.Encode()
+	}
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
 		return nil, err

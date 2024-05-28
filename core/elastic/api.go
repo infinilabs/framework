@@ -20,6 +20,7 @@ import (
 	"context"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
+	"net/url"
 )
 
 type API interface {
@@ -102,7 +103,7 @@ type API interface {
 	CatNodes(colStr string) ([]CatNodeResponse, error)
 
 	GetIndexRoutingTable(index string) (map[string][]IndexShardRouting, error)
-	GetClusterSettings() (map[string]interface{}, error)
+	GetClusterSettings(values url.Values) (map[string]interface{}, error)
 	UpdateClusterSettings(body []byte) error
 	GetIndex(indexName string) (map[string]interface{}, error)
 	Exists(target string) (bool, error)
