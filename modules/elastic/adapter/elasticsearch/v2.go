@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -37,8 +37,9 @@ func (s *ESAPIV2) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollI
 	body:=util.MapStr{}
 	body["scroll_id"]=scrollId
 	body["scroll"]=scrollTime
+	bodyBytes := util.MustToJSONBytes(body)
 
-	resp, err := adapter.RequestTimeout(ctx, util.Verb_POST, url, nil, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
+	resp, err := adapter.RequestTimeout(ctx, util.Verb_POST, url, bodyBytes, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
 	if err != nil {
 		return nil, err
 	}
