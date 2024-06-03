@@ -163,13 +163,13 @@ type HTTPClientConfig struct {
 	HTTPProxy  string `config:"http_proxy"`
 	HTTPSProxy string `config:"https_proxy"`
 
-	Timeout         string `config:"timeout"`
-	ReadTimeout           string `config:"read_timeout"`
-	WriteTimeout          string `config:"write_timeout"`
-	ReadBufferSize        int    `config:"read_buffer_size"`
-	WriteBufferSize       int    `config:"write_buffer_size"`
+	Timeout              string    `config:"timeout"`
+	ReadTimeout          string    `config:"read_timeout"`
+	WriteTimeout         string    `config:"write_timeout"`
+	ReadBufferSize       int       `config:"read_buffer_size"`
+	WriteBufferSize      int       `config:"write_buffer_size"`
 	TLSConfig            TLSConfig `config:"tls"` //server or client's certs
-	MaxConnectionPerHost  int    `config:"max_connection_per_host"`
+	MaxConnectionPerHost int       `config:"max_connection_per_host"`
 }
 
 //type HTTPClientConfigs struct {
@@ -224,22 +224,27 @@ type WebAppConfig struct {
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
 
-	AuthConfig   AuthConfig `config:"auth"` //enable access control for UI or not
-	UI           UIConfig   `config:"ui"`
-	BasePath     string     `config:"base_path"`
-	Domain       string     `config:"domain"`
-	EmbeddingAPI bool       `config:"embedding_api"`
-	Gzip         GzipConfig `config:"gzip"`
-	S3Config S3BucketConfig `config:"s3"`
+	AuthConfig    AuthConfig     `config:"auth"` //enable access control for UI or not
+	UI            UIConfig       `config:"ui"`
+	BasePath      string         `config:"base_path"`
+	Domain        string         `config:"domain"`
+	EmbeddingAPI  bool           `config:"embedding_api"`
+	Gzip          GzipConfig     `config:"gzip"`
+	S3Config      S3BucketConfig `config:"s3"`
+	GatewayConfig GatewayConfig  `config:"gateway"`
+}
+type GatewayConfig struct {
+	Schema string `config:"schema"`
+	Host   string `config:"host"`
 }
 
 type S3Config struct {
-	Endpoint string `config:"endpoint" json:"endpoint,omitempty"`
-	AccessKey string `config:"access_key" json:"access_key,omitempty"`
-	AccessSecret string `config:"access_secret" json:"access_secret,omitempty"`
-	Token string `config:"token" json:"token,omitempty"`
-	SSL bool `config:"ssl" json:"ssl,omitempty"`
-	SkipInsecureVerify bool `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty"`
+	Endpoint           string `config:"endpoint" json:"endpoint,omitempty"`
+	AccessKey          string `config:"access_key" json:"access_key,omitempty"`
+	AccessSecret       string `config:"access_secret" json:"access_secret,omitempty"`
+	Token              string `config:"token" json:"token,omitempty"`
+	SSL                bool   `config:"ssl" json:"ssl,omitempty"`
+	SkipInsecureVerify bool   `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty"`
 }
 
 type S3BucketConfig struct {
