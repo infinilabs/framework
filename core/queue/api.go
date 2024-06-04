@@ -229,22 +229,21 @@ func GetLatestOffsetByQueueID(queueID string) (consumerSize int, segment int64, 
 	if !ok {
 		return 0, 0, 0
 	}
-	var iPart int64
+	var iSeg int64
 	var iPos int64
 	for _, v := range consumers {
 		offset, err := GetOffset(q, v)
 		if err == nil {
-
-			if offset.Position > iPos {
+			if offset.Segment == iSeg && offset.Position > iPos {
 				iPos = offset.Position
 			}
-			if offset.Segment > iPart {
-				iPart = offset.Segment
+			if offset.Segment > iSeg {
+				iSeg = offset.Segment
 				iPos = offset.Position
 			}
 		}
 	}
-	return len(consumers), iPart, iPos
+	return len(consumers), iSeg, iPos
 }
 
 func GetOffset(k *QueueConfig, consumer *ConsumerConfig) (Offset, error) {

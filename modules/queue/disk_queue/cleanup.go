@@ -104,11 +104,17 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	}
 
 	//has consumers
-	if consumers > 0 && fileStartToDelete>0 && fileStartToDelete < eSegmentNum && eSegmentNum >0 {
+	if consumers > 0 && fileStartToDelete>0 && fileStartToDelete < eSegmentNum && eSegmentNum >0{
 		log.Trace(queueID, " start to delete:", fileStartToDelete, ",consumers:", consumers, ",consumer_on:", eSegmentNum)
 
 		//TODO do not wall all files, when numbers growing, it will be slow to check each file exists or not
 		for x := fileStartToDelete; x >= 0; x-- {
+
+			//if file greater than earliest segment, skip
+			if x> eSegmentNum  {
+				continue
+			}
+
 			file := GetFileName(queueID, x)
 			log.Trace(queueID, " start to delete:", file)
 			var exists=false
