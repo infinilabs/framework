@@ -56,7 +56,7 @@ func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
 }
 
 func (cfg *ConsumerConfig) String() string {
-	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v", cfg.Group, cfg.Name, cfg.ID, cfg.Source)
+	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v, simple:%v", cfg.Group, cfg.Name, cfg.ID, cfg.Source,cfg.SimpleSlicedGroup)
 }
 
 const ConsumerBucket = "queue_consumers"

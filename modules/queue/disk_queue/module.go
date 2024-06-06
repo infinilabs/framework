@@ -646,7 +646,7 @@ func saveOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset que
 	current, err := loadOffset(k, consumer)
 	if err == nil {
 		if current.LatestThan(offset) {
-			panic(errors.Errorf("current offset(%v) is larger than committed value(%v)", current, offset))
+			panic(errors.Errorf("consumer:%v, current offset(%v) is larger than committed value(%v)",consumer.String(), current, offset))
 		}
 	}
 

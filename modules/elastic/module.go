@@ -405,7 +405,7 @@ func (module *ElasticModule) Start() error {
 				return true
 			}
 
-			log.Trace("init cluster: ", key)
+			log.Trace("init cluster: ", key,",",util.MustToJSON(value))
 
 			cfg1, ok := value.(*elastic.ElasticsearchConfig)
 			if ok && cfg1 != nil {

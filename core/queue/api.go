@@ -177,7 +177,7 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 
 	if !ok {
 		if global.Env().IsDebug {
-			log.Warnf("no consumer found for queue [%v]", queueID)
+			log.Debugf("no consumer found for queue [%v]", queueID)
 		}
 		return 0, 0, 0,0
 	}

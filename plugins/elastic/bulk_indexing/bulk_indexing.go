@@ -729,7 +729,7 @@ READ_DOCS:
 					goto HANDLE_MESSAGE
 				}
 
-				log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v", qConfig.Name, sliceID, ctx1)
+				log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v, err: %v", qConfig.Name, sliceID, ctx1,err)
 				goto CLEAN_BUFFER
 				return
 			}

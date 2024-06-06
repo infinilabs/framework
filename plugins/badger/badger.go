@@ -115,7 +115,9 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 func (filter *Module) Close() error {
 
 	if filter.cfg.SingleBucketMode {
-		filter.bucket.Close()
+		if filter.bucket != nil {
+			filter.bucket.Close()
+		}
 	}
 
 	buckets.Range(func(key, value any) bool {
