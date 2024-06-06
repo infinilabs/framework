@@ -502,8 +502,8 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	var bulkProcessor elastic.BulkProcessor
 	var esClusterID string
 	var meta *elastic.ElasticsearchMetadata
-	var initOffset queue.Offset
-	var offset queue.Offset
+	var initOffset *queue.Offset
+	var offset *queue.Offset
 	var groupName = processor.config.Consumer.Group
 	if maxSlices > 1 {
 		if processor.config.Consumer.SimpleSlicedGroup {
@@ -580,29 +580,36 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		//cleanup buffer before exit worker
-		log.Debug("start to submit:",qConfig.ID,",",esClusterID,",",offset.String())
-		continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
-		mainBuf.ResetData()
-		if continueNext {
-			if !offset.Equals(initOffset) {
-				if consumerInstance != nil {
-					if global.Env().IsDebug {
-						log.Debugf("queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.ID, offset, initOffset)
+		log.Debug("start final submit:",qConfig.ID,",",esClusterID,",",offset.String(),",msg count:",mainBuf.GetMessageCount())
+		if mainBuf.GetMessageCount()> 0 {
+			continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+			mainBuf.ResetData()
+			if continueNext {
+				if !offset.Equals(*initOffset) {
+					if consumerInstance != nil {
+						if global.Env().IsDebug {
+							log.Debugf("queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.ID, offset, initOffset)
+						}
+
+						//log.Infof("final commit, queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.String(), offset, initOffset)
+						err := consumerInstance.CommitOffset(*offset)
+						if err != nil {
+							if global.Env().IsDebug {
+								panic(err)
+							}
+						}
+						initOffset = offset
+						//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
+					} else {
+						panic("invalid consumer instance")
 					}
-					err := consumerInstance.CommitOffset(offset)
-					if err != nil {
-						panic(err)
-					}
-					initOffset = offset
-				} else {
-					panic("invalid consumer instance")
 				}
+			} else {
+				if global.Env().IsDebug {
+					log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.ID, sliceID, initOffset, offset, err)
+				}
+				panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
 			}
-		} else {
-			if global.Env().IsDebug {
-				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], err:%v", qConfig.ID, sliceID, initOffset, offset, err)
-			}
-			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
 		}
 		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 	}()
@@ -636,12 +643,18 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 	bulkProcessor = elastic.NewBulkProcessor("bulk_indexing",esClusterID,processor.config.BulkConfig)
 
 	var lastCommit time.Time = time.Now()
-	initOffset, _ = queue.GetOffset(qConfig, consumerConfig)
+	tempOffset, err := queue.GetOffset(qConfig, consumerConfig)
+	if err != nil {
+		panic(err)
+	}
+	initOffset=&tempOffset
+	//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
 
 	if global.Env().IsDebug {
 		log.Debugf("slice_worker, get init offset: %v for consumer:%v,%v", initOffset, groupName, consumerConfig.Name)
 	}
 	offset = initOffset
+	//log.Infof("%v, update offset to: %v", consumerConfig.String(),offset)
 
 	ctx1 := &queue.Context{}
 
@@ -823,14 +836,18 @@ READ_DOCS:
 					} else {
 						//reset buffer
 						mainBuf.ResetData()
-						if !pop.NextOffset.Equals(initOffset) {
+						if offset!=nil&& initOffset!=nil&& !pop.NextOffset.Equals(*initOffset) {
 							err := consumerInstance.CommitOffset(pop.NextOffset)
 							if err != nil {
 								panic(err)
 							}
-							initOffset = pop.NextOffset
+							initOffset = &pop.NextOffset
+							//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
+
 						}
-						offset = pop.NextOffset
+						offset = &pop.NextOffset
+						//log.Infof("%v, update offset to: %v", consumerConfig.String(),offset)
+
 					}
 				}
 
@@ -842,7 +859,9 @@ READ_DOCS:
 		}
 
 		if ctx1.Valid() {
-			offset = ctx1.NextOffset //TODO
+			offset = &ctx1.NextOffset //TODO
+			//log.Infof("%v, update offset to: %v", consumerConfig.String(),offset)
+
 			if global.Env().IsDebug {
 				log.Tracef("update next offset: %v", offset)
 			}
@@ -867,35 +886,39 @@ CLEAN_BUFFER:
 	}
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
-	continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+	if mainBuf.GetMessageCount()>0{
+		continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 
-	if !continueNext {
-		log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
-	}
+		if !continueNext {
+			log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
+		}
 
-	if global.Env().IsDebug {
-		log.Debug(qConfig.ID, ",", qConfig.Name, ",", offset, ",", initOffset, ",", continueNext, ",", err)
-	}
+		if global.Env().IsDebug {
+			log.Debug(qConfig.ID, ",", qConfig.Name, ",", offset, ",", initOffset, ",", continueNext, ",", err)
+		}
 
-	if continueNext {
-		//reset buffer
-		mainBuf.ResetData()
-		if !offset.Equals(initOffset) {
-			err := consumerInstance.CommitOffset(offset)
-			if err != nil {
-				panic(err)
+		if continueNext {
+			//reset buffer
+			mainBuf.ResetData()
+			if offset!=nil&& initOffset!=nil&& !offset.Equals(*initOffset) {
+				err := consumerInstance.CommitOffset(*offset)
+				if err != nil {
+					panic(err)
+				}
+				initOffset = offset
+				//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
+
 			}
-			initOffset = offset
+		} else {
+			//logging failure offset boundry
+			//TODO handle 429 gracefully
+			if !util.ContainStr(err.Error(), "429") {
+				panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
+			}
+			log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
+			time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
+			goto CLEAN_BUFFER
 		}
-	} else {
-		//logging failure offset boundry
-		//TODO handle 429 gracefully
-		if !util.ContainStr(err.Error(), "429") {
-			panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err))
-		}
-		log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, initOffset, offset, host, err)
-		time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
-		goto CLEAN_BUFFER
 	}
 
 	if ctx.IsCanceled() || ctx.HasError() {

@@ -68,6 +68,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	fileStartToDelete := fileNum - module.cfg.Retention.MaxNumOfLocalFiles
 
 	if fileStartToDelete <= 0 || consumers <= 0|| eSegmentNum <0 {
+		log.Debugf("queue: %v, no consumers or consumer/s3 already ahead of this file, %v, %v, %v", queueID, fileStartToDelete, consumers, eSegmentNum)
 		return
 	}
 
@@ -77,14 +78,14 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	if module.cfg.UploadToS3 {
 		//check last uploaded mark
 		var lastSavedFileNum = GetLastS3UploadFileNum(queueID)
-		log.Trace("delete ",queueID,",",fileNum,",",consumers,",", eSegmentNum,",",fileStartToDelete,",",lastSavedFileNum,fileStartToDelete >= lastSavedFileNum)
+		log.Trace("disk, delete ",queueID,",",fileNum,",",consumers,",", eSegmentNum,",",fileStartToDelete,",",lastSavedFileNum,fileStartToDelete >= lastSavedFileNum)
 
 		if lastSavedFileNum<0{
 			return
 		}
 
 		if global.Env().IsDebug {
-			log.Tracef("files start to delete:%v, consumer_on:%v, last_saved:%v", fileStartToDelete, eSegmentNum, lastSavedFileNum)
+			log.Tracef("disk, files start to delete:%v, consumer_on:%v, last_saved:%v", fileStartToDelete, eSegmentNum, lastSavedFileNum)
 		}
 
 		if fileStartToDelete >= lastSavedFileNum {
@@ -92,7 +93,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 		}
 
 		if  lastSavedFileNum - lSegmentNum > module.cfg.Compress.IdleThreshold{
-			log.Tracef("files start to saved:%v, latest:%v", lastSavedFileNum, lSegmentNum)
+			log.Tracef("disk, files start to saved:%v, latest:%v", lastSavedFileNum, lSegmentNum)
 			//TODO foreach delete files
 		}
 
