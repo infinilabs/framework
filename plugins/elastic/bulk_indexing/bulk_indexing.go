@@ -857,6 +857,8 @@ READ_DOCS:
 				}
 
 			}
+
+			offset = &ctx1.NextOffset //TODO
 		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
