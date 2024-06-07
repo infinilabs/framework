@@ -580,7 +580,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 		}
 
 		//cleanup buffer before exit worker
-		log.Debug("start final submit:",qConfig.ID,",",esClusterID,",",offset.String(),",msg count:",mainBuf.GetMessageCount())
+		//log.Info("start final submit:",qConfig.ID,",",esClusterID,",msg count:",mainBuf.GetMessageCount(),", ",initOffset," vs ",offset )
 		if mainBuf.GetMessageCount()> 0 {
 			continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 			mainBuf.ResetData()
@@ -591,6 +591,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 							log.Debugf("queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.ID, offset, initOffset)
 						}
 
+						//log.Info("final commit:",qConfig.ID,",",esClusterID,",msg count:",mainBuf.GetMessageCount(),", ",initOffset," vs ",offset )
 						//log.Infof("final commit, queue: %v, consumer: %v, commit offset: %v, init: %v", qConfig.ID, consumerConfig.String(), offset, initOffset)
 						err := consumerInstance.CommitOffset(*offset)
 						if err != nil {
@@ -598,8 +599,9 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(key, workerID string
 								panic(err)
 							}
 						}
+						//log.Infof("%v, success commit offset to: %v, previous init: %v", consumerConfig.String(),*offset,initOffset)
+
 						initOffset = offset
-						//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
 					} else {
 						panic("invalid consumer instance")
 					}
@@ -841,6 +843,9 @@ READ_DOCS:
 							if err != nil {
 								panic(err)
 							}
+
+							//log.Infof("%v, success commit offset to: %v, previous init: %v", consumerConfig.String(),*offset,initOffset)
+
 							initOffset = &pop.NextOffset
 							//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
 
@@ -851,19 +856,6 @@ READ_DOCS:
 					}
 				}
 
-			}
-		}
-
-		if global.Env().IsDebug {
-			log.Tracef("valid:%v, offset: %v, new:%v", ctx1.Valid(), offset, ctx1.NextOffset.String())
-		}
-
-		if ctx1.Valid() {
-			offset = &ctx1.NextOffset //TODO
-			//log.Infof("%v, update offset to: %v", consumerConfig.String(),offset)
-
-			if global.Env().IsDebug {
-				log.Tracef("update next offset: %v", offset)
 			}
 		}
 
@@ -905,8 +897,10 @@ CLEAN_BUFFER:
 				if err != nil {
 					panic(err)
 				}
+				//log.Infof("%v, success commit offset to: %v, previous init: %v", consumerConfig.String(),*offset,initOffset)
+
 				initOffset = offset
-				//log.Infof("%v, update init offset to: %v", consumerConfig.String(),initOffset)
+
 
 			}
 		} else {
