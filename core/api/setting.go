@@ -37,9 +37,22 @@ func RegisterAppSetting(key string, v interface{}) {
 }
 
 func GetAppSettings() util.MapStr {
-	return appSettings.GetSettingsMap()
+	ret := util.MapStr{}
+	settings := appSettings.GetSettingsMap()
+	for key, v := range settings {
+		if fv, ok := v.(func()interface{}); ok {
+			ret[key] = fv()
+		}else{
+			ret[key] = v
+		}
+	}
+	return ret
 }
 
 func GetAppSetting(key string) interface{} {
-	return appSettings.Get(key)
+	v := appSettings.Get(key)
+	if fv, ok := v.(func()interface{}); ok {
+		return fv()
+	}
+	return v
 }
