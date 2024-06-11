@@ -17,7 +17,6 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 	if !exists{
 		if cfg.Compress.Segment.Enabled{
 
-
 			//check local compressed file
 			compressedFile:=filePath+compressFileSuffix
 			if util.FileExists(compressedFile){
@@ -63,4 +62,8 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 
 	}
 	return filePath,exists
+}
+
+func RemoveFile(cfg *DiskQueueConfig, queueID string,segmentID int64)  {
+
 }

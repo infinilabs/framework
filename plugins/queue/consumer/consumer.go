@@ -93,6 +93,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 			FetchMaxMessages:       500,
 			EOFRetryDelayInMs:      500,
 			FetchMaxWaitMs:         10000,
+			ConsumeTimeoutInSeconds:         60,
 			EOFMaxRetryTimes:         10,
 			ClientExpiredInSeconds: 60,
 		},
@@ -427,6 +428,9 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	if processor.config.Consumer.FetchMaxWaitMs > 0 {
 		consumerConfig.FetchMaxWaitMs = processor.config.Consumer.FetchMaxWaitMs
 	}
+	if processor.config.Consumer.ConsumeTimeoutInSeconds > 0 {
+		consumerConfig.ConsumeTimeoutInSeconds = processor.config.Consumer.ConsumeTimeoutInSeconds
+	}
 	if processor.config.Consumer.FetchMinBytes > 0 {
 		consumerConfig.FetchMinBytes = processor.config.Consumer.FetchMinBytes
 	}
@@ -504,7 +508,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	}
 	offset = initOffset
 
-	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig)
+	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig,workerID)
 	defer queue.ReleaseConsumer(qConfig, consumerConfig, consumerInstance)
 
 	if err != nil {
@@ -556,7 +560,7 @@ READ_DOCS:
 		}
 
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-
+		consumerConfig.KeepTouch()
 		if global.Env().IsDebug {
 			log.Infof("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}

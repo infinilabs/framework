@@ -275,7 +275,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		consumer.FetchMaxBytes = 1024 * 500
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
-			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer)
+			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer, "api")
 			defer queue1.ReleaseConsumer(qConfig, consumer, consumerAPI)
 			err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
 			if err != nil {

@@ -98,6 +98,7 @@ func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (message
 
 READ_MSG:
 
+	d.cCfg.KeepTouch()
 	//log.Error("start read message:",d.segment,",", d.readPos)
 
 	if global.ShuttingDown() {

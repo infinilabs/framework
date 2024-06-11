@@ -103,6 +103,9 @@ func ReleaseContext(ctx *Context) {
 	ctx.stateLock.Unlock()
 }
 
+func (ctx *Context) ID() string {
+	return ctx.id
+}
 func (ctx *Context) IsReleased() bool {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()

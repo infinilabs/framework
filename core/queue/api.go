@@ -104,13 +104,50 @@ var consumerCfgLock = sync.RWMutex{}
 
 const BucketWhoOwnsThisTopic = "who_owns_this_topic" //queue_group: node_id/timestamp
 
-func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig) (ConsumerAPI, error) {
+var consumersInFighting = sync.Map{}
+
+func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) (ConsumerAPI, error) {
 	if k == nil || k.ID == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
+
+	if consumer == nil {
+		panic(errors.New("consumer can't be nil"))
+	}
+
+	if clientID == "" {
+		panic(errors.New("clientID can't be nil"))
+	}
+
+	//check if the consumer is in fighting list
+	if v, ok := consumersInFighting.Load(consumer.Key()); ok {
+		if v != clientID {
+			//check the last touch time
+			if consumer.ConsumeTimeoutInSeconds>0{
+				t:=consumer.GetLastTouchTime()
+				if t!=nil&& int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds{
+					consumersInFighting.Delete(consumer.Key())
+					//the consumer is in fighting and is already timeout
+					return nil, errors.Errorf("consumer:%v is already in fighting list, but expired in: %v, remove it from the fighting list",consumer.Key(),time.Since(*t).Seconds())
+				}
+			}
+
+			//the consumer is in fighting list and the clientID is not the same
+			return nil, errors.New("the consumer is in fighting list")
+		}
+	}
+
 	handler := getAdvancedHandler(k)
 	if handler != nil {
-		return handler.AcquireConsumer(k, consumer)
+		v1,err:= handler.AcquireConsumer(k, consumer)
+		if err != nil {
+			return nil, err
+		}
+
+		//add the consumer to the fighting list
+		consumersInFighting.Store(consumer.Key(), clientID)
+
+		return v1, nil
 	}
 	panic(errors.New("handler is not registered"))
 }
@@ -119,6 +156,10 @@ func ReleaseConsumer(k *QueueConfig, c *ConsumerConfig,consumer ConsumerAPI) err
 	if k == nil || k.ID == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
+
+	//remove the consumer from the fighting list
+	consumersInFighting.Delete(c.Key())
+
 	handler := getAdvancedHandler(k)
 	if handler != nil {
 		return handler.ReleaseConsumer(k, c,consumer)

@@ -335,7 +335,10 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 }
 
 func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, instance queue.ConsumerAPI) error {
-	return instance.Close()
+	if instance!=nil{
+		return instance.Close()
+	}
+	return nil
 }
 
 func (module *DiskQueue) AcquireConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.ConsumerAPI, error) {
@@ -608,7 +611,7 @@ func (module *DiskQueue) Stop() error {
 const ConsumerOffsetBucket = "queue_consumer_commit_offset"
 
 func getCommitKey(k *queue.QueueConfig, consumer *queue.ConsumerConfig) string {
-	return fmt.Sprintf("%v-%v", k.ID, consumer.ID)
+	return fmt.Sprintf("%v-%v", k.ID, consumer.Key())
 }
 
 func loadOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
