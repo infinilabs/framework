@@ -54,8 +54,9 @@ type BulkIndexingProcessor struct {
 }
 
 type Config struct {
-	NumOfSlices int   `config:"num_of_slices"`
-	Slices      []int `config:"slices"`
+	NumOfSlices               int   `config:"num_of_slices"`
+	Slices                    []int `config:"slices"`
+	HashUseDocumentIDForSlice bool  `config:"hash_document_id_for_slice"`
 
 	enabledSlice map[int]int
 
@@ -74,7 +75,6 @@ type Config struct {
 
 	VerboseBulkResult bool `config:"verbose_bulk_result"`
 
-	SliceHashUseDocumentID bool `config:"slice_hash_use_document_id"`
 
 	DetectIntervalInMs int `config:"detect_interval"`
 
@@ -818,7 +818,7 @@ READ_DOCS:
 						var msgID = id
 						var hashValue int
 
-						if processor.config.SliceHashUseDocumentID{
+						if processor.config.HashUseDocumentIDForSlice {
 							if id != "" {
 								//check hash
 								xxHash := xxHashPool.Get().(*xxhash.XXHash32)
