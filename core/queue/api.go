@@ -120,18 +120,19 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 	}
 
 	//check if the consumer is in fighting list
-	if v, ok := consumersInFighting.Load(consumer.Key()); ok {
+	if v, ok := consumersInFighting.Load(k.ID+consumer.Key()); ok {
 		if v != clientID {
 			//check the last touch time
 			if consumer.ConsumeTimeoutInSeconds>0{
 				t:=consumer.GetLastTouchTime()
 				if t!=nil&& int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds{
-					consumersInFighting.Delete(consumer.Key())
+					consumersInFighting.Delete(k.ID+consumer.Key())
+					stats.Increment("consumer",consumer.Key(),"timeout")
 					//the consumer is in fighting and is already timeout
 					return nil, errors.Errorf("consumer:%v is already in fighting list, but expired in: %v, remove it from the fighting list",consumer.Key(),time.Since(*t).Seconds())
 				}
 			}
-
+			stats.Increment("consumer",consumer.Key(),"contend")
 			//the consumer is in fighting list and the clientID is not the same
 			return nil, errors.New("the consumer is in fighting list")
 		}
@@ -141,12 +142,13 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 	if handler != nil {
 		v1,err:= handler.AcquireConsumer(k, consumer)
 		if err != nil {
+			stats.Increment("consumer",consumer.Key(),"acquire_error")
 			return nil, err
 		}
 
 		//add the consumer to the fighting list
-		consumersInFighting.Store(consumer.Key(), clientID)
-
+		consumersInFighting.Store(k.ID+consumer.Key(), clientID)
+		stats.Increment("consumer",consumer.Key(),"acquired")
 		return v1, nil
 	}
 	panic(errors.New("handler is not registered"))
@@ -158,7 +160,9 @@ func ReleaseConsumer(k *QueueConfig, c *ConsumerConfig,consumer ConsumerAPI) err
 	}
 
 	//remove the consumer from the fighting list
-	consumersInFighting.Delete(c.Key())
+	consumersInFighting.Delete(k.ID+c.Key())
+
+	stats.Increment("consumer",c.Key(),"released")
 
 	handler := getAdvancedHandler(k)
 	if handler != nil {
