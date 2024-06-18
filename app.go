@@ -8,6 +8,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/wrapper/taskset"
@@ -16,9 +17,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/debug"
-	"github.com/fsnotify/fsnotify"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -62,8 +61,6 @@ type App struct {
 	exit    chan os.Signal
 	svcFlag string
 
-	//atomic status
-	state int32 //0 means running, 1 means stopping, 2 means stopped
 }
 
 const (
@@ -455,11 +452,13 @@ func (p *App) run() error {
 				p.stop()
 			}
 
-			atomic.StoreInt32(&p.state, 1)
+			p.environment.UpdateState(1)
 
 			//wait modules to stop
 			module.Stop()
-			atomic.StoreInt32(&p.state, 2)
+
+			p.environment.UpdateState(2)
+
 			p.quitSignal <- true
 		}
 	}()
@@ -473,8 +472,6 @@ func (p *App) run() error {
 	}, Interval: 30 * time.Second})
 
 	stats.RegisterStats("goroutine", pipeline.GetPoolStats)
-
-	global.Register("APP_STATE", &p.state)
 
 	//background job
 	task.RunWithContext("background_jobs", func(ctx context.Context) error {
@@ -494,7 +491,7 @@ func (p *App) run() error {
 				}
 			}
 		}()
-		global.RunBackgroundCallbacks(&p.state)
+		global.RunBackgroundCallbacks()
 		return nil
 	}, context.Background())
 

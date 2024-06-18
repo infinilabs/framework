@@ -6,11 +6,13 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"strings"
+	"sync"
 )
 
 type Namespace struct {
 	processorReg map[string]processorPluginer
 	filterReg    map[string]filterPluginer
+	sync.RWMutex
 }
 
 type processorPlugin struct {
@@ -47,6 +49,9 @@ func NewNamespace() *Namespace {
 }
 
 func (ns *Namespace) RegisterProcessor(name string, factory ProcessorConstructor) error {
+	ns.Lock()
+	defer ns.Unlock()
+
 	p := processorPlugin{name, NewConditional(factory)}
 	names := strings.Split(name, ".")
 	if err := ns.addProcessor(names, p); err != nil {
@@ -56,6 +61,9 @@ func (ns *Namespace) RegisterProcessor(name string, factory ProcessorConstructor
 }
 
 func (ns *Namespace) RegisterFilter(name string, factory FilterConstructor) error {
+	ns.Lock()
+	defer ns.Unlock()
+
 	p := filterPlugin{name, NewFilterConditional(factory)}
 	names := strings.Split(name, ".")
 	if err := ns.addFilter(names, p); err != nil {
@@ -220,7 +228,6 @@ type ProcessorConstructor func(config *config.Config) (Processor, error)
 type Constructor func(config *config.Config) (ProcessorBase, error)
 
 var registry = NewNamespace()
-
 func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 	err := registry.RegisterProcessor(name, constructor)
 	if err != nil {

@@ -24,7 +24,6 @@ import (
 	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -33,7 +32,7 @@ type RegisterKey string
 
 type registrar struct {
 	values map[RegisterKey]interface{}
-	sync.Mutex
+	sync.RWMutex
 }
 
 var (
@@ -91,8 +90,8 @@ func Lookup(k RegisterKey) interface{} {
 		return nil
 	}
 
-	reg.Lock()
-	defer reg.Unlock()
+	reg.RLock()
+	defer reg.RUnlock()
 	return reg.values[k]
 }
 
@@ -169,9 +168,9 @@ func FuncWithTimeout(ctx context.Context, f func()) error {
 	}
 }
 
-func RunBackgroundCallbacks(state *int32) {
+func RunBackgroundCallbacks() {
 	for {
-		if state != nil && atomic.LoadInt32(state) > 0 {
+		if ShuttingDown() {
 			log.Debug("exit background tasks")
 			return
 		}
@@ -199,11 +198,7 @@ func RunBackgroundCallbacks(state *int32) {
 }
 
 func ShuttingDown() bool {
-	var signal *int32
-	if temp := Lookup("APP_STATE"); temp != nil {
-		signal = temp.(*int32)
-	}
-	if signal != nil && atomic.LoadInt32(signal) > 0 {
+	if Env().GetState()> 0  {
 		return true
 	}
 	return false

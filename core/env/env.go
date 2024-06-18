@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -61,6 +62,9 @@ type Env struct {
 	allowSetup            bool
 	setupRequired         bool
 	IgnoreOnConfigMissing bool
+
+	//atomic status
+	state int32 //0 means running, 1 means stopping, 2 means stopped
 }
 
 func (env *Env) CheckSetup() error {
@@ -778,4 +782,12 @@ func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
 	}
 
 	return dataDir, logDir
+}
+
+func (env *Env) UpdateState(i int32) {
+	atomic.StoreInt32(&env.state, i)
+}
+
+func (env *Env) GetState() int32 {
+	return atomic.LoadInt32(&env.state)
 }
