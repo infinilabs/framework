@@ -338,12 +338,12 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 	isIndicesStateChange := false
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
-		queueConfig.Labels = util.MapStr{
+		queueConfig.ReplaceLabels(util.MapStr{
 			"type":     "metadata",
 			"name":     "index_state_change",
 			"category": "elasticsearch",
 			"activity": true,
-		}
+		})
 	}
 	newIndexMetadata := util.MapStr{}
 	for indexName, item := range oldIndexMetadata {
@@ -779,12 +779,12 @@ func setNodeUnknown(clusterID string) {
 	}
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
-		queueConfig.Labels = util.MapStr{
+		queueConfig.ReplaceLabels(util.MapStr{
 			"type":     "metadata",
 			"name":     "index_state_change",
 			"category": "elasticsearch",
 			"activity": true,
-		}
+		})
 	}
 	err := queue.Push(queueConfig, util.MustToJSONBytes(event.Event{
 		Timestamp: time.Now(),
@@ -1233,12 +1233,12 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 			}
 			queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 			if queueConfig.Labels == nil {
-				queueConfig.Labels = util.MapStr{
+				queueConfig.ReplaceLabels(util.MapStr{
 					"type":     "metadata",
 					"name":     "index_state_change",
 					"category": "elasticsearch",
 					"activity": true,
-				}
+				})
 			}
 			activityInfo := &event.Activity{
 				ID:        util.GetUUID(),

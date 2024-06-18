@@ -110,7 +110,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	queueConfig := queue.AdvancedGetOrInitConfig("",cfg.OutputQueue.Name,labels)
-	queueConfig.Labels =labels
+	queueConfig.ReplaceLabels(labels)
 	diff.outputQueueConfig = queueConfig
 
 	producer,err:=queue.AcquireProducer(queueConfig)

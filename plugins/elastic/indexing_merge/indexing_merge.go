@@ -108,25 +108,26 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	queueConfig := queue.GetOrInitConfig(cfg.OutputQueue.Name)
-	queueConfig.Labels = util.MapStr{}
-	queueConfig.Labels["type"] = "indexing_merge"
+	labels := util.MapStr{}
+	labels["type"] = "indexing_merge"
 
 	if cfg.IndexName != "" {
-		queueConfig.Labels["_index"] = cfg.IndexName
+		labels["_index"] = cfg.IndexName
 	}
 
 	if cfg.TypeName != "" {
-		queueConfig.Labels["_type"] = cfg.TypeName
+		labels["_type"] = cfg.TypeName
 	}
 
 	for k, v := range cfg.OutputQueue.Labels {
-		queueConfig.Labels[k] = v
+		labels[k] = v
 	}
 
 	if cfg.Elasticsearch != "" {
-		queueConfig.Labels["elasticsearch"] = cfg.Elasticsearch
+		labels["elasticsearch"] = cfg.Elasticsearch
 	}
 
+	queueConfig.ReplaceLabels(labels)
 	//update queue config
 	queue.RegisterConfig(queueConfig)
 

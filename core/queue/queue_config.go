@@ -23,13 +23,25 @@ type QueueConfig struct {
 	Codec   string      `config:"codec" json:"codec,omitempty"`
 	Type    string      `config:"type" json:"type,omitempty"`
 	Created string      `config:"created" json:"created,omitempty"`
-	Labels  util.MapStr `config:"label" json:"label,omitempty"` //TODO fix fatal error: concurrent map read and map write
+	Labels  util.MapStr `config:"label" json:"label,omitempty"`
+	sync.RWMutex
 }
 
 var queueConfigPool = sync.Pool{
 	New: func() interface{} {
 		return new(QueueConfig)
 	},
+}
+
+func (q *QueueConfig) UpdateLabel(key string,val interface{}) {
+	q.Lock()
+	defer q.Unlock()
+	q.Labels[key] = val
+}
+func (q *QueueConfig) ReplaceLabels(labels util.MapStr) {
+	q.Lock()
+	defer q.Unlock()
+	q.Labels=labels
 }
 
 func AcquireQueueConfig() *QueueConfig {
