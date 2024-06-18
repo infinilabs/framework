@@ -420,8 +420,8 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 				if nextSegment>d.diskQueue.writeSegmentNum {
 					return errors.New(fileName + " not found")
 				}
-				log.Warnf("queue:%v, offset:%v,%v, file missing: %v, auto skip to next file",
-					d.queue, d.segment, d.readPos, fileName)
+				log.Warnf("queue:%v,%v, offset:%v,%v, file missing: %v, auto skip to next file",
+					d.qCfg.Name,d.queue, d.segment, d.readPos, fileName)
 			RETRY_NEXT_FILE:
 				// there are segments in the middle
 				if segment < d.diskQueue.writeSegmentNum {
