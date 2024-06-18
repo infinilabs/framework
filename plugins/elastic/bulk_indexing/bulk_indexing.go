@@ -74,6 +74,8 @@ type Config struct {
 
 	VerboseBulkResult bool `config:"verbose_bulk_result"`
 
+	SliceHashUseDocumentID bool `config:"slice_hash_use_document_id"`
+
 	DetectIntervalInMs int `config:"detect_interval"`
 
 	ValidateRequest   bool `config:"valid_request"`
@@ -583,9 +585,6 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 
 	var skipFinalDocsProcess bool
 
-	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
-	defer xxHashPool.Put(xxHash)
-
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -613,6 +612,11 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 		//log.Info("start final submit:",qConfig.ID,",",esClusterID,",msg count:",mainBuf.GetMessageCount(),", ",committedOffset," vs ",offset )
 		if mainBuf.GetMessageCount()> 0 {
 			continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+
+			if global.Env().IsDebug {
+				log.Debugf("slice_worker, [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
+			}
+
 			mainBuf.ResetData()
 			if continueNext {
 				if !offset.Equals(*committedOffset) {
@@ -766,7 +770,7 @@ READ_DOCS:
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
 
 		if global.Env().IsDebug {
-			log.Debugf("slice_worker, [%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			log.Debugf("slice_worker, [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
@@ -812,18 +816,39 @@ READ_DOCS:
 
 						var partitionID int
 						var msgID = id
-						if id != "" {
-							//check hash
-							xxHash.Reset()
-							xxHash.WriteString(id)
-							partitionID = int(xxHash.Sum32()) % maxSlices
-						} else {
-							partitionID = int(pop.Offset.Position) % maxSlices
+						var hashValue int
+
+						if processor.config.SliceHashUseDocumentID{
+							if id != "" {
+								//check hash
+								xxHash := xxHashPool.Get().(*xxhash.XXHash32)
+								defer xxHashPool.Put(xxHash)
+								xxHash.Reset()
+								xxHash.WriteString(id)
+								hashValue= int(xxHash.Sum32()) //TODO hash function to be configurable
+							} else {
+								hashValue= int(pop.Offset.Position)
+								msgID = fmt.Sprintf("%v", msgOffset)
+							}
+						}else{
+							hashValue= int(pop.Offset.Position)
 							msgID = fmt.Sprintf("%v", msgOffset)
 						}
 
+						partitionID = hashValue % maxSlices
+
 						if global.Env().IsDebug {
 							log.Trace("slice_worker, ", sliceID, ",", id, ",", partitionID, ",", msgOffset, ",", partitionID == sliceID)
+						}
+
+						if global.Env().IsDebug {
+							log.Tracef("slice_worker, [%v][%v][%v][%v] hash msg_id: %v->%v > %v/%v/%v, [%v/%v], [%v,%v,%v,%v,%v], meta:%v, ctx:%v,err:%v",
+								qConfig.Name,consumerConfig.Group,consumerConfig.Name,sliceID,
+								msgID,hashValue,
+								partitionID,sliceID,maxSlices,
+								sliceOps,totalOps,
+								actionStr, index, typeName, id, routing,
+								string(metaBytes),ctx1.String(), err)
 						}
 
 						if partitionID == sliceID {
@@ -860,6 +885,9 @@ READ_DOCS:
 
 					//submit request
 					continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+					if global.Env().IsDebug {
+						log.Tracef("slice_worker, [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
+					}
 					if !continueNext {
 						//TODO handle 429 gracefully
 						if !util.ContainStr(err.Error(), "code 429") {
@@ -877,6 +905,9 @@ READ_DOCS:
 								panic(err)
 							}
 
+							if global.Env().IsDebug {
+								log.Tracef("slice_worker, [%v][%v][%v][%v] success commit offset:%v,ctx:%v,timeout:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, *offset,committedOffset, ctx1.String(), timeout, err)
+							}
 							//log.Infof("%v, success commit offset to: %v, previous init: %v", consumerConfig.String(),*offset,committedOffset)
 
 							committedOffset = &pop.NextOffset
@@ -911,12 +942,19 @@ READ_DOCS:
 CLEAN_BUFFER:
 
 	if global.Env().IsDebug {
+		log.Tracef("slice_worker, [%v][%v][%v][%v] cleanup buffer:%v,ctx:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, offset, ctx1.String(), err)
+	}
+
+	if global.Env().IsDebug {
 		log.Debugf("cleanup buffer, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
 	}
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	if mainBuf.GetMessageCount()>0{
 		continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		if global.Env().IsDebug {
+			log.Tracef("slice_worker, [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
+		}
 
 		if !continueNext {
 			log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
@@ -938,6 +976,9 @@ CLEAN_BUFFER:
 
 				committedOffset = offset
 
+				if global.Env().IsDebug {
+					log.Tracef("slice_worker, [%v][%v][%v][%v] commit offset:%v,ctx:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, offset, ctx1.String(), err)
+				}
 
 			}
 		} else {
@@ -946,6 +987,11 @@ CLEAN_BUFFER:
 			if !util.ContainStr(err.Error(), "429") {
 				panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 			}
+
+			if global.Env().IsDebug {
+				log.Tracef("slice_worker, [%v][%v][%v][%v] skip continue:%v,ctx:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, offset, ctx1.String(), err)
+			}
+
 			log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
 			time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
 			goto CLEAN_BUFFER
