@@ -587,7 +587,22 @@ READ_DOCS:
 			goto CLEAN_BUFFER
 		}
 
+		//filter message per slice
+		if processor.config.NumOfSlices > 1 {
+			newMessages := make([]queue.Message, 0)
+			for _, m := range messages {
+				partitionID := int(m.Offset.Position % int64(maxSlices))
+				if partitionID == sliceID {
+					newMessages = append(newMessages, m)
+				}
+			}
+			if len(newMessages)>0 {
+				messages = newMessages
+			}
+		}
+
 		if len(messages) > 0 {
+
 			newCtx := pipeline.Context{}
 			newCtx.ParentContext = ctx
 			newCtx.Context = ctx.Context
