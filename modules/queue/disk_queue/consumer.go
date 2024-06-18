@@ -98,9 +98,6 @@ func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (message
 
 READ_MSG:
 
-	d.cCfg.KeepTouch()
-	//log.Error("start read message:",d.segment,",", d.readPos)
-
 	if global.ShuttingDown() {
 		return messages, false, errors.New("shutting down")
 	}
@@ -145,7 +142,9 @@ READ_MSG:
 
 			nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
 			if exists || util.FileExists(nextFile) {
-				log.Trace("EOF, continue read:", nextFile)
+				if global.Env().IsDebug {
+					log.Trace("EOF, continue read:", nextFile)
+				}
 				Notify(d.queue, ReadComplete, d.segment)
 				ctx.UpdateNextOffset(d.segment, d.readPos)
 				err = d.ResetOffset(d.segment+1, 0)
@@ -158,8 +157,9 @@ READ_MSG:
 				retryTimes = 0
 				goto READ_MSG
 			} else {
-				log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages count: %v, readPos: %d, newFile:%v", nextFile, len(messages), d.readPos, d.segment < d.diskQueue.writeSegmentNum)
-
+				if global.Env().IsDebug{
+					log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages count: %v, readPos: %d, newFile:%v", nextFile, len(messages), d.readPos, d.segment < d.diskQueue.writeSegmentNum)
+				}
 				if d.diskQueue == nil {
 					panic("queue can't be nil")
 				}
@@ -301,12 +301,16 @@ READ_MSG:
 		totalMessageSize += message.Size
 
 		if len(messages) >= d.cCfg.FetchMaxMessages || (len(messages) >= numOfMessages && numOfMessages > 0) {
-			log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.queue, d.cCfg.Name, len(messages), d.cCfg.FetchMaxMessages)
+			if global.Env().IsDebug{
+				log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.queue, d.cCfg.Name, len(messages), d.cCfg.FetchMaxMessages)
+			}
 			return messages, false, err
 		}
 
 		if totalMessageSize > d.cCfg.FetchMaxBytes && d.cCfg.FetchMaxBytes > 0 {
-			log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.queue, d.cCfg.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(d.cCfg.FetchMaxBytes)))
+			if global.Env().IsDebug {
+				log.Tracef("queue:%v, consumer:%v, total messages size(%v)>=max message size(%v)", d.queue, d.cCfg.Name, util.ByteSize(uint64(totalMessageSize)), util.ByteSize(uint64(d.cCfg.FetchMaxBytes)))
+			}
 			return messages, false, err
 		}
 	}
@@ -314,7 +318,9 @@ READ_MSG:
 RELOAD_FILE:
 	if nextReadPos >= d.maxBytesPerFileRead {
 
-		log.Trace("try to relocate to next file: ", nextReadPos >= d.maxBytesPerFileRead, ",", d.readPos, ",", d.maxBytesPerFileRead, ",", d.getFileSize())
+		if global.Env().IsDebug {
+			log.Trace("try to relocate to next file: ", nextReadPos >= d.maxBytesPerFileRead, ",", d.readPos, ",", d.maxBytesPerFileRead, ",", d.getFileSize())
+		}
 
 		nextFile, exists := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
 		if exists || util.FileExists(nextFile) {
@@ -344,9 +350,9 @@ RELOAD_FILE:
 				retryTimes++
 				goto READ_MSG
 			}
-
-			log.Trace("EOF, continue read:", nextFile)
-
+			if global.Env().IsDebug {
+				log.Trace("EOF, continue read:", nextFile)
+			}
 			Notify(d.queue, ReadComplete, d.segment)
 			ctx.UpdateNextOffset(d.segment, d.readPos)
 			err = d.ResetOffset(d.segment+1, 0)
