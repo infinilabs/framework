@@ -56,7 +56,7 @@ type BulkIndexingProcessor struct {
 type Config struct {
 	NumOfSlices               int   `config:"num_of_slices"`
 	Slices                    []int `config:"slices"`
-	HashUseDocumentIDForSlice bool  `config:"hash_document_id_for_slice"`
+	DocumentLevelSlicing bool  `config:"document_level_slicing"`
 
 	enabledSlice map[int]int
 
@@ -564,6 +564,8 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 	var meta *elastic.ElasticsearchMetadata
 	var committedOffset *queue.Offset
 	var offset *queue.Offset
+	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
+	defer xxHashPool.Put(xxHash)
 
 	var consumerConfig =processor.getConsumerConfig(qConfig.ID, processor.config.Consumer.Name,sliceID,maxSlices)
 
@@ -773,8 +775,6 @@ READ_DOCS:
 			log.Debugf("slice_worker, [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v",qConfig.Name,consumerConfig.Group,consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
-		//TODO 不能重复处理，也需要处理 offset 的妥善持久化，避免重复数据，也要避免拿不到数据迟迟不退出。
-
 		if err != nil {
 			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
 				if len(messages) > 0 || mainBuf.GetMessageCount() > 0 {
@@ -806,23 +806,31 @@ READ_DOCS:
 					elastic.ValidateBulkRequest("write_pop", string(pop.Data))
 				}
 
+				//check if the slice is more than 1, then slice the data
 				if maxSlices > 1 {
-					var totalOps, sliceOps int
-					var collectMeta = false
-					elastic.WalkBulkRequests(pop.Data, func(eachLine []byte) (skipNextLine bool) {
-						return false
-					}, func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error) {
-						totalOps++
+					if !processor.config.DocumentLevelSlicing {
+						hashValue:= int(pop.Offset.Position)
+						partitionID := hashValue % maxSlices
+						if partitionID == sliceID {
+							mainBuf.WriteMessageID(pop.Offset.String())
+							mainBuf.WriteByteBuffer(pop.Data)
+						}else{
+							//skip non-target slices
+						}
+					}else{
+						var totalOps, sliceOps int
+						var collectMeta = false
+						// document level slicing, check each document_id, slice by document hash
+						elastic.WalkBulkRequests(pop.Data, func(eachLine []byte) (skipNextLine bool) {
+							return false
+						}, func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error) {
+							totalOps++
 
-						var partitionID int
-						var msgID = id
-						var hashValue int
-
-						if processor.config.HashUseDocumentIDForSlice {
+							var partitionID int
+							var msgID = id
+							var hashValue int
 							if id != "" {
 								//check hash
-								xxHash := xxHashPool.Get().(*xxhash.XXHash32)
-								defer xxHashPool.Put(xxHash)
 								xxHash.Reset()
 								xxHash.WriteString(id)
 								hashValue= int(xxHash.Sum32()) //TODO hash function to be configurable
@@ -830,43 +838,41 @@ READ_DOCS:
 								hashValue= int(pop.Offset.Position)
 								msgID = fmt.Sprintf("%v", msgOffset)
 							}
-						}else{
-							hashValue= int(pop.Offset.Position)
-							msgID = fmt.Sprintf("%v", msgOffset)
-						}
 
-						partitionID = hashValue % maxSlices
+							partitionID = hashValue % maxSlices
 
-						if global.Env().IsDebug {
-							log.Trace("slice_worker, ", sliceID, ",", id, ",", partitionID, ",", msgOffset, ",", partitionID == sliceID)
-						}
+							if global.Env().IsDebug {
+								log.Trace("slice_worker, ", sliceID, ",", id, ",", partitionID, ",", msgOffset, ",", partitionID == sliceID)
+							}
 
-						if global.Env().IsDebug {
-							log.Tracef("slice_worker, [%v][%v][%v][%v] hash msg_id: %v->%v > %v/%v/%v, [%v/%v], [%v,%v,%v,%v,%v], meta:%v, ctx:%v,err:%v",
-								qConfig.Name,consumerConfig.Group,consumerConfig.Name,sliceID,
-								msgID,hashValue,
-								partitionID,sliceID,maxSlices,
-								sliceOps,totalOps,
-								actionStr, index, typeName, id, routing,
-								string(metaBytes),ctx1.String(), err)
-						}
+							if global.Env().IsDebug {
+								log.Tracef("slice_worker, [%v][%v][%v][%v] hash msg_id: %v->%v > %v/%v/%v, [%v/%v], [%v,%v,%v,%v,%v], meta:%v, ctx:%v,err:%v",
+									qConfig.Name,consumerConfig.Group,consumerConfig.Name,sliceID,
+									msgID,hashValue,
+									partitionID,sliceID,maxSlices,
+									sliceOps,totalOps,
+									actionStr, index, typeName, id, routing,
+									string(metaBytes),ctx1.String(), err)
+							}
 
-						if partitionID == sliceID {
-							sliceOps++
-							mainBuf.WriteNewByteBufferLine("meta1", metaBytes)
-							mainBuf.WriteMessageID(msgID)
-							collectMeta = true
-						} else {
-							collectMeta = false
-						}
-						return nil
-					}, func(payloadBytes []byte, actionStr, index, typeName, id, routing string) {
-						if collectMeta {
-							mainBuf.WriteNewByteBufferLine("payload1", payloadBytes)
-							collectMeta = false
-						}
-					},nil)
+							if partitionID == sliceID {
+								sliceOps++
+								mainBuf.WriteNewByteBufferLine("meta1", metaBytes)
+								mainBuf.WriteMessageID(msgID)
+								collectMeta = true
+							} else {
+								collectMeta = false
+							}
+							return nil
+						}, func(payloadBytes []byte, actionStr, index, typeName, id, routing string) {
+							if collectMeta {
+								mainBuf.WriteNewByteBufferLine("payload1", payloadBytes)
+								collectMeta = false
+							}
+						},nil)
+					}
 				} else {
+					//all messages go to the same slice
 					mainBuf.WriteMessageID(pop.Offset.String())
 					mainBuf.WriteByteBuffer(pop.Data)
 				}
