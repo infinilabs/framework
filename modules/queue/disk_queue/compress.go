@@ -38,7 +38,7 @@ func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64
 	var lastFile int64
 	for i:=int64(1);i<=module.cfg.Compress.NumOfFilesDecompressAhead;i++{
 		lastFile=int64(fileNum+int64(i))
-		_,exists:=SmartGetFileName(module.cfg,queueID,lastFile)
+		_,exists,_:=SmartGetFileName(module.cfg,queueID,lastFile)
 		if !exists{
 			return fileNum
 		}

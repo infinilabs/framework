@@ -11,9 +11,11 @@ import (
 )
 
 //if local file not found, try to download from s3
-func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (string,bool) {
+func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (string,bool,bool) {
 	filePath:= GetFileName(queueID,segmentID)
+	nextFilePath:= GetFileName(queueID,segmentID+1)
 	exists:=util.FileExists(filePath)
+	next_file_exists:=util.FileExists(nextFilePath)
 	if !exists{
 		if cfg.Compress.Segment.Enabled{
 
@@ -44,7 +46,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 				_,err:=s3.SyncDownload(fileToDownload,cfg.S3.Server,cfg.S3.Location,cfg.S3.Bucket,s3Object)
 				if err!=nil{
 					if util.ContainStr(err.Error(),"exist") && cfg.AlwaysDownload{
-						return filePath,false
+						return filePath,false,next_file_exists
 					}
 					panic(err)
 				}
@@ -61,7 +63,7 @@ func SmartGetFileName(cfg *DiskQueueConfig,queueID string,segmentID int64) (stri
 		}
 
 	}
-	return filePath,exists
+	return filePath,exists,next_file_exists
 }
 
 func RemoveFile(cfg *DiskQueueConfig, queueID string,segmentID int64)  {
