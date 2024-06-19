@@ -283,18 +283,23 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
 			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer, "api")
-			defer queue1.ReleaseConsumer(qConfig, consumer, consumerAPI)
-			err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
-			if err != nil {
-				return
+			if consumerAPI!=nil{
+				defer queue1.ReleaseConsumer(qConfig, consumer, consumerAPI)
+				err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
+				if err != nil {
+					return
+				}
+				messages, timeout, err = consumerAPI.FetchMessages(ctx, size)
+				if global.Env().IsDebug {
+					log.Trace(len(messages), ",", timeout, ",", err)
+				}
+				if err != nil {
+					return
+				}
+			}else{
+				log.Errorf("caon't acquire consumer [%v] for [%v]", consumer.Key(),qConfig.Name)
 			}
-			messages, timeout, err = consumerAPI.FetchMessages(ctx, size)
-			if global.Env().IsDebug {
-				log.Trace(len(messages), ",", timeout, ",", err)
-			}
-			if err != nil {
-				return
-			}
+
 		} else {
 			err = errors.New(fmt.Sprintf("queue [%v] not exists", queueID))
 		}
