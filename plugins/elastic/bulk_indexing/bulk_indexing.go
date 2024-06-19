@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/locker"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -776,15 +777,21 @@ READ_DOCS:
 		}
 
 		if err != nil {
-			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
+			if strings.Contains(err.Error() , "dirty_read") || err.Error() == "EOF" || err.Error() == "unexpected EOF" {
+
+				ctx.CancelTask()
+
 				if len(messages) > 0 || mainBuf.GetMessageCount() > 0 {
 					goto HANDLE_MESSAGE
 				}
 
-				log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v, err: %v", qConfig.Name, sliceID, ctx1,err)
+				if global.Env().IsDebug{
+					log.Errorf("slice_worker, error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v, err: %v", qConfig.Name, sliceID, ctx1,err)
+				}
 				goto CLEAN_BUFFER
 				return
 			}
+			
 			log.Errorf("slice_worker, error on queue:[%v], slice_id:%v, %v", qConfig.Name, sliceID, err)
 			log.Flush()
 			panic(err)
