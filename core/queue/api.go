@@ -124,7 +124,7 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 		if v != clientID {
 			//check the last touch time
 			if consumer.ConsumeTimeoutInSeconds>0{
-				t:=consumer.GetLastTouchTime()
+				t:=consumer.GetLastActiveTime()
 				if t!=nil&& int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds{
 					consumersInFighting.Delete(k.ID+consumer.Key())
 					stats.Increment("consumer",k.ID,consumer.GetID(),"expired")

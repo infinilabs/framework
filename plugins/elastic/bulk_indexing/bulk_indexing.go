@@ -767,8 +767,8 @@ READ_DOCS:
 			log.Debugf("slice_worker, star to consume queue:%v, slice:%v， offset:%v", qConfig.Name, sliceID, offset)
 		}
 
+		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-		consumerConfig.KeepTouch()
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
 
 		if global.Env().IsDebug {

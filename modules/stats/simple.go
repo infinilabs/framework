@@ -5,6 +5,7 @@
 package stats
 
 import (
+	"errors"
 	"infini.sh/framework/lib/status"
 	"net/http"
 	"os"
@@ -182,6 +183,7 @@ type Stats struct {
 	l      sync.RWMutex
 	ID     string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
 	Data   *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
+	timestamp   map[string]time.Time //for last timestamps, no need persist
 	closed bool
 	raw    bool
 	q      *queue.EsQueue
@@ -254,6 +256,23 @@ func (s *Stats) DecrementBy(category, key string, value int64) {
 
 func (s *Stats) Timing(category, key string, v int64) {
 
+}
+
+func (s *Stats) GetTimestamp(category, key string)(time.Time, error) {
+	s.l.RLock()
+	defer s.l.RUnlock()
+	v, ok := (s.timestamp)[category+"."+key]
+	if !ok {
+		return time.Time{}, errors.New("not found")
+	}
+	return v, nil
+}
+
+func (s *Stats) RecordTimestamp(category, key string, v time.Time) {
+	s.l.Lock()
+	(s.timestamp)[category+"."+key] = v
+	s.l.Unlock()
+	runtime.Gosched()
 }
 
 func (s *Stats) Gauge(category, key string, v int64) {
@@ -359,6 +378,8 @@ func (module *SimpleStatsModule) initStats(id string) {
 		module.data.Data = &map[string]map[string]int64{}
 		log.Trace("inited stats map")
 	}
+
+	module.data.timestamp=map[string]time.Time{}
 }
 
 func (handler SimpleStatsModule) BufferItemStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

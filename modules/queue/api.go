@@ -181,11 +181,11 @@ func (module *API) getQueueStats(t, q string, metadata string, consumer string, 
 				m["group"] = v.Group
 				m["name"] = v.Name
 
-				t1:=v.GetLastTouchTime()
+				t1:=v.GetLastActiveTime()
 				if t1!=nil{
-					m["last_access_time"] = t1.Format(time.RFC3339)
+					m["last_active"] = t1.Format(time.RFC3339)
 				}
-				
+
 				offset, err := queue1.GetOffset(cfg, v)
 				if err == nil {
 					m["offset"] = offset.EncodeToString()

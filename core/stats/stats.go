@@ -21,9 +21,11 @@ import (
 	"infini.sh/framework/core/util"
 	"strings"
 	"sync"
+	"time"
 )
 
 type StatsInterface interface {
+
 	Increment(category, key string)
 
 	IncrementBy(category, key string, value int64)
@@ -36,11 +38,18 @@ type StatsInterface interface {
 
 	Timing(category, key string, v int64)
 
+
+
 	Gauge(category, key string, v int64)
 
 	Stat(category, key string) int64
 
 	StatsAll() string
+
+	//record the last timestamp for specify operation
+	RecordTimestamp(category, key string, value time.Time)
+	//get the last timestamp for specify operation
+	GetTimestamp(category, key string)(time.Time, error)
 }
 
 var handlers = []StatsInterface{}
@@ -61,16 +70,42 @@ func JoinArray(array []string, delimiter string) string {
 	return str
 }
 
+//record the last timestamp for specify operation
+func TimestampNow(category string, key ...string) {
+	t:=util.GetLowPrecisionCurrentTime()
+	Timestamp(category, JoinArray(key, "."), t)
+}
+
+func Timestamp(category, key string, value time.Time) {
+	if len(handlers) == 0 {
+		return
+	}
+
+	for _, v := range handlers {
+		v.RecordTimestamp(category, key, value)
+	}
+}
+
+func GetTimestamp(category string, key ...string) *time.Time {
+	if len(handlers) == 0 {
+		return nil
+	}
+
+	for _, v := range handlers {
+		o,err:=v.GetTimestamp(category, JoinArray(key, "."))
+		if err==nil{
+			return &o
+		}
+	}
+	return nil
+}
+
 func Increment(category string, key ...string) {
 	if len(handlers) == 0 {
 		return
 	}
 
-	if len(key) > 0 {
-		IncrementBy(category, JoinArray(key, "."), 1)
-	} else {
-		IncrementBy(category, key[0], 1)
-	}
+	IncrementBy(category, JoinArray(key, "."), 1)
 }
 
 func IncrementBy(category, key string, value int64) {

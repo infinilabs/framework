@@ -11,6 +11,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/stats"
 	"infini.sh/framework/core/util"
 	"runtime"
 	"sync"
@@ -39,21 +40,21 @@ type ConsumerConfig struct {
 
 	ClientExpiredInSeconds int64 `config:"client_expired_in_seconds" json:"client_expired_in_seconds,omitempty"` //client acquires lock for this long
 	fetchMaxWaitMs         time.Duration
-	lastAccessTimestamp    *time.Time
 
 	CommitLocker sync.Mutex
 }
+
 
 func (cfg *ConsumerConfig) Key() string {
 	return getConsumerKey(cfg.Group , cfg.Name)
 }
 
-func (cfg *ConsumerConfig) KeepTouch() {
-	t:=util.GetLowPrecisionCurrentTime()
-	cfg.lastAccessTimestamp= &t
+func (cfg *ConsumerConfig) KeepActive() {
+	stats.TimestampNow("consumer",cfg.ID, "last_active")
 }
-func (cfg *ConsumerConfig) GetLastTouchTime()*time.Time {
-	return cfg.lastAccessTimestamp
+
+func (cfg *ConsumerConfig) GetLastActiveTime()*time.Time {
+	return stats.GetTimestamp("consumer",cfg.ID, "last_active")
 }
 
 func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {

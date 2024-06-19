@@ -129,11 +129,6 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 
-	//if global.Env().IsDebug{
-	//	log.Error("enter process http_replicator")
-	//	defer log.Error("exit process http_replicator")
-	//}
-
 	req := processor.HTTPPool.AcquireRequestWithTag("http_processor")
 	resp := processor.HTTPPool.AcquireResponseWithTag("http_processor")
 

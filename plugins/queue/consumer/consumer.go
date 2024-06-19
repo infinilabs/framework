@@ -558,9 +558,8 @@ READ_DOCS:
 		if global.Env().IsDebug {
 			log.Tracef("slice_worker, worker:[%v] start consume queue:[%v][%v] offset:%v", workerID, qConfig.ID, sliceID, offset)
 		}
-
+		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-		consumerConfig.KeepTouch()
 		if global.Env().IsDebug {
 			log.Infof("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}

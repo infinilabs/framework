@@ -133,6 +133,14 @@ func (module *StatsDModule) Timing(category, key string, v int64) {
 
 }
 
+func (module *StatsDModule) GetTimestamp(category, key string)(time.Time, error) {
+	return time.Now(), errors.New("not support")
+}
+
+func (module *StatsDModule) RecordTimestamp(category, key string, value time.Time) {
+
+}
+
 func (module *StatsDModule) Gauge(category, key string, v int64) {
 	if !module.statsdInited {
 		return
