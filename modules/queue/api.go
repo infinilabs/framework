@@ -8,6 +8,7 @@ import (
 	"infini.sh/framework/core/global"
 	queue "infini.sh/framework/modules/queue/disk_queue"
 	"net/http"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
@@ -179,6 +180,12 @@ func (module *API) getQueueStats(t, q string, metadata string, consumer string, 
 				m["id"] = v.ID
 				m["group"] = v.Group
 				m["name"] = v.Name
+
+				t1:=v.GetLastTouchTime()
+				if t1!=nil{
+					m["last_access_time"] = t1.Format(time.RFC3339)
+				}
+				
 				offset, err := queue1.GetOffset(cfg, v)
 				if err == nil {
 					m["offset"] = offset.EncodeToString()
