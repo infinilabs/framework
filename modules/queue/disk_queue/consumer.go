@@ -7,6 +7,7 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
+	"infini.sh/framework/core/stats"
 	"io"
 	"os"
 	"strings"
@@ -288,6 +289,7 @@ READ_MSG:
 		if nextReadPos > d.maxBytesPerFileRead || (d.diskQueue.writeSegmentNum==d.segment && nextReadPos > d.diskQueue.writePos) {
 			err=errors.Errorf("dirty_read, the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)",d.segment,nextReadPos,d.maxBytesPerFileRead,d.diskQueue.writeSegmentNum,d.diskQueue.writePos)
 			time.Sleep(time.Millisecond * 100) //don't catch up too fast
+			stats.Increment("consumer", d.qCfg.ID,d.cCfg.ID,"dirty_read")
 			return messages, true, err
 		}
 
