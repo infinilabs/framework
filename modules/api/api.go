@@ -17,6 +17,7 @@ limitations under the License.
 package api
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
@@ -81,6 +82,18 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 		panic(err)
 	}
 
+	physicalCore, logicCore, _, modelName, err := host.GetCPUInfo()
+	//ignore error with getting cpu err on platform darwin (not implement)
+	if err != nil {
+		log.Debug("get cup info error: ", err)
+	}
+	hostInfo.Hardware = &model.HardwareInfo{
+		Processor: util.MapStr{
+			"physical_core": physicalCore,
+			"logic_core": logicCore,
+			"model": modelName,
+		},
+	}
 	info := model.GetInstanceInfo()
 	info.Host = &hostInfo
 	w.Header().Set("Content-Type", "application/json")
