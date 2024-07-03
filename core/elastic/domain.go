@@ -323,6 +323,7 @@ type CatNodeResponse struct {
 	DiskUsed    string      `json:"disk.used"`
 	Shards      int         `json:"shards,omitempty"`
 	Uptime      string      `json:"uptime"`
+	HeapMax string `json:"heap.max"`
 }
 
 type ReindexResponse struct {
