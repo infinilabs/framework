@@ -15,10 +15,10 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"runtime/pprof"
-	_ "net/http/pprof"
 )
 
 var cpuproFile string
@@ -54,8 +54,8 @@ func init() {
 	fmt.Println("[WARNING] THIS IS IN DEVELOPMENT MODE.")
 
 	debugFlagInitFunc = func() {
-		flag.StringVar(&cpuproFile, "cpuprofile", "", "write cpu profile to this file")
-		flag.StringVar(&memproFile, "memprofile", "", "write memory profile to this file")
+		flag.StringVar(&cpuproFile, "cpu-profile", "", "write cpu profile to this file")
+		flag.StringVar(&memproFile, "mem-profile", "", "write memory profile to this file")
 		flag.StringVar(&httpprof, "pprof", "", "enable and setup pprof/expvar service, eg: localhost:6060 , the endpoint will be: http://localhost:6060/debug/pprof/ and http://localhost:6060/debug/vars")
 
 	}
