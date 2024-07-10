@@ -350,6 +350,7 @@ type QueryStringQuery struct {
 func NewQueryString(q string) *QueryStringQuery {
 	query := QueryStringQuery{}
 	query.Query = map[string]interface{}{}
+	query.QueryString(q)
 	return &query
 }
 
@@ -464,8 +465,10 @@ func GetSearchRequest(querystring,dsl,sourceFields string, sortField, sortType s
 	}
 
 	if querystring!=""{
-		queryString:=&QueryStringQuery{}
-		queryString.QueryString(querystring)
+		queryString:=NewQueryString(querystring)
+		if query.Query==nil{
+			query.Query=&Query{}
+		}
 		query.Query.Must(queryString)
 	}
 
