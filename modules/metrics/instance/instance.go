@@ -37,7 +37,7 @@ func (m *Metric) Collect() error {
 		panic(err)
 	}
 
-	return event.Save(event.Event{
+	return event.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "instance",
 			Name:     global.Env().GetAppLowercaseName(),

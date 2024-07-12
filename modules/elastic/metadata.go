@@ -248,7 +248,7 @@ func (module *ElasticModule) saveRoutingTable(state *elastic.ClusterState, clust
 	}
 	nodesRouting := map[string][]elastic.IndexShardRouting{}
 	for indexName, routing := range state.RoutingTable.Indices {
-		err := event.Save(event.Event{
+		err := event.Save(&event.Event{
 			Timestamp: time.Now(),
 			Metadata: event.EventMetadata{
 				Category: "elasticsearch",
@@ -282,7 +282,7 @@ func (module *ElasticModule) saveRoutingTable(state *elastic.ClusterState, clust
 
 	}
 	for nodeID, routing := range nodesRouting {
-		event.Save(event.Event{
+		event.Save(&event.Event{
 			Timestamp: time.Now(),
 			Metadata: event.EventMetadata{
 				Category: "elasticsearch",

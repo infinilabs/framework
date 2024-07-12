@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -24,6 +23,8 @@ type MetricConfig struct {
 	MetricQueue    string `config:"queue"`
 	LoggingQueue   string `config:"logging_queue"`
 
+	EventQueue map[string]string `config:"event_queue"` // metadata.name -> queue name
+
 	InstanceConfig *Config `config:"instance"`
 
 	NetworkConfig       *Config `config:"network"`
@@ -39,12 +40,32 @@ type MetricConfig struct {
 type MetricsModule struct {
 	config  *MetricConfig
 	taskIDs []string
+	agent   *event.AgentMeta
 }
 
 func (module *MetricsModule) Name() string {
 	return "metrics"
 }
 
+func (module *MetricsModule) loadConfig(cfg *MetricConfig) {
+
+	meta := module.buildAgentMeta()
+
+	event.RegisterMeta(&meta)
+	module.agent=&meta
+
+	tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
+	if len(meta.Labels) > 0 {
+		tail = tail + ",labels: " + util.JoinMapString(meta.Labels, "->")
+	}
+	if len(meta.Tags) > 0 {
+		tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
+	}
+
+	module.CollectAgentMetric()
+	module.CollectHostMetric()
+	module.CollectESMetric()
+}
 func (module *MetricsModule) Setup() {
 
 	module.config = &MetricConfig{Enabled: true}
@@ -62,27 +83,13 @@ func (module *MetricsModule) Setup() {
 		return
 	}
 
-	meta := module.buildAgentMeta()
-
-	event.RegisterMeta(&meta)
-
-	tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
-	if len(meta.Labels) > 0 {
-		tail = tail + ",labels: " + util.JoinMapString(meta.Labels, "->")
-	}
-	if len(meta.Tags) > 0 {
-		tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
-	}
-
-	module.CollectAgentMetric()
-	module.CollectHostMetric()
-	module.CollectESMetric()
+	module.loadConfig(module.config)
 }
 
 func (module *MetricsModule) CollectESMetric() {
 	if module.config.ElasticsearchConfig != nil {
 		//elasticsearch
-		es, err := elastic.New(module.config.ElasticsearchConfig)
+		es, err := elastic.New(module.config.ElasticsearchConfig,module.onSaveEvent)
 		if err != nil {
 			panic(err)
 		}
@@ -246,26 +253,26 @@ func (module *MetricsModule) Start() error {
 		module.taskIDs = nil
 
 		module.config = newCfg
-		meta := module.buildAgentMeta()
 
-		event.RegisterMeta(&meta)
+		module.loadConfig(module.config)
 
-		tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
-		if len(meta.Labels) > 0 {
-			tail = tail + ",labels: " + util.JoinMapString(meta.Labels, "->")
-		}
-		if len(meta.Tags) > 0 {
-			tail = tail + ",tags: " + util.JoinArray(meta.Tags, ",")
-		}
-
-		module.CollectAgentMetric()
-		module.CollectHostMetric()
-		module.CollectESMetric()
 	})
 
 	return nil
 }
 
+func (m *MetricsModule) onSaveEvent(item *event.Event) error {
+	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue,item.Metadata.Name)
+	if m.config.EventQueue!=nil{
+		if v,ok:=m.config.EventQueue[item.Metadata.Name];ok{
+			if v!=""{
+				item.QueueName=v
+			}
+		}
+	}
+	item.Agent= m.agent
+	return event.Save(item)
+}
 func (module *MetricsModule) Stop() error {
 
 	//TODO cancel or stop background jobs
@@ -274,22 +281,15 @@ func (module *MetricsModule) Stop() error {
 }
 
 func (module *MetricsModule) buildAgentMeta() event.AgentMeta {
-	 labels := map[string]string{}
-	 for k, v := range global.Env().SystemConfig.NodeConfig.Labels {
-		 labels[k] = v
-	 }
-	 for k, v := range module.config.Labels {
-		 labels[k] = v
-	 }
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 	return event.AgentMeta{
-		AgentID:          global.Env().SystemConfig.NodeConfig.ID,
-		MajorIP:          publicIP,
-		Hostname:         util.GetHostName(),
-		IP:               util.GetLocalIPs(),
-		MetricQueueName:  util.StringDefault(module.config.MetricQueue, "metrics"),
-		LoggingQueueName: util.StringDefault(module.config.LoggingQueue, "logging"),
-		Labels:           labels,
-		Tags:             module.config.Tags,
+		AgentID:                global.Env().SystemConfig.NodeConfig.ID,
+		MajorIP:                publicIP,
+		Hostname:               util.GetHostName(),
+		IP:                     util.GetLocalIPs(),
+		DefaultMetricQueueName: util.StringDefault(module.config.MetricQueue, "metrics"),
+		LoggingQueueName:       util.StringDefault(module.config.LoggingQueue, "logging"),
+		Labels:                 module.config.Labels,
+		Tags:                   module.config.Tags,
 	}
 }

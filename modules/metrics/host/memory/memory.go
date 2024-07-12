@@ -69,7 +69,7 @@ func (m *Metric) collectSwap() error {
 	if v == nil {
 		return errors.New("computer.swapInfo: mem.SwapMemoryStat is empty")
 	}
-	return event.Save(event.Event{
+	return event.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "swap",
@@ -120,7 +120,7 @@ func (m *Metric) collectMemory() error {
 	case "freebsd":
 		total = v.Used + v.Free + v.Cached + v.Inactive + v.Laundry
 	}
-	return event.Save(event.Event{
+	return event.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "memory",

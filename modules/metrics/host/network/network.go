@@ -78,7 +78,7 @@ func (m *Metric) Collect() error {
 		}
 
 		if m.Detail {
-			event.Save(event.Event{
+			event.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network",
@@ -105,7 +105,7 @@ func (m *Metric) Collect() error {
 	if m.Summary {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
-			event.Save(event.Event{
+			event.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_summary",
@@ -135,7 +135,7 @@ func (m *Metric) Collect() error {
 	if m.Throughput {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
-			event.Save(event.Event{
+			event.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_throughput",
@@ -169,7 +169,7 @@ func (m *Metric) Collect() error {
 		stats, _ = applyEnhancements(stats)
 
 		if m.prevCounters != (networkCounter{}) {
-			event.Save(event.Event{
+			event.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_sockets",

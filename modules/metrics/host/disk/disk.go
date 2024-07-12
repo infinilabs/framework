@@ -95,7 +95,7 @@ func (m *Metric) collectUsage() error {
 		if err != nil {
 			return err
 		}
-		event.Save(event.Event{
+		event.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem",
@@ -123,7 +123,7 @@ func (m *Metric) collectUsage() error {
 		if err != nil {
 			return err
 		}
-		event.Save(event.Event{
+		event.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem_summary",
@@ -143,7 +143,7 @@ func (m *Metric) collectUsage() error {
 		})
 		return nil
 	} else {
-		event.Save(event.Event{
+		event.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem_summary",
@@ -204,7 +204,7 @@ func (m *Metric) collectIO() error {
 		}
 	}
 
-	event.Save(event.Event{
+	event.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "diskio_summary",
@@ -223,7 +223,7 @@ func (m *Metric) collectIO() error {
 	})
 
 	if m.prevCounter != (ioCounter{}) {
-		event.Save(event.Event{
+		event.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "diskio",

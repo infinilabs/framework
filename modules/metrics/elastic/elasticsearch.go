@@ -1,6 +1,7 @@
 package elastic
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-type Metric struct {
+type ElasticsearchMetric struct {
 	Enabled       bool `config:"enabled"`
 	IsAgentMode   bool `config:"agent_mode"`
 	ClusterHealth bool `config:"cluster_health"`
@@ -30,6 +31,7 @@ type Metric struct {
 	ClusterState bool   `config:"cluster_state"`
 	NodeInfo     bool   `config:"node_info"`
 	Interval     string `config:"interval"`
+	onSaveEvent  func(item *event.Event) error
 }
 
 //元数据定期快照
@@ -41,8 +43,9 @@ type Metric struct {
 //GET _stats    #集群级别统计信息，已处理
 //GET /_nodes/_local/stats  #节点级别统计信息，统计信息
 
-func New(cfg *config.Config) (*Metric, error) {
-	me := &Metric{
+func New(cfg *config.Config, saveEvent func(item *event.Event) error) (*ElasticsearchMetric, error) {
+	me := &ElasticsearchMetric{
+		onSaveEvent:       saveEvent,
 		ClusterHealth:     true,
 		ClusterStats:      true,
 		NodeStats:         true,
@@ -144,7 +147,7 @@ func validateMonitorConfig(monitorConfig *elastic.TaskConfig) {
 	}
 }
 
-func (m *Metric) Collect() error {
+func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
 	}
@@ -171,7 +174,7 @@ func (m *Metric) Collect() error {
 	return nil
 }
 
-func (m *Metric) CollectOfAgentMode() error {
+func (m *ElasticsearchMetric) CollectOfAgentMode() error {
 	collectStartTime := time.Now()
 	elastic.WalkMetadata(func(key, value interface{}) bool {
 		log.Debug("collecting metrics for: ", key)
@@ -189,7 +192,7 @@ func (m *Metric) CollectOfAgentMode() error {
 	return nil
 }
 
-func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectStartTime time.Time) bool {
+func (m *ElasticsearchMetric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectStartTime time.Time) bool {
 
 	if !v.Config.Monitored || !v.Config.Enabled {
 		log.Debugf("cluster [%v] NOT (enabled[%v] or monitored[%v] or not available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.IsAvailable())
@@ -409,12 +412,12 @@ func (m *Metric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectSt
 	return true
 }
 
-func (m *Metric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{}) {
+func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{})error {
 	//remove adaptive_selection
 	x, ok := f.(map[string]interface{})
 	if !ok {
 		log.Errorf("invalid node stats for [%v] [%v]", v.Config.ID, nodeID)
-		return
+		return errors.New("invalid node stats")
 	}
 
 	if ok {
@@ -446,13 +449,11 @@ func (m *Metric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, 
 			"node_stats": x,
 		},
 	}
-	err := event.Save(item)
-	if err != nil {
-		log.Error(err)
-	}
+
+	return m.onSaveEvent(&item)
 }
 
-func (m *Metric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) {
+func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error{
 	newIndexID := fmt.Sprintf("%s:%s", v.Config.ID, indexName)
 	if indexID == "_all" {
 		newIndexID = indexID
@@ -487,10 +488,10 @@ func (m *Metric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, index
 		},
 	}
 
-	event.Save(item)
+	return m.onSaveEvent(&item)
 }
 
-func (m *Metric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata) error {
+func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata) error {
 
 	log.Trace("collecting custer health metrics for :", k)
 
@@ -523,10 +524,11 @@ func (m *Metric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata
 			"cluster_health": health,
 		},
 	}
-	return event.Save(item)
+
+	return m.onSaveEvent(&item)
 }
 
-func (m *Metric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata) error {
+func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata) error {
 
 	log.Trace("collecting custer state metrics for :", k)
 
@@ -562,9 +564,10 @@ func (m *Metric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata)
 		},
 	}
 
-	return event.Save(item)
+	return m.onSaveEvent(&item)
 }
 
-func (m *Metric) CollectNodeStats() {
+
+func (m *ElasticsearchMetric) CollectNodeStats() {
 
 }

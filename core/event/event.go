@@ -14,6 +14,9 @@ import (
 
 type Event struct {
 	Agent     *AgentMeta    `json:"agent"`
+
+	QueueName string        `json:"-"`
+
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata  EventMetadata `json:"metadata"`
 	Fields    util.MapStr   `json:"payload"`
@@ -36,8 +39,8 @@ func (e *Event) String() string {
 }
 
 type AgentMeta struct {
-	MetricQueueName  string `json:"-"`
-	LoggingQueueName string `json:"-"`
+	DefaultMetricQueueName string `json:"-"`
+	LoggingQueueName       string `json:"-"`
 
 	AgentID  string   `json:"id,omitempty"`
 	HostID   string   `json:"host_id,omitempty"`

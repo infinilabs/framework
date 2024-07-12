@@ -117,7 +117,7 @@ func (m *Metric) Collect() error {
 		}
 		mapStr.Put("used_percent", percent)
 		log.Debugf("Collect CPU metrics: %v", util.MustToJSON(mapStr))
-		err = event.Save(event.Event{
+		err = event.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "cpu",

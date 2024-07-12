@@ -386,5 +386,5 @@ func (ctx *Context) pushPipelineLog() {
 		},
 	}
 
-	event.SaveLog(eventData)
+	event.SaveLog(&eventData)
 }

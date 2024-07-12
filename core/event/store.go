@@ -21,7 +21,7 @@ func RegisterMeta(m *AgentMeta) {
 
 func getMeta() *AgentMeta {
 	if meta == nil {
-		meta = &AgentMeta{MetricQueueName: "metrics", LoggingQueueName: "logging"}
+		meta = &AgentMeta{DefaultMetricQueueName: "metrics", LoggingQueueName: "logging"}
 	}
 	return meta
 }
@@ -32,28 +32,44 @@ func UpdateAgentID(agentID string) {
 	}
 }
 
-func SaveWithTimestamp(event Event, time2 time.Time) error {
-
-	event.Agent = getMeta()
-	event.Timestamp = time2
-
-	if getMeta().MetricQueueName == "" {
-		panic("queue can't be nil")
+func SaveWithTimestamp(event *Event, time2 time.Time) error {
+	if event==nil{
+		panic("event can't be nil")
 	}
 
 	if global.Env().IsDebug {
 		log.Debugf("%v-%v: %v", event.Metadata.Category, event.Metadata.Name, string(util.MustToJSONBytes(event.Metadata)))
 	}
 
+	event.Timestamp = time2
+
+	//check event specified queue name
+	if  event.QueueName!= "" {
+		return queue.Push(queue.GetOrInitConfig(event.QueueName), util.MustToJSONBytes(event))
+	}else{
+		//check default queue name
+		if getMeta().DefaultMetricQueueName == "" {
+			panic("queue can't be nil")
+		}
+		event.QueueName=getMeta().DefaultMetricQueueName;
+	}
+
+	if event.Agent==nil{
+		event.Agent = getMeta()
+	}
+
 	stats.Increment("metrics.save", event.Metadata.Category, event.Metadata.Name)
-	return queue.Push(queue.GetOrInitConfig(getMeta().MetricQueueName), util.MustToJSONBytes(event))
+	return queue.Push(queue.GetOrInitConfig(event.QueueName), util.MustToJSONBytes(event))
 }
 
-func Save(event Event) error {
+func Save(event *Event) error {
 	return SaveWithTimestamp(event, time.Now())
 }
 
-func SaveLog(event Event) error {
+func SaveLog(event *Event) error {
+	if event==nil{
+		panic("event can't be nil")
+	}
 
 	event.Timestamp = time.Now()
 	event.Agent = getMeta()
