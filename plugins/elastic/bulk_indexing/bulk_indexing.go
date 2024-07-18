@@ -409,7 +409,6 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 }
 
 func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Context, qConfig *queue.QueueConfig, preferedHost string) {
-
 	bulkSizeInByte:=processor.config.BulkConfig.GetBulkSizeInBytes()
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
@@ -458,7 +457,6 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Co
 			ctx1.Set("qConfig", qConfig)
 			ctx1.Set("host", preferedHost)
 			ctx1.Set("bulkSizeInByte", bulkSizeInByte)
-
 			err := processor.pool.Submit(&pipeline.Task{
 				Handler: func(ctx *pipeline.Context, v ...interface{}) {
 					key := ctx.MustGetString("key")
@@ -479,6 +477,7 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Co
 			if err != nil {
 				panic(err)
 			}
+			processor.wg.Add(1)
 		}
 	}
 }
@@ -526,7 +525,6 @@ func (processor *BulkIndexingProcessor) getConsumerConfig(queueID,consumerName s
 }
 
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Context,key, workerID string, sliceID, maxSlices int, tag string,  bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
-	processor.wg.Add(1)
 	processor.inFlightQueueConfigs.Store(key, workerID)
 
 	defer func() {
