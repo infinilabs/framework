@@ -1,6 +1,9 @@
 package chrono
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type TriggerContext interface {
 	LastCompletionTime() time.Time
@@ -51,15 +54,20 @@ func CreateCronTrigger(expression string, location *time.Location) (*CronTrigger
 	if err != nil {
 		return nil, err
 	}
+	loc := cron.GetLocation()
+	if loc == nil {
+		if location != nil {
+			loc = location
+		}else{
+			loc = time.Local
+		}
+	}
 
 	trigger := &CronTrigger{
 		cron,
-		time.Local,
+		loc,
 	}
-
-	if location != nil {
-		trigger.location = location
-	}
+	fmt.Println(loc)
 
 	return trigger, nil
 }

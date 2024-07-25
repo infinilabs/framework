@@ -80,14 +80,20 @@ const mask = 0xFFFFFFFFFFFFFFFF
 
 type CronExpression interface {
 	NextTime(t time.Time) time.Time
+	GetLocation() *time.Location
+}
+
+func (expression *SimpleCronExpression) GetLocation() *time.Location {
+	return expression.loc
 }
 type SimpleCronExpression struct {
 	fields []*cronFieldBits
+	loc    *time.Location
 }
 
 func newCronExpression() *SimpleCronExpression {
 	exp := &SimpleCronExpression{
-		make([]*cronFieldBits, 0),
+		fields: make([]*cronFieldBits, 0),
 	}
 
 	nanoSecondBits := newFieldBits(nanoSecond)
@@ -158,6 +164,12 @@ type MultiCronExpression struct {
 	cronExps []SimpleCronExpression
 }
 
+func (expression *MultiCronExpression) GetLocation() *time.Location {
+	if len(expression.cronExps) == 0 {
+		return nil
+	}
+	return expression.cronExps[0].loc
+}
 func (expression *MultiCronExpression) NextTime(t time.Time) time.Time {
 	var nearestTime time.Time
 	for _, cronExp := range expression.cronExps {
@@ -197,6 +209,17 @@ func ParseSingleCronExpression(expression string) (*SimpleCronExpression, error)
 	if len(expression) == 0 {
 		return nil, errors.New("cron expression must not be empty")
 	}
+	// Extract timezone if present
+	var loc = time.Local
+	if strings.HasPrefix(expression, "TZ=") {
+		var err error
+		i := strings.Index(expression, " ")
+		eq := strings.Index(expression, "=")
+		if loc, err = time.LoadLocation(expression[eq+1 : i]); err != nil {
+			return nil, fmt.Errorf("provided bad location %s: %v", expression[eq+1:i], err)
+		}
+		expression = strings.TrimSpace(expression[i:])
+	}
 
 	fields := strings.Fields(expression)
 
@@ -205,6 +228,7 @@ func ParseSingleCronExpression(expression string) (*SimpleCronExpression, error)
 	}
 
 	cronExpression := newCronExpression()
+	cronExpression.loc = loc
 
 	for index, cronFieldType := range cronFieldTypes {
 		value, err := parseField(fields[index], cronFieldType)
