@@ -1,7 +1,6 @@
 package chrono
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -50,7 +49,6 @@ type CronTrigger struct {
 
 func CreateCronTrigger(expression string, location *time.Location) (*CronTrigger, error) {
 	cron, err := ParseCronExpression(expression)
-
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +65,6 @@ func CreateCronTrigger(expression string, location *time.Location) (*CronTrigger
 		cron,
 		loc,
 	}
-	fmt.Println(loc)
 
 	return trigger, nil
 }

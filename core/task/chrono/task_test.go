@@ -39,6 +39,16 @@ func TestNewScheduledRunnableTask(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestNewTriggerTaskWithTimezone(t *testing.T) {
+	trigger, err := CreateCronTrigger("CRON_TZ=America/New_York 0 9 18 * * 1", time.Local)
+	assert.Nil(t, err)
+	loc, _ := time.LoadLocation("America/New_York")
+	assert.Equal(t, loc, trigger.location)
+	ctx := NewSimpleTriggerContext()
+	tm := trigger.NextExecutionTime(ctx)
+	assert.Equal(t, 6, tm.Hour())
+}
+
 func TestNewTriggerTask(t *testing.T) {
 	trigger, err := CreateCronTrigger("* * * * * *", time.Local)
 	assert.Nil(t, err)

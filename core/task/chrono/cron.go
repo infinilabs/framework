@@ -148,7 +148,7 @@ func (expression *SimpleCronExpression) nextField(field *cronFieldBits, t time.T
 		count := 0
 		current := getTimeValue(t, field.Typ.Field)
 		for ; current != next && count < maxAttempts; count++ {
-			t = elapseUntil(t, field.Typ, next)
+			t = elapseUntil(t, field.Typ, next, expression.loc)
 			current = getTimeValue(t, field.Typ.Field)
 		}
 
@@ -211,7 +211,7 @@ func ParseSingleCronExpression(expression string) (*SimpleCronExpression, error)
 	}
 	// Extract timezone if present
 	var loc = time.Local
-	if strings.HasPrefix(expression, "TZ=") {
+	if strings.HasPrefix(expression, "CRON_TZ=") {
 		var err error
 		i := strings.Index(expression, " ")
 		eq := strings.Index(expression, "=")
@@ -446,7 +446,7 @@ func setNextBit(bitsValue uint64, index int) int {
 	return -1
 }
 
-func elapseUntil(t time.Time, fieldType fieldType, value int) time.Time {
+func elapseUntil(t time.Time, fieldType fieldType, value int, location *time.Location) time.Time {
 	current := getTimeValue(t, fieldType.Field)
 
 	maxValue := getFieldMaxValue(t, fieldType)
@@ -457,26 +457,29 @@ func elapseUntil(t time.Time, fieldType fieldType, value int) time.Time {
 	}
 
 	if value >= fieldType.MinValue && value <= maxValue {
-		return with(t, fieldType.Field, value)
+		return with(t, fieldType.Field, value, location)
 	}
 
 	return addTime(t, fieldType.Field, value-current)
 }
 
-func with(t time.Time, field cronField, value int) time.Time {
+func with(t time.Time, field cronField, value int, location *time.Location) time.Time {
+	if location == nil {
+		location = time.Local
+	}
 	switch field {
 	case cronFieldNanoSecond:
-		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), value, time.Local)
+		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), value, location)
 	case cronFieldSecond:
-		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), value, t.Nanosecond(), time.Local)
+		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), value, t.Nanosecond(), location)
 	case cronFieldMinute:
-		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), value, t.Second(), t.Nanosecond(), time.Local)
+		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), value, t.Second(), t.Nanosecond(), location)
 	case cronFieldHour:
-		return time.Date(t.Year(), t.Month(), t.Day(), value, t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+		return time.Date(t.Year(), t.Month(), t.Day(), value, t.Minute(), t.Second(), t.Nanosecond(), location)
 	case cronFieldDayOfMonth:
-		return time.Date(t.Year(), t.Month(), value, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+		return time.Date(t.Year(), t.Month(), value, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), location)
 	case cronFieldMonth:
-		return time.Date(t.Year(), time.Month(value), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+		return time.Date(t.Year(), time.Month(value), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), location)
 	case cronFieldDayOfWeek:
 		return t.AddDate(0, 0, value-int(t.Weekday()))
 	}
