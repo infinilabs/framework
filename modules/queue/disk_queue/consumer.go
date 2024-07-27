@@ -240,7 +240,7 @@ READ_MSG:
 					goto READ_MSG //reset since we moved to next file
 				} else {
 					//can't read ahead before current write file
-					if d.segment >= d.diskQueue.writeSegmentNum {
+					if nextSegment >= d.diskQueue.writeSegmentNum {
 						log.Errorf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v", d.diskQueue.writeSegmentNum, d.segment)
 						d.diskQueue.skipToNextRWFile(false)
 						d.diskQueue.needSync = true
