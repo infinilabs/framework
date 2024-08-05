@@ -1825,3 +1825,31 @@ func (c *ESAPIV0) DeleteAutoFollowReplication(autoFollowPatternName string, body
 func (c *ESAPIV0) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
 	return nil, fmt.Errorf("unsupport feature")
 }
+
+func (c *ESAPIV0) GetUser(username string) ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetUsers() ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) DeleteUser(username string) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) PutUser(username string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetRole(roleName string) ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetRoles() ([]byte, error){
+	return nil, fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) DeleteRole(roleName string) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) PutRole(roleName string, body []byte) error {
+	return fmt.Errorf("unsupport feature")
+}
+func (c *ESAPIV0) GetPrivileges() ([]byte, error) {
+	return nil, fmt.Errorf("unsupport feature")
+}

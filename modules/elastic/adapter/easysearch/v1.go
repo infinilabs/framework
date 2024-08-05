@@ -131,3 +131,105 @@ func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
 	}
 	return resp.Body, nil
 }
+
+func (c *APIV1) GetUser(username string) ([]byte, error){
+	url := fmt.Sprintf("%s/_security/user/%s", c.GetEndpoint(), username)
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
+func (c *APIV1) GetUsers() ([]byte, error){
+	url := fmt.Sprintf("%s/_security/user", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
+func (c *APIV1) DeleteUser(username string) error {
+	url := fmt.Sprintf("%s/_security/user/%s", c.GetEndpoint(), username)
+	resp, err := c.Request(nil, util.Verb_DELETE, url, nil)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(resp.Body))
+	}
+	return nil
+}
+func (c *APIV1) PutUser(username string, body []byte) error {
+	url := fmt.Sprintf("%s/_security/user/%s", c.GetEndpoint(), username)
+	resp, err := c.Request(nil, util.Verb_PUT, url, body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf(string(resp.Body))
+	}
+	return nil
+}
+func (c *APIV1) GetRole(roleName string) ([]byte, error){
+	url := fmt.Sprintf("%s/_security/role/%s", c.GetEndpoint(), roleName)
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
+func (c *APIV1) GetRoles() ([]byte, error){
+	url := fmt.Sprintf("%s/_security/role", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
+func (c *APIV1) DeleteRole(roleName string) error {
+	url := fmt.Sprintf("%s/_security/role/%s", c.GetEndpoint(), roleName)
+	resp, err := c.Request(nil, util.Verb_DELETE, url, nil)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(resp.Body))
+	}
+	return nil
+}
+func (c *APIV1) PutRole(roleName string, body []byte) error {
+	url := fmt.Sprintf("%s/_security/role/%s", c.GetEndpoint(), roleName)
+	resp, err := c.Request(nil, util.Verb_PUT, url, body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf(string(resp.Body))
+	}
+	return nil
+}
+func (c *APIV1) GetPrivileges() ([]byte, error) {
+	url := fmt.Sprintf("%s/_security/privilege", c.GetEndpoint())
+	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}

@@ -28,6 +28,7 @@ type API interface {
 	MappingAPI
 	TemplateAPI
 	ReplicationAPI
+	SecurityAPI
 
 	InitDefaultTemplate(templateName, indexPrefix string)
 
@@ -140,6 +141,18 @@ type ReplicationAPI interface {
 	CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error
 	GetAutoFollowStats(autoFollowPatternName string)([]byte, error)
 	DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error
+}
+
+type SecurityAPI interface {
+	GetUser(username string) ([]byte, error)
+	GetUsers() ([]byte, error)
+	DeleteUser(username string) error
+	PutUser(username string, body []byte) error
+	GetRole(roleName string) ([]byte, error)
+	GetRoles() ([]byte, error)
+	DeleteRole(roleName string) error
+	PutRole(roleName string, body []byte) error
+	GetPrivileges() ([]byte, error)
 }
 
 type APIContext struct {
