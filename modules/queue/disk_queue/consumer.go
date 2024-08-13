@@ -290,6 +290,13 @@ READ_MSG:
 			err=errors.Errorf("dirty_read, the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)",d.segment,nextReadPos,d.maxBytesPerFileRead,d.diskQueue.writeSegmentNum,d.diskQueue.writePos)
 			time.Sleep(time.Millisecond * 100) //don't catch up too fast
 			stats.Increment("consumer", d.qCfg.ID,d.cCfg.ID,"dirty_read")
+
+			//retry when file is in stale
+			if d.diskQueue.writeSegmentNum>d.segment && nextReadPos > d.maxBytesPerFileRead{
+				//re-check file size
+				goto RELOAD_FILE
+			}
+
 			return messages, true, err
 		}
 
