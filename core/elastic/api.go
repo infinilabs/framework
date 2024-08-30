@@ -35,7 +35,7 @@ type API interface {
 	GetMajorVersion() int
 
 	ClusterHealth() (*ClusterHealth, error)
-	ClusterHealthSpecEndpoint(endPoint string) (*ClusterHealth, error)
+	ClusterHealthSpecEndpoint(endPoint string, level string) (*ClusterHealth, error)
 
 	GetClusterState() (*ClusterState, error)
 

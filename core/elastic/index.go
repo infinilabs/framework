@@ -66,6 +66,7 @@ type ClusterHealth struct {
 	NumberOfInFlightFetch       int     `json:"number_of_in_flight_fetch"`
 	TaskMaxWaitingInQueueMillis float64 `json:"task_max_waiting_in_queue_millis"`
 	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
+	Indices map[string]map[string]interface{} `json:"indices"`
 }
 
 type ClusterState struct {

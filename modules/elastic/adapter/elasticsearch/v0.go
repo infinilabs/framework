@@ -691,13 +691,16 @@ func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
 
 // ClusterHealthSpecEndpoint
 // @param url eg: http://192.168.3.22:9200
-func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHealth, error) {
+func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string, level string) (*elastic.ClusterHealth, error) {
 
 	var url string
 	if endPoint == "" {
 		url = fmt.Sprintf("%s/_cluster/health?timeout=10s", c.GetEndpoint())
 	} else {
 		url = fmt.Sprintf("%s/_cluster/health?timeout=10s", endPoint)
+	}
+	if level != "" {
+		url += "&level=" + level
 	}
 	log.Tracef("get cluster health, url: %s", url)
 	health := &elastic.ClusterHealth{}
@@ -730,7 +733,7 @@ func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string) (*elastic.ClusterHe
 }
 
 func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
-	return c.ClusterHealthSpecEndpoint("")
+	return c.ClusterHealthSpecEndpoint("", "")
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {

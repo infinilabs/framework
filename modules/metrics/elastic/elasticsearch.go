@@ -499,7 +499,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	var health *elastic.ClusterHealth
 	var err error
 	if m.IsAgentMode {
-		health, err = client.ClusterHealthSpecEndpoint(v.Config.GetAnyEndpoint())
+		health, err = client.ClusterHealthSpecEndpoint(v.Config.GetAnyEndpoint(), "")
 	} else {
 		health, err = client.ClusterHealth()
 	}
