@@ -17,6 +17,7 @@ limitations under the License.
 package adapter
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -53,13 +54,16 @@ var timeout = 30 * time.Second
 func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterInformation, error) {
 	url := fmt.Sprintf("%v://%v", metadata.GetSchema(), metadata.GetActiveHost())
 	if metadata.Config.RequestTimeout <= 0 {
-		metadata.Config.RequestTimeout = 30
+		metadata.Config.RequestTimeout = 5
 	}
 
 	req:=util.Request{Method: fasthttp.MethodGet,Url: url}
 	if metadata.Config.BasicAuth != nil {
 		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout) * time.Second)
+	req.Context = ctx
+	defer cancel()
 
 	res, err := util.ExecuteRequestWithCatchFlag(nil, &req, true)
 	if err != nil {
