@@ -34,13 +34,13 @@ type API interface {
 
 	GetMajorVersion() int
 
-	ClusterHealth() (*ClusterHealth, error)
-	ClusterHealthSpecEndpoint(endPoint string, level string) (*ClusterHealth, error)
+	ClusterHealth(ctx context.Context) (*ClusterHealth, error)
+	ClusterHealthSpecEndpoint(ctx context.Context, endPoint string, level string) (*ClusterHealth, error)
 
 	GetClusterState() (*ClusterState, error)
 
-	GetClusterStats(node string) (*ClusterStats, error)
-	GetClusterStatsSpecEndpoint(node string, endPoint string) (*ClusterStats, error)
+	GetClusterStats(ctx context.Context, node string) (*ClusterStats, error)
+	GetClusterStatsSpecEndpoint(ctx context.Context, node string, endPoint string) (*ClusterStats, error)
 
 	GetNodesStats(nodeID, host string, level string) *NodesStats
 

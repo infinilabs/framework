@@ -43,7 +43,7 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 		//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
 		client := elastic.GetClient(cfg.ID)
 		//check cluster health status
-		health, err := client.ClusterHealth()
+		health, err := client.ClusterHealth(nil)
 		if err != nil || health == nil || health.StatusCode != 200 {
 			if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
 				metadata.ReportFailure(errors.New("master_not_discovered_exception"))

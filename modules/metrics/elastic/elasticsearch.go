@@ -499,9 +499,9 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	var health *elastic.ClusterHealth
 	var err error
 	if m.IsAgentMode {
-		health, err = client.ClusterHealthSpecEndpoint(v.Config.GetAnyEndpoint(), "")
+		health, err = client.ClusterHealthSpecEndpoint(nil, v.Config.GetAnyEndpoint(), "")
 	} else {
-		health, err = client.ClusterHealth()
+		health, err = client.ClusterHealth(nil)
 	}
 	if err != nil {
 		log.Error(v.Config.Name, " get cluster health error: ", err)
@@ -537,9 +537,9 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	var stats *elastic.ClusterStats
 	var err error
 	if m.IsAgentMode {
-		stats, err = client.GetClusterStatsSpecEndpoint("", v.Config.GetAnyEndpoint())
+		stats, err = client.GetClusterStatsSpecEndpoint(nil,"", v.Config.GetAnyEndpoint())
 	} else {
-		stats, err = client.GetClusterStats("")
+		stats, err = client.GetClusterStats(nil, "")
 	}
 	if err != nil {
 		log.Error(v.Config.Name, " get cluster stats error: ", err)

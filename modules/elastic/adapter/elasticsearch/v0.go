@@ -635,7 +635,7 @@ func (c *ESAPIV0) GetClusterState() (*elastic.ClusterState, error) {
 	return obj, nil
 }
 
-func (c *ESAPIV0) GetClusterStatsSpecEndpoint(node string, endPoint string) (*elastic.ClusterStats, error) {
+func (c *ESAPIV0) GetClusterStatsSpecEndpoint(ctx context.Context, node string, endPoint string) (*elastic.ClusterStats, error) {
 
 	var url string
 	if endPoint == "" {
@@ -649,7 +649,7 @@ func (c *ESAPIV0) GetClusterStatsSpecEndpoint(node string, endPoint string) (*el
 		url = fmt.Sprintf("%s/_cluster/stats/nodes/%v", c.GetEndpoint(), node)
 	}
 
-	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	resp, err := c.Request(ctx, util.Verb_GET, url, nil)
 
 	obj := &elastic.ClusterStats{}
 	if err != nil {
@@ -685,13 +685,13 @@ func (c *ESAPIV0) GetClusterStatsSpecEndpoint(node string, endPoint string) (*el
 	return obj, nil
 }
 
-func (c *ESAPIV0) GetClusterStats(node string) (*elastic.ClusterStats, error) {
-	return c.GetClusterStatsSpecEndpoint(node, "")
+func (c *ESAPIV0) GetClusterStats(ctx context.Context, node string) (*elastic.ClusterStats, error) {
+	return c.GetClusterStatsSpecEndpoint(ctx, node, "")
 }
 
 // ClusterHealthSpecEndpoint
 // @param url eg: http://192.168.3.22:9200
-func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string, level string) (*elastic.ClusterHealth, error) {
+func (c *ESAPIV0) ClusterHealthSpecEndpoint(ctx context.Context, endPoint string, level string) (*elastic.ClusterHealth, error) {
 
 	var url string
 	if endPoint == "" {
@@ -704,7 +704,7 @@ func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string, level string) (*ela
 	}
 	log.Tracef("get cluster health, url: %s", url)
 	health := &elastic.ClusterHealth{}
-	resp, err := c.Request(nil, util.Verb_GET, url, nil)
+	resp, err := c.Request(ctx, util.Verb_GET, url, nil)
 
 	if resp != nil {
 		health.StatusCode = resp.StatusCode
@@ -732,8 +732,8 @@ func (c *ESAPIV0) ClusterHealthSpecEndpoint(endPoint string, level string) (*ela
 	return health, err
 }
 
-func (c *ESAPIV0) ClusterHealth() (*elastic.ClusterHealth, error) {
-	return c.ClusterHealthSpecEndpoint("", "")
+func (c *ESAPIV0) ClusterHealth(ctx context.Context) (*elastic.ClusterHealth, error) {
+	return c.ClusterHealthSpecEndpoint(ctx, "", "")
 }
 
 func (c *ESAPIV0) GetNodes() (*map[string]elastic.NodesInfo, error) {
