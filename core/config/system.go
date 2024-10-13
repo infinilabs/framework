@@ -191,6 +191,7 @@ type ConfigsConfig struct {
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`
+	AllowGeneratedMetricsTasks bool `config:"allow_generated_metrics_tasks"`
 }
 
 type ResourceLimit struct {
