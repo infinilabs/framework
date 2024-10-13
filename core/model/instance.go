@@ -7,13 +7,15 @@ package model
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"net/http"
-	"time"
 )
 
 type NetworkInfo struct {
@@ -114,8 +116,13 @@ func GetInstanceInfo() Instance {
 
 	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
 
+	ips := util.GetLocalIPs()
+	if len(ips) > 0 {
+		log.Infof("majorIP: %s,local ips: %v", publicIP, util.JoinArray(ips, ", "))
+	}
+
 	instance.Network = NetworkInfo{
-		IP:      util.GetLocalIPs(),
+		IP:      ips,
 		MajorIP: publicIP,
 	}
 	hostInfo := &HostInfo{}

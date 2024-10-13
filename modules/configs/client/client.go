@@ -35,12 +35,13 @@ func ConnectToManager() error {
 		return nil
 	}
 
-	if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
-		//already registered skip further process
-		log.Info("already registered to config manager")
-		global.Register(configRegisterEnvKey, true)
-		return nil
-	}
+	// k8s env pod restart the ip will change so need register again
+	// if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
+	// 	//already registered skip further process
+	// 	log.Info("already registered to config manager")
+	// 	global.Register(configRegisterEnvKey, true)
+	// 	return nil
+	// }
 
 	log.Info("register new instance to config manager")
 
