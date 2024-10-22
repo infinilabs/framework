@@ -35,13 +35,15 @@ func ConnectToManager() error {
 		return nil
 	}
 
-	// k8s env pod restart the ip will change so need register again
-	// if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
-	// 	//already registered skip further process
-	// 	log.Info("already registered to config manager")
-	// 	global.Register(configRegisterEnvKey, true)
-	// 	return nil
-	// }
+	// k8s env setting always_register_after_restart and  pod after restart the ip will change so need register again
+	if !global.Env().SystemConfig.Configs.AlwaysRegisterAfterRestart {
+		if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
+			//already registered skip further process
+			log.Info("already registered to config manager")
+			global.Register(configRegisterEnvKey, true)
+			return nil
+		}
+	}
 
 	log.Info("register new instance to config manager")
 
@@ -98,8 +100,8 @@ func ListenConfigChanges() error {
 	clientInitLock.Do(func() {
 
 		if global.Env().SystemConfig.Configs.Managed {
-			cfg:=global.Env().GetClientConfigByEndpoint("configs","")
-			if cfg!=nil{
+			cfg := global.Env().GetClientConfigByEndpoint("configs", "")
+			if cfg != nil {
 				hClient, err := api.NewHTTPClient(cfg)
 				if err != nil {
 					panic(err)

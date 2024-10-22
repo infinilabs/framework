@@ -191,6 +191,7 @@ type ConfigsConfig struct {
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`
+	AlwaysRegisterAfterRestart bool `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool `config:"allow_generated_metrics_tasks"`
 }
 
