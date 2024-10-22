@@ -824,3 +824,27 @@ func TestMergeFieldHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestWildcardPathFilter(t *testing.T) {
+	patterns := []string{
+		"*/ignore/*",
+		"#testdata/other/file.yaml",
+	}
+	wildcardPathFilter := GenerateWildcardPathFilter(patterns)
+	tests := []struct {
+		Name    string
+		FilePath string
+		Expected bool
+	}{
+		{"match", "testdata/ignore/file.yaml", true},
+		{"mismatch", "testdata/other/file.yaml", false},
+		{"comment", "testdata/other/file.yaml", false},
+	}
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			actual := wildcardPathFilter(test.FilePath)
+			assert.Equal(t, test.Expected, actual)
+		})
+	}
+
+}

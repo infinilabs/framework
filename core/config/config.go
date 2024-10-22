@@ -4,6 +4,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"infini.sh/framework/core/radix"
 	"io"
 	"os"
 	"path/filepath"
@@ -143,16 +144,49 @@ func NewFlagOverwrite(
 	return &f.value
 }
 
+var pathFilters []PathFilter
+func RegisterPathFilter(f PathFilter) {
+	pathFilters = append(pathFilters, f)
+}
+func GenerateWildcardPathFilter(patterns []string) PathFilter{
+	return func(fpath string) bool {
+		lines := []string{}
+		for _, p := range patterns {
+			line := strings.TrimSpace(p)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			lines = append(lines, line)
+		}
+		if len(lines) == 0 {
+			return false
+		}
+		pattern := radix.Compile(lines...)
+		return pattern.Match(fpath)
+	}
+}
+
 func LoadPath(folder string) (*ucfg.Config, error) {
+	return LoadPathWithFilter(folder, pathFilters...)
+}
+
+type PathFilter func (fpath string) bool
+func LoadPathWithFilter(folder string, filters ...PathFilter) (*ucfg.Config, error) {
 	files := []string{}
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
 		if info != nil && !info.IsDir() {
 			if util.SuffixStr(path, ".yml") || util.SuffixStr(path, ".yaml") {
+				for _, filter := range filters {
+					if filter(path) {
+						return nil
+					}
+				}
 				files = append(files, path)
 			}
 		}
 		return nil
 	})
+	log.Debugf("load config files: %v", files)
 	return LoadFiles(files...)
 }
 

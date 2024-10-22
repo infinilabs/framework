@@ -388,6 +388,10 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	//load configs from config folder
 	if env.SystemConfig.PathConfig.Config != "" {
 		cfgPath := util.TryGetFileAbsPath(env.SystemConfig.PathConfig.Config, true)
+		if len(env.SystemConfig.Configs.IgnoredPath) > 0 {
+			pathFilter := config.GenerateWildcardPathFilter(env.SystemConfig.Configs.IgnoredPath)
+			config.RegisterPathFilter(pathFilter)
+		}
 		log.Debug("loading configs from: ", cfgPath)
 		if util.FileExists(cfgPath) {
 

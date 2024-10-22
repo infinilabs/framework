@@ -193,6 +193,7 @@ type ConfigsConfig struct {
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool `config:"allow_generated_metrics_tasks"`
+	IgnoredPath []string `config:"ignored_path"`
 }
 
 type ResourceLimit struct {
