@@ -187,6 +187,20 @@ func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) error {
 	return handler.WriteAckJSON(w, true, 200, nil)
 }
 
+func (handler Handler) MustGetParameter(w http.ResponseWriter, r *http.Request, key string) string {
+	if r.URL == nil {
+		panic("URL is nil")
+	}
+
+	v:= r.URL.Query().Get(key)
+
+	if len(v) == 0 {
+		panic("missing parameter " + key)
+	}
+
+	return v
+}
+
 // GetParameter return query parameter with argument name
 func (handler Handler) GetParameter(r *http.Request, key string) string {
 	if r.URL == nil {
