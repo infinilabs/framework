@@ -118,7 +118,7 @@ func GetInstanceInfo() Instance {
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
-		log.Infof("majorIP: %s,local ips: %v", publicIP, util.JoinArray(ips, ", "))
+		log.Debugf("major ip: %s, ips: %v", publicIP, util.JoinArray(ips, ", "))
 	}
 
 	instance.Network = NetworkInfo{
