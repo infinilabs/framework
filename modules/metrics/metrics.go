@@ -281,6 +281,13 @@ func (module *MetricsModule) Stop() error {
 }
 
 func (module *MetricsModule) buildAgentMeta() event.AgentMeta {
+	labels := map[string]string{}
+	for k, v := range global.Env().SystemConfig.NodeConfig.Labels {
+		labels[k] = v
+	}
+	for k, v := range module.config.Labels {
+		labels[k] = v
+	}
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 	return event.AgentMeta{
 		AgentID:                global.Env().SystemConfig.NodeConfig.ID,
