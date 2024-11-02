@@ -296,7 +296,7 @@ func (module *MetricsModule) buildAgentMeta() event.AgentMeta {
 		IP:                     util.GetLocalIPs(),
 		DefaultMetricQueueName: util.StringDefault(module.config.MetricQueue, "metrics"),
 		LoggingQueueName:       util.StringDefault(module.config.LoggingQueue, "logging"),
-		Labels:                 module.config.Labels,
+		Labels:                 labels,
 		Tags:                   module.config.Tags,
 	}
 }
