@@ -57,7 +57,7 @@ endif
 FRAMEWORK_VENDOR_FOLDER := $(FRAMEWORK_FOLDER)/../vendor/
 FRAMEWORK_VENDOR_REPO :=  git@github.com:infinilabs/framework-vendor.git
 ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
-    FRAMEWORK_VENDOR_BRANCH := master
+    FRAMEWORK_VENDOR_BRANCH := main
 endif
 
 ifneq "$(DEV)" ""
