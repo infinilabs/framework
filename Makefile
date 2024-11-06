@@ -55,7 +55,7 @@ ifeq "$(FRAMEWORK_BRANCH)" ""
 endif
 
 FRAMEWORK_VENDOR_FOLDER := $(FRAMEWORK_FOLDER)/../vendor/
-FRAMEWORK_VENDOR_REPO :=  ssh://git@git.infini.ltd:64221/infini/framework-vendor.git
+FRAMEWORK_VENDOR_REPO :=  git@github.com:infinilabs/framework-vendor.git
 ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
     FRAMEWORK_VENDOR_BRANCH := master
 endif
