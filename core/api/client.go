@@ -16,7 +16,7 @@ import (
 
 func SimpleGetTLSConfig(tlsConfig *config.TLSConfig) *tls.Config {
 	if tlsConfig != nil {
-		v, _ := GetTLSConfig(tlsConfig)
+		v, _ := GetClientTLSConfig(tlsConfig)
 		if v != nil {
 			return v
 		}
@@ -27,7 +27,7 @@ func SimpleGetTLSConfig(tlsConfig *config.TLSConfig) *tls.Config {
 	}
 }
 
-func GetTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
+func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 
 	pool := x509.NewCertPool()
 	clientConfig := &tls.Config{

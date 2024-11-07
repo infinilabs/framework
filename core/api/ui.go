@@ -7,9 +7,9 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
-	"errors"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	"golang.org/x/net/http2"
 	"infini.sh/framework/core/api/gzip"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
@@ -19,8 +19,6 @@ import (
 	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
-	"path"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -32,10 +30,6 @@ var uiServeMux *http.ServeMux
 var uiMutex sync.Mutex
 
 var bindAddress string
-
-func GetBindAddress() string {
-	return bindAddress
-}
 
 func StopUI(cfg config.WebAppConfig) {
 	if srv != nil {
@@ -132,36 +126,9 @@ func StartUI(cfg config.WebAppConfig) {
 
 		schema = "https://"
 
-		certFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*c*rt*")
-		match, err := filepath.Glob(certFile)
-		if err != nil {
+		cfg, err := GetServerTLSConfig(&cfg.TLSConfig)
+		if err!=nil{
 			panic(err)
-		}
-		if len(match) <= 0 {
-			panic(errors.New("no cert file found, the file name must end with .crt"))
-		}
-		certFile = match[0]
-
-		keyFile := path.Join(global.Env().SystemConfig.PathConfig.Cert, "*key*")
-		match, err = filepath.Glob(keyFile)
-		if err != nil {
-			panic(err)
-		}
-		if len(match) <= 0 {
-			panic(errors.New("no key file found, the file name must end with .key"))
-		}
-		keyFile = match[0]
-
-		cfg := &tls.Config{
-			MinVersion:               tls.VersionTLS12,
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-			PreferServerCipherSuites: true,
-			CipherSuites: []uint16{
-				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			},
 		}
 
 		srv = &http.Server{
@@ -170,6 +137,11 @@ func StartUI(cfg config.WebAppConfig) {
 			TLSConfig:    cfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
+
+		http2.ConfigureServer(srv, &http2.Server{
+			MaxHandlers:          1000,
+			MaxConcurrentStreams: 1000,
+		})
 
 		go func(srv *http.Server) {
 			defer func() {
@@ -188,8 +160,7 @@ func StartUI(cfg config.WebAppConfig) {
 					}
 				}
 			}()
-
-			err = srv.ListenAndServeTLS(certFile, keyFile)
+			err := srv.ListenAndServeTLS("", "")
 			if err != nil && err != http.ErrServerClosed {
 				log.Error(err)
 				panic(err)
@@ -222,7 +193,6 @@ func StartUI(cfg config.WebAppConfig) {
 				panic(err)
 			}
 		}(srv)
-
 	}
 
 	err := util.WaitServerUp(bindAddress, 30*time.Second)
@@ -230,7 +200,7 @@ func StartUI(cfg config.WebAppConfig) {
 		panic(err)
 	}
 
-	log.Info("ui listen at: ", schema, bindAddress)
+	log.Info("web server listen at: ", schema, bindAddress)
 
 }
 

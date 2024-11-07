@@ -6,9 +6,7 @@ package api
 
 import (
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
@@ -23,11 +21,8 @@ import (
 	_ "infini.sh/framework/core/logging"
 	"infini.sh/framework/core/logging/logger"
 	"infini.sh/framework/core/util"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
-	"path"
 	"runtime"
 	"sync"
 	"time"
@@ -152,7 +147,7 @@ func StartAPI() {
 	}
 	if apiConfig.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(apiConfig.WebsocketConfig)
-		HandleAPIFunc("/ws", websocket.ServeWs)
+		HandleAPIFunc(apiConfig.WebsocketConfig.BasePath, websocket.ServeWs)
 		logger.RegisterWebsocketHandler(func(message string, level log.LogLevel, context log.LogContextInterface) {
 			websocket.BroadcastMessage(message)
 		})
@@ -205,75 +200,17 @@ func StartAPI() {
 
 	router.NotFound = notfoundHandler
 
+	tlsCfg:=apiConfig.TLSConfig
+
 	schema := "http://"
-	if apiConfig.TLSConfig.TLSEnabled {
+	if tlsCfg.TLSEnabled {
 		schema = "https://"
 
 		log.Trace("using tls connection")
 
-		cfg := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			CurvePreferences: []tls.CurveID{
-				tls.CurveP256,
-				tls.X25519, // Go 1.8 only
-			},
-			PreferServerCipherSuites: true,
-			InsecureSkipVerify:       apiConfig.TLSConfig.TLSInsecureSkipVerify,
-			SessionTicketsDisabled:   false,
-			ClientSessionCache:       tls.NewLRUClientSessionCache(128),
-			CipherSuites: []uint16{
-				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, // Go 1.8 only
-				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,   // Go 1.8 only
-				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			},
-			NextProtos: []string{"spdy/3"},
-		}
-		if apiConfig.TLSConfig.TLSCertFile == "" && apiConfig.TLSConfig.TLSKeyFile == "" {
-			dataDir := global.Env().GetDataDir()
-			apiConfig.TLSConfig.TLSCertFile = path.Join(dataDir, "certs/instance.crt")
-			apiConfig.TLSConfig.TLSKeyFile = path.Join(dataDir, "certs/instance.key")
-			apiConfig.TLSConfig.TLSCACertFile = path.Join(dataDir, "certs/ca.crt")
-			caKey := path.Join(dataDir, "certs/ca.key")
-			if !(util.FileExists(apiConfig.TLSConfig.TLSCACertFile) && util.FileExists(apiConfig.TLSConfig.TLSCertFile) && util.FileExists(apiConfig.TLSConfig.TLSKeyFile)) {
-				err = os.MkdirAll(path.Join(dataDir, "certs"), 0775)
-				if err != nil {
-					panic(err)
-				}
-				log.Info("auto generating cert files")
-				rootCert, rootKey, rootCertPEM = util.GetRootCert()
-				if apiConfig.TLSConfig.DefaultDomain == "" {
-					apiConfig.TLSConfig.DefaultDomain = "localhost"
-				}
-				instanceCertPEM, instanceKeyPEM, err := util.GenerateServerCert(rootCert, rootKey, rootCertPEM, []string{apiConfig.TLSConfig.DefaultDomain})
-				if err != nil {
-					panic(err)
-				}
-				caKeyPEM := pem.EncodeToMemory(&pem.Block{
-					Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-				})
-				util.FilePutContentWithByte(caKey, caKeyPEM)
-				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCACertFile, rootCertPEM)
-				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSCertFile, instanceCertPEM)
-				util.FilePutContentWithByte(apiConfig.TLSConfig.TLSKeyFile, instanceKeyPEM)
-			}
-		}
-
-		if !apiConfig.TLSConfig.TLSInsecureSkipVerify {
-			if certPool == nil {
-				certPool = x509.NewCertPool()
-			}
-			if len(rootCertPEM) == 0 {
-				rootCertPEM, err = ioutil.ReadFile(apiConfig.TLSConfig.TLSCACertFile)
-				if err != nil {
-					panic(err)
-				}
-			}
-			certPool.AppendCertsFromPEM(rootCertPEM)
-			cfg.ClientCAs = certPool
-			cfg.ClientAuth = tls.RequireAndVerifyClientCert
+		cfg, err := GetServerTLSConfig(&tlsCfg)
+		if err!=nil{
+			panic(err)
 		}
 
 		srv := &http.Server{
@@ -284,14 +221,6 @@ func StartAPI() {
 			Addr:              listenAddress,
 			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(router))),
 			TLSConfig:         cfg,
-			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){
-				"spdy/3": func(s *http.Server, conn *tls.Conn, h http.Handler) {
-					buf := make([]byte, 1)
-					if n, err := conn.Read(buf); err != nil {
-						log.Error("%v|%v\n", n, err)
-					}
-				},
-			},
 		}
 
 		http2.ConfigureServer(srv, &http2.Server{
@@ -317,7 +246,7 @@ func StartAPI() {
 				}
 			}()
 
-			err = srv.ServeTLS(l, apiConfig.TLSConfig.TLSCertFile, apiConfig.TLSConfig.TLSKeyFile)
+			err = srv.ServeTLS(l, "", "")
 			if err != nil {
 				log.Error(err)
 				panic(err)
@@ -357,6 +286,7 @@ func StartAPI() {
 		panic(errors.Wrap(err, fmt.Sprintf("failed to listen on: %v", listenAddress)))
 	}
 
-	log.Info("api listen at: ", schema, listenAddress)
+	log.Info("api server listen at: ", schema, listenAddress)
 
 }
+

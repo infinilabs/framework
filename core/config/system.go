@@ -115,7 +115,6 @@ type PathConfig struct {
 	Config string `config:"configs"`
 	Data   string `config:"data"`
 	Log    string `config:"logs"`
-	Cert   string `config:"certs"`
 }
 
 // SystemConfig is a high priority config, init from the environment or startup, can't be changed on the fly, need to restart to make config apply
@@ -191,9 +190,9 @@ type ConfigsConfig struct {
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
 	} `config:"manager"`
-	AlwaysRegisterAfterRestart bool `config:"always_register_after_restart"`
-	AllowGeneratedMetricsTasks bool `config:"allow_generated_metrics_tasks"`
-	IgnoredPath []string `config:"ignored_path"`
+	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
+	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
+	IgnoredPath                []string `config:"ignored_path"`
 }
 
 type ResourceLimit struct {
@@ -313,7 +312,26 @@ type TLSConfig struct {
 	DefaultDomain    string `config:"default_domain" json:"default_domain,omitempty" elastic_mapping:"default_domain: { type: keyword }"`
 	SkipDomainVerify bool   `config:"skip_domain_verify" json:"skip_domain_verify,omitempty" elastic_mapping:"skip_domain_verify: { type: boolean }"`
 
+	//auto issue public TLS cert
+	AutoIssue AutoIssue `config:"auto_issue" json:"auto_issue,omitempty" elastic_mapping:"auto_issue: { type: object }"`
+
 	ClientSessionCacheSize int `config:"client_session_cache_size" json:"client_session_cache_size,omitempty"`
+}
+
+type AutoIssue struct {
+	Enabled              bool     `config:"enabled" json:"enabled,omitempty" elastic_mapping:"enabled: { type: boolean }"`
+	Email                string   `config:"email" json:"email,omitempty" elastic_mapping:"email: { type: keyword }"`
+	Path                 string   `config:"path" json:"path,omitempty" elastic_mapping:"path: { type: keyword }"`
+	IncludeDefaultDomain bool     `config:"include_default_domain" json:"include_default_domain,omitempty" elastic_mapping:"include_default_domain: { type: boolean }"`
+	SkipInvalidDomain    bool     `config:"skip_invalid_domain" json:"skip_invalid_domain,omitempty" elastic_mapping:"skip_invalid_domain: { type: boolean }"`
+	Domains              []string `config:"domains" json:"domains,omitempty" elastic_mapping:"domains: { type: keyword }"`
+
+	Provider struct {
+		TencentDNS struct {
+			SecretID  string `config:"secret_id" json:"secret_id,omitempty" elastic_mapping:"secret_id: { type: keyword }"`
+			SecretKey string `config:"secret_key" json:"secret_key,omitempty" elastic_mapping:"secret_key: { type: keyword }"`
+		} `config:"tencent_dns" json:"tencent_dns,omitempty" elastic_mapping:"tencent_dns: { type: object }"`
+	} `config:"provider" json:"provider,omitempty" elastic_mapping:"provider: { type: object }"`
 }
 
 type AuthConfig struct {
@@ -334,6 +352,7 @@ type GzipConfig struct {
 
 type WebsocketConfig struct {
 	Enabled        bool     `config:"enabled"`
+	BasePath       string   `config:"base_path"`
 	PermittedHosts []string `config:"permitted_hosts"`
 	SkipHostVerify bool     `config:"skip_host_verify"`
 }
