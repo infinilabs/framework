@@ -204,8 +204,9 @@ func (env *Env) Init() *Env {
 }
 
 func (env *Env) InitPaths(cfgPath string) error {
-	_, defaultSystemConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
-	env.SystemConfig = &defaultSystemConfig
+	defaultConfig:=GetDefaultSystemConfig()
+	_, defaultConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
+	env.SystemConfig = &defaultConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	env.SystemConfig.Configs.PanicOnConfigError = !env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
 
@@ -231,8 +232,8 @@ var moduleConfig map[string]*config.Config
 var pluginConfig map[string]*config.Config
 var startTime = time.Now().UTC()
 
-var (
-	defaultSystemConfig = config.SystemConfig{
+func GetDefaultSystemConfig() config.SystemConfig  {
+	return config.SystemConfig{
 		APIConfig: config.APIConfig{
 			Enabled: true,
 			NetworkConfig: config.NetworkConfig{
@@ -241,6 +242,7 @@ var (
 			},
 			WebsocketConfig: config.WebsocketConfig{
 				Enabled:        true,
+				BasePath:       "/ws",
 				SkipHostVerify: true,
 			},
 		},
@@ -300,15 +302,15 @@ var (
 			ValidConfigsExtensions:     []string{".tpl", ".json", ".yml", ".yaml"},
 		},
 		HTTPClientConfig: config.HTTPClientConfig{
-			ReadBufferSize: 100 * 1024,
-			WriteBufferSize: 100 * 1024,
-			ReadTimeout:    "60s",
-			WriteTimeout:    "60s",
+			ReadBufferSize:       100 * 1024,
+			WriteBufferSize:      100 * 1024,
+			ReadTimeout:          "60s",
+			WriteTimeout:         "60s",
 			MaxConnectionPerHost: 1000,
 			TLSConfig:            config.TLSConfig{SkipDomainVerify: true, TLSInsecureSkipVerify: true},
 		},
 	}
-)
+}
 
 func (env *Env) loadConfig() error {
 
@@ -376,10 +378,13 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
-	if err := tempConfig.Unpack(env.SystemConfig); err != nil {
+	tempCfg:=GetDefaultSystemConfig()
+	if err := tempConfig.Unpack(&tempCfg); err != nil {
 		panic(err)
 		return err
 	}
+
+	env.SystemConfig=&tempCfg
 
 	env.SetConfigFile(filename)
 
@@ -425,8 +430,8 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 
 	}
 
-	obj := map[string]interface{}{}
-	if err := tempConfig.Unpack(obj); err != nil {
+	obj1 := map[string]interface{}{}
+	if err := tempConfig.Unpack(obj1); err != nil {
 		if env.SystemConfig.Configs.PanicOnConfigError {
 			panic(err)
 		}
@@ -557,13 +562,13 @@ func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHe
 }
 
 func EmptyEnv() *Env {
-	system := defaultSystemConfig
+	system := GetDefaultSystemConfig()
 	system.ClusterConfig.Name = "app"
 	system.PathConfig.Data = os.TempDir()
 	system.PathConfig.Log = os.TempDir()
 	system.LoggingConfig.DisableFileOutput = true
 	system.LoggingConfig.LogLevel = "info"
-	system.Configs.PanicOnConfigError=false
+	system.Configs.PanicOnConfigError = false
 	return &Env{SystemConfig: &system}
 }
 
