@@ -34,6 +34,9 @@ type Hub struct {
 	// Command handlers
 	handlers map[string]WebsocketHandlerFunc
 
+	// Connection sessions
+	sessions map[string]*WebsocketConnection
+
 	//Command usage tips
 	usage map[string]string
 }
@@ -46,6 +49,7 @@ var h = Hub{
 	register:    make(chan *WebsocketConnection),
 	unregister:  make(chan *WebsocketConnection),
 	connections: make(map[*WebsocketConnection]bool),
+	sessions: 	 make(map[string]*WebsocketConnection),
 	handlers:    make(map[string]WebsocketHandlerFunc),
 	usage:       make(map[string]string),
 }
@@ -89,6 +93,7 @@ func InitWebSocket(cfg config.WebsocketConfig) {
 	}
 	if !runningHub {
 		h.registerHandlers()
+		runningHub = true
 		go h.runHub()
 	}
 
@@ -123,12 +128,15 @@ func (h *Hub) runHub() {
 		select {
 		case c := <-h.register:
 			h.connections[c] = true
+			h.sessions[c.id]=c
 			c.WritePrivateMessage(global.Env().GetWelcomeMessage())
 			js, _ := json.Marshal(logger.GetLoggingConfig())
 			c.WriteMessage(ConfigMessage, string(js))
+			c.WriteMessage(ConfigMessage, "websocket_session_id: "+c.id)
 		case c := <-h.unregister:
 			if _, ok := h.connections[c]; ok {
 				delete(h.connections, c)
+				delete(h.sessions, c.id)
 				close(c.signalChannel)
 			}
 		case m := <-h.broadcast:
@@ -156,6 +164,12 @@ func BroadcastMessage(msg string) {
 		stats.Increment("websocket", "sended")
 	default:
 		stats.Increment("websocket", "dropped")
+	}
+}
+
+func SendPrivateMessage(session string, msg string) {
+	if c, ok := h.sessions[session]; ok {
+		c.WritePrivateMessage(msg)
 	}
 }
 
