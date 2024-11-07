@@ -233,11 +233,6 @@ type WebAppConfig struct {
 	EmbeddingAPI  bool           `config:"embedding_api"`
 	Gzip          GzipConfig     `config:"gzip"`
 	S3Config      S3BucketConfig `config:"s3"`
-	GatewayConfig GatewayConfig  `config:"gateway"`
-}
-type GatewayConfig struct {
-	Schema string `config:"schema"`
-	Host   string `config:"host"`
 }
 
 type S3Config struct {
