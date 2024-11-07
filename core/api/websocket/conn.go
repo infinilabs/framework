@@ -5,9 +5,10 @@
 package websocket
 
 import (
-	"github.com/gorilla/websocket"
-	"net/http"
 	log "github.com/cihub/seelog"
+	"github.com/gorilla/websocket"
+	"infini.sh/framework/core/util"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,8 @@ var upgrader = websocket.Upgrader{
 
 // WebsocketConnection is an middleman between the websocket connection and the hub.
 type WebsocketConnection struct {
+	id string
+
 	// The websocket connection.
 	ws *websocket.Conn
 
@@ -154,7 +157,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 		return
 	}
-	c := &WebsocketConnection{signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
+	c := &WebsocketConnection{id:util.GetUUID(),signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
 	h.register <- c
 	go c.writePump()
 	c.readPump()
