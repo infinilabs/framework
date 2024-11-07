@@ -85,7 +85,7 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	physicalCore, logicCore, _, modelName, err := host.GetCPUInfo()
 	//ignore error with getting cpu err on platform darwin (not implement)
 	if err != nil {
-		log.Debug("get cup info error: ", err)
+		log.Debug("get cpu info error: ", err)
 	}
 	hostInfo.Hardware = &model.HardwareInfo{
 		Processor: util.MapStr{
