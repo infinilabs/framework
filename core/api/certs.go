@@ -117,7 +117,11 @@ func GetServerTLSConfig(tlsCfg *config.TLSConfig) (*tls.Config, error) {
 
 func AutoIssueTLSCertificates(tlsCfg *config.TLSConfig,cfg *tls.Config) {
 	zapCfg := zap.NewProductionConfig()
-	zapCfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+
+	if !global.Env().IsDebug{
+		zapCfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	}
+
 	logger := zap.Must(zapCfg.Build())
 	certmagic.Default.Logger = logger
 
@@ -168,7 +172,7 @@ func AutoIssueTLSCertificates(tlsCfg *config.TLSConfig,cfg *tls.Config) {
 		panic(err)
 	}
 
-	seelog.Infof("issued certs for domain: [%v]", util.JoinArray(domains, ","))
+	seelog.Infof("success issued certs for domain: [%v]", util.JoinArray(domains, ","))
 
 	cfg.GetCertificate = magic.GetCertificate
 	cfg.NextProtos = append([]string{"h2", "http/1.1"}, cfg.NextProtos...)
