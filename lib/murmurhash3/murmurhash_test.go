@@ -1,21 +1,42 @@
-/* Copyright © INFINI Ltd. All rights reserved.
- * web: https://infinilabs.com
- * mail: hello#infini.ltd */
-
 /*
-Copyright 2016 Medcl (m AT medcl.net)
+End-User License Agreement (EULA) of INFINI SOFTWARE
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This End-User License Agreement ("EULA") is a legal agreement between you and INFINI LIMITED
 
-   http://www.apache.org/licenses/LICENSE-2.0
+This EULA agreement governs your acquisition and use of our INFINI software ("Software") directly from INFINI LIMITED or indirectly through a INFINI LIMITED authorized reseller or distributor (a "Reseller").
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Please read this EULA agreement carefully before completing the installation process and using the INFINI software. It provides a license to use the INFINI software and contains warranty information and liability disclaimers.
+
+If you register for a free trial of the INFINI software, this EULA agreement will also govern that trial. By clicking "accept" or installing and/or using the INFINI software, you are confirming your acceptance of the Software and agreeing to become bound by the terms of this EULA agreement.
+
+If you are entering into this EULA agreement on behalf of a company or other legal entity, you represent that you have the authority to bind such entity and its affiliates to these terms and conditions. If you do not have such authority or if you do not agree with the terms and conditions of this EULA agreement, do not install or use the Software, and you must not accept this EULA agreement.
+
+This EULA agreement shall apply only to the Software supplied by INFINI LIMITED herewith regardless of whether other software is referred to or described herein. The terms also apply to any INFINI LIMITED updates, supplements, Internet-based services, and support services for the Software, unless other terms accompany those items on delivery. If so, those terms apply.
+
+License Grant
+INFINI LIMITED hereby grants you a personal, non-transferable, non-exclusive licence to use the INFINI software on your devices in accordance with the terms of this EULA agreement.
+
+You are permitted to load the INFINI software (for example a PC, laptop, mobile or tablet) under your control. You are responsible for ensuring your device meets the minimum requirements of the INFINI software.
+
+You are not permitted to:
+
+Edit, alter, modify, adapt, translate or otherwise change the whole or any part of the Software nor permit the whole or any part of the Software to be combined with or become incorporated in any other software, nor decompile, disassemble or reverse engineer the Software or attempt to do any such things
+Reproduce, copy, distribute, resell or otherwise use the Software for any commercial purpose
+Allow any third party to use the Software on behalf of or for the benefit of any third party
+Use the Software in any way which breaches any applicable local, national or international law
+use the Software for any purpose that INFINI LIMITED considers is a breach of this EULA agreement
+Intellectual Property and Ownership
+INFINI LIMITED shall at all times retain ownership of the Software as originally downloaded by you and all subsequent downloads of the Software by you. The Software (and the copyright, and other intellectual property rights of whatever nature in the Software, including any modifications made thereto) are and shall remain the property of INFINI LIMITED.
+
+INFINI LIMITED reserves the right to grant licences to use the Software to third parties.
+
+Termination
+This EULA agreement is effective from the date you first use the Software and shall continue until terminated. You may terminate it at any time upon written notice to INFINI LIMITED.
+
+It will also terminate immediately if you fail to comply with any term of this EULA agreement. Upon such termination, the licenses granted by this EULA agreement will immediately terminate and you agree to stop all access and use of the Software. The provisions that by their nature continue and survive will survive any termination of this EULA agreement.
+
+Governing Law
+This EULA agreement, and any dispute arising out of or in connection with this EULA agreement, shall be governed by and construed in accordance with the laws of cn.
 */
 
 package murmurhash3
@@ -76,9 +97,6 @@ func murmur3Hash(data []byte) int32 {
 }
 
 var debugMurmur3Hash = false
-//另外，指定routing还有个弊端就是容易造成负载不均衡。所以ES提供了一种机制可以将数据路由到一组shard上面，而不是某一个。只需在创建索引时（也只能在创建时）设置index.routing_partition_size，默认值是1，即只路由到1个shard，可以将其设置为大于1且小于索引shard总数的某个值，就可以路由到一组shard了。值越大，数据越均匀。当然，从设置就能看出来，这个设置是针对单个索引的，可以加入到动态模板中，以对多个索引生效。指定后，shard的计算方式变为：
-//shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % num_primary_shards
-//对于同一个routing值，hash(_routing)的结果固定的，hash(_id) % routing_partition_size的结果有 routing_partition_size 个可能的值，两个组合在一起，对于同一个routing值的不同doc，也就能计算出 routing_partition_size 可能的shard num了，即一个shard集合。但要注意这样做以后有两个限制：
 func getShardID(docID []byte, numberOfShards int, routingNumShards int, partitionOffset uint32) int {
 
 	hash := murmur3Hash(docID)
