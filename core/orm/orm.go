@@ -372,6 +372,8 @@ func Create(ctx *Context, o interface{}) error {
 	return Save(ctx, o)
 }
 
+//TODO support upsert and partial update
+
 func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	//check required value
@@ -436,6 +438,13 @@ func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue
 }
 
 var registeredSchemas=[]util.KeyValue{}
+
+func MustRegisterSchemaWithIndexName(t interface{}, index string){
+	err := RegisterSchemaWithIndexName(t,index)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func RegisterSchemaWithIndexName(t interface{}, index string) error {
 	registeredSchemas=append(registeredSchemas,util.KeyValue{Key: index, Payload: t})
