@@ -2272,6 +2272,7 @@ var deniedMsgBytes = []byte(
 
 func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 
+	var size int
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -2291,13 +2292,20 @@ func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 				}
 			}
 		}
+
+		if size>0 && s.MaxInflightRequestSize>0{
+			atomic.AddInt64(&s.inflightRequestSize, -1*int64(size))
+		}
 	}()
 
-	ctx.initialRequestBodyLength = ctx.Request.GetBodyLength()
-	atomic.AddInt64(&s.inflightRequestSize, int64(ctx.initialRequestBodyLength))
+	size =ctx.Request.GetBodyLength()
+	ctx.initialRequestBodyLength = size
+
+	if size>0 && s.MaxInflightRequestSize>0{
+		atomic.AddInt64(&s.inflightRequestSize, int64(size))
+	}
 
 	s.Handler(ctx)
-
 
 	return err
 }
@@ -3129,7 +3137,6 @@ func (s *Server) releaseCtx(ctx *RequestCtx) {
 		panic("BUG: cannot release timed out RequestCtx")
 	}
 
-	atomic.AddInt64(&s.inflightRequestSize, -1*int64(ctx.initialRequestBodyLength))
 	// Cannot reset in ctx.reset(), other routines will call it
 	ctx.initialRequestBodyLength = 0
 
