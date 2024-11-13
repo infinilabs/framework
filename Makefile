@@ -99,6 +99,10 @@ build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
+build-dev: config
+	$(GOBUILDNCGO) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)
+	@$(MAKE) restore-generated-file
+
 build-cmd:
 	for f in $(shell ls ${CMD_DIR}); do (cd $(CMD_DIR)/$${f} && $(GOBUILD) -o $(OUTPUT_DIR)/$${f}); done
 	$(MAKE) restore-generated-file

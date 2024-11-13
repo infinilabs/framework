@@ -41,7 +41,7 @@ type Consumer struct {
 	readPos int64
 	version int64 //offset version
 
-	lastFileSize int64
+	lastFileSize      int64
 	fileLoadCompleted bool
 }
 
@@ -97,7 +97,7 @@ func (d *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (message
 	messages = []queue.Message{}
 
 	//skip future segment
-	if d.diskQueue.writeSegmentNum<d.segment {
+	if d.diskQueue.writeSegmentNum < d.segment {
 		return messages, false, errors.New("segment not found")
 	}
 
@@ -148,14 +148,14 @@ READ_MSG:
 			}
 
 			//check next file, if exists, read next file
-			nextFile, exists,_ := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
+			nextFile, exists, _ := SmartGetFileName(d.mCfg, d.queue, d.segment+1)
 			if d.fileLoadCompleted && exists {
 				if global.Env().IsDebug {
 					log.Trace("EOF, continue read:", nextFile)
 				}
 				Notify(d.queue, ReadComplete, d.segment)
-				ctx.UpdateNextOffset(d.segment, d.readPos)//update next offset
-				err = d.ResetOffset(d.segment+1, 0) //locate next file
+				ctx.UpdateNextOffset(d.segment, d.readPos) //update next offset
+				err = d.ResetOffset(d.segment+1, 0)        //locate next file
 				if err != nil {
 					if strings.Contains(err.Error(), "not found") {
 						return messages, false, nil
@@ -167,7 +167,7 @@ READ_MSG:
 				retryTimes = 0
 				goto READ_MSG
 			} else {
-				if global.Env().IsDebug{
+				if global.Env().IsDebug {
 					log.Tracef("EOF, but next file [%v] not exists, pause and waiting for new data, messages count: %v, readPos: %d, newFile:%v", nextFile, len(messages), d.readPos, d.segment < d.diskQueue.writeSegmentNum)
 				}
 				if d.diskQueue == nil {
@@ -178,7 +178,7 @@ READ_MSG:
 				if d.fileLoadCompleted && d.segment < d.diskQueue.writeSegmentNum {
 					oldPart := d.segment
 					Notify(d.queue, ReadComplete, d.segment)
-					ctx.UpdateNextOffset(d.segment, d.readPos)//update next offset
+					ctx.UpdateNextOffset(d.segment, d.readPos) //update next offset
 					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.segment)
 					err = d.ResetOffset(d.segment+1, 0) //locate next segment
 					if err != nil {
@@ -193,7 +193,7 @@ READ_MSG:
 
 				if len(messages) == 0 {
 					if global.Env().IsDebug {
-						log.Tracef("no message found in queue: %v, at offset: %v,%v, sleep %v ms", d.queue,d.segment,d.readPos,d.cCfg.EOFRetryDelayInMs)
+						log.Tracef("no message found in queue: %v, at offset: %v,%v, sleep %v ms", d.queue, d.segment, d.readPos, d.cCfg.EOFRetryDelayInMs)
 					}
 					if d.cCfg.EOFRetryDelayInMs > 0 {
 						time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
@@ -223,7 +223,7 @@ READ_MSG:
 					d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, d.segment, d.readPos)
 				nextSegment := d.segment + 1
 			RETRY_NEXT_FILE:
-				nextFile, exists,_ := SmartGetFileName(d.mCfg, d.queue, nextSegment)
+				nextFile, exists, _ := SmartGetFileName(d.mCfg, d.queue, nextSegment)
 				log.Debugf("try skip to next file: %v, exists: %v", nextFile, exists)
 				if exists || util.FileExists(nextFile) {
 					//update offset
@@ -286,13 +286,13 @@ READ_MSG:
 	} else {
 
 		//validate read position
-		if nextReadPos > d.maxBytesPerFileRead || (d.diskQueue.writeSegmentNum==d.segment && nextReadPos > d.diskQueue.writePos) {
-			err=errors.Errorf("dirty_read, the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)",d.segment,nextReadPos,d.maxBytesPerFileRead,d.diskQueue.writeSegmentNum,d.diskQueue.writePos)
+		if nextReadPos > d.maxBytesPerFileRead || (d.diskQueue.writeSegmentNum == d.segment && nextReadPos > d.diskQueue.writePos) {
+			err = errors.Errorf("dirty_read, the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)", d.segment, nextReadPos, d.maxBytesPerFileRead, d.diskQueue.writeSegmentNum, d.diskQueue.writePos)
 			time.Sleep(time.Millisecond * 100) //don't catch up too fast
-			stats.Increment("consumer", d.qCfg.ID,d.cCfg.ID,"dirty_read")
+			stats.Increment("consumer", d.qCfg.ID, d.cCfg.ID, "dirty_read")
 
 			//retry when file is in stale
-			if d.diskQueue.writeSegmentNum>d.segment && nextReadPos > d.maxBytesPerFileRead{
+			if d.diskQueue.writeSegmentNum > d.segment && nextReadPos > d.maxBytesPerFileRead {
 				//re-check file size
 				goto RELOAD_FILE
 			}
@@ -301,8 +301,8 @@ READ_MSG:
 		}
 
 		if d.mCfg.Compress.Message.Enabled {
-			if global.Env().IsDebug{
-				log.Tracef("decompress message: %v %v", d.fileName,d.segment)
+			if global.Env().IsDebug {
+				log.Tracef("decompress message: %v %v", d.fileName, d.segment)
 			}
 			newData, err := zstd.ZSTDDecompress(nil, readBuf)
 			if err != nil {
@@ -316,8 +316,8 @@ READ_MSG:
 		message := queue.Message{
 			Data:       readBuf,
 			Size:       totalBytes,
-			Offset:     queue.NewOffsetWithVersion(d.segment, previousPos,d.version),
-			NextOffset: queue.NewOffsetWithVersion(d.segment, nextReadPos,d.version),
+			Offset:     queue.NewOffsetWithVersion(d.segment, previousPos, d.version),
+			NextOffset: queue.NewOffsetWithVersion(d.segment, nextReadPos, d.version),
 		}
 
 		ctx.UpdateNextOffset(d.segment, nextReadPos)
@@ -327,7 +327,7 @@ READ_MSG:
 		totalMessageSize += message.Size
 
 		if len(messages) >= d.cCfg.FetchMaxMessages || (len(messages) >= numOfMessages && numOfMessages > 0) {
-			if global.Env().IsDebug{
+			if global.Env().IsDebug {
 				log.Tracef("queue:%v, consumer:%v, total messages count(%v)>=max message count(%v)", d.queue, d.cCfg.Name, len(messages), d.cCfg.FetchMaxMessages)
 			}
 			return messages, false, err
@@ -344,7 +344,7 @@ READ_MSG:
 RELOAD_FILE:
 	if nextReadPos >= d.maxBytesPerFileRead {
 
-		if !d.fileLoadCompleted{
+		if !d.fileLoadCompleted {
 			if global.Env().IsDebug {
 				log.Tracef("file was load completed: %v, reload", d.fileName)
 			}
@@ -452,29 +452,31 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 
 	d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
 
-	fileName, exists,next_file_exists := SmartGetFileName(d.mCfg, d.queue, segment)
+	fileName, exists, next_file_exists := SmartGetFileName(d.mCfg, d.queue, segment)
 
 	//TODO, only if next file exists, and current file is not the last file, we should reload the file
 	//before move to next file, make sure, the current file is loaded completely, otherwise, we may lost some messages
 
 	if !exists {
 		//double check, but next file exists
-		if !util.FileExists(fileName) &&next_file_exists {
+		if !util.FileExists(fileName) && next_file_exists {
 			if d.mCfg.AutoSkipCorruptFile {
 				nextSegment := d.segment + 1
-				if nextSegment>d.diskQueue.writeSegmentNum {
+				if nextSegment > d.diskQueue.writeSegmentNum {
 					return errors.New(fileName + " not found")
 				}
 				log.Warnf("queue:%v,%v, consumer:%v, offset:%v,%v, file missing: %v, auto skip to next file",
-					d.qCfg.Name,d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
+					d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
 			RETRY_NEXT_FILE:
 				// there are segments in the middle
 				if nextSegment < d.diskQueue.writeSegmentNum {
-					fileName, exists,next_file_exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
+					fileName, exists, next_file_exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
 					log.Debugf("try skip to next file: %v, exists: %v", fileName, exists)
 					if exists || util.FileExists(fileName) {
 						d.segment = nextSegment
 						d.readPos = 0
+						d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+						goto FIND_NEXT_FILE
 					} else {
 						nextSegment++
 						log.Debugf("move to next file: %v", nextSegment)
@@ -490,11 +492,12 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 		return errors.Errorf(fileName + " not found")
 	}
 
+FIND_NEXT_FILE:
 	//if next file exists, and current file is not the last file, the file should be completed loaded
-	if next_file_exists{
-		d.fileLoadCompleted=true
-	}else{
-		d.fileLoadCompleted=false
+	if next_file_exists {
+		d.fileLoadCompleted = true
+	} else {
+		d.fileLoadCompleted = false
 	}
 
 	var err error
