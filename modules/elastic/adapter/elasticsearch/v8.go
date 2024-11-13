@@ -219,3 +219,19 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 
 	return esResp, nil
 }
+
+func (c *ESAPIV8) Flush(indexName string) ([]byte, error) {
+	url := "/_flush"
+	if indexName != "" {
+		url = fmt.Sprintf("/%s/_flush", indexName)
+	}
+	url = c.GetEndpoint() + url
+	resp, err := c.Request(nil, util.Verb_POST, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}

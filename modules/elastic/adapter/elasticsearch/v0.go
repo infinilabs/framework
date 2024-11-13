@@ -1856,3 +1856,19 @@ func (c *ESAPIV0) PutRole(roleName string, body []byte) error {
 func (c *ESAPIV0) GetPrivileges() ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
+
+func (c *ESAPIV0) Flush(indexName string) ([]byte, error) {
+	url := "/_flush/synced"
+	if indexName != "" {
+		url = fmt.Sprintf("/%s/_flush/synced", indexName)
+	}
+	url = c.GetEndpoint() + url
+	resp, err := c.Request(nil, util.Verb_POST, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
