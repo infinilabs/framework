@@ -1,7 +1,0 @@
-rpc:
-  binding_addr: "localhost:10000"
-  tls_cert_file: "/Users//medcl/go/src/infini.sh/gopa/test/cert/client.crt"
-  tls_key_file: "/Users/medcl/go/src/infini.sh/gopa/test/cert/client.key"
-#  tls_skip_insecure_verify: false
-  tls_enabled: true
-
