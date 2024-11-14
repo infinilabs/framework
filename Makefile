@@ -47,15 +47,15 @@ OUTPUT_DIR := $(CURDIR)/bin
 
 
 # INFINI framework
-INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh/
-FRAMEWORK_FOLDER := $(INFINI_BASE_FOLDER)/framework/
-FRAMEWORK_REPO := ssh://git@git.infini.ltd:64221/infini/framework.git
+INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh
+FRAMEWORK_FOLDER ?= $(INFINI_BASE_FOLDER)/framework
+FRAMEWORK_REPO ?= ssh://git@git.infini.ltd:64221/infini/framework.git
 ifeq "$(FRAMEWORK_BRANCH)" ""
     FRAMEWORK_BRANCH := master
 endif
 
-FRAMEWORK_VENDOR_FOLDER := $(FRAMEWORK_FOLDER)/../vendor/
-FRAMEWORK_VENDOR_REPO :=  git@github.com:infinilabs/framework-vendor.git
+FRAMEWORK_VENDOR_FOLDER ?= $(FRAMEWORK_FOLDER)/../vendor/
+FRAMEWORK_VENDOR_REPO ?=  ssh://git@git.infini.ltd:64221/infini/framework-vendor.git
 ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
     FRAMEWORK_VENDOR_BRANCH := main
 endif
@@ -93,7 +93,9 @@ env:
 	@echo NEWGOPATH：$(NEWGOPATH)
 	@echo INFINI_BASE_FOLDER：$(INFINI_BASE_FOLDER)
 	@echo FRAMEWORK_FOLDER：$(FRAMEWORK_FOLDER)
+	@echo FRAMEWORK_REPO：$(FRAMEWORK_REPO)
 	@echo FRAMEWORK_VENDOR_FOLDER：$(FRAMEWORK_VENDOR_FOLDER)
+	@echo FRAMEWORK_VENDOR_REPO：$(FRAMEWORK_VENDOR_REPO)
 
 build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
@@ -207,8 +209,8 @@ init:
 	@echo $(CURDIR)
 	@mkdir -p $(INFINI_BASE_FOLDER)
 	@echo "framework path: " $(FRAMEWORK_FOLDER)
-	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(cd $(INFINI_BASE_FOLDER)&&git clone -b $(FRAMEWORK_BRANCH) $(FRAMEWORK_REPO) framework ) fi
-	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(cd $(INFINI_BASE_FOLDER)&&git clone -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR_REPO) vendor) fi
+	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(cd $(INFINI_BASE_FOLDER) && git clone -b $(FRAMEWORK_BRANCH) $(FRAMEWORK_REPO) framework ) fi
+	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(cd $(INFINI_BASE_FOLDER) && git clone -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR_REPO) $(FRAMEWORK_VENDOR_FOLDER)) fi
 	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_FOLDER) && git checkout $(FRAMEWORK_BRANCH) && git pull origin $(FRAMEWORK_BRANCH)); fi;
 	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_VENDOR_FOLDER) && git checkout $(FRAMEWORK_VENDOR_BRANCH) && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
 
