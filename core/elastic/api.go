@@ -112,6 +112,7 @@ type API interface {
 	PutILMPolicy(target string, policyConfig []byte) error
 	DeleteILMPolicy(target string) error
 	GetRemoteInfo()([]byte, error)
+	Flush(indexName string) ([]byte, error)
 }
 
 type TemplateAPI interface {

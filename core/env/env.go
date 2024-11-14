@@ -383,8 +383,9 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		panic(err)
 		return err
 	}
-
 	env.SystemConfig=&tempCfg
+	//initialize node config
+	env.findWorkingDir()
 
 	env.SetConfigFile(filename)
 
