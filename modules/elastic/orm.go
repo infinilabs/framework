@@ -29,7 +29,33 @@ func InitTemplate(force bool) {
 
 	if force || moduleConfig.ORMConfig.InitTemplate {
 		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
+
+		//infini default template
+		if !moduleConfig.ORMConfig.SkipInitDefaultTemplate{
+			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
+		}
+
+		if moduleConfig.ORMConfig.Templates!=nil&&len(moduleConfig.ORMConfig.Templates)>0{
+			for k,v:= range moduleConfig.ORMConfig.Templates{
+				var skip=false
+				if !moduleConfig.ORMConfig.OverrideExistsTemplate{
+					exists,err:= client.TemplateExists(k)
+					if err!=nil{
+						panic(err)
+					}
+					skip=exists
+				}
+				if !skip{
+					v,err:=client.PutTemplate(k,[]byte(v))
+					if err!=nil{
+						if v!=nil{
+							log.Error(string(v))
+						}
+						panic(err)
+					}
+				}
+			}
+		}
 	}
 	templateInited = true
 }

@@ -17,11 +17,16 @@ import (
 )
 
 type ORMConfig struct {
-	Enabled      bool   `config:"enabled"`
-	InitTemplate bool   `config:"init_template"`
-	InitSchema   bool   `config:"init_schema"`
-	TemplateName string `config:"template_name"`
-	IndexPrefix  string `config:"index_prefix"`
+	Enabled bool `config:"enabled"`
+
+	InitTemplate            bool   `config:"init_template"`
+	SkipInitDefaultTemplate bool   `config:"skip_init_default_template"`
+	OverrideExistsTemplate  bool   `config:"override_exists_template"`
+	TemplateName            string `config:"template_name"` //default template name
+
+	InitSchema  bool              `config:"init_schema"`
+	IndexPrefix string            `config:"index_prefix"`
+	Templates   map[string]string `config:"templates"` //template_name -> template_content
 }
 
 type StoreConfig struct {
@@ -44,7 +49,7 @@ type ModuleConfig struct {
 	MetadataRefresh             CheckConfig `config:"metadata_refresh"`
 	ClusterSettingsCheckConfig  CheckConfig `config:"cluster_settings_check"`
 	ClientTimeout               string      `config:"client_timeout"`
-	SkipInitMetadataOnStart     bool		`config:"skip_init_metadata_on_start"`
+	SkipInitMetadataOnStart     bool        `config:"skip_init_metadata_on_start"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
@@ -204,14 +209,14 @@ func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.Basic
 		return
 	}
 
-	if esConfig.CredentialID != ""{
-		cred,err := GetCredential(esConfig.CredentialID)
+	if esConfig.CredentialID != "" {
+		cred, err := GetCredential(esConfig.CredentialID)
 		if err != nil {
-			return basicAuth,err
+			return basicAuth, err
 		}
 
-		auth,err:=cred.DecodeBasicAuth()
-		return auth,err
+		auth, err := cred.DecodeBasicAuth()
+		return auth, err
 	}
 	return
 }
@@ -222,38 +227,38 @@ func GetAgentBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.
 		return
 	}
 
-	if esConfig.AgentCredentialID != ""{
-		cred,err := GetCredential(esConfig.AgentCredentialID)
+	if esConfig.AgentCredentialID != "" {
+		cred, err := GetCredential(esConfig.AgentCredentialID)
 		if err != nil {
-			return basicAuth,err
+			return basicAuth, err
 		}
 
-		auth,err:=cred.DecodeBasicAuth()
-		return auth,err
+		auth, err := cred.DecodeBasicAuth()
+		return auth, err
 	}
 
 	//try default auth
-	if !esConfig.NoDefaultAuthForAgent{
+	if !esConfig.NoDefaultAuthForAgent {
 		if esConfig.BasicAuth != nil && esConfig.BasicAuth.Username != "" {
 			basicAuth = esConfig.BasicAuth
 			return
 		}
 
-		if esConfig.CredentialID != ""{
-			cred,err := GetCredential(esConfig.CredentialID)
+		if esConfig.CredentialID != "" {
+			cred, err := GetCredential(esConfig.CredentialID)
 			if err != nil {
-				return basicAuth,err
+				return basicAuth, err
 			}
 
-			auth,err:=cred.DecodeBasicAuth()
-			return auth,err
+			auth, err := cred.DecodeBasicAuth()
+			return auth, err
 		}
 	}
 
 	return
 }
 
-func GetCredential(credentialID string) (*credential.Credential,error) {
+func GetCredential(credentialID string) (*credential.Credential, error) {
 	if credentialID == "" {
 		panic("credentialID is empty")
 	}
@@ -261,9 +266,9 @@ func GetCredential(credentialID string) (*credential.Credential,error) {
 	cred.ID = credentialID
 	_, err := orm.Get(&cred)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
-	return &cred,nil
+	return &cred, nil
 }
 
 func GetElasticClient(clusterID string) (elastic.API, error) {

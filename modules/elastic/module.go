@@ -49,6 +49,7 @@ var (
 		ORMConfig: common.ORMConfig{
 			Enabled:      false,
 			InitTemplate: true,
+			SkipInitDefaultTemplate: false,
 			InitSchema:   true,
 			IndexPrefix:  ".infini_",
 		},
