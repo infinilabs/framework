@@ -51,7 +51,7 @@ INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh
 FRAMEWORK_FOLDER ?= $(INFINI_BASE_FOLDER)/framework
 FRAMEWORK_REPO ?= ssh://git@git.infini.ltd:64221/infini/framework.git
 ifeq "$(FRAMEWORK_BRANCH)" ""
-    FRAMEWORK_BRANCH := master
+    FRAMEWORK_BRANCH := main
 endif
 
 FRAMEWORK_VENDOR_FOLDER ?= $(FRAMEWORK_FOLDER)/../vendor/
