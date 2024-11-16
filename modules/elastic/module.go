@@ -354,9 +354,11 @@ func InitSchema() {
 		panic(err)
 	}
 
-
 	//init schemas
-	orm.InitSchema()
+	err=orm.InitSchema()
+	if err!=nil{
+		panic(err)
+	}
 
 	schemaInited = true
 }
