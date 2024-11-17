@@ -1872,3 +1872,16 @@ func (c *ESAPIV0) Flush(indexName string) ([]byte, error) {
 	}
 	return resp.Body, nil
 }
+
+
+func (c *ESAPIV0)  	ScriptExists(scriptName string)(bool,error){
+	panic("not implemented")
+}
+
+func (c *ESAPIV0) PutScript(scriptName string, script []byte)([]byte,error){
+	panic("not implemented")
+}
+
+func (c *ESAPIV0)SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*elastic.SearchResponse, error)  {
+	panic("not implemented")
+}

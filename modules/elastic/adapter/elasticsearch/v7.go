@@ -315,3 +315,75 @@ func (c *ESAPIV7) UpdateMapping(indexName string, docType string, mappings []byt
 
 	return resp.Body, err
 }
+
+
+func (c *ESAPIV7)  	ScriptExists(scriptName string)(bool,error){
+	if scriptName == "" {
+		return false,errors.New("invalid script name")
+	}
+
+	url := fmt.Sprintf("/_scripts/%s", scriptName)
+	url = c.GetEndpoint() + url
+	resp, err := c.Request(nil, util.Verb_POST, url, nil)
+	if err != nil {
+		return false, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf(string(resp.Body))
+	}
+	return true, nil
+}
+
+func (c *ESAPIV7) PutScript(scriptName string, script []byte)([]byte,error){
+	if scriptName == "" {
+		return nil,errors.New("invalid script name")
+	}
+
+	url := fmt.Sprintf("/_scripts/%s", scriptName)
+	url = c.GetEndpoint() + url
+	resp, err := c.Request(nil, util.Verb_POST, url, script)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}
+
+func (c *ESAPIV7)SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*elastic.SearchResponse, error)  {
+
+	if indexName == "" {
+		return nil,errors.New("invalid index name")
+	}
+	if scriptName == "" {
+		return nil,errors.New("invalid script name")
+	}
+
+	url := fmt.Sprintf("/%s/_search/template", indexName)
+	url = c.GetEndpoint() + url
+	body:=util.MapStr{
+		"id": scriptName,
+		"params":params,
+	}
+
+	resp, err := c.Request(nil, util.Verb_GET, url, util.MustToJSONBytes(body))
+	esResp := &elastic.SearchResponse{}
+
+	if resp != nil {
+		esResp.StatusCode = resp.StatusCode
+		esResp.RawResult = resp
+		esResp.ErrorObject = err
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(resp.Body, esResp)
+	if err != nil {
+		return esResp, err
+	}
+
+	return esResp, nil
+}

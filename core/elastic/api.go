@@ -29,6 +29,7 @@ type API interface {
 	TemplateAPI
 	ReplicationAPI
 	SecurityAPI
+	ScriptAPI
 
 	InitDefaultTemplate(templateName, indexPrefix string)
 
@@ -116,9 +117,10 @@ type API interface {
 }
 
 type TemplateAPI interface {
-	TemplateExists(templateName string) (bool, error)
-	PutTemplate(templateName string, template []byte) ([]byte, error)
-	GetTemplate(templateName string) (map[string]interface{}, error)
+	TemplateExists(scriptName string) (bool, error)
+	PutTemplate(scriptName string, template []byte) ([]byte, error)
+	GetTemplate(scriptName string) (map[string]interface{}, error)
+	SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*SearchResponse, error)
 }
 
 type MappingAPI interface {
@@ -130,6 +132,14 @@ type ScrollAPI interface {
 	NewScroll(indexNames string, scrollTime string, docBufferCount int, query *SearchRequest, slicedId, maxSlicedCount int) ([]byte, error)
 	NextScroll(ctx *APIContext, scrollTime string, scrollId string) ([]byte, error)
 	ClearScroll(scrollId string) error
+}
+
+type ScriptAPI interface {
+	ScriptExists(scriptName string)(bool,error)
+	PutScript(scriptName string, script []byte)([]byte,error)
+	SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*SearchResponse, error)
+	//GetScript(scriptName string)([]byte,error)
+	//DeleteScript(scriptName string)([]byte,error)
 }
 
 type ReplicationAPI interface {

@@ -33,7 +33,6 @@ type Context struct {
 }
 
 type ORM interface {
-
 	RegisterSchemaWithIndexName(t interface{}, indexName string) error
 
 	GetIndexName(o interface{}) string
@@ -64,10 +63,11 @@ type ORMObjectBase struct {
 	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
 	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
 }
-func ( obj *ORMObjectBase) GetID() string{
+
+func (obj *ORMObjectBase) GetID() string {
 	return obj.ID
 }
-func ( obj *ORMObjectBase) SetID( ID string){
+func (obj *ORMObjectBase) SetID(ID string) {
 	obj.ID = ID
 }
 
@@ -87,15 +87,21 @@ const ASC SortType = "asc"
 const DESC SortType = "desc"
 
 type Query struct {
-	Sort          *[]Sort
-	QueryArgs     *[]util.KV
-	From          int
-	CollapseField string
-	Size          int
-	Conds         []*Cond
-	RawQuery      []byte
-	WildcardIndex bool
-	IndexName     string
+	Sort           *[]Sort
+	QueryArgs      *[]util.KV
+	From           int
+	CollapseField  string
+	Size           int
+	Conds          []*Cond
+	RawQuery       []byte
+	TemplatedQuery *TemplatedQuery
+	WildcardIndex  bool
+	IndexName      string
+}
+
+type TemplatedQuery struct {
+	TemplateID string                 `json:"id"`
+	Parameters map[string]interface{} `json:"params"`
 }
 
 func (q *Query) Collapse(field string) *Query {
@@ -302,18 +308,18 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 	return false, ""
 }
 
-func existsNonNullField(rValue reflect.Value, fieldName string) (bool) {
+func existsNonNullField(rValue reflect.Value, fieldName string) bool {
 
 	if rValue.Kind() == reflect.Ptr {
 		rValue = reflect.Indirect(rValue)
 	}
 
 	f := rValue.FieldByName(fieldName)
-	if f.Kind()==reflect.Ptr{
+	if f.Kind() == reflect.Ptr {
 		return !f.IsNil()
 	}
 
-	if f.IsValid(){
+	if f.IsValid() {
 		return true
 	}
 	return false
@@ -382,10 +388,10 @@ func Save(ctx *Context, o interface{}) error {
 		return errors.New("id was not found")
 	}
 
-	createdExists:= existsNonNullField(rValue, "Created")
+	createdExists := existsNonNullField(rValue, "Created")
 	t := time.Now()
 	setFieldValue(rValue, "Updated", &t)
-	if !createdExists{
+	if !createdExists {
 		setFieldValue(rValue, "Created", &t)
 	}
 
@@ -437,24 +443,24 @@ func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
 
-var registeredSchemas=[]util.KeyValue{}
+var registeredSchemas = []util.KeyValue{}
 
-func MustRegisterSchemaWithIndexName(t interface{}, index string){
-	err := RegisterSchemaWithIndexName(t,index)
+func MustRegisterSchemaWithIndexName(t interface{}, index string) {
+	err := RegisterSchemaWithIndexName(t, index)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func RegisterSchemaWithIndexName(t interface{}, index string) error {
-	registeredSchemas=append(registeredSchemas,util.KeyValue{Key: index, Payload: t})
+	registeredSchemas = append(registeredSchemas, util.KeyValue{Key: index, Payload: t})
 	return nil
 }
 
-func InitSchema()  error{
-	for _,v:=range registeredSchemas{
-		err:=getHandler().RegisterSchemaWithIndexName(v.Payload, v.Key)
-		if err!=nil{
+func InitSchema() error {
+	for _, v := range registeredSchemas {
+		err := getHandler().RegisterSchemaWithIndexName(v.Payload, v.Key)
+		if err != nil {
 			return err
 		}
 	}
@@ -490,7 +496,9 @@ func Register(name string, h ORM) {
 }
 
 type ProtectedFilterKeyType string
+
 const ProtectedFilterKey ProtectedFilterKeyType = "FILTER_PROTECTED"
+
 //FilterFieldsByProtected filter struct fields by tag protected recursively,
 //returns a filtered fields map
 func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interface{} {
@@ -523,11 +531,11 @@ func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interfa
 		if strings.ToLower(tagVal) != "true" && protected {
 			delete(mapObj, jsonName)
 			continue
-		}else if strings.ToLower(tagVal) == "true" && !protected {
+		} else if strings.ToLower(tagVal) == "true" && !protected {
 			delete(mapObj, jsonName)
 			continue
 		}
-		if fieldType.Type.Kind() == reflect.Struct || (fieldType.Type.Kind() == reflect.Ptr && fieldType.Type.Elem().Kind() == reflect.Struct){
+		if fieldType.Type.Kind() == reflect.Struct || (fieldType.Type.Kind() == reflect.Ptr && fieldType.Type.Elem().Kind() == reflect.Struct) {
 			mapObj[jsonName] = FilterFieldsByProtected(v.Field(i).Interface(), protected)
 		}
 	}

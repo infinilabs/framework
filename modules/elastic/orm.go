@@ -35,8 +35,9 @@ func InitTemplate(force bool) {
 			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
 
-		if moduleConfig.ORMConfig.Templates!=nil&&len(moduleConfig.ORMConfig.Templates)>0{
-			for k,v:= range moduleConfig.ORMConfig.Templates{
+		//index templates
+		if moduleConfig.ORMConfig.IndexTemplates!=nil&&len(moduleConfig.ORMConfig.IndexTemplates)>0{
+			for k,v:= range moduleConfig.ORMConfig.IndexTemplates{
 				var skip=false
 				if !moduleConfig.ORMConfig.OverrideExistsTemplate{
 					exists,err:= client.TemplateExists(k)
@@ -47,6 +48,29 @@ func InitTemplate(force bool) {
 				}
 				if !skip{
 					v,err:=client.PutTemplate(k,[]byte(v))
+					if err!=nil{
+						if v!=nil{
+							log.Error(string(v))
+						}
+						panic(err)
+					}
+				}
+			}
+		}
+
+		//search templates
+		if moduleConfig.ORMConfig.SearchTemplates!=nil&&len(moduleConfig.ORMConfig.SearchTemplates)>0{
+			for k,v:= range moduleConfig.ORMConfig.SearchTemplates{
+				var skip=false
+				if !moduleConfig.ORMConfig.OverrideExistsTemplate{
+					exists,err:= client.ScriptExists(k)
+					if err!=nil{
+						panic(err)
+					}
+					skip=exists
+				}
+				if !skip{
+					v,err:=client.PutScript(k,[]byte(v))
 					if err!=nil{
 						if v!=nil{
 							log.Error(string(v))
@@ -245,6 +269,8 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 
 	if len(q.RawQuery) > 0 {
 		searchResponse, err = handler.Client.QueryDSL(nil, indexName, q.QueryArgs, q.RawQuery)
+	}else if q.TemplatedQuery!=nil{
+		searchResponse, err =handler.Client.SearchByTemplate(indexName,q.TemplatedQuery.TemplateID,q.TemplatedQuery.Parameters)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {
@@ -279,7 +305,6 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 		}
 
 		searchResponse, err = handler.Client.Search(indexName, &request)
-
 	}
 
 	if err != nil {

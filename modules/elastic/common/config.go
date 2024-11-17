@@ -24,9 +24,11 @@ type ORMConfig struct {
 	OverrideExistsTemplate  bool   `config:"override_exists_template"`
 	TemplateName            string `config:"template_name"` //default template name
 
-	InitSchema  bool              `config:"init_schema"`
-	IndexPrefix string            `config:"index_prefix"`
-	Templates   map[string]string `config:"templates"` //template_name -> template_content
+	InitSchema  bool   `config:"init_schema"`
+	IndexPrefix string `config:"index_prefix"`
+
+	IndexTemplates  map[string]string `config:"index_templates"`  //template_name -> template_content
+	SearchTemplates map[string]string `config:"search_templates"` //template_name -> template_content
 }
 
 type StoreConfig struct {
