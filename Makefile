@@ -64,7 +64,7 @@ ifneq "$(DEV)" ""
     FRAMEWORK_DEVEL_BUILD := -tags dev
 endif
 
-NEWGOPATH:= $(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
+NEWGOPATH:= $(GOPATH):$(FRAMEWORK_VENDOR_FOLDER)
 
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
