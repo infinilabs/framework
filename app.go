@@ -218,8 +218,9 @@ func (app *App) initEnvironment(customFunc func()) {
 	if err != nil {
 		panic(err)
 	}
+
 	config.RegisterOption("keystore", ksResolver)
-	err = task.RunWithContext("keystore_changes_notify", func(ctx context.Context) error {
+	task.RunWithContext("keystore_changes_notify", func(ctx context.Context) error {
 		_, err = keystore.GetOrInitKeystore()
 		if err != nil {
 			log.Error(err)
@@ -227,9 +228,7 @@ func (app *App) initEnvironment(customFunc func()) {
 		keystore.Watch()
 		return nil
 	}, context.Background())
-	if err != nil {
-		panic(err)
-	}
+
 	global.RegisterShutdownCallback(keystore.CloseWatch)
 	app.environment.Init()
 

@@ -7,7 +7,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/goroutine"
 	"runtime"
 	"sync"
 	"time"
@@ -24,11 +23,8 @@ const (
 	Finished       = "FINISHED"
 )
 
-//use task.Run instead of goroutine
-var defaultGoRoutingGroup = goroutine.NewGroup(goroutine.Option{Name: "default"})
-
-func RunWithinGroup(tag string, f func(ctx context.Context) error) {
-	defaultGoRoutingGroup.Go(f)
+func RunWithinGroup(groupName string, f func(ctx context.Context) error) (taskID string) {
+	return registerTransientTask(groupName,"",f,context.Background())
 }
 
 func MustGetString(ctx context.Context, key string) string {
@@ -42,12 +38,17 @@ func MustGetString(ctx context.Context, key string) string {
 	panic(errors.Errorf("invalid key: %v", key))
 }
 
-func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) error {
+func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
+	return registerTransientTask("default",tag,f,ctxInput)
+}
+
+func registerTransientTask(group,tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
 	task := ScheduleTask{}
 	task.ID = util.GetUUID()
+	task.Group=group
 	task.Description = tag
 	task.Type = Transient
-	task.CreateTime=time.Now()
+	task.CreateTime = time.Now()
 	task.State = Pending
 	task.Ctx = ctxInput
 	Tasks.Store(task.ID, &task)
@@ -75,7 +76,7 @@ func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput cont
 			Tasks.Delete(task.ID)
 		}()
 
-		t:=time.Now()
+		t := time.Now()
 		task.StartTime = &t
 		task.State = Running
 		err := func2(ctxInput)
@@ -83,16 +84,17 @@ func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput cont
 			log.Error(err)
 		}
 	}(f)
-	return nil
+	return task.ID
 }
 
 type ScheduleTask struct {
 	ID          string     `config:"id" json:"id,omitempty"`
+	Group       string     `config:"group" json:"group,omitempty"`
 	Description string     `config:"description" json:"description,omitempty"`
 	Type        string     `config:"type" json:"type,omitempty"`
 	Interval    string     `config:"interval" json:"interval,omitempty"`
 	Crontab     string     `config:"crontab" json:"crontab,omitempty"`
-	CreateTime   time.Time `config:"create_time" json:"create_time,omitempty"`
+	CreateTime  time.Time  `config:"create_time" json:"create_time,omitempty"`
 	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
 	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
 
@@ -106,12 +108,12 @@ const Interval = "interval"
 const Crontab = "crontab"
 const Transient = "transient"
 
-func RegisterScheduleTask(task ScheduleTask) {
+func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 	if task.ID == "" {
 		task.ID = util.GetUUID()
 	}
-	task.CreateTime=time.Now()
-	task.State =Pending
+	task.CreateTime = time.Now()
+	task.State = Pending
 	if task.Type == "" && task.Interval != "" {
 		task.Type = Interval
 	} else if task.Type == "" && task.Crontab != "" {
@@ -143,6 +145,7 @@ func RegisterScheduleTask(task ScheduleTask) {
 		runTask(&task)
 	}
 
+	return task.ID
 }
 
 var quit = make(chan struct{})
@@ -213,7 +216,7 @@ func StopTask(id string) {
 	if ok {
 		item, ok := task.(*ScheduleTask)
 		if ok {
-			if item != nil{
+			if item != nil {
 				switch item.Type {
 				case Interval:
 					if item.taskItem != nil {

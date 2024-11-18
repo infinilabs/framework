@@ -398,7 +398,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 	}
 
 
-	return task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
+	task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 
 		cfgV := taskCtx.Value("cfg")
 		cfg, ok := cfgV.(pipeline.PipelineConfigV2)
@@ -542,6 +542,8 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 
 		return nil
 	}, context.WithValue(context.Background(), "cfg", v))
+
+	return nil
 }
 
 func isPipelineEnabled(enabled *bool) bool {
