@@ -145,6 +145,14 @@ func GetOrInitConfig(key string) *QueueConfig {
 	return AdvancedGetOrInitConfig("", key, nil)
 }
 
+func SmartGetOrInitConfig(cfg *QueueConfig) *QueueConfig {
+	if cfg.ID!=""{
+		v,_:=GetConfigByUUID(cfg.ID)
+		return v
+	}
+	return AdvancedGetOrInitConfig(cfg.Type,cfg.Name,cfg.Labels)
+}
+
 func AdvancedGetOrInitConfig(queueType, key string, labels map[string]interface{}) *QueueConfig {
 	cfg, exists := SmartGetConfig(key)
 	if !exists || cfg == nil {
