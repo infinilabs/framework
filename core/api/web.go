@@ -31,7 +31,7 @@ var uiMutex sync.Mutex
 
 var bindAddress string
 
-func StopUI(cfg config.WebAppConfig) {
+func StopWeb(cfg config.WebAppConfig) {
 	if srv != nil {
 		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
 		defer cancel()
@@ -40,11 +40,11 @@ func StopUI(cfg config.WebAppConfig) {
 			panic(err)
 		}
 
-		log.Debug("stopping UI server")
+		log.Debug("stopping web server")
 	}
 }
 
-func StartUI(cfg config.WebAppConfig) {
+func StartWeb(cfg config.WebAppConfig) {
 	//start web ui
 	uiServeMux = http.NewServeMux()
 
@@ -53,7 +53,7 @@ func StartUI(cfg config.WebAppConfig) {
 	//uiRouter.RedirectFixedPath=false
 
 	uiRouter.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.Write([]byte("my 404"))
+		rw.Write([]byte("Page Not Found"))
 		rw.WriteHeader(404)
 	})
 

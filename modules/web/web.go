@@ -2,7 +2,7 @@
  * web: https://infinilabs.com
  * mail: hello#infini.ltd */
 
-package ui
+package web
 
 import (
 	log "github.com/cihub/seelog"
@@ -13,18 +13,18 @@ import (
 	_ "net/http/pprof"
 )
 
-type UIModule struct {
+type WebModule struct {
 }
 
 func LoggerReceiver(message string, level log.LogLevel, context log.LogContextInterface) {
 	websocket.BroadcastMessage(message)
 }
 
-func (module *UIModule) Name() string {
+func (module *WebModule) Name() string {
 	return "web"
 }
 
-func (module *UIModule) Setup() {
+func (module *WebModule) Setup() {
 
 	if global.Env().SystemConfig.WebAppConfig.Enabled {
 
@@ -35,16 +35,16 @@ func (module *UIModule) Setup() {
 	}
 }
 
-func (module *UIModule) Start() error {
+func (module *WebModule) Start() error {
 	if global.Env().SystemConfig.WebAppConfig.Enabled {
-		uis.StartUI(global.Env().SystemConfig.WebAppConfig)
+		uis.StartWeb(global.Env().SystemConfig.WebAppConfig)
 	}
 	return nil
 }
 
-func (module *UIModule) Stop() error {
+func (module *WebModule) Stop() error {
 	if global.Env().SystemConfig.WebAppConfig.Enabled {
-		uis.StopUI(global.Env().SystemConfig.WebAppConfig)
+		uis.StopWeb(global.Env().SystemConfig.WebAppConfig)
 	}
 	return nil
 }
