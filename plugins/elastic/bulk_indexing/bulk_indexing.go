@@ -632,7 +632,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 								panic(err)
 							}
 						}
-						log.Debugf("%v, success commit offset to: %v, previous init: %v", consumerConfig.String(), *offset, committedOffset)
+						log.Debugf("success commit, queue: %v, consumer: %v,offset to: %v, previous init: %v", qConfig.ID, consumerConfig.String(), *offset, committedOffset)
 						committedOffset = nil
 						offset = nil
 					} else {
