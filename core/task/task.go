@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/util"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -78,11 +79,15 @@ func registerTransientTask(group,tag string, f func(ctx context.Context) error, 
 
 		t := time.Now()
 		task.StartTime = &t
+		task.EndTime = nil
 		task.State = Running
 		err := func2(ctxInput)
 		if err != nil {
 			log.Error(err)
 		}
+		t = time.Now()
+		task.EndTime = &t
+		task.State = Finished
 	}(f)
 	return task.ID
 }
@@ -98,10 +103,15 @@ type ScheduleTask struct {
 	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
 	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
 
+	// Ensures the task runs as a singleton, preventing duplicate executions when previous attempt is not finished.
+	Singleton bool `config:"singleton" json:"singleton,omitempty"`
+
 	Task     func(ctx context.Context) `config:"-" json:"-"`
 	taskItem chrono.ScheduledTask
 	State    State           `config:"state" json:"state,omitempty"`
 	Ctx      context.Context `config:"-" json:"-"` //for transient task
+
+	isTaskRunning  atomic.Bool
 }
 
 const Interval = "interval"
@@ -122,6 +132,34 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 
 	tempTask := task.Task
 	task.Task = func(ctx context.Context) {
+
+		//for scheduled task, you may need to prevent task rerun
+		if task.Singleton{
+			//task should be running in single instance
+			if !task.isTaskRunning.CompareAndSwap(false, true) {
+				log.Debugf("task [%v][%v] should be running in single instance, skipping",task.ID,task.Description)
+				return
+			}
+
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var v string
+						switch r.(type) {
+						case error:
+							v = r.(error).Error()
+						case runtime.Error:
+							v = r.(runtime.Error).Error()
+						case string:
+							v = r.(string)
+						}
+						log.Error(v)
+					}
+				}
+				task.isTaskRunning.Store(false)
+			}()
+		}
+
 		t := time.Now()
 		task.StartTime = &t
 		task.EndTime = nil
@@ -165,6 +203,7 @@ func RunTasks() {
 }
 
 func runTask(task *ScheduleTask) {
+
 	if task.State == Running {
 		return
 	}
