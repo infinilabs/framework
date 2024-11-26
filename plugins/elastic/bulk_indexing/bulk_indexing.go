@@ -538,7 +538,11 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("error in bulk indexing processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
+				// Print the stack trace
+				buf := make([]byte, 1<<16) // 64 KB buffer
+				stackSize := runtime.Stack(buf, false)
+				log.Errorf("error in bulk indexing processor, %v, queue:%v, slice_id:%v, stack_trace: %s", v, qConfig.ID, sliceID, buf[:stackSize])
+				//log.Errorf("error in bulk indexing processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
