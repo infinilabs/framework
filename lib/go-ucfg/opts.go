@@ -49,7 +49,13 @@ type options struct {
 	activeFields *fieldSet
 	resolveRef bool
 	defaultParseConfig *parse.Config
+	noResolve bool
 }
+
+// NoResolve option sets do not to resolve variables.
+var NoResolve Option = doNoResolve
+
+func doNoResolve(o *options) { o.noResolve = true }
 
 // DefaultParseConfig option sets the default parse config used to parse dyn value
 // if it is not empty

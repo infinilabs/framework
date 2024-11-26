@@ -725,6 +725,15 @@ func doReifyPrimitive(
 		if err != nil {
 			return reflect.Value{}, raiseConversion(opts.opts, val, err, "string")
 		}
+		//handle secret string type: add original config variable name info to secret string
+		if baseType == reflect.TypeOf(SecretString("")) {
+			if v, ok := val.(*cfgDynamic); ok {
+				if refV, ok := v.dyn.(*refDynValue); ok {
+					secStr := EncodeToSecretString(refV.String(), s)
+					s = string(secStr)
+				}
+			}
+		}
 		return reflect.ValueOf(s), nil
 
 	case extras[baseType] != nil:

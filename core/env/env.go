@@ -7,6 +7,7 @@ package env
 import (
 	"compress/gzip"
 	"fmt"
+	"infini.sh/framework/lib/go-ucfg"
 	"io/ioutil"
 	"os"
 	"path"
@@ -746,7 +747,7 @@ tryEnvAgain:
 
 func GetConfigAsJSON() string {
 	o := util.MapStr{}
-	configObject.Unpack(&o)
+	configObject.Unpack(&o, ucfg.NoResolve)
 	return util.MustToJSON(o)
 }
 

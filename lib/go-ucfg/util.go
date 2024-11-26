@@ -135,9 +135,12 @@ func pointerize(t, base reflect.Type, v reflect.Value) reflect.Value {
 	if t.Kind() == reflect.Interface {
 		return v
 	}
-
 	for t != v.Type() {
 		if !v.CanAddr() {
+			//fix: case when v is a subtype of t
+			if v.CanConvert(t) {
+				return v.Convert(t)
+			}
 			tmp := reflect.New(v.Type())
 			tmp.Elem().Set(v)
 			v = tmp

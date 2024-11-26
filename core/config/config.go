@@ -442,10 +442,13 @@ func (c *Config) Merge(from interface{}) error {
 
 // Unpack unpacks c into a struct, a map, or a slice allocating maps, slices,
 // and pointers as necessary.
-func (c *Config) Unpack(to interface{}) error {
+func (c *Config) Unpack(to interface{}, options ...ucfg.Option) error {
 	var opts []ucfg.Option
 	opts = append(opts, configOpts...)
 	for _, opt := range customConfigOpts {
+		opts = append(opts, opt)
+	}
+	for _, opt := range options {
 		opts = append(opts, opt)
 	}
 	return c.access().Unpack(to, opts...)

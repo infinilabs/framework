@@ -518,6 +518,10 @@ func (r *refDynValue) getValue(
 	p *cfgPrimitive,
 	opts *options,
 ) (value, error) {
+	if opts.noResolve {
+		//keep raw config value and return
+		return newString(context{field: r.Path.String()}, nil, r.String()), nil
+	}
 	ref := (*reference)(r)
 	var previousErr error
 	if opts.resolveRef {

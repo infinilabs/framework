@@ -162,6 +162,9 @@ func (r *reference) resolveEnv(cfg *Config, opts *options) (string, parse.Config
 }
 
 func (r *reference) resolve(cfg *Config, opts *options) (value, error) {
+	if opts.noResolve {
+		return newString(context{field: r.Path.String()}, nil, r.String()), nil
+	}
 	var previousErr error
 	if opts.resolveRef {
 		v, err := r.resolveRef(cfg, opts)

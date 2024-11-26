@@ -42,6 +42,6 @@ func TestConfigVariable(t *testing.T){
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, password, esConfigs[0].BasicAuth.Password)
+	assert.Equal(t, password, esConfigs[0].BasicAuth.Password.Get())
 	os.RemoveAll(path.Join(wd, ".keystore"))
 }

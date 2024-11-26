@@ -423,7 +423,7 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 
 	if metadata.Config.BasicAuth != nil {
 		clonedURI.SetUsername(metadata.Config.BasicAuth.Username)
-		clonedURI.SetPassword(metadata.Config.BasicAuth.Password)
+		clonedURI.SetPassword(metadata.Config.BasicAuth.Password.Get())
 	}
 
 	//acceptGzipped := req.AcceptGzippedResponse()

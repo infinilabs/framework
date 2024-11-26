@@ -154,7 +154,7 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 	req.Header.SetMethod(processor.config.Method)
 
 	if processor.config.BasicAuth != nil {
-		req.SetBasicAuth(processor.config.BasicAuth.Username, processor.config.BasicAuth.Password)
+		req.SetBasicAuth(processor.config.BasicAuth.Username, processor.config.BasicAuth.Password.Get())
 	}
 
 	//get message from queue

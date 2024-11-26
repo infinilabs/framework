@@ -135,9 +135,8 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	req.Context = ctx
 
 	req.SetContentType(util.ContentTypeJson)
-
 	if c.GetMetadata().Config.BasicAuth != nil {
-		req.SetBasicAuth(c.GetMetadata().Config.BasicAuth.Username, c.GetMetadata().Config.BasicAuth.Password)
+		req.SetBasicAuth(c.GetMetadata().Config.BasicAuth.Username, c.GetMetadata().Config.BasicAuth.Password.Get())
 	}
 
 	if c.GetMetadata().Config.HttpProxy != "" {

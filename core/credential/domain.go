@@ -9,6 +9,7 @@ import (
 	"infini.sh/framework/core/keystore"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 	keystore2 "infini.sh/framework/lib/keystore"
 )
 
@@ -129,7 +130,7 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 		return basicAuth, err
 	}
 	basicAuth.Username = params["username"].(string)
-	basicAuth.Password = string(plaintext)
+	basicAuth.Password = ucfg.SecretString(plaintext)
 	return
 }
 
