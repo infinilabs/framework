@@ -82,6 +82,10 @@ func (module *SimpleStatsModule) Setup() {
 	//if global.Env().IsDebug{
 	api.HandleAPIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction)
 	//}
+
+	api.HandleAPIMethod(api.GET, " /instance/_local/files/_list", module.ListDirFs)
+	api.HandleAPIMethod(api.GET, " /instance/_local/files/:file/_list", module.ListDirFs)
+	api.HandleAPIMethod(api.DELETE, "/instance/_local/files/:file", module.DeleteDataFile)
 }
 
 func (module *SimpleStatsModule) Start() error {
@@ -180,14 +184,14 @@ type StatItem struct {
 }
 
 type Stats struct {
-	l      sync.RWMutex
-	ID     string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
-	Data   *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
-	timestamp   map[string]time.Time //for last timestamps, no need persist
-	closed bool
-	raw    bool
-	q      *queue.EsQueue
-	cfg    *SimpleStatsConfig
+	l         sync.RWMutex
+	ID        string                       `storm:"id,unique" json:"id" gorm:"not null;unique;primary_key"`
+	Data      *map[string]map[string]int64 `storm:"inline" json:"data,omitempty"`
+	timestamp map[string]time.Time         //for last timestamps, no need persist
+	closed    bool
+	raw       bool
+	q         *queue.EsQueue
+	cfg       *SimpleStatsConfig
 }
 
 func (s *Stats) initData(category, key string) {
@@ -258,7 +262,7 @@ func (s *Stats) Timing(category, key string, v int64) {
 
 }
 
-func (s *Stats) GetTimestamp(category, key string)(time.Time, error) {
+func (s *Stats) GetTimestamp(category, key string) (time.Time, error) {
 	s.l.RLock()
 	defer s.l.RUnlock()
 	v, ok := (s.timestamp)[category+"."+key]
@@ -343,11 +347,11 @@ func (s *Stats) StatsAll() string {
 		"cgo_calls":    int64(runtime.NumCgoCall()),
 	}
 
-	if s!=nil&&s.cfg.IncludeStorageStatsInAPI {
+	if s != nil && s.cfg.IncludeStorageStatsInAPI {
 		diskStats := status.DiskPartitionUsage(global.Env().GetDataDir())
 		result["disk"] = diskStats
 		storage, _ := status.DirSize(global.Env().GetDataDir())
-		systemStats["store"]=int64(storage) //maybe too heavy to call frequently
+		systemStats["store"] = int64(storage) //maybe too heavy to call frequently
 	}
 
 	result["system"] = systemStats
@@ -379,10 +383,35 @@ func (module *SimpleStatsModule) initStats(id string) {
 		log.Trace("inited stats map")
 	}
 
-	module.data.timestamp=map[string]time.Time{}
+	module.data.timestamp = map[string]time.Time{}
 }
 
 func (handler SimpleStatsModule) BufferItemStatsAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	obj := bytebufferpool.DumpBufferItemSize()
 	handler.WriteJSON(w, obj, 200)
+}
+
+func (handler SimpleStatsModule) ListDirFs(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	file := handler.GetParameter(req, "file")
+	files, err := status.ListDiskFs(file)
+	result := util.MapStr{}
+	status := 200
+	if err != nil {
+		result["error"] = err.Error()
+		status = 500
+	}
+	result["disk"] = files
+	handler.WriteJSON(w, result, status)
+}
+
+func (handler SimpleStatsModule) DeleteDataFile(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	file := ps.ByName("file")
+	err := status.DeleteDataFile(file)
+	result := util.MapStr{}
+	status := 200
+	if err != nil {
+		result["error"] = err.Error()
+		status = 500
+	}
+	handler.WriteJSON(w, result, status)
 }
