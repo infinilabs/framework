@@ -83,9 +83,9 @@ func (module *SimpleStatsModule) Setup() {
 	api.HandleAPIMethod(api.GET, "/debug/pool/bytes", module.BufferItemStatsAction)
 	//}
 
-	api.HandleAPIMethod(api.GET, " /instance/_local/files/_list", module.ListDirFs)
-	api.HandleAPIMethod(api.GET, " /instance/_local/files/:file/_list", module.ListDirFs)
-	api.HandleAPIMethod(api.DELETE, "/instance/_local/files/:file", module.DeleteDataFile)
+	api.HandleAPIMethod(api.GET, " /_local/files/_list", module.ListDirFs)
+	api.HandleAPIMethod(api.GET, " /_local/files/:file/_list", module.ListDirFs)
+	api.HandleAPIMethod(api.DELETE, "/_local/files/:file", module.DeleteDataFile)
 }
 
 func (module *SimpleStatsModule) Start() error {
