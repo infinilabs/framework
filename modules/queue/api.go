@@ -320,7 +320,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 					return
 				}
 			}else{
-				log.Errorf("caon't acquire consumer [%v] for [%v]", consumer.Key(),qConfig.Name)
+				log.Errorf("can't acquire consumer [%v] for [%v]", consumer.Key(),qConfig.Name)
 			}
 
 		} else {
