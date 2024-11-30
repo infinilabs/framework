@@ -247,6 +247,10 @@ config: init update-vfs update-generated-file update-plugins
 	(cd ../framework/  && make update-plugins) || true # build plugins in framework
 
 
+update-license-header:
+	licensure --in-place -p
+
+
 dist: cross-build package
 
 dist-major-platform: all package
