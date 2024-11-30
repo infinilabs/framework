@@ -133,6 +133,7 @@ func Env() *env.Env {
 	return e
 }
 
+var initCallback = []func(){}
 var shutdownCallback = []func(){}
 
 func RegisterShutdownCallback(callback func()) {
@@ -141,10 +142,22 @@ func RegisterShutdownCallback(callback func()) {
 	shutdownCallback = append(shutdownCallback, callback)
 }
 
-func ShutdownCallback() []func() {
+func GetShutdownCallback() []func() {
 	registerLock.Lock()
 	defer registerLock.Unlock()
 	return shutdownCallback
+}
+
+func RegisterInitCallback(callback func()) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	initCallback = append(initCallback, callback)
+}
+
+func GetInitCallback() []func() {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	return initCallback
 }
 
 type BackgroundTask struct {

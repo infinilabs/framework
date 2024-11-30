@@ -60,7 +60,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	_ "infini.sh/framework/modules/queue"
-	"infini.sh/license"
 )
 
 type App struct {
@@ -122,10 +121,15 @@ func (app *App) Init(customFunc func()) {
 		debugInitFunc()
 	}
 
-	//init license
-	license.Init()
+	callbacks := global.GetInitCallback()
+	if callbacks != nil && len(callbacks) > 0 {
+		for i, v := range callbacks {
+			log.Trace("executing callback: ", i)
+			v()
+			log.Trace("executed callback: ", i)
+		}
+	}
 
-	license.Verify()
 
 	if app.environment.SystemConfig.ResourceLimit != nil {
 		//detect memory usage
@@ -361,7 +365,7 @@ func (app *App) Shutdown() {
 		util.ClearInstanceLock()
 	}
 
-	callbacks := global.ShutdownCallback()
+	callbacks := global.GetShutdownCallback()
 	if callbacks != nil && len(callbacks) > 0 {
 		for i, v := range callbacks {
 			log.Trace("executing callback: ", i)
