@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/square/go-jose.v2"
 
-	"infini.sh/framework/lib/guardian/auth/internal"
-	"infini.sh/framework/lib/guardian/auth/internal/header"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal/header"
 )
 
 const cacheControl = "cache-control"

@@ -34,16 +34,16 @@ import (
 	"encoding/pem"
 	"github.com/caddyserver/certmagic"
 	"github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 	"github.com/libdns/tencentcloud"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"go.uber.org/zap"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"os"
 	"path"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -75,7 +75,7 @@ func GetServerTLSConfig(tlsCfg *config.TLSConfig) (*tls.Config, error) {
 	}
 
 	if tlsCfg.AutoIssue.Enabled && (tlsCfg.TLSCertFile == "" && tlsCfg.TLSKeyFile == "") {
-		AutoIssueTLSCertificates(tlsCfg,cfg)
+		AutoIssueTLSCertificates(tlsCfg, cfg)
 	} else {
 		//try self-signed certs
 		if tlsCfg.TLSCertFile == "" && tlsCfg.TLSKeyFile == "" {
@@ -113,7 +113,6 @@ func GetServerTLSConfig(tlsCfg *config.TLSConfig) (*tls.Config, error) {
 			}
 		}
 
-
 		//load cert files
 		cfg.Certificates = make([]tls.Certificate, 1)
 		cfg.Certificates[0], err = tls.LoadX509KeyPair(tlsCfg.TLSCertFile, tlsCfg.TLSKeyFile)
@@ -138,10 +137,10 @@ func GetServerTLSConfig(tlsCfg *config.TLSConfig) (*tls.Config, error) {
 	return cfg, err
 }
 
-func AutoIssueTLSCertificates(tlsCfg *config.TLSConfig,cfg *tls.Config) {
+func AutoIssueTLSCertificates(tlsCfg *config.TLSConfig, cfg *tls.Config) {
 	zapCfg := zap.NewProductionConfig()
 
-	if !global.Env().IsDebug{
+	if !global.Env().IsDebug {
 		zapCfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
 	}
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func TestExpvarHandlerBasic(t *testing.T) {

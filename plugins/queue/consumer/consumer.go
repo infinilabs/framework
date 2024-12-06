@@ -25,19 +25,19 @@ package consumer
 
 import (
 	"fmt"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/locker"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/locker"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/OneOfOne/xxhash"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type QueueConsumerProcessor struct {
@@ -109,16 +109,16 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		},
 
 		Consumer: &queue.ConsumerConfig{
-			Group:                  "group-001",
-			Name:                   "consumer-001",
-			FetchMinBytes:          1,
-			FetchMaxBytes:          20 * 1024 * 1024,
-			FetchMaxMessages:       500,
-			EOFRetryDelayInMs:      500,
-			FetchMaxWaitMs:         10000,
-			ConsumeTimeoutInSeconds:         60,
-			EOFMaxRetryTimes:         10,
-			ClientExpiredInSeconds: 60,
+			Group:                   "group-001",
+			Name:                    "consumer-001",
+			FetchMinBytes:           1,
+			FetchMaxBytes:           20 * 1024 * 1024,
+			FetchMaxMessages:        500,
+			EOFRetryDelayInMs:       500,
+			FetchMaxWaitMs:          10000,
+			ConsumeTimeoutInSeconds: 60,
+			EOFMaxRetryTimes:        10,
+			ClientExpiredInSeconds:  60,
 		},
 
 		DetectActiveQueue:      true,
@@ -166,7 +166,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		panic(err)
 	}
 
-	processor.SkipCatchError=true //skip catch internal error
+	processor.SkipCatchError = true //skip catch internal error
 	runner.processors = processor
 
 	pool, err := pipeline.NewPoolWithTag(name, runner.config.MaxWorkers)
@@ -435,7 +435,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	if maxSlices > 1 {
 		if processor.config.Consumer.SimpleSlicedGroup {
 			groupName = fmt.Sprintf("%v-%v", processor.config.Consumer.Group, sliceID)
-		}else{
+		} else {
 			groupName = fmt.Sprintf("%v-%v-%v", processor.config.Consumer.Group, qConfig.ID, sliceID)
 		}
 	}
@@ -531,7 +531,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	}
 	offset = initOffset
 
-	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig,workerID)
+	consumerInstance, err := queue.AcquireConsumer(qConfig, consumerConfig, workerID)
 	defer queue.ReleaseConsumer(qConfig, consumerConfig, consumerInstance)
 
 	if err != nil {
@@ -618,7 +618,7 @@ READ_DOCS:
 					newMessages = append(newMessages, m)
 				}
 			}
-			if len(newMessages)>0 {
+			if len(newMessages) > 0 {
 				messages = newMessages
 			}
 		}

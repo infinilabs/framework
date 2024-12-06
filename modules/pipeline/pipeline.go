@@ -27,22 +27,22 @@ import (
 	"context"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"infini.sh/framework/core/locker"
-	"infini.sh/framework/core/task"
+	"github.com/rubyniu105/framework/core/locker"
+	"github.com/rubyniu105/framework/core/task"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/api"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type PipeModule struct {
@@ -234,7 +234,6 @@ func (module *PipeModule) Start() error {
 			return
 		}
 
-
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -251,7 +250,6 @@ func (module *PipeModule) Start() error {
 				}
 			}
 		}()
-
 
 		needStopAndClean := []string{}
 		newPipelines := map[string]pipeline.PipelineConfigV2{}
@@ -283,7 +281,7 @@ func (module *PipeModule) Start() error {
 				return true
 			}
 
-			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC,",",ok,",",newC.Equals(oldC),",",isPipelineEnabled(newC.Enabled))
+			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC, ",", ok, ",", newC.Equals(oldC), ",", isPipelineEnabled(newC.Enabled))
 
 			needStopAndClean = append(needStopAndClean, oldC.Name)
 			return true
@@ -414,12 +412,11 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	if v.Singleton{
-		log.Info("creating pipeline: "+v.Name+", singleton")
-	}else{
-		log.Info("creating pipeline: "+v.Name)
+	if v.Singleton {
+		log.Info("creating pipeline: " + v.Name + ", singleton")
+	} else {
+		log.Info("creating pipeline: " + v.Name)
 	}
-
 
 	task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 

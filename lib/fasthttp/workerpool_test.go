@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 func TestWorkerPoolStartStopSerial(t *testing.T) {
@@ -102,7 +102,7 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 		},
 		MaxWorkersCount: 10,
 		//Logger:          defaultLogger,
-		connState:       func(net.Conn, ConnState) {},
+		connState: func(net.Conn, ConnState) {},
 	}
 	wp.Start()
 

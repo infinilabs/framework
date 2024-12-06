@@ -9,11 +9,11 @@ import (
 	"github.com/shaj13/libcache"
 	_ "github.com/shaj13/libcache/lru"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/claims"
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2"
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2/introspection"
-	"infini.sh/framework/lib/guardian/auth/strategies/token"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/claims"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2/introspection"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/token"
 )
 
 type ExampleClaims struct {

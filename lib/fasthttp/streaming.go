@@ -6,7 +6,7 @@ import (
 	"io"
 	"sync"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 type requestStream struct {

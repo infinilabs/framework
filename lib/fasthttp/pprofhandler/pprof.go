@@ -5,8 +5,8 @@ import (
 	rtp "runtime/pprof"
 	"strings"
 
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/fasthttp/fasthttpadaptor"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttpadaptor"
 )
 
 var (

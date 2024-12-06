@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 var (

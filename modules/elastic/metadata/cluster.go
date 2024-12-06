@@ -7,9 +7,9 @@ package metadata
 import (
 	"errors"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 //get elasticsearch meta from system cluster

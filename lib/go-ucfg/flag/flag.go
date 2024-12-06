@@ -20,9 +20,9 @@ package flag
 import (
 	goflag "flag"
 
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/json"
-	"infini.sh/framework/lib/go-ucfg/yaml"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg/json"
+	"github.com/rubyniu105/framework/lib/go-ucfg/yaml"
 )
 
 func ConfigVar(

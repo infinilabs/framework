@@ -7,7 +7,7 @@ import (
 	"github.com/shaj13/libcache"
 	_ "github.com/shaj13/libcache/idle"
 
-	"infini.sh/framework/lib/guardian/auth/strategies/token"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/token"
 )
 
 func ExampleNew() {

@@ -15,8 +15,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"infini.sh/framework/lib/guardian/auth"
-	gx509 "infini.sh/framework/lib/guardian/auth/strategies/x509"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	gx509 "github.com/rubyniu105/framework/lib/guardian/auth/strategies/x509"
 )
 
 // Usage:

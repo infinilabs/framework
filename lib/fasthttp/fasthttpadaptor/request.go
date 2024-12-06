@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 // ConvertRequest convert a fasthttp.Request to an http.Request

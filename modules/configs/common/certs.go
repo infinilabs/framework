@@ -31,17 +31,17 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"os"
 	"path"
 )
 
-func GetOrInitDefaultCaCerts()(string, string, error){
+func GetOrInitDefaultCaCerts() (string, string, error) {
 	dataDir := global.Env().GetDataDir()
 	caFile := path.Join(dataDir, "certs/ca.crt")
 	caKey := path.Join(dataDir, "certs/ca.key")
-	if !(util.FileExists(caFile) && util.FileExists(caKey) ) {
+	if !(util.FileExists(caFile) && util.FileExists(caKey)) {
 		err := os.MkdirAll(path.Join(dataDir, "certs"), 0775)
 		if err != nil {
 			return "", "", err
@@ -63,4 +63,3 @@ func GetOrInitDefaultCaCerts()(string, string, error){
 	}
 	return caFile, caKey, nil
 }
-

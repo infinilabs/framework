@@ -25,9 +25,9 @@ package pipeline
 
 import (
 	"fmt"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 	"strings"
 	"sync"
 )
@@ -243,7 +243,6 @@ func (p processorPlugin) Plugin() ProcessorConstructor { return p.c }
 
 func (p filterPlugin) Plugin() FilterConstructor { return p.c }
 
-
 type FilterConstructor func(config *config.Config) (Filter, error)
 
 type ProcessorConstructor func(config *config.Config) (Processor, error)
@@ -251,6 +250,7 @@ type ProcessorConstructor func(config *config.Config) (Processor, error)
 type Constructor func(config *config.Config) (ProcessorBase, error)
 
 var registry = NewNamespace()
+
 func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 	err := registry.RegisterProcessor(name, constructor)
 	if err != nil {
@@ -259,7 +259,7 @@ func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 }
 
 func RegisterFilterPlugin(name string, constructor FilterConstructor) {
-		err := registry.RegisterFilter(name, constructor)
+	err := registry.RegisterFilter(name, constructor)
 	if err != nil {
 		panic(err)
 	}
@@ -271,68 +271,67 @@ type FilterProperty struct {
 	DefaultValue interface{} `config:"default_value" json:"default_value,omitempty"`
 }
 
-var filterMetadata=map[string]map[string]FilterProperty{}
+var filterMetadata = map[string]map[string]FilterProperty{}
 
-func ExtractFilterMetadata(filter interface{})map[string]FilterProperty  {
+func ExtractFilterMetadata(filter interface{}) map[string]FilterProperty {
 
 	//extract interface to map[string]FilterProperty{}
-	tags:=util.GetFieldAndTags(filter,[]string{"config","type","sub_type","default_value"})
-	result:=map[string]FilterProperty{}
-	for _,v:=range tags{
-		field,ok:=v["config"]
-		if ok{
-			pro:=FilterProperty{}
-			v1,ok:=v["type"]
-			if v1!=""&&ok{
-				pro.Type=v1
-			}else{
-				v1,ok:=v["TYPE"]
-				if ok{
-					pro.Type=v1
+	tags := util.GetFieldAndTags(filter, []string{"config", "type", "sub_type", "default_value"})
+	result := map[string]FilterProperty{}
+	for _, v := range tags {
+		field, ok := v["config"]
+		if ok {
+			pro := FilterProperty{}
+			v1, ok := v["type"]
+			if v1 != "" && ok {
+				pro.Type = v1
+			} else {
+				v1, ok := v["TYPE"]
+				if ok {
+					pro.Type = v1
 				}
 			}
-			v1,ok=v["sub_type"]
-			if v1!=""&&ok{
-				pro.SubType=v1
-			}else{
-				v1,ok:=v["SUB_TYPE"]
-				if ok{
-					pro.SubType=v1
+			v1, ok = v["sub_type"]
+			if v1 != "" && ok {
+				pro.SubType = v1
+			} else {
+				v1, ok := v["SUB_TYPE"]
+				if ok {
+					pro.SubType = v1
 				}
 			}
-			v1,ok=v["default_value"]
-			if ok{
+			v1, ok = v["default_value"]
+			if ok {
 				switch pro.Type {
 				case "bool":
-					pro.DefaultValue=v1=="true"
+					pro.DefaultValue = v1 == "true"
 					break
 				default:
-					pro.DefaultValue=v1
+					pro.DefaultValue = v1
 				}
 			}
-			result[field]=pro
+			result[field] = pro
 		}
 	}
 
 	return result
 }
 
-func RegisterFilterConfigMetadata(name string,filter interface{})  {
-	filterMetadata[name]=  ExtractFilterMetadata(filter)
+func RegisterFilterConfigMetadata(name string, filter interface{}) {
+	filterMetadata[name] = ExtractFilterMetadata(filter)
 }
 
-func RegisterFilterPluginWithConfigMetadata(name string, constructor FilterConstructor,filter interface{}) {
-	RegisterFilterPlugin(name,constructor)
-	RegisterFilterConfigMetadata(name,filter)
+func RegisterFilterPluginWithConfigMetadata(name string, constructor FilterConstructor, filter interface{}) {
+	RegisterFilterPlugin(name, constructor)
+	RegisterFilterConfigMetadata(name, filter)
 }
 
-
-func GetFilterMetadata()util.MapStr{
-	result:=util.MapStr{}
-	for v,_:=range registry.filterReg{
-		x,_:=filterMetadata[v]
-		result[v]=util.MapStr{
-			"properties":x,
+func GetFilterMetadata() util.MapStr {
+	result := util.MapStr{}
+	for v, _ := range registry.filterReg {
+		x, _ := filterMetadata[v]
+		result[v] = util.MapStr{
+			"properties": x,
 		}
 	}
 	return result

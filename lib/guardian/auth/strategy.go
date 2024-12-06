@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 // ErrInvalidStrategy is returned by Append/Revoke functions,

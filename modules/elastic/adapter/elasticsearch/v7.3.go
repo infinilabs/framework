@@ -29,9 +29,9 @@ package elasticsearch
 
 import (
 	"fmt"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/util"
 )
 
 type ESAPIV7_3 struct {

@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func TestNewFastHTTPHandler(t *testing.T) {

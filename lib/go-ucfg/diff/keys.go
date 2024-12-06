@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	ucfg "infini.sh/framework/lib/go-ucfg"
+	ucfg "github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 // Type custom type to identify what was added, remove or keep in the configuration

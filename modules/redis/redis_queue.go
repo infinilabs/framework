@@ -29,13 +29,13 @@ package redis
 import (
 	"context"
 	"fmt"
-	"infini.sh/framework/core/global"
+	"github.com/rubyniu105/framework/core/global"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/queue"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/queue"
 )
 
 type RedisModule struct {
@@ -63,7 +63,7 @@ func (module *RedisModule) Setup() {
 		PoolSize: 1000,
 	}
 	ok, err := env.ParseConfig("redis", &module.config)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 }

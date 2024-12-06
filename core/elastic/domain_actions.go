@@ -49,12 +49,12 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/dgraph-io/ristretto"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 // 保存了elastic.API(client)
@@ -123,7 +123,7 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 		return nil
 	}
 
-	host=util.UnifyLocalAddress(host)
+	host = util.UnifyLocalAddress(host)
 
 	v1, loaded := hosts.Load(host)
 	if loaded {
@@ -357,7 +357,7 @@ var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
 	if host == "" {
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			panic("host is nil")
 		}
 		log.Warn("host is nil")
@@ -422,7 +422,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	hosts := []string{}
 	if len(meta.Config.Hosts) > 0 {
 		for _, h := range meta.Config.Hosts {
-			if h!=""{
+			if h != "" {
 				hosts = append(hosts, h)
 			}
 		}
@@ -436,7 +436,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 		if err != nil {
 			panic(err)
 		}
-		if i.Host!=""{
+		if i.Host != "" {
 			hosts = append(hosts, i.Host)
 		}
 	}
@@ -446,7 +446,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 			if err != nil {
 				panic(err)
 			}
-			if i.Host!=""{
+			if i.Host != "" {
 				hosts = append(hosts, i.Host)
 			}
 		}
@@ -459,12 +459,12 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 }
 
 func (node *NodesInfo) GetPathLogs() string {
-	path,ok:=node.Settings["path"]
+	path, ok := node.Settings["path"]
 	if ok {
-		if pathObj,ok:=path.(map[string]interface{});ok{
-			if logs,ok:=pathObj["logs"];ok{
-				if logsObj,ok:=logs.(string);ok{
-					if logsObj!=""{
+		if pathObj, ok := path.(map[string]interface{}); ok {
+			if logs, ok := pathObj["logs"]; ok {
+				if logsObj, ok := logs.(string); ok {
+					if logsObj != "" {
 						return logsObj
 					}
 				}
@@ -481,14 +481,14 @@ func (node *NodesInfo) GetHttpPublishHost() string {
 		}
 		arr := strings.Split(node.Http.PublishAddress, "/")
 		if len(arr) == 2 {
-			if  arr[1] !=""{
+			if arr[1] != "" {
 				return arr[1]
 			}
 		}
 	}
 
 	if node.Http.PublishAddress == "" {
-		panic(errors.Errorf("node's public address is empty, %v",node.Name))
+		panic(errors.Errorf("node's public address is empty, %v", node.Name))
 	}
 
 	return node.Http.PublishAddress

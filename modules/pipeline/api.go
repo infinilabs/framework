@@ -27,11 +27,11 @@ import (
 	"net/http"
 
 	log "github.com/cihub/seelog"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/go-ucfg"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 func (module *PipeModule) getPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {

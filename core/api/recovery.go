@@ -29,9 +29,9 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -89,13 +89,13 @@ func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				v = r.(string)
 			}
 
-			errObj:=util.MapStr{
-				"status":http.StatusInternalServerError,
-				"reason":v,
+			errObj := util.MapStr{
+				"status": http.StatusInternalServerError,
+				"reason": v,
 			}
 
-			if global.Env().SystemConfig.APIConfig.VerboseErrorRootCause{
-				errObj["root_cause"]=string(debug.Stack())
+			if global.Env().SystemConfig.APIConfig.VerboseErrorRootCause {
+				errObj["root_cause"] = string(debug.Stack())
 			}
 
 			var payload = util.MapStr{
@@ -107,7 +107,7 @@ func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			}
 			w.Write(payloadBytes)
 
-			if global.Env().IsDebug{
+			if global.Env().IsDebug {
 				h.log(v)
 			}
 		}

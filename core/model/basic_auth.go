@@ -28,7 +28,7 @@
 package model
 
 import (
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 type BasicAuth struct {

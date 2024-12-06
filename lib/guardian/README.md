@@ -41,20 +41,20 @@ Here are a few bullet point reasons you might like to try it out:
 > functionality to get community feedback. Their APIs and functionality may be subject to
 > breaking changes in future releases.
 
-* [JWT](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/jwt?tab=doc)
-* [Oauth2-JWT](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/oauth2/jwt?tab=doc)
-* [Oauth2-Introspection](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/oauth2/introspection?tab=doc)
-* [Oauth2-OpenID-userinfo](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/oauth2/userinfo?tab=doc)
-* [OpenID-IDToken](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/oauth2/jwt?tab=doc)
-* [kubernetes (Token Review)](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/kubernetes?tab=doc)
-* [2FA](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/twofactor?tab=doc)
-* [Certificate-Based](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/x509?tab=doc)
-* [Bearer-Token](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/token?tab=doc)
-* [Static-Token](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/token?tab=doc)
-* [LDAP](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/ldap?tab=doc)
-* [Basic](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/basic?tab=doc)
-* [Digest](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/digest?tab=doc)
-* [Union](https://pkg.go.dev/infini.sh/framework/lib/guardian/auth/strategies/union?tab=doc)
+* [JWT](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/jwt?tab=doc)
+* [Oauth2-JWT](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2/jwt?tab=doc)
+* [Oauth2-Introspection](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2/introspection?tab=doc)
+* [Oauth2-OpenID-userinfo](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2/userinfo?tab=doc)
+* [OpenID-IDToken](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2/jwt?tab=doc)
+* [kubernetes (Token Review)](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/kubernetes?tab=doc)
+* [2FA](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/twofactor?tab=doc)
+* [Certificate-Based](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/x509?tab=doc)
+* [Bearer-Token](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/token?tab=doc)
+* [Static-Token](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/token?tab=doc)
+* [LDAP](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/ldap?tab=doc)
+* [Basic](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/basic?tab=doc)
+* [Digest](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/digest?tab=doc)
+* [Union](https://pkg.go.dev/github.com/rubyniu105/framework/lib/guardian/auth/strategies/union?tab=doc)
 
 # Examples 
 Examples are available on [GoDoc](https://pkg.go.dev/github.com/shaj13/go-guardian/v2) or [Examples Folder](./_examples).

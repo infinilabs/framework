@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 func TestFlagValuePrimitives(t *testing.T) {

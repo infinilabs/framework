@@ -30,18 +30,18 @@ package queue
 import (
 	"bufio"
 	"encoding/binary"
-	"infini.sh/framework/core/stats"
+	"github.com/rubyniu105/framework/core/stats"
 	"io"
 	"os"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/zstd"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/zstd"
 )
 
 // NOTE: Consumer is not thread-safe

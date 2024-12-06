@@ -26,15 +26,15 @@ package conditions
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"strings"
 )
 
 type QueueHasLag []string
 
-func NewQueueHasLagCondition(queueName []string) (QueueHasLag) {
+func NewQueueHasLagCondition(queueName []string) QueueHasLag {
 	return QueueHasLag(queueName)
 }
 
@@ -42,46 +42,46 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 	for _, field := range c {
 
 		var maxDepth int64
-		if strings.Contains(field,">"){
-			array:=strings.Split(field,">")
-			maxDepth,_=util.ToInt64(strings.TrimSpace(array[1]))
-			field=strings.TrimSpace(array[0])
+		if strings.Contains(field, ">") {
+			array := strings.Split(field, ">")
+			maxDepth, _ = util.ToInt64(strings.TrimSpace(array[1]))
+			field = strings.TrimSpace(array[0])
 		}
 
-		cfg:=queue.GetOrInitConfig(field)
+		cfg := queue.GetOrInitConfig(field)
 
-		consumers,ok:=queue.GetConsumerConfigsByQueueID(cfg.ID)
+		consumers, ok := queue.GetConsumerConfigsByQueueID(cfg.ID)
 
-		if global.Env().IsDebug{
-			if ok{
-				for k,v:=range consumers{
-					log.Trace(k,v.ID,v.Group,v.Name)
+		if global.Env().IsDebug {
+			if ok {
+				for k, v := range consumers {
+					log.Trace(k, v.ID, v.Group, v.Name)
 				}
 			}
-			log.Trace(field,len(consumers),ok)
+			log.Trace(field, len(consumers), ok)
 		}
 
-		if ok &&len(consumers)>0{
+		if ok && len(consumers) > 0 {
 			//check
-			latestProduceOffset:=queue.LatestOffset(cfg)
-			offset:=queue.GetEarlierOffsetStrByQueueID(field)
+			latestProduceOffset := queue.LatestOffset(cfg)
+			offset := queue.GetEarlierOffsetStrByQueueID(field)
 			if global.Env().IsDebug {
-				log.Trace(field,", ",offset, " vs ", latestProduceOffset)
+				log.Trace(field, ", ", offset, " vs ", latestProduceOffset)
 			}
-			if latestProduceOffset==offset {
+			if latestProduceOffset == offset {
 				return false
-			}else{
+			} else {
 				return true
 			}
 		}
 
-		depth:=queue.Depth(cfg)
+		depth := queue.Depth(cfg)
 
 		if global.Env().IsDebug {
 			log.Trace(field, ",depth:", depth, ",", maxDepth)
 		}
 
-		if depth>maxDepth {
+		if depth > maxDepth {
 			return true
 		}
 
@@ -92,4 +92,3 @@ func (c QueueHasLag) Check(event ValuesMap) bool {
 func (c QueueHasLag) String() string {
 	return fmt.Sprintf("queue_has_lag: %v", []string(c))
 }
-

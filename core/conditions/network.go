@@ -42,7 +42,7 @@ package conditions
 
 import (
 	"fmt"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 	"net"
 	"strings"
 

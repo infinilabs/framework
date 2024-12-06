@@ -28,7 +28,7 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	"infini.sh/framework/core/util/zstd"
+	"github.com/rubyniu105/framework/core/util/zstd"
 	"io/ioutil"
 	"log"
 	"os"
@@ -150,10 +150,10 @@ func main() {
 			dirs[b] = true
 		}
 
-		var buf= &bytes.Buffer{}
-		reader:=bytes.NewBuffer(f.data)
-		err=zstd.Compress(reader, buf)
-		if err!=nil{
+		var buf = &bytes.Buffer{}
+		reader := bytes.NewBuffer(f.data)
+		err = zstd.Compress(reader, buf)
+		if err != nil {
 			panic(err)
 		}
 
@@ -230,12 +230,12 @@ const (
 
 import (
 	"bytes"
-    "infini.sh/framework/core/util/zstd"
+    "github.com/rubyniu105/framework/core/util/zstd"
 	"encoding/base64"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/vfs"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/vfs"
 	"net/http"
 	"os"
 	"path"

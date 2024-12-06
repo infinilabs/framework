@@ -32,20 +32,20 @@ package http
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/model"
-	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/fasttemplate"
-	"io"
+	"github.com/rubyniu105/framework/core/api"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/model"
+	"github.com/rubyniu105/framework/core/param"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasttemplate"
 	rate2 "golang.org/x/time/rate"
+	"io"
 	"strings"
 	"time"
 )
@@ -82,7 +82,6 @@ type Config struct {
 	MaxRetryTimes       int `config:"max_retry_times"`
 	RetryDelayInMs      int `config:"retry_delay_in_ms"`
 
-
 	MaxConnWaitTimeout  time.Duration `config:"max_conn_wait_timeout"`
 	MaxIdleConnDuration time.Duration `config:"max_idle_conn_duration"`
 	MaxConnDuration     time.Duration `config:"max_conn_duration"`
@@ -101,11 +100,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
 		MessageField:        "messages",
 		ValidatedStatusCode: []int{200, 201},
-		Timeout: 10 * time.Second,
-		ReadTimeout: 10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Timeout:             10 * time.Second,
+		ReadTimeout:         10 * time.Second,
+		WriteTimeout:        10 * time.Second,
 		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout: 10 * time.Second,
+		MaxConnWaitTimeout:  10 * time.Second,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {
@@ -141,11 +140,11 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		}
 	}
 
-	if processor.config.MaxSendingQPS>0{
-		processor.rater=rate.GetRateLimiter("http_replicator","sending",processor.config.MaxSendingQPS,processor.config.MaxSendingQPS,time.Second)
+	if processor.config.MaxSendingQPS > 0 {
+		processor.rater = rate.GetRateLimiter("http_replicator", "sending", processor.config.MaxSendingQPS, processor.config.MaxSendingQPS, time.Second)
 	}
 
-	processor.HTTPPool=fasthttp.NewRequestResponsePool("http_filter_"+util.GetUUID())
+	processor.HTTPPool = fasthttp.NewRequestResponsePool("http_filter_" + util.GetUUID())
 
 	return processor, nil
 }
@@ -191,7 +190,7 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 		//parse template
 		for _, message := range messages {
 
-			if global.ShuttingDown(){
+			if global.ShuttingDown() {
 				panic(errors.Errorf("shutting down"))
 			}
 
@@ -202,19 +201,19 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 			var success = false
 			for _, v := range processor.config.Hosts {
 
-				if global.ShuttingDown(){
+				if global.ShuttingDown() {
 					panic(errors.Errorf("shutting down"))
 				}
 
 				req.SetHost(v)
 
-				if global.ShuttingDown(){
+				if global.ShuttingDown() {
 					break
 				}
 
-				if processor.rater!=nil{
-					if !processor.rater.Allow(){
-						time.Sleep(100*time.Millisecond)
+				if processor.rater != nil {
+					if !processor.rater.Allow() {
+						time.Sleep(100 * time.Millisecond)
 					}
 				}
 
@@ -230,7 +229,7 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 				break
 			}
 			if !success {
-				panic(errors.Errorf("http request failed, status code: %d, %v, %v", resp.StatusCode(),string(req.String()),string(resp.String())))
+				panic(errors.Errorf("http request failed, status code: %d, %v, %v", resp.StatusCode(), string(req.String()), string(resp.String())))
 			}
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func ExampleLBClient() {

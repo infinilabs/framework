@@ -29,14 +29,14 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/gopkg.in/gomail.v2"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/param"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/valyala/fasttemplate"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
 	"io"
 	"io/ioutil"
 	"os"
@@ -136,7 +136,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	for _, v := range processor.config.Templates {
 		if v.BodyFile != "" {
-			file,_:=filepath.Abs(v.BodyFile)
+			file, _ := filepath.Abs(v.BodyFile)
 			b, err := util.FileGetContent(file)
 			if err != nil {
 				panic(err)

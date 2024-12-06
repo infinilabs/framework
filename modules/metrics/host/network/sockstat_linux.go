@@ -47,8 +47,8 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/shirou/gopsutil/v3/net"
-	"infini.sh/framework/core/util"
 	"os"
 )
 
@@ -98,7 +98,7 @@ func applyEnhancements(data util.MapStr) (util.MapStr, error) {
 }
 
 // parseSockstat parses the ipv4 sockstat file
-//see net/ipv4/proc.c
+// see net/ipv4/proc.c
 func parseSockstat(path string) (SockStat, error) {
 	fd, err := os.Open(path)
 	if err != nil {

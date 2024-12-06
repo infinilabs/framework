@@ -3,7 +3,7 @@ package x509
 import (
 	"regexp"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // SetInfoBuilder sets x509 info builder.

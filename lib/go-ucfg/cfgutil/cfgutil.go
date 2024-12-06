@@ -17,7 +17,7 @@
 
 package cfgutil
 
-import "infini.sh/framework/lib/go-ucfg"
+import "github.com/rubyniu105/framework/lib/go-ucfg"
 
 // Collector collects and merges multiple generated *ucfg.Config, remembering
 // errors, for postponing error checking after having merged all loaded configurations.

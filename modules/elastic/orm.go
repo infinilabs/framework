@@ -28,12 +28,12 @@ import (
 	"net/http"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	api "infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/common"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	api "github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/elastic/common"
 )
 
 var ErrNotFound = errors.New("record not found")
@@ -54,25 +54,25 @@ func InitTemplate(force bool) {
 		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 
 		//infini default template
-		if !moduleConfig.ORMConfig.SkipInitDefaultTemplate{
+		if !moduleConfig.ORMConfig.SkipInitDefaultTemplate {
 			client.InitDefaultTemplate(moduleConfig.ORMConfig.TemplateName, moduleConfig.ORMConfig.IndexPrefix)
 		}
 
 		//index templates
-		if moduleConfig.ORMConfig.IndexTemplates!=nil&&len(moduleConfig.ORMConfig.IndexTemplates)>0{
-			for k,v:= range moduleConfig.ORMConfig.IndexTemplates{
-				var skip=false
-				if !moduleConfig.ORMConfig.OverrideExistsTemplate{
-					exists,err:= client.TemplateExists(k)
-					if err!=nil{
+		if moduleConfig.ORMConfig.IndexTemplates != nil && len(moduleConfig.ORMConfig.IndexTemplates) > 0 {
+			for k, v := range moduleConfig.ORMConfig.IndexTemplates {
+				var skip = false
+				if !moduleConfig.ORMConfig.OverrideExistsTemplate {
+					exists, err := client.TemplateExists(k)
+					if err != nil {
 						panic(err)
 					}
-					skip=exists
+					skip = exists
 				}
-				if !skip{
-					v,err:=client.PutTemplate(k,[]byte(v))
-					if err!=nil{
-						if v!=nil{
+				if !skip {
+					v, err := client.PutTemplate(k, []byte(v))
+					if err != nil {
+						if v != nil {
 							log.Error(string(v))
 						}
 						panic(err)
@@ -82,20 +82,20 @@ func InitTemplate(force bool) {
 		}
 
 		//search templates
-		if moduleConfig.ORMConfig.SearchTemplates!=nil&&len(moduleConfig.ORMConfig.SearchTemplates)>0{
-			for k,v:= range moduleConfig.ORMConfig.SearchTemplates{
-				var skip=false
-				if !moduleConfig.ORMConfig.OverrideExistsTemplate{
-					exists,err:= client.ScriptExists(k)
-					if err!=nil{
+		if moduleConfig.ORMConfig.SearchTemplates != nil && len(moduleConfig.ORMConfig.SearchTemplates) > 0 {
+			for k, v := range moduleConfig.ORMConfig.SearchTemplates {
+				var skip = false
+				if !moduleConfig.ORMConfig.OverrideExistsTemplate {
+					exists, err := client.ScriptExists(k)
+					if err != nil {
 						panic(err)
 					}
-					skip=exists
+					skip = exists
 				}
-				if !skip{
-					v,err:=client.PutScript(k,[]byte(v))
-					if err!=nil{
-						if v!=nil{
+				if !skip {
+					v, err := client.PutScript(k, []byte(v))
+					if err != nil {
+						if v != nil {
 							log.Error(string(v))
 						}
 						panic(err)
@@ -130,7 +130,7 @@ func (handler *ElasticORM) Get(o interface{}) (bool, error) {
 
 	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
 
-	if global.Env().IsDebug &&response!=nil{
+	if global.Env().IsDebug && response != nil {
 		log.Debug(string(response.RawResult.Body))
 	}
 
@@ -168,7 +168,7 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
-//update operation will merge the new data into the old data
+// update operation will merge the new data into the old data
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	var refresh string
 	if ctx != nil {
@@ -292,8 +292,8 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 
 	if len(q.RawQuery) > 0 {
 		searchResponse, err = handler.Client.QueryDSL(nil, indexName, q.QueryArgs, q.RawQuery)
-	}else if q.TemplatedQuery!=nil{
-		searchResponse, err =handler.Client.SearchByTemplate(indexName,q.TemplatedQuery.TemplateID,q.TemplatedQuery.Parameters)
+	} else if q.TemplatedQuery != nil {
+		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
 	} else {
 
 		if q.Conds != nil && len(q.Conds) > 0 {

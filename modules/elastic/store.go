@@ -32,11 +32,11 @@ import (
 	"fmt"
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/common"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/elastic/common"
 	"net/http"
 )
 
@@ -46,15 +46,15 @@ type ElasticStore struct {
 }
 
 func (store *ElasticStore) Open() error {
-	o:=&Blob{}
-	err:=orm.RegisterSchemaWithIndexName(o,store.Config.IndexName)
-	if err!=nil{
+	o := &Blob{}
+	err := orm.RegisterSchemaWithIndexName(o, store.Config.IndexName)
+	if err != nil {
 		panic(err)
 	}
-	if store.Config.IndexName==""{
-		store.Config.IndexName=orm.GetIndexName(o)
+	if store.Config.IndexName == "" {
+		store.Config.IndexName = orm.GetIndexName(o)
 	}
-	log.Trace("store index name:",store.Config.IndexName)
+	log.Trace("store index name:", store.Config.IndexName)
 	return nil
 }
 
@@ -73,14 +73,14 @@ func (store *ElasticStore) GetCompressedValue(bucket string, key []byte) ([]byte
 	}
 	data, err = lz4.Decode(nil, data)
 	if err != nil {
-		log.Error("Failed to decode:",bucket,",",key,",", err)
+		log.Error("Failed to decode:", bucket, ",", key, ",", err)
 		return nil, err
 	}
 	return data, nil
 }
 
-func (store *ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
-	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
+func (store *ElasticStore) ExistsKey(bucket string, key []byte) (bool, error) {
+	response, err := store.Client.Get(store.Config.IndexName, "_doc", getKey(bucket, string(key)))
 	if err != nil {
 		return false, err
 	}
@@ -94,7 +94,7 @@ func (store *ElasticStore) ExistsKey(bucket string, key []byte) (bool,error) {
 }
 
 func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
-	response, err := store.Client.Get(store.Config.IndexName,"_doc", getKey(bucket, string(key)))
+	response, err := store.Client.Get(store.Config.IndexName, "_doc", getKey(bucket, string(key)))
 	if err != nil {
 		return nil, err
 	}
@@ -112,20 +112,20 @@ func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	if response.StatusCode != http.StatusNotFound {
 		var (
 			errStr string
-			ok bool
+			ok     bool
 		)
-		if errStr, ok = response.ESError.(string); !ok{
+		if errStr, ok = response.ESError.(string); !ok {
 			errStr = util.MustToJSON(response.ESError)
 		}
 		return nil, fmt.Errorf("get value error: %s", errStr)
 	}
-	return nil,nil
+	return nil, nil
 }
 
 func (store *ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
-		log.Error("Failed to encode:",bucket,",",key,",", err)
+		log.Error("Failed to encode:", bucket, ",", key, ",", err)
 		return err
 	}
 	return store.AddValue(bucket, key, value)

@@ -22,7 +22,7 @@ import (
 
 	"gopkg.in/hjson/hjson-go.v3"
 
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 // NewConfig creates a new configuration object from the HJSON string passed via in.

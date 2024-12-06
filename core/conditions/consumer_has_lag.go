@@ -25,25 +25,25 @@ package conditions
 
 import (
 	"fmt"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type ConsumerHasLag struct {
-	Queue string
-	Group string
+	Queue    string
+	Group    string
 	Consumer string
 }
 
-func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLag) {
+func NewConsumerHasLagCondition(fields map[string]interface{}) (c ConsumerHasLag) {
 	c = ConsumerHasLag{}
-	if len(fields)>0{
-		d:=util.MapStr(fields)
-		if d.SafetyHasKey("queue"){
-			c.Queue=d["queue"].(string)
-			if d.SafetyHasKey("group") && d.SafetyHasKey("name"){
-				c.Group=d["group"].(string)
-				c.Consumer=d["name"].(string)
+	if len(fields) > 0 {
+		d := util.MapStr(fields)
+		if d.SafetyHasKey("queue") {
+			c.Queue = d["queue"].(string)
+			if d.SafetyHasKey("group") && d.SafetyHasKey("name") {
+				c.Group = d["group"].(string)
+				c.Consumer = d["name"].(string)
 			}
 			return c
 		}
@@ -53,24 +53,24 @@ func NewConsumerHasLagCondition(fields  map[string]interface{}) (c ConsumerHasLa
 
 func (c ConsumerHasLag) Check(event ValuesMap) bool {
 
-	if c.Queue!=""{
+	if c.Queue != "" {
 		qConfig, ok := queue.SmartGetConfig(c.Queue)
-		if ok{
-			latestProduceOffset:=queue.LatestOffset(qConfig)
-			if c.Group!=""&&c.Consumer!=""{
-				cConfig,ok:=queue.GetConsumerConfig(qConfig.ID,c.Group,c.Consumer)
-				if ok{
-					consumerOffset,err:=queue.GetOffset(qConfig,cConfig)
-					if err!=nil{
+		if ok {
+			latestProduceOffset := queue.LatestOffset(qConfig)
+			if c.Group != "" && c.Consumer != "" {
+				cConfig, ok := queue.GetConsumerConfig(qConfig.ID, c.Group, c.Consumer)
+				if ok {
+					consumerOffset, err := queue.GetOffset(qConfig, cConfig)
+					if err != nil {
 						panic(err)
 					}
-					if !consumerOffset.Equals(latestProduceOffset){
+					if !consumerOffset.Equals(latestProduceOffset) {
 						return true
 					}
 				}
-			}else{
-				offset:=queue.GetEarlierOffsetStrByQueueID(qConfig.ID)
-				if latestProduceOffset!=offset{
+			} else {
+				offset := queue.GetEarlierOffsetStrByQueueID(qConfig.ID)
+				if latestProduceOffset != offset {
 					return true
 				}
 			}
@@ -84,5 +84,5 @@ func (c ConsumerHasLag) Name() string {
 }
 
 func (c ConsumerHasLag) String() string {
-	return fmt.Sprintf("[%v][%v] on [%v]", c.Group,c.Consumer,c.Queue)
+	return fmt.Sprintf("[%v][%v] on [%v]", c.Group, c.Consumer, c.Queue)
 }

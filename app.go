@@ -32,10 +32,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
+	"github.com/rubyniu105/framework/core/task"
+	"github.com/rubyniu105/framework/core/wrapper/taskset"
+	"github.com/rubyniu105/framework/modules/configs/client"
 	"github.com/shirou/gopsutil/v3/process"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/wrapper/taskset"
-	"infini.sh/framework/modules/configs/client"
 	"os"
 	"os/signal"
 	"runtime"
@@ -46,20 +46,20 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/daemon"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/keystore"
-	_ "infini.sh/framework/core/logging"
-	"infini.sh/framework/core/logging/logger"
-	"infini.sh/framework/core/module"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
-	_ "infini.sh/framework/modules/queue"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/daemon"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/keystore"
+	_ "github.com/rubyniu105/framework/core/logging"
+	"github.com/rubyniu105/framework/core/logging/logger"
+	"github.com/rubyniu105/framework/core/module"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	_ "github.com/rubyniu105/framework/modules/queue"
 )
 
 type App struct {
@@ -82,7 +82,6 @@ type App struct {
 	svc     service.Service
 	exit    chan os.Signal
 	svcFlag string
-
 }
 
 const (
@@ -129,7 +128,6 @@ func (app *App) Init(customFunc func()) {
 			log.Trace("executed callback: ", i)
 		}
 	}
-
 
 	if app.environment.SystemConfig.ResourceLimit != nil {
 		//detect memory usage
@@ -203,14 +201,14 @@ func (app *App) initWithFlags() {
 
 	app.configFile = util.TryGetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
 
-	if !util.FileExists(app.configFile ) {
-		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile ))
-		if !app.environment.IgnoreOnConfigMissing{
+	if !util.FileExists(app.configFile) {
+		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile))
+		if !app.environment.IgnoreOnConfigMissing {
 			os.Exit(1)
 		}
 	}
 
-	app.environment.SetConfigFile(app.configFile )
+	app.environment.SetConfigFile(app.configFile)
 
 	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
@@ -229,11 +227,11 @@ func (app *App) initWithFlags() {
 		keystore.RunCmd(os.Args[2:])
 	}
 
-	config.NotifyOnConfigChange(func(ev fsnotify.Event){
-		if ev.Op==fsnotify.Remove||ev.Op==fsnotify.Rename{
-			log.Infof("config file [%v] removed, reload config",ev.Name)
-			err:=global.Env().RefreshConfig()
-			if err!=nil{
+	config.NotifyOnConfigChange(func(ev fsnotify.Event) {
+		if ev.Op == fsnotify.Remove || ev.Op == fsnotify.Rename {
+			log.Infof("config file [%v] removed, reload config", ev.Name)
+			err := global.Env().RefreshConfig()
+			if err != nil {
 				log.Error(err)
 			}
 		}
@@ -522,14 +520,14 @@ func (p *App) run() error {
 	}, context.Background())
 
 	// register to config manager
-	if global.Env().SystemConfig.Configs.Managed{
-		err:= client.ConnectToManager()
-		if err!=nil{
+	if global.Env().SystemConfig.Configs.Managed {
+		err := client.ConnectToManager()
+		if err != nil {
 			log.Warn(err)
 		}
 
-		err= client.ListenConfigChanges()
-		if err!=nil{
+		err = client.ListenConfigChanges()
+		if err != nil {
 			log.Warn(err)
 		}
 	}

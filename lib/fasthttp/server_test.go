@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 // Make sure RequestCtx implements context.Context

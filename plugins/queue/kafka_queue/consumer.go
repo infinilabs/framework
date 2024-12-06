@@ -30,12 +30,12 @@ package kafka_queue
 import (
 	"context"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/locker"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/locker"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
 	"time"
 )
 
@@ -131,7 +131,7 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 		fetches.EachRecord(func(r *kgo.Record) {
 			if global.Env().IsDebug {
-				log.Tracef(string(r.Key), "from an iterator!,offset:", r.Offset, ",partition:", r.Partition,", get message from queue:%v,consumer:%v, ctx:%v, offset:%v",this.qCfg.Name,this.cCfg.Key(),ctx.String(),r.Offset)
+				log.Tracef(string(r.Key), "from an iterator!,offset:", r.Offset, ",partition:", r.Partition, ", get message from queue:%v,consumer:%v, ctx:%v, offset:%v", this.qCfg.Name, this.cCfg.Key(), ctx.String(), r.Offset)
 			}
 
 			offsetStr := queue.NewOffset(int64(r.Partition), r.Offset)
@@ -165,7 +165,6 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 			break
 		}
 	}
-
 
 	if ctx.MessageCount == 0 {
 		if global.Env().IsDebug {

@@ -44,9 +44,9 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
 )
 
 type ProcessorBase interface {
@@ -64,7 +64,7 @@ type Releaser interface {
 
 type Processors struct {
 	SkipCatchError bool // skip catch internal error
-	List []Processor
+	List           []Processor
 }
 
 type Closer interface {
@@ -200,7 +200,7 @@ func (procs *Processors) Release() {
 
 func (procs *Processors) Process(ctx *Context) error {
 
-	if !procs.SkipCatchError{
+	if !procs.SkipCatchError {
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -237,7 +237,7 @@ func (procs *Processors) Process(ctx *Context) error {
 			return nil
 		}
 
-		log.Trace("pipeline: ",ctx.Config.Name,", start processing:",ctx.processHistory,"->",p.Name())
+		log.Trace("pipeline: ", ctx.Config.Name, ", start processing:", ctx.processHistory, "->", p.Name())
 
 		ctx.AddFlowProcess(p.Name())
 		err := p.Process(ctx)

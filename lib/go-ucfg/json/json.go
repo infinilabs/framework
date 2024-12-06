@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 // NewConfig creates a new configuration object from the JSON string passed via in.

@@ -1,8 +1,8 @@
 package router
 
 import (
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/router/radix"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/router/radix"
 )
 
 // Router is a fasthttp.RequestHandler which can be used to dispatch requests to different
@@ -76,7 +76,6 @@ type Router struct {
 	// The handler can be used to keep your server from crashing because of
 	// unrecovered panics.
 	PanicHandler func(*fasthttp.RequestCtx, interface{})
-
 
 	TraceHandler fasthttp.RequestHandler
 

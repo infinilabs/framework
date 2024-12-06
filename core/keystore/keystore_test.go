@@ -28,15 +28,15 @@
 package keystore
 
 import (
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/elastic"
 	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
 	"os"
 	"path"
 	"testing"
 )
 
-func TestConfigVariable(t *testing.T){
+func TestConfigVariable(t *testing.T) {
 	wd, _ := os.Getwd()
 	err := os.Setenv(PathEnvKey, wd)
 	if err != nil {

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	gbytes "github.com/savsgio/gotils/bytes"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 type readWriter struct {

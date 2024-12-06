@@ -28,7 +28,7 @@
 package queue
 
 import (
-	"infini.sh/framework/modules/queue/common"
+	"github.com/rubyniu105/framework/modules/queue/common"
 )
 
 type Module struct {

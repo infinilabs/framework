@@ -29,9 +29,9 @@ package opensearch
 
 import (
 	"fmt"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/elastic/adapter/elasticsearch"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/adapter/elasticsearch"
 	"strings"
 )
 

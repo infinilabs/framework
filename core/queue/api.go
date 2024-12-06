@@ -27,15 +27,15 @@
 package queue
 
 import (
-	"infini.sh/framework/core/kv"
+	"github.com/rubyniu105/framework/core/kv"
 	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type QueueAPI interface {
@@ -64,10 +64,10 @@ type AdvancedQueueAPI interface {
 	CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset Offset) (bool, error)
 
 	AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig) (ConsumerAPI, error)
-	ReleaseConsumer(k *QueueConfig, c *ConsumerConfig,consumer ConsumerAPI) error
+	ReleaseConsumer(k *QueueConfig, c *ConsumerConfig, consumer ConsumerAPI) error
 
 	AcquireProducer(cfg *QueueConfig) (ProducerAPI, error)
-	ReleaseProducer(k *QueueConfig,producer ProducerAPI) error
+	ReleaseProducer(k *QueueConfig, producer ProducerAPI) error
 }
 
 type ProducerAPI interface {
@@ -143,19 +143,19 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 	}
 
 	//check if the consumer is in fighting list
-	if v, ok := consumersInFighting.Load(k.ID+consumer.Key()); ok {
+	if v, ok := consumersInFighting.Load(k.ID + consumer.Key()); ok {
 		if v != clientID {
 			//check the last touch time
-			if consumer.ConsumeTimeoutInSeconds>0{
-				t:=consumer.GetLastActiveTime()
-				if t!=nil&& int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds{
-					consumersInFighting.Delete(k.ID+consumer.Key())
-					stats.Increment("consumer",k.ID,consumer.GetID(),"expired")
+			if consumer.ConsumeTimeoutInSeconds > 0 {
+				t := consumer.GetLastActiveTime()
+				if t != nil && int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds {
+					consumersInFighting.Delete(k.ID + consumer.Key())
+					stats.Increment("consumer", k.ID, consumer.GetID(), "expired")
 					//the consumer is in fighting and is already timeout
-					return nil, errors.Errorf("consumer:%v is already in fighting list, but expired in: %v, remove it from the fighting list",consumer.Key(),time.Since(*t).Seconds())
+					return nil, errors.Errorf("consumer:%v is already in fighting list, but expired in: %v, remove it from the fighting list", consumer.Key(), time.Since(*t).Seconds())
 				}
 			}
-			stats.Increment("consumer",k.ID,consumer.GetID(),"contend")
+			stats.Increment("consumer", k.ID, consumer.GetID(), "contend")
 			//the consumer is in fighting list and the clientID is not the same
 			return nil, errors.New("the consumer is in fighting list")
 		}
@@ -163,33 +163,33 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 
 	handler := getAdvancedHandler(k)
 	if handler != nil {
-		v1,err:= handler.AcquireConsumer(k, consumer)
+		v1, err := handler.AcquireConsumer(k, consumer)
 		if err != nil {
-			stats.Increment("consumer",k.ID,consumer.GetID(),"error_on_acquire")
+			stats.Increment("consumer", k.ID, consumer.GetID(), "error_on_acquire")
 			return nil, err
 		}
 
 		//add the consumer to the fighting list
 		consumersInFighting.Store(k.ID+consumer.Key(), clientID)
-		stats.Increment("consumer",k.ID,consumer.GetID(),"acquired")
+		stats.Increment("consumer", k.ID, consumer.GetID(), "acquired")
 		return v1, nil
 	}
 	panic(errors.New("handler is not registered"))
 }
 
-func ReleaseConsumer(k *QueueConfig, c *ConsumerConfig,consumer ConsumerAPI) error{
+func ReleaseConsumer(k *QueueConfig, c *ConsumerConfig, consumer ConsumerAPI) error {
 	if k == nil || k.ID == "" {
 		panic(errors.New("queue name can't be nil"))
 	}
 
 	//remove the consumer from the fighting list
-	consumersInFighting.Delete(k.ID+c.Key())
+	consumersInFighting.Delete(k.ID + c.Key())
 
-	stats.Increment("consumer",k.ID,c.GetID(),"released")
+	stats.Increment("consumer", k.ID, c.GetID(), "released")
 
 	handler := getAdvancedHandler(k)
 	if handler != nil {
-		return handler.ReleaseConsumer(k, c,consumer)
+		return handler.ReleaseConsumer(k, c, consumer)
 	}
 	panic(errors.New("handler is not registered"))
 }
@@ -222,8 +222,8 @@ func Close(k *QueueConfig) error {
 }
 
 func GetEarlierOffsetStrByQueueID(queueID string) Offset {
-	_, seg, pos,ver := GetEarlierOffsetByQueueID(queueID)
-	return NewOffsetWithVersion(seg, pos,ver)
+	_, seg, pos, ver := GetEarlierOffsetByQueueID(queueID)
+	return NewOffsetWithVersion(seg, pos, ver)
 }
 
 func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos, ver int64) {
@@ -247,11 +247,11 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 		if global.Env().IsDebug {
 			log.Debugf("no consumer found for queue [%v]", queueID)
 		}
-		return 0, 0, 0,0
+		return 0, 0, 0, 0
 	}
 	var iPart int64 = 0
 	var iPos int64 = 0
-	var iver int64=0
+	var iver int64 = 0
 	var init = true
 	for _, v := range consumers {
 		offset, err := GetOffset(q, v)
@@ -259,23 +259,23 @@ func GetEarlierOffsetByQueueID(queueID string) (consumerSize int, segment int64,
 			if init {
 				iPart = offset.Segment
 				iPos = offset.Position
-				iver=offset.Version
+				iver = offset.Version
 				init = false
 			} else {
 				if offset.Segment < iPart {
 					iPart = offset.Segment
 					iPos = offset.Position
-					iver=offset.Version
-				}else if offset.Segment == iPart{
+					iver = offset.Version
+				} else if offset.Segment == iPart {
 					if offset.Position < iPos {
 						iPos = offset.Position
-						iver=offset.Version
+						iver = offset.Version
 					}
 				}
 			}
 		}
 	}
-	return len(consumers), iPart, iPos,iver
+	return len(consumers), iPart, iPos, iver
 }
 
 func GetLatestOffsetByQueueID(queueID string) (consumerSize int, segment int64, pos int64) {
@@ -344,8 +344,8 @@ func CommitOffset(k *QueueConfig, consumer *ConsumerConfig, offset Offset) (bool
 	}
 
 	ok, _ := kv.ExistsKey(ConsumerBucket, util.UnsafeStringToBytes(k.ID))
-	if !ok{
-		return false,errors.Errorf("consumer %v for queue %v was not found",consumer.Key(),k.ID)
+	if !ok {
+		return false, errors.Errorf("consumer %v for queue %v was not found", consumer.Key(), k.ID)
 	}
 
 	handler := getAdvancedHandler(k)
@@ -419,8 +419,8 @@ func ConsumerHasLag(k *QueueConfig, c *ConsumerConfig) bool {
 			panic(err)
 		}
 
-		if global.Env().IsDebug{
-			log.Debugf("queue:%v,consumer:%v,latestProduceOffset: %v, offset: %v",k.Name,c.Key(), latestProduceOffset, offset)
+		if global.Env().IsDebug {
+			log.Debugf("queue:%v,consumer:%v,latestProduceOffset: %v, offset: %v", k.Name, c.Key(), latestProduceOffset, offset)
 		}
 
 		if latestProduceOffset != offset {
@@ -512,7 +512,7 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 					if ok {
 						if util.ToString(z) == util.ToString(y) {
 							matched = true
-						}else{
+						} else {
 							//skip when it does not match label's value
 							matched = false
 							return true
@@ -527,13 +527,13 @@ func GetConfigByLabels(labels map[string]interface{}) []*QueueConfig {
 		return true
 	})
 
-	names:=[]string{}
+	names := []string{}
 	for _, cfg := range cfgs {
-		names=append(names,cfg.Name)
+		names = append(names, cfg.Name)
 	}
 
-	if global.Env().IsDebug{
-		log.Debugf("get config by labels, filter: %v, queues: %v, total queues: %v",labels,names,util.GetSyncMapSize(&configs))
+	if global.Env().IsDebug {
+		log.Debugf("get config by labels, filter: %v, queues: %v, total queues: %v", labels, names, util.GetSyncMapSize(&configs))
 	}
 
 	return cfgs

@@ -27,33 +27,31 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/quipo/statsd"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/stats"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/stats"
 	"sync"
 	"time"
 )
 
 type StatsDConfig struct {
-	Enabled           bool          `config:"enabled"`
-	Host              string        `config:"host"`
-	Port              int           `config:"port"`
-	Namespace         string        `config:"namespace"`
-	Protocol          string        `config:"protocol"`
-	IntervalInSeconds int `config:"interval_in_seconds"`
-	BufferSize        int           `config:"buffer_size"`
+	Enabled           bool   `config:"enabled"`
+	Host              string `config:"host"`
+	Port              int    `config:"port"`
+	Namespace         string `config:"namespace"`
+	Protocol          string `config:"protocol"`
+	IntervalInSeconds int    `config:"interval_in_seconds"`
+	BufferSize        int    `config:"buffer_size"`
 }
 type StatsDModule struct {
-	 statsdInited bool
-	 statsdclient *statsd.StatsdClient
-	 buffer *statsd.StatsdBuffer
-	 l1 sync.RWMutex
+	statsdInited bool
+	statsdclient *statsd.StatsdClient
+	buffer       *statsd.StatsdBuffer
+	l1           sync.RWMutex
 }
-
 
 func (module *StatsDModule) Setup() {
 }
-
 
 var defaultStatsdConfig = StatsDConfig{
 	Enabled:           false,
@@ -99,10 +97,10 @@ func (module *StatsDModule) Start() error {
 	}
 
 	interval := time.Second * time.Duration(config.IntervalInSeconds) // aggregate stats and flush every 2 seconds
-	if config.BufferSize<=0{
-		config.BufferSize=100
+	if config.BufferSize <= 0 {
+		config.BufferSize = 100
 	}
-	module.buffer = statsd.NewStatsdBuffer(interval,config.BufferSize, module.statsdclient)
+	module.buffer = statsd.NewStatsdBuffer(interval, config.BufferSize, module.statsdclient)
 
 	module.statsdInited = true
 
@@ -156,7 +154,7 @@ func (module *StatsDModule) Timing(category, key string, v int64) {
 
 }
 
-func (module *StatsDModule) GetTimestamp(category, key string)(time.Time, error) {
+func (module *StatsDModule) GetTimestamp(category, key string) (time.Time, error) {
 	return time.Now(), errors.New("not support")
 }
 

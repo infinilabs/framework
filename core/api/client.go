@@ -30,8 +30,8 @@ package api
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/util"
 	"io/ioutil"
 	"net/http"
 	"time"

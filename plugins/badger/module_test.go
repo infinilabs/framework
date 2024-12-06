@@ -29,11 +29,11 @@ package badger
 
 import (
 	"fmt"
+	. "github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/filter"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/stretchr/testify/assert"
-	. "infini.sh/framework/core/env"
-	"infini.sh/framework/core/filter"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"os"
 	"testing"
 	"time"

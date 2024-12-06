@@ -263,7 +263,7 @@
 
 ### breaking changes
 1. Refactoring API/Cluster/Pipeline, config section moved out of module
-2. Namespace moved to infini.sh
+2. Namespace moved to github.com/rubyniu105
 
 ### features
 1. Support offline build,  `OFFLINE_BUILD=true make build`

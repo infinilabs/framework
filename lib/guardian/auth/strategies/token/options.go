@@ -3,8 +3,8 @@ package token
 import (
 	"crypto"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 // SetType sets the authentication token type or scheme,

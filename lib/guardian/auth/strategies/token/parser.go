@@ -3,7 +3,7 @@ package token
 import (
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 // Parser parse and extract token from incoming HTTP request.

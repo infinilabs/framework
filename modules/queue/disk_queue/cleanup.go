@@ -31,9 +31,9 @@ import (
 	"os"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 func (module *DiskQueue) GetEarlierOffsetByQueueID(queueID string) (int, int64) {

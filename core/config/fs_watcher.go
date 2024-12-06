@@ -34,7 +34,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/fsnotify/fsnotify"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type Watcher struct {

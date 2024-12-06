@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 // New returns an empty routes storage

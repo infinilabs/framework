@@ -41,7 +41,7 @@
 package pipeline
 
 import (
-	"infini.sh/framework/core/config"
+	"github.com/rubyniu105/framework/core/config"
 	"testing"
 )
 
@@ -51,11 +51,11 @@ func newMock(c *config.Config) (Processor, error) {
 	return &mockProcessor{}, nil
 }
 
-func (m *mockProcessor) Name() string{
+func (m *mockProcessor) Name() string {
 	return "mock"
 }
 
-func (m *mockProcessor) Process(s *Context) error{
+func (m *mockProcessor) Process(s *Context) error {
 	return nil
 }
 

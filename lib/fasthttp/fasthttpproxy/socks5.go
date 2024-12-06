@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/url"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	"golang.org/x/net/proxy"
 )
 

@@ -51,7 +51,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"infini.sh/framework/core/pipeline/internal"
+	"github.com/rubyniu105/framework/core/pipeline/internal"
 )
 
 // PoolWithFunc accepts the tasks from client,

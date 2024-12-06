@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 var (
@@ -457,14 +457,14 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				resp.body = bytebufferpool.Get(resp.Tag)
 			} else {
 				resp.body = getResponseBodyPool().Get()
 			}
-		}else{
-			resp.body=&bytebufferpool.ByteBuffer{}
+		} else {
+			resp.body = &bytebufferpool.ByteBuffer{}
 		}
 	}
 	return resp.body
@@ -477,30 +477,30 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		if req.BodyBufferEnabled{
+		if req.BodyBufferEnabled {
 			if req.Tag != "" {
 				req.body = bytebufferpool.Get(req.Tag)
 			} else {
 				req.body = getRequestBodyPool().Get()
 			}
-		}else{
-			req.body=&bytebufferpool.ByteBuffer{}
+		} else {
+			req.body = &bytebufferpool.ByteBuffer{}
 		}
 	}
 	return req.body
 }
 
 var (
-	requestBodyPool *bytebufferpool.Pool
-	responseBodyPool  *bytebufferpool.Pool
+	requestBodyPool  *bytebufferpool.Pool
+	responseBodyPool *bytebufferpool.Pool
 )
 
-var requestPoolInit=sync.Once{}
-var responsePoolInit=sync.Once{}
+var requestPoolInit = sync.Once{}
+var responsePoolInit = sync.Once{}
 
 func getRequestBodyPool() *bytebufferpool.Pool {
 	requestPoolInit.Do(func() {
-		requestBodyPool  = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
+		requestBodyPool = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
 	})
 	return requestBodyPool
 }
@@ -510,7 +510,6 @@ func getResponseBodyPool() *bytebufferpool.Pool {
 	})
 	return responseBodyPool
 }
-
 
 // BodyGunzip returns un-gzipped body data.
 //
@@ -713,7 +712,7 @@ func (resp *Response) ResetBody() {
 		if resp.BodyBufferEnabled {
 			resp.body.Reset()
 		} else {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -738,7 +737,7 @@ func (resp *Response) ReleaseBody(size int) {
 	}
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				bytebufferpool.Put(resp.Tag, resp.body)
 			} else {
@@ -1784,7 +1783,7 @@ func (resp *Response) brotliBody(level int) error {
 	if resp.bodyStream != nil {
 		// Reset Content-Length to -1, since it is impossible
 		// to determine body size beforehand of streamed compression.
-		// For https://infini.sh/framework/lib/fasthttp/issues/176 .
+		// For https://github.com/rubyniu105/framework/lib/fasthttp/issues/176 .
 		resp.Header.SetContentLength(-1)
 
 		// Do not care about memory allocations here, since brotli is slow
@@ -1812,21 +1811,21 @@ func (resp *Response) brotliBody(level int) error {
 		}
 
 		var w *bytebufferpool.ByteBuffer
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendBrotliBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -1855,7 +1854,7 @@ func (resp *Response) gzipBody(level int) error {
 	if resp.bodyStream != nil {
 		// Reset Content-Length to -1, since it is impossible
 		// to determine body size beforehand of streamed compression.
-		// For https://infini.sh/framework/lib/fasthttp/issues/176 .
+		// For https://github.com/rubyniu105/framework/lib/fasthttp/issues/176 .
 		resp.Header.SetContentLength(-1)
 
 		// Do not care about memory allocations here, since gzip is slow
@@ -1882,21 +1881,21 @@ func (resp *Response) gzipBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -1925,7 +1924,7 @@ func (resp *Response) deflateBody(level int) error {
 	if resp.bodyStream != nil {
 		// Reset Content-Length to -1, since it is impossible
 		// to determine body size beforehand of streamed compression.
-		// For https://infini.sh/framework/lib/fasthttp/issues/176 .
+		// For https://github.com/rubyniu105/framework/lib/fasthttp/issues/176 .
 		resp.Header.SetContentLength(-1)
 
 		// Do not care about memory allocations here, since flate is slow
@@ -1953,21 +1952,21 @@ func (resp *Response) deflateBody(level int) error {
 		}
 		var w *bytebufferpool.ByteBuffer
 
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -2202,7 +2201,7 @@ func (resp *Response) CopyMergeHeader(input *Response) {
 
 	//copy all headers from input
 	input.Header.VisitAll(func(key, value []byte) {
-		resp.Header.SetBytesKV(key,value)
+		resp.Header.SetBytesKV(key, value)
 	})
 
 	resp.SetBody(input.Body())
@@ -2210,7 +2209,7 @@ func (resp *Response) CopyMergeHeader(input *Response) {
 	compress, compressType := input.IsCompressed()
 	if compress {
 		resp.Header.Set(HeaderContentEncoding, string(compressType))
-	}else{
+	} else {
 		//remove content-encoding in case it exists
 		resp.ClearContentEncoding()
 	}

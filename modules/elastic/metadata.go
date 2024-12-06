@@ -37,15 +37,15 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/r3labs/diff/v2"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
@@ -163,14 +163,14 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 }
 
 // update cluster state, on state version change
-func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
+func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 
 	meta := elastic.GetMetadata(clusterId)
 	if meta == nil {
 		return
 	}
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		return
 	}
 
@@ -677,7 +677,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 	log.Trace("update node info")
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		if !force {
 			setNodeUnknown(meta.Config.ID)
 		}
@@ -704,7 +704,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	if !discovery {
 		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID))
 		if err != nil {
-			if global.Env().IsDebug{
+			if global.Env().IsDebug {
 				log.Debugf("read node metadata error: %v", err)
 			}
 			return
@@ -914,7 +914,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
-				Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
+				Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 			}
 			err = orm.Save(nil, nodeMetadata)
 			if err != nil {
@@ -987,7 +987,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						},
 						ID:        rid,
 						Timestamp: time.Now(),
-						Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
+						Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
 					err = orm.Save(nil, nodeMetadata)
 					if err != nil {
@@ -1119,7 +1119,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 // on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		return
 	}
 

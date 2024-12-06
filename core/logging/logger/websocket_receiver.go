@@ -29,16 +29,16 @@ package logger
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/ryanuber/go-glob"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/util"
 	"strings"
 )
 
 // WebsocketReceiver is a struct of websocket log receiver, which implements seelog.CustomReceiver
 type WebsocketReceiver struct {
-	config          *config.LoggingConfig
-	minLogLevel     log.LogLevel
+	config            *config.LoggingConfig
+	minLogLevel       log.LogLevel
 	handleMessageFunc func(message string, level log.LogLevel, context log.LogContextInterface)
 }
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 type testRequests []struct {

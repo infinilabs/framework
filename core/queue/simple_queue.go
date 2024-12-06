@@ -28,12 +28,11 @@
 package queue
 
 import (
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/stats"
 	"time"
 )
-
 
 func Push(k *QueueConfig, v []byte) error {
 	var err error = nil
@@ -105,7 +104,6 @@ func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, ti
 	}
 	panic(errors.New("handler is not registered"))
 }
-
 
 func Depth(k *QueueConfig) int64 {
 	if k == nil || k.ID == "" {

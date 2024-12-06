@@ -40,7 +40,7 @@ limitations under the License.
 package filter
 
 import (
-	"infini.sh/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/api/router"
 	"net/http"
 )
 

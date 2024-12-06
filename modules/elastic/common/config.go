@@ -25,18 +25,18 @@ package common
 
 import (
 	"fmt"
-	"infini.sh/framework/core/model"
+	"github.com/rubyniu105/framework/core/model"
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/credential"
-	elastic "infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/adapter"
-	"infini.sh/framework/modules/elastic/adapter/easysearch"
-	"infini.sh/framework/modules/elastic/adapter/elasticsearch"
-	"infini.sh/framework/modules/elastic/adapter/opensearch"
+	"github.com/rubyniu105/framework/core/credential"
+	elastic "github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/elastic/adapter"
+	"github.com/rubyniu105/framework/modules/elastic/adapter/easysearch"
+	"github.com/rubyniu105/framework/modules/elastic/adapter/elasticsearch"
+	"github.com/rubyniu105/framework/modules/elastic/adapter/opensearch"
 )
 
 type ORMConfig struct {
@@ -84,7 +84,7 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
 		verInfo, err := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 		if verInfo != nil {

@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 // BenchmarkPlainStreaming measures end-to-end plaintext streaming performance

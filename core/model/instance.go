@@ -34,11 +34,11 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/host"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/host"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type NetworkInfo struct {

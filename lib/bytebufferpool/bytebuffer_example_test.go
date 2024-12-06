@@ -3,7 +3,7 @@ package bytebufferpool_test
 import (
 	"fmt"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 func ExampleByteBuffer() {
@@ -17,5 +17,5 @@ func ExampleByteBuffer() {
 
 	// It is safe to release byte buffer now, since it is
 	// no longer used.
-	bytebufferpool.Put("test",bb)
+	bytebufferpool.Put("test", bb)
 }

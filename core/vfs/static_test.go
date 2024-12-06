@@ -41,8 +41,8 @@ package vfs
 
 import (
 	"fmt"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"testing"
 )

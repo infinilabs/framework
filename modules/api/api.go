@@ -41,12 +41,12 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/host"
-	"infini.sh/framework/core/model"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/host"
+	"github.com/rubyniu105/framework/core/model"
+	"github.com/rubyniu105/framework/core/util"
 	"net/http"
 	"sort"
 )
@@ -113,8 +113,8 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	hostInfo.Hardware = &model.HardwareInfo{
 		Processor: util.MapStr{
 			"physical_core": physicalCore,
-			"logic_core": logicCore,
-			"model": modelName,
+			"logic_core":    logicCore,
+			"model":         modelName,
 		},
 	}
 	info := model.GetInstanceInfo()

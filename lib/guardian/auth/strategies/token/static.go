@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // NewStaticFromFile returns static auth.Strategy, populated from a CSV file.

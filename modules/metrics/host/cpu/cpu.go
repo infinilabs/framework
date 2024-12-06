@@ -31,11 +31,11 @@ import (
 	"strconv"
 
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/load"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/util"
 )
 
 type MetricType string
@@ -76,7 +76,7 @@ func New(cfg *config.Config) (*Metric, error) {
 }
 
 func (m *Metric) Collect() error {
-	if !m.Enabled{
+	if !m.Enabled {
 		return nil
 	}
 

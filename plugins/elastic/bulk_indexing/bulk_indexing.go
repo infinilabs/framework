@@ -25,7 +25,7 @@ package bulk_indexing
 
 import (
 	"fmt"
-	"infini.sh/framework/core/locker"
+	"github.com/rubyniu105/framework/core/locker"
 	"runtime"
 	"strings"
 	"sync"
@@ -34,15 +34,15 @@ import (
 	"github.com/OneOfOne/xxhash"
 	log "github.com/cihub/seelog"
 
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 //#操作合并任务

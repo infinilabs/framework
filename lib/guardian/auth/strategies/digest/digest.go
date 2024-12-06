@@ -11,7 +11,7 @@ import (
 	"errors"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // ErrInvalidResponse is returned by Strategy when client authz response does not match server hash.

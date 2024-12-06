@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 var strFoobar = []byte("foobar.com")

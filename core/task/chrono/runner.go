@@ -25,9 +25,9 @@ package chrono
 
 import (
 	"context"
-	"infini.sh/framework/core/global"
-	"runtime"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/global"
+	"runtime"
 )
 
 type TaskRunner interface {

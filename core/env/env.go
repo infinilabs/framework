@@ -30,7 +30,7 @@ package env
 import (
 	"compress/gzip"
 	"fmt"
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 	"io/ioutil"
 	"os"
 	"path"
@@ -41,9 +41,9 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 //TODO storage adaptor should config in env
@@ -228,7 +228,7 @@ func (env *Env) Init() *Env {
 }
 
 func (env *Env) InitPaths(cfgPath string) error {
-	defaultConfig:=GetDefaultSystemConfig()
+	defaultConfig := GetDefaultSystemConfig()
 	_, defaultConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
@@ -256,7 +256,7 @@ var moduleConfig map[string]*config.Config
 var pluginConfig map[string]*config.Config
 var startTime = time.Now().UTC()
 
-func GetDefaultSystemConfig() config.SystemConfig  {
+func GetDefaultSystemConfig() config.SystemConfig {
 	return config.SystemConfig{
 		APIConfig: config.APIConfig{
 			Enabled: true,
@@ -402,12 +402,12 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
-	tempCfg:=GetDefaultSystemConfig()
+	tempCfg := GetDefaultSystemConfig()
 	if err := tempConfig.Unpack(&tempCfg); err != nil {
 		panic(err)
 		return err
 	}
-	env.SystemConfig=&tempCfg
+	env.SystemConfig = &tempCfg
 	//initialize node config
 	env.findWorkingDir()
 

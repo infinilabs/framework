@@ -23,6 +23,6 @@
 
 package main
 
-import statsd "infini.sh/framework/plugins/stats_statsd"
+import statsd "github.com/rubyniu105/framework/plugins/stats_statsd"
 
 var PluginInstance = statsd.StatsDModule{}

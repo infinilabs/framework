@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 )
 
 type reference struct {
@@ -442,9 +442,9 @@ func lexer(in string) (<-chan token, <-chan error) {
 						// start variable
 						strToken(content[:idx])
 						lex <- openToken
-						off+=2
+						off += 2
 						varcount++
-					}else{
+					} else {
 						continue
 					}
 

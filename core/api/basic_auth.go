@@ -28,7 +28,7 @@
 package api
 
 import (
-	httprouter "infini.sh/framework/core/api/router"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
 	"net/http"
 )
 

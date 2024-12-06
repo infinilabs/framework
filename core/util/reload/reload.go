@@ -41,11 +41,10 @@
 package reload
 
 import (
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/util"
-	"sync"
 	"github.com/pkg/errors"
-
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/util"
+	"sync"
 )
 
 // Register holds a registry of reloadable objects

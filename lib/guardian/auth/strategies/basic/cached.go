@@ -2,10 +2,10 @@ package basic
 
 import (
 	"context"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 // ExtensionKey represents a key for the password in info extensions.

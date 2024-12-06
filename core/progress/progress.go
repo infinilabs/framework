@@ -27,8 +27,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rubyniu105/framework/core/env"
 	"gopkg.in/cheggaaa/pb.v1"
-	"infini.sh/framework/core/env"
 )
 
 var statsLock sync.RWMutex

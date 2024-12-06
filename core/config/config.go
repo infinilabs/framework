@@ -21,30 +21,29 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 // Package config , actually copied from github.com/elastic/beats
 package config
 
 import (
 	"flag"
 	"fmt"
-	"infini.sh/framework/core/radix"
+	"github.com/rubyniu105/framework/core/radix"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/file"
-	"infini.sh/framework/lib/fasttemplate"
-	"infini.sh/framework/lib/go-ucfg"
-	cfgflag "infini.sh/framework/lib/go-ucfg/flag"
-	"infini.sh/framework/lib/go-ucfg/yaml"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/file"
+	"github.com/rubyniu105/framework/lib/fasttemplate"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	cfgflag "github.com/rubyniu105/framework/lib/go-ucfg/flag"
+	"github.com/rubyniu105/framework/lib/go-ucfg/yaml"
 )
 
 // Config object to store hierarchical configurations into.
@@ -169,10 +168,11 @@ func NewFlagOverwrite(
 }
 
 var pathFilters []PathFilter
+
 func RegisterPathFilter(f PathFilter) {
 	pathFilters = append(pathFilters, f)
 }
-func GenerateWildcardPathFilter(patterns []string) PathFilter{
+func GenerateWildcardPathFilter(patterns []string) PathFilter {
 	return func(fpath string) bool {
 		lines := []string{}
 		for _, p := range patterns {
@@ -194,7 +194,8 @@ func LoadPath(folder string) (*ucfg.Config, error) {
 	return LoadPathWithFilter(folder, pathFilters...)
 }
 
-type PathFilter func (fpath string) bool
+type PathFilter func(fpath string) bool
+
 func LoadPathWithFilter(folder string, filters ...PathFilter) (*ucfg.Config, error) {
 	files := []string{}
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {

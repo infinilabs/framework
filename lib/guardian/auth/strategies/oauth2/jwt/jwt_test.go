@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"infini.sh/framework/lib/guardian/auth/claims"
-	"infini.sh/framework/lib/guardian/auth/internal/jwt"
+	"github.com/rubyniu105/framework/lib/guardian/auth/claims"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal/jwt"
 )
 
 func Test(t *testing.T) {

@@ -28,8 +28,8 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 	"io/ioutil"
 	"log"
 	"os"
@@ -46,15 +46,15 @@ Options:
 `[1:]
 
 var (
-	pkg               string
-	importPrefix               string
-	outFile           string
-	pluginDirs        stringSliceFlag
+	pkg          string
+	importPrefix string
+	outFile      string
+	pluginDirs   stringSliceFlag
 )
 
 func init() {
 	flag.Var(&pluginDirs, "dir", "Directory to search for plugins")
-	flag.StringVar(&importPrefix, "import_prefix", "infini.sh/gateway/", "Prefix for generated package path")
+	flag.StringVar(&importPrefix, "import_prefix", "github.com/rubyniu105/gateway/", "Prefix for generated package path")
 	flag.StringVar(&pkg, "pkg", "config", "Package name for generated go file")
 	flag.StringVar(&outFile, "out", "config/plugins.go", "Output filename")
 	flag.Usage = usageFlag
@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// Build import paths.
-	var imports =map[string]util.KV{}
+	var imports = map[string]util.KV{}
 	for _, dir := range pluginDirs {
 
 		libRegEx, e := regexp.Compile(".*.go$")
@@ -79,7 +79,7 @@ func main() {
 
 		e = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 
-			if path==outFile{
+			if path == outFile {
 				return nil
 			}
 
@@ -90,7 +90,7 @@ func main() {
 				}
 				if hasInitMethod(filepath.Join(path)) {
 					imports[filepath.ToSlash(
-						filepath.Join(importPrefix, filepath.Dir(path)))] =util.KV{}
+						filepath.Join(importPrefix, filepath.Dir(path)))] = util.KV{}
 
 					return nil
 				}
@@ -102,13 +102,13 @@ func main() {
 		}
 	}
 
-	importKeys:=util.GetMapKeys(imports)
+	importKeys := util.GetMapKeys(imports)
 
 	// Populate the template.
 	var buf bytes.Buffer
 	err := Template.Execute(&buf, Data{
-		Package:   pkg,
-		Imports:   importKeys,
+		Package: pkg,
+		Imports: importKeys,
 	})
 	if err != nil {
 		log.Fatalf("Failed executing template: %v", err)
@@ -133,7 +133,7 @@ func usageFlag() {
 var Template = template.Must(template.New("normalizations").Funcs(map[string]interface{}{
 	"trim": strings.TrimSpace,
 }).Parse(
-`/// GENERATED CODE BY PLUGIN DISCOVERY- DO NOT EDIT.
+	`/// GENERATED CODE BY PLUGIN DISCOVERY- DO NOT EDIT.
 
 package {{ .Package }}
 
@@ -145,11 +145,11 @@ import (
 `[1:]))
 
 type Data struct {
-	Package   string
-	Imports   []string
+	Package string
+	Imports []string
 }
 
-//stringSliceFlag is a flag type that allows more than one value to be specified.
+// stringSliceFlag is a flag type that allows more than one value to be specified.
 type stringSliceFlag []string
 
 func (f *stringSliceFlag) String() string { return strings.Join(*f, ",") }
@@ -182,7 +182,6 @@ func hasInitMethod(file string) bool {
 	}
 	return false
 }
-
 
 // FindFiles return a list of file matching the given glob patterns.
 func FindFiles(globs ...string) ([]string, error) {

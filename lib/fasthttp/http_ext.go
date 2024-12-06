@@ -12,7 +12,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 const HeaderContentEncoding2 = "Content-Encoding"

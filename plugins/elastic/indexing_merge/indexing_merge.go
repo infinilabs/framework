@@ -46,17 +46,17 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/modules/elastic/common"
 	"github.com/savsgio/gotils/bytes"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/modules/elastic/common"
 )
 
 type IndexingMergeProcessor struct {
@@ -79,7 +79,7 @@ type Config struct {
 	IndexName string `config:"index_name"`
 	TypeName  string `config:"type_name"`
 
-	KeyField  string `config:"key_field"` //the field name used as document's primary key aka `_id
+	KeyField string `config:"key_field"` //the field name used as document's primary key aka `_id
 
 	Elasticsearch string `config:"elasticsearch"`
 
@@ -258,25 +258,25 @@ READ_DOCS:
 				panic("index name is empty")
 			}
 
-			var id_part=""
-			if processor.config.KeyField!=""{
-				source:=util.MapStr{}
-				err:=util.FromJSONBytes(pop,&source)
-				if err!=nil{
+			var id_part = ""
+			if processor.config.KeyField != "" {
+				source := util.MapStr{}
+				err := util.FromJSONBytes(pop, &source)
+				if err != nil {
 					panic(err)
 				}
 
-				v,err:=source.GetValue(processor.config.KeyField)
-				if err!=nil{
+				v, err := source.GetValue(processor.config.KeyField)
+				if err != nil {
 					panic(err)
 				}
-				id_part=fmt.Sprintf(", \"_id\":\"%v\"",v)
+				id_part = fmt.Sprintf(", \"_id\":\"%v\"", v)
 			}
 
 			if processor.config.TypeName != "" {
-				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" %v } }\n", processor.config.IndexName, processor.config.TypeName,id_part))
+				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" %v } }\n", processor.config.IndexName, processor.config.TypeName, id_part))
 			} else {
-				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\"  %v } }\n", processor.config.IndexName,id_part))
+				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\"  %v } }\n", processor.config.IndexName, id_part))
 			}
 
 			util.WalkBytesAndReplace(pop, util.NEWLINE, util.SPACE)

@@ -3,7 +3,7 @@ package radix
 import (
 	"regexp"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 type nodeType uint8

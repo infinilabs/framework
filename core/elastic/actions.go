@@ -30,10 +30,10 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/util"
 	"strings"
 	"time"
 )
@@ -169,10 +169,10 @@ func (meta *ElasticsearchMetadata) GetNodeInfo(nodeID string) *NodesInfo {
 		}
 	}
 	info, err := GetClient(meta.Config.ID).GetNodeInfo(nodeID)
-	if err==nil{
+	if err == nil {
 		return info
 	}
-	if global.Env().IsDebug{
+	if global.Env().IsDebug {
 		log.Error(err)
 	}
 	return nil

@@ -22,7 +22,7 @@ import (
 	"os"
 	"strings"
 
-	"infini.sh/framework/lib/go-ucfg/parse"
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 )
 
 // Option type implementing additional options to be passed
@@ -46,10 +46,10 @@ type options struct {
 	// Unpack/Pack/Get/...
 	parsed valueCache
 
-	activeFields *fieldSet
-	resolveRef bool
+	activeFields       *fieldSet
+	resolveRef         bool
 	defaultParseConfig *parse.Config
-	noResolve bool
+	noResolve          bool
 }
 
 // NoResolve option sets do not to resolve variables.

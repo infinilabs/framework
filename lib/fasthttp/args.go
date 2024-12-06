@@ -7,7 +7,7 @@ import (
 	"sort"
 	"sync"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 const (
@@ -299,7 +299,7 @@ func (a *Args) SetUint(key string, value int) {
 	bb := bytebufferpool.Get("uint")
 	bb.B = AppendUint(bb.B[:0], value)
 	a.SetBytesV(key, bb.B)
-	bytebufferpool.Put("uint",bb)
+	bytebufferpool.Put("uint", bb)
 }
 
 // SetUintBytes sets uint value for the given key.

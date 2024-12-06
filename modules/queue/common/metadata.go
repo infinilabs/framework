@@ -28,39 +28,39 @@
 package common
 
 import (
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"os"
 	"path"
 	"sync"
 )
 
-
 func GetLocalQueueConfigPath() string {
-	err:=os.MkdirAll(path.Join(global.Env().GetDataDir(),"queue"),0755)
-	if err!=nil{
+	err := os.MkdirAll(path.Join(global.Env().GetDataDir(), "queue"), 0755)
+	if err != nil {
 		panic(err)
 	}
-	return path.Join(global.Env().GetDataDir(),"queue","configs")
+	return path.Join(global.Env().GetDataDir(), "queue", "configs")
 }
 
 var persistentLocker sync.RWMutex
-func PersistQueueMetadata()  {
+
+func PersistQueueMetadata() {
 	persistentLocker.Lock()
 	defer persistentLocker.Unlock()
 
 	//persist configs to local store
-	bytes:=queue.GetAllConfigBytes()
-	path1:=GetLocalQueueConfigPath()
-	if util.FileExists(path1){
-		_,err:=util.CopyFile(path1,path1+".bak")
-		if err!=nil{
+	bytes := queue.GetAllConfigBytes()
+	path1 := GetLocalQueueConfigPath()
+	if util.FileExists(path1) {
+		_, err := util.CopyFile(path1, path1+".bak")
+		if err != nil {
 			panic(err)
 		}
 	}
-	_,err:=util.FilePutContentWithByte(path1,bytes)
-	if err!=nil{
+	_, err := util.FilePutContentWithByte(path1, bytes)
+	if err != nil {
 		panic(err)
 	}
 }

@@ -29,16 +29,16 @@ package merge_to_bulk
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/modules/elastic/common"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/param"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/modules/elastic/common"
 	"sync"
 )
 
@@ -97,7 +97,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		config: cfg,
 	}
 
-	labels:=util.MapStr{}
+	labels := util.MapStr{}
 	labels["type"] = "merge_to_bulk"
 
 	if cfg.IndexName != "" {
@@ -132,16 +132,16 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		diff.bulkSizeInByte = 1024 * cfg.BulkSizeInKB
 	}
 
-	queueConfig := queue.AdvancedGetOrInitConfig("",cfg.OutputQueue.Name,labels)
+	queueConfig := queue.AdvancedGetOrInitConfig("", cfg.OutputQueue.Name, labels)
 	queueConfig.ReplaceLabels(labels)
 	diff.outputQueueConfig = queueConfig
 
-	producer,err:=queue.AcquireProducer(queueConfig)
-	if err!=nil{
+	producer, err := queue.AcquireProducer(queueConfig)
+	if err != nil {
 		panic(err)
 	}
 
-	diff.producer=producer
+	diff.producer = producer
 
 	return diff, nil
 
@@ -154,7 +154,7 @@ func (processor *IndexingMergeToBulkProcessor) Process(ctx *pipeline.Context) er
 	obj := ctx.Get(processor.config.MessageField)
 	if obj != nil {
 		messages := obj.([]queue.Message)
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Tracef("get %v messages from context", len(messages))
 		}
 
@@ -182,13 +182,13 @@ func (processor *IndexingMergeToBulkProcessor) Process(ctx *pipeline.Context) er
 			//clean buffer
 			if mainBuf.Len() > (processor.bulkSizeInByte) || i == lastOffset {
 
-				data:=mainBuf.Bytes()
+				data := mainBuf.Bytes()
 				//push to output queue
-				r:=queue.ProduceRequest{Topic: processor.outputQueueConfig.ID, Data: data}
-				res:=[]queue.ProduceRequest{r}
-				_,err := processor.producer.Produce(&res)
+				r := queue.ProduceRequest{Topic: processor.outputQueueConfig.ID, Data: data}
+				res := []queue.ProduceRequest{r}
+				_, err := processor.producer.Produce(&res)
 				if err != nil {
-					panic(errors.Errorf("failed to push message to output queue: %v, %s, offset:%v, size:%v, err:%v", processor.outputQueueConfig.Name,processor.outputQueueConfig.ID,message.Offset.String(),len(data),err))
+					panic(errors.Errorf("failed to push message to output queue: %v, %s, offset:%v, size:%v, err:%v", processor.outputQueueConfig.Name, processor.outputQueueConfig.ID, message.Offset.String(), len(data), err))
 				}
 
 				//cleanup

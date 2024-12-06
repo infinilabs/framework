@@ -28,11 +28,11 @@
 package instance
 
 import (
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type Metric struct {

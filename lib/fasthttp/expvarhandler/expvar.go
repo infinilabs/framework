@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 var (

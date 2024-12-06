@@ -27,7 +27,7 @@
 package common
 
 import (
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 const PositionLeft = "left"
@@ -54,12 +54,12 @@ type TimeRange struct {
 }
 
 type MetricLine struct {
-	TimeRange  TimeRange       `json:"timeRange"`
-	Data       interface{} `json:"data"`
-	BucketSize string          `json:"bucket_size"`
-	Metric     MetricSummary   `json:"metric"`
-	Color string `json:"color"`
-	Type GraphType `json:"type"`
+	TimeRange  TimeRange     `json:"timeRange"`
+	Data       interface{}   `json:"data"`
+	BucketSize string        `json:"bucket_size"`
+	Metric     MetricSummary `json:"metric"`
+	Color      string        `json:"color"`
+	Type       GraphType     `json:"type"`
 }
 
 type MetricSummary struct {
@@ -80,14 +80,14 @@ type MetricSummary struct {
 	TickFormat string `json:"tickFormat"`
 	Units      string `json:"units"`
 
-	HasCalculation bool `json:"hasCalculation"`
-	IsDerivative   bool `json:"isDerivative"`
-	Field2       string `json:"-"`
-	Calc         func(value, value2 float64) float64 `json:"-"`
-	OnlyPrimary bool `json:"only_primary"`
+	HasCalculation bool                                `json:"hasCalculation"`
+	IsDerivative   bool                                `json:"isDerivative"`
+	Field2         string                              `json:"-"`
+	Calc           func(value, value2 float64) float64 `json:"-"`
+	OnlyPrimary    bool                                `json:"only_primary"`
 }
 
-func (receiver *MetricSummary) GetDataKey()string  {
+func (receiver *MetricSummary) GetDataKey() string {
 	if receiver.IsDerivative {
 		return receiver.ID + "_deriv"
 	} else {
@@ -95,47 +95,46 @@ func (receiver *MetricSummary) GetDataKey()string  {
 	}
 }
 
-
 type MetricItem struct {
-	Key   string        `json:"key"`
-	Axis  []*MetricAxis `json:"axis"`
-	Lines []*MetricLine `json:"lines"`
-	Group string `json:"group"`
-	Order int `json:"order"`
-	OnlyPrimary bool `json:"only_primary"`
+	Key         string        `json:"key"`
+	Axis        []*MetricAxis `json:"axis"`
+	Lines       []*MetricLine `json:"lines"`
+	Group       string        `json:"group"`
+	Order       int           `json:"order"`
+	OnlyPrimary bool          `json:"only_primary"`
 	//current query statement that passed to search engine
 	Request string `json:"request"`
 }
 
-const TermsBucket string="terms"
-const DateHistogramBucket string="date_histogram"
-const DateRangeBucket string="date_range"
+const TermsBucket string = "terms"
+const DateHistogramBucket string = "date_histogram"
+const DateRangeBucket string = "date_range"
 
 type BucketItem struct {
-	Key      string        `json:"key"`
-	Group    string        `json:"group"`
-	Type    string        ` json:"type"`        //terms/date_histogram
-	Parameters    util.MapStr       ` json:"parameters"` //terms/date_histogram
-	Order    int           `json:"order"`
-	Buckets []*BucketItem  `json:"buckets"`
-	Metrics []*MetricItem  `json:"metrics"`
+	Key        string        `json:"key"`
+	Group      string        `json:"group"`
+	Type       string        ` json:"type"`       //terms/date_histogram
+	Parameters util.MapStr   ` json:"parameters"` //terms/date_histogram
+	Order      int           `json:"order"`
+	Buckets    []*BucketItem `json:"buckets"`
+	Metrics    []*MetricItem `json:"metrics"`
 }
 
-func NewBucketItem(bucketType string,parameter util.MapStr)*BucketItem  {
-	item:=BucketItem{}
-	item.Key=util.GetUUID()
-	item.Type=bucketType
-	item.Parameters=parameter
+func NewBucketItem(bucketType string, parameter util.MapStr) *BucketItem {
+	item := BucketItem{}
+	item.Key = util.GetUUID()
+	item.Type = bucketType
+	item.Parameters = parameter
 	return &item
 }
 
-func (bucketItem *BucketItem) AddNestBucket(item  *BucketItem){
-	bucketItem.Buckets=append(bucketItem.Buckets,item)
+func (bucketItem *BucketItem) AddNestBucket(item *BucketItem) {
+	bucketItem.Buckets = append(bucketItem.Buckets, item)
 }
 
-func (bucketItem *BucketItem) AddMetricItems(items...  *MetricItem)(*BucketItem){
-	for _,i:=range items{
-		bucketItem.Metrics=append(bucketItem.Metrics,i)
+func (bucketItem *BucketItem) AddMetricItems(items ...*MetricItem) *BucketItem {
+	for _, i := range items {
+		bucketItem.Metrics = append(bucketItem.Metrics, i)
 	}
 	return bucketItem
 }
@@ -183,7 +182,8 @@ func (metricItem *MetricItem) AddAxi(title, group, position, formatType, labelFo
 }
 
 type GraphType string
+
 const (
 	GraphTypeLine GraphType = "Line" //default
-	GraphTypeBar GraphType = "Bar"
+	GraphTypeBar  GraphType = "Bar"
 )

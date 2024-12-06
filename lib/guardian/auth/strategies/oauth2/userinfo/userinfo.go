@@ -12,12 +12,12 @@ import (
 	"net/http"
 	"time"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/claims"
-	"infini.sh/framework/lib/guardian/auth/internal"
-	"infini.sh/framework/lib/guardian/auth/internal/header"
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2"
-	"infini.sh/framework/lib/guardian/auth/strategies/token"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/claims"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal/header"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/token"
 )
 
 const wwwauth = "WWW-Authenticate"

@@ -41,10 +41,10 @@ package impl
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	. "github.com/zeebo/sbloom"
 	"hash/fnv"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"io/ioutil"
 	"os"
 	"path"

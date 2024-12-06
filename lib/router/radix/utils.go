@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 func panicf(s string, args ...interface{}) {

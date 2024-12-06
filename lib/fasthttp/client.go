@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 // Do performs the given http request and fills the given http response.
@@ -267,7 +267,7 @@ type Client struct {
 	//
 	// Disabled header names' normalization may be useful only for proxying
 	// responses to other clients expecting case-sensitive
-	// header names. See https://infini.sh/framework/lib/fasthttp/issues/57
+	// header names. See https://github.com/rubyniu105/framework/lib/fasthttp/issues/57
 	// for details.
 	//
 	// By default request and response header names are normalized, i.e.
@@ -745,7 +745,7 @@ type HostClient struct {
 	//
 	// Disabled header names' normalization may be useful only for proxying
 	// responses to other clients expecting case-sensitive
-	// header names. See https://infini.sh/framework/lib/fasthttp/issues/57
+	// header names. See https://github.com/rubyniu105/framework/lib/fasthttp/issues/57
 	// for details.
 	//
 	// By default request and response header names are normalized, i.e.
@@ -1095,14 +1095,13 @@ func StatusCodeIsRedirect(statusCode int) bool {
 //	return nil
 //}, 10000, 1024*1024*1024)
 
-
 type RequestResponsePool struct {
 	requestPool  *bytebufferpool.ObjectPool
 	responsePool *bytebufferpool.ObjectPool
 }
 
 func NewRequestResponsePool(tag string) *RequestResponsePool {
-	pool:=RequestResponsePool{}
+	pool := RequestResponsePool{}
 	pool.requestPool = bytebufferpool.NewObjectPool(tag, func() interface{} {
 		v := new(Request)
 		return v
@@ -1124,11 +1123,11 @@ func NewRequestResponsePool(tag string) *RequestResponsePool {
 // The returned Request instance may be passed to ReleaseRequest when it is
 // no longer needed. This allows Request recycling, reduces GC pressure
 // and usually improves performance.
-func  (pool *RequestResponsePool)AcquireRequest() *Request {
+func (pool *RequestResponsePool) AcquireRequest() *Request {
 	return pool.AcquireRequestWithTag("")
 }
 
-func (pool *RequestResponsePool)AcquireRequestWithTag(tag string) *Request {
+func (pool *RequestResponsePool) AcquireRequestWithTag(tag string) *Request {
 	v := pool.requestPool.Get()
 	if v == nil {
 		return &Request{Tag: tag}
@@ -1142,10 +1141,10 @@ func (pool *RequestResponsePool)AcquireRequestWithTag(tag string) *Request {
 //
 // It is forbidden accessing req and/or its' members after returning
 // it to request pool.
-func(pool *RequestResponsePool) ReleaseRequest(req *Request) {
+func (pool *RequestResponsePool) ReleaseRequest(req *Request) {
 	req.Reset()
 	if req.body != nil {
-		if req.BodyBufferEnabled{
+		if req.BodyBufferEnabled {
 			if req.Tag != "" {
 				bytebufferpool.Put(req.Tag, req.body)
 			} else {
@@ -1162,11 +1161,11 @@ func(pool *RequestResponsePool) ReleaseRequest(req *Request) {
 // The returned Response instance may be passed to ReleaseResponse when it is
 // no longer needed. This allows Response recycling, reduces GC pressure
 // and usually improves performance.
-func (pool *RequestResponsePool)AcquireResponse() *Response {
+func (pool *RequestResponsePool) AcquireResponse() *Response {
 	return pool.AcquireResponseWithTag("")
 }
 
-func (pool *RequestResponsePool)AcquireResponseWithTag(tag string) *Response {
+func (pool *RequestResponsePool) AcquireResponseWithTag(tag string) *Response {
 	v := pool.responsePool.Get()
 	if v == nil {
 		return &Response{Tag: tag}
@@ -1180,10 +1179,10 @@ func (pool *RequestResponsePool)AcquireResponseWithTag(tag string) *Response {
 //
 // It is forbidden accessing resp and/or its' members after returning
 // it to response pool.
-func (pool *RequestResponsePool)ReleaseResponse(resp *Response) {
+func (pool *RequestResponsePool) ReleaseResponse(resp *Response) {
 	resp.Reset()
 	if resp.body != nil {
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				bytebufferpool.Put(resp.Tag, resp.body)
 			} else {
@@ -1362,7 +1361,7 @@ func (c *HostClient) do(req *Request, resp *Response) (bool, error) {
 	return ok, err
 }
 
-var defaultHTTPPool=NewRequestResponsePool("default_http")
+var defaultHTTPPool = NewRequestResponsePool("default_http")
 
 func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error) {
 	if req == nil {
@@ -2277,7 +2276,7 @@ type PipelineClient struct {
 	//
 	// Disabled header names' normalization may be useful only for proxying
 	// responses to other clients expecting case-sensitive
-	// header names. See https://infini.sh/framework/lib/fasthttp/issues/57
+	// header names. See https://github.com/rubyniu105/framework/lib/fasthttp/issues/57
 	// for details.
 	//
 	// By default request and response header names are normalized, i.e.

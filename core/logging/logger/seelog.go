@@ -46,9 +46,9 @@ import (
 	"sync"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/rotate"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/rotate"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 var file string
@@ -136,7 +136,7 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, fileReceiver, "file", log.CustomReceiverInitArgs{})
 		if err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			receivers = append(receivers, realtimeOutput)
 		}
 	}
@@ -145,7 +145,7 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, realtimeReceiver, "websocket", log.CustomReceiverInitArgs{})
 		if err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			receivers = append(receivers, realtimeOutput)
 		}
 	}

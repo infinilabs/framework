@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"strings"
 
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/parse"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 )
 
 // NewFlagKeyValue implements the flag.Value interface for

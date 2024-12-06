@@ -20,8 +20,8 @@ package yaml
 import (
 	"io/ioutil"
 
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 	"gopkg.in/yaml.v2"
-	"infini.sh/framework/lib/go-ucfg"
 )
 
 // NewConfig creates a new configuration object from the YAML string passed via in.

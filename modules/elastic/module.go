@@ -30,24 +30,24 @@ package elastic
 import (
 	"context"
 	"fmt"
-	"infini.sh/framework/core/model"
+	"github.com/rubyniu105/framework/core/model"
 	"math"
 	"runtime"
 	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/credential"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/elastic/common"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/credential"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/task"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/elastic/common"
 )
 
 func (module *ElasticModule) Name() string {
@@ -70,11 +70,11 @@ var (
 			Interval: "10s",
 		},
 		ORMConfig: common.ORMConfig{
-			Enabled:      false,
-			InitTemplate: true,
+			Enabled:                 false,
+			InitTemplate:            true,
 			SkipInitDefaultTemplate: false,
-			InitSchema:   true,
-			IndexPrefix:  ".infini_",
+			InitSchema:              true,
+			IndexPrefix:             ".infini_",
 		},
 		StoreConfig: common.StoreConfig{
 			Enabled: false,
@@ -94,7 +94,7 @@ func getDefaultConfig() common.ModuleConfig {
 func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if exist && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if exist && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -201,7 +201,7 @@ func (module *ElasticModule) Setup() {
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
-	if exists && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
+	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if exists {
@@ -378,8 +378,8 @@ func InitSchema() {
 	}
 
 	//init schemas
-	err=orm.InitSchema()
-	if err!=nil{
+	err = orm.InitSchema()
+	if err != nil {
 		panic(err)
 	}
 
@@ -431,7 +431,7 @@ func (module *ElasticModule) Start() error {
 				return true
 			}
 
-			log.Trace("init cluster: ", key,",",util.MustToJSON(value))
+			log.Trace("init cluster: ", key, ",", util.MustToJSON(value))
 
 			cfg1, ok := value.(*elastic.ElasticsearchConfig)
 			if ok && cfg1 != nil {

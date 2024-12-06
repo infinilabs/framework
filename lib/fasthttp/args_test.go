@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 func TestDecodeArgAppend(t *testing.T) {

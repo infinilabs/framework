@@ -26,12 +26,12 @@ package host
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/errors"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
-	"infini.sh/framework/core/errors"
 	"runtime"
 	"time"
 )
@@ -50,7 +50,7 @@ func GetCPUInfo() (physicalCnt int, logicalCnt int, totalPercent float64, modelN
 	if err != nil {
 		return 0, 0, 0, "", err
 	}
-	totalPercents, err := cpu.Percent(time.Millisecond * 200, false) //过去200毫秒cpu使用率
+	totalPercents, err := cpu.Percent(time.Millisecond*200, false) //过去200毫秒cpu使用率
 	if len(totalPercents) > 0 {
 		totalPercent = totalPercents[0] //这个使用率
 	}
@@ -71,7 +71,7 @@ func GetDiskInfo() (total uint64, free uint64, used uint64, usedPercent float64,
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		return statMac.Total, statMac.Free, statMac.Total - statMac.Free, float64(statMac.Total - statMac.Free) / float64(statMac.Total) * 100.00, nil
+		return statMac.Total, statMac.Free, statMac.Total - statMac.Free, float64(statMac.Total-statMac.Free) / float64(statMac.Total) * 100.00, nil
 	}
 
 	partitions, err := disk.Partitions(false)
@@ -93,7 +93,7 @@ func GetDiskInfo() (total uint64, free uint64, used uint64, usedPercent float64,
 		free += stat.Free
 		used += stat.Used
 	}
-	usedPercent = float64(total - free) / float64(total) * 100.00
+	usedPercent = float64(total-free) / float64(total) * 100.00
 	return total, free, used, usedPercent, nil
 }
 
@@ -172,19 +172,19 @@ func GetAllUsageInfo() (*Usage, error) {
 	var err error
 	usage.NetIOUsage, err = GetNetIOUsage()
 	if err != nil {
-		return nil, errors.Wrap(err,"get usage.NetIOUsage err")
+		return nil, errors.Wrap(err, "get usage.NetIOUsage err")
 	}
 	usage.DiskUsage, err = GetDiskUsage()
 	if err != nil {
-		return nil, errors.Wrap(err,"get usage.DiskUsage err")
+		return nil, errors.Wrap(err, "get usage.DiskUsage err")
 	}
 	usage.DiskIOUsage, err = GetDiskIOUsageInfo()
 	if err != nil {
-		return nil, errors.Wrap(err,"get usage.DiskIOUsage err")
+		return nil, errors.Wrap(err, "get usage.DiskIOUsage err")
 	}
 	usage.MemoryUsage, usage.SwapMemoryUsage, err = GetMemoryUsage()
 	if err != nil {
-		return nil, errors.Wrap(err,"get usage.MemoryUsage err")
+		return nil, errors.Wrap(err, "get usage.MemoryUsage err")
 	}
 	usage.CPUPercent = GetCPUUsageInfo()
 	return usage, nil
@@ -193,7 +193,7 @@ func GetAllUsageInfo() (*Usage, error) {
 func GetCPUUsageInfo() float64 {
 	_, _, cupPercent, _, err := GetCPUInfo()
 	if err != nil {
-		log.Errorf("get GetCPUUsageInfo err: %v",err)
+		log.Errorf("get GetCPUUsageInfo err: %v", err)
 		return 0
 	}
 	return cupPercent

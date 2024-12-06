@@ -24,8 +24,8 @@
 package logging
 
 import (
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/logging/logger"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/logging/logger"
 	defaultLog "log"
 )
 
@@ -36,5 +36,5 @@ func init() {
 		appName = e.GetAppLowercaseName()
 		baseDir = e.GetLogDir()
 	)
-	logger.SetLogging(&e.SystemConfig.LoggingConfig, appName, baseDir )
+	logger.SetLogging(&e.SystemConfig.LoggingConfig, appName, baseDir)
 }

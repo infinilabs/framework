@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 func ValidateBulkRequest(where, body string) {

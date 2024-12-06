@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	"github.com/savsgio/gotils/strings"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 type cleanPathTest struct {

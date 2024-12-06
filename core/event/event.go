@@ -32,13 +32,13 @@ import (
 	"strings"
 	"time"
 
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type Event struct {
-	Agent     *AgentMeta    `json:"agent"`
+	Agent *AgentMeta `json:"agent"`
 
-	QueueName string        `json:"-"`
+	QueueName string `json:"-"`
 
 	Timestamp time.Time     `json:"timestamp,omitempty" elastic_mapping:"timestamp: { type: date }"`
 	Metadata  EventMetadata `json:"metadata"`

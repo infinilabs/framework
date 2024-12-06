@@ -7,8 +7,8 @@ import (
 	"errors"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 var (

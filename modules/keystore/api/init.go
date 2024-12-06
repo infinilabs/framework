@@ -27,7 +27,7 @@
 
 package api
 
-import "infini.sh/framework/core/api"
+import "github.com/rubyniu105/framework/core/api"
 
 func Init() {
 	handler := APIHandler{}

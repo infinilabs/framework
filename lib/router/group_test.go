@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func TestGroup(t *testing.T) {

@@ -46,10 +46,10 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/param"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type RunningState string
@@ -74,13 +74,12 @@ type StateItem struct {
 }
 
 type Context struct {
-
 	ParentContext *Context `json:"-"`
 
 	context.Context  `json:"-"`
 	param.Parameters `json:"parameters,omitempty"`
 
-	Config PipelineConfigV2  `json:"-"`
+	Config PipelineConfigV2 `json:"-"`
 
 	//private parameters
 	createTime     time.Time

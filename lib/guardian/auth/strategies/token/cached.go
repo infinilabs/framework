@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // AuthenticateFunc declare function signature to authenticate request using token.

@@ -26,8 +26,8 @@ package pipeline
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	 "infini.sh/framework/core/config"
-	"infini.sh/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/pipeline"
 )
 
 type EchoProcessor struct {

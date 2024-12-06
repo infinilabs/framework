@@ -34,9 +34,9 @@ import (
 	"net/http"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type ESAPIV8 struct {

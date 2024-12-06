@@ -32,14 +32,14 @@ import (
 	"crypto/tls"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
+	"github.com/rubyniu105/framework/core/api/gzip"
+	"github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/api/websocket"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/global"
+	_ "github.com/rubyniu105/framework/core/logging"
+	"github.com/rubyniu105/framework/core/util"
 	"golang.org/x/net/http2"
-	"infini.sh/framework/core/api/gzip"
-	"infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/api/websocket"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	_ "infini.sh/framework/core/logging"
-	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
@@ -150,7 +150,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		schema = "https://"
 
 		cfg, err := GetServerTLSConfig(&cfg.TLSConfig)
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/strategies/x509"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/x509"
 )
 
 const (

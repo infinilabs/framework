@@ -32,18 +32,18 @@ import (
 	"crypto/tls"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/locker"
+	"github.com/rubyniu105/framework/core/module"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/locker"
-	"infini.sh/framework/core/module"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
-	"net"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+	"net"
 	"sync"
 	"time"
 )
@@ -71,7 +71,7 @@ type Config struct {
 	Mechanism string `config:"mechanism"`
 }
 
-//const PLAIN_MECHANISM = "PLAIN"//
+// const PLAIN_MECHANISM = "PLAIN"//
 const SCRAM_SHA_256_Mechanism = "SCRAM-SHA-256"
 const SCRAM_SHA_512_Mechanism = "SCRAM-SHA-512"
 
@@ -93,7 +93,7 @@ func (this *KafkaQueue) newClient(opt []kgo.Opt) *kgo.Client {
 	}
 
 	if this.cfg.Username != "" {
-		if this.cfg.TLS{
+		if this.cfg.TLS {
 			tlsDialer := &tls.Dialer{NetDialer: &net.Dialer{Timeout: 10 * time.Second}}
 			opts = append(opts, kgo.Dialer(tlsDialer.DialContext))
 		}
@@ -253,7 +253,7 @@ func (this *KafkaQueue) Setup() {
 	}
 
 	ok, err := env.ParseConfig("kafka_queue", this.cfg)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 

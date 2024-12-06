@@ -20,9 +20,9 @@ package keystore
 import (
 	"errors"
 
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/parse"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 )
 
 var (

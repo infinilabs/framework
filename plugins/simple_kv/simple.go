@@ -33,11 +33,10 @@ import (
 
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 var record sync.RWMutex
-
 
 func (filter *SimpleKV) Open() error {
 	return nil
@@ -49,7 +48,7 @@ func (filter *SimpleKV) Close() error {
 
 func (filter *SimpleKV) Exists(bucket string, key []byte) bool {
 
-	valCopy, err:=filter.kvstore.Get(joinKey(bucket, key))
+	valCopy, err := filter.kvstore.Get(joinKey(bucket, key))
 	if err != nil {
 		return false
 	}
@@ -87,7 +86,7 @@ func (filter *SimpleKV) GetValue(bucket string, key []byte) ([]byte, error) {
 		return nil, errors.New("module closed")
 	}
 
-	valCopy, err:=filter.kvstore.Get(joinKey(bucket, key))
+	valCopy, err := filter.kvstore.Get(joinKey(bucket, key))
 	return valCopy, err
 }
 

@@ -35,7 +35,7 @@ import (
 	"strings"
 
 	"github.com/buger/jsonparser"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type PartitionQuery struct {

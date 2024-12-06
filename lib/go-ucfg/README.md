@@ -1,6 +1,6 @@
 [![Build Status](https://beats-ci.elastic.co/job/Library/job/go-ucfg-mbp/job/main/badge/icon)](https://beats-ci.elastic.co/job/Library/job/go-ucfg-mbp/job/main/)
 [![Go Report
-Card](https://goreportcard.com/badge/infini.sh/framework/lib/go-ucfg)](https://goreportcard.com/report/infini.sh/framework/lib/go-ucfg)
+Card](https://goreportcard.com/badge/github.com/rubyniu105/framework/lib/go-ucfg)](https://goreportcard.com/report/github.com/rubyniu105/framework/lib/go-ucfg)
 [![codecov](https://codecov.io/gh/elastic/go-ucfg/branch/main/graph/badge.svg)](https://codecov.io/gh/elastic/go-ucfg)
 
 
@@ -11,7 +11,7 @@ Card](https://goreportcard.com/badge/infini.sh/framework/lib/go-ucfg)](https://g
 
 ## API Documentation
 
-The full API Documentation can be found [here](https://godoc.org/infini.sh/framework/lib/go-ucfg).
+The full API Documentation can be found [here](https://godoc.org/github.com/rubyniu105/framework/lib/go-ucfg).
 
 ## Examples
 
@@ -19,8 +19,8 @@ A few examples on how ucfg can be used. All examples below assume, that the foll
 
 ```golang
 import (
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/yaml"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg/yaml"
 )
 ```
 

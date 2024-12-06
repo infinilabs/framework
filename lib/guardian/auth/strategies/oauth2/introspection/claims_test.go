@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/claims"
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/claims"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2"
 )
 
 func TestClaimGetUserName(t *testing.T) {

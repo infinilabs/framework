@@ -30,7 +30,7 @@ package websocket
 import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/util"
 	"net/http"
 	"strings"
 	"sync"
@@ -151,7 +151,7 @@ func (c *WebsocketConnection) WriteMessage(t MsgType, msg string) error {
 	return c.internalWrite(websocket.TextMessage, []byte(msg))
 }
 
-//parse received message, pass to specify handler
+// parse received message, pass to specify handler
 func (c *WebsocketConnection) parseMessage(msg []byte) {
 	message := string(msg)
 	array := strings.Split(message, " ")
@@ -180,7 +180,7 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 		return
 	}
-	c := &WebsocketConnection{id:util.GetUUID(),signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
+	c := &WebsocketConnection{id: util.GetUUID(), signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
 	h.register <- c
 	go c.writePump()
 	c.readPump()

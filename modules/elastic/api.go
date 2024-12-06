@@ -28,10 +28,10 @@
 package elastic
 
 import (
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/util"
 	"net/http"
 )
 

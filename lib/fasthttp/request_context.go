@@ -10,9 +10,9 @@ import (
 	"encoding/binary"
 	"github.com/buger/jsonparser"
 	"github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/param"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/param"
+	"github.com/rubyniu105/framework/core/util"
 	"net"
 	"strings"
 	"time"
@@ -464,23 +464,22 @@ func (ctx *RequestCtx) Reset() {
 
 }
 
-
-func (ctx *RequestCtx) Encode(buffer *bytes.Buffer)error{
+func (ctx *RequestCtx) Encode(buffer *bytes.Buffer) error {
 
 	buffer.Reset()
 
-	reqData:=ctx.Request.Encode()
+	reqData := ctx.Request.Encode()
 	buffer.Write(getLengthBytes(reqData))
 	buffer.Write(reqData)
 
-	resData:=ctx.Response.Encode()
+	resData := ctx.Response.Encode()
 	buffer.Write(getLengthBytes(resData))
 	buffer.Write(resData)
 
 	return nil
 }
 
-func (ctx *RequestCtx) Decode(data []byte) error{
+func (ctx *RequestCtx) Decode(data []byte) error {
 	reader := &bytes.Reader{}
 	reader.Reset(data)
 
@@ -498,8 +497,8 @@ func (ctx *RequestCtx) Decode(data []byte) error{
 		if err != nil {
 			return err
 		}
-		err:=ctx.Request.Decode(readerBody)
-		if err!=nil{
+		err := ctx.Request.Decode(readerBody)
+		if err != nil {
 			return err
 		}
 	}
@@ -518,8 +517,8 @@ func (ctx *RequestCtx) Decode(data []byte) error{
 		if err != nil {
 			return err
 		}
-		err:=ctx.Response.Decode(readerBody)
-		if err!=nil{
+		err := ctx.Response.Decode(readerBody)
+		if err != nil {
 			return err
 		}
 	}

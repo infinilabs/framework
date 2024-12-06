@@ -20,8 +20,8 @@ package flag
 import (
 	"encoding/json"
 
-	"infini.sh/framework/lib/go-ucfg"
-	"infini.sh/framework/lib/go-ucfg/cfgutil"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg/cfgutil"
 )
 
 type FlagValue struct {

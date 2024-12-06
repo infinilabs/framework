@@ -30,7 +30,7 @@ package api
 import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
-	"infini.sh/framework/core/global"
+	"github.com/rubyniu105/framework/core/global"
 	"net/http"
 	"sync"
 )
@@ -136,7 +136,7 @@ func getStore() *sessions.CookieStore {
 		Path:     "/",
 		MaxAge:   86400 * 1,
 		HttpOnly: true,
-		Domain: cookieCfg.Domain,
+		Domain:   cookieCfg.Domain,
 	}
 
 	return store

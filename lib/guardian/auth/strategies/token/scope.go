@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 const scopesExtName = "x-go-guardian-scopes"

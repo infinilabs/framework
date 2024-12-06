@@ -1,9 +1,9 @@
 package userinfo
 
 import (
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/claims"
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/claims"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2"
 )
 
 // AddressClaim represents a physical mailing address as defined in OpenID

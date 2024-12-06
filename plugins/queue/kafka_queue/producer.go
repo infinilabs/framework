@@ -29,15 +29,15 @@ package kafka_queue
 
 import (
 	"context"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
 	"time"
 )
 
 type Producer struct {
-	ID string
+	ID     string
 	client *kgo.Client
 	cfg    *queue.QueueConfig
 }
@@ -51,10 +51,10 @@ func (p *Producer) Produce(reqs *[]queue.ProduceRequest) (*[]queue.ProduceRespon
 	messages := []*kgo.Record{}
 	for _, req := range *reqs {
 		msg := &kgo.Record{}
-		if req.Topic!=""{
-			msg.Topic=req.Topic
-		}else{
-			msg.Topic=p.cfg.ID
+		if req.Topic != "" {
+			msg.Topic = req.Topic
+		} else {
+			msg.Topic = p.cfg.ID
 		}
 		msg.Timestamp = time.Now()
 		msg.Key = util.UnsafeStringToBytes(util.GetUUID())
@@ -63,7 +63,6 @@ func (p *Producer) Produce(reqs *[]queue.ProduceRequest) (*[]queue.ProduceRespon
 	}
 
 	results := []queue.ProduceResponse{}
-
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*10))
 	defer cancel()

@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	gstrings "github.com/savsgio/gotils/strings"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 func newNode(path string) *node {

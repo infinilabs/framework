@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // ErrInvalidOTP is returned by twofactor strategy,

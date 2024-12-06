@@ -41,8 +41,8 @@
 package conditions
 
 import (
-	event2 "infini.sh/framework/core/event"
-	"infini.sh/framework/core/util"
+	event2 "github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/util"
 	"testing"
 	"time"
 

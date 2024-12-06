@@ -17,10 +17,10 @@ import (
 	"github.com/shaj13/libcache"
 	_ "github.com/shaj13/libcache/fifo"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/strategies/basic"
-	"infini.sh/framework/lib/guardian/auth/strategies/token"
-	"infini.sh/framework/lib/guardian/auth/strategies/union"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/basic"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/token"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/union"
 )
 
 // Usage:

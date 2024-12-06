@@ -8,10 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-ldap/ldap/v3"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/strategies/basic"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/basic"
 	"strings"
 )
 
@@ -48,9 +48,9 @@ type Config struct {
 	// Filter for the User Object Filter.
 	// if username nedded more than once use fmt index pattern (%[1]s).
 	// Otherwise %s.
-	UserFilter string
-	GroupFilter string
-	UIDAttribute string
+	UserFilter     string
+	GroupFilter    string
+	UIDAttribute   string
 	GroupAttribute string
 }
 
@@ -125,8 +125,8 @@ func (c client) authenticate(ctx context.Context, r *fasthttp.Request, userName,
 			continue
 		}
 
-		if name==c.cfg.GroupAttribute{
-			groups = append(groups,values...)
+		if name == c.cfg.GroupAttribute {
+			groups = append(groups, values...)
 		}
 
 		ext[name] = values
@@ -180,7 +180,7 @@ func NewCached(cfg *Config, c auth.Cache, opts ...auth.Option) auth.Strategy {
 	return basic.NewCached(fn, c, opts...)
 }
 
-//extractFirstGroupFromDN try to extract first group from dn
+// extractFirstGroupFromDN try to extract first group from dn
 func extractFirstGroupFromDN(dn string, groupAttr string) string {
 	dnParts := strings.Split(dn, ",")
 	for _, part := range dnParts {

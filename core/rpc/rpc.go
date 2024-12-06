@@ -47,14 +47,14 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"net"
 	"runtime"
 	"time"
@@ -64,7 +64,7 @@ func GetRPCServer() *grpc.Server {
 	return s
 }
 
-//only select local connection
+// only select local connection
 func ObtainLocalConnection() (conn *ClientConn, err error) {
 	return ObtainConnection(listenAddress)
 }
@@ -75,7 +75,7 @@ func ObtainLocalConnection() (conn *ClientConn, err error) {
 
 //var addr = flag.String("rpc.bind", "localhost:20000", "the rpc address to bind to")
 
-//auto select connection
+// auto select connection
 func ObtainConnection(addr string) (client *ClientConn, err error) {
 	log.Trace("obtain client connection: ", addr)
 

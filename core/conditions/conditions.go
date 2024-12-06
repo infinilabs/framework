@@ -44,10 +44,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/match"
 	"github.com/valyala/fasttemplate"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/match"
 )
 
 // Config represents a configuration for a condition, as you would find it in the config files.

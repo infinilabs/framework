@@ -43,9 +43,9 @@ package conditions
 import (
 	"fmt"
 
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/match"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/match"
 
 	logger "github.com/cihub/seelog"
 )

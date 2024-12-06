@@ -30,7 +30,7 @@ package task
 import (
 	"time"
 
-	"infini.sh/framework/core/orm"
+	"github.com/rubyniu105/framework/core/orm"
 )
 
 type Task struct {

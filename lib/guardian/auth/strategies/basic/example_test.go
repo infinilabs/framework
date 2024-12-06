@@ -10,8 +10,8 @@ package basic_test
 //	"github.com/shaj13/libcache"
 //	_ "github.com/shaj13/libcache/lru"
 //
-//	"infini.sh/framework/lib/guardian/auth"
-//	"infini.sh/framework/lib/guardian/auth/strategies/basic"
+//	"github.com/rubyniu105/framework/lib/guardian/auth"
+//	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/basic"
 //)
 //
 //func Example() {

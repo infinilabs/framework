@@ -10,8 +10,8 @@ import (
 	"github.com/klauspost/compress/flate"
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/zlib"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp/stackless"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp/stackless"
 )
 
 // Supported compression levels.
@@ -417,7 +417,7 @@ func isFileCompressible(f *os.File, minCompressRatio float64) bool {
 	// and see if it can be compressed by more than
 	// the given minCompressRatio.
 	b := bytebufferpool.Get("compress")
-	defer bytebufferpool.Put("compress",b)
+	defer bytebufferpool.Put("compress", b)
 
 	zw := acquireStacklessGzipWriter(b, CompressDefaultCompression)
 	lr := &io.LimitedReader{

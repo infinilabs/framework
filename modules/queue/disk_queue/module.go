@@ -28,9 +28,9 @@ package queue
 
 import (
 	"fmt"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/modules/queue/common"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/modules/queue/common"
 	"os"
 	"path"
 	"path/filepath"
@@ -40,13 +40,13 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
-	"infini.sh/framework/core/rate"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/status"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/rate"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/status"
 )
 
 type DiskQueue struct {
@@ -358,7 +358,7 @@ func (module *DiskQueue) Pop(k string, timeoutDuration time.Duration) (data []by
 }
 
 func (this *DiskQueue) ReleaseConsumer(qconfig *queue.QueueConfig, consumer *queue.ConsumerConfig, instance queue.ConsumerAPI) error {
-	if instance!=nil{
+	if instance != nil {
 		return instance.Close()
 	}
 	return nil
@@ -672,7 +672,7 @@ func saveOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset que
 	current, err := loadOffset(k, consumer)
 	if err == nil {
 		if current.LatestThan(offset) {
-			panic(errors.Errorf("consumer:%v, current offset(%v) is larger than committed value(%v)",consumer.String(), current, offset))
+			panic(errors.Errorf("consumer:%v, current offset(%v) is larger than committed value(%v)", consumer.String(), current, offset))
 		}
 	}
 
@@ -686,7 +686,7 @@ func saveOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset que
 	return true, nil
 }
 
-func deleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error  {
+func deleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
 	consumer.CommitLocker.Lock()
 	defer consumer.CommitLocker.Unlock()
 
@@ -715,15 +715,15 @@ func deleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error  {
 }
 
 func (module *DiskQueue) GetOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) (queue.Offset, error) {
-	return loadOffset(k,consumer)
+	return loadOffset(k, consumer)
 }
 
 func (module *DiskQueue) DeleteOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig) error {
-	return deleteOffset(k,consumer)
+	return deleteOffset(k, consumer)
 }
 
 func (module *DiskQueue) CommitOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset queue.Offset) (bool, error) {
-	return saveOffset(k,consumer,offset)
+	return saveOffset(k, consumer, offset)
 }
 
 func (module *DiskQueue) AcquireProducer(cfg *queue.QueueConfig) (queue.ProducerAPI, error) {

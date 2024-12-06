@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 // ErrMissingOTP is returned by Parser,

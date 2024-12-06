@@ -53,8 +53,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/errors"
 	"golang.org/x/net/proxy"
-	"infini.sh/framework/core/errors"
 	"io"
 )
 
@@ -99,7 +99,7 @@ func GetHost(url string) string {
 	return uri.Host
 }
 
-//GetRootUrl parse to get url root
+// GetRootUrl parse to get url root
 func GetRootUrl(source *uri.URL) string {
 	if strings.HasSuffix(source.Path, "/") {
 		return source.Host + source.Path
@@ -114,7 +114,7 @@ func GetRootUrl(source *uri.URL) string {
 	return source.Host + "/"
 }
 
-//FormatUrlForFilter format url, normalize url
+// FormatUrlForFilter format url, normalize url
 func formatUrlForFilter(url []byte) []byte {
 	src := string(url)
 	log.Trace("start to normalize url:", src)
@@ -257,7 +257,7 @@ type Result struct {
 	Size       uint64
 }
 
-const userAgent = "Mozilla/5.0 (compatible; INFINI/1.0; +http://infini.sh/)"
+const userAgent = "Mozilla/5.0 (compatible; INFINI/1.0; +http://github.com/rubyniu105/)"
 
 const ContentTypeJson = "application/json;charset=utf-8"
 const ContentTypeXml = "application/xml;charset=utf-8"
@@ -300,7 +300,7 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 	}
 	if _, ok := parentCtx.Deadline(); ok {
 		request = request.WithContext(req.Context)
-	} else{
+	} else {
 		// use context to control default timeout
 		timeCtx, cancel := context.WithTimeout(parentCtx, timeout)
 		defer cancel()

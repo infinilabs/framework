@@ -36,7 +36,7 @@ import (
 	"fmt"
 	"github.com/arl/statsviz"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
+	"github.com/rubyniu105/framework/core/global"
 	"net/http"
 	_ "net/http/pprof"
 	"os"

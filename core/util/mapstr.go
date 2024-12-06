@@ -29,8 +29,8 @@ package util
 
 import (
 	"fmt"
+	"github.com/rubyniu105/framework/core/errors"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/errors"
 	"reflect"
 	"strconv"
 	"strings"
@@ -108,9 +108,9 @@ func (m MapStr) Clone() MapStr {
 
 // HasKey returns true if the key exist. If an error occurs then false is
 // returned with a non-nil error.
-func (m MapStr) SafetyHasKey(key string) (bool) {
-	ok,err:=m.HasKey(key)
-	if err!=nil{
+func (m MapStr) SafetyHasKey(key string) bool {
+	ok, err := m.HasKey(key)
+	if err != nil {
 		return false
 	}
 	return ok
@@ -266,7 +266,7 @@ func walkMap(key string, data MapStr, op mapStrOperation) (interface{}, error) {
 
 	//try check map directly first
 	if _, ok := data[key]; ok {
-		if ok{
+		if ok {
 			return op.Do(key, data)
 		}
 	}
@@ -362,14 +362,15 @@ func (op putOperation) Do(key string, data MapStr) (interface{}, error) {
 	return existingValue, nil
 }
 
-
 // Flatten flattens the given MapStr and returns a flat MapStr.
 //
 // Example:
-//   "hello": MapStr{"world": "test" }
+//
+//	"hello": MapStr{"world": "test" }
 //
 // This is converted to:
-//   "hello.world": "test"
+//
+//	"hello.world": "test"
 //
 // This can be useful for testing or logging.
 func (m MapStr) Flatten() MapStr {
@@ -408,78 +409,77 @@ func tryToMapStr(v interface{}) (MapStr, bool) {
 }
 
 type KV struct {
-	Key   string   `json:"key,omitempty"`
-	Value string   `json:"value,omitempty"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
-func GetIntMapKeys(m map[int]int)[]int  {
-	keys:=[]int{}
-	for k,_:=range m{
-		keys=append(keys,k)
+func GetIntMapKeys(m map[int]int) []int {
+	keys := []int{}
+	for k, _ := range m {
+		keys = append(keys, k)
 	}
 	return keys
 }
 
-func GetStringIntMapKeys(m map[string]int)[]string  {
-	keys:=[]string{}
-	for k,_:=range m{
-		keys=append(keys,k)
+func GetStringIntMapKeys(m map[string]int) []string {
+	keys := []string{}
+	for k, _ := range m {
+		keys = append(keys, k)
 	}
 	return keys
 }
 
-func GetMapKeys(m map[string]KV)[]string  {
-	keys:=[]string{}
-	for k,_:=range m{
-		keys=append(keys,k)
+func GetMapKeys(m map[string]KV) []string {
+	keys := []string{}
+	for k, _ := range m {
+		keys = append(keys, k)
 	}
 	return keys
 }
 
+func GetMapValueByKeys(keys []string, m map[string]interface{}) (interface{}, bool) {
 
-func GetMapValueByKeys(keys []string,m map[string]interface{})(interface{},bool)  {
-
-	for i,key:=range keys{
-		v,ok:=m[key]
-		if i==len(keys)-1{
-			return v,ok
+	for i, key := range keys {
+		v, ok := m[key]
+		if i == len(keys)-1 {
+			return v, ok
 		}
 
-		if ok{
-			x,ok:=v.(map[string]interface{})
-			if ok{
-				m=x
-			}else{
-				return v,true
+		if ok {
+			x, ok := v.(map[string]interface{})
+			if ok {
+				m = x
+			} else {
+				return v, true
 			}
 		}
 	}
-	return nil,false
+	return nil, false
 }
 
-func GetValueByKeys(keys []string,m MapStr)(interface{},bool)  {
+func GetValueByKeys(keys []string, m MapStr) (interface{}, bool) {
 
-	for i,key:=range keys{
-		v,ok:=m[key]
-		if i==len(keys)-1{
-			return v,ok
+	for i, key := range keys {
+		v, ok := m[key]
+		if i == len(keys)-1 {
+			return v, ok
 		}
-		if ok{
-			x,ok:=v.(MapStr)
-			if ok{
-				m=x
-			}else{
-				return v,true
+		if ok {
+			x, ok := v.(MapStr)
+			if ok {
+				m = x
+			} else {
+				return v, true
 			}
 		}
 	}
-	return nil,false
+	return nil, false
 }
 
 func (m MapStr) Equals(dst MapStr) bool {
 	a := m.Flatten()
 	b := dst.Flatten()
-	if len(a) != len(b){
+	if len(a) != len(b) {
 		return false
 	}
 	for k, v := range a {
@@ -599,7 +599,7 @@ func (m MapStr) deepUpdateMap(d MapStr, overwrite bool) {
 
 func (m *MapStr) Merge(vars map[string]interface{}) {
 	for k, v := range vars {
-		m.Put(k,v)
+		m.Put(k, v)
 	}
 }
 
@@ -627,8 +627,6 @@ func deepUpdateValue(old interface{}, val MapStr, overwrite bool) interface{} {
 		return val
 	}
 }
-
-
 
 func GetSyncMapSize(m *sync.Map) int {
 	var i int

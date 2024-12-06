@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	"github.com/savsgio/gotils/bytes"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 func generateHandler() fasthttp.RequestHandler {

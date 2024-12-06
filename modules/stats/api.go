@@ -35,12 +35,12 @@ import (
 	"strings"
 	"sync"
 
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 	"github.com/segmentio/encoding/json"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
 )
 
 var space = []byte(" ")

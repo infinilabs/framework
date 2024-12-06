@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"runtime"
 
-	"infini.sh/framework/lib/fasthttp"
-	"infini.sh/framework/lib/fasthttp/reuseport"
+	"github.com/rubyniu105/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp/reuseport"
 )
 
 const (

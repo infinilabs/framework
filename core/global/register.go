@@ -44,7 +44,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/env"
+	"github.com/rubyniu105/framework/core/env"
 	"runtime"
 	"sync"
 	"time"
@@ -92,7 +92,7 @@ func Register(k RegisterKey, v interface{}) {
 
 func MustLookupString(k RegisterKey) string {
 	v := MustLookup(k)
-	x:= v.(string)
+	x := v.(string)
 	if x == "" {
 		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
 	}
@@ -177,7 +177,7 @@ func RegisterBackgroundCallback(task *BackgroundTask) {
 func FuncWithTimeout(ctx context.Context, f func()) error {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer func() {
-		if !Env().IsDebug{
+		if !Env().IsDebug {
 			if r := recover(); r != nil {
 				var v string
 				switch r.(type) {
@@ -234,7 +234,7 @@ func RunBackgroundCallbacks() {
 }
 
 func ShuttingDown() bool {
-	if Env().GetState()> 0  {
+	if Env().GetState() > 0 {
 		return true
 	}
 	return false

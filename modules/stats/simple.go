@@ -29,7 +29,7 @@ package stats
 
 import (
 	"errors"
-	"infini.sh/framework/lib/status"
+	"github.com/rubyniu105/framework/lib/status"
 	"net/http"
 	"os"
 	"path"
@@ -39,16 +39,16 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/lock_free/queue"
 	"github.com/segmentio/encoding/json"
 	"github.com/shirou/gopsutil/v3/process"
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/lock_free/queue"
 )
 
 func (module SimpleStatsModule) Name() string {

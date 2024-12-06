@@ -3,7 +3,7 @@ package digest
 import (
 	"crypto"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // SetHash set the hashing algorithm to hash the user password.

@@ -31,15 +31,15 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"infini.sh/framework/core/util"
-	kslib "infini.sh/framework/lib/keystore"
+	"github.com/rubyniu105/framework/core/util"
+	kslib "github.com/rubyniu105/framework/lib/keystore"
 	"golang.org/x/crypto/ssh/terminal"
-	"syscall"
 	"os"
 	"strings"
+	"syscall"
 )
 
-func RunCmd(args []string){
+func RunCmd(args []string) {
 	var err error
 	keystoreFS := flag.NewFlagSet("manage secrets keystore", flag.ExitOnError)
 	keystoreFS.Usage = func() {
@@ -78,10 +78,10 @@ func RunCmd(args []string){
 	os.Exit(0)
 }
 
-func addKeystoreValue(args []string) error{
+func addKeystoreValue(args []string) error {
 	addFlag := flag.NewFlagSet("add secret", flag.ExitOnError)
 	var (
-		stdin  = addFlag.Bool("stdin", false, "Use the stdin as the source of the secret")
+		stdin = addFlag.Bool("stdin", false, "Use the stdin as the source of the secret")
 		force = addFlag.Bool("force", false, "Override the existing key")
 	)
 	err := addFlag.Parse(args)
@@ -108,7 +108,7 @@ func addKeystoreValue(args []string) error{
 	var keyValue []byte
 	if *stdin {
 		reader := bufio.NewReader(os.Stdin)
-		keyValue,_, err = reader.ReadLine()
+		keyValue, _, err = reader.ReadLine()
 		if err != nil {
 			return fmt.Errorf("could not read input from stdin")
 		}
@@ -135,7 +135,7 @@ func addKeystoreValue(args []string) error{
 	return nil
 }
 
-func listKeystore() error{
+func listKeystore() error {
 	ks, err := GetOrInitKeystore()
 	if err != nil {
 		return fmt.Errorf("init keystore error: %v\n", err)

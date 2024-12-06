@@ -20,8 +20,8 @@ package ucfg
 import (
 	"testing"
 
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 func TestUnpackPrimitiveValues(t *testing.T) {

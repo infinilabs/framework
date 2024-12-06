@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/net/http/httpproxy"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 const (
@@ -32,7 +32,7 @@ func FasthttpProxyHTTPDialer() fasthttp.DialFunc {
 	return FasthttpProxyHTTPDialerTimeout(0)
 }
 
-var defaultHTTPPool=fasthttp.NewRequestResponsePool("default_http")
+var defaultHTTPPool = fasthttp.NewRequestResponsePool("default_http")
 
 // FasthttpProxyHTTPDialer returns a fasthttp.DialFunc that dials using
 // the env(HTTP_PROXY, HTTPS_PROXY and NO_PROXY) configured HTTP proxy using the given timeout.

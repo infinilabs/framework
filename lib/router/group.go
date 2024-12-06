@@ -1,6 +1,6 @@
 package router
 
-import "infini.sh/framework/lib/fasthttp"
+import "github.com/rubyniu105/framework/lib/fasthttp"
 
 // Group returns a new group.
 // Path auto-correction, including trailing slashes, is enabled by default.
@@ -67,7 +67,8 @@ func (g *Group) ANY(path string, handler fasthttp.RequestHandler) {
 // "/etc/passwd" would be served.
 // Internally a fasthttp.FSHandler is used, therefore http.NotFound is used instead
 // Use:
-//     router.ServeFiles("/src/{filepath:*}", "./")
+//
+//	router.ServeFiles("/src/{filepath:*}", "./")
 func (g *Group) ServeFiles(path string, rootPath string) {
 	g.router.ServeFiles(g.prefix+path, rootPath)
 }
@@ -80,7 +81,8 @@ func (g *Group) ServeFiles(path string, rootPath string) {
 // Internally a fasthttp.FSHandler is used, therefore http.NotFound is used instead
 // of the Router's NotFound handler.
 // Use:
-//     router.ServeFilesCustom("/src/{filepath:*}", *customFS)
+//
+//	router.ServeFilesCustom("/src/{filepath:*}", *customFS)
 func (g *Group) ServeFilesCustom(path string, fs *fasthttp.FS) {
 	g.router.ServeFilesCustom(g.prefix+path, fs)
 }

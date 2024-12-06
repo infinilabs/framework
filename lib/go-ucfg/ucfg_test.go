@@ -22,8 +22,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/rubyniu105/framework/lib/go-ucfg/parse"
 	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/lib/go-ucfg/parse"
 )
 
 var opts = []Option{

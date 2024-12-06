@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp/stackless"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp/stackless"
 )
 
 // Supported compression levels.
@@ -19,7 +19,7 @@ const (
 
 	// Choose a default brotli compression level comparable to
 	// CompressDefaultCompression (gzip 6)
-	// See: https://infini.sh/framework/lib/fasthttp/issues/798#issuecomment-626293806
+	// See: https://github.com/rubyniu105/framework/lib/fasthttp/issues/798#issuecomment-626293806
 	CompressBrotliDefaultCompression = 4
 )
 

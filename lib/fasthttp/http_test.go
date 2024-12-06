@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 func TestInvalidTrailers(t *testing.T) {
@@ -301,7 +301,7 @@ func TestResponseBodyStreamDeflate(t *testing.T) {
 
 	body := createFixedBody(1e5)
 
-	// Verifies https://infini.sh/framework/lib/fasthttp/issues/176
+	// Verifies https://github.com/rubyniu105/framework/lib/fasthttp/issues/176
 	// when Content-Length is explicitly set.
 	testResponseBodyStreamDeflate(t, body, len(body))
 
@@ -314,7 +314,7 @@ func TestResponseBodyStreamGzip(t *testing.T) {
 
 	body := createFixedBody(1e5)
 
-	// Verifies https://infini.sh/framework/lib/fasthttp/issues/176
+	// Verifies https://github.com/rubyniu105/framework/lib/fasthttp/issues/176
 	// when Content-Length is explicitly set.
 	testResponseBodyStreamGzip(t, body, len(body))
 

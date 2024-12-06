@@ -29,10 +29,10 @@ package web
 
 import (
 	log "github.com/cihub/seelog"
-	uis "infini.sh/framework/core/api"
-	"infini.sh/framework/core/api/websocket"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/logging/logger"
+	uis "github.com/rubyniu105/framework/core/api"
+	"github.com/rubyniu105/framework/core/api/websocket"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/logging/logger"
 	_ "net/http/pprof"
 )
 

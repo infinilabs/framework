@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/go-ucfg/cfgtest"
+	"github.com/rubyniu105/framework/lib/go-ucfg/cfgtest"
 )
 
 type myNonzeroInt int

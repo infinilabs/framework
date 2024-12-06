@@ -24,9 +24,9 @@
 package pipeline
 
 import (
-	"infini.sh/framework/core/global"
-	"runtime"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/global"
+	"runtime"
 )
 
 // Dag represents directed acyclic graph
@@ -62,13 +62,13 @@ func (dag *Dag) Run(ctx *Context) {
 
 	//fmt.Println("total jobs:",len(dag.jobs))
 	for _, job := range dag.jobs {
-		run(job,ctx)
+		run(job, ctx)
 	}
 
 }
 
 // RunAsync executes Run on another goroutine
-func (dag *Dag) RunAsync(ctx *Context,onComplete func()) {
+func (dag *Dag) RunAsync(ctx *Context, onComplete func()) {
 	go func() {
 		defer func() {
 			if !global.Env().IsDebug {
@@ -120,7 +120,7 @@ func (dag *Dag) Spawns(tasks ...Processor) *spawnsResult {
 	job := &Job{
 		tasks:      make([]Processor, len(tasks)),
 		sequential: false,
-		mode:dag.mode,
+		mode:       dag.mode,
 	}
 
 	for i, task := range tasks {

@@ -27,24 +27,24 @@ import (
 	"context"
 	"fmt"
 	log "github.com/cihub/seelog"
-	. "infini.sh/framework/core/config"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/metrics/elastic"
-	"infini.sh/framework/modules/metrics/host/cpu"
-	"infini.sh/framework/modules/metrics/host/disk"
-	"infini.sh/framework/modules/metrics/host/memory"
-	"infini.sh/framework/modules/metrics/host/network"
-	agent2 "infini.sh/framework/modules/metrics/instance"
+	. "github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/task"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/metrics/elastic"
+	"github.com/rubyniu105/framework/modules/metrics/host/cpu"
+	"github.com/rubyniu105/framework/modules/metrics/host/disk"
+	"github.com/rubyniu105/framework/modules/metrics/host/memory"
+	"github.com/rubyniu105/framework/modules/metrics/host/network"
+	agent2 "github.com/rubyniu105/framework/modules/metrics/instance"
 )
 
 type MetricConfig struct {
-	Enabled        bool   `config:"enabled"`
-	MetricQueue    string `config:"queue"`
-	LoggingQueue   string `config:"logging_queue"`
+	Enabled      bool   `config:"enabled"`
+	MetricQueue  string `config:"queue"`
+	LoggingQueue string `config:"logging_queue"`
 
 	EventQueue map[string]string `config:"event_queue"` // metadata.name -> queue name
 
@@ -75,7 +75,7 @@ func (module *MetricsModule) loadConfig(cfg *MetricConfig) {
 	meta := module.buildAgentMeta()
 
 	event.RegisterMeta(&meta)
-	module.agent=&meta
+	module.agent = &meta
 
 	tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
 	if len(meta.Labels) > 0 {
@@ -112,7 +112,7 @@ func (module *MetricsModule) Setup() {
 func (module *MetricsModule) CollectESMetric() {
 	if module.config.ElasticsearchConfig != nil {
 		//elasticsearch
-		es, err := elastic.New(module.config.ElasticsearchConfig,module.onSaveEvent)
+		es, err := elastic.New(module.config.ElasticsearchConfig, module.onSaveEvent)
 		if err != nil {
 			panic(err)
 		}
@@ -285,15 +285,15 @@ func (module *MetricsModule) Start() error {
 }
 
 func (m *MetricsModule) onSaveEvent(item *event.Event) error {
-	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue,item.Metadata.Name)
-	if m.config.EventQueue!=nil{
-		if v,ok:=m.config.EventQueue[item.Metadata.Name];ok{
-			if v!=""{
-				item.QueueName=v
+	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue, item.Metadata.Name)
+	if m.config.EventQueue != nil {
+		if v, ok := m.config.EventQueue[item.Metadata.Name]; ok {
+			if v != "" {
+				item.QueueName = v
 			}
 		}
 	}
-	item.Agent= m.agent
+	item.Agent = m.agent
 	return event.Save(item)
 }
 func (module *MetricsModule) Stop() error {

@@ -29,8 +29,8 @@ package elasticsearch
 
 import (
 	"fmt"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/util"
 	"strings"
 )
 

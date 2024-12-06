@@ -29,13 +29,13 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/logging/logger"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/logging/logger"
-	"infini.sh/framework/core/util"
 	"net/http"
 )
 

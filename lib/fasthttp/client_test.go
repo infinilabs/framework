@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 func TestCloseIdleConnections(t *testing.T) {
@@ -1324,7 +1324,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp :=defaultHTTPPool.AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			for {
 				if err := c.DoDeadline(req, resp, time.Now().Add(timeout)); err != nil {

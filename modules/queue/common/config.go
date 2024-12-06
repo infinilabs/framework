@@ -28,25 +28,25 @@
 package common
 
 import (
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/queue"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/queue"
 )
 
-//Init queue metadata
+// Init queue metadata
 func InitQueueMetadata() {
 
 	//load configs from static config
 	configs := []queue.QueueConfig{}
 	ok, err := env.ParseConfig("queue", &configs)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
-	for _,v:=range configs{
-		v.Source="file"
-		if v.ID ==""{
-			v.ID =v.Name
+	for _, v := range configs {
+		v.Source = "file"
+		if v.ID == "" {
+			v.ID = v.Name
 		}
 		queue.RegisterConfig(&v)
 	}

@@ -26,8 +26,8 @@ package pipeline
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	config2 "infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
+	config2 "github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
 	"strings"
 )
 
@@ -90,8 +90,8 @@ func NewDAGProcessor(c *config2.Config) (Processor, error) {
 
 	//log.Info("init dag processor")
 
-	if len(cfg.ParallelProcessors)==0{
-		return nil,errors.New("parallel is not set")
+	if len(cfg.ParallelProcessors) == 0 {
+		return nil, errors.New("parallel is not set")
 	}
 
 	processor.dag = NewDAG(cfg.Mode)

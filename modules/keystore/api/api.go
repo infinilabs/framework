@@ -29,10 +29,10 @@ package api
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/keystore"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/keystore"
+	"github.com/rubyniu105/framework/core/util"
 	"net/http"
 )
 
@@ -42,7 +42,7 @@ type APIHandler struct {
 
 func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	reqBody := struct {
-		Key string `json:"key"`
+		Key   string `json:"key"`
 		Value string `json:"value"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // MultiError represent multiple errors that occur when attempting to authenticate a request.

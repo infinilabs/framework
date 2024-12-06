@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func ExampleRequestCtx_SetBodyStreamWriter() {

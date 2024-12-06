@@ -34,16 +34,16 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
+	"github.com/rubyniu105/framework/core/api/filter"
+	"github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/api/websocket"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	_ "github.com/rubyniu105/framework/core/logging"
+	"github.com/rubyniu105/framework/core/logging/logger"
+	"github.com/rubyniu105/framework/core/util"
 	"golang.org/x/net/http2"
-	"infini.sh/framework/core/api/filter"
-	"infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/api/websocket"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	_ "infini.sh/framework/core/logging"
-	"infini.sh/framework/core/logging/logger"
-	"infini.sh/framework/core/util"
 	"net"
 	"net/http"
 	"runtime"
@@ -223,7 +223,7 @@ func StartAPI() {
 
 	router.NotFound = notfoundHandler
 
-	tlsCfg:=apiConfig.TLSConfig
+	tlsCfg := apiConfig.TLSConfig
 
 	schema := "http://"
 	if tlsCfg.TLSEnabled {
@@ -232,7 +232,7 @@ func StartAPI() {
 		log.Trace("using tls connection")
 
 		cfg, err := GetServerTLSConfig(&tlsCfg)
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 
@@ -312,4 +312,3 @@ func StartAPI() {
 	log.Info("api server listen at: ", schema, listenAddress)
 
 }
-

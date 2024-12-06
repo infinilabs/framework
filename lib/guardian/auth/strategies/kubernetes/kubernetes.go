@@ -13,9 +13,9 @@ import (
 	kubeauth "k8s.io/api/authentication/v1"
 	kubemeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/internal"
-	"infini.sh/framework/lib/guardian/auth/strategies/token"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/token"
 )
 
 type kubeReview struct {

@@ -10,7 +10,7 @@ import (
 	_ "github.com/shaj13/libcache/lru"
 	"github.com/stretchr/testify/assert"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 func TestNewCahced(t *testing.T) {

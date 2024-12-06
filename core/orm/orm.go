@@ -46,8 +46,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type Context struct {
@@ -522,8 +522,8 @@ type ProtectedFilterKeyType string
 
 const ProtectedFilterKey ProtectedFilterKeyType = "FILTER_PROTECTED"
 
-//FilterFieldsByProtected filter struct fields by tag protected recursively,
-//returns a filtered fields map
+// FilterFieldsByProtected filter struct fields by tag protected recursively,
+// returns a filtered fields map
 func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interface{} {
 	buf := util.MustToJSONBytes(obj)
 	mapObj := map[string]interface{}{}

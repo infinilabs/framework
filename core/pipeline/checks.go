@@ -42,7 +42,7 @@ package pipeline
 
 import (
 	"fmt"
-	"infini.sh/framework/core/config"
+	"github.com/rubyniu105/framework/core/config"
 )
 
 func ProcessorConfigChecked(

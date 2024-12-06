@@ -9,10 +9,10 @@ package fasttemplate
 import (
 	"bytes"
 	"fmt"
-	"io"
 	log "github.com/cihub/seelog"
+	"io"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 // ExecuteFunc calls f on each template tag (placeholder) occurrence.
@@ -274,7 +274,7 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 
 		//is there any first tags between start and end?
 		//valid tag can be find
-		if endOffset>n+len(a) && endOffset < len(s) {
+		if endOffset > n+len(a) && endOffset < len(s) {
 			tagPart := s[n+len(a) : endOffset]
 			//if there is, we need to find the last start tag offset
 			if bytes.Contains(tagPart, a) {

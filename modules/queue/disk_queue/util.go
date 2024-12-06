@@ -28,9 +28,9 @@ package queue
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/s3"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/zstd"
+	"github.com/rubyniu105/framework/core/s3"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/zstd"
 )
 
 // if local file not found, try to download from s3

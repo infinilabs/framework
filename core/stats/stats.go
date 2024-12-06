@@ -40,15 +40,14 @@ limitations under the License.
 package stats
 
 import (
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 	"strings"
 	"sync"
 	"time"
 )
 
 type StatsInterface interface {
-
 	Increment(category, key string)
 
 	IncrementBy(category, key string, value int64)
@@ -61,8 +60,6 @@ type StatsInterface interface {
 
 	Timing(category, key string, v int64)
 
-
-
 	Gauge(category, key string, v int64)
 
 	Stat(category, key string) int64
@@ -72,7 +69,7 @@ type StatsInterface interface {
 	//record the last timestamp for specify operation
 	RecordTimestamp(category, key string, value time.Time)
 	//get the last timestamp for specify operation
-	GetTimestamp(category, key string)(time.Time, error)
+	GetTimestamp(category, key string) (time.Time, error)
 }
 
 var handlers = []StatsInterface{}
@@ -93,9 +90,9 @@ func JoinArray(array []string, delimiter string) string {
 	return str
 }
 
-//record the last timestamp for specify operation
+// record the last timestamp for specify operation
 func TimestampNow(category string, key ...string) {
-	t:=util.GetLowPrecisionCurrentTime()
+	t := util.GetLowPrecisionCurrentTime()
 	Timestamp(category, JoinArray(key, "."), t)
 }
 
@@ -115,8 +112,8 @@ func GetTimestamp(category string, key ...string) *time.Time {
 	}
 
 	for _, v := range handlers {
-		o,err:=v.GetTimestamp(category, JoinArray(key, "."))
-		if err==nil{
+		o, err := v.GetTimestamp(category, JoinArray(key, "."))
+		if err == nil {
 			return &o
 		}
 	}
@@ -179,7 +176,7 @@ func Stat(category, key string) int64 {
 	return 0
 }
 
-func statsAll() string{
+func statsAll() string {
 	for _, v := range handlers {
 		b := v.StatsAll()
 		if b != "" {
@@ -189,35 +186,36 @@ func statsAll() string{
 	return ""
 }
 
-var registeredStats = map[string]func()interface{}{}
-var registerLock=sync.Mutex{}
-func RegisterStats(statsKey string,callback func()interface{})  {
+var registeredStats = map[string]func() interface{}{}
+var registerLock = sync.Mutex{}
+
+func RegisterStats(statsKey string, callback func() interface{}) {
 	registerLock.Lock()
-	registeredStats[statsKey]=callback
+	registeredStats[statsKey] = callback
 	registerLock.Unlock()
 }
 
-func StatsMap() (util.MapStr,error) {
+func StatsMap() (util.MapStr, error) {
 	var err error
 	metricsJSON := statsAll()
-	if metricsJSON==""{
-		return nil,errors.New("invalid stats")
+	if metricsJSON == "" {
+		return nil, errors.New("invalid stats")
 	}
-	metrics:=util.MapStr{}
-	err=util.FromJSONBytes([]byte(metricsJSON),&metrics)
-	if err!=nil{
-		return nil,err
+	metrics := util.MapStr{}
+	err = util.FromJSONBytes([]byte(metricsJSON), &metrics)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(registeredStats)>0{
+	if len(registeredStats) > 0 {
 		registerLock.Lock()
-		for k,v:=range registeredStats{
-			metrics[k]=v()
+		for k, v := range registeredStats {
+			metrics[k] = v()
 		}
 		registerLock.Unlock()
 	}
 
-	return metrics,nil
+	return metrics, nil
 }
 
 func Register(h StatsInterface) {

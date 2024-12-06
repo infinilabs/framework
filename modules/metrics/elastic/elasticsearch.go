@@ -27,11 +27,11 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"math"
 	"sync"
 	"time"
@@ -340,7 +340,7 @@ func (m *ElasticsearchMetric) DoCollect(k string, v *elastic.ElasticsearchMetada
 						}
 					}
 					log.Debugf("collect nodes stats, endpoint: %s", host)
-					stats := client.GetNodesStats(nodeID, host,"")
+					stats := client.GetNodesStats(nodeID, host, "")
 
 					log.Trace(y.GetHttpPublishHost(), " => ", host, stats.ErrorObject)
 
@@ -358,7 +358,7 @@ func (m *ElasticsearchMetric) DoCollect(k string, v *elastic.ElasticsearchMetada
 				//published host is not a valid host
 				if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
 					//host not dead and is not available, skip collecting
-					stats := client.GetNodesStats("", host,"")
+					stats := client.GetNodesStats("", host, "")
 					if stats.ErrorObject != nil {
 						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
 					} else {
@@ -435,7 +435,7 @@ func (m *ElasticsearchMetric) DoCollect(k string, v *elastic.ElasticsearchMetada
 	return true
 }
 
-func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{})error {
+func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{}) error {
 	//remove adaptive_selection
 	x, ok := f.(map[string]interface{})
 	if !ok {
@@ -476,7 +476,7 @@ func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, no
 	return m.onSaveEvent(&item)
 }
 
-func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error{
+func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error {
 	newIndexID := fmt.Sprintf("%s:%s", v.Config.ID, indexName)
 	if indexID == "_all" {
 		newIndexID = indexID
@@ -560,7 +560,7 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	var stats *elastic.ClusterStats
 	var err error
 	if m.IsAgentMode {
-		stats, err = client.GetClusterStatsSpecEndpoint(nil,"", v.Config.GetAnyEndpoint())
+		stats, err = client.GetClusterStatsSpecEndpoint(nil, "", v.Config.GetAnyEndpoint())
 	} else {
 		stats, err = client.GetClusterStats(nil, "")
 	}
@@ -589,7 +589,6 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 
 	return m.onSaveEvent(&item)
 }
-
 
 func (m *ElasticsearchMetric) CollectNodeStats() {
 

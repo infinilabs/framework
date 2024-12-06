@@ -29,11 +29,11 @@ package badger
 
 import (
 	"github.com/dgraph-io/badger/v4"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/filter"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/module"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/filter"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/core/module"
 	"path"
 )
 

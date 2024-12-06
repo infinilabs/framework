@@ -26,8 +26,8 @@ package pipeline
 import (
 	"time"
 
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type PipelineStatus struct {

@@ -31,13 +31,11 @@ package main
 
 import (
 	"flag"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/core/util/zstd"
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/core/util/zstd"
 	"sync"
 )
-
-
 
 func main() {
 
@@ -45,25 +43,25 @@ func main() {
 	op := flag.String("op", "compress", "compress or decompress")
 	flag.Parse()
 
-	files,err:=util.ListAllFiles(*path)
+	files, err := util.ListAllFiles(*path)
 	if err != nil {
 		panic(err)
 	}
 
-	if *op=="compress"{
+	if *op == "compress" {
 		for _, file := range files {
-			if !util.SuffixStr(file,suffix){
-				err:=zstd.CompressFile(file,file+suffix)
-				if err!=nil{
+			if !util.SuffixStr(file, suffix) {
+				err := zstd.CompressFile(file, file+suffix)
+				if err != nil {
 					log.Error(err)
 				}
 			}
 		}
-	}else{
+	} else {
 		for _, file := range files {
-			if util.SuffixStr(file,suffix){
-				err:=zstd.DecompressFile(&locker,file,util.TrimRightStr(file,suffix))
-				if err!=nil{
+			if util.SuffixStr(file, suffix) {
+				err := zstd.DecompressFile(&locker, file, util.TrimRightStr(file, suffix))
+				if err != nil {
 					log.Error(err)
 				}
 			}
@@ -71,5 +69,6 @@ func main() {
 	}
 
 }
-var suffix=".zstd"
-var locker=sync.RWMutex{}
+
+var suffix = ".zstd"
+var locker = sync.RWMutex{}

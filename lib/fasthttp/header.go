@@ -2208,7 +2208,7 @@ func (h *ResponseHeader) AppendBytes(dst []byte) []byte {
 
 	// Append Content-Type only for non-zero responses
 	// or if it is explicitly set.
-	// See https://infini.sh/framework/lib/fasthttp/issues/28 .
+	// See https://github.com/rubyniu105/framework/lib/fasthttp/issues/28 .
 	if h.ContentLength() != 0 || len(h.contentType) > 0 {
 		contentType := h.ContentType()
 		if len(contentType) > 0 {

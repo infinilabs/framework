@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"infini.sh/framework/lib/guardian/auth/strategies/oauth2"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/oauth2"
 )
 
 func TestUserInfo(t *testing.T) {

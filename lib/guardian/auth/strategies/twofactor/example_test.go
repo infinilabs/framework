@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/rubyniu105/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/basic"
+	"github.com/rubyniu105/framework/lib/guardian/auth/strategies/twofactor"
 	"github.com/shaj13/go-guardian/v2/otp"
-	"infini.sh/framework/lib/guardian/auth"
-	"infini.sh/framework/lib/guardian/auth/strategies/basic"
-	"infini.sh/framework/lib/guardian/auth/strategies/twofactor"
 )
 
 type OTPManager struct{}

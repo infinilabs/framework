@@ -31,10 +31,10 @@ import (
 	"context"
 	"errors"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/core/task"
+	"github.com/rubyniu105/framework/core/util"
 	"sync"
 	"time"
 )
@@ -56,7 +56,7 @@ var queueConfigPool = sync.Pool{
 	},
 }
 
-func (q *QueueConfig) UpdateLabel(key string,val interface{}) {
+func (q *QueueConfig) UpdateLabel(key string, val interface{}) {
 	q.Lock()
 	defer q.Unlock()
 	q.Labels[key] = val
@@ -64,7 +64,7 @@ func (q *QueueConfig) UpdateLabel(key string,val interface{}) {
 func (q *QueueConfig) ReplaceLabels(labels util.MapStr) {
 	q.Lock()
 	defer q.Unlock()
-	q.Labels=labels
+	q.Labels = labels
 }
 
 func AcquireQueueConfig() *QueueConfig {
@@ -98,7 +98,7 @@ func addCfgToCache(cfg *QueueConfig) {
 
 func RegisterConfig(cfg *QueueConfig) (preExists bool, err error) {
 
-	if global.Env().IsDebug{
+	if global.Env().IsDebug {
 		log.Info("register queue config:", cfg.ID, ",", cfg.Name, ",", cfg.Labels)
 	}
 
@@ -130,10 +130,10 @@ func RegisterConfig(cfg *QueueConfig) (preExists bool, err error) {
 
 	//async notify
 	task.RunWithContext("queue_config_changed_callback", func(ctx context.Context) error {
-		v:=ctx.Value("cfg")
-		if v!=nil{
-			x,ok:=v.(*QueueConfig)
-			if ok{
+		v := ctx.Value("cfg")
+		if v != nil {
+			x, ok := v.(*QueueConfig)
+			if ok {
 				//notify all listeners
 				for _, f := range queueConfigListener {
 					f(x)
@@ -141,7 +141,7 @@ func RegisterConfig(cfg *QueueConfig) (preExists bool, err error) {
 			}
 		}
 		return nil
-	},context.WithValue(context.Background(), "cfg", cfg))
+	}, context.WithValue(context.Background(), "cfg", cfg))
 
 	return false, nil
 
@@ -169,11 +169,11 @@ func GetOrInitConfig(key string) *QueueConfig {
 }
 
 func SmartGetOrInitConfig(cfg *QueueConfig) *QueueConfig {
-	if cfg.ID!=""{
-		v,_:=GetConfigByUUID(cfg.ID)
+	if cfg.ID != "" {
+		v, _ := GetConfigByUUID(cfg.ID)
 		return v
 	}
-	return AdvancedGetOrInitConfig(cfg.Type,cfg.Name,cfg.Labels)
+	return AdvancedGetOrInitConfig(cfg.Type, cfg.Name, cfg.Labels)
 }
 
 func AdvancedGetOrInitConfig(queueType, key string, labels map[string]interface{}) *QueueConfig {
@@ -195,7 +195,7 @@ func AdvancedGetOrInitConfig(queueType, key string, labels map[string]interface{
 
 	} else {
 		//TODO: check if labels changed, then replace the config
-		if  labelChanged(labels, cfg.Labels){
+		if labelChanged(labels, cfg.Labels) {
 			cfg.Name = key
 			cfg.Labels = labels
 			RegisterConfig(cfg)
@@ -205,11 +205,11 @@ func AdvancedGetOrInitConfig(queueType, key string, labels map[string]interface{
 }
 
 func labelChanged(newLabels, oldLabels map[string]interface{}) bool {
-	if len(newLabels) > len(oldLabels){
+	if len(newLabels) > len(oldLabels) {
 		return true
 	}
 
-	if len(oldLabels)==0&&len(newLabels)>0{
+	if len(oldLabels) == 0 && len(newLabels) > 0 {
 		return true
 	}
 

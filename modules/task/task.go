@@ -24,13 +24,13 @@
 package task
 
 import (
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/env"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/env"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/task"
+	"github.com/rubyniu105/framework/core/util"
 	"net/http"
 	"time"
 )
@@ -51,7 +51,7 @@ func (module *TaskModule) Setup() {
 	module.TimeZone = "UTC"
 	module.MaxConcurrentNumOfTasks = 100
 	ok, err := env.ParseConfig("task", &module)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -59,7 +59,7 @@ func (module *TaskModule) Setup() {
 	if tz == nil {
 		tz = time.UTC
 	}
-	module.pool, _ = pipeline.NewPoolWithTag("tasks",module.MaxConcurrentNumOfTasks)
+	module.pool, _ = pipeline.NewPoolWithTag("tasks", module.MaxConcurrentNumOfTasks)
 	global.RegisterShutdownCallback(func() {
 		pipeline.Release()
 	})

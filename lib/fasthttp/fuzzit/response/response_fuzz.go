@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"bytes"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 func Fuzz(data []byte) int {

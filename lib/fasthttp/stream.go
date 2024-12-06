@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 // StreamWriter must write data to w.

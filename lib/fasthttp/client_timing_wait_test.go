@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"infini.sh/framework/lib/fasthttp/fasthttputil"
+	"github.com/rubyniu105/framework/lib/fasthttp/fasthttputil"
 )
 
 func newFasthttpSleepEchoHandler(sleep time.Duration) RequestHandler {

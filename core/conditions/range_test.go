@@ -41,13 +41,12 @@
 package conditions
 
 import (
-	"infini.sh/framework/core/event"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/event"
+	"github.com/rubyniu105/framework/core/util"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
 )
 
 func TestRangeCreateNumeric(t *testing.T) {

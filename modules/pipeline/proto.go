@@ -23,7 +23,7 @@
 
 package pipeline
 
-import "infini.sh/framework/core/pipeline"
+import "github.com/rubyniu105/framework/core/pipeline"
 
 type GetPipelinesResponse map[string]*PipelineStatus
 

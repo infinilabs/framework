@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"infini.sh/framework/lib/go-ucfg"
+	"github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 // FileLoader is used by NewFlagFiles to define customer file loading functions

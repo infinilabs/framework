@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	"infini.sh/framework/lib/guardian/auth"
+	"github.com/rubyniu105/framework/lib/guardian/auth"
 )
 
 // Requester sends an HTTP request to query

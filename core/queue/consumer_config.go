@@ -30,12 +30,12 @@ package queue
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/kv"
-	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/stats"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/kv"
+	"github.com/rubyniu105/framework/core/orm"
+	"github.com/rubyniu105/framework/core/stats"
+	"github.com/rubyniu105/framework/core/util"
 	"runtime"
 	"sync"
 	"time"
@@ -53,13 +53,13 @@ type ConsumerConfig struct {
 	//don't add queue id to generated sliced consumer group
 	SimpleSlicedGroup bool `config:"simple_sliced_group" json:"simple_sliced_group,omitempty"`
 
-	FetchMinBytes     int   `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
-	FetchMaxBytes     int   `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
-	FetchMaxMessages  int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
-	FetchMaxWaitMs    int64 `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
-	ConsumeTimeoutInSeconds    int `config:"consume_timeout" json:"consume_timeout,omitempty"`
-	EOFMaxRetryTimes  int   `config:"eof_max_retry_times" json:"eof_max_retry_times,omitempty"`
-	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
+	FetchMinBytes           int   `config:"fetch_min_bytes" json:"fetch_min_bytes,omitempty"`
+	FetchMaxBytes           int   `config:"fetch_max_bytes" json:"fetch_max_bytes,omitempty"`
+	FetchMaxMessages        int   `config:"fetch_max_messages" json:"fetch_max_messages,omitempty"`
+	FetchMaxWaitMs          int64 `config:"fetch_max_wait_ms" json:"fetch_max_wait_ms,omitempty"`
+	ConsumeTimeoutInSeconds int   `config:"consume_timeout" json:"consume_timeout,omitempty"`
+	EOFMaxRetryTimes        int   `config:"eof_max_retry_times" json:"eof_max_retry_times,omitempty"`
+	EOFRetryDelayInMs       int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 
 	ClientExpiredInSeconds int64 `config:"client_expired_in_seconds" json:"client_expired_in_seconds,omitempty"` //client acquires lock for this long
 	fetchMaxWaitMs         time.Duration
@@ -67,17 +67,16 @@ type ConsumerConfig struct {
 	CommitLocker sync.Mutex
 }
 
-
 func (cfg *ConsumerConfig) Key() string {
-	return getConsumerKey(cfg.Group , cfg.Name)
+	return getConsumerKey(cfg.Group, cfg.Name)
 }
 
 func (cfg *ConsumerConfig) KeepActive() {
-	stats.TimestampNow("consumer",cfg.ID, "last_active")
+	stats.TimestampNow("consumer", cfg.ID, "last_active")
 }
 
-func (cfg *ConsumerConfig) GetLastActiveTime()*time.Time {
-	return stats.GetTimestamp("consumer",cfg.ID, "last_active")
+func (cfg *ConsumerConfig) GetLastActiveTime() *time.Time {
+	return stats.GetTimestamp("consumer", cfg.ID, "last_active")
 }
 
 func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
@@ -90,7 +89,7 @@ func (cfg *ConsumerConfig) GetFetchMaxWaitMs() time.Duration {
 }
 
 func (cfg *ConsumerConfig) String() string {
-	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v, simple:%v", cfg.Group, cfg.Name, cfg.ID, cfg.Source,cfg.SimpleSlicedGroup)
+	return fmt.Sprintf("group:%v,name:%v,id:%v,source:%v, simple:%v", cfg.Group, cfg.Name, cfg.ID, cfg.Source, cfg.SimpleSlicedGroup)
 }
 
 const ConsumerBucket = "queue_consumers"
@@ -222,27 +221,27 @@ func GetConsumerConfig(queueID, group, name string) (*ConsumerConfig, bool) {
 		panic(err)
 	}
 	if cfgs != nil {
-		x, ok := cfgs[getConsumerKey(group,name)]
+		x, ok := cfgs[getConsumerKey(group, name)]
 		return x, ok
 	}
 
 	return nil, false
 }
 
-func getConsumerKey(group,name string)string{
-	return group+"-"+name
+func getConsumerKey(group, name string) string {
+	return group + "-" + name
 }
 
 func NewConsumerConfig(queueID, group, name string) *ConsumerConfig {
 	cfg := &ConsumerConfig{
-		FetchMinBytes:          1,
-		FetchMaxBytes:          20 * 1024 * 1024,
-		FetchMaxMessages:       500,
-		EOFRetryDelayInMs:      500,
-		FetchMaxWaitMs:         10000,
-		ConsumeTimeoutInSeconds:         60,
-		EOFMaxRetryTimes:       10,
-		ClientExpiredInSeconds: 60,
+		FetchMinBytes:           1,
+		FetchMaxBytes:           20 * 1024 * 1024,
+		FetchMaxMessages:        500,
+		EOFRetryDelayInMs:       500,
+		FetchMaxWaitMs:          10000,
+		ConsumeTimeoutInSeconds: 60,
+		EOFMaxRetryTimes:        10,
+		ClientExpiredInSeconds:  60,
 	}
 	cfg.ID = util.MD5digest(fmt.Sprintf("%v_%v_%v", queueID, group, name))
 	cfg.Source = "dynamic"

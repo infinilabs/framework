@@ -25,8 +25,8 @@ package pipeline
 
 import (
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/util"
 )
 
 type PipelineConfigV2 struct {
@@ -64,7 +64,6 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 	if this.Enabled != nil && target.Enabled != nil && *this.Enabled != *target.Enabled {
 		return false
 	}
-
 
 	return true
 }

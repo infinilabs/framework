@@ -28,18 +28,18 @@ package queue
 
 import (
 	"fmt"
-	"infini.sh/framework/core/global"
-	queue "infini.sh/framework/modules/queue/disk_queue"
+	"github.com/rubyniu105/framework/core/global"
+	queue "github.com/rubyniu105/framework/modules/queue/disk_queue"
 	"net/http"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/errors"
-	queue1 "infini.sh/framework/core/queue"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/queue/common"
+	"github.com/rubyniu105/framework/core/api"
+	httprouter "github.com/rubyniu105/framework/core/api/router"
+	"github.com/rubyniu105/framework/core/errors"
+	queue1 "github.com/rubyniu105/framework/core/queue"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/modules/queue/common"
 )
 
 type API struct {
@@ -204,8 +204,8 @@ func (module *API) getQueueStats(t, q string, metadata string, consumer string, 
 				m["group"] = v.Group
 				m["name"] = v.Name
 
-				t1:=v.GetLastActiveTime()
-				if t1!=nil{
+				t1 := v.GetLastActiveTime()
+				if t1 != nil {
 					m["last_active"] = t1.Format(time.RFC3339)
 				}
 
@@ -306,7 +306,7 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 		qConfig, ok := queue1.SmartGetConfig(queueID)
 		if ok {
 			consumerAPI, err := queue1.AcquireConsumer(qConfig, consumer, "api")
-			if consumerAPI!=nil{
+			if consumerAPI != nil {
 				defer queue1.ReleaseConsumer(qConfig, consumer, consumerAPI)
 				err = consumerAPI.ResetOffset(queue1.ConvertOffset(offsetStr)) //TODO fix offset reset
 				if err != nil {
@@ -319,8 +319,8 @@ func (module *API) QueueExplore(w http.ResponseWriter, req *http.Request, ps htt
 				if err != nil {
 					return
 				}
-			}else{
-				log.Errorf("can't acquire consumer [%v] for [%v]", consumer.Key(),qConfig.Name)
+			} else {
+				log.Errorf("can't acquire consumer [%v] for [%v]", consumer.Key(), qConfig.Name)
 			}
 
 		} else {

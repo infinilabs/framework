@@ -30,7 +30,7 @@ import (
 	"sync"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
+	"github.com/rubyniu105/framework/core/global"
 )
 
 var fileHandlers = map[string]*RotateWriter{}

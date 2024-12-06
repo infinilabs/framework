@@ -33,14 +33,14 @@ import (
 	time2 "time"
 
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/pipeline"
-	"infini.sh/framework/core/progress"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/bytebufferpool"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/pipeline"
+	"github.com/rubyniu105/framework/core/progress"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 type Config struct {
@@ -76,7 +76,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	runner := ReplayProcessor{config: &cfg}
-	runner.HTTPPool=fasthttp.NewRequestResponsePool("replay_filter_"+util.GetUUID())
+	runner.HTTPPool = fasthttp.NewRequestResponsePool("replay_filter_" + util.GetUUID())
 
 	return &runner, nil
 }
@@ -154,7 +154,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 		defer processor.HTTPPool.ReleaseRequest(req)
 		defer processor.HTTPPool.ReleaseResponse(res)
 
-		count, err, done = ReplayLines(req,res,ctx, lines, processor.config.Schema, processor.config.Host, processor.config.Username, processor.config.Password)
+		count, err, done = ReplayLines(req, res, ctx, lines, processor.config.Schema, processor.config.Host, processor.config.Username, processor.config.Password)
 		if done {
 			return err
 		}
@@ -169,7 +169,7 @@ func (processor *ReplayProcessor) Process(ctx *pipeline.Context) error {
 	return nil
 }
 
-func ReplayLines(req *fasthttp.Request,res *fasthttp.Response,ctx *pipeline.Context, lines []string, schema, host, username, password string) (int, error, bool) {
+func ReplayLines(req *fasthttp.Request, res *fasthttp.Response, ctx *pipeline.Context, lines []string, schema, host, username, password string) (int, error, bool) {
 
 	var buffer = bytebufferpool.Get("replay")
 	defer bytebufferpool.Put("replay", buffer)

@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ucfg "infini.sh/framework/lib/go-ucfg"
+	ucfg "github.com/rubyniu105/framework/lib/go-ucfg"
 )
 
 var opts = []ucfg.Option{ucfg.PathSep(".")}

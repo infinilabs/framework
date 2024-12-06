@@ -44,10 +44,10 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/conditions"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/core/conditions"
+	"github.com/rubyniu105/framework/core/config"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	"strings"
 )
 

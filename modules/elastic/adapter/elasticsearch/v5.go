@@ -44,10 +44,10 @@ import (
 	"fmt"
 
 	log "github.com/cihub/seelog"
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/global"
+	"github.com/rubyniu105/framework/core/util"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 )
 
 type ESAPIV5 struct {
@@ -200,8 +200,6 @@ func (c *ESAPIV5) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 	return data, err
 }
 
-
-
 func (c *ESAPIV5) Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
 	if docType == "" {
@@ -219,10 +217,10 @@ func (c *ESAPIV5) Update(indexName, docType string, id interface{}, data interfa
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
 	}
 
-	js:=util.MapStr{}
-	js["doc"]=data
-	js["detect_noop"]=false
-	js["doc_as_upsert"]=true
+	js := util.MapStr{}
+	js["doc"] = data
+	js["detect_noop"] = false
+	js["doc_as_upsert"] = true
 
 	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
 	if err != nil {

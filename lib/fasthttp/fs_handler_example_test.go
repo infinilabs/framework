@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"log"
 
-	"infini.sh/framework/lib/fasthttp"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 )
 
 // Setup file handlers (aka 'file server config')

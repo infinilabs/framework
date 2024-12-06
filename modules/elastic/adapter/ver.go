@@ -45,11 +45,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rubyniu105/framework/core/elastic"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
+	"github.com/rubyniu105/framework/lib/fasthttp"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 func GetMajorVersion(esConfig *elastic.ElasticsearchMetadata) (elastic.Version, error) {
@@ -80,11 +80,11 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 		metadata.Config.RequestTimeout = 5
 	}
 
-	req:=util.Request{Method: fasthttp.MethodGet,Url: url}
+	req := util.Request{Method: fasthttp.MethodGet, Url: url}
 	if metadata.Config.BasicAuth != nil {
 		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password.Get())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout) * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout)*time.Second)
 	req.Context = ctx
 	defer cancel()
 
@@ -167,7 +167,7 @@ func RequestTimeout(ctx *elastic.APIContext, method, url string, body []byte, me
 
 }
 
-func GetClusterUUID(clusterID string) (string, error){
+func GetClusterUUID(clusterID string) (string, error) {
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
 		return "", fmt.Errorf("metadata can not be mepty")

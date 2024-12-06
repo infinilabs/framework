@@ -27,7 +27,7 @@
 
 package common
 
-import "infini.sh/framework/core/model"
+import "github.com/rubyniu105/framework/core/model"
 
 const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"

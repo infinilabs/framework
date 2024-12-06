@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"infini.sh/framework/lib/bytebufferpool"
+	"github.com/rubyniu105/framework/lib/bytebufferpool"
 )
 
 func BenchmarkAppendHTMLEscape(b *testing.B) {

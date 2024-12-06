@@ -25,8 +25,8 @@ package config
 
 import (
 	"fmt"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
+	"github.com/rubyniu105/framework/core/errors"
+	"github.com/rubyniu105/framework/core/util"
 	"strings"
 )
 
@@ -249,13 +249,13 @@ type WebAppConfig struct {
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
 
-	AuthConfig    AuthConfig     `config:"auth"` //enable access control for UI or not
-	UI            UIConfig       `config:"ui"`
-	BasePath      string         `config:"base_path"`
-	Domain        string         `config:"domain"`
-	EmbeddingAPI  bool           `config:"embedding_api"`
-	Gzip          GzipConfig     `config:"gzip"`
-	S3Config      S3BucketConfig `config:"s3"`
+	AuthConfig   AuthConfig     `config:"auth"` //enable access control for UI or not
+	UI           UIConfig       `config:"ui"`
+	BasePath     string         `config:"base_path"`
+	Domain       string         `config:"domain"`
+	EmbeddingAPI bool           `config:"embedding_api"`
+	Gzip         GzipConfig     `config:"gzip"`
+	S3Config     S3BucketConfig `config:"s3"`
 }
 
 type S3Config struct {
