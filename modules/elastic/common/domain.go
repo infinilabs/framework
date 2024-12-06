@@ -103,6 +103,8 @@ type MetricItem struct {
 	Group string `json:"group"`
 	Order int `json:"order"`
 	OnlyPrimary bool `json:"only_primary"`
+	//current query statement that passed to search engine
+	Request string `json:"request"`
 }
 
 const TermsBucket string="terms"
