@@ -512,9 +512,10 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 			aliases = mps["aliases"]
 			indexUUID, _ = mps.GetValue("settings.index.uuid")
 		}
+		indexID := fmt.Sprintf("%s:%s", esConfig.ID, indexName)
 
 		indexConfig := &elastic.IndexConfig{
-			ID:        util.GetUUID(),
+			ID:       indexID,
 			Timestamp: time.Now(),
 			Metadata: elastic.IndexMetadata{
 				IndexID:     fmt.Sprintf("%s:%s", clusterID, indexName),
@@ -557,7 +558,7 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 			//compare metadata for lower elasticsearch version
 			oldConfig := oldIndexMetadata[indexName].(map[string]interface{})
 			newIndexMetadata[indexName] = util.MapStr{
-				"id":          oldConfig["id"].(string),
+				"id":          indexID,
 				"index_state": indexMetadata,
 				"health":      health,
 			}
@@ -624,13 +625,13 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 			} else {
 				activityInfo.Metadata.Type = "create"
 			}
-			indexConfig.ID = oldConfig["id"].(string)
+			indexConfig.ID = indexID
 
 		} else {
 			//new
 			activityInfo.Metadata.Type = "create"
 			newIndexMetadata[indexName] = util.MapStr{
-				"id":          indexConfig.ID,
+				"id":          indexID,
 				"index_state": indexMetadata,
 				"health":      health,
 			}
@@ -893,7 +894,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		var changeLog diff.Changelog
 		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
-			newID := util.GetUUID()
+			newID := fmt.Sprintf("%s:%s", clusterID, rawNodeID)
 			typ = "create"
 			innerID = newID
 			nodeMetadata := &elastic.NodeConfig{
