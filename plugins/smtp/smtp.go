@@ -28,7 +28,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/gopkg.in/gomail.v2"
 	"github.com/rubyniu105/framework/core/config"
 	"github.com/rubyniu105/framework/core/errors"
 	"github.com/rubyniu105/framework/core/global"
@@ -37,11 +36,11 @@ import (
 	"github.com/rubyniu105/framework/core/queue"
 	"github.com/rubyniu105/framework/core/util"
 	"github.com/valyala/fasttemplate"
+	"gopkg.in/gomail.v2"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 type SMTPProcessor struct {
@@ -350,7 +349,7 @@ func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []st
 		message.Embed(attachment.File, gomail.SetHeader(h))
 	}
 
-	d := gomail.NewDialerWithTimeout(srvCfg.Server.Host, srvCfg.Server.Port, srvCfg.Auth.Username, srvCfg.Auth.Password, time.Duration(processor.config.DialTimeoutInSeconds)*time.Second)
+	d := gomail.NewDialer(srvCfg.Server.Host, srvCfg.Server.Port, srvCfg.Auth.Username, srvCfg.Auth.Password /*, time.Duration(processor.config.DialTimeoutInSeconds)*time.Second*/)
 	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	d.SSL = srvCfg.Server.TLS
 	// Send the email to Bob, Cora and Dan.

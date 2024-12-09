@@ -2,9 +2,8 @@ package twofactor
 
 import (
 	"errors"
+	"infini-framework/lib/guardian/auth/internal"
 	"net/http"
-
-	"github.com/rubyniu105/framework/lib/guardian/auth/internal"
 )
 
 // ErrMissingOTP is returned by Parser,
@@ -25,7 +24,7 @@ func (fn otpFn) GetOTP(r *http.Request) (string, error) {
 // XHeaderParser return a one-time password parser, where otp extracted form "X-" header.
 func XHeaderParser(header string) Parser {
 	fn := func(r *http.Request) (string, error) {
-		return internal.ParseHeader(header, r, ErrMissingOTP)
+		return internal.ParseHeader(header, r, ErrMissingOTP), nil
 	}
 
 	return otpFn(fn)
