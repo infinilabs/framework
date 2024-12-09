@@ -24,6 +24,7 @@
 package elastic
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
@@ -33,6 +34,7 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"math"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -55,6 +57,8 @@ type ElasticsearchMetric struct {
 	NodeInfo     bool   `config:"node_info"`
 	Interval     string `config:"interval"`
 	onSaveEvent  func(item *event.Event) error
+	//buffer channel for limiting number of go routine to collecting metrics
+	bufCh chan struct{}
 }
 
 //元数据定期快照
@@ -78,6 +82,7 @@ func New(cfg *config.Config, saveEvent func(item *event.Event) error) (*Elastics
 		IndexTotalStats:   true,
 		ClusterState:      true,
 		Interval:          "10s",
+		bufCh: make(chan struct{}, 100),
 	}
 
 	err := cfg.Unpack(&me)
@@ -174,9 +179,6 @@ func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
 	}
-	if m.IsAgentMode {
-		return m.CollectOfAgentMode()
-	}
 
 	collectStartTime := time.Now()
 	elastic.WalkMetadata(func(key, value interface{}) bool {
@@ -191,25 +193,27 @@ func (m *ElasticsearchMetric) Collect() error {
 		if !ok {
 			return true
 		}
-		m.DoCollect(k, v, collectStartTime)
-		return true
-	})
-	return nil
-}
-
-func (m *ElasticsearchMetric) CollectOfAgentMode() error {
-	collectStartTime := time.Now()
-	elastic.WalkMetadata(func(key, value interface{}) bool {
-		log.Debug("collecting metrics for: ", key)
-		k := key.(string)
-		v, ok := value.(*elastic.ElasticsearchMetadata)
-		if !ok {
-			return true
-		}
-		if v.Config.Endpoint == "" {
-			return true
-		}
-		go m.DoCollect(k, v, collectStartTime)
+		m.bufCh <- struct{}{}
+		go func() {
+			defer func() {
+				if !global.Env().IsDebug {
+					if r := recover(); r != nil {
+						var errStr string
+						switch r.(type) {
+						case error:
+							errStr = r.(error).Error()
+						case runtime.Error:
+							errStr = r.(runtime.Error).Error()
+						case string:
+							errStr = r.(string)
+						}
+						log.Error(errStr)
+					}
+				}
+				<- m.bufCh
+			}()
+			m.DoCollect(k, v, collectStartTime)
+		}()
 		return true
 	})
 	return nil
@@ -520,11 +524,17 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 
 	client := elastic.GetClient(k)
 	var health *elastic.ClusterHealth
+	//add context to control timeout for metric collecting,
+	//since next metric collecting round will be triggered after this one
+	monitorCfg := getMonitorConfigs(v)
+	du, _ := time.ParseDuration(monitorCfg.ClusterHealth.Interval)
+	ctx, cancel := context.WithTimeout(context.Background(), du)
+	defer cancel()
 	var err error
 	if m.IsAgentMode {
-		health, err = client.ClusterHealthSpecEndpoint(nil, v.Config.GetAnyEndpoint(), "")
+		health, err = client.ClusterHealthSpecEndpoint(ctx, v.Config.GetAnyEndpoint(), "")
 	} else {
-		health, err = client.ClusterHealth(nil)
+		health, err = client.ClusterHealth(ctx)
 	}
 	if err != nil {
 		log.Error(v.Config.Name, " get cluster health error: ", err)
@@ -558,11 +568,17 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	client := elastic.GetClient(k)
 
 	var stats *elastic.ClusterStats
+	//add context to control timeout for metric collecting,
+	//since next metric collecting round will be triggered after this one
+	monitorCfg := getMonitorConfigs(v)
+	du, _ := time.ParseDuration(monitorCfg.ClusterHealth.Interval)
+	ctx, cancel := context.WithTimeout(context.Background(), du)
+	defer cancel()
 	var err error
 	if m.IsAgentMode {
-		stats, err = client.GetClusterStatsSpecEndpoint(nil,"", v.Config.GetAnyEndpoint())
+		stats, err = client.GetClusterStatsSpecEndpoint(ctx,"", v.Config.GetAnyEndpoint())
 	} else {
-		stats, err = client.GetClusterStats(nil, "")
+		stats, err = client.GetClusterStats(ctx, "")
 	}
 	if err != nil {
 		log.Error(v.Config.Name, " get cluster stats error: ", err)
