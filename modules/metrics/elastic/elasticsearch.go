@@ -32,9 +32,9 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"math"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -57,8 +57,6 @@ type ElasticsearchMetric struct {
 	NodeInfo     bool   `config:"node_info"`
 	Interval     string `config:"interval"`
 	onSaveEvent  func(item *event.Event) error
-	//buffer channel for limiting number of go routine to collecting metrics
-	bufCh chan struct{}
 }
 
 //元数据定期快照
@@ -82,7 +80,6 @@ func New(cfg *config.Config, saveEvent func(item *event.Event) error) (*Elastics
 		IndexTotalStats:   true,
 		ClusterState:      true,
 		Interval:          "10s",
-		bufCh: make(chan struct{}, 100),
 	}
 
 	err := cfg.Unpack(&me)
@@ -193,27 +190,10 @@ func (m *ElasticsearchMetric) Collect() error {
 		if !ok {
 			return true
 		}
-		m.bufCh <- struct{}{}
-		go func() {
-			defer func() {
-				if !global.Env().IsDebug {
-					if r := recover(); r != nil {
-						var errStr string
-						switch r.(type) {
-						case error:
-							errStr = r.(error).Error()
-						case runtime.Error:
-							errStr = r.(runtime.Error).Error()
-						case string:
-							errStr = r.(string)
-						}
-						log.Error(errStr)
-					}
-				}
-				<- m.bufCh
-			}()
+		task.RunWithinGroup("collecting-es-metrics", func(ctx context.Context) error {
 			m.DoCollect(k, v, collectStartTime)
-		}()
+			return nil
+		})
 		return true
 	})
 	return nil
