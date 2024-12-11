@@ -75,6 +75,11 @@ func registerTransientTask(group,tag string, f func(ctx context.Context) error, 
 	task.CreateTime = time.Now()
 	task.State = Pending
 	task.Ctx = ctxInput
+
+	if task.isTaskRunning==nil{
+		task.isTaskRunning=&atomic.Bool{}
+	}
+
 	Tasks.Store(task.ID, &task)
 
 	go func(func2 func(ctx context.Context) error) {
@@ -134,7 +139,7 @@ type ScheduleTask struct {
 	State    State           `config:"state" json:"state,omitempty"`
 	Ctx      context.Context `config:"-" json:"-"` //for transient task
 
-	isTaskRunning  atomic.Bool
+	isTaskRunning  *atomic.Bool
 }
 
 const Interval = "interval"
@@ -151,6 +156,10 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 		task.Type = Interval
 	} else if task.Type == "" && task.Crontab != "" {
 		task.Type = Crontab
+	}
+
+	if task.isTaskRunning==nil{
+		task.isTaskRunning=&atomic.Bool{}
 	}
 
 	tempTask := task.Task
