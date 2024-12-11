@@ -34,7 +34,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
-	"math"
 	"sync"
 	"time"
 )
@@ -57,6 +56,7 @@ type ElasticsearchMetric struct {
 	NodeInfo     bool   `config:"node_info"`
 	Interval     string `config:"interval"`
 	onSaveEvent  func(item *event.Event) error
+	taskIDs sync.Map
 }
 
 //元数据定期快照
@@ -90,51 +90,6 @@ func New(cfg *config.Config, saveEvent func(item *event.Event) error) (*Elastics
 	return me, nil
 }
 
-var collectLoadingMap = sync.Map{}
-
-func canDoMonitor(key string, subKey string, interval string, configName string) bool {
-	if item, ok := collectLoadingMap.Load(key); ok {
-		itemM := item.(map[string]time.Time)
-		if startTime, ok := itemM[subKey]; ok && !startTime.IsZero() {
-			elapsed := time.Since(startTime)
-			intervalD := util.GetDurationOrDefault(interval, 10*time.Second)
-			duration := elapsed - intervalD
-			abd := math.Abs(duration.Seconds())
-			if abd < 3 {
-				return true
-			} else if duration > intervalD {
-				log.Warnf("collect metrics of %s for cluster %s is still running, elapsed: %v, skip waiting", subKey, configName, elapsed.String())
-				return true
-			} else {
-				//log.Warnf("collect  metrics of %s for cluster %s is still running, elapsed: %v",subKey, configName, elapsed.String())
-				return false
-			}
-		}
-	}
-	return true
-}
-func setLastMonitorTime(key string, subKey string, lastTime time.Time) {
-	if item, ok := collectLoadingMap.Load(key); ok {
-		itemM := item.(map[string]time.Time)
-		//if lastTime.IsZero(){
-		//	delete(itemM, subKey)
-		//	if len(itemM) == 0 {
-		//		collectLoadingMap.Delete(key)
-		//	}
-		//}
-		if t, ok := itemM[subKey]; ok {
-			if lastTime.Before(t) {
-				return
-			}
-		}
-		itemM[subKey] = lastTime
-		collectLoadingMap.Store(key, itemM)
-		return
-	}
-	collectLoadingMap.Store(key, map[string]time.Time{
-		subKey: lastTime,
-	})
-}
 func getMonitorConfigs(v *elastic.ElasticsearchMetadata) *elastic.MonitorConfig {
 	if v.Config.MonitorConfigs == nil {
 		return &elastic.MonitorConfig{
@@ -176,11 +131,8 @@ func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
 	}
-
-	collectStartTime := time.Now()
 	elastic.WalkMetadata(func(key, value interface{}) bool {
 		log.Debug("collecting metrics for: ", key)
-
 		k := key.(string)
 		if value == nil {
 			log.Error("nil value:", key)
@@ -190,230 +142,297 @@ func (m *ElasticsearchMetric) Collect() error {
 		if !ok {
 			return true
 		}
-		task.RunWithinGroup("collecting-es-metrics", func(ctx context.Context) error {
-			m.DoCollect(k, v, collectStartTime)
-			return nil
-		})
+		m.InitialCollectTask(k, v)
 		return true
 	})
 	return nil
 }
+//RemoveAllCollectTasks remove all running collect tasks
+func (m *ElasticsearchMetric) RemoveAllCollectTasks() {
+	m.taskIDs.Range(func(key, value any) bool {
+		m.RemoveTask(key.(string))
+		return true
+	})
+}
+//RemoveTask remove a running collect task by taskID
+func (m *ElasticsearchMetric) RemoveTask(taskID string) {
+	task.DeleteTask(taskID)
+	m.taskIDs.Delete(taskID)
+}
 
-func (m *ElasticsearchMetric) DoCollect(k string, v *elastic.ElasticsearchMetadata, collectStartTime time.Time) bool {
+//RemoveTasksByClusterID removes running collect tasks associated with a clusterID
+func (m *ElasticsearchMetric) RemoveTasksByClusterID(clusterID string) {
+	var (
+		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", clusterID)
+		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", clusterID)
+		nodeStatsTaskID  = fmt.Sprintf("collect-node_stats_%s", clusterID)
+		indexStatsTaskID  = fmt.Sprintf("collect-index_stats_%s", clusterID)
+	)
+	for _, taskID := range []string{clusterHealthTaskID, clusterStatsTaskID, nodeStatsTaskID, indexStatsTaskID} {
+		m.RemoveTask(taskID)
+	}
+}
 
+func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.ElasticsearchMetadata) bool {
+	var (
+		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", k)
+		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", k)
+		nodeStatsTaskID  = fmt.Sprintf("collect-node_stats_%s", k)
+		indexStatsTaskID  = fmt.Sprintf("collect-index_stats_%s", k)
+	)
+	//clear old collect tasks if exists
+	for _, taskID := range []string{clusterHealthTaskID, clusterStatsTaskID, nodeStatsTaskID, indexStatsTaskID} {
+		if _, ok := m.taskIDs.Load(taskID); ok {
+			m.RemoveTask(taskID)
+		}
+	}
 	if !v.Config.Monitored || !v.Config.Enabled {
 		log.Debugf("cluster [%v] NOT (enabled[%v] or monitored[%v] or not available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.IsAvailable())
-		collectLoadingMap.Delete(k)
 		return true
 	}
 	if global.Env().IsDebug {
 		log.Debugf("run monitoring task for elasticsearch: %v - %v", k, v.Config.Name)
 	}
 
-	//collectLoadingMap.Store(key, time.Now())
-	//defer collectLoadingMap.Delete(key)
-
 	var err error
 	monitorConfigs := getMonitorConfigs(v)
-	if m.ClusterHealth && v.IsAvailable() && monitorConfigs.ClusterHealth.Enabled {
-		if canDoMonitor(k, "cluster_health", monitorConfigs.ClusterHealth.Interval, v.Config.Name) {
-			t1 := time.Now()
-			setLastMonitorTime(k, "cluster_health", collectStartTime)
-			log.Debugf("collect cluster health: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
-			err = m.CollectClusterHealth(k, v)
-			log.Trace("time of CollectClusterHealth:", time.Since(t1).String())
-			if err != nil {
-				log.Error(err)
-			}
+	if m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
+		log.Debugf("collect cluster health: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
+		var clusterHealthMetricTask = task.ScheduleTask{
+			ID:          clusterHealthTaskID,
+			Description: fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
+			Type:        "interval",
+			Interval:    monitorConfigs.ClusterHealth.Interval,
+			Task: func(ctx context.Context) {
+				if !v.IsAvailable() {
+					log.Debugf("cluster [%v] is not available, skip collect cluster health metric", v.Config.Name)
+					return
+				}
+				err = m.CollectClusterHealth(k, v)
+				if err != nil {
+					log.Error(err)
+				}
+			},
 		}
-
+		taskID := task.RegisterScheduleTask(clusterHealthMetricTask)
+		m.taskIDs.Store(taskID, struct {}{})
 	}
 
 	//cluster stats
-	if m.ClusterStats && v.IsAvailable() && monitorConfigs.ClusterStats.Enabled {
-		if canDoMonitor(k, "cluster_stats", monitorConfigs.ClusterStats.Interval, v.Config.Name) {
-			t1 := time.Now()
-			setLastMonitorTime(k, "cluster_stats", collectStartTime)
-			log.Debugf("collect cluster state: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
-			err = m.CollectClusterState(k, v)
-			log.Trace("time of CollectClusterState:", time.Since(t1).String())
-			if err != nil {
-				log.Error(err)
-			}
+	if m.ClusterStats && monitorConfigs.ClusterStats.Enabled {
+		log.Debugf("collect cluster state: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
+		var clusterStatsMetricTask = task.ScheduleTask{
+			ID:          clusterStatsTaskID,
+			Description: fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
+			Type:        "interval",
+			Interval:    monitorConfigs.ClusterStats.Interval,
+			Task: func(ctx context.Context) {
+				if !v.IsAvailable(){
+					log.Debugf("cluster [%v] is not available, skip collect cluster stats metric", v.Config.Name)
+					return
+				}
+				err = m.CollectClusterState(k, v)
+				if err != nil {
+					log.Error(err)
+				}
+			},
 		}
-
-	}
-
-	var (
-		shards []elastic.CatShardResponse
-	)
-
-	client := elastic.GetClient(k)
-
-	if ((m.NodeStats && monitorConfigs.NodeStats.Enabled) || (m.IndexStats && monitorConfigs.IndexStats.Enabled)) && v.IsAvailable() {
-		t1 := time.Now()
-		if m.IsAgentMode {
-			shards, err = client.CatShardsSpecEndpoint(v.Config.GetAnyEndpoint())
-		} else {
-			shards, err = client.CatShards()
-		}
-
-		log.Trace("time of CatShards:", time.Since(t1).String())
-
-		if err != nil {
-			log.Debug(v.Config.Name, " get shards info error: ", err)
-			//return true
-		}
+		taskID := task.RegisterScheduleTask(clusterStatsMetricTask)
+		m.taskIDs.Store(taskID, struct {}{})
 	}
 
 	//nodes stats
-	if m.NodeStats && monitorConfigs.NodeStats.Enabled && v.IsAvailable() {
-		if v.Config.Discovery.Enabled && v.Nodes == nil {
-			if global.Env().IsDebug {
-				log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect", k, v.Config.Name)
-			}
-			return true
-		}
-		if canDoMonitor(k, "node_stats", monitorConfigs.NodeStats.Interval, v.Config.Name) {
-			setLastMonitorTime(k, "node_stats", collectStartTime)
-
-			shardInfos := map[string]map[string]interface{}{}
-			indexInfos := map[string]map[string]bool{}
-			for _, item := range shards {
-				if item.State == "UNASSIGNED" {
-					continue
+	if m.NodeStats && monitorConfigs.NodeStats.Enabled {
+		var nodeStatsMetricTask = task.ScheduleTask{
+			ID:          nodeStatsTaskID,
+			Description: fmt.Sprintf("monitoring node stats metric for cluster %s", k),
+			Type:        "interval",
+			Interval:    monitorConfigs.NodeStats.Interval,
+			Task: func(ctx context.Context) {
+				if !v.IsAvailable(){
+					log.Debugf("cluster [%v] is not available, skip collect node stats metric", v.Config.Name)
+					return
 				}
-				if _, ok := shardInfos[item.NodeID]; !ok {
-					shardInfos[item.NodeID] = map[string]interface{}{
-						"shard_count":    0,
-						"replicas_count": 0,
-						"indices_count":  0,
-						"shards":         []interface{}{},
+				var (
+					shards []elastic.CatShardResponse
+				)
+
+				client := elastic.GetClient(k)
+				shards, err = client.CatShards()
+				if err != nil {
+					log.Debug(v.Config.Name, " get shards info error: ", err)
+				}
+				if v.Config.Discovery.Enabled && v.Nodes == nil {
+					if global.Env().IsDebug {
+						log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect", k, v.Config.Name)
 					}
+					return
 				}
-				if _, ok := indexInfos[item.NodeID]; !ok {
-					indexInfos[item.NodeID] = map[string]bool{}
-				}
-				if item.ShardType == "p" {
-					shardInfos[item.NodeID]["shard_count"] = shardInfos[item.NodeID]["shard_count"].(int) + 1
-				} else {
-					shardInfos[item.NodeID]["replicas_count"] = shardInfos[item.NodeID]["replicas_count"].(int) + 1
-				}
-				shardInfos[item.NodeID]["shards"] = append(shardInfos[item.NodeID]["shards"].([]interface{}), item)
-				indexInfos[item.NodeID][item.Index] = true
-			}
-
-			//get node stats per each node
-			if v.Nodes != nil {
-				for nodeID, y := range *v.Nodes {
-					//get node level stats
-					nodeHost := y.GetHttpPublishHost()
-
-					var host string
-					//published host is not a valid host
-					if elastic.IsHostDead(nodeHost) {
-						host = v.GetActivePreferredHost(nodeHost)
-					} else {
-						//the  node is online
-						if elastic.IsHostAvailable(nodeHost) {
-							host = nodeHost
-						} else {
-							//host not dead and is not available, skip collecting
-							log.Debugf("host [%v] is not available, skip metrics collecting", nodeHost)
-							continue
-						}
-					}
-					log.Debugf("collect nodes stats, endpoint: %s", host)
-					stats := client.GetNodesStats(nodeID, host,"")
-
-					log.Trace(y.GetHttpPublishHost(), " => ", host, stats.ErrorObject)
-
-					if stats.ErrorObject != nil {
-						log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
+				shardInfos := map[string]map[string]interface{}{}
+				indexInfos := map[string]map[string]bool{}
+				for _, item := range shards {
+					if item.State == "UNASSIGNED" {
 						continue
 					}
-					if _, ok := shardInfos[nodeID]; ok {
-						shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
-					}
-					m.SaveNodeStats(v, nodeID, stats.Nodes[nodeID], shardInfos[nodeID])
-				}
-			} else {
-				host := v.GetActiveHost()
-				//published host is not a valid host
-				if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
-					//host not dead and is not available, skip collecting
-					stats := client.GetNodesStats("", host,"")
-					if stats.ErrorObject != nil {
-						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
-					} else {
-						for nodeID, nodeStats := range stats.Nodes {
-							if _, ok := shardInfos[nodeID]; ok {
-								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
-							}
-							m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
+					if _, ok := shardInfos[item.NodeID]; !ok {
+						shardInfos[item.NodeID] = map[string]interface{}{
+							"shard_count":    0,
+							"replicas_count": 0,
+							"indices_count":  0,
+							"shards":         []interface{}{},
 						}
+					}
+					if _, ok := indexInfos[item.NodeID]; !ok {
+						indexInfos[item.NodeID] = map[string]bool{}
+					}
+					if item.ShardType == "p" {
+						shardInfos[item.NodeID]["shard_count"] = shardInfos[item.NodeID]["shard_count"].(int) + 1
+					} else {
+						shardInfos[item.NodeID]["replicas_count"] = shardInfos[item.NodeID]["replicas_count"].(int) + 1
+					}
+					shardInfos[item.NodeID]["shards"] = append(shardInfos[item.NodeID]["shards"].([]interface{}), item)
+					indexInfos[item.NodeID][item.Index] = true
+				}
+
+				//get node stats per each node
+				if v.Nodes != nil {
+					for nodeID, y := range *v.Nodes {
+						//get node level stats
+						nodeHost := y.GetHttpPublishHost()
+
+						var host string
+						//published host is not a valid host
+						if elastic.IsHostDead(nodeHost) {
+							host = v.GetActivePreferredHost(nodeHost)
+						} else {
+							//the  node is online
+							if elastic.IsHostAvailable(nodeHost) {
+								host = nodeHost
+							} else {
+								//host not dead and is not available, skip collecting
+								log.Debugf("host [%v] is not available, skip metrics collecting", nodeHost)
+								continue
+							}
+						}
+						log.Debugf("collect nodes stats, endpoint: %s", host)
+						stats := client.GetNodesStats(nodeID, host,"")
+
+						log.Trace(y.GetHttpPublishHost(), " => ", host, stats.ErrorObject)
+
+						if stats.ErrorObject != nil {
+							log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
+							continue
+						}
+						if _, ok := shardInfos[nodeID]; ok {
+							shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+						}
+						m.SaveNodeStats(v, nodeID, stats.Nodes[nodeID], shardInfos[nodeID])
 					}
 				} else {
-					log.Debugf("host [%v] is not available, skip metrics collecting", host)
+					host := v.GetActiveHost()
+					//published host is not a valid host
+					if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
+						//host not dead and is not available, skip collecting
+						stats := client.GetNodesStats("", host,"")
+						if stats.ErrorObject != nil {
+							log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
+						} else {
+							for nodeID, nodeStats := range stats.Nodes {
+								if _, ok := shardInfos[nodeID]; ok {
+									shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
+								}
+								m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
+							}
+						}
+					} else {
+						log.Debugf("host [%v] is not available, skip metrics collecting", host)
+					}
 				}
-			}
+				err = m.CollectClusterState(k, v)
+				if err != nil {
+					log.Error(err)
+				}
+			},
 		}
+		taskID := task.RegisterScheduleTask(nodeStatsMetricTask)
+		m.taskIDs.Store(taskID, struct {}{})
 	}
 
+
 	//indices stats
-	if v.IsAvailable() && (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
-		if canDoMonitor(k, "index_stats", monitorConfigs.IndexStats.Interval, v.Config.Name) {
-			setLastMonitorTime(k, "index_stats", collectStartTime)
-			indexStats, err := client.GetStats()
-			if err != nil {
-				log.Error(v.Config.Name, " get indices stats error: ", err)
-				return true
-			}
+	if (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
+		var indexStatsMetricTask = task.ScheduleTask{
+			ID:          indexStatsTaskID,
+			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
+			Type:        "interval",
+			Interval:    monitorConfigs.ClusterStats.Interval,
+			Task: func(ctx context.Context) {
+				if !v.IsAvailable(){
+					log.Debugf("cluster [%v] is not available, skip collect index stats metric", v.Config.Name)
+					return
+				}
+				var (
+					shards []elastic.CatShardResponse
+				)
 
-			if indexStats != nil {
-				var indexInfos *map[string]elastic.IndexInfo
-				shardInfos := map[string][]elastic.CatShardResponse{}
+				client := elastic.GetClient(k)
+				shards, err = client.CatShards()
+				if err != nil {
+					log.Debug(v.Config.Name, " get shards info error: ", err)
+					//return true
+				}
+				indexStats, err := client.GetStats()
+				if err != nil {
+					log.Error(v.Config.Name, " get indices stats error: ", err)
+					return
+				}
 
-				if v.IsAvailable() {
-					indexInfos, err = client.GetIndices("")
-					if err != nil {
-						log.Error(v.Config.Name, " get indices info error: ", err)
-					}
+				if indexStats != nil {
+					var indexInfos *map[string]elastic.IndexInfo
+					shardInfos := map[string][]elastic.CatShardResponse{}
 
-					for _, item := range shards {
-						if _, ok := shardInfos[item.Index]; !ok {
-							shardInfos[item.Index] = []elastic.CatShardResponse{
-								item,
+					if v.IsAvailable() {
+						indexInfos, err = client.GetIndices("")
+						if err != nil {
+							log.Error(v.Config.Name, " get indices info error: ", err)
+						}
+
+						for _, item := range shards {
+							if _, ok := shardInfos[item.Index]; !ok {
+								shardInfos[item.Index] = []elastic.CatShardResponse{
+									item,
+								}
+							} else {
+								shardInfos[item.Index] = append(shardInfos[item.Index], item)
 							}
-						} else {
-							shardInfos[item.Index] = append(shardInfos[item.Index], item)
+						}
+					}
+
+					if m.AllIndexStats {
+						m.SaveIndexStats(v, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil)
+					}
+
+					if m.IndexStats {
+						for x, y := range indexStats.Indices {
+							var indexInfo elastic.IndexInfo
+							var shardInfo []elastic.CatShardResponse
+							if indexInfos != nil {
+								indexInfo = (*indexInfos)[x]
+							}
+							if shardInfos != nil {
+								shardInfo = shardInfos[x]
+							}
+							m.SaveIndexStats(v, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
 						}
 					}
 				}
-
-				if m.AllIndexStats {
-					m.SaveIndexStats(v, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil)
-				}
-
-				if m.IndexStats {
-					for x, y := range indexStats.Indices {
-						var indexInfo elastic.IndexInfo
-						var shardInfo []elastic.CatShardResponse
-						if indexInfos != nil {
-							indexInfo = (*indexInfos)[x]
-						}
-						if shardInfos != nil {
-							shardInfo = shardInfos[x]
-						}
-						m.SaveIndexStats(v, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
-					}
-				}
-			}
-
-		} else {
-			if global.Env().IsDebug {
-				log.Debugf("elasticsearch: %v - %v, no index info was found, skip index metrics collect", k, v.Config.Name)
-			}
+			},
+		}
+		taskID := task.RegisterScheduleTask(indexStatsMetricTask)
+		m.taskIDs.Store(taskID, struct {}{})
+	} else {
+		if global.Env().IsDebug {
+			log.Debugf("elasticsearch: %v - %v, no index info was found, skip index metrics collect", k, v.Config.Name)
 		}
 	}
 	return true
