@@ -522,24 +522,24 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	log.Trace("collecting custer health metrics for :", k)
 
 	client := elastic.GetClient(k)
-	var health *elastic.ClusterHealth
 	//add context to control timeout for metric collecting,
 	//since next metric collecting round will be triggered after this one
 	monitorCfg := getMonitorConfigs(v)
 	du, _ := time.ParseDuration(monitorCfg.ClusterHealth.Interval)
 	ctx, cancel := context.WithTimeout(context.Background(), du)
 	defer cancel()
-	var err error
-	if m.IsAgentMode {
-		health, err = client.ClusterHealthSpecEndpoint(ctx, v.Config.GetAnyEndpoint(), "")
-	} else {
-		health, err = client.ClusterHealth(ctx)
-	}
+	var (
+		health *elastic.ClusterHealth
+		err    error
+	)
+	health, err = client.ClusterHealthSpecEndpoint(ctx, v.Config.GetAnyEndpoint(), "indices")
 	if err != nil {
 		log.Error(v.Config.Name, " get cluster health error: ", err)
 		return err
 	}
 
+	indicesHealth := health.Indices
+	health.Indices = nil
 	item := event.Event{
 		Metadata: event.EventMetadata{
 			Category: "elasticsearch",
@@ -557,7 +557,34 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 		},
 	}
 
-	return m.onSaveEvent(&item)
+	err = m.onSaveEvent(&item)
+	if err != nil {
+		return err
+	}
+	for indexName, healthInfo := range indicesHealth {
+		item = event.Event{
+			Metadata: event.EventMetadata{
+				Category: "elasticsearch",
+				Name:     "index_health",
+				Datatype: "snapshot",
+				Labels: util.MapStr{
+					"cluster_id":   v.Config.ID,
+					"cluster_uuid": v.Config.ClusterUUID,
+					"index_name":   indexName,
+				},
+			},
+		}
+		item.Fields = util.MapStr{
+			"elasticsearch": util.MapStr{
+				"index_health": healthInfo,
+			},
+		}
+		err = m.onSaveEvent(&item)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata) error {
