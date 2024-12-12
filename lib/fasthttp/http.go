@@ -2166,6 +2166,14 @@ func (req *Request) String() string {
 	return getHTTPString(req)
 }
 
+func (req *Request) Validate() bool {
+	host:= req.Host()
+	if host==nil||len(host)==0{
+		return false
+	}
+	return true
+}
+
 // String returns response representation.
 //
 // Returns error message instead of response representation on error.
