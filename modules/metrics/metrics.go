@@ -105,6 +105,10 @@ func (module *MetricsModule) Setup() {
 	}
 	//register elastic metadata change event callback to handle refresh logic of elastic metric collect tasks
 	elastic2.RegisterMetadataChangeEvent(func(meta *elastic2.ElasticsearchMetadata, action elastic2.EventAction) {
+		if meta == nil {
+			log.Warnf("elastic metadata is nil")
+			return
+		}
 		switch action {
 		case elastic2.EventActionCreate, elastic2.EventActionUpdate:
 			if module.esMetric != nil {
