@@ -28,6 +28,7 @@ import (
 	"fmt"
 	log "github.com/cihub/seelog"
 	. "infini.sh/framework/core/config"
+	elastic2 "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
@@ -64,6 +65,7 @@ type MetricsModule struct {
 	config  *MetricConfig
 	taskIDs []string
 	agent   *event.AgentMeta
+	esMetric *elastic.ElasticsearchMetric
 }
 
 func (module *MetricsModule) Name() string {
@@ -101,12 +103,23 @@ func (module *MetricsModule) Setup() {
 	if err != nil {
 		panic(err)
 	}
-
-	if !module.config.Enabled {
-		return
-	}
-
-	module.loadConfig(module.config)
+	//register elastic metadata change event callback to handle refresh logic of elastic metric collect tasks
+	elastic2.RegisterMetadataChangeEvent(func(meta *elastic2.ElasticsearchMetadata, action elastic2.EventAction) {
+		if meta == nil {
+			log.Warnf("elastic metadata is nil")
+			return
+		}
+		switch action {
+		case elastic2.EventActionCreate, elastic2.EventActionUpdate:
+			if module.esMetric != nil {
+				module.esMetric.InitialCollectTask(meta.Config.ID, meta)
+			}
+		case elastic2.EventActionDelete:
+			if module.esMetric != nil {
+				module.esMetric.RemoveTasksByClusterID(meta.Config.ID)
+			}
+		}
+	})
 }
 
 func (module *MetricsModule) CollectESMetric() {
@@ -116,20 +129,9 @@ func (module *MetricsModule) CollectESMetric() {
 		if err != nil {
 			panic(err)
 		}
+		module.esMetric = es
 		if es.Enabled {
-			taskId := util.GetUUID()
-			module.taskIDs = append(module.taskIDs, taskId)
-			var task1 = task.ScheduleTask{
-				ID:          taskId,
-				Description: "monitoring for elasticsearch clusters",
-				Type:        "interval",
-				Interval:    es.Interval,
-				Task: func(ctx context.Context) {
-					log.Debug("collecting elasticsearch metrics")
-					es.Collect()
-				},
-			}
-			task.RegisterScheduleTask(task1)
+			es.Collect()
 		}
 	}
 }
@@ -255,7 +257,10 @@ func (module *MetricsModule) CollectHostMetric() {
 }
 
 func (module *MetricsModule) Start() error {
-
+	if !module.config.Enabled {
+		return nil
+	}
+	module.loadConfig(module.config)
 	NotifyOnConfigSectionChange("metrics", func(pCfg, cCfg *Config) {
 
 		if cCfg == nil {
@@ -272,6 +277,9 @@ func (module *MetricsModule) Start() error {
 		for _, taskId := range module.taskIDs {
 			task.StopTask(taskId)
 			task.DeleteTask(taskId)
+		}
+		if module.esMetric != nil {
+			module.esMetric.RemoveAllCollectTasks()
 		}
 		module.taskIDs = nil
 

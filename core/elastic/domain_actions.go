@@ -139,7 +139,11 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 func RemoveInstance(elastic string) {
 	cfgs.Delete(elastic)
 	apis.Delete(elastic)
+	meta := GetMetadata(elastic)
 	metas.Delete(elastic)
+	for _, evt := range metadataChangeEvents {
+		evt(meta, EventActionDelete)
+	}
 }
 
 func GetConfig(k string) *ElasticsearchConfig {
@@ -332,8 +336,32 @@ func RemoveHostsByClusterID(clusterID string) {
 	})
 }
 
+//MetadataChangeEvent represents a callback of metadata change
+type MetadataChangeEvent func(meta *ElasticsearchMetadata, action EventAction)
+//EventAction represents a metadata change operation
+type EventAction string
+const (
+	EventActionCreate EventAction = "create"
+	EventActionUpdate EventAction = "update"
+	EventActionDelete EventAction = "delete"
+)
+
+var metadataChangeEvents []MetadataChangeEvent
+//RegisterMetadataChangeEvent register a metadata change event
+func RegisterMetadataChangeEvent(evt MetadataChangeEvent){
+	if evt != nil {
+		metadataChangeEvents = append(metadataChangeEvents, evt)
+	}
+}
 func SetMetadata(k string, v *ElasticsearchMetadata) {
+	var action = EventActionUpdate
+	if _, ok := metas.Load(k); !ok {
+		action = EventActionCreate
+	}
 	metas.Store(k, v)
+	for _, evt := range metadataChangeEvents {
+		evt(v, action)
+	}
 }
 
 func IsHostDead(host string) bool {
