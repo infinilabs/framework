@@ -78,8 +78,8 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
 		} else {
+			metadata.Health = health
 			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable() {
-				metadata.Health = health
 				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 					updateClusterHealthStatus(clusterID, health.Status)
 				}
@@ -513,6 +513,7 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 			indexUUID, _ = mps.GetValue("settings.index.uuid")
 		}
 		indexID := fmt.Sprintf("%s:%s", esConfig.ID, indexName)
+		indexID = util.MD5digest(indexID)
 
 		indexConfig := &elastic.IndexConfig{
 			ID:       indexID,
@@ -895,6 +896,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
 			newID := fmt.Sprintf("%s:%s", clusterID, rawNodeID)
+			newID = util.MD5digest(newID)
 			typ = "create"
 			innerID = newID
 			nodeMetadata := &elastic.NodeConfig{
