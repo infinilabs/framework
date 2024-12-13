@@ -78,13 +78,13 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
 		} else {
-			metadata.Health = health
 			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable() {
 				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 					updateClusterHealthStatus(clusterID, health.Status)
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
+			metadata.Health = health
 			metadata.ReportSuccess()
 
 		}
