@@ -294,6 +294,9 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 	} else {
 		request, err = http.NewRequest(string(req.Method), req.Url, nil)
 	}
+	if err != nil {
+		return nil, err
+	}
 	var parentCtx = context.Background()
 	if req.Context != nil {
 		parentCtx = req.Context
