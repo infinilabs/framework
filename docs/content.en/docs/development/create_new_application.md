@@ -7,7 +7,7 @@ title: "Create New Application"
 
 Let's use the `NewAPP` as the new project for example.
 
-## Create the project layout
+## Create the project folder
 
 Use the name `new_app` as the project id, and create the project folder as below:
 ```shell
