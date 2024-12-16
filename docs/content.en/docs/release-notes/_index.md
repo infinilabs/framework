@@ -65,6 +65,7 @@ Information about release notes of INFINI Framework is provided here.
 - Supports secure display of secret fields (#656)
 - Add api to list & delete files(#659)
 - feat: add util to validate request (#7)
+- feat: validate version branch, add product_name to commit message
 
 ### 🐛 Bug Fixes
 
