@@ -91,8 +91,8 @@ This example demonstrates how you can customize the build process using environm
 | `VERSION`                 | Release version from the environment                                                                |                                          |
 | `GOPATH`                  | Go workspace path                                                                                   | `~/go`                                   |
 | `BUILD_NUMBER`            | Build number                                                                                        | `001`                                    |
-| `OUTPUT_DIR`              | Output directory for binaries                                                                       | `$(CURDIR)/bin`                          |
-| `CMD_DIR`                 | Command folder path                                                                                 | `$(CURDIR)/cmd`                          |
+| `DEV`                      | Enables or disables development mode. Set to true for development builds, false for production builds.     | `false`                          |
+| `OFFLINE_BUILD`            | Enables offline build mode, preventing the download of external resources during the build process.        | `false`                          |
 | `GO`                      | Go environment settings                                                                             | `GO15VENDOREXPERIMENT="1" GO111MODULE=off go` |
 | `FRAMEWORK_FOLDER`        | Path to INFINI Framework folder                                                                     | `$(INFINI_BASE_FOLDER)/framework`        |
 | `FRAMEWORK_REPO`          | Framework repository URL                                                                            | `https://github.com/infinilabs/framework.git` |
