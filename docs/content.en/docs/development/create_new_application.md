@@ -47,6 +47,9 @@ func main() {
         }
 }
 ```
+
+> You may use this online tool to generate your beauty ASCII based terminal header: [http://patorjk.com/software/taag/#p=display&h=2&v=1&f=Ogre&t=NewAPP](http://patorjk.com/software/taag/#p=display&h=2&v=1&f=Ogre&t=NewAPP)
+
 ## Create the config file
 ```
 touch new_app.yml
