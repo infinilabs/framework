@@ -16,7 +16,7 @@ Set the `GOPATH` for your project in IntelliJ IDEA:
 **Navigate to:**
 `Preferences | Languages & Frameworks | Go | GOPATH`
 
-![idea_settings.png](/img/references/idea_settings.png)
+{{% load-img "/img/references/idea_settings.png" "Configure GOPATH" %}}
 
 ---
 
@@ -37,7 +37,7 @@ Ensure all new files include the appropriate copyright notice.
 
 **Navigate to:**
 `Preferences | Editor | File and Code Templates`
-![idea_disable_modules.png](/img/references/idea_copyright_template.png)
+{{% load-img "/img/references/idea_copyright_template.png" "Add Copyright Header Templates" %}}
 
 Add the following header template:
 ```
@@ -48,7 +48,7 @@ Add the following header template:
 ## Disable Unused Modules (For Higher Versions)
 
 In newer versions of IntelliJ IDEA, disabling unused modules can improve performance and reduce conflicts.
-![idea_disable_modules.png](/img/references/idea_disable_modules.png)
+{{% load-img "/img/references/idea_disable_modules.png" "Disable Unused Modules (For Higher Versions)" %}}
 
 To improve code quality, enable static analysis tools like GoLint or GoVet in IntelliJ IDEA.
 
