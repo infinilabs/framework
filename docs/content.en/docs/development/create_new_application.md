@@ -22,16 +22,23 @@ Create a empty `main.go` file, and paste the code as below:
 
 ```shell
 package main
+
 import (
-        "infini.sh/new_app/config"
         "infini.sh/framework"
         "infini.sh/framework/core/module"
         "infini.sh/framework/core/util"
         "infini.sh/framework/modules/api"
+        "infini.sh/new_app/config"
 )
 
 func main() {
-        terminalHeader := ("Welcome to INFINI Labs\n\n")
+
+        terminalHeader := ("     __               _      ___  ___ \n")
+        terminalHeader += ("  /\\ \\ \\_____      __/_\\    / _ \\/ _ \\\n")
+        terminalHeader += (" /  \\/ / _ \\ \\ /\\ / //_\\\\  / /_)/ /_)/\n")
+        terminalHeader += ("/ /\\  /  __/\\ V  V /  _  \\/ ___/ ___/ \n")
+        terminalHeader += ("\\_\\ \\/ \\___| \\_/\\_/\\_/ \\_/\\/   \\/     \n\n")
+
         terminalFooter := ("Goodbye~")
         app := framework.NewApp("new_app", "Make a golang application is such easy~.",
                 util.TrimSpaces(config.Version), util.TrimSpaces(config.BuildNumber), util.TrimSpaces(config.LastCommitLog), util.TrimSpaces(config.BuildDate), util.TrimSpaces(config.EOLDate), terminalHeader, terminalFooter)
@@ -98,26 +105,30 @@ restore generated info
 
 ## Run the application
 ```shell
-➜  new_app ./bin/new_app
-Welcome to INFINI Labs
+➜  new_app git:(main) ✗ ./bin/new_app
+     __               _      ___  ___
+  /\ \ \_____      __/_\    / _ \/ _ \
+ /  \/ / _ \ \ /\ / //_\\  / /_)/ /_)/
+/ /\  /  __/\ V  V /  _  \/ ___/ ___/
+\_\ \/ \___| \_/\_/\_/ \_/\/   \/
 
 [NEW_APP] Make a golang application is such easy~.
-[NEW_APP] 1.0.0_SNAPSHOT#001, 2024-12-16 04:09:41, 2025-12-31 10:10:10,
-[12-16 12:10:20] [INF] [env.go:203] configuration auto reload enabled
-[12-16 12:10:20] [INF] [env.go:209] watching config: /Users/medcl/go/src/infini.sh/new_app/config
-[12-16 12:10:20] [INF] [app.go:311] initializing new_app, pid: 57793
-[12-16 12:10:20] [INF] [app.go:312] using config: /Users/medcl/go/src/infini.sh/new_app/new_app.yml
-[12-16 12:10:20] [INF] [api.go:214] local ips: 192.168.3.17
-[12-16 12:10:20] [INF] [api.go:312] api server listen at: http://0.0.0.0:2900
-[12-16 12:10:20] [INF] [module.go:159] started module: api
-[12-16 12:10:20] [INF] [module.go:184] all modules are started
-[12-16 12:10:20] [INF] [instance.go:101] workspace: /Users/medcl/go/src/infini.sh/new_app/data/new_app/nodes/ctfqgb3q50ke3g8b1osg
-[12-16 12:10:20] [INF] [app.go:537] new_app is up and running now.
+[NEW_APP] 1.0.0_SNAPSHOT#001, 2024-12-16 06:15:10, 2025-12-31 10:10:10, HEAD
+[12-16 14:15:19] [INF] [env.go:203] configuration auto reload enabled
+[12-16 14:15:19] [INF] [env.go:209] watching config: /Users/medcl/go/src/infini.sh/new_app/config
+[12-16 14:15:19] [INF] [app.go:311] initializing new_app, pid: 64426
+[12-16 14:15:19] [INF] [app.go:312] using config: /Users/medcl/go/src/infini.sh/new_app/new_app.yml
+[12-16 14:15:19] [INF] [api.go:214] local ips: 192.168.3.17
+[12-16 14:15:19] [INF] [api.go:312] api server listen at: http://0.0.0.0:2900
+[12-16 14:15:19] [INF] [module.go:159] started module: api
+[12-16 14:15:19] [INF] [module.go:184] all modules are started
+[12-16 14:15:19] [INF] [instance.go:101] workspace: /Users/medcl/go/src/infini.sh/new_app/data/new_app/nodes/ctfs8hbq50kevmkb3m6g
+[12-16 14:15:19] [INF] [app.go:537] new_app is up and running now.
 ^C
 [NEW_APP] got signal: interrupt, start shutting down
-[12-16 12:10:25] [INF] [module.go:213] all modules are stopped
-[12-16 12:10:25] [INF] [app.go:410] new_app now terminated.
-[NEW_APP] 1.0.0_SNAPSHOT, uptime: 4.872482s
+[12-16 14:15:23] [INF] [module.go:213] all modules are stopped
+[12-16 14:15:23] [INF] [app.go:410] new_app now terminated.
+[NEW_APP] 1.0.0_SNAPSHOT, uptime: 4.13334s
 
 Goodbye~
 ```
