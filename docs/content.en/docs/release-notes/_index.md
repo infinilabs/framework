@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 
 ### Improvements
+- chore: trim spaces from input variables during app initialization
 
 ## v1.0.0
 
