@@ -18,6 +18,7 @@ Information about release notes of INFINI Framework is provided here.
 ## v1.0.1
 ### Bug fix
 - Fix collect cluster stats metric in node stats collection task (#17)
+- Fix main switch of collection elastic metric is not work (#17)
 
 ### Features
 - Add singleton config to collection metrics task (#17)
