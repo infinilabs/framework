@@ -28,6 +28,7 @@
 package elastic
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -154,6 +155,20 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 				"to":           healthStatus,
 			},
 		},
+	}
+	if healthStatus == "red" {
+		targetClient := elastic.GetClient(clusterID)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		res, err := targetClient.ClusterAllocationExplain(ctx, nil, nil)
+		if err != nil {
+			log.Errorf("get cluster allocation explain of cluster [%s] error: %v", clusterID, err)
+		}
+		activityInfo.Fields = util.MapStr{
+			"cluster_health": util.MapStr{
+				"allocation_explain": string(res),
+			},
+		}
 	}
 	_, err = client.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo, "")
 	if err != nil {
