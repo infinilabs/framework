@@ -174,6 +174,10 @@ func (m *ElasticsearchMetric) RemoveTasksByClusterID(clusterID string) {
 }
 
 func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.ElasticsearchMetadata) bool {
+	//just skip if elastic metric was not enabled
+	if !m.Enabled {
+		return false
+	}
 	var (
 		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", k)
 		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", k)
