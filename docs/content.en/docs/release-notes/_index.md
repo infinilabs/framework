@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 
 ### Improvements
+- chore: add commit hashes for framework and managed vendor dependencies
 
 ## v1.0.0
 
