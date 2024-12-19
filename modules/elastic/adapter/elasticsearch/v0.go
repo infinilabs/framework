@@ -1907,3 +1907,22 @@ func (c *ESAPIV0) PutScript(scriptName string, script []byte)([]byte,error){
 func (c *ESAPIV0)SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*elastic.SearchResponse, error)  {
 	panic("not implemented")
 }
+
+func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values)([]byte,error){
+	url := fmt.Sprintf("%s/_cluster/allocation/explain", c.GetEndpoint())
+	if len(params) > 0 {
+		url = fmt.Sprintf("%s?%s", url, params.Encode())
+	}
+	method := util.Verb_GET
+	if len(body) > 0 {
+		method = util.Verb_POST
+	}
+	resp, err := c.Request(ctx, method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	return resp.Body, nil
+}

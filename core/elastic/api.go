@@ -137,6 +137,7 @@ type API interface {
 	DeleteILMPolicy(target string) error
 	GetRemoteInfo()([]byte, error)
 	Flush(indexName string) ([]byte, error)
+	ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values)([]byte,error)
 }
 
 type TemplateAPI interface {

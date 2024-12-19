@@ -15,6 +15,12 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Improvements
 
+## v1.0.1
+### Bug fix
+### Features
+- Record cluster allocation explain to activity after cluster health status changed to `red`
+- Add elastic api method `ClusterAllocationExplain`
+
 ## v1.0.0
 
 ### 🚀 Features
