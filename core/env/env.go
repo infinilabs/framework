@@ -41,6 +41,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	cfg "infini.sh/framework/config"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -56,11 +57,13 @@ type Env struct {
 	desc          string
 
 	//generated
-	version     string
-	commit      string
-	buildDate   string
-	buildNumber string
-	eolDate     string
+	version               string
+	frameworkCommit       string
+	frameworkVendorCommit string
+	commit                string
+	buildDate             string
+	buildNumber           string
+	eolDate               string
 	//generated
 
 	configFile string
@@ -117,7 +120,14 @@ func (env *Env) SetupRequired() bool {
 }
 
 func (env *Env) GetLastCommitHash() string {
-	return util.TrimSpaces(env.commit)
+	return util.SubString(util.TrimSpaces(env.commit), 0, 12)
+}
+
+func (env *Env) GetLastFrameworkCommitHash() string {
+	return util.SubString(util.TrimSpaces(env.frameworkCommit), 0, 12)
+}
+func (env *Env) GetLastFrameworkVendorCommitHash() string {
+	return util.SubString(util.TrimSpaces(env.frameworkVendorCommit), 0, 12)
 }
 
 // GetBuildDate returns the build datetime of current package
@@ -166,7 +176,10 @@ func (env *Env) GetWelcomeMessage() string {
 	s := env.terminalHeader
 
 	message := ""
-	message = fmt.Sprintf("%s, %s, %s", util.FormatTime(env.GetBuildDate()), util.FormatTime(env.GetEOLDate()), env.GetLastCommitHash())
+	message = fmt.Sprintf("%s, %s, %s, %s, %s", util.FormatTime(env.GetBuildDate()), util.FormatTime(env.GetEOLDate()),
+		env.GetLastCommitHash(),
+		env.GetLastFrameworkCommitHash(),
+		env.GetLastFrameworkVendorCommitHash())
 	s += ("[" + env.GetAppCapitalName() + "] " + env.GetAppDesc() + "\n")
 	s += "[" + env.GetAppCapitalName() + "] " + env.GetVersion() + "#" + env.GetBuildNumber() + ", " + message + ""
 	return s
@@ -228,7 +241,7 @@ func (env *Env) Init() *Env {
 }
 
 func (env *Env) InitPaths(cfgPath string) error {
-	defaultConfig:=GetDefaultSystemConfig()
+	defaultConfig := GetDefaultSystemConfig()
 	_, defaultConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultConfig
 	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
@@ -256,7 +269,7 @@ var moduleConfig map[string]*config.Config
 var pluginConfig map[string]*config.Config
 var startTime = time.Now().UTC()
 
-func GetDefaultSystemConfig() config.SystemConfig  {
+func GetDefaultSystemConfig() config.SystemConfig {
 	return config.SystemConfig{
 		APIConfig: config.APIConfig{
 			Enabled: true,
@@ -402,12 +415,12 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		return err
 	}
 
-	tempCfg:=GetDefaultSystemConfig()
+	tempCfg := GetDefaultSystemConfig()
 	if err := tempConfig.Unpack(&tempCfg); err != nil {
 		panic(err)
 		return err
 	}
-	env.SystemConfig=&tempCfg
+	env.SystemConfig = &tempCfg
 	//initialize node config
 	env.findWorkingDir()
 
@@ -572,17 +585,19 @@ func getModuleName(c *config.Config) string {
 // EmptyEnv return a empty env instance
 func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *Env {
 	return &Env{
-		name:           util.TrimSpaces(name),
-		uppercaseName:  strings.ToUpper(util.TrimSpaces(name)),
-		lowercaseName:  strings.ToLower(util.TrimSpaces(name)),
-		desc:           util.TrimSpaces(desc),
-		version:        util.TrimSpaces(ver),
-		commit:         util.TrimSpaces(commit),
-		buildDate:      buildDate,
-		buildNumber:    buildNumber,
-		eolDate:        eolDate,
-		terminalHeader: terminalHeader,
-		terminalFooter: terminalFooter,
+		name:                  util.TrimSpaces(name),
+		uppercaseName:         strings.ToUpper(util.TrimSpaces(name)),
+		lowercaseName:         strings.ToLower(util.TrimSpaces(name)),
+		desc:                  util.TrimSpaces(desc),
+		version:               util.TrimSpaces(ver),
+		commit:                util.TrimSpaces(commit),
+		frameworkCommit:       util.TrimSpaces(cfg.LastFrameworkCommitLog),
+		frameworkVendorCommit: util.TrimSpaces(cfg.LastFrameworkCommitLog),
+		buildDate:             buildDate,
+		buildNumber:           buildNumber,
+		eolDate:               eolDate,
+		terminalHeader:        terminalHeader,
+		terminalFooter:        terminalFooter,
 	}
 }
 

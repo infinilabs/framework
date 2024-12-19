@@ -136,6 +136,10 @@ func defaultHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	w.Write([]byte(util.FormatTime(global.Env().GetEOLDate())))
 	w.Write([]byte(", "))
 	w.Write([]byte(global.Env().GetLastCommitHash()))
+	w.Write([]byte(", "))
+	w.Write([]byte(global.Env().GetLastFrameworkCommitHash()))
+	w.Write([]byte(", "))
+	w.Write([]byte(global.Env().GetLastFrameworkVendorCommitHash()))
 	w.Write([]byte("\n\n"))
 
 	w.Write([]byte("API Directory:\n"))

@@ -82,7 +82,6 @@ type App struct {
 	svc     service.Service
 	exit    chan os.Signal
 	svcFlag string
-
 }
 
 const (
@@ -129,7 +128,6 @@ func (app *App) Init(customFunc func()) {
 			log.Trace("executed callback: ", i)
 		}
 	}
-
 
 	if app.environment.SystemConfig.ResourceLimit != nil {
 		//detect memory usage
@@ -191,7 +189,9 @@ func (app *App) initWithFlags() {
 
 	app.environment.ISServiceMode = app.svcFlag != ""
 	if *showversion {
-		fmt.Println(app.environment.GetAppName(), app.environment.GetVersion(), app.environment.GetBuildNumber(), app.environment.GetBuildDate(), app.environment.GetEOLDate(), app.environment.GetLastCommitHash())
+		fmt.Println(app.environment.GetAppName(), app.environment.GetVersion(), app.environment.GetBuildNumber(),
+			app.environment.GetBuildDate(), app.environment.GetEOLDate(),
+			app.environment.GetLastCommitHash(), app.environment.GetLastFrameworkCommitHash(), app.environment.GetLastFrameworkVendorCommitHash())
 		os.Exit(1)
 	}
 
@@ -203,14 +203,14 @@ func (app *App) initWithFlags() {
 
 	app.configFile = util.TryGetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
 
-	if !util.FileExists(app.configFile ) {
-		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile ))
-		if !app.environment.IgnoreOnConfigMissing{
+	if !util.FileExists(app.configFile) {
+		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile))
+		if !app.environment.IgnoreOnConfigMissing {
 			os.Exit(1)
 		}
 	}
 
-	app.environment.SetConfigFile(app.configFile )
+	app.environment.SetConfigFile(app.configFile)
 
 	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
@@ -229,11 +229,11 @@ func (app *App) initWithFlags() {
 		keystore.RunCmd(os.Args[2:])
 	}
 
-	config.NotifyOnConfigChange(func(ev fsnotify.Event){
-		if ev.Op==fsnotify.Remove||ev.Op==fsnotify.Rename{
-			log.Infof("config file [%v] removed, reload config",ev.Name)
-			err:=global.Env().RefreshConfig()
-			if err!=nil{
+	config.NotifyOnConfigChange(func(ev fsnotify.Event) {
+		if ev.Op == fsnotify.Remove || ev.Op == fsnotify.Rename {
+			log.Infof("config file [%v] removed, reload config", ev.Name)
+			err := global.Env().RefreshConfig()
+			if err != nil {
 				log.Error(err)
 			}
 		}
@@ -522,14 +522,14 @@ func (p *App) run() error {
 	}, context.Background())
 
 	// register to config manager
-	if global.Env().SystemConfig.Configs.Managed{
-		err:= client.ConnectToManager()
-		if err!=nil{
+	if global.Env().SystemConfig.Configs.Managed {
+		err := client.ConnectToManager()
+		if err != nil {
 			log.Warn(err)
 		}
 
-		err= client.ListenConfigChanges()
-		if err!=nil{
+		err = client.ListenConfigChanges()
+		if err != nil {
 			log.Warn(err)
 		}
 	}
