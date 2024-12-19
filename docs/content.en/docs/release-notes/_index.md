@@ -8,20 +8,16 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)
+### Features
+- Add singleton config to collection metrics task (#17)
 
 ### Breaking changes
 
 ### Bug fix
-
-### Improvements
-
-## v1.0.1
-### Bug fix
 - Fix collect cluster stats metric in node stats collection task (#17)
 - Fix main switch of collection elastic metric is not work (#17)
 
-### Features
-- Add singleton config to collection metrics task (#17)
+### Improvements
 
 ## v1.0.0
 
