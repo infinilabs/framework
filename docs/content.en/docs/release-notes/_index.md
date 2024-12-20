@@ -16,6 +16,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 - Remove the collection of cluster stats metric in node stats collection task (#17)
 - Fix the main switch of the cluster metric is not work (#17)
+- Update elastic metadata safely (#20)
 
 ### Improvements
 
