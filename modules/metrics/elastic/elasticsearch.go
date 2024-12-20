@@ -174,6 +174,10 @@ func (m *ElasticsearchMetric) RemoveTasksByClusterID(clusterID string) {
 }
 
 func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.ElasticsearchMetadata) bool {
+	//just skip if elastic metric was not enabled
+	if !m.Enabled {
+		return false
+	}
 	var (
 		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", k)
 		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", k)
@@ -202,6 +206,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			ID:          clusterHealthTaskID,
 			Description: fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
 			Type:        "interval",
+			Singleton: true,
 			Interval:    monitorConfigs.ClusterHealth.Interval,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
@@ -225,6 +230,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			ID:          clusterStatsTaskID,
 			Description: fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
 			Type:        "interval",
+			Singleton: true,
 			Interval:    monitorConfigs.ClusterStats.Interval,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable(){
@@ -248,6 +254,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			Description: fmt.Sprintf("monitoring node stats metric for cluster %s", k),
 			Type:        "interval",
 			Interval:    monitorConfigs.NodeStats.Interval,
+			Singleton: true,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable(){
 					log.Debugf("cluster [%v] is not available, skip collect node stats metric", v.Config.Name)
@@ -348,10 +355,6 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 						log.Debugf("host [%v] is not available, skip metrics collecting", host)
 					}
 				}
-				err = m.CollectClusterState(k, v)
-				if err != nil {
-					log.Error(err)
-				}
 			},
 		}
 		taskID := task.RegisterScheduleTask(nodeStatsMetricTask)
@@ -366,6 +369,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
 			Type:        "interval",
 			Interval:    monitorConfigs.ClusterStats.Interval,
+			Singleton: true,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable(){
 					log.Debugf("cluster [%v] is not available, skip collect index stats metric", v.Config.Name)
