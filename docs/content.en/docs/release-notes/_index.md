@@ -19,6 +19,7 @@ Information about release notes of INFINI Framework is provided here.
 - Update elastic metadata safely (#20)
 
 ### Improvements
+- chore: trim spaces from input variables during app initialization
 
 ## v1.0.1
 ### Bug fix

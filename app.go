@@ -92,13 +92,13 @@ const (
 
 func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *App {
 	if terminalFooter == "" {
-		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
+		terminalFooter =  ("   __ _  __ ____ __ _  __ __     \n")
 		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
 		terminalFooter += (" / // || // _/ / // || // /    \n")
 		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/   \n\n")
 		terminalFooter += ("©INFINI.LTD, All Rights Reserved.\n")
 	}
-	return &App{environment: env.NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter)}
+	return &App{environment: env.NewEnv(util.TrimSpaces(name), util.TrimSpaces(desc), util.TrimSpaces(ver), util.TrimSpaces(buildNumber), util.TrimSpaces(commit), util.TrimSpaces(buildDate), util.TrimSpaces(eolDate), terminalHeader, terminalFooter)}
 }
 
 var debugFlagInitFunc func()
