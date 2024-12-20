@@ -28,6 +28,7 @@
 package elastic
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -84,7 +85,10 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
-			metadata.Health = health
+			//copy metadata and update metadata safely
+			newMeta := *metadata
+			newMeta.Health = health
+			elastic.SetMetadata(metadata.Config.ID, &newMeta)
 			metadata.ReportSuccess()
 
 		}
@@ -155,6 +159,20 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 			},
 		},
 	}
+	if healthStatus == "red" {
+		targetClient := elastic.GetClient(clusterID)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		res, err := targetClient.ClusterAllocationExplain(ctx, nil, nil)
+		if err != nil {
+			log.Errorf("get cluster allocation explain of cluster [%s] error: %v", clusterID, err)
+		}
+		activityInfo.Fields = util.MapStr{
+			"cluster_health": util.MapStr{
+				"allocation_explain": string(res),
+			},
+		}
+	}
 	_, err = client.Index(orm.GetIndexName(activityInfo), "", activityInfo.ID, activityInfo, "")
 	if err != nil {
 		log.Error(err)
@@ -221,7 +239,10 @@ func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				module.saveRoutingTable(state, clusterId)
 			}
-			meta.ClusterState = state
+			//copy metadata and update metadata safely
+			newMeta := *meta
+			newMeta.ClusterState = state
+			elastic.SetMetadata(meta.Config.ID, &newMeta)
 		}
 	}
 }
@@ -761,8 +782,12 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		}
 
 		if discovery || force {
-			meta.Nodes = nodes
-			meta.NodesTopologyVersion++
+			//copy metadata and update metadata safely
+			newMeta := *meta
+			newMeta.Nodes = nodes
+			newMeta.NodesTopologyVersion++
+			elastic.SetMetadata(meta.Config.ID, &newMeta)
+
 			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
 			//register host to do availability monitoring

@@ -8,13 +8,22 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)
+### Features
+- Set the metric collection task to singleton mode (#17)
+- Record cluster allocation explain to activity after cluster health status changed to `red`
+- Add elastic api method `ClusterAllocationExplain`
 
 ### Breaking changes
 
 ### Bug fix
+- Remove the collection of cluster stats metric in node stats collection task (#17)
+- Fix the main switch of the cluster metric is not work (#17)
+- Update elastic metadata safely (#20)
 
 ### Improvements
 - chore: add commit hashes for framework and managed vendor dependencies
+- chore: trim spaces from input variables during app initialization
+
 
 ## v1.0.0
 
