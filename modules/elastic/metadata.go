@@ -85,7 +85,10 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
-			metadata.Health = health
+			//copy metadata and update metadata safely
+			newMeta := *metadata
+			newMeta.Health = health
+			elastic.SetMetadata(metadata.Config.ID, &newMeta)
 			metadata.ReportSuccess()
 
 		}
@@ -236,7 +239,10 @@ func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				module.saveRoutingTable(state, clusterId)
 			}
-			meta.ClusterState = state
+			//copy metadata and update metadata safely
+			newMeta := *meta
+			newMeta.ClusterState = state
+			elastic.SetMetadata(meta.Config.ID, &newMeta)
 		}
 	}
 }
@@ -776,8 +782,12 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		}
 
 		if discovery || force {
-			meta.Nodes = nodes
-			meta.NodesTopologyVersion++
+			//copy metadata and update metadata safely
+			newMeta := *meta
+			newMeta.Nodes = nodes
+			newMeta.NodesTopologyVersion++
+			elastic.SetMetadata(meta.Config.ID, &newMeta)
+
 			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
 			//register host to do availability monitoring
