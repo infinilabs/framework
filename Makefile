@@ -225,14 +225,18 @@ init:
 	@# Extract the latest commit hash from the framework repository
 	@(cd $(FRAMEWORK_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)
 	@(cd $(FRAMEWORK_VENDOR_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)
-	@echo "Framework commit hash updated: $(shell cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)"
-	@echo "Framework vendor commit hash updated: $(shell cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)"
+	@echo "Framework commit hash updated: " && cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt
+	@echo "Framework vendor commit hash updated: " && cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt
 
 update-generated-framework-info:
 	@echo "update generated framework info"
-	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(make init) fi
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "package config\n\nconst LastFrameworkCommitLog = \"$(shell cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)\"" > config/generated_framework-info.go)
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "\nconst LastFrameworkVendorCommitLog = \"$(shell cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)\"" >> config/generated_framework-info.go)
+	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist"; (make init); fi
+	@echo "update info"
+	@# Generate the framework info file
+	@(cd $(FRAMEWORK_FOLDER) && \
+	 LATEST_COMMIT_LOG=$$(cat .latest_commit_hash.txt) && \
+	 VENDOR_COMMIT_LOG=$$(cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt) && \
+	 echo -e "package config\n\nconst LastFrameworkCommitLog = \"$$LATEST_COMMIT_LOG\"\nconst LastFrameworkVendorCommitLog = \"$$VENDOR_COMMIT_LOG\"" > config/generated_framework-info.go)
 
 update-generated-file: update-generated-framework-info
 	@echo "update generated application info"
