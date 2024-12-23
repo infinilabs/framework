@@ -85,12 +85,17 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
-			//copy metadata and update metadata safely
-			newMeta := *metadata
-			newMeta.Health = health
-			elastic.SetMetadata(metadata.Config.ID, &newMeta)
 			metadata.ReportSuccess()
-
+			changes, err := util.DiffTwoObject(metadata.Health, health)
+			if err != nil {
+				log.Errorf("diff cluster health error: %v", err)
+			}
+			if len(changes) > 0 {
+				//copy metadata and update metadata safely
+				newMeta := *metadata
+				newMeta.Health = health
+				elastic.SetMetadata(metadata.Config.ID, &newMeta)
+			}
 		}
 	}
 }
@@ -1181,8 +1186,9 @@ func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
 	}
 
 	if aliasesChanged {
-		//TOD locker
-		meta.Aliases = aliases
+		newMeta := *meta
+		newMeta.Aliases = aliases
+		elastic.SetMetadata(meta.Config.ID, &newMeta)
 		log.Tracef("cluster aliases [%v] updated", meta.Config.Name)
 	}
 }
