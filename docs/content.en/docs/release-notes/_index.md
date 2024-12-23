@@ -19,10 +19,11 @@ Information about release notes of INFINI Framework is provided here.
 - Remove the collection of cluster stats metric in node stats collection task (#17)
 - Fix the main switch of the cluster metric is not work (#17)
 - Update elastic metadata safely (#20)
+- Enable skipping to the next file with multiple gaps #22
 
 ### Improvements
-- chore: add commit hashes for framework and managed vendor dependencies
-- chore: trim spaces from input variables during app initialization
+- Add commit hashes for framework and managed vendor dependencies
+- Trim spaces from input variables during app initialization
 
 
 ## v1.0.0

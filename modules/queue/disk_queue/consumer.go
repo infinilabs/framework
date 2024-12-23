@@ -479,10 +479,9 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 
 	//TODO, only if next file exists, and current file is not the last file, we should reload the file
 	//before move to next file, make sure, the current file is loaded completely, otherwise, we may lost some messages
-
 	if !exists {
 		//double check, but next file exists
-		if !util.FileExists(fileName) && next_file_exists {
+		if !util.FileExists(fileName) {
 			if d.mCfg.AutoSkipCorruptFile {
 				nextSegment := d.segment + 1
 				if nextSegment > d.diskQueue.writeSegmentNum {
@@ -512,7 +511,7 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 				return errors.New(fileName + " not found and auto_skip_corrupt_file not enabled.")
 			}
 		}
-		return errors.Errorf("current file: " + fileName + " not found, and next_file_exists not exists.")
+		return errors.Errorf("current file: %v not found, and next_file_exists: %v.",fileName,next_file_exists)
 	}
 
 FIND_NEXT_FILE:
