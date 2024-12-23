@@ -225,17 +225,20 @@ init:
 	@# Extract the latest commit hash from the framework repository
 	@(cd $(FRAMEWORK_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)
 	@(cd $(FRAMEWORK_VENDOR_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)
-	@echo "Framework commit hash updated: $(shell cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)"
-	@echo "Framework vendor commit hash updated: $(shell cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)"
+	@echo "Framework commit hash updated: " && cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt
+	@echo "Framework vendor commit hash updated: " && cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt
 
 update-generated-framework-info:
-	@echo "update generated framework info"
-	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(make init) fi
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "package config\n\nconst LastFrameworkCommitLog = \"$(shell cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)\"" > config/generated_framework-info.go)
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "\nconst LastFrameworkVendorCommitLog = \"$(shell cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)\"" >> config/generated_framework-info.go)
+	@echo "generating framework info"
+	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist"; (make init); fi
+	@# Generate the framework info file
+	@(cd $(FRAMEWORK_FOLDER) && \
+	 LATEST_COMMIT_LOG=$$(cat .latest_commit_hash.txt) && \
+	 VENDOR_COMMIT_LOG=$$(cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt) && \
+	 echo -e "package config\n\nconst LastFrameworkCommitLog = \"$$LATEST_COMMIT_LOG\"\nconst LastFrameworkVendorCommitLog = \"$$VENDOR_COMMIT_LOG\"" > config/generated_framework-info.go)
 
 update-generated-file: update-generated-framework-info
-	@echo "update generated application info"
+	@echo "generating application info"
 	@if [ ! -d config ]; then echo "config does not exist";(mkdir config) fi
 	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"\nconst BuildDate = \"$(NOW)\"" > config/generated.go
 	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
@@ -243,12 +246,12 @@ update-generated-file: update-generated-framework-info
 	@echo -e "\nconst BuildNumber  = \"$(BUILD_NUMBER)\"" >> config/generated.go
 
 restore-generated-framework-info:
-	@echo "restore generated framework info"
+	@echo "restore framework info"
 	@( cd $(FRAMEWORK_FOLDER) && echo -e "package config\n\nconst LastFrameworkCommitLog = \"N/A\"" > config/generated_framework-info.go)
 	@( cd $(FRAMEWORK_FOLDER) && echo -e "\nconst LastFrameworkVendorCommitLog = \"N/A\"" >> config/generated_framework-info.go )
 
 restore-generated-file: restore-generated-framework-info
-	@echo "restore generated application info"
+	@echo "restore application info"
 	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
 	@echo -e "\nconst EOLDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
