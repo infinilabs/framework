@@ -412,7 +412,7 @@ func (meta *ElasticsearchMetadata) ReportSuccess() {
 
 	if !meta.clusterAvailable {
 		allowedUpdate := rate.GetRateLimiter("cluster_available", meta.Config.Name, 10, 1, time.Second*1).Allow()
-		log.Infof("update elasticsearch [%v] to available, allowedUpdate:[%v]", meta.Config.Name, allowedUpdate)
+		log.Debugf("update elasticsearch [%v] to available, rate_limiter allowed:[%v]", meta.Config.Name, allowedUpdate)
 		if allowedUpdate {
 			log.Tracef("vote success ticket++ for elasticsearch [%v]", meta.Config.Name)
 			meta.clusterAvailable = true
