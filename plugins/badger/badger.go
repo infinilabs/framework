@@ -165,7 +165,8 @@ func (filter *Module) Exists(bucket string, key []byte) bool {
 	}
 
 	var exists = false
-	filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
+	bkt:=filter.getOrInitBucket(bucket)
+	bkt.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if item != nil && err == nil {
 			exists = true
@@ -190,7 +191,8 @@ func (filter *Module) Delete(bucket string, key []byte) error {
 	}
 
 	var err error
-	err = filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
+	bkt:=filter.getOrInitBucket(bucket)
+	err = bkt.Update(func(txn *badger.Txn) error {
 		err = txn.Delete(key)
 		return err
 	})
@@ -224,7 +226,9 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 	var valCopy []byte
 	var err error
 	var item *badger.Item
-	err = filter.mustGetBucket(bucket).View(func(txn *badger.Txn) error {
+
+	bkt:=filter.getOrInitBucket(bucket)
+	err = bkt.View(func(txn *badger.Txn) error {
 		if txn == nil {
 			return errors.New("invalid txn")
 		}
@@ -280,17 +284,13 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 		return errors.New("module closed")
 	}
 
-	//if global.Env().IsDebug{
-	//	log.Debug("add key:",bucket,",", string(key), " value length:", len(value))
-	//}
-
 	stats.Increment("badger",bucket+"::add")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
-
-	err := filter.mustGetBucket(bucket).Update(func(txn *badger.Txn) error {
+	bkt:=filter.getOrInitBucket(bucket)
+	err := bkt.Update(func(txn *badger.Txn) error {
 		err := txn.Set(key, value)
 		return err
 	})
