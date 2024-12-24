@@ -294,6 +294,10 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					shardInfos[item.NodeID]["shards"] = append(shardInfos[item.NodeID]["shards"].([]interface{}), item)
 					indexInfos[item.NodeID][item.Index] = true
 				}
+				if len(shardInfos) > 50 || len(shards) > 5000 {
+					log.Warnf("Cluster [%v] has over 50 nodes or 5000 shards. Use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
+				}
+
 				host := v.GetActiveHost()
 				//published host is not a valid host
 				if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
@@ -342,6 +346,15 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				if err != nil {
 					log.Debug(v.Config.Name, " get shards info error: ", err)
 					//return true
+				}
+				nodeIDs := map[string]struct{}{}
+				for _, item := range shards {
+					if _, ok := nodeIDs[item.NodeID]; !ok {
+						nodeIDs[item.NodeID] = struct{}{}
+					}
+				}
+				if len(nodeIDs) > 50 || len(shards) > 5000 {
+					log.Warnf("Cluster [%v] has over 50 nodes or 5000 shards. Use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
 				}
 				indexStats, err := client.GetStats()
 				if err != nil {
