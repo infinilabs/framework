@@ -21,6 +21,7 @@ Information about release notes of INFINI Framework is provided here.
 - Update elastic metadata safely (#20)
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
 - Enable skipping to the next file with multiple gaps #22
+- Removing the logic of collecting metric per each node (#26)
 
 
 ### Improvements
