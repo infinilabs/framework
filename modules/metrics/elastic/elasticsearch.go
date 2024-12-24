@@ -269,12 +269,6 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				if err != nil {
 					log.Debug(v.Config.Name, " get shards info error: ", err)
 				}
-				if v.Config.Discovery.Enabled && v.Nodes == nil {
-					if global.Env().IsDebug {
-						log.Debugf("elasticsearch: %v - %v, no nodes info was found, skip nodes metrics collect", k, v.Config.Name)
-					}
-					return
-				}
 				shardInfos := map[string]map[string]interface{}{}
 				indexInfos := map[string]map[string]bool{}
 				for _, item := range shards {
@@ -300,61 +294,25 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					shardInfos[item.NodeID]["shards"] = append(shardInfos[item.NodeID]["shards"].([]interface{}), item)
 					indexInfos[item.NodeID][item.Index] = true
 				}
-
-				//get node stats per each node
-				if v.Nodes != nil {
-					for nodeID, y := range *v.Nodes {
-						//get node level stats
-						nodeHost := y.GetHttpPublishHost()
-
-						var host string
-						//published host is not a valid host
-						if elastic.IsHostDead(nodeHost) {
-							host = v.GetActivePreferredHost(nodeHost)
-						} else {
-							//the  node is online
-							if elastic.IsHostAvailable(nodeHost) {
-								host = nodeHost
-							} else {
-								//host not dead and is not available, skip collecting
-								log.Debugf("host [%v] is not available, skip metrics collecting", nodeHost)
-								continue
+				host := v.GetActiveHost()
+				//published host is not a valid host
+				if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
+					//host not dead and is not available, skip collecting
+					stats := client.GetNodesStats("", host,"")
+					if stats.ErrorObject != nil {
+						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
+					} else {
+						for nodeID, nodeStats := range stats.Nodes {
+							if _, ok := shardInfos[nodeID]; ok {
+								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 							}
+							m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
 						}
-						log.Debugf("collect nodes stats, endpoint: %s", host)
-						stats := client.GetNodesStats(nodeID, host,"")
-
-						log.Trace(y.GetHttpPublishHost(), " => ", host, stats.ErrorObject)
-
-						if stats.ErrorObject != nil {
-							log.Errorf("get node stats of %s error: %v", y.Name, stats.ErrorObject)
-							continue
-						}
-						if _, ok := shardInfos[nodeID]; ok {
-							shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
-						}
-						m.SaveNodeStats(v, nodeID, stats.Nodes[nodeID], shardInfos[nodeID])
 					}
 				} else {
-					host := v.GetActiveHost()
-					//published host is not a valid host
-					if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
-						//host not dead and is not available, skip collecting
-						stats := client.GetNodesStats("", host,"")
-						if stats.ErrorObject != nil {
-							log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
-						} else {
-							for nodeID, nodeStats := range stats.Nodes {
-								if _, ok := shardInfos[nodeID]; ok {
-									shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
-								}
-								m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
-							}
-						}
-					} else {
-						log.Debugf("host [%v] is not available, skip metrics collecting", host)
-					}
+					log.Debugf("host [%v] is not available, skip metrics collecting", host)
 				}
+
 			},
 		}
 		taskID := task.RegisterScheduleTask(nodeStatsMetricTask)
