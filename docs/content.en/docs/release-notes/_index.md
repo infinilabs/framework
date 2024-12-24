@@ -20,13 +20,14 @@ Information about release notes of INFINI Framework is provided here.
 - Fix the main switch of the cluster metric is not work (#17)
 - Update elastic metadata safely (#20)
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
-- Enable skipping to the next file with multiple gaps #22
+- Enable skipping to the next file with multiple gaps (#22)
 - Removing the logic of collecting metric per each node (#26)
 
 
 ### Improvements
 - Add commit hashes for framework and managed vendor dependencies
 - Trim spaces from input variables during app initialization
+- Auto init the badger db for the first time access (#27)
 
 
 ## v1.0.0
