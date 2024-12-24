@@ -347,13 +347,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					log.Debug(v.Config.Name, " get shards info error: ", err)
 					//return true
 				}
-				nodeIDs := map[string]struct{}{}
-				for _, item := range shards {
-					if _, ok := nodeIDs[item.NodeID]; !ok {
-						nodeIDs[item.NodeID] = struct{}{}
-					}
-				}
-				if len(nodeIDs) > 50 || len(shards) > 5000 {
+				if (v.Health != nil && v.Health.NumberOfNodes > 50) || len(shards) > 5000 {
 					log.Warnf("cluster [%v] has over 50 nodes or 5000 shards. use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
 				}
 				indexStats, err := client.GetStats()
