@@ -28,6 +28,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add commit hashes for framework and managed vendor dependencies
 - Trim spaces from input variables during app initialization
 - Auto init the badger db for the first time access (#27)
+- Add search response to logging message (#28)
 
 
 ## v1.0.0
