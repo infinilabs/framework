@@ -128,7 +128,7 @@ const TypeName0 = "doc"
 func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) (result *util.Result, err error) {
 
 	if global.Env().IsDebug {
-		log.Trace(method, ",", url, ",", util.SubString(util.UnsafeBytesToString(body), 0, 3000))
+		log.Trace("request:", method, ",", url, ",", util.SubString(util.UnsafeBytesToString(body), 0, 500))
 	}
 
 	var req *util.Request
@@ -193,6 +193,10 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	resp, err := util.ExecuteRequest(req)
 	if err != nil {
 		return resp, err
+	}
+
+	if global.Env().IsDebug {
+		log.Trace("response:",method, ",", url, ",", resp.StatusCode,util.SubString(util.UnsafeBytesToString(resp.Body), 0, 500),resp.Headers)
 	}
 
 	return resp, err
