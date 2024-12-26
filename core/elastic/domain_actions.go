@@ -142,7 +142,7 @@ func RemoveInstance(elastic string) {
 	meta := GetMetadata(elastic)
 	metas.Delete(elastic)
 	for _, evt := range metadataChangeEvents {
-		evt(meta, EventActionDelete)
+		evt(nil, meta, EventActionDelete)
 	}
 }
 
@@ -337,7 +337,7 @@ func RemoveHostsByClusterID(clusterID string) {
 }
 
 //MetadataChangeEvent represents a callback of metadata change
-type MetadataChangeEvent func(meta *ElasticsearchMetadata, action EventAction)
+type MetadataChangeEvent func(meta, oldMeta *ElasticsearchMetadata, action EventAction)
 //EventAction represents a metadata change operation
 type EventAction string
 const (
@@ -355,12 +355,15 @@ func RegisterMetadataChangeEvent(evt MetadataChangeEvent){
 }
 func SetMetadata(k string, v *ElasticsearchMetadata) {
 	var action = EventActionUpdate
-	if _, ok := metas.Load(k); !ok {
+	var oldMeta *ElasticsearchMetadata
+	if old, ok := metas.Load(k); !ok {
 		action = EventActionCreate
+	}else{
+		oldMeta = old.(*ElasticsearchMetadata)
 	}
 	metas.Store(k, v)
 	for _, evt := range metadataChangeEvents {
-		evt(v, action)
+		evt(v, oldMeta, action)
 	}
 }
 
