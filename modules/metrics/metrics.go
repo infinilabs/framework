@@ -104,19 +104,30 @@ func (module *MetricsModule) Setup() {
 		panic(err)
 	}
 	//register elastic metadata change event callback to handle refresh logic of elastic metric collect tasks
-	elastic2.RegisterMetadataChangeEvent(func(meta *elastic2.ElasticsearchMetadata, action elastic2.EventAction) {
-		if meta == nil {
-			log.Warnf("elastic metadata is nil")
-			return
+	elastic2.RegisterMetadataChangeEvent(func(meta, oldMeta *elastic2.ElasticsearchMetadata, action elastic2.EventAction) {
+		if action == elastic2.EventActionUpdate && oldMeta != nil {
+			//skip if no monitor config changed
+			changelog, _ := util.DiffTwoObject(oldMeta.Config.MonitorConfigs, meta.Config.MonitorConfigs)
+			if len(changelog) == 0 {
+				return
+			}
 		}
 		switch action {
 		case elastic2.EventActionCreate, elastic2.EventActionUpdate:
+			if meta == nil {
+				log.Warnf("elastic metadata is nil")
+				return
+			}
 			if module.esMetric != nil {
 				module.esMetric.InitialCollectTask(meta.Config.ID, meta)
 			}
 		case elastic2.EventActionDelete:
+			if oldMeta == nil {
+				log.Warnf("elastic metadata is nil")
+				return
+			}
 			if module.esMetric != nil {
-				module.esMetric.RemoveTasksByClusterID(meta.Config.ID)
+				module.esMetric.RemoveTasksByClusterID(oldMeta.Config.ID)
 			}
 		}
 	})
