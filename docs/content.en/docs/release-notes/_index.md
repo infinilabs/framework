@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 - Set the metric collection task to singleton mode (#17)
 - Record cluster allocation explain to activity after cluster health status changed to `red`
 - Add elastic api method `ClusterAllocationExplain`
+- Add `min_bucket_size` and `hits_total` to metric configurations (#29)
 
 ### Breaking changes
 
