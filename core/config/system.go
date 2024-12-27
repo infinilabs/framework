@@ -251,7 +251,7 @@ func (c *HTTPClientConfig) ValidateProxy(addr string) (bool, *ProxyConfig) { //a
 type HTTPClientConfig struct {
 	Proxy struct {
 		Enabled             bool                   `config:"enabled"`
-		DefaultProxyConfig  ProxyConfig            `config:"config"`
+		DefaultProxyConfig  ProxyConfig            `config:"default_config"`
 		Permitted           []string               `config:"permitted"`
 		Denied              []string               `config:"denied"`
 		Domains             map[string]ProxyConfig `config:"domains"` //proxy settings per domain

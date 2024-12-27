@@ -14,7 +14,7 @@ http_client:
   default:
     proxy:
       enabled: true
-      config:
+      default_config:
         http_proxy: http://127.0.0.1:7890
         socket5_proxy: socks5://127.0.0.1:7890
       override_system_proxy_env: true # Override system proxy environment settings
@@ -24,6 +24,10 @@ http_client:
         - "localhost"
         - "infinilabs.com"
         - "api.coco.rs"
+      domains:
+        "github.com":
+          http_proxy: http://127.0.0.1:7890
+          socket5_proxy: socks5://127.0.0.1:7890
   custom_profile:
     proxy:
       enabled: false
@@ -58,11 +62,11 @@ http_client:
 | Name                        | Type    | Description                                                                 |
 |-----------------------------|---------|-----------------------------------------------------------------------------|
 | `enabled`                   | boolean | Enables or disables the use of a proxy.                                    |
-| `config`                    | ProxyDetails | Default proxy settings, including HTTP and SOCKS5 proxies.                 |
+| `default_config`                    | ProxyDetails | Default proxy settings, including HTTP and SOCKS5 proxies.                 |
 | `override_system_proxy_env` | boolean | Whether to override system-wide proxy environment variables.                |
 | `permitted`                 | list    | List of domains allowed to use the proxy.                                  |
 | `denied`                    | list    | List of domains denied from using the proxy.                               |
-| `domains`                    | list    | Proxy settings per domain.                               |
+| `domains`                    | map    | Proxy settings per domain.                               |
 
 ---
 
