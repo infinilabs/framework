@@ -53,3 +53,4 @@ cmd/genfastjson/genfastjson
 /config/generated_plugins.go
 generated_*.go
 *.swp
+.latest_commit_hash.txt
