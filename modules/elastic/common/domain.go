@@ -105,6 +105,10 @@ type MetricItem struct {
 	OnlyPrimary bool `json:"only_primary"`
 	//current query statement that passed to search engine
 	Request string `json:"request"`
+	//minimum bucket size in seconds for querying the metric
+	MinBucketSize int64 `json:"min_bucket_size"`
+	//total hits of search response
+	HitsTotal int64 `json:"hits_total"`
 }
 
 const TermsBucket string="terms"

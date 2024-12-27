@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 - Set the metric collection task to singleton mode (#17)
 - Record cluster allocation explain to activity after cluster health status changed to `red`
 - Add elastic api method `ClusterAllocationExplain`
+- Add `min_bucket_size` and `hits_total` to metric configurations (#29)
 
 ### Breaking changes
 
@@ -23,6 +24,7 @@ Information about release notes of INFINI Framework is provided here.
 - Enable skipping to the next file with multiple gaps (#22)
 - Removing the logic of collecting metric per each node (#26)
 - Fixed to parse password from basic auth (#31)
+- Fixed issue with metric collection task interval not working (#30)
 
 
 ### Improvements
