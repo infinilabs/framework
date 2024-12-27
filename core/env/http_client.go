@@ -29,7 +29,19 @@ package env
 
 import "infini.sh/framework/core/config"
 
-func  (env *Env)  GetClientConfigByEndpoint(tag,endpoint string) *config.HTTPClientConfig  {
+func  (env *Env) GetHTTPClientConfig(name, endpoint string) *config.HTTPClientConfig  {
+	clientCfg,ok := env.SystemConfig.HTTPClientConfig[name]
+	if !ok{
+		clientCfg=config.HTTPClientConfig{
+			ReadBufferSize:       100 * 1024,
+			WriteBufferSize:      100 * 1024,
+			ReadTimeout:          "60s",
+			WriteTimeout:         "60s",
+			MaxConnectionPerHost: 1000,
+			TLSConfig:            config.TLSConfig{SkipDomainVerify: true, TLSInsecureSkipVerify: true},
+		}
+	}
 	//TODO support client config per endpoint
-	return &env.SystemConfig.HTTPClientConfig
+	return &clientCfg
 }
+

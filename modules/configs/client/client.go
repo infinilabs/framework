@@ -123,7 +123,7 @@ func ListenConfigChanges() error {
 	clientInitLock.Do(func() {
 
 		if global.Env().SystemConfig.Configs.Managed {
-			cfg := global.Env().GetClientConfigByEndpoint("configs", "")
+			cfg := global.Env().GetHTTPClientConfig("configs", "")
 			if cfg != nil {
 				hClient, err := api.NewHTTPClient(cfg)
 				if err != nil {
