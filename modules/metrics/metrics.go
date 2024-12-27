@@ -107,8 +107,17 @@ func (module *MetricsModule) Setup() {
 	elastic2.RegisterMetadataChangeEvent(func(meta, oldMeta *elastic2.ElasticsearchMetadata, action elastic2.EventAction) {
 		if action == elastic2.EventActionUpdate && oldMeta != nil {
 			//skip if no monitor config changed
+			hasChanged := false
 			changelog, _ := util.DiffTwoObject(oldMeta.Config.MonitorConfigs, meta.Config.MonitorConfigs)
-			if len(changelog) == 0 {
+			if len(changelog) > 0 {
+				hasChanged = true
+			}else if meta != nil {
+				// check other conditions
+				hasChanged = meta.IsAvailable() != oldMeta.IsAvailable() ||
+					meta.Config.Enabled != oldMeta.Config.Enabled ||
+					meta.Config.Monitored != oldMeta.Config.Monitored
+			}
+			if !hasChanged {
 				return
 			}
 		}
