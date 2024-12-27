@@ -30,6 +30,7 @@ package elastic
 import (
 	"context"
 	"fmt"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/model"
 	"math"
 	"runtime"
@@ -380,7 +381,7 @@ func InitSchema() {
 	//init schemas
 	err=orm.InitSchema()
 	if err!=nil{
-		panic(err)
+		panic(errors.Errorf("failed to init schema, %v",err))
 	}
 
 	schemaInited = true
