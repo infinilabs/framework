@@ -22,7 +22,7 @@ Information about release notes of INFINI Framework is provided here.
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
 - Enable skipping to the next file with multiple gaps (#22)
 - Removing the logic of collecting metric per each node (#26)
-- Fixed password get by basic auth (#31)
+- Fixed to parse password from basic auth (#31)
 
 
 ### Improvements
