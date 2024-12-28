@@ -172,7 +172,7 @@ type SystemConfig struct {
 
 	Plugins []*Config `config:"plugins"`
 
-	HTTPClientConfig HTTPClientConfig `config:"http_client"`
+	HTTPClientConfig map[string]HTTPClientConfig `config:"http_client"`
 }
 
 type CookieConfig struct {
@@ -180,23 +180,97 @@ type CookieConfig struct {
 	Domain string `config:"domain"`
 }
 
+type ProxyConfig struct {
+	HTTPProxy                     string `config:"http_proxy"` //export HTTP_PROXY=http://username:password@proxy-url:port
+	Socket5Proxy                  string `config:"socket5_proxy"`
+	UsingEnvironmentProxySettings bool   `config:"using_proxy_env"` //using the the env(HTTP_PROXY, HTTPS_PROXY and NO_PROXY) configured HTTP proxy
+}
+
+func (c *HTTPClientConfig) init() {
+	if !c.initTempMap {
+		tempMap := map[string]bool{}
+		for _, v := range c.Proxy.Denied {
+			c.checkDomainMap[v] = false
+		}
+
+		for _, v := range c.Proxy.Permitted {
+			c.checkDomainMap[v] = true
+		}
+
+		c.checkDomainMap = tempMap
+		c.initTempMap = true
+	}
+}
+
+func (c *HTTPClientConfig) ValidateProxy(addr string) (bool, *ProxyConfig) { //allow to visit the proxy, the proxy setting
+
+	//init configs
+	c.init()
+
+	//check proxy rule for specify domain
+	if len(c.Proxy.Domains) > 0 {
+		//port are part of the domain, need exact match{
+		if v, ok := c.Proxy.Domains[addr]; ok {
+			return true, &v
+		}
+	}
+
+	if len(c.checkDomainMap) > 0 {
+
+		//any hit will be return
+		if v, ok := c.checkDomainMap[addr]; ok {
+			if v == false {
+				return false, nil
+			} else {
+				return true, &c.Proxy.DefaultProxyConfig
+			}
+		}
+
+		//only defined denied, the rest should permitted
+		if len(c.Proxy.Denied) > 0 && len(c.Proxy.Permitted) == 0 {
+			if v, ok := c.checkDomainMap[addr]; ok && v == false {
+				return false, nil
+			} else {
+				return true, &c.Proxy.DefaultProxyConfig
+			}
+		}
+
+		//only defined permitted, the rest should be consider denied
+		if len(c.Proxy.Permitted) > 0 && len(c.Proxy.Denied) == 0 {
+			if v, ok := c.checkDomainMap[addr]; ok && v == true {
+				return true, &c.Proxy.DefaultProxyConfig
+			} else {
+				return false, nil
+			}
+		}
+	}
+
+	return true, &c.Proxy.DefaultProxyConfig
+}
+
 type HTTPClientConfig struct {
-	Name       string `config:"name"`
-	HTTPProxy  string `config:"http_proxy"`
-	HTTPSProxy string `config:"https_proxy"`
+	Proxy struct {
+		Enabled             bool                   `config:"enabled"`
+		DefaultProxyConfig  ProxyConfig            `config:"default_config"`
+		Permitted           []string               `config:"permitted"`
+		Denied              []string               `config:"denied"`
+		Domains             map[string]ProxyConfig `config:"domains"` //proxy settings per domain
+		OverrideSystemProxy bool                   `config:"override_system_proxy_env"`
+	} `config:"proxy"`
 
 	Timeout              string    `config:"timeout"`
+	DialTimeout          string    `config:"dial_timeout"`
 	ReadTimeout          string    `config:"read_timeout"`
 	WriteTimeout         string    `config:"write_timeout"`
 	ReadBufferSize       int       `config:"read_buffer_size"`
 	WriteBufferSize      int       `config:"write_buffer_size"`
 	TLSConfig            TLSConfig `config:"tls"` //server or client's certs
 	MaxConnectionPerHost int       `config:"max_connection_per_host"`
-}
 
-//type HTTPClientConfigs struct {
-//	Default HTTPClientConfig `config:"default"`
-//}
+	//temp data structure
+	initTempMap    bool
+	checkDomainMap map[string]bool
+}
 
 type ConfigsConfig struct {
 	AutoReload                 bool      `config:"auto_reload"`                    //auto reload local files
@@ -249,13 +323,13 @@ type WebAppConfig struct {
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
 
-	AuthConfig    AuthConfig     `config:"auth"` //enable access control for UI or not
-	UI            UIConfig       `config:"ui"`
-	BasePath      string         `config:"base_path"`
-	Domain        string         `config:"domain"`
-	EmbeddingAPI  bool           `config:"embedding_api"`
-	Gzip          GzipConfig     `config:"gzip"`
-	S3Config      S3BucketConfig `config:"s3"`
+	AuthConfig   AuthConfig     `config:"auth"` //enable access control for UI or not
+	UI           UIConfig       `config:"ui"`
+	BasePath     string         `config:"base_path"`
+	Domain       string         `config:"domain"`
+	EmbeddingAPI bool           `config:"embedding_api"`
+	Gzip         GzipConfig     `config:"gzip"`
+	S3Config     S3BucketConfig `config:"s3"`
 }
 
 type S3Config struct {

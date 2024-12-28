@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 - Record cluster allocation explain to activity after cluster health status changed to `red`
 - Add elastic api method `ClusterAllocationExplain`
 - Add `min_bucket_size` and `hits_total` to metric configurations (#29)
+- Add proxy settings to `http_client` config section
 
 ### Breaking changes
 
