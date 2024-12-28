@@ -1,9 +1,9 @@
 ---
 weight: 30
-title: "Makefile Reference"
+title: "Makefile"
 ---
 
-# Makefile Reference
+# Makefile
 
 The framework simplifies managing your application by providing reusable commands and variables. Below is an example of how `Loadgen` utilizes this framework in its Makefile:
 
