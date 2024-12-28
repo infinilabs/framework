@@ -85,7 +85,6 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				}
 				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
 			}
-			metadata.ReportSuccess()
 			changes, err := util.DiffTwoObject(metadata.Health, health)
 			if err != nil {
 				log.Errorf("diff cluster health error: %v", err)
@@ -93,8 +92,11 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 			if len(changes) > 0 {
 				//copy metadata and update metadata safely
 				newMeta := *metadata
+				newMeta.ReportSuccess()
 				newMeta.Health = health
 				elastic.SetMetadata(metadata.Config.ID, &newMeta)
+			}else{
+				metadata.ReportSuccess()
 			}
 		}
 	}
