@@ -67,6 +67,7 @@ type Config struct {
 	AND              []Config               `config:"and"`
 	NOT              *Config                `config:"not"`
 	IN               map[string]interface{} `config:"in"`
+	LengthEquals      *Fields                `config:"length"`
 }
 
 // Condition is the interface for all defined conditions
@@ -155,6 +156,8 @@ func NewCondition(config *Config) (Condition, error) {
 	switch {
 	case config.Equals != nil:
 		condition, err = NewEqualsCondition(config.Equals.fields)
+	case config.LengthEquals != nil:
+		condition, err = NewArrayLengthEqualsCondition(config.LengthEquals.fields)
 	case config.IN != nil:
 		condition, err = NewInArrayCondition(config.IN)
 	case config.Contains != nil:
