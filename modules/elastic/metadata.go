@@ -39,7 +39,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/r3labs/diff/v2"
 	"infini.sh/framework/core/elastic"
-	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
@@ -74,7 +73,6 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 			} else {
 				metadata.ReportFailure(err)
 			}
-
 			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
@@ -105,9 +103,6 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
 
 	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
-	if clusterID == globalID {
-		global.Env().ReportHealth("system_cluster", env.GetHealthType(healthStatus))
-	}
 
 	client := elastic.GetClient(globalID)
 	if client == nil {
