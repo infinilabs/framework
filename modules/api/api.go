@@ -43,6 +43,8 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/host"
 	"infini.sh/framework/core/model"
@@ -76,12 +78,23 @@ func versionAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.P
 }
 
 func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
+	overallHealthType := global.Env().GetOverallHealth()
 	obj := util.MapStr{
-		"status": global.Env().GetOverallHealth().ToString(),
+		"status": overallHealthType.ToString(),
 	}
 
 	services := global.Env().GetServicesHealth()
+	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+	meta := elastic.GetMetadata(globalID)
+	if meta != nil {
+		services["system_cluster"] = meta.Health.Status
+		healthType := env.GetHealthType(meta.Health.Status)
+		if healthType > overallHealthType {
+			overallHealthType = healthType
+			obj["status"] = overallHealthType.ToString()
+		}
+	}
+
 	if len(services) > 0 {
 		obj["services"] = services
 	}
