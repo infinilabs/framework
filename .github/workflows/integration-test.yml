@@ -11,7 +11,7 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GO_VERSION: 1.23.4
             NODEJS_VERSION: 16.20.2
-            WORK_BASE: /root/go/src/infini.sh
+            WORK_BASE: $HOME/go/src/infini.sh
         steps:
             - name: Checkout current repository
               uses: actions/checkout@v4
