@@ -71,11 +71,13 @@ jobs:
               run: |
                 echo Home path is $HOME
                 WORK_BASE=$HOME/go/src/infini.sh
-                mkdir -p $WORK_BASE && cd $_
+                mkdir -p $WORK_BASE
+                echo Check work folder $GITHUB_WORKSPACE
+                ls -al $GITHUB_WORKSPACE
                 # Add your compilation commands here
                 echo Compiling code at $PWD ...
                 for x in framework vendor console gateway agent; do
-                    ln -s $GITHUB_WORKSPACE/$x .
+                    ln -s $GITHUB_WORKSPACE/$x $WORK_BASE/$x
                 done
                 cd $WORK_BASE/console/web
                 cnpm -i && cnpm run build
