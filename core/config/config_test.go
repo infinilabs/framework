@@ -2,18 +2,19 @@ package config
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/magiconair/properties/assert"
 	"github.com/spf13/viper"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/go-ucfg"
 	"infini.sh/framework/lib/go-ucfg/yaml"
-	"os"
-	"testing"
 )
 
 // Defines struct to read config from
 type ExampleConfig struct {
-	Counter int32 `config:"counter" validate:"min=0, max=9"`
+	Counter     int32               `config:"counter" validate:"min=0, max=9"`
+	RoleMapping map[string][]string `config:"role_mapping"`
 }
 
 // Defines default config option
@@ -24,28 +25,27 @@ var (
 )
 
 func TestLoadDefaultCfg(t *testing.T) {
-
 	path := "config_test.yml"
 	appConfig := defaultConfig // copy default config so it's not overwritten
 	config, err := yaml.NewConfigWithFile(path, ucfg.PathSep("."))
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		t.Fatalf("Failed to load config file: %v", err)
 	}
 
-	assert.Equal(t, appConfig.Counter, int32(4))
-	fmt.Println(appConfig.Counter)
+	assert.Equal(t, appConfig.Counter, int32(4), "Default counter value should be 4")
+	fmt.Println("Default Counter:", appConfig.Counter)
 
 	err = config.Unpack(&appConfig)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		t.Fatalf("Failed to unpack config: %v", err)
 	}
 
-	assert.Equal(t, appConfig.Counter, int32(5))
-
-	fmt.Println(appConfig.Counter)
-
+	assert.Equal(t, appConfig.Counter, int32(5), "Counter value should be 5 after unpacking")
+	assert.Equal(t, appConfig.Counter, int32(5), "Updated counter value should be 5")
+	expectedRoleMapping := map[string][]string{
+		"liugq.infinilabs.com": {"ReadonlyUI"},
+	}
+	assert.Equal(t, appConfig.RoleMapping, expectedRoleMapping, "Role mapping should match the expected values")
 }
 
 type globalConfig struct {
@@ -238,7 +238,7 @@ func TestNestedTemplate1(t *testing.T) {
 	runKv["prefix_123_password"] = "345"
 
 	configStr := NestedRenderingTemplate(temp, runKv)
-	assert.Equal(t, configStr,"prefix_123_end")
+	assert.Equal(t, configStr, "prefix_123_end")
 	fmt.Println(configStr)
 }
 
@@ -250,7 +250,7 @@ func TestNestedTemplate2(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t, configStr,"345")
+	assert.Equal(t, configStr, "345")
 }
 
 func TestNestedTemplate3(t *testing.T) {
@@ -261,7 +261,7 @@ func TestNestedTemplate3(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345")
+	assert.Equal(t, configStr, "$[[345")
 }
 
 func TestNestedTemplate4(t *testing.T) {
@@ -273,7 +273,7 @@ func TestNestedTemplate4(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345]]")
+	assert.Equal(t, configStr, "$[[345]]")
 }
 
 func TestNestedTemplate5(t *testing.T) {
@@ -285,7 +285,7 @@ func TestNestedTemplate5(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345]]]]")
+	assert.Equal(t, configStr, "$[[345]]]]")
 }
 
 func TestNestedTemplate6(t *testing.T) {
@@ -295,7 +295,7 @@ func TestNestedTemplate6(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"password: $[[keystore.123_password]]")
+	assert.Equal(t, configStr, "password: $[[keystore.123_password]]")
 }
 
 func TestNestedTemplate7(t *testing.T) {
@@ -306,7 +306,7 @@ func TestNestedTemplate7(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345")
+	assert.Equal(t, configStr, "      PASSWORD: 345")
 }
 
 func TestNestedTemplate8(t *testing.T) {
@@ -318,7 +318,7 @@ func TestNestedTemplate8(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345")
+	assert.Equal(t, configStr, "      PASSWORD: 345")
 }
 
 func TestNestedTemplate9(t *testing.T) {
@@ -332,9 +332,8 @@ func TestNestedTemplate9(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345\n  USERNAME: 889")
+	assert.Equal(t, configStr, "      PASSWORD: 345\n  USERNAME: 889")
 }
-
 
 func TestMergeFieldHandling(t *testing.T) {
 
@@ -832,7 +831,7 @@ func TestWildcardPathFilter(t *testing.T) {
 	}
 	wildcardPathFilter := GenerateWildcardPathFilter(patterns)
 	tests := []struct {
-		Name    string
+		Name     string
 		FilePath string
 		Expected bool
 	}{
