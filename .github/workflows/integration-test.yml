@@ -20,6 +20,7 @@ jobs:
             - name: Checkout console
               uses: actions/checkout@v4
               with:
+                ref: main
                 fetch-depth: 0
                 repository: infinilabs/console
                 path: console
@@ -27,6 +28,7 @@ jobs:
             - name: Checkout gateway
               uses: actions/checkout@v4
               with:
+                ref: main
                 fetch-depth: 0
                 repository: infinilabs/gateway
                 path: gateway
@@ -34,6 +36,7 @@ jobs:
             - name: Checkout agent
               uses: actions/checkout@v4
               with:
+                ref: main
                 fetch-depth: 0
                 repository: infinilabs/agent
                 path: agent
@@ -41,14 +44,16 @@ jobs:
             - name: Checkout framework-vendor
               uses: actions/checkout@v4
               with:
+                ref: main
                 fetch-depth: 0
                 repository: infinilabs/framework-vendor
                 path: vendor
 
             - name: Set up nodejs toolchain
-              uses: actions/checkout@v4
+              uses: actions/setup-node@v4
               with:
                 node-version: ${{ env.NODEJS_VERSION }}
+
             - name: Check nodejs toolchain
               run: |
                 if ! command -v cnpm >/dev/null 2>&1; then
