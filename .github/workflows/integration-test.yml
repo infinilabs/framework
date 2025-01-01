@@ -11,13 +11,11 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GO_VERSION: 1.23.4
             NODEJS_VERSION: 16.20.2
-            WORK_BASE: $HOME/go/src/infini.sh
         steps:
             - name: Checkout current repository
               uses: actions/checkout@v4
               with:
                 fetch-depth: 0
-                path: framework
 
             - name: Checkout console
               uses: actions/checkout@v4
@@ -71,9 +69,11 @@ jobs:
             - name: Compile console code
               shell: bash
               run: |
+                echo Home path is $HOME
+                WORK_BASE=$HOME/go/src/infini.sh
                 mkdir -p $WORK_BASE && cd $_
                 # Add your compilation commands here
-                echo Compiling code...
+                echo Compiling code at $PWD ...
                 for x in framework vendor console gateway agent; do
                     ln -s $GITHUB_WORKSPACE/$x .
                 done
