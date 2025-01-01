@@ -1,0 +1,87 @@
+name: Smoking Test
+
+on:
+    pull_request:
+        branches: [ "main" ]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GO_VERSION: 1.23.4
+            NODEJS_VERSION: 16.20.2
+            WORK_BASE: /root/go/src/infini.sh
+        steps:
+            - name: Set up git
+              run: |
+                git config --system --add safe.directory /workspace
+
+            - name: Checkout current repository
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+                path: framework
+
+            - name: Checkout console
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+                repository: infinilabs/console
+                path: console
+
+            - name: Checkout gateway
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+                repository: infinilabs/gateway
+                path: gateway
+
+            - name: Checkout agent
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+                repository: infinilabs/agent
+                path: agent
+
+            - name: Checkout framework-vendor
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+                repository: infinilabs/framework-vendor
+                path: vendor
+
+            - name: Set up nodejs toolchain
+              uses: actions/checkout@v4
+              with:
+                node-version: ${{ env.NODEJS_VERSION }}
+            - name: Check nodejs toolchain
+              run: |
+                if ! command -v cnpm >/dev/null 2>&1; then
+                  npm install -g rimraf
+                  npm install -g cnpm@9.2.0
+                fi
+                node -v && npm -v && cnpm -v
+            - name: Set up go toolchain
+              uses: actions/setup-go@v5
+              with:
+                go-version: ${{ env.GO_VERSION }}
+                check-latest: false
+                cache: true
+
+            - name: Check go toolchain
+              run: go version
+
+            - name: Compile console code
+              shell: bash
+              run: |
+                mkdir -p $WORK_BASE && cd $_
+                # Add your compilation commands here
+                echo Compiling code...
+                for x in framework vendor console gateway agent; do
+                    ln -s $GITHUB_WORKSPACE/$x .
+                done
+                cd $WORK_BASE/console/web
+                cnpm -i && cnpm run build
+                cd $WORK_BASE/console
+                make build
