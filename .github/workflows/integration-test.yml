@@ -1,4 +1,4 @@
-name: Smoking Test
+name: Products Integration Test
 
 on:
     pull_request:
@@ -13,10 +13,6 @@ jobs:
             NODEJS_VERSION: 16.20.2
             WORK_BASE: /root/go/src/infini.sh
         steps:
-            - name: Set up git
-              run: |
-                git config --system --add safe.directory /workspace
-
             - name: Checkout current repository
               uses: actions/checkout@v4
               with:
