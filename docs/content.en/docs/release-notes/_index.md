@@ -15,6 +15,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add `min_bucket_size` and `hits_total` to metric configurations (#29)
 - Add proxy settings to `http_client` config section (#33)
 - Add new condition to check item length (eg: array,string) (#38)
+- Fixed issue with console LDAP config with dot key [#46](https://github.com/infinilabs/console/issues/46)
 
 ### Breaking changes
 
