@@ -90,10 +90,13 @@ jobs:
                 ls -al $GITHUB_WORKSPACE
                 # Add your compilation commands here
                 echo Compiling code at $PWD ...
-                for x in framework vendor console gateway agent loadgen; do
-                    ln -s $GITHUB_WORKSPACE/$x $WORK_BASE/$x
+                for p in framework vendor console gateway agent loadgen; do
+                    ln -s $GITHUB_WORKSPACE/$p $WORK_BASE/$p
                 done
-                cd $WORK_BASE/console/web
-                cnpm -i && cnpm run build
-                cd $WORK_BASE/console
-                make build
+                # for console web
+                cd $WORK_BASE/console/web && cnpm install --quiet --no-progress && cnpm run build --quiet
+                # for products
+                for p in console gateway agent loadgen; do
+                    cd $WORK_BASE/$p && OFFLINE_BUILD=true make build
+                done
+                
