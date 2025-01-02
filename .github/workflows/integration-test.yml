@@ -97,6 +97,7 @@ jobs:
                 cd $WORK_BASE/console/web && cnpm install --quiet --no-progress && cnpm run build --quiet
                 # for products
                 for p in console gateway agent loadgen; do
-                    cd $WORK_BASE/$p && OFFLINE_BUILD=true make build
+                    cd $WORK_BASE/$p && echo Compiling $p at $PWD ...
+                    OFFLINE_BUILD=true make build >/dev/null 2>&1
                 done
                 
