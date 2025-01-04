@@ -584,7 +584,7 @@ func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHe
 		version:               util.TrimSpaces(ver),
 		commit:                util.TrimSpaces(commit),
 		frameworkCommit:       util.TrimSpaces(cfg.LastFrameworkCommitLog),
-		frameworkVendorCommit: util.TrimSpaces(cfg.LastFrameworkCommitLog),
+		frameworkVendorCommit: util.TrimSpaces(cfg.LastFrameworkVendorCommitLog),
 		buildDate:             buildDate,
 		buildNumber:           buildNumber,
 		eolDate:               eolDate,

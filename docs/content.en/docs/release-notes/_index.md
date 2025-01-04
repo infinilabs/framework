@@ -21,14 +21,13 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 - Remove the collection of cluster stats metric in node stats collection task (#17)
 - Fix the main switch of the cluster metric is not work (#17)
-- Update elastic metadata safely (#20)
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
 - Enable skipping to the next file with multiple gaps (#22)
 - Removing the logic of collecting metric per each node (#26)
 - Fixed to parse password from basic auth (#31)
 - Fixed issue with metric collection task interval not working (#30)
 - Fix invalid data folder, remove cluster_config and use appname directly for configuration (#46)
-
+- Fixed incorrect system cluster health status in the health API (#39)
 
 ### Improvements
 - Add commit hashes for framework and managed vendor dependencies
