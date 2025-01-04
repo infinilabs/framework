@@ -84,23 +84,24 @@ func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	}
 
 	services := global.Env().GetServicesHealth()
-	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
-	meta := elastic.GetMetadata(globalID)
-	if meta != nil {
-		services["system_cluster"] = meta.Health.Status
-		healthType := env.GetHealthType(meta.Health.Status)
-		if healthType > overallHealthType {
-			overallHealthType = healthType
-			obj["status"] = overallHealthType.ToString()
-		}
-	}
-
-	if len(services) > 0 {
-		obj["services"] = services
-	}
 
 	if global.Env().SetupRequired() {
 		obj["setup_required"] = global.Env().SetupRequired()
+	}else{
+		//perform system cluster health check only when it is set up
+		globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
+		meta := elastic.GetMetadata(globalID)
+		if meta != nil {
+			services["system_cluster"] = meta.Health.Status
+			healthType := env.GetHealthType(meta.Health.Status)
+			if healthType > overallHealthType {
+				overallHealthType = healthType
+				obj["status"] = overallHealthType.ToString()
+			}
+		}
+	}
+	if len(services) > 0 {
+		obj["services"] = services
 	}
 
 	w.Header().Set("Content-Type", "application/json")
