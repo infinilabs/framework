@@ -87,14 +87,9 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 			if err != nil {
 				log.Errorf("diff cluster health error: %v", err)
 			}
+			metadata.ReportSuccess()
 			if len(changes) > 0 {
-				//copy metadata and update metadata safely
-				newMeta := *metadata
-				newMeta.ReportSuccess()
-				newMeta.Health = health
-				elastic.SetMetadata(metadata.Config.ID, &newMeta)
-			}else{
-				metadata.ReportSuccess()
+				metadata.Health = health
 			}
 		}
 	}
@@ -241,10 +236,7 @@ func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				module.saveRoutingTable(state, clusterId)
 			}
-			//copy metadata and update metadata safely
-			newMeta := *meta
-			newMeta.ClusterState = state
-			elastic.SetMetadata(meta.Config.ID, &newMeta)
+			meta.ClusterState = state
 		}
 	}
 }
@@ -784,11 +776,8 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		}
 
 		if discovery || force {
-			//copy metadata and update metadata safely
-			newMeta := *meta
-			newMeta.Nodes = nodes
-			newMeta.NodesTopologyVersion++
-			elastic.SetMetadata(meta.Config.ID, &newMeta)
+			meta.Nodes = nodes
+			meta.NodesTopologyVersion++
 
 			log.Tracef("cluster nodes [%v] updated", meta.Config.Name)
 
@@ -1183,9 +1172,7 @@ func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
 	}
 
 	if aliasesChanged {
-		newMeta := *meta
-		newMeta.Aliases = aliases
-		elastic.SetMetadata(meta.Config.ID, &newMeta)
+		meta.Aliases = aliases
 		log.Tracef("cluster aliases [%v] updated", meta.Config.Name)
 	}
 }
