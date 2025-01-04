@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 - Removing the logic of collecting metric per each node (#26)
 - Fixed to parse password from basic auth (#31)
 - Fixed issue with metric collection task interval not working (#30)
+- Fix invalid data folder, remove cluster_config and use appname directly for configuration (#46)
 - Fixed incorrect system cluster health status in the health API (#39)
 
 ### Improvements
