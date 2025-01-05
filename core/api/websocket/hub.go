@@ -155,7 +155,7 @@ func (h *Hub) runHub() {
 			c.WritePrivateMessage(global.Env().GetWelcomeMessage())
 			js, _ := json.Marshal(logger.GetLoggingConfig())
 			c.WriteMessage(ConfigMessage, string(js))
-			c.WriteMessage(ConfigMessage, "websocket_session_id: "+c.id)
+			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
 		case c := <-h.unregister:
 			if _, ok := h.connections[c]; ok {
 				delete(h.connections, c)
