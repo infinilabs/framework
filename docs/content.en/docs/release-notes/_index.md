@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add new condition to check item length (eg: array,string) (#38)
 
 ### Breaking changes
+- Update WebSocket greeting message header to use `websocket-session-id`
 
 ### Bug fix
 - Remove the collection of cluster stats metric in node stats collection task (#17)
