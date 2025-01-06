@@ -324,5 +324,7 @@ package-windows-platform:
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-amd64.zip   $(APP_NAME)-windows-amd64.exe $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
 
-test:
-	$(GOTEST) -timeout 60s ./...
+test: config
+	$(GOTEST) -v $(GOFLAGS) -timeout 600s ./...
+	@$(MAKE) restore-generated-file
+
