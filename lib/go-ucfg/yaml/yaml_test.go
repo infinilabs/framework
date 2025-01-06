@@ -18,6 +18,8 @@
 package yaml
 
 import (
+	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -224,4 +226,52 @@ func mustNewConfig(t *testing.T, input string, opts ...ucfg.Option) *ucfg.Config
 func mustUnpack(t *testing.T, c *ucfg.Config, v interface{}) {
 	err := c.Unpack(v)
 	require.NoError(t, err, "failed to unpack config")
+}
+
+// Defines struct to read config from
+type Config struct {
+	RoleMapping map[string][]string `yaml:"role_mapping"`
+	Count       int32               `yaml:"count" validate:"min=0, max=9"`
+}
+
+var config = &Config{
+	RoleMapping: make(map[string][]string),
+}
+
+func TestPatchLoadDefaultCfg(t *testing.T) {
+	path := "patch_test.yml"
+	in, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+
+	if err := decode(in, &config); err != nil {
+		t.Fatalf("Failed to load config file: %v", err)
+	}
+
+	// 验证反序列化结果
+	assert.Equal(t, int32(3), config.Count)
+	assert.Len(t, config.RoleMapping, 1) // 验证映射有 1 个键值对
+	assert.Contains(t, config.RoleMapping, "\"liugq.infinilabs.com\"")
+	assert.Equal(t, []string{"ReadonlyUI"}, config.RoleMapping["\"liugq.infinilabs.com\""])
+}
+
+func TestPatchDecoderDefaultCfg(t *testing.T) {
+	path := "patch_test.yml"
+	in, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+	// 使用 PatchedDecoder 解码
+	decoder := NewCustomDecoder(bytes.NewBuffer(in))
+	err = decoder.Decode(&config)
+	if err != nil {
+		t.Fatalf("Error decoding YAML: %v", err)
+	}
+
+	// 验证反序列化结果
+	assert.Equal(t, int32(3), config.Count)
+	assert.Len(t, config.RoleMapping, 1) // 验证映射有 1 个键值对
+	assert.Contains(t, config.RoleMapping, "\"liugq.infinilabs.com\"")
+	assert.Equal(t, []string{"ReadonlyUI"}, config.RoleMapping["\"liugq.infinilabs.com\""])
 }
