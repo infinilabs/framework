@@ -228,7 +228,7 @@ func yaml_parser_scan_to_next_token(parser *yaml_parser_t) bool {
 	return true
 }
 
-func yaml_parser_set_scanner_tag_error(parser *yaml_parser_t, directive bool, context_mark yaml_mark_t, problem string) bool {
+func yaml_parser_set_scanner_tag_error(parser *yaml_parser_t, directive bool, context_mark yaml_mark_t, _ string) bool {
 	context := "while parsing a tag"
 	if directive {
 		context = "while parsing a %TAG directive"

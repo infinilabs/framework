@@ -58,6 +58,8 @@ func newParser(b []byte) *parser {
 	return &p
 }
 
+// destroy cleans up resources associated with the parser instance.
+// It deletes the current YAML event if it exists and then deletes the YAML parser.
 func (p *parser) destroy() {
 	if p.event.typ != yaml_NO_EVENT {
 		yaml_event_delete(&p.event)
@@ -65,6 +67,10 @@ func (p *parser) destroy() {
 	yaml_parser_delete(&p.parser)
 }
 
+// skip advances the parser to the next event, skipping the current one.
+// If the current event is of type yaml_STREAM_END_EVENT, it panics with an error
+// indicating an attempt to go past the end of the stream, suggesting a corrupted value.
+// If the parser fails to parse the next event, it calls the fail method to handle the error.
 func (p *parser) skip() {
 	if p.event.typ != yaml_NO_EVENT {
 		if p.event.typ == yaml_STREAM_END_EVENT {
@@ -77,6 +83,11 @@ func (p *parser) skip() {
 	}
 }
 
+// fail constructs an error message based on the current state of the parser
+// and panics with a yamlError. It checks the problem_mark and context_mark
+// to determine the line number where the error occurred. If a problem message
+// is available, it includes that in the error message; otherwise, it defaults
+// to "unknown problem parsing YAML content".
 func (p *parser) fail() {
 	var where string
 	var line int
@@ -97,12 +108,18 @@ func (p *parser) fail() {
 	panic(yamlError{fmt.Errorf("%s%s", where, msg)})
 }
 
+// anchor assigns a node to an anchor in the document. If the anchor is not nil,
+// it adds the node to the document's anchors map using the anchor as the key.
 func (p *parser) anchor(n *node, anchor []byte) {
 	if anchor != nil {
 		p.doc.anchors[string(anchor)] = n
 	}
 }
 
+// parse processes the current YAML event and returns the corresponding node.
+// It handles different types of YAML events such as scalar, alias, mapping start,
+// sequence start, document start, and stream end. If an unknown event type is encountered,
+// it panics with an appropriate error message.
 func (p *parser) parse() *node {
 	switch p.event.typ {
 	case yaml_SCALAR_EVENT:
@@ -121,7 +138,6 @@ func (p *parser) parse() *node {
 	default:
 		panic("attempted to parse unknown event: " + strconv.Itoa(int(p.event.typ)))
 	}
-	panic("unreachable")
 }
 
 func (p *parser) node(kind int) *node {
@@ -235,9 +251,21 @@ func (d *decoder) terror(n *node, tag string, out reflect.Value) {
 	d.terrors = append(d.terrors, fmt.Sprintf("line %d: cannot unmarshal %s%s into %s", n.line+1, shortTag(tag), value, out.Type()))
 }
 
-func (d *decoder) callUnmarshaler(n *node, u Unmarshaler) (good bool) {
+// callDecoder attempts to decode a YAML node using the provided Decoder.
+// It returns true if the decoding is successful, and false if there are type errors.
+//
+// Parameters:
+// - n: The YAML node to be decoded.
+// - u: The Decoder to use for decoding the YAML node.
+//
+// Returns:
+// - good: A boolean indicating whether the decoding was successful.
+//
+// If there are type errors during decoding, they are collected and stored in d.terrors.
+// If any other error occurs, the function will call fail with the error.
+func (d *decoder) callDecoder(n *node, u Decoder) (good bool) {
 	terrlen := len(d.terrors)
-	err := u.UnmarshalYAML(func(v interface{}) (err error) {
+	err := u.DecodeYAML(func(v interface{}) (err error) {
 		defer handleErr(&err)
 		d.unmarshal(n, reflect.ValueOf(v))
 		if len(d.terrors) > terrlen {
@@ -279,8 +307,8 @@ func (d *decoder) prepare(n *node, out reflect.Value) (newout reflect.Value, unm
 			again = true
 		}
 		if out.CanAddr() {
-			if u, ok := out.Addr().Interface().(Unmarshaler); ok {
-				good = d.callUnmarshaler(n, u)
+			if u, ok := out.Addr().Interface().(Decoder); ok {
+				good = d.callDecoder(n, u)
 				return out, true, good
 			}
 		}
@@ -368,7 +396,7 @@ func (d *decoder) scalar(n *node, out reflect.Value) (good bool) {
 		return true
 	}
 	if s, ok := resolved.(string); ok && out.CanAddr() {
-		if u, ok := out.Addr().Interface().(encoding.TextUnmarshaler); ok {
+		if u, ok := out.Addr().Interface().(encoding.TextDecoder); ok {
 			err := u.UnmarshalText([]byte(s))
 			if err != nil {
 				fail(err)
@@ -695,5 +723,5 @@ func (d *decoder) merge(n *node, out reflect.Value) {
 }
 
 func isMerge(n *node) bool {
-	return n.kind == scalarNode && n.value == "<<" && (n.implicit == true || n.tag == yaml_MERGE_TAG)
+	return n.kind == scalarNode && n.value == "<<" && (n.implicit || n.tag == yaml_MERGE_TAG)
 }

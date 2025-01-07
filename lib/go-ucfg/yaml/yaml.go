@@ -20,13 +20,13 @@ type MapItem struct {
 	Key, Value interface{}
 }
 
-// The Unmarshaler interface may be implemented by types to customize their
+// The Decoder interface may be implemented by types to customize their
 // behavior when being unmarshaled from a YAML document. The UnmarshalYAML
 // method receives a function that may be called to unmarshal the original
 // YAML value into a field or variable. It is safe to call the unmarshal
 // function parameter more than once if necessary.
-type Unmarshaler interface {
-	UnmarshalYAML(unmarshal func(interface{}) error) error
+type Decoder interface {
+	DecodeYAML(unmarshal func(interface{}) error) error
 }
 
 // A TypeError is returned by Unmarshal when one or more fields in
@@ -113,7 +113,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 		info := fieldInfo{Num: i}
 
 		tag := field.Tag.Get("yaml")
-		if tag == "" && strings.Index(string(field.Tag), ":") < 0 {
+		if tag == "" && !strings.Contains(string(field.Tag), ":") {
 			tag = string(field.Tag)
 		}
 		if tag == "-" {
@@ -132,7 +132,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				case "inline":
 					inline = true
 				default:
-					return nil, errors.New(fmt.Sprintf("Unsupported flag %q in tag %q of type %s", flag, tag, st))
+					return nil, fmt.Errorf("unsupported flag %q in tag %q of type %s", flag, tag, st.String())
 				}
 			}
 			tag = fields[0]
@@ -168,7 +168,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				}
 			default:
 				//return nil, errors.New("Option ,inline needs a struct value or map field")
-				return nil, errors.New("Option ,inline needs a struct value field")
+				return nil, errors.New("option ,inline needs a struct value field")
 			}
 			continue
 		}
@@ -196,7 +196,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 	return sinfo, nil
 }
 
-// Unmarshal decodes the first document found within the in byte slice
+// decodes the first document found within the in byte slice
 // and assigns decoded values into the out value.
 //
 // Maps and pointers (to a struct, string, int, etc) are accepted as out
