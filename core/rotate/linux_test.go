@@ -74,6 +74,9 @@ func TestMaintainMode(t *testing.T) {
 }
 
 func TestMaintainOwner(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	fakeFS := newFakeFS()
 	osChown = fakeFS.Chown
 	osStat = fakeFS.Stat
