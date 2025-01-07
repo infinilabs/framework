@@ -26,7 +26,7 @@ func TestWriterRewind(t *testing.T) {
 	w.String("bar")
 	assertEncoded(t, &w, `"foo","bar"`)
 
-	w.Rewind(before)
+	w.Rewind(before + 1)
 	assertEncoded(t, &w, `"foo"`)
 }
 

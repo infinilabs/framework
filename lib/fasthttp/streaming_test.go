@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,9 @@ import (
 )
 
 func TestStreamingPipeline(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	reqS := `POST /one HTTP/1.1

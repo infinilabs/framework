@@ -1,7 +1,7 @@
 package config
 
-const LastCommitLog = "1176ab850961dcefd11bce4122f512361694a069"
-const BuildDate = "2025-01-07T08:54:30Z"
+const LastCommitLog = "d7216c0ff9981add319e479c962b1f68d6c34d55"
+const BuildDate = "2025-01-07T09:41:17Z"
 
 const EOLDate  = "2023-12-31T10:10:10Z"
 

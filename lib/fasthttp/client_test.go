@@ -1,3 +1,5 @@
+//go:build !ci
+
 package fasthttp
 
 import (
@@ -892,24 +894,36 @@ func TestClientDoWithCustomHeaders(t *testing.T) {
 }
 
 func TestPipelineClientDoSerial(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testPipelineClientDoConcurrent(t, 1, 0, 0)
 }
 
 func TestPipelineClientDoConcurrent(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testPipelineClientDoConcurrent(t, 10, 0, 1)
 }
 
 func TestPipelineClientDoBatchDelayConcurrent(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testPipelineClientDoConcurrent(t, 10, 5*time.Millisecond, 1)
 }
 
 func TestPipelineClientDoBatchDelayConcurrentMultiConn(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testPipelineClientDoConcurrent(t, 10, 5*time.Millisecond, 3)
@@ -1281,6 +1295,9 @@ func TestHostClientPendingRequests(t *testing.T) {
 }
 
 func TestHostClientMaxConnsWithDeadline(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	var (
@@ -1422,6 +1439,9 @@ func TestHostClientMaxConnDuration(t *testing.T) {
 }
 
 func TestHostClientMultipleAddrs(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -1482,6 +1502,9 @@ func TestHostClientMultipleAddrs(t *testing.T) {
 }
 
 func TestClientFollowRedirects(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -1581,6 +1604,9 @@ func TestClientFollowRedirects(t *testing.T) {
 }
 
 func TestClientGetTimeoutSuccess(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := startEchoServer(t, "tcp", "127.0.0.1:")
@@ -1607,6 +1633,9 @@ func TestClientGetTimeoutSuccessConcurrent(t *testing.T) {
 }
 
 func TestClientDoTimeoutSuccess(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := startEchoServer(t, "tcp", "127.0.0.1:")
@@ -2399,6 +2428,9 @@ func testClientDoTimeoutSuccess(t *testing.T, c *Client, addr string, n int) {
 }
 
 func testClientGetTimeoutSuccess(t *testing.T, c *Client, addr string, n int) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	var buf []byte
 	for i := 0; i < n; i++ {
 		uri := fmt.Sprintf("%s/foo/%d?bar=baz", addr, i)

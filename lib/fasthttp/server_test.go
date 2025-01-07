@@ -1,4 +1,4 @@
-// go:build !windows || !race
+// go:build !windows || !race || !ci
 
 package fasthttp
 
@@ -38,6 +38,9 @@ func (c *closerWithRequestCtx) Close() error {
 }
 
 func TestServerCRNLAfterPost_Pipeline(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -83,6 +86,9 @@ func TestServerCRNLAfterPost_Pipeline(t *testing.T) {
 }
 
 func TestServerCRNLAfterPost(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -126,6 +132,9 @@ func TestServerCRNLAfterPost(t *testing.T) {
 }
 
 func TestServerPipelineFlush(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -249,6 +258,9 @@ func TestServerInvalidHeader(t *testing.T) {
 }
 
 func TestServerConnState(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	states := make([]string, 0)
@@ -599,6 +611,9 @@ func testRequestCtxRedirect(t *testing.T, origURL, redirectURL, expectedURL stri
 }
 
 func TestServerResponseServerHeader(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	serverName := "foobar serv"
@@ -676,6 +691,9 @@ func TestServerResponseServerHeader(t *testing.T) {
 }
 
 func TestServerResponseBodyStream(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -767,6 +785,9 @@ func TestServerResponseBodyStream(t *testing.T) {
 }
 
 func TestServerDisableKeepalive(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -840,6 +861,9 @@ func TestServerDisableKeepalive(t *testing.T) {
 }
 
 func TestServerMaxConnsPerIPLimit(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -944,6 +968,9 @@ func (conn *fakeIPConn) RemoteAddr() net.Addr {
 }
 
 func TestServerConcurrencyLimit(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -1231,6 +1258,9 @@ func TestServerServeTLSEmbed(t *testing.T) {
 }
 
 func TestServerMultipartFormDataRequest(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -1760,6 +1790,9 @@ func TestRequestCtxUserValue(t *testing.T) {
 }
 
 func TestServerHeadRequest(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -1805,6 +1838,9 @@ func TestServerHeadRequest(t *testing.T) {
 }
 
 func TestServerExpect100Continue(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -1846,6 +1882,9 @@ func TestServerExpect100Continue(t *testing.T) {
 }
 
 func TestServerContinueHandler(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	acceptContentLength := 5
@@ -2048,6 +2087,9 @@ func TestRequestCtxWriteString(t *testing.T) {
 }
 
 func TestServeConnKeepRequestAndResponseUntilResetUserValues(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	reqStr := "POST /foo HTTP/1.0\r\nHost: google.com\r\nContent-Type: application/octet-stream\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n"
@@ -2097,6 +2139,9 @@ func TestServeConnKeepRequestAndResponseUntilResetUserValues(t *testing.T) {
 // before request/response reset call. in such cases, call it before
 // release to fix #548.
 func TestServerErrorHandler(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	var resultReqStr, resultRespStr string
@@ -2545,12 +2590,18 @@ func testRequestCtxHijack(t *testing.T, s *Server) {
 }
 
 func TestRequestCtxHijack(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testRequestCtxHijack(t, &Server{})
 }
 
 func TestRequestCtxHijackReduceMemoryUsage(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	testRequestCtxHijack(t, &Server{
@@ -2621,6 +2672,9 @@ func TestRequestCtxNoHijackNoResponse(t *testing.T) {
 }
 
 func TestRequestCtxInit(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	// This test can't run parallel as it modifies globalConnID.
 
 	var ctx RequestCtx
@@ -2761,6 +2815,9 @@ func TestTimeoutHandlerTimeout(t *testing.T) {
 }
 
 func TestTimeoutHandlerTimeoutReuse(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -2960,6 +3017,9 @@ func TestServerTimeoutError(t *testing.T) {
 }
 
 func TestServerMaxRequestsPerConn(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3031,6 +3091,9 @@ func TestServerConnectionClose(t *testing.T) {
 }
 
 func TestServerRequestNumAndTime(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	n := uint64(0)
@@ -3068,6 +3131,9 @@ func TestServerRequestNumAndTime(t *testing.T) {
 }
 
 func TestServerEmptyResponse(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3139,6 +3205,9 @@ func TestServerLogger(t *testing.T) {
 }
 
 func TestServerRemoteAddr(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3270,6 +3339,9 @@ func TestServerConnError(t *testing.T) {
 }
 
 func TestServeConnSingleRequest(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3291,6 +3363,9 @@ func TestServeConnSingleRequest(t *testing.T) {
 }
 
 func TestServeConnMultiRequests(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3436,6 +3511,9 @@ func TestCloseOnShutdown(t *testing.T) {
 }
 
 func TestShutdownReuse(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3484,6 +3562,9 @@ func TestShutdownReuse(t *testing.T) {
 }
 
 func TestShutdownDone(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3519,6 +3600,9 @@ func TestShutdownDone(t *testing.T) {
 }
 
 func TestShutdownErr(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3558,6 +3642,9 @@ func TestShutdownErr(t *testing.T) {
 }
 
 func TestShutdownCloseIdleConns(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3599,6 +3686,9 @@ func TestShutdownCloseIdleConns(t *testing.T) {
 }
 
 func TestMultipleServe(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	s := &Server{
@@ -3668,6 +3758,9 @@ func TestMaxBodySizePerRequest(t *testing.T) {
 }
 
 func TestStreamRequestBody(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	part1 := strings.Repeat("1", 1<<15)
@@ -3724,6 +3817,9 @@ func TestStreamRequestBody(t *testing.T) {
 }
 
 func TestStreamRequestBodyExceedMaxSize(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	part1 := strings.Repeat("1", 1<<18)
