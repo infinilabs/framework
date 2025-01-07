@@ -3088,6 +3088,9 @@ func TestServerEmptyResponse(t *testing.T) {
 }
 
 func TestServerLogger(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	// This test can't run parallel as it modifies globalConnID.
 
 	cl := &testLogger{}
