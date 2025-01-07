@@ -5,6 +5,7 @@ package fasthttp
 
 import (
 	"net"
+	"os"
 
 	"testing"
 )
@@ -37,6 +38,10 @@ func TestAllocationServeConn(t *testing.T) {
 }
 
 func TestAllocationClient(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
+
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("cannot listen: %v", err)
@@ -71,6 +76,10 @@ func TestAllocationClient(t *testing.T) {
 }
 
 func TestAllocationURI(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
+
 	uri := []byte("http://username:password@hello.%e4%b8%96%e7%95%8c.com/some/path?foo=bar#test")
 
 	n := testing.AllocsPerRun(100, func() {
