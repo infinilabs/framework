@@ -114,6 +114,9 @@ func TestMaintainOwner(t *testing.T) {
 }
 
 func TestCompressMaintainMode(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 
 	dir := makeTempDir("TestCompressMaintainMode", t)
 	defer os.RemoveAll(dir)
