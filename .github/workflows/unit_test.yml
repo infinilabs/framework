@@ -57,4 +57,4 @@ jobs:
                 # for unit test
                 cd $WORK
                 echo Testing code at $PWD ...
-                CI=true make test
+                OFFLINE_BUILD=true CI=true make test
