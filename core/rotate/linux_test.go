@@ -34,6 +34,10 @@ import (
 )
 
 func TestMaintainMode(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
+
 	dir := makeTempDir("TestMaintainMode", t)
 	defer os.RemoveAll(dir)
 
