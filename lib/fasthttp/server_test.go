@@ -1091,7 +1091,7 @@ func TestServerTLS(t *testing.T) {
 		},
 	}
 
-	req, res := AcquireRequest(), AcquireResponse()
+	req, res := defaultHTTPPool.AcquireRequest(), defaultHTTPPool.AcquireResponse()
 	req.SetRequestURI("https://some.url")
 
 	err = c.Do(req, res)
@@ -1173,8 +1173,8 @@ func TestServerServeTLSEmbed(t *testing.T) {
 				ctx.Error("expecting tls", StatusBadRequest)
 				return
 			}
-			if !ctx.URI().isHttps() {
-				ctx.Error(fmt.Sprintf("unexpected scheme=%q. Expecting %q", ctx.URI().Scheme(), "https"), StatusBadRequest)
+			if !ctx.PhantomURI().isHttps() {
+				ctx.Error(fmt.Sprintf("unexpected scheme=%q. Expecting %q", ctx.PhantomURI().Scheme(), "https"), StatusBadRequest)
 				return
 			}
 			ctx.WriteString("success") //nolint:errcheck
@@ -2253,7 +2253,7 @@ func TestRequestCtxSetBodyStreamWriter(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 
 	if ctx.IsBodyStream() {
 		t.Fatal("IsBodyStream must return false")
@@ -2289,7 +2289,7 @@ func TestRequestCtxIfModifiedSince(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 
 	lastModified := time.Now().Add(-time.Hour)
 
@@ -2319,7 +2319,7 @@ func TestRequestCtxSendFileNotModified(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 
 	filePath := "./server_test.go"
 	lastModified, err := FileLastModified(filePath)
@@ -2350,7 +2350,7 @@ func TestRequestCtxSendFileModified(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 
 	filePath := "./server_test.go"
 	lastModified, err := FileLastModified(filePath)
@@ -2393,7 +2393,7 @@ func TestRequestCtxSendFile(t *testing.T) {
 
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 
 	filePath := "./server_test.go"
 	ctx.SendFile(filePath)
@@ -2613,7 +2613,7 @@ func TestRequestCtxNoHijackNoResponse(t *testing.T) {
 	bf := bufio.NewReader(
 		strings.NewReader(rw.w.String()),
 	)
-	resp := AcquireResponse()
+	resp := defaultHTTPPool.AcquireResponse()
 	resp.Read(bf) //nolint:errcheck
 	if got := string(resp.Body()); got != "test" {
 		t.Errorf(`expected "test", got %q`, got)
@@ -2631,8 +2631,6 @@ func TestRequestCtxInit(t *testing.T) {
 	if !ip.IsUnspecified() {
 		t.Fatalf("unexpected ip for bare RequestCtx: %q. Expected 0.0.0.0", ip)
 	}
-	ctx.Logger().Printf("foo bar %d", 10)
-
 	expectedLog := "#0012345700000000 - 0.0.0.0:0<->0.0.0.0:0 - GET http:/// - foo bar 10\n"
 	if logger.out != expectedLog {
 		t.Fatalf("Unexpected log output: %q. Expected %q", logger.out, expectedLog)
@@ -3095,7 +3093,7 @@ func TestServerLogger(t *testing.T) {
 	cl := &testLogger{}
 	s := &Server{
 		Handler: func(ctx *RequestCtx) {
-			logger := ctx.Logger()
+			logger := cl
 			h := &ctx.Request.Header
 			logger.Printf("begin")
 			ctx.Success("text/html", []byte(fmt.Sprintf("requestURI=%s, body=%q, remoteAddr=%s",

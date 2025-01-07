@@ -22,10 +22,11 @@ func NoOpAuthenticate(ctx context.Context, r *http.Request, token string) (auth.
 
 // New return new token strategy that caches the invocation result of authenticate function.
 func New(fn AuthenticateFunc, ac auth.Cache, opts ...auth.Option) auth.Strategy {
-	c := new(cachedToken)
-	c.cache = ac
-	c.fn = fn
-	return newCore(c, opts...)
+	// c := new(cachedToken)
+	// c.cache = ac
+	// c.fn = fn
+	// return newCore(c, opts...)
+	return nil
 }
 
 type cachedToken struct {

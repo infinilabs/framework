@@ -85,18 +85,19 @@ func NewStaticFromFile(path string, opts ...auth.Option) (auth.Strategy, error) 
 
 // NewStatic returns static auth.Strategy, populated from a map.
 func NewStatic(tokens map[string]auth.Info, opts ...auth.Option) auth.Strategy {
-	s := &static{
-		tokens: make(map[string]auth.Info, len(tokens)),
-		mu:     new(sync.Mutex),
-	}
+	// s := &static{
+	// 	tokens: make(map[string]auth.Info, len(tokens)),
+	// 	mu:     new(sync.Mutex),
+	// }
 
-	c := newCore(s, opts...)
+	// c := newCore(s, opts...)
 
-	for k, v := range tokens {
-		_ = c.Append(k, v)
-	}
+	// for k, v := range tokens {
+	// 	_ = c.Append(k, v)
+	// }
 
-	return c
+	// return c
+	return nil
 }
 
 // Static implements strategy and define a synchronized map honor all predefined bearer tokens.

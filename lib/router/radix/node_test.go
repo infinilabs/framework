@@ -488,7 +488,7 @@ func TestTreeFindCaseInsensitivePath(t *testing.T) {
 		}
 	}
 
-	buf := bytebufferpool.Get()
+	buf := bytebufferpool.Get("node")
 
 	// Check out == in for all registered routes
 	// With fixTrailingSlash = true
@@ -633,7 +633,7 @@ func TestTreeInvalidNodeType(t *testing.T) {
 
 	// case-insensitive lookup
 	recv = catchPanic(func() {
-		tree.FindCaseInsensitivePath("/test", true, bytebufferpool.Get())
+		tree.FindCaseInsensitivePath("/test", true, bytebufferpool.Get("node"))
 	})
 
 	if rs, ok := recv.(string); !ok || rs != panicMsg {

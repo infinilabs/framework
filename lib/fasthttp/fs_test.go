@@ -686,7 +686,7 @@ func TestFSHandlerConcurrent(t *testing.T) {
 func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []string) {
 	var ctx RequestCtx
 	var req Request
-	ctx.Init(&req, nil, defaultLogger)
+	ctx.Init(&req, nil, nil)
 	ctx.Request.Header.SetHost("foobar.com")
 
 	filesTested := 0
@@ -709,7 +709,7 @@ func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []stri
 			t.Fatalf("cannot read file contents %q: %v", name, err)
 		}
 
-		ctx.URI().Update(name)
+		ctx.PhantomURI().Update(name)
 		requestHandler(&ctx)
 		if ctx.Response.bodyStream == nil {
 			t.Fatalf("response body stream must be non-empty")
@@ -728,7 +728,7 @@ func fsHandlerTest(t *testing.T, requestHandler RequestHandler, filenames []stri
 	}
 
 	// verify index page generation
-	ctx.URI().Update("/")
+	ctx.PhantomURI().Update("/")
 	requestHandler(&ctx)
 	if ctx.Response.bodyStream == nil {
 		t.Fatalf("response body stream must be non-empty")

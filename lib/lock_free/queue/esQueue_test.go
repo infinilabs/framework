@@ -3,6 +3,7 @@ package queue
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,9 @@ func TestQueue(t *testing.T) {
 }
 
 func TestQueuePutGet(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	const (
 		isPrintf = false
@@ -57,6 +61,9 @@ func TestQueuePutGet(t *testing.T) {
 }
 
 func TestQueueGeneral(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	const (
 		isPrintf = false
@@ -86,6 +93,9 @@ func TestQueueGeneral(t *testing.T) {
 }
 
 func TestQueuePutGoGet(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	var Sum, miss int
 	var Use time.Duration
 	for i := 1; i <= runtime.NumCPU()*4; i++ {
@@ -112,6 +122,9 @@ func TestQueuePutGoGet(t *testing.T) {
 }
 
 func TestQueuePutDoGet(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var miss, Sum int

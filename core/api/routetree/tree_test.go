@@ -29,9 +29,10 @@ package routetree
 
 import (
 	"encoding/json"
-	"infini.sh/framework/core/util"
 	"strings"
 	"testing"
+
+	"infini.sh/framework/core/util"
 )
 
 func TestTree(t *testing.T) {
@@ -47,7 +48,7 @@ func TestTree(t *testing.T) {
 	testRouter(t, router)
 }
 
-func testRouter(t *testing.T, router *Router){
+func testRouter(t *testing.T, router *Router) {
 	// /:index_name/:doctype/:doc_id
 	path := "/test-update/_doc/1"
 	path = path[1:]
@@ -87,13 +88,14 @@ func TestTreeFromFile(t *testing.T) {
 }
 
 type ElasticsearchAPIMetadata struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
 	Methods []string `json:"methods"`
-	Path string `json:"path"`
+	Path    string   `json:"path"`
 }
 type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
-func load() *Router{
-	bytes, _ := util.FileGetContent("/Users/liugq/go/src/infini.sh/console/config/permission.json")
+
+func load() *Router {
+	bytes, _ := util.FileGetContent("permission.json")
 
 	apis := map[string]ElasticsearchAPIMetadataList{}
 	json.Unmarshal(bytes, &apis)

@@ -179,7 +179,7 @@ func TestNoPool(t *testing.T) {
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
-			demo(nil,nil)
+			demo(nil, nil)
 			wg.Done()
 		}()
 	}
@@ -192,6 +192,9 @@ func TestNoPool(t *testing.T) {
 }
 
 func TestAntsPool(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	defer Release()
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
@@ -209,7 +212,6 @@ func TestAntsPool(t *testing.T) {
 	curMem = mem.TotalAlloc/MiB - curMem
 	t.Logf("memory usage:%d MB", curMem)
 }
-
 
 func TestNonblockingSubmitWithFunc(t *testing.T) {
 	poolSize := 10

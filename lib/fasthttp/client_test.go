@@ -100,8 +100,8 @@ func testPipelineClientSetUserAgent(t *testing.T, timeout time.Duration) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
-	res := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	res := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://example.com")
 
@@ -125,12 +125,12 @@ func TestPipelineClientIssue832(t *testing.T) {
 
 	ln := fasthttputil.NewInmemoryListener()
 
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	// Don't defer ReleaseRequest as we use it in a goroutine that might not be done at the end.
 
 	req.SetHost("example.com")
 
-	res := AcquireResponse()
+	res := defaultHTTPPool.AcquireResponse()
 	// Don't defer ReleaseResponse as we use it in a goroutine that might not be done at the end.
 
 	client := PipelineClient{
@@ -265,7 +265,7 @@ func TestClientURLAuth(t *testing.T) {
 		},
 	}
 	for up, expected := range cases {
-		req := AcquireRequest()
+		req := defaultHTTPPool.AcquireRequest()
 		req.Header.SetMethod(MethodGet)
 		req.SetRequestURI("http://" + up + "example.com/foo/bar")
 		if err := c.Do(req, nil); err != nil {
@@ -294,7 +294,7 @@ func TestClientNilResp(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	req.Header.SetMethod(MethodGet)
 	req.SetRequestURI("http://example.com")
 	if err := c.Do(req, nil); err != nil {
@@ -320,7 +320,7 @@ func TestPipelineClientNilResp(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	req.Header.SetMethod(MethodGet)
 	req.SetRequestURI("http://example.com")
 	if err := c.Do(req, nil); err != nil {
@@ -655,8 +655,8 @@ func TestClientReadTimeout(t *testing.T) {
 		},
 	}
 
-	req := AcquireRequest()
-	res := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	res := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://localhost")
 
@@ -715,8 +715,8 @@ func TestClientDefaultUserAgent(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
-	res := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	res := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://example.com")
 
@@ -749,8 +749,8 @@ func TestClientSetUserAgent(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
-	res := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	res := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://example.com")
 
@@ -780,8 +780,8 @@ func TestClientNoUserAgent(t *testing.T) {
 			return ln.Dial()
 		},
 	}
-	req := AcquireRequest()
-	res := AcquireResponse()
+	req := defaultHTTPPool.AcquireRequest()
+	res := defaultHTTPPool.AcquireResponse()
 
 	req.SetRequestURI("http://example.com")
 
@@ -974,9 +974,9 @@ func testPipelineClientDoConcurrent(t *testing.T, concurrency int, maxBatchDelay
 
 func testPipelineClientDo(t *testing.T, c *PipelineClient) {
 	var err error
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	req.SetRequestURI("http://foobar/baz")
-	resp := AcquireResponse()
+	resp := defaultHTTPPool.AcquireResponse()
 	for i := 0; i < 10; i++ {
 		if i&1 == 0 {
 			err = c.DoTimeout(req, resp, time.Second)
@@ -1220,9 +1220,9 @@ func TestHostClientPendingRequests(t *testing.T) {
 	resultCh := make(chan error, concurrency)
 	for i := 0; i < concurrency; i++ {
 		go func() {
-			req := AcquireRequest()
+			req := defaultHTTPPool.AcquireRequest()
 			req.SetRequestURI("http://foobar/baz")
-			resp := AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			if err := c.DoTimeout(req, resp, 10*time.Second); err != nil {
 				resultCh <- fmt.Errorf("unexpected error: %w", err)
@@ -1324,7 +1324,7 @@ func TestHostClientMaxConnsWithDeadline(t *testing.T) {
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp :=defaultHTTPPool.AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			for {
 				if err := c.DoDeadline(req, resp, time.Now().Add(timeout)); err != nil {
@@ -2629,11 +2629,11 @@ func TestHostClientMaxConnWaitTimeoutSuccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			req := AcquireRequest()
+			req := defaultHTTPPool.AcquireRequest()
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp := AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			if err := c.Do(req, resp); err != nil {
 				t.Errorf("unexpected error: %v", err)
@@ -2709,11 +2709,11 @@ func TestHostClientMaxConnWaitTimeoutError(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			req := AcquireRequest()
+			req := defaultHTTPPool.AcquireRequest()
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp := AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			if err := c.Do(req, resp); err != nil {
 				if err != ErrNoFreeConns {
@@ -2804,11 +2804,11 @@ func TestHostClientMaxConnWaitTimeoutWithEarlierDeadline(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			req := AcquireRequest()
+			req := defaultHTTPPool.AcquireRequest()
 			req.SetRequestURI("http://foobar/baz")
 			req.Header.SetMethod(MethodPost)
 			req.SetBodyString("bar")
-			resp := AcquireResponse()
+			resp := defaultHTTPPool.AcquireResponse()
 
 			if err := c.DoDeadline(req, resp, time.Now().Add(timeout)); err != nil {
 				if err != ErrTimeout {

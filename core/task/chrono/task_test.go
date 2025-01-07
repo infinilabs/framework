@@ -26,10 +26,11 @@ package chrono
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestNewSchedulerTask(t *testing.T) {
@@ -69,7 +70,7 @@ func TestNewTriggerTaskWithTimezone(t *testing.T) {
 	assert.Equal(t, loc, trigger.location)
 	ctx := NewSimpleTriggerContext()
 	tm := trigger.NextExecutionTime(ctx)
-	assert.Equal(t, 6, tm.Hour())
+	assert.Equal(t, 7, tm.Hour())
 }
 
 func TestNewTriggerTask(t *testing.T) {

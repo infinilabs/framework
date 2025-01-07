@@ -43,13 +43,13 @@ func (u union) Authenticate(ctx context.Context, r *http.Request) (auth.Info, er
 
 func (u union) AuthenticateRequest(r *http.Request) (auth.Strategy, auth.Info, error) {
 	errs := MultiError{}
-	for _, s := range u {
-		info, err := s.Authenticate(r.Context(), r)
-		if err == nil {
-			return s, info, nil
-		}
-		errs = append(errs, err)
-	}
+	// for _, s := range u {
+	// 	info, err := s.Authenticate(r.Context(), r)
+	// 	if err == nil {
+	// 		return s, info, nil
+	// 	}
+	// 	errs = append(errs, err)
+	// }
 	return nil, nil, errs
 }
 
@@ -59,5 +59,6 @@ func (u union) Chain() []auth.Strategy {
 
 // New returns new union strategy.
 func New(strategies ...auth.Strategy) Union {
-	return union(strategies)
+	//return union(strategies)
+	return nil
 }

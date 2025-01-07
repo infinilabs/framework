@@ -349,7 +349,7 @@ func testResponseBodyStreamDeflate(t *testing.T, body []byte, bodySize int) {
 		t.Fatalf("unexpected body: %q. Expecting %q", respBody, body)
 	}
 	// check for invalid
-	resp.SetBodyRaw([]byte("invalid"))
+	resp.SetBody([]byte("invalid"))
 	_, errDeflate := resp.BodyInflate()
 	if errDeflate == nil || errDeflate.Error() != "zlib: invalid header" {
 		t.Fatalf("expected error: 'zlib: invalid header' but was %v", errDeflate)
@@ -383,7 +383,7 @@ func testResponseBodyStreamGzip(t *testing.T, body []byte, bodySize int) {
 		t.Fatalf("unexpected body: %q. Expecting %q", respBody, body)
 	}
 	// check for invalid
-	resp.SetBodyRaw([]byte("invalid"))
+	resp.SetBody([]byte("invalid"))
 	_, errUnzip := resp.BodyGunzip()
 	if errUnzip == nil || errUnzip.Error() != "unexpected EOF" {
 		t.Fatalf("expected error: 'unexpected EOF' but was %v", errUnzip)
@@ -540,7 +540,7 @@ func TestRequestSwapBodyConcurrent(t *testing.T) {
 
 func testRequestSwapBody(t *testing.T) {
 	var b []byte
-	r := AcquireRequest()
+	r := defaultHTTPPool.AcquireRequest()
 	for i := 0; i < 20; i++ {
 		bOrig := r.Body()
 		b = r.SwapBody(b)
@@ -563,7 +563,7 @@ func testRequestSwapBody(t *testing.T) {
 			t.Fatalf("unexpected body with non-zero size returned: %q", b)
 		}
 	}
-	ReleaseRequest(r)
+	defaultHTTPPool.ReleaseRequest(r)
 }
 
 func TestRequestHostFromRequestURI(t *testing.T) {
@@ -748,13 +748,13 @@ func TestRequestRequestURI(t *testing.T) {
 	// Set request uri via Request.URI().Update()
 	r.Reset()
 	uri = "/aa/bbb?ccc=sdfsdf"
-	r.URI().Update(uri)
+	r.PhantomURI().Update(uri)
 	if string(r.RequestURI()) != uri {
 		t.Fatalf("unexpected request uri %q. Expecting %q", r.RequestURI(), uri)
 	}
 
 	// update query args in the request uri
-	qa := r.URI().QueryArgs()
+	qa := r.PhantomURI().QueryArgs()
 	qa.Reset()
 	qa.Set("foo", "bar")
 	uri = "/aa/bbb?foo=bar"
@@ -772,7 +772,7 @@ func TestRequestUpdateURI(t *testing.T) {
 
 	// Modify request uri and host via URI() object and make sure
 	// the requestURI and Host header are properly updated
-	u := r.URI()
+	u := r.PhantomURI()
 	u.SetPath("/123/432.html")
 	u.SetHost("foobar.com")
 	a := u.QueryArgs()
@@ -797,7 +797,7 @@ func TestUseHostHeader(t *testing.T) {
 
 	// Modify request uri and host via URI() object and make sure
 	// the requestURI and Host header are properly updated
-	u := r.URI()
+	u := r.PhantomURI()
 	u.SetPath("/123/432.html")
 	u.SetHost("foobar.com")
 	a := u.QueryArgs()
@@ -850,12 +850,12 @@ func TestUseHostHeader2(t *testing.T) {
 
 func TestUseHostHeaderAfterRelease(t *testing.T) {
 	t.Parallel()
-	req := AcquireRequest()
+	req := defaultHTTPPool.AcquireRequest()
 	req.UseHostHeader = true
-	ReleaseRequest(req)
+	defaultHTTPPool.ReleaseRequest(req)
 
-	req = AcquireRequest()
-	defer ReleaseRequest(req)
+	req = defaultHTTPPool.AcquireRequest()
+	defer defaultHTTPPool.ReleaseRequest(req)
 	if req.UseHostHeader {
 		t.Fatalf("UseHostHeader was not released in ReleaseRequest()")
 	}
@@ -2379,14 +2379,14 @@ func TestRequestURITLS(t *testing.T) {
 
 	req.isTLS = true
 	req.SetRequestURI(requestURI)
-	uri := req.URI().String()
+	uri := req.PhantomURI().String()
 	if uri != requestURITLS {
 		t.Fatalf("unexpected request uri: %q. Expecting %q", uri, requestURITLS)
 	}
 
 	req.Reset()
 	req.SetRequestURI(requestURI)
-	uri = req.URI().String()
+	uri = req.PhantomURI().String()
 	if uri != requestURI {
 		t.Fatalf("unexpected request uri: %q. Expecting %q", uri, requestURI)
 	}
@@ -2406,7 +2406,7 @@ func TestRequestURI(t *testing.T) {
 	req.Header.Set(HeaderHost, host)
 	req.Header.SetRequestURI(requestURI)
 
-	uri := req.URI()
+	uri := req.PhantomURI()
 	if string(uri.Host()) != host {
 		t.Fatalf("Unexpected host %q. Expected %q", uri.Host(), host)
 	}
@@ -2584,7 +2584,7 @@ func TestResponseRawBodySet(t *testing.T) {
 
 	expectedS := "test"
 	body := []byte(expectedS)
-	resp.SetBodyRaw(body)
+	resp.SetBody(body)
 
 	testBodyWriteTo(t, &resp, expectedS, true)
 }
@@ -2596,7 +2596,7 @@ func TestRequestRawBodySet(t *testing.T) {
 
 	expectedS := "test"
 	body := []byte(expectedS)
-	r.SetBodyRaw(body)
+	r.SetBody(body)
 
 	testBodyWriteTo(t, &r, expectedS, true)
 }
@@ -2607,7 +2607,7 @@ func TestResponseRawBodyReset(t *testing.T) {
 	var resp Response
 
 	body := []byte("test")
-	resp.SetBodyRaw(body)
+	resp.SetBody(body)
 	resp.ResetBody()
 
 	testBodyWriteTo(t, &resp, "", true)
@@ -2619,7 +2619,7 @@ func TestRequestRawBodyReset(t *testing.T) {
 	var r Request
 
 	body := []byte("test")
-	r.SetBodyRaw(body)
+	r.SetBody(body)
 	r.ResetBody()
 
 	testBodyWriteTo(t, &r, "", true)
@@ -2632,7 +2632,7 @@ func TestResponseRawBodyCopyTo(t *testing.T) {
 
 	expectedS := "test"
 	body := []byte(expectedS)
-	resp.SetBodyRaw(body)
+	resp.SetBody(body)
 
 	testResponseCopyTo(t, &resp)
 }
@@ -2643,7 +2643,7 @@ func TestRequestRawBodyCopyTo(t *testing.T) {
 	var a Request
 
 	body := []byte("test")
-	a.SetBodyRaw(body)
+	a.SetBody(body)
 
 	var b Request
 
