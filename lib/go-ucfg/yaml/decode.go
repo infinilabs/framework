@@ -285,10 +285,10 @@ func (d *decoder) callDecoder(n *node, u Decoder) (good bool) {
 	return true
 }
 
-// d.prepare initializes and dereferences pointers and calls UnmarshalYAML
+// d.prepare initializes and dereferences pointers and calls Decoder
 // if a value is found to implement it.
 // It returns the initialized and dereferenced out value, whether
-// unmarshalling was already done by UnmarshalYAML, and if so whether
+// unmarshalling was already done by Decoder, and if so whether
 // its types unmarshalled appropriately.
 //
 // If n holds a null value, prepare returns before doing anything.
