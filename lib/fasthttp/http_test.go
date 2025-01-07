@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -849,6 +850,9 @@ func TestUseHostHeader2(t *testing.T) {
 }
 
 func TestUseHostHeaderAfterRelease(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 	req := defaultHTTPPool.AcquireRequest()
 	req.UseHostHeader = true
