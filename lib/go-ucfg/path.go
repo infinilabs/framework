@@ -322,12 +322,7 @@ func isQuoted(s string) bool {
 // trimQuotes removes single or double quotes from the start and end of a string
 // If the string is not enclosed with quotes, it returns the original string
 func trimQuotes(s string) string {
-	if len(s) < 2 { // If the string length is less than 2, there are no quotes to trim
-		return s
-	}
-	// Check if the string is quoted and remove the quotes
-	if (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
-		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) {
+	if isQuoted(s) {
 		return s[1 : len(s)-1]
 	}
 	return s
