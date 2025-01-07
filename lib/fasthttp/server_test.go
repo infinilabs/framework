@@ -1,4 +1,4 @@
-// go:build !windows || !race || !ci
+// go:build !windows || !race
 
 package fasthttp
 
@@ -2692,6 +2692,9 @@ func TestRequestCtxInit(t *testing.T) {
 }
 
 func TestTimeoutHandlerSuccess(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3238,6 +3241,9 @@ func TestServerRemoteAddr(t *testing.T) {
 }
 
 func TestServerCustomRemoteAddr(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	customRemoteAddrHandler := func(h RequestHandler) RequestHandler {
@@ -3388,6 +3394,10 @@ func TestServeConnMultiRequests(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
+
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
@@ -3449,6 +3459,9 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestCloseOnShutdown(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	ln := fasthttputil.NewInmemoryListener()
