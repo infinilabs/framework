@@ -11,6 +11,8 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             GO_VERSION: 1.23.4
             NODEJS_VERSION: 16.20.2
+            JAVA_DISTRIBUTION: temurin
+            JAVA_VERSION: 11
         steps:
             - name: Checkout current repository
               uses: actions/checkout@v4
@@ -42,7 +44,7 @@ jobs:
                 repository: infinilabs/agent
                 path: agent
 
-            - name: Checkout agent
+            - name: Checkout loadgen
               uses: actions/checkout@v4
               with:
                 ref: main
@@ -62,6 +64,15 @@ jobs:
               uses: actions/setup-node@v4
               with:
                 node-version: ${{ env.NODEJS_VERSION }}
+            
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                path: |
+                  node_modules
+                key: ${{ runner.os }}-cnpm-${{ hashFiles('**/package.json') }}
+                restore-keys: |
+                    ${{ runner.os }}-cnpm-
 
             - name: Check nodejs toolchain
               run: |
@@ -70,6 +81,7 @@ jobs:
                   npm install -g cnpm@9.2.0
                 fi
                 node -v && npm -v && cnpm -v
+
             - name: Set up go toolchain
               uses: actions/setup-go@v5
               with:
@@ -80,21 +92,30 @@ jobs:
             - name: Check go toolchain
               run: go version
 
-            - name: Compile console code
+            - name: Set up java toolchain
+              uses: actions/setup-java@v4
+              with:
+                distribution: ${{ env.JAVA_DISTRIBUTION }}
+                java-version: ${{ env.JAVA_VERSION }}
+            
+            - name: Check java toolchain
+              run: java -version && which java
+
+            - name: Compile products code
               shell: bash
               run: |
+                export WORKBASE=$HOME/go/src
+                mkdir -p $WORKBASE
                 echo Home path is $HOME
-                WORK_BASE=$HOME/go/src/infini.sh
-                mkdir -p $WORK_BASE
+                
                 echo Check work folder $GITHUB_WORKSPACE
-                ls -al $GITHUB_WORKSPACE
-                # Add your compilation commands here
-                echo Compiling code at $PWD ...
-                for p in framework vendor console gateway agent loadgen; do
-                    ln -s $GITHUB_WORKSPACE/$p $WORK_BASE/$p
-                done
+                ln -s $GITHUB_WORKSPACE $WORKBASE
+                ls -al $WORKBASE/
+
                 # for console web
-                cd $WORK_BASE/console/web && cnpm install --quiet --no-progress && cnpm run build --quiet
+                cd $WORK_BASE/console/web && echo Compiling code at $PWD ...
+                cnpm install --quiet --no-progress && cnpm run build --quiet
+
                 # for products
                 for p in console gateway agent loadgen; do
                     cd $WORK_BASE/$p && echo Compiling $p at $PWD ...
