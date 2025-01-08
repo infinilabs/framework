@@ -104,26 +104,7 @@ jobs:
             - name: Install easysearch
               shell: bash
               run: |
-                # Get the paths of all java executables
-                which -a java | while read -r java_bin; do
-                  # Get the real path of the java executable (resolve symbolic links)
-                  java_path=$(realpath "$java_bin")
-
-                  # Get the path of the bin directory
-                  bin_dir=$(dirname "$java_path")
-
-                  # Get the parent directory of the bin directory, i.e., the JDK directory
-                  java_dir=$(dirname "$bin_dir")
-
-                  # Get the JDK directory name as the symlink name
-                  link_name=$(basename "$java_dir")
-
-                  # Construct the full path of the symlink
-                  link_path="$TARGET_DIR/$link_name"
-
-                  # Create the symlink
-                  ln -s "$java_dir" $HOME/easysearch/jdk
-                done
+                [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
                 # Install easysearch
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
                 cd $HOME/easysearch && bin/easysearch -s
