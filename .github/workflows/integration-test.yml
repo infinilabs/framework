@@ -101,29 +101,6 @@ jobs:
             - name: Check java toolchain
               run: java -version && which java
 
-            - name: Compile products code
-              shell: bash
-              run: |
-                export WORKBASE=$HOME/go/src
-                export WORK=$WORKBASE/infini.sh
-
-                mkdir -p $WORKBASE
-                echo Home path is $HOME
-                
-                echo Check work folder $GITHUB_WORKSPACE
-                ln -s $GITHUB_WORKSPACE $WORK
-                ls -al $WORK/
-
-                # for console web
-                cd $WORK/console/web && echo Compiling code at $PWD ...
-                cnpm install --quiet --no-progress && cnpm run build --quiet
-
-                # for products
-                for p in console gateway agent loadgen; do
-                    cd $WORK/$p && echo Compiling $p at $PWD ...
-                    OFFLINE_BUILD=true make build >/dev/null 2>&1
-                done
-
             - name: Install easysearch
               shell: bash
               run: |
@@ -151,3 +128,25 @@ jobs:
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
                 cd $HOME/easysearch && bin/easysearch -s
 
+            - name: Compile products code
+              shell: bash
+              run: |
+                export WORKBASE=$HOME/go/src
+                export WORK=$WORKBASE/infini.sh
+
+                mkdir -p $WORKBASE
+                echo Home path is $HOME
+                
+                echo Check work folder $GITHUB_WORKSPACE
+                ln -s $GITHUB_WORKSPACE $WORK
+                ls -al $WORK/
+
+                # for console web
+                cd $WORK/console/web && echo Compiling code at $PWD ...
+                cnpm install --quiet --no-progress && cnpm run build --quiet
+                
+                # for products
+                for p in console gateway agent loadgen; do
+                cd $WORK/$p && echo Compiling $p at $PWD ...
+                OFFLINE_BUILD=true make build >/dev/null 2>&1
+                done
