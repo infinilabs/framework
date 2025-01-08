@@ -105,20 +105,22 @@ jobs:
               shell: bash
               run: |
                 export WORKBASE=$HOME/go/src
+                export WORK=$HOME/go/src/infini.sh
+
                 mkdir -p $WORKBASE
                 echo Home path is $HOME
                 
                 echo Check work folder $GITHUB_WORKSPACE
-                ln -s $GITHUB_WORKSPACE $WORKBASE
+                ln -s $GITHUB_WORKSPACE $WORK
                 ls -al $WORKBASE/
 
                 # for console web
-                cd $WORK_BASE/console/web && echo Compiling code at $PWD ...
+                cd $WORKBASE/console/web && echo Compiling code at $PWD ...
                 cnpm install --quiet --no-progress && cnpm run build --quiet
 
                 # for products
                 for p in console gateway agent loadgen; do
-                    cd $WORK_BASE/$p && echo Compiling $p at $PWD ...
+                    cd $WORK/$p && echo Compiling $p at $PWD ...
                     OFFLINE_BUILD=true make build >/dev/null 2>&1
                 done
                 
