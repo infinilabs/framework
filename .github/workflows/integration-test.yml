@@ -101,13 +101,13 @@ jobs:
             - name: Check java toolchain
               run: java -version && which java
 
-            - name: Install easysearch
+            - name: Install easysearch and run
               shell: bash
               run: |
                 # Install easysearch
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
                 [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
-                cd $HOME/easysearch && bin/easysearch -s
+                cd $HOME/easysearch && bin/initialize.sh -s && bin/easysearch
 
             - name: Compile products code
               shell: bash
