@@ -104,9 +104,9 @@ jobs:
             - name: Install easysearch
               shell: bash
               run: |
-                [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
                 # Install easysearch
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
+                [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
                 cd $HOME/easysearch && bin/easysearch -s
 
             - name: Compile products code
