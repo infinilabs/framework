@@ -132,7 +132,7 @@ func TestTCPAddress(host string,timeout time.Duration)bool  {
 	if !rate.GetRateLimiterPerSecond("test_tcp_address",host,1).Allow(){
 		time.Sleep(1*time.Second)
 	}
-	log.Debug("testing ip:",host,",timeout:",timeout)
+	log.Trace("testing ip:",host,",timeout:",timeout)
 	conn, err := net.DialTimeout("tcp", host, timeout)
 	if conn!=nil{
 		conn.Close()

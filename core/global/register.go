@@ -214,7 +214,7 @@ func RunBackgroundCallbacks() {
 		backgroundCallback.Range(func(key, value any) bool {
 			v := value.(*BackgroundTask)
 			if time.Since(v.lastRunning) > v.Interval {
-				log.Debugf("start run background job:%v, interval:%v", key, v.Interval)
+				log.Tracef("start run background job:%v, interval:%v", key, v.Interval)
 				ctx, cancel := context.WithTimeout(context.Background(), v.Interval)
 				defer cancel()
 				err := FuncWithTimeout(ctx, v.Func)
@@ -222,7 +222,7 @@ func RunBackgroundCallbacks() {
 					log.Error(fmt.Sprintf("error on running background job: %v, %v", key, err))
 				}
 				v.lastRunning = time.Now()
-				log.Debugf("end run background job:%v, interval:%v", key, v.Interval)
+				log.Tracef("end run background job:%v, interval:%v", key, v.Interval)
 			}
 			return true
 		})
