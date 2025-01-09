@@ -74,7 +74,8 @@ endif
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
-GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
+GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
+GOLINT   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) vet -ldflags -s
 
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
@@ -328,3 +329,6 @@ test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 600s ./...
 	@$(MAKE) restore-generated-file
 
+lint: config
+	$(GOLINT) -v $(GOFLAGS) ./...
+	@$(MAKE) restore-generated-file
