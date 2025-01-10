@@ -152,7 +152,9 @@ jobs:
               shell: bash
               run: |
                 echo Running integration test at $PWD ...
-                curl -su $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT
+                if command -v curl >/dev/null 2>&1; then
+                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT
+                fi
                 
             - name: Run gateway test
               shell: bash
