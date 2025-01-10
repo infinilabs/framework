@@ -118,7 +118,7 @@ jobs:
             - name: Check java toolchain
               run: java -version && which java
 
-            - name: Install easysearch and run
+            - name: Install and run easysearch
               shell: bash
               run: |
                 # Install easysearch
@@ -147,15 +147,21 @@ jobs:
                   cd $WORK/$p && echo Compiling $p at $PWD ...
                   OFFLINE_BUILD=true make build
                 done
-        
+
+            - name: Run easysearch test
+              shell: bash
+              run: |
+                echo Running integration test at $PWD ...
+                curl -su $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT
+                
             - name: Run gateway test
               shell: bash
               run: |
                 export PRODUCT=gateway
                 cd $WORK/$PRODUCT/bin
-                sed -i -e "/ES_USER:/ s/\(.*\: \).*/\\1$ES_USERNAME/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_PASS:/ s/\(.*\: \).*/\\1$ES_PASSWORD/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_ENDPOINT:/ s/\(.*\: \).*/\\1$ES_ENDPOINT/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_USER:/ s|\(.*\: \).*|\\1$ES_USERNAME|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_USER:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_PASS:/ s|\(.*\: \).*|\\1$ES_PASSWORD|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_PASS:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
 
                 echo Running integration test at $PWD ...
                 exec $WORK/$PRODUCT/bin/$PRODUCT
@@ -174,9 +180,9 @@ jobs:
               run: |
                 export PRODUCT=loadgen
                 cd $WORK/$PRODUCT/bin
-                sed -i -e "/ES_USERNAME:/ s/\(.*\: \).*/\\1$ES_USERNAME/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_PASSWORD:/ s/\(.*\: \).*/\\1$ES_PASSWORD/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_ENDPOINT:/ s/\(.*\: \).*/\\1$ES_ENDPOINT/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_USERNAME:/ s|\(.*\: \).*|\\1$ES_USERNAME|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_USERNAME:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_PASSWORD:/ s|\(.*\: \).*|\\1$ES_PASSWORD|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_PASSWORD:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
                 
                 echo Running integration test at $PWD ...
                 $WORK/$PRODUCT/bin/$PRODUCT -d 60
