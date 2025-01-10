@@ -13,7 +13,24 @@ jobs:
             NODEJS_VERSION: 16.20.2
             JAVA_DISTRIBUTION: temurin
             JAVA_VERSION: 11
+
         steps:
+            - name: Init env
+              run: |
+                export WORKBASE=$HOME/go/src
+                export WORK=$WORKBASE/infini.sh
+
+                echo WORKBASE=$HOME/go/src >> $GITHUB_ENV
+                echo WORK=$WORKBASE/infini.sh >> $GITHUB_ENV
+                echo EASYSEARCH_INITIAL_ADMIN_PASSWORD=admin >> $GITHUB_ENV
+                echo ES_USERNAME=admin >> $GITHUB_ENV
+                echo ES_PASSWORD=admin >> $GITHUB_ENV
+                echo ES_ENDPOINT=https://127.0.0.1:9200 >> $GITHUB_ENV
+                echo EOF=$(date -d "$(date +%Y)-12-31 +1 day -1 day" +%Y-%m-%d) >> $GITHUB_ENV
+                echo BUILD_NUMBER=$(date +%Y%m%d) >> $GITHUB_ENV
+                echo BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S") >> $GITHUB_ENV
+                cat $GITHUB_ENV
+                  
             - name: Checkout current repository
               uses: actions/checkout@v4
               with:
@@ -112,9 +129,6 @@ jobs:
             - name: Compile products code
               shell: bash
               run: |
-                export WORKBASE=$HOME/go/src
-                export WORK=$WORKBASE/infini.sh
-
                 mkdir -p $WORKBASE
                 echo Home path is $HOME
                 
@@ -128,6 +142,41 @@ jobs:
                 
                 # for products
                 for p in console gateway agent loadgen; do
-                cd $WORK/$p && echo Compiling $p at $PWD ...
-                OFFLINE_BUILD=true make build >/dev/null 2>&1
+                  cd $WORK/$p && echo Compiling $p at $PWD ...
+                  OFFLINE_BUILD=true make build
                 done
+        
+            - name: Run gateway test
+              shell: bash
+              run: |
+                cd $WORK/gateway/bin
+                sed -i "/ES_USER:/ s/\(.*\: \).*/\1$ES_USERNAME/g" gateway.yml
+                sed -i "/ES_PASS:/ s/\(.*\: \).*/\1$ES_PASSWORD/g" gateway.yml
+                sed -i "/ES_ENDPOINT:/ s/\(.*\: \).*/\1$ES_ENDPOINT/g" gateway.yml
+                echo Running integration test at $PWD ...
+                exec $WORK/gateway/bin/gateway
+
+            - name: Run console test
+              shell: bash
+              run: |
+                cd $WORK/console/bin
+                echo Running integration test at $PWD ...
+                exec $WORK/console/bin/console
+
+            - name: Run loadgen test
+              shell: bash
+              run: |
+                cd $WORK/loadgen/bin
+                sed -i "/ES_USERNAME:/ s/\(.*\: \).*/\1$ES_USERNAME/g" loadgen.yml
+                sed -i "/ES_PASSWORD:/ s/\(.*\: \).*/\1$ES_PASSWORD/g" loadgen.yml
+                sed -i "/ES_ENDPOINT:/ s/\(.*\: \).*/\1$ES_ENDPOINT/g" loadgen.yml
+                echo Running integration test at $PWD ...
+                $WORK/loadgen/bin/loadgen -d 60
+
+            - name: Run agent test
+              shell: bash
+              run: |
+                cd $WORK/agent/bin
+                sed -i "/2900/8080/g" agent.yml
+                echo Running integration test at $PWD ...
+                exec $WORK/agent/bin/agent
