@@ -124,7 +124,9 @@ jobs:
                 # Install easysearch
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
                 [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
-                cd $HOME/easysearch && bin/initialize.sh -s && bin/easysearch -d
+                cd $HOME/easysearch && bin/initialize.sh -s
+                # Run easysearch
+                bin/easysearch -d
 
             - name: Compile products code
               shell: bash
@@ -149,34 +151,41 @@ jobs:
             - name: Run gateway test
               shell: bash
               run: |
-                cd $WORK/gateway/bin
-                sed -i "/ES_USER:/ s/\(.*\: \).*/\1$ES_USERNAME/g" gateway.yml
-                sed -i "/ES_PASS:/ s/\(.*\: \).*/\1$ES_PASSWORD/g" gateway.yml
-                sed -i "/ES_ENDPOINT:/ s/\(.*\: \).*/\1$ES_ENDPOINT/g" gateway.yml
+                export PRODUCT=gateway
+                cd $WORK/$PRODUCT/bin
+                sed -i -e "/ES_USER:/ s/\(.*\: \).*/\\1$ES_USERNAME/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_PASS:/ s/\(.*\: \).*/\\1$ES_PASSWORD/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_ENDPOINT:/ s/\(.*\: \).*/\\1$ES_ENDPOINT/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+
                 echo Running integration test at $PWD ...
-                exec $WORK/gateway/bin/gateway
+                exec $WORK/$PRODUCT/bin/$PRODUCT
 
             - name: Run console test
               shell: bash
               run: |
-                cd $WORK/console/bin
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
                 echo Running integration test at $PWD ...
-                exec $WORK/console/bin/console
+                exec $WORK/$PRODUCT/bin/$PRODUCT
 
             - name: Run loadgen test
               shell: bash
               run: |
-                cd $WORK/loadgen/bin
-                sed -i "/ES_USERNAME:/ s/\(.*\: \).*/\1$ES_USERNAME/g" loadgen.yml
-                sed -i "/ES_PASSWORD:/ s/\(.*\: \).*/\1$ES_PASSWORD/g" loadgen.yml
-                sed -i "/ES_ENDPOINT:/ s/\(.*\: \).*/\1$ES_ENDPOINT/g" loadgen.yml
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+                sed -i -e "/ES_USERNAME:/ s/\(.*\: \).*/\\1$ES_USERNAME/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_PASSWORD:/ s/\(.*\: \).*/\\1$ES_PASSWORD/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_ENDPOINT:/ s/\(.*\: \).*/\\1$ES_ENDPOINT/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                
                 echo Running integration test at $PWD ...
-                $WORK/loadgen/bin/loadgen -d 60
+                $WORK/$PRODUCT/bin/$PRODUCT -d 60
 
             - name: Run agent test
               shell: bash
               run: |
-                cd $WORK/agent/bin
-                sed -i "/2900/8080/g" agent.yml
+                export PRODUCT=agent
+                cd $WORK/¥PRODUCT/bin
+                sed -i "/2900/8080/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
                 echo Running integration test at $PWD ...
-                exec $WORK/agent/bin/agent
+                exec $WORK/$PRODUCT/bin/$PRODUCT
