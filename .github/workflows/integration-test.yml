@@ -230,4 +230,6 @@ jobs:
                 cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
                 $WORK/$PRODUCT/bin/$PRODUCT -run console-initialize.dsl
                 $WORK/$PRODUCT/bin/$PRODUCT -run runtime-registry.dsl
+                # wait agent collect metrics
+                for i in $(seq 60); do read -t 1 -n 1 && printf .; done; echo
                 $WORK/$PRODUCT/bin/$PRODUCT -run metrics-search.dsl
