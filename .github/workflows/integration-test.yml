@@ -216,7 +216,7 @@ jobs:
               run: |
                 export PRODUCT=agent
                 cd $WORK/$PRODUCT/bin
-                sed -i "/2900/8080/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i "s/2900/2920/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
                 echo Running integration test at $PWD ...
                 exec $WORK/$PRODUCT/bin/$PRODUCT &
 

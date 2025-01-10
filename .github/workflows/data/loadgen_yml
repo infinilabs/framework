@@ -8,7 +8,7 @@ env:
   CONSOLE_USERNAME: "admin"
   CONSOLE_PASSWORD: "admin"
   GATEWAY_ENDPOINT: "http://127.0.0.1:2900"
-  AGENT_ENDPOINT: "http://127.0.0.1:8080"
+  AGENT_ENDPOINT: "http://127.0.0.1:2920"
 runner:
   total_rounds: 1
   no_warm: true
