@@ -166,7 +166,7 @@ jobs:
                 sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
 
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT
+                exec $WORK/$PRODUCT/bin/$PRODUCT &
 
             - name: Run console test
               shell: bash
@@ -175,7 +175,7 @@ jobs:
                 cd $WORK/$PRODUCT/bin
 
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT
+                exec $WORK/$PRODUCT/bin/$PRODUCT &
 
             - name: Run loadgen test
               shell: bash
@@ -196,4 +196,4 @@ jobs:
                 cd $WORK/¥PRODUCT/bin
                 sed -i "/2900/8080/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT
+                exec $WORK/$PRODUCT/bin/$PRODUCT &
