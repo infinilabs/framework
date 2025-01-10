@@ -150,6 +150,23 @@ jobs:
                   OFFLINE_BUILD=true make build
                 done
 
+            - name: Prepare console config
+              shell: bash
+              run: |
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
+                # for console config
+                echo Prepare $PRODUCT config at $PWD ...
+                mkdir -p $WORK/$PRODUCT/bin/config
+                PERMJSON=$WORK/$PRODUCT/modules/security/realm/authc/native/permission.json
+                if [ -e $PERMJSON ]; then
+                  cp -rf $PERMJSON $WORK/$PRODUCT/bin/config
+                fi
+                cp -rf $WORK/$PRODUCT/config/*.tpl $WORK/$PRODUCT/bin/config
+                [ -d $WORK/$PRODUCT/config/setup ] && cp -rf $WORK/$PRODUCT/config/setup $WORK/$PRODUCT/bin/config
+                ls -lrt $WORK/$PRODUCT/bin
+                
             - name: Run easysearch test
               shell: bash
               run: |
