@@ -1,6 +1,6 @@
-DELETE $[[env.ES_ENDPOINT]]/.infini*
+# // DELETE $[[env.ES_ENDPOINT]]/.infini*
 
-DELETE $[[env.ES_ENDPOINT]]/_template/.infini*
+# // DELETE $[[env.ES_ENDPOINT]]/_template/.infini*
 
 GET $[[env.CONSOLE_ENDPOINT]]/_info
 # 200
