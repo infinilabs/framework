@@ -17,5 +17,5 @@ func ExampleByteBuffer() {
 
 	// It is safe to release byte buffer now, since it is
 	// no longer used.
-	bytebufferpool.Put("test",bb)
+	bytebufferpool.Put("test", bb)
 }

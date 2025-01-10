@@ -38,14 +38,14 @@ import (
 )
 
 type Config struct {
-	Enabled bool `config:"enabled"`
-	Path               string `config:"path"`
-	SyncWrites         bool   `config:"sync_writes"`
+	Enabled    bool   `config:"enabled"`
+	Path       string `config:"path"`
+	SyncWrites bool   `config:"sync_writes"`
 }
 
 type SimpleKV struct {
-	cfg    *Config
-	closed bool
+	cfg     *Config
+	closed  bool
 	kvstore *KVStore
 }
 
@@ -55,27 +55,26 @@ func (module *SimpleKV) Name() string {
 
 func (module *SimpleKV) Setup() {
 	module.cfg = &Config{
-		Enabled:                 true,
+		Enabled: true,
 	}
 	ok, err := env.ParseConfig("simple_kv", module.cfg)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if module.cfg.Path == "" {
 		module.cfg.Path = path.Join(global.Env().GetDataDir(), "simple_kv")
 	}
 
-	if !util.FileExists(module.cfg.Path){
+	if !util.FileExists(module.cfg.Path) {
 		os.MkdirAll(module.cfg.Path, 0755)
 	}
-
 
 	if module.cfg.Enabled {
 		filter.Register("simple_kv", module)
 		kv.Register("simple_kv", module)
 	}
 
-	module.kvstore=NewKVStore(path.Join(module.cfg.Path,"last_state"), path.Join(module.cfg.Path,"wal"))
+	module.kvstore = NewKVStore(path.Join(module.cfg.Path, "last_state"), path.Join(module.cfg.Path, "wal"))
 }
 
 func (module *SimpleKV) Start() error {

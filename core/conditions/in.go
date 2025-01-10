@@ -51,18 +51,18 @@ import (
 
 type InArray struct {
 	Field string
-	Data []interface{}
+	Data  []interface{}
 }
 
 func NewInArrayCondition(fields map[string]interface{}) (c InArray, err error) {
 	c = InArray{}
 
-	if len(fields)>0{
+	if len(fields) > 0 {
 		for field, value := range util.MapStr(fields).Flatten() {
-			c.Field=field
-			c.Data=value.([]interface{})
+			c.Field = field
+			c.Data = value.([]interface{})
 		}
-	}else{
+	} else {
 		return c, errors.New("invalid in parameters")
 	}
 
@@ -95,5 +95,5 @@ func (c InArray) Name() string {
 }
 
 func (c InArray) String() string {
-	return fmt.Sprintf("in: %v %v", c.Field,c.Data)
+	return fmt.Sprintf("in: %v %v", c.Field, c.Data)
 }

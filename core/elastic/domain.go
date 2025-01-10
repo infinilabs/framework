@@ -346,7 +346,7 @@ type CatNodeResponse struct {
 	DiskUsed    string      `json:"disk.used"`
 	Shards      int         `json:"shards,omitempty"`
 	Uptime      string      `json:"uptime"`
-	HeapMax string `json:"heap.max"`
+	HeapMax     string      `json:"heap.max"`
 }
 
 type ReindexResponse struct {
@@ -536,11 +536,11 @@ type ElasticsearchConfig struct {
 
 	Distribution          string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 	NoDefaultAuthForAgent bool   `json:"no_default_auth_for_agent,omitempty" config:"no_default_auth_for_agent"`
-	MetricCollectionMode string `json:"metric_collection_mode,omitempty" elastic_mapping:"metric_collection_mode:{type:keyword}"`
+	MetricCollectionMode  string `json:"metric_collection_mode,omitempty" elastic_mapping:"metric_collection_mode:{type:keyword}"`
 }
 
 const (
-	ModeAgent = "agent"
+	ModeAgent     = "agent"
 	ModeAgentless = "agentless"
 )
 

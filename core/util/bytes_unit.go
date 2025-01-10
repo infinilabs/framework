@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	B float64 = 1
+	B  float64 = 1
 	KB float64 = 1024
 	MB         = 1024 * KB
 	GB         = 1024 * MB
@@ -58,16 +58,16 @@ func ConvertBytesFromString(formatedBytes string) (float64, error) {
 		return 0, err
 	}
 	unitValues := map[string]float64{
-		"b": B,
+		"b":  B,
 		"kb": KB,
 		"mb": MB,
 		"gb": GB,
 		"tb": TB,
 	}
 	if uv, ok := unitValues[bytesUnit]; ok {
-		return value * uv , nil
+		return value * uv, nil
 	}
-	return value , nil
+	return value, nil
 }
 
 func FormatBytes(bytes float64, precision int) string {

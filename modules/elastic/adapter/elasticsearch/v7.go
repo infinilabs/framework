@@ -223,7 +223,6 @@ func (c *ESAPIV7) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 	return esResp, nil
 }
 
-
 func (c *ESAPIV7) Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
 
 	if docType == "" {
@@ -241,10 +240,10 @@ func (c *ESAPIV7) Update(indexName, docType string, id interface{}, data interfa
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
 	}
 
-	js:=util.MapStr{}
-	js["doc"]=data
-	js["detect_noop"]=false
-	js["doc_as_upsert"]=true
+	js := util.MapStr{}
+	js["doc"] = data
+	js["detect_noop"] = false
+	js["doc_as_upsert"] = true
 
 	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
 	if err != nil {
@@ -266,7 +265,6 @@ func (c *ESAPIV7) Update(indexName, docType string, id interface{}, data interfa
 
 	return esResp, nil
 }
-
 
 // IndexDoc index a document into elasticsearch
 func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
@@ -339,10 +337,9 @@ func (c *ESAPIV7) UpdateMapping(indexName string, docType string, mappings []byt
 	return resp.Body, err
 }
 
-
-func (c *ESAPIV7)  	ScriptExists(scriptName string)(bool,error){
+func (c *ESAPIV7) ScriptExists(scriptName string) (bool, error) {
 	if scriptName == "" {
-		return false,errors.New("invalid script name")
+		return false, errors.New("invalid script name")
 	}
 
 	url := fmt.Sprintf("/_scripts/%s", scriptName)
@@ -357,9 +354,9 @@ func (c *ESAPIV7)  	ScriptExists(scriptName string)(bool,error){
 	return true, nil
 }
 
-func (c *ESAPIV7) PutScript(scriptName string, script []byte)([]byte,error){
+func (c *ESAPIV7) PutScript(scriptName string, script []byte) ([]byte, error) {
 	if scriptName == "" {
-		return nil,errors.New("invalid script name")
+		return nil, errors.New("invalid script name")
 	}
 
 	url := fmt.Sprintf("/_scripts/%s", scriptName)
@@ -374,20 +371,20 @@ func (c *ESAPIV7) PutScript(scriptName string, script []byte)([]byte,error){
 	return resp.Body, nil
 }
 
-func (c *ESAPIV7)SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*elastic.SearchResponse, error)  {
+func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*elastic.SearchResponse, error) {
 
 	if indexName == "" {
-		return nil,errors.New("invalid index name")
+		return nil, errors.New("invalid index name")
 	}
 	if scriptName == "" {
-		return nil,errors.New("invalid script name")
+		return nil, errors.New("invalid script name")
 	}
 
 	url := fmt.Sprintf("/%s/_search/template", indexName)
 	url = c.GetEndpoint() + url
-	body:=util.MapStr{
-		"id": scriptName,
-		"params":params,
+	body := util.MapStr{
+		"id":     scriptName,
+		"params": params,
 	}
 
 	resp, err := c.Request(nil, util.Verb_GET, url, util.MustToJSONBytes(body))

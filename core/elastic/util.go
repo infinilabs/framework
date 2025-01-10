@@ -32,12 +32,12 @@ import (
 	"strings"
 )
 
-func RemoveDotFromIndexName(indexName, dotReplaceTo string) string{
-	if util.PrefixStr(indexName,"."){
-		indexName=dotReplaceTo+ strings.TrimPrefix(indexName,".")
+func RemoveDotFromIndexName(indexName, dotReplaceTo string) string {
+	if util.PrefixStr(indexName, ".") {
+		indexName = dotReplaceTo + strings.TrimPrefix(indexName, ".")
 	}
-	if util.SuffixStr(indexName,"."){
-		indexName=strings.TrimSuffix(indexName,".")+dotReplaceTo
+	if util.SuffixStr(indexName, ".") {
+		indexName = strings.TrimSuffix(indexName, ".") + dotReplaceTo
 	}
 	return indexName
 }

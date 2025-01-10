@@ -41,8 +41,6 @@ import (
 	"testing"
 )
 
-
-
 import (
 	"reflect"
 )
@@ -130,7 +128,6 @@ func TestSemanticVersions(t *testing.T) {
 		{version: "v43.0.0-1", unparsed: "43.0.0-1", equalsPrev: true},
 		{version: "  v43.0.0", unparsed: "43.0.0"},
 		{version: " 43.0.0 ", unparsed: "43.0.0", equalsPrev: true},
-
 	}
 
 	var prev testItem
@@ -206,7 +203,7 @@ func TestBadSemanticVersions(t *testing.T) {
 
 func TestParseVersions(t *testing.T) {
 	v, err := ParseSemantic("1.2.3_SNAPSHOT")
-	fmt.Println(v,err)
+	fmt.Println(v, err)
 	fmt.Println(v.Major())
 	fmt.Println(v.Minor())
 	fmt.Println(v.Patch())

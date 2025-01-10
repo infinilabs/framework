@@ -33,9 +33,8 @@ import (
 	"strings"
 )
 
-//  getProcessInfo
-//  @Description: get all es(running) process info
-//
+// getProcessInfo
+// @Description: get all es(running) process info
 func getProcessInfo() string {
 	cmdErr = nil
 	switch runtime.GOOS {

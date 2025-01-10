@@ -35,6 +35,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
@@ -43,7 +44,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"github.com/hashicorp/go-version"
 	"strconv"
 	. "strings"
 	"sync"
@@ -372,7 +372,7 @@ func Sha1Hash(str string) string {
 	return base64.URLEncoding.EncodeToString(h.Sum(nil))
 }
 
-//TrimSpaces will trim space and line break
+// TrimSpaces will trim space and line break
 func TrimSpaces(str string) string {
 	return TrimSpace(str)
 }
@@ -499,7 +499,7 @@ var strCRLF = []byte("\r\n")
 var strCRLF1 = []byte("\n")
 var escapedStrCRLF = []byte("\\n")
 
-//escape "\r\n" to "\\n"
+// escape "\r\n" to "\\n"
 func EscapeNewLine(input []byte) []byte {
 	input = ReplaceByte(input, strCRLF, escapedStrCRLF)
 	input = ReplaceByte(input, strCRLF1, escapedStrCRLF)
@@ -507,7 +507,7 @@ func EscapeNewLine(input []byte) []byte {
 }
 
 func ToString(obj interface{}) string {
-	if obj==nil{
+	if obj == nil {
 		return ""
 	}
 	str, ok := obj.(string)
@@ -517,7 +517,7 @@ func ToString(obj interface{}) string {
 	return fmt.Sprintf("%v", obj)
 }
 
-//convert a->b to a,b
+// convert a->b to a,b
 func ConvertStringToMap(str string, splitter string) (k, v string, err error) {
 	if Contains(str, splitter) {
 		o := Split(str, splitter)

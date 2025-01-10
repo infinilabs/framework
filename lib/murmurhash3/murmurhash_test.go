@@ -97,6 +97,7 @@ func murmur3Hash(data []byte) int32 {
 }
 
 var debugMurmur3Hash = false
+
 func getShardID(docID []byte, numberOfShards int, routingNumShards int, partitionOffset uint32) int {
 
 	hash := murmur3Hash(docID)

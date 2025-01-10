@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//ParseHeader extract specific header value or return provided error.
+// ParseHeader extract specific header value or return provided error.
 func ParseHeader(header string, r *http.Request, err error) (string, error) {
 	value := r.Header.Get(header)
 	value = strings.TrimSpace(value)
@@ -22,7 +22,7 @@ func ParseHeader(header string, r *http.Request, err error) (string, error) {
 	return value, nil
 }
 
-//ParseAuthorizationHeader extract Authorization header value or return provided error.
+// ParseAuthorizationHeader extract Authorization header value or return provided error.
 func ParseAuthorizationHeader(key string, r *http.Request, err error) (string, error) {
 	header := r.Header.Get("Authorization")
 	header = strings.TrimSpace(header)
@@ -43,7 +43,7 @@ func ParseAuthorizationHeader(key string, r *http.Request, err error) (string, e
 	return value[1], nil
 }
 
-//ParseQuery extract key value form HTTP query string  or return provided error.
+// ParseQuery extract key value form HTTP query string  or return provided error.
 func ParseQuery(key string, r *http.Request, err error) (string, error) {
 	query := r.URL.Query()
 	value := query.Get(key)
@@ -56,7 +56,7 @@ func ParseQuery(key string, r *http.Request, err error) (string, error) {
 	return value, nil
 }
 
-//ParseCookie extract key value form form HTTP Cookie or return provided error.
+// ParseCookie extract key value form form HTTP Cookie or return provided error.
 func ParseCookie(key string, r *http.Request, e error) (string, error) {
 	cookie, err := r.Cookie(key)
 	if err != nil {

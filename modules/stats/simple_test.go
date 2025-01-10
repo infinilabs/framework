@@ -41,27 +41,27 @@ func TestGoroutinesInfo(t *testing.T) {
 
 	stacks := strings.Split(string(buf[:n]), "\n\n")
 	grouped := make(map[string]int)
-	patternMem,err:=regexp.Compile("\\+?0x[\\d\\w]+")
-	if err!=nil{
+	patternMem, err := regexp.Compile("\\+?0x[\\d\\w]+")
+	if err != nil {
 		panic(err)
 	}
-	patternID,err:=regexp.Compile("^goroutine \\d+")
-	if err!=nil{
+	patternID, err := regexp.Compile("^goroutine \\d+")
+	if err != nil {
 		panic(err)
 	}
 
-	patternNewID,err:=regexp.Compile("^goroutine ID")
-	if err!=nil{
+	patternNewID, err := regexp.Compile("^goroutine ID")
+	if err != nil {
 		panic(err)
 	}
 	for _, stack := range stacks {
-		newStack:=patternMem.ReplaceAll([]byte(stack),[]byte("_address_"))
-		newStack=patternID.ReplaceAll([]byte(newStack),[]byte("goroutine ID"))
+		newStack := patternMem.ReplaceAll([]byte(stack), []byte("_address_"))
+		newStack = patternID.ReplaceAll([]byte(newStack), []byte("goroutine ID"))
 		grouped[string(newStack)]++
 	}
 
 	for funcPath, count := range grouped {
-		str:=patternNewID.ReplaceAllString(funcPath,fmt.Sprintf("%v same instance of goroutines",count))
+		str := patternNewID.ReplaceAllString(funcPath, fmt.Sprintf("%v same instance of goroutines", count))
 		fmt.Printf("%v\n", str)
 	}
 }

@@ -35,17 +35,17 @@ import (
 
 type Credential struct {
 	orm.ORMObjectBase
-	Name     string `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
-	Type     string `json:"type" elastic_mapping:"type:{type:keyword}"`
-	Tags []string `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
+	Name    string                 `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
+	Type    string                 `json:"type" elastic_mapping:"type:{type:keyword}"`
+	Tags    []string               `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
 	Payload map[string]interface{} `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
-	Encrypt struct{
-		Type string `json:"type"`
+	Encrypt struct {
+		Type   string                 `json:"type"`
 		Params map[string]interface{} `json:"params"`
 	} `json:"encrypt" elastic_mapping:"encrypt:{type:object,enabled:false}"`
 	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
-	secret []byte
-	Invalid bool `json:"invalid" elastic_mapping:"invalid:{type:boolean}"`
+	secret     []byte
+	Invalid    bool `json:"invalid" elastic_mapping:"invalid:{type:boolean}"`
 }
 
 func (cred *Credential) SetSecret(secret []byte) {
@@ -65,7 +65,7 @@ func (cred *Credential) Validate() error {
 	return nil
 }
 
-func (cred *Credential) Encode() error{
+func (cred *Credential) Encode() error {
 	switch cred.Type {
 	case BasicAuth:
 		return encodeBasicAuth(cred)
@@ -81,7 +81,7 @@ func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	}
 
 	if auth, ok := dv.(model.BasicAuth); ok {
-		return &auth,nil
+		return &auth, nil
 	}
 	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 }
@@ -98,4 +98,3 @@ func (cred *Credential) Decode() (interface{}, error) {
 const (
 	BasicAuth string = "basic_auth"
 )
-

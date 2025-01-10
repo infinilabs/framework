@@ -40,12 +40,12 @@ import (
 //sudo /sbin/ifconfig eth0:1 192.168.3.198 netmask 255.255.255.0
 //sudo /sbin/ifconfig eth0:1 down
 
-//Windows
-//netsh -c Interface ip add address name="INFINI Ethernet" addr=10.10.0.21 mask=255.255.0.0
-//netsh -c Interface ip delete address name="INFINI Ethernet" addr=10.10.0.21
+// Windows
+// netsh -c Interface ip add address name="INFINI Ethernet" addr=10.10.0.21 mask=255.255.0.0
+// netsh -c Interface ip delete address name="INFINI Ethernet" addr=10.10.0.21
 func SetupAlias(device, ip, netmask string) error {
 
-	err:=EnableAlias(device, ip, netmask)
+	err := EnableAlias(device, ip, netmask)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func EnableAlias(device, ip string, netmask string) error {
 
 	checkPermission()
 
-	if !util.FilesExists("/sbin/ifconfig"){
+	if !util.FilesExists("/sbin/ifconfig") {
 		return errors.New("net alias not supported on your platform.")
 	}
 
@@ -70,7 +70,7 @@ func EnableAlias(device, ip string, netmask string) error {
 	setupVIP := exec.Command("/sbin/ifconfig", device, "alias", ip, netmask)
 	data, err := setupVIP.CombinedOutput()
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to set alias on interface: %s, %s",string(data), err))
+		return errors.New(fmt.Sprintf("failed to set alias on interface: %s, %s", string(data), err))
 	}
 
 	ok, err := util.CheckIPBinding(ip)
@@ -89,16 +89,16 @@ func EnableAlias(device, ip string, netmask string) error {
 //Linux
 ///sbin/ifdown device
 
-//Windows
-//netsh interface set interface name="INFINI Ethernet" admin=DISABLED
+// Windows
+// netsh interface set interface name="INFINI Ethernet" admin=DISABLED
 func DisableAlias(device, ip string, netmask string) error {
 	checkPermission()
 
-	if !util.FilesExists("/sbin/ifconfig"){
+	if !util.FilesExists("/sbin/ifconfig") {
 		return errors.New("net alias not supported on your platform.")
 	}
 
-	setupVIP := exec.Command( "/sbin/ifconfig", device, "-alias", ip)
+	setupVIP := exec.Command("/sbin/ifconfig", device, "-alias", ip)
 	_, err := setupVIP.CombinedOutput()
 	if err != nil {
 		return errors.New(fmt.Sprintf("failed to disable alias on interface: %s", err))

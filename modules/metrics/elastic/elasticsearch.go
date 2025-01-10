@@ -56,7 +56,7 @@ type ElasticsearchMetric struct {
 	NodeInfo     bool   `config:"node_info"`
 	Interval     string `config:"interval"`
 	onSaveEvent  func(item *event.Event) error
-	taskIDs sync.Map
+	taskIDs      sync.Map
 }
 
 //元数据定期快照
@@ -147,26 +147,28 @@ func (m *ElasticsearchMetric) Collect() error {
 	})
 	return nil
 }
-//RemoveAllCollectTasks remove all running collect tasks
+
+// RemoveAllCollectTasks remove all running collect tasks
 func (m *ElasticsearchMetric) RemoveAllCollectTasks() {
 	m.taskIDs.Range(func(key, value any) bool {
 		m.RemoveTask(key.(string))
 		return true
 	})
 }
-//RemoveTask remove a running collect task by taskID
+
+// RemoveTask remove a running collect task by taskID
 func (m *ElasticsearchMetric) RemoveTask(taskID string) {
 	task.DeleteTask(taskID)
 	m.taskIDs.Delete(taskID)
 }
 
-//RemoveTasksByClusterID removes running collect tasks associated with a clusterID
+// RemoveTasksByClusterID removes running collect tasks associated with a clusterID
 func (m *ElasticsearchMetric) RemoveTasksByClusterID(clusterID string) {
 	var (
-		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", clusterID)
+		clusterHealthTaskID = fmt.Sprintf("collect-cluster_health_%s", clusterID)
 		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", clusterID)
-		nodeStatsTaskID  = fmt.Sprintf("collect-node_stats_%s", clusterID)
-		indexStatsTaskID  = fmt.Sprintf("collect-index_stats_%s", clusterID)
+		nodeStatsTaskID     = fmt.Sprintf("collect-node_stats_%s", clusterID)
+		indexStatsTaskID    = fmt.Sprintf("collect-index_stats_%s", clusterID)
 	)
 	for _, taskID := range []string{clusterHealthTaskID, clusterStatsTaskID, nodeStatsTaskID, indexStatsTaskID} {
 		m.RemoveTask(taskID)
@@ -179,10 +181,10 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 		return false
 	}
 	var (
-		clusterHealthTaskID  = fmt.Sprintf("collect-cluster_health_%s", k)
+		clusterHealthTaskID = fmt.Sprintf("collect-cluster_health_%s", k)
 		clusterStatsTaskID  = fmt.Sprintf("collect-cluster_stats_%s", k)
-		nodeStatsTaskID  = fmt.Sprintf("collect-node_stats_%s", k)
-		indexStatsTaskID  = fmt.Sprintf("collect-index_stats_%s", k)
+		nodeStatsTaskID     = fmt.Sprintf("collect-node_stats_%s", k)
+		indexStatsTaskID    = fmt.Sprintf("collect-index_stats_%s", k)
 	)
 	//clear old collect tasks if exists
 	for _, taskID := range []string{clusterHealthTaskID, clusterStatsTaskID, nodeStatsTaskID, indexStatsTaskID} {
@@ -206,7 +208,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			ID:          clusterHealthTaskID,
 			Description: fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
 			Type:        "interval",
-			Singleton: true,
+			Singleton:   true,
 			Interval:    monitorConfigs.ClusterHealth.Interval,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
@@ -220,7 +222,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			},
 		}
 		taskID := task.RegisterScheduleTask(clusterHealthMetricTask)
-		m.taskIDs.Store(taskID, struct {}{})
+		m.taskIDs.Store(taskID, struct{}{})
 	}
 
 	//cluster stats
@@ -230,10 +232,10 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			ID:          clusterStatsTaskID,
 			Description: fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
 			Type:        "interval",
-			Singleton: true,
+			Singleton:   true,
 			Interval:    monitorConfigs.ClusterStats.Interval,
 			Task: func(ctx context.Context) {
-				if !v.IsAvailable(){
+				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect cluster stats metric", v.Config.Name)
 					return
 				}
@@ -244,7 +246,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			},
 		}
 		taskID := task.RegisterScheduleTask(clusterStatsMetricTask)
-		m.taskIDs.Store(taskID, struct {}{})
+		m.taskIDs.Store(taskID, struct{}{})
 	}
 
 	//nodes stats
@@ -254,9 +256,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			Description: fmt.Sprintf("monitoring node stats metric for cluster %s", k),
 			Type:        "interval",
 			Interval:    monitorConfigs.NodeStats.Interval,
-			Singleton: true,
+			Singleton:   true,
 			Task: func(ctx context.Context) {
-				if !v.IsAvailable(){
+				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect node stats metric", v.Config.Name)
 					return
 				}
@@ -302,7 +304,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				//published host is not a valid host
 				if host != "" && !elastic.IsHostDead(host) && elastic.IsHostAvailable(host) {
 					//host not dead and is not available, skip collecting
-					stats := client.GetNodesStats("", host,"")
+					stats := client.GetNodesStats("", host, "")
 					if stats.ErrorObject != nil {
 						log.Errorf("error on get node stats: %v %v", host, stats.ErrorObject)
 					} else {
@@ -320,9 +322,8 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			},
 		}
 		taskID := task.RegisterScheduleTask(nodeStatsMetricTask)
-		m.taskIDs.Store(taskID, struct {}{})
+		m.taskIDs.Store(taskID, struct{}{})
 	}
-
 
 	//indices stats
 	if (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
@@ -331,9 +332,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
 			Type:        "interval",
 			Interval:    monitorConfigs.ClusterStats.Interval,
-			Singleton: true,
+			Singleton:   true,
 			Task: func(ctx context.Context) {
-				if !v.IsAvailable(){
+				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect index stats metric", v.Config.Name)
 					return
 				}
@@ -398,7 +399,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			},
 		}
 		taskID := task.RegisterScheduleTask(indexStatsMetricTask)
-		m.taskIDs.Store(taskID, struct {}{})
+		m.taskIDs.Store(taskID, struct{}{})
 	} else {
 		if global.Env().IsDebug {
 			log.Debugf("elasticsearch: %v - %v, no index info was found, skip index metrics collect", k, v.Config.Name)
@@ -407,7 +408,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	return true
 }
 
-func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{})error {
+func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, nodeID string, f interface{}, shardInfo interface{}) error {
 	//remove adaptive_selection
 	x, ok := f.(map[string]interface{})
 	if !ok {
@@ -448,7 +449,7 @@ func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, no
 	return m.onSaveEvent(&item)
 }
 
-func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error{
+func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error {
 	newIndexID := fmt.Sprintf("%s:%s", v.Config.ID, indexName)
 	if indexID == "_all" {
 		newIndexID = indexID
@@ -571,7 +572,7 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	defer cancel()
 	var err error
 	if m.IsAgentMode {
-		stats, err = client.GetClusterStatsSpecEndpoint(ctx,"", v.Config.GetAnyEndpoint())
+		stats, err = client.GetClusterStatsSpecEndpoint(ctx, "", v.Config.GetAnyEndpoint())
 	} else {
 		stats, err = client.GetClusterStats(ctx, "")
 	}
@@ -600,7 +601,6 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 
 	return m.onSaveEvent(&item)
 }
-
 
 func (m *ElasticsearchMetric) CollectNodeStats() {
 

@@ -67,7 +67,7 @@ type Config struct {
 	AND              []Config               `config:"and"`
 	NOT              *Config                `config:"not"`
 	IN               map[string]interface{} `config:"in"`
-	LengthEquals      *Fields                `config:"length"`
+	LengthEquals     *Fields                `config:"length"`
 }
 
 // Condition is the interface for all defined conditions

@@ -136,7 +136,7 @@ func New(c *config.Config) (pipeline.Processor, error) {
 
 	for _, v := range processor.config.Templates {
 		if v.BodyFile != "" {
-			file,_:=filepath.Abs(v.BodyFile)
+			file, _ := filepath.Abs(v.BodyFile)
 			b, err := util.FileGetContent(file)
 			if err != nil {
 				panic(err)

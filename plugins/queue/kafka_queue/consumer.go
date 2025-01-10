@@ -131,7 +131,7 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 
 		fetches.EachRecord(func(r *kgo.Record) {
 			if global.Env().IsDebug {
-				log.Tracef(string(r.Key), "from an iterator!,offset:", r.Offset, ",partition:", r.Partition,", get message from queue:%v,consumer:%v, ctx:%v, offset:%v",this.qCfg.Name,this.cCfg.Key(),ctx.String(),r.Offset)
+				log.Tracef(string(r.Key), "from an iterator!,offset:", r.Offset, ",partition:", r.Partition, ", get message from queue:%v,consumer:%v, ctx:%v, offset:%v", this.qCfg.Name, this.cCfg.Key(), ctx.String(), r.Offset)
 			}
 
 			offsetStr := queue.NewOffset(int64(r.Partition), r.Offset)
@@ -165,7 +165,6 @@ func (this *Consumer) FetchMessages(ctx *queue.Context, numOfMessages int) (mess
 			break
 		}
 	}
-
 
 	if ctx.MessageCount == 0 {
 		if global.Env().IsDebug {

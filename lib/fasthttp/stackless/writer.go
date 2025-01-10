@@ -135,4 +135,4 @@ func (w *xWriter) Reset() {
 	}
 }
 
-var bufferPool *bytebufferpool.Pool=bytebufferpool.NewTaggedPool("fasthttp_stackless",0,1024*1024*1024,100000)
+var bufferPool *bytebufferpool.Pool = bytebufferpool.NewTaggedPool("fasthttp_stackless", 0, 1024*1024*1024, 100000)

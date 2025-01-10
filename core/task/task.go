@@ -48,7 +48,7 @@ const (
 )
 
 func RunWithinGroup(groupName string, f func(ctx context.Context) error) (taskID string) {
-	return registerTransientTask(groupName,"",f,context.Background())
+	return registerTransientTask(groupName, "", f, context.Background())
 }
 
 func MustGetString(ctx context.Context, key string) string {
@@ -63,21 +63,21 @@ func MustGetString(ctx context.Context, key string) string {
 }
 
 func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
-	return registerTransientTask("default",tag,f,ctxInput)
+	return registerTransientTask("default", tag, f, ctxInput)
 }
 
-func registerTransientTask(group,tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
+func registerTransientTask(group, tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
 	task := ScheduleTask{}
 	task.ID = util.GetUUID()
-	task.Group=group
+	task.Group = group
 	task.Description = tag
 	task.Type = Transient
 	task.CreateTime = time.Now()
 	task.State = Pending
 	task.Ctx = ctxInput
 
-	if task.isTaskRunning==nil{
-		task.isTaskRunning=&atomic.Bool{}
+	if task.isTaskRunning == nil {
+		task.isTaskRunning = &atomic.Bool{}
 	}
 
 	Tasks.Store(task.ID, &task)
@@ -139,7 +139,7 @@ type ScheduleTask struct {
 	State    State           `config:"state" json:"state,omitempty"`
 	Ctx      context.Context `config:"-" json:"-"` //for transient task
 
-	isTaskRunning  *atomic.Bool
+	isTaskRunning *atomic.Bool
 }
 
 const Interval = "interval"
@@ -158,18 +158,18 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 		task.Type = Crontab
 	}
 
-	if task.isTaskRunning==nil{
-		task.isTaskRunning=&atomic.Bool{}
+	if task.isTaskRunning == nil {
+		task.isTaskRunning = &atomic.Bool{}
 	}
 
 	tempTask := task.Task
 	task.Task = func(ctx context.Context) {
 
 		//for scheduled task, you may need to prevent task rerun
-		if task.Singleton{
+		if task.Singleton {
 			//task should be running in single instance
 			if !task.isTaskRunning.CompareAndSwap(false, true) {
-				log.Debugf("task [%v][%v] should be running in single instance, skipping",task.ID,task.Description)
+				log.Debugf("task [%v][%v] should be running in single instance, skipping", task.ID, task.Description)
 				return
 			}
 

@@ -28,7 +28,7 @@
 package util
 
 import (
-"testing"
+	"testing"
 )
 
 func TestStringToFloat(t *testing.T) {
@@ -55,4 +55,3 @@ func TestStringToFloat(t *testing.T) {
 		}
 	}
 }
-

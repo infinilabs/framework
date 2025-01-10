@@ -42,7 +42,7 @@ func (w *Writer) Size() int {
 
 // Rewind rewinds the buffer such that it has size bytes, dropping everything proceeding.
 func (w *Writer) Rewind(size int) {
-	w.buf.Truncate(w.Size()-size) //TODO check
+	w.buf.Truncate(w.Size() - size) //TODO check
 }
 
 // Reset resets the internal []byte buffer to empty.
@@ -67,31 +67,31 @@ func (w *Writer) RawString(s string) {
 
 // Uint64 appends n to the buffer.
 func (w *Writer) Uint64(n uint64) {
-	data:=strconv.FormatUint(n, 10)
+	data := strconv.FormatUint(n, 10)
 	w.buf.WriteString(data)
 }
 
 // Int64 appends n to the buffer.
 func (w *Writer) Int64(n int64) {
-	data:=strconv.FormatInt(n, 10)
+	data := strconv.FormatInt(n, 10)
 	w.buf.WriteString(data)
 }
 
 // Float32 appends n to the buffer.
 func (w *Writer) Float32(n float32) {
-	data:=strconv.FormatFloat(float64(n), 'g', -1, 32)
+	data := strconv.FormatFloat(float64(n), 'g', -1, 32)
 	w.buf.WriteString(data)
 }
 
 // Float64 appends n to the buffer.
 func (w *Writer) Float64(n float64) {
-	data:=strconv.FormatFloat(n, 'g', -1, 64)
+	data := strconv.FormatFloat(n, 'g', -1, 64)
 	w.buf.WriteString(data)
 }
 
 // Bool appends v to the buffer.
 func (w *Writer) Bool(v bool) {
-	data:=strconv.FormatBool(v)
+	data := strconv.FormatBool(v)
 	w.buf.WriteString(data)
 }
 

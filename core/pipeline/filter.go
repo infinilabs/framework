@@ -87,7 +87,7 @@ func NewFilter(cfg []*config.Config) (*Filters, error) {
 		//actionCfg.PrintDebugf("Configure processor action '%v' with:", actionName)
 		constructor := gen.FilterPlugin()
 		plugin, err := constructor(actionCfg)
-		if err != nil||plugin==nil {
+		if err != nil || plugin == nil {
 			return nil, err
 		}
 
@@ -149,15 +149,15 @@ func (procs *Filters) Close() error {
 }
 
 func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
-	if procs==nil{
-		log.Errorf("invalid filter: %v",procs)
+	if procs == nil {
+		log.Errorf("invalid filter: %v", procs)
 		return
 	}
 	for _, p := range procs.List {
 
 		if !ctx.ShouldContinue() {
 			if global.Env().IsDebug {
-				log.Tracef("filter [%v] not continued, position: [%v]", p.Name(),ctx.GetRequestProcess())
+				log.Tracef("filter [%v] not continued, position: [%v]", p.Name(), ctx.GetRequestProcess())
 			}
 			ctx.AddFlowProcess("skipped")
 			return
@@ -165,8 +165,8 @@ func (procs *Filters) Filter(ctx *fasthttp.RequestCtx) {
 
 		ctx.AddFlowProcess(p.Name())
 
-		if global.Env().IsDebug{
-			log.Trace("processing:",p.Name()," OF ",ctx.GetFlowProcess())
+		if global.Env().IsDebug {
+			log.Trace("processing:", p.Name(), " OF ", ctx.GetFlowProcess())
 		}
 
 		p.Filter(ctx)

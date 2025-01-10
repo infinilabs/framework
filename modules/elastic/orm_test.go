@@ -81,23 +81,22 @@ func TestExtractIndexMappingMetadata(t *testing.T) {
 }
 
 func TestSchemaRegister(t *testing.T) {
-	o:=MyHost{}
-	indexName:=initIndexName(o,"")
+	o := MyHost{}
+	indexName := initIndexName(o, "")
 	fmt.Println(indexName)
-	assert.Equal(t,"myhost",indexName)
+	assert.Equal(t, "myhost", indexName)
 
-	indexName=getIndexName(o)
+	indexName = getIndexName(o)
 	fmt.Println(indexName)
-	assert.Equal(t,"myhost",indexName)
+	assert.Equal(t, "myhost", indexName)
 
-	indexName=initIndexName(o,"myindex")
+	indexName = initIndexName(o, "myindex")
 	fmt.Println(indexName)
-	assert.Equal(t,"myindex",indexName)
+	assert.Equal(t, "myindex", indexName)
 
-	indexName=getIndexName(o)
+	indexName = getIndexName(o)
 	fmt.Println(indexName)
-	assert.Equal(t,"myindex",indexName)
-
+	assert.Equal(t, "myindex", indexName)
 
 	//indexName=initIndexName(MyHostConfig{},"myindex")
 	//fmt.Println(indexName)

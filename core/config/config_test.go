@@ -238,7 +238,7 @@ func TestNestedTemplate1(t *testing.T) {
 	runKv["prefix_123_password"] = "345"
 
 	configStr := NestedRenderingTemplate(temp, runKv)
-	assert.Equal(t, configStr,"prefix_123_end")
+	assert.Equal(t, configStr, "prefix_123_end")
 	fmt.Println(configStr)
 }
 
@@ -250,7 +250,7 @@ func TestNestedTemplate2(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t, configStr,"345")
+	assert.Equal(t, configStr, "345")
 }
 
 func TestNestedTemplate3(t *testing.T) {
@@ -261,7 +261,7 @@ func TestNestedTemplate3(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345")
+	assert.Equal(t, configStr, "$[[345")
 }
 
 func TestNestedTemplate4(t *testing.T) {
@@ -273,7 +273,7 @@ func TestNestedTemplate4(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345]]")
+	assert.Equal(t, configStr, "$[[345]]")
 }
 
 func TestNestedTemplate5(t *testing.T) {
@@ -285,7 +285,7 @@ func TestNestedTemplate5(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"$[[345]]]]")
+	assert.Equal(t, configStr, "$[[345]]]]")
 }
 
 func TestNestedTemplate6(t *testing.T) {
@@ -295,7 +295,7 @@ func TestNestedTemplate6(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"password: $[[keystore.123_password]]")
+	assert.Equal(t, configStr, "password: $[[keystore.123_password]]")
 }
 
 func TestNestedTemplate7(t *testing.T) {
@@ -306,7 +306,7 @@ func TestNestedTemplate7(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345")
+	assert.Equal(t, configStr, "      PASSWORD: 345")
 }
 
 func TestNestedTemplate8(t *testing.T) {
@@ -318,7 +318,7 @@ func TestNestedTemplate8(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345")
+	assert.Equal(t, configStr, "      PASSWORD: 345")
 }
 
 func TestNestedTemplate9(t *testing.T) {
@@ -332,9 +332,8 @@ func TestNestedTemplate9(t *testing.T) {
 
 	configStr := NestedRenderingTemplate(temp, runKv)
 	fmt.Println(configStr)
-	assert.Equal(t,  configStr,"      PASSWORD: 345\n  USERNAME: 889")
+	assert.Equal(t, configStr, "      PASSWORD: 345\n  USERNAME: 889")
 }
-
 
 func TestMergeFieldHandling(t *testing.T) {
 
@@ -832,7 +831,7 @@ func TestWildcardPathFilter(t *testing.T) {
 	}
 	wildcardPathFilter := GenerateWildcardPathFilter(patterns)
 	tests := []struct {
-		Name    string
+		Name     string
 		FilePath string
 		Expected bool
 	}{

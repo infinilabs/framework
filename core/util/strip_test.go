@@ -29,11 +29,10 @@ import (
 )
 
 func TestStrip(t *testing.T) {
-	
-	const src = "déjà vu" + // precomposed unicode
-	"\n\000\037 \041\176\177\200\377\n" + // various boundary cases
-	"as⃝df̅" // unicode combining characters
 
+	const src = "déjà vu" + // precomposed unicode
+		"\n\000\037 \041\176\177\200\377\n" + // various boundary cases
+		"as⃝df̅" // unicode combining characters
 
 	fmt.Println("source text:")
 	fmt.Println(src)

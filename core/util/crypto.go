@@ -38,6 +38,7 @@ limitations under the License.
 */
 
 package util
+
 import (
 	"crypto"
 	"crypto/aes"
@@ -52,7 +53,7 @@ import (
 	"fmt"
 )
 
-//RSA公钥私钥产生
+// RSA公钥私钥产生
 func GenRsaKey() (prvkey, pubkey []byte) {
 	// 生成私钥文件
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -78,7 +79,7 @@ func GenRsaKey() (prvkey, pubkey []byte) {
 	return
 }
 
-//签名
+// 签名
 func RsaSignWithSha256(data []byte, keyBytes []byte) []byte {
 	h := sha256.New()
 	h.Write(data)
@@ -102,7 +103,7 @@ func RsaSignWithSha256(data []byte, keyBytes []byte) []byte {
 	return signature
 }
 
-//验证
+// 验证
 func RsaVerySignWithSha256(data, signData, keyBytes []byte) bool {
 	block, _ := pem.Decode(keyBytes)
 	if block == nil {
@@ -163,16 +164,15 @@ func RsaDecrypt(ciphertext, keyBytes []byte) []byte {
 	return data
 }
 
-
-func AesGcmEncrypt(plaintext, secret []byte) ([]byte,[]byte, error){
+func AesGcmEncrypt(plaintext, secret []byte) ([]byte, []byte, error) {
 	salt, err := RandomBytes(12)
 	if err != nil {
-		return nil,nil, err
+		return nil, nil, err
 	}
 
 	block, err := aes.NewCipher(secret)
 	if err != nil {
-		return nil,nil, fmt.Errorf("could not create the cipher to encrypt, error: %w", err)
+		return nil, nil, fmt.Errorf("could not create the cipher to encrypt, error: %w", err)
 	}
 
 	aesgcm, err := cipher.NewGCM(block)
@@ -188,7 +188,7 @@ func AesGcmEncrypt(plaintext, secret []byte) ([]byte,[]byte, error){
 	return hexEncodedBytes, hexSaltBytes, nil
 }
 
-func AesGcmDecrypt(hexEncodedBytes, secret, hexEncodedSalt []byte) ([]byte, error){
+func AesGcmDecrypt(hexEncodedBytes, secret, hexEncodedSalt []byte) ([]byte, error) {
 	encodedBytes := make([]byte, hex.DecodedLen(len(hexEncodedBytes)))
 	_, err := hex.Decode(encodedBytes, hexEncodedBytes)
 	if err != nil {

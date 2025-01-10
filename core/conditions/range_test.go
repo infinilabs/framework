@@ -47,7 +47,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
 )
 
 func TestRangeCreateNumeric(t *testing.T) {

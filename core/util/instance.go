@@ -63,41 +63,40 @@ func PidExists(pid int32) (bool, error) {
 	return false, err
 }
 
-
 // CheckInstanceLock make sure there is not a lock placed before check, and place a lock after check
 func CheckInstanceLock(p string) {
 	file = path.Join(p, ".lock")
 	if FileExists(file) {
-		pidBytes,err:=FileGetContent(file)
-		if err==nil&&len(pidBytes)>0{
-			pid,err:=ToInt(string(pidBytes))
-			if err==nil&&pid>0{
-				exists,err:=PidExists(int32(pid))
-				if err==nil&&!exists{
+		pidBytes, err := FileGetContent(file)
+		if err == nil && len(pidBytes) > 0 {
+			pid, err := ToInt(string(pidBytes))
+			if err == nil && pid > 0 {
+				exists, err := PidExists(int32(pid))
+				if err == nil && !exists {
 					ClearInstanceLock()
-					log.Debugf("pid [%v] exists, but process is gone, remove the lock file and continue",pid)
+					log.Debugf("pid [%v] exists, but process is gone, remove the lock file and continue", pid)
 					return
 				}
 			}
-			if pid>0 &&(pid==os.Getpid()||pid==os.Getppid()){
+			if pid > 0 && (pid == os.Getpid() || pid == os.Getppid()) {
 				log.Debugf("pid lock [%v] exists, but it's you, let's continue", pid)
 				return
 			}
-		}else{
-			if len(pidBytes)==0{
+		} else {
+			if len(pidBytes) == 0 {
 				ClearInstanceLock()
-				log.Debugf("missing pid in file [%v], remove the lock file and continue",file)
+				log.Debugf("missing pid in file [%v], remove the lock file and continue", file)
 				return
 			}
 		}
-		log.Errorf("lock file:%s exists, seems instance [%v] is already running, please remove it or set `allow_multi_instance` to `true`",file,string(pidBytes))
+		log.Errorf("lock file:%s exists, seems instance [%v] is already running, please remove it or set `allow_multi_instance` to `true`", file, string(pidBytes))
 		log.Flush()
 		os.Exit(1)
 	}
 	FilePutContent(file, IntToString(os.Getpid()))
 	log.Trace("lock placed at:", file, ", pid:", os.Getpid())
 	locked = true
-	p,_=filepath.Abs(p)
+	p, _ = filepath.Abs(p)
 	log.Info("workspace: ", p)
 }
 

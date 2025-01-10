@@ -49,7 +49,7 @@ func SortMapStrIntToKV(data map[string]int) []KeyValue {
 	return keyValuePairs
 }
 
-//sort by value desc by default
+// sort by value desc by default
 func SortKeyValueArray(keyValuePairs []KeyValue, revers bool) []KeyValue {
 	sort.Slice(keyValuePairs, func(i, j int) bool {
 		if revers {

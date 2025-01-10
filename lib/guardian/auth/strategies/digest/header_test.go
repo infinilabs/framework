@@ -111,7 +111,7 @@ func TestParams(t *testing.T) {
 	}
 }
 
-//nolint: lll
+// nolint: lll
 func TestCompare(t *testing.T) {
 	table := []struct {
 		serverHeader string

@@ -30,13 +30,14 @@ package env
 import "sync"
 
 type HealthType int
-const  HEALTH_UNKNOWN HealthType =0
-const  HEALTH_GREEN HealthType =1
-const  HEALTH_YELLOW HealthType =2
-const  HEALTH_RED HealthType=3
-const  HEALTH_UNAVAILABLE HealthType=4
 
-func GetHealthType(health string)HealthType  {
+const HEALTH_UNKNOWN HealthType = 0
+const HEALTH_GREEN HealthType = 1
+const HEALTH_YELLOW HealthType = 2
+const HEALTH_RED HealthType = 3
+const HEALTH_UNAVAILABLE HealthType = 4
+
+func GetHealthType(health string) HealthType {
 	switch health {
 	case "green":
 		return HEALTH_GREEN
@@ -50,7 +51,7 @@ func GetHealthType(health string)HealthType  {
 	return HEALTH_UNKNOWN
 }
 
-func (h HealthType)ToString()string  {
+func (h HealthType) ToString() string {
 	switch h {
 	case HEALTH_YELLOW:
 		return "yellow"
@@ -63,18 +64,19 @@ func (h HealthType)ToString()string  {
 	}
 	return "unknown"
 }
-var h =sync.Map{}
 
-func (env *Env) ReportHealth(service string,health HealthType)  {
-	h.Store(service,health)
+var h = sync.Map{}
+
+func (env *Env) ReportHealth(service string, health HealthType) {
+	h.Store(service, health)
 }
 
 func (env *Env) GetOverallHealth() HealthType {
-	t:=HEALTH_GREEN
+	t := HEALTH_GREEN
 	h.Range(func(key, value any) bool {
-		x:=value.(HealthType)
-		if x>t{
-			t=x
+		x := value.(HealthType)
+		if x > t {
+			t = x
 		}
 		return true
 	})
@@ -82,9 +84,9 @@ func (env *Env) GetOverallHealth() HealthType {
 }
 
 func (env *Env) GetServicesHealth() map[string]string {
-	o:=map[string]string{}
+	o := map[string]string{}
 	h.Range(func(key, value any) bool {
-		o[key.(string)]=value.(HealthType).ToString()
+		o[key.(string)] = value.(HealthType).ToString()
 		return true
 	})
 	return o

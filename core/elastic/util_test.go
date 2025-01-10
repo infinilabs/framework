@@ -33,25 +33,25 @@ import (
 	"testing"
 )
 
-func TestRemoveDotFromIndexName(t *testing.T){
-	index:=".abc"
-	new:=RemoveDotFromIndexName(index,"#")
+func TestRemoveDotFromIndexName(t *testing.T) {
+	index := ".abc"
+	new := RemoveDotFromIndexName(index, "#")
 	fmt.Println(new)
-	assert.Equal(t,new,"#abc")
+	assert.Equal(t, new, "#abc")
 
-	index="abc"
-	new=RemoveDotFromIndexName(index,"#")
-	assert.Equal(t,new,"abc")
+	index = "abc"
+	new = RemoveDotFromIndexName(index, "#")
+	assert.Equal(t, new, "abc")
 
-	index="abc."
-	new=RemoveDotFromIndexName(index,"#")
-	assert.Equal(t,new,"abc#")
+	index = "abc."
+	new = RemoveDotFromIndexName(index, "#")
+	assert.Equal(t, new, "abc#")
 
-	index="a.b.c."
-	new=RemoveDotFromIndexName(index,"#")
-	assert.Equal(t,new,"a.b.c#")
+	index = "a.b.c."
+	new = RemoveDotFromIndexName(index, "#")
+	assert.Equal(t, new, "a.b.c#")
 
-	index="a.b.c"
-	new=RemoveDotFromIndexName(index,"#")
-	assert.Equal(t,new,"a.b.c")
+	index = "a.b.c"
+	new = RemoveDotFromIndexName(index, "#")
+	assert.Equal(t, new, "a.b.c")
 }

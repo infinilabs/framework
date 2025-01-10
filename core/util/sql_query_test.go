@@ -35,9 +35,9 @@ import (
 func TestGetTableNames(t *testing.T) {
 
 	testCases := []struct {
-		name string
-		sqlStr  string
-		want []string
+		name   string
+		sqlStr string
+		want   []string
 	}{
 		{"simple", "SELECT * FROM tt", []string{"tt"}},
 		{"with fields", "SELECT id, name FROM tt", []string{"tt"}},

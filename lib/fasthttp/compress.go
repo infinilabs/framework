@@ -417,7 +417,7 @@ func isFileCompressible(f *os.File, minCompressRatio float64) bool {
 	// and see if it can be compressed by more than
 	// the given minCompressRatio.
 	b := bytebufferpool.Get("compress")
-	defer bytebufferpool.Put("compress",b)
+	defer bytebufferpool.Put("compress", b)
 
 	zw := acquireStacklessGzipWriter(b, CompressDefaultCompression)
 	lr := &io.LimitedReader{

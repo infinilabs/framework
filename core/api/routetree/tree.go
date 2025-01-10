@@ -27,7 +27,6 @@
 
 package routetree
 
-
 import (
 	"fmt"
 	"net/url"
@@ -37,6 +36,7 @@ import (
 func unescape(path string) (string, error) {
 	return url.PathUnescape(path)
 }
+
 type HandlerFunc = string
 
 type node struct {

@@ -53,11 +53,11 @@ func murmur3Hash(data []byte) int32 {
 	return murmurhash3.Murmur3A(newArray, 0)
 }
 
-func GetShardID(esMajorVersion int,docID []byte, numberOfShards int) int {
-	return GetShardIDWithRoutingOffset(esMajorVersion,docID,numberOfShards,-1,1)
+func GetShardID(esMajorVersion int, docID []byte, numberOfShards int) int {
+	return GetShardIDWithRoutingOffset(esMajorVersion, docID, numberOfShards, -1, 1)
 }
 
-func GetShardIDWithRoutingOffset(esMajorVersion int,docID []byte, numberOfShards int, routingNumShards int, partitionOffset int) int {
+func GetShardIDWithRoutingOffset(esMajorVersion int, docID []byte, numberOfShards int, routingNumShards int, partitionOffset int) int {
 
 	hash := int(murmur3Hash(docID))
 	//esMajorVersion := 7 //only es after 7.0.0,need to consider routing hash to calculate hash

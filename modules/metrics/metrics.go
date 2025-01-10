@@ -43,9 +43,9 @@ import (
 )
 
 type MetricConfig struct {
-	Enabled        bool   `config:"enabled"`
-	MetricQueue    string `config:"queue"`
-	LoggingQueue   string `config:"logging_queue"`
+	Enabled      bool   `config:"enabled"`
+	MetricQueue  string `config:"queue"`
+	LoggingQueue string `config:"logging_queue"`
 
 	EventQueue map[string]string `config:"event_queue"` // metadata.name -> queue name
 
@@ -62,9 +62,9 @@ type MetricConfig struct {
 }
 
 type MetricsModule struct {
-	config  *MetricConfig
-	taskIDs []string
-	agent   *event.AgentMeta
+	config   *MetricConfig
+	taskIDs  []string
+	agent    *event.AgentMeta
 	esMetric *elastic.ElasticsearchMetric
 }
 
@@ -77,7 +77,7 @@ func (module *MetricsModule) loadConfig(cfg *MetricConfig) {
 	meta := module.buildAgentMeta()
 
 	event.RegisterMeta(&meta)
-	module.agent=&meta
+	module.agent = &meta
 
 	tail := fmt.Sprintf("ip: %v,host: %v", meta.MajorIP, meta.Hostname)
 	if len(meta.Labels) > 0 {
@@ -111,7 +111,7 @@ func (module *MetricsModule) Setup() {
 			changelog, _ := util.DiffTwoObject(oldMeta.Config.MonitorConfigs, meta.Config.MonitorConfigs)
 			if len(changelog) > 0 {
 				hasChanged = true
-			}else if meta != nil {
+			} else if meta != nil {
 				// check other conditions
 				hasChanged = meta.IsAvailable() != oldMeta.IsAvailable() ||
 					meta.Config.Enabled != oldMeta.Config.Enabled ||
@@ -145,7 +145,7 @@ func (module *MetricsModule) Setup() {
 func (module *MetricsModule) CollectESMetric() {
 	if module.config.ElasticsearchConfig != nil {
 		//elasticsearch
-		es, err := elastic.New(module.config.ElasticsearchConfig,module.onSaveEvent)
+		es, err := elastic.New(module.config.ElasticsearchConfig, module.onSaveEvent)
 		if err != nil {
 			panic(err)
 		}
@@ -313,15 +313,15 @@ func (module *MetricsModule) Start() error {
 }
 
 func (m *MetricsModule) onSaveEvent(item *event.Event) error {
-	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue,item.Metadata.Name)
-	if m.config.EventQueue!=nil{
-		if v,ok:=m.config.EventQueue[item.Metadata.Name];ok{
-			if v!=""{
-				item.QueueName=v
+	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue, item.Metadata.Name)
+	if m.config.EventQueue != nil {
+		if v, ok := m.config.EventQueue[item.Metadata.Name]; ok {
+			if v != "" {
+				item.QueueName = v
 			}
 		}
 	}
-	item.Agent= m.agent
+	item.Agent = m.agent
 	return event.Save(item)
 }
 func (module *MetricsModule) Stop() error {

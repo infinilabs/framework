@@ -57,9 +57,9 @@ func (s *ESAPIV2) ClearScroll(scrollId string) error {
 func (s *ESAPIV2) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollId string) ([]byte, error) {
 
 	url := fmt.Sprintf("%s/_search/scroll", s.GetEndpoint())
-	body:=util.MapStr{}
-	body["scroll_id"]=scrollId
-	body["scroll"]=scrollTime
+	body := util.MapStr{}
+	body["scroll_id"] = scrollId
+	body["scroll"] = scrollTime
 	bodyBytes := util.MustToJSONBytes(body)
 
 	resp, err := adapter.RequestTimeout(ctx, util.Verb_POST, url, bodyBytes, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)

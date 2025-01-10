@@ -29,10 +29,10 @@ package env
 
 import "infini.sh/framework/core/config"
 
-func  (env *Env) GetHTTPClientConfig(name, endpoint string) *config.HTTPClientConfig  {
-	clientCfg,ok := env.SystemConfig.HTTPClientConfig[name]
-	if !ok{
-		clientCfg=config.HTTPClientConfig{
+func (env *Env) GetHTTPClientConfig(name, endpoint string) *config.HTTPClientConfig {
+	clientCfg, ok := env.SystemConfig.HTTPClientConfig[name]
+	if !ok {
+		clientCfg = config.HTTPClientConfig{
 			ReadBufferSize:       100 * 1024,
 			WriteBufferSize:      100 * 1024,
 			ReadTimeout:          "60s",
@@ -44,4 +44,3 @@ func  (env *Env) GetHTTPClientConfig(name, endpoint string) *config.HTTPClientCo
 	//TODO support client config per endpoint
 	return &clientCfg
 }
-

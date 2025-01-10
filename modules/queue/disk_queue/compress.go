@@ -51,18 +51,19 @@ func GetLastCompressFileNum(queueID string) int64 {
 }
 
 var compressFileSuffix = ".zstd"
-var compressLocker =sync.RWMutex{}
-func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64{
+var compressLocker = sync.RWMutex{}
+
+func (module *DiskQueue) prepareFilesToRead(queueID string, fileNum int64) int64 {
 	if !module.cfg.Compress.Segment.Enabled {
 		log.Tracef("segment compress for queue %v was not enabled, skip", queueID)
 		return -1
 	}
 
 	var lastFile int64
-	for i:=int64(1);i<=module.cfg.Compress.NumOfFilesDecompressAhead;i++{
-		lastFile=int64(fileNum+int64(i))
-		_,exists,_:=SmartGetFileName(module.cfg,queueID,lastFile)
-		if !exists{
+	for i := int64(1); i <= module.cfg.Compress.NumOfFilesDecompressAhead; i++ {
+		lastFile = int64(fileNum + int64(i))
+		_, exists, _ := SmartGetFileName(module.cfg, queueID, lastFile)
+		if !exists {
 			return fileNum
 		}
 	}
@@ -102,24 +103,24 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 	}
 
 	//skip compress file
-	if fileStartToCompress <= 0 || (module.cfg.SkipZeroConsumers&&consumers <= 0) || fileStartToCompress <= lastCompressedFileNum {
+	if fileStartToCompress <= 0 || (module.cfg.SkipZeroConsumers && consumers <= 0) || fileStartToCompress <= lastCompressedFileNum {
 		log.Debugf("skip compress %v", queueID)
 		return
 	}
 
-	start:=lastCompressedFileNum
-	end:=fileStartToCompress
+	start := lastCompressedFileNum
+	end := fileStartToCompress
 
 	//has consumers
-	log.Debug(queueID, " start to compress:", start,"->",end, ",consumers:", consumers, ",segment:", earliestConsumedSegmentFileNum)
+	log.Debug(queueID, " start to compress:", start, "->", end, ",consumers:", consumers, ",segment:", earliestConsumedSegmentFileNum)
 
-	for x := start+1; x <= end; x++ {
+	for x := start + 1; x <= end; x++ {
 		file := GetFileName(queueID, x)
 		nextFile := GetFileName(queueID, x+1)
-		if util.FileExists(file)&&util.FileExists(nextFile) {
+		if util.FileExists(file) && util.FileExists(nextFile) {
 			log.Debug("start compress queue file:", file)
 			toFile := file + compressFileSuffix
-			if !util.FileExists(toFile){
+			if !util.FileExists(toFile) {
 				//compress
 				err := zstd.CompressFile(file, toFile)
 				if err != nil {
@@ -127,7 +128,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 					continue
 				}
 				log.Debugf("queue [%v][%v] compressed", queueID, x)
-			}else{
+			} else {
 				log.Debugf("queue [%v][%v] already compressed, skip", queueID, x)
 			}
 
@@ -137,7 +138,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 				panic(err)
 			}
 
-			if !module.cfg.Compress.DeleteAfterCompress{
+			if !module.cfg.Compress.DeleteAfterCompress {
 				continue
 			}
 
@@ -145,15 +146,15 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 
 			//if compress ahead of compressed, delete original file
 			_, earliestConsumedSegmentFileNum = module.GetEarlierOffsetByQueueID(queueID)
-			_, latestConsumedSegmentFileNum:= module.GetLatestOffsetByQueueID(queueID)
+			_, latestConsumedSegmentFileNum := module.GetLatestOffsetByQueueID(queueID)
 
-			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+			log.Tracef("try to delete original file: %v, file:%v,earliest:%v,latest:%v", file, x, earliestConsumedSegmentFileNum, latestConsumedSegmentFileNum)
 
 			//gap: delete-able| threshold+earliest| gap| latest+ threshold | delete-able
-			left:=earliestConsumedSegmentFileNum-module.cfg.Compress.IdleThreshold
-			right:=latestConsumedSegmentFileNum+module.cfg.Compress.IdleThreshold
-			if x<left||x>right{
-				log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file,x,earliestConsumedSegmentFileNum,latestConsumedSegmentFileNum)
+			left := earliestConsumedSegmentFileNum - module.cfg.Compress.IdleThreshold
+			right := latestConsumedSegmentFileNum + module.cfg.Compress.IdleThreshold
+			if x < left || x > right {
+				log.Debugf("start to delete original file: %v, file:%v,earliest:%v,latest:%v", file, x, earliestConsumedSegmentFileNum, latestConsumedSegmentFileNum)
 				err := os.Remove(file)
 				if err != nil {
 					log.Error(err)
