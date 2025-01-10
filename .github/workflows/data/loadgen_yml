@@ -1,0 +1,20 @@
+env:
+  ES_ADDR: "127.0.0.1:9200"
+  ES_SCHEMA: "https"
+  ES_ENDPOINT: "https://127.0.0.1:9200"
+  ES_USERNAME: "admin"
+  ES_PASSWORD: "admin"
+  CONSOLE_ENDPOINT: "http://127.0.0.1:9000"
+  CONSOLE_USERNAME: "admin"
+  CONSOLE_PASSWORD: "admin"
+  GATEWAY_ENDPOINT: "http://127.0.0.1:2900"
+  AGENT_ENDPOINT: "http://127.0.0.1:8080"
+runner:
+  total_rounds: 1
+  no_warm: true
+  log_requests: true
+  assert_invalid: true
+  assert_error: true
+  default_basic_auth:
+    username: $[[env.ES_USERNAME]]
+    password: $[[env.ES_PASSWORD]]
