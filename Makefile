@@ -330,5 +330,5 @@ test: config
 	@$(MAKE) restore-generated-file
 
 lint: config
-	$(GOLINT) -v $(GOFLAGS) ./...
+	$(GOLINT) -c=2 -v $(GOFLAGS) ./...
 	@$(MAKE) restore-generated-file
