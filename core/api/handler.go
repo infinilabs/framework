@@ -160,17 +160,22 @@ func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, stat
 }
 
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
-	if !handler.wroteHeader {
-		handler.WriteJSONHeader(w)
-		w.WriteHeader(statusCode)
-	}
-
 	b, err := handler.EncodeJSON(v)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
 	}
-	_, err = w.Write(b)
+
+	return handler.WriteBytes(w,b,statusCode)
+}
+
+func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
+	if !handler.wroteHeader {
+		handler.WriteJSONHeader(w)
+		w.WriteHeader(statusCode)
+	}
+
+	_, err := w.Write(b)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
