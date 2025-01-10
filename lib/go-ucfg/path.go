@@ -60,10 +60,10 @@ func parsePathIdx(in, sep string, idx int) cfgPath {
 }
 
 func parsePath(in, sep string) cfgPath {
-	if sep == "" {
+	if sep == "" || isQuoted(in) {
 		return cfgPath{
 			sep:    sep,
-			fields: []field{parseField(in)},
+			fields: []field{parseField(trimQuotes(in))},
 		}
 	}
 
@@ -306,4 +306,24 @@ func (i idxField) Remove(opts *options, elem value) (bool, Error) {
 
 	removed := sub.c.fields.delAt(i.i)
 	return removed, nil
+}
+
+// isQuoted checks if a string is enclosed with single or double quotes
+// It returns true if the string starts and ends with the same type of quotes, otherwise false
+func isQuoted(s string) bool {
+	if len(s) < 2 { // If the string length is less than 2, it cannot be quoted
+		return false
+	}
+	// Check if the string starts and ends with single or double quotes
+	return (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
+		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\""))
+}
+
+// trimQuotes removes single or double quotes from the start and end of a string
+// If the string is not enclosed with quotes, it returns the original string
+func trimQuotes(s string) string {
+	if isQuoted(s) {
+		return s[1 : len(s)-1]
+	}
+	return s
 }
