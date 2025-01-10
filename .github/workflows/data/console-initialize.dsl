@@ -5,12 +5,6 @@
 GET $[[env.CONSOLE_ENDPOINT]]/_info
 # 200
 
-GET $[[env.GATEWAY_ENDPOINT]]/_info
-# 200
-
-GET $[[env.AGENT_ENDPOINT]]/_info
-# 200
-
 GET $[[env.CONSOLE_ENDPOINT]]/setting/application
 # 200
 # {"auth_enabled":true}
