@@ -157,7 +157,35 @@ jobs:
                 if command -v curl >/dev/null 2>&1; then
                   curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT
                 fi
-                
+
+            - name: Run console test
+              shell: bash
+              run: |
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
+                echo Running integration test at $PWD ...
+                exec $WORK/$PRODUCT/bin/$PRODUCT &
+
+            - name: Run loadgen api test for console initialize
+              shell: bash
+              run: |
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+
+                cp -rf $WORK/framework/.github/workflows/data/loadgen_yml $WORK/$PRODUCT/bin/$PRODUCT-api.yml
+                cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run console-initialize.dsl
+
+            - name: Run agent test
+              shell: bash
+              run: |
+                export PRODUCT=agent
+                cd $WORK/$PRODUCT/bin
+                sed -i "s/2900/2920/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                echo Running integration test at $PWD ...
+                exec $WORK/$PRODUCT/bin/$PRODUCT &
+
             - name: Run gateway test
               shell: bash
               run: |
@@ -169,31 +197,6 @@ jobs:
 
                 echo Running integration test at $PWD ...
                 exec $WORK/$PRODUCT/bin/$PRODUCT &
-
-            - name: Run console test
-              shell: bash
-              run: |
-                export PRODUCT=console
-                cd $WORK/$PRODUCT/bin
-
-                echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT &
-
-            - name: Run loadgen test for easysearch
-              shell: bash
-              run: |
-                export PRODUCT=loadgen
-                cd $WORK/$PRODUCT/bin
-                sed -i -e "/ES_USERNAME:/ s|\(.*\: \).*|\\1$ES_USERNAME|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_USERNAME:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_PASSWORD:/ s|\(.*\: \).*|\\1$ES_PASSWORD|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_PASSWORD:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
-                sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
-                
-                echo Running integration test at $PWD ...
-                $WORK/$PRODUCT/bin/$PRODUCT -d 10
-                # Check indices created
-                if command -v curl >/dev/null 2>&1; then
-                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/_cat/indices?v
-                fi
 
             - name: Run loadgen test for gateway
               shell: bash
@@ -211,25 +214,20 @@ jobs:
                     curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/_cat/indices?v
                   fi
 
-            - name: Run agent test
-              shell: bash
-              run: |
-                export PRODUCT=agent
-                cd $WORK/$PRODUCT/bin
-                sed -i "s/2900/2920/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
-                echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT &
-
-            - name: Run api test
+            - name: Run loadgen api test for runtime registry
               shell: bash
               run: |
                 export PRODUCT=loadgen
                 cd $WORK/$PRODUCT/bin
 
-                cp -rf $WORK/framework/.github/workflows/data/loadgen_yml $WORK/$PRODUCT/bin/$PRODUCT.yml
-                cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
-                $WORK/$PRODUCT/bin/$PRODUCT -run console-initialize.dsl
-                $WORK/$PRODUCT/bin/$PRODUCT -run runtime-registry.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run runtime-registry.dsl
+
+            - name: Run loadgen api test for metrics search
+              shell: bash
+              run: |
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+
                 # wait agent collect metrics
                 for i in $(seq 60); do read -t 1 -n 1 && printf .; done; echo
-                $WORK/$PRODUCT/bin/$PRODUCT -run metrics-search.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run metrics-search.dsl
