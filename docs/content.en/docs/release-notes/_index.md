@@ -15,6 +15,8 @@ Information about release notes of INFINI Framework is provided here.
 - Add `min_bucket_size` and `hits_total` to metric configurations (#29)
 - Add proxy settings to `http_client` config section (#33)
 - Add new condition to check item length (eg: array,string) (#38)
+- Add util to http handler, support write bytes with status code (#55)
+
 
 ### Breaking changes
 - Update WebSocket greeting message header to use `websocket-session-id`
