@@ -121,7 +121,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/try_connect
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster
+PUT $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster
 {"name":"$[[cluster_name]]","host":"$[[cluster_host]]","credential_id":"$[[credential_id]]","basic_auth":{},"agent_credential_id":"$[[credential_id]]","agent_basic_auth":{},"monitored":true,"monitor_configs":{"cluster_health":{"enabled":true,"interval":"10s"},"cluster_stats":{"enabled":true,"interval":"10s"},"node_stats":{"enabled":false,"interval":"10s"},"index_stats":{"enabled":false,"interval":"10s"}},"metadata_configs":{"health_check":{"enabled":true,"interval":"10s"},"node_availability_check":{"enabled":true,"interval":"10s"},"metadata_refresh":{"enabled":true,"interval":"10s"},"cluster_settings_check":{"enabled":true,"interval":"10s"}},"discovery":{"enabled":false},"version":"$[[cluster_version]]","schema":"$[[cluster_schema]]","distribution":"$[[cluster_distribution]]","location":{},"cluster_uuid":"$[[cluster_uuid]]"}
 # request: {
 #   headers: [
