@@ -241,7 +241,7 @@ jobs:
                 cd $WORK/$PRODUCT/bin
 
                 # wait agent collect metrics
-                for i in $(seq 120); do read -t 1 -n 1 && printf .; done; echo
+                for i in $(seq 120); do sleep 1 && printf .; done; echo
                 $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run metrics-search.dsl
 
             - name: Check console logs
@@ -271,9 +271,9 @@ jobs:
                 echo Check $PRODUCT logs at $PWD ...
                 cat $WORK/$PRODUCT/bin/log/$PRODUCT/nodes/*/$PRODUCT.log
 
-                - name: Check loadgen logs
-                shell: bash
-                run: |
+            - name: Check loadgen logs
+              shell: bash
+              run: |
                   export PRODUCT=loadgen
                   cd $WORK/$PRODUCT/bin
   
