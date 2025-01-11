@@ -112,7 +112,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
 # }
 
 POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/try_connect
-{"name":"$[[cluster_name]]","host":"$[[cluster_host]]","schema":"$[[cluster_name]]","credential_id":"$[[credential_id]]","basic_auth":{}}
+{"name":"$[[cluster_name]]","host":"$[[cluster_host]]","schema":"$[[cluster_schema]]","credential_id":"$[[credential_id]]","basic_auth":{}}
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
