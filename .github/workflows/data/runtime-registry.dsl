@@ -101,11 +101,11 @@ POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
 # register: [
 #   {cluster_uuid: "_ctx.response.body_json.hits.hits.0._source.cluster_uuid"},
 #   {credential_id: "_ctx.response.body_json.hits.hits.0._source.credential_id"},
-#   {cluster_name: "_ctx.response.body_json.hits.hits.0.name"}
+#   {cluster_name: "_ctx.response.body_json.hits.hits.0.name"},
 #   {cluster_host: "_ctx.response.body_json.hits.hits.0.host"},
 #   {cluster_schema: "_ctx.response.body_json.hits.hits.0.schema"},
 #   {cluster_version: "_ctx.response.body_json.hits.hits.0.version"},
-#   {cluster_distribution: "_ctx.response.body_json.hits.hits.0.distribution"},
+#   {cluster_distribution: "_ctx.response.body_json.hits.hits.0.distribution"}
 # ],
 # assert: {
 #   _ctx.response.status: 200
