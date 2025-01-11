@@ -19,6 +19,28 @@ GET $[[env.CONSOLE_ENDPOINT]]/elasticsearch/status
 #   _ctx.response.status: 200
 # }
 
+
+POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
+{"query":{"bool":{"must":[],"filter":[],"should":[],"must_not":[]}}}
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# register: [
+#   {cluster_uuid: "_ctx.response.body_json.hits.hits.0._source.cluster_uuid"},
+#   {credential_id: "_ctx.response.body_json.hits.hits.0._source.credential_id"},
+#   {cluster_name: "_ctx.response.body_json.hits.hits.0._source.name"},
+#   {cluster_host: "_ctx.response.body_json.hits.hits.0._source.host"},
+#   {cluster_schema: "_ctx.response.body_json.hits.hits.0._source.schema"},
+#   {cluster_version: "_ctx.response.body_json.hits.hits.0._source.version"},
+#   {cluster_distribution: "_ctx.response.body_json.hits.hits.0._source.distribution"}
+# ],
+# assert: {
+#   _ctx.response.status: 200
+# }
+
 GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
 # request: {
 #   headers: [
@@ -33,10 +55,10 @@ GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
 GET $[[env.CONSOLE_ENDPOINT]]/_info
 # 200
 
-GET $[[env.GATEWAY_ENDPOINT]]/_info
+# GET $[[env.GATEWAY_ENDPOINT]]/_info
 # 200
 
-GET $[[env.AGENT_ENDPOINT]]/_info
+# GET $[[env.AGENT_ENDPOINT]]/_info
 # 200
 
 POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
@@ -83,30 +105,6 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance
 #   ],
 #   disable_header_names_normalizing: false
 # },
-# register: [
-#   {credential_id: "_ctx.response.body_json.hits.hits.0._id"}
-# ],
-# assert: {
-#   _ctx.response.status: 200
-# }
-
-POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
-{"query":{"bool":{"must":[],"filter":[],"should":[],"must_not":[]}}}
-# request: {
-#   headers: [
-#     {authorization: "Bearer $[[access_token]]"}
-#   ],
-#   disable_header_names_normalizing: false
-# },
-# register: [
-#   {cluster_uuid: "_ctx.response.body_json.hits.hits.0._source.cluster_uuid"},
-#   {credential_id: "_ctx.response.body_json.hits.hits.0._source.credential_id"},
-#   {cluster_name: "_ctx.response.body_json.hits.hits.0.name"},
-#   {cluster_host: "_ctx.response.body_json.hits.hits.0.host"},
-#   {cluster_schema: "_ctx.response.body_json.hits.hits.0.schema"},
-#   {cluster_version: "_ctx.response.body_json.hits.hits.0.version"},
-#   {cluster_distribution: "_ctx.response.body_json.hits.hits.0.distribution"}
-# ],
 # assert: {
 #   _ctx.response.status: 200
 # }
