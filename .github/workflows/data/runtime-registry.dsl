@@ -55,10 +55,10 @@ GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
 GET $[[env.CONSOLE_ENDPOINT]]/_info
 # 200
 
-# GET $[[env.GATEWAY_ENDPOINT]]/_info
+GET $[[env.GATEWAY_ENDPOINT]]/_info
 # 200
 
-# GET $[[env.AGENT_ENDPOINT]]/_info
+GET $[[env.AGENT_ENDPOINT]]/_info
 # 200
 
 POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
