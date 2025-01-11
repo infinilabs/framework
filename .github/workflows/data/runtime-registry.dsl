@@ -19,6 +19,20 @@ GET $[[env.CONSOLE_ENDPOINT]]/elasticsearch/status
 #   _ctx.response.status: 200
 # }
 
+GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# assert: {
+#   _ctx.response.status: 200
+# }
+
+GET $[[env.CONSOLE_ENDPOINT]]/_info
+# 200
+
 GET $[[env.GATEWAY_ENDPOINT]]/_info
 # 200
 
@@ -63,6 +77,54 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
 
 POST $[[env.CONSOLE_ENDPOINT]]/instance
 {"endpoint":"$[[env.CONSOLE_ENDPOINT]]","isTLS":false,"instance_id":"console","name":"Conaole","version":{"number":"0.0.1","framework_hash":"N/A","vendor_hash":"N/A","build_hash":"N/A","build_date":"N/A","build_number":"001","eol_date":"N/A"},"status":"Online","tags":["default"],"description":""}
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# register: [
+#   {credential_id: "_ctx.response.body_json.hits.hits.0._id"}
+# ],
+# assert: {
+#   _ctx.response.status: 200
+# }
+
+POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
+{"query":{"bool":{"must":[],"filter":[],"should":[],"must_not":[]}}}
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# register: [
+#   {cluster_uuid: "_ctx.response.body_json.hits.hits.0._source.cluster_uuid"},
+#   {credential_id: "_ctx.response.body_json.hits.hits.0._source.credential_id"},
+#   {cluster_name: "_ctx.response.body_json.hits.hits.0.name"}
+#   {cluster_host: "_ctx.response.body_json.hits.hits.0.host"},
+#   {cluster_schema: "_ctx.response.body_json.hits.hits.0.schema"},
+#   {cluster_version: "_ctx.response.body_json.hits.hits.0.version"},
+#   {cluster_distribution: "_ctx.response.body_json.hits.hits.0.distribution"},
+# ],
+# assert: {
+#   _ctx.response.status: 200
+# }
+
+POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/try_connect
+{"name":"$[[cluster_name]]","host":"$[[cluster_host]]","schema":"$[[cluster_name]]","credential_id":"$[[credential_id]]","basic_auth":{}}
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# assert: {
+#   _ctx.response.status: 200
+# }
+
+POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster
+{"name":"$[[cluster_name]]","host":"$[[cluster_host]]","credential_id":"$[[credential_id]]","basic_auth":{},"agent_credential_id":"$[[credential_id]]","agent_basic_auth":{},"monitored":true,"monitor_configs":{"cluster_health":{"enabled":true,"interval":"10s"},"cluster_stats":{"enabled":true,"interval":"10s"},"node_stats":{"enabled":false,"interval":"10s"},"index_stats":{"enabled":false,"interval":"10s"}},"metadata_configs":{"health_check":{"enabled":true,"interval":"10s"},"node_availability_check":{"enabled":true,"interval":"10s"},"metadata_refresh":{"enabled":true,"interval":"10s"},"cluster_settings_check":{"enabled":true,"interval":"10s"}},"discovery":{"enabled":false},"version":"$[[cluster_version]]","schema":"$[[cluster_schema]]","distribution":"$[[cluster_distribution]]","location":{},"cluster_uuid":"$[[cluster_uuid]]"}
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
