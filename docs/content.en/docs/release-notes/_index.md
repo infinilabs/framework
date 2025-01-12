@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Features
 ### Bug fix
 ### Improvements
+- Add util to http handler, support to parse bool parameter
 
 ## v1.1.0 (2025-01-11) 
 
