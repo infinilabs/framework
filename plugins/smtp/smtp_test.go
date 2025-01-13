@@ -86,7 +86,9 @@ func Test1(t *testing.T) {
 
 }
 func Test2(t *testing.T) {
-
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	from := "notify-test@infini.ltd"
 	to := "medcl@infinilabs.com"
 	cc := []string{"liaosy@infinilabs.com", "Liaosy"}
