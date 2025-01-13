@@ -28,8 +28,8 @@
 package elastic
 
 import (
-	"github.com/buger/jsonparser"
-	"infini.sh/framework/core/errors"
+	"fmt"
+	"src/github.com/buger/jsonparser"
 )
 
 var ActionIndex = "index"
@@ -43,32 +43,77 @@ var ActionEnd = []byte("\"")
 var Actions = []string{"index", "delete", "create", "update"}
 
 func ParseActionMeta(data []byte) (action, index, typeName, id, routing string, err error) {
+	// Extract the first key of the JSON object to determine the action
+	err = jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		action = string(key) // The first key is the action
 
-	match := false
-	for _, v := range Actions {
-		jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			switch string(key) {
+		// Parse the nested object for metadata fields
+		parseErr := jsonparser.ObjectEach(value, func(metaKey []byte, metaValue []byte, dataType jsonparser.ValueType, offset int) error {
+			switch string(metaKey) {
 			case "_index":
-				index = string(value)
-				break
+				index = string(metaValue)
 			case "_type":
-				typeName = string(value)
-				break
+				typeName = string(metaValue)
 			case "_id":
-				id = string(value)
-				break
+				id = string(metaValue)
 			case "_routing":
-				routing = string(value)
-				break
+				routing = string(metaValue)
 			}
-			match = true
 			return nil
-		}, v)
-		action = v
-		if match {
-			return action, index, typeName, id, routing, nil
+		})
+
+		if parseErr != nil {
+			err = fmt.Errorf("error parsing metadata: %w", parseErr)
 		}
+
+		// Stop further iteration after processing the first key
+		return fmt.Errorf("break")
+	})
+
+	// If no action was found, or there was a parsing error
+	if err != nil && err.Error() != "break" {
+		return "", "", "", "", "", fmt.Errorf("invalid_meta_buffer: %v", string(data))
 	}
 
-	return action, index, typeName, id, routing, errors.Errorf("invalid_meta_buffer: %v", string(data))
+	// Clear the error if "break" was used to stop iteration
+	if err != nil && err.Error() == "break" {
+		err = nil
+	}
+
+	return action, index, typeName, id, routing, err
 }
+
+//func ParseActionMeta(data []byte) (action, index, typeName, id, routing string, err error) {
+//
+//	match := false
+//	for _, v := range Actions {
+//		jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+//			switch string(key) {
+//			case "_index":
+//				index = string(value)
+//				break
+//			case "_type":
+//				typeName = string(value)
+//				break
+//			case "_id":
+//				id = string(value)
+//				break
+//			case "_routing":
+//				routing = string(value)
+//				break
+//			}
+//			match = true
+//			return nil
+//		}, v)
+//		action = v
+//		if match {
+//			return action, index, typeName, id, routing, nil
+//		}
+//	}
+//
+//	if action==""{
+//		return action, "", "", "", "", errors.Errorf("invalid_meta_buffer: %v", string(data))
+//	}
+//
+//	return action, index, typeName, id, routing, nil
+//}
