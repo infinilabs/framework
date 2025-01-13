@@ -257,6 +257,17 @@ func (handler Handler) GetIntOrDefault(r *http.Request, key string, defaultValue
 	return s
 
 }
+func (handler Handler) GetBoolOrDefault(r *http.Request, key string, defaultValue bool) bool {
+
+	v := strings.ToLower(handler.GetParameter(r, key))
+	if v=="false"{
+		return false
+	}else  if v=="true"{
+		return true
+	}
+	return defaultValue
+
+}
 
 // GetJSON return json input
 func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
