@@ -74,13 +74,12 @@ type StateItem struct {
 }
 
 type Context struct {
-
 	ParentContext *Context `json:"-"`
 
 	context.Context  `json:"-"`
 	param.Parameters `json:"parameters,omitempty"`
 
-	Config PipelineConfigV2  `json:"-"`
+	Config PipelineConfigV2 `json:"-"`
 
 	//private parameters
 	createTime     time.Time

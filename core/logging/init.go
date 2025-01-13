@@ -36,5 +36,5 @@ func init() {
 		appName = e.GetAppLowercaseName()
 		baseDir = e.GetLogDir()
 	)
-	logger.SetLogging(&e.SystemConfig.LoggingConfig, appName, baseDir )
+	logger.SetLogging(&e.SystemConfig.LoggingConfig, appName, baseDir)
 }

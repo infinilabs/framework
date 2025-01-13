@@ -203,7 +203,8 @@ all-platform: clean config update-vfs cross-build-all-platform restore-generated
 cross-build-all-platform: clean config build-bsd build-linux build-darwin build-win  restore-generated-file
 
 format:
-	go fmt $$(go list ./... | grep -v /vendor/)
+	@echo "formatting code"
+	GOPATH=$(NEWGOPATH) $(GO) fmt $$(GOPATH=$(NEWGOPATH) $(GO) list ./...)
 
 clean_data:
 	rm -rif dist
@@ -263,7 +264,7 @@ update-vfs:
 	@if [ ! -e $(VFS_PATH) ]; then (cd $(FRAMEWORK_FOLDER) && OFFLINE_BUILD=true make build-cmd && cp bin/vfs $(VFS_PATH)) fi
 	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && $(VFS_PATH) -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
 
-config: init update-vfs update-generated-file update-plugins
+config: init format update-vfs update-generated-file update-plugins
 	@echo "update configs"
 	@# $(GO) env
 	@mkdir -p $(OUTPUT_DIR)

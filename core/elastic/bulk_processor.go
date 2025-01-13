@@ -392,19 +392,18 @@ type BulkProcessor struct {
 	HttpPool       *fasthttp.RequestResponsePool
 }
 
-func NewBulkProcessor(tag,esClusterID string,cfg BulkProcessorConfig)BulkProcessor  {
+func NewBulkProcessor(tag, esClusterID string, cfg BulkProcessorConfig) BulkProcessor {
 	bulkProcessor := BulkProcessor{
 		Config: cfg,
 	}
-	bulkProcessor.BulkBufferPool =	NewBulkBufferPool("bulk_processor_"+tag,1024*1024*1024,100000)
-	bulkProcessor.HttpPool=fasthttp.NewRequestResponsePool("bulk_processor_"+tag)
+	bulkProcessor.BulkBufferPool = NewBulkBufferPool("bulk_processor_"+tag, 1024*1024*1024, 100000)
+	bulkProcessor.HttpPool = fasthttp.NewRequestResponsePool("bulk_processor_" + tag)
 	if bulkProcessor.Config.DeadletterRequestsQueue == "" {
 		bulkProcessor.Config.DeadletterRequestsQueue = fmt.Sprintf("%v-bulk-dead_letter-items", esClusterID)
 	}
 
 	return bulkProcessor
 }
-
 
 // bulkResult is valid only if max_reject_retry_times == 0
 func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *ElasticsearchMetadata, host string, buffer *BulkBuffer) (continueNext bool, statsRet map[int]int, bulkResult *BulkResult, err error) {

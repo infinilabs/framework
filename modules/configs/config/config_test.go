@@ -16,7 +16,6 @@ func TestUpdateVersion(t *testing.T) {
 	fmt.Println(output)
 	assert.Equal(t, output, `PEFFIX DON"T CHANGE,,, #MANAGED_CONFIG_VERSION: 1235, keep this as well`)
 
-
 	input = `PEFFIX DON"T CHANGE, this is my config`
 	output = updateConfigVersion(input, 1235)
 	fmt.Println("new config:")
@@ -26,18 +25,18 @@ func TestUpdateVersion(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
-	ver:=parseConfigVersion("#MANAGED_CONFIG_VERSION: 1234")
+	ver := parseConfigVersion("#MANAGED_CONFIG_VERSION: 1234")
 	assert.Equal(t, ver, int64(1234))
 
-	ver=parseConfigVersion("#MANAGED_CONFIG_VERSION:1234")
+	ver = parseConfigVersion("#MANAGED_CONFIG_VERSION:1234")
 	assert.Equal(t, ver, int64(1234))
 
-	ver=parseConfigVersion("#MANAGED_CONFIG_VERSION:1234 ")
+	ver = parseConfigVersion("#MANAGED_CONFIG_VERSION:1234 ")
 	assert.Equal(t, ver, int64(1234))
 
-	ver=parseConfigVersion("##MANAGED_CONFIG_VERSION: 1234")
+	ver = parseConfigVersion("##MANAGED_CONFIG_VERSION: 1234")
 	assert.Equal(t, ver, int64(1234))
 
-	ver=parseConfigVersion("what's the version, i think is 1234")
+	ver = parseConfigVersion("what's the version, i think is 1234")
 	assert.Equal(t, ver, int64(-1))
 }

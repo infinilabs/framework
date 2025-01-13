@@ -32,38 +32,37 @@ import (
 )
 
 type S3 interface {
-	SyncDownload(filePath,location,bucketName,objectName string)(bool,error)
-	SyncUpload(filePath,location,bucketName,objectName string)(bool,error)
-	AsyncUpload(filePath,location,bucketName,objectName string) error
+	SyncDownload(filePath, location, bucketName, objectName string) (bool, error)
+	SyncUpload(filePath, location, bucketName, objectName string) (bool, error)
+	AsyncUpload(filePath, location, bucketName, objectName string) error
 }
 
 var s3Uploader = map[string]S3{}
 
-func Register(serverID string,s3 S3)  {
-	s3Uploader[serverID]=s3
+func Register(serverID string, s3 S3) {
+	s3Uploader[serverID] = s3
 }
 
-func SyncUpload(filePath,serverID,location,bucketName,objectName string)(bool,error){
+func SyncUpload(filePath, serverID, location, bucketName, objectName string) (bool, error) {
 	handler, ok := s3Uploader[serverID]
 	if ok {
-		return handler.SyncUpload(filePath,location,bucketName,objectName)
+		return handler.SyncUpload(filePath, location, bucketName, objectName)
 	}
-	panic(errors.Errorf("s3 server [%v] was not found",serverID))
+	panic(errors.Errorf("s3 server [%v] was not found", serverID))
 }
 
-func AsyncUpload(filePath,serverID,location,bucketName,objectName string) error {
+func AsyncUpload(filePath, serverID, location, bucketName, objectName string) error {
 	handler, ok := s3Uploader[serverID]
 	if ok {
-		return handler.AsyncUpload(filePath,location,bucketName,objectName)
+		return handler.AsyncUpload(filePath, location, bucketName, objectName)
 	}
-	panic(errors.Errorf("s3 server [%v] was not found",serverID))
+	panic(errors.Errorf("s3 server [%v] was not found", serverID))
 }
 
-
-func SyncDownload(filePath,serverID,location,bucketName,objectName string)(bool,error){
+func SyncDownload(filePath, serverID, location, bucketName, objectName string) (bool, error) {
 	handler, ok := s3Uploader[serverID]
 	if ok {
-		return handler.SyncDownload(filePath,location,bucketName,objectName)
+		return handler.SyncDownload(filePath, location, bucketName, objectName)
 	}
-	panic(errors.Errorf("s3 server [%v] was not found",serverID))
+	panic(errors.Errorf("s3 server [%v] was not found", serverID))
 }

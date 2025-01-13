@@ -28,13 +28,13 @@
 package routetree
 
 type Router struct {
-	root *node
+	root                  *node
 	redirectTrailingSlash bool
 }
 
-func New(options ...RouterOption) *Router{
+func New(options ...RouterOption) *Router {
 	r := &Router{
-		root:  &node{path: "/"},
+		root:                  &node{path: "/"},
 		redirectTrailingSlash: true,
 	}
 	for _, option := range options {
@@ -51,7 +51,7 @@ func (r *Router) Handle(method string, path string, handlerFunc HandlerFunc) {
 	n.setPermission(method, handlerFunc, false)
 }
 
-func (r *Router) Search(method string, path string) (handler HandlerFunc, params map[string]string, matched bool){
+func (r *Router) Search(method string, path string) (handler HandlerFunc, params map[string]string, matched bool) {
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
 	}
@@ -61,14 +61,14 @@ func (r *Router) Search(method string, path string) (handler HandlerFunc, params
 		path = path[:pathLen-1]
 	}
 	var (
-		matchNode *node
+		matchNode   *node
 		paramValues []string
 	)
 	matchNode, handler, paramValues = r.root.search(method, path)
 	params = map[string]string{}
 	if matchNode != nil {
 		length := len(paramValues)
-		if length > 0 && length == len(matchNode.leafWildcardNames){
+		if length > 0 && length == len(matchNode.leafWildcardNames) {
 			for i, paramName := range matchNode.leafWildcardNames {
 				params[paramName] = paramValues[length-i-1]
 			}
@@ -80,10 +80,9 @@ func (r *Router) Search(method string, path string) (handler HandlerFunc, params
 	return
 }
 
-
 type RouterOption func(r *Router)
 
-func RedirectTrailingSlashOption( trailingSlash bool) RouterOption{
+func RedirectTrailingSlashOption(trailingSlash bool) RouterOption {
 	return func(r *Router) {
 		r.redirectTrailingSlash = trailingSlash
 	}

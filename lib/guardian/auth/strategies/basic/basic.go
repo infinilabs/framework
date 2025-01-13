@@ -31,9 +31,9 @@ type basic struct {
 }
 
 func (b basic) Authenticate(ctx context.Context, r *fasthttp.Request) (auth.Info, error) {
-	exists,user,pass:=r.ParseBasicAuth()
-	if !exists{
-		return nil,errors.New("failed to Authenticate")
+	exists, user, pass := r.ParseBasicAuth()
+	if !exists {
+		return nil, errors.New("failed to Authenticate")
 	}
 	return b.fn(ctx, r, user, pass)
 }

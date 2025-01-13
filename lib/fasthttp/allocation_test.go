@@ -70,7 +70,7 @@ func TestAllocationClient(t *testing.T) {
 	}
 }
 
-var defaultHTTPPool=NewRequestResponsePool("default_http")
+var defaultHTTPPool = NewRequestResponsePool("default_http")
 
 func TestAllocationURI(t *testing.T) {
 	uri := []byte("http://username:password@hello.%e4%b8%96%e7%95%8c.com/some/path?foo=bar#test")

@@ -15,8 +15,8 @@
 package fastjson_marshal
 
 import (
-	"github.com/segmentio/encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/pkg/errors"
 )
@@ -59,7 +59,7 @@ type Appender interface {
 // panics due to a broken json.Marshaler implementation or assumption, then
 // Marshal will encode the panic as
 //
-//     {"__PANIC__": "panic calling MarshalJSON for type Foo: reason"}
+//	{"__PANIC__": "panic calling MarshalJSON for type Foo: reason"}
 //
 // Marshal returns the first error encountered.
 func Marshal(w *Writer, v interface{}) error {

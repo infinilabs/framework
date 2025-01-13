@@ -158,11 +158,13 @@ var bytesPattern *regexp.Regexp = regexp.MustCompile(`(?i)^(-?\d+)([KMGT]B?|B)$`
 var errInvalidByteQuantity = errors.New("Byte quantity must be a positive integer with a unit of measurement like M, MB, G, or GB")
 
 // ByteSize returns a human-readable byte string of the form 10M, 12.5K, and so forth.  The following units are available:
+//
 //	T: Terabyte
 //	G: Gigabyte
 //	M: Megabyte
 //	K: Kilobyte
 //	B: Byte
+//
 // The unit that results in the smallest number greater than or equal to 1 is always chosen.
 func ByteSize(bytes uint64) string {
 	unit := ""
@@ -262,8 +264,8 @@ func ToUppercase(str []byte) []byte {
 	return str
 }
 
-//TODO optimize performance
-//ReplaceByte simply replace old bytes to new bytes, the two bytes should have same length
+// TODO optimize performance
+// ReplaceByte simply replace old bytes to new bytes, the two bytes should have same length
 func ReplaceByte(str []byte, old, new []byte) []byte {
 	return UnsafeStringToBytes(strings.Replace(UnsafeBytesToString(str), UnsafeBytesToString(old), UnsafeBytesToString(new), -1))
 }
@@ -284,7 +286,7 @@ func ToJSONBytes(v interface{}) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-//MustFromJSONBytes simply do json unmarshal
+// MustFromJSONBytes simply do json unmarshal
 func MustFromJSONBytes(b []byte, v interface{}) {
 	var err error
 	err = FromJSONBytes(b, v)
@@ -381,13 +383,13 @@ func ExtractFieldFromJsonOrder(data *[]byte, fieldStartWith []byte, fieldEndWith
 }
 
 // []byte("gte"), []byte("strict_date_optional_time"), []byte("range")
-//blockSplit 按照那个部分来进行划分多个区块；
-//validBlockMustContain 区块必须包含的关键字
-//reverse 是从区块的前面还是后面进行处理
-//processBlockStartWithBlock 从什么地方开始处理
-//processBlockEndWithBlock 从什么地方结束处理
-//maxSpan 开始和结束位置的最大间隔，约束范围
-//匹配位置的处理函数
+// blockSplit 按照那个部分来进行划分多个区块；
+// validBlockMustContain 区块必须包含的关键字
+// reverse 是从区块的前面还是后面进行处理
+// processBlockStartWithBlock 从什么地方开始处理
+// processBlockEndWithBlock 从什么地方结束处理
+// maxSpan 开始和结束位置的最大间隔，约束范围
+// 匹配位置的处理函数
 func ProcessJsonData(data *[]byte, blockSplit []byte, limitBlockSize int, validBlockMustContain [][]byte, reverse bool, matchBlockStartWith []byte, matchBlocksEndWith []byte, maxSpan int, matchedBlockProcessHandler func(matchedData []byte, globalStartOffset, globalEndOffset int)) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(*data))
 	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
@@ -791,12 +793,14 @@ func (this ByteValue) String() string {
 
 	return srt
 }
-var NEWLINE =byte('\n')
-var SPACE=byte(' ')
-func WalkBytesAndReplace(data []byte,find,replace byte)  {
-	for i,v:=range data{
-		if v==find{
-			data[i]=replace
+
+var NEWLINE = byte('\n')
+var SPACE = byte(' ')
+
+func WalkBytesAndReplace(data []byte, find, replace byte) {
+	for i, v := range data {
+		if v == find {
+			data[i] = replace
 		}
 	}
 }

@@ -32,7 +32,7 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-//es process info with process id
+// es process info with process id
 type ESNodeInfo struct {
 	ID             string      `json:"id,omitempty"  elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
 	AgentID        string      `json:"agent_id" elastic_mapping:"agent_id: { type: keyword }"`
@@ -79,8 +79,7 @@ type Setting struct {
 }
 
 type Metadata struct {
-	Category string                 `json:"category" elastic_mapping:"category: { type: keyword }"`
-	Name     string                 `json:"name" elastic_mapping:"name: { type: keyword }"`
+	Category string      `json:"category" elastic_mapping:"category: { type: keyword }"`
+	Name     string      `json:"name" elastic_mapping:"name: { type: keyword }"`
 	Labels   util.MapStr `json:"labels" elastic_mapping:"labels: { type: object }"`
 }
-

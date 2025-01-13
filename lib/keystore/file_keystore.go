@@ -258,24 +258,24 @@ func (k *FileKeystore) doSave(override bool) error {
 	}
 
 	_, err = f.Write(version)
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 	base64Encoder := base64.NewEncoder(base64.StdEncoding, f)
 	_, err = io.Copy(base64Encoder, encrypted)
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
-	err=base64Encoder.Close()
-	if err!=nil{
+	err = base64Encoder.Close()
+	if err != nil {
 		panic(err)
 	}
 	err = f.Sync()
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
-	err=f.Close()
-	if err!=nil{
+	err = f.Close()
+	if err != nil {
 		panic(err)
 	}
 	err = file.SafeFileRotate(k.Path, temporaryPath)

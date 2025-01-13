@@ -29,7 +29,7 @@ import (
 	"runtime"
 )
 
-func runAsync(job *Job,ctx *Context) {
+func runAsync(job *Job, ctx *Context) {
 
 	if job.onFailure != nil {
 		defer job.onFailure.Process(ctx)
@@ -38,10 +38,10 @@ func runAsync(job *Job,ctx *Context) {
 	var ch chan bool
 	ch = make(chan bool, len(job.tasks)*2)
 
-	waitSignal:=len(job.tasks)
-	if job.mode=="first_win"{
-		waitSignal=1
-	}else{
+	waitSignal := len(job.tasks)
+	if job.mode == "first_win" {
+		waitSignal = 1
+	} else {
 		ch = make(chan bool, len(job.tasks))
 	}
 
@@ -59,7 +59,7 @@ func runAsync(job *Job,ctx *Context) {
 						case string:
 							v = r.(string)
 						}
-						log.Error(r,v)
+						log.Error(r, v)
 					}
 				}
 			}()
@@ -69,12 +69,12 @@ func runAsync(job *Job,ctx *Context) {
 		}(task)
 	}
 
-	for i:=0;i<waitSignal;i++{
+	for i := 0; i < waitSignal; i++ {
 		_ = <-ch
 	}
 
 	if job.onComplete != nil {
-		for _,v:=range job.onComplete{
+		for _, v := range job.onComplete {
 			v.Process(ctx)
 		}
 	}

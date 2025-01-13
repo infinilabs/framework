@@ -51,7 +51,7 @@ func (module *TaskModule) Setup() {
 	module.TimeZone = "UTC"
 	module.MaxConcurrentNumOfTasks = 100
 	ok, err := env.ParseConfig("task", &module)
-	if ok && err != nil  &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -59,7 +59,7 @@ func (module *TaskModule) Setup() {
 	if tz == nil {
 		tz = time.UTC
 	}
-	module.pool, _ = pipeline.NewPoolWithTag("tasks",module.MaxConcurrentNumOfTasks)
+	module.pool, _ = pipeline.NewPoolWithTag("tasks", module.MaxConcurrentNumOfTasks)
 	global.RegisterShutdownCallback(func() {
 		pipeline.Release()
 	})

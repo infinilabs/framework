@@ -41,8 +41,8 @@
 package conditions
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestANDCondition(t *testing.T) {

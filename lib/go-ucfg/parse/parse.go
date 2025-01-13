@@ -66,7 +66,7 @@ var NoopConfig = Config{
 	StringDQuote: false,
 	StringSQuote: false,
 	IgnoreCommas: true,
-	TrimSpace: false,
+	TrimSpace:    false,
 }
 
 type flagParser struct {
@@ -89,10 +89,10 @@ const (
 // allowing for arrays and objects having a trailing comma. In addition 3
 // string types are supported:
 //
-// 1. single quoted string (no unescaping of any characters)
-// 2. double quoted strings (characters are escaped)
-// 3. strings without quotes. String parsing stops at
-//   special characters like '[]{},:'
+//  1. single quoted string (no unescaping of any characters)
+//  2. double quoted strings (characters are escaped)
+//  3. strings without quotes. String parsing stops at
+//     special characters like '[]{},:'
 //
 // In addition, top-level values can be separated by ',' to build arrays
 // without having to use [].
@@ -107,10 +107,10 @@ func Value(content string) (interface{}, error) {
 // allowing for arrays and objects having a trailing comma. In addition 3
 // string types are supported:
 //
-// 1. single quoted string (no unescaping of any characters)
-// 2. double quoted strings (characters are escaped)
-// 3. strings without quotes. String parsing stops at
-//   special characters like '[]{},:'
+//  1. single quoted string (no unescaping of any characters)
+//  2. double quoted strings (characters are escaped)
+//  3. strings without quotes. String parsing stops at
+//     special characters like '[]{},:'
 //
 // In addition, top-level values can be separated by ',' to build arrays
 // without having to use [].
@@ -175,7 +175,7 @@ func (p *flagParser) parse() (interface{}, error) {
 }
 
 func (p *flagParser) parseValue(stopSet string) (interface{}, error) {
-	if p.cfg.TrimSpace{
+	if p.cfg.TrimSpace {
 		p.ignoreWhitespace()
 	}
 	in := p.input

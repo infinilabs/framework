@@ -44,7 +44,7 @@ import (
 
 var (
 	defaultKeystore keystore.Keystore
-	keystoreOnce sync.Once
+	keystoreOnce    sync.Once
 )
 
 func GetOrInitKeystore() (keystore.Keystore, error) {
@@ -65,7 +65,7 @@ func GetOrInitKeystore() (keystore.Keystore, error) {
 	return defaultKeystore, err
 }
 
-func GetWriteableKeystore()(keystore.WritableKeystore, error) {
+func GetWriteableKeystore() (keystore.WritableKeystore, error) {
 	ks, err := GetOrInitKeystore()
 	if err != nil {
 		return nil, err
@@ -73,13 +73,13 @@ func GetWriteableKeystore()(keystore.WritableKeystore, error) {
 	return keystore.AsWritableKeystore(ks)
 }
 
-func getKeystorePath() string{
+func getKeystorePath() string {
 	ksPath := GetKeystoreBasePath()
 	return filepath.Join(ksPath, ".keystore")
 }
-func initKeystore() (keystore.Keystore, error){
+func initKeystore() (keystore.Keystore, error) {
 	keystorePath := getKeystorePath()
-	if !util.FileExists(keystorePath){
+	if !util.FileExists(keystorePath) {
 		err := os.Mkdir(keystorePath, 0750)
 		if err != nil {
 			return nil, err
@@ -88,14 +88,14 @@ func initKeystore() (keystore.Keystore, error){
 	storePath := filepath.Join(keystorePath, "ks")
 	keyPath := filepath.Join(keystorePath, "key")
 	var password *keystore.SecureString
-	if !util.FileExists(keyPath){
+	if !util.FileExists(keyPath) {
 		randStr := util.GenerateRandomString(32)
 		password = keystore.NewSecureString([]byte(randStr))
 		_, err := util.FilePutContent(keyPath, randStr)
 		if err != nil {
 			return nil, fmt.Errorf("save keystore password to file error: %w", err)
 		}
-	}else{
+	} else {
 		passwordBytes, err := util.FileGetContent(keyPath)
 		if err != nil {
 			return nil, fmt.Errorf("read keystore password file error: %w", err)
@@ -107,6 +107,7 @@ func initKeystore() (keystore.Keystore, error){
 }
 
 const PathEnvKey = "KEYSTORE_PATH"
+
 func GetKeystoreBasePath() string {
 	ksPath, exists := os.LookupEnv(PathEnvKey)
 	if exists {
@@ -139,9 +140,9 @@ func SetValue(key string, value []byte) error {
 	return ksw.Save()
 }
 
-func GetVariableResolver() (ucfg.Option, error){
+func GetVariableResolver() (ucfg.Option, error) {
 	return ucfg.Resolve(func(keyName string) (string, parse.Config, error) {
-		if strings.HasPrefix(keyName, "keystore."){
+		if strings.HasPrefix(keyName, "keystore.") {
 			ks, err := GetOrInitKeystore()
 			if err != nil {
 				return "", parse.NoopConfig, err
@@ -157,7 +158,8 @@ func GetVariableResolver() (ucfg.Option, error){
 }
 
 var watcher *fsnotify.Watcher
-func Watch(){
+
+func Watch() {
 	var err error
 	watcher, err = fsnotify.NewWatcher()
 	if err != nil {
@@ -192,7 +194,7 @@ func Watch(){
 	}
 }
 
-func CloseWatch(){
+func CloseWatch() {
 	if watcher != nil {
 		watcher.Close()
 	}

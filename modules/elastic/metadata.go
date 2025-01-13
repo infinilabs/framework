@@ -178,14 +178,14 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 }
 
 // update cluster state, on state version change
-func (module *ElasticModule) updateClusterState(clusterId string,force bool) {
+func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 
 	meta := elastic.GetMetadata(clusterId)
 	if meta == nil {
 		return
 	}
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		return
 	}
 
@@ -531,7 +531,7 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 		indexID = util.MD5digest(indexID)
 
 		indexConfig := &elastic.IndexConfig{
-			ID:       indexID,
+			ID:        indexID,
 			Timestamp: time.Now(),
 			Metadata: elastic.IndexMetadata{
 				IndexID:     fmt.Sprintf("%s:%s", clusterID, indexName),
@@ -694,7 +694,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 	log.Trace("update node info")
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		if !force {
 			setNodeUnknown(meta.Config.ID)
 		}
@@ -721,7 +721,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	if !discovery {
 		buf, err := kv.GetCompressedValue(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID))
 		if err != nil {
-			if global.Env().IsDebug{
+			if global.Env().IsDebug {
 				log.Debugf("read node metadata error: %v", err)
 			}
 			return
@@ -933,7 +933,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
-				Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
+				Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 			}
 			err = orm.Save(nil, nodeMetadata)
 			if err != nil {
@@ -1006,7 +1006,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						},
 						ID:        rid,
 						Timestamp: time.Now(),
-						Payload: elastic.NodePayload{NodeInfo: &nodeInfo},
+						Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
 					err = orm.Save(nil, nodeMetadata)
 					if err != nil {
@@ -1138,7 +1138,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 // on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
 
-	if !force&&!meta.IsAvailable() {
+	if !force && !meta.IsAvailable() {
 		return
 	}
 

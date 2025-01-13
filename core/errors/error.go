@@ -207,9 +207,9 @@ func Wrapf(err error, format string, args ...interface{}) error {
 // An error value has a cause if it implements the following
 // interface:
 //
-//     type Causer interface {
-//            Cause() error
-//     }
+//	type Causer interface {
+//	       Cause() error
+//	}
 //
 // If the error does not implement Cause, the original error will
 // be returned. If the error is nil, nil will be returned without further

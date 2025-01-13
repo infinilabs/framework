@@ -33,39 +33,37 @@ import (
 	"strings"
 )
 
-func MinInt64(x int64, y int64)int64{
-	if x==0{
+func MinInt64(x int64, y int64) int64 {
+	if x == 0 {
 		return y
 	}
 
-	if y==0{
+	if y == 0 {
 		return x
 	}
 
-	if x>y{
+	if x > y {
 		return y
-	}else{
+	} else {
 		return x
 	}
 }
 
-func MaxInt64(x int64, y int64)int64{
-	if x==0{
+func MaxInt64(x int64, y int64) int64 {
+	if x == 0 {
 		return y
 	}
 
-	if y==0{
+	if y == 0 {
 		return x
 	}
 
-	if x>y{
+	if x > y {
 		return x
-	}else{
+	} else {
 		return y
 	}
 }
-
-
 
 // credit to https://github.com/DeyV/gotools/blob/master/numbers.go
 func RoundPrec(x float64, prec int) float64 {
@@ -167,16 +165,17 @@ func FormatNumber(input float64) string {
 	return xFormatted
 }
 
-// 	fmt.Println(num, " = ", NearestThousandFormat(float64(num)))
-//10 = 10
-//100 = 100
-//1000 = 1.0k
-//10000 = 10.0k
-//3.12345678912e+09 = 3.1b
-//999.4 = 999
-//-372712 = -372.7k
-//-37271922 = -37.2m
-//-198 = -198
+//	fmt.Println(num, " = ", NearestThousandFormat(float64(num)))
+//
+// 10 = 10
+// 100 = 100
+// 1000 = 1.0k
+// 10000 = 10.0k
+// 3.12345678912e+09 = 3.1b
+// 999.4 = 999
+// -372712 = -372.7k
+// -37271922 = -37.2m
+// -198 = -198
 func NearestThousandFormat(num float64) string {
 
 	if math.Abs(num) < 999.5 {
@@ -202,9 +201,9 @@ func NearestThousandFormat(num float64) string {
 	return final
 }
 
-func ToFloat(s string,defaultValue float64) (float64) {
-	v,err:=StringToFloat(s)
-	if err!=nil{
+func ToFloat(s string, defaultValue float64) float64 {
+	v, err := StringToFloat(s)
+	if err != nil {
 		return defaultValue
 	}
 	return v

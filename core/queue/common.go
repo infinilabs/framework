@@ -33,4 +33,3 @@ type ConsumerInstanceInfo struct {
 	ID        string    `config:"id" json:"id,omitempty"`
 	Timestamp time.Time `config:"timestamp" json:"timestamp,omitempty"`
 }
-

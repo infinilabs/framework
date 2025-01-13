@@ -40,8 +40,6 @@ package main
 //➜  model git:(master) ✗ ../../../../cmd/generate-fastjson/generate-fastjson -o generated.go .
 //generated 3 methods in "generated.go"
 
-
-
 import (
 	"bytes"
 	"flag"
@@ -424,7 +422,7 @@ func isNonZero(expr string, t types.Type) string {
 			zero = "0"
 		}
 	default:
-		fmt.Println(expr,t)
+		fmt.Println(expr, t)
 		panic(fmt.Errorf("unhandled type %T", t))
 	}
 	return fmt.Sprintf("%s != %s", expr, zero)

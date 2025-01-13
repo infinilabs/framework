@@ -21,7 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 // Package config , actually copied from github.com/elastic/beats
 package config
 
@@ -169,10 +168,11 @@ func NewFlagOverwrite(
 }
 
 var pathFilters []PathFilter
+
 func RegisterPathFilter(f PathFilter) {
 	pathFilters = append(pathFilters, f)
 }
-func GenerateWildcardPathFilter(patterns []string) PathFilter{
+func GenerateWildcardPathFilter(patterns []string) PathFilter {
 	return func(fpath string) bool {
 		lines := []string{}
 		for _, p := range patterns {
@@ -194,7 +194,8 @@ func LoadPath(folder string) (*ucfg.Config, error) {
 	return LoadPathWithFilter(folder, pathFilters...)
 }
 
-type PathFilter func (fpath string) bool
+type PathFilter func(fpath string) bool
+
 func LoadPathWithFilter(folder string, filters ...PathFilter) (*ucfg.Config, error) {
 	files := []string{}
 	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {

@@ -223,7 +223,7 @@ func StartAPI() {
 
 	router.NotFound = notfoundHandler
 
-	tlsCfg:=apiConfig.TLSConfig
+	tlsCfg := apiConfig.TLSConfig
 
 	schema := "http://"
 	if tlsCfg.TLSEnabled {
@@ -232,7 +232,7 @@ func StartAPI() {
 		log.Trace("using tls connection")
 
 		cfg, err := GetServerTLSConfig(&tlsCfg)
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 
@@ -312,4 +312,3 @@ func StartAPI() {
 	log.Info("api server listen at: ", schema, listenAddress)
 
 }
-

@@ -220,7 +220,7 @@ func (handler Handler) MustGetParameter(w http.ResponseWriter, r *http.Request, 
 		panic("URL is nil")
 	}
 
-	v:= r.URL.Query().Get(key)
+	v := r.URL.Query().Get(key)
 
 	if len(v) == 0 {
 		panic("missing parameter " + key)
@@ -391,7 +391,6 @@ func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string) err
 		"_id":   id,
 	}, 404)
 }
-
 
 func (handler Handler) Redirect(w http.ResponseWriter, r *http.Request, url string) {
 	http.Redirect(w, r, url, http.StatusSeeOther)

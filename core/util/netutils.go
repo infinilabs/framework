@@ -70,7 +70,7 @@ check:
 		conn.Close()
 	}
 	if err != nil {
-		log.Trace("still not there, ",addr)
+		log.Trace("still not there, ", addr)
 		goto wait
 	}
 	return nil
@@ -124,24 +124,24 @@ func GetAvailablePort(ip string, port int) int {
 	panic(errors.New("no ports available"))
 }
 
-func TestTCPPort(host string,port int,duration time.Duration)bool  {
-	return TestTCPAddress(fmt.Sprintf("%v:%v",host,port),duration)
+func TestTCPPort(host string, port int, duration time.Duration) bool {
+	return TestTCPAddress(fmt.Sprintf("%v:%v", host, port), duration)
 }
 
-func TestTCPAddress(host string,timeout time.Duration)bool  {
-	if !rate.GetRateLimiterPerSecond("test_tcp_address",host,1).Allow(){
-		time.Sleep(1*time.Second)
+func TestTCPAddress(host string, timeout time.Duration) bool {
+	if !rate.GetRateLimiterPerSecond("test_tcp_address", host, 1).Allow() {
+		time.Sleep(1 * time.Second)
 	}
-	log.Trace("testing ip:",host,",timeout:",timeout)
+	log.Trace("testing ip:", host, ",timeout:", timeout)
 	conn, err := net.DialTimeout("tcp", host, timeout)
-	if conn!=nil{
+	if conn != nil {
 		conn.Close()
-		if err==nil{
+		if err == nil {
 			return true
 		}
 	}
-	if err!=nil{
-		log.Debug(err,",",conn!=nil,",",timeout)
+	if err != nil {
+		log.Debug(err, ",", conn != nil, ",", timeout)
 	}
 	return false
 }
@@ -150,7 +150,7 @@ func TestTCPAddress(host string,timeout time.Duration)bool  {
 func AutoGetAddress(addr string) string {
 
 	//skip for ipv6 family
-	if strings.Contains(addr,"::"){
+	if strings.Contains(addr, "::") {
 		return addr
 	}
 
@@ -167,7 +167,7 @@ func AutoGetAddress(addr string) string {
 
 func GetSafetyInternalAddress(addr string) string {
 	//skip for ipv6 family
-	if strings.Contains(addr,"::"){
+	if strings.Contains(addr, "::") {
 		return addr
 	}
 
@@ -185,7 +185,7 @@ func GetSafetyInternalAddress(addr string) string {
 // GetValidAddress get valid address, input: :8001 -> output: 127.0.0.1:8001
 func GetValidAddress(addr string) string {
 	//skip for ipv6 family
-	if strings.Contains(addr,"::"){
+	if strings.Contains(addr, "::") {
 		return addr
 	}
 
@@ -264,18 +264,18 @@ func GetLocalIPs() []string {
 }
 
 // IsLocalAddress check if the address is local address
-func IsLocalAddress(address []string,localIPs []string)bool  {
-	for _,add:=range address{
-		if UnifyLocalAddress(add)==LOCAL_ADDRESS{
+func IsLocalAddress(address []string, localIPs []string) bool {
+	for _, add := range address {
+		if UnifyLocalAddress(add) == LOCAL_ADDRESS {
 			continue
 		}
 
-		if add=="0.0.0.0"{
+		if add == "0.0.0.0" {
 			continue
 		}
 
-		for _,ip:=range localIPs{
-			if PrefixStr(add,ip){
+		for _, ip := range localIPs {
+			if PrefixStr(add, ip) {
 				return true
 			}
 		}
@@ -308,7 +308,7 @@ func Ipv4MaskString(m []byte) string {
 	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
 }
 
-func GetPublishNetworkDeviceInfo(pattern string)(dev string,ip string,mask string,err error)  {
+func GetPublishNetworkDeviceInfo(pattern string) (dev string, ip string, mask string, err error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
@@ -328,25 +328,24 @@ func GetPublishNetworkDeviceInfo(pattern string)(dev string,ip string,mask strin
 					//fmt.Println(i.HardwareAddr.String())
 					//fmt.Println(i.MTU)
 
-					if pattern!=""{
-						ip:=ipnet.IP.String()
-						if !RegexPatternMatch(pattern,ip){
+					if pattern != "" {
+						ip := ipnet.IP.String()
+						if !RegexPatternMatch(pattern, ip) {
 							continue
 						}
 					}
-					return i.Name,ipnet.IP.String(),Ipv4MaskString(ipnet.Mask),nil
+					return i.Name, ipnet.IP.String(), Ipv4MaskString(ipnet.Mask), nil
 				}
 			}
 		}
 	}
-	return "","","",errors.New("no publishable network device found")
+	return "", "", "", errors.New("no publishable network device found")
 }
 
-func GetIPPrefix(ip string)string  {
-	index:=strings.LastIndex(ip,".")
-	return SubString(ip,0,index)
+func GetIPPrefix(ip string) string {
+	index := strings.LastIndex(ip, ".")
+	return SubString(ip, 0, index)
 }
-
 
 func ClientIP(r *http.Request) string {
 	ip := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0])
@@ -369,8 +368,9 @@ func ClientIP(r *http.Request) string {
 	return ""
 }
 
-const LOCAL_ADDRESS ="127.0.0.1"
-func UnifyLocalAddress(host string)string  {
+const LOCAL_ADDRESS = "127.0.0.1"
+
+func UnifyLocalAddress(host string) string {
 	//unify host
 	if ContainStr(host, "localhost") {
 		host = strings.Replace(host, "localhost", LOCAL_ADDRESS, -1)

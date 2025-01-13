@@ -41,11 +41,10 @@
 package reload
 
 import (
+	"github.com/pkg/errors"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/util"
 	"sync"
-	"github.com/pkg/errors"
-
 )
 
 // Register holds a registry of reloadable objects

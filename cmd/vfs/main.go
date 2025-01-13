@@ -150,10 +150,10 @@ func main() {
 			dirs[b] = true
 		}
 
-		var buf= &bytes.Buffer{}
-		reader:=bytes.NewBuffer(f.data)
-		err=zstd.Compress(reader, buf)
-		if err!=nil{
+		var buf = &bytes.Buffer{}
+		reader := bytes.NewBuffer(f.data)
+		err = zstd.Compress(reader, buf)
+		if err != nil {
 			panic(err)
 		}
 

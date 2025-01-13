@@ -50,7 +50,7 @@ func TestUnixTime(t *testing.T) {
 //}
 
 func TestFromUnixTimestamp(t *testing.T) {
-	str:=GetLowPrecisionCurrentTime().Unix()
+	str := GetLowPrecisionCurrentTime().Unix()
 
 	fmt.Println(str)
 
@@ -61,13 +61,13 @@ func TestFromUnixTimestamp(t *testing.T) {
 
 func TestParseDuration(t *testing.T) {
 	var tests = []struct {
-		str string
+		str  string
 		want int64
 	}{
 		{"10ms", int64(time.Millisecond) * 10},
 		{"10s", int64(time.Second) * 10},
-		{"10m", int64(time.Minute) * 10 },
-		{"10h", int64(time.Hour)  * 10},
+		{"10m", int64(time.Minute) * 10},
+		{"10h", int64(time.Hour) * 10},
 		{"10d", int64(time.Hour) * 24 * 10},
 		{"2w", int64(time.Hour) * 24 * 14},
 		{"2M", int64(time.Hour) * 24 * 30 * 2},

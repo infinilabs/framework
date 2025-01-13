@@ -63,8 +63,8 @@ func (p *Producer) Produce(reqs *[]queue.ProduceRequest) (*[]queue.ProduceRespon
 		result := queue.ProduceResponse{}
 		result.Timestamp = time.Now().Unix()
 		result.Topic = p.cfg.ID
-		result.Partition =0
-		result.Offset =queue.Offset{Segment: int64(res.Segment), Position: res.Position}
+		result.Partition = 0
+		result.Offset = queue.Offset{Segment: int64(res.Segment), Position: res.Position}
 		results = append(results, result)
 	}
 	return &results, nil

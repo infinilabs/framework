@@ -21,6 +21,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !integration
 // +build !integration
 
 //copied from github.com/elastic/beats
@@ -572,21 +573,19 @@ func TestMapstrFlatten(t *testing.T) {
 	}
 }
 
-
 func TestGetValueByKeys(t *testing.T) {
-	obj:=MapStr{
-		"obj1":MapStr{
-			"obj2":MapStr{
-				"obj3":"good",
+	obj := MapStr{
+		"obj1": MapStr{
+			"obj2": MapStr{
+				"obj3": "good",
 			},
 		},
 	}
-	va,ok:=GetValueByKeys([]string{"obj1","obj2","obj3"},obj)
-	fmt.Println(va,ok)
-	assert.Equal(t,"good" ,va)
+	va, ok := GetValueByKeys([]string{"obj1", "obj2", "obj3"}, obj)
+	fmt.Println(va, ok)
+	assert.Equal(t, "good", va)
 
-	va,ok=GetValueByKeys([]string{"obj1","obj2"},obj)
-	fmt.Println(va,ok)
-
+	va, ok = GetValueByKeys([]string{"obj1", "obj2"}, obj)
+	fmt.Println(va, ok)
 
 }

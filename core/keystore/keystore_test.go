@@ -36,7 +36,7 @@ import (
 	"testing"
 )
 
-func TestConfigVariable(t *testing.T){
+func TestConfigVariable(t *testing.T) {
 	wd, _ := os.Getwd()
 	err := os.Setenv(PathEnvKey, wd)
 	if err != nil {

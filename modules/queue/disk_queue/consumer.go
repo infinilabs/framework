@@ -511,7 +511,7 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 				return errors.New(fileName + " not found and auto_skip_corrupt_file not enabled.")
 			}
 		}
-		return errors.Errorf("current file: %v not found, and next_file_exists: %v.",fileName,next_file_exists)
+		return errors.Errorf("current file: %v not found, and next_file_exists: %v.", fileName, next_file_exists)
 	}
 
 FIND_NEXT_FILE:

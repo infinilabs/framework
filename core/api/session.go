@@ -136,7 +136,7 @@ func getStore() *sessions.CookieStore {
 		Path:     "/",
 		MaxAge:   86400 * 1,
 		HttpOnly: true,
-		Domain: cookieCfg.Domain,
+		Domain:   cookieCfg.Domain,
 	}
 
 	return store

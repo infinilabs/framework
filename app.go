@@ -91,7 +91,7 @@ const (
 
 func NewApp(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHeader, terminalFooter string) *App {
 	if terminalFooter == "" {
-		terminalFooter =  ("   __ _  __ ____ __ _  __ __     \n")
+		terminalFooter = ("   __ _  __ ____ __ _  __ __     \n")
 		terminalFooter += ("  / // |/ // __// // |/ // /    \n")
 		terminalFooter += (" / // || // _/ / // || // /    \n")
 		terminalFooter += ("/_//_/|_//_/  /_//_/|_//_/   \n\n")
