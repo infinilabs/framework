@@ -66,7 +66,7 @@ func InitSecret(ks keystore2.Keystore, secret []byte) error {
 	if ks == nil {
 		ks, err = keystore.GetOrInitKeystore()
 		if err != nil {
-			return  err
+			return err
 		}
 	}
 	ksw, err := keystore2.AsWritableKeystore(ks)
@@ -88,8 +88,8 @@ func InitSecret(ks keystore2.Keystore, secret []byte) error {
 func encodeBasicAuth(cred *Credential) error {
 	var (
 		params map[string]interface{}
-		ok bool
-		pwd string
+		ok     bool
+		pwd    string
 	)
 	if params, ok = cred.Payload[cred.Type].(map[string]interface{}); !ok {
 		return fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
@@ -120,9 +120,9 @@ func encodeBasicAuth(cred *Credential) error {
 func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 	var (
 		params map[string]interface{}
-		ok bool
-		pwd string
-		salt string
+		ok     bool
+		pwd    string
+		salt   string
 	)
 	if params, ok = cred.Payload[cred.Type].(map[string]interface{}); !ok {
 		err = fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
@@ -160,12 +160,13 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 type ChangeEvent func(credentials *Credential)
 
 var changeEvents []ChangeEvent
-func RegisterChangeEvent(evt ChangeEvent){
+
+func RegisterChangeEvent(evt ChangeEvent) {
 	if evt != nil {
 		changeEvents = append(changeEvents, evt)
 	}
 }
-func TriggerChangeEvent(credentials *Credential){
+func TriggerChangeEvent(credentials *Credential) {
 	for _, cb := range changeEvents {
 		if cb != nil {
 			cb(credentials)

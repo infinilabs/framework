@@ -1,4 +1,5 @@
 package ldap
+
 //
 //import (
 //	"fmt"

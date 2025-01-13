@@ -41,9 +41,9 @@ package config
 
 // LoggingConfig object to store logging related settings
 type LoggingConfig struct {
-	DisableFileOutput bool     `json:"disable_file_output" config:"disable_file_output"`
-	LogLevel             string `json:"level" config:"level"`
-	LogFormat			 string `json:"format" config:"format"`
+	DisableFileOutput bool   `json:"disable_file_output" config:"disable_file_output"`
+	LogLevel          string `json:"level" config:"level"`
+	LogFormat         string `json:"format" config:"format"`
 
 	RealtimePushEnabled  bool   `json:"realtime"`
 	PushLogLevel         string `json:"push_log_level"`
@@ -51,6 +51,5 @@ type LoggingConfig struct {
 	FileFilterPattern    string `json:"file_pattern"`
 	MessageFilterPattern string `json:"message_pattern"`
 
-
-	IsDebug              bool   `json:"debug"  config:"debug"`
+	IsDebug bool `json:"debug"  config:"debug"`
 }

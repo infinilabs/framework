@@ -346,8 +346,8 @@ func init() {
 			panic(err)
 		}
 
-		if clientCfg.Proxy.OverrideSystemProxy{
-			log.Debugf("override system proxy settings: %v %s",util.MustToJSON(clientCfg.Proxy.DefaultProxyConfig))
+		if clientCfg.Proxy.OverrideSystemProxy {
+			log.Debugf("override system proxy settings: %v %s", util.MustToJSON(clientCfg.Proxy.DefaultProxyConfig))
 			UpdateProxyEnvironment(&clientCfg.Proxy.DefaultProxyConfig)
 		}
 

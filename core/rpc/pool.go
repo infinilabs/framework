@@ -22,7 +22,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 // Package grpcpool provides a pool of grpc clients
-//https://github.com/processout/grpc-go-pool/blob/master/LICENSE
+// https://github.com/processout/grpc-go-pool/blob/master/LICENSE
 package rpc
 
 import (

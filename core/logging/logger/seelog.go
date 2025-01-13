@@ -136,7 +136,7 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, fileReceiver, "file", log.CustomReceiverInitArgs{})
 		if err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			receivers = append(receivers, realtimeOutput)
 		}
 	}
@@ -145,7 +145,7 @@ func SetLogging(loggingCfg *config.LoggingConfig, appName string, baseDir string
 		realtimeOutput, err := log.NewCustomReceiverDispatcherByValue(formatter, realtimeReceiver, "websocket", log.CustomReceiverInitArgs{})
 		if err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			receivers = append(receivers, realtimeOutput)
 		}
 	}

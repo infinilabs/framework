@@ -33,16 +33,16 @@ import (
 )
 
 type AgentConfig struct {
-	Enabled      bool `config:"enabled"`
-	Setup *SetupConfig `config:"setup"`
+	Enabled bool         `config:"enabled"`
+	Setup   *SetupConfig `config:"setup"`
 }
 
 type SetupConfig struct {
-	DownloadURL               string      `config:"download_url"`
-	CACertFile                string      `config:"ca_cert"`
-	CAKeyFile                 string      `config:"ca_key"`
-	ConsoleEndpoint           string      `config:"console_endpoint"`
-	Port                      string      `config:"port"`
+	DownloadURL     string `config:"download_url"`
+	CACertFile      string `config:"ca_cert"`
+	CAKeyFile       string `config:"ca_key"`
+	ConsoleEndpoint string `config:"console_endpoint"`
+	Port            string `config:"port"`
 }
 
 func GetAgentConfig() *AgentConfig {
@@ -52,7 +52,7 @@ func GetAgentConfig() *AgentConfig {
 			DownloadURL: "https://release.infinilabs.com/agent/stable",
 		},
 	}
-	_, err := env.ParseConfig("agent", agentCfg )
+	_, err := env.ParseConfig("agent", agentCfg)
 	if err != nil {
 		log.Debug("agent config not found: %v", err)
 	}

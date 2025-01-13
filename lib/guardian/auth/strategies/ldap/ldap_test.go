@@ -210,12 +210,12 @@ import (
 //
 //func (m *mockConn) Close() {}
 
-func TestExtractFirstGroupFromDB(t *testing.T)  {
+func TestExtractFirstGroupFromDB(t *testing.T) {
 	testCases := []struct {
-		name string
-		dn  string
+		name      string
+		dn        string
 		groupAttr string
-		want string
+		want      string
 	}{
 		{"standard", "CN=张三,OU=配置管理,OU=外包人员,OU=极限科技,DC=infinilabs,DC=com", "OU", "配置管理"},
 		{"not found", "CN=张三,OU=配置管理,OU=外包人员,OU=极限科技,DC=infinilabs,DC=com", "DD", ""},

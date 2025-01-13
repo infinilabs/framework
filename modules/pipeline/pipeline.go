@@ -234,7 +234,6 @@ func (module *PipeModule) Start() error {
 			return
 		}
 
-
 		defer func() {
 			if !global.Env().IsDebug {
 				if r := recover(); r != nil {
@@ -251,7 +250,6 @@ func (module *PipeModule) Start() error {
 				}
 			}
 		}()
-
 
 		needStopAndClean := []string{}
 		newPipelines := map[string]pipeline.PipelineConfigV2{}
@@ -283,7 +281,7 @@ func (module *PipeModule) Start() error {
 				return true
 			}
 
-			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC,",",ok,",",newC.Equals(oldC),",",isPipelineEnabled(newC.Enabled))
+			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC, ",", ok, ",", newC.Equals(oldC), ",", isPipelineEnabled(newC.Enabled))
 
 			needStopAndClean = append(needStopAndClean, oldC.Name)
 			return true
@@ -414,12 +412,11 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		return nil
 	}
 
-	if v.Singleton{
-		log.Info("creating pipeline: "+v.Name+", singleton")
-	}else{
-		log.Info("creating pipeline: "+v.Name)
+	if v.Singleton {
+		log.Info("creating pipeline: " + v.Name + ", singleton")
+	} else {
+		log.Info("creating pipeline: " + v.Name)
 	}
-
 
 	task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 

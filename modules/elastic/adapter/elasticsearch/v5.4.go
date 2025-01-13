@@ -37,7 +37,7 @@ type ESAPIV5_4 struct {
 }
 
 func (s *ESAPIV5_4) FieldCaps(target string) ([]byte, error) {
-	target=util.UrlEncode(target)
+	target = util.UrlEncode(target)
 
 	url := fmt.Sprintf("%s/%s/_field_caps?fields=*", s.GetEndpoint(), target)
 	res, err := s.Request(nil, util.Verb_GET, url, nil)

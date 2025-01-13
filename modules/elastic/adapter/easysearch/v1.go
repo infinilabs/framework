@@ -38,7 +38,7 @@ type APIV1 struct {
 	elasticsearch.ESAPIV7_7
 }
 
-func (c *APIV1) StartReplication(followIndex string, body []byte) error{
+func (c *APIV1) StartReplication(followIndex string, body []byte) error {
 	url := fmt.Sprintf("%s/_replication/%s/_start", c.GetEndpoint(), followIndex)
 	resp, err := c.Request(nil, util.Verb_PUT, url, body)
 	if err != nil {
@@ -50,7 +50,7 @@ func (c *APIV1) StartReplication(followIndex string, body []byte) error{
 	}
 	return nil
 }
-func (c *APIV1) StopReplication(indexName string, body []byte) error{
+func (c *APIV1) StopReplication(indexName string, body []byte) error {
 	url := fmt.Sprintf("%s/_replication/%s/_stop", c.GetEndpoint(), indexName)
 	resp, err := c.Request(nil, util.Verb_POST, url, body)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *APIV1) ResumeReplication(followIndex string, body []byte) error {
 	}
 	return nil
 }
-func (c *APIV1) GetReplicationStatus(followIndex string) ([]byte, error){
+func (c *APIV1) GetReplicationStatus(followIndex string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_replication/%s/_status", c.GetEndpoint(), followIndex)
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -106,7 +106,7 @@ func (c *APIV1) GetReplicationStatus(followIndex string) ([]byte, error){
 	}
 	return resp.Body, nil
 }
-func (c *APIV1) GetReplicationFollowerStats(followIndex string) ([]byte, error){
+func (c *APIV1) GetReplicationFollowerStats(followIndex string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_replication/all_status", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -142,7 +142,7 @@ func (c *APIV1) DeleteAutoFollowReplication(autoFollowPatternName string, body [
 	}
 	return nil
 }
-func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
+func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_replication/autofollow_stats", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -155,7 +155,7 @@ func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
 	return resp.Body, nil
 }
 
-func (c *APIV1) GetUser(username string) ([]byte, error){
+func (c *APIV1) GetUser(username string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_security/user/%s", c.GetEndpoint(), username)
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -167,7 +167,7 @@ func (c *APIV1) GetUser(username string) ([]byte, error){
 	}
 	return resp.Body, nil
 }
-func (c *APIV1) GetUsers() ([]byte, error){
+func (c *APIV1) GetUsers() ([]byte, error) {
 	url := fmt.Sprintf("%s/_security/user", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -200,7 +200,7 @@ func (c *APIV1) PutUser(username string, body []byte) error {
 	}
 	return nil
 }
-func (c *APIV1) GetRole(roleName string) ([]byte, error){
+func (c *APIV1) GetRole(roleName string) ([]byte, error) {
 	url := fmt.Sprintf("%s/_security/role/%s", c.GetEndpoint(), roleName)
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -211,7 +211,7 @@ func (c *APIV1) GetRole(roleName string) ([]byte, error){
 	}
 	return resp.Body, nil
 }
-func (c *APIV1) GetRoles() ([]byte, error){
+func (c *APIV1) GetRoles() ([]byte, error) {
 	url := fmt.Sprintf("%s/_security/role", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {

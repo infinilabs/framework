@@ -29,14 +29,14 @@ package util
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"github.com/OneOfOne/xxhash"
+	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 )
 
 func BenchmarkReuseHash(b *testing.B) {
-	var xxHashPool= sync.Pool{
+	var xxHashPool = sync.Pool{
 		New: func() interface{} {
 			return xxhash.New32()
 		},
@@ -48,22 +48,22 @@ func BenchmarkReuseHash(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		hash.Reset()
-		hash.WriteString(fmt.Sprintf("my-%v",i))
-		h:= int(hash.Sum32())
-		Mod(h,5)
+		hash.WriteString(fmt.Sprintf("my-%v", i))
+		h := int(hash.Sum32())
+		Mod(h, 5)
 	}
 
 }
 
 func TestModString(t *testing.T) {
-	str:="abc"
-	p:=ModString(str,5)
+	str := "abc"
+	p := ModString(str, 5)
 	fmt.Println(p)
 	assert.Equal(t, p, 2)
 }
 
 func BenchmarkModString(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		ModString(fmt.Sprintf("my-%v",i), 5)
+		ModString(fmt.Sprintf("my-%v", i), 5)
 	}
 }

@@ -8,6 +8,18 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)
+
+### Breaking changes
+### Features
+### Bug fix
+### Improvements
+- Add util to http handler, support to parse bool parameter
+
+## v1.1.0 (2025-01-11) 
+
+### Breaking changes
+- Update WebSocket greeting message header to use `websocket-session-id`
+
 ### Features
 - Set the metric collection task to singleton mode (#17)
 - Record cluster allocation explain to activity after cluster health status changed to `red`
@@ -15,9 +27,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add `min_bucket_size` and `hits_total` to metric configurations (#29)
 - Add proxy settings to `http_client` config section (#33)
 - Add new condition to check item length (eg: array,string) (#38)
-
-### Breaking changes
-- Update WebSocket greeting message header to use `websocket-session-id`
+- Add util to http handler, support write bytes with status code (#55)
 
 ### Bug fix
 - Remove the collection of cluster stats metric in node stats collection task (#17)
@@ -37,7 +47,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add search response to logging message (#28)
 
 
-## v1.0.0
+## v1.0.0 (2024-12-13) 
 
 ### 🚀 Features
 

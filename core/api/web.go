@@ -150,7 +150,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		schema = "https://"
 
 		cfg, err := GetServerTLSConfig(&cfg.TLSConfig)
-		if err!=nil{
+		if err != nil {
 			panic(err)
 		}
 

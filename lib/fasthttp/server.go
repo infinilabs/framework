@@ -441,12 +441,12 @@ type Server struct {
 	idleConns   map[net.Conn]time.Time
 	idleConnsMu sync.Mutex
 
-	mu   sync.Mutex
-	open int32
-	stop int32
-	done chan struct{}
-	whiteIPList *hashset.Set
-	blackIPList *hashset.Set
+	mu                  sync.Mutex
+	open                int32
+	stop                int32
+	done                chan struct{}
+	whiteIPList         *hashset.Set
+	blackIPList         *hashset.Set
 	inflightRequestSize int64
 }
 
@@ -802,7 +802,7 @@ func (res *Response) Encode() []byte {
 	return data.Bytes()
 }
 
-//TODO optimize memmove issue, buffer read
+// TODO optimize memmove issue, buffer read
 func (res *Response) Decode(data []byte) error {
 
 	res.decodeLocker.Lock()
@@ -858,6 +858,7 @@ func (res *Response) Decode(data []byte) error {
 	res.SetStatusCode(int(util.BytesToUint32(statusCode)))
 	return nil
 }
+
 // ResetUserValues allows to reset user values from Request Context
 func (ctx *RequestCtx) ResetUserValues() {
 	ctx.userValues.Reset()
@@ -925,12 +926,12 @@ func (ctx *RequestCtx) Conn() net.Conn {
 	return ctx.c
 }
 
-//is all process finished
+// is all process finished
 func (ctx *RequestCtx) Finished() {
 	ctx.finished = true
 }
 
-//should filters continue to process
+// should filters continue to process
 func (ctx *RequestCtx) ShouldContinue() bool {
 	return !ctx.finished
 }
@@ -946,7 +947,7 @@ func (ctx *RequestCtx) ParseAPIKey() (exists bool, apiID, apiKey []byte) {
 	return len(ctx.Request.getURI().apiID) > 0, ctx.Request.getURI().apiID, ctx.Request.getURI().apiKey
 }
 
-//resume processing pipeline, allow filters continue
+// resume processing pipeline, allow filters continue
 func (ctx *RequestCtx) Resume() {
 	ctx.finished = false
 	ctx.AddFlowProcess("||")
@@ -959,7 +960,7 @@ func (ctx *RequestCtx) reset() {
 		ctx.Parameters.ResetParameters()
 	}
 	ctx.finished = false
-	if ctx.flowProcess.Len()>0{
+	if ctx.flowProcess.Len() > 0 {
 		ctx.flowProcess.Reset()
 	}
 	ctx.destination = ctx.destination[0:0]
@@ -1448,7 +1449,7 @@ func (ctx *RequestCtx) ErrorInJSON(errMessage string, statusCode int) {
 
 	b, err := json.MarshalIndent(err1, "", "  ")
 	if err != nil {
-		log.Error(errMessage,err)
+		log.Error(errMessage, err)
 		return
 	}
 
@@ -1677,7 +1678,6 @@ func (ctx *RequestCtx) SetBodyStreamWriter(sw StreamWriter) {
 func (ctx *RequestCtx) IsBodyStream() bool {
 	return ctx.Response.IsBodyStream()
 }
-
 
 // TimeoutError sets response status code to StatusRequestTimeout and sets
 // body to the given msg.
@@ -1991,13 +1991,13 @@ func (s *Server) Serve(ln net.Listener) error {
 		s.setState(c, StateNew)
 		atomic.AddInt32(&s.open, 1)
 
-		if global.Env().IsDebug{
-			stats.Gauge("fasthttp","inflight_data_size",s.inflightRequestSize)
+		if global.Env().IsDebug {
+			stats.Gauge("fasthttp", "inflight_data_size", s.inflightRequestSize)
 		}
 
 		if (s.MaxInflightRequestSize > 0 && atomic.LoadInt64(&s.inflightRequestSize) > int64(s.MaxInflightRequestSize)) || !wp.Serve(c) {
 			open := atomic.AddInt32(&s.open, -1)
-			stats.Increment("fasthttp","exceeded_limit")
+			stats.Increment("fasthttp", "exceeded_limit")
 			s.writeFastError(c, StatusServiceUnavailable,
 				"The connection cannot be served because Server.Concurrency/MaxInflightRequestSize limit exceeded")
 			c.Close()
@@ -2286,22 +2286,22 @@ func (s *Server) handleRequest(ctx *RequestCtx) (err error) {
 					v = r.(string)
 				}
 				log.Error("error on handle request,", v)
-				err= errors.Error(v)
-				if ctx.Response.GetBodyLength()==0{
-					ctx.ErrorInJSON(err.Error(),500)
+				err = errors.Error(v)
+				if ctx.Response.GetBodyLength() == 0 {
+					ctx.ErrorInJSON(err.Error(), 500)
 				}
 			}
 		}
 
-		if size>0 && s.MaxInflightRequestSize>0{
+		if size > 0 && s.MaxInflightRequestSize > 0 {
 			atomic.AddInt64(&s.inflightRequestSize, -1*int64(size))
 		}
 	}()
 
-	size =ctx.Request.GetBodyLength()
+	size = ctx.Request.GetBodyLength()
 	ctx.initialRequestBodyLength = size
 
-	if size>0 && s.MaxInflightRequestSize>0{
+	if size > 0 && s.MaxInflightRequestSize > 0 {
 		atomic.AddInt64(&s.inflightRequestSize, int64(size))
 	}
 
@@ -2331,27 +2331,27 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 	defer s.serveConnCleanup()
 	atomic.AddUint32(&s.concurrency, 1)
 
-	if s.blackIPList != nil||s.whiteIPList != nil {
+	if s.blackIPList != nil || s.whiteIPList != nil {
 		ip := c.RemoteAddr().String()
 		if strings.Contains(ip, ":") {
 			ips := strings.Split(ip, ":")
-			ip=ips[0]
+			ip = ips[0]
 		}
 
-		if global.Env().IsDebug{
-			log.Tracef("check ip [%v] is permitted or denied",ip)
+		if global.Env().IsDebug {
+			log.Tracef("check ip [%v] is permitted or denied", ip)
 		}
 
 		//check black ip list
-		if s.blackIPList != nil{
+		if s.blackIPList != nil {
 			if s.blackIPList.Contains(ip) {
 				stats.Increment("request", "denied")
 				c.Write(deniedMsgBytes)
 				time.Sleep(100 * time.Millisecond)
 				c.Close()
 
-				if global.Env().IsDebug{
-					log.Debugf("ip [%v] denied",ip)
+				if global.Env().IsDebug {
+					log.Debugf("ip [%v] denied", ip)
 				}
 
 				return nil
@@ -2359,15 +2359,15 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		//check white ip list
-		if s.whiteIPList != nil{
+		if s.whiteIPList != nil {
 			if !s.whiteIPList.Contains(ip) {
 				stats.Increment("request", "denied")
 				c.Write(deniedMsgBytes)
 				time.Sleep(100 * time.Millisecond)
 				c.Close()
 
-				if global.Env().IsDebug{
-					log.Debugf("ip [%v] not permitted",ip)
+				if global.Env().IsDebug {
+					log.Debugf("ip [%v] not permitted", ip)
 				}
 
 				return nil
@@ -2461,9 +2461,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		} else {
 			// If this is a keep-alive connection acquireByteReader will try to peek
 			// a couple of bytes already so the idle timeout will already be used.
-			if ctx.c==nil{
-				if c!=nil{
-					ctx.c=c
+			if ctx.c == nil {
+				if c != nil {
+					ctx.c = c
 				}
 			}
 			br, err = acquireByteReader(&ctx)
@@ -2645,9 +2645,9 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		if continueReadingRequest {
 			//ctx.Reset()
 			//ctx.Response.Reset()
-			err:=s.handleRequest(ctx)
-			if err!=nil{
-				if global.Env().IsDebug{
+			err := s.handleRequest(ctx)
+			if err != nil {
+				if global.Env().IsDebug {
 					log.Error(err)
 				}
 				stats.Increment("http", "continue_error")
@@ -2712,7 +2712,7 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 				bw = acquireWriter(ctx)
 			}
 
-			if ctx.EnrichedMetadata&&ctx.flowProcess.Len()>0 {
+			if ctx.EnrichedMetadata && ctx.flowProcess.Len() > 0 {
 				ctx.Response.Header.Set("X-Filters", ctx.flowProcess.String())
 			}
 
@@ -2726,11 +2726,11 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 			// in a TCP packet and send it back at once than waiting for a flush every request.
 			// In real world circumstances this behaviour could be argued as being wrong.
 			if br == nil || br.Buffered() == 0 || connectionClose {
-					err = bw.Flush()
-					if err != nil {
-						break
-					}
+				err = bw.Flush()
+				if err != nil {
+					break
 				}
+			}
 			if connectionClose {
 				break
 			}
@@ -2928,7 +2928,6 @@ func acquireByteReader(ctxP **RequestCtx) (*bufio.Reader, error) {
 	//ctx.Response.Reset()
 	//TODO
 
-
 	*ctxP = ctx
 	if err != nil {
 		// Treat all errors as EOF on unsuccessful read
@@ -2988,7 +2987,7 @@ func (s *Server) acquireCtx(c net.Conn) (ctx *RequestCtx) {
 	if v == nil {
 		keepBodyBuffer := !s.ReduceMemoryUsage
 		ctx = new(RequestCtx)
-		ctx.EnrichedMetadata=true
+		ctx.EnrichedMetadata = true
 		ctx.Request.BodyBufferEnabled = keepBodyBuffer
 		ctx.Response.BodyBufferEnabled = keepBodyBuffer
 		ctx.s = s
@@ -3101,6 +3100,7 @@ func (r *RequestCtx) GetFlowID() (string, bool) {
 func (r *RequestCtx) GetFlowIDOrDefault(d string) string {
 	return r.GetStringOrDefault(FLOWNAME, d)
 }
+
 var fakeServer = &Server{
 	// Initialize concurrencyCh for TimeoutHandler
 	concurrencyCh: make(chan struct{}, DefaultConcurrency),

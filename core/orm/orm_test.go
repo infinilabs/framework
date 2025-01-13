@@ -38,12 +38,12 @@ func TestGetFieldStringValue(t *testing.T) {
 
 	t1 := reflect.TypeOf(obj)
 	fmt.Println(t1.Kind() == reflect.Ptr)
-	assert.Equal(t,t1.Kind(),reflect.Ptr)
+	assert.Equal(t, t1.Kind(), reflect.Ptr)
 
 	v := reflect.ValueOf(obj).Elem()
 	exists, value := getFieldStringValue(v, "ID")
 	fmt.Println(exists, value)
-	assert.Equal(t,value,"myid")
+	assert.Equal(t, value, "myid")
 
 }
 
@@ -68,6 +68,7 @@ func TestCheckCreated(t *testing.T) {
 	ok = existsNonNullField(rValue, "T")
 	assert.Equal(t, true, ok)
 }
+
 type A struct {
 	ORMObjectBase
 	MyID string
@@ -76,19 +77,18 @@ type A struct {
 func TestGetNestedFieldStringValue(t *testing.T) {
 
 	obj := &A{}
-	obj.ID= "myid"
+	obj.ID = "myid"
 
 	t1 := reflect.TypeOf(obj)
 	fmt.Println(t1.Kind() == reflect.Ptr)
 
-	assert.Equal(t,t1.Kind(),reflect.Ptr)
+	assert.Equal(t, t1.Kind(), reflect.Ptr)
 
 	v := reflect.ValueOf(obj).Elem()
 	exists, value := getFieldStringValue(v, "ID")
 	fmt.Println(exists, value)
-	assert.Equal(t,value,"myid")
+	assert.Equal(t, value, "myid")
 }
-
 
 func TestSetFieldValue(t *testing.T) {
 
@@ -101,7 +101,7 @@ func TestSetFieldValue(t *testing.T) {
 	}
 
 	fmt.Println(obj)
-	assert.Equal(t,obj.ID,"myid1234")
+	assert.Equal(t, obj.ID, "myid1234")
 
 }
 
@@ -110,10 +110,10 @@ func TestSetFieldTimeValue(t *testing.T) {
 	obj := &ORMObjectBase{}
 	rValue := reflect.ValueOf(obj)
 
-	t1:=time.Now()
-	setFieldValue(rValue,"Created",&t1)
-	fmt.Println("created:",obj.Created)
-	assert.Equal(t,obj.Created,&t1)
+	t1 := time.Now()
+	setFieldValue(rValue, "Created", &t1)
+	fmt.Println("created:", obj.Created)
+	assert.Equal(t, obj.Created, &t1)
 
 }
 
@@ -130,25 +130,25 @@ func TestSetFieldTimeValue(t *testing.T) {
 
 func TestFilterUpdatableFields(t *testing.T) {
 	obj := struct {
-		Name string `json:"name" protected:"true"`
-		Age int `json:"age"`
-		Address *struct{
+		Name    string `json:"name" protected:"true"`
+		Age     int    `json:"age"`
+		Address *struct {
 			PostCode string `json:"post_code" protected:"true"`
-			Detail string `json:"detail"`
+			Detail   string `json:"detail"`
 		} `json:"address"`
-		Email string
-		TestNil *struct{
+		Email   string
+		TestNil *struct {
 			Field1 string `json:"field1"`
 		} `json:"test_nil"`
 	}{
 		Name: "zhangsan",
-		Age: 20,
+		Age:  20,
 		Address: &struct {
 			PostCode string `json:"post_code" protected:"true"`
-			Detail string `json:"detail"`
+			Detail   string `json:"detail"`
 		}{
 			PostCode: "100001",
-			Detail: "北京海淀",
+			Detail:   "北京海淀",
 		},
 		Email: "xxx",
 	}

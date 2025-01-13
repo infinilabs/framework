@@ -33,7 +33,6 @@ import (
 	"testing"
 )
 
-
 func TestXXHash(t *testing.T) {
 	inputs := []string{
 		"cpk3nk78mrlpjqkd72rg",
@@ -75,13 +74,13 @@ func TestXXHash(t *testing.T) {
 	}
 	xxHash := xxHashPool.Get().(*xxhash.XXHash32)
 	defer xxHashPool.Put(xxHash)
-	for o,i:=range inputs{
+	for o, i := range inputs {
 		xxHash.Reset()
 		xxHash.WriteString(i)
-		hashValue:= int(xxHash.Sum32())
+		hashValue := int(xxHash.Sum32())
 		println(hashValue)
-		println(hashValue%3)
-		assert.Equal(t,hashValue%3,hash[o])
+		println(hashValue % 3)
+		assert.Equal(t, hashValue%3, hash[o])
 	}
 
 }

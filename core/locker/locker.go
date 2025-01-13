@@ -6,11 +6,11 @@ package locker
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 	"strings"
 	"time"
 )
@@ -36,7 +36,7 @@ func placeLock(bucket, name string, clientID string) (bool, error) {
 
 func GetAllocateInfo(bucket, name string) (bool, *AllocateInfo, error) {
 	v1, err := kv.GetValue(parentBucket, GetKey(bucket, name))
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 
@@ -57,7 +57,7 @@ func GetAllocateInfo(bucket, name string) (bool, *AllocateInfo, error) {
 		inf.Timestamp = util.FromUnixTimestamp(unix)
 		inf.Bucket = bucket
 		inf.Name = name
-		return true,inf,nil
+		return true, inf, nil
 	}
 }
 
@@ -92,17 +92,17 @@ func Hold(bucket, name string, clientID string, expireTimeout time.Duration, all
 				}
 				return false, nil
 			}
-		}else{
+		} else {
 
-			if global.Env().IsDebug{
-				log.Debug("it's me, let's hold the lock again, bucket:",bucket,", name:", name,", client_id:",info.ClientID)
+			if global.Env().IsDebug {
+				log.Debug("it's me, let's hold the lock again, bucket:", bucket, ", name:", name, ", client_id:", info.ClientID)
 			}
 			//update timestamp to extend the lease
 			return placeLock(bucket, name, clientID)
 		}
-	}else{
+	} else {
 		if global.Env().IsDebug {
-			log.Debug("no one hold this lock, let's hold the lock, client_id:",bucket, name)
+			log.Debug("no one hold this lock, let's hold the lock, client_id:", bucket, name)
 		}
 		//not exists
 		return placeLock(bucket, name, clientID)
@@ -110,15 +110,15 @@ func Hold(bucket, name string, clientID string, expireTimeout time.Duration, all
 	return false, nil
 }
 
-func Release(bucket, name string,clientID string) error {
+func Release(bucket, name string, clientID string) error {
 
 	ok, info, err := GetAllocateInfo(bucket, name)
 	if err != nil {
 		return err
 	}
 
-	if ok{
-		if info.ClientID != clientID{
+	if ok {
+		if info.ClientID != clientID {
 			//not your business
 			return errors.Errorf("not your business anymore, client_id: %v, local_id:%v", info.ClientID, clientID)
 		}

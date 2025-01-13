@@ -112,15 +112,15 @@ type DiskBasedQueue struct {
 
 	consumersInReading sync.Map
 
-	cfg          *DiskQueueConfig
+	cfg *DiskQueueConfig
 }
 
 // NewDiskQueue instantiates a new instance of DiskBasedQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
 func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBasedQueue {
 	d := DiskBasedQueue{
-		name:     name,
-		dataPath: dataPath,
+		name:               name,
+		dataPath:           dataPath,
 		cfg:                cfg,
 		readChan:           make(chan []byte, cfg.ReadChanBuffer),
 		depthChan:          make(chan int64),
@@ -131,7 +131,7 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		exitChan:           make(chan int),
 		exitSyncChan:       make(chan int, 10),
 		consumersInReading: sync.Map{},
-		metaLock: sync.RWMutex{},
+		metaLock:           sync.RWMutex{},
 	}
 
 	// no need to lock here, nothing else could possibly be touching this instance
@@ -180,8 +180,8 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.cfg.WriteTimeoutInMS)*time.Millisecond)
 	defer cancel()
 
-	size:=int64(len(data))
-	stats.IncrementBy("disk_queue","inflight_data_size", size)
+	size := int64(len(data))
+	stats.IncrementBy("disk_queue", "inflight_data_size", size)
 
 	d.RLock()
 	defer func() {
@@ -200,13 +200,13 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 			}
 		}
 		d.RUnlock()
-		defer stats.IncrementBy("disk_queue","inflight_data_size", size*-1)
+		defer stats.IncrementBy("disk_queue", "inflight_data_size", size*-1)
 	}()
 
-	res:=WriteResponse{}
+	res := WriteResponse{}
 	if d.exitFlag == 1 {
 		log.Errorf("queue [%v] exiting, data maybe lost", d.name)
-		res.Error=errors.New("exiting")
+		res.Error = errors.New("exiting")
 		return res
 	}
 
@@ -217,7 +217,7 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 				log.Errorf("queue [%v] is readonly, %v", d.name, err)
 			}
 		}
-		res.Error= errors.New("readonly")
+		res.Error = errors.New("readonly")
 		return res
 	}
 
@@ -284,7 +284,6 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 		}
 		d.Unlock()
 	}()
-
 
 	d.exitFlag = 1
 
@@ -381,7 +380,7 @@ func (d *DiskBasedQueue) skipToNextRWFile(delete bool) error {
 		d.writeFile = nil
 	}
 
-	if delete{
+	if delete {
 		for i := d.readSegmentFileNum; i <= d.writeSegmentNum; i++ {
 
 			//TODO, keep old files for a configure time window
@@ -514,9 +513,9 @@ func (d *DiskBasedQueue) readOne() ([]byte, error) {
 }
 
 type WriteResponse struct {
-	Segment int64
+	Segment  int64
 	Position int64
-	Error error
+	Error    error
 }
 
 // writeOne performs a low level filesystem write for a single []byte
@@ -529,7 +528,7 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 		curFileName := d.GetFileName(d.writeSegmentNum)
 		d.writeFile, err = os.OpenFile(curFileName, os.O_RDWR|os.O_CREATE, 0600)
 		if err != nil {
-			res.Error=err
+			res.Error = err
 			return res
 		}
 
@@ -540,7 +539,7 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 			if err != nil {
 				d.writeFile.Close()
 				d.writeFile = nil
-				res.Error=err
+				res.Error = err
 				return res
 			}
 		}
@@ -553,7 +552,7 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 		}
 		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.Compress.Message.Level)
 		if err != nil {
-			res.Error=err
+			res.Error = err
 			return res
 		}
 		data = newData
@@ -562,20 +561,20 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 	dataLen := int32(len(data))
 
 	if dataLen < d.cfg.MinMsgSize || dataLen > d.cfg.MaxMsgSize {
-		res.Error= fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.cfg.MinMsgSize, d.cfg.MaxMsgSize)
+		res.Error = fmt.Errorf("invalid message write size (%d) minMsgSize=%d maxMsgSize=%d", dataLen, d.cfg.MinMsgSize, d.cfg.MaxMsgSize)
 		return res
 	}
 
 	d.writeBuf.Reset()
 	err = binary.Write(&d.writeBuf, binary.BigEndian, dataLen)
 	if err != nil {
-		res.Error=err
+		res.Error = err
 		return res
 	}
 
 	_, err = d.writeBuf.Write(data)
 	if err != nil {
-		res.Error=err
+		res.Error = err
 		return res
 	}
 
@@ -584,7 +583,7 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 	if err != nil {
 		d.writeFile.Close()
 		d.writeFile = nil
-		res.Error=err
+		res.Error = err
 		return res
 	}
 
@@ -615,9 +614,9 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 		}
 	}
 
-	res.Error=err
-	res.Segment=d.writeSegmentNum
-	res.Position=d.writePos
+	res.Error = err
+	res.Segment = d.writeSegmentNum
+	res.Position = d.writePos
 	return res
 }
 

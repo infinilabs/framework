@@ -3,9 +3,9 @@
 package fasthttpadaptor
 
 import (
+	"infini.sh/framework/lib/fasthttp"
 	"io"
 	"net/http"
-	"infini.sh/framework/lib/fasthttp"
 )
 
 // NewFastHTTPHandlerFunc wraps net/http handler func to fasthttp

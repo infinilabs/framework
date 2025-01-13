@@ -45,11 +45,11 @@ func TestGoroutinesInfo(t *testing.T) {
 
 	stacks := strings.Split(string(buf[:n]), "\n\n")
 	grouped := make(map[string]int)
-	patternMem, err := regexp.Compile(`\+?0x[\d\w]+`)
+	patternMem, err := regexp.Compile("\\+?0x[\\d\\w]+")
 	if err != nil {
 		panic(err)
 	}
-	patternID, err := regexp.Compile(`^goroutine \d+`)
+	patternID, err := regexp.Compile("^goroutine \\d+")
 	if err != nil {
 		panic(err)
 	}

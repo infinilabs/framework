@@ -279,7 +279,7 @@ func IsFileWithinFolder(file, path string) bool {
 	}
 }
 
-//CreateFile create file
+// CreateFile create file
 func CreateFile(dir string, name string) (string, error) {
 	src := dir + name + "/"
 	if IsExist(src) {
@@ -302,7 +302,7 @@ func FileExtension(file string) string {
 	return strings.ToLower(strings.TrimSpace(ext))
 }
 
-//Smart get file abs path
+// Smart get file abs path
 func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 	filename, _ := filepath.Abs(filePath)
 	if FileExists(filename) {

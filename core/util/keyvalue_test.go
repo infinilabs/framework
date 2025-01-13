@@ -35,17 +35,17 @@ import (
 
 func TestSortKeyValueArray(t *testing.T) {
 
-	kv:=[]KeyValue{}
-	kv=append(kv,KeyValue{"a",1,nil})
-	kv=append(kv,KeyValue{"b",2,nil})
-	kv=append(kv,KeyValue{"c",3,nil})
+	kv := []KeyValue{}
+	kv = append(kv, KeyValue{"a", 1, nil})
+	kv = append(kv, KeyValue{"b", 2, nil})
+	kv = append(kv, KeyValue{"c", 3, nil})
 
-	kv=SortKeyValueArray(kv,false)
+	kv = SortKeyValueArray(kv, false)
 
 	fmt.Println(kv)
 	assert.Equal(t, kv[0].Key, "c")
 
-	kv=SortKeyValueArray(kv,true)
+	kv = SortKeyValueArray(kv, true)
 
 	fmt.Println(kv)
 	assert.Equal(t, kv[0].Key, "a")

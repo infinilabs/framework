@@ -39,12 +39,13 @@
 // under the License.
 
 package safemapstr
+
 import (
 	"infini.sh/framework/core/util"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	)
+)
 
 func TestPut(t *testing.T) {
 	m := util.MapStr{

@@ -171,14 +171,13 @@ func fmix64(h uint64) uint64 {
 }
 func IntToByte(num int64) []byte {
 	var buffer bytes.Buffer
-	 binary.Write(&buffer, binary.BigEndian, num)
+	binary.Write(&buffer, binary.BigEndian, num)
 	return buffer.Bytes()
 }
 
 func converToBianry(n int) string {
 	return fmt.Sprintf("%b", n)
 }
-
 
 // MurmurHash3 for x86, 32-bit (MurmurHash3_x86_32)
 func Murmur3A(key []byte, seed uint32) int32 {
@@ -190,8 +189,8 @@ func Murmur3A(key []byte, seed uint32) int32 {
 
 	// body
 	for i := 0; i < nblocks; i++ {
-		bt:=key[i*4:]
-		if len(bt)<=0{
+		bt := key[i*4:]
+		if len(bt) <= 0 {
 			continue
 		}
 		var k1 int32
@@ -203,8 +202,8 @@ func Murmur3A(key []byte, seed uint32) int32 {
 		h1 ^= k1
 		h1 = int32(bits.RotateLeft32(uint32(h1), 13))
 
-		h1 = h1*5
-		h1= int32(uint32(h1) + 0xe6546b64)
+		h1 = h1 * 5
+		h1 = int32(uint32(h1) + 0xe6546b64)
 
 	}
 

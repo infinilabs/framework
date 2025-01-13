@@ -76,7 +76,7 @@ func New(cfg *config.Config) (*Metric, error) {
 }
 
 func (m *Metric) Collect() error {
-	if !m.Enabled{
+	if !m.Enabled {
 		return nil
 	}
 

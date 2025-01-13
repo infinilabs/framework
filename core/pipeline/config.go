@@ -65,7 +65,6 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 		return false
 	}
 
-
 	return true
 }
 

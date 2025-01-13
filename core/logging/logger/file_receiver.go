@@ -32,17 +32,17 @@ import (
 	"io"
 )
 
-func NewFileReceiver(writer io.Writer, minLogLevel log.LogLevel) *FileReceiver{
+func NewFileReceiver(writer io.Writer, minLogLevel log.LogLevel) *FileReceiver {
 	return &FileReceiver{
-		writer: writer,
+		writer:      writer,
 		minLogLevel: minLogLevel,
 	}
 }
 
 // FileReceiver is a struct of file log receiver, which implements seelog.CustomReceiver
 type FileReceiver struct {
-	writer io.Writer
-	minLogLevel     log.LogLevel
+	writer      io.Writer
+	minLogLevel log.LogLevel
 }
 
 // ReceiveMessage impl how to receive log message
@@ -75,4 +75,3 @@ func (ar *FileReceiver) Close() error {
 	}
 	return nil
 }
-

@@ -252,7 +252,7 @@ type SocketStats struct {
 	TcpClosing     uint `json:"closing,omitempty"`
 }
 
-//fetch socks
+// fetch socks
 func calculateConnStats(conns []net.ConnectionStat) util.MapStr {
 	var (
 		allConns       = len(conns)

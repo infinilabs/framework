@@ -48,15 +48,14 @@ import (
 
 func TestGzipCompress(t *testing.T) {
 
-		str:=[]byte("Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.")
-		data:=GzipCompress(&str,gzip.BestCompression)
+	str := []byte("Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.")
+	data := GzipCompress(&str, gzip.BestCompression)
 
-		fmt.Println(len(str),"vs",len(data))
+	fmt.Println(len(str), "vs", len(data))
 
-		data1,_:=GzipDecompress(&data)
-		fmt.Println(len(data),"vs",len(data1))
+	data1, _ := GzipDecompress(&data)
+	fmt.Println(len(data), "vs", len(data1))
 
-		assert.Equal(t, str, data1)
-
+	assert.Equal(t, str, data1)
 
 }

@@ -90,8 +90,8 @@ func NewDAGProcessor(c *config2.Config) (Processor, error) {
 
 	//log.Info("init dag processor")
 
-	if len(cfg.ParallelProcessors)==0{
-		return nil,errors.New("parallel is not set")
+	if len(cfg.ParallelProcessors) == 0 {
+		return nil, errors.New("parallel is not set")
 	}
 
 	processor.dag = NewDAG(cfg.Mode)

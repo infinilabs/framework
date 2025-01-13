@@ -38,4 +38,3 @@ type QueueSelector struct {
 func (s *QueueSelector) ToString() string {
 	return fmt.Sprintf("ids:%v, keys:%v, labels:%v", s.Ids, s.Keys, s.Labels)
 }
-

@@ -34,7 +34,6 @@ import (
 	"time"
 )
 
-
 func Push(k *QueueConfig, v []byte) error {
 	var err error = nil
 	if k == nil || k.ID == "" {
@@ -105,7 +104,6 @@ func PopTimeout(k *QueueConfig, timeoutInSeconds time.Duration) (data []byte, ti
 	}
 	panic(errors.New("handler is not registered"))
 }
-
 
 func Depth(k *QueueConfig) int64 {
 	if k == nil || k.ID == "" {

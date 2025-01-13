@@ -37,8 +37,8 @@ import (
 
 // WebsocketReceiver is a struct of websocket log receiver, which implements seelog.CustomReceiver
 type WebsocketReceiver struct {
-	config          *config.LoggingConfig
-	minLogLevel     log.LogLevel
+	config            *config.LoggingConfig
+	minLogLevel       log.LogLevel
 	handleMessageFunc func(message string, level log.LogLevel, context log.LogContextInterface)
 }
 

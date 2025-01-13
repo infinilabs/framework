@@ -114,7 +114,7 @@ func FlattenPrefixedToResultWithTagAsFieldName(value interface{}, prefix string,
 		for _, childKey := range original.MapKeys() {
 			childValue := original.MapIndex(childKey)
 
-			if ignoreNil&&(childValue.IsZero()||childValue.IsNil()) {
+			if ignoreNil && (childValue.IsZero() || childValue.IsNil()) {
 				break
 			}
 

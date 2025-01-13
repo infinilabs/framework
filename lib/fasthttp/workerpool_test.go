@@ -102,7 +102,7 @@ func testWorkerPoolMaxWorkersCount(t *testing.T) {
 		},
 		MaxWorkersCount: 10,
 		//Logger:          defaultLogger,
-		connState:       func(net.Conn, ConnState) {},
+		connState: func(net.Conn, ConnState) {},
 	}
 	wp.Start()
 

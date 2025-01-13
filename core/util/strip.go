@@ -46,7 +46,7 @@ func StripCtlFromBytes(str string) string {
 	}
 	return string(b[:bl])
 }
- 
+
 func StripCtlAndExtFromBytes(str string) string {
 	b := make([]byte, len(str))
 	var bl int
@@ -59,11 +59,11 @@ func StripCtlAndExtFromBytes(str string) string {
 	}
 	return string(b[:bl])
 }
- 
+
 // two UTF-8 functions identical except for operator comparing c to 127
 func StripCtlFromUTF8(str string) string {
 	return strings.Map(func(r rune) rune {
-		if r==9||r==10||r==13{
+		if r == 9 || r == 10 || r == 13 {
 			return r
 		}
 
@@ -73,10 +73,10 @@ func StripCtlFromUTF8(str string) string {
 		return -1
 	}, str)
 }
- 
+
 func StripCtlAndExtFromUTF8(str string) string {
 	return strings.Map(func(r rune) rune {
-		if r==9||r==10||r==13{
+		if r == 9 || r == 10 || r == 13 {
 			return r
 		}
 
@@ -86,14 +86,14 @@ func StripCtlAndExtFromUTF8(str string) string {
 		return -1
 	}, str)
 }
- 
+
 // Advanced Unicode normalization and filtering,
 // see http://blog.golang.org/normalization and
 // http://godoc.org/golang.org/x/text/unicode/norm for more
 // details.
 func StripCtlAndExtFromUnicode(str string) string {
 	isOk := func(r rune) bool {
-		if r==9||r==10||r==13{
+		if r == 9 || r == 10 || r == 13 {
 			return true
 		}
 
@@ -107,4 +107,3 @@ func StripCtlAndExtFromUnicode(str string) string {
 	str, _, _ = transform.String(t, str)
 	return str
 }
- 

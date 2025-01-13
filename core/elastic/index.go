@@ -52,7 +52,7 @@ type ClusterInformation struct {
 	Version     struct {
 		Number        string `json:"number,intern"`
 		LuceneVersion string `json:"lucene_version,intern"`
-		Distribution string `json:"distribution"`
+		Distribution  string `json:"distribution"`
 	} `json:"version"`
 }
 
@@ -74,22 +74,22 @@ type ClusterInformation struct {
 
 type ClusterHealth struct {
 	ResponseBase
-	Name                        string  `json:"cluster_name"`
-	Status                      string  `json:"status"`
-	TimedOut                    bool    `json:"timed_out"`
-	NumberOfNodes               int     `json:"number_of_nodes"`
-	NumberOf_data_nodes         int     `json:"number_of_data_nodes"`
-	ActivePrimary_shards        int     `json:"active_primary_shards"`
-	ActiveShards                int     `json:"active_shards"`
-	RelocatingShards            int     `json:"relocating_shards"`
-	InitializingShards          int     `json:"initializing_shards"`
-	UnassignedShards            int     `json:"unassigned_shards"`
-	DelayedUnassignedShards     int     `json:"delayed_unassigned_shards"`
-	NumberOfPendingTasks        int     `json:"number_of_pending_tasks"`
-	NumberOfInFlightFetch       int     `json:"number_of_in_flight_fetch"`
-	TaskMaxWaitingInQueueMillis float64 `json:"task_max_waiting_in_queue_millis"`
-	ActiveShardsPercentAsNumber float64 `json:"active_shards_percent_as_number"`
-	Indices map[string]map[string]interface{} `json:"indices"`
+	Name                        string                            `json:"cluster_name"`
+	Status                      string                            `json:"status"`
+	TimedOut                    bool                              `json:"timed_out"`
+	NumberOfNodes               int                               `json:"number_of_nodes"`
+	NumberOf_data_nodes         int                               `json:"number_of_data_nodes"`
+	ActivePrimary_shards        int                               `json:"active_primary_shards"`
+	ActiveShards                int                               `json:"active_shards"`
+	RelocatingShards            int                               `json:"relocating_shards"`
+	InitializingShards          int                               `json:"initializing_shards"`
+	UnassignedShards            int                               `json:"unassigned_shards"`
+	DelayedUnassignedShards     int                               `json:"delayed_unassigned_shards"`
+	NumberOfPendingTasks        int                               `json:"number_of_pending_tasks"`
+	NumberOfInFlightFetch       int                               `json:"number_of_in_flight_fetch"`
+	TaskMaxWaitingInQueueMillis float64                           `json:"task_max_waiting_in_queue_millis"`
+	ActiveShardsPercentAsNumber float64                           `json:"active_shards_percent_as_number"`
+	Indices                     map[string]map[string]interface{} `json:"indices"`
 }
 
 type ClusterState struct {
@@ -104,8 +104,8 @@ type ClusterState struct {
 	RoutingTable *ClusterRoutingTable `json:"routing_table,omitempty"`
 
 	CompressedSizeInBytes int `json:"compressed_size_in_bytes"` //v6.0+
-	Metadata *struct{
-		Indices map[string] interface{} `json:"indices"`
+	Metadata              *struct {
+		Indices map[string]interface{} `json:"indices"`
 	} `json:"metadata,omitempty"`
 }
 
@@ -119,7 +119,7 @@ type ClusterStateNodes struct {
 }
 type ClusterRoutingTable struct {
 	Indices map[string]struct {
-		Shards map[string][]IndexShardRouting`json:"shards"`
+		Shards map[string][]IndexShardRouting `json:"shards"`
 	} `json:"indices"`
 }
 
@@ -189,50 +189,50 @@ type Bucket struct {
 
 type AggregationResponse struct {
 	Buckets []BucketBase `json:"buckets,omitempty"`
-	Value interface{} `json:"value,omitempty"`
+	Value   interface{}  `json:"value,omitempty"`
 }
 
 type ResponseBase struct {
 	RawResult   *util.Result `json:"-"`
 	StatusCode  int          `json:"-"`
 	ErrorObject error        `json:"-"`
-	ESError interface{} `json:"error,omitempty"`
+	ESError     interface{}  `json:"error,omitempty"`
 }
 
-func (this *ResponseBase)GetIntByJsonPath(path string) (interface{},error) {
-	if this.RawResult.Body!=nil{
-		pathArray:=strings.Split(path,".")
-		v,err:=jsonparser.GetInt(this.RawResult.Body,pathArray...)
-		return v,err
+func (this *ResponseBase) GetIntByJsonPath(path string) (interface{}, error) {
+	if this.RawResult.Body != nil {
+		pathArray := strings.Split(path, ".")
+		v, err := jsonparser.GetInt(this.RawResult.Body, pathArray...)
+		return v, err
 	}
-	return nil,errors.New("nil body")
+	return nil, errors.New("nil body")
 }
 
-func (this *ResponseBase)GetBytesByJsonPath(path string) ([]byte,error) {
-	if this.RawResult.Body!=nil{
-		pathArray:=strings.Split(path,".")
-		v,_,_,err:=jsonparser.Get(this.RawResult.Body,pathArray...)
-		return v,err
+func (this *ResponseBase) GetBytesByJsonPath(path string) ([]byte, error) {
+	if this.RawResult.Body != nil {
+		pathArray := strings.Split(path, ".")
+		v, _, _, err := jsonparser.Get(this.RawResult.Body, pathArray...)
+		return v, err
 	}
-	return nil,errors.New("nil body")
+	return nil, errors.New("nil body")
 }
 
-func (this *ResponseBase)GetStringByJsonPath(path string) (interface{},error) {
-	if this.RawResult.Body!=nil{
-		pathArray:=strings.Split(path,".")
-		v,err:=jsonparser.GetString(this.RawResult.Body,pathArray...)
-		return v,err
+func (this *ResponseBase) GetStringByJsonPath(path string) (interface{}, error) {
+	if this.RawResult.Body != nil {
+		pathArray := strings.Split(path, ".")
+		v, err := jsonparser.GetString(this.RawResult.Body, pathArray...)
+		return v, err
 	}
-	return nil,errors.New("nil body")
+	return nil, errors.New("nil body")
 }
 
-func (this *ResponseBase)GetBoolByJsonPath(path string) (interface{},error) {
-	if this.RawResult.Body!=nil{
-		pathArray:=strings.Split(path,".")
-		v,err:=jsonparser.GetBoolean(this.RawResult.Body,pathArray...)
-		return v,err
+func (this *ResponseBase) GetBoolByJsonPath(path string) (interface{}, error) {
+	if this.RawResult.Body != nil {
+		pathArray := strings.Split(path, ".")
+		v, err := jsonparser.GetBoolean(this.RawResult.Body, pathArray...)
+		return v, err
 	}
-	return nil,errors.New("nil body")
+	return nil, errors.New("nil body")
 }
 
 // InsertResponse is a index response object
@@ -358,9 +358,9 @@ func (match *TermsQuery) Set(field string, v []interface{}) {
 
 func (match *TermsQuery) SetStringArray(field string, v []string) {
 	match.Match = map[string][]interface{}{}
-	obj:=[]interface{}{}
+	obj := []interface{}{}
 	for _, s := range v {
-		if s!="" {
+		if s != "" {
 			obj = append(obj, s)
 		}
 	}
@@ -427,9 +427,9 @@ type Query struct {
 	BoolQuery *BoolQuery `json:"bool"`
 }
 
-func (q *Query) Must(query interface{})  {
-	if q.BoolQuery==nil{
-		q.BoolQuery=&BoolQuery{}
+func (q *Query) Must(query interface{}) {
+	if q.BoolQuery == nil {
+		q.BoolQuery = &BoolQuery{}
 	}
 	q.BoolQuery.Must = append(q.BoolQuery.Must, query)
 }
@@ -438,60 +438,60 @@ func (q *Query) Must(query interface{})  {
 type SearchRequest struct {
 	rootField util.MapStr
 
-	Query              *Query         `json:"query,omitempty"`
-	From               int            `json:"from"`
-	Size               int            `json:"size"`
+	Query *Query `json:"query,omitempty"`
+	From  int    `json:"from"`
+	Size  int    `json:"size"`
 
-	Collapse           *Collapse `json:"collapse,omitempty"`
+	Collapse *Collapse `json:"collapse,omitempty"`
 
-	Sort               *[]interface{} `json:"sort,omitempty"`
-	Source             interface{} `json:"_source,omitempty"`
+	Sort               *[]interface{}      `json:"sort,omitempty"`
+	Source             interface{}         `json:"_source,omitempty"`
 	AggregationRequest *AggregationRequest `json:"aggs,omitempty"`
 }
 
-func (request *SearchRequest) ToJSONString() string{
-	if request.Query!=nil{
-		request.Set("query",request.Query)
+func (request *SearchRequest) ToJSONString() string {
+	if request.Query != nil {
+		request.Set("query", request.Query)
 	}
 
-	if request.From>=0{
-		request.Set("from",request.From)
+	if request.From >= 0 {
+		request.Set("from", request.From)
 	}
-	if request.Size>=0{
-		request.Set("size",request.Size)
-	}
-
-	if request.Collapse!=nil{
-		request.Set("collapse",request.Collapse)
-	}
-	if request.Sort!=nil{
-		request.Set("sort",request.Sort)
+	if request.Size >= 0 {
+		request.Set("size", request.Size)
 	}
 
-	if request.Source!=nil{
-		request.Set("_source",request.Source)
+	if request.Collapse != nil {
+		request.Set("collapse", request.Collapse)
+	}
+	if request.Sort != nil {
+		request.Set("sort", request.Sort)
 	}
 
-	if request.AggregationRequest!=nil{
-		request.Set("aggs",request.AggregationRequest)
+	if request.Source != nil {
+		request.Set("_source", request.Source)
 	}
 
-	return util.ToJson(request.rootField,false)
+	if request.AggregationRequest != nil {
+		request.Set("aggs", request.AggregationRequest)
+	}
+
+	return util.ToJson(request.rootField, false)
 }
 
-func GetSearchRequest(querystring,dsl,sourceFields string, sortField, sortType string)*SearchRequest  {
-	var query =&SearchRequest{}
-	if dsl!=""{
-		err:=util.FromJSONBytes([]byte(dsl),query)
-		if err!=nil{
+func GetSearchRequest(querystring, dsl, sourceFields string, sortField, sortType string) *SearchRequest {
+	var query = &SearchRequest{}
+	if dsl != "" {
+		err := util.FromJSONBytes([]byte(dsl), query)
+		if err != nil {
 			panic(err)
 		}
 	}
 
-	if querystring!=""{
-		queryString:=NewQueryString(querystring)
-		if query.Query==nil{
-			query.Query=&Query{}
+	if querystring != "" {
+		queryString := NewQueryString(querystring)
+		if query.Query == nil {
+			query.Query = &Query{}
 		}
 		query.Query.Must(queryString)
 	}
@@ -501,20 +501,19 @@ func GetSearchRequest(querystring,dsl,sourceFields string, sortField, sortType s
 		if len(sortType) == 0 {
 			sortType = "asc"
 		}
-		query.AddSort(sortField,sortType)
+		query.AddSort(sortField, sortType)
 	}
 
 	//handle _source
 	if len(sourceFields) > 0 {
 		if !strings.Contains(sourceFields, ",") {
-			query.Source=sourceFields
+			query.Source = sourceFields
 		} else {
 			query.Source = strings.Split(sourceFields, ",")
 		}
 	}
 	return query
 }
-
 
 type Collapse struct {
 	Field string `json:"field,omitempty"`
@@ -540,10 +539,10 @@ func (request *SearchRequest) AddSort(field string, order string) {
 	*request.Sort = append(*request.Sort, s)
 }
 
-func (request *SearchRequest) Set(key string, value interface{})error {
-	if request.rootField==nil{
-		request.rootField=util.MapStr{}
+func (request *SearchRequest) Set(key string, value interface{}) error {
+	if request.rootField == nil {
+		request.rootField = util.MapStr{}
 	}
-	_,err:=request.rootField.Put(key,value)
+	_, err := request.rootField.Put(key, value)
 	return err
 }

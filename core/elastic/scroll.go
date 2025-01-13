@@ -23,14 +23,12 @@
 
 package elastic
 
-
-
 type ScrollResponse struct {
 	Took     int    `json:"took,omitempty"`
 	ScrollId string `json:"_scroll_id,omitempty,nocopy"`
 	TimedOut bool   `json:"timed_out,omitempty"`
 	Hits     struct {
-		MaxScore float32       `json:"max_score,omitempty"`
+		MaxScore float32         `json:"max_score,omitempty"`
 		Total    int64           `json:"total,omitempty"`
 		Docs     []IndexDocument `json:"hits,omitempty"`
 	} `json:"hits"`
@@ -41,10 +39,10 @@ type ScrollResponseV7 struct {
 	Took     int    `json:"took,omitempty"`
 	ScrollId string `json:"_scroll_id,omitempty,nocopy"`
 	TimedOut bool   `json:"timed_out,omitempty"`
-	Hits struct {
+	Hits     struct {
 		MaxScore float32 `json:"max_score,omitempty"`
 		Total    struct {
-			Value    int64    `json:"value,omitempty"`
+			Value    int64  `json:"value,omitempty"`
 			Relation string `json:"relation,omitempty"`
 		} `json:"total,omitempty"`
 		Docs []IndexDocument `json:"hits,omitempty"`
@@ -91,4 +89,3 @@ func (scroll *ScrollResponseV7) GetDocs() []IndexDocument {
 func (scroll *ScrollResponseV7) GetShardResponse() ShardResponse {
 	return scroll.Shards
 }
-

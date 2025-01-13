@@ -79,7 +79,7 @@ func CreateCronTrigger(expression string, location *time.Location) (*CronTrigger
 	if loc == nil {
 		if location != nil {
 			loc = location
-		}else{
+		} else {
 			loc = time.Local
 		}
 	}

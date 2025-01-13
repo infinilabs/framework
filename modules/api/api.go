@@ -87,7 +87,7 @@ func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 
 	if global.Env().SetupRequired() {
 		obj["setup_required"] = global.Env().SetupRequired()
-	}else{
+	} else {
 		//perform system cluster health check only when it is set up
 		globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
 		meta := elastic.GetMetadata(globalID)
@@ -127,8 +127,8 @@ func infoAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 	hostInfo.Hardware = &model.HardwareInfo{
 		Processor: util.MapStr{
 			"physical_core": physicalCore,
-			"logic_core": logicCore,
-			"model": modelName,
+			"logic_core":    logicCore,
+			"model":         modelName,
 		},
 	}
 	info := model.GetInstanceInfo()

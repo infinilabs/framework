@@ -54,7 +54,7 @@ import (
 	"infini.sh/framework/core/pipeline/internal"
 )
 
-var pools=sync.Map{}
+var pools = sync.Map{}
 
 // Pool accepts the tasks from client, it limits the total of goroutines to a given number by recycling goroutines.
 type Pool struct {
@@ -175,23 +175,23 @@ func NewPool(size int, options ...Option) (*Pool, error) {
 	return p, nil
 }
 
-func GetPoolStats()interface{} {
-	stats:=map[string]map[string]int32{}
+func GetPoolStats() interface{} {
+	stats := map[string]map[string]int32{}
 	pools.Range(func(key, value any) bool {
-		v:=value.(*Pool)
-		if v!=nil{
-			x:=map[string]int32{}
-			x["running"]=v.running
-			x["capacity"]=v.capacity
-			x["blocking"]=int32(v.blockingNum)
-			stats[key.(string)]=x
+		v := value.(*Pool)
+		if v != nil {
+			x := map[string]int32{}
+			x["running"] = v.running
+			x["capacity"] = v.capacity
+			x["blocking"] = int32(v.blockingNum)
+			stats[key.(string)] = x
 		}
 		return true
 	})
 	return stats
 }
 
-func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
+func NewPoolWithTag(tag string, size int, options ...Option) (*Pool, error) {
 	opts := loadOptions(options...)
 
 	if size <= 0 {
@@ -231,7 +231,7 @@ func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
 
 	p.cond = sync.NewCond(p.lock)
 
-	pools.Store(tag,p)
+	pools.Store(tag, p)
 
 	// Start a goroutine to clean up expired workers periodically.
 	go p.purgePeriodically()
@@ -249,7 +249,7 @@ func NewPoolWithTag(tag string,size int, options ...Option) (*Pool, error) {
 // you should instantiate a Pool with ants.WithNonblocking(true).
 func (p *Pool) SubmitSimpleTask(f func()) error {
 	return p.Submit(&Task{
-		Handler: func(ctx *Context,v ...interface{}) {
+		Handler: func(ctx *Context, v ...interface{}) {
 			f()
 		},
 	})

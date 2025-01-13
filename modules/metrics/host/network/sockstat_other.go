@@ -48,8 +48,8 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-//a stub function for non-linux systems
-//get a list of platform-specific enhancements and apply them to our mapStr object.
+// a stub function for non-linux systems
+// get a list of platform-specific enhancements and apply them to our mapStr object.
 func applyEnhancements(data util.MapStr) (util.MapStr, error) {
 	return data, nil
 }

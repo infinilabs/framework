@@ -442,9 +442,9 @@ func lexer(in string) (<-chan token, <-chan error) {
 						// start variable
 						strToken(content[:idx])
 						lex <- openToken
-						off+=2
+						off += 2
 						varcount++
-					}else{
+					} else {
 						continue
 					}
 

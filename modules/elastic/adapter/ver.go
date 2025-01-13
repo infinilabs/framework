@@ -80,11 +80,11 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 		metadata.Config.RequestTimeout = 5
 	}
 
-	req:=util.Request{Method: fasthttp.MethodGet,Url: url}
+	req := util.Request{Method: fasthttp.MethodGet, Url: url}
 	if metadata.Config.BasicAuth != nil {
 		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password.Get())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout) * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout)*time.Second)
 	req.Context = ctx
 	defer cancel()
 
@@ -167,7 +167,7 @@ func RequestTimeout(ctx *elastic.APIContext, method, url string, body []byte, me
 
 }
 
-func GetClusterUUID(clusterID string) (string, error){
+func GetClusterUUID(clusterID string) (string, error) {
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
 		return "", fmt.Errorf("metadata can not be mepty")

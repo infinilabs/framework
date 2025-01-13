@@ -7,7 +7,7 @@ package fasthttp
 import "testing"
 
 func TestCtxEncode(t *testing.T) {
-	ctx:=RequestCtx{}
-	ctx.Request=Request{}
+	ctx := RequestCtx{}
+	ctx.Request = Request{}
 	ctx.Request.SetRequestURI("/favicon.ico")
 }

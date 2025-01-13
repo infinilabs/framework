@@ -99,7 +99,7 @@ func GetHost(url string) string {
 	return uri.Host
 }
 
-//GetRootUrl parse to get url root
+// GetRootUrl parse to get url root
 func GetRootUrl(source *uri.URL) string {
 	if strings.HasSuffix(source.Path, "/") {
 		return source.Host + source.Path
@@ -114,7 +114,7 @@ func GetRootUrl(source *uri.URL) string {
 	return source.Host + "/"
 }
 
-//FormatUrlForFilter format url, normalize url
+// FormatUrlForFilter format url, normalize url
 func formatUrlForFilter(url []byte) []byte {
 	src := string(url)
 	log.Trace("start to normalize url:", src)
@@ -303,7 +303,7 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 	}
 	if _, ok := parentCtx.Deadline(); ok {
 		request = request.WithContext(req.Context)
-	} else{
+	} else {
 		// use context to control default timeout
 		timeCtx, cancel := context.WithTimeout(parentCtx, timeout)
 		defer cancel()

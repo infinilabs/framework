@@ -114,15 +114,15 @@ func (c LengthEquals) Check(event ValuesMap) bool {
 			return false
 		}
 
-		length:=getLength(value)
-		if length>0{
+		length := getLength(value)
+		if length > 0 {
 			if !equalValue(length) {
 				if isDebug {
 					logger.Warnf("'%s' is not equal to expected value, actual: %v", field, value)
 				}
 				return false
 			}
-		}else{
+		} else {
 			if isDebug {
 				panic(errors.Errorf("field [%v] not supported to get length, value: %v", field, value))
 			}

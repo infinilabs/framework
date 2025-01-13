@@ -27,21 +27,21 @@
 package rate
 
 import (
-	"sync"
 	"golang.org/x/time/rate"
+	"sync"
 	"time"
 )
 
 var raters = make(map[string]map[string]*rate.Limiter)
 var mu sync.Mutex
 
-func GetRateLimiterPerSecond(category,key string, maxQPS int) *rate.Limiter {
+func GetRateLimiterPerSecond(category, key string, maxQPS int) *rate.Limiter {
 	mu.Lock()
 	defer mu.Unlock()
 
-	_,ok:=raters[category]
-	if !ok{
-		raters[category]=map[string]*rate.Limiter{}
+	_, ok := raters[category]
+	if !ok {
+		raters[category] = map[string]*rate.Limiter{}
 	}
 
 	limiter, exists := raters[category][key]
@@ -53,17 +53,17 @@ func GetRateLimiterPerSecond(category,key string, maxQPS int) *rate.Limiter {
 	return limiter
 }
 
-func GetRateLimiter(category,key string,limit,burstLimit int,interval time.Duration) *rate.Limiter {
+func GetRateLimiter(category, key string, limit, burstLimit int, interval time.Duration) *rate.Limiter {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if burstLimit<limit{
-		burstLimit=limit
+	if burstLimit < limit {
+		burstLimit = limit
 	}
 
-	_,ok:=raters[category]
-	if !ok{
-		raters[category]=map[string]*rate.Limiter{}
+	_, ok := raters[category]
+	if !ok {
+		raters[category] = map[string]*rate.Limiter{}
 	}
 
 	limiter, exists := raters[category][key]

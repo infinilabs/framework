@@ -33,11 +33,11 @@ import (
 	"testing"
 )
 
-func TestBuildSearchTermAggregations(t *testing.T){
+func TestBuildSearchTermAggregations(t *testing.T) {
 	aggs := BuildSearchTermAggregations([]SearchAggParam{
 		{Field: "name", TermsAggParams: util.MapStr{
 			"size": 100,
-		}},{
+		}}, {
 			Field: "labels.health_status",
 			TermsAggParams: util.MapStr{
 				"size": 10,
@@ -47,10 +47,10 @@ func TestBuildSearchTermAggregations(t *testing.T){
 	fmt.Println(aggs)
 }
 
-func TestBuildSearchTermFilter(t *testing.T){
+func TestBuildSearchTermFilter(t *testing.T) {
 	filter := BuildSearchTermFilter(map[string][]string{
 		"version": {"5.6.8", "2.4.6"},
-		"tags": {"v5", "infini"},
+		"tags":    {"v5", "infini"},
 	})
 	fmt.Println(filter)
 }

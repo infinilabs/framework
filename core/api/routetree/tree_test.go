@@ -118,6 +118,9 @@ type ElasticsearchAPIMetadata struct {
 type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
 
 func load() *Router {
+	bytes, _ := util.FileGetContent("/Users/liugq/go/src/infini.sh/console/config/permission.json")
+
+func load() *Router {
 	apis := map[string]ElasticsearchAPIMetadataList{}
 	json.Unmarshal([]byte(yarmTest), &apis)
 	var esAPIRouter = New()

@@ -75,6 +75,8 @@ func TestAllocationClient(t *testing.T) {
 	}
 }
 
+var defaultHTTPPool = NewRequestResponsePool("default_http")
+
 func TestAllocationURI(t *testing.T) {
 	if os.Getenv("CI") == "true" {
 		t.Skip("Skipping in CI environment")

@@ -559,7 +559,7 @@ func (s spliceDynValue) getValue(
 	var parseCfg parse.Config
 	if opts.defaultParseConfig != nil {
 		parseCfg = *opts.defaultParseConfig
-	}else{
+	} else {
 		parseCfg = parse.DefaultConfig
 	}
 	return parseValue(p, opts, str, parseCfg)

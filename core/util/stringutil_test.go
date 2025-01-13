@@ -93,56 +93,54 @@ func TestTrimLeft(t *testing.T) {
 	assert.Equal(t, "/static://off", new)
 }
 
-
 func TestToInt64(t *testing.T) {
 	str := "6393600409"
-	new,_:=ToInt64(str)
+	new, _ := ToInt64(str)
 	fmt.Println(new)
 }
 
 func TestContainsAnyInAnyIntArray(t *testing.T) {
-	str:="key"
-	strs:=[]interface{}{}
-	strs=append(strs,"key","key1")
-	ok:=ContainsAnyInAnyIntArray(str,strs)
+	str := "key"
+	strs := []interface{}{}
+	strs = append(strs, "key", "key1")
+	ok := ContainsAnyInAnyIntArray(str, strs)
 	fmt.Println(ok)
 	assert.Equal(t, true, ok)
 
-	str="key3"
-	ok=ContainsAnyInAnyIntArray(str,strs)
+	str = "key3"
+	ok = ContainsAnyInAnyIntArray(str, strs)
 	fmt.Println(ok)
 	assert.Equal(t, false, ok)
 
-
-	str1:=5
-	strs2:=[]interface{}{}
-	strs2=append(strs2,5,6)
-	ok2:=ContainsAnyInAnyIntArray(str1,strs2)
+	str1 := 5
+	strs2 := []interface{}{}
+	strs2 = append(strs2, 5, 6)
+	ok2 := ContainsAnyInAnyIntArray(str1, strs2)
 	fmt.Println(ok2)
 	assert.Equal(t, true, ok2)
 
-	str1=7
-	ok2=ContainsAnyInAnyIntArray(str1,strs2)
+	str1 = 7
+	ok2 = ContainsAnyInAnyIntArray(str1, strs2)
 	fmt.Println(ok2)
 	assert.Equal(t, false, ok2)
 }
 
 func TestContainsString(t *testing.T) {
-	a:="{\"error\":true,\"message\":\"timeout\"}"
-	b:="\"message\":\"timeout\""
-	ok:=ContainStr(a,b)
+	a := "{\"error\":true,\"message\":\"timeout\"}"
+	b := "\"message\":\"timeout\""
+	ok := ContainStr(a, b)
 	fmt.Println(ok)
 	assert.Equal(t, true, ok)
 }
 
 func TestInt64ToString(t *testing.T) {
 	i := 6393600409
-	new:=Int64ToString(int64(i))
+	new := Int64ToString(int64(i))
 	fmt.Println(new)
 	assert.Equal(t, "6393600409", new)
 
 	i = 63
-	new=Int64ToString(int64(i))
+	new = Int64ToString(int64(i))
 	fmt.Println(new)
 	assert.Equal(t, "63", new)
 }
