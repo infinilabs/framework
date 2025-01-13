@@ -29,7 +29,7 @@ package elastic
 
 import (
 	"fmt"
-	"src/github.com/buger/jsonparser"
+	"github.com/buger/jsonparser"
 )
 
 var ActionIndex = "index"
@@ -40,7 +40,7 @@ var ActionUpdate = "update"
 var ActionStart = []byte("\"")
 var ActionEnd = []byte("\"")
 
-var Actions = []string{"index", "delete", "create", "update"}
+var Actions = []string{ActionIndex, ActionDelete, ActionCreate, ActionUpdate}
 
 func ParseActionMeta(data []byte) (action, index, typeName, id, routing string, err error) {
 	// Extract the first key of the JSON object to determine the action
@@ -82,38 +82,3 @@ func ParseActionMeta(data []byte) (action, index, typeName, id, routing string, 
 
 	return action, index, typeName, id, routing, err
 }
-
-//func ParseActionMeta(data []byte) (action, index, typeName, id, routing string, err error) {
-//
-//	match := false
-//	for _, v := range Actions {
-//		jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-//			switch string(key) {
-//			case "_index":
-//				index = string(value)
-//				break
-//			case "_type":
-//				typeName = string(value)
-//				break
-//			case "_id":
-//				id = string(value)
-//				break
-//			case "_routing":
-//				routing = string(value)
-//				break
-//			}
-//			match = true
-//			return nil
-//		}, v)
-//		action = v
-//		if match {
-//			return action, index, typeName, id, routing, nil
-//		}
-//	}
-//
-//	if action==""{
-//		return action, "", "", "", "", errors.Errorf("invalid_meta_buffer: %v", string(data))
-//	}
-//
-//	return action, index, typeName, id, routing, nil
-//}

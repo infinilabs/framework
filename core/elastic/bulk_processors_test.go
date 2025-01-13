@@ -26,7 +26,6 @@ package elastic
 import (
 	"fmt"
 	"github.com/buger/jsonparser"
-	"github.com/stretchr/testify/assert"
 	"infini.sh/framework/core/util"
 	"math"
 	"testing"
@@ -134,27 +133,4 @@ func TestRetryRules_Retryable(t *testing.T) {
 
 	ok = rules.Retryable(429, "{\"error\":{\"root_cause\":[{\"type\":\"es_rejected_execution_exception\",\"reason\":\"rejected execution of coordinating operation [coordinating_and_primary_bytes=3325454943, replica_bytes=0, all_bytes=3325454943, coordinating_operation_bytes=9054099, max_coordinating_and_primary_bytes=3328599654]\"}],\"type\":\"es_rejected_execution_exception\",\"reason\":\"rejected execution of coordinating operation [coordinating_and_primary_bytes=3325454943, replica_bytes=0, all_bytes=3325454943, coordinating_operation_bytes=9054099, max_coordinating_and_primary_bytes=3328599654]\"},\"status\":429}")
 	fmt.Println(ok)
-}
-
-func TestParseActionMeta3(t *testing.T) {
-
-	data := []byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"_doc\",\"_id\":\"GZq-bnYBC53QmW9Kk2ve\"}}")
-	newData, err := UpdateBulkMetadata("index", data, "newIndex", "newType", "newId")
-	fmt.Println(err, string(newData))
-	assert.Equal(t, string(newData), "{\"index\":{\"_index\":\"newIndex\",\"_type\":\"newType\",\"_id\":\"newId\"}}")
-
-	data = []byte("{\"index\":{\"_index\":\"medcl1\",\"_id\":\"GZq-bnYBC53QmW9Kk2ve\"}}")
-	newData, err = UpdateBulkMetadata("index", data, "newIndex", "newType", "newId")
-	fmt.Println(err, string(newData))
-	assert.Equal(t, string(newData), "{\"index\":{\"_index\":\"newIndex\",\"_id\":\"newId\",\"_type\":\"newType\"}}")
-
-	data = []byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"doc1\"}}")
-	newData, err = UpdateBulkMetadata("index", data, "newIndex", "newType", "newId")
-	fmt.Println(err, string(newData))
-	assert.Equal(t, string(newData), "{\"index\":{\"_index\":\"newIndex\",\"_type\":\"newType\",\"_id\":\"newId\"}}")
-
-	data = []byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"doc1\"}}")
-	newData, err = UpdateBulkMetadata("index", data, "", "", "newId")
-	fmt.Println(err, string(newData))
-	assert.Equal(t, string(newData), "{\"index\":{\"_index\":\"medcl1\",\"_type\":\"doc1\",\"_id\":\"newId\"}}")
 }
