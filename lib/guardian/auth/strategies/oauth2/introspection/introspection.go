@@ -32,10 +32,10 @@ func GetAuthenticateFunc(addr string, opts ...auth.Option) token.AuthenticateFun
 //
 //	fn := introspection.GetAuthenticateFunc(addr, opts...)
 //	token.New(fn, cache, opts...)
-func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
-	fn := GetAuthenticateFunc(addr, opts...)
-	return token.New(fn, c, opts...)
-}
+// func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
+// 	fn := GetAuthenticateFunc(addr, opts...)
+// 	return token.New(fn, c, opts...)
+// }
 
 func newIntrospection(addr string, opts ...auth.Option) *introspection {
 	r := internal.NewRequester(addr)

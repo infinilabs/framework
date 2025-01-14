@@ -64,10 +64,10 @@ func GetAuthenticateFunc(opts ...auth.Option) token.AuthenticateFunc {
 
 // New return strategy authenticate request using kubernetes token review.
 // New is similar to token.New().
-func New(c auth.Cache, opts ...auth.Option) auth.Strategy {
-	fn := GetAuthenticateFunc(opts...)
-	return token.New(fn, c, opts...)
-}
+// func New(c auth.Cache, opts ...auth.Option) auth.Strategy {
+// 	fn := GetAuthenticateFunc(opts...)
+// 	return token.New(fn, c, opts...)
+// }
 
 func newKubeReview(opts ...auth.Option) *kubeReview {
 	r := internal.NewRequester("http://127.0.0.1:6443")

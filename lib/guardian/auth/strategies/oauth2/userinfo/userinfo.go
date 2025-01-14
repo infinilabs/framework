@@ -34,10 +34,10 @@ func GetAuthenticateFunc(addr string, opts ...auth.Option) token.AuthenticateFun
 //
 //	fn := userinfo.GetAuthenticateFunc(addr, opts...)
 //	token.New(fn, cache, opts...)
-func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
-	fn := GetAuthenticateFunc(addr, opts...)
-	return token.New(fn, c, opts...)
-}
+// func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
+// 	fn := GetAuthenticateFunc(addr, opts...)
+// 	return token.New(fn, c, opts...)
+// }
 
 func newUserInfo(addr string, opts ...auth.Option) *userinfo {
 	r := internal.NewRequester(addr)
