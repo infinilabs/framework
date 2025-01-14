@@ -50,7 +50,8 @@ vendor
 *.so
 /test/
 cmd/genfastjson/genfastjson
-config/generated*.go
+config/generated.go
+config/generat*.go
 generated_*.go
 *.swp
 .latest_commit_hash.txt
