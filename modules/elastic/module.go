@@ -67,8 +67,8 @@ var (
 			Interval: "10s",
 		},
 		MetadataRefresh: common.CheckConfig{
-			Enabled:  false,
-			Interval: "10s",
+			Enabled:  true,
+			Interval: "30s",
 		},
 		ORMConfig: common.ORMConfig{
 			Enabled:                 false,
@@ -685,6 +685,9 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		}
 
 		v, ok := value.(*elastic.ElasticsearchMetadata)
+
+		log.Trace("update elasticsearch's metadata:", v, ok)
+
 		if ok {
 			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
 		}
