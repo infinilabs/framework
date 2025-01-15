@@ -106,7 +106,7 @@ type BulkDetailItem struct {
 	Reasons   []string `json:"reasons,omitempty"`
 }
 
-func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool),
+func WalkBulkRequests(pathStr string, data []byte, eachLineFunc func(eachLine []byte) (skipNextLine bool),
 	metaFunc func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error),
 	payloadFunc func(payloadBytes []byte, actionStr, index, typeName, id, routing string),
 	operationFunc func(actionStr, index, typeName, id, routing string)) (int, error) {
@@ -126,6 +126,11 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 	var typeName string
 	var id string
 	var routing string
+
+	var urlLevelIndex string
+	var urlLevelType string
+
+	urlLevelIndex, urlLevelType = ParseUrlLevelBulkMeta(pathStr)
 
 	for i, line := range lines {
 
@@ -155,6 +160,7 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 			if global.Env().IsDebug {
 				log.Trace(docCount, ",", actionStr, index, typeName, id, routing, err, ",", string(line))
 			}
+
 			if err != nil {
 				if global.Env().IsDebug {
 					if util.ContainStr(err.Error(), "invalid_meta_buffer") {
@@ -165,6 +171,36 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 					}
 				}
 				panic(err)
+			}
+
+			//get the index/type from url's path
+			if index == "" {
+
+				var indexNew, typeNew, idNew string
+
+				//only handle empty index
+				if index == "" && urlLevelIndex != "" {
+					index = urlLevelIndex
+					indexNew = urlLevelIndex
+				} else {
+					panic("target index was missing")
+				}
+
+				if typeName == "" && urlLevelType != "" {
+					typeName = urlLevelType
+					typeNew = urlLevelType
+				}
+
+				if indexNew != "" || typeNew != "" || idNew != "" {
+					var err error
+					line, err = UpdateBulkMetadata(actionStr, line, indexNew, typeNew, idNew)
+					if err != nil {
+						panic(err)
+					}
+					if global.Env().IsDebug {
+						log.Trace("updated meta,", id, ",", line)
+					}
+				}
 			}
 
 			err = metaFunc(line, actionStr, index, typeName, id, routing, docCount)
@@ -199,6 +235,37 @@ func WalkBulkRequests(data []byte, eachLineFunc func(eachLine []byte) (skipNextL
 	}
 
 	return docCount, nil
+}
+
+func UpdateBulkMetadata(action string, scannedByte []byte, index, typeName, id string) (newBytes []byte, err error) {
+
+	if global.Env().IsDebug {
+		log.Trace("update:", action, ",", index, ",", typeName, ",", id)
+	}
+
+	newBytes = make([]byte, len(scannedByte))
+	copy(newBytes, scannedByte)
+
+	if index != "" {
+		newBytes, err = jsonparser.Set(newBytes, []byte("\""+index+"\""), action, "_index")
+		if err != nil {
+			return newBytes, err
+		}
+	}
+	if typeName != "" {
+		newBytes, err = jsonparser.Set(newBytes, []byte("\""+typeName+"\""), action, "_type")
+		if err != nil {
+			return newBytes, err
+		}
+	}
+	if id != "" {
+		newBytes, err = jsonparser.Set(newBytes, []byte("\""+id+"\""), action, "_id")
+		if err != nil {
+			return newBytes, err
+		}
+	}
+
+	return newBytes, err
 }
 
 func ParseUrlLevelBulkMeta(pathStr string) (urlLevelIndex, urlLevelType string) {
@@ -671,6 +738,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 	nonRetryableItems.ResetData()
 	retryableItems.ResetData()
 	successItems.ResetData()
+	pathStr := util.UnsafeBytesToString(req.PhantomURI().Path())
 
 	containError := util.LimitedBytesSearch(resbody, []byte("\"errors\":true"), 64)
 	var statsCodeStats = map[int]int{}
@@ -755,7 +823,7 @@ func HandleBulkResponse(req *fasthttp.Request, resp *fasthttp.Response, tag util
 
 	var match = false
 	var retryable = false
-	WalkBulkRequests(requestBytes, func(eachLine []byte) (skipNextLine bool) {
+	WalkBulkRequests(pathStr, requestBytes, func(eachLine []byte) (skipNextLine bool) {
 		return false
 	}, func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error) {
 		if reqFailed {
