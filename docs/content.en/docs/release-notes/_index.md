@@ -14,7 +14,8 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 ### Improvements
 - Add util to http handler, support to parse bool parameter
-- Handle simplified bulk metdata, parse index from url path #59
+- Handle simplified bulk metdata, parse index from url path (#59)
+- Improve handling of message read for partially loaded files (#63)
 
 
 ## v1.1.0 (2025-01-11) 
