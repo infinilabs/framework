@@ -70,6 +70,8 @@ type ORM interface {
 
 	Search(o interface{}, q *Query) (error, Result)
 
+	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) //	var results []ObjectItem; orm.SearchWithResultItemMapper(&results, mapperFunc, &query)
+
 	Get(o interface{}) (bool, error)
 
 	GetBy(field string, value interface{}, o interface{}) (error, Result)
@@ -292,6 +294,11 @@ type Result struct {
 	Result []interface{}
 }
 
+type SimpleResult struct {
+	Total int64
+	Raw   []byte
+}
+
 func Get(o interface{}) (bool, error) {
 	rValue := reflect.ValueOf(o)
 
@@ -460,6 +467,14 @@ func Count(o interface{}, query interface{}) (int64, error) {
 
 func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
+}
+
+func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) {
+	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
+}
+
+func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
+	return getHandler().SearchWithResultItemMapper(o, MapToStructWithJSONUnmarshal, q)
 }
 
 func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
