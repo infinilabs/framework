@@ -11,6 +11,8 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Breaking changes
 ### Features
+- Add new search function to orm module, support result item mapper (#65)
+
 ### Bug fix
 ### Improvements
 - Add util to http handler, support to parse bool parameter
