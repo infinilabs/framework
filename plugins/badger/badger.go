@@ -58,10 +58,15 @@ func (filter *Module) Open() error {
 
 	if filter.cfg.ValueLogGCEnabled {
 		global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "badger_gc", Func: func() {
-			err := filter.bucket.RunValueLogGC(filter.cfg.ValueLogDiscardRatio)
-			if err != nil && err != badger.ErrNoRewrite {
-				log.Error(err)
-			}
+			buckets.Range(func(key, value interface{}) bool {
+				if db, ok := value.(*badger.DB); ok {
+					err := db.RunValueLogGC(filter.cfg.ValueLogDiscardRatio)
+					if err != nil && err != badger.ErrNoRewrite {
+						log.Errorf("running value log gc failed: %v", err)
+					}
+				}
+				return true
+			})
 		}, Interval: time.Duration(filter.cfg.ValueLogGCIntervalInSeconds) * time.Second})
 	}
 
