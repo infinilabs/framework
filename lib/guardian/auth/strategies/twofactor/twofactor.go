@@ -3,9 +3,7 @@
 package twofactor
 
 import (
-	"context"
 	"errors"
-	"net/http"
 
 	"infini.sh/framework/lib/guardian/auth"
 )
@@ -41,36 +39,36 @@ type TwoFactor struct {
 
 // Authenticate returns user info or error by authenticating request using primary strategy,
 // and then verifying one-time password.
-func (t TwoFactor) Authenticate(ctx context.Context, r *http.Request) (auth.Info, error) {
-	info, err := t.Primary.Authenticate(ctx, r)
-	if err != nil {
-		return nil, err
-	}
+// func (t TwoFactor) Authenticate(ctx context.Context, r *http.Request) (auth.Info, error) {
+// 	info, err := t.Primary.Authenticate(ctx, r)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	if !t.Manager.Enabled(info) {
-		return info, nil
-	}
+// 	if !t.Manager.Enabled(info) {
+// 		return info, nil
+// 	}
 
-	pin, err := t.Parser.GetOTP(r)
-	if err != nil {
-		return nil, err
-	}
+// 	pin, err := t.Parser.GetOTP(r)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	otp, err := t.Manager.Load(info)
-	if err != nil {
-		return nil, err
-	}
+// 	otp, err := t.Manager.Load(info)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	defer t.Manager.Store(info, otp)
+// 	defer t.Manager.Store(info, otp)
 
-	ok, err := otp.Verify(pin)
-	if err != nil {
-		return nil, err
-	}
+// 	ok, err := otp.Verify(pin)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	if !ok {
-		return nil, ErrInvalidOTP
-	}
+// 	if !ok {
+// 		return nil, ErrInvalidOTP
+// 	}
 
-	return info, nil
-}
+// 	return info, nil
+// }

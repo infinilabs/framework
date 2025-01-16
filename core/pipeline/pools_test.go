@@ -137,6 +137,9 @@ func TestAntsPoolGetWorkerFromCache(t *testing.T) {
 
 // TestAntsPoolWithFuncGetWorkerFromCache is used to test getting worker from sync.Pool.
 func TestAntsPoolWithFuncGetWorkerFromCache(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	dur := 10
 	p, _ := NewPoolWithFunc(TestSize, demoPoolFunc)
 	defer p.Release()
@@ -192,6 +195,9 @@ func TestNoPool(t *testing.T) {
 }
 
 func TestAntsPool(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	defer Release()
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {

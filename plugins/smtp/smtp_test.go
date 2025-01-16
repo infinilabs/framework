@@ -29,13 +29,18 @@ package smtp
 
 import (
 	"crypto/tls"
-	"github.com/gopkg.in/gomail.v2"
+	"os"
 	"path/filepath"
 	_ "path/filepath"
 	"testing"
+
+	"github.com/gopkg.in/gomail.v2"
 )
 
 func Test1(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	to := "m@medcl.net"
 	cc := []string{}
 	//cc := []string{"liaosy@infinilabs.com"}
@@ -81,7 +86,9 @@ func Test1(t *testing.T) {
 
 }
 func Test2(t *testing.T) {
-
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	from := "notify-test@infini.ltd"
 	to := "medcl@infinilabs.com"
 	cc := []string{"liaosy@infinilabs.com", "Liaosy"}

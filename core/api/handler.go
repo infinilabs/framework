@@ -166,7 +166,7 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 		return err
 	}
 
-	return handler.WriteBytes(w,b,statusCode)
+	return handler.WriteBytes(w, b, statusCode)
 }
 
 func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
@@ -260,9 +260,9 @@ func (handler Handler) GetIntOrDefault(r *http.Request, key string, defaultValue
 func (handler Handler) GetBoolOrDefault(r *http.Request, key string, defaultValue bool) bool {
 
 	v := strings.ToLower(handler.GetParameter(r, key))
-	if v=="false"{
+	if v == "false" {
 		return false
-	}else  if v=="true"{
+	} else if v == "true" {
 		return true
 	}
 	return defaultValue

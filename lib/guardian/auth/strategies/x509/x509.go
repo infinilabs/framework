@@ -24,16 +24,16 @@ var (
 type InfoBuilder func(chain [][]*x509.Certificate) (auth.Info, error)
 
 // New returns auth.Strategy authenticate request from client certificates
-func New(vopt x509.VerifyOptions, opts ...auth.Option) auth.Strategy {
-	s := new(strategy)
-	s.fn = func() x509.VerifyOptions { return vopt }
-	s.builder = infoBuilder
-	s.allowedCN = func(string) bool { return true }
-	for _, opt := range opts {
-		opt.Apply(s)
-	}
-	return s
-}
+// func New(vopt x509.VerifyOptions, opts ...auth.Option) auth.Strategy {
+// 	s := new(strategy)
+// 	s.fn = func() x509.VerifyOptions { return vopt }
+// 	s.builder = infoBuilder
+// 	s.allowedCN = func(string) bool { return true }
+// 	for _, opt := range opts {
+// 		opt.Apply(s)
+// 	}
+// 	return s
+// }
 
 type strategy struct {
 	fn        func() x509.VerifyOptions

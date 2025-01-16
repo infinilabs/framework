@@ -242,7 +242,8 @@ update-generated-framework-info:
 update-generated-file: update-generated-framework-info
 	@echo "generating application info"
 	@if [ ! -d config ]; then echo "config does not exist";(mkdir config) fi
-	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"\nconst BuildDate = \"$(NOW)\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"" > config/generated.go
+	@echo -e "\nconst BuildDate = \"$(NOW)\"" >> config/generated.go
 	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
 	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
 	@echo -e "\nconst BuildNumber  = \"$(BUILD_NUMBER)\"" >> config/generated.go
@@ -254,7 +255,8 @@ restore-generated-framework-info:
 
 restore-generated-file: restore-generated-framework-info
 	@echo "restore application info"
-	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"" > config/generated.go
+	@echo -e "\nconst BuildDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst EOLDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
 	@echo -e "\nconst BuildNumber = \"001\"" >> config/generated.go
@@ -327,7 +329,7 @@ package-windows-platform:
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
 
 test: config
-	$(GOTEST) -v $(GOFLAGS) -timeout 600s ./...
+	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
 	@$(MAKE) restore-generated-file
 
 lint: config

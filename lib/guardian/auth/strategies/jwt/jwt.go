@@ -35,7 +35,7 @@ func GetAuthenticateFunc(s SecretsKeeper, opts ...auth.Option) token.Authenticat
 //
 //	fn := jwt.GetAuthenticateFunc(secretsKeeper, opts...)
 //	token.New(fn, cache, opts...)
-func New(c auth.Cache, s SecretsKeeper, opts ...auth.Option) auth.Strategy {
-	fn := GetAuthenticateFunc(s, opts...)
-	return token.New(fn, c, opts...)
-}
+// func New(c auth.Cache, s SecretsKeeper, opts ...auth.Option) auth.Strategy {
+// 	fn := GetAuthenticateFunc(s, opts...)
+// 	return token.New(fn, c, opts...)
+// }

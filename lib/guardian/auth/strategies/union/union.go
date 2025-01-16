@@ -1,7 +1,6 @@
 package union
 
 import (
-	"context"
 	"net/http"
 
 	"infini.sh/framework/lib/guardian/auth"
@@ -36,28 +35,28 @@ type Union interface {
 
 type union []auth.Strategy
 
-func (u union) Authenticate(ctx context.Context, r *http.Request) (auth.Info, error) {
-	_, info, err := u.AuthenticateRequest(r)
-	return info, err
-}
+// func (u union) Authenticate(ctx context.Context, r *http.Request) (auth.Info, error) {
+// 	_, info, err := u.AuthenticateRequest(r)
+// 	return info, err
+// }
 
-func (u union) AuthenticateRequest(r *http.Request) (auth.Strategy, auth.Info, error) {
-	errs := MultiError{}
-	for _, s := range u {
-		info, err := s.Authenticate(r.Context(), r)
-		if err == nil {
-			return s, info, nil
-		}
-		errs = append(errs, err)
-	}
-	return nil, nil, errs
-}
+// func (u union) AuthenticateRequest(r *http.Request) (auth.Strategy, auth.Info, error) {
+// 	errs := MultiError{}
+// 	for _, s := range u {
+// 		info, err := s.Authenticate(r.Context(), r)
+// 		if err == nil {
+// 			return s, info, nil
+// 		}
+// 		errs = append(errs, err)
+// 	}
+// 	return nil, nil, errs
+// }
 
 func (u union) Chain() []auth.Strategy {
 	return u
 }
 
 // New returns new union strategy.
-func New(strategies ...auth.Strategy) Union {
-	return union(strategies)
-}
+// func New(strategies ...auth.Strategy) Union {
+// 	return union(strategies)
+// }

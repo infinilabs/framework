@@ -43,10 +43,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/buger/jsonparser"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/buger/jsonparser"
+	"github.com/stretchr/testify/assert"
 )
 
 var splitBytes = []byte("\",")
@@ -93,11 +94,11 @@ var searchLen = len(splitBytes)
 //	item := []byte("am")
 //
 //	index := bytes.LastIndex(data, item)
-//	fmt.Println(index)
+//	//fmt.Println(index)
 //	index1 := BytesIndex(&data, &item, false)
-//	fmt.Println(index1)
+//	//fmt.Println(index1)
 //	index2 := BytesIndex(&data, &item, true)
-//	fmt.Println(index2)
+//	//fmt.Println(index2)
 //	assert.Equal(t, index, index1)
 //	assert.Equal(t, index, index2)
 //}
@@ -262,7 +263,7 @@ func TestReplaceTimestampInBytes(t *testing.T) {
 		}
 	})
 
-	fmt.Println(string(data))
+	//fmt.Println(string(data))
 }
 
 func TestExtractFieldFromJson(t *testing.T) {
@@ -274,7 +275,7 @@ func TestExtractFieldFromJson(t *testing.T) {
 	i := 0
 	var str string
 	for scanner.Scan() {
-		fmt.Println(i, ": ", scanner.Text())
+		//fmt.Println(i, ": ", scanner.Text())
 		text := scanner.Text()
 		if ContainStr(text, matchKeyword) {
 			str = text
@@ -288,7 +289,7 @@ func TestExtractFieldFromJson(t *testing.T) {
 		offset := strings.LastIndex(str, "\"")
 		if offset > 0 && offset < len(str) {
 			newStr := str[offset+1 : len(str)]
-			fmt.Println(newStr)
+			//fmt.Println(newStr)
 			assert.Equal(t, "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFG43dnRGSFFCbVRLSFpIbTNZYWFTAAAAAAA0NsQWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==", newStr)
 		}
 	}
@@ -299,18 +300,18 @@ func TestExtractFieldFromJson(t *testing.T) {
 
 	data := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFENid0hGWFFCbVRLSFpIbTN0Z18wAAAAAAA0TTsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":527,\"timed_out\"")
 	hit, str1 = ExtractFieldFromJson(&data, []byte("\""), splitBytes, []byte("_scroll_id"))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 
 	hit, str1 = ExtractFieldFromJsonOrder(&inputBytes, []byte("\"_scroll_id\" : \""), []byte("\","), []byte("_scroll_id"), false)
-	fmt.Println("str1:", string(str1))
+	//fmt.Println("str1:", string(str1))
 	assert.Equal(t, true, hit)
 	assert.Equal(t, "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFG43dnRGSFFCbVRLSFpIbTNZYWFTAAAAAAA0NsQWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==", string(str1))
 
 	data = []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFENid0hGWFFCbVRLSFpIbTN0Z18wAAAAAAA0TTsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":527,\"timed_out\"")
 	hit, str1 = ExtractFieldFromJsonOrder(&data, []byte("_scroll_id\":\""), []byte("\","), []byte("_scroll_id"), false)
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 
 }
 
@@ -339,7 +340,7 @@ type MatchPair struct {
 //		//go from let to right
 //		if v.StartOrder==LEFT{
 //			startWith:=bytes.Index(*data,v.StartWith)
-//			fmt.Println("start with: ",startWith)
+//			//fmt.Println("start with: ",startWith)
 //		}
 //
 //		//get key position
@@ -394,14 +395,14 @@ func BenchmarkBytesHasPrefix(b *testing.B) {
 func TestLastIndex(t *testing.T) {
 
 	data := []byte("i am groot!")
-	fmt.Println(data)
+	//fmt.Println(data)
 	item := []byte("am")
-	fmt.Println(item)
+	//fmt.Println(item)
 	itemLength := len(item)
 	lastHit := item[itemLength-1]
-	fmt.Println(lastHit)
+	//fmt.Println(lastHit)
 
-	fmt.Println("last index: ", bytes.LastIndex(data, item))
+	//fmt.Println("last index: ", bytes.LastIndex(data, item))
 
 	candidateBuffer := make([]byte, itemLength)
 
@@ -410,16 +411,16 @@ func TestLastIndex(t *testing.T) {
 	if last := len(data) - 1; last >= 0 {
 		for i, element := last, data[0]; i >= 0; i-- {
 			element = data[i]
-			fmt.Printf("Reverse range: [%v] %+v\n", i, element)
+			//fmt.Printf("Reverse range: [%v] %+v\n", i, element)
 
-			fmt.Println("candidate match: ", startMatch)
-			fmt.Println("candidate offset: ", candidateOffset)
-			fmt.Println("candidate buffer: ", candidateBuffer)
+			//fmt.Println("candidate match: ", startMatch)
+			//fmt.Println("candidate offset: ", candidateOffset)
+			//fmt.Println("candidate buffer: ", candidateBuffer)
 
 			//start to match if not started and match with last char
 			if !startMatch && element == lastHit {
 				startMatch = true
-				fmt.Println("hit last char, start try to match")
+				//fmt.Println("hit last char, start try to match")
 				candidateBuffer[candidateOffset] = element
 				candidateOffset--
 
@@ -428,8 +429,8 @@ func TestLastIndex(t *testing.T) {
 				candidateOffset = itemLength - 1
 
 				if bytes.Equal(candidateBuffer, item) {
-					fmt.Println("hit final offset: ", i)
-					fmt.Println("buffer: ", candidateBuffer)
+					//fmt.Println("hit final offset: ", i)
+					//fmt.Println("buffer: ", candidateBuffer)
 					return
 				} else {
 					startMatch = false
@@ -437,7 +438,7 @@ func TestLastIndex(t *testing.T) {
 			}
 		}
 	} else {
-		fmt.Println("mySlice empty")
+		//fmt.Println("mySlice empty")
 	}
 }
 
@@ -460,7 +461,7 @@ func TestExtractFieldFromJson1(t *testing.T) {
 	//	toBeMachedBuffer.WriteByte(v)
 	//
 	//	if matchStart&&matchEnd{
-	//		fmt.Println(buffer.String())
+	//		//fmt.Println(buffer.String())
 	//		break
 	//	}
 	//
@@ -481,7 +482,7 @@ func TestExtractFieldFromJson1(t *testing.T) {
 	//		//v==start[0]{
 	//			matchStart=true
 	//			toBeMachedBuffer.Reset()
-	//			fmt.Println("matched start:",i)
+	//			//fmt.Println("matched start:",i)
 	//			continue
 	//		}
 	//	}
@@ -520,15 +521,15 @@ func TestExtractFieldFromJson1(t *testing.T) {
 func TestExtractFieldFromJson2(t *testing.T) {
 	data1 := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFDlMMWJGWFFCbVRLSFpIbTNXVm1GAAAAAAA0lIsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":1,\"timed_out\":false,\"terminated_early\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":1.0,\"hits\":[]}}")
 	hit, str1 := ExtractFieldFromJson(&data1, []byte("hits\":{\"total\":{\"value\":"), []byte(",\"relation\""), []byte("\"total\":{\"value\""))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 	assert.Equal(t, "1", string(str1))
 	assert.Equal(t, true, hit)
 
 	data2 := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFDRzTGhGblFCbVRLSFpIbTNpdllBAAAAAAA116kWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":1,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":5,\"relation\":\"eq\"},\"max_score\":1.0,\"hits\":[{\"_index\":\"china_provinces_v1\",\"_type\":\"_doc\",\"_id\":\"q4l7pnIBLg-rvzvwS3nG\",\"_score\":1.0,\"_source\":{\"coordinates\":{\"type\":\"polygon\",\"coordinates\":[[[104.526735,24.7343],[104.489966,24.658264],[104.502223,24.582228],[104.54512,24.524083],[104.575761,24.421211],[104.624786,24.416738],[104.606402,24.376484],[104.698324,24.322812],[104.722837,24.33623],[104.710581,24.443575],[1")
 	hit, str1 = ExtractFieldFromJson(&data2, []byte("hits\":{\"total\":{\"value\":"), []byte(",\"relation\":\""), []byte("\"total\":{\"value\""))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 	assert.Equal(t, "5", string(str1))
 
 }
@@ -541,11 +542,11 @@ func TestBytesEndWith(t *testing.T) {
 	d := []byte(str)
 	ending := []byte("\"hits\":[]}}")
 	offset := bytes.LastIndex(d, ending)
-	fmt.Println(len(d))
-	fmt.Println(len(ending))
-	fmt.Println(offset)
+	//fmt.Println(len(d))
+	//fmt.Println(len(ending))
+	//fmt.Println(offset)
 
-	fmt.Println(len(d)-offset <= len(ending))
+	//fmt.Println(len(d)-offset <= len(ending))
 	assert.Equal(t, true, len(d)-offset <= len(ending))
 
 	assert.Equal(t, true, BytesHasSuffix(d, ending))
@@ -570,22 +571,22 @@ func TestBytesStartWith1(t *testing.T) {
 func TestToLowercase(t *testing.T) {
 	str := []byte("AZazUPPERcase")
 
-	printStr(str)
+	//printStr(str)
 	ToLowercase(str)
-	fmt.Println("lowercased:")
+	//fmt.Println("lowercased:")
 	assert.Equal(t, "azazuppercase", string(str))
-	printStr(str)
+	//printStr(str)
 	ToUppercase(str)
-	fmt.Println("uppercased:")
+	//fmt.Println("uppercased:")
 	assert.Equal(t, "AZAZUPPERCASE", string(str))
-	printStr(str)
+	//printStr(str)
 }
 
-func printStr(str []byte) {
-	for i, s := range str {
-		fmt.Println(i, "-", s, "-", string(s))
-	}
-}
+// func printStr(str []byte) {
+// 	for i, s := range str {
+// 		fmt.Println(i, "-", s, "-", string(s))
+// 	}
+// }
 
 func TestBytesLength(t *testing.T) {
 	a := []byte("0000000000")
@@ -601,11 +602,11 @@ func TestUInt32ToBytes(t *testing.T) {
 	var v uint32 = 4294967294
 	bytes := make([]byte, 4)
 	Uint32toBytes(bytes, v)
-	fmt.Println(bytes)
+	//fmt.Println(bytes)
 	eBytes := []byte{255, 255, 255, 254}
 	assert.Equal(t, eBytes, bytes)
 	x := BytesToUint32(bytes)
-	fmt.Println(x)
+	//fmt.Println(x)
 	assert.Equal(t, v, x)
 }
 
@@ -629,7 +630,7 @@ func TestLimitedBytesSearch(t *testing.T) {
 	//		}
 	//	}else{
 	//		if  len(buffer)==len(term){
-	//			fmt.Println("matched!",string(buffer)," vs ",string(term))
+	//			//fmt.Println("matched!",string(buffer)," vs ",string(term))
 	//			return
 	//		}
 	//
@@ -669,7 +670,7 @@ func TestBytesSearchValue(t *testing.T) {
 	lastTerm := leftData[0:endIndex]
 	fmt.Println(string(lastTerm))
 	bytes.TrimSpace(lastTerm)
-	fmt.Println(string(lastTerm))
+	//fmt.Println(string(lastTerm))
 
 	searchTrim := []byte("true")
 	if bytes.Contains(lastTerm, searchTrim) {
