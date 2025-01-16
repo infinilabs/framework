@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Breaking changes
 ### Features
 - Add new search function to orm module, support result item mapper (#65)
+- Add new stats api to quickly find the top N keys from a Badger DB (#67)
 
 ### Bug fix
 ### Improvements
