@@ -24,8 +24,10 @@
 package elastic
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
@@ -266,6 +268,7 @@ func getQuery(c1 *api.Cond) interface{} {
 	panic(errors.Errorf("invalid query: %s", c1))
 }
 
+// TODO replaced all usage with SearchWithResultItemMapper
 func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result) {
 
 	var err error
@@ -349,6 +352,113 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 	result.Total = searchResponse.GetTotal() //TODO improve performance
 
 	return err, result
+}
+
+func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *api.Query) (error, api.SimpleResult) {
+	var err error
+
+	request := elastic.SearchRequest{
+		From: q.From,
+		Size: q.Size,
+	}
+
+	// Handle collapsing if a collapse field is provided
+	if q.CollapseField != "" {
+		request.Collapse = &elastic.Collapse{Field: q.CollapseField}
+	}
+
+	var searchResponse *elastic.SearchResponse
+	result := api.SimpleResult{}
+
+	// Validate that resultArray is a pointer to a slice
+	arrayValue := reflect.ValueOf(resultArray)
+	if arrayValue.Kind() != reflect.Ptr || arrayValue.Elem().Kind() != reflect.Slice {
+		return fmt.Errorf("resultArray must be a pointer to a slice"), result
+	}
+
+	sliceValue := arrayValue.Elem()
+	elementType := sliceValue.Type().Elem() // Get the type of elements in the slice
+
+	// Resolve the index name based on the element type if not provided in query
+	indexName := q.IndexName
+	if indexName == "" {
+		// Create a new instance of the element type to resolve index name dynamically
+		tempInstance := reflect.New(elementType).Interface()
+		indexName = handler.GetIndexName(tempInstance)
+		if q.WildcardIndex {
+			indexName = handler.GetWildcardIndexName(tempInstance)
+		}
+	}
+
+	// Perform the query based on the provided conditions
+	if len(q.RawQuery) > 0 {
+		searchResponse, err = handler.Client.QueryDSL(nil, indexName, q.QueryArgs, q.RawQuery)
+	} else if q.TemplatedQuery != nil {
+		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
+	} else {
+		if q.Conds != nil && len(q.Conds) > 0 {
+			request.Query = &elastic.Query{}
+			boolQuery := elastic.BoolQuery{}
+
+			for _, cond := range q.Conds {
+				query := getQuery(cond)
+				switch cond.BoolType {
+				case api.Must:
+					boolQuery.Must = append(boolQuery.Must, query)
+				case api.MustNot:
+					boolQuery.MustNot = append(boolQuery.MustNot, query)
+				case api.Should:
+					boolQuery.Should = append(boolQuery.Should, query)
+				}
+			}
+
+			request.Query.BoolQuery = &boolQuery
+		}
+
+		// Add sorting if specified
+		if q.Sort != nil && len(*q.Sort) > 0 {
+			for _, sort := range *q.Sort {
+				request.AddSort(sort.Field, string(sort.SortType))
+			}
+		}
+
+		// Perform the search
+		searchResponse, err = handler.Client.Search(indexName, &request)
+	}
+
+	// Handle search errors
+	if err != nil {
+		return err, result
+	}
+
+	// Populate the resultArray with typed data
+	for _, doc := range searchResponse.Hits.Hits {
+		// Create a new instance of the target element type
+		elem := reflect.New(elementType).Elem()
+
+		//make sure id exists and always be _id
+		doc.Source["id"] = doc.ID
+
+		source := doc.Source
+		sourceBytes, err := json.Marshal(source)
+		if err != nil {
+			return err, result
+		}
+
+		// Map the document source into the element
+		if err := itemMapFunc(sourceBytes, elem.Addr().Interface()); err != nil { // Ensure passing a pointer to itemMapFunc
+			return fmt.Errorf("failed to map document to struct: %w", err), result
+		}
+
+		// Append the populated element to the result slice
+		sliceValue.Set(reflect.Append(sliceValue, elem))
+	}
+
+	// Set raw response data and total hit count
+	result.Raw = searchResponse.RawResult.Body
+	result.Total = searchResponse.GetTotal()
+
+	return nil, result
 }
 
 func (handler *ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
