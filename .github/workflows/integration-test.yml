@@ -9,7 +9,7 @@ jobs:
         runs-on: ubuntu-latest
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            GO_VERSION: 1.23.4
+            GO_VERSION: 1.23.5
             NODEJS_VERSION: 16.20.2
             JAVA_DISTRIBUTION: temurin
             JAVA_VERSION: 11
@@ -186,7 +186,7 @@ jobs:
 
                 cp -rf $WORK/framework/.github/workflows/data/loadgen_yml $WORK/$PRODUCT/bin/$PRODUCT-api.yml
                 cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run console-initialize.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run console-initialize.dsl
 
             - name: Run agent test
               shell: bash
@@ -232,7 +232,7 @@ jobs:
                 export PRODUCT=loadgen
                 cd $WORK/$PRODUCT/bin
 
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run runtime-registry.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run runtime-registry.dsl
 
             - name: Run loadgen api test for metrics search
               shell: bash
@@ -242,7 +242,7 @@ jobs:
 
                 # wait agent collect metrics
                 for i in $(seq 120); do sleep 1 && printf .; done; echo
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run metrics-search.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run metrics-search.dsl
 
             - name: Check console logs
               shell: bash
