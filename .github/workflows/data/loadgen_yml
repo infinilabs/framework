@@ -12,7 +12,7 @@ env:
 runner:
   total_rounds: 1
   no_warm: true
-  log_requests: true
+  log_requests: false
   assert_invalid: true
   assert_error: true
   default_basic_auth:
