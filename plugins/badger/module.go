@@ -63,6 +63,7 @@ type Module struct {
 	cfg    *Config
 	bucket *badger.DB
 	closed bool
+	api.Handler
 }
 
 func (module *Module) Name() string {

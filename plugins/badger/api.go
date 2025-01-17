@@ -34,7 +34,6 @@ import (
 	"infini.sh/framework/core/util"
 	"net/http"
 	"sort"
-	"strconv"
 )
 
 const (
@@ -45,19 +44,8 @@ const (
 // dumpKeyStats handles the HTTP request for dumping key statistics from the Badger DB
 func (m *Module) dumpKeyStats(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var stats []*KeyStats
-	strSize := req.URL.Query().Get("size")
-	sortKey := req.URL.Query().Get("sort")
-
-	// Set default sort method to "size" if not specified
-	if sortKey != SortByCount {
-		sortKey = SortBySize
-	}
-
-	size, err := strconv.Atoi(strSize)
-	if err != nil {
-		// If conversion fails, default size to 10
-		size = 10
-	}
+	size := m.GetIntOrDefault(req, "size", 10)
+	sortKey := m.GetParameterOrDefault(req, "sort", SortBySize)
 
 	// Initialize totalKeyCount to count the total number of keys across all buckets
 	var totalKeyCount int
