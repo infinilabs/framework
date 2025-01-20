@@ -71,6 +71,9 @@ func InitTemplate(force bool) {
 					}
 					skip = exists
 				}
+
+				log.Trace(skip,",",k,",",v)
+
 				if !skip {
 					v, err := client.PutTemplate(k, []byte(v))
 					if err != nil {
@@ -94,8 +97,16 @@ func InitTemplate(force bool) {
 					}
 					skip = exists
 				}
+
+				log.Trace(skip,",",k,",",v)
+
 				if !skip {
-					v, err := client.PutScript(k, []byte(v))
+					script:=util.MapStr{}
+					script["script"]=util.MapStr{
+						"lang": "mustache",
+						"source": v,
+					}
+					v, err := client.PutScript(k,util.MustToJSONBytes(script) )
 					if err != nil {
 						if v != nil {
 							log.Error(string(v))
