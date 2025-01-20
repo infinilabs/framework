@@ -59,12 +59,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_prox
 
 POST $[[env.ES_ENDPOINT]]/.infini_metrics/_count
 {"query":{"bool":{"must":[{"term":{"agent.id":{"value":"$[[agent_id]]"}}},{"term":{"category":{"value":"elasticsearch"}}}]}}}
-# request: {
-#   basic_auth: 
-#     username: $[[env.ES_USERNAME]]
-#     password: $[[env.ES_PASSWORD]]
-# },
 # assert: {
-#   _ctx.response.status: 200
+#   _ctx.response.status: 200,
 #   _ctx.response.body_json.count: >=1
 # }
