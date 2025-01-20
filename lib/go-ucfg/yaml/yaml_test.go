@@ -18,7 +18,6 @@
 package yaml
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
@@ -230,15 +229,23 @@ func mustUnpack(t *testing.T, c *ucfg.Config, v interface{}) {
 
 // Defines struct to read config from
 type Config struct {
-	RoleMapping map[string][]string `yaml:"role_mapping"`
-	Count       int32               `yaml:"count" validate:"min=0, max=9"`
+	RoleMapping map[string][]string `yaml:"role_mapping" config:"role_mapping"`
+	Count       int32               `yaml:"count" config:"count" validate:"min=0, max=9"`
 }
 
 var config = &Config{
 	RoleMapping: make(map[string][]string),
 }
 
-func TestPatchLoadDefaultCfg(t *testing.T) {
+// Defines default config option
+var (
+	defaultConfig = Config{
+		RoleMapping: make(map[string][]string),
+		Count:       4,
+	}
+)
+
+func TestDecodeDefaultCfg(t *testing.T) {
 	path := "patch_test.yml"
 	in, err := os.ReadFile(path)
 	if err != nil {
@@ -249,29 +256,30 @@ func TestPatchLoadDefaultCfg(t *testing.T) {
 		t.Fatalf("Failed to load config file: %v", err)
 	}
 
-	// 验证反序列化结果
 	assert.Equal(t, int32(3), config.Count)
-	assert.Len(t, config.RoleMapping, 1) // 验证映射有 1 个键值对
+	assert.Len(t, config.RoleMapping, 1)
 	assert.Contains(t, config.RoleMapping, "\"liugq.infinilabs.com\"")
 	assert.Equal(t, []string{"ReadonlyUI"}, config.RoleMapping["\"liugq.infinilabs.com\""])
 }
 
-func TestPatchDecoderDefaultCfg(t *testing.T) {
+func TestLoadDefaultCfg(t *testing.T) {
 	path := "patch_test.yml"
-	in, err := os.ReadFile(path)
+	appConfig := defaultConfig // copy default config so it's not overwritten
+	config, err := NewConfigWithFile(path, ucfg.PathSep("."))
 	if err != nil {
-		t.Fatalf("Failed to read config file: %v", err)
-	}
-	// 使用 PatchedDecoder 解码
-	decoder := NewCustomDecoder(bytes.NewBuffer(in))
-	err = decoder.Decode(&config)
-	if err != nil {
-		t.Fatalf("Error decoding YAML: %v", err)
+		t.Fatalf("Failed to load config file: %v", err)
 	}
 
-	// 验证反序列化结果
-	assert.Equal(t, int32(3), config.Count)
-	assert.Len(t, config.RoleMapping, 1) // 验证映射有 1 个键值对
-	assert.Contains(t, config.RoleMapping, "\"liugq.infinilabs.com\"")
-	assert.Equal(t, []string{"ReadonlyUI"}, config.RoleMapping["\"liugq.infinilabs.com\""])
+	assert.Equal(t, appConfig.Count, int32(4), "Default counter value should be 4")
+
+	err = config.Unpack(&appConfig)
+	if err != nil {
+		t.Fatalf("Failed to unpack config: %v", err)
+	}
+
+	assert.Equal(t, appConfig.Count, int32(3), "Counter value should be 3 after unpacking")
+	expectedRoleMapping := map[string][]string{
+		"liugq.infinilabs.com": {"ReadonlyUI"},
+	}
+	assert.Equal(t, appConfig.RoleMapping, expectedRoleMapping, "Role mapping should match the expected values")
 }
