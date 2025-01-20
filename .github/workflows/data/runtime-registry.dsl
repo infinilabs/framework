@@ -145,6 +145,17 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance
 #   _ctx.response.status: 200
 # }
 
+GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# assert: {
+#   _ctx.response.status: 200
+# }
+
 POST $[[env.CONSOLE_ENDPOINT]]/instance/node/_auto_enroll
 {"cluster_id":["infini_default_system_cluster"]}
 # request: {

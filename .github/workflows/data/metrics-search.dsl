@@ -45,7 +45,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_instance%2F_count
+POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_metrics%2F_count
 {"query":{"bool":{"must":[{"term":{"agent.id":{"value":"$[[agent_id]]"}}},{"term":{"category":{"value":"elasticsearch"}}}]}}}
 # request: {
 #   headers: [
@@ -55,4 +55,16 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_prox
 # },
 # assert: {
 #   _ctx.response.status: 200
+# }
+
+POST $[[env.ES_ENDPOINT]]/.infini_metrics/_count
+{"query":{"bool":{"must":[{"term":{"agent.id":{"value":"$[[agent_id]]"}}},{"term":{"category":{"value":"elasticsearch"}}}]}}}
+# request: {
+#   basic_auth: 
+#     username: $[[env.ES_USERNAME]]
+#     password: $[[env.ES_PASSWORD]]
+# },
+# assert: {
+#   _ctx.response.status: 200
+#   _ctx.response.body_json.count: >=1
 # }
