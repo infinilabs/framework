@@ -396,7 +396,7 @@ func (d *decoder) scalar(n *node, out reflect.Value) (good bool) {
 		return true
 	}
 	if s, ok := resolved.(string); ok && out.CanAddr() {
-		if u, ok := out.Addr().Interface().(encoding.TextDecoder); ok {
+		if u, ok := out.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			err := u.UnmarshalText([]byte(s))
 			if err != nil {
 				fail(err)
