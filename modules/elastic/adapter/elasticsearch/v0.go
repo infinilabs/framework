@@ -84,7 +84,7 @@ func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	if c.metadata != nil {
 		return c.metadata
 	}
-	if meta := elastic.GetMetadata(c.Elasticsearch); meta !=nil {
+	if meta := elastic.GetMetadata(c.Elasticsearch); meta != nil {
 		c.metadata = meta
 		return c.metadata
 	}
@@ -196,7 +196,7 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	}
 
 	if global.Env().IsDebug {
-		log.Trace("response:",method, ",", url, ",", resp.StatusCode,util.SubString(util.UnsafeBytesToString(resp.Body), 0, 500),resp.Headers)
+		log.Trace("response:", method, ",", url, ",", resp.StatusCode, util.SubString(util.UnsafeBytesToString(resp.Body), 0, 500), resp.Headers)
 	}
 
 	return resp, err
@@ -342,10 +342,10 @@ func (c *ESAPIV0) Update(indexName, docType string, id interface{}, data interfa
 		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
 	}
 
-	js:=util.MapStr{}
-	js["doc"]=data
-	js["detect_noop"]=false
-	js["doc_as_upsert"]=true
+	js := util.MapStr{}
+	js["doc"] = data
+	js["detect_noop"] = false
+	js["doc_as_upsert"] = true
 
 	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))
 	if err != nil {
@@ -803,10 +803,10 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 		return nil, err
 	}
 	nodeInfo, ok := node.Nodes[nodeID]
-	if ok{
+	if ok {
 		return &nodeInfo, nil
 	}
-	return nil, errors.Errorf("node info[%v] not found",nodeID)
+	return nil, errors.Errorf("node info[%v] not found", nodeID)
 }
 
 func (c *ESAPIV0) GetIndices(pattern string) (*map[string]elastic.IndexInfo, error) {
@@ -1746,7 +1746,7 @@ func (c *ESAPIV0) CatNodes(colStr string) ([]elastic.CatNodeResponse, error) {
 func (c *ESAPIV0) GetClusterSettings(values url.Values) (map[string]interface{}, error) {
 	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
 	if len(values) > 0 {
-		url += "?"+values.Encode()
+		url += "?" + values.Encode()
 	}
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -1762,7 +1762,6 @@ func (c *ESAPIV0) GetClusterSettings(values url.Values) (map[string]interface{},
 	return data, err
 }
 
-
 func (c *ESAPIV0) UpdateClusterSettings(body []byte) error {
 	url := fmt.Sprintf("%s/_cluster/settings", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_PUT, url, body)
@@ -1777,7 +1776,7 @@ func (c *ESAPIV0) UpdateClusterSettings(body []byte) error {
 	return nil
 }
 
-func (c *ESAPIV0) GetRemoteInfo()([]byte, error){
+func (c *ESAPIV0) GetRemoteInfo() ([]byte, error) {
 	url := fmt.Sprintf("%s/_remote/info", c.GetEndpoint())
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 	if err != nil {
@@ -1827,10 +1826,10 @@ func (c *ESAPIV0) DeleteILMPolicy(target string) error {
 	return fmt.Errorf("unsupport feature")
 }
 
-func (c *ESAPIV0) StartReplication(followIndex string, body []byte) error{
+func (c *ESAPIV0) StartReplication(followIndex string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) StopReplication(indexName string, body []byte) error{
+func (c *ESAPIV0) StopReplication(indexName string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
 func (c *ESAPIV0) PauseReplication(followIndex string, body []byte) error {
@@ -1839,10 +1838,10 @@ func (c *ESAPIV0) PauseReplication(followIndex string, body []byte) error {
 func (c *ESAPIV0) ResumeReplication(followIndex string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetReplicationStatus(followIndex string) ([]byte, error){
+func (c *ESAPIV0) GetReplicationStatus(followIndex string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetReplicationFollowerStats(followIndex string) ([]byte, error){
+func (c *ESAPIV0) GetReplicationFollowerStats(followIndex string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
 func (c *ESAPIV0) CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error {
@@ -1851,14 +1850,14 @@ func (c *ESAPIV0) CreateAutoFollowReplication(autoFollowPatternName string, body
 func (c *ESAPIV0) DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetAutoFollowStats(autoFollowPatternName string)([]byte, error){
+func (c *ESAPIV0) GetAutoFollowStats(autoFollowPatternName string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
 
-func (c *ESAPIV0) GetUser(username string) ([]byte, error){
+func (c *ESAPIV0) GetUser(username string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetUsers() ([]byte, error){
+func (c *ESAPIV0) GetUsers() ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
 func (c *ESAPIV0) DeleteUser(username string) error {
@@ -1867,10 +1866,10 @@ func (c *ESAPIV0) DeleteUser(username string) error {
 func (c *ESAPIV0) PutUser(username string, body []byte) error {
 	return fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetRole(roleName string) ([]byte, error){
+func (c *ESAPIV0) GetRole(roleName string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
-func (c *ESAPIV0) GetRoles() ([]byte, error){
+func (c *ESAPIV0) GetRoles() ([]byte, error) {
 	return nil, fmt.Errorf("unsupport feature")
 }
 func (c *ESAPIV0) DeleteRole(roleName string) error {
@@ -1899,20 +1898,19 @@ func (c *ESAPIV0) Flush(indexName string) ([]byte, error) {
 	return resp.Body, nil
 }
 
-
-func (c *ESAPIV0)  	ScriptExists(scriptName string)(bool,error){
+func (c *ESAPIV0) ScriptExists(scriptName string) (bool, error) {
 	panic("not implemented")
 }
 
-func (c *ESAPIV0) PutScript(scriptName string, script []byte)([]byte,error){
+func (c *ESAPIV0) PutScript(scriptName string, script []byte) ([]byte, error) {
 	panic("not implemented")
 }
 
-func (c *ESAPIV0)SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*elastic.SearchResponse, error)  {
+func (c *ESAPIV0) SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*elastic.SearchResponse, error) {
 	panic("not implemented")
 }
 
-func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values)([]byte,error){
+func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values) ([]byte, error) {
 	url := fmt.Sprintf("%s/_cluster/allocation/explain", c.GetEndpoint())
 	if len(params) > 0 {
 		url = fmt.Sprintf("%s?%s", url, params.Encode())

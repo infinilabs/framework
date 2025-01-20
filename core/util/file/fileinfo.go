@@ -21,9 +21,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-//Package file copied from github.com/elastic/beats
-//https://github.com/elastic/beats/blob/master/LICENSE
-//Licensed under the Apache License, Version 2.0 (the "License");
+// Package file copied from github.com/elastic/beats
+// https://github.com/elastic/beats/blob/master/LICENSE
+// Licensed under the Apache License, Version 2.0 (the "License");
 package file
 
 import (

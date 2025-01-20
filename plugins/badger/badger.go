@@ -58,10 +58,15 @@ func (filter *Module) Open() error {
 
 	if filter.cfg.ValueLogGCEnabled {
 		global.RegisterBackgroundCallback(&global.BackgroundTask{Tag: "badger_gc", Func: func() {
-			err := filter.bucket.RunValueLogGC(filter.cfg.ValueLogDiscardRatio)
-			if err != nil &&err!=badger.ErrNoRewrite{
-				log.Error(err)
-			}
+			buckets.Range(func(key, value interface{}) bool {
+				if db, ok := value.(*badger.DB); ok {
+					err := db.RunValueLogGC(filter.cfg.ValueLogDiscardRatio)
+					if err != nil && err != badger.ErrNoRewrite {
+						log.Errorf("running value log gc failed: %v", err)
+					}
+				}
+				return true
+			})
 		}, Interval: time.Duration(filter.cfg.ValueLogGCIntervalInSeconds) * time.Second})
 	}
 
@@ -130,7 +135,7 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 	if err != nil {
 		panic(err)
 	}
-	stats.Increment("badger",bucket+"::init")
+	stats.Increment("badger", bucket+"::init")
 	buckets.Store(bucket, h)
 	return h
 }
@@ -158,14 +163,14 @@ func (filter *Module) Close() error {
 
 func (filter *Module) Exists(bucket string, key []byte) bool {
 
-	stats.Increment("badger",bucket+"::exists")
+	stats.Increment("badger", bucket+"::exists")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 
 	var exists = false
-	bkt:=filter.getOrInitBucket(bucket)
+	bkt := filter.getOrInitBucket(bucket)
 	bkt.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if item != nil && err == nil {
@@ -184,14 +189,14 @@ func (filter *Module) Add(bucket string, key []byte) error {
 
 func (filter *Module) Delete(bucket string, key []byte) error {
 
-	stats.Increment("badger",bucket+"::delete")
+	stats.Increment("badger", bucket+"::delete")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
 
 	var err error
-	bkt:=filter.getOrInitBucket(bucket)
+	bkt := filter.getOrInitBucket(bucket)
 	err = bkt.Update(func(txn *badger.Txn) error {
 		err = txn.Delete(key)
 		return err
@@ -217,7 +222,7 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 		return nil, errors.New("module closed")
 	}
 
-	stats.Increment("badger",bucket+"::get")
+	stats.Increment("badger", bucket+"::get")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
@@ -227,7 +232,7 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 	var err error
 	var item *badger.Item
 
-	bkt:=filter.getOrInitBucket(bucket)
+	bkt := filter.getOrInitBucket(bucket)
 	err = bkt.View(func(txn *badger.Txn) error {
 		if txn == nil {
 			return errors.New("invalid txn")
@@ -253,7 +258,7 @@ func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, err
 		return nil, nil
 	}
 
-	stats.Increment("badger",bucket+"::get_compress")
+	stats.Increment("badger", bucket+"::get_compress")
 
 	data, err := lz4.Decode(nil, d)
 	if err != nil {
@@ -270,7 +275,7 @@ func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) 
 		return err
 	}
 
-	stats.Increment("badger",bucket+"::add_compress")
+	stats.Increment("badger", bucket+"::add_compress")
 
 	return filter.AddValue(bucket, key, value)
 }
@@ -284,12 +289,12 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 		return errors.New("module closed")
 	}
 
-	stats.Increment("badger",bucket+"::add")
+	stats.Increment("badger", bucket+"::add")
 
 	if filter.cfg.SingleBucketMode {
 		key = joinKey(bucket, key)
 	}
-	bkt:=filter.getOrInitBucket(bucket)
+	bkt := filter.getOrInitBucket(bucket)
 	err := bkt.Update(func(txn *badger.Txn) error {
 		err := txn.Set(key, value)
 		return err

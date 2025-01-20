@@ -67,15 +67,15 @@ var (
 			Interval: "10s",
 		},
 		MetadataRefresh: common.CheckConfig{
-			Enabled:  false,
-			Interval: "10s",
+			Enabled:  true,
+			Interval: "30s",
 		},
 		ORMConfig: common.ORMConfig{
-			Enabled:      false,
-			InitTemplate: true,
+			Enabled:                 false,
+			InitTemplate:            true,
 			SkipInitDefaultTemplate: false,
-			InitSchema:   true,
-			IndexPrefix:  ".infini_",
+			InitSchema:              true,
+			IndexPrefix:             ".infini_",
 		},
 		StoreConfig: common.StoreConfig{
 			Enabled: false,
@@ -95,7 +95,7 @@ func getDefaultConfig() common.ModuleConfig {
 func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	var configs []elastic.ElasticsearchConfig
 	exist, err := env.ParseConfig("elasticsearch", &configs)
-	if exist && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError{
+	if exist && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 
@@ -202,7 +202,7 @@ func (module *ElasticModule) Setup() {
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
-	if exists && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
+	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if exists {
@@ -379,9 +379,9 @@ func InitSchema() {
 	}
 
 	//init schemas
-	err=orm.InitSchema()
-	if err!=nil{
-		panic(errors.Errorf("failed to init schema, %v",err))
+	err = orm.InitSchema()
+	if err != nil {
+		panic(errors.Errorf("failed to init schema, %v", err))
 	}
 
 	schemaInited = true
@@ -432,7 +432,7 @@ func (module *ElasticModule) Start() error {
 				return true
 			}
 
-			log.Trace("init cluster: ", key,",",util.MustToJSON(value))
+			log.Trace("init cluster: ", key, ",", util.MustToJSON(value))
 
 			cfg1, ok := value.(*elastic.ElasticsearchConfig)
 			if ok && cfg1 != nil {
@@ -685,6 +685,9 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		}
 
 		v, ok := value.(*elastic.ElasticsearchMetadata)
+
+		log.Trace("update elasticsearch's metadata:", v, ok)
+
 		if ok {
 			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
 		}

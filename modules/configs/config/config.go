@@ -33,12 +33,12 @@ func init() {
 
 }
 
-func  getEnvAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func getEnvAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	api.DefaultAPI.WriteJSONHeader(w)
 	api.DefaultAPI.WriteJSON(w, os.Environ(), 200)
 }
 
-func  getConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func getConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	json := env.GetConfigAsJSON()
 	api.DefaultAPI.WriteJSONHeader(w)
 	api.DefaultAPI.Write(w, []byte(json))
@@ -146,7 +146,7 @@ func SaveConfigStr(name, content string) error {
 	return nil
 }
 
-func  deleteConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func deleteConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	reqBody := common.ConfigDeleteRequest{}
 	err := api.DefaultAPI.DecodeJSON(req, &reqBody)
 	if err != nil {
@@ -213,7 +213,7 @@ func updateConfigVersion(input string, newVersion int64) string {
 	}
 }
 
-func  listConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func listConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	configs := GetConfigs(true, false)
 	api.DefaultAPI.WriteJSON(w, configs, 200)
 }
@@ -306,7 +306,7 @@ func GetConfigFromFile(cfgDir, filename string) (*common.ConfigFile, error) {
 	return &cfg, nil
 }
 
-func  saveConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func saveConfigAction(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	reqBody := common.ConfigUpdateRequest{}
 	err := api.DefaultAPI.DecodeJSON(req, &reqBody)
 	if err != nil {
@@ -322,7 +322,7 @@ func  saveConfigAction(w http.ResponseWriter, req *http.Request, params httprout
 	api.DefaultAPI.WriteAckOKJSON(w)
 }
 
-func  reloadConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func reloadConfigAction(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	log.Infof("refresh config")
 	err := global.Env().RefreshConfig()
 	if err != nil {

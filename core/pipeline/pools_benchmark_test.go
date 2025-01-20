@@ -59,9 +59,9 @@ const (
 	DefaultExpiredTime = 10 * time.Second
 )
 
-var demoFunc= &Task{Handler: demo}
+var demoFunc = &Task{Handler: demo}
 
-func demo(ctx *Context,v ...interface{}) {
+func demo(ctx *Context, v ...interface{}) {
 	time.Sleep(time.Duration(BenchParam) * time.Millisecond)
 }
 
@@ -92,7 +92,7 @@ func BenchmarkGoroutines(b *testing.B) {
 		wg.Add(RunTimes)
 		for j := 0; j < RunTimes; j++ {
 			go func() {
-				demo(nil,nil)
+				demo(nil, nil)
 				wg.Done()
 			}()
 		}
@@ -109,7 +109,7 @@ func BenchmarkSemaphore(b *testing.B) {
 		for j := 0; j < RunTimes; j++ {
 			sema <- struct{}{}
 			go func() {
-				demo(nil,nil)
+				demo(nil, nil)
 				<-sema
 				wg.Done()
 			}()

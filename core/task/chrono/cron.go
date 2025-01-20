@@ -109,6 +109,7 @@ type CronExpression interface {
 func (expression *SimpleCronExpression) GetLocation() *time.Location {
 	return expression.loc
 }
+
 type SimpleCronExpression struct {
 	fields []*cronFieldBits
 	loc    *time.Location
@@ -199,7 +200,7 @@ func (expression *MultiCronExpression) NextTime(t time.Time) time.Time {
 		nextTime := cronExp.NextTime(t)
 		if nearestTime.IsZero() {
 			nearestTime = nextTime
-		}else{
+		} else {
 			if nextTime.Before(nearestTime) {
 				nearestTime = nextTime
 			}

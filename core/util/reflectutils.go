@@ -274,7 +274,7 @@ func ContainTags(tag string, tags string) bool {
 	return tag == tags
 }
 
-//return field and tags, field name is using key: NAME
+// return field and tags, field name is using key: NAME
 func GetFieldAndTags(any interface{}, tags []string) []map[string]string {
 
 	fields := []map[string]string{}

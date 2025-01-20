@@ -50,11 +50,11 @@ type incrementCounter struct {
 var count = incrementCounter{l: &sync.RWMutex{}, ID: make(map[string]*AtomicID)}
 
 type AtomicID struct {
-	l        sync.Mutex
-	Sequence uint32
+	l           sync.Mutex
+	Sequence    uint32
 	MaxSequence uint32
 
-	Sequence64 uint64
+	Sequence64    uint64
 	MaxSequence64 uint64
 }
 
@@ -62,14 +62,14 @@ func (id *AtomicID) Increment() uint32 {
 	id.l.Lock()
 	defer id.l.Unlock()
 
-	if id.MaxSequence>0{
-		if id.Sequence>=id.MaxSequence{
-			id.Sequence=0
+	if id.MaxSequence > 0 {
+		if id.Sequence >= id.MaxSequence {
+			id.Sequence = 0
 			return 0
 		}
-	}else{
-		if id.Sequence>=maxID{
-			id.Sequence=0
+	} else {
+		if id.Sequence >= maxID {
+			id.Sequence = 0
 			return 0
 		}
 	}
@@ -80,14 +80,14 @@ func (id *AtomicID) Increment64() uint64 {
 	id.l.Lock()
 	defer id.l.Unlock()
 
-	if id.MaxSequence64>0{
-		if id.Sequence64>=id.MaxSequence64{
-			id.Sequence64=0
+	if id.MaxSequence64 > 0 {
+		if id.Sequence64 >= id.MaxSequence64 {
+			id.Sequence64 = 0
 			return 0
 		}
-	}else{
-		if id.Sequence64>=maxID64{
-			id.Sequence64=0
+	} else {
+		if id.Sequence64 >= maxID64 {
+			id.Sequence64 = 0
 			return 0
 		}
 	}
@@ -97,29 +97,29 @@ func (id *AtomicID) Increment64() uint64 {
 var lock1 sync.Mutex
 var persistedPath string
 
-var maxID=uint32(^uint32(0)>>1)
-var maxID64=uint64(^uint64(0)>>1)
+var maxID = uint32(^uint32(0) >> 1)
+var maxID64 = uint64(^uint64(0) >> 1)
 
-func GetAutoIncrement32ID(bucket string,rangeFrom,rangeTo uint32) *AtomicID {
+func GetAutoIncrement32ID(bucket string, rangeFrom, rangeTo uint32) *AtomicID {
 	count.l.Lock()
 	o := count.ID[bucket]
 	if o == nil {
 		o = &AtomicID{}
-		o.Sequence=rangeFrom
-		o.MaxSequence=rangeTo
+		o.Sequence = rangeFrom
+		o.MaxSequence = rangeTo
 		count.ID[bucket] = o
 	}
 	count.l.Unlock()
 	return o
 }
 
-func GetAutoIncrement64ID(bucket string,rangeFrom,rangeTo uint64) *AtomicID {
+func GetAutoIncrement64ID(bucket string, rangeFrom, rangeTo uint64) *AtomicID {
 	count.l.Lock()
 	o := count.ID[bucket]
 	if o == nil {
 		o = &AtomicID{}
-		o.Sequence64=rangeFrom
-		o.MaxSequence64=rangeTo
+		o.Sequence64 = rangeFrom
+		o.MaxSequence64 = rangeTo
 		count.ID[bucket] = o
 	}
 	count.l.Unlock()
@@ -127,20 +127,20 @@ func GetAutoIncrement64ID(bucket string,rangeFrom,rangeTo uint64) *AtomicID {
 }
 
 func GetIncrementID(bucket string) uint32 {
-	o:=GetAutoIncrement32ID(bucket,0,0)
+	o := GetAutoIncrement32ID(bucket, 0, 0)
 	v := o.Increment()
 	return v
 }
 
 func GetIncrementID64(bucket string) uint64 {
-	o:=GetAutoIncrement64ID(bucket,0,0)
+	o := GetAutoIncrement64ID(bucket, 0, 0)
 	v := o.Increment64()
 	return v
 }
 
 func ClearAllID() {
 	count.l.Lock()
-	count.ID= make(map[string]*AtomicID)
+	count.ID = make(map[string]*AtomicID)
 	count.l.Unlock()
 }
 
@@ -149,7 +149,7 @@ func SnapshotPersistID() {
 	count.l.Lock()
 	defer count.l.Unlock()
 
-	if persistedPath=="" {
+	if persistedPath == "" {
 		return
 	}
 

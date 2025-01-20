@@ -71,7 +71,7 @@ func Test_cleanPath(t *testing.T) {
 	}
 
 	req := new(fasthttp.Request)
-	uri := req.URI()
+	uri := req.PhantomURI()
 
 	for _, test := range cleanTests {
 		uri.SetPath(test.path)

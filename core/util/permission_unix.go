@@ -21,6 +21,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !windows
 // +build !windows
 
 package util
@@ -33,11 +34,11 @@ import (
 )
 
 func IsRootUser() bool {
-	user,err:=user.Current()
-	if err!=nil{
+	user, err := user.Current()
+	if err != nil {
 		panic(err)
 	}
-	if user.Name=="root" || user.Username=="root"{
+	if user.Name == "root" || user.Username == "root" {
 		return true
 	}
 	return false
@@ -45,9 +46,9 @@ func IsRootUser() bool {
 
 func HasSudoPermission() bool {
 
-	user,err:=user.Current()
+	user, err := user.Current()
 
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 
@@ -60,9 +61,9 @@ func HasSudoPermission() bool {
 		panic(err)
 	}
 
-	if strings.Contains(string(data),"root")||strings.Contains(string(data),"admin"){
+	if strings.Contains(string(data), "root") || strings.Contains(string(data), "admin") {
 		return true
-	}else{
+	} else {
 		return false
 	}
 }

@@ -363,7 +363,7 @@ func Benchmark_FindCaseInsensitivePath(b *testing.B) {
 	handler := func(ctx *fasthttp.RequestCtx) {}
 
 	tree := New()
-	buf := bytebufferpool.Get()
+	buf := bytebufferpool.Get("tree")
 
 	tree.Add("/endpoint", handler)
 

@@ -23,12 +23,12 @@
 
 package pipeline
 
-func run(job *Job,ctx *Context) {
+func run(job *Job, ctx *Context) {
 
 	if job.sequential {
-		runSync(job,ctx)
+		runSync(job, ctx)
 	} else {
-		runAsync(job,ctx)
+		runAsync(job, ctx)
 	}
 
 }

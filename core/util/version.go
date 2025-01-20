@@ -23,7 +23,6 @@
 
 package util
 
-
 /*
 Copyright 2016 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,13 +36,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-
 import (
-"bytes"
-"fmt"
-"regexp"
-"strconv"
-"strings"
+	"bytes"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // Version is an opaque representation of a version number
@@ -131,8 +129,8 @@ func MustParseGeneric(str string) *Version {
 // version strings that are not guaranteed to obey the Semantic Versioning syntax, use
 // ParseGeneric.
 func ParseSemantic(str string) (*Version, error) {
-	if SuffixStr(str,"_SNAPSHOT"){
-		str=TrimRightStr(str,"_SNAPSHOT")
+	if SuffixStr(str, "_SNAPSHOT") {
+		str = TrimRightStr(str, "_SNAPSHOT")
 	}
 
 	return parse(str, true)

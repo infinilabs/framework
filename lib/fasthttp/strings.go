@@ -85,7 +85,7 @@ var (
 	strBytes               = []byte("bytes")
 	strBasicSpace          = []byte("Basic ")
 
-	strJsonContentType   = []byte("application/json")
+	strJsonContentType = []byte("application/json")
 
 	strApplicationSlash = []byte("application/")
 	strImageSVG         = []byte("image/svg")

@@ -33,4 +33,4 @@ const QueueElasticIndexState = "elasticsearch##metadata##index_state_change_v1"
 const KVElasticIndexMetadata = "kv_elastic_index_metadata"
 const KVElasticClusterSettings = "kv_elastic_cluster_settings"
 
-const GlobalSystemElasticsearchID ="global_system_elasticsearch_id"
+const GlobalSystemElasticsearchID = "global_system_elasticsearch_id"

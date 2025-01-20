@@ -26,7 +26,7 @@ package pipeline
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	 "infini.sh/framework/core/config"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/pipeline"
 )
 

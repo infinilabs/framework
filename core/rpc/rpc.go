@@ -64,7 +64,7 @@ func GetRPCServer() *grpc.Server {
 	return s
 }
 
-//only select local connection
+// only select local connection
 func ObtainLocalConnection() (conn *ClientConn, err error) {
 	return ObtainConnection(listenAddress)
 }
@@ -75,7 +75,7 @@ func ObtainLocalConnection() (conn *ClientConn, err error) {
 
 //var addr = flag.String("rpc.bind", "localhost:20000", "the rpc address to bind to")
 
-//auto select connection
+// auto select connection
 func ObtainConnection(addr string) (client *ClientConn, err error) {
 	log.Trace("obtain client connection: ", addr)
 

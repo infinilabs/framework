@@ -40,7 +40,7 @@ func (module *KeystoreModule) Name() string {
 func (module *KeystoreModule) Setup() {
 	module.Enabled = true
 	exists, err := env.ParseConfig("keystore", &module)
-	if exists && err != nil &&global.Env().SystemConfig.Configs.PanicOnConfigError {
+	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
 	if module.Enabled {

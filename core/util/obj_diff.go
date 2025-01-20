@@ -32,5 +32,5 @@ import (
 )
 
 func DiffTwoObject(a, b interface{}) (diff.Changelog, error) {
-	return diff.Diff(a, b, diff.DisableStructValues(), diff.AllowTypeMismatch(true),diff.SliceOrdering(false))
+	return diff.Diff(a, b, diff.DisableStructValues(), diff.AllowTypeMismatch(true), diff.SliceOrdering(false))
 }

@@ -16,11 +16,12 @@ func EncodeToSecretString(raw string, value string) SecretString {
 	return SecretString(fmt.Sprintf("%s%s%s", raw, SecretStringDelimiter, value))
 }
 
-//var ErrMalformed = errors.New("secret string malformed")
+// var ErrMalformed = errors.New("secret string malformed")
 const (
 	SecretStringDelimiter = "-->"
-	SecretShadowText       = "******"
+	SecretShadowText      = "******"
 )
+
 func (k SecretString) Get() string {
 	_, v := k.decode()
 	return v

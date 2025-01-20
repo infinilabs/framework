@@ -160,17 +160,22 @@ func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, stat
 }
 
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
-	if !handler.wroteHeader {
-		handler.WriteJSONHeader(w)
-		w.WriteHeader(statusCode)
-	}
-
 	b, err := handler.EncodeJSON(v)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
 	}
-	_, err = w.Write(b)
+
+	return handler.WriteBytes(w, b, statusCode)
+}
+
+func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
+	if !handler.wroteHeader {
+		handler.WriteJSONHeader(w)
+		w.WriteHeader(statusCode)
+	}
+
+	_, err := w.Write(b)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
@@ -215,7 +220,7 @@ func (handler Handler) MustGetParameter(w http.ResponseWriter, r *http.Request, 
 		panic("URL is nil")
 	}
 
-	v:= r.URL.Query().Get(key)
+	v := r.URL.Query().Get(key)
 
 	if len(v) == 0 {
 		panic("missing parameter " + key)
@@ -250,6 +255,17 @@ func (handler Handler) GetIntOrDefault(r *http.Request, key string, defaultValue
 		return defaultValue
 	}
 	return s
+
+}
+func (handler Handler) GetBoolOrDefault(r *http.Request, key string, defaultValue bool) bool {
+
+	v := strings.ToLower(handler.GetParameter(r, key))
+	if v == "false" {
+		return false
+	} else if v == "true" {
+		return true
+	}
+	return defaultValue
 
 }
 
@@ -375,7 +391,6 @@ func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string) err
 		"_id":   id,
 	}, 404)
 }
-
 
 func (handler Handler) Redirect(w http.ResponseWriter, r *http.Request, url string) {
 	http.Redirect(w, r, url, http.StatusSeeOther)

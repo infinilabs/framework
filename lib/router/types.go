@@ -77,7 +77,6 @@ type Router struct {
 	// unrecovered panics.
 	PanicHandler func(*fasthttp.RequestCtx, interface{})
 
-
 	TraceHandler fasthttp.RequestHandler
 
 	// Cached value of global (*) allowed methods

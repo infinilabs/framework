@@ -29,10 +29,34 @@ package routetree
 
 import (
 	"encoding/json"
-	"infini.sh/framework/core/util"
 	"strings"
 	"testing"
 )
+
+var yarmTest = `{
+  "cat": [
+    {"name": "cat.*", "methods": ["get"],
+      "path": "_cat/*"
+    },
+    {"name": "cat.indices", "methods": ["get"],
+      "path": "_cat/indices"
+    }
+  ],
+ "indices": [
+    {"name": "doc.update", "methods": ["put"],
+      "path": "/:index_name/:doctype/:doc_id"
+    },
+    {"name": "doc.update", "methods": ["post"],
+      "path": "/:index_name/_update/:doc_id"
+    },
+    {"name": "doc.create", "methods": ["post"],
+      "path": "/:index_name/:doctype"
+    },
+    {"name": "doc.create", "methods": ["post", "put"],
+      "path": "/:index_name/_create/:doc_id"
+    }
+  ]
+}`
 
 func TestTree(t *testing.T) {
 	router := New()
@@ -47,7 +71,7 @@ func TestTree(t *testing.T) {
 	testRouter(t, router)
 }
 
-func testRouter(t *testing.T, router *Router){
+func testRouter(t *testing.T, router *Router) {
 	// /:index_name/:doctype/:doc_id
 	path := "/test-update/_doc/1"
 	path = path[1:]
@@ -87,16 +111,15 @@ func TestTreeFromFile(t *testing.T) {
 }
 
 type ElasticsearchAPIMetadata struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
 	Methods []string `json:"methods"`
-	Path string `json:"path"`
+	Path    string   `json:"path"`
 }
 type ElasticsearchAPIMetadataList []ElasticsearchAPIMetadata
-func load() *Router{
-	bytes, _ := util.FileGetContent("/Users/liugq/go/src/infini.sh/console/config/permission.json")
 
+func load() *Router {
 	apis := map[string]ElasticsearchAPIMetadataList{}
-	json.Unmarshal(bytes, &apis)
+	json.Unmarshal([]byte(yarmTest), &apis)
 	var esAPIRouter = New()
 	for _, list := range apis {
 		for _, md := range list {

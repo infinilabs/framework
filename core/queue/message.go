@@ -46,11 +46,11 @@ func AcquireOffset(seg, pos int64) Offset {
 
 func ConvertOffset(offsetStr string) (int64, int64) {
 	var segment, offset int64
-	segment,offset,_=ExtendConvertOffset(offsetStr)
+	segment, offset, _ = ExtendConvertOffset(offsetStr)
 	return segment, offset
 }
 
-func ExtendConvertOffset(offsetStr string) (int64,int64, int64) {
+func ExtendConvertOffset(offsetStr string) (int64, int64, int64) {
 	if offsetStr == "" {
 		panic(errors.New("offset can't be empty"))
 	}
@@ -58,26 +58,26 @@ func ExtendConvertOffset(offsetStr string) (int64,int64, int64) {
 	data := strings.Split(offsetStr, ",")
 
 	//handle old offset format
-	var segment, offset,ver int64
-	if len(data)==2{
+	var segment, offset, ver int64
+	if len(data) == 2 {
 		segment, _ = util.ToInt64(data[0])
 		offset, _ = util.ToInt64(data[1])
-	}else if len(data)==3{
+	} else if len(data) == 3 {
 		segment, _ = util.ToInt64(data[0])
 		offset, _ = util.ToInt64(data[1])
 		ver, _ = util.ToInt64(data[2])
-	}else{
+	} else {
 		panic(errors.Errorf("invalid offset: %v", offsetStr))
 	}
-	return segment, offset,ver
+	return segment, offset, ver
 }
 
 func DecodeFromString(offsetStr string) Offset {
 	return NewOffsetWithVersion(ExtendConvertOffset(offsetStr))
 }
 
-func NewOffsetWithVersion(seg, pos,ver int64) Offset {
-	return Offset{Segment: seg, Position: pos,Version: ver}
+func NewOffsetWithVersion(seg, pos, ver int64) Offset {
+	return Offset{Segment: seg, Position: pos, Version: ver}
 }
 
 func NewOffset(seg, pos int64) Offset {
@@ -111,12 +111,12 @@ func (c *Offset) LatestThan(v Offset) bool {
 		return true
 	}
 
-	if c.Version==v.Version{
+	if c.Version == v.Version {
 		if c.Segment > v.Segment {
 			return true
 		}
 
-		if c.Segment==v.Segment {
+		if c.Segment == v.Segment {
 			if c.Position > v.Position {
 				return true
 			}
@@ -131,7 +131,7 @@ func (c *Offset) String() string {
 }
 
 func (c *Offset) EncodeToString() string {
-	return fmt.Sprintf("%v,%v,%v", c.Segment, c.Position,c.Version)
+	return fmt.Sprintf("%v,%v,%v", c.Segment, c.Position, c.Version)
 }
 
 type Context struct {
@@ -140,7 +140,7 @@ type Context struct {
 	InitOffset   Offset `config:"init_offset" json:"init_offset"`
 }
 
-func (c *Context) UpdateInitOffset(seg, pos,ver int64) {
+func (c *Context) UpdateInitOffset(seg, pos, ver int64) {
 	c.InitOffset.Segment = seg
 	c.InitOffset.Position = pos
 	c.InitOffset.Version = ver

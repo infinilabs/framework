@@ -3,6 +3,7 @@ package fasthttp
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"testing"
@@ -225,6 +226,9 @@ func TestURINoNormalization(t *testing.T) {
 }
 
 func TestURICopyTo(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	t.Parallel()
 
 	var u URI

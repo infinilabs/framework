@@ -46,10 +46,10 @@ func GetAuthenticateFunc(addr string, opts ...auth.Option) token.AuthenticateFun
 //
 //	fn := jwt.GetAuthenticateFunc(addr, opts...)
 //	token.New(fn, cache, opts...)
-func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
-	fn := GetAuthenticateFunc(addr, opts...)
-	return token.New(fn, c, opts...)
-}
+// func New(addr string, c auth.Cache, opts ...auth.Option) auth.Strategy {
+// 	fn := GetAuthenticateFunc(addr, opts...)
+// 	return token.New(fn, c, opts...)
+// }
 
 func newStrategy(addr string, opts ...auth.Option) *strategy {
 	strategy := new(strategy)

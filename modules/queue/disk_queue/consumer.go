@@ -310,17 +310,26 @@ READ_MSG:
 
 		//validate read position
 		if nextReadPos > d.maxBytesPerFileRead || (d.diskQueue.writeSegmentNum == d.segment && nextReadPos > d.diskQueue.writePos) {
-			err = errors.Errorf("dirty_read, the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)", d.segment, nextReadPos, d.maxBytesPerFileRead, d.diskQueue.writeSegmentNum, d.diskQueue.writePos)
-			time.Sleep(time.Millisecond * 100) //don't catch up too fast
-			stats.Increment("consumer", d.qCfg.ID, d.cCfg.ID, "dirty_read")
+			stats.Increment("consumer", d.qCfg.ID, d.cCfg.ID, "invalid_message_read")
 
-			//retry when file is in stale
-			if d.diskQueue.writeSegmentNum > d.segment && nextReadPos > d.maxBytesPerFileRead {
-				//re-check file size
-				goto RELOAD_FILE
+			//error only when complete loaded file
+			if d.fileLoadCompleted && nextReadPos > d.maxBytesPerFileRead {
+				err = errors.Errorf("the read position(%v,%v) exceed max_bytes_to_read: %v, current_write:(%v,%v)", d.segment, nextReadPos, d.maxBytesPerFileRead, d.diskQueue.writeSegmentNum, d.diskQueue.writePos)
+				return messages, true, err
 			}
 
-			return messages, true, err
+			//file was known to not loaded completed
+
+			//still working on the same file
+			if d.diskQueue.writeSegmentNum == d.segment {
+				time.Sleep(100 * time.Millisecond) // Prevent catching up too quickly.
+				log.Debugf("invalid message size detected. this might be due to a dirty read as the file was being written while open. reloading segment: %d", d.segment)
+			} else {
+				log.Debugf("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
+			}
+
+			stats.Increment("consumer", d.qCfg.ID, d.cCfg.ID, "reload_partial_file")
+			goto RELOAD_FILE
 		}
 
 		if d.mCfg.Compress.Message.Enabled {
@@ -365,6 +374,7 @@ READ_MSG:
 	}
 
 RELOAD_FILE:
+	log.Debugf("load queue file: %v/%v, read at: %v", d.queue, d.segment, d.readPos)
 	if nextReadPos >= d.maxBytesPerFileRead {
 
 		if !d.fileLoadCompleted {
@@ -511,12 +521,12 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 				return errors.New(fileName + " not found and auto_skip_corrupt_file not enabled.")
 			}
 		}
-		return errors.Errorf("current file: %v not found, and next_file_exists: %v.",fileName,next_file_exists)
+		return errors.Errorf("current file: %v not found, and next_file_exists: %v.", fileName, next_file_exists)
 	}
 
 FIND_NEXT_FILE:
 	//if next file exists, and current file is not the last file, the file should be completed loaded
-	if next_file_exists {
+	if next_file_exists || d.diskQueue.writeSegmentNum > segment {
 		d.fileLoadCompleted = true
 	} else {
 		d.fileLoadCompleted = false

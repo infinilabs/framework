@@ -21,6 +21,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !windows
 // +build !windows
 
 package plugin
@@ -32,7 +33,7 @@ import (
 )
 
 type pluginList struct {
-	paths  []string
+	paths []string
 }
 
 func (p *pluginList) String() string {
@@ -50,8 +51,7 @@ func (p *pluginList) Set(v string) error {
 	return nil
 }
 
-var plugins = &pluginList{
-}
+var plugins = &pluginList{}
 
 func init() {
 	flag.Var(plugins, "plugin", "load additional plugins")

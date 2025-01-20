@@ -42,7 +42,7 @@ type APIHandler struct {
 
 func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	reqBody := struct {
-		Key string `json:"key"`
+		Key   string `json:"key"`
 		Value string `json:"value"`
 	}{}
 	err := h.DecodeJSON(req, &reqBody)

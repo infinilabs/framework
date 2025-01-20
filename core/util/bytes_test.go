@@ -43,10 +43,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/buger/jsonparser"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/buger/jsonparser"
+	"github.com/stretchr/testify/assert"
 )
 
 var splitBytes = []byte("\",")
@@ -93,11 +94,11 @@ var searchLen = len(splitBytes)
 //	item := []byte("am")
 //
 //	index := bytes.LastIndex(data, item)
-//	fmt.Println(index)
+//	//fmt.Println(index)
 //	index1 := BytesIndex(&data, &item, false)
-//	fmt.Println(index1)
+//	//fmt.Println(index1)
 //	index2 := BytesIndex(&data, &item, true)
-//	fmt.Println(index2)
+//	//fmt.Println(index2)
 //	assert.Equal(t, index, index1)
 //	assert.Equal(t, index, index2)
 //}
@@ -129,69 +130,69 @@ func splitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 var matchKeyword = "_scroll_id"
 
 func TestExtractIDFieldFromAsyncSearchJson(t *testing.T) {
-data:=[]byte("{\n  \"id\" : \"FktyZXA2bklVU2VDeWIwVWdkVTlMcGcdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoyNDY3MjY=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601104032218,\n  \"expiration_time_in_millis\" : 1601536032218,\n  \"response\" : {\n    \"took\" : 1004,\n    \"timed_out\" : false,\n    \"terminated_early\" : false,\n    \"_shards\" : {\n      \"total\" : 11,\n      \"successful\" : 5,\n      \"skipped\" : 0,\n      \"failed\" : 0\n    },\n    \"hits\" : {\n      \"total\" : {\n        \"value\" : 10000,\n        \"relation\" : \"gte\"\n      },\n      \"max_score\" : null,\n      \"hits\" : [ ]\n    },\n    \"aggregations\" : {\n      \"sale_date\" : {\n        \"buckets\" : [\n          {\n            \"key_as_string\" : \"2020-03-14T00:00:00.000Z\",\n            \"key\" : 1584144000000,\n            \"doc_count\" : 1276\n          },\n          {\n            \"key_as_string\" : \"2020-03-15T00:00:00.000Z\",\n            \"key\" : 1584230400000,\n            \"doc_count\" : 3872\n          },\n          {\n            \"key_as_string\" : \"2020-03-16T00:00:00.000Z\",\n            \"key\" : 1584316800000,\n            \"doc_count\" : 3815\n          },\n          {\n            \"key_as_string\" : \"2020-03-17T00:00:00.000Z\",\n            \"key\" : 1584403200000,\n            \"doc_count\" : 3936\n          },\n          {\n            \"key_as_string\" : \"2020-03-18T00:00:00.000Z\",\n            \"key\" : 1584489600000,\n            \"doc_count\" : 3743\n          },\n          {\n            \"key_as_string\" : \"2020-03-19T00:00:00.000Z\",\n            \"key\" : 1584576000000,\n            \"doc_count\" : 3743\n          },\n          {\n            \"key_as_string\" : \"2020-03-20T00:00:00.000Z\",\n            \"key\" : 1584662400000,\n            \"doc_count\" : 3761\n          },\n          {\n            \"key_as_string\" : \"2020-03-21T00:00:00.000Z\",\n            \"key\" : 1584748800000,\n            \"doc_count\" : 3792\n          },\n          {\n            \"key_as_string\" : \"2020-03-22T00:00:00.000Z\",\n            \"key\" : 1584835200000,\n            \"doc_count\" : 3751\n          },\n          {\n            \"key_as_string\" : \"2020-03-23T00:00:00.000Z\",\n            \"key\" : 1584921600000,\n            \"doc_count\" : 3744\n          },\n          {\n            \"key_as_string\" : \"2020-03-24T00:00:00.000Z\",\n            \"key\" : 1585008000000,\n            \"doc_count\" : 2386\n          },\n          {\n            \"key_as_string\" : \"2020-03-25T00:00:00.000Z\",\n            \"key\" : 1585094400000,\n            \"doc_count\" : 3625\n          },\n          {\n            \"key_as_string\" : \"2020-03-26T00:00:00.000Z\",\n            \"key\" : 1585180800000,\n            \"doc_count\" : 6080\n          },\n          {\n            \"key_as_string\" : \"2020-03-27T00:00:00.000Z\",\n            \"key\" : 1585267200000,\n            \"doc_count\" : 45118\n          }\n        ]\n      }\n    }\n  }\n}\n")
+	data := []byte("{\n  \"id\" : \"FktyZXA2bklVU2VDeWIwVWdkVTlMcGcdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoyNDY3MjY=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601104032218,\n  \"expiration_time_in_millis\" : 1601536032218,\n  \"response\" : {\n    \"took\" : 1004,\n    \"timed_out\" : false,\n    \"terminated_early\" : false,\n    \"_shards\" : {\n      \"total\" : 11,\n      \"successful\" : 5,\n      \"skipped\" : 0,\n      \"failed\" : 0\n    },\n    \"hits\" : {\n      \"total\" : {\n        \"value\" : 10000,\n        \"relation\" : \"gte\"\n      },\n      \"max_score\" : null,\n      \"hits\" : [ ]\n    },\n    \"aggregations\" : {\n      \"sale_date\" : {\n        \"buckets\" : [\n          {\n            \"key_as_string\" : \"2020-03-14T00:00:00.000Z\",\n            \"key\" : 1584144000000,\n            \"doc_count\" : 1276\n          },\n          {\n            \"key_as_string\" : \"2020-03-15T00:00:00.000Z\",\n            \"key\" : 1584230400000,\n            \"doc_count\" : 3872\n          },\n          {\n            \"key_as_string\" : \"2020-03-16T00:00:00.000Z\",\n            \"key\" : 1584316800000,\n            \"doc_count\" : 3815\n          },\n          {\n            \"key_as_string\" : \"2020-03-17T00:00:00.000Z\",\n            \"key\" : 1584403200000,\n            \"doc_count\" : 3936\n          },\n          {\n            \"key_as_string\" : \"2020-03-18T00:00:00.000Z\",\n            \"key\" : 1584489600000,\n            \"doc_count\" : 3743\n          },\n          {\n            \"key_as_string\" : \"2020-03-19T00:00:00.000Z\",\n            \"key\" : 1584576000000,\n            \"doc_count\" : 3743\n          },\n          {\n            \"key_as_string\" : \"2020-03-20T00:00:00.000Z\",\n            \"key\" : 1584662400000,\n            \"doc_count\" : 3761\n          },\n          {\n            \"key_as_string\" : \"2020-03-21T00:00:00.000Z\",\n            \"key\" : 1584748800000,\n            \"doc_count\" : 3792\n          },\n          {\n            \"key_as_string\" : \"2020-03-22T00:00:00.000Z\",\n            \"key\" : 1584835200000,\n            \"doc_count\" : 3751\n          },\n          {\n            \"key_as_string\" : \"2020-03-23T00:00:00.000Z\",\n            \"key\" : 1584921600000,\n            \"doc_count\" : 3744\n          },\n          {\n            \"key_as_string\" : \"2020-03-24T00:00:00.000Z\",\n            \"key\" : 1585008000000,\n            \"doc_count\" : 2386\n          },\n          {\n            \"key_as_string\" : \"2020-03-25T00:00:00.000Z\",\n            \"key\" : 1585094400000,\n            \"doc_count\" : 3625\n          },\n          {\n            \"key_as_string\" : \"2020-03-26T00:00:00.000Z\",\n            \"key\" : 1585180800000,\n            \"doc_count\" : 6080\n          },\n          {\n            \"key_as_string\" : \"2020-03-27T00:00:00.000Z\",\n            \"key\" : 1585267200000,\n            \"doc_count\" : 45118\n          }\n        ]\n      }\n    }\n  }\n}\n")
 
-	ok,id:=ExtractFieldFromJson(&data,[]byte("\"id\""),[]byte("\"is_partial\""),[]byte("id\""))
+	ok, id := ExtractFieldFromJson(&data, []byte("\"id\""), []byte("\"is_partial\""), []byte("id\""))
 	fmt.Println(ok)
 	fmt.Println(string(id))
-	if ok{
+	if ok {
 
-		id=bytes.Replace(id,[]byte(":"),nil,-1)
-		id=bytes.Replace(id,[]byte("\""),nil,-1)
-		id=bytes.Replace(id,[]byte(","),nil,-1)
-		id=bytes.TrimSpace(id)
+		id = bytes.Replace(id, []byte(":"), nil, -1)
+		id = bytes.Replace(id, []byte("\""), nil, -1)
+		id = bytes.Replace(id, []byte(","), nil, -1)
+		id = bytes.TrimSpace(id)
 
 		fmt.Println(string(id))
-		assert.Equal(t,"FktyZXA2bklVU2VDeWIwVWdkVTlMcGcdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoyNDY3MjY=",string(id))
+		assert.Equal(t, "FktyZXA2bklVU2VDeWIwVWdkVTlMcGcdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoyNDY3MjY=", string(id))
 	}
 
-	data=[]byte("{\n  \"is_partial\" : false,\n  \"is_running\" : false,\n  \"start_time_in_millis\" : 1601105122480,\n  \"expiration_time_in_millis\" : 1601537122480,\n  \"response\" : {\n    \"took\" : 78,\n    \"timed_out\" : false,\n    \"num_reduce_phases\" : 3,\n    \"_shards\" : {\n      \"total\" : 11,\n      \"successful\" : 11,\n      \"skipped\" : 0,\n      \"failed\" : 0\n    },\n    \"hits\" : {\n      \"total\" : {\n        \"value\" : 10000,\n        \"relation\" : \"gte\"\n      },\n      \"max_score\" : null,\n      \"hits\" : [\n        {")
+	data = []byte("{\n  \"is_partial\" : false,\n  \"is_running\" : false,\n  \"start_time_in_millis\" : 1601105122480,\n  \"expiration_time_in_millis\" : 1601537122480,\n  \"response\" : {\n    \"took\" : 78,\n    \"timed_out\" : false,\n    \"num_reduce_phases\" : 3,\n    \"_shards\" : {\n      \"total\" : 11,\n      \"successful\" : 11,\n      \"skipped\" : 0,\n      \"failed\" : 0\n    },\n    \"hits\" : {\n      \"total\" : {\n        \"value\" : 10000,\n        \"relation\" : \"gte\"\n      },\n      \"max_score\" : null,\n      \"hits\" : [\n        {")
 
-	ok,id=ExtractFieldFromJson(&data,[]byte("\"id\""),[]byte("\"is_partial\""),[]byte("id\""))
+	ok, id = ExtractFieldFromJson(&data, []byte("\"id\""), []byte("\"is_partial\""), []byte("id\""))
 	fmt.Println(ok)
 	fmt.Println(string(id))
 
 }
 
-var data1=[]byte("},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}")
+var data1 = []byte("},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}")
+
 func TestReplaceTimestampInBytes(t *testing.T) {
 
-
-	ok,item:=ExtractFieldFromJsonOrder(&data1,[]byte("@timestamp"),[]byte("strict_date_optional_time"),[]byte("range"),true)
+	ok, item := ExtractFieldFromJsonOrder(&data1, []byte("@timestamp"), []byte("strict_date_optional_time"), []byte("range"), true)
 	//fmt.Println(string(item))
 	//":{"gte":"2019-09-26T18:21:12.152Z","lte":"2020-09-26T18:21:12.152Z","format":"
-	assert.Equal(t,"\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"",string(item))
+	assert.Equal(t, "\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"", string(item))
 
 	//testing reverse
-	ok,item=ExtractFieldFromJsonOrder(&data1,[]byte("@timestamp"),[]byte("strict_date_optional_time"),[]byte("range"),false)
-	assert.Equal(t,"\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"",string(item))
+	ok, item = ExtractFieldFromJsonOrder(&data1, []byte("@timestamp"), []byte("strict_date_optional_time"), []byte("range"), false)
+	assert.Equal(t, "\":{\"gte\":\"2019-09-26T18:21:12.152Z\",\"lte\":\"2020-09-26T18:21:12.152Z\",\"format\":\"", string(item))
 
 	//fmt.Println(ok)
 	//fmt.Println([]byte("T"))
 	//fmt.Println([]byte("Z"))
 	//fmt.Println([]byte("0"))
 	//fmt.Println([]byte(":"))
-	startProcess:=false
+	startProcess := false
 	//totalPrecision:=9
-	precisionLimit:=2
-	precisionOffset:=0
-	for i,v:=range item{
+	precisionLimit := 2
+	precisionOffset := 0
+	for i, v := range item {
 		//fmt.Println("position:",i,string(v),",",precisionOffset)
 
-		if v==84{
-			startProcess=true
-			precisionOffset=0
+		if v == 84 {
+			startProcess = true
+			precisionOffset = 0
 			continue
 		}
-		if startProcess && v>48 && v<58{
+		if startProcess && v > 48 && v < 58 {
 			precisionOffset++
-			if precisionOffset<=precisionLimit{
+			if precisionOffset <= precisionLimit {
 				continue
-			}else if precisionOffset>9{
-				startProcess=false
+			} else if precisionOffset > 9 {
+				startProcess = false
 				continue
 			}
-			item[i]=48
+			item[i] = 48
 			//fmt.Println(string(item))
 
 		}
@@ -200,29 +201,29 @@ func TestReplaceTimestampInBytes(t *testing.T) {
 
 	fmt.Println(string(item))
 
-	assert.Equal(t,"\":{\"gte\":\"2019-09-26T18:00:00.000Z\",\"lte\":\"2020-09-26T18:00:00.000Z\",\"format\":\"",string(item))
+	assert.Equal(t, "\":{\"gte\":\"2019-09-26T18:00:00.000Z\",\"lte\":\"2020-09-26T18:00:00.000Z\",\"format\":\"", string(item))
 
-	ok=ProcessJsonData(&data1,[]byte("range"),150,[][]byte{[]byte("gte"),[]byte("lte")},true,[]byte("gte"),[]byte("}"),128, func(d []byte,start,end int) {
-		startProcess:=false
-		precisionLimit:=2
-		precisionOffset:=0
-		fmt.Println("handle:",start,",",end,",",string(data1[start:end]))
-		for i,v:=range data1[start:end]{
-			if v==84{
-				startProcess=true
-				precisionOffset=0
+	ok = ProcessJsonData(&data1, []byte("range"), 150, [][]byte{[]byte("gte"), []byte("lte")}, true, []byte("gte"), []byte("}"), 128, func(d []byte, start, end int) {
+		startProcess := false
+		precisionLimit := 2
+		precisionOffset := 0
+		fmt.Println("handle:", start, ",", end, ",", string(data1[start:end]))
+		for i, v := range data1[start:end] {
+			if v == 84 {
+				startProcess = true
+				precisionOffset = 0
 				continue
 			}
-			if startProcess && v>47 && v<58{
+			if startProcess && v > 47 && v < 58 {
 				precisionOffset++
-				if precisionOffset<=precisionLimit{
+				if precisionOffset <= precisionLimit {
 					continue
-				}else if precisionOffset>9{
-					startProcess=false
+				} else if precisionOffset > 9 {
+					startProcess = false
 					continue
 				}
-				fmt.Println(len(data1),",",start,",",i)
-				data1[start+i]=48
+				fmt.Println(len(data1), ",", start, ",", i)
+				data1[start+i] = 48
 
 			}
 
@@ -230,40 +231,39 @@ func TestReplaceTimestampInBytes(t *testing.T) {
 	})
 	fmt.Println(ok)
 
-
-	expected:="},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T18:00:00.000Z\",\"lte\":\"2020-09-26T18:00:00.000Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}"
+	expected := "},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T18:00:00.000Z\",\"lte\":\"2020-09-26T18:00:00.000Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}"
 
 	fmt.Println(string(data1))
 	fmt.Println(string(expected))
-	assert.Equal(t,expected,string(data1))
+	assert.Equal(t, expected, string(data1))
 
-	data=[]byte("{\"version\":true,\"size\":500,\"sort\":[{\"@timestamp\":{\"order\":\"desc\",\"unmapped_type\":\"boolean\"}}],\"aggs\":{\"2\":{\"date_histogram\":{\"field\":\"@timestamp\",\"calendar_interval\":\"1w\",\"time_zone\":\"Asia/Shanghai\",\"min_doc_count\":1}}},\"stored_fields\":[\"*\"],\"script_fields\":{},\"docvalue_fields\":[{\"field\":\"@timestamp\",\"format\":\"date_time\"},{\"field\":\"aws.cloudtrail.user_identity.session_context.creation_date\",\"format\":\"date_time\"},{\"field\":\"azure.auditlogs.properties.activity_datetime\",\"format\":\"date_time\"},{\"field\":\"azure.enqueued_time\",\"format\":\"date_time\"},{\"field\":\"azure.signinlogs.properties.created_at\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.agentReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceCustomDate1\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceCustomDate2\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.endTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.fileCreateTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.fileModificationTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.flexDate1\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.managerReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.oldFileCreateTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.oldFileModificationTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.startTime\",\"format\":\"date_time\"},{\"field\":\"checkpoint.subs_exp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.EndTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.IncidentEndTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.IncidentStartTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.ProcessEndTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.ProcessStartTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.StartTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.UTCTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.metadata.eventCreationTime\",\"format\":\"date_time\"},{\"field\":\"event.created\",\"format\":\"date_time\"},{\"field\":\"event.end\",\"format\":\"date_time\"},{\"field\":\"event.ingested\",\"format\":\"date_time\"},{\"field\":\"event.start\",\"format\":\"date_time\"},{\"field\":\"file.accessed\",\"format\":\"date_time\"},{\"field\":\"file.created\",\"format\":\"date_time\"},{\"field\":\"file.ctime\",\"format\":\"date_time\"},{\"field\":\"file.mtime\",\"format\":\"date_time\"},{\"field\":\"kafka.block_timestamp\",\"format\":\"date_time\"},{\"field\":\"misp.campaign.first_seen\",\"format\":\"date_time\"},{\"field\":\"misp.campaign.last_seen\",\"format\":\"date_time\"},{\"field\":\"misp.intrusion_set.first_seen\",\"format\":\"date_time\"},{\"field\":\"misp.intrusion_set.last_seen\",\"format\":\"date_time\"},{\"field\":\"misp.observed_data.first_observed\",\"format\":\"date_time\"},{\"field\":\"misp.observed_data.last_observed\",\"format\":\"date_time\"},{\"field\":\"misp.report.published\",\"format\":\"date_time\"},{\"field\":\"misp.threat_indicator.valid_from\",\"format\":\"date_time\"},{\"field\":\"misp.threat_indicator.valid_until\",\"format\":\"date_time\"},{\"field\":\"netflow.collection_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.exporter.timestamp\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_export_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_export_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.monitoring_interval_end_milli_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.monitoring_interval_start_milli_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.system_init_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"package.installed\",\"format\":\"date_time\"},{\"field\":\"process.parent.start\",\"format\":\"date_time\"},{\"field\":\"process.start\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.flow.end\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.flow.start\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.timestamp\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.tls.notafter\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.tls.notbefore\",\"format\":\"date_time\"},{\"field\":\"tls.client.not_after\",\"format\":\"date_time\"},{\"field\":\"tls.client.not_before\",\"format\":\"date_time\"},{\"field\":\"tls.server.not_after\",\"format\":\"date_time\"},{\"field\":\"tls.server.not_before\",\"format\":\"date_time\"},{\"field\":\"zeek.kerberos.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T09:21:17.673Z\",\"lte\":\"2020-09-26T09:21:17.673Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}\n")
+	data = []byte("{\"version\":true,\"size\":500,\"sort\":[{\"@timestamp\":{\"order\":\"desc\",\"unmapped_type\":\"boolean\"}}],\"aggs\":{\"2\":{\"date_histogram\":{\"field\":\"@timestamp\",\"calendar_interval\":\"1w\",\"time_zone\":\"Asia/Shanghai\",\"min_doc_count\":1}}},\"stored_fields\":[\"*\"],\"script_fields\":{},\"docvalue_fields\":[{\"field\":\"@timestamp\",\"format\":\"date_time\"},{\"field\":\"aws.cloudtrail.user_identity.session_context.creation_date\",\"format\":\"date_time\"},{\"field\":\"azure.auditlogs.properties.activity_datetime\",\"format\":\"date_time\"},{\"field\":\"azure.enqueued_time\",\"format\":\"date_time\"},{\"field\":\"azure.signinlogs.properties.created_at\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.agentReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceCustomDate1\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceCustomDate2\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.deviceReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.endTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.fileCreateTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.fileModificationTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.flexDate1\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.managerReceiptTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.oldFileCreateTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.oldFileModificationTime\",\"format\":\"date_time\"},{\"field\":\"cef.extensions.startTime\",\"format\":\"date_time\"},{\"field\":\"checkpoint.subs_exp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.EndTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.IncidentEndTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.IncidentStartTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.ProcessEndTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.ProcessStartTime\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.StartTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.event.UTCTimestamp\",\"format\":\"date_time\"},{\"field\":\"crowdstrike.metadata.eventCreationTime\",\"format\":\"date_time\"},{\"field\":\"event.created\",\"format\":\"date_time\"},{\"field\":\"event.end\",\"format\":\"date_time\"},{\"field\":\"event.ingested\",\"format\":\"date_time\"},{\"field\":\"event.start\",\"format\":\"date_time\"},{\"field\":\"file.accessed\",\"format\":\"date_time\"},{\"field\":\"file.created\",\"format\":\"date_time\"},{\"field\":\"file.ctime\",\"format\":\"date_time\"},{\"field\":\"file.mtime\",\"format\":\"date_time\"},{\"field\":\"kafka.block_timestamp\",\"format\":\"date_time\"},{\"field\":\"misp.campaign.first_seen\",\"format\":\"date_time\"},{\"field\":\"misp.campaign.last_seen\",\"format\":\"date_time\"},{\"field\":\"misp.intrusion_set.first_seen\",\"format\":\"date_time\"},{\"field\":\"misp.intrusion_set.last_seen\",\"format\":\"date_time\"},{\"field\":\"misp.observed_data.first_observed\",\"format\":\"date_time\"},{\"field\":\"misp.observed_data.last_observed\",\"format\":\"date_time\"},{\"field\":\"misp.report.published\",\"format\":\"date_time\"},{\"field\":\"misp.threat_indicator.valid_from\",\"format\":\"date_time\"},{\"field\":\"misp.threat_indicator.valid_until\",\"format\":\"date_time\"},{\"field\":\"netflow.collection_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.exporter.timestamp\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_end_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.flow_start_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_export_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.max_flow_end_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_export_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.min_flow_start_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.monitoring_interval_end_milli_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.monitoring_interval_start_milli_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_microseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_nanoseconds\",\"format\":\"date_time\"},{\"field\":\"netflow.observation_time_seconds\",\"format\":\"date_time\"},{\"field\":\"netflow.system_init_time_milliseconds\",\"format\":\"date_time\"},{\"field\":\"package.installed\",\"format\":\"date_time\"},{\"field\":\"process.parent.start\",\"format\":\"date_time\"},{\"field\":\"process.start\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.flow.end\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.flow.start\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.timestamp\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.tls.notafter\",\"format\":\"date_time\"},{\"field\":\"suricata.eve.tls.notbefore\",\"format\":\"date_time\"},{\"field\":\"tls.client.not_after\",\"format\":\"date_time\"},{\"field\":\"tls.client.not_before\",\"format\":\"date_time\"},{\"field\":\"tls.server.not_after\",\"format\":\"date_time\"},{\"field\":\"tls.server.not_before\",\"format\":\"date_time\"},{\"field\":\"zeek.kerberos.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.kerberos.valid.until\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.revoke.time\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.next\",\"format\":\"date_time\"},{\"field\":\"zeek.ocsp.update.this\",\"format\":\"date_time\"},{\"field\":\"zeek.pe.compile_time\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.accessed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.changed\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.created\",\"format\":\"date_time\"},{\"field\":\"zeek.smb_files.times.modified\",\"format\":\"date_time\"},{\"field\":\"zeek.smtp.date\",\"format\":\"date_time\"},{\"field\":\"zeek.snmp.up_since\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.from\",\"format\":\"date_time\"},{\"field\":\"zeek.x509.certificate.valid.until\",\"format\":\"date_time\"}],\"_source\":{\"excludes\":[]},\"query\":{\"bool\":{\"must\":[],\"filter\":[{\"match_all\":{}},{\"range\":{\"@timestamp\":{\"gte\":\"2019-09-26T09:21:17.673Z\",\"lte\":\"2020-09-26T09:21:17.673Z\",\"format\":\"strict_date_optional_time\"}}}],\"should\":[],\"must_not\":[]}},\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"fragment_size\":2147483647}}\n")
 
-	ProcessJsonData(&data,[]byte("range"),150,[][]byte{[]byte("gte"),[]byte("lte")},true,[]byte("gte"),[]byte("?"),128, func(d []byte,start,end int) {
-		startProcess:=false
-		precisionLimit:=2
-		precisionOffset:=0
-		for i,v:=range data[start:end]{
-			if v==84{
-				startProcess=true
-				precisionOffset=0
+	ProcessJsonData(&data, []byte("range"), 150, [][]byte{[]byte("gte"), []byte("lte")}, true, []byte("gte"), []byte("?"), 128, func(d []byte, start, end int) {
+		startProcess := false
+		precisionLimit := 2
+		precisionOffset := 0
+		for i, v := range data[start:end] {
+			if v == 84 {
+				startProcess = true
+				precisionOffset = 0
 				continue
 			}
-			if startProcess && v>47 && v<58{
+			if startProcess && v > 47 && v < 58 {
 				precisionOffset++
-				if precisionOffset<=precisionLimit{
+				if precisionOffset <= precisionLimit {
 					continue
-				}else if precisionOffset>9{
-					startProcess=false
+				} else if precisionOffset > 9 {
+					startProcess = false
 					continue
 				}
-				data[start+i]=48
+				data[start+i] = 48
 			}
 
 		}
 	})
 
-	fmt.Println(string(data))
+	//fmt.Println(string(data))
 }
 
 func TestExtractFieldFromJson(t *testing.T) {
@@ -275,7 +275,7 @@ func TestExtractFieldFromJson(t *testing.T) {
 	i := 0
 	var str string
 	for scanner.Scan() {
-		fmt.Println(i, ": ", scanner.Text())
+		//fmt.Println(i, ": ", scanner.Text())
 		text := scanner.Text()
 		if ContainStr(text, matchKeyword) {
 			str = text
@@ -289,7 +289,7 @@ func TestExtractFieldFromJson(t *testing.T) {
 		offset := strings.LastIndex(str, "\"")
 		if offset > 0 && offset < len(str) {
 			newStr := str[offset+1 : len(str)]
-			fmt.Println(newStr)
+			//fmt.Println(newStr)
 			assert.Equal(t, "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFG43dnRGSFFCbVRLSFpIbTNZYWFTAAAAAAA0NsQWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==", newStr)
 		}
 	}
@@ -300,18 +300,18 @@ func TestExtractFieldFromJson(t *testing.T) {
 
 	data := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFENid0hGWFFCbVRLSFpIbTN0Z18wAAAAAAA0TTsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":527,\"timed_out\"")
 	hit, str1 = ExtractFieldFromJson(&data, []byte("\""), splitBytes, []byte("_scroll_id"))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 
 	hit, str1 = ExtractFieldFromJsonOrder(&inputBytes, []byte("\"_scroll_id\" : \""), []byte("\","), []byte("_scroll_id"), false)
-	fmt.Println("str1:", string(str1))
+	//fmt.Println("str1:", string(str1))
 	assert.Equal(t, true, hit)
 	assert.Equal(t, "FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFG43dnRGSFFCbVRLSFpIbTNZYWFTAAAAAAA0NsQWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==", string(str1))
 
 	data = []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFENid0hGWFFCbVRLSFpIbTN0Z18wAAAAAAA0TTsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":527,\"timed_out\"")
 	hit, str1 = ExtractFieldFromJsonOrder(&data, []byte("_scroll_id\":\""), []byte("\","), []byte("_scroll_id"), false)
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 
 }
 
@@ -340,7 +340,7 @@ type MatchPair struct {
 //		//go from let to right
 //		if v.StartOrder==LEFT{
 //			startWith:=bytes.Index(*data,v.StartWith)
-//			fmt.Println("start with: ",startWith)
+//			//fmt.Println("start with: ",startWith)
 //		}
 //
 //		//get key position
@@ -385,24 +385,24 @@ func BenchmarkLastIndex(b *testing.B) {
 
 func BenchmarkBytesHasPrefix(b *testing.B) {
 	item := []byte("took")
-	prefix:=[]byte("to")
+	prefix := []byte("to")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		BytesHasPrefix(item,prefix)
+		BytesHasPrefix(item, prefix)
 	}
 }
 
 func TestLastIndex(t *testing.T) {
 
 	data := []byte("i am groot!")
-	fmt.Println(data)
+	//fmt.Println(data)
 	item := []byte("am")
-	fmt.Println(item)
+	//fmt.Println(item)
 	itemLength := len(item)
 	lastHit := item[itemLength-1]
-	fmt.Println(lastHit)
+	//fmt.Println(lastHit)
 
-	fmt.Println("last index: ", bytes.LastIndex(data, item))
+	//fmt.Println("last index: ", bytes.LastIndex(data, item))
 
 	candidateBuffer := make([]byte, itemLength)
 
@@ -411,16 +411,16 @@ func TestLastIndex(t *testing.T) {
 	if last := len(data) - 1; last >= 0 {
 		for i, element := last, data[0]; i >= 0; i-- {
 			element = data[i]
-			fmt.Printf("Reverse range: [%v] %+v\n", i, element)
+			//fmt.Printf("Reverse range: [%v] %+v\n", i, element)
 
-			fmt.Println("candidate match: ", startMatch)
-			fmt.Println("candidate offset: ", candidateOffset)
-			fmt.Println("candidate buffer: ", candidateBuffer)
+			//fmt.Println("candidate match: ", startMatch)
+			//fmt.Println("candidate offset: ", candidateOffset)
+			//fmt.Println("candidate buffer: ", candidateBuffer)
 
 			//start to match if not started and match with last char
 			if !startMatch && element == lastHit {
 				startMatch = true
-				fmt.Println("hit last char, start try to match")
+				//fmt.Println("hit last char, start try to match")
 				candidateBuffer[candidateOffset] = element
 				candidateOffset--
 
@@ -429,8 +429,8 @@ func TestLastIndex(t *testing.T) {
 				candidateOffset = itemLength - 1
 
 				if bytes.Equal(candidateBuffer, item) {
-					fmt.Println("hit final offset: ", i)
-					fmt.Println("buffer: ", candidateBuffer)
+					//fmt.Println("hit final offset: ", i)
+					//fmt.Println("buffer: ", candidateBuffer)
 					return
 				} else {
 					startMatch = false
@@ -438,7 +438,7 @@ func TestLastIndex(t *testing.T) {
 			}
 		}
 	} else {
-		fmt.Println("mySlice empty")
+		//fmt.Println("mySlice empty")
 	}
 }
 
@@ -447,11 +447,11 @@ func TestExtractFieldFromJson1(t *testing.T) {
 	//{ "delete" : { "_index" : "test", "_id" : "2" } }
 	//{ "create" : { "_index" : "test", "_id" : "3" } }
 	//{ "update" : {"_id" : "1", "_index" : "test"} }
-	data:=[]byte("{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }")
-	data1:=[]byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"_doc\",\"_id\":\"GZq-bnYBC53QmW9Kk2ve\"}}")
+	data := []byte("{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }")
+	data1 := []byte("{\"index\":{\"_index\":\"medcl1\",\"_type\":\"_doc\",\"_id\":\"GZq-bnYBC53QmW9Kk2ve\"}}")
 
-	start:=[]byte("\"")
-	end:=[]byte("\"")
+	start := []byte("\"")
+	end := []byte("\"")
 	//matchStart:=false
 	//matchEnd:=false
 	//
@@ -461,7 +461,7 @@ func TestExtractFieldFromJson1(t *testing.T) {
 	//	toBeMachedBuffer.WriteByte(v)
 	//
 	//	if matchStart&&matchEnd{
-	//		fmt.Println(buffer.String())
+	//		//fmt.Println(buffer.String())
 	//		break
 	//	}
 	//
@@ -482,57 +482,54 @@ func TestExtractFieldFromJson1(t *testing.T) {
 	//		//v==start[0]{
 	//			matchStart=true
 	//			toBeMachedBuffer.Reset()
-	//			fmt.Println("matched start:",i)
+	//			//fmt.Println("matched start:",i)
 	//			continue
 	//		}
 	//	}
 	//
 	//
 	//}
-	value:=ExtractFieldFromBytes(&data,start,end,nil)
+	value := ExtractFieldFromBytes(&data, start, end, nil)
 	fmt.Println(string(value))
-	assert.Equal(t,"index",string(value))
+	assert.Equal(t, "index", string(value))
 
-	value=ExtractFieldFromBytes(&data1,start,end,nil)
-	fmt.Println(string(value))
-
-
-	start=[]byte("\"_index\"")
-	end=[]byte("\",")
-	filteredFromValue:=[]byte(": \"")
-	value=ExtractFieldFromBytes(&data,start,end,filteredFromValue)
-	fmt.Println(string(value))
-	assert.Equal(t,"test",string(value))
-
-	value=ExtractFieldFromBytes(&data1,start,end,filteredFromValue)
+	value = ExtractFieldFromBytes(&data1, start, end, nil)
 	fmt.Println(string(value))
 
-	start=[]byte("\"_id\"")
-	end=[]byte("}")
-	filteredFromValue=[]byte(": \"")
-	value=ExtractFieldFromBytes(&data,start,end,filteredFromValue)
+	start = []byte("\"_index\"")
+	end = []byte("\",")
+	filteredFromValue := []byte(": \"")
+	value = ExtractFieldFromBytes(&data, start, end, filteredFromValue)
 	fmt.Println(string(value))
-	assert.Equal(t,"1",string(value))
+	assert.Equal(t, "test", string(value))
 
-	value=ExtractFieldFromBytes(&data1,start,end,filteredFromValue)
+	value = ExtractFieldFromBytes(&data1, start, end, filteredFromValue)
 	fmt.Println(string(value))
 
+	start = []byte("\"_id\"")
+	end = []byte("}")
+	filteredFromValue = []byte(": \"")
+	value = ExtractFieldFromBytes(&data, start, end, filteredFromValue)
+	fmt.Println(string(value))
+	assert.Equal(t, "1", string(value))
 
+	value = ExtractFieldFromBytes(&data1, start, end, filteredFromValue)
+	fmt.Println(string(value))
 
 }
 
 func TestExtractFieldFromJson2(t *testing.T) {
 	data1 := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFDlMMWJGWFFCbVRLSFpIbTNXVm1GAAAAAAA0lIsWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":1,\"timed_out\":false,\"terminated_early\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":1.0,\"hits\":[]}}")
 	hit, str1 := ExtractFieldFromJson(&data1, []byte("hits\":{\"total\":{\"value\":"), []byte(",\"relation\""), []byte("\"total\":{\"value\""))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 	assert.Equal(t, "1", string(str1))
 	assert.Equal(t, true, hit)
 
 	data2 := []byte("{\"_scroll_id\":\"FGluY2x1ZGVfY29udGV4dF91dWlkDXF1ZXJ5QW5kRmV0Y2gBFDRzTGhGblFCbVRLSFpIbTNpdllBAAAAAAA116kWMWpuRkM3SDZSWWVBSTdKT1hkRDNkdw==\",\"took\":1,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":5,\"relation\":\"eq\"},\"max_score\":1.0,\"hits\":[{\"_index\":\"china_provinces_v1\",\"_type\":\"_doc\",\"_id\":\"q4l7pnIBLg-rvzvwS3nG\",\"_score\":1.0,\"_source\":{\"coordinates\":{\"type\":\"polygon\",\"coordinates\":[[[104.526735,24.7343],[104.489966,24.658264],[104.502223,24.582228],[104.54512,24.524083],[104.575761,24.421211],[104.624786,24.416738],[104.606402,24.376484],[104.698324,24.322812],[104.722837,24.33623],[104.710581,24.443575],[1")
 	hit, str1 = ExtractFieldFromJson(&data2, []byte("hits\":{\"total\":{\"value\":"), []byte(",\"relation\":\""), []byte("\"total\":{\"value\""))
-	fmt.Println(hit)
-	fmt.Println((string(str1)))
+	//fmt.Println(hit)
+	//fmt.Println((string(str1)))
 	assert.Equal(t, "5", string(str1))
 
 }
@@ -545,11 +542,11 @@ func TestBytesEndWith(t *testing.T) {
 	d := []byte(str)
 	ending := []byte("\"hits\":[]}}")
 	offset := bytes.LastIndex(d, ending)
-	fmt.Println(len(d))
-	fmt.Println(len(ending))
-	fmt.Println(offset)
+	//fmt.Println(len(d))
+	//fmt.Println(len(ending))
+	//fmt.Println(offset)
 
-	fmt.Println(len(d)-offset <= len(ending))
+	//fmt.Println(len(d)-offset <= len(ending))
 	assert.Equal(t, true, len(d)-offset <= len(ending))
 
 	assert.Equal(t, true, BytesHasSuffix(d, ending))
@@ -574,51 +571,50 @@ func TestBytesStartWith1(t *testing.T) {
 func TestToLowercase(t *testing.T) {
 	str := []byte("AZazUPPERcase")
 
-	printStr(str)
+	//printStr(str)
 	ToLowercase(str)
-	fmt.Println("lowercased:")
+	//fmt.Println("lowercased:")
 	assert.Equal(t, "azazuppercase", string(str))
-	printStr(str)
+	//printStr(str)
 	ToUppercase(str)
-	fmt.Println("uppercased:")
+	//fmt.Println("uppercased:")
 	assert.Equal(t, "AZAZUPPERCASE", string(str))
-	printStr(str)
+	//printStr(str)
 }
 
-func printStr(str []byte) {
-	for i, s := range str {
-		fmt.Println(i, "-", s, "-", string(s))
-	}
-}
+// func printStr(str []byte) {
+// 	for i, s := range str {
+// 		fmt.Println(i, "-", s, "-", string(s))
+// 	}
+// }
 
 func TestBytesLength(t *testing.T) {
-	a:=[]byte("0000000000")
+	a := []byte("0000000000")
 	fmt.Println(len(a))
 	fmt.Println(cap(a))
-	a=a[0:6]
+	a = a[0:6]
 	fmt.Println(len(a))
 	fmt.Println(cap(a))
 
 }
-
 
 func TestUInt32ToBytes(t *testing.T) {
 	var v uint32 = 4294967294
 	bytes := make([]byte, 4)
 	Uint32toBytes(bytes, v)
-	fmt.Println(bytes)
+	//fmt.Println(bytes)
 	eBytes := []byte{255, 255, 255, 254}
 	assert.Equal(t, eBytes, bytes)
 	x := BytesToUint32(bytes)
-	fmt.Println(x)
+	//fmt.Println(x)
 	assert.Equal(t, v, x)
 }
 
-func TestLimitedBytesSearch(t *testing.T)  {
-	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+func TestLimitedBytesSearch(t *testing.T) {
+	data := []byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
 
-	term:=[]byte("\"errors\":true")
-	limit:=64
+	term := []byte("\"errors\":true")
+	limit := 64
 	//buffer:=make([]byte,len(term))
 	//start:=false
 	//bufferOffset:=0
@@ -634,7 +630,7 @@ func TestLimitedBytesSearch(t *testing.T)  {
 	//		}
 	//	}else{
 	//		if  len(buffer)==len(term){
-	//			fmt.Println("matched!",string(buffer)," vs ",string(term))
+	//			//fmt.Println("matched!",string(buffer)," vs ",string(term))
 	//			return
 	//		}
 	//
@@ -651,63 +647,63 @@ func TestLimitedBytesSearch(t *testing.T)  {
 	//
 	//}
 
-	ok:=LimitedBytesSearch(data,term,limit)
-	assert.Equal(t,true,ok)
+	ok := LimitedBytesSearch(data, term, limit)
+	assert.Equal(t, true, ok)
 
-	term=[]byte("\"errors\":false")
-	ok=LimitedBytesSearch(data,term,limit)
-	assert.Equal(t,false,ok)
+	term = []byte("\"errors\":false")
+	ok = LimitedBytesSearch(data, term, limit)
+	assert.Equal(t, false, ok)
 }
 
-func TestBytesSearchValue(t *testing.T)  {
-	data:=[]byte("{\n  \"id\" : \"FnZGLWN4OXRpVGItTVZtdzZ1U2hGTEEdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoxMTU2OTE=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601100879183,\n  \"expiration_time_in_millis\" : 1601100948312,\n  \"response\" :")
-	startTerm:=[]byte("\"is_running\"")
-	index:=bytes.Index(data,startTerm)
+func TestBytesSearchValue(t *testing.T) {
+	data := []byte("{\n  \"id\" : \"FnZGLWN4OXRpVGItTVZtdzZ1U2hGTEEdMWpuRkM3SDZSWWVBSTdKT1hkRDNkdzoxMTU2OTE=\",\n  \"is_partial\" : true,\n  \"is_running\" : true,\n  \"start_time_in_millis\" : 1601100879183,\n  \"expiration_time_in_millis\" : 1601100948312,\n  \"response\" :")
+	startTerm := []byte("\"is_running\"")
+	index := bytes.Index(data, startTerm)
 	fmt.Println(index)
-	leftData:=data[index+len(startTerm):]
+	leftData := data[index+len(startTerm):]
 	fmt.Println(string(leftData))
 
-	endTerm:=[]byte(",")
+	endTerm := []byte(",")
 
-	endIndex:=bytes.Index(leftData,endTerm)
+	endIndex := bytes.Index(leftData, endTerm)
 	fmt.Println(endIndex)
-	lastTerm:=leftData[0:endIndex]
+	lastTerm := leftData[0:endIndex]
 	fmt.Println(string(lastTerm))
 	bytes.TrimSpace(lastTerm)
-	fmt.Println(string(lastTerm))
+	//fmt.Println(string(lastTerm))
 
-	searchTrim:=[]byte("true")
-	if bytes.Contains(lastTerm,searchTrim){
-		fmt.Println("found term:",string(searchTrim))
+	searchTrim := []byte("true")
+	if bytes.Contains(lastTerm, searchTrim) {
+		fmt.Println("found term:", string(searchTrim))
 	}
 
-	fmt.Println(BytesSearchValue(data,startTerm,endTerm,searchTrim))
+	fmt.Println(BytesSearchValue(data, startTerm, endTerm, searchTrim))
 
 }
 
 func BenchmarkLimitedBytesSearch(b *testing.B) {
-	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
-	term:=[]byte("\"errors\":true")
-	limit:=64
+	data := []byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+	term := []byte("\"errors\":true")
+	limit := 64
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		LimitedBytesSearch(data,term,limit)
+		LimitedBytesSearch(data, term, limit)
 	}
 }
 
 func BenchmarkJsonParser(b *testing.B) {
-	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
+	data := []byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\"medcl4new1245123-6\",\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\"status\":429,\"error\":{")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ok,_:=jsonparser.GetBoolean(data,"errors")
-		assert.Equal(b,true,ok)
+		ok, _ := jsonparser.GetBoolean(data, "errors")
+		assert.Equal(b, true, ok)
 	}
 }
 
 func BenchmarkWalkBytesAndReplace(b *testing.B) {
-	data:=[]byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\n\"medcl4new1245123-6\",\n\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\n\"status\":429,\n\"error\":{")
+	data := []byte("{\"took\":2,\"errors\":true,\"items\":[{\"index\":{\"_index\":\n\"medcl4new1245123-6\",\n\"_type\":\"_doc\",\"_id\":\"fAxjc3YBC53QmW9KWg_8\",\n\"status\":429,\n\"error\":{")
 	fmt.Println(string(data))
-	WalkBytesAndReplace(data,NEWLINE,SPACE)
+	WalkBytesAndReplace(data, NEWLINE, SPACE)
 	fmt.Println(string(data))
 
 }

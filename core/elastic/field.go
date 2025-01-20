@@ -33,7 +33,7 @@ import (
 	"strings"
 )
 
-func GetFieldCaps(client API, pattern string, metaFields []string) ([]ElasticField, error){
+func GetFieldCaps(client API, pattern string, metaFields []string) ([]ElasticField, error) {
 	buf, err := client.FieldCaps(pattern)
 	if err != nil {
 		return nil, err
@@ -45,21 +45,21 @@ func GetFieldCaps(client API, pattern string, metaFields []string) ([]ElasticFie
 	}
 	var esFields = []ElasticField{}
 	for filedName, fieldCaps := range fieldCaps.Fields {
-		if strings.HasPrefix(filedName, "_") && !isValidMetaField(filedName, metaFields){
+		if strings.HasPrefix(filedName, "_") && !isValidMetaField(filedName, metaFields) {
 			continue
 		}
 		var (
-			typ string
-			searchable bool
-			aggregatable bool
-			esTypes []string
+			typ               string
+			searchable        bool
+			aggregatable      bool
+			esTypes           []string
 			readFromDocValues bool
 		)
 
 		for esType, capsByType := range fieldCaps {
 			if len(fieldCaps) > 1 {
 				typ = "conflict"
-			}else{
+			} else {
 				typ = castEsToKbnFieldTypeName(esType)
 			}
 			esTypes = append(esTypes, esType)
@@ -67,19 +67,19 @@ func GetFieldCaps(client API, pattern string, metaFields []string) ([]ElasticFie
 			aggregatable = capsByType.Aggregatable
 			readFromDocValues = shouldReadFieldFromDocValues(esType, aggregatable)
 		}
-		if typ == "object" || typ == "nested"{
+		if typ == "object" || typ == "nested" {
 			continue
 		}
 		esFields = append(esFields, ElasticField{
-			Name: filedName,
-			Aggregatable:  aggregatable,
-			Type: typ,
-			Searchable: searchable,
+			Name:              filedName,
+			Aggregatable:      aggregatable,
+			Type:              typ,
+			Searchable:        searchable,
 			ReadFromDocValues: readFromDocValues,
-			ESTypes: esTypes,
+			ESTypes:           esTypes,
 		})
 	}
-	sort.Slice(esFields, func(i, j int)bool{
+	sort.Slice(esFields, func(i, j int) bool {
 		return esFields[i].Name < esFields[j].Name
 	})
 	return esFields, nil
@@ -110,91 +110,91 @@ func castEsToKbnFieldTypeName(esType string) string {
 	return "unknown"
 }
 
-
 type ElasticField struct {
-	Aggregatable bool `json:"aggregatable"`
-	ESTypes []string `json:"esTypes"`
-	Name string `json:"name"`
-	ReadFromDocValues bool `json:"readFromDocValues"`
-	Searchable bool `json:"searchable"`
-	Type string `json:"type"`
+	Aggregatable      bool     `json:"aggregatable"`
+	ESTypes           []string `json:"esTypes"`
+	Name              string   `json:"name"`
+	ReadFromDocValues bool     `json:"readFromDocValues"`
+	Searchable        bool     `json:"searchable"`
+	Type              string   `json:"type"`
 }
 
 type ElasticFieldType struct {
-	Name string
+	Name    string
 	ESTypes []string
 }
+
 func createElasticFieldTypes() []ElasticFieldType {
 	return []ElasticFieldType{
 		{
 			Name: "string",
 			ESTypes: []string{
-				"text", "keyword", "_type", "_id","_index","string",
+				"text", "keyword", "_type", "_id", "_index", "string",
 			},
-		},{
-			Name:"number",
+		}, {
+			Name: "number",
 			ESTypes: []string{
-				"float", "half_float", "scaled_float", "double","integer", "long", "unsigned_long", "short", "byte","token_count",
+				"float", "half_float", "scaled_float", "double", "integer", "long", "unsigned_long", "short", "byte", "token_count",
 			},
-		},{
+		}, {
 			Name: "date",
 			ESTypes: []string{
 				"date", "date_nanos",
 			},
-		},{
-			Name:"ip",
+		}, {
+			Name: "ip",
 			ESTypes: []string{
 				"ip",
 			},
 		}, {
-			Name:"boolean",
+			Name: "boolean",
 			ESTypes: []string{
 				"boolean",
 			},
-		},{
-			Name:"object",
+		}, {
+			Name: "object",
 			ESTypes: []string{
 				"object",
 			},
-		},{
-			Name:"nested",
+		}, {
+			Name: "nested",
 			ESTypes: []string{
 				"nested",
 			},
-		},{
-			Name:"geo_point",
+		}, {
+			Name: "geo_point",
 			ESTypes: []string{
 				"geo_point",
 			},
-		},{
-			Name:"geo_shape",
+		}, {
+			Name: "geo_shape",
 			ESTypes: []string{
 				"geo_shape",
 			},
-		},{
-			Name:"attachment",
+		}, {
+			Name: "attachment",
 			ESTypes: []string{
 				"attachment",
 			},
-		},{
-			Name:"murmur3",
+		}, {
+			Name: "murmur3",
 			ESTypes: []string{
 				"murmur3",
 			},
-		},{
-			Name:"_source",
+		}, {
+			Name: "_source",
 			ESTypes: []string{
 				"_source",
 			},
-		},{
-			Name:"histogram",
+		}, {
+			Name: "histogram",
 			ESTypes: []string{
 				"histogram",
 			},
-		},{
-			Name:"conflict",
-		},{
-			Name:"unknown",
+		}, {
+			Name: "conflict",
+		}, {
+			Name: "unknown",
 		},
 	}
 }

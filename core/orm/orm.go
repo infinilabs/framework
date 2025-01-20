@@ -70,6 +70,8 @@ type ORM interface {
 
 	Search(o interface{}, q *Query) (error, Result)
 
+	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) //	var results []ObjectItem; orm.SearchWithResultItemMapper(&results, mapperFunc, &query)
+
 	Get(o interface{}) (bool, error)
 
 	GetBy(field string, value interface{}, o interface{}) (error, Result)
@@ -292,6 +294,11 @@ type Result struct {
 	Result []interface{}
 }
 
+type SimpleResult struct {
+	Total int64
+	Raw   []byte
+}
+
 func Get(o interface{}) (bool, error) {
 	rValue := reflect.ValueOf(o)
 
@@ -462,6 +469,14 @@ func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
 }
 
+func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) {
+	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
+}
+
+func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
+	return getHandler().SearchWithResultItemMapper(o, MapToStructWithJSONUnmarshal, q)
+}
+
 func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
@@ -522,8 +537,8 @@ type ProtectedFilterKeyType string
 
 const ProtectedFilterKey ProtectedFilterKeyType = "FILTER_PROTECTED"
 
-//FilterFieldsByProtected filter struct fields by tag protected recursively,
-//returns a filtered fields map
+// FilterFieldsByProtected filter struct fields by tag protected recursively,
+// returns a filtered fields map
 func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interface{} {
 	buf := util.MustToJSONBytes(obj)
 	mapObj := map[string]interface{}{}

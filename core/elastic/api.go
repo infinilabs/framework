@@ -135,16 +135,16 @@ type API interface {
 	GetILMPolicy(target string) (map[string]interface{}, error)
 	PutILMPolicy(target string, policyConfig []byte) error
 	DeleteILMPolicy(target string) error
-	GetRemoteInfo()([]byte, error)
+	GetRemoteInfo() ([]byte, error)
 	Flush(indexName string) ([]byte, error)
-	ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values)([]byte,error)
+	ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values) ([]byte, error)
 }
 
 type TemplateAPI interface {
 	TemplateExists(scriptName string) (bool, error)
 	PutTemplate(scriptName string, template []byte) ([]byte, error)
 	GetTemplate(scriptName string) (map[string]interface{}, error)
-	SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*SearchResponse, error)
+	SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*SearchResponse, error)
 }
 
 type MappingAPI interface {
@@ -159,9 +159,9 @@ type ScrollAPI interface {
 }
 
 type ScriptAPI interface {
-	ScriptExists(scriptName string)(bool,error)
-	PutScript(scriptName string, script []byte)([]byte,error)
-	SearchByTemplate(indexName,scriptName string,params map[string]interface{}) (*SearchResponse, error)
+	ScriptExists(scriptName string) (bool, error)
+	PutScript(scriptName string, script []byte) ([]byte, error)
+	SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*SearchResponse, error)
 	//GetScript(scriptName string)([]byte,error)
 	//DeleteScript(scriptName string)([]byte,error)
 }
@@ -174,7 +174,7 @@ type ReplicationAPI interface {
 	GetReplicationStatus(followIndex string) ([]byte, error)
 	GetReplicationFollowerStats(followIndex string) ([]byte, error)
 	CreateAutoFollowReplication(autoFollowPatternName string, body []byte) error
-	GetAutoFollowStats(autoFollowPatternName string)([]byte, error)
+	GetAutoFollowStats(autoFollowPatternName string) ([]byte, error)
 	DeleteAutoFollowReplication(autoFollowPatternName string, body []byte) error
 }
 

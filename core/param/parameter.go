@@ -111,7 +111,6 @@ type Parameters struct {
 //	return nil, errors.Errorf("key=%v", k)
 //}
 
-
 var byteReaderPool = &sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Reader)
@@ -209,7 +208,7 @@ func (para *Parameters) HasTag(key string) bool {
 	tags, ok := para.GetTags()
 	if ok {
 		_, ok = tags[key]
-		if ok{
+		if ok {
 			return true
 		}
 	}
@@ -811,29 +810,29 @@ func (e *Parameters) GetValue(key string) (interface{}, error) {
 	return e.Data.GetValue(key)
 }
 
-func (e *Parameters) Stats(key string)int  {
+func (e *Parameters) Stats(key string) int {
 	e.init()
 	e.l.Lock()
 	defer e.l.Unlock()
-	o,ok:=e.Data[key]
-	if !ok{
+	o, ok := e.Data[key]
+	if !ok {
 		return 0
-	}else{
+	} else {
 		return o.(int)
 	}
 }
-func (e *Parameters) Increment(key string, v int)  {
+func (e *Parameters) Increment(key string, v int) {
 	e.init()
 	e.l.Lock()
 	defer e.l.Unlock()
-	o,ok:=e.Data[key]
-	if !ok{
-		o=1
-		e.Data[key]=v
+	o, ok := e.Data[key]
+	if !ok {
+		o = 1
+		e.Data[key] = v
 		return
 	}
-	o=o.(int)+v
-	e.Data[key]=o
+	o = o.(int) + v
+	e.Data[key] = o
 }
 
 func (e *Parameters) PutValue(key string, v interface{}) (interface{}, error) {

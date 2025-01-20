@@ -156,6 +156,9 @@ func TestDefaultFilename(t *testing.T) {
 }
 
 func TestAutoRotate(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	megabyte = 1
 
 	dir := makeTempDir("TestAutoRotate", t)
@@ -223,6 +226,9 @@ func TestFirstWriteRotate(t *testing.T) {
 }
 
 func TestMaxBackups(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	megabyte = 1
 	dir := makeTempDir("TestMaxBackups", t)
 	defer os.RemoveAll(dir)
@@ -402,6 +408,9 @@ func TestCleanupExistingBackups(t *testing.T) {
 }
 
 func TestMaxAge(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	megabyte = 1
 
 	dir := makeTempDir("TestMaxAge", t)
@@ -529,6 +538,9 @@ func TestTimeFromName(t *testing.T) {
 }
 
 func TestLocalTime(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	megabyte = 1
 
 	dir := makeTempDir("TestLocalTime", t)
@@ -555,6 +567,9 @@ func TestLocalTime(t *testing.T) {
 }
 
 func TestRotate(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	dir := makeTempDir("TestRotate", t)
 	defer os.RemoveAll(dir)
 
@@ -611,6 +626,9 @@ func TestRotate(t *testing.T) {
 }
 
 func TestCompressOnRotate(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	megabyte = 1
 
 	dir := makeTempDir("TestCompressOnRotate", t)

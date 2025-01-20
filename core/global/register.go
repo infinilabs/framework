@@ -92,7 +92,7 @@ func Register(k RegisterKey, v interface{}) {
 
 func MustLookupString(k RegisterKey) string {
 	v := MustLookup(k)
-	x:= v.(string)
+	x := v.(string)
 	if x == "" {
 		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
 	}
@@ -177,7 +177,7 @@ func RegisterBackgroundCallback(task *BackgroundTask) {
 func FuncWithTimeout(ctx context.Context, f func()) error {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer func() {
-		if !Env().IsDebug{
+		if !Env().IsDebug {
 			if r := recover(); r != nil {
 				var v string
 				switch r.(type) {
@@ -214,7 +214,7 @@ func RunBackgroundCallbacks() {
 		backgroundCallback.Range(func(key, value any) bool {
 			v := value.(*BackgroundTask)
 			if time.Since(v.lastRunning) > v.Interval {
-				log.Debugf("start run background job:%v, interval:%v", key, v.Interval)
+				log.Tracef("start run background job:%v, interval:%v", key, v.Interval)
 				ctx, cancel := context.WithTimeout(context.Background(), v.Interval)
 				defer cancel()
 				err := FuncWithTimeout(ctx, v.Func)
@@ -222,7 +222,7 @@ func RunBackgroundCallbacks() {
 					log.Error(fmt.Sprintf("error on running background job: %v, %v", key, err))
 				}
 				v.lastRunning = time.Now()
-				log.Debugf("end run background job:%v, interval:%v", key, v.Interval)
+				log.Tracef("end run background job:%v, interval:%v", key, v.Interval)
 			}
 			return true
 		})
@@ -234,7 +234,7 @@ func RunBackgroundCallbacks() {
 }
 
 func ShuttingDown() bool {
-	if Env().GetState()> 0  {
+	if Env().GetState() > 0 {
 		return true
 	}
 	return false

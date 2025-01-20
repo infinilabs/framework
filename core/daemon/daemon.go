@@ -21,8 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// +build linux
-// +build !arm64
+//go:build linux && !arm64
+// +build linux,!arm64
 
 package daemon
 
@@ -259,7 +259,7 @@ func (d *Context) child() (err error) {
 	if err = syscall.Close(0); err != nil {
 		return
 	}
-	if err = syscall.Dup3(3, 0,0); err != nil {
+	if err = syscall.Dup3(3, 0, 0); err != nil {
 		return
 	}
 

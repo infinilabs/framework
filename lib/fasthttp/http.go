@@ -457,14 +457,14 @@ func (req *Request) bodyBytes() []byte {
 
 func (resp *Response) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if resp.body == nil {
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				resp.body = bytebufferpool.Get(resp.Tag)
 			} else {
 				resp.body = getResponseBodyPool().Get()
 			}
-		}else{
-			resp.body=&bytebufferpool.ByteBuffer{}
+		} else {
+			resp.body = &bytebufferpool.ByteBuffer{}
 		}
 	}
 	return resp.body
@@ -477,30 +477,30 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 
 func (req *Request) bodyBuffer() *bytebufferpool.ByteBuffer {
 	if req.body == nil {
-		if req.BodyBufferEnabled{
+		if req.BodyBufferEnabled {
 			if req.Tag != "" {
 				req.body = bytebufferpool.Get(req.Tag)
 			} else {
 				req.body = getRequestBodyPool().Get()
 			}
-		}else{
-			req.body=&bytebufferpool.ByteBuffer{}
+		} else {
+			req.body = &bytebufferpool.ByteBuffer{}
 		}
 	}
 	return req.body
 }
 
 var (
-	requestBodyPool *bytebufferpool.Pool
-	responseBodyPool  *bytebufferpool.Pool
+	requestBodyPool  *bytebufferpool.Pool
+	responseBodyPool *bytebufferpool.Pool
 )
 
-var requestPoolInit=sync.Once{}
-var responsePoolInit=sync.Once{}
+var requestPoolInit = sync.Once{}
+var responsePoolInit = sync.Once{}
 
 func getRequestBodyPool() *bytebufferpool.Pool {
 	requestPoolInit.Do(func() {
-		requestBodyPool  = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
+		requestBodyPool = bytebufferpool.NewTaggedPool("default_request_body", 0, 1024*1024*1024, 100000)
 	})
 	return requestBodyPool
 }
@@ -510,7 +510,6 @@ func getResponseBodyPool() *bytebufferpool.Pool {
 	})
 	return responseBodyPool
 }
-
 
 // BodyGunzip returns un-gzipped body data.
 //
@@ -713,7 +712,7 @@ func (resp *Response) ResetBody() {
 		if resp.BodyBufferEnabled {
 			resp.body.Reset()
 		} else {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -738,7 +737,7 @@ func (resp *Response) ReleaseBody(size int) {
 	}
 	if cap(resp.body.B) > size {
 		resp.closeBodyStream() //nolint:errcheck
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				bytebufferpool.Put(resp.Tag, resp.body)
 			} else {
@@ -1812,21 +1811,21 @@ func (resp *Response) brotliBody(level int) error {
 		}
 
 		var w *bytebufferpool.ByteBuffer
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendBrotliBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -1882,21 +1881,21 @@ func (resp *Response) gzipBody(level int) error {
 			return nil
 		}
 		var w *bytebufferpool.ByteBuffer
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendGzipBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -1953,21 +1952,21 @@ func (resp *Response) deflateBody(level int) error {
 		}
 		var w *bytebufferpool.ByteBuffer
 
-		if resp.BodyBufferEnabled{
+		if resp.BodyBufferEnabled {
 			if resp.Tag != "" {
 				w = bytebufferpool.Get(resp.Tag)
 			} else {
 				w = getResponseBodyPool().Get()
 			}
-		}else{
-			w=&bytebufferpool.ByteBuffer{}
+		} else {
+			w = &bytebufferpool.ByteBuffer{}
 		}
 
 		w.B = AppendDeflateBytesLevel(w.B, bodyBytes, level)
 
 		// Hack: swap resp.body with w.
 		if resp.body != nil {
-			if resp.BodyBufferEnabled{
+			if resp.BodyBufferEnabled {
 				if resp.Tag != "" {
 					bytebufferpool.Put(resp.Tag, resp.body)
 				} else {
@@ -2167,8 +2166,8 @@ func (req *Request) String() string {
 }
 
 func (req *Request) Validate() bool {
-	host:= req.Host()
-	if host==nil||len(host)==0{
+	host := req.Host()
+	if host == nil || len(host) == 0 {
 		return false
 	}
 	return true
@@ -2210,7 +2209,7 @@ func (resp *Response) CopyMergeHeader(input *Response) {
 
 	//copy all headers from input
 	input.Header.VisitAll(func(key, value []byte) {
-		resp.Header.SetBytesKV(key,value)
+		resp.Header.SetBytesKV(key, value)
 	})
 
 	resp.SetBody(input.Body())
@@ -2218,7 +2217,7 @@ func (resp *Response) CopyMergeHeader(input *Response) {
 	compress, compressType := input.IsCompressed()
 	if compress {
 		resp.Header.Set(HeaderContentEncoding, string(compressType))
-	}else{
+	} else {
 		//remove content-encoding in case it exists
 		resp.ClearContentEncoding()
 	}

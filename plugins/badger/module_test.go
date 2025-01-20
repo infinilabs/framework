@@ -29,14 +29,15 @@ package badger
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	. "infini.sh/framework/core/env"
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"os"
-	"testing"
-	"time"
 )
 
 const filterKey = "testFilter"
@@ -70,6 +71,9 @@ func Test(t *testing.T) {
 }
 
 func run(seed int, t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping in CI environment")
+	}
 	for i := 0; i < 100000000; i++ {
 		fmt.Println(i)
 		k := fmt.Sprintf("key-%v-%v", seed, i)

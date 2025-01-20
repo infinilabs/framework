@@ -41,8 +41,8 @@
 //go:build !integration
 // +build !integration
 
-
 package util
+
 import (
 	"testing"
 	"time"

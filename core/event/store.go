@@ -56,7 +56,7 @@ func UpdateAgentID(agentID string) {
 }
 
 func SaveWithTimestamp(event *Event, time2 time.Time) error {
-	if event==nil{
+	if event == nil {
 		panic("event can't be nil")
 	}
 
@@ -67,17 +67,17 @@ func SaveWithTimestamp(event *Event, time2 time.Time) error {
 	event.Timestamp = time2
 
 	//check event specified queue name
-	if  event.QueueName!= "" {
+	if event.QueueName != "" {
 		return queue.Push(queue.GetOrInitConfig(event.QueueName), util.MustToJSONBytes(event))
-	}else{
+	} else {
 		//check default queue name
 		if getMeta().DefaultMetricQueueName == "" {
 			panic("queue can't be nil")
 		}
-		event.QueueName=getMeta().DefaultMetricQueueName;
+		event.QueueName = getMeta().DefaultMetricQueueName
 	}
 
-	if event.Agent==nil{
+	if event.Agent == nil {
 		event.Agent = getMeta()
 	}
 
@@ -90,7 +90,7 @@ func Save(event *Event) error {
 }
 
 func SaveLog(event *Event) error {
-	if event==nil{
+	if event == nil {
 		panic("event can't be nil")
 	}
 

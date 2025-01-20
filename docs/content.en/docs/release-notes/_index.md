@@ -8,6 +8,23 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)
+
+### Breaking changes
+### Features
+- Add new search function to orm module, support result item mapper (#65)
+
+### Bug fix
+### Improvements
+- Add util to http handler, support to parse bool parameter
+- Handle simplified bulk metdata, parse index from url path (#59)
+- Improve handling of message read for partially loaded files (#63)
+
+
+## v1.1.0 (2025-01-11) 
+
+### Breaking changes
+- Update WebSocket greeting message header to use `websocket-session-id`
+
 ### Features
 - Set the metric collection task to singleton mode (#17)
 - Record cluster allocation explain to activity after cluster health status changed to `red`
@@ -18,17 +35,19 @@ Information about release notes of INFINI Framework is provided here.
 - Fixed issue with console LDAP config with dot key [#46](https://github.com/infinilabs/console/issues/46)
 
 ### Breaking changes
+- Add util to http handler, support write bytes with status code (#55)
+
 
 ### Bug fix
 - Remove the collection of cluster stats metric in node stats collection task (#17)
 - Fix the main switch of the cluster metric is not work (#17)
-- Update elastic metadata safely (#20)
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
 - Enable skipping to the next file with multiple gaps (#22)
 - Removing the logic of collecting metric per each node (#26)
 - Fixed to parse password from basic auth (#31)
 - Fixed issue with metric collection task interval not working (#30)
-
+- Fix invalid data folder, remove cluster_config and use appname directly for configuration (#46)
+- Fixed incorrect system cluster health status in the health API (#39)
 
 ### Improvements
 - Add commit hashes for framework and managed vendor dependencies
@@ -37,7 +56,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add search response to logging message (#28)
 
 
-## v1.0.0
+## v1.0.0 (2024-12-13) 
 
 ### 🚀 Features
 

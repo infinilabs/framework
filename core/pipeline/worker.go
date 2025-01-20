@@ -52,7 +52,7 @@ import (
 )
 
 type Task struct {
-	Handler func(ctx *Context,v ...interface{})
+	Handler func(ctx *Context, v ...interface{})
 	Params  []interface{}
 	Context *Context
 }
@@ -78,7 +78,6 @@ func (w *goWorker) run() {
 	go func() {
 		defer func() {
 
-
 			w.pool.decRunning()
 			w.pool.workerCache.Put(w)
 			if !global.Env().IsDebug {
@@ -101,7 +100,7 @@ func (w *goWorker) run() {
 			if f == nil {
 				return
 			}
-			f.Handler(f.Context,f.Params...)
+			f.Handler(f.Context, f.Params...)
 			if ok := w.pool.revertWorker(w); !ok {
 				return
 			}

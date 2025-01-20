@@ -32,10 +32,11 @@ import (
 	"sync"
 )
 
-type AppSettings struct{
+type AppSettings struct {
 	util.MapStr
 	mu sync.RWMutex
 }
+
 func (settings *AppSettings) Add(key string, v interface{}) {
 	settings.mu.Lock()
 	defer settings.mu.Unlock()
@@ -51,6 +52,7 @@ func (settings *AppSettings) Get(key string) interface{} {
 	defer appSettings.mu.RUnlock()
 	return settings.MapStr[key]
 }
+
 var appSettings = AppSettings{
 	MapStr: util.MapStr{},
 }
@@ -63,9 +65,9 @@ func GetAppSettings() util.MapStr {
 	ret := util.MapStr{}
 	settings := appSettings.GetSettingsMap()
 	for key, v := range settings {
-		if fv, ok := v.(func()interface{}); ok {
+		if fv, ok := v.(func() interface{}); ok {
 			ret[key] = fv()
-		}else{
+		} else {
 			ret[key] = v
 		}
 	}
@@ -74,7 +76,7 @@ func GetAppSettings() util.MapStr {
 
 func GetAppSetting(key string) interface{} {
 	v := appSettings.Get(key)
-	if fv, ok := v.(func()interface{}); ok {
+	if fv, ok := v.(func() interface{}); ok {
 		return fv()
 	}
 	return v

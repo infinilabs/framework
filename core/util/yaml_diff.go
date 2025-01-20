@@ -51,7 +51,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
-"strings"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -252,4 +252,3 @@ func adjustFormat(s string) string {
 
 	return s
 }
-

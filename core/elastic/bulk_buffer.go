@@ -30,10 +30,10 @@ import (
 )
 
 type BulkBuffer struct {
-	Queue      string
-	bytesBuffer     *bytebufferpool.ByteBuffer
-	MessageIDs []string
-	Reason []string
+	Queue       string
+	bytesBuffer *bytebufferpool.ByteBuffer
+	MessageIDs  []string
+	Reason      []string
 }
 
 type BulkBufferPool struct {
@@ -41,9 +41,9 @@ type BulkBufferPool struct {
 	bulkBytesBuffer *bytebufferpool.Pool
 }
 
-func NewBulkBufferPool(tag string,maxSize,maxItems uint32) *BulkBufferPool {
-	pool:=BulkBufferPool{}
-	pool.bulkBufferPool=bytebufferpool.NewObjectPool("bulk_buffer_objects_"+tag, func() interface{} {
+func NewBulkBufferPool(tag string, maxSize, maxItems uint32) *BulkBufferPool {
+	pool := BulkBufferPool{}
+	pool.bulkBufferPool = bytebufferpool.NewObjectPool("bulk_buffer_objects_"+tag, func() interface{} {
 		v := new(BulkBuffer)
 		v.Reset()
 		return v
@@ -51,35 +51,32 @@ func NewBulkBufferPool(tag string,maxSize,maxItems uint32) *BulkBufferPool {
 		return nil
 	}, int(maxItems), int(maxSize))
 
-	pool.bulkBytesBuffer=bytebufferpool.NewTaggedPool("bulk_buffer_"+tag,0,maxSize,maxItems)
+	pool.bulkBytesBuffer = bytebufferpool.NewTaggedPool("bulk_buffer_"+tag, 0, maxSize, maxItems)
 	return &pool
 }
 
-
-
-
-func (pool *BulkBufferPool)AcquireBulkBuffer() *BulkBuffer {
+func (pool *BulkBufferPool) AcquireBulkBuffer() *BulkBuffer {
 	buff := pool.bulkBufferPool.Get().(*BulkBuffer)
-	if buff.bytesBuffer==nil{
+	if buff.bytesBuffer == nil {
 		buff.bytesBuffer = pool.bulkBytesBuffer.Get()
 	}
 	buff.Reset()
 	return buff
 }
 
-func (pool *BulkBufferPool)ReturnBulkBuffer(item *BulkBuffer) {
+func (pool *BulkBufferPool) ReturnBulkBuffer(item *BulkBuffer) {
 	item.Reset()
-	if item.bytesBuffer!=nil{
+	if item.bytesBuffer != nil {
 		//item.bytesBuffer.Reset()
 		pool.bulkBytesBuffer.Put(item.bytesBuffer)
-		item.bytesBuffer=nil
+		item.bytesBuffer = nil
 	}
 	pool.bulkBufferPool.Put(item)
 }
 
 func (receiver *BulkBuffer) SafetyEndWithNewline() {
-	if receiver.bytesBuffer.Len()>0{
-		if !util.BytesHasSuffix(receiver.bytesBuffer.B,NEWLINEBYTES){
+	if receiver.bytesBuffer.Len() > 0 {
+		if !util.BytesHasSuffix(receiver.bytesBuffer.B, NEWLINEBYTES) {
 			receiver.bytesBuffer.Write(NEWLINEBYTES)
 		}
 	}
@@ -97,7 +94,7 @@ func (receiver *BulkBuffer) WriteByteBuffer(data []byte) {
 	}
 }
 
-func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string,data []byte) {
+func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string, data []byte) {
 	if data != nil && len(data) > 0 {
 		SafetyAddNewlineBetweenData(receiver.bytesBuffer, data)
 	}
@@ -105,12 +102,12 @@ func (receiver *BulkBuffer) WriteNewByteBufferLine(tag string,data []byte) {
 
 func (receiver *BulkBuffer) WriteStringBuffer(data string) {
 	if data != "" && len(data) > 0 {
-		SafetyAddNewlineBetweenData(receiver.bytesBuffer,[]byte(data))
+		SafetyAddNewlineBetweenData(receiver.bytesBuffer, []byte(data))
 	}
 }
 
-func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte){
-	if len(data)<=0{
+func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer, data []byte) {
+	if len(data) <= 0 {
 		return
 	}
 
@@ -120,11 +117,11 @@ func SafetyAddNewlineBetweenData(buffer *bytebufferpool.ByteBuffer,data []byte){
 		return
 	}
 
-	if buffer.Len()>0{
+	if buffer.Len() > 0 {
 		//previous data is not ending with \n
-		if !util.BytesHasSuffix(buffer.B,NEWLINEBYTES){
+		if !util.BytesHasSuffix(buffer.B, NEWLINEBYTES) {
 			//new data is not start with \n
-			if !util.BytesHasPrefix(data,NEWLINEBYTES){
+			if !util.BytesHasPrefix(data, NEWLINEBYTES) {
 				buffer.Write(NEWLINEBYTES)
 			}
 		}
@@ -154,8 +151,8 @@ func (receiver *BulkBuffer) GetMessageBytes() []byte {
 func (receiver *BulkBuffer) WriteMessageID(id string) {
 	if len(id) != 0 {
 		receiver.MessageIDs = append(receiver.MessageIDs, id)
-	}else{
-		log.Error("invalid message id: ",id)
+	} else {
+		log.Error("invalid message id: ", id)
 		panic("invalid message id")
 	}
 }

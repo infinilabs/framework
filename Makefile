@@ -74,7 +74,8 @@ endif
 GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
-GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) test -ldflags -s
+GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
+GOLINT   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) vet -ldflags -s
 
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
@@ -202,7 +203,8 @@ all-platform: clean config update-vfs cross-build-all-platform restore-generated
 cross-build-all-platform: clean config build-bsd build-linux build-darwin build-win  restore-generated-file
 
 format:
-	go fmt $$(go list ./... | grep -v /vendor/)
+	@echo "formatting code"
+	GOPATH=$(NEWGOPATH) $(GO) fmt $$(GOPATH=$(NEWGOPATH) $(GO) list ./...)
 
 clean_data:
 	rm -rif dist
@@ -240,7 +242,8 @@ update-generated-framework-info:
 update-generated-file: update-generated-framework-info
 	@echo "generating application info"
 	@if [ ! -d config ]; then echo "config does not exist";(mkdir config) fi
-	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"\nconst BuildDate = \"$(NOW)\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \"$(COMMIT_ID)\"" > config/generated.go
+	@echo -e "\nconst BuildDate = \"$(NOW)\"" >> config/generated.go
 	@echo -e "\nconst EOLDate  = \"$(APP_EOLDate)\"" >> config/generated.go
 	@echo -e "\nconst Version  = \"$(APP_VERSION)\"" >> config/generated.go
 	@echo -e "\nconst BuildNumber  = \"$(BUILD_NUMBER)\"" >> config/generated.go
@@ -252,7 +255,8 @@ restore-generated-framework-info:
 
 restore-generated-file: restore-generated-framework-info
 	@echo "restore application info"
-	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"\nconst BuildDate = \"N/A\"" > config/generated.go
+	@echo -e "package config\n\nconst LastCommitLog = \"N/A\"" > config/generated.go
+	@echo -e "\nconst BuildDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst EOLDate = \"N/A\"" >> config/generated.go
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
 	@echo -e "\nconst BuildNumber = \"001\"" >> config/generated.go
@@ -262,7 +266,7 @@ update-vfs:
 	@if [ ! -e $(VFS_PATH) ]; then (cd $(FRAMEWORK_FOLDER) && OFFLINE_BUILD=true make build-cmd && cp bin/vfs $(VFS_PATH)) fi
 	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && $(VFS_PATH) -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
 
-config: init update-vfs update-generated-file update-plugins
+config: init format update-vfs update-generated-file update-plugins
 	@echo "update configs"
 	@# $(GO) env
 	@mkdir -p $(OUTPUT_DIR)
@@ -324,5 +328,10 @@ package-windows-platform:
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-amd64.zip   $(APP_NAME)-windows-amd64.exe $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
 
-test:
-	$(GOTEST) -timeout 60s ./...
+test: config
+	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
+	@$(MAKE) restore-generated-file
+
+lint: config
+	$(GOLINT) -c=2 -v $(GOFLAGS) ./...
+	@$(MAKE) restore-generated-file

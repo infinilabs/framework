@@ -4,8 +4,8 @@ import (
 	"net"
 	"net/url"
 
-	"infini.sh/framework/lib/fasthttp"
 	"golang.org/x/net/proxy"
+	"infini.sh/framework/lib/fasthttp"
 )
 
 // FasthttpSocksDialer returns a fasthttp.DialFunc that dials using

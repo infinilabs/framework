@@ -853,7 +853,7 @@ READ_DOCS:
 						var totalOps, sliceOps int
 						var collectMeta = false
 						// document level slicing, check each document_id, slice by document hash
-						elastic.WalkBulkRequests(pop.Data, func(eachLine []byte) (skipNextLine bool) {
+						elastic.WalkBulkRequests("", pop.Data, func(eachLine []byte) (skipNextLine bool) {
 							return false
 						}, func(metaBytes []byte, actionStr, index, typeName, id, routing string, offset int) (err error) {
 							totalOps++

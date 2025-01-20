@@ -94,9 +94,9 @@ type Env struct {
 	state int32 //0 means running, 1 means stopping, 2 means stopped
 }
 
-func (env *Env) CheckSetup() error {
+func (env *Env) CheckSetup() {
 	if !env.allowSetup {
-		return nil
+		return
 	}
 
 	env.setupRequired = false
@@ -105,7 +105,7 @@ func (env *Env) CheckSetup() error {
 	if !util.FileExists(setupLock) {
 		env.setupRequired = true
 	}
-	return nil
+	return
 }
 
 func (env *Env) EnableSetup(b bool) {
@@ -244,7 +244,6 @@ func (env *Env) InitPaths(cfgPath string) error {
 	defaultConfig := GetDefaultSystemConfig()
 	_, defaultConfig.NodeConfig.IP, _, _ = util.GetPublishNetworkDeviceInfo("")
 	env.SystemConfig = &defaultConfig
-	env.SystemConfig.ClusterConfig.Name = env.GetAppLowercaseName()
 	env.SystemConfig.Configs.PanicOnConfigError = !env.IgnoreOnConfigMissing //if ignore on config missing, then no panic on config error
 
 	var (
@@ -412,6 +411,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 		panic(err)
 		return err
 	}
+
 	env.SystemConfig = &tempCfg
 	//initialize node config
 	env.findWorkingDir()
@@ -584,7 +584,7 @@ func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHe
 		version:               util.TrimSpaces(ver),
 		commit:                util.TrimSpaces(commit),
 		frameworkCommit:       util.TrimSpaces(cfg.LastFrameworkCommitLog),
-		frameworkVendorCommit: util.TrimSpaces(cfg.LastFrameworkCommitLog),
+		frameworkVendorCommit: util.TrimSpaces(cfg.LastFrameworkVendorCommitLog),
 		buildDate:             buildDate,
 		buildNumber:           buildNumber,
 		eolDate:               eolDate,
@@ -595,7 +595,6 @@ func NewEnv(name, desc, ver, buildNumber, commit, buildDate, eolDate, terminalHe
 
 func EmptyEnv() *Env {
 	system := GetDefaultSystemConfig()
-	system.ClusterConfig.Name = "app"
 	system.PathConfig.Data = os.TempDir()
 	system.PathConfig.Log = os.TempDir()
 	system.LoggingConfig.DisableFileOutput = true
@@ -644,7 +643,7 @@ func (env *Env) findWorkingDir() (string, string) {
 	//no folder exists, generate new id and name
 	//persist metadata to folder
 
-	baseDir := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes")
+	baseDir := path.Join(env.SystemConfig.PathConfig.Data, env.GetAppLowercaseName(), "nodes")
 
 	if !util.FileExists(baseDir) {
 		if env.SystemConfig.NodeConfig.ID == "" {
@@ -784,8 +783,8 @@ func GetConfigAsJSON() string {
 func (env *Env) getNodeWorkingDir(nodeID string) (string, string) {
 	env.SystemConfig.NodeConfig.ID = nodeID
 
-	dataDir := path.Join(env.SystemConfig.PathConfig.Data, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
-	logDir := path.Join(env.SystemConfig.PathConfig.Log, env.SystemConfig.ClusterConfig.Name, "nodes", nodeID)
+	dataDir := path.Join(env.SystemConfig.PathConfig.Data, env.GetAppLowercaseName(), "nodes", nodeID)
+	logDir := path.Join(env.SystemConfig.PathConfig.Log, env.GetAppLowercaseName(), "nodes", nodeID)
 
 	//try get node name from meta file
 	metaFile := path.Join(dataDir, ".meta")

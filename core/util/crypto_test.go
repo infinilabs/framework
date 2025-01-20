@@ -53,7 +53,7 @@ func TestCrypto(t *testing.T) {
 	fmt.Println(string(pubKey))
 
 	fmt.Println("-------------------------------进行签名与验证操作-----------------------------------------")
-	var data = "卧了个槽，这么神奇的吗？？！！！  ԅ(¯﹃¯ԅ) ！！！！！！）"
+	var data = "测试数据？？！！！  ԅ(¯﹃¯ԅ) ！！！！！！）"
 	fmt.Println("对消息进行签名操作...")
 	signData := RsaSignWithSha256([]byte(data), prvKey)
 	fmt.Println("消息的签名信息： ", hex.EncodeToString(signData))

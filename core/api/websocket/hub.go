@@ -72,7 +72,7 @@ var h = Hub{
 	register:    make(chan *WebsocketConnection),
 	unregister:  make(chan *WebsocketConnection),
 	connections: make(map[*WebsocketConnection]bool),
-	sessions: 	 make(map[string]*WebsocketConnection),
+	sessions:    make(map[string]*WebsocketConnection),
 	handlers:    make(map[string]WebsocketHandlerFunc),
 	usage:       make(map[string]string),
 }
@@ -90,7 +90,7 @@ func InitWebSocket(cfg config.WebsocketConfig) {
 		upgrader.CheckOrigin = func(r *http.Request) bool {
 			return true
 		}
-	}else{
+	} else {
 		if len(cfg.PermittedHosts) > 0 {
 			upgrader.CheckOrigin = func(r *http.Request) bool {
 				origin := r.Header["Origin"]
@@ -151,11 +151,11 @@ func (h *Hub) runHub() {
 		select {
 		case c := <-h.register:
 			h.connections[c] = true
-			h.sessions[c.id]=c
+			h.sessions[c.id] = c
 			c.WritePrivateMessage(global.Env().GetWelcomeMessage())
 			js, _ := json.Marshal(logger.GetLoggingConfig())
 			c.WriteMessage(ConfigMessage, string(js))
-			c.WriteMessage(ConfigMessage, "websocket_session_id: "+c.id)
+			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
 		case c := <-h.unregister:
 			if _, ok := h.connections[c]; ok {
 				delete(h.connections, c)

@@ -46,10 +46,10 @@ type options struct {
 	// Unpack/Pack/Get/...
 	parsed valueCache
 
-	activeFields *fieldSet
-	resolveRef bool
+	activeFields       *fieldSet
+	resolveRef         bool
 	defaultParseConfig *parse.Config
-	noResolve bool
+	noResolve          bool
 }
 
 // NoResolve option sets do not to resolve variables.

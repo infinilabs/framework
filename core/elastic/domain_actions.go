@@ -123,7 +123,7 @@ func GetOrInitHost(host string, clusterID string) *NodeAvailable {
 		return nil
 	}
 
-	host=util.UnifyLocalAddress(host)
+	host = util.UnifyLocalAddress(host)
 
 	v1, loaded := hosts.Load(host)
 	if loaded {
@@ -336,10 +336,12 @@ func RemoveHostsByClusterID(clusterID string) {
 	})
 }
 
-//MetadataChangeEvent represents a callback of metadata change
+// MetadataChangeEvent represents a callback of metadata change
 type MetadataChangeEvent func(meta, oldMeta *ElasticsearchMetadata, action EventAction)
-//EventAction represents a metadata change operation
+
+// EventAction represents a metadata change operation
 type EventAction string
+
 const (
 	EventActionCreate EventAction = "create"
 	EventActionUpdate EventAction = "update"
@@ -347,8 +349,9 @@ const (
 )
 
 var metadataChangeEvents []MetadataChangeEvent
-//RegisterMetadataChangeEvent register a metadata change event
-func RegisterMetadataChangeEvent(evt MetadataChangeEvent){
+
+// RegisterMetadataChangeEvent register a metadata change event
+func RegisterMetadataChangeEvent(evt MetadataChangeEvent) {
 	if evt != nil {
 		metadataChangeEvents = append(metadataChangeEvents, evt)
 	}
@@ -358,7 +361,7 @@ func SetMetadata(k string, v *ElasticsearchMetadata) {
 	var oldMeta *ElasticsearchMetadata
 	if old, ok := metas.Load(k); !ok {
 		action = EventActionCreate
-	}else{
+	} else {
 		oldMeta = old.(*ElasticsearchMetadata)
 	}
 	metas.Store(k, v)
@@ -388,7 +391,7 @@ var nodeAvailCache = util.NewCacheWithExpireOnAdd(1*time.Minute, 100)
 
 func IsHostAvailable(host string) bool {
 	if host == "" {
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			panic("host is nil")
 		}
 		log.Warn("host is nil")
@@ -453,7 +456,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 	hosts := []string{}
 	if len(meta.Config.Hosts) > 0 {
 		for _, h := range meta.Config.Hosts {
-			if h!=""{
+			if h != "" {
 				hosts = append(hosts, h)
 			}
 		}
@@ -467,7 +470,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 		if err != nil {
 			panic(err)
 		}
-		if i.Host!=""{
+		if i.Host != "" {
 			hosts = append(hosts, i.Host)
 		}
 	}
@@ -477,7 +480,7 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 			if err != nil {
 				panic(err)
 			}
-			if i.Host!=""{
+			if i.Host != "" {
 				hosts = append(hosts, i.Host)
 			}
 		}
@@ -490,12 +493,12 @@ func (meta *ElasticsearchMetadata) GetSeedHosts() []string {
 }
 
 func (node *NodesInfo) GetPathLogs() string {
-	path,ok:=node.Settings["path"]
+	path, ok := node.Settings["path"]
 	if ok {
-		if pathObj,ok:=path.(map[string]interface{});ok{
-			if logs,ok:=pathObj["logs"];ok{
-				if logsObj,ok:=logs.(string);ok{
-					if logsObj!=""{
+		if pathObj, ok := path.(map[string]interface{}); ok {
+			if logs, ok := pathObj["logs"]; ok {
+				if logsObj, ok := logs.(string); ok {
+					if logsObj != "" {
 						return logsObj
 					}
 				}
@@ -512,14 +515,14 @@ func (node *NodesInfo) GetHttpPublishHost() string {
 		}
 		arr := strings.Split(node.Http.PublishAddress, "/")
 		if len(arr) == 2 {
-			if  arr[1] !=""{
+			if arr[1] != "" {
 				return arr[1]
 			}
 		}
 	}
 
 	if node.Http.PublishAddress == "" {
-		panic(errors.Errorf("node's public address is empty, %v",node.Name))
+		panic(errors.Errorf("node's public address is empty, %v", node.Name))
 	}
 
 	return node.Http.PublishAddress
@@ -854,6 +857,8 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 						}
 					}
 				}
+			}else{
+				//index was not found
 			}
 			return table.Shards, nil
 		}

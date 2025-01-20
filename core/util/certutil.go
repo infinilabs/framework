@@ -21,7 +21,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-//https://ericchiang.github.io/post/go-tls/
+// https://ericchiang.github.io/post/go-tls/
 package util
 
 import (
@@ -67,7 +67,7 @@ func GetRootCert() (rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCer
 	return rootCert, rootKey, rootCertPEM
 }
 
-func GenerateServerCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCertPEM []byte, dnsNames []string) (servCertPEM, servKeyPEM []byte, err error){
+func GenerateServerCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey, rootCertPEM []byte, dnsNames []string) (servCertPEM, servKeyPEM []byte, err error) {
 	if rootCert == nil || rootKey == nil || rootCertPEM == nil {
 		return nil, nil, fmt.Errorf("empty params")
 	}
@@ -77,7 +77,7 @@ func GenerateServerCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey, roo
 	// create a key-pair for the server
 	servKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return   nil, nil, err
+		return nil, nil, err
 	}
 
 	// create a template for the server
@@ -92,14 +92,14 @@ func GenerateServerCert(rootCert *x509.Certificate, rootKey *rsa.PrivateKey, roo
 	// create a certificate which wraps the server's public key, sign it with the root private key
 	_, servCertPEM, err = CreateCert(servCertTmpl, rootCert, &servKey.PublicKey, rootKey)
 	if err != nil {
-		return  nil, nil, err
+		return nil, nil, err
 	}
 
 	// provide the private key and the cert
 	servKeyPEM = pem.EncodeToMemory(&pem.Block{
 		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(servKey),
 	})
-	return  servCertPEM, servKeyPEM, nil
+	return servCertPEM, servKeyPEM, nil
 }
 
 func GetClientCert(rootCert *x509.Certificate, rootKey any) (clientTLSCert tls.Certificate, clientCertPEM, clientKeyPEM []byte) {
@@ -168,7 +168,7 @@ func GetCertTemplate(dnsNames []string) (*x509.Certificate, error) {
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(1, 0, 0), // valid for an year
 		BasicConstraintsValid: true,
-		DNSNames: dnsNames,
+		DNSNames:              dnsNames,
 	}
 	return &tmpl, nil
 }
@@ -193,8 +193,8 @@ func CreateCert(template, parent *x509.Certificate, pub interface{}, parentPriv 
 	return
 }
 
-func GetSkipHostnameVerifyFunc(pool *x509.CertPool) func ([][]byte, [][]*x509.Certificate) error{
-	return func (rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+func GetSkipHostnameVerifyFunc(pool *x509.CertPool) func([][]byte, [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 		// If this is the first handshake on a connection, process and
 		// (optionally) verify the server's certificates.
 		certs := make([]*x509.Certificate, len(rawCerts))
@@ -224,7 +224,7 @@ func GetSkipHostnameVerifyFunc(pool *x509.CertPool) func ([][]byte, [][]*x509.Ce
 	}
 }
 
-func ParsePrivateKey(der []byte) (any, error){
+func ParsePrivateKey(der []byte) (any, error) {
 	priKey, err := x509.ParsePKCS8PrivateKey(der)
 	if err != nil {
 		priKey, err = x509.ParsePKCS1PrivateKey(der)
