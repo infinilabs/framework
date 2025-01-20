@@ -857,7 +857,7 @@ func (metadata *ElasticsearchMetadata) GetIndexRoutingTable(index string) (map[s
 						}
 					}
 				}
-			}else{
+			} else {
 				//index was not found
 			}
 			return table.Shards, nil
