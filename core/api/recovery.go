@@ -108,7 +108,7 @@ func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			w.Write(payloadBytes)
 
 			if global.Env().IsDebug {
-				h.log(v)
+				h.log(true,v)
 			}
 		}
 	}()
@@ -116,9 +116,9 @@ func (h recoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.handler.ServeHTTP(w, req)
 }
 
-func (h recoveryHandler) log(v ...interface{}) {
+func (h recoveryHandler) log(printStack bool,v ...interface{}) {
 	log.Error(v)
-	if h.printStack {
+	if printStack {
 		stack := string(debug.Stack())
 		log.Error(stack)
 	}

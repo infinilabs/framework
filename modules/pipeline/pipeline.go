@@ -323,7 +323,7 @@ func (module *PipeModule) Stop() error {
 		return nil
 	}
 
-	log.Info("shutting down pipeline framework")
+	log.Info("shutting down pipelines")
 
 	var taskIDs []string
 	module.contexts.Range(func(key, value any) bool {
