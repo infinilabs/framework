@@ -145,6 +145,20 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance
 #   _ctx.response.status: 200
 # }
 
+GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agent
+# request: {
+#   headers: [
+#     {authorization: "Bearer $[[access_token]]"}
+#   ],
+#   disable_header_names_normalizing: false
+# },
+# register: [
+#   {agent_id: "_ctx.response.body_json.hits.hits.0._id"}
+# ],
+# assert: {
+#   _ctx.response.status: 200
+# }
+
 GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
 # request: {
 #   headers: [
@@ -176,20 +190,6 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_prox
 #   ],
 #   disable_header_names_normalizing: false
 # },
-# assert: {
-#   _ctx.response.status: 200
-# }
-
-GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agent
-# request: {
-#   headers: [
-#     {authorization: "Bearer $[[access_token]]"}
-#   ],
-#   disable_header_names_normalizing: false
-# },
-# register: [
-#   {agent_id: "_ctx.response.body_json.hits.hits.0._id"}
-# ],
 # assert: {
 #   _ctx.response.status: 200
 # }
