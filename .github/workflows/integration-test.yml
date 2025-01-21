@@ -176,7 +176,7 @@ jobs:
                 cd $WORK/$PRODUCT/bin
 
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT &
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
 
             - name: Run loadgen api test for console initialize
               shell: bash
@@ -196,7 +196,7 @@ jobs:
                 mkdir -p $WORK/$PRODUCT/bin/config
                 sed -i "s/2900/2920/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT &
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
 
             - name: Run gateway test
               shell: bash
@@ -208,7 +208,7 @@ jobs:
                 sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
 
                 echo Running integration test at $PWD ...
-                exec $WORK/$PRODUCT/bin/$PRODUCT &
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
 
             - name: Run loadgen test for gateway
               shell: bash
