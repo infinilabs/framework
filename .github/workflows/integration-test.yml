@@ -1,0 +1,288 @@
+name: Products Integration Test
+
+on:
+    pull_request:
+        branches: [ "main" ]
+
+jobs:
+    intergration-test:
+        runs-on: ubuntu-latest
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GO_VERSION: 1.23.5
+            NODEJS_VERSION: 16.20.2
+            JAVA_DISTRIBUTION: temurin
+            JAVA_VERSION: 11
+
+        steps:
+            - name: Init env
+              run: |
+                export WORKBASE=$HOME/go/src
+                export WORK=$WORKBASE/infini.sh
+
+                echo WORKBASE=$HOME/go/src >> $GITHUB_ENV
+                echo WORK=$WORKBASE/infini.sh >> $GITHUB_ENV
+                echo EASYSEARCH_INITIAL_ADMIN_PASSWORD=admin >> $GITHUB_ENV
+                echo ES_USERNAME=admin >> $GITHUB_ENV
+                echo ES_PASSWORD=admin >> $GITHUB_ENV
+                echo ES_ENDPOINT=https://127.0.0.1:9200 >> $GITHUB_ENV
+                echo GW_ENDPOINT=https://127.0.0.1:8000 >> $GITHUB_ENV
+                echo EOF=$(date -d "$(date +%Y)-12-31 +1 day -1 day" +%Y-%m-%d) >> $GITHUB_ENV
+                echo VERSION=1.0.0 >> $GITHUB_ENV
+                echo BUILD_NUMBER=$(date +%Y%m%d) >> $GITHUB_ENV
+                echo BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S") >> $GITHUB_ENV
+                cat $GITHUB_ENV
+                  
+            - name: Checkout current repository
+              uses: actions/checkout@v4
+              with:
+                path: framework
+
+            - name: Checkout console
+              uses: actions/checkout@v4
+              with:
+                ref: main
+                repository: infinilabs/console
+                path: console
+
+            - name: Checkout gateway
+              uses: actions/checkout@v4
+              with:
+                ref: main
+                repository: infinilabs/gateway
+                path: gateway
+
+            - name: Checkout agent
+              uses: actions/checkout@v4
+              with:
+                ref: main
+                repository: infinilabs/agent
+                path: agent
+
+            - name: Checkout loadgen
+              uses: actions/checkout@v4
+              with:
+                ref: main
+                repository: infinilabs/loadgen
+                path: loadgen
+
+            - name: Checkout framework-vendor
+              uses: actions/checkout@v4
+              with:
+                ref: main
+                repository: infinilabs/framework-vendor
+                path: vendor
+
+            - name: Set up nodejs toolchain
+              uses: actions/setup-node@v4
+              with:
+                node-version: ${{ env.NODEJS_VERSION }}
+            
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                path: |
+                  node_modules
+                key: ${{ runner.os }}-cnpm-${{ hashFiles('**/package.json') }}
+                restore-keys: |
+                    ${{ runner.os }}-cnpm-
+
+            - name: Check nodejs toolchain
+              run: |
+                if ! command -v cnpm >/dev/null 2>&1; then
+                  npm install -g rimraf
+                  npm install -g cnpm@9.2.0
+                fi
+                node -v && npm -v && cnpm -v
+
+            - name: Set up go toolchain
+              uses: actions/setup-go@v5
+              with:
+                go-version: ${{ env.GO_VERSION }}
+                check-latest: false
+                cache: true
+
+            - name: Check go toolchain
+              run: go version
+
+            - name: Set up java toolchain
+              uses: actions/setup-java@v4
+              with:
+                distribution: ${{ env.JAVA_DISTRIBUTION }}
+                java-version: ${{ env.JAVA_VERSION }}
+            
+            - name: Check java toolchain
+              run: java -version && which java
+
+            - name: Install and run easysearch
+              shell: bash
+              run: |
+                # Install easysearch
+                curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
+                [ -z "$JAVA_HOME" ] || ln -s "$JAVA_HOME" $HOME/easysearch/jdk
+                cd $HOME/easysearch && bin/initialize.sh -s
+                # Run easysearch
+                bin/easysearch -d
+
+            - name: Compile products code
+              shell: bash
+              run: |
+                mkdir -p $WORKBASE
+                echo Home path is $HOME
+                
+                echo Check work folder $GITHUB_WORKSPACE
+                ln -s $GITHUB_WORKSPACE $WORK
+                ls -al $WORK/
+
+                # for console web
+                cd $WORK/console/web && echo Compiling code at $PWD ...
+                cnpm install --quiet --no-progress && cnpm run build --quiet
+                
+                # for products
+                for p in console gateway agent loadgen; do
+                  cd $WORK/$p && echo Compiling $p at $PWD ...
+                  OFFLINE_BUILD=true make build
+                done
+
+            - name: Prepare console config
+              shell: bash
+              run: |
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
+                # for console config
+                echo Prepare $PRODUCT config at $PWD ...
+                mkdir -p $WORK/$PRODUCT/bin/config
+                PERMJSON=$WORK/$PRODUCT/modules/security/realm/authc/native/permission.json
+                if [ -e $PERMJSON ]; then
+                  cp -rf $PERMJSON $WORK/$PRODUCT/bin/config
+                fi
+                cp -rf $WORK/$PRODUCT/config/*.tpl $WORK/$PRODUCT/bin/config
+                [ -d $WORK/$PRODUCT/config/setup ] && cp -rf $WORK/$PRODUCT/config/setup $WORK/$PRODUCT/bin/config
+                ls -lrt $WORK/$PRODUCT/bin
+                
+            - name: Run easysearch test
+              shell: bash
+              run: |
+                echo Running integration test at $PWD ...
+                if command -v curl >/dev/null 2>&1; then
+                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT
+                fi
+
+            - name: Run console test
+              shell: bash
+              run: |
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
+                echo Running integration test at $PWD ...
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
+
+            - name: Run loadgen api test for console initialize
+              shell: bash
+              run: |
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+
+                cp -rf $WORK/framework/.github/workflows/data/loadgen_yml $WORK/$PRODUCT/bin/$PRODUCT-api.yml
+                cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run console-initialize.dsl
+
+            - name: Run agent test
+              shell: bash
+              run: |
+                export PRODUCT=agent
+                cd $WORK/$PRODUCT/bin
+                mkdir -p $WORK/$PRODUCT/bin/config
+                sed -i "s/2900/2920/g" $WORK/$PRODUCT/bin/$PRODUCT.yml
+                echo Running integration test at $PWD ...
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
+
+            - name: Run gateway test
+              shell: bash
+              run: |
+                export PRODUCT=gateway
+                cd $WORK/$PRODUCT/bin
+                sed -i -e "/ES_USER:/ s|\(.*\: \).*|\\1$ES_USERNAME|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_USER:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_PASS:/ s|\(.*\: \).*|\\1$ES_PASSWORD|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_PASS:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$ES_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+
+                echo Running integration test at $PWD ...
+                exec $WORK/$PRODUCT/bin/$PRODUCT -log debug &
+
+            - name: Run loadgen test for gateway
+              shell: bash
+              run: |
+                  export PRODUCT=loadgen
+                  cd $WORK/$PRODUCT/bin
+                  sed -i -e "/ES_USERNAME:/ s|\(.*\: \).*|\\1$ES_USERNAME|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_USERNAME:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                  sed -i -e "/ES_PASSWORD:/ s|\(.*\: \).*|\\1$ES_PASSWORD|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_PASSWORD:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                  sed -i -e "/ES_ENDPOINT:/ s|\(.*\: \).*|\\1$GW_ENDPOINT|g" $WORK/$PRODUCT/bin/$PRODUCT.yml && grep "ES_ENDPOINT:"  $WORK/$PRODUCT/bin/$PRODUCT.yml
+                  
+                  echo Running integration test at $PWD ...
+                  $WORK/$PRODUCT/bin/$PRODUCT -d 10
+                  # Check indices created
+                  if command -v curl >/dev/null 2>&1; then
+                    curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/_cat/indices?v
+                  fi
+
+            - name: Run loadgen api test for runtime registry
+              shell: bash
+              run: |
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run runtime-registry.dsl
+
+            - name: Run loadgen api test for metrics search
+              shell: bash
+              run: |
+                export PRODUCT=loadgen
+                cd $WORK/$PRODUCT/bin
+
+                # wait agent collect metrics
+                for i in $(seq 60); do sleep 1 && printf .; done; echo
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run metrics-search.dsl
+                # wait agent collect metrics
+                for i in $(seq 60); do sleep 1 && printf .; done; echo
+                # Check metrics count
+                if command -v curl >/dev/null 2>&1; then
+                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/_cat/indices?v
+                  curl -H 'Content-Type: application/json' -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/.infini_metrics/_search -d '{"query":{"bool":{"must":[{"term":{"category":{"value":"elasticsearch"}}}]}}}'
+                fi
+
+            - name: Check console logs
+              shell: bash
+              run: |
+                export PRODUCT=console
+                cd $WORK/$PRODUCT/bin
+
+                echo Check $PRODUCT logs at $PWD ...
+                cat $WORK/$PRODUCT/bin/log/$PRODUCT/nodes/*/$PRODUCT.log
+            
+            - name: Check gateway logs
+              shell: bash
+              run: |
+                export PRODUCT=gateway
+                cd $WORK/$PRODUCT/bin
+
+                echo Check $PRODUCT logs at $PWD ...
+                cat $WORK/$PRODUCT/bin/log/$PRODUCT/nodes/*/$PRODUCT.log
+
+            - name: Check agent logs
+              shell: bash
+              run: |
+                export PRODUCT=agent
+                cd $WORK/$PRODUCT/bin
+
+                echo Check $PRODUCT logs at $PWD ...
+                cat $WORK/$PRODUCT/bin/log/$PRODUCT/nodes/*/$PRODUCT.log
+
+            - name: Check loadgen logs
+              shell: bash
+              run: |
+                  export PRODUCT=loadgen
+                  cd $WORK/$PRODUCT/bin
+  
+                  echo Check $PRODUCT logs at $PWD ...
+                  cat $WORK/$PRODUCT/bin/log/$PRODUCT/nodes/*/$PRODUCT.log
