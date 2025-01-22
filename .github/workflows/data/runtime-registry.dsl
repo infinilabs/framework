@@ -1,5 +1,10 @@
+# runner: {
+#   reset_context: true,
+#   default_endpoint: "$[[env.CONSOLE_ENDPOINT]]",
+# }
+
 # // user login
-POST $[[env.CONSOLE_ENDPOINT]]/account/login
+POST /account/login
 {"userName": "$[[env.CONSOLE_USERNAME]]","password": "$[[env.CONSOLE_PASSWORD]]","type": "account"}
 # register: [
 #   {access_token: "_ctx.response.body_json.access_token"}
@@ -8,7 +13,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/account/login
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/elasticsearch/status
+GET /elasticsearch/status
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -20,7 +25,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/elasticsearch/status
 # }
 
 
-POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
+POST /collection/cluster/_search
 {"query":{"bool":{"must":[],"filter":[],"should":[],"must_not":[]}}}
 # request: {
 #   headers: [
@@ -41,7 +46,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/collection/cluster/_search
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
+GET /credential/_search
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -52,7 +57,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/credential/_search
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/_info
+GET /_info
 # 200
 
 GET $[[env.GATEWAY_ENDPOINT]]/_info
@@ -61,7 +66,7 @@ GET $[[env.GATEWAY_ENDPOINT]]/_info
 GET $[[env.AGENT_ENDPOINT]]/_info
 # 200
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
+POST /instance/try_connect
 {"endpoint":"$[[env.CONSOLE_ENDPOINT]]","isTLS":false}
 # request: {
 #   headers: [
@@ -73,7 +78,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
+POST /instance/try_connect
 {"endpoint":"$[[env.GATEWAY_ENDPOINT]]","isTLS":false}
 # request: {
 #   headers: [
@@ -85,7 +90,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
+POST /instance/try_connect
 {"endpoint":"$[[env.AGENT_ENDPOINT]]","isTLS":false}
 # request: {
 #   headers: [
@@ -97,7 +102,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/try_connect
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance
+POST /instance
 {"endpoint":"$[[env.CONSOLE_ENDPOINT]]","isTLS":false,"instance_id":"console","name":"Conaole","version":{"number":"0.0.1","framework_hash":"N/A","vendor_hash":"N/A","build_hash":"N/A","build_date":"N/A","build_number":"001","eol_date":"N/A"},"status":"Online","tags":["default"],"description":""}
 # request: {
 #   headers: [
@@ -109,7 +114,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/try_connect
+POST /elasticsearch/try_connect
 {"name":"$[[cluster_name]]","host":"$[[cluster_host]]","schema":"$[[cluster_schema]]","credential_id":"$[[credential_id]]","basic_auth":{}}
 # request: {
 #   headers: [
@@ -121,7 +126,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/try_connect
 #   _ctx.response.status: 200
 # }
 
-PUT $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster
+PUT /elasticsearch/infini_default_system_cluster
 {"name":"$[[cluster_name]]","host":"$[[cluster_host]]","credential_id":"$[[credential_id]]","basic_auth":{},"agent_credential_id":"$[[credential_id]]","agent_basic_auth":{},"monitored":true,"monitor_configs":{"cluster_health":{"enabled":true,"interval":"10s"},"cluster_stats":{"enabled":true,"interval":"10s"},"node_stats":{"enabled":false,"interval":"10s"},"index_stats":{"enabled":false,"interval":"10s"}},"metadata_configs":{"health_check":{"enabled":true,"interval":"10s"},"node_availability_check":{"enabled":true,"interval":"10s"},"metadata_refresh":{"enabled":true,"interval":"10s"},"cluster_settings_check":{"enabled":true,"interval":"10s"}},"discovery":{"enabled":false},"version":"$[[cluster_version]]","schema":"$[[cluster_schema]]","distribution":"$[[cluster_distribution]]","location":{},"cluster_uuid":"$[[cluster_uuid]]"}
 # request: {
 #   headers: [
@@ -133,7 +138,7 @@ PUT $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance
+POST /instance
 {"endpoint":"$[[env.GATEWAY_ENDPOINT]]","isTLS":false,"instance_id":"gateway","name":"Gateway","version":{"number":"0.0.1","framework_hash":"N/A","vendor_hash":"N/A","build_hash":"N/A","build_date":"N/A","build_number":"001","eol_date":"N/A"},"status":"Online","tags":["default"],"description":""}
 # request: {
 #   headers: [
@@ -145,7 +150,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agent
+GET /instance/_search?size=20&keyword=&application=agent
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -159,7 +164,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agen
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
+GET /instance/$[[agent_id]]/node/_discovery
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -170,7 +175,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance/node/_auto_enroll
+POST /instance/node/_auto_enroll
 {"cluster_id":["infini_default_system_cluster"]}
 # request: {
 #   headers: [
@@ -182,7 +187,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/node/_auto_enroll
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_instance%2F_search
+POST /elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_instance%2F_search
 {"_source": "_id","query": {"term": {"application.name": {"value": "agent"}}}}
 # request: {
 #   headers: [
@@ -194,7 +199,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_prox
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
+POST /instance/$[[agent_id]]/node/_discovery
 {"cluster_id":["infini_default_system_cluster"]}
 # request: {
 #   headers: [
@@ -206,7 +211,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
+GET /instance/$[[agent_id]]/node/_discovery
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}

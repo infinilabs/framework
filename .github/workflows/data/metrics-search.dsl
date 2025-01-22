@@ -1,5 +1,10 @@
+# runner: {
+#   reset_context: true,
+#   default_endpoint: "$[[env.CONSOLE_ENDPOINT]]",
+# }
+
 # // user login
-POST $[[env.CONSOLE_ENDPOINT]]/account/login
+POST /account/login
 {"userName": "$[[env.CONSOLE_USERNAME]]","password": "$[[env.CONSOLE_PASSWORD]]","type": "account"}
 # register: [
 #   {access_token: "_ctx.response.body_json.access_token"}
@@ -8,7 +13,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/account/login
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agent
+GET /instance/_search?size=20&keyword=&application=agent
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -22,7 +27,7 @@ GET $[[env.CONSOLE_ENDPOINT]]/instance/_search?size=20&keyword=&application=agen
 #   _ctx.response.status: 200
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_instance%2F_search
+POST /elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_instance%2F_search
 {"_source": "_id","query": {"term": {"application.name": {"value": "agent"}}}}
 # request: {
 #   headers: [
@@ -34,7 +39,7 @@ POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_prox
 #   _ctx.response.status: 200
 # }
 
-GET $[[env.CONSOLE_ENDPOINT]]/instance/$[[agent_id]]/node/_discovery
+GET /instance/$[[agent_id]]/node/_discovery
 # request: {
 #   headers: [
 #     {authorization: "Bearer $[[access_token]]"}
@@ -64,7 +69,7 @@ POST $[[env.ES_ENDPOINT]]/.infini_metrics/_count
 #   _ctx.response.body_json.count: >=0
 # }
 
-POST $[[env.CONSOLE_ENDPOINT]]/elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_metrics%2F_count
+POST /elasticsearch/infini_default_system_cluster/_proxy?method=GET&path=%2F.infini_metrics%2F_count
 {"query":{"bool":{"must":[{"term":{"agent.id":{"value":"$[[agent_id]]"}}},{"term":{"category":{"value":"elasticsearch"}}}]}}}
 # request: {
 #   headers: [

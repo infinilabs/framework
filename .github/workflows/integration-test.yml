@@ -186,7 +186,7 @@ jobs:
 
                 cp -rf $WORK/framework/.github/workflows/data/loadgen_yml $WORK/$PRODUCT/bin/$PRODUCT-api.yml
                 cp -rf $WORK/framework/.github/workflows/data/*.dsl $WORK/$PRODUCT/bin
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run console-initialize.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run console-initialize.dsl
 
             - name: Run agent test
               shell: bash
@@ -232,7 +232,7 @@ jobs:
                 export PRODUCT=loadgen
                 cd $WORK/$PRODUCT/bin
 
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run runtime-registry.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run runtime-registry.dsl
 
             - name: Run loadgen api test for metrics search
               shell: bash
@@ -242,12 +242,12 @@ jobs:
 
                 # wait agent collect metrics
                 for i in $(seq 60); do sleep 1 && printf .; done; echo
-                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -debug -run metrics-search.dsl
+                $WORK/$PRODUCT/bin/$PRODUCT -config $WORK/$PRODUCT/bin/$PRODUCT-api.yml -run metrics-search.dsl
                 # wait agent collect metrics
                 for i in $(seq 60); do sleep 1 && printf .; done; echo
                 # Check metrics count
                 if command -v curl >/dev/null 2>&1; then
-                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/.infini_metrics/_count -d '{"query":{"bool":{"must":[{"term":{"agent.id":{"value":"$[[agent_id]]"}}},{"term":{"category":{"value":"elasticsearch"}}}]}}}'
+                  curl 'Content-Type: application/json' -ku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/.infini_metrics/_count -d '{"query":{"bool":{"must":[{"term":{"category":{"value":"elasticsearch"}}}]}}}'
                 fi
 
             - name: Check console logs
