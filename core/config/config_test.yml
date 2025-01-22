@@ -1,4 +1,6 @@
 counter: 5
+role_mapping: 
+  "liugq.infinilabs.com": [ "ReadonlyUI" ]
 
 modules:
 - module: crawler
