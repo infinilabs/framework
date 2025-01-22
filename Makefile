@@ -40,10 +40,11 @@ VFS_PATH := ~/vfs
 
 # Go environment
 CURDIR := $(shell pwd)
-OLDGOPATH:= $(shell echo ~/go)
+OLDGOPATH:= $(GOPATH)
 
 CMD_DIR := $(CURDIR)/cmd
 OUTPUT_DIR := $(CURDIR)/bin
+
 
 # INFINI framework
 INFINI_BASE_FOLDER := $(OLDGOPATH)/src/infini.sh
