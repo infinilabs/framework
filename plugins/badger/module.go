@@ -29,6 +29,7 @@ package badger
 
 import (
 	"github.com/dgraph-io/badger/v4"
+	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/filter"
 	"infini.sh/framework/core/global"
@@ -62,6 +63,7 @@ type Module struct {
 	cfg    *Config
 	bucket *badger.DB
 	closed bool
+	api.Handler
 }
 
 func (module *Module) Name() string {
@@ -95,6 +97,7 @@ func (module *Module) Setup() {
 	if module.cfg.Enabled {
 		filter.Register("badger", module)
 		kv.Register("badger", module)
+		api.HandleAPIMethod(api.GET, "/badger/stats", module.dumpKeyStats)
 	}
 
 }
