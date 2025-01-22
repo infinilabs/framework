@@ -247,7 +247,8 @@ jobs:
                 for i in $(seq 60); do sleep 1 && printf .; done; echo
                 # Check metrics count
                 if command -v curl >/dev/null 2>&1; then
-                  curl -H 'Content-Type: application/json' -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/.infini_metrics/_count -d '{"query":{"bool":{"must":[{"term":{"category":{"value":"elasticsearch"}}}]}}}'
+                  curl -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/_cat/indices?v
+                  curl -H 'Content-Type: application/json' -sku $ES_USERNAME:$ES_PASSWORD $ES_ENDPOINT/.infini_metrics/_search -d '{"query":{"bool":{"must":[{"term":{"category":{"value":"elasticsearch"}}}]}}}'
                 fi
 
             - name: Check console logs
