@@ -97,7 +97,7 @@ func (module *Module) Setup() {
 	if module.cfg.Enabled {
 		filter.Register("badger", module)
 		kv.Register("badger", module)
-		api.HandleAPIMethod(api.GET, "/kv/badger/keys/_stats", module.dumpKeyStats)
+		api.HandleAPIMethod(api.GET, "/badger/stats", module.dumpKeyStats)
 	}
 
 }
