@@ -35,6 +35,15 @@ import (
 	"time"
 )
 
+// ReservedAddress is the reserved address
+const ReservedAddress = "0.0.0.0"
+
+// LocalIpv6Address is the local ipv6 address
+const LocalIpv6Address = "0.0.0.1"
+
+// LocalAddress is the local ipv4 address
+const LocalAddress = "127.0.0.1"
+
 //Class        Starting IPAddress    Ending IP Address    # of Hosts
 //A            10.0.0.0              10.255.255.255       16,777,216
 //B            172.16.0.0            172.31.255.255       1,048,576
@@ -173,7 +182,7 @@ func GetSafetyInternalAddress(addr string) string {
 
 	if strings.Contains(addr, ":") {
 		array := strings.Split(addr, ":")
-		if array[0] == "0.0.0.0" {
+		if array[0] == ReservedAddress {
 			array[0], _ = GetIntranetIP()
 		}
 		return strings.Join(array, ":")
@@ -192,7 +201,7 @@ func GetValidAddress(addr string) string {
 	if strings.Index(addr, ":") >= 0 {
 		array := strings.Split(addr, ":")
 		if len(array[0]) == 0 {
-			array[0] = "127.0.0.1"
+			array[0] = LocalAddress
 			addr = strings.Join(array, ":")
 		}
 	}
@@ -266,11 +275,11 @@ func GetLocalIPs() []string {
 // IsLocalAddress check if the address is local address
 func IsLocalAddress(address []string, localIPs []string) bool {
 	for _, add := range address {
-		if UnifyLocalAddress(add) == LOCAL_ADDRESS {
+		if UnifyLocalAddress(add) == LocalAddress {
 			continue
 		}
 
-		if add == "0.0.0.0" {
+		if add == ReservedAddress {
 			continue
 		}
 
@@ -360,7 +369,7 @@ func ClientIP(r *http.Request) string {
 
 	if ip, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
 		if ip == "::1" {
-			ip = "127.0.0.1"
+			ip = LocalAddress
 		}
 		return ip
 	}
@@ -368,16 +377,14 @@ func ClientIP(r *http.Request) string {
 	return ""
 }
 
-const LOCAL_ADDRESS = "127.0.0.1"
-
 func UnifyLocalAddress(host string) string {
 	//unify host
 	if ContainStr(host, "localhost") {
-		host = strings.Replace(host, "localhost", LOCAL_ADDRESS, -1)
+		host = strings.Replace(host, "localhost", LocalAddress, -1)
 	} else if ContainStr(host, "[::1]") {
-		host = strings.Replace(host, "[::1]", LOCAL_ADDRESS, -1)
+		host = strings.Replace(host, "[::1]", LocalAddress, -1)
 	} else if ContainStr(host, "::1") {
-		host = strings.Replace(host, "::1", LOCAL_ADDRESS, -1)
+		host = strings.Replace(host, "::1", LocalAddress, -1)
 	}
 	return host
 }
