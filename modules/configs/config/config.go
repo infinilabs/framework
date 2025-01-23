@@ -119,7 +119,6 @@ func SaveConfigStr(name, content string) error {
 	if err != nil {
 		return err
 	}
-
 	fileToSave := path.Join(cfgDir, name)
 
 	log.Info("write config file: ", fileToSave)
@@ -136,6 +135,11 @@ func SaveConfigStr(name, content string) error {
 				return err
 			}
 		}
+	}
+
+	_, err = util.CreateFile(cfgDir, "")
+	if err != nil {
+		return err
 	}
 
 	_, err = util.FilePutContent(fileToSave, content)
