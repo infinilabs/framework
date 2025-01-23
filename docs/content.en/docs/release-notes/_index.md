@@ -19,7 +19,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add util to http handler, support to parse bool parameter
 - Handle simplified bulk metdata, parse index from url path (#59)
 - Improve handling of message read for partially loaded files (#63)
-
+- Refactor loopback address to use const (#73)
 
 ## v1.1.0 (2025-01-11) 
 
