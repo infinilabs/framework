@@ -40,6 +40,8 @@ type View struct {
 	UpdatedAt       time.Time `json:"updated_at,omitempty" elastic_mapping:"updated_at:{type:date}"`
 	DefaultLayoutID string    `json:"default_layout_id" elastic_mapping:"default_layout_id:{type:keyword}"`
 	ComplexFields   string    `json:"complex_fields" elastic_mapping:"complex_fields:{type:text}"`
+	//determine if this view is built-in
+	Builtin bool `json:"builtin" elastic_mapping:"builtin:{type:boolean}"`
 }
 
 type AAIR_Alias struct {
