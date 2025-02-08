@@ -504,8 +504,13 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	)
 	health, err = client.ClusterHealthSpecEndpoint(ctx, v.Config.GetAnyEndpoint(), "indices")
 	if err != nil {
-		log.Error(v.Config.Name, " get cluster health error: ", err)
-		return err
+		if errors.Is(err, context.DeadlineExceeded) {
+			// Explicitly handle context deadline exceeded
+			return fmt.Errorf("[%s] get cluster health context deadline exceeded after %s: %w", v.Config.Name, monitorCfg.ClusterHealth.Interval, err)
+		} else {
+			// Handle other errors
+			return fmt.Errorf("[%s] get cluster health error: %w", v.Config.Name, err)
+		}
 	}
 
 	indicesHealth := health.Indices
@@ -577,8 +582,13 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 		stats, err = client.GetClusterStats(ctx, "")
 	}
 	if err != nil {
-		log.Error(v.Config.Name, " get cluster stats error: ", err)
-		return err
+		if errors.Is(err, context.DeadlineExceeded) {
+			// Explicitly handle context deadline exceeded
+			return fmt.Errorf("[%s] get cluster stats context deadline exceeded after %s: %w", v.Config.Name, monitorCfg.ClusterHealth.Interval, err)
+		} else {
+			// Handle other errors
+			return fmt.Errorf("[%s] get cluster stats error: %w", v.Config.Name, err)
+		}
 	}
 
 	item := event.Event{
