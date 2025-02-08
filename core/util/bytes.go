@@ -244,6 +244,13 @@ func UnsafeStringToBytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&s))
 }
 
+func UnsafeGetStringToBytes(s string) []byte {
+	if len(s) == 0 {
+		return []byte{} // Handle empty string case to avoid nil slice
+	}
+	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
+
 // ToLowercase convert string bytes to lowercase
 func ToLowercase(str []byte) []byte {
 	for i, s := range str {
