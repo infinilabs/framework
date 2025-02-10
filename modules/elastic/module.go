@@ -249,7 +249,10 @@ func nodeAvailabilityCheck() {
 					}
 
 					if v.IsDead() {
-						return true
+						//check the dead node anyway if it is dead, but with a larger interval
+						if time.Since(v.LastCheck()) < util.GetDurationOrDefault(moduleConfig.DeadNodeAvailabilityCheckInterval, 1*time.Hour) {
+							return true
+						}
 					}
 
 					if startTime, ok := availabilityMap.Load(k); ok {
