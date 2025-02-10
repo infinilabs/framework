@@ -236,18 +236,33 @@ func ToBytes(s string) (uint64, error) {
 
 /** https://github.com/cloudfoundry/bytefmt/blob/master/bytes.go end **/
 
+// BytesToStringUnsafe returns a string pointing to the byte slice's underlying data.
+// This is EXTREMELY UNSAFE and should only be used when the byte slice is guaranteed
+// to be immutable and its lifetime is longer than the returned string.
+//
+// The returned string MUST NOT be modified, and the byte slice MUST NOT be modified
+// after the string is created.
 func UnsafeBytesToString(bs []byte) string {
-	return *(*string)(unsafe.Pointer(&bs))
+	// Ensure the byte slice 'bs' is not modified after calling this function!
+	// Ensure the lifetime of 'bs' is longer than the returned string!
+
+	return unsafe.String(unsafe.SliceData(bs), len(bs))
 }
 
+// StringToBytesUnsafe returns a byte slice pointing to the string's underlying data.
+// This is UNSAFE and should only be used for read-only access and when the
+// string's lifetime is guaranteed to be longer than the returned slice.
+//
+// The returned slice MUST NOT be modified.
 func UnsafeStringToBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(&s))
-}
-
-func UnsafeGetStringToBytes(s string) []byte {
+	// The string 's' must remain alive for the lifetime of the returned slice.
+	// The compiler *should* prevent 's' from being GC'd while the slice is in use,
+	// but it's best to ensure 's' is used in some way after this function call,
+	// to guarantee it's still reachable.
 	if len(s) == 0 {
 		return []byte{} // Handle empty string case to avoid nil slice
 	}
+	// This is the unsafe conversion, use with caution!
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 

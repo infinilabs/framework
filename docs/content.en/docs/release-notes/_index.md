@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Features
 
 ### Bug fix
+- Fixed `UnsafeStringToBytes` and `UnsafeBytesToString` functions (#77)
 
 ### Improvements
 
