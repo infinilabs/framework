@@ -328,6 +328,7 @@ READ_MSG:
 				log.Debugf("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
 			}
 
+			d.readPos = previousPos
 			stats.Increment("consumer", d.qCfg.ID, d.cCfg.ID, "reload_partial_file")
 			goto RELOAD_FILE
 		}
