@@ -15,6 +15,8 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Bug fix
 
+- Fixed reload file need use privious pos (#79)
+
 ### Improvements
 
 ## v1.1.1 (2025-01-24)
