@@ -232,14 +232,16 @@ READ_MSG:
 		}
 		return messages, false, err
 	}
-
+	log.Debugf("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
-
 		//current have changes, reload file with new position
 		newFileSize := d.getFileSize()
 		if d.lastFileSize != newFileSize && newFileSize > d.maxBytesPerFileRead {
 			d.lastFileSize = newFileSize
-			d.ResetOffset(d.segment, d.readPos)
+			err = d.ResetOffset(d.segment, d.readPos)
+			if err != nil {
+				log.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v, error: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, err)
+			}
 			return messages, false, err
 		} else {
 			//invalid message size, assume current file is corrupted, try to read next file

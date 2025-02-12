@@ -675,7 +675,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 				panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 			}
 		}
-		log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
+		log.Debugf("exit worker[%v], message count[%d], queue:[%v], slice_id:%v", workerID, mainBuf.GetMessageCount(), qConfig.ID, sliceID)
 	}()
 
 	if global.Env().IsDebug {
@@ -792,14 +792,11 @@ READ_DOCS:
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
-		if global.Env().IsDebug {
-			log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
-		}
+		log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		if err != nil {
 			if strings.Contains(err.Error(), "dirty_read") || err.Error() == "EOF" || err.Error() == "unexpected EOF" {
-
 				ctx.CancelTask()
-
+				log.Debugf("slice worker, worker:[%v], error on queue:[%v], slice_id:%v, %v, cancel task", workerID, qConfig.Name, sliceID, err)
 				if len(messages) > 0 || mainBuf.GetMessageCount() > 0 {
 					goto HANDLE_MESSAGE
 				}
@@ -1023,7 +1020,7 @@ CLEAN_BUFFER:
 	}
 
 	if ctx.IsCanceled() || ctx.HasError() {
-		log.Debugf("offset[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
+		log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] offset[%v], canceled[%v], errors[%v], return on queue:[%v], slice_id:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, offset, ctx.IsCanceled(), ctx.Errors(), qConfig.Name, sliceID)
 		return
 	}
 	if global.Env().IsDebug {
