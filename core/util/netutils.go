@@ -35,8 +35,8 @@ import (
 	"time"
 )
 
-// ReservedAddress is the reserved address
-const ReservedAddress = "0.0.0.0"
+// AnyAddress is the reserved address
+const AnyAddress = "0.0.0.0"
 
 // LocalIpv6Address is the local ipv6 address
 const LocalIpv6Address = "0.0.0.1"
@@ -182,7 +182,7 @@ func GetSafetyInternalAddress(addr string) string {
 
 	if strings.Contains(addr, ":") {
 		array := strings.Split(addr, ":")
-		if array[0] == ReservedAddress {
+		if array[0] == AnyAddress {
 			array[0], _ = GetIntranetIP()
 		}
 		return strings.Join(array, ":")
@@ -279,7 +279,7 @@ func IsLocalAddress(address []string, localIPs []string) bool {
 			continue
 		}
 
-		if add == ReservedAddress {
+		if add == AnyAddress {
 			continue
 		}
 

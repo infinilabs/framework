@@ -208,7 +208,7 @@ func StartAPI() {
 		listenAddress = apiConfig.NetworkConfig.GetBindingAddr()
 	}
 
-	if util.ContainStr(listenAddress, util.ReservedAddress) {
+	if util.ContainStr(listenAddress, util.AnyAddress) {
 		ips := util.GetLocalIPs()
 		if len(ips) > 0 {
 			log.Infof("local ips: %v", util.JoinArray(ips, ", "))
