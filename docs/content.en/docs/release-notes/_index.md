@@ -14,9 +14,11 @@ Information about release notes of INFINI Framework is provided here.
 ### Features
 
 ### Bug fix
-- Fixed `[]byte` operator paic (#77)
+- Fixed `[]byte` operator when queue comsumer paic (#77)
 
 ### Improvements
+
+- Add debug message for `queue` comsumer (#77)
 
 ## v1.1.1 (2025-01-24)
 
