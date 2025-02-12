@@ -331,7 +331,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			ID:          indexStatsTaskID,
 			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
 			Type:        "interval",
-			Interval:    monitorConfigs.ClusterStats.Interval,
+			Interval:    monitorConfigs.IndexStats.Interval,
 			Singleton:   true,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
