@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Features
 
 ### Bug fix
+- Fix incorrect interval configuration in index stats collection task (#80)
 
 ### Improvements
 
