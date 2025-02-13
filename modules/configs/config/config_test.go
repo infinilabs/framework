@@ -7,6 +7,10 @@ package config
 import (
 	"fmt"
 	"github.com/magiconair/properties/assert"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -39,4 +43,37 @@ func TestVersion(t *testing.T) {
 
 	ver = parseConfigVersion("what's the version, i think is 1234")
 	assert.Equal(t, ver, int64(-1))
+}
+
+func TestSaveConfigStr(t *testing.T) {
+	cfgDir, err := filepath.Abs(global.Env().GetConfigDir())
+	if err != nil {
+		t.Fatalf("Failed to get config directory: %v", err)
+	}
+
+	testFileName := "test_config.yaml"
+	testContent := "test content"
+
+	err = SaveConfigStr(testFileName, testContent)
+	if err != nil {
+		t.Fatalf("SaveConfigStr failed: %v", err)
+	}
+
+	savedFilePath := filepath.Join(cfgDir, testFileName)
+	if !util.FileExists(savedFilePath) {
+		t.Fatalf("Expected file %s to exist", savedFilePath)
+	}
+
+	savedContent, err := util.FileGetContent(savedFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read saved file content: %v", err)
+	}
+
+	assert.Equal(t, string(savedContent), testContent)
+
+	// Clean up
+	err = os.Remove(savedFilePath)
+	if err != nil {
+		t.Fatalf("Failed to remove test file: %v", err)
+	}
 }

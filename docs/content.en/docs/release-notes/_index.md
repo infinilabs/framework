@@ -31,6 +31,9 @@ Information about release notes of INFINI Framework is provided here.
 - Add new stats api to quickly find the top N keys from a Badger DB (#67)
 - Proactively restore dead node's availability (#72)
 
+### Bug fix
+- Fixed client sync config panic when config folder not exits (#71)
+
 ### Improvements
 
 - Add util to http handler, support to parse bool parameter
