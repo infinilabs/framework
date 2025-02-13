@@ -142,7 +142,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 			var exists = false
 			if util.FileExists(file) {
 				exists = true
-				log.Debug("delete queue file:", file)
+				log.Trace("delete queue file:", file)
 				err := os.Remove(file)
 				if err != nil {
 					log.Error(err)

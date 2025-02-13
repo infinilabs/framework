@@ -43,12 +43,101 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestUnsafeStringToBytes(t *testing.T) {
+	testCases := []struct {
+		name   string
+		input  string
+		expect []byte
+	}{
+		{
+			name:   "Non-empty string",
+			input:  "hello world",
+			expect: []byte("hello world"),
+		},
+		{
+			name:   "Empty string",
+			input:  "",
+			expect: []byte{},
+		},
+		{
+			name:   "String with special characters",
+			input:  "~!@#$%^&*()_+=-`",
+			expect: []byte("~!@#$%^&*()_+=-`"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := UnsafeStringToBytes(tc.input)
+
+			// DeepEqual is necessary because we are comparing slices
+			if !reflect.DeepEqual(result, tc.expect) {
+				t.Errorf("UnsafeStringToBytes(%q) = %q, expected %q", tc.input, result, tc.expect)
+			}
+
+			// *** IMPORTANT: DO NOT MODIFY THE RESULT SLICE OR THE INPUT STRING AFTER THIS POINT! ***
+		})
+	}
+}
+
+func TestUnsafeBytesToString(t *testing.T) {
+	testCases := []struct {
+		name   string
+		input  []byte
+		expect string
+	}{
+		{
+			name:   "Non-empty byte slice",
+			input:  []byte("hello world"),
+			expect: "hello world",
+		},
+		{
+			name:   "Empty byte slice",
+			input:  []byte{},
+			expect: "",
+		},
+		{
+			name:   "Byte slice with special characters",
+			input:  []byte("~!@#$%^&*()_+=-`"),
+			expect: "~!@#$%^&*()_+=-`",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := UnsafeBytesToString(tc.input)
+
+			if result != tc.expect {
+				t.Errorf("UnsafeBytesToString(%q) = %q, expected %q", tc.input, result, tc.expect)
+			}
+
+			// *** IMPORTANT: DO NOT MODIFY THE RESULT STRING OR THE INPUT BYTE SLICE AFTER THIS POINT! ***
+		})
+	}
+}
+
+// This test demonstrates the dangers of modifying the byte slice after creating the string
+func TestUnsafeBytesToStringMutation(t *testing.T) {
+	bs := []byte("initial")
+	str := UnsafeBytesToString(bs)
+
+	// This will modify the string!
+	bs[0] = 'M'
+
+	if str != "Mnitial" {
+		t.Errorf("String was not mutated as expected! str = %q", str)
+	}
+
+	// VERY IMPORTANT: this can lead to crashes, data corruption and undefined behavior
+}
 
 var splitBytes = []byte("\",")
 var searchLen = len(splitBytes)

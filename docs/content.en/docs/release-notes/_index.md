@@ -10,25 +10,44 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)
 
 ### Breaking changes
+
 ### Features
-- Add new search function to orm module, support result item mapper (#65)
-- Add new stats api to quickly find the top N keys from a Badger DB (#67)
 
 ### Bug fix
-- Fix client sync config panic when config folder not exits (#71)
+- Fixed `[]byte` operator when queue comsumer paic (#77)
+- Fix incorrect interval configuration in index stats collection task (#80)
+- Fixed reload file need use privious pos (#79)
+
 
 ### Improvements
+
+- Add debug message for `queue` comsumer (#77)
+
+## v1.1.1 (2025-01-24)
+
+### Features
+
+- Add new search function to orm module, support result item mapper (#65)
+- Add new stats api to quickly find the top N keys from a Badger DB (#67)
+- Proactively restore dead node's availability (#72)
+
+### Bug fix
+- Fixed client sync config panic when config folder not exits (#71)
+
+### Improvements
+
 - Add util to http handler, support to parse bool parameter
 - Handle simplified bulk metdata, parse index from url path (#59)
 - Improve handling of message read for partially loaded files (#63)
 
-
-## v1.1.0 (2025-01-11) 
+## v1.1.0 (2025-01-11)
 
 ### Breaking changes
+
 - Update WebSocket greeting message header to use `websocket-session-id`
 
 ### Features
+
 - Set the metric collection task to singleton mode (#17)
 - Record cluster allocation explain to activity after cluster health status changed to `red`
 - Add elastic api method `ClusterAllocationExplain`
@@ -38,10 +57,11 @@ Information about release notes of INFINI Framework is provided here.
 - Fixed issue with console LDAP config with dot key [#46](https://github.com/infinilabs/console/issues/46)
 
 ### Breaking changes
+
 - Add util to http handler, support write bytes with status code (#55)
 
-
 ### Bug fix
+
 - Remove the collection of cluster stats metric in node stats collection task (#17)
 - Fix the main switch of the cluster metric is not work (#17)
 - Fixed the issue that the metadata does not take effect immediately after the cluster changes to available (#23)
@@ -53,21 +73,21 @@ Information about release notes of INFINI Framework is provided here.
 - Fixed incorrect system cluster health status in the health API (#39)
 
 ### Improvements
+
 - Add commit hashes for framework and managed vendor dependencies
 - Trim spaces from input variables during app initialization
 - Auto init the badger db for the first time access (#27)
 - Add search response to logging message (#28)
 
-
-## v1.0.0 (2024-12-13) 
+## v1.0.0 (2024-12-13)
 
 ### 🚀 Features
 
 - Add option to keep compatible with old consumer config
-- Add timeout  when push message to disk_queue
+- Add timeout when push message to disk_queue
 - Auto skip missing file for consumer (#491)
-- *(queue)* Skip missing till to latest file (#488)
-- *(util)* Add a function to clear all registered IDs
+- _(queue)_ Skip missing till to latest file (#488)
+- _(util)_ Add a function to clear all registered IDs
 - Register background job to clean up badger LSM tree (#529)
 - Allow to use default auth for agent's auto enroll
 - Use http body to pass scroll_id for next scroll fetch
@@ -119,7 +139,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add default generated.go
 - Change branch
 - Fix offset check across versions
-- Change  to false by default
+- Change to false by default
 - Zstd command
 - Incorrect ZSTD compression
 - Panic on error while saving keystore, #514
@@ -221,13 +241,13 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Build
 
-- *(makefile)* Support multiple `APP_CONFIG` files
+- _(makefile)_ Support multiple `APP_CONFIG` files
 
 ## [20231228] - 2023-12-29
 
 ### 🧪 Testing
 
-- *(mapstr)* Fix wrong check logic (#477)
+- _(mapstr)_ Fix wrong check logic (#477)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -265,7 +285,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug Fixes
 
-- *(conditions)* Ignore nil placeholders (#422)
+- _(conditions)_ Ignore nil placeholders (#422)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -280,7 +300,7 @@ Information about release notes of INFINI Framework is provided here.
 - Expose APIs to render config template (#401)
 - Allow config to void being managed (#402)
 - Add simple_kv module (#404)
-- *(mapstr)* Support array index (#403)
+- _(mapstr)_ Support array index (#403)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -306,7 +326,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### ⚙️ Miscellaneous Tasks
 
-- *(build)* Prepare plugins in framework before build (#379)
+- _(build)_ Prepare plugins in framework before build (#379)
 
 ## [20230629] - 2023-06-29
 
@@ -324,17 +344,16 @@ Information about release notes of INFINI Framework is provided here.
 
 - Reslove default folder to fetch index.html
 
-
-
-
 ## v0.1.0
 
 ### breaking changes
+
 1. Refactoring API/Cluster/Pipeline, config section moved out of module
 2. Namespace moved to infini.sh
 
 ### features
-1. Support offline build,  `OFFLINE_BUILD=true make build`
+
+1. Support offline build, `OFFLINE_BUILD=true make build`
 2. Add error handler to pipeline
 3. Auto generate TLS certs
 4. Support Check if PID is running on windows
@@ -343,6 +362,7 @@ Information about release notes of INFINI Framework is provided here.
 7. Support Add callback functions to execute on shutdown
 
 ### improvement
+
 1. Add elasticsearch adaptors for major versions
 2. Refactor webhunter, add utils
 3. Unify elasticsearch configuration, reference by id
@@ -350,4 +370,5 @@ Information about release notes of INFINI Framework is provided here.
 5. Remove static files from framework
 
 ### bugfix
+
 1. Fix VFS issue, static was not work with empty local folder
