@@ -21,7 +21,9 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Improvements
 
+- Refactor loopback address to use const (#73)
 - Add debug message for `queue` comsumer (#77)
+
 
 ## v1.1.1 (2025-01-24)
 
@@ -40,7 +42,7 @@ Information about release notes of INFINI Framework is provided here.
 - Handle simplified bulk metdata, parse index from url path (#59)
 - Improve handling of message read for partially loaded files (#63)
 
-## v1.1.0 (2025-01-11)
+## v1.1.0 (2025-01-11) 
 
 ### Breaking changes
 

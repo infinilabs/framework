@@ -27,6 +27,7 @@ import (
 	"bufio"
 	"bytes"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/util"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -113,7 +114,7 @@ func getPortByPid(pid string) []int {
 
 func getPortByPidWindows(pid string) []int {
 	//netstat -ano|findStr /V "127.0.0.1" | findStr "780"
-	cmd := []string{"netstat", "-ano", "findStr", "/V", "127.0.0.1", "findStr", pid}
+	cmd := []string{"netstat", "-ano", "findStr", "/V", util.LocalAddress, "findStr", pid}
 	var stdout bytes.Buffer
 	c1 := exec.Command(cmd[0], cmd[1])
 	c2 := exec.Command(cmd[2], cmd[3], cmd[4])
