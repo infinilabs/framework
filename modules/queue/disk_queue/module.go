@@ -676,9 +676,7 @@ func saveOffset(k *queue.QueueConfig, consumer *queue.ConsumerConfig, offset que
 		}
 	}
 
-	//log.Debugf("save offset: %v", offset.EncodeToString())
-
-	err = kv.AddValue(ConsumerOffsetBucket, util.UnsafeStringToBytes(getCommitKey(k, consumer)), []byte(offset.EncodeToString()))
+	err = kv.AddValue(ConsumerOffsetBucket, []byte(getCommitKey(k, consumer)), []byte(offset.EncodeToString()))
 	if err != nil {
 		return false, err
 	}

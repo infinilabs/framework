@@ -241,6 +241,9 @@ func UnsafeBytesToString(bs []byte) string {
 }
 
 func UnsafeStringToBytes(s string) []byte {
+	if len(s) == 0 {
+		return []byte{}
+	}
 	return *(*[]byte)(unsafe.Pointer(&s))
 }
 

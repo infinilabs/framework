@@ -202,15 +202,17 @@ READ_MSG:
 					oldPart := d.segment
 					Notify(d.queue, ReadComplete, d.segment)
 					ctx.UpdateNextOffset(d.segment, d.readPos) //update next offset
-					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.segment)
+					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.diskQueue.writeSegmentNum)
 					err = d.ResetOffset(d.segment+1, 0) //locate next segment
 					if err != nil {
 						if strings.Contains(err.Error(), "not found") {
 							return messages, false, nil
 						}
+						log.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v, error: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, err)
 						panic(err)
 					}
 					ctx.UpdateNextOffset(d.segment, d.readPos)
+
 					return messages, false, err
 				}
 
@@ -230,14 +232,16 @@ READ_MSG:
 		}
 		return messages, false, err
 	}
-
+	log.Debugf("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
-
 		//current have changes, reload file with new position
 		newFileSize := d.getFileSize()
 		if d.lastFileSize != newFileSize && newFileSize > d.maxBytesPerFileRead {
 			d.lastFileSize = newFileSize
-			d.ResetOffset(d.segment, d.readPos)
+			err = d.ResetOffset(d.segment, d.readPos)
+			if err != nil {
+				log.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v, error: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, err)
+			}
 			return messages, false, err
 		} else {
 			//invalid message size, assume current file is corrupted, try to read next file
@@ -247,7 +251,7 @@ READ_MSG:
 				nextSegment := d.segment + 1
 			RETRY_NEXT_FILE:
 				nextFile, exists, _ := SmartGetFileName(d.mCfg, d.queue, nextSegment)
-				log.Debugf("try skip to next file: %v, exists: %v", nextFile, exists)
+				log.Debugf("retry skip to next file: %v, exists: %v", nextFile, exists)
 				if exists || util.FileExists(nextFile) {
 					//update offset
 					err = d.ResetOffset(nextSegment, 0)
@@ -256,6 +260,7 @@ READ_MSG:
 						if strings.Contains(err.Error(), "not found") {
 							return messages, false, nil
 						}
+						log.Errorf("queue:%v,offset:%v,%v, invalid message size: %v, should between: %v TO %v, error: %v", d.queue, d.segment, d.readPos, msgSize, d.mCfg.MinMsgSize, d.mCfg.MaxMsgSize, err)
 						panic(err)
 					}
 					ctx.UpdateNextOffset(nextSegment, 0)
@@ -264,13 +269,13 @@ READ_MSG:
 				} else {
 					//can't read ahead before current write file
 					if nextSegment >= d.diskQueue.writeSegmentNum {
-						log.Errorf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v", d.diskQueue.writeSegmentNum, d.segment)
+						log.Debugf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v", d.diskQueue.writeSegmentNum, d.segment)
 						d.diskQueue.skipToNextRWFile(false)
 						d.diskQueue.needSync = true
 					} else {
 						//let's continue move to next file
 						nextSegment++
-						log.Debugf("move to next file: %v", nextSegment)
+						log.Debugf("fetch messages move to next file: %v", nextSegment)
 						goto RETRY_NEXT_FILE
 					}
 
@@ -375,7 +380,9 @@ READ_MSG:
 	}
 
 RELOAD_FILE:
-	log.Debugf("load queue file: %v/%v, read at: %v", d.queue, d.segment, d.readPos)
+	if global.Env().IsDebug {
+		log.Debugf("load queue file: %v/%v, read at: %v", d.queue, d.segment, d.readPos)
+	}
 	if nextReadPos >= d.maxBytesPerFileRead {
 
 		if !d.fileLoadCompleted {
@@ -504,15 +511,15 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 				// there are segments in the middle
 				if nextSegment < d.diskQueue.writeSegmentNum {
 					fileName, exists, next_file_exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
-					log.Debugf("try skip to next file: %v, exists: %v", fileName, exists)
 					if exists || util.FileExists(fileName) {
+						log.Debugf("retry skip to next file: %v, exists", fileName)
 						d.segment = nextSegment
 						d.readPos = 0
 						d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
 						goto FIND_NEXT_FILE
 					} else {
 						nextSegment++
-						log.Debugf("move to next file: %v", nextSegment)
+						log.Debugf("retry skip to next file: %v, not exists", fileName)
 						goto RETRY_NEXT_FILE
 					}
 				} else {

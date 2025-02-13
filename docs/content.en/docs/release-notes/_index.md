@@ -14,11 +14,14 @@ Information about release notes of INFINI Framework is provided here.
 ### Features
 
 ### Bug fix
+- Fixed `[]byte` operator when queue comsumer paic (#77)
 - Fix incorrect interval configuration in index stats collection task (#80)
-
 - Fixed reload file need use privious pos (#79)
 
+
 ### Improvements
+
+- Add debug message for `queue` comsumer (#77)
 
 ## v1.1.1 (2025-01-24)
 
