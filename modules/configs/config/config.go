@@ -137,7 +137,7 @@ func SaveConfigStr(name, content string) error {
 		}
 	}
 
-	_, err = util.CreateFile(cfgDir, "")
+	err = os.MkdirAll(cfgDir, 0755)
 	if err != nil {
 		return err
 	}
