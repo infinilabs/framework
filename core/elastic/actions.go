@@ -126,6 +126,9 @@ func (meta *ElasticsearchMetadata) IsAvailable() bool {
 
 func (meta *ElasticsearchMetadata) Init(health bool) {
 	meta.clusterAvailable = health
+	if health && meta.Health == nil {
+		meta.Health = &ClusterHealth{Status: "green"}
+	}
 	meta.clusterFailureTicket = 0
 }
 
