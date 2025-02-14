@@ -5,13 +5,14 @@
 package status
 
 import (
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
-	"infini.sh/framework/core/util"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 )
 
 // DiskFsType represents the type of a file system.
@@ -33,15 +34,21 @@ type DiskFs struct {
 
 func DirSize(path string) (uint64, error) {
 	var size int64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			if filePath == path {
+				return err
+			}
+			// continue to walk the directory and ignore the error
+			return nil
 		}
+
 		if !info.IsDir() {
 			size += info.Size()
 		}
-		return err
+		return nil
 	})
+
 	return uint64(size), err
 }
 
