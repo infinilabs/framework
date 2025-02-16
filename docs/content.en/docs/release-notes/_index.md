@@ -7,11 +7,7 @@ title: "Release Notes"
 
 Information about release notes of INFINI Framework is provided here.
 
-## Latest (In development)
-
-### Breaking changes
-
-### Features
+## v1.1.2 (2025-02-15)
 
 ### Bug fix
 - Fixed `[]byte` operator when queue comsumer paic (#77)
