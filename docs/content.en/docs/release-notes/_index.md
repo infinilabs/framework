@@ -7,6 +7,19 @@ title: "Release Notes"
 
 Information about release notes of INFINI Framework is provided here.
 
+
+## Latest (In development)
+
+### Breaking changes
+
+### Features
+- Allow registering functions to execute before application setup (#84)
+
+### Bug fix
+
+### Improvements
+
+
 ## v1.1.2 (2025-02-15)
 
 ### Bug fix

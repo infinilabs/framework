@@ -344,6 +344,15 @@ func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bo
 	//loading plugins
 	//plugins.Discovery(app.environment.GetPluginDir())
 
+	callbacks := global.GetFuncBeforeSetup()
+	if callbacks != nil && len(callbacks) > 0 {
+		for i, v := range callbacks {
+			log.Trace("executing func: ", i)
+			v()
+			log.Trace("executed func: ", i)
+		}
+	}
+
 	if setup != nil {
 		setup()
 	}
