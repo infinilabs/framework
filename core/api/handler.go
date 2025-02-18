@@ -149,13 +149,18 @@ func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v
 	return handler.WriteJSON(w, result, statusCode)
 }
 
-func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
+func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 	err1 := util.MapStr{
 		"status": statusCode,
 		"error": util.MapStr{
 			"reason": errMessage,
 		},
 	}
+	return err1
+}
+
+func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
+	err1 := PrepareErrorJson(errMessage, statusCode)
 	return handler.WriteJSON(w, err1, statusCode)
 }
 
