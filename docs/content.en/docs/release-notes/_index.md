@@ -14,6 +14,8 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Features
 - Allow registering functions to execute before application setup (#84)
+- Add utility to securely marshal JSON (#85)
+
 
 ### Bug fix
 
