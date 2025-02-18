@@ -135,6 +135,7 @@ func Env() *env.Env {
 
 var initCallback = []func(){}
 var shutdownCallback = []func(){}
+var setupInitFunc = []func(){}
 
 func RegisterShutdownCallback(callback func()) {
 	registerLock.Lock()
@@ -152,6 +153,18 @@ func RegisterInitCallback(callback func()) {
 	registerLock.Lock()
 	defer registerLock.Unlock()
 	initCallback = append(initCallback, callback)
+}
+
+func RegisterFuncBeforeSetup(callback func()) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	setupInitFunc = append(setupInitFunc, callback)
+}
+
+func GetFuncBeforeSetup() []func() {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	return setupInitFunc
 }
 
 func GetInitCallback() []func() {
