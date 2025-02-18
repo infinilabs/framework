@@ -18,6 +18,8 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix
 
 ### Improvements
+- Structure http error response (#86)
+
 
 
 ## v1.1.2 (2025-02-15)
