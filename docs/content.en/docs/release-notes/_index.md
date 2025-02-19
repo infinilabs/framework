@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add utility to securely marshal JSON (#85)
 
 ### Bug fix
+- Fixed comsumer segment without producer (#89)
 
 ### Improvements
 - Structure http error response (#86)
