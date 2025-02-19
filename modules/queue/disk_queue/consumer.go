@@ -503,7 +503,7 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 			if d.mCfg.AutoSkipCorruptFile {
 				nextSegment := d.segment + 1
 				if nextSegment > d.diskQueue.writeSegmentNum {
-					return errors.New(fileName + " not found and next segment greater than current write segment ")
+					return errors.Errorf("%v not found and next segment(%v) greater than current write segment(%v)", fileName, nextSegment, d.diskQueue.writeSegmentNum)
 				}
 				log.Warnf("queue:%v,%v, consumer:%v, offset:%v,%v, file missing: %v, auto skip to next file",
 					d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
