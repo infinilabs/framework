@@ -135,6 +135,9 @@ const (
 	PublicMessage MsgType = "PUBLIC"
 	// ConfigMessage used to send configuration
 	ConfigMessage MsgType = "CONFIG"
+
+	// SystemMessage used to send system related info
+	SystemMessage MsgType = "SYSTEM"
 )
 
 // WritePrivateMessage will send msg to channel
