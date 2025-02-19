@@ -467,6 +467,11 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 		log.Debugf("reset offset: %v,%v, file: %v, queue:%v", segment, readPos, d.fileName, d.queue)
 	}
 
+	// no producer write data to this queue
+	if d.diskQueue.writeSegmentNum == 0 && d.diskQueue.writePos == 0 {
+		return nil
+	}
+
 	if segment > d.diskQueue.writeSegmentNum {
 		log.Errorf("reading segment [%v] is greater than writing segment [%v]", segment, d.diskQueue.writeSegmentNum)
 		return io.EOF
