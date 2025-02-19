@@ -72,7 +72,7 @@ func InitTemplate(force bool) {
 					skip = exists
 				}
 
-				log.Trace(skip,",",k,",",v)
+				log.Trace(skip, ",", k, ",", v)
 
 				if !skip {
 					v, err := client.PutTemplate(k, []byte(v))
@@ -98,15 +98,15 @@ func InitTemplate(force bool) {
 					skip = exists
 				}
 
-				log.Trace(skip,",",k,",",v)
+				log.Trace(skip, ",", k, ",", v)
 
 				if !skip {
-					script:=util.MapStr{}
-					script["script"]=util.MapStr{
-						"lang": "mustache",
+					script := util.MapStr{}
+					script["script"] = util.MapStr{
+						"lang":   "mustache",
 						"source": v,
 					}
-					v, err := client.PutScript(k,util.MustToJSONBytes(script) )
+					v, err := client.PutScript(k, util.MustToJSONBytes(script))
 					if err != nil {
 						if v != nil {
 							log.Error(string(v))
@@ -367,6 +367,10 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 
 func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *api.Query) (error, api.SimpleResult) {
 	var err error
+
+	if q == nil {
+		panic("invalid query")
+	}
 
 	request := elastic.SearchRequest{
 		From: q.From,
