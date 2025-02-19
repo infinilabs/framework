@@ -152,7 +152,7 @@ func (h *Hub) runHub() {
 		case c := <-h.register:
 			h.connections[c] = true
 			h.sessions[c.id] = c
-			c.WritePrivateMessage(global.Env().GetWelcomeMessage())
+			c.WriteMessage(SystemMessage, global.Env().GetWelcomeMessage())
 			js, _ := json.Marshal(logger.GetLoggingConfig())
 			c.WriteMessage(ConfigMessage, string(js))
 			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
