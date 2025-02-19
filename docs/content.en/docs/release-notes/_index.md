@@ -27,10 +27,10 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Bug fix
 - Fixed `[]byte` operator when queue comsumer paic (#77)
-- Fix incorrect interval configuration in index stats collection task (#80)
+- Fixed incorrect interval configuration in index stats collection task (#80)
 - Fixed reload file need use privious pos (#79)
 - Fixed nil panic by init cluster health default status to green (#81) 
-
+- Fixed path walk warn when tmp rename (#82)
 
 ### Improvements
 
