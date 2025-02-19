@@ -16,12 +16,11 @@ Information about release notes of INFINI Framework is provided here.
 - Allow registering functions to execute before application setup (#84)
 - Add utility to securely marshal JSON (#85)
 
-
 ### Bug fix
 
 ### Improvements
 - Structure http error response (#86)
-
+- Introduce system type to echo welcome message in websocket (#87)
 
 
 ## v1.1.2 (2025-02-15)
