@@ -142,6 +142,10 @@ READ_MSG:
 		}
 	}
 
+	// check reader
+	if d.reader == nil {
+		return messages, false, errors.New("reader is nil")
+	}
 	//read message size
 	err = binary.Read(d.reader, binary.BigEndian, &msgSize)
 	if err != nil {
@@ -344,7 +348,7 @@ READ_MSG:
 			}
 			newData, err := zstd.ZSTDDecompress(nil, readBuf)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("decompress message error: %v %v,%v %v", d.fileName, d.segment, d.readPos, err)
 				ctx.UpdateNextOffset(d.segment, nextReadPos)
 				return messages, false, err
 			}

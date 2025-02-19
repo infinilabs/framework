@@ -504,6 +504,7 @@ func (d *DiskBasedQueue) readOne() ([]byte, error) {
 		}
 		newData, err := zstd.ZSTDDecompress(nil, readBuf)
 		if err != nil {
+			log.Errorf("diskqueue(%s) failed to decompress %v,%v - %s", d.name, d.readSegmentFileNum, d.readPos)
 			return nil, err
 		}
 		return newData, nil
@@ -552,6 +553,7 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 		}
 		newData, err := zstd.ZSTDCompress(nil, data, d.cfg.Compress.Message.Level)
 		if err != nil {
+			log.Errorf("diskqueue(%s) failed to compress %v,%v - %s", d.name, d.readSegmentFileNum, d.readPos)
 			res.Error = err
 			return res
 		}
