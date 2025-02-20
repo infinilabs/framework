@@ -485,8 +485,10 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 				case string:
 					v = r.(string)
 				}
-				log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
-				ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
+				if v != "empty queue" {
+					log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
+					ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
+				}
 				if parentContext != nil {
 					parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
 				}
