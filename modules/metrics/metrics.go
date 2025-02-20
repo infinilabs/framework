@@ -313,7 +313,7 @@ func (module *MetricsModule) Start() error {
 }
 
 func (m *MetricsModule) onSaveEvent(item *event.Event) error {
-	log.Debugf("event queue name: %v, meta: %v", m.config.EventQueue, item.Metadata.Name)
+	log.Tracef("event queue name: %v, meta: %v", m.config.EventQueue, item.Metadata.Name)
 	if m.config.EventQueue != nil {
 		if v, ok := m.config.EventQueue[item.Metadata.Name]; ok {
 			if v != "" {
