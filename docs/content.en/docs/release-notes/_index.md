@@ -18,6 +18,8 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Bug fix
 - Fixed comsumer segment without producer (#89)
+- Disable default proxy when proxy is not enabled #91
+
 
 ### Improvements
 - Structure http error response (#86)
