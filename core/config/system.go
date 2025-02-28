@@ -443,8 +443,10 @@ type GzipConfig struct {
 }
 
 type WebsocketConfig struct {
-	Enabled        bool     `config:"enabled"`
-	BasePath       string   `config:"base_path"`
-	PermittedHosts []string `config:"permitted_hosts"`
-	SkipHostVerify bool     `config:"skip_host_verify"`
+	Enabled                     bool     `config:"enabled"`
+	EchoWelcomeMessageOnConnect bool     `config:"echo_welcome_message_on_connect"`
+	EchoLoggingConfigOnConnect  bool     `config:"echo_logging_config_on_connect"`
+	BasePath                    string   `config:"base_path"`
+	PermittedHosts              []string `config:"permitted_hosts"`
+	SkipHostVerify              bool     `config:"skip_host_verify"`
 }
