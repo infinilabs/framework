@@ -175,6 +175,23 @@ func (c *WebsocketConnection) parseMessage(msg []byte) {
 
 }
 
+type ConnectCallbackFunc func(sessionID string,w http.ResponseWriter, r *http.Request)
+var callbacksOnConnect=[]ConnectCallbackFunc{}
+var lock=sync.RWMutex{}
+func RegisterConnectCallback(f ConnectCallbackFunc)  {
+	lock.Lock()
+	defer lock.Unlock()
+	callbacksOnConnect=append(callbacksOnConnect,f)
+}
+
+type DisconnectCallbackFunc func(sessionID string)
+var callbacksOnDisconnect=[]DisconnectCallbackFunc{}
+func RegisterDisconnectCallback(f DisconnectCallbackFunc)  {
+	lock.Lock()
+	defer lock.Unlock()
+	callbacksOnDisconnect=append(callbacksOnDisconnect,f)
+}
+
 // ServeWs handles websocket requests from the peer.
 func ServeWs(w http.ResponseWriter, r *http.Request) {
 
@@ -183,7 +200,17 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 		return
 	}
+
 	c := &WebsocketConnection{id: util.GetUUID(), signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
+	if callbacksOnConnect!=nil&&len(callbacksOnConnect)>0{
+		lock.Lock()
+		defer lock.Unlock()
+		//TODO handle panic in callback
+		for _,v:=range callbacksOnConnect{
+			v(c.id,w,r)
+		}
+	}
+
 	h.register <- c
 	go c.writePump()
 	c.readPump()
@@ -192,5 +219,4 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 // Broadcast public message to all channels
 func (c *WebsocketConnection) Broadcast(msg string) {
 	c.WriteMessage(PublicMessage, msg)
-
 }
