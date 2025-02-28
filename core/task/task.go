@@ -48,7 +48,11 @@ const (
 )
 
 func RunWithinGroup(groupName string, f func(ctx context.Context) error) (taskID string) {
-	return registerTransientTask(groupName, "", f, context.Background())
+	return RunWithinGroupWithContext(groupName, context.Background(), f)
+}
+
+func RunWithinGroupWithContext(groupName string, ctx context.Context, f func(ctx context.Context) error) (taskID string) {
+	return registerTransientTask(groupName, "", f, ctx)
 }
 
 func MustGetString(ctx context.Context, key string) string {
@@ -74,7 +78,10 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 	task.Type = Transient
 	task.CreateTime = time.Now()
 	task.State = Pending
-	task.Ctx = ctxInput
+
+	ctx, cancel := context.WithCancel(ctxInput)
+	task.Cancel=cancel
+	task.Ctx = ctx
 
 	if task.isTaskRunning == nil {
 		task.isTaskRunning = &atomic.Bool{}
@@ -82,7 +89,7 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 
 	Tasks.Store(task.ID, &task)
 
-	go func(func2 func(ctx context.Context) error) {
+	go func(innerCtx context.Context,inner func(ctx context.Context) error) {
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -109,14 +116,14 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 		task.StartTime = &t
 		task.EndTime = nil
 		task.State = Running
-		err := func2(ctxInput)
+		err := inner(innerCtx)
 		if err != nil {
 			log.Error(err)
 		}
 		t = time.Now()
 		task.EndTime = &t
 		task.State = Finished
-	}(f)
+	}(task.Ctx,f)
 	return task.ID
 }
 
@@ -138,6 +145,8 @@ type ScheduleTask struct {
 	taskItem chrono.ScheduledTask
 	State    State           `config:"state" json:"state,omitempty"`
 	Ctx      context.Context `config:"-" json:"-"` //for transient task
+
+	Cancel context.CancelFunc
 
 	isTaskRunning *atomic.Bool
 }
@@ -284,29 +293,31 @@ func StartTask(id string) {
 
 func StopTask(id string) {
 	task, ok := Tasks.Load(id)
+	log.Tracef("stopping task:%v, found:%v",id,ok)
 	if ok {
 		item, ok := task.(*ScheduleTask)
 		if ok {
 			if item != nil {
+				if item.Cancel!=nil{
+					log.Debugf("task:%v, calling cancel func",id)
+					item.Cancel()
+				}
+
 				switch item.Type {
 				case Interval:
 					if item.taskItem != nil {
 						item.taskItem.Cancel()
-						item.State = Canceled
 					}
 					break
 				case Crontab:
 					if item.taskItem != nil {
 						item.taskItem.Cancel()
-						item.State = Canceled
 					}
 					break
 				case Transient:
-					if item.Ctx != nil {
-						item.Ctx.Done()
-						item.State = Canceled
-					}
 				}
+
+				item.State = Canceled
 			}
 		}
 	}
