@@ -28,11 +28,12 @@
 package websocket
 
 import (
-	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/logging/logger"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/core/util"
 	"net/http"
 	"net/url"
 	"strings"
@@ -117,7 +118,7 @@ func InitWebSocket(cfg config.WebsocketConfig) {
 	if !runningHub {
 		h.registerHandlers()
 		runningHub = true
-		go h.runHub()
+		go h.runHub(cfg)
 	}
 
 }
@@ -129,7 +130,7 @@ func HandleWebSocketCommand(cmd, usage string, handler func(c *WebsocketConnecti
 	h.usage[cmd] = usage
 }
 
-func (h *Hub) runHub() {
+func (h *Hub) runHub(cfg config.WebsocketConfig) {
 	//TODO error　handler,　parameter　assertion
 
 	if global.Env().IsDebug {
@@ -146,17 +147,31 @@ func (h *Hub) runHub() {
 		}()
 	}
 
+
 	//handle connect, disconnect, broadcast
 	for {
 		select {
 		case c := <-h.register:
 			h.connections[c] = true
 			h.sessions[c.id] = c
-			c.WriteMessage(SystemMessage, global.Env().GetWelcomeMessage())
-			js, _ := json.Marshal(logger.GetLoggingConfig())
-			c.WriteMessage(ConfigMessage, string(js))
+
+			if cfg.EchoWelcomeMessageOnConnect{
+				c.WriteMessage(SystemMessage, global.Env().GetWelcomeMessage())
+			}
+
+			if cfg.EchoLoggingConfigOnConnect{
+				c.WriteMessage(ConfigMessage, util.MustToJSON(logger.GetLoggingConfig()))
+			}
 			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
 		case c := <-h.unregister:
+			//handle external callback
+			//TODO handle panic with callback
+			lock.Lock()
+			for _,v:=range callbacksOnDisconnect{
+				v(c.id)
+			}
+			lock.Unlock()
+
 			if _, ok := h.connections[c]; ok {
 				delete(h.connections, c)
 				delete(h.sessions, c.id)
@@ -190,9 +205,11 @@ func BroadcastMessage(msg string) {
 	}
 }
 
-func SendPrivateMessage(session string, msg string) {
+func SendPrivateMessage(session string, msg string)error {
 	if c, ok := h.sessions[session]; ok {
-		c.WritePrivateMessage(msg)
+		return c.WritePrivateMessage(msg)
+	}else{
+		return errors.Errorf("websocket session not found: %v",session)
 	}
 }
 
