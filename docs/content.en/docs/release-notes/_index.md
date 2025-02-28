@@ -13,6 +13,8 @@ Information about release notes of INFINI Framework is provided here.
 ### Features  
 ### Bug fix  
 ### Improvements  
+- Fixed task should be cancel on stop #97
+
 
 ## 1.1.3 (2025-02-27)
 
