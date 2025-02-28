@@ -8,6 +8,12 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 
+## Latest (In development)  
+### Breaking changes  
+### Features  
+### Bug fix  
+### Improvements  
+
 ## 1.1.3 (2025-02-27)
 
 ### Breaking changes
