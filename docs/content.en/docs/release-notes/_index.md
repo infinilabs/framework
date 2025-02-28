@@ -11,6 +11,8 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### Breaking changes  
 ### Features  
+- Add configuration option to disable echo messages during WebSocket connection #96
+
 ### Bug fix  
 ### Improvements  
 
