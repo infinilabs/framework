@@ -43,6 +43,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -87,17 +88,19 @@ func StartWeb(cfg config.WebAppConfig) {
 			uiServeMux.Handle(k, v)
 		}
 	}
-	if registeredUIFuncHandler != nil {
-		for k, v := range registeredUIFuncHandler {
-			log.Debug("register http handler: ", k)
-			uiServeMux.HandleFunc(k, v)
-		}
-	}
+	//if registeredUIFuncHandler != nil {
+	//	for k, v := range registeredUIFuncHandler {
+	//		log.Debug("register http handler: ", k)
+	//		uiServeMux.HandleFunc(k, v)
+	//	}
+	//}
 	if registeredUIMethodHandler != nil {
 		for k, v := range registeredUIMethodHandler {
 			for m, n := range v {
 				log.Debug("register http handler: ", k, " ", m)
-				uiRouter.Handle(k, m, n)
+				//wrap additional filters
+				handler:=getWrappedHandler(k,m,n)
+				uiRouter.Handle(k, m, handler)
 			}
 		}
 	}
@@ -227,6 +230,45 @@ func StartWeb(cfg config.WebAppConfig) {
 
 }
 
+type UIFilters interface {
+	// ApplyFilter wraps an HTTP handler with filter logic
+	ApplyFilter(
+		method string,
+		pattern string,
+		options *HandlerOptions,  // Use actual type if available
+		next httprouter.Handle,
+	) httprouter.Handle
+
+	// GetPriority determines execution order (lower values execute first)
+	GetPriority() int
+}
+
+// RegisterUIFilter adds a filter to the chain (typically called during initialization)
+func RegisterUIFilter(filter UIFilters) {
+	uiFilters = append(uiFilters, filter)
+}
+
+// Sort filters by priority (ascending order)
+func sortFilters() {
+	sort.Slice(uiFilters, func(i, j int) bool {
+		return uiFilters[i].GetPriority() < uiFilters[j].GetPriority()
+	})
+}
+
+var uiFilters []UIFilters
+func getWrappedHandler(method string, pattern string, handler RegisteredAPIHandler) (handle httprouter.Handle){
+
+	newHandler:=handler.Handler
+	if len(uiFilters)>0{
+		sortFilters()  // Sort by priority before applying
+		for _,filter:=range uiFilters{
+			//apply filter to func
+			newHandler=filter.ApplyFilter(method,pattern,handler.Options,newHandler)
+		}
+	}
+	return newHandler
+}
+
 type Interceptor interface {
 	Match(request *http.Request) bool
 	PreHandle(c ctx.Context, writer http.ResponseWriter, request *http.Request) (ctx.Context, error)
@@ -256,8 +298,8 @@ func (i *InterceptorHandler) Handler(handler http.Handler) http.Handler {
 			}
 			appliedInterceptors = append(appliedInterceptors, interceptor)
 			if c, err := interceptor.PreHandle(ctx.Background(), writer, request); err != nil {
-				log.Infof("encountered an error while calling the PreHandle method of %s, err: %s",
-					interceptor.Name(), err.Error())
+				log.Errorf("error on filter: %s, path: %v, err: %s",
+					interceptor.Name(), request.URL.Path, err.Error())
 				return
 			} else {
 				appliedContexts = append(appliedContexts, c)
@@ -290,28 +332,34 @@ var srv *http.Server
 // RegisteredUIHandler is a hub for registered ui handler
 var registeredUIHandler map[string]http.Handler
 
-// RegisteredUIFuncHandler is a hub for registered ui handler
-var registeredUIFuncHandler map[string]func(http.ResponseWriter, *http.Request)
+//// RegisteredUIFuncHandler is a hub for registered ui handler
+//var registeredUIFuncHandler map[string]func(http.ResponseWriter, *http.Request)
+
+
+type RegisteredAPIHandler struct {
+	Options *HandlerOptions
+	Handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)
+}
 
 // RegisteredUIMethodHandler is a hub for registered ui handler
-var registeredUIMethodHandler map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)
+var registeredUIMethodHandler map[string]map[string]RegisteredAPIHandler //method,pattern
+
 
 var registeredWebSocketCommandHandler map[string]func(c *websocket.WebsocketConnection, array []string)
 var webSocketCommandUsage map[string]string
 
-// HandleUIFunc register ui request handler
-func HandleUIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	uiMutex.Lock()
-	if registeredUIFuncHandler == nil {
-		registeredUIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
-	}
-	registeredUIFuncHandler[pattern] = handler
-	uiMutex.Unlock()
-}
+//// HandleUIFunc register ui request handler
+//func HandleUIFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+//	uiMutex.Lock()
+//	if registeredUIFuncHandler == nil {
+//		registeredUIFuncHandler = map[string]func(http.ResponseWriter, *http.Request){}
+//	}
+//	registeredUIFuncHandler[pattern] = handler
+//	uiMutex.Unlock()
+//}
 
 // HandleUI register ui request handler
 func HandleUI(pattern string, handler http.Handler) {
-
 	uiMutex.Lock()
 	if registeredUIHandler == nil {
 		registeredUIHandler = map[string]http.Handler{}
@@ -321,17 +369,32 @@ func HandleUI(pattern string, handler http.Handler) {
 }
 
 // HandleUIMethod register ui request handler
-func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)) {
+func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), options ...Option) {
 	uiMutex.Lock()
 	if registeredUIMethodHandler == nil {
-		registeredUIMethodHandler = map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
+		registeredUIMethodHandler = map[string]map[string]RegisteredAPIHandler{}
 	}
 
 	m := registeredUIMethodHandler[string(method)]
 	if m == nil {
-		registeredUIMethodHandler[string(method)] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
+		registeredUIMethodHandler[string(method)] = map[string]RegisteredAPIHandler{}
 	}
-	registeredUIMethodHandler[string(method)][pattern] = handler
+
+	// Default options
+	opts := &HandlerOptions{}
+	if len(options) > 0 {
+
+		// Apply options to the HandlerOptions
+		for _, option := range options {
+			option(opts)
+		}
+
+		apiOptions.Register(method,pattern,opts)
+	}
+
+	myHandler:=RegisteredAPIHandler{Handler: handler,Options: opts}
+	registeredUIMethodHandler[string(method)][pattern] = myHandler
+
 	uiMutex.Unlock()
 }
 
