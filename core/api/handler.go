@@ -110,7 +110,7 @@ func (handler Handler) GetHeader(req *http.Request, key string, defaultValue str
 }
 
 // EncodeJSON encode the object to json string
-func (handler Handler) EncodeJSON(v interface{}) (b []byte, err error) {
+func  EncodeJSON(v interface{}) (b []byte, err error) {
 
 	//if(w.Get("pretty","false")=="true"){
 	b, err = json.MarshalIndent(v, "", "  ")
@@ -159,13 +159,27 @@ func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 	return err1
 }
 
+func  WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
+	w.WriteHeader(statusCode)
+	_,err:= 	w.Write(util.MustToJSONBytes(v))
+	return err
+}
+
 func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
 	err1 := PrepareErrorJson(errMessage, statusCode)
 	return handler.WriteJSON(w, err1, statusCode)
 }
 
+func (handler Handler) WriteErrorObject(w http.ResponseWriter, err interface{}, status int) {
+	if v, ok := err.(error); ok {
+		handler.WriteError(w, v.Error(), status)
+		return
+	}
+	handler.WriteError(w, util.MustToJSON(err), status)
+}
+
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
-	b, err := handler.EncodeJSON(v)
+	b, err := EncodeJSON(v)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
@@ -204,7 +218,7 @@ func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int,
 		}
 	}
 
-	b, err := handler.EncodeJSON(v)
+	b, err := EncodeJSON(v)
 	if err != nil {
 		return err
 	}

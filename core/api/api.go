@@ -35,6 +35,7 @@ import (
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
+	common "infini.sh/framework/core/api/common"
 	"infini.sh/framework/core/api/filter"
 	"infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
@@ -57,6 +58,8 @@ var registeredAPIFuncHandler = make(map[string]func(http.ResponseWriter, *http.R
 // RegisteredAPIMethodHandler is a hub for registered api
 var registeredAPIMethodHandler = make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params))
 
+var apiOptions=NewOptionRegistry()
+
 var l sync.Mutex
 
 var filters []filter.Filter
@@ -69,14 +72,9 @@ func RegisterAPIFilter(f filter.Filter) {
 
 var APIs = map[string]util.KV{}
 
-var authEnabled = false
-
-func EnableAuth(enable bool) {
-	authEnabled = enable
-}
-
+//TODO to be removed
 func IsAuthEnable() bool {
-	return authEnabled //TODO moved to global registered variable
+	return common.IsAuthEnable()
 }
 
 // HandleAPIFunc register api handler to specify pattern
