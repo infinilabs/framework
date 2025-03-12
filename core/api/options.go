@@ -30,11 +30,12 @@ type Option func(*HandlerOptions)
 
 // Define HandlerOptions to hold the state of all options
 type HandlerOptions struct {
-	RequireLogin       bool
-	Permission         string
-	LogRequest         bool
-	Labels             util.MapStr
-	Tags               []string
+	RequireLogin bool
+	OptionLogin  bool
+	Permission   string
+	LogRequest   bool
+	Labels       util.MapStr
+	Tags         []string
 	// Add other options as needed
 }
 
@@ -67,6 +68,12 @@ func NewOptionRegistry() *OptionRegistry {
 func RequireLogin() Option {
 	return func(o *HandlerOptions) {
 		o.RequireLogin = true
+	}
+}
+
+func OptionLogin() Option {
+	return func(o *HandlerOptions) {
+		o.OptionLogin = true
 	}
 }
 
