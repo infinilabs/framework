@@ -52,6 +52,10 @@ type KVStore interface {
 	//DeleteBucket(bucket string) error
 }
 
+type KVIterator interface {
+	Iterate(bucket string, iter func(k, v []byte) bool) error
+}
+
 var handler KVStore
 
 func getKVHandler() KVStore {
@@ -84,6 +88,17 @@ func ExistsKey(bucket string, key []byte) (bool, error) {
 
 func DeleteKey(bucket string, key []byte) error {
 	return getKVHandler().DeleteKey(bucket, key)
+}
+
+var ErrKVIteratorStop = errors.New("stop iteration")
+
+func Iterate(bucket string, iter func(k, v []byte) bool) error {
+	kvh := getKVHandler()
+	if kvIter, ok := kvh.(KVIterator); ok {
+		return kvIter.Iterate(bucket, iter)
+	}
+	//todo handle not support iterate
+	return nil
 }
 
 //func DeleteBucket(bucket string) error {

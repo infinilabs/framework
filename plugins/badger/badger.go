@@ -29,6 +29,7 @@ package badger
 
 import (
 	"errors"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/stats"
 	"path"
 	"sync"
@@ -309,4 +310,40 @@ func (filter *Module) ExistsKey(bucket string, key []byte) (bool, error) {
 
 func (filter *Module) DeleteKey(bucket string, key []byte) error {
 	return filter.Delete(bucket, key)
+}
+
+func (filter *Module) Iterate(bucket string, iterFunc func(k, v []byte) bool) error {
+	// Ensure the provided iteration function is not nil
+	if iterFunc == nil {
+		return errors.New("iteration function cannot be nil")
+	}
+	if filter.closed {
+		return errors.New("module closed")
+	}
+
+	stats.Increment("badger", bucket+"::iterate")
+
+	bkt := filter.getOrInitBucket(bucket)
+	// Execute a read-only transaction to iterate over the bucket
+	err := bkt.View(func(txn *badger.Txn) error {
+		iter := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer iter.Close()
+		for iter.Rewind(); iter.Valid(); iter.Next() {
+			item := iter.Item()
+			err := item.Value(func(val []byte) error {
+				// Copy the value to avoid referencing Badger's internal memory
+				next := iterFunc(item.Key(), append([]byte(nil), val...))
+				if !next {
+					// Stop iteration if function returns false
+					return kv.ErrKVIteratorStop
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
 }
