@@ -30,6 +30,7 @@ package websocket
 import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"strings"
@@ -175,7 +176,7 @@ func (c *WebsocketConnection) parseMessage(msg []byte) {
 
 }
 
-type ConnectCallbackFunc func(sessionID string,w http.ResponseWriter, r *http.Request)
+type ConnectCallbackFunc func(sessionID string,w http.ResponseWriter, r *http.Request)error
 var callbacksOnConnect=[]ConnectCallbackFunc{}
 var lock=sync.RWMutex{}
 func RegisterConnectCallback(f ConnectCallbackFunc)  {
@@ -207,7 +208,20 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 		defer lock.Unlock()
 		//TODO handle panic in callback
 		for _,v:=range callbacksOnConnect{
-			v(c.id,w,r)
+			err:=v(c.id,w,r)
+			if err!=nil{
+				if global.Env().IsDebug{
+					log.Error(err)
+				}
+				closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error())
+				if closeErr := ws.WriteMessage(websocket.CloseMessage, closeMessage); closeErr != nil {
+					log.Error("Failed to send close message:", closeErr)
+				}
+
+				// Close the websocket connection
+				ws.Close()
+				return
+			}
 		}
 	}
 
