@@ -55,6 +55,9 @@ type Context struct {
 	Refresh string
 }
 
+const WaitForRefresh = "wait_for"
+const ImmediatelyRefresh = "true"
+
 type ORM interface {
 	RegisterSchemaWithIndexName(t interface{}, indexName string) error
 
