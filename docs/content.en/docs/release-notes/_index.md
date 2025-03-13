@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 - Add configuration option to disable echo messages during WebSocket connection #96
 - Allow to register callback on websocket's connect/disconnect #96
 - Add optional login feature flag to api
+- Add support for iterating over key-value buckets #100
 
 ### Bug fix  
 ### Improvements  
