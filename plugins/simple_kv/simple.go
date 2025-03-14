@@ -29,6 +29,8 @@ package simple_kv
 
 import (
 	"errors"
+	"infini.sh/framework/core/kv"
+	"strings"
 	"sync"
 
 	"github.com/bkaradzic/go-lz4"
@@ -135,4 +137,24 @@ func (filter *SimpleKV) ExistsKey(bucket string, key []byte) (bool, error) {
 
 func (filter *SimpleKV) DeleteKey(bucket string, key []byte) error {
 	return filter.Delete(bucket, key)
+}
+
+func (filter *SimpleKV) Iterate(bucket string, iterFunc func(k, v []byte) bool) error {
+	if filter.closed {
+		return errors.New("module closed")
+	}
+	filter.kvstore.mu.Lock()
+	defer filter.kvstore.mu.Unlock()
+	keyPrefix := bucket + ","
+	for k, v := range filter.kvstore.data {
+		if !strings.HasPrefix(k, keyPrefix) {
+			continue
+		}
+		// Copy the value to avoid referencing simple kv 's internal memory
+		next := iterFunc([]byte(k), append([]byte(nil), v...))
+		if !next {
+			return kv.ErrKVIteratorStop
+		}
+	}
+	return nil
 }

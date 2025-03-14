@@ -150,3 +150,7 @@ func (store *ElasticStore) DeleteKey(bucket string, key []byte) error {
 func (store *ElasticStore) DeleteBucket(bucket string) error {
 	panic(errors.New("not implemented yet"))
 }
+
+func (filter *ElasticStore) Iterate(bucket string, iterFunc func(k, v []byte) bool) error {
+	panic(errors.New("not implemented yet"))
+}

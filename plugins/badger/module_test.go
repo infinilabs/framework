@@ -89,3 +89,24 @@ func run(seed int, t *testing.T) {
 	}
 	fmt.Println("done", seed)
 }
+
+func TestIterateBucket(t *testing.T) {
+	env1 := EmptyEnv()
+	env1.SystemConfig.PathConfig.Data = "/tmp/filter_" + util.PickRandomName()
+	os.RemoveAll(env1.SystemConfig.PathConfig.Data)
+	global.RegisterEnv(env1)
+
+	m := Module{}
+	m.Setup()
+	m.Start()
+	for i := 0; i < 10; i++ {
+		m.Add(filterKey, []byte(fmt.Sprintf("key-%v", i)))
+	}
+	var keyCount int
+	err := m.Iterate(filterKey, func(k, v []byte) bool {
+		keyCount++
+		return true
+	})
+	assert.Equal(t, nil, err)
+	assert.Equal(t, 10, keyCount)
+}
