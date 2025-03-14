@@ -11,6 +11,12 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### Breaking changes  
 ### Features  
+### Bug fix  
+### Improvements  
+
+## 1.1.4 (2025-03-14)
+### Breaking changes  
+### Features  
 - Add configuration option to disable echo messages during WebSocket connection #96
 - Allow to register callback on websocket's connect/disconnect #96
 - Add optional login feature flag to api
