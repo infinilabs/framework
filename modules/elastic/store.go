@@ -112,10 +112,9 @@ func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 	if response.StatusCode != http.StatusNotFound {
 		var (
 			errStr string
-			ok     bool
 		)
-		if errStr, ok = response.ESError.(string); !ok {
-			errStr = util.MustToJSON(response.ESError)
+		if response.Error!=nil {
+			errStr = util.MustToJSON(response.Error)
 		}
 		return nil, fmt.Errorf("get value error: %s", errStr)
 	}

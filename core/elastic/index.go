@@ -196,7 +196,23 @@ type ResponseBase struct {
 	RawResult   *util.Result `json:"-"`
 	StatusCode  int          `json:"-"`
 	ErrorObject error        `json:"-"`
-	ESError     interface{}  `json:"error,omitempty"`
+	InternalError
+}
+
+type InternalError struct {
+	Error  *ErrorDetail `json:"error,omitempty"`
+	Status int          `json:"status,omitempty"`
+}
+
+type ErrorDetail struct {
+	RootCause []RootCause `json:"root_cause,omitempty"`
+	Type      string      `json:"type,omitempty"`
+	Reason    string      `json:"reason,omitempty"`
+}
+
+type RootCause struct {
+	Type   string `json:"type,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 func (this *ResponseBase) GetIntByJsonPath(path string) (interface{}, error) {
