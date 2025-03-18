@@ -41,7 +41,7 @@ package elasticsearch
 
 import (
 	"bytes"
-	"errors"
+	"infini.sh/framework/core/errors"
 	"fmt"
 	"net/http"
 
@@ -371,6 +371,8 @@ func (c *ESAPIV7) PutScript(scriptName string, script []byte) ([]byte, error) {
 	return resp.Body, nil
 }
 
+
+
 func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*elastic.SearchResponse, error) {
 
 	if indexName == "" {
@@ -394,6 +396,14 @@ func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[stri
 		esResp.StatusCode = resp.StatusCode
 		esResp.RawResult = resp
 		esResp.ErrorObject = err
+		internalError,_:=parseInternalError(resp)
+		if internalError!=nil{
+			esResp.InternalError=*internalError
+		}
+
+		if esResp.Error != nil {
+			return esResp, errors.Error(esResp.Error.RootCause)
+		}
 	}
 
 	if err != nil {
@@ -406,4 +416,17 @@ func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[stri
 	}
 
 	return esResp, nil
+}
+
+func parseInternalError(resp *util.Result) (*elastic.InternalError,error) {
+	//handle error
+	if len(resp.Body) > 0 && (resp.StatusCode < 200 || resp.StatusCode >= 400) {
+		internalError := elastic.InternalError{}
+		err := util.FromJSONBytes(resp.Body, &internalError)
+		if err != nil {
+			return nil, err
+		}
+		return &internalError,nil
+	}
+	return nil,nil
 }
