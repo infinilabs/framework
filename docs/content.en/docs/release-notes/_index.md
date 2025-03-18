@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Features  
 ### Bug fix  
 ### Improvements  
+- Refactoring elasticsearch error base
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  
