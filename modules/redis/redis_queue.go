@@ -165,7 +165,7 @@ func (module *RedisModule) Start() error {
 
 	_, err := module.client.Ping(ctx).Result()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	//handler:=&RedisQueue{client: module.client,pubsub: map[string]int{}}
