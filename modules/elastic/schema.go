@@ -123,7 +123,7 @@ func (handler *ElasticORM) RegisterSchemaWithIndexName(t interface{}, indexName 
 
 	indexName = orm.GetIndexName(t)
 
-	log.Trace("indexName: ", indexName)
+	log.Debug("register schema with indexName: ", indexName)
 
 	exist, err := handler.Client.IndexExists(indexName)
 	if err != nil {
