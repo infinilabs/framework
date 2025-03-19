@@ -14,6 +14,10 @@ Information about release notes of INFINI Framework is provided here.
 ### Bug fix  
 ### Improvements  
 - Refactoring elasticsearch error base
+- chore: no panic during redis start
+- chore: skip Cancel in task context for json serialization
+- chore: no newline in logging
+- chore: update logging message
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  
