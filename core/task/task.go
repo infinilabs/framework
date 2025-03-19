@@ -146,7 +146,7 @@ type ScheduleTask struct {
 	State    State           `config:"state" json:"state,omitempty"`
 	Ctx      context.Context `config:"-" json:"-"` //for transient task
 
-	Cancel context.CancelFunc
+	Cancel context.CancelFunc `config:"-" json:"-"`
 
 	isTaskRunning *atomic.Bool
 }
