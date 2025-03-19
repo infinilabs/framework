@@ -203,7 +203,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	var err error
 	monitorConfigs := getMonitorConfigs(v)
 	if m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
-		log.Debugf("collect cluster health: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
+		log.Debugf("collect cluster health: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterHealthMetricTask = task.ScheduleTask{
 			ID:          clusterHealthTaskID,
 			Description: fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
@@ -227,7 +227,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 
 	//cluster stats
 	if m.ClusterStats && monitorConfigs.ClusterStats.Enabled {
-		log.Debugf("collect cluster state: %s, endpoint: %s\n", k, v.Config.GetAnyEndpoint())
+		log.Debugf("collect cluster state: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterStatsMetricTask = task.ScheduleTask{
 			ID:          clusterStatsTaskID,
 			Description: fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
