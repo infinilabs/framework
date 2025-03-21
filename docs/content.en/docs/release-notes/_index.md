@@ -18,6 +18,8 @@ Information about release notes of INFINI Framework is provided here.
 - chore: skip Cancel in task context for json serialization
 - chore: no newline in logging
 - chore: update logging message
+- chore: add more options to api
+- chore: lower priority filter should execute first
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  
