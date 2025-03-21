@@ -99,7 +99,7 @@ func StartWeb(cfg config.WebAppConfig) {
 			for m, n := range v {
 				log.Debug("register http handler: ", k, " ", m)
 				//wrap additional filters
-				handler:=getWrappedHandler(k,m,n)
+				handler := getWrappedHandler(k, m, n)
 				uiRouter.Handle(k, m, handler)
 			}
 		}
@@ -235,7 +235,7 @@ type UIFilters interface {
 	ApplyFilter(
 		method string,
 		pattern string,
-		options *HandlerOptions,  // Use actual type if available
+		options *HandlerOptions, // Use actual type if available
 		next httprouter.Handle,
 	) httprouter.Handle
 
@@ -251,19 +251,20 @@ func RegisterUIFilter(filter UIFilters) {
 // Sort filters by priority (ascending order)
 func sortFilters() {
 	sort.Slice(uiFilters, func(i, j int) bool {
-		return uiFilters[i].GetPriority() < uiFilters[j].GetPriority()
+		return uiFilters[i].GetPriority() > uiFilters[j].GetPriority()
 	})
 }
 
 var uiFilters []UIFilters
-func getWrappedHandler(method string, pattern string, handler RegisteredAPIHandler) (handle httprouter.Handle){
 
-	newHandler:=handler.Handler
-	if len(uiFilters)>0{
-		sortFilters()  // Sort by priority before applying
-		for _,filter:=range uiFilters{
+func getWrappedHandler(method string, pattern string, handler RegisteredAPIHandler) (handle httprouter.Handle) {
+
+	newHandler := handler.Handler
+	if len(uiFilters) > 0 {
+		sortFilters() // Sort by priority before applying
+		for _, filter := range uiFilters {
 			//apply filter to func
-			newHandler=filter.ApplyFilter(method,pattern,handler.Options,newHandler)
+			newHandler = filter.ApplyFilter(method, pattern, handler.Options, newHandler)
 		}
 	}
 	return newHandler
@@ -335,7 +336,6 @@ var registeredUIHandler map[string]http.Handler
 //// RegisteredUIFuncHandler is a hub for registered ui handler
 //var registeredUIFuncHandler map[string]func(http.ResponseWriter, *http.Request)
 
-
 type RegisteredAPIHandler struct {
 	Options *HandlerOptions
 	Handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)
@@ -343,7 +343,6 @@ type RegisteredAPIHandler struct {
 
 // RegisteredUIMethodHandler is a hub for registered ui handler
 var registeredUIMethodHandler map[string]map[string]RegisteredAPIHandler //method,pattern
-
 
 var registeredWebSocketCommandHandler map[string]func(c *websocket.WebsocketConnection, array []string)
 var webSocketCommandUsage map[string]string
@@ -389,10 +388,10 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 			option(opts)
 		}
 
-		apiOptions.Register(method,pattern,opts)
+		apiOptions.Register(method, pattern, opts)
 	}
 
-	myHandler:=RegisteredAPIHandler{Handler: handler,Options: opts}
+	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
 	registeredUIMethodHandler[string(method)][pattern] = myHandler
 
 	uiMutex.Unlock()
