@@ -58,7 +58,7 @@ var registeredAPIFuncHandler = make(map[string]func(http.ResponseWriter, *http.R
 // RegisteredAPIMethodHandler is a hub for registered api
 var registeredAPIMethodHandler = make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params))
 
-var apiOptions=NewOptionRegistry()
+var apiOptions = NewOptionRegistry()
 
 var l sync.Mutex
 
@@ -72,7 +72,7 @@ func RegisterAPIFilter(f filter.Filter) {
 
 var APIs = map[string]util.KV{}
 
-//TODO to be removed
+// TODO to be removed
 func IsAuthEnable() bool {
 	return common.IsAuthEnable()
 }

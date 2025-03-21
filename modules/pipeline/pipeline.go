@@ -300,11 +300,11 @@ func (module *PipeModule) Start() error {
 			}
 		}
 
-		log.Debugf("starting %v pipelines",len(newPipelineNames))
+		log.Debugf("starting %v pipelines", len(newPipelineNames))
 		for k, v := range newPipelines {
 			err := module.createPipeline(v, false)
 			if err != nil {
-				log.Errorf("failed to create pipeline: %v, err: %v", k,err)
+				log.Errorf("failed to create pipeline: %v, err: %v", k, err)
 			}
 		}
 	})

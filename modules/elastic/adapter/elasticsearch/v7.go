@@ -41,8 +41,8 @@ package elasticsearch
 
 import (
 	"bytes"
-	"infini.sh/framework/core/errors"
 	"fmt"
+	"infini.sh/framework/core/errors"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -371,8 +371,6 @@ func (c *ESAPIV7) PutScript(scriptName string, script []byte) ([]byte, error) {
 	return resp.Body, nil
 }
 
-
-
 func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*elastic.SearchResponse, error) {
 
 	if indexName == "" {
@@ -396,9 +394,9 @@ func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[stri
 		esResp.StatusCode = resp.StatusCode
 		esResp.RawResult = resp
 		esResp.ErrorObject = err
-		internalError,_:=parseInternalError(resp)
-		if internalError!=nil{
-			esResp.InternalError=*internalError
+		internalError, _ := parseInternalError(resp)
+		if internalError != nil {
+			esResp.InternalError = *internalError
 		}
 
 		if esResp.Error != nil {
@@ -418,7 +416,7 @@ func (c *ESAPIV7) SearchByTemplate(indexName, scriptName string, params map[stri
 	return esResp, nil
 }
 
-func parseInternalError(resp *util.Result) (*elastic.InternalError,error) {
+func parseInternalError(resp *util.Result) (*elastic.InternalError, error) {
 	//handle error
 	if len(resp.Body) > 0 && (resp.StatusCode < 200 || resp.StatusCode >= 400) {
 		internalError := elastic.InternalError{}
@@ -426,7 +424,7 @@ func parseInternalError(resp *util.Result) (*elastic.InternalError,error) {
 		if err != nil {
 			return nil, err
 		}
-		return &internalError,nil
+		return &internalError, nil
 	}
-	return nil,nil
+	return nil, nil
 }

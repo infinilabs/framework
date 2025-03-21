@@ -80,7 +80,7 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 	task.State = Pending
 
 	ctx, cancel := context.WithCancel(ctxInput)
-	task.Cancel=cancel
+	task.Cancel = cancel
 	task.Ctx = ctx
 
 	if task.isTaskRunning == nil {
@@ -89,7 +89,7 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 
 	Tasks.Store(task.ID, &task)
 
-	go func(innerCtx context.Context,inner func(ctx context.Context) error) {
+	go func(innerCtx context.Context, inner func(ctx context.Context) error) {
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -123,7 +123,7 @@ func registerTransientTask(group, tag string, f func(ctx context.Context) error,
 		t = time.Now()
 		task.EndTime = &t
 		task.State = Finished
-	}(task.Ctx,f)
+	}(task.Ctx, f)
 	return task.ID
 }
 
@@ -293,13 +293,13 @@ func StartTask(id string) {
 
 func StopTask(id string) {
 	task, ok := Tasks.Load(id)
-	log.Tracef("stopping task:%v, found:%v",id,ok)
+	log.Tracef("stopping task:%v, found:%v", id, ok)
 	if ok {
 		item, ok := task.(*ScheduleTask)
 		if ok {
 			if item != nil {
-				if item.Cancel!=nil{
-					log.Debugf("task:%v, calling cancel func",id)
+				if item.Cancel != nil {
+					log.Debugf("task:%v, calling cancel func", id)
 					item.Cancel()
 				}
 
