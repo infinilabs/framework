@@ -22,6 +22,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 package config
+
 var authEnabled = false
 
 func EnableAuth(enable bool) {
@@ -31,4 +32,3 @@ func EnableAuth(enable bool) {
 func IsAuthEnable() bool {
 	return authEnabled
 }
-

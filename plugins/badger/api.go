@@ -92,18 +92,17 @@ func (m *Module) dumpKeyStats(w http.ResponseWriter, req *http.Request, ps httpr
 	w.Header().Set("Content-Type", "application/json")
 
 	w.Write(util.MustToJSONBytes(util.MapStr{
-		"total": totalKeyCount,       // Total number of keys across all buckets
-		"top_hits":           stats[:size], // The top N key statistics based on size or count
+		"total":    totalKeyCount, // Total number of keys across all buckets
+		"top_hits": stats[:size],  // The top N key statistics based on size or count
 	}))
 	w.WriteHeader(200)
 }
-
 
 // KeyStats represents the statistics for each key, including its occurrence count and value size.
 type KeyStats struct {
 	Key   string // The key itself
 	Count int    // The number of times the key appears in the database
-	Size  int64    // The size of the key's associated value
+	Size  int64  // The size of the key's associated value
 }
 
 func getBadgerStats(db *badger.DB, size int, sortBy string) ([]*KeyStats, int, error) {
@@ -126,7 +125,7 @@ func getBadgerStats(db *badger.DB, size int, sortBy string) ([]*KeyStats, int, e
 					Count: 1,
 					Size:  item.ValueSize(),
 				}
-			}else{
+			} else {
 				keyStats[key].Count++
 				keyStats[key].Size += item.ValueSize()
 			}
@@ -147,14 +146,14 @@ func getBadgerStats(db *badger.DB, size int, sortBy string) ([]*KeyStats, int, e
 	// Sort the keys based on their occurrence count or value size
 	if sortBy == SortBySize {
 		sort.Sort(BySize(stats))
-	}else {
+	} else {
 		sort.Sort(ByCount(stats))
 	}
 	// Ensure we do not slice beyond the length of stats
 	if len(stats) < size {
 		size = len(stats)
 	}
-	return stats[0: size], keyCount, nil
+	return stats[0:size], keyCount, nil
 }
 
 // ByCount implements sort.Interface to sort KeyStats by the occurrence count of each key.

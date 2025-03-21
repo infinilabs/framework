@@ -147,7 +147,6 @@ func (h *Hub) runHub(cfg config.WebsocketConfig) {
 		}()
 	}
 
-
 	//handle connect, disconnect, broadcast
 	for {
 		select {
@@ -155,11 +154,11 @@ func (h *Hub) runHub(cfg config.WebsocketConfig) {
 			h.connections[c] = true
 			h.sessions[c.id] = c
 
-			if cfg.EchoWelcomeMessageOnConnect{
+			if cfg.EchoWelcomeMessageOnConnect {
 				c.WriteMessage(SystemMessage, global.Env().GetWelcomeMessage())
 			}
 
-			if cfg.EchoLoggingConfigOnConnect{
+			if cfg.EchoLoggingConfigOnConnect {
 				c.WriteMessage(ConfigMessage, util.MustToJSON(logger.GetLoggingConfig()))
 			}
 			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
@@ -167,7 +166,7 @@ func (h *Hub) runHub(cfg config.WebsocketConfig) {
 			//handle external callback
 			//TODO handle panic with callback
 			lock.Lock()
-			for _,v:=range callbacksOnDisconnect{
+			for _, v := range callbacksOnDisconnect {
 				v(c.id)
 			}
 			lock.Unlock()
@@ -205,11 +204,11 @@ func BroadcastMessage(msg string) {
 	}
 }
 
-func SendPrivateMessage(session string, msg string)error {
+func SendPrivateMessage(session string, msg string) error {
 	if c, ok := h.sessions[session]; ok {
 		return c.WritePrivateMessage(msg)
-	}else{
-		return errors.Errorf("websocket session not found: %v",session)
+	} else {
+		return errors.Errorf("websocket session not found: %v", session)
 	}
 }
 
