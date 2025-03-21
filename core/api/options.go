@@ -30,12 +30,16 @@ type Option func(*HandlerOptions)
 
 // Define HandlerOptions to hold the state of all options
 type HandlerOptions struct {
-	RequireLogin bool
-	OptionLogin  bool
-	Permission   string
-	LogRequest   bool
-	Labels       util.MapStr
-	Tags         []string
+	RequireLogin      bool
+	RequirePermission string
+	OptionLogin       bool
+	Resource          string
+	Action            string
+	Name              string
+	LogRequest        bool
+	Labels            util.MapStr
+	Features          map[string]bool
+	Tags              []string
 	// Add other options as needed
 }
 
@@ -52,7 +56,7 @@ func (o OptionRegistry) Register(method Method, pattern string, options *Handler
 	o.options[o.GetKey(method, pattern)] = options
 }
 
-func (o OptionRegistry) Get(method Method, pattern string, ) (options *HandlerOptions, ok bool) {
+func (o OptionRegistry) Get(method Method, pattern string) (options *HandlerOptions, ok bool) {
 	options, ok = o.options[o.GetKey(method, pattern)]
 	return options, ok
 }
@@ -71,6 +75,14 @@ func RequireLogin() Option {
 	}
 }
 
+func RequirePermission(permission string) Option {
+	return func(o *HandlerOptions) {
+		o.RequireLogin = true
+		o.OptionLogin = false
+		o.RequirePermission = permission
+	}
+}
+
 func OptionLogin() Option {
 	return func(o *HandlerOptions) {
 		o.OptionLogin = true
@@ -83,9 +95,38 @@ func AllowPublicAccess() Option {
 	}
 }
 
-// Option to set Permission
-func Permission(permission string) Option {
+func Resource(source string) Option {
 	return func(o *HandlerOptions) {
-		o.Permission = permission
+		o.Resource = source
+	}
+}
+
+func Action(action string) Option {
+	return func(o *HandlerOptions) {
+		o.Action = action
+	}
+}
+
+func Name(name string) Option {
+	return func(o *HandlerOptions) {
+		o.Name = name
+	}
+}
+
+func Label(label, v string) Option {
+	return func(o *HandlerOptions) {
+		if o.Labels == nil {
+			o.Labels = util.MapStr{}
+		}
+		o.Labels[label] = v
+	}
+}
+
+func Feature(feature string) Option {
+	return func(o *HandlerOptions) {
+		if o.Features == nil {
+			o.Features = map[string]bool{}
+		}
+		o.Features[feature] =true
 	}
 }
