@@ -20,6 +20,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: update logging message
 - chore: add more options to api
 - chore: lower priority filter should execute first
+- chore: refactory permission options to array
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  

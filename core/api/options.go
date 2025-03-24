@@ -23,7 +23,9 @@
 
 package api
 
-import "infini.sh/framework/core/util"
+import (
+	"infini.sh/framework/core/util"
+)
 
 // Define the Option type (function that modifies HandlerOptions)
 type Option func(*HandlerOptions)
@@ -31,7 +33,7 @@ type Option func(*HandlerOptions)
 // Define HandlerOptions to hold the state of all options
 type HandlerOptions struct {
 	RequireLogin      bool
-	RequirePermission string
+	RequirePermission []string
 	OptionLogin       bool
 	Resource          string
 	Action            string
@@ -75,11 +77,17 @@ func RequireLogin() Option {
 	}
 }
 
-func RequirePermission(permission string) Option {
+func RequirePermission(permissions ...string) Option {
 	return func(o *HandlerOptions) {
 		o.RequireLogin = true
 		o.OptionLogin = false
-		o.RequirePermission = permission
+		if o.RequirePermission==nil{
+			o.RequirePermission=[]string{}
+		}
+
+		for _,v:=range permissions {
+			o.RequirePermission = append(o.RequirePermission, v)
+		}
 	}
 }
 
@@ -127,6 +135,6 @@ func Feature(feature string) Option {
 		if o.Features == nil {
 			o.Features = map[string]bool{}
 		}
-		o.Features[feature] =true
+		o.Features[feature] = true
 	}
 }
