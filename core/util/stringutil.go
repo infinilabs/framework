@@ -106,6 +106,10 @@ func InterfaceToInt(y interface{}) int {
 		yint = int(y.(uint32))
 	case reflect.Uint64:
 		yint = int(y.(uint64))
+	case reflect.Float32:
+		yint = int(y.(float32))
+	case reflect.Float64:
+		yint = int(y.(float64))
 	}
 	return yint
 }
