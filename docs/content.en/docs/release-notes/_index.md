@@ -21,6 +21,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: add more options to api
 - chore: lower priority filter should execute first
 - chore: refactory permission options to array
+- chore: add support for converting floats in InterfaceToInt
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  
