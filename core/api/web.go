@@ -147,6 +147,15 @@ func StartWeb(cfg config.WebAppConfig) {
 		wrapper, _ := gzip.NewGzipLevelHandler(cfg.Gzip.Level)
 		handler = wrapper(handler)
 	}
+	RegisterAllowOriginFunc("config_file", func(origin string, req *http.Request) bool {
+		for _, v := range cfg.CrossDomain.AllowedOrigins {
+			if v == origin {
+				return true
+			}
+		}
+		return false
+	})
+	handler = CORSMiddleware(handler)
 	if cfg.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 
