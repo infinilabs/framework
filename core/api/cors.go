@@ -67,7 +67,7 @@ func CORSMiddleware(next http.Handler, config CorsConfig) http.Handler {
 	allowCredentials := fmt.Sprintf("%v", config.AllowCredentials)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && isAllowedOrigin(origin, r) {
+		if origin != "" && (r.Method == http.MethodOptions || isAllowedOrigin(origin, r)) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", allowMethods)         //eg: "GET, POST, PUT, DELETE, OPTIONS"
 			w.Header().Set("Access-Control-Allow-Headers", allowHeaders)         //eg: "Authorization, Content-Type, X-API-TOKEN, APP-INTEGRATION-ID"
