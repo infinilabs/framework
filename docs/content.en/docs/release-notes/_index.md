@@ -11,6 +11,7 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### Breaking changes  
 ### Features  
+- Add middleware to handle cross-origin requests (#111)
 ### Bug fix  
 ### Improvements  
 - Refactoring elasticsearch error base
