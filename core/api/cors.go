@@ -5,7 +5,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -46,15 +48,30 @@ func isAllowedOrigin(origin string, req *http.Request) bool {
 	return isAllowed
 }
 
+type CorsConfig struct {
+	AllowHeaders     []string // Allowed headers
+	AllowMethods     []string // Allowed methods
+	AllowCredentials bool     // Allow credentials
+}
+
 // CORSMiddleware is a middleware that handles CORS requests.
-func CORSMiddleware(next http.Handler) http.Handler {
+func CORSMiddleware(next http.Handler, config CorsConfig) http.Handler {
+	if len(config.AllowMethods) == 0 {
+		config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	}
+	if len(config.AllowHeaders) == 0 {
+		config.AllowHeaders = []string{"Authorization", "Content-Type"}
+	}
+	allowHeaders := strings.Join(config.AllowHeaders, ", ")
+	allowMethods := strings.Join(config.AllowMethods, ", ")
+	allowCredentials := fmt.Sprintf("%v", config.AllowCredentials)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin != "" && isAllowedOrigin(origin, r) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-TOKEN, APP-INTEGRATION-ID")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", allowMethods)         //eg: "GET, POST, PUT, DELETE, OPTIONS"
+			w.Header().Set("Access-Control-Allow-Headers", allowHeaders)         //eg: "Authorization, Content-Type, X-API-TOKEN, APP-INTEGRATION-ID"
+			w.Header().Set("Access-Control-Allow-Credentials", allowCredentials) //eg: "true"
 			// Handle preflight (OPTIONS) requests
 			if r.Method == "OPTIONS" {
 				// Respond with 200 OK for OPTIONS requests

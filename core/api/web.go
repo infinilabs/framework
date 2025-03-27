@@ -147,15 +147,21 @@ func StartWeb(cfg config.WebAppConfig) {
 		wrapper, _ := gzip.NewGzipLevelHandler(cfg.Gzip.Level)
 		handler = wrapper(handler)
 	}
-	RegisterAllowOriginFunc("config_file", func(origin string, req *http.Request) bool {
-		for _, v := range cfg.CrossDomain.AllowedOrigins {
-			if v == origin {
-				return true
+	if cfg.CrossDomain.Enabled {
+		RegisterAllowOriginFunc("config_file", func(origin string, req *http.Request) bool {
+			for _, v := range cfg.CrossDomain.AllowedOrigins {
+				if v == "*" || v == origin {
+					return true
+				}
 			}
-		}
-		return false
-	})
-	handler = CORSMiddleware(handler)
+			return false
+		})
+		handler = CORSMiddleware(handler, CorsConfig{
+			AllowHeaders:     cfg.CrossDomain.AllowedHeaders,
+			AllowMethods:     cfg.CrossDomain.AllowedMethods,
+			AllowCredentials: cfg.CrossDomain.AllowedCredentials,
+		})
+	}
 	if cfg.TLSConfig.TLSEnabled {
 		log.Debug("tls enabled")
 

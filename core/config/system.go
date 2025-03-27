@@ -318,7 +318,11 @@ type WebAppConfig struct {
 	NetworkConfig NetworkConfig     `config:"network"`
 	Security      APISecurityConfig `config:"security"`
 	CrossDomain   struct {
-		AllowedOrigins []string `config:"allowed_origins"`
+		Enabled            bool     `config:"enabled"`
+		AllowedOrigins     []string `config:"allowed_origins"`
+		AllowedHeaders     []string `config:"allowed_headers"`
+		AllowedMethods     []string `config:"allowed_methods"`
+		AllowedCredentials bool     `config:"allowed_credentials"`
 	} `config:"cors"`
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
