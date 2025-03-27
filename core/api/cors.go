@@ -19,7 +19,7 @@ var (
 // The key is used to identify the function.
 func RegisterAllowOriginFunc(key string, fn AllowOriginFunc) {
 	if _, exists := allowOriginFuncs.Load(key); exists {
-		panic("key already exists, my be you can remove it first")
+		panic("key already exists, maybe you can remove it first")
 	}
 	allowOriginFuncs.Store(key, fn)
 }
