@@ -12,6 +12,8 @@ Information about release notes of INFINI Framework is provided here.
 ### Breaking changes  
 ### Features  
 ### Bug fix  
+- fix: cluster init status loss when default setting is green
+
 ### Improvements  
 - Refactoring elasticsearch error base
 - chore: no panic during redis start
