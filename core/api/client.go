@@ -279,7 +279,7 @@ func getFastHTTPClient(clientCfg *config.HTTPClientConfig) *fasthttp.Client {
 				if ok, cfg := clientCfg.ValidateProxy(addr); ok {
 					if cfg != nil {
 
-						log.Infof("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
+						log.Debugf("using proxy: %v for addr: %v", util.MustToJSON(cfg), addr)
 
 						if cfg.HTTPProxy != "" {
 							dialer := fasthttpproxy.FasthttpHTTPDialer(cfg.HTTPProxy)

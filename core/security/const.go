@@ -21,10 +21,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+type PermissionID uint32
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
-}
+// Action is permission action
+type Action string
+
+const RoleReadOnly = "readonly"
+const RoleAdmin = "admin"

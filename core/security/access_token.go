@@ -21,10 +21,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+import "infini.sh/framework/core/orm"
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
+type AccessToken struct {
+	orm.ORMObjectBase
+	Name        string   `json:"name"`
+	UserID      string   `json:"userid"`
+	AccessToken string   `json:"access_token"`
+
+	Provider    string   `json:"provider"`
+	Login       string   `json:"login"`
+
+	Type        string   `json:"type"`
+	Roles       []string `json:"roles"`
+	Permissions []string `json:"permissions"`
+
+	ExpireIn    int64    `json:"expire_in"`
 }

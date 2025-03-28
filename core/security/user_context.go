@@ -21,10 +21,28 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+import (
+	"context"
+	"fmt"
+)
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
+const ctxUserKey = "X-INFINI-SESSION-USER"
+
+func AddUserToContext(ctx context.Context, clam *UserClaims) context.Context {
+
+	return context.WithValue(ctx, ctxUserKey, clam)
+}
+
+func UserFromContext(ctx context.Context) (*SessionUser, error) {
+	ctxUser := ctx.Value(ctxUserKey)
+	if ctxUser == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	reqUser, ok := ctxUser.(*UserClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid context user")
+	}
+	return reqUser.SessionUser, nil
 }

@@ -21,10 +21,20 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+import (
+	"fmt"
+)
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
+func GetSimplePermissions(category, resource interface{}, action ...interface{}) []string {
+	out := []string{}
+	for _, v := range action {
+		out = append(out, GetSimplePermission(category, resource, v))
+	}
+	return out
+}
+
+func GetSimplePermission(category, resource, action interface{}) string {
+	return fmt.Sprintf("%s:%s/%s", category, resource, action)
 }

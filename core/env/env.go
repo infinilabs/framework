@@ -291,9 +291,6 @@ func GetDefaultSystemConfig() config.SystemConfig {
 				Enabled: true,
 				Level:   gzip.BestCompression,
 			},
-			AuthConfig: config.AuthConfig{
-				Enabled: true,
-			},
 			WebsocketConfig: config.WebsocketConfig{
 				Enabled:        true,
 				SkipHostVerify: true,

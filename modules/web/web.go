@@ -30,7 +30,6 @@ package web
 import (
 	log "github.com/cihub/seelog"
 	uis "infini.sh/framework/core/api"
-	uic "infini.sh/framework/core/api/common"
 	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/logging/logger"
@@ -51,9 +50,6 @@ func (module *WebModule) Name() string {
 func (module *WebModule) Setup() {
 
 	if global.Env().SystemConfig.WebAppConfig.Enabled {
-
-		uic.EnableAuth(global.Env().SystemConfig.WebAppConfig.AuthConfig.Enabled)
-
 		//register websocket logger
 		logger.RegisterWebsocketHandler(LoggerReceiver)
 	}

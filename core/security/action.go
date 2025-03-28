@@ -21,10 +21,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+const (
+	// None is for empty action
+	None Action = "none"
+	// Create is for create action
+	Create Action = "create"
+	// Read is for read action
+	Read Action = "read"
+	// Update is for  update action
+	Update Action = "update"
+	// Delete is for delete action
+	Delete Action = "delete"
+	// Search is for search action
+	Search Action = "search"
+	// CRUD is an alias for, create+read+update+delete permissions
+	CRUD Action = "crud"
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
-}
+	Admin Action = "admin"
+)

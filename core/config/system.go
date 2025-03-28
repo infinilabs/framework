@@ -190,11 +190,11 @@ func (c *HTTPClientConfig) init() {
 	if !c.initTempMap {
 		tempMap := map[string]bool{}
 		for _, v := range c.Proxy.Denied {
-			c.checkDomainMap[v] = false
+			tempMap[v] = false
 		}
 
 		for _, v := range c.Proxy.Permitted {
-			c.checkDomainMap[v] = true
+			tempMap[v] = true
 		}
 
 		c.checkDomainMap = tempMap
@@ -304,6 +304,33 @@ type ResourceLimit struct {
 	} `config:"memory"`
 }
 
+type WebSecurityConfig struct {
+	Enabled        bool                 `config:"enabled"`
+	Authentication AuthenticationConfig `config:"authentication"`
+	authorization  AuthorizationConfig  `config:"authorization"`
+}
+
+type RealmConfig struct {
+	Enabled bool `config:"enabled"`
+	Order   int  `config:"order"`
+}
+
+type AuthenticationConfig struct {
+	Native                RealmConfig            `config:"native"`
+	HTTPBasicAuthProvider HTTPBasicAuthProvider  `config:"http_basic"`
+	OAuth                 map[string]OAuthConfig `config:"oauth"`
+}
+
+type HTTPBasicAuthProvider struct {
+	Enabled   bool   `config:"enabled"`
+	Endpoint  string `config:"endpoint" json:"endpoint,omitempty"`
+	SecretID  string `config:"secret_id" json:"secret_id,omitempty" elastic_mapping:"secret_id: { type: keyword }"`
+	SecretKey string `config:"secret_key" json:"secret_key,omitempty" elastic_mapping:"secret_key: { type: keyword }"`
+}
+
+type AuthorizationConfig struct {
+}
+
 type APISecurityConfig struct {
 	Enabled  bool   `config:"enabled"`
 	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
@@ -313,23 +340,22 @@ type APISecurityConfig struct {
 type WebAppConfig struct {
 
 	//same with API Config
-	Enabled       bool              `config:"enabled"`
-	TLSConfig     TLSConfig         `config:"tls"`
-	NetworkConfig NetworkConfig     `config:"network"`
-	Security      APISecurityConfig `config:"security"`
+	Enabled       bool          `config:"enabled"`
+	TLSConfig     TLSConfig     `config:"tls"`
+	NetworkConfig NetworkConfig `config:"network"`
 	CrossDomain   struct {
 		AllowedOrigins []string `config:"allowed_origins"`
 	} `config:"cors"`
 	WebsocketConfig WebsocketConfig `config:"websocket"`
 	//same with API Config
 
-	AuthConfig   AuthConfig     `config:"auth"` //enable access control for UI or not
-	UI           UIConfig       `config:"ui"`
-	BasePath     string         `config:"base_path"`
-	Domain       string         `config:"domain"`
-	EmbeddingAPI bool           `config:"embedding_api"`
-	Gzip         GzipConfig     `config:"gzip"`
-	S3Config     S3BucketConfig `config:"s3"`
+	Security     WebSecurityConfig `config:"security"`
+	UI           UIConfig          `config:"ui"`
+	BasePath     string            `config:"base_path"`
+	Domain       string            `config:"domain"`
+	EmbeddingAPI bool              `config:"embedding_api"`
+	Gzip         GzipConfig        `config:"gzip"`
+	S3Config     S3BucketConfig    `config:"s3"`
 }
 
 type S3Config struct {
@@ -424,17 +450,6 @@ type AutoIssue struct {
 			SecretKey string `config:"secret_key" json:"secret_key,omitempty" elastic_mapping:"secret_key: { type: keyword }"`
 		} `config:"tencent_dns" json:"tencent_dns,omitempty" elastic_mapping:"tencent_dns: { type: object }"`
 	} `config:"provider" json:"provider,omitempty" elastic_mapping:"provider: { type: object }"`
-}
-
-type AuthConfig struct {
-	Enabled           bool     `config:"enabled"`
-	OAuthProvider     string   `config:"oauth_provider"`
-	oauthAuthorizeUrl string   `config:"oauth_authorize_url"`
-	oauthTokenUrl     string   `config:"oauth_token_url"`
-	oauthRedirectUrl  string   `config:"oauth_redirect_url"`
-	AuthorizedAdmins  []string `config:"authorized_admin"`
-	ClientSecret      string   `config:"client_secret"`
-	ClientID          string   `config:"client_id"`
 }
 
 type GzipConfig struct {
