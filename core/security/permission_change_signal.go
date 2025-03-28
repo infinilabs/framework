@@ -21,10 +21,28 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package config
+package security
 
-import "infini.sh/framework/core/global"
+import "sync/atomic"
 
-func IsAuthEnable() bool {
-	return global.Env().SystemConfig.WebAppConfig.Security.Enabled
+var permissionVersion int32 = 0
+
+func UpdatePermissionVersion(i int32) {
+	atomic.StoreInt32(&permissionVersion, i)
+}
+
+func IncreasePermissionVersion() {
+	atomic.AddInt32(&permissionVersion, 1)
+}
+
+func GetPermissionVersion() int32 {
+	return atomic.LoadInt32(&permissionVersion)
+}
+
+func NeedRefreshPermission(ver int32) bool {
+	curr := GetPermissionVersion()
+	if curr > ver {
+		return true
+	}
+	return false
 }

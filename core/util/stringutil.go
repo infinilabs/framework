@@ -155,6 +155,15 @@ func ContainsInAnyInt32Array(i int, v []int) bool {
 	return false
 }
 
+func AnyInArrayEquals(v []string,s string) bool {
+	for _, k := range v {
+		if s == k {
+			return true
+		}
+	}
+	return false
+}
+
 func ContainsAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if ContainStr(s, k) {

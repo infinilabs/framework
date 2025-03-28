@@ -81,11 +81,11 @@ func RequirePermission(permissions ...string) Option {
 	return func(o *HandlerOptions) {
 		o.RequireLogin = true
 		o.OptionLogin = false
-		if o.RequirePermission==nil{
-			o.RequirePermission=[]string{}
+		if o.RequirePermission == nil {
+			o.RequirePermission = []string{}
 		}
 
-		for _,v:=range permissions {
+		for _, v := range permissions {
 			o.RequirePermission = append(o.RequirePermission, v)
 		}
 	}
@@ -139,10 +139,10 @@ func Feature(feature string) Option {
 	}
 }
 
-func (option *HandlerOptions)Feature(feature string) bool {
-	if option.Features!=nil{
-		v,ok:=option.Features[feature]
-		if ok{
+func (option *HandlerOptions) Feature(feature string) bool {
+	if option.Features != nil {
+		v, ok := option.Features[feature]
+		if ok {
 			return v
 		}
 	}
