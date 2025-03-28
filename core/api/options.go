@@ -138,3 +138,13 @@ func Feature(feature string) Option {
 		o.Features[feature] = true
 	}
 }
+
+func (option *HandlerOptions)Feature(feature string) bool {
+	if option.Features!=nil{
+		v,ok:=option.Features[feature]
+		if ok{
+			return v
+		}
+	}
+	return false
+}
