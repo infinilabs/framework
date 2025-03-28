@@ -73,7 +73,7 @@ func CORSMiddleware(next http.Handler, config CorsConfig) http.Handler {
 			w.Header().Set("Access-Control-Allow-Headers", allowHeaders)         //eg: "Authorization, Content-Type, X-API-TOKEN, APP-INTEGRATION-ID"
 			w.Header().Set("Access-Control-Allow-Credentials", allowCredentials) //eg: "true"
 			// Handle preflight (OPTIONS) requests
-			if r.Method == "OPTIONS" {
+			if r.Method == "OPTIONS" && r.Header.Get("Access-Control-Request-Method") != "" {
 				// Respond with 200 OK for OPTIONS requests
 				w.WriteHeader(http.StatusOK)
 				return
