@@ -191,7 +191,7 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 
 func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) error {
 	handler.WriteJSONHeader(w)
-	err:=handler.WriteBytes(w,b,statusCode)
+	err := handler.WriteBytes(w, b, statusCode)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
