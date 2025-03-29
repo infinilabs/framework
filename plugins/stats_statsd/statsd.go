@@ -29,7 +29,9 @@ import (
 	"github.com/quipo/statsd"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -47,7 +49,6 @@ type StatsDModule struct {
 	statsdInited bool
 	statsdclient *statsd.StatsdClient
 	buffer       *statsd.StatsdBuffer
-	l1           sync.RWMutex
 }
 
 func (module *StatsDModule) Setup() {
@@ -79,11 +80,10 @@ func (module *StatsDModule) Start() error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	module.l1.Lock()
-	defer module.l1.Unlock()
+
 	module.statsdclient = statsd.NewStatsdClient(addr, config.Namespace)
 
-	log.Debug("statsd connec to, ", addr, ",prefix:", config.Namespace)
+	log.Debug("statsd connect to, ", addr, ",prefix:", config.Namespace)
 
 	var err error
 	if config.Protocol == "tcp" {
