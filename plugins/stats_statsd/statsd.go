@@ -29,10 +29,7 @@ import (
 	"github.com/quipo/statsd"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/stats"
-	"runtime"
-	"sync"
 	"time"
 )
 
