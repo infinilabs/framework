@@ -359,6 +359,11 @@ var webSocketCommandUsage map[string]string
 
 // HandleUI register ui request handler
 func HandleUI(pattern string, handler http.Handler) {
+	//TODO handle specify cors config setting first
+	if global.Env().SystemConfig.WebAppConfig.UI.BypassCORSCheck{
+		handler=BypassCORSCheck(handler)
+	}
+
 	uiMutex.Lock()
 	if registeredUIHandler == nil {
 		registeredUIHandler = map[string]http.Handler{}
