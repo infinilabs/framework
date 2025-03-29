@@ -86,7 +86,6 @@ func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
 	}
 
 	w.WriteHeader(code)
-	handler.wroteHeader = true
 }
 
 // Get http parameter or return default value
@@ -126,13 +125,15 @@ func EncodeJSON(v interface{}) (b []byte, err error) {
 
 func (handler Handler) WriteTextHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/plain")
-	handler.wroteHeader = true
+}
+
+func (handler Handler) WriteJavascriptHeader(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/javascript")
 }
 
 // WriteJSONHeader will write standard json header
 func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	handler.wroteHeader = true
 }
 
 // Result is a general json result
@@ -185,21 +186,26 @@ func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCod
 		return err
 	}
 
-	return handler.WriteBytes(w, b, statusCode)
+	return handler.WriteJSONBytes(w, b, statusCode)
+}
+
+func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) error {
+	handler.WriteJSONHeader(w)
+	err:=handler.WriteBytes(w,b,statusCode)
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return err
+	}
+	return nil
 }
 
 func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
-	if !handler.wroteHeader {
-		handler.WriteJSONHeader(w)
-		w.WriteHeader(statusCode)
-	}
-
+	w.WriteHeader(statusCode)
 	_, err := w.Write(b)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return err
 	}
-
 	return nil
 }
 
@@ -210,10 +216,8 @@ func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, stat
 }
 
 func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) error {
-	if !handler.wroteHeader {
-		handler.WriteJSONHeader(w)
-		w.WriteHeader(status)
-	}
+	handler.WriteJSONHeader(w)
+	w.WriteHeader(status)
 
 	v := map[string]interface{}{}
 	v["acknowledged"] = ack
