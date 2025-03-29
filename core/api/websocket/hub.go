@@ -131,8 +131,6 @@ func HandleWebSocketCommand(cmd, usage string, handler func(c *WebsocketConnecti
 }
 
 func (h *Hub) runHub(cfg config.WebsocketConfig) {
-	//TODO error　handler,　parameter　assertion
-
 	if global.Env().IsDebug {
 
 		go func() {
@@ -163,14 +161,9 @@ func (h *Hub) runHub(cfg config.WebsocketConfig) {
 			}
 			c.WriteMessage(ConfigMessage, "websocket-session-id: "+c.id)
 		case c := <-h.unregister:
-			//handle external callback
-			//TODO handle panic with callback
-			lock.Lock()
 			for _, v := range callbacksOnDisconnect {
 				v(c.id)
 			}
-			lock.Unlock()
-
 			if _, ok := h.connections[c]; ok {
 				delete(h.connections, c)
 				delete(h.sessions, c.id)
