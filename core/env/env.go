@@ -284,13 +284,16 @@ func GetDefaultSystemConfig() config.SystemConfig {
 		},
 		WebAppConfig: config.WebAppConfig{
 			UI: config.UIConfig{
-				LocalPath:    ".public",
-				VFSEnabled:   true,
-				LocalEnabled: true,
+				LocalPath:       ".public",
+				VFSEnabled:      true,
+				LocalEnabled:    true,
 				BypassCORSCheck: true,
 			}, Gzip: config.GzipConfig{
 				Enabled: true,
 				Level:   gzip.BestCompression,
+			},
+			Security: config.WebSecurityConfig{
+				Enabled: true,
 			},
 			WebsocketConfig: config.WebsocketConfig{
 				Enabled:        true,
