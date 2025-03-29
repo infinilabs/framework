@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### Breaking changes  
 ### Features  
 - feat: general pluggable security feature
+- feat: add cors settings to UI handler
 
 ### Bug fix  
 - fix: cluster init status loss when default setting is green
