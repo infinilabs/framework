@@ -10,6 +10,8 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### Breaking changes  
+- refactor: refactoring auth config to security config for web module
+
 ### Features  
 - feat: general pluggable security feature
 - feat: add cors settings to UI handler
