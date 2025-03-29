@@ -287,6 +287,7 @@ func GetDefaultSystemConfig() config.SystemConfig {
 				LocalPath:    ".public",
 				VFSEnabled:   true,
 				LocalEnabled: true,
+				BypassCORSCheck: true,
 			}, Gzip: config.GzipConfig{
 				Enabled: true,
 				Level:   gzip.BestCompression,
