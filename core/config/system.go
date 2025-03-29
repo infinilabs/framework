@@ -389,6 +389,7 @@ type UIConfig struct {
 	LocalPath    string `config:"path"`
 	LocalEnabled bool   `config:"local"`
 	VFSEnabled   bool   `config:"vfs"`
+	BypassCORSCheck bool   `config:"bypass_cors_check"`
 }
 
 type APIConfig struct {
