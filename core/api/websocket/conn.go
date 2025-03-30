@@ -208,8 +208,6 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	c := &WebsocketConnection{id: util.GetUUID(), signalChannel: make(chan []byte, 256), ws: ws, handlers: h.handlers}
 	if callbacksOnConnect != nil && len(callbacksOnConnect) > 0 {
-		//lock.Lock()
-		//defer lock.Unlock()
 		//TODO handle panic in callback
 		for _, v := range callbacksOnConnect {
 			err := v(c.id, w, r)
