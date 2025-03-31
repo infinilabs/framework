@@ -30,6 +30,8 @@ Information about release notes of INFINI Framework is provided here.
 - chore: refactory permission options to array
 - chore: add support for converting floats in InterfaceToInt
 - chore: add util to access api feature option
+- chore: remove unnecessary lock
+- chore: update api labels to support interface
 
 ## 1.1.4 (2025-03-14)
 ### Breaking changes  

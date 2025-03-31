@@ -121,7 +121,7 @@ func Name(name string) Option {
 	}
 }
 
-func Label(label, v string) Option {
+func Label(label string, v interface{}) Option {
 	return func(o *HandlerOptions) {
 		if o.Labels == nil {
 			o.Labels = util.MapStr{}
