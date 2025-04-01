@@ -171,10 +171,11 @@ const MustNot BoolType = "must_not"
 const Should BoolType = "should"
 
 const Term QueryType = "term"
-const Prefix QueryType = "prefix"
+const PrefixQueryType QueryType = "prefix"
 const Wildcard QueryType = "wildcard"
 const Regexp QueryType = "regexp" //TODO check
 const Match QueryType = "match"
+const QueryStringType QueryType = "query_string"
 const RangeGt QueryType = "gt"
 const RangeGte QueryType = "gte"
 const RangeLt QueryType = "lt"
@@ -182,6 +183,26 @@ const RangeLte QueryType = "lte"
 
 const StringTerms QueryType = "string_terms"
 const Terms QueryType = "terms"
+
+func Prefix(field string, value interface{}) *Cond {
+	c := Cond{}
+	c.Field = field
+	c.Value = value
+	c.SQLOperator = " ~= "
+	c.QueryType = PrefixQueryType
+	c.BoolType = Must
+	return &c
+}
+
+func QueryString(field string, value interface{}) *Cond {
+	c := Cond{}
+	c.Field = field
+	c.Value = value
+	c.SQLOperator = " = "
+	c.QueryType = QueryStringType
+	c.BoolType = Must
+	return &c
+}
 
 func Eq(field string, value interface{}) *Cond {
 	c := Cond{}

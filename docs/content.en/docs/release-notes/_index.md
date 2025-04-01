@@ -11,6 +11,7 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### Breaking changes  
 ### Features  
+- feat: add query query_string and prefix support to orm module
 ### Bug fix  
 ### Improvements  
 

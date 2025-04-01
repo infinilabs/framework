@@ -326,7 +326,6 @@ func (response *SearchResponse) GetTotal() int64 {
 	return -1
 }
 
-// RangeQuery is used to find value in range
 type RangeQuery struct {
 	Range map[string]map[string]interface{} `json:"range,omitempty"`
 }
@@ -394,6 +393,15 @@ func NewQueryString(q string) *QueryStringQuery {
 	return &query
 }
 
+type PrefixQuery struct {
+	Prefix map[string]string `json:"prefix,omitempty"`
+}
+
+func (query *PrefixQuery) Set(field string, val string) {
+	query.Prefix = map[string]string{}
+	query.Prefix[field] = val
+}
+
 type TermsAggregationQuery struct {
 	term string
 	size int
@@ -422,7 +430,7 @@ func (query *QueryStringQuery) DefaultOperator(op string) {
 }
 
 func (query *QueryStringQuery) Fields(fields ...string) {
-	query.Query["default_operator"] = fields
+	query.Query["fields"] = fields
 }
 
 // Init match query's condition
