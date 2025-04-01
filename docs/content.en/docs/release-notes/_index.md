@@ -10,6 +10,12 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### Breaking changes  
+### Features  
+### Bug fix  
+### Improvements  
+
+## 1.1.5 (2025-03-31)
+### Breaking changes  
 - refactor: refactoring auth config to security config for web module
 
 ### Features  
