@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 - fix: fix WriteHeader to prevent duplicate status code writes
 
 ### Improvements  
+- chore: add util to get instance id
 
 ## 1.1.5 (2025-03-31)
 ### Breaking changes  
