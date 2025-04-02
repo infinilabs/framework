@@ -625,6 +625,13 @@ func (env *Env) GetDataDir() string {
 	return env.workingDataDir
 }
 
+func (env *Env) GetInstanceID() string {
+	if env.SystemConfig.NodeConfig.ID == "" {
+		panic("invalid instance")
+	}
+	return env.SystemConfig.NodeConfig.ID
+}
+
 func (env *Env) GetLogDir() string {
 	if env.workingLogDir != "" {
 		return env.workingLogDir

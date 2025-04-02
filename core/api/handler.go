@@ -79,13 +79,19 @@ type Handler struct {
 }
 
 // WriteHeader write status code to http header
-func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
+func WriteHeader(w http.ResponseWriter, code int) {
 
 	if apiConfig != nil && apiConfig.TLSConfig.TLSEnabled {
-		w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 	}
 
-	w.WriteHeader(code)
+	// Ensure WriteHeader is only called once
+	if rw, ok := w.(interface{ WriteHeader(int) }); ok {
+		rw.WriteHeader(code)
+	}
+}
+func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
+	WriteHeader(w, code)
 }
 
 // Get http parameter or return default value
@@ -161,7 +167,7 @@ func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 }
 
 func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
-	w.WriteHeader(statusCode)
+	WriteHeader(w, statusCode)
 	_, err := w.Write(util.MustToJSONBytes(v))
 	return err
 }
@@ -200,7 +206,7 @@ func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCod
 }
 
 func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
-	w.WriteHeader(statusCode)
+	WriteHeader(w, statusCode)
 	_, err := w.Write(b)
 	if err != nil {
 		w.Write([]byte(err.Error()))
@@ -217,7 +223,7 @@ func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, stat
 
 func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) error {
 	handler.WriteJSONHeader(w)
-	w.WriteHeader(status)
+	WriteHeader(w, status)
 
 	v := map[string]interface{}{}
 	v["acknowledged"] = ack
