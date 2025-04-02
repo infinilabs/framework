@@ -247,6 +247,14 @@ func (handler *ElasticORM) Count(o interface{}, query interface{}) (int64, error
 func getQuery(c1 *api.Cond) interface{} {
 
 	switch c1.QueryType {
+	case api.QueryStringType:
+		q := elastic.NewQueryString(c1.Value.(string))
+		q.Fields(c1.Field)
+		return q
+	case api.PrefixQueryType:
+		q := elastic.PrefixQuery{}
+		q.Set(c1.Field, c1.Value.(string))
+		return q
 	case api.Match:
 		q := elastic.MatchQuery{}
 		q.Set(c1.Field, c1.Value)
@@ -339,6 +347,10 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 			for _, i := range *q.Sort {
 				request.AddSort(i.Field, string(i.SortType))
 			}
+		}
+
+		if global.Env().IsDebug {
+			log.Info(util.MustToJSON(request))
 		}
 
 		searchResponse, err = handler.Client.Search(indexName, &request)
