@@ -90,6 +90,7 @@ func WriteHeader(w http.ResponseWriter, code int) {
 		rw.WriteHeader(code)
 	}
 }
+
 func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
 	WriteHeader(w, code)
 }
@@ -354,6 +355,7 @@ func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 
 // Write response to client
 func (handler Handler) Write(w http.ResponseWriter, b []byte) (int, error) {
+	handler.WriteHeader(w,200)
 	return w.Write(b)
 }
 
