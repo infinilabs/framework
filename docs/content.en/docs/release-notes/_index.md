@@ -18,6 +18,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Improvements  
 - chore: add util to get instance id
+- chore: add util to delete session key
 
 ## 1.1.5 (2025-03-31)
 ### Breaking changes  

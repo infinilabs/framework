@@ -70,6 +70,22 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 	return true
 }
 
+func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
+	s := getStore()
+	session, err := s.Get(r, sessionName)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+	delete(session.Values,key)
+	err = session.Save(r, w)
+	if err != nil {
+		log.Error(err)
+		return false
+	}
+	return true
+}
+
 // DestroySession remove session by creating a new empty session
 func DestroySession(w http.ResponseWriter, r *http.Request) bool {
 	s := getStore()
