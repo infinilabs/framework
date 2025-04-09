@@ -15,6 +15,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### Bug fix  
 - fix: fix WriteHeader to prevent duplicate status code writes
+- fix: ensure 200 status code is set before writing response in HTTP handler
 
 ### Improvements  
 - chore: add util to get instance id
