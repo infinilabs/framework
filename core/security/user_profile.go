@@ -23,7 +23,9 @@
 
 package security
 
-import "infini.sh/framework/core/orm"
+import (
+	"infini.sh/framework/core/orm"
+)
 
 type UserUniversalProfile struct {
 	orm.ORMObjectBase
@@ -38,9 +40,11 @@ type UserUniversalProfile struct {
 
 type UserExternalProfile struct {
 	orm.ORMObjectBase
-	UserID       string      `json:"user_id"  elastic_mapping:"user_id: { type: keyword }"`
 	AuthProvider string      `json:"provider"  elastic_mapping:"provider: { type: keyword }"`
 	Login        string      `json:"login"  elastic_mapping:"login: { type: keyword }"`
+	Name         string      `json:"name"  elastic_mapping:"name: { type: keyword }"`
+	Email        string      `json:"email" elastic_mapping:"email: { type: keyword }"`
+	AvatarUrl    string      `json:"avatar" elastic_mapping:"avatar: { type: keyword }"`
 	Payload      interface{} `json:"payload" elastic_mapping:"payload: { type: object }"`
 }
 
