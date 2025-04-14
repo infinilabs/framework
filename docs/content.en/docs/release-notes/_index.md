@@ -12,11 +12,12 @@ Information about release notes of INFINI Framework is provided here.
 ### Breaking changes  
 ### Features  
 - feat: add query query_string and prefix support to orm module
-- feat: add compress for http process
+- feat: add compression support to HTTP processor
+
 ### Bug fix  
 - fix: fix WriteHeader to prevent duplicate status code writes
 - fix: ensure 200 status code is set before writing response in HTTP handler
-- fix: fixed reload notify process section config change compare
+- fix: reload and notify when pipeline config changes are detected
 ### Improvements  
 - chore: add util to get instance id
 - chore: add util to delete session key
