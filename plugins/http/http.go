@@ -212,7 +212,7 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 				}
 				req.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
 
-				log.Tracef("Message size %d >= threshold %d, compressed message size to %d", processor.config.CompressionThreshold, len(message.Data), req.GetBodyLength())
+				log.Tracef("Message size %d >= threshold %d, compressed message size to %d", len(message.Data), processor.config.CompressionThreshold, req.GetBodyLength())
 
 			} else {
 				req.SetBody(message.Data)
