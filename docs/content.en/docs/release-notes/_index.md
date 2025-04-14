@@ -13,6 +13,8 @@ Information about release notes of INFINI Framework is provided here.
 ### Features  
 - feat: add query query_string and prefix support to orm module
 - feat: add compression support to HTTP processor
+- feat: allow to register callback after setup
+
 
 ### Bug fix  
 - fix: fix WriteHeader to prevent duplicate status code writes
