@@ -24,6 +24,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: add util to get instance id
 - chore: add util to delete session key
 - chore: update profile structs
+- chore: set service restart policy to always
 
 ## 1.1.5 (2025-03-31)
 ### Breaking changes  
