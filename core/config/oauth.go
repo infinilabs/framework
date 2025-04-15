@@ -32,6 +32,7 @@ type OAuthConfig struct {
 	AuthorizeUrl string              `config:"authorize_url"`
 	TokenUrl     string              `config:"token_url"`
 	RedirectUrl  string              `config:"redirect_url"`
+	ProfileUrl   string              `config:"profile_url"`
 	Scopes       []string            `config:"scopes"`
 
 	SuccessPage string `config:"success_page"`
