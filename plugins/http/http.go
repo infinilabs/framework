@@ -50,12 +50,15 @@ import (
 	"time"
 )
 
+// Default threshold in bytes to enable gzip compression if not configured
+const defaultCompressionThreshold = 1024
+
 type HTTPProcessor struct {
 	config       *Config
 	client       *fasthttp.Client
 	pathTemplate *fasttemplate.Template //path template
 	rater        *rate2.Limiter
-	HTTPPool     *fasthttp.RequestResponsePool
+	httpPool     *fasthttp.RequestResponsePool
 }
 
 func (processor *HTTPProcessor) Name() string {
@@ -72,6 +75,9 @@ type Config struct {
 	Headers   map[string]string `config:"headers"`    //support variable
 	BasicAuth *model.BasicAuth  `config:"basic_auth"` //support variable
 	TLSConfig *config.TLSConfig `config:"tls"`        //client tls config
+
+	Compress             bool `config:"compress"`              // compress request body, default false
+	CompressionThreshold int  `config:"compression_threshold"` // default 1024 bytes
 
 	ValidatedStatusCode []int `config:"valid_status_code"` //validated status code, default 200
 
@@ -98,13 +104,15 @@ func init() {
 
 func New(c *config.Config) (pipeline.Processor, error) {
 	cfg := Config{
-		MessageField:        "messages",
-		ValidatedStatusCode: []int{200, 201},
-		Timeout:             10 * time.Second,
-		ReadTimeout:         10 * time.Second,
-		WriteTimeout:        10 * time.Second,
-		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  10 * time.Second,
+		MessageField:         "messages",
+		ValidatedStatusCode:  []int{200, 201},
+		Timeout:              10 * time.Second,
+		ReadTimeout:          10 * time.Second,
+		WriteTimeout:         10 * time.Second,
+		MaxIdleConnDuration:  10 * time.Second,
+		MaxConnWaitTimeout:   10 * time.Second,
+		Compress:             false,
+		CompressionThreshold: defaultCompressionThreshold,
 	}
 
 	if err := c.Unpack(&cfg); err != nil {
@@ -112,7 +120,8 @@ func New(c *config.Config) (pipeline.Processor, error) {
 	}
 
 	processor := &HTTPProcessor{
-		config: &cfg,
+		config:   &cfg,
+		httpPool: fasthttp.NewRequestResponsePool("http_processor_" + util.GetUUID()),
 	}
 
 	processor.client = &fasthttp.Client{
@@ -144,18 +153,16 @@ func New(c *config.Config) (pipeline.Processor, error) {
 		processor.rater = rate.GetRateLimiter("http_replicator", "sending", processor.config.MaxSendingQPS, processor.config.MaxSendingQPS, time.Second)
 	}
 
-	processor.HTTPPool = fasthttp.NewRequestResponsePool("http_filter_" + util.GetUUID())
-
 	return processor, nil
 }
 
 func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 
-	req := processor.HTTPPool.AcquireRequestWithTag("http_processor")
-	resp := processor.HTTPPool.AcquireResponseWithTag("http_processor")
+	req := processor.httpPool.AcquireRequestWithTag("http_processor")
+	resp := processor.httpPool.AcquireResponseWithTag("http_processor")
 
-	defer processor.HTTPPool.ReleaseRequest(req)
-	defer processor.HTTPPool.ReleaseResponse(resp)
+	defer processor.httpPool.ReleaseRequest(req)
+	defer processor.httpPool.ReleaseResponse(resp)
 
 	path := processor.config.Path
 	if processor.pathTemplate != nil {
@@ -196,7 +203,22 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 
 			req.ResetBody()
 			resp.ResetBody()
-			req.SetBody(message.Data)
+
+			// --- Prepare Request Body (Compress if enabled and size meets threshold) ---
+			if processor.config.Compress && len(message.Data) >= processor.config.CompressionThreshold {
+				_, err := fasthttp.WriteGzipLevel(req.BodyWriter(), message.Data, fasthttp.CompressBestCompression)
+				if err != nil {
+					panic(errors.Errorf("failed to compress message: %v", err))
+				}
+				req.Header.Set(fasthttp.HeaderContentEncoding, "gzip")
+
+				log.Tracef("Message size %d >= threshold %d, compressed message size to %d", len(message.Data), processor.config.CompressionThreshold, req.GetBodyLength())
+
+			} else {
+				req.SetBody(message.Data)
+				// This prevents sending incorrect headers if the pooled 'req' object had it set previously.
+				req.Header.Del(fasthttp.HeaderContentEncoding)
+			}
 
 			var success = false
 			for _, v := range processor.config.Hosts {
@@ -223,13 +245,15 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 					continue
 				}
 				if !util.ContainsInAnyInt32Array(resp.StatusCode(), processor.config.ValidatedStatusCode) {
-					panic(errors.Errorf("http request failed, status code: %d", resp.StatusCode()))
+					log.Tracef("http request validated failed, status code: %d, %v, %v", resp.StatusCode(), req.String(), resp.String())
+					panic(errors.Errorf("http request validated failed, status code: %d, req content length %v, resp content length %v", resp.StatusCode(), req.Header.ContentLength(), resp.Header.ContentLength()))
 				}
 				success = true
 				break
 			}
 			if !success {
-				panic(errors.Errorf("http request failed, status code: %d, %v, %v", resp.StatusCode(), string(req.String()), string(resp.String())))
+				log.Tracef("http request failed, status code: %d, %v, %v", resp.StatusCode(), req.String(), resp.String())
+				panic(errors.Errorf("http request failed, status code: %d, req content length %v, resp content length %v", resp.StatusCode(), req.Header.ContentLength(), resp.Header.ContentLength()))
 			}
 		}
 	}

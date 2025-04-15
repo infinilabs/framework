@@ -47,11 +47,6 @@ type PipelineConfigV2 struct {
 }
 
 func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
-
-	if util.MustToJSON(this) == util.MustToJSON(target) {
-		return true
-	}
-
 	if this.Name != target.Name ||
 		this.AutoStart != target.AutoStart ||
 		this.KeepRunning != target.KeepRunning ||

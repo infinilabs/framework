@@ -275,13 +275,14 @@ func (module *PipeModule) Start() error {
 				return true
 			}
 			newC, ok := newPipelines[oldC.Name]
+			isSame := newC.Equals(oldC)
 			// Skip condition: (old pipeline is present in the new pipeline configs, config is the same, new config is also enabled)
-			if ok && newC.Equals(oldC) && isPipelineEnabled(newC.Enabled) {
+			if ok && isSame && isPipelineEnabled(newC.Enabled) {
 				log.Debugf("pipeline %v config not changed, skip reloading", oldC.Name)
 				return true
 			}
 
-			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC, ",", ok, ",", newC.Equals(oldC), ",", isPipelineEnabled(newC.Enabled))
+			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC, ",", ok, ",", isSame, ",", isPipelineEnabled(newC.Enabled))
 
 			needStopAndClean = append(needStopAndClean, oldC.Name)
 			return true
