@@ -569,7 +569,8 @@ func (app *App) Run() {
 
 	//init service
 	svcOptions := make(service.KeyValue)
-	svcOptions["Restart"] = "on-success"
+	svcOptions["Restart"] = "always"
+	svcOptions["RestartSec"] = 120
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
 	svcOptions["LimitNOFILE"] = 1024000
 
