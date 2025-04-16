@@ -77,7 +77,7 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 				updateClusterHealthStatus(clusterID, "unavailable")
 			}
 		} else {
-			if metadata.Health == nil || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
+			if metadata.Health == nil || metadata.Health.NumberOfNodes == 0 || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
 				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 					updateClusterHealthStatus(clusterID, health.Status)
 				}
