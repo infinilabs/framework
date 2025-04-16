@@ -15,11 +15,11 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add compression support to HTTP processor
 - feat: allow to register callback after setup
 
-
 ### Bug fix  
 - fix: fix WriteHeader to prevent duplicate status code writes
 - fix: ensure 200 status code is set before writing response in HTTP handler
 - fix: reload and notify when pipeline config changes are detected
+- fix: register cluster status loss when default setting is `green`
 ### Improvements  
 - chore: add util to get instance id
 - chore: add util to delete session key
