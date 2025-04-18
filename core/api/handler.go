@@ -355,7 +355,7 @@ func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 
 // Write response to client
 func (handler Handler) Write(w http.ResponseWriter, b []byte) (int, error) {
-	handler.WriteHeader(w,200)
+	handler.WriteHeader(w, 200)
 	return w.Write(b)
 }
 
@@ -407,6 +407,14 @@ func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{})
 		"result": "updated",
 	}, http.StatusOK)
 }
+
+func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{}) error {
+	return handler.WriteJSON(w, util.MapStr{
+		"_id":    id,
+		"result": "not_found",
+	}, http.StatusNotFound)
+}
+
 func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{}) error {
 	return handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
