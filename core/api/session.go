@@ -77,7 +77,7 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 		log.Error(err)
 		return false
 	}
-	delete(session.Values,key)
+	delete(session.Values, key)
 	err = session.Save(r, w)
 	if err != nil {
 		log.Error(err)
