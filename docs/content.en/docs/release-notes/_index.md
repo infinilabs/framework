@@ -10,6 +10,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### Breaking changes  
+
 ### Features  
 - feat: add query query_string and prefix support to orm module
 - feat: add compression support to HTTP processor
@@ -20,11 +21,13 @@ Information about release notes of INFINI Framework is provided here.
 - fix: ensure 200 status code is set before writing response in HTTP handler
 - fix: reload and notify when pipeline config changes are detected
 - fix: register cluster status loss when default setting is `green`
+
 ### Improvements  
 - chore: add util to get instance id
 - chore: add util to delete session key
 - chore: update profile structs
 - chore: set service restart policy to always
+- chore: add util to write response for record not found
 
 ## 1.1.5 (2025-03-31)
 ### Breaking changes  
