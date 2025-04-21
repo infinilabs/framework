@@ -28,6 +28,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: update profile structs
 - chore: set service restart policy to always
 - chore: add util to write response for record not found
+- chore: default to support go modules
 
 ## 1.1.5 (2025-03-31)
 ### Breaking changes  
