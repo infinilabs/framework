@@ -217,7 +217,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				}
 				err = m.CollectClusterHealth(k, v)
 				if err != nil {
-					log.Error(err)
+					log.Error("collect cluster health error: ", err)
 				}
 			},
 		}
@@ -241,7 +241,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				}
 				err = m.CollectClusterState(k, v)
 				if err != nil {
-					log.Error(err)
+					log.Error("collect cluster state error: ", err)
 				}
 			},
 		}
@@ -534,7 +534,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 
 	err = m.onSaveEvent(&item)
 	if err != nil {
-		return err
+		return fmt.Errorf("[%s] save cluster health error: %w", v.Config.Name, err)
 	}
 	for indexName, healthInfo := range indicesHealth {
 		item = event.Event{
@@ -556,7 +556,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 		}
 		err = m.onSaveEvent(&item)
 		if err != nil {
-			return err
+			return fmt.Errorf("[%s] save index health error: %w", v.Config.Name, err)
 		}
 	}
 	return nil
