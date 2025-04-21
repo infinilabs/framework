@@ -225,8 +225,21 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 	case d.writeChan <- data:
 		return <-d.writeResponseChan
 	case <-ctx.Done():
-		// Handle timeout
+		// Handle context cancellation or timeout
 		res.Error = ctx.Err()
+
+		// Provide more specific error messages
+		switch res.Error {
+		case context.DeadlineExceeded:
+			// Handle timeout error specifically
+			res.Error = fmt.Errorf("operation timed out: %w", res.Error)
+		case context.Canceled:
+			// Handle cancellation error specifically
+			res.Error = fmt.Errorf("operation was canceled: %w", res.Error)
+		default:
+			// Handle other errors (if any)
+			res.Error = fmt.Errorf("operation failed: %w", res.Error)
+		}
 		return res
 	}
 }
