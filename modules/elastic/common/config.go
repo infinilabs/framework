@@ -122,7 +122,12 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		return newOpensearchClient(esConfig.ID, apiVer)
 	}
 
-	if major >= 8 {
+	if major >= 9 {
+		api := new(elasticsearch.ESAPIV9)
+		api.Elasticsearch = esConfig.ID
+		api.Version = apiVer
+		client = api
+	} else if major == 8 {
 		api := new(elasticsearch.ESAPIV8)
 		api.Elasticsearch = esConfig.ID
 		api.Version = apiVer
