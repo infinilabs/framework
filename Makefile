@@ -23,7 +23,7 @@ endif
 
 # Ensure GOPATH is set before running build process.
 ifeq "$(GOPATH)" ""
-   GOPATH := ~/go
+   GOPATH := $(HOME)/go
   #$(error Please set the environment variable GOPATH before running `make`)
 endif
 
@@ -36,11 +36,11 @@ BUILD_NUMBER ?= 001
 # GOBUILD_FLAGS?=-ldflags "-X infini.sh/framework/core/env.version=$(APP_VERSION)  -X infini.sh/framework/core/env.buildDate=$(NOW)   -X infini.sh/framework/core/env.commit=$(COMMIT_ID) -X infini.sh/framework/core/env.eolDate=$(APP_EOLDate)  -X infini.sh/framework/core/env.buildNumber=$(BUILD_NUMBER)"
 
 PATH := $(PATH):$(GOPATH)/bin
-VFS_PATH := ~/vfs
+VFS_PATH := $(HOME)/vfs
 
 # Go environment
 CURDIR := $(shell pwd)
-OLDGOPATH:= $(GOPATH)
+OLDGOPATH:= $(HOME)/go
 
 CMD_DIR := $(CURDIR)/cmd
 OUTPUT_DIR := $(CURDIR)/bin
@@ -76,8 +76,8 @@ GOMODULE ?= true
 ifneq "$(GOMODULE)" "true"
     GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 endif
-
 GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILDDEV  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
 GOLINT   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) vet -ldflags -s
@@ -113,7 +113,15 @@ build: config
 	@$(MAKE) restore-generated-file
 
 build-dev: config
-	$(GOBUILDNCGO) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)
+	$(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)
+	@$(MAKE) restore-generated-file
+
+build-linux-amd64-dev: config
+	GOOS=linux GOARCH=amd64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
+	@$(MAKE) restore-generated-file
+
+build-linux-arm64-dev: config
+	GOOS=linux GOARCH=arm64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64
 	@$(MAKE) restore-generated-file
 
 build-cmd:
@@ -146,9 +154,11 @@ cross-build: clean config update-vfs
 	GOOS=linux  GOARCH=amd64 $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
 	@$(MAKE) restore-generated-file
 
-
-build-win: config
+build-win-amd64: config
 	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-amd64.exe
+	@$(MAKE) restore-generated-file
+
+build-win-386: config
 	CC=i686-w64-mingw32-gcc   CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386         $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-386.exe
 	@$(MAKE) restore-generated-file
 
@@ -156,16 +166,49 @@ build-linux-amd64: config
 	GOOS=linux  GOARCH=amd64  $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
 	@$(MAKE) restore-generated-file
 
-build-linux-amd64-dev: config
-	GOOS=linux  GOARCH=amd64 $(GOBUILD) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-dev
+build-linux-386: config
+	GOOS=linux  GOARCH=386    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-386
 	@$(MAKE) restore-generated-file
-	
+
+build-linux-mips64: config
+	GOOS=linux  GOARCH=mips64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64
+	@$(MAKE) restore-generated-file
+
+build-linux-mips64le: config
+	GOOS=linux  GOARCH=mips64le    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-mips64le
+	@$(MAKE) restore-generated-file
+
+build-linux-armv6: config
+	GOOS=linux  GOARCH=arm   GOARM=6    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-armv6
+	@$(MAKE) restore-generated-file
+
+build-linux-armv7: config
+	GOOS=linux  GOARCH=arm   GOARM=7    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-armv7
+	@$(MAKE) restore-generated-file
+
 build-linux-arm64: config
 	GOOS=linux  GOARCH=arm64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64
 	@$(MAKE) restore-generated-file
 
 build-linux-loong64: config
 	GOOS=linux  GOARCH=loong64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-loong64
+	@$(MAKE) restore-generated-file
+
+build-linux-riscv64: config
+	GOOS=linux  GOARCH=riscv64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-linux-riscv64
+	@$(MAKE) restore-generated-file
+
+build-darwin-amd64: config
+	GOOS=darwin  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-amd64
+	@$(MAKE) restore-generated-file
+
+build-darwin-arm64: config
+	GOOS=darwin  GOARCH=arm64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-arm64
+	@$(MAKE) restore-generated-file
+
+build-win: config
+	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ GOOS=windows GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-amd64.exe
+	CC=i686-w64-mingw32-gcc   CXX=i686-w64-mingw32-g++ GOOS=windows GOARCH=386         $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-windows-386.exe
 	@$(MAKE) restore-generated-file
 
 build-linux: config
@@ -188,7 +231,6 @@ build-arm: config
 
 build-darwin: config
 	GOOS=darwin  GOARCH=amd64     $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-amd64
-# 	GOOS=darwin  GOARCH=386       $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-386
 	GOOS=darwin  GOARCH=arm64    $(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)-mac-arm64
 	@$(MAKE) restore-generated-file
 
@@ -210,6 +252,14 @@ cross-build-all-platform: clean config build-bsd build-linux build-darwin build-
 format:
 	@echo "formatting code"
 	GOPATH=$(NEWGOPATH) $(GO) fmt $$(GOPATH=$(NEWGOPATH) $(GO) list ./...)
+
+test: config
+	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
+	@$(MAKE) restore-generated-file
+
+lint: config
+	$(GOLINT) -c=2 -v $(GOFLAGS) ./...
+	@$(MAKE) restore-generated-file
 
 clean_data:
 	rm -rif dist
@@ -266,7 +316,6 @@ restore-generated-file: restore-generated-framework-info
 	@echo -e "\nconst Version = \"0.0.1-SNAPSHOT\"" >> config/generated.go
 	@echo -e "\nconst BuildNumber = \"001\"" >> config/generated.go
 
-
 update-vfs:
 	@if [ ! -e $(VFS_PATH) ]; then (cd $(FRAMEWORK_FOLDER) && OFFLINE_BUILD=true make build-cmd && cp bin/vfs $(VFS_PATH)) fi
 	@if [ -d $(APP_STATIC_FOLDER) ]; then  echo "generate static files";(cd $(APP_STATIC_FOLDER) && $(VFS_PATH) -ignore="static.go|.DS_Store" -o static.go -pkg $(APP_STATIC_PACKAGE) . ) fi
@@ -278,10 +327,8 @@ config: init format update-vfs update-generated-file update-plugins
 	@cp $(APP_CONFIG) $(OUTPUT_DIR)
 	(cd ../framework/  && make update-plugins) || true # build plugins in framework
 
-
 update-license-header:
 	licensure --in-place -p
-
 
 dist: cross-build package
 
@@ -332,11 +379,3 @@ package-windows-platform:
 	@echo "Packaging Windows"
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-amd64.zip   $(APP_NAME)-windows-amd64.exe $(APP_CONFIG)
 	cd $(OUTPUT_DIR) && zip -r $(OUTPUT_DIR)/windows-386.zip   $(APP_NAME)-windows-386.exe $(APP_CONFIG)
-
-test: config
-	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
-	@$(MAKE) restore-generated-file
-
-lint: config
-	$(GOLINT) -c=2 -v $(GOFLAGS) ./...
-	@$(MAKE) restore-generated-file
