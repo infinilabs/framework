@@ -141,7 +141,7 @@ jobs:
                 # for products
                 for p in console gateway agent loadgen; do
                   cd $WORK/$p && echo Compiling $p at $PWD ...
-                  OFFLINE_BUILD=true make build
+                  OFFLINE_BUILD=true GOMODULE=false make build
                 done
 
             - name: Prepare console config
