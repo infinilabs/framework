@@ -222,7 +222,7 @@ func (module *DiskQueue) Setup() {
 		MinMsgSize:          1,
 		MaxMsgSize:          104857600,         //100MB
 		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
-		WriteTimeoutInMS:    3000,              //3s
+		WriteTimeoutInMS:    1000,              //1s
 		EOFRetryDelayInMs:   500,
 		SyncEveryRecords:    1000,
 		SyncTimeoutInMS:     1000,
