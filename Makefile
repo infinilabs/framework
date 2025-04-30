@@ -76,8 +76,8 @@ GOMODULE ?= true
 ifneq "$(GOMODULE)" "true"
     GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
 endif
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
-GOBUILDDEV  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off  $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) --work $(GOBUILD_FLAGS)
+GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILDDBG  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -ldflags -v -gcflags "all=-N -l" --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
 GOLINT   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) vet -ldflags -s
@@ -117,15 +117,15 @@ build-dev: config
 	@$(MAKE) restore-generated-file
 
 build-debug: config
-	$(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-debug
+	$(GOBUILDDBG) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-amd64-debug: config
-	GOOS=linux GOARCH=amd64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-debug
+	GOOS=linux GOARCH=amd64 $(GOBUILDDBG) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-arm64-debug: config
-	GOOS=linux GOARCH=arm64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64-debug
+	GOOS=linux GOARCH=arm64 $(GOBUILDDBG) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-amd64-dev: config
