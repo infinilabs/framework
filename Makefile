@@ -113,15 +113,15 @@ build: config
 	@$(MAKE) restore-generated-file
 
 build-debug: config
-	$(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)
+	$(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-amd64-debug: config
-	GOOS=linux GOARCH=amd64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64
+	GOOS=linux GOARCH=amd64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-amd64-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-arm64-debug: config
-	GOOS=linux GOARCH=arm64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64
+	GOOS=linux GOARCH=arm64 $(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-linux-arm64-debug
 	@$(MAKE) restore-generated-file
 
 build-linux-amd64-dev: config
