@@ -112,6 +112,10 @@ build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
 	@$(MAKE) restore-generated-file
 
+build-dev: config
+	$(GOBUILD) -tags dev -o $(OUTPUT_DIR)/$(APP_NAME)-dev
+	@$(MAKE) restore-generated-file
+
 build-debug: config
 	$(GOBUILDDEV) -tags codes -ldflags -v -gcflags "all=-N -l" -o $(OUTPUT_DIR)/$(APP_NAME)-debug
 	@$(MAKE) restore-generated-file
