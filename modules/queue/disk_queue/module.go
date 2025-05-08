@@ -81,8 +81,9 @@ type DiskQueueConfig struct {
 	ReadChanBuffer   int   `config:"read_chan_buffer_size"`
 	WriteChanBuffer  int   `config:"write_chan_buffer_size"`
 
-	WriteTimeoutInMS  int64 `config:"write_timeout_in_ms" json:"write_timeout_in_ms,omitempty"`
-	EOFRetryDelayInMs int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
+	CheckDiskCapacityRetryDelayInMs int   `config:"check_capacity_retry_delay_in_ms" json:"check_capacity_retry_delay_in_ms,omitempty"`
+	WriteTimeoutInMS                int64 `config:"write_timeout_in_ms" json:"write_timeout_in_ms,omitempty"`
+	EOFRetryDelayInMs               int64 `config:"eof_retry_delay_in_ms" json:"eof_retry_delay_in_ms,omitempty"`
 
 	MaxUsedBytes      uint64 `config:"max_used_bytes"`
 	WarningFreeBytes  uint64 `config:"warning_free_bytes"`
@@ -127,28 +128,36 @@ var preventRead bool
 
 func checkCapacity(cfg *DiskQueueConfig) error {
 
-	defer func() {
-		if !global.Env().IsDebug {
-			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
-				}
-				if util.ContainStr(v, "no such file or directory") {
-					log.Warnf("error during checking disk capacity [%v]", v)
-				} else {
-					log.Errorf("error during checking disk capacity [%v]", v)
+	if cfg.CheckDiskCapacityRetryDelayInMs <= 0 {
+		if cfg.CheckDiskCapacityRetryDelayInMs<1000{
+			log.Warnf("disk_queue capacity checking maybe too frequently: %v",cfg.CheckDiskCapacityRetryDelayInMs)
+		}
+		cfg.CheckDiskCapacityRetryDelayInMs = 10*1000
+	}
+
+	if rate.GetRateLimiter("disk_queue", "check_capacity", cfg.CheckDiskCapacityRetryDelayInMs, cfg.CheckDiskCapacityRetryDelayInMs*2, time.Second).Allow() {
+
+		defer func() {
+			if !global.Env().IsDebug {
+				if r := recover(); r != nil {
+					var v string
+					switch r.(type) {
+					case error:
+						v = r.(error).Error()
+					case runtime.Error:
+						v = r.(runtime.Error).Error()
+					case string:
+						v = r.(string)
+					}
+					if util.ContainStr(v, "no such file or directory") {
+						log.Warnf("error during checking disk capacity [%v]", v)
+					} else {
+						log.Errorf("error during checking disk capacity [%v]", v)
+					}
 				}
 			}
-		}
-	}()
+		}()
 
-	if rate.GetRateLimiter("disk_queue", "check_capacity", 1, 10, time.Second).Allow() {
 		if cfg.WarningFreeBytes > 0 || cfg.MaxUsedBytes > 0 || cfg.ReservedFreeBytes > 0 {
 			pathUsed, err := status.DirSize(global.Env().GetDataDir())
 			if err != nil {
@@ -172,6 +181,7 @@ func checkCapacity(cfg *DiskQueueConfig) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -214,24 +224,25 @@ func GetFileName(queueID string, segmentID int64) string {
 
 func (module *DiskQueue) Setup() {
 	module.cfg = &DiskQueueConfig{
-		Enabled:             true,
-		Default:             true,
-		AutoSkipCorruptFile: true,
-		UploadToS3:          false,
-		Retention:           RetentionConfig{MaxNumOfLocalFiles: 5},
-		MinMsgSize:          1,
-		MaxMsgSize:          104857600,         //100MB
-		MaxBytesPerFile:     100 * 1024 * 1024, //100MB
-		WriteTimeoutInMS:    1000,              //1s
-		EOFRetryDelayInMs:   500,
-		SyncEveryRecords:    1000,
-		SyncTimeoutInMS:     1000,
-		NotifyChanBuffer:    100,
-		ReadChanBuffer:      0,
-		WriteChanBuffer:     0,
-		WarningFreeBytes:    10 * 1024 * 1024 * 1024,
-		ReservedFreeBytes:   5 * 1024 * 1024 * 1024,
-		PrepareFilesToRead:  true,
+		Enabled:                         true,
+		Default:                         true,
+		AutoSkipCorruptFile:             true,
+		UploadToS3:                      false,
+		Retention:                       RetentionConfig{MaxNumOfLocalFiles: 5},
+		MinMsgSize:                      1,
+		MaxMsgSize:                      104857600,         //100MB
+		MaxBytesPerFile:                 100 * 1024 * 1024, //100MB
+		WriteTimeoutInMS:                1000,              //1s
+		CheckDiskCapacityRetryDelayInMs: 10 * 000,          //10s
+		EOFRetryDelayInMs:               500,
+		SyncEveryRecords:                1000,
+		SyncTimeoutInMS:                 1000,
+		NotifyChanBuffer:                100,
+		ReadChanBuffer:                  0,
+		WriteChanBuffer:                 0,
+		WarningFreeBytes:                10 * 1024 * 1024 * 1024,
+		ReservedFreeBytes:               5 * 1024 * 1024 * 1024,
+		PrepareFilesToRead:              true,
 		Compress: DiskCompress{
 			IdleThreshold:             3,
 			DeleteAfterCompress:       false,

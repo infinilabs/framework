@@ -11,6 +11,8 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: introduce config to check_capacity retry threshold limit
+
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 
