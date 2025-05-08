@@ -449,6 +449,11 @@ func (module *DiskQueue) Start() error {
 		return nil
 	}
 
+	err := checkCapacity(module.cfg)
+	if err != nil {
+		return err
+	}
+
 	//load configs from local file
 	if module.cfgs != nil {
 		for _, v := range module.cfgs {

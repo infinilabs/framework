@@ -309,6 +309,7 @@ func (app *App) Setup(setup func(), start func(), stop func()) (allowContinue bo
 	}
 
 	log.Infof("initializing %s, pid: %v", app.environment.GetAppName(), os.Getpid())
+	log.Infof("using data: %s", app.environment.GetDataDir())
 	log.Infof("using config: %s", app.environment.GetConfigFile())
 
 	//daemon
