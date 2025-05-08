@@ -12,9 +12,11 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: introduce config to check_capacity retry threshold limit
+- feat: support custom TLS minimum version for SMTP server configuration
 
-### 🐛 Bug fix  
+### 🐛 Bug fix
 ### ✈️ Improvements  
+- chore: check disk capacity when disk queue module start #136
 
 ## 1.1.6 (2025-04-27)
 ### Breaking changes  
