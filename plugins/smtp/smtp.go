@@ -27,6 +27,12 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/gopkg.in/gomail.v2"
 	"github.com/valyala/fasttemplate"
@@ -37,11 +43,6 @@ import (
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 type SMTPProcessor struct {
@@ -87,6 +88,7 @@ type ServerConfig struct {
 		Username string `config:"username"`
 		Password string `config:"password"`
 	} `config:"auth"`
+	MinTLSVersion string `config:"min_tls_version"`
 
 	SendFrom string `config:"sender"`
 
@@ -350,8 +352,18 @@ func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []st
 		message.Embed(attachment.File, gomail.SetHeader(h))
 	}
 
+	// set default TLS min version to TLS 1.2 for security when not specified
+	var tlsMinVersion uint16 = tls.VersionTLS12
+	switch srvCfg.MinTLSVersion {
+	case "TLS10":
+		tlsMinVersion = tls.VersionTLS10
+	case "TLS11":
+		tlsMinVersion = tls.VersionTLS11
+	case "TLS13":
+		tlsMinVersion = tls.VersionTLS13
+	}
 	d := gomail.NewDialerWithTimeout(srvCfg.Server.Host, srvCfg.Server.Port, srvCfg.Auth.Username, srvCfg.Auth.Password, time.Duration(processor.config.DialTimeoutInSeconds)*time.Second)
-	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	d.TLSConfig = &tls.Config{InsecureSkipVerify: true, MinVersion: tlsMinVersion}
 	d.SSL = srvCfg.Server.TLS
 	// Send the email to Bob, Cora and Dan.
 

@@ -11,6 +11,7 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: support custom TLS minimum version for SMTP server configuration
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 
