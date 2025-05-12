@@ -44,7 +44,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/valyala/fasttemplate"
+	"infini.sh/framework/lib/fasttemplate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
