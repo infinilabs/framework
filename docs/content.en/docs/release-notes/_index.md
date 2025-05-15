@@ -15,6 +15,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: support custom TLS minimum version for SMTP server configuration
 
 ### 🐛 Bug fix
+- fix: wrong method call during ORM update
 ### ✈️ Improvements  
 - chore: check disk capacity when disk queue module start #136
 
