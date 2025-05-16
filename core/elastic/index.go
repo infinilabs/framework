@@ -179,6 +179,15 @@ type IndexDocument struct {
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }
 
+type DocumentWithMeta[T any] struct {
+	Index     string                   `json:"_index,omitempty"`
+	Type      string                   `json:"_type,omitempty"`
+	ID        string                   `json:"_id,omitempty"`
+	Routing   string                   `json:"_routing,omitempty"`
+	Source    T                        `json:"_source,omitempty"`
+	Highlight map[string][]interface{} `json:"highlight,omitempty"`
+}
+
 type BucketBase map[string]interface{}
 
 type Bucket struct {

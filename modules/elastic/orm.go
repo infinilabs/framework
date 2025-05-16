@@ -24,7 +24,6 @@
 package elastic
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -377,7 +376,7 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 	return err, result
 }
 
-func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *api.Query) (error, api.SimpleResult) {
+func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *api.Query) (error, *api.SimpleResult) {
 	var err error
 
 	if q == nil {
@@ -395,12 +394,11 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 	}
 
 	var searchResponse *elastic.SearchResponse
-	result := api.SimpleResult{}
 
 	// Validate that resultArray is a pointer to a slice
 	arrayValue := reflect.ValueOf(resultArray)
 	if arrayValue.Kind() != reflect.Ptr || arrayValue.Elem().Kind() != reflect.Slice {
-		return fmt.Errorf("resultArray must be a pointer to a slice"), result
+		return fmt.Errorf("resultArray must be a pointer to a slice"), nil
 	}
 
 	sliceValue := arrayValue.Elem()
@@ -455,7 +453,7 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 
 	// Handle search errors
 	if err != nil {
-		return err, result
+		return err, nil
 	}
 
 	// Populate the resultArray with typed data
@@ -466,26 +464,24 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 		//make sure id exists and always be _id
 		doc.Source["id"] = doc.ID
 
-		source := doc.Source
-		sourceBytes, err := json.Marshal(source)
-		if err != nil {
-			return err, result
-		}
+		if itemMapFunc != nil {
 
-		// Map the document source into the element
-		if err := itemMapFunc(sourceBytes, elem.Addr().Interface()); err != nil { // Ensure passing a pointer to itemMapFunc
-			return fmt.Errorf("failed to map document to struct: %w", err), result
+			source := doc.Source
+			// Map the document source into the element
+			if err := itemMapFunc(source, elem.Addr().Interface()); err != nil { // Ensure passing a pointer to itemMapFunc
+				return fmt.Errorf("failed to map document to struct: %w", err), nil
+			}
 		}
 
 		// Append the populated element to the result slice
 		sliceValue.Set(reflect.Append(sliceValue, elem))
 	}
 
-	// Set raw response data and total hit count
-	result.Raw = searchResponse.RawResult.Body
+	result := api.SimpleResult{}
 	result.Total = searchResponse.GetTotal()
+	result.Raw = util.MustToJSONBytes(searchResponse)
 
-	return nil, result
+	return nil, &result
 }
 
 func (handler *ElasticORM) GroupBy(t interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {

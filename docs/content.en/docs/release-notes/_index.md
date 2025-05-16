@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
 ### ✈️ Improvements  
+- refactor: refactoring orm struct mapping and search api
 - chore: check disk capacity when disk queue module start #136
 
 ## 1.1.6 (2025-04-27)
