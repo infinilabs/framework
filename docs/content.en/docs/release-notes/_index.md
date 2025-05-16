@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: support custom TLS minimum version for SMTP server configuration
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- refactor: refactoring orm struct mapping and search api
 
 ## 1.1.6 (2025-04-27)
 ### Breaking changes  
