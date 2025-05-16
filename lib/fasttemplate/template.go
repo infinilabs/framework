@@ -9,7 +9,6 @@ package fasttemplate
 import (
 	"bytes"
 	"fmt"
-	log "github.com/cihub/seelog"
 	"io"
 
 	"infini.sh/framework/lib/bytebufferpool"
@@ -118,16 +117,15 @@ func ExecuteFuncStringWithErr(template, startTag, endTag string, f TagFunc) (str
 		return template, nil
 	}
 
-	//bb := bytebufferpool.Get("template")
-	bb := &bytebufferpool.ByteBuffer{}
+	bb := bytebufferpool.Get("template")
 	if _, err := ExecuteFunc(template, startTag, endTag, bb, f); err != nil {
 		bb.Reset()
-		//bytebufferpool.Put("template", bb)
+		bytebufferpool.Put("template", bb)
 		return "", err
 	}
 	s := string(bb.B)
-	//bb.Reset()
-	//bytebufferpool.Put("template", bb)
+	bb.Reset()
+	bytebufferpool.Put("template", bb)
 	return s, nil
 }
 
@@ -208,12 +206,12 @@ func NewTemplate(template, startTag, endTag string) (*Template, error) {
 // TagFunc must write contents to w and return the number of bytes written.
 type TagFunc func(w io.Writer, tag string) (int, error)
 
-func printByteArray(i [][]byte) {
-	for x, v := range i {
-		log.Info(x, ": ", string(v))
-	}
-}
-
+// Reset resets the template t to new one defined by
+// template, startTag and endTag.
+//
+// Reset allows Template object re-use.
+//
+// Reset may be called only if no other goroutines call t methods at the moment.
 func (t *Template) Reset(template, startTag, endTag string) error {
 	// Keep these vars in t, so GC won't collect them and won't break
 	// vars derived via unsafe*
@@ -252,40 +250,6 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 			t.texts = append(t.texts, s)
 			break
 		}
-
-		//hit start tag, but maybe not correct one
-
-		//let's find the first end tag as well
-		endOffset := bytes.Index(s, b)
-		//log.Error("first end offset: ",endOffset,",first start offset:",n)
-
-		if endOffset < 0 {
-			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
-		}
-
-		//end offset should be larger than start offset
-		if endOffset < n {
-			t.texts = append(t.texts, s)
-			//log.Error("end offset is smaller than start offset, skipping")
-			break
-		}
-
-		//fmt.Println("intial start offset:", n, ",end offset:", endOffset, ",len of s:", len(s), ",n+len(a)", n+len(a))
-
-		//is there any first tags between start and end?
-		//valid tag can be find
-		if endOffset > n+len(a) && endOffset < len(s) {
-			tagPart := s[n+len(a) : endOffset]
-			//if there is, we need to find the last start tag offset
-			if bytes.Contains(tagPart, a) {
-				lastStartOffset := bytes.LastIndex(tagPart, a)
-				moveRight := lastStartOffset + len(a)
-				finalStartOffset := n + moveRight
-				n = finalStartOffset
-				//log.Error("last start offset: ",lastStartOffset,",",moveRight,",final:",finalStartOffset)
-			}
-		}
-
 		t.texts = append(t.texts, s[:n])
 
 		s = s[n+len(a):]
@@ -301,104 +265,6 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 	return nil
 }
 
-// Reset resets the template t to new one defined by
-// template, startTag and endTag.
-//
-// Reset allows Template object re-use.
-//
-// Reset may be called only if no other goroutines call t methods at the moment.
-func (t *Template) Reset1(template, startTag, endTag string) error {
-	// Keep these vars in t, so GC won't collect them and won't break
-	// vars derived via unsafe*
-	t.template = template
-	t.startTag = startTag
-	t.endTag = endTag
-	t.texts = t.texts[:0]
-	t.tags = t.tags[:0]
-
-	if len(startTag) == 0 {
-		panic("startTag cannot be empty")
-	}
-	if len(endTag) == 0 {
-		panic("endTag cannot be empty")
-	}
-
-	s := unsafeString2Bytes(template)
-	a := unsafeString2Bytes(startTag)
-	b := unsafeString2Bytes(endTag)
-	tagsCount := bytes.Count(s, a)
-	//log.Error("input:",string(s),",start:",string(a),",end:",string(b),",tags count:",tagsCount)
-	if tagsCount == 0 {
-		return nil
-	}
-
-	if tagsCount+1 > cap(t.texts) {
-		t.texts = make([][]byte, 0, tagsCount+1)
-	}
-	if tagsCount > cap(t.tags) {
-		t.tags = make([]string, 0, tagsCount)
-	}
-
-	for {
-		startOffset := bytes.Index(s, a)
-		//log.Error("hit tag start:",startOffset,",",string(s),",",string(a))
-		if startOffset < 0 {
-			//log.Error("not containing any tag",string(s),",",string(a))
-			t.texts = append(t.texts, s)
-			break
-		}
-
-		s1 := s[startOffset+len(a):]
-		//log.Error("new string:",string(s1))
-
-		n := bytes.Index(s1, b) //the first ]] of matched end tag
-
-		//log.Error("hit tag end, n:",n, ", s1:",string(s1),",b:",string(b),", s:",string(s))
-
-		if n < 0 {
-			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
-		}
-
-		tag := unsafeBytes2String(s1[:n]) //the tag name, but it may contain another tag
-		//log.Error("hit tag:",tag)
-
-		//if bytes.Index([]byte(tag), a) >= 0 {
-		//	log.Error("hit tag start in tag:",tag,",",string(a))
-		//}
-
-		//check if contain start tag in tag
-		o := bytes.LastIndex(s1[:n], a)
-		//log.Error("hit tag start in tag:",string(s1[:n])," contains ",string(a),",",o,",",startOffset)
-		if o >= 0 {
-			prefix := s1[:o+len(a)]
-			//log.Error("contain another tag in tag:",tag,",",string(s[:o+len(a)]),",prefix:",string(prefix))
-			t.texts = append(t.texts, prefix)
-			//log.Error("old t.texts:",o,",",startOffset,",",string(s1[:o+len(a)]))
-
-			newTag := tag[o+len(a):]
-			//log.Error(newTag,", texts:",string(prefix))
-			t.tags = append(t.tags, newTag)
-		} else {
-			txt := s[:startOffset]
-			t.texts = append(t.texts, txt)
-			tag := unsafeBytes2String(s1[:n])
-			//log.Error(tag,", texts:",string(txt))
-
-			t.tags = append(t.tags, tag)
-		}
-		//fmt.Println("tags:",t.tags)
-
-		s = s1[n+len(b):]
-		//fmt.Println("final:",string(s))
-	}
-
-	//for i, tag := range t.texts {
-	//	fmt.Println("texts:",i,",",string(tag))
-	//}
-
-	return nil
-}
-
 // ExecuteFunc calls f on each template tag (placeholder) occurrence.
 //
 // Returns the number of bytes written to w.
@@ -410,18 +276,9 @@ func (t *Template) ExecuteFunc(w io.Writer, f TagFunc) (int64, error) {
 
 	n := len(t.texts) - 1
 	if n == -1 {
-		ni, err := w.Write([]byte(t.template))
+		ni, err := w.Write(unsafeString2Bytes(t.template))
 		return int64(ni), err
 	}
-
-	//log.Error(n," ",len(t.texts)," ",len(t.tags))
-	//for i := 0; i < len(t.texts); i++ {
-	//	log.Error(i,", text:",string(t.texts[i]),", tag:",string(t.tags[i]))
-	//}
-
-	//log.Error("texts:",len(t.texts),", tags:",len(t.tags))
-	//printByteArray(t.texts)
-	//log.Error("tags:",t.tags)
 
 	for i := 0; i < n; i++ {
 		ni, err := w.Write(t.texts[i])
@@ -435,7 +292,6 @@ func (t *Template) ExecuteFunc(w io.Writer, f TagFunc) (int64, error) {
 		if err != nil {
 			return nn, err
 		}
-		//fmt.Println(string(t.template))
 	}
 	ni, err := w.Write(t.texts[n])
 	nn += int64(ni)
@@ -497,15 +353,15 @@ func (t *Template) ExecuteFuncStringExtend(output io.Writer, f TagFunc) {
 //
 // This function is optimized for frozen templates.
 // Use ExecuteFuncString for constantly changing templates.
+var templateBytesPool = bytebufferpool.NewTaggedPool("template", 0, 100*1024*1024, 10000)
+
 func (t *Template) ExecuteFuncStringWithErr(f TagFunc) (string, error) {
-	//bb := templateBytesPool.Get()
-	//defer templateBytesPool.Put(bb)
-	bb := &bytebufferpool.ByteBuffer{}
+	bb := templateBytesPool.Get()
+	defer templateBytesPool.Put(bb)
 	if _, err := t.ExecuteFunc(bb, f); err != nil {
 		return "", err
 	}
 	s := string(bb.Bytes())
-	//log.Error("s:",s)
 	return s, nil
 }
 
