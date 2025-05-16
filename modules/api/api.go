@@ -64,7 +64,7 @@ func init() {
 	api.HandleAPIMethod(api.GET, "/_info", infoAPIHandler)
 	api.HandleAPIMethod(api.GET, "/health", healthAPIHandler)
 
-	api.HandleUIMethod(api.GET, "/_info", infoAPIHandler,api.RequireLogin())
+	api.HandleUIMethod(api.GET, "/_info", infoAPIHandler, api.RequireLogin())
 }
 
 func whoisAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
