@@ -29,11 +29,7 @@ import (
 	"reflect"
 )
 
-func MapToStructWithJSONUnmarshal(source map[string]interface{}, targetRef interface{}) error {
-	sourceBytes, err := util.ToJSONBytes(source)
-	if err != nil {
-		return err
-	}
+func MapToStructWithJSONBytesUnmarshal(sourceBytes []byte, targetRef interface{}) error {
 
 	// Ensure target is a pointer
 	if reflect.ValueOf(targetRef).Kind() != reflect.Ptr {
@@ -46,4 +42,13 @@ func MapToStructWithJSONUnmarshal(source map[string]interface{}, targetRef inter
 	}
 
 	return nil
+}
+
+func MapToStructWithMap(source map[string]interface{}, targetRef interface{}) error {
+	sourceBytes, err := util.ToJSONBytes(source)
+	if err != nil {
+		return err
+	}
+
+	return MapToStructWithJSONBytesUnmarshal(sourceBytes, targetRef)
 }
