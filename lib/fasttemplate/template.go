@@ -9,9 +9,8 @@ package fasttemplate
 import (
 	"bytes"
 	"fmt"
-	"io"
-
 	"infini.sh/framework/lib/bytebufferpool"
+	"io"
 )
 
 // ExecuteFunc calls f on each template tag (placeholder) occurrence.
@@ -112,22 +111,23 @@ func ExecuteFuncString(template, startTag, endTag string, f TagFunc) string {
 // but when f returns an error, ExecuteFuncStringWithErr won't panic like ExecuteFuncString
 // it just returns an empty string and the error f returned
 func ExecuteFuncStringWithErr(template, startTag, endTag string, f TagFunc) (string, error) {
-	tagsCount := bytes.Count(unsafeString2Bytes(template), unsafeString2Bytes(startTag))
-	if tagsCount == 0 {
+	if n := bytes.Index(unsafeString2Bytes(template), unsafeString2Bytes(startTag)); n < 0 {
 		return template, nil
 	}
 
-	bb := bytebufferpool.Get("template")
+	bb := templateBytesPool.Get()
 	if _, err := ExecuteFunc(template, startTag, endTag, bb, f); err != nil {
 		bb.Reset()
-		bytebufferpool.Put("template", bb)
+		templateBytesPool.Put(bb)
 		return "", err
 	}
 	s := string(bb.B)
 	bb.Reset()
-	bytebufferpool.Put("template", bb)
+	templateBytesPool.Put(bb)
 	return s, nil
 }
+
+var templateBytesPool = bytebufferpool.NewTaggedPool("template", 0, 100*1024*1024, 10000)
 
 // ExecuteString substitutes template tags (placeholders) with the corresponding
 // values from the map m and returns the result.
@@ -250,6 +250,25 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 			t.texts = append(t.texts, s)
 			break
 		}
+		//let's find the first end tag as well
+		endOffset := bytes.Index(s, b)
+		if endOffset < 0 {
+			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
+		}
+		//is there any first tags between start and end?
+		//valid tag can be find
+		if endOffset > n+len(a) && endOffset < len(s) {
+			tagPart := s[n+len(a) : endOffset]
+			//if there is, we need to find the last start tag offset
+			if bytes.Contains(tagPart, a) {
+				lastStartOffset := bytes.LastIndex(tagPart, a)
+				moveRight := lastStartOffset + len(a)
+				finalStartOffset := n + moveRight
+				n = finalStartOffset
+				//log.Error("last start offset: ",lastStartOffset,",",moveRight,",final:",finalStartOffset)
+			}
+		}
+
 		t.texts = append(t.texts, s[:n])
 
 		s = s[n+len(a):]
@@ -339,13 +358,6 @@ func (t *Template) ExecuteFuncString(f TagFunc) string {
 	return s
 }
 
-func (t *Template) ExecuteFuncStringExtend(output io.Writer, f TagFunc) {
-	err := t.ExecuteFuncStringWithErrExtend(output, f)
-	if err != nil {
-		panic(fmt.Sprintf("unexpected error: %s", err))
-	}
-}
-
 // ExecuteFuncStringWithErr calls f on each template tag (placeholder) occurrence
 // and substitutes it with the data written to TagFunc's w.
 //
@@ -353,23 +365,17 @@ func (t *Template) ExecuteFuncStringExtend(output io.Writer, f TagFunc) {
 //
 // This function is optimized for frozen templates.
 // Use ExecuteFuncString for constantly changing templates.
-var templateBytesPool = bytebufferpool.NewTaggedPool("template", 0, 100*1024*1024, 10000)
-
 func (t *Template) ExecuteFuncStringWithErr(f TagFunc) (string, error) {
 	bb := templateBytesPool.Get()
-	defer templateBytesPool.Put(bb)
 	if _, err := t.ExecuteFunc(bb, f); err != nil {
+		bb.Reset()
+		templateBytesPool.Put(bb)
 		return "", err
 	}
 	s := string(bb.Bytes())
+	bb.Reset()
+	templateBytesPool.Put(bb)
 	return s, nil
-}
-
-func (t *Template) ExecuteFuncStringWithErrExtend(output io.Writer, f TagFunc) error {
-	if _, err := t.ExecuteFunc(output, f); err != nil {
-		return err
-	}
-	return nil
 }
 
 // ExecuteString substitutes template tags (placeholders) with the corresponding
