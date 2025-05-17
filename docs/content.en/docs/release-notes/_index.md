@@ -8,9 +8,10 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 
-## Latest (In development)  
+## Latest (In development)
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: fasttemplate add util to support rendering nested variables in template #144
 - feat: introduce config to check_capacity retry threshold limit
 - feat: support custom TLS minimum version for SMTP server configuration
 
