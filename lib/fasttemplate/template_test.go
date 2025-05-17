@@ -483,12 +483,12 @@ func TestGatewayExecuteFuncString(t *testing.T) {
 	}
 }
 
-func TestNestedExecuteFuncString(t *testing.T) {
+func TestNestedExecuteFuncStringStd(t *testing.T) {
 	var tpl *Template
 
 	dsl := "$[[A]]-$[[B]]-$[[A]]"
 	tpl, _ = NewTemplate(dsl, "$[[", "]]")
-
+	// once process
 	output := tpl.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
 		switch tag {
 		case "B":
@@ -500,8 +500,50 @@ func TestNestedExecuteFuncString(t *testing.T) {
 	m := map[string]interface{}{
 		"A": "AAA",
 	}
-	output, _ = RenderNestedStringStd(output, "$[[", "]]", m)
+	// nested multi process
+	output, _ = ExecuteNestedStringStd(output, "$[[", "]]", m)
 	if output != "AAA-$[[XAAAZ]]-AAA" {
 		t.Fatalf("expect: %s, but: %s", "AAA-$[[XAAAZ]]-AAA", output)
+	}
+}
+
+func TestNestedExecuteFuncString(t *testing.T) {
+	var tpl *Template
+
+	dsl := "$[[A]]-$[[B]]-$[[A]]"
+	tpl, _ = NewTemplate(dsl, "$[[", "]]")
+	// once process
+	output := tpl.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "B":
+			return w.Write([]byte("$[[X$[[A]]Z]]"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+
+	m := map[string]interface{}{
+		"A": "AAA",
+	}
+	// nested multi process
+	output, _ = ExecuteNestedString(output, "$[[", "]]", m)
+	if output != "AAA--AAA" {
+		t.Fatalf("expect: %s, but: %s", "AAA--AAA", output)
+	}
+}
+
+func TestExecuteFuncNetestString(t *testing.T) {
+	dsl := "$[[B]]-$[[X$[[A]]Z]]-$[[B]]"
+	// nested multi process
+	output := ExecuteFuncNetestString(dsl, "$[[", "]]", func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "A":
+			return w.Write([]byte("AAA"))
+		case "B":
+			return w.Write([]byte("BBB"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if output != "BBB-$[[XAAAZ]]-BBB" {
+		t.Fatalf("expect: %s, but: %s", "BBB-$[[XAAAZ]]-BBB", output)
 	}
 }

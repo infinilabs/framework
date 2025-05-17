@@ -131,6 +131,89 @@ func ExecuteFuncStringWithErr(template, startTag, endTag string, f TagFunc) (str
 	return s, nil
 }
 
+// ExecuteFuncNetestString repeatedly renders the template string using the provided TagFunc.
+// and substitutes it with the data written to TagFunc's w.
+//
+// Returns the resulting string.
+//
+// This function is optimized for constantly changing templates.
+// Use Template.ExecuteFuncString for frozen templates.
+func ExecuteFuncNetestString(template, startTag, endTag string, f TagFunc) string {
+	s, err := ExecuteFuncNetestStringWithErr(template, startTag, endTag, f)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error: %s", err))
+	}
+	return s
+}
+
+// ExecuteFuncNetestStringWithErr repeatedly renders the template string using the provided TagFunc.
+// It creates/reuses a Template object internally for parsing and single-pass execution.
+//
+// Returns the final rendered string and an error if parsing or execution fails.
+func ExecuteFuncNetestStringWithErr(template, startTag, endTag string, f TagFunc) (string, error) {
+	currentRendered := template // Start with the initial template string
+
+	// Create a single Template object to reuse across iterations.
+	var tempTpl Template // Create a zero-valued Template object
+
+	// Set the initial start and end tags on the reusable Template object.
+	// Reset method expects these to be set internally.
+	// (Based on the refined Reset signature that uses t.startTag/t.endTag)
+	tempTpl.startTag = startTag
+	tempTpl.endTag = endTag
+
+	for {
+		// 1. Reset the *reused* Template object's parser state with the current template string.
+		//    Reset uses t.startTag and t.endTag (already set).
+		//    Reset expects the string to parse as argument.
+		//    Based on the refined Reset signature: func (t *Template) Reset(template string) error
+		//    Let's use that assumption based on our previous discussion and your code structure intent.
+		//    (If Reset signature is still func (t *Template) Reset(template, startTag, endTag string),
+		//     we should use that signature and pass startTag, endTag here).
+		//    Let's use the Reset() signature change from our previous discussion.
+
+		// However, the most recent code you provided *still* has Reset(template, startTag, endTag).
+		// Let's stick to that signature and pass the tags explicitly to Reset here.
+		err := tempTpl.Reset(currentRendered, startTag, endTag) // Use Reset(template, startTag, endTag)
+
+		if err != nil {
+			// If parsing fails at any step, abort.
+			log.Errorf("Nested rendering failed during parsing of intermediate template %q: %v", currentRendered, err) // Use currentRendered
+			return currentRendered, fmt.Errorf("nested rendering parsing error: %w", err)
+		}
+
+		// 2. Execute one pass of substitution using the *reused* Template object.
+		//    Use the method that returns (string, error) and takes a TagFunc.
+		//    This is t.ExecuteFuncStringWithErr(f).
+		nextRendered, execErr := tempTpl.ExecuteFuncStringWithErr(f) // Use the provided TagFunc 'f'
+
+		if execErr != nil {
+			// Pass up any errors from the single pass execution (e.g., a panic caught in ExecuteFunc and wrapped as error)
+			log.Errorf("Nested rendering failed during execution pass for template %q: %v", currentRendered, execErr) // Use currentRendered
+			return currentRendered, fmt.Errorf("nested rendering execution error: %w", execErr)                       // Return the state before failure and the error
+		}
+
+		// 3. Check for termination condition 1: No changes occurred (reached a fixed point)
+		if nextRendered == currentRendered {
+			// Rendering reached a fixed point, return the result.
+			return nextRendered, nil
+		}
+
+		// 4. Check for termination condition 2: No more potential tag structures left.
+		//    Using strings.Contains check as in your original logic.
+		//    This check is performed on the *next* rendered string using the *original* startTag.
+		hasStartTag := strings.Contains(nextRendered, startTag) // Use startTag parameter
+
+		if !hasStartTag {
+			// No more start tags means rendering is complete.
+			return nextRendered, nil
+		}
+
+		// 5. If changes occurred and potential tags still exist, continue the loop with the next rendered string.
+		currentRendered = nextRendered
+	}
+}
+
 // ExecuteString substitutes template tags (placeholders) with the corresponding
 // values from the map m and returns the result.
 //
@@ -159,99 +242,32 @@ func ExecuteStringStd(template, startTag, endTag string, m map[string]interface{
 	return ExecuteFuncString(template, startTag, endTag, func(w io.Writer, tag string) (int, error) { return keepUnknownTagFunc(w, startTag, endTag, tag, m) })
 }
 
-// RenderNestedString creates a Template object and performs multi-pass rendering, discarding unknown placeholders.
+// ExecuteNestedString creates a Template object and performs multi-pass rendering, discarding unknown placeholders.
 // This is a top-level function for convenience.
-// It combines template creation and multi-pass rendering.
+// It combines template creation and multi-pass rendering using map for substitution.
 // Returns the final rendered string or an error.
-func RenderNestedString(template, startTag, endTag string, m map[string]interface{}) (string, error) {
-	return executeNestedLoop(template, startTag, endTag, m, false)
-}
-
-// RenderNestedStringStd creates a Template object and performs multi-pass rendering, keeping unknown placeholders.
-// This is a top-level function for convenience.
-// It combines template creation and multi-pass rendering.
-// Returns the final rendered string or an error.
-func RenderNestedStringStd(template, startTag, endTag string, m map[string]interface{}) (string, error) {
-	return executeNestedLoop(template, startTag, endTag, m, true)
-}
-
-// executeNestedLoop handles the core multi-pass loop logic as a top-level function.
-// It creates/reuses a Template object internally for parsing and single-pass execution.
-// Returns the final rendered string and an error if parsing or execution fails.
-func executeNestedLoop(template, startTag, endTag string, m map[string]interface{}, keepUnknown bool) (string, error) {
-	currentRendered := template // Start with the initial template string
-
-	// Create a single Template object to reuse across iterations.
-	var tempTpl Template // Create a zero-valued Template object
-
-	for {
-		// 1. Reset the *reused* Template object's parser state with the current template string.
-		//    Need to pass template, startTag, endTag to Reset as it's now a method on tempTpl.
-		//    Based on your Reset signature: func (t *Template) Reset(template, startTag, endTag string) error
-		//    It seems Reset *expects* to take these as arguments. Let's revert Reset signature to take args.
-		//    Or adjust Reset to use internal fields (t.template etc.). Let's adjust Reset to use internal fields as intended by Template method design.
-
-		//    Let's assume Reset uses internal fields.
-		//    Need to set the template, startTag, endTag on the reused object *before* calling Reset.
-		tempTpl.template = currentRendered // Set the string to parse for this pass
-		tempTpl.startTag = startTag        // Set start tag for parsing
-		tempTpl.endTag = endTag            // Set end tag for parsing
-
-		err := tempTpl.Reset(currentRendered, startTag, endTag) // Call Reset on the reused object
-		if err != nil {
-			// If parsing fails at any step, abort.
-			log.Errorf("Nested rendering failed during parsing of intermediate template %q: %v", currentRendered, err) // Use currentRendered
-			return currentRendered, fmt.Errorf("nested rendering parsing error: %w", err)
-		}
-
-		// 2. Execute one pass of substitution using the *reused* Template object.
-		//    Use the methods that return error.
-		//    ExecuteFuncStringWithErr operates on tempTpl's pre-parsed state.
-		var nextRendered string
-		var execErr error
-		var tagFunc TagFunc // TagFunc to use for this pass
-
-		// Select the appropriate TagFunc based on keepUnknown
-		if keepUnknown {
-			tagFunc = func(w io.Writer, tag string) (int, error) { return keepUnknownTagFunc(w, startTag, endTag, tag, m) } // Capture start/endTag, m
-		} else {
-			tagFunc = func(w io.Writer, tag string) (int, error) { return stdTagFunc(w, tag, m) } // Capture m
-		}
-
-		// Call ExecuteFuncStringWithErr on the reused Template object with the chosen TagFunc
-		nextRendered, execErr = tempTpl.ExecuteFuncStringWithErr(tagFunc)
-
-		if execErr != nil {
-			// Pass up any errors from the single pass execution (e.g., a panic caught in ExecuteFunc and wrapped as error)
-			log.Errorf("Nested rendering failed during execution pass for template %q: %v", currentRendered, execErr) // Use currentRendered
-			return currentRendered, fmt.Errorf("nested rendering execution error: %w", execErr)                       // Return the state before failure and the error
-		}
-
-		// 3. Check for termination condition 1: No changes occurred (reached a fixed point)
-		if nextRendered == currentRendered {
-			return nextRendered, nil
-		}
-
-		// 4. Check for termination condition 2: No more potential tag structures left.
-		//    Check on the *next* rendered string using the *original* startTag.
-		hasStartTag := strings.Contains(nextRendered, startTag) // Use startTag
-
-		if !hasStartTag {
-			// No more start tags means rendering is complete.
-			return nextRendered, nil
-		}
-
-		// 5. If changes occurred and potential tags still exist, continue the loop with the next rendered string.
-		currentRendered = nextRendered
-
-		// Optional: Add max passes limit here if needed
-		// maxPasses := 10 // Example limit
-		// if passCount > maxPasses {
-		//     log.Warningf("Nested rendering reached max passes (%d) for template %q", maxPasses, template) // Use original template for log
-		//     return currentRendered, fmt.Errorf("nested rendering exceeded maximum passes")
-		// }
-		// passCount++ // Increment pass count
+func ExecuteNestedString(template, startTag, endTag string, m map[string]interface{}) (string, error) {
+	// Create the TagFunc that uses the map and discards unknown tags.
+	// This TagFunc captures 'startTag', 'endTag', and 'm'.
+	tagFunc := func(w io.Writer, tag string) (int, error) {
+		return stdTagFunc(w, tag, m) // Use the discarding TagFunc logic
 	}
+	// Call the core multi-pass function with the constructed TagFunc.
+	return ExecuteFuncNetestStringWithErr(template, startTag, endTag, tagFunc)
+}
+
+// ExecuteNestedStringStd creates a Template object and performs multi-pass rendering, keeping unknown placeholders.
+// This is a top-level function for convenience.
+// It combines template creation and multi-pass rendering using map for substitution.
+// Returns the final rendered string or an error.
+func ExecuteNestedStringStd(template, startTag, endTag string, m map[string]interface{}) (string, error) {
+	// Create the TagFunc that uses the map and keeps unknown tags.
+	// This TagFunc captures 'startTag', 'endTag', and 'm'.
+	tagFunc := func(w io.Writer, tag string) (int, error) {
+		return keepUnknownTagFunc(w, startTag, endTag, tag, m) // Use the keeping TagFunc logic
+	}
+	// Call the core multi-pass function with the constructed TagFunc.
+	return ExecuteFuncNetestStringWithErr(template, startTag, endTag, tagFunc)
 }
 
 // Template implements simple template engine, which can be used for fast
