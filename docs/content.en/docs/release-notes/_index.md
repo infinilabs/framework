@@ -16,10 +16,13 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
+
 ### ✈️ Improvements  
 - chore: add func for nested template (#144)
 - refactor: refactoring orm struct mapping and search api
 - chore: check disk capacity when disk queue module start #136
+- refactor: refactoring orm module #145
+
 
 ## 1.1.6 (2025-04-27)
 ### Breaking changes  
