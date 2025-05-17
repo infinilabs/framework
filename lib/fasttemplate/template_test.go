@@ -3,7 +3,9 @@ package fasttemplate
 import (
 	"bytes"
 	"errors"
+	"infini.sh/framework/core/util"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -432,5 +434,74 @@ func TestTpl_ExecuteFuncStringWithErr(t *testing.T) {
 	}
 	if result != "Alice is Bob's best friend" {
 		t.Fatalf("expect: %s, but: %s", "Alice is Bob's best friend", result)
+	}
+}
+
+func testGetVariable(runtimeKV map[string]string, key string) (string, bool) {
+	if runtimeKV != nil {
+		if util.ContainStr(key, "$[[") {
+			template, _ := NewTemplate(key, "$[[", "]]")
+			key = template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+				variable, ok := testGetVariable(runtimeKV, tag)
+				if ok {
+					return w.Write([]byte(variable))
+				}
+				return w.Write([]byte("$[[" + tag + "]]"))
+			})
+		}
+	}
+	return runtimeKV[key], true
+}
+
+func testNestedRenderingTemplate(dsl string, runKv map[string]string) string {
+	template, _ := NewTemplate(dsl, "$[[", "]]")
+	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		variable, ok := testGetVariable(runKv, tag)
+		if ok {
+			return w.Write([]byte(variable))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if strings.Contains(configStr, "$[[") && strings.Contains(configStr, "]]") && strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]") {
+		newConfigStr := testNestedRenderingTemplate(configStr, runKv)
+		if newConfigStr != configStr {
+			configStr = newConfigStr
+		}
+	}
+	return configStr
+}
+
+func TestGatewayExecuteFuncString(t *testing.T) {
+	runKV := make(map[string]string)
+	runKV["HOST"] = "DEV"
+	runKV["MY_DEV"] = "world"
+
+	dsl := "hello $[[MY_$[[HOST]]]]"
+	output := testNestedRenderingTemplate(dsl, runKV)
+	if output != "hello world" {
+		t.Fatalf("expect: %s, but: %s", "hello world", output)
+	}
+}
+
+func TestNestedExecuteFuncString(t *testing.T) {
+	var tpl *Template
+
+	dsl := "$[[A]]-$[[B]]-$[[A]]"
+	tpl, _ = NewTemplate(dsl, "$[[", "]]")
+
+	output := tpl.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "B":
+			return w.Write([]byte("$[[X$[[A]]Z]]"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+
+	m := map[string]interface{}{
+		"A": "AAA",
+	}
+	output, _ = RenderNestedStringStd(output, "$[[", "]]", m)
+	if output != "AAA-$[[XAAAZ]]-AAA" {
+		t.Fatalf("expect: %s, but: %s", "AAA-$[[XAAAZ]]-AAA", output)
 	}
 }
