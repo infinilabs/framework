@@ -11,6 +11,12 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)
 ### ❌ Breaking changes  
 ### 🚀 Features  
+### 🐛 Bug fix  
+### ✈️ Improvements  
+
+## 1.1.7 (2025-05-16)
+### ❌ Breaking changes  
+### 🚀 Features  
 - feat: fasttemplate add util to support rendering nested variables in template #144
 - feat: introduce config to check_capacity retry threshold limit
 - feat: support custom TLS minimum version for SMTP server configuration
