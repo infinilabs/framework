@@ -10,9 +10,9 @@ import (
 	"bytes"
 	"fmt"
 	log "github.com/cihub/seelog"
-	"io"
-
 	"infini.sh/framework/lib/bytebufferpool"
+	"io"
+	"strings"
 )
 
 // ExecuteFunc calls f on each template tag (placeholder) occurrence.
@@ -131,6 +131,89 @@ func ExecuteFuncStringWithErr(template, startTag, endTag string, f TagFunc) (str
 	return s, nil
 }
 
+// ExecuteFuncNetestString repeatedly renders the template string using the provided TagFunc.
+// and substitutes it with the data written to TagFunc's w.
+//
+// Returns the resulting string.
+//
+// This function is optimized for constantly changing templates.
+// Use Template.ExecuteFuncString for frozen templates.
+func ExecuteFuncNetestString(template, startTag, endTag string, f TagFunc) string {
+	s, err := ExecuteFuncNetestStringWithErr(template, startTag, endTag, f)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error: %s", err))
+	}
+	return s
+}
+
+// ExecuteFuncNetestStringWithErr repeatedly renders the template string using the provided TagFunc.
+// It creates/reuses a Template object internally for parsing and single-pass execution.
+//
+// Returns the final rendered string and an error if parsing or execution fails.
+func ExecuteFuncNetestStringWithErr(template, startTag, endTag string, f TagFunc) (string, error) {
+	currentRendered := template // Start with the initial template string
+
+	// Create a single Template object to reuse across iterations.
+	var tempTpl Template // Create a zero-valued Template object
+
+	// Set the initial start and end tags on the reusable Template object.
+	// Reset method expects these to be set internally.
+	// (Based on the refined Reset signature that uses t.startTag/t.endTag)
+	tempTpl.startTag = startTag
+	tempTpl.endTag = endTag
+
+	for {
+		// 1. Reset the *reused* Template object's parser state with the current template string.
+		//    Reset uses t.startTag and t.endTag (already set).
+		//    Reset expects the string to parse as argument.
+		//    Based on the refined Reset signature: func (t *Template) Reset(template string) error
+		//    Let's use that assumption based on our previous discussion and your code structure intent.
+		//    (If Reset signature is still func (t *Template) Reset(template, startTag, endTag string),
+		//     we should use that signature and pass startTag, endTag here).
+		//    Let's use the Reset() signature change from our previous discussion.
+
+		// However, the most recent code you provided *still* has Reset(template, startTag, endTag).
+		// Let's stick to that signature and pass the tags explicitly to Reset here.
+		err := tempTpl.ResetNoBreak(currentRendered, startTag, endTag) // Use Reset(template, startTag, endTag)
+
+		if err != nil {
+			// If parsing fails at any step, abort.
+			log.Errorf("Nested rendering failed during parsing of intermediate template %q: %v", currentRendered, err) // Use currentRendered
+			return currentRendered, fmt.Errorf("nested rendering parsing error: %w", err)
+		}
+
+		// 2. Execute one pass of substitution using the *reused* Template object.
+		//    Use the method that returns (string, error) and takes a TagFunc.
+		//    This is t.ExecuteFuncStringWithErr(f).
+		nextRendered, execErr := tempTpl.ExecuteFuncStringWithErr(f) // Use the provided TagFunc 'f'
+
+		if execErr != nil {
+			// Pass up any errors from the single pass execution (e.g., a panic caught in ExecuteFunc and wrapped as error)
+			log.Errorf("Nested rendering failed during execution pass for template %q: %v", currentRendered, execErr) // Use currentRendered
+			return currentRendered, fmt.Errorf("nested rendering execution error: %w", execErr)                       // Return the state before failure and the error
+		}
+
+		// 3. Check for termination condition 1: No changes occurred (reached a fixed point)
+		if nextRendered == currentRendered {
+			// Rendering reached a fixed point, return the result.
+			return nextRendered, nil
+		}
+
+		// 4. Check for termination condition 2: No more potential tag structures left.
+		//    Using strings.Contains check as in your original logic.
+		//    This check is performed on the *next* rendered string using the *original* startTag.
+		hasStartTag := strings.Contains(nextRendered, startTag) // Use startTag parameter
+
+		if !hasStartTag {
+			// No more start tags means rendering is complete.
+			return nextRendered, nil
+		}
+
+		// 5. If changes occurred and potential tags still exist, continue the loop with the next rendered string.
+		currentRendered = nextRendered
+	}
+}
+
 // ExecuteString substitutes template tags (placeholders) with the corresponding
 // values from the map m and returns the result.
 //
@@ -157,6 +240,34 @@ func ExecuteString(template, startTag, endTag string, m map[string]interface{}) 
 // Use Template.ExecuteStringStd for frozen templates.
 func ExecuteStringStd(template, startTag, endTag string, m map[string]interface{}) string {
 	return ExecuteFuncString(template, startTag, endTag, func(w io.Writer, tag string) (int, error) { return keepUnknownTagFunc(w, startTag, endTag, tag, m) })
+}
+
+// ExecuteNestedString creates a Template object and performs multi-pass rendering, discarding unknown placeholders.
+// This is a top-level function for convenience.
+// It combines template creation and multi-pass rendering using map for substitution.
+// Returns the final rendered string or an error.
+func ExecuteNestedString(template, startTag, endTag string, m map[string]interface{}) (string, error) {
+	// Create the TagFunc that uses the map and discards unknown tags.
+	// This TagFunc captures 'startTag', 'endTag', and 'm'.
+	tagFunc := func(w io.Writer, tag string) (int, error) {
+		return stdTagFunc(w, tag, m) // Use the discarding TagFunc logic
+	}
+	// Call the core multi-pass function with the constructed TagFunc.
+	return ExecuteFuncNetestStringWithErr(template, startTag, endTag, tagFunc)
+}
+
+// ExecuteNestedStringStd creates a Template object and performs multi-pass rendering, keeping unknown placeholders.
+// This is a top-level function for convenience.
+// It combines template creation and multi-pass rendering using map for substitution.
+// Returns the final rendered string or an error.
+func ExecuteNestedStringStd(template, startTag, endTag string, m map[string]interface{}) (string, error) {
+	// Create the TagFunc that uses the map and keeps unknown tags.
+	// This TagFunc captures 'startTag', 'endTag', and 'm'.
+	tagFunc := func(w io.Writer, tag string) (int, error) {
+		return keepUnknownTagFunc(w, startTag, endTag, tag, m) // Use the keeping TagFunc logic
+	}
+	// Call the core multi-pass function with the constructed TagFunc.
+	return ExecuteFuncNetestStringWithErr(template, startTag, endTag, tagFunc)
 }
 
 // Template implements simple template engine, which can be used for fast
@@ -271,6 +382,84 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 		}
 
 		//fmt.Println("intial start offset:", n, ",end offset:", endOffset, ",len of s:", len(s), ",n+len(a)", n+len(a))
+
+		//is there any first tags between start and end?
+		//valid tag can be find
+		if endOffset > n+len(a) && endOffset < len(s) {
+			tagPart := s[n+len(a) : endOffset]
+			//if there is, we need to find the last start tag offset
+			if bytes.Contains(tagPart, a) {
+				lastStartOffset := bytes.LastIndex(tagPart, a)
+				moveRight := lastStartOffset + len(a)
+				finalStartOffset := n + moveRight
+				n = finalStartOffset
+				//log.Error("last start offset: ",lastStartOffset,",",moveRight,",final:",finalStartOffset)
+			}
+		}
+
+		t.texts = append(t.texts, s[:n])
+
+		s = s[n+len(a):]
+		n = bytes.Index(s, b)
+		if n < 0 {
+			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
+		}
+
+		t.tags = append(t.tags, unsafeBytes2String(s[:n]))
+		s = s[n+len(b):]
+	}
+
+	return nil
+}
+
+func (t *Template) ResetNoBreak(template, startTag, endTag string) error {
+	// Keep these vars in t, so GC won't collect them and won't break
+	// vars derived via unsafe*
+	t.template = template
+	t.startTag = startTag
+	t.endTag = endTag
+	t.texts = t.texts[:0]
+	t.tags = t.tags[:0]
+
+	if len(startTag) == 0 {
+		panic("startTag cannot be empty")
+	}
+	if len(endTag) == 0 {
+		panic("endTag cannot be empty")
+	}
+
+	s := unsafeString2Bytes(template)
+	a := unsafeString2Bytes(startTag)
+	b := unsafeString2Bytes(endTag)
+
+	tagsCount := bytes.Count(s, a)
+	if tagsCount == 0 {
+		return nil
+	}
+
+	if tagsCount+1 > cap(t.texts) {
+		t.texts = make([][]byte, 0, tagsCount+1)
+	}
+	if tagsCount > cap(t.tags) {
+		t.tags = make([]string, 0, tagsCount)
+	}
+
+	for {
+		n := bytes.Index(s, a)
+		if n < 0 {
+			t.texts = append(t.texts, s)
+			break
+		}
+
+		//hit start tag, but maybe not correct one
+
+		//let's find the first end tag as well
+		endOffset := bytes.Index(s, b)
+		//log.Error("first end offset: ",endOffset,",first start offset:",n)
+
+		if endOffset < 0 {
+			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
+		}
 
 		//is there any first tags between start and end?
 		//valid tag can be find

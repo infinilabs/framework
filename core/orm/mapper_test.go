@@ -71,7 +71,7 @@ func TestMapToStructWithJSONUnmarshal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := MapToStructWithJSONUnmarshal(tt.source, tt.target)
+			err := MapToStructWithJSONBytesUnmarshal(tt.source, tt.target)
 
 			if tt.expectError {
 				assert.Error(t, err)

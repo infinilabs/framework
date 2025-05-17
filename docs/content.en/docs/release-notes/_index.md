@@ -8,7 +8,7 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 
-## Latest (In development)  
+## Latest (In development)
 ### ❌ Breaking changes  
 ### 🚀 Features  
 ### 🐛 Bug fix  
@@ -17,13 +17,18 @@ Information about release notes of INFINI Framework is provided here.
 ## 1.1.7 (2025-05-16)
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: fasttemplate add util to support rendering nested variables in template #144
 - feat: introduce config to check_capacity retry threshold limit
 - feat: support custom TLS minimum version for SMTP server configuration
 
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
+
 ### ✈️ Improvements  
+- refactor: refactoring orm struct mapping and search api
 - chore: check disk capacity when disk queue module start #136
+- refactor: refactoring orm module #145
+
 
 ## 1.1.6 (2025-04-27)
 ### Breaking changes  

@@ -3,7 +3,9 @@ package fasttemplate
 import (
 	"bytes"
 	"errors"
+	"infini.sh/framework/core/util"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -432,5 +434,133 @@ func TestTpl_ExecuteFuncStringWithErr(t *testing.T) {
 	}
 	if result != "Alice is Bob's best friend" {
 		t.Fatalf("expect: %s, but: %s", "Alice is Bob's best friend", result)
+	}
+}
+
+func testGetVariable(runtimeKV map[string]string, key string) (string, bool) {
+	if runtimeKV != nil {
+		if util.ContainStr(key, "$[[") {
+			template, _ := NewTemplate(key, "$[[", "]]")
+			key = template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+				variable, ok := testGetVariable(runtimeKV, tag)
+				if ok {
+					return w.Write([]byte(variable))
+				}
+				return w.Write([]byte("$[[" + tag + "]]"))
+			})
+		}
+	}
+	return runtimeKV[key], true
+}
+
+func testNestedRenderingTemplate(dsl string, runKv map[string]string) string {
+	template, _ := NewTemplate(dsl, "$[[", "]]")
+	configStr := template.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		variable, ok := testGetVariable(runKv, tag)
+		if ok {
+			return w.Write([]byte(variable))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if strings.Contains(configStr, "$[[") && strings.Contains(configStr, "]]") && strings.Index(configStr, "$[[") < strings.LastIndex(configStr, "]]") {
+		newConfigStr := testNestedRenderingTemplate(configStr, runKv)
+		if newConfigStr != configStr {
+			configStr = newConfigStr
+		}
+	}
+	return configStr
+}
+
+func TestGatewayExecuteFuncString(t *testing.T) {
+	runKV := make(map[string]string)
+	runKV["HOST"] = "DEV"
+	runKV["MY_DEV"] = "world"
+
+	dsl := "hello $[[MY_$[[HOST]]]]"
+	output := testNestedRenderingTemplate(dsl, runKV)
+	if output != "hello world" {
+		t.Fatalf("expect: %s, but: %s", "hello world", output)
+	}
+}
+
+func TestNestedExecuteFuncStringStd(t *testing.T) {
+	var tpl *Template
+
+	dsl := "$[[A]]-$[[B]]-$[[A]]"
+	tpl, _ = NewTemplate(dsl, "$[[", "]]")
+	// once process
+	output := tpl.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "B":
+			return w.Write([]byte("$[[X$[[A]]Z]]"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+
+	m := map[string]interface{}{
+		"A": "AAA",
+	}
+	// nested multi process
+	output, _ = ExecuteNestedStringStd(output, "$[[", "]]", m)
+	if output != "AAA-$[[XAAAZ]]-AAA" {
+		t.Fatalf("expect: %s, but: %s", "AAA-$[[XAAAZ]]-AAA", output)
+	}
+}
+
+func TestNestedExecuteFuncString(t *testing.T) {
+	var tpl *Template
+
+	dsl := "$[[A]]-$[[B]]-$[[A]]"
+	tpl, _ = NewTemplate(dsl, "$[[", "]]")
+	// once process
+	output := tpl.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "B":
+			return w.Write([]byte("$[[X$[[A]]Z]]"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+
+	m := map[string]interface{}{
+		"A": "AAA",
+	}
+	// nested multi process
+	output, _ = ExecuteNestedString(output, "$[[", "]]", m)
+	if output != "AAA--AAA" {
+		t.Fatalf("expect: %s, but: %s", "AAA--AAA", output)
+	}
+}
+
+func TestExecuteFuncNetestString(t *testing.T) {
+	dsl := "$[[B]]-$[[X$[[A]]Z]]-$[[B]]"
+	// nested multi process
+	output := ExecuteFuncNetestString(dsl, "$[[", "]]", func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "A":
+			return w.Write([]byte("AAA"))
+		case "B":
+			return w.Write([]byte("BBB"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if output != "BBB-$[[XAAAZ]]-BBB" {
+		t.Fatalf("expect: %s, but: %s", "BBB-$[[XAAAZ]]-BBB", output)
+	}
+}
+
+func TestExecuteFuncNetestStringExt(t *testing.T) {
+	dsl := "$[[A]]-$[[keystore.$[[CLUSTER_ID]]_password]]-$[[B]]"
+	// nested multi process
+	output := ExecuteFuncNetestString(dsl, "$[[", "]]", func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "A":
+			return w.Write([]byte("AAA"))
+		case "B":
+			return w.Write([]byte("BBB"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if output != "AAA-$[[keystore.$[[CLUSTER_ID]]_password]]-BBB" {
+		t.Fatalf("expect: %s, but: %s", "AAA-$[[keystore.$[[CLUSTER_ID]]_password]]-BBB", output)
 	}
 }
