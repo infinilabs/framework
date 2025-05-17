@@ -174,7 +174,7 @@ func ExecuteFuncNetestStringWithErr(template, startTag, endTag string, f TagFunc
 
 		// However, the most recent code you provided *still* has Reset(template, startTag, endTag).
 		// Let's stick to that signature and pass the tags explicitly to Reset here.
-		err := tempTpl.Reset(currentRendered, startTag, endTag) // Use Reset(template, startTag, endTag)
+		err := tempTpl.ResetNoBreak(currentRendered, startTag, endTag) // Use Reset(template, startTag, endTag)
 
 		if err != nil {
 			// If parsing fails at any step, abort.
@@ -382,6 +382,84 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 		}
 
 		//fmt.Println("intial start offset:", n, ",end offset:", endOffset, ",len of s:", len(s), ",n+len(a)", n+len(a))
+
+		//is there any first tags between start and end?
+		//valid tag can be find
+		if endOffset > n+len(a) && endOffset < len(s) {
+			tagPart := s[n+len(a) : endOffset]
+			//if there is, we need to find the last start tag offset
+			if bytes.Contains(tagPart, a) {
+				lastStartOffset := bytes.LastIndex(tagPart, a)
+				moveRight := lastStartOffset + len(a)
+				finalStartOffset := n + moveRight
+				n = finalStartOffset
+				//log.Error("last start offset: ",lastStartOffset,",",moveRight,",final:",finalStartOffset)
+			}
+		}
+
+		t.texts = append(t.texts, s[:n])
+
+		s = s[n+len(a):]
+		n = bytes.Index(s, b)
+		if n < 0 {
+			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
+		}
+
+		t.tags = append(t.tags, unsafeBytes2String(s[:n]))
+		s = s[n+len(b):]
+	}
+
+	return nil
+}
+
+func (t *Template) ResetNoBreak(template, startTag, endTag string) error {
+	// Keep these vars in t, so GC won't collect them and won't break
+	// vars derived via unsafe*
+	t.template = template
+	t.startTag = startTag
+	t.endTag = endTag
+	t.texts = t.texts[:0]
+	t.tags = t.tags[:0]
+
+	if len(startTag) == 0 {
+		panic("startTag cannot be empty")
+	}
+	if len(endTag) == 0 {
+		panic("endTag cannot be empty")
+	}
+
+	s := unsafeString2Bytes(template)
+	a := unsafeString2Bytes(startTag)
+	b := unsafeString2Bytes(endTag)
+
+	tagsCount := bytes.Count(s, a)
+	if tagsCount == 0 {
+		return nil
+	}
+
+	if tagsCount+1 > cap(t.texts) {
+		t.texts = make([][]byte, 0, tagsCount+1)
+	}
+	if tagsCount > cap(t.tags) {
+		t.tags = make([]string, 0, tagsCount)
+	}
+
+	for {
+		n := bytes.Index(s, a)
+		if n < 0 {
+			t.texts = append(t.texts, s)
+			break
+		}
+
+		//hit start tag, but maybe not correct one
+
+		//let's find the first end tag as well
+		endOffset := bytes.Index(s, b)
+		//log.Error("first end offset: ",endOffset,",first start offset:",n)
+
+		if endOffset < 0 {
+			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
+		}
 
 		//is there any first tags between start and end?
 		//valid tag can be find

@@ -547,3 +547,20 @@ func TestExecuteFuncNetestString(t *testing.T) {
 		t.Fatalf("expect: %s, but: %s", "BBB-$[[XAAAZ]]-BBB", output)
 	}
 }
+
+func TestExecuteFuncNetestStringExt(t *testing.T) {
+	dsl := "$[[A]]-$[[keystore.$[[CLUSTER_ID]]_password]]-$[[B]]"
+	// nested multi process
+	output := ExecuteFuncNetestString(dsl, "$[[", "]]", func(w io.Writer, tag string) (int, error) {
+		switch tag {
+		case "A":
+			return w.Write([]byte("AAA"))
+		case "B":
+			return w.Write([]byte("BBB"))
+		}
+		return w.Write([]byte("$[[" + tag + "]]"))
+	})
+	if output != "AAA-$[[keystore.$[[CLUSTER_ID]]_password]]-BBB" {
+		t.Fatalf("expect: %s, but: %s", "AAA-$[[keystore.$[[CLUSTER_ID]]_password]]-BBB", output)
+	}
+}
