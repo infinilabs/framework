@@ -73,7 +73,7 @@ type ORM interface {
 
 	Search(o interface{}, q *Query) (error, Result)
 
-	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) //	var results []ObjectItem; orm.SearchWithResultItemMapper(&results, mapperFunc, &query)
+	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult)
 
 	Get(o interface{}) (bool, error)
 
@@ -493,12 +493,17 @@ func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
 }
 
-func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source []byte, targetRef interface{}) error, q *Query) (error, SimpleResult) {
+func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult) {
 	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
 }
 
 func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
-	return getHandler().SearchWithResultItemMapper(o, MapToStructWithJSONUnmarshal, q)
+	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithJSONUnmarshal, q)
+	if err != nil || searchResponse == nil {
+		return err, SimpleResult{}
+	}
+
+	return nil, *searchResponse
 }
 
 func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
