@@ -498,7 +498,7 @@ func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[strin
 }
 
 func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
-	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithJSONUnmarshal, q)
+	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithMap, q)
 	if err != nil || searchResponse == nil {
 		return err, SimpleResult{}
 	}
