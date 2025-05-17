@@ -8,7 +8,7 @@ title: "Release Notes"
 Information about release notes of INFINI Framework is provided here.
 
 
-## Latest (In development)  
+## Latest (In development)
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: introduce config to check_capacity retry threshold limit
@@ -18,7 +18,7 @@ Information about release notes of INFINI Framework is provided here.
 - fix: wrong method call during ORM update
 
 ### ✈️ Improvements  
-- chore: add func for nested template (#144)
+- feat: fasttemplate add util to support rendering nested variables in template #144
 - refactor: refactoring orm struct mapping and search api
 - chore: check disk capacity when disk queue module start #136
 - refactor: refactoring orm module #145
