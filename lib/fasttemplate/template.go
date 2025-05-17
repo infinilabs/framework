@@ -9,6 +9,7 @@ package fasttemplate
 import (
 	"bytes"
 	"fmt"
+	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 )
@@ -20,9 +21,9 @@ import (
 // This function is optimized for constantly changing templates.
 // Use Template.ExecuteFunc for frozen templates.
 func ExecuteFunc(template, startTag, endTag string, w io.Writer, f TagFunc) (int64, error) {
-	s := unsafeString2Bytes(template)
-	a := unsafeString2Bytes(startTag)
-	b := unsafeString2Bytes(endTag)
+	s := util.UnsafeStringToBytes(template)
+	a := util.UnsafeStringToBytes(startTag)
+	b := util.UnsafeStringToBytes(endTag)
 
 	var nn int64
 	var ni int
@@ -47,7 +48,7 @@ func ExecuteFunc(template, startTag, endTag string, w io.Writer, f TagFunc) (int
 			break
 		}
 
-		ni, err = f(w, unsafeBytes2String(s[:n]))
+		ni, err = f(w, util.UnsafeBytesToString(s[:n]))
 		nn += int64(ni)
 		if err != nil {
 			return nn, err
@@ -111,7 +112,7 @@ func ExecuteFuncString(template, startTag, endTag string, f TagFunc) string {
 // but when f returns an error, ExecuteFuncStringWithErr won't panic like ExecuteFuncString
 // it just returns an empty string and the error f returned
 func ExecuteFuncStringWithErr(template, startTag, endTag string, f TagFunc) (string, error) {
-	if n := bytes.Index(unsafeString2Bytes(template), unsafeString2Bytes(startTag)); n < 0 {
+	if n := bytes.Index(util.UnsafeStringToBytes(template), util.UnsafeStringToBytes(startTag)); n < 0 {
 		return template, nil
 	}
 
@@ -228,9 +229,9 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 		panic("endTag cannot be empty")
 	}
 
-	s := unsafeString2Bytes(template)
-	a := unsafeString2Bytes(startTag)
-	b := unsafeString2Bytes(endTag)
+	s := util.UnsafeStringToBytes(template)
+	a := util.UnsafeStringToBytes(startTag)
+	b := util.UnsafeStringToBytes(endTag)
 
 	tagsCount := bytes.Count(s, a)
 	if tagsCount == 0 {
@@ -277,7 +278,7 @@ func (t *Template) Reset(template, startTag, endTag string) error {
 			return fmt.Errorf("Cannot find end tag=%q in the template=%q starting from %q", endTag, template, s)
 		}
 
-		t.tags = append(t.tags, unsafeBytes2String(s[:n]))
+		t.tags = append(t.tags, util.UnsafeBytesToString(s[:n]))
 		s = s[n+len(b):]
 	}
 
@@ -295,7 +296,7 @@ func (t *Template) ExecuteFunc(w io.Writer, f TagFunc) (int64, error) {
 
 	n := len(t.texts) - 1
 	if n == -1 {
-		ni, err := w.Write(unsafeString2Bytes(t.template))
+		ni, err := w.Write(util.UnsafeStringToBytes(t.template))
 		return int64(ni), err
 	}
 
@@ -426,13 +427,13 @@ func stdTagFunc(w io.Writer, tag string, m map[string]interface{}) (int, error) 
 func keepUnknownTagFunc(w io.Writer, startTag, endTag, tag string, m map[string]interface{}) (int, error) {
 	v, ok := m[tag]
 	if !ok {
-		if _, err := w.Write(unsafeString2Bytes(startTag)); err != nil {
+		if _, err := w.Write(util.UnsafeStringToBytes(startTag)); err != nil {
 			return 0, err
 		}
-		if _, err := w.Write(unsafeString2Bytes(tag)); err != nil {
+		if _, err := w.Write(util.UnsafeStringToBytes(tag)); err != nil {
 			return 0, err
 		}
-		if _, err := w.Write(unsafeString2Bytes(endTag)); err != nil {
+		if _, err := w.Write(util.UnsafeStringToBytes(endTag)); err != nil {
 			return 0, err
 		}
 		return len(startTag) + len(tag) + len(endTag), nil
