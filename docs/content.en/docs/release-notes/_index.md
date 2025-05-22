@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: fasttemplate add util to support rendering nested variables in template #144
 - feat: introduce config to check_capacity retry threshold limit
 - feat: support custom TLS minimum version for SMTP server configuration
+- feat: add filter to orm query #146
 
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
