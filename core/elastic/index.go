@@ -453,6 +453,7 @@ type BoolQuery struct {
 	Must    []interface{} `json:"must,omitempty"`
 	MustNot []interface{} `json:"must_not,omitempty"`
 	Should  []interface{} `json:"should,omitempty"`
+	Filter  interface{}   `json:"filter,omitempty"`
 }
 
 // Query is the root query object
