@@ -44,10 +44,10 @@ import (
 	"io"
 	"sync"
 
-	"infini.sh/framework/lib/fasttemplate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/util/match"
+	"infini.sh/framework/lib/fasttemplate"
 )
 
 // Config represents a configuration for a condition, as you would find it in the config files.
