@@ -125,6 +125,7 @@ type Query struct {
 	TemplatedQuery *TemplatedQuery
 	WildcardIndex  bool
 	IndexName      string
+	Filter         *Cond
 }
 
 type TemplatedQuery struct {
@@ -165,6 +166,8 @@ type Cond struct {
 
 type BoolType string
 type QueryType string
+
+const Bool BoolType = "bool"
 
 const Must BoolType = "must"
 const MustNot BoolType = "must_not"

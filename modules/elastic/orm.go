@@ -282,6 +282,7 @@ func getQuery(c1 *api.Cond) interface{} {
 		q := elastic.RangeQuery{}
 		q.Lte(c1.Field, c1.Value)
 		return q
+		//TODO support BoolQuery
 	}
 	panic(errors.Errorf("invalid query: %s", c1))
 }
@@ -317,29 +318,38 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
 	} else {
 
-		if q.Conds != nil && len(q.Conds) > 0 {
+		if q.Filter != nil || q.Conds != nil && len(q.Conds) > 0 {
 			request.Query = &elastic.Query{}
-
 			boolQuery := elastic.BoolQuery{}
 
-			for _, c1 := range q.Conds {
-				q := getQuery(c1)
-				switch c1.BoolType {
-				case api.Must:
-					boolQuery.Must = append(boolQuery.Must, q)
-					break
-				case api.MustNot:
-					boolQuery.MustNot = append(boolQuery.MustNot, q)
-					break
-				case api.Should:
-					boolQuery.Should = append(boolQuery.Should, q)
-					break
+			if len(q.Conds) > 0 {
+				for _, c1 := range q.Conds {
+					q := getQuery(c1)
+					switch c1.BoolType {
+					case api.Must:
+						boolQuery.Must = append(boolQuery.Must, q)
+						break
+					case api.MustNot:
+						boolQuery.MustNot = append(boolQuery.MustNot, q)
+						break
+					case api.Should:
+						boolQuery.Should = append(boolQuery.Should, q)
+						break
+					}
 				}
+			}
 
+			if q.Filter != nil {
+				filter := getQuery(q.Filter)
+				//temp fix for must_not filters
+				if q.Filter.BoolType == api.MustNot {
+					boolQuery.MustNot = append(boolQuery.MustNot, filter)
+				} else {
+					boolQuery.Filter = filter
+				}
 			}
 
 			request.Query.BoolQuery = &boolQuery
-
 		}
 
 		if q.Sort != nil && len(*q.Sort) > 0 {
