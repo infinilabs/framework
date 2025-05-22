@@ -129,10 +129,10 @@ var preventRead bool
 func checkCapacity(cfg *DiskQueueConfig) error {
 
 	if cfg.CheckDiskCapacityRetryDelayInMs <= 0 {
-		if cfg.CheckDiskCapacityRetryDelayInMs<1000{
-			log.Warnf("disk_queue capacity checking maybe too frequently: %v",cfg.CheckDiskCapacityRetryDelayInMs)
+		if cfg.CheckDiskCapacityRetryDelayInMs < 1000 {
+			log.Warnf("disk_queue capacity checking maybe too frequently: %v", cfg.CheckDiskCapacityRetryDelayInMs)
 		}
-		cfg.CheckDiskCapacityRetryDelayInMs = 10*1000
+		cfg.CheckDiskCapacityRetryDelayInMs = 10 * 1000
 	}
 
 	if rate.GetRateLimiter("disk_queue", "check_capacity", cfg.CheckDiskCapacityRetryDelayInMs, cfg.CheckDiskCapacityRetryDelayInMs*2, time.Second).Allow() {
