@@ -24,6 +24,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
+- fix: add missing score field, fix orm filter #147
 
 ### ✈️ Improvements  
 - refactor: refactoring orm struct mapping and search api
