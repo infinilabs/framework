@@ -236,13 +236,16 @@ func (c *ESAPIV7) Update(indexName, docType string, id interface{}, data interfa
 	if id == "" {
 		panic(errors.New("id is required"))
 	}
+
 	if refresh != "" {
-		url = fmt.Sprintf("%s?refresh=%s", url, refresh)
+		url = fmt.Sprintf("%s?refresh=%s&retry_on_conflict=3", url, refresh)
+	} else {
+		url = fmt.Sprintf("%s?retry_on_conflict=3", url)
 	}
 
 	js := util.MapStr{}
 	js["doc"] = data
-	js["detect_noop"] = false
+	js["detect_noop"] = true
 	js["doc_as_upsert"] = true
 
 	resp, err := c.Request(nil, util.Verb_POST, url, util.MustToJSONBytes(js))

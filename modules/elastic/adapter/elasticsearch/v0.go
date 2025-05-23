@@ -480,6 +480,11 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 	}
 
 	js := query.ToJSONString()
+
+	if global.Env().IsDebug {
+		log.Info(js)
+	}
+
 	return c.SearchWithRawQueryDSL(indexName, util.UnsafeStringToBytes(js))
 }
 

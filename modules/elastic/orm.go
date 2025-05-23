@@ -431,10 +431,11 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 	} else if q.TemplatedQuery != nil {
 		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
 	} else {
-		if q.Conds != nil && len(q.Conds) > 0 {
-			request.Query = &elastic.Query{}
-			boolQuery := elastic.BoolQuery{}
 
+		request.Query = &elastic.Query{}
+		boolQuery := elastic.BoolQuery{}
+
+		if q.Conds != nil && len(q.Conds) > 0 {
 			for _, cond := range q.Conds {
 				query := getQuery(cond)
 				switch cond.BoolType {
@@ -446,9 +447,19 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 					boolQuery.Should = append(boolQuery.Should, query)
 				}
 			}
-
-			request.Query.BoolQuery = &boolQuery
 		}
+
+		if q.Filter != nil {
+			filter := getQuery(q.Filter)
+			//temp fix for must_not filters
+			if q.Filter.BoolType == api.MustNot {
+				boolQuery.MustNot = append(boolQuery.MustNot, filter)
+			} else {
+				boolQuery.Filter = filter
+			}
+		}
+
+		request.Query.BoolQuery = &boolQuery
 
 		// Add sorting if specified
 		if q.Sort != nil && len(*q.Sort) > 0 {
