@@ -21,6 +21,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: introduce config to check_capacity retry threshold limit
 - feat: support custom TLS minimum version for SMTP server configuration
 - feat: add filter to orm query #146
+- feat: add util to filter user's input
 
 ### 🐛 Bug fix
 - fix: wrong method call during ORM update
