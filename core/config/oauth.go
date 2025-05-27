@@ -24,17 +24,17 @@
 package config
 
 type OAuthConfig struct {
-	Enabled      bool                `config:"enabled"`
-	ClientID     string              `config:"client_id"`
-	ClientSecret string              `config:"client_secret"`
-	DefaultRoles []string            `config:"default_roles"`
-	RoleMapping  map[string][]string `config:"role_mapping"`
-	AuthorizeUrl string              `config:"authorize_url"`
-	TokenUrl     string              `config:"token_url"`
-	RedirectUrl  string              `config:"redirect_url"`
-	ProfileUrl   string              `config:"profile_url"`
-	Scopes       []string            `config:"scopes"`
+	Enabled      bool                `config:"enabled" json:"enabled"`
+	ClientID     string              `config:"client_id" json:"client_id"`
+	ClientSecret string              `config:"client_secret" json:"client_secret"`
+	DefaultRoles []string            `config:"default_roles" json:"default_roles"`
+	RoleMapping  map[string][]string `config:"role_mapping" json:"role_mapping"`
+	AuthorizeUrl string              `config:"authorize_url" json:"authorize_url"`
+	TokenUrl     string              `config:"token_url" json:"token_url"`
+	RedirectUrl  string              `config:"redirect_url" json:"redirect_url"`
+	ProfileUrl   string              `config:"profile_url" json:"profile_url"`
+	Scopes       []string            `config:"scopes" json:"scopes"`
 
-	SuccessPage string `config:"success_page"`
-	FailedPage  string `config:"failed_page"`
+	SuccessPage string `config:"success_page" json:"success_page"`
+	FailedPage  string `config:"failed_page" json:"failed_page"`
 }
