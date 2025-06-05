@@ -58,7 +58,19 @@ type Context struct {
 const WaitForRefresh = "wait_for"
 const ImmediatelyRefresh = "true"
 
+type ORMSearchAPI interface {
+	Search(o interface{}, q *Query) (error, Result)
+	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult)
+}
+
+type ORMMetricsAPI interface {
+	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
+}
+
 type ORM interface {
+	ORMSearchAPI
+	ORMMetricsAPI
+
 	RegisterSchemaWithIndexName(t interface{}, indexName string) error
 
 	GetIndexName(o interface{}) string
@@ -71,17 +83,12 @@ type ORM interface {
 
 	Delete(ctx *Context, o interface{}) error
 
-	Search(o interface{}, q *Query) (error, Result)
-
-	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult)
-
 	Get(o interface{}) (bool, error)
 
 	GetBy(field string, value interface{}, o interface{}) (error, Result)
 
 	Count(o interface{}, query interface{}) (int64, error)
 
-	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
 	DeleteBy(o interface{}, query interface{}) error
 	UpdateBy(o interface{}, query interface{}) error
 }

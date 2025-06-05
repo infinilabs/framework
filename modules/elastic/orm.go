@@ -313,6 +313,17 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 	}
 
 	if len(q.RawQuery) > 0 {
+
+		//TODO
+		////parse query, remove unused parameters
+		//query := elastic.SearchRequest{}
+		//err = util.FromJSONBytes(q.RawQuery,&query)
+		//if err == nil {
+		//	q.RawQuery = util.MustToJSONBytes(query)
+		//}else{
+		//	log.Error(err)
+		//}
+
 		searchResponse, err = handler.Client.QueryDSL(nil, indexName, q.QueryArgs, q.RawQuery)
 	} else if q.TemplatedQuery != nil {
 		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
