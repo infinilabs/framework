@@ -1509,7 +1509,7 @@ func (resp *Response) ReadLimitBody(r *bufio.Reader, maxBodySize int) error {
 		}
 	}
 
-	if resp.Header.ContentLength() == -1 {
+	if resp.Header.ContentLength() == -1 && !resp.mustSkipBody() {
 		err = resp.Header.ReadTrailer(r)
 		if err != nil && err != io.EOF {
 			if isConnectionReset(err) {
