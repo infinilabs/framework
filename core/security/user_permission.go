@@ -91,6 +91,10 @@ func (p *UserAssignedPermission) Validate(permIDs []PermissionID) bool {
 
 func (p *UserAssignedPermission) ValidateFor(permID PermissionID) bool {
 
+	if p == nil {
+		return false
+	}
+
 	// First priority: Deny overrides everything
 	if p.DeniedPermissions != nil && p.DeniedPermissions.Contains(uint32(permID)) {
 		return false
