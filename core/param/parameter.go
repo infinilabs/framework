@@ -40,7 +40,6 @@ limitations under the License.
 package param
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"reflect"
@@ -59,62 +58,6 @@ type Parameters struct {
 	Meta      util.MapStr `json:"-"`
 	l         sync.RWMutex
 	inited    bool
-	//contexts  []ValuesMap
-}
-
-//
-//func (this *Parameters) AddContext(ctx ValuesMap) *Parameters {
-//	if this.contexts == nil {
-//		this.contexts = []ValuesMap{}
-//	}
-//	this.contexts = append(this.contexts, ctx)
-//	return this
-//}
-//
-//func (this *Context) GetValue(k string) (interface{}, error) {
-//
-//	var err error
-//	//handle variables
-//	if util.ContainStr(k, "$[[") {
-//		t, ok := this.templates.Load(k)
-//		var template *fasttemplate.Template
-//		if !ok {
-//			template, err = fasttemplate.NewTemplate(k, "$[[", "]]")
-//			if err != nil {
-//				panic(err)
-//			}
-//			this.templates.Store(k, template)
-//		} else {
-//			template = t.(*fasttemplate.Template)
-//		}
-//
-//		k, err = template.ExecuteFuncStringWithErr(func(w io.Writer, tag string) (int, error) {
-//			variable, err := this.GetValue(tag)
-//			if err != nil {
-//				return 0, err
-//			}
-//			return w.Write([]byte(util.ToString(variable)))
-//		})
-//		if err == nil {
-//			return this.GetValue(k)
-//		}
-//	}
-//
-//	//check contexts
-//	for _, ctx := range this.contexts {
-//		v, err := ctx.GetValue(k)
-//		if err == nil {
-//			return v, err
-//		}
-//	}
-//
-//	return nil, errors.Errorf("key=%v", k)
-//}
-
-var byteReaderPool = &sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Reader)
-	},
 }
 
 func (para *Parameters) CloneData() util.MapStr {

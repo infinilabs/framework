@@ -40,42 +40,27 @@ limitations under the License.
 package orm
 
 import (
-	"context"
-	"reflect"
-	"strings"
-	"time"
-
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
+	"reflect"
+	"time"
 )
 
-type Context struct {
-	context.Context
-	Refresh string
+type SearchAPI interface {
+	SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error)
 }
 
-const WaitForRefresh = "wait_for"
-const ImmediatelyRefresh = "true"
-
-type ORMSearchAPI interface {
-	Search(o interface{}, q *Query) (error, Result)
-	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult)
-}
-
-type ORMMetricsAPI interface {
-	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
+type MetricsAPI interface {
 }
 
 type ORM interface {
-	ORMSearchAPI
-	ORMMetricsAPI
+	LegacyORMAPI
 
-	RegisterSchemaWithIndexName(t interface{}, indexName string) error
+	SearchAPI
 
-	GetIndexName(o interface{}) string
+	MetricsAPI
 
-	GetWildcardIndexName(o interface{}) string
+	RegisterSchemaWithName(t interface{}, customizedName string) error
 
 	Save(ctx *Context, o interface{}) error
 
@@ -84,13 +69,6 @@ type ORM interface {
 	Delete(ctx *Context, o interface{}) error
 
 	Get(o interface{}) (bool, error)
-
-	GetBy(field string, value interface{}, o interface{}) (error, Result)
-
-	Count(o interface{}, query interface{}) (int64, error)
-
-	DeleteBy(o interface{}, query interface{}) error
-	UpdateBy(o interface{}, query interface{}) error
 }
 
 type ORMObjectBase struct {
@@ -121,216 +99,20 @@ type SortType string
 const ASC SortType = "asc"
 const DESC SortType = "desc"
 
-type Query struct {
-	Sort           *[]Sort
-	QueryArgs      *[]util.KV
-	From           int
-	CollapseField  string
-	Size           int
-	Conds          []*Cond
-	RawQuery       []byte
-	TemplatedQuery *TemplatedQuery
-	WildcardIndex  bool
-	IndexName      string
-	Filter         *Cond
-}
-
-type TemplatedQuery struct {
-	TemplateID string                 `json:"id"`
-	Parameters map[string]interface{} `json:"params"`
-}
-
-func (q *Query) Collapse(field string) *Query {
-	q.CollapseField = field
-	return q
-}
-
-func (q *Query) AddSort(field string, sortType SortType) *Query {
-	if q.Sort == nil {
-		q.Sort = &[]Sort{}
-	}
-	*q.Sort = append(*q.Sort, Sort{Field: field, SortType: sortType})
-
-	return q
-}
-
-func (q *Query) AddQueryArgs(name string, value string) *Query {
-	if q.QueryArgs == nil {
-		q.QueryArgs = &[]util.KV{}
-	}
-	*q.QueryArgs = append(*q.QueryArgs, util.KV{Key: name, Value: value})
-
-	return q
-}
-
-type Cond struct {
-	Field       string
-	SQLOperator string
-	QueryType   QueryType
-	BoolType    BoolType
-	Value       interface{}
-}
-
 type BoolType string
-type QueryType string
-
-const Bool BoolType = "bool"
 
 const Must BoolType = "must"
 const MustNot BoolType = "must_not"
 const Should BoolType = "should"
 
-const Term QueryType = "term"
-const PrefixQueryType QueryType = "prefix"
-const Wildcard QueryType = "wildcard"
-const Regexp QueryType = "regexp" //TODO check
-const Match QueryType = "match"
-const QueryStringType QueryType = "query_string"
-const RangeGt QueryType = "gt"
-const RangeGte QueryType = "gte"
-const RangeLt QueryType = "lt"
-const RangeLte QueryType = "lte"
-
-const StringTerms QueryType = "string_terms"
-const Terms QueryType = "terms"
-
-func Prefix(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " ~= "
-	c.QueryType = PrefixQueryType
-	c.BoolType = Must
-	return &c
+type SearchResult struct {
+	Error   *error      // pointer to error
+	Status  int         // HTTP status or internal status code
+	Payload interface{} // raw response body (e.g. JSON)
 }
 
-func QueryString(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " = "
-	c.QueryType = QueryStringType
-	c.BoolType = Must
-	return &c
-}
-
-func Eq(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " = "
-	c.QueryType = Match
-	c.BoolType = Must
-	return &c
-}
-
-func NotEq(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " != "
-	c.QueryType = Match
-	c.BoolType = MustNot
-	return &c
-}
-
-func In(field string, value []interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " in "
-	c.QueryType = Terms
-	c.BoolType = Must
-	return &c
-}
-
-func InStringArray(field string, value []string) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " in "
-	c.QueryType = StringTerms
-	c.BoolType = Must
-	return &c
-}
-
-func Gt(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " > "
-	c.QueryType = RangeGt
-	c.BoolType = Must
-	return &c
-}
-
-func Lt(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " < "
-	c.QueryType = RangeLt
-	c.BoolType = Must
-	return &c
-}
-
-func Ge(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " >= "
-	c.QueryType = RangeGte
-	c.BoolType = Must
-	return &c
-}
-
-func Le(field string, value interface{}) *Cond {
-	c := Cond{}
-	c.Field = field
-	c.Value = value
-	c.SQLOperator = " <= "
-	c.QueryType = RangeLte
-	c.BoolType = Must
-	return &c
-}
-
-func Combine(conds ...[]*Cond) []*Cond {
-	t := []*Cond{}
-	for _, cs := range conds {
-		for _, c := range cs {
-			t = append(t, c)
-		}
-	}
-	return t
-}
-
-func And(conds ...*Cond) []*Cond {
-	t := []*Cond{}
-	for _, c := range conds {
-		c.BoolType = Must
-		t = append(t, c)
-	}
-	return t
-}
-
-func Or(conds ...*Cond) []*Cond {
-	t := []*Cond{}
-	for _, c := range conds {
-		c.BoolType = Should
-		t = append(t, c)
-	}
-	return t
-}
-
-type Result struct {
-	Total  int64
-	Raw    []byte
-	Result []interface{}
-}
-
-type SimpleResult struct {
-	Total int64
-	Raw   []byte
+func (r *SearchResult) IsError() bool {
+	return r.Error != nil
 }
 
 func Get(o interface{}) (bool, error) {
@@ -343,19 +125,6 @@ func Get(o interface{}) (bool, error) {
 	}
 
 	return getHandler().Get(o)
-}
-
-func GetBy(field string, value interface{}, t interface{}) (error, Result) {
-
-	return getHandler().GetBy(field, value, t)
-}
-
-func GetWildcardIndexName(o interface{}) string {
-	return getHandler().GetWildcardIndexName(o)
-}
-
-func GetIndexName(o interface{}) string {
-	return getHandler().GetIndexName(o)
 }
 
 func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
@@ -442,8 +211,6 @@ func Create(ctx *Context, o interface{}) error {
 	return Save(ctx, o)
 }
 
-//TODO support upsert and partial update
-
 func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	//check required value
@@ -462,6 +229,7 @@ func Save(ctx *Context, o interface{}) error {
 	return getHandler().Save(ctx, o)
 }
 
+// TODO support upsert and partial update
 func Update(ctx *Context, o interface{}) error {
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
@@ -488,133 +256,7 @@ func Update(ctx *Context, o interface{}) error {
 func Delete(ctx *Context, o interface{}) error {
 	return getHandler().Delete(ctx, o)
 }
-func DeleteBy(o interface{}, query interface{}) error {
-	return getHandler().DeleteBy(o, query)
-}
-func UpdateBy(o interface{}, query interface{}) error {
-	return getHandler().UpdateBy(o, query)
-}
 
-func Count(o interface{}, query interface{}) (int64, error) {
-	return getHandler().Count(o, query)
-}
-
-func Search(o interface{}, q *Query) (error, Result) {
-	return getHandler().Search(o, q)
-}
-
-func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult) {
-	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
-}
-
-func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
-	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithMap, q)
-	if err != nil || searchResponse == nil {
-		return err, SimpleResult{}
-	}
-
-	return nil, *searchResponse
-}
-
-func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
-	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
-}
-
-var registeredSchemas = []util.KeyValue{}
-
-func MustRegisterSchemaWithIndexName(t interface{}, index string) {
-	err := RegisterSchemaWithIndexName(t, index)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func RegisterSchemaWithIndexName(t interface{}, index string) error {
-	registeredSchemas = append(registeredSchemas, util.KeyValue{Key: index, Payload: t})
-	return nil
-}
-
-func InitSchema() error {
-	for _, v := range registeredSchemas {
-		err := getHandler().RegisterSchemaWithIndexName(v.Payload, v.Key)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var handler ORM
-
-func getHandler() ORM {
-	if handler == nil {
-		panic(errors.New("ORM handler is not registered"))
-	}
-	return handler
-}
-
-var adapters map[string]ORM
-
-func Register(name string, h ORM) {
-	if adapters == nil {
-		adapters = map[string]ORM{}
-	}
-	_, ok := adapters[name]
-	if ok {
-		panic(errors.Errorf("ORM handler with same name: %v already exists", name))
-	}
-
-	adapters[name] = h
-
-	handler = h
-
-	log.Debug("register ORM handler: ", name)
-
-}
-
-type ProtectedFilterKeyType string
-
-const ProtectedFilterKey ProtectedFilterKeyType = "FILTER_PROTECTED"
-
-// FilterFieldsByProtected filter struct fields by tag protected recursively,
-// returns a filtered fields map
-func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interface{} {
-	buf := util.MustToJSONBytes(obj)
-	mapObj := map[string]interface{}{}
-	util.MustFromJSONBytes(buf, &mapObj)
-	t := reflect.TypeOf(obj)
-	v := reflect.ValueOf(obj)
-	if t.Kind() == reflect.Ptr {
-		if v.IsZero() {
-			return nil
-		}
-		t = t.Elem()
-		v = v.Elem()
-	}
-	for i := 0; i < v.NumField(); i++ {
-		fieldType := t.Field(i)
-		var jsonName = fieldType.Name
-		switch jsonTag := fieldType.Tag.Get("json"); jsonTag {
-		case "-":
-		case "":
-		default:
-			parts := strings.Split(jsonTag, ",")
-			name := strings.TrimSpace(parts[0])
-			if name != "" {
-				jsonName = name
-			}
-		}
-		tagVal := fieldType.Tag.Get("protected")
-		if strings.ToLower(tagVal) != "true" && protected {
-			delete(mapObj, jsonName)
-			continue
-		} else if strings.ToLower(tagVal) == "true" && !protected {
-			delete(mapObj, jsonName)
-			continue
-		}
-		if fieldType.Type.Kind() == reflect.Struct || (fieldType.Type.Kind() == reflect.Ptr && fieldType.Type.Elem().Kind() == reflect.Struct) {
-			mapObj[jsonName] = FilterFieldsByProtected(v.Field(i).Interface(), protected)
-		}
-	}
-	return mapObj
+func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
+	return getHandler().SearchV2(ctx, qb)
 }
