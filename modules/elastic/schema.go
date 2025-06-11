@@ -112,7 +112,7 @@ func initIndexName(t interface{}, indexName string) string {
 	return indexName
 }
 
-func (handler *ElasticORM) RegisterSchemaWithIndexName(t interface{}, indexName string) error {
+func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName string) error {
 
 	if !handler.Config.Enabled {
 		log.Debugf("elastic ORM is disabled, skip schema registration")

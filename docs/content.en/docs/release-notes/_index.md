@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- refactor: refactoring orm query #153
 
 ## 1.1.7 (2025-05-16)
 ### ❌ Breaking changes  

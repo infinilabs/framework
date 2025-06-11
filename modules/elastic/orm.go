@@ -25,9 +25,6 @@ package elastic
 
 import (
 	"fmt"
-	"net/http"
-	"reflect"
-
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
@@ -35,6 +32,10 @@ import (
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
+	"infini.sh/framework/modules/elastic/orm"
+	"net/http"
+	"reflect"
+	"strings"
 )
 
 var ErrNotFound = errors.New("record not found")
@@ -126,7 +127,6 @@ func (handler *ElasticORM) GetWildcardIndexName(o interface{}) string {
 
 func (handler *ElasticORM) GetIndexName(o interface{}) string {
 	indexName := getIndexName(o)
-
 	if handler.Config.IndexPrefix == "" {
 		return indexName
 	}
@@ -287,7 +287,92 @@ func getQuery(c1 *api.Cond) interface{} {
 	panic(errors.Errorf("invalid query: %s", c1))
 }
 
-// TODO replaced all usage with SearchWithResultItemMapper
+func (handler *ElasticORM) ResolveIndexName(ctx *api.Context) string {
+
+	if ctx != nil {
+		if len(api.GetIndices(ctx)) > 0 {
+			return strings.Join(api.GetIndices(ctx), ",")
+		}
+
+		pattern := api.GetIndexPattern(ctx)
+		if pattern != "" {
+			return pattern
+		}
+
+		model := api.GetModel(ctx)
+		if model != nil {
+			if api.IsWildcardIndex(ctx) {
+				return handler.GetWildcardIndexName(model)
+			}
+			return handler.GetIndexName(model)
+		}
+	}
+
+	panic(errors.Errorf("can't find index: %v", ctx))
+}
+
+func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api.SearchResult, error) {
+
+	var err error
+	var result *api.SearchResult = &api.SearchResult{}
+
+	request := elastic.SearchRequest{}
+
+	if qb != nil {
+		request.From = qb.FromVal()
+		request.Size = qb.SizeVal()
+	}
+
+	if collapseField := api.GetCollapseField(ctx); collapseField != "" {
+		request.Collapse = &elastic.Collapse{Field: collapseField}
+	}
+
+	var searchResponse *elastic.SearchResponse
+
+	var indexName = handler.ResolveIndexName(ctx)
+
+	var queryArgs = api.GetQueryArgs(ctx)
+
+	//TODO  add global filter, per user per tenant, per permission etc.
+
+	if qb != nil {
+		dsl := orm.ToDSL(qb)
+		if dsl != nil {
+			////parse query, remove unused parameters
+			//query := elastic.SearchRequest{}
+			//err = util.FromJSONBytes(q.RawQuery,&query)
+			//if err == nil {
+			//	q.RawQuery = util.MustToJSONBytes(query)
+			//}else{
+			//	log.Error(err)
+			//}
+
+			log.Info("FINAL INDEX: ", indexName, ", DSL: ", util.MustToJSON(dsl))
+
+			dslBytes := util.MustToJSONBytes(dsl)
+			searchResponse, err = handler.Client.QueryDSL(nil, indexName, queryArgs, dslBytes)
+		}
+	} else {
+		//check if it is templated query
+		if tq := api.GetTemplatedQuery(ctx); tq != nil {
+
+			log.Info("FINAL INDEX: ", indexName, ", TEMPLATED: ", util.MustToJSON(tq))
+
+			searchResponse, err = handler.Client.SearchByTemplate(indexName, tq.TemplateID, tq.Parameters)
+		}
+	}
+
+	if searchResponse != nil && searchResponse.RawResult != nil {
+		result.Status = searchResponse.RawResult.StatusCode
+		result.Payload = searchResponse.RawResult.Body
+		log.Info(searchResponse.RawResult.StatusCode, string(searchResponse.RawResult.Body))
+	}
+
+	result.Error = &err
+
+	return result, err
+}
+
 func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Result) {
 
 	var err error
