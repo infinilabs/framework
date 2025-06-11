@@ -192,7 +192,7 @@ func clauseToDSL(clause *orm.Clause) map[string]interface{} {
 					},
 				},
 			}
-		case orm.RangeGte:
+		case orm.QueryRangeGte:
 			return map[string]interface{}{
 				"range": map[string]interface{}{
 					clause.Query.Field: map[string]interface{}{
@@ -200,7 +200,7 @@ func clauseToDSL(clause *orm.Clause) map[string]interface{} {
 					},
 				},
 			}
-		case orm.RangeLte:
+		case orm.QueryRangeLte:
 			return map[string]interface{}{
 				"range": map[string]interface{}{
 					clause.Query.Field: map[string]interface{}{

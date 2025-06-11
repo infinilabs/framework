@@ -308,7 +308,7 @@ func (handler *ElasticORM) ResolveIndexName(ctx *api.Context) string {
 		}
 	}
 
-	panic(errors.Errorf("can't find index: %s", ctx))
+	panic(errors.Errorf("can't find index: %v", ctx))
 }
 
 func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api.SearchResult, error) {

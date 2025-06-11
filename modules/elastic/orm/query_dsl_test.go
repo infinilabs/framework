@@ -275,7 +275,6 @@ func TestToDSL_DeeplyNestedComplexQuery(t *testing.T) {
 	assert.JSONEq(t, expectedJSON, actualJSON)
 }
 
-
 func TestToDSL_AllQueryTypes(t *testing.T) {
 	q := orm.NewQuery().Must(
 		orm.MatchQuery("title", "go"),
@@ -283,7 +282,7 @@ func TestToDSL_AllQueryTypes(t *testing.T) {
 		orm.PrefixQuery("author", "med"),
 		orm.WildcardQuery("category", "tech*"),
 		orm.RegexpQuery("slug", "g.*"),
-		orm.FuzzyQuery("summary", "elasticsearch"),
+		orm.FuzzyQuery("summary", "elasticsearch", 0),
 		orm.ExistsQuery("created_at"),
 		orm.InQuery("tags", []interface{}{"search", "infra", "open-source"}),
 		orm.NotInQuery("region", []interface{}{"cn", "ru"}),
