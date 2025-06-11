@@ -241,9 +241,9 @@ func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
 }
 
-//func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult) {
-//	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
-//}
+func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult) {
+	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
+}
 
 func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
 	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithMap, q)
