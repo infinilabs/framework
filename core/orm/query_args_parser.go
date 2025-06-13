@@ -12,7 +12,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 
 	builder := NewQuery()
 
-	fuzzinessVal := 0 // default: exact match
+	fuzzinessVal := 3 // 0, exact match
 	if fuzziness := q.Get("fuzziness"); fuzziness != "" {
 		if v, err := strconv.Atoi(fuzziness); err == nil && v >= 0 && v <= 5 {
 			fuzzinessVal = v
@@ -36,15 +36,15 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 			value = parts[1]
 
 			switch fuzzinessVal {
-			case 0:
+			case 0, 1:
 				builder.Must(MatchQuery(field, value).SetBoost(5))
-			case 1:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(2)))
 			case 2:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 0).SetBoost(2)))
+				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(2)))
 			case 3:
+				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 0).SetBoost(2)))
+			case 4:
 				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3)), MatchPhraseQuery(field, value, 1).SetBoost(2), FuzzyQuery(field, value, 1).SetBoost(1))
-			case 4, 5:
+			case 5:
 				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 2).SetBoost(2), FuzzyQuery(field, value, 2).SetBoost(1)))
 			}
 		} else {
@@ -52,27 +52,27 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 			//try all fields with query
 			for _, field := range fields {
 				switch fuzzinessVal {
-				case 0:
+				case 0, 1:
 					shouldClauses = append(shouldClauses, MatchQuery(field, queryStr).SetBoost(5))
-				case 1:
+				case 2:
 					shouldClauses = append(shouldClauses,
 						MatchQuery(field, queryStr).SetBoost(5),
 						PrefixQuery(field, queryStr).SetBoost(2),
 					)
-				case 2:
+				case 3:
 					shouldClauses = append(shouldClauses,
 						MatchQuery(field, queryStr).SetBoost(5),
 						PrefixQuery(field, queryStr).SetBoost(3),
 						MatchPhraseQuery(field, queryStr, 0).SetBoost(2),
 					)
-				case 3:
+				case 4:
 					shouldClauses = append(shouldClauses,
 						MatchQuery(field, queryStr).SetBoost(5),
 						PrefixQuery(field, queryStr).SetBoost(3),
 						MatchPhraseQuery(field, queryStr, 1).SetBoost(2),
 						FuzzyQuery(field, queryStr, 1).SetBoost(1),
 					)
-				case 4, 5:
+				case 5:
 					shouldClauses = append(shouldClauses,
 						MatchQuery(field, queryStr).SetBoost(5),
 						PrefixQuery(field, queryStr).SetBoost(3),
