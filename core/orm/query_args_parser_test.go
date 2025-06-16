@@ -161,3 +161,72 @@ func TestParseQueryWithNotClause(t *testing.T) {
 		t.Errorf("Expected value 'golang', got '%v'", leaf.Query.Value)
 	}
 }
+
+func TestParseQueryWithURLEncodedValue(t *testing.T) {
+	rawQuery := "query=%E6%B5%8B%E8%AF%95%2C%3D%3A&filter=id%3A1%252C123%253A98%253D2%2C2&fuzziness=1"
+	req, err := http.NewRequest("GET", "/search?"+rawQuery, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder, err := NewQueryBuilderFromRequest(req, "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder.Simplify()
+	root := builder.Root()
+
+	if root == nil {
+		t.Fatal("Expected root clause to be non-nil")
+	}
+
+	// Expecting two clauses: one for query and one for filter
+	if len(root.SubClauses) != 2 {
+		t.Fatalf("Expected 2 subclauses, got %d", len(root.SubClauses))
+	}
+
+	// Check full-text query (first clause, Should inside Must)
+	queryClause := root.SubClauses[0]
+	if queryClause.BoolType != Must {
+		t.Fatalf("Expected first clause to be MUST, got %v", queryClause.BoolType)
+	}
+	if len(queryClause.SubClauses) != 1 {
+		t.Fatalf("Expected 1 subclause under queryClause, got %d", len(queryClause.SubClauses))
+	}
+	shouldClause := queryClause.SubClauses[0]
+	if shouldClause.BoolType != Should {
+		t.Fatalf("Expected SHOULD clause under queryClause, got %v", shouldClause.BoolType)
+	}
+
+	foundContent := false
+	for _, sub := range shouldClause.SubClauses {
+		if sub.Query != nil && sub.Query.Field == "content" && sub.Query.Value == "测试,=:" {
+			foundContent = true
+			break
+		}
+	}
+	if !foundContent {
+		t.Errorf("Expected query on field 'content' with value '测试,=:', but not found")
+	}
+
+	// Check filter clause
+	filterClause := root.SubClauses[1]
+	if filterClause.BoolType != Must {
+		t.Fatalf("Expected filter clause to be MUST, got %v", filterClause.BoolType)
+	}
+
+	if len(filterClause.SubClauses) != 1 {
+		t.Fatalf("Expected 1 subclause in filter, got %d", len(filterClause.SubClauses))
+	}
+	filterLeaf := filterClause.SubClauses[0]
+	if filterLeaf.Query == nil {
+		t.Fatal("Expected filter clause to have a query")
+	}
+	if filterLeaf.Query.Field != "id" {
+		t.Errorf("Expected filter field to be 'id', got '%s'", filterLeaf.Query.Field)
+	}
+	if filterLeaf.Query.Value != "1,123:98=2,2" {
+		t.Errorf("Expected filter value '1,123:98=2,2', got '%v'", filterLeaf.Query.Value)
+	}
+}

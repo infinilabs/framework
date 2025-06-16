@@ -5,7 +5,30 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 )
+
+// parseQuery attempts to extract field:value only if the field name is valid
+func parseQuery(queryStr string) (field string, value string) {
+	parts := strings.SplitN(queryStr, ":", 2)
+	if len(parts) == 2 {
+		fieldCandidate := strings.TrimSpace(parts[0])
+		// Only treat as field:value if fieldCandidate is safe (ASCII only, no punctuations)
+		if isValidFieldName(fieldCandidate) {
+			return strings.TrimSpace(fieldCandidate), strings.TrimSpace(parts[1])
+		}
+	}
+	return "", strings.TrimSpace(queryStr)
+}
+
+func isValidFieldName(s string) bool {
+	for _, r := range s {
+		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
 
 func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*QueryBuilder, error) {
 	q := req.URL.Query()
@@ -30,11 +53,8 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 	// Handle full text or term query
 	queryStr := q.Get("query")
 	if queryStr != "" {
-		if parts := strings.SplitN(queryStr, ":", 2); len(parts) == 2 {
-			var field, value string
-			field = parts[0]
-			value = parts[1]
-
+		var field, value = parseQuery(queryStr)
+		if field != "" && value != "" {
 			switch fuzzinessVal {
 			case 0, 1:
 				builder.Must(MatchQuery(field, value).SetBoost(5))
@@ -47,7 +67,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 			case 5:
 				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 2).SetBoost(2), FuzzyQuery(field, value, 2).SetBoost(1)))
 			}
-		} else {
+		} else if value != "" {
 			shouldClauses := []*Clause{}
 			//try all fields with query
 			for _, field := range fields {
