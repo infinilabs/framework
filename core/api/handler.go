@@ -98,7 +98,7 @@ func (handler Handler) WriteHeader(w http.ResponseWriter, code int) {
 // Get http parameter or return default value
 func (handler Handler) Get(req *http.Request, key string, defaultValue string) string {
 	if !handler.formParsed {
-		req.ParseForm()
+		_ = req.ParseForm()
 	}
 	if len(req.Form) > 0 {
 		return req.Form.Get(key)
@@ -150,11 +150,11 @@ type Result struct {
 }
 
 // WriteJSONListResult output result list to json format
-func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v interface{}, statusCode int) error {
+func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v interface{}, statusCode int) {
 	result := Result{}
 	result.Total = total
 	result.Result = v
-	return handler.WriteJSON(w, result, statusCode)
+	handler.WriteJSON(w, result, statusCode)
 }
 
 func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
@@ -167,15 +167,17 @@ func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 	return err1
 }
 
-func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
+func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int)  {
 	WriteHeader(w, statusCode)
 	_, err := w.Write(util.MustToJSONBytes(v))
-	return err
+	if err != nil {
+		panic(err)
+	}
 }
 
-func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) error {
+func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) {
 	err1 := PrepareErrorJson(errMessage, statusCode)
-	return handler.WriteJSON(w, err1, statusCode)
+	handler.WriteJSON(w, err1, statusCode)
 }
 
 func (handler Handler) WriteErrorObject(w http.ResponseWriter, err interface{}, status int) {
@@ -186,43 +188,35 @@ func (handler Handler) WriteErrorObject(w http.ResponseWriter, err interface{}, 
 	handler.WriteError(w, util.MustToJSON(err), status)
 }
 
-func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
+func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) {
 	b, err := EncodeJSON(v)
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return err
+		panic(err)
 	}
 
-	return handler.WriteJSONBytes(w, b, statusCode)
+	handler.WriteJSONBytes(w, b, statusCode)
 }
 
-func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) error {
+func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) {
 	handler.WriteJSONHeader(w)
-	err := handler.WriteBytes(w, b, statusCode)
-	if err != nil {
-		w.Write([]byte(err.Error()))
-		return err
-	}
-	return nil
+	handler.WriteBytes(w, b, statusCode)
 }
 
-func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) error {
+func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) {
 	WriteHeader(w, statusCode)
 	_, err := w.Write(b)
 	if err != nil {
-		w.Write([]byte(err.Error()))
-		return err
+		panic(err)
 	}
-	return nil
 }
 
-func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, status int, msg string) error {
+func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, status int, msg string) {
 	obj := util.MapStr{}
 	obj["message"] = msg
-	return handler.WriteAckJSON(w, ack, status, obj)
+	 handler.WriteAckJSON(w, ack, status, obj)
 }
 
-func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) error {
+func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) {
 	handler.WriteJSONHeader(w)
 	WriteHeader(w, status)
 
@@ -237,18 +231,16 @@ func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int,
 
 	b, err := EncodeJSON(v)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	_, err = w.Write(b)
 	if err != nil {
-		return err
+		panic(err)
 	}
-
-	return nil
 }
 
-func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) error {
-	return handler.WriteAckJSON(w, true, 200, nil)
+func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) {
+	handler.WriteAckJSON(w, true, 200, nil)
 }
 
 func (handler Handler) MustGetParameter(w http.ResponseWriter, r *http.Request, key string) string {
@@ -309,7 +301,7 @@ func (handler Handler) GetBoolOrDefault(r *http.Request, key string, defaultValu
 func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 
 	content, err := ioutil.ReadAll(r.Body)
-	r.Body.Close()
+	_ = r.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +311,10 @@ func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 
 	data := map[string]interface{}{}
 	dec := json.NewDecoder(strings.NewReader(string(content)))
-	dec.Decode(&data)
+	err = dec.Decode(&data)
+	if err != nil {
+		return nil, err
+	}
 	jq := jsonq.NewQuery(data)
 
 	return jq, nil
@@ -328,7 +323,7 @@ func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 
 	content, err := ioutil.ReadAll(r.Body)
-	r.Body.Close()
+	_ = r.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -343,7 +338,7 @@ func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 
 	content, err := ioutil.ReadAll(r.Body)
-	r.Body.Close()
+	_ = r.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -380,58 +375,56 @@ func (handler Handler) Flush(w http.ResponseWriter) {
 	flusher.Flush()
 }
 
-func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) error {
-	return handler.WriteJSON(w, v, http.StatusOK)
+func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) {
+	handler.WriteJSON(w, v, http.StatusOK)
 }
 
 func (handler Handler) Error400(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusBadRequest)
-	return
 }
 
 func (handler Handler) ErrorInternalServer(w http.ResponseWriter, msg string) {
 	handler.WriteError(w, msg, http.StatusInternalServerError)
-	return
 }
 
-func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{}) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{}) {
+	handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "created",
 	}, http.StatusOK)
 }
 
-func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{}) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{}) {
+	 handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "updated",
 	}, http.StatusOK)
 }
 
-func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{}) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{})  {
+	 handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "not_found",
 	}, http.StatusNotFound)
 }
 
-func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{}) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{})  {
+	 handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "deleted",
 	}, http.StatusOK)
 }
 
-func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{}) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{})  {
+	 handler.WriteJSON(w, util.MapStr{
 		"found":   true,
 		"_id":     id,
 		"_source": obj,
 	}, 200)
 }
 
-func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string) error {
-	return handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string)  {
+	 handler.WriteJSON(w, util.MapStr{
 		"found": false,
 		"_id":   id,
 	}, 404)

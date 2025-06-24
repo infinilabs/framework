@@ -47,7 +47,7 @@ func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, 
 	}{}
 	err := h.DecodeJSON(req, &reqBody)
 	if err != nil {
-		log.Error(err)
+		_ = log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -57,19 +57,19 @@ func (h *APIHandler) setKeystoreValue(w http.ResponseWriter, req *http.Request, 
 	}
 	ks, err := keystore.GetWriteableKeystore()
 	if err != nil {
-		log.Error(err)
+		_ = log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = ks.Store(reqBody.Key, util.UnsafeStringToBytes(reqBody.Value))
 	if err != nil {
-		log.Error(err)
+		_ = log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = ks.Save()
 	if err != nil {
-		log.Error(err)
+		_ = log.Error(err)
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

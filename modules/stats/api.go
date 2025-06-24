@@ -73,7 +73,7 @@ func (handler SimpleStatsModule) StatsAction(w http.ResponseWriter, req *http.Re
 			return
 		}
 		handler.WriteJSONHeader(w)
-		handler.Write(w, bytes)
+		_, _ = handler.Write(w, bytes)
 	}
 
 	handler.WriteHeader(w, 200)
@@ -93,19 +93,19 @@ func (handler SimpleStatsModule) PrometheusStatsAction(w http.ResponseWriter, re
 	buffer := bytebufferpool.Get("stats")
 	defer bytebufferpool.Put("stats", buffer)
 	for k, v := range kv {
-		buffer.Write(util.UnsafeStringToBytes(util.PrometheusMetricReplacer.Replace(k)))
-		buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
+		_, _ = buffer.Write(util.UnsafeStringToBytes(util.PrometheusMetricReplacer.Replace(k)))
+		_, _ = buffer.Write(util.UnsafeStringToBytes(fmt.Sprintf("{type=\"%v\", ip=\"%v\", name=\"%v\", id=\"%v\"}",
 			global.Env().GetAppLowercaseName(),
 			global.Env().SystemConfig.NodeConfig.IP,
 			global.Env().SystemConfig.NodeConfig.Name,
 			global.Env().SystemConfig.NodeConfig.ID,
 		)))
-		buffer.Write(space)
-		buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
-		buffer.Write(newline)
+		_, _ = buffer.Write(space)
+		_, _ = buffer.Write(util.UnsafeStringToBytes(util.ToString(v)))
+		_, _ = buffer.Write(newline)
 	}
 	handler.WriteTextHeader(w)
-	handler.Write(w, buffer.Bytes())
+	_, _ = handler.Write(w, buffer.Bytes())
 
 	handler.WriteHeader(w, 200)
 }
