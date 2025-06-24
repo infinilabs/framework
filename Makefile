@@ -80,7 +80,6 @@ GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HAND
 GOBUILDDBG  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -ldflags -v -gcflags "all=-N -l" --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
 GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
-GOLINT   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) vet -ldflags -s
 
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
@@ -269,8 +268,15 @@ test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
 	@$(MAKE) restore-generated-file
 
+cov:
+	go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+tidy:
+	go mod tidy
+
 lint: config
-	$(GOLINT) -c=2 -v $(GOFLAGS) ./...
+	#curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.6
+	golangci-lint run
 	@$(MAKE) restore-generated-file
 
 clean_data:
