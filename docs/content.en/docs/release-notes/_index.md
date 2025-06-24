@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- chore: refactoring error handling #157
 
 ## 1.1.8 (2025-06-13)
 ### ❌ Breaking changes  
