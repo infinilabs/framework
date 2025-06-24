@@ -88,13 +88,13 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 	var obj = DeleteQueuesByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		module.WriteError(w, err.Error(), http.StatusBadRequest)
-		log.Error("failed to parse queue selector: ", err)
+		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		_ = log.Error("failed to parse queue selector: ", err)
 		return
 	}
 
 	if obj.Selector == nil {
-		module.WriteError(w, "no selector specified", http.StatusBadRequest)
+		 module.WriteError(w, "no selector specified", http.StatusBadRequest)
 		return
 	}
 
@@ -102,31 +102,31 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 	for _, queue := range queues {
 		module.deleteQueueByID(queue.ID)
 	}
-	module.WriteAckOKJSON(w)
+	 module.WriteAckOKJSON(w)
 }
 
 func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	module.deleteQueueByID(id)
-	module.WriteAckOKJSON(w)
+	 module.WriteAckOKJSON(w)
 }
 
 func (module *API) deleteQueueByID(id string) {
 	queueConfig, ok := queue1.SmartGetConfig(id)
 	if !ok || queueConfig == nil {
-		log.Errorf("invalid queue id [%v]", id)
+		_ = log.Errorf("invalid queue id [%v]", id)
 		return
 	}
 	ok = queue1.RemoveConfig(queueConfig)
 	if ok {
 		ok, err := queue1.RemoveAllConsumers(queueConfig)
 		if ok && err != nil {
-			log.Errorf("failed to remove consumers for queue [%v]", id)
+			_ = log.Errorf("failed to remove consumers for queue [%v]", id)
 			return
 		}
 		err = queue1.Destroy(queueConfig)
 		if err != nil {
-			log.Errorf("failed to destroy queue [%v]", id)
+			_ = log.Errorf("failed to destroy queue [%v]", id)
 			return
 		}
 	}
@@ -405,29 +405,29 @@ func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Reque
 	var obj = DeleteConsumersByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		module.WriteError(w, err.Error(), http.StatusBadRequest)
-		log.Error("failed to parse queue selector: ", err)
+		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		_ = log.Error("failed to parse queue selector: ", err)
 		return
 	}
 	if obj.Selector == nil {
-		module.WriteError(w, "no selector specified", http.StatusBadRequest)
+		 module.WriteError(w, "no selector specified", http.StatusBadRequest)
 		return
 	}
 
 	queues := queue1.GetConfigBySelector(obj.Selector)
-	for _, queue := range queues {
-		consumers, ok := queue1.GetConsumerConfigsByQueueID(queue.ID)
+	for _, q := range queues {
+		consumers, ok := queue1.GetConsumerConfigsByQueueID(q.ID)
 		if !ok {
 			continue
 		}
 		for _, consumer := range consumers {
-			err := module.deleteQueueConsumer(queue, consumer)
+			err := module.deleteQueueConsumer(q, consumer)
 			if err != nil {
-				log.Warnf("failed to delete consumers of queue [%s], err: %v", queue.Name, err)
+				log.Warnf("failed to delete consumers of queue [%s], err: %v", q.Name, err)
 			}
 		}
 	}
-	module.WriteAckOKJSON(w)
+	 module.WriteAckOKJSON(w)
 }
 
 func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -451,7 +451,7 @@ func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Req
 		ack = ok
 		status = 200
 		if err != nil {
-			module.WriteError(w, err.Error(), http.StatusBadRequest)
+			 module.WriteError(w, err.Error(), http.StatusBadRequest)
 		}
 	}
 

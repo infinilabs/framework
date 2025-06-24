@@ -58,8 +58,8 @@ func (module *PipeModule) searchPipelinesHandler(w http.ResponseWriter, req *htt
 	var obj = SearchPipelinesRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		module.WriteError(w, err.Error(), http.StatusBadRequest)
-		log.Error("failed to parse request: ", err)
+		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		_ = log.Error("failed to parse request: ", err)
 		return
 	}
 	resp := GetPipelinesResponse{}
@@ -126,7 +126,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
-		log.Error("failed to parse pipeline config: ", err)
+		_ = log.Error("failed to parse pipeline config: ", err)
 		return
 	}
 	var processors []*config.Config
@@ -134,7 +134,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 		processor, err := ucfg.NewFrom(processorDict)
 		if err != nil {
 			module.WriteError(w, err.Error(), http.StatusBadRequest)
-			log.Error("failed to parse processor config: ", err)
+			_ = log.Error("failed to parse processor config: ", err)
 			return
 		}
 		processors = append(processors, config.FromConfig(processor))
@@ -144,7 +144,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 	err = module.createPipeline(pipelineConfig, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
-		log.Error("failed to start pipeline: ", err)
+		_ = log.Error("failed to start pipeline: ", err)
 		return
 	}
 	module.WriteAckOKJSON(w)
