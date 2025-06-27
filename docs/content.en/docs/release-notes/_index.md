@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 ### 🐛 Bug fix  
+- fix: response without a body can't have trailers (#158)
 ### ✈️ Improvements  
 - chore: refactoring error handling #157
 - chore: update makefile #156
