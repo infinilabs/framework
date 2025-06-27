@@ -310,6 +310,9 @@ type Client struct {
 	ms         map[string]*HostClient
 	readerPool sync.Pool
 	writerPool sync.Pool
+
+	// StreamResponseBody enables response body streaming.
+	StreamResponseBody bool
 }
 
 // Get returns the status code and body of url.
@@ -518,6 +521,7 @@ func (c *Client) Do(req *Request, resp *Response) error {
 			MaxConnWaitTimeout:            c.MaxConnWaitTimeout,
 			RetryIf:                       c.RetryIf,
 			ConnPoolStrategy:              c.ConnPoolStrategy,
+			StreamResponseBody:            c.StreamResponseBody,
 			clientReaderPool:              &c.readerPool,
 			clientWriterPool:              &c.writerPool,
 		}
@@ -817,6 +821,9 @@ type HostClient struct {
 	// pendingClientRequests counts the number of requests that a Client is currently running using this HostClient.
 	// It will be incremented ealier than pendingRequests and will be used by Client to see if the HostClient is still in use.
 	pendingClientRequests int32
+
+	// StreamResponseBody enables response body streaming.
+	StreamResponseBody bool
 
 	connsCleanerRun bool
 }
@@ -1388,8 +1395,10 @@ func (c *HostClient) doNonNilReqResp(req *Request, resp *Response) (bool, error)
 
 	// backing up SkipBody in case it was set explicitly
 	customSkipBody := resp.SkipBody
+	customStreamBody := resp.StreamBody || c.StreamResponseBody
 	resp.Reset()
 	resp.SkipBody = customSkipBody
+	resp.StreamBody = customStreamBody
 
 	req.getURI().DisablePathNormalizing = c.DisablePathNormalizing
 
