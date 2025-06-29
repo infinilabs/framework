@@ -99,6 +99,10 @@ type Response struct {
 	// Relevant for bodyStream only.
 	ImmediateHeaderFlush bool
 
+	// StreamBody enables response body streaming.
+	// Use SetBodyStream to set the body stream.
+	StreamBody bool
+
 	bodyStream io.Reader
 	w          responseBodyWriter
 	body       *bytebufferpool.ByteBuffer
@@ -1221,6 +1225,7 @@ func (resp *Response) Reset() {
 	resp.raddr = nil
 	resp.laddr = nil
 	resp.ImmediateHeaderFlush = false
+	resp.StreamBody = false
 }
 
 func (resp *Response) resetSkipHeader() {
@@ -1509,7 +1514,8 @@ func (resp *Response) ReadLimitBody(r *bufio.Reader, maxBodySize int) error {
 		}
 	}
 
-	if resp.Header.ContentLength() == -1 {
+	// A response without a body can't have trailers.
+	if resp.Header.ContentLength() == -1 && !resp.StreamBody && !resp.mustSkipBody() {
 		err = resp.Header.ReadTrailer(r)
 		if err != nil && err != io.EOF {
 			if isConnectionReset(err) {
@@ -1530,15 +1536,29 @@ func (resp *Response) ReadBody(r *bufio.Reader, maxBodySize int) (err error) {
 	bodyBuf.Reset()
 
 	contentLength := resp.Header.ContentLength()
-	if contentLength >= 0 {
-		//bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
-		err = readBodyWithBytesBuffer(r, contentLength, maxBodySize, bodyBuf)
-	} else if contentLength == -1 {
-		bodyBuf.B, err = readBodyChunked(r, maxBodySize, bodyBuf.B)
-
-	} else {
-		bodyBuf.B, err = readBodyIdentity(r, maxBodySize, bodyBuf.B)
-		resp.Header.SetContentLength(len(bodyBuf.B))
+	switch {
+	case contentLength >= 0:
+		bodyBuf.B, err = readBody(r, contentLength, maxBodySize, bodyBuf.B)
+		if err == ErrBodyTooLarge && resp.StreamBody {
+			resp.bodyStream = acquireRequestStream(bodyBuf, r, &resp.Header)
+			err = nil
+		}
+	case contentLength == -1:
+		if resp.StreamBody {
+			resp.bodyStream = acquireRequestStream(bodyBuf, r, &resp.Header)
+		} else {
+			bodyBuf.B, err = readBodyChunked(r, maxBodySize, bodyBuf.B)
+		}
+	default:
+		if resp.StreamBody {
+			resp.bodyStream = acquireRequestStream(bodyBuf, r, &resp.Header)
+		} else {
+			bodyBuf.B, err = readBodyIdentity(r, maxBodySize, bodyBuf.B)
+			resp.Header.SetContentLength(len(bodyBuf.B))
+		}
+	}
+	if err == nil && resp.StreamBody && resp.bodyStream == nil {
+		resp.bodyStream = bytes.NewReader(bodyBuf.B)
 	}
 	return err
 }
