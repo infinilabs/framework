@@ -180,6 +180,47 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
+func WrapperTo(o interface{}) util.MapStr {
+	jsonBytes := util.MustToJSONBytes(o)
+	kv := util.MapStr{}
+	util.MustFromJSONBytes(jsonBytes, &kv)
+	return kv
+}
+
+type SystemContext struct {
+	TenantID string `json:"tenant_id,omitempty"`
+	UserID   string `json:"user_id,omitempty"`
+}
+
+const SysKey = "_system"
+const TenantIDKey = "tenant_id"
+const UserIDKey = "user_id"
+
+func AppendTenantInfo(o *util.MapStr, tenantID string, userID string) {
+
+	var1, err := o.GetValue(SysKey)
+	if err == nil || var1 != nil {
+		system, ok := var1.(map[string]interface{})
+		if ok {
+			system[TenantIDKey] = tenantID
+			system[UserIDKey] = userID
+			_, err := o.Put(SysKey, system)
+			if err != nil {
+				panic(err)
+			}
+			return
+		}
+	}
+
+	system := util.MapStr{}
+	system[TenantIDKey] = tenantID
+	system[UserIDKey] = userID
+	_, err = o.Put(SysKey, system)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // update operation will merge the new data into the old data
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	var refresh string
