@@ -15,6 +15,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ✈️ Improvements  
 - chore: refactoring error handling #157
 - chore: update makefile #156
+- refactor: refactoring query interface #162
 
 ## 1.1.8 (2025-06-13)
 ### ❌ Breaking changes  
