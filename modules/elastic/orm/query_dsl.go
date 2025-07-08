@@ -29,6 +29,202 @@ import (
 	"strings"
 )
 
+func BuildQueryDSLOnTopOfDSL(q *orm.QueryBuilder, reqBody []byte) map[string]interface{} {
+	var body map[string]interface{}
+	if err := util.FromJSONBytes(reqBody, &body); err != nil {
+		body = make(map[string]interface{})
+	}
+
+	final := make(map[string]interface{})
+
+	// Extract or initialize the query from body
+	var bodyQuery map[string]interface{}
+	if raw, ok := body["query"]; ok {
+		bodyQuery, _ = raw.(map[string]interface{})
+	}
+
+	// Generate query from query string
+	stringDSL := BuildQueryDSL(q)
+
+	// Merge logic
+	mergedQuery := mergeQueries(bodyQuery, stringDSL["query"].(map[string]interface{}))
+	final["query"] = mergedQuery
+
+	// Copy other fields from body
+	for k, v := range body {
+		if k == "query" {
+			continue // already merged
+		}
+		final[k] = v
+	}
+
+	// Allow string DSL (query string) to override fields like size, from, etc.
+	for k, v := range stringDSL {
+		if k != "query" {
+			final[k] = v
+		}
+	}
+	return final
+}
+
+func mergeQueries(a, b map[string]interface{}) map[string]interface{} {
+	// If either is nil, use the other
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+
+	// If both are bool, merge their subclauses
+	ab, aOk := a["bool"].(map[string]interface{})
+	bb, bOk := b["bool"].(map[string]interface{})
+	if aOk && bOk {
+		mergedBool := make(map[string]interface{})
+
+		for _, key := range []string{"must", "should", "must_not", "filter"} {
+			var items []interface{}
+
+			if aList, ok := ab[key].([]interface{}); ok {
+				items = append(items, aList...)
+			}
+			if bList, ok := bb[key].([]interface{}); ok {
+				items = append(items, bList...)
+			}
+
+			if len(items) > 0 {
+				mergedBool[key] = items
+			}
+		}
+
+		// Keep other bool params like "minimum_should_match"
+		for k, v := range ab {
+			if _, known := mergedBool[k]; !known {
+				mergedBool[k] = v
+			}
+		}
+		for k, v := range bb {
+			if _, known := mergedBool[k]; !known {
+				mergedBool[k] = v
+			}
+		}
+
+		return map[string]interface{}{"bool": mergedBool}
+	}
+
+	// If only one is bool, wrap the other into "must"
+	if aOk {
+		return map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must":   []interface{}{b},
+				"filter": ab["filter"],
+			},
+		}
+	}
+	if bOk {
+		return map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must":   []interface{}{a},
+				"filter": bb["filter"],
+			},
+		}
+	}
+
+	// Neither is bool, wrap both into a must
+	return map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must": []interface{}{a, b},
+		},
+	}
+}
+
+func BuildQueryDSLOnTopOfDSL2(q *orm.QueryBuilder, reqBody []byte) map[string]interface{} {
+	// Parse user body
+	var original map[string]interface{}
+	_ = util.FromJSONBytes(reqBody, &original)
+
+	// Build full DSL from query string
+	override := BuildQueryDSL(q)
+
+	// Extract the override query from query string
+	overrideQuery, hasOverrideQuery := override["query"]
+
+	// Extract original query
+	var baseQuery map[string]interface{}
+	switch raw := original["query"].(type) {
+	case map[string]interface{}:
+		// if already a bool query
+		if rawBool, ok := raw["bool"].(map[string]interface{}); ok {
+			baseQuery = rawBool
+		} else {
+			// wrap original query
+			baseQuery = map[string]interface{}{
+				"must": []interface{}{raw},
+			}
+		}
+	case nil:
+		baseQuery = map[string]interface{}{}
+	default:
+		// wrap raw value
+		baseQuery = map[string]interface{}{
+			"must": []interface{}{raw},
+		}
+	}
+	// Merge override query into filter
+	if hasOverrideQuery {
+		if boolPart, ok := overrideQuery.(map[string]interface{})["bool"].(map[string]interface{}); ok {
+			// Extract the filters we want to inject
+			if filters, ok := boolPart["filter"].([]interface{}); ok {
+				if origFilters, ok := baseQuery["filter"].([]interface{}); ok {
+					baseQuery["filter"] = append(origFilters, filters...)
+				} else {
+					baseQuery["filter"] = filters
+				}
+			} else {
+				// fallback: treat override query as standalone filter
+				baseQuery["filter"] = append(toInterfaceSlice(baseQuery["filter"]), overrideQuery)
+			}
+		} else {
+			// override is not bool — inject into filter
+			baseQuery["filter"] = append(toInterfaceSlice(baseQuery["filter"]), overrideQuery)
+		}
+	}
+
+	// Now rebuild final DSL
+	final := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": baseQuery,
+		},
+	}
+
+	// Merge non-query fields from override DSL (from query string)
+	for k, v := range override {
+		if k == "query" {
+			continue
+		}
+		final[k] = v
+	}
+
+	// Copy all extra fields from original req body (user-supplied) if not already set
+	for k, v := range original {
+		if _, exists := final[k]; !exists {
+			final[k] = v
+		}
+	}
+
+	return final
+}
+
+func toInterfaceSlice(v interface{}) []interface{} {
+	if v == nil {
+		return nil
+	}
+	if s, ok := v.([]interface{}); ok {
+		return s
+	}
+	return []interface{}{v}
+}
+
 func BuildQueryDSL(q *orm.QueryBuilder) map[string]interface{} {
 
 	q.Build()

@@ -106,12 +106,22 @@ type QueryBuilder struct {
 
 	//indicate fuzziness query is built or not
 	builtFuzziness bool
+
+	requestBodyBytes []byte
 }
 
 func NewQuery() *QueryBuilder {
 	return &QueryBuilder{
 		root: &Clause{},
 	}
+}
+
+func (q *QueryBuilder) SetRequestBodyBytes(bytes []byte) {
+	q.requestBodyBytes = bytes
+}
+
+func (q *QueryBuilder) RequestBodyBytesVal() []byte {
+	return q.requestBodyBytes
 }
 
 func (q *QueryBuilder) Parameter(key param.ParaKey, val interface{}) *QueryBuilder {

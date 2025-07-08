@@ -369,7 +369,7 @@ func TestToDSL_MultiMatchQuery(t *testing.T) {
 	assert.JSONEq(t, expected, string(actual))
 }
 func TestToDSL_MatchPhraseQuery(t *testing.T) {
-	q := orm.NewQuery().Must(orm.MatchPhraseQuery("title", "hello world",5))
+	q := orm.NewQuery().Must(orm.MatchPhraseQuery("title", "hello world", 5))
 	dsl := BuildQueryDSL(q)
 	printDSL(dsl)
 
@@ -1269,4 +1269,194 @@ func extractMatchClause(t *testing.T, dsl map[string]interface{}) map[string]int
 
 	t.Fatal("Match clause not found")
 	return nil
+}
+
+func TestBuildQueryDSLOnTopOfDSL_MergeFilter(t *testing.T) {
+	// Original body with a match query
+	reqBody := []byte(`{
+		"query": {
+			"match": { "title": "rust" }
+		},
+		"size": 10,
+		"track_total_hits": true
+	}`)
+
+	q := orm.NewQuery().Filter(
+		orm.ExistsQuery("created_at"),
+	).Size(20).From(5)
+
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+	printDSL(dsl)
+
+	query := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})
+	filter := query["filter"].([]interface{})
+	must := query["must"].([]interface{})
+
+	// Check merged query
+	assert.Len(t, filter, 1)
+	assert.Contains(t, filter[0], "exists")
+
+	assert.Len(t, must, 1)
+	assert.Contains(t, must[0], "match")
+
+	// Check merged fields
+	assert.Equal(t, 5, int(dsl["from"].(int)))
+	assert.Equal(t, 20, int(dsl["size"].(int)))
+	assert.Equal(t, true, dsl["track_total_hits"].(bool))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_NoBodyQuery(t *testing.T) {
+	reqBody := []byte(`{ "size": 15 }`)
+
+	q := orm.NewQuery().Filter(
+		orm.ExistsQuery("status"),
+	)
+
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+	printDSL(dsl)
+
+	boolQuery := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})
+	filter := boolQuery["filter"].([]interface{})
+
+	assert.Len(t, filter, 1)
+	assert.Contains(t, filter[0], "exists")
+
+	assert.Equal(t, 15, int(dsl["size"].(float64)))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_MatchQuery(t *testing.T) {
+	reqBody := []byte(`{ "size": 15 }`)
+
+	q := orm.NewQuery().Must(
+		orm.MatchQuery("title", "status"),
+	)
+
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"match": {
+				"title": {
+					"query": "status"
+				}
+			}
+		},
+		"size": 15
+	}`
+
+	actualBytes, err := json.Marshal(dsl)
+	if err != nil {
+		t.Fatalf("Failed to marshal actual DSL: %v", err)
+	}
+
+	assert.JSONEq(t, expected, string(actualBytes))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_BothMatchQuery(t *testing.T) {
+	reqBody := []byte(`{
+		"query": {
+			"match": {
+				"author": {
+					"query": "medcl"
+				}
+			}
+		},
+		"size": 5
+	}`)
+
+	q := orm.NewQuery().Must(
+		orm.MatchQuery("title", "rust"),
+	)
+
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"bool": {
+				"must": [
+					{
+						"match": {
+							"author": {
+								"query": "medcl"
+							}
+						}
+					},
+					{
+						"match": {
+							"title": {
+								"query": "rust"
+							}
+						}
+					}
+				]
+			}
+		},
+		"size": 5
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_WithAggregations(t *testing.T) {
+	reqBody := []byte(`{
+		"size": 0,
+		"query": {
+			"match": {
+				"lang": {
+					"query": "zh"
+				}
+			}
+		},
+		"aggs": {
+			"langs": {
+				"terms": {
+					"field": "lang.keyword"
+				}
+			}
+		}
+	}`)
+
+	q := orm.NewQuery().Must(
+		orm.MatchQuery("title", "golang"),
+	)
+
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"bool": {
+				"must": [
+					{
+						"match": {
+							"lang": {
+								"query": "zh"
+							}
+						}
+					},
+					{
+						"match": {
+							"title": {
+								"query": "golang"
+							}
+						}
+					}
+				]
+			}
+		},
+		"size": 0,
+		"aggs": {
+			"langs": {
+				"terms": {
+					"field": "lang.keyword"
+				}
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }

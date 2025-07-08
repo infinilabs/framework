@@ -336,7 +336,14 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	//TODO  add global filter, per user per tenant, per permission etc.
 
 	if qb != nil {
-		dsl := orm.BuildQueryDSL(qb)
+		bytes := qb.RequestBodyBytesVal()
+		var dsl map[string]interface{}
+		if bytes != nil && len(bytes) > 0 {
+			dsl = orm.BuildQueryDSLOnTopOfDSL(qb, bytes)
+		} else {
+			dsl = orm.BuildQueryDSL(qb)
+		}
+
 		if dsl != nil {
 			////parse query, remove unused parameters
 			//query := elastic.SearchRequest{}
