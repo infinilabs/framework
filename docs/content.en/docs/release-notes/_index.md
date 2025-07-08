@@ -13,6 +13,8 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- refactor: refactoring query interface 
+- feat: url query support terms query #163
 
 ## 1.1.9 (2025-06-29)
 ### ❌ Breaking changes  
@@ -22,7 +24,6 @@ Information about release notes of INFINI Framework is provided here.
 ### ✈️ Improvements  
 - chore: refactoring error handling #157
 - chore: update makefile #156
-- refactor: refactoring query interface #162
 
 ## 1.1.8 (2025-06-13)
 ### ❌ Breaking changes  
