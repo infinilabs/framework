@@ -58,7 +58,7 @@ func (module *PipeModule) searchPipelinesHandler(w http.ResponseWriter, req *htt
 	var obj = SearchPipelinesRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to parse request: ", err)
 		return
 	}

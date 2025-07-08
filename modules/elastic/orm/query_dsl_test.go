@@ -30,8 +30,109 @@ import (
 	"github.com/stretchr/testify/require"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"maps"
+	"reflect"
 	"testing"
 )
+
+func TestToDSL_SimpleMatch1(t *testing.T) {
+	q := orm.NewQuery().Must(
+		orm.MatchQuery("title", "golang"),
+	)
+	dsl := BuildQueryDSL(q)
+
+	printDSL(dsl)
+
+	matchClause := extractMatchClause(t, dsl)
+
+	// Ensure "title" is present
+	titleClause, ok := matchClause["title"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected title to be a map, got %T", matchClause["title"])
+	}
+
+	// Check that the inner "query" matches expected value
+	if val, ok := titleClause["query"]; !ok || val != "golang" {
+		t.Errorf("Expected match title: golang, got %v", val)
+	}
+}
+
+func TestToDSL_WithBoost(t *testing.T) {
+	match := orm.MatchQuery("title", "golang")
+	match.Boost = 2.5
+
+	q := orm.NewQuery().Must(match)
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	clauses := extractClauseByType(t, dsl, "match")
+	if len(clauses) == 0 {
+		t.Fatal("Expected at least one match clause")
+	}
+
+	matchMap := clauses[0].(map[string]interface{})["match"].(map[string]interface{})
+
+	titleClause, ok := matchMap["title"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected match[\"title\"] to be a map")
+	}
+
+	if titleClause["query"] != "golang" {
+		t.Errorf("Expected query value 'golang', got %v", titleClause["query"])
+	}
+	if boost, ok := titleClause["boost"]; !ok || util.ToString(boost) != util.ToString(2.5) {
+		t.Errorf("Expected boost 2.5, got %v", boost)
+	}
+}
+
+func TestToDSL_BoolWithSubClauses(t *testing.T) {
+	q := orm.NewQuery().
+		Must(orm.MatchQuery("title", "golang")).
+		Not(orm.TermQuery("status", "deleted"))
+
+	dsl := BuildQueryDSL(q)
+	fmt.Println(q.ToString())
+	printDSL(dsl)
+
+	queryObj, ok := dsl["query"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected 'query' to be a map, got: %T", dsl["query"])
+	}
+
+	boolQueryRaw, ok := queryObj["bool"]
+	if !ok {
+		t.Fatalf("Expected 'bool' clause at top level, got keys: %v", maps.Keys(queryObj))
+	}
+
+	boolQuery, ok := boolQueryRaw.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected 'bool' to be map[string]interface{}, got: %T", boolQueryRaw)
+	}
+
+	mustClausesRaw, ok := boolQuery["must"]
+	if !ok {
+		t.Fatal("Missing 'must' clause")
+	}
+	mustClauses, ok := mustClausesRaw.([]interface{})
+	if !ok {
+		t.Fatalf("Expected 'must' to be []interface{}, got %T", mustClausesRaw)
+	}
+	if len(mustClauses) != 1 {
+		t.Fatalf("Expected 1 'must' clause, got: %d", len(mustClauses))
+	}
+
+	mustNotClausesRaw, ok := boolQuery["must_not"]
+	if !ok {
+		t.Fatal("Missing 'must_not' clause")
+	}
+	mustNotClauses, ok := mustNotClausesRaw.([]interface{})
+	if !ok {
+		t.Fatalf("Expected 'must_not' to be []interface{}, got %T", mustNotClausesRaw)
+	}
+	if len(mustNotClauses) != 1 {
+		t.Fatalf("Expected 1 'must_not' clause, got: %d", len(mustNotClauses))
+	}
+}
 
 func printDSL(dsl map[string]interface{}) {
 	b, _ := json.MarshalIndent(dsl, "", "  ")
@@ -42,20 +143,42 @@ func TestToDSL_SimpleMatch(t *testing.T) {
 	q := orm.NewQuery().Must(
 		orm.MatchQuery("title", "golang"),
 	)
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
 
 	printDSL(dsl)
 
-	matchClause := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"].([]interface{})[0].(map[string]interface{})["match"].(map[string]interface{})
-	titleVal := matchClause["title"]
+	queryVal, ok := dsl["query"]
+	if !ok {
+		t.Fatal("Missing 'query' key in DSL")
+	}
 
-	switch v := titleVal.(type) {
+	queryMap, ok := queryVal.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected 'query' to be a map, got: %T", queryVal)
+	}
+
+	// Check top-level "match" clause directly (since simplified)
+	matchClause, ok := queryMap["match"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected top-level 'match' clause, got: %v", queryMap)
+	}
+
+	val, ok := matchClause["title"]
+	if !ok {
+		t.Errorf("Expected 'title' field in match clause")
+	}
+
+	switch v := val.(type) {
 	case string:
-		assert.Equal(t, "golang", v)
-	case []interface{}:
-		assert.Contains(t, v, "golang")
+		if v != "golang" {
+			t.Errorf("Expected match value 'golang', got: %v", v)
+		}
+	case map[string]interface{}:
+		if v["query"] != "golang" {
+			t.Errorf("Expected match value 'golang', got: %v", v["query"])
+		}
 	default:
-		t.Fatalf("unexpected type for title: %T", v)
+		t.Errorf("Unexpected type for match value: %T", v)
 	}
 }
 
@@ -71,7 +194,7 @@ func TestToDSL_TermAndRange(t *testing.T) {
 			orm.Sort{Field: "created_at", SortType: orm.DESC},
 		)
 
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
 	printDSL(dsl)
 
 	assert.Equal(t, int(10), dsl["from"])
@@ -79,6 +202,68 @@ func TestToDSL_TermAndRange(t *testing.T) {
 
 	sort := dsl["sort"].([]interface{})[0].(map[string]interface{})
 	assert.Equal(t, "desc", sort["created_at"].(map[string]interface{})["order"])
+}
+
+func TestToDSL_Match_With_Parameter(t *testing.T) {
+	q := orm.NewQuery().
+		Must(
+			orm.MatchQuery("status", "active").Parameter("analyzer", "whitespace"),
+		)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `
+	{
+	  "query": {
+	    "match": {
+	      "status": {
+	        "query": "active",
+	        "analyzer": "whitespace"
+	      }
+	    }
+	  }
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+func TestToDSL_Bool_With_Parameter(t *testing.T) {
+	q := orm.NewQuery().
+		Should(
+			orm.TermQuery("tags", "inactive"),
+			orm.TermQuery("tags", "active"),
+		).Parameter("minimum_should_match", 1)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+  "query": {
+    "bool": {
+      "minimum_should_match": 1,
+      "should": [
+        {
+          "term": {
+            "tags": {
+              "value": "inactive"
+            }
+          }
+        },
+        {
+          "term": {
+            "tags": {
+              "value": "active"
+            }
+          }
+        }
+      ]
+    }
+  }
+}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func TestToDSL_ComplexNestedBool(t *testing.T) {
@@ -99,7 +284,7 @@ func TestToDSL_ComplexNestedBool(t *testing.T) {
 		).
 		From(0).Size(100)
 
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
 	printDSL(dsl)
 
 	must := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"].([]interface{})
@@ -152,12 +337,55 @@ func TestToDSL_ComplexNestedBool(t *testing.T) {
 
 func TestToDSL_EmptyQuery(t *testing.T) {
 	q := orm.NewQuery()
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
 	printDSL(dsl)
-	// Should default to an empty must
-	boolQuery := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})
-	assert.Contains(t, boolQuery, "must")
-	assert.Len(t, boolQuery["must"], 0)
+
+	expected := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{},
+		},
+	}
+
+	assert.Equal(t, expected, dsl)
+}
+func TestToDSL_MultiMatchQuery(t *testing.T) {
+	q := orm.NewQuery().Must(orm.MultiMatchQuery([]string{"title", "category"}, "hello world"))
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+  "query": {
+    "multi_match": {
+      "fields": [
+        "title",
+        "category"
+      ],
+      "query": "hello world"
+    }
+  }
+}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+func TestToDSL_MatchPhraseQuery(t *testing.T) {
+	q := orm.NewQuery().Must(orm.MatchPhraseQuery("title", "hello world",5))
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "hello world",
+        "slop": 5
+      }
+    }
+  }
+}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func TestToDSL_RangeGteLte(t *testing.T) {
@@ -165,7 +393,7 @@ func TestToDSL_RangeGteLte(t *testing.T) {
 		orm.Range("price").Gte(100),
 		orm.Range("price").Lte(500),
 	)
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
 	printDSL(dsl)
 
 	mustClauses := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})["must"].([]interface{})
@@ -176,6 +404,169 @@ func TestToDSL_RangeGteLte(t *testing.T) {
 
 	r2 := mustClauses[1].(map[string]interface{})["range"].(map[string]interface{})["price"].(map[string]interface{})
 	assert.Equal(t, int(500), r2["lte"])
+}
+
+func TestFlattenBoolClauses_ShouldInsideShould(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"should": []interface{}{
+							map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+							map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+				map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
+			},
+		},
+	}
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("ShouldInsideShould: expected:\n%v\ngot:\n%v", expected, result)
+	}
+}
+
+//func TestFlattenBoolClauses_MustNotInsideMustNot(t *testing.T) {
+//	input := map[string]interface{}{
+//		"bool": map[string]interface{}{
+//			"must_not": []interface{}{
+//				map[string]interface{}{
+//					"bool": map[string]interface{}{
+//						"must_not": []interface{}{
+//							map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+//						},
+//					},
+//				},
+//				map[string]interface{}{"term": map[string]interface{}{"y": "b"}},
+//			},
+//		},
+//	}
+//
+//	//expected := map[string]interface{}{
+//	//	"bool": map[string]interface{}{
+//	//		"must": []interface{}{
+//	//			map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+//	//		},
+//	//		"must_not": []interface{}{
+//	//			map[string]interface{}{"term": map[string]interface{}{"y": "b"}},
+//	//		},
+//	//	},
+//	//}
+//
+//	//result := flattenBoolClauses(input)
+//	//println(util.ToIndentJson(result))
+//	//if !reflect.DeepEqual(result, expected) {
+//	//	t.Errorf("MustNotMixed: expected:\n%v\ngot:\n%v", input, expected)
+//	//}
+//}
+
+func TestFlattenBoolClauses_AlreadyFlat(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must": []interface{}{
+				map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+			},
+		},
+	}
+
+	expected := input
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("AlreadyFlat: expected:\n%v\ngot:\n%v", expected, result)
+	}
+}
+
+func TestFlattenBoolClauses_MixedNestedShouldAndMust(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must": []interface{}{
+							map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+						},
+						"should": []interface{}{
+							map[string]interface{}{"term": map[string]interface{}{"y": "b"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Should not flatten mixed bools
+	expected := input
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("MixedNested: expected:\n%v\ngot:\n%v", expected, result)
+	}
+}
+
+func TestToDSL_MustNotWithMustQuery(t *testing.T) {
+	q := orm.NewQuery().
+		Must(
+			orm.MatchQuery("title", "real-time search"),
+			orm.MustNotQuery(
+				orm.TermQuery("status", "deleted"),
+				orm.PrefixQuery("category", "archived"),
+			),
+		)
+
+	dsl := BuildQueryDSL(q)
+	fmt.Println(q.ToString())
+	printDSL(dsl)
+
+	expected := `{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": {
+              "query": "real-time search"
+            }
+          }
+        },
+        {
+          "bool": {
+            "must_not": [
+              {
+                "term": {
+                  "status": {
+                    "value": "deleted"
+                  }
+                }
+              },
+              {
+                "prefix": {
+                  "category": {
+                    "value": "archived"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func TestToDSL_DeeplyNestedComplexQuery(t *testing.T) {
@@ -202,66 +593,116 @@ func TestToDSL_DeeplyNestedComplexQuery(t *testing.T) {
 			orm.Sort{Field: "published_at", SortType: orm.ASC},
 		)
 
-	dsl := ToDSL(q)
-	printDSL(dsl)
+	dsl := BuildQueryDSL(q)
 
-	expected := map[string]interface{}{
-		"from": 50,
-		"size": 25,
-		"sort": []interface{}{
-			map[string]interface{}{
-				"score": map[string]interface{}{"order": "desc"},
-			},
-			map[string]interface{}{
-				"published_at": map[string]interface{}{"order": "asc"},
-			},
-		},
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": []interface{}{
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"title": "real-time search",
-						},
-					},
-					map[string]interface{}{
-						"bool": map[string]interface{}{
-							"should": []interface{}{
-								map[string]interface{}{
-									"term": map[string]interface{}{"tag": "distributed"},
-								},
-								map[string]interface{}{
-									"term": map[string]interface{}{"tag": "scalable"},
-								},
-								map[string]interface{}{
-									"bool": map[string]interface{}{
-										"must": []interface{}{
-											map[string]interface{}{
-												"match": map[string]interface{}{"author": "medcl"},
-											},
-											map[string]interface{}{
-												"range": map[string]interface{}{
-													"published_year": map[string]interface{}{
-														"gte": 2020,
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					map[string]interface{}{
-						"bool": map[string]interface{}{
-							"must_not": []interface{}{
-								map[string]interface{}{
-									"term": map[string]interface{}{"status": "deleted"},
-								},
-								map[string]interface{}{
-									"prefix": map[string]interface{}{"category": "archived"},
-								},
-							},
+	expected := `
+	{
+	  "from": 50,
+	  "size": 25,
+	  "query": {
+	    "bool": {
+	      "must": [
+	        {
+	          "match": {
+	            "title": {
+	              "query": "real-time search"
+	            }
+	          }
+	        },
+	        {
+	          "bool": {
+	            "should": [
+	              {
+	                "term": {
+	                  "tag": {
+	                    "value": "distributed"
+	                  }
+	                }
+	              },
+	              {
+	                "term": {
+	                  "tag": {
+	                    "value": "scalable"
+	                  }
+	                }
+	              },
+	              {
+	                "bool": {
+	                  "must": [
+	                    {
+	                      "match": {
+	                        "author": {
+	                          "query": "medcl"
+	                        }
+	                      }
+	                    },
+	                    {
+	                      "range": {
+	                        "published_year": {
+	                          "gte": 2020
+	                        }
+	                      }
+	                    }
+	                  ]
+	                }
+	              }
+	            ]
+	          }
+	        },
+	        {
+	          "bool": {
+	            "must_not": [
+	              {
+	                "term": {
+	                  "status": {
+	                    "value": "deleted"
+	                  }
+	                }
+	              },
+	              {
+	                "prefix": {
+	                  "category": {
+	                    "value": "archived"
+	                  }
+	                }
+	              }
+	            ]
+	          }
+	        }
+	      ]
+	    }
+	  },
+	  "sort": [
+	    {
+	      "score": {
+	        "order": "desc"
+	      }
+	    },
+	    {
+	      "published_at": {
+	        "order": "asc"
+	      }
+	    }
+	  ]
+	}`
+
+	actual, err := json.Marshal(dsl)
+	if err != nil {
+		t.Fatalf("Failed to marshal DSL: %v", err)
+	}
+
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestFlattenBoolClauses_SimpleShould(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"should": []interface{}{
+							map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+							map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
 						},
 					},
 				},
@@ -269,10 +710,274 @@ func TestToDSL_DeeplyNestedComplexQuery(t *testing.T) {
 		},
 	}
 
-	// Use JSON string comparison for deep equality
-	actualJSON := util.MustToJSON(dsl)
-	expectedJSON := util.MustToJSON(expected)
-	assert.JSONEq(t, expectedJSON, actualJSON)
+	expected := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+				map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
+			},
+		},
+	}
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", expected, result)
+	}
+}
+
+func TestFlattenBoolClauses_Must(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must": []interface{}{
+							map[string]interface{}{"term": map[string]interface{}{"a": 1}},
+							map[string]interface{}{"term": map[string]interface{}{"b": 2}},
+						},
+					},
+				},
+				map[string]interface{}{"term": map[string]interface{}{"c": 3}},
+			},
+		},
+	}
+
+	expected := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must": []interface{}{
+				map[string]interface{}{"term": map[string]interface{}{"a": 1}},
+				map[string]interface{}{"term": map[string]interface{}{"b": 2}},
+				map[string]interface{}{"term": map[string]interface{}{"c": 3}},
+			},
+		},
+	}
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", expected, result)
+	}
+}
+
+func TestFlattenBoolClauses_MustNotMixed(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must_not": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must_not": []interface{}{
+							map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+						},
+					},
+				},
+				map[string]interface{}{"term": map[string]interface{}{"y": "b"}},
+			},
+		},
+	}
+
+	//expected := map[string]interface{}{
+	//	"bool": map[string]interface{}{
+	//		"must": []interface{}{
+	//			map[string]interface{}{"term": map[string]interface{}{"x": "a"}},
+	//		},
+	//		"must_not": []interface{}{
+	//			map[string]interface{}{"term": map[string]interface{}{"y": "b"}},
+	//		},
+	//	},
+	//}
+
+	result := flattenBoolClauses(input)
+
+	fmt.Println(util.ToIndentJson(result))
+
+	if !reflect.DeepEqual(result, input) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", input, result)
+	}
+}
+
+func TestFlattenBoolClauses_NoChange(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"must": []interface{}{
+				map[string]interface{}{"term": map[string]interface{}{"a": 1}},
+			},
+			"should": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"must": []interface{}{ // different type, should NOT be flattened
+							map[string]interface{}{"term": map[string]interface{}{"b": 2}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Should remain unchanged
+	expected := input
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected no change:\n%v\nGot:\n%v", expected, result)
+	}
+}
+
+func TestFlattenBoolClauses_ShouldNested(t *testing.T) {
+	input := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{
+					"bool": map[string]interface{}{
+						"should": []interface{}{
+							map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+							map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := map[string]interface{}{
+		"bool": map[string]interface{}{
+			"should": []interface{}{
+				map[string]interface{}{"match": map[string]interface{}{"lang": "en"}},
+				map[string]interface{}{"match": map[string]interface{}{"lang": "zh"}},
+			},
+		},
+	}
+
+	result := flattenBoolClauses(input)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected:\n%v\nGot:\n%v", expected, result)
+	}
+}
+
+func TestToDSL_ShouldQueryTypes(t *testing.T) {
+	q := orm.NewQuery().Must(
+		orm.ShouldQuery(
+			orm.MatchQuery("lang", "en"),
+			orm.MatchQuery("lang", "zh"),
+		),
+	).Size(10).SortBy(
+		orm.Sort{Field: "score", SortType: orm.DESC},
+	)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `
+	{
+	  "query": {
+	    "bool": {
+	      "should": [
+	        {
+	          "match": {
+	            "lang": {
+	              "query": "en"
+	            }
+	          }
+	        },
+	        {
+	          "match": {
+	            "lang": {
+	              "query": "zh"
+	            }
+	          }
+	        }
+	      ]
+	    }
+	  },
+	  "size": 10,
+	  "sort": [
+	    {
+	      "score": {
+	        "order": "desc"
+	      }
+	    }
+	  ]
+	}`
+
+	actual, err := json.Marshal(dsl)
+	if err != nil {
+		t.Fatalf("Failed to marshal DSL: %v", err)
+	}
+
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_ShouldQuery1Types(t *testing.T) {
+	q := orm.NewQuery().Must(
+		orm.ShouldQuery(
+			orm.MatchQuery("lang", "en"),
+			orm.MatchQuery("lang", "zh"),
+		),
+		orm.MustNotQuery(
+			orm.TermQuery("deleted", true),
+		),
+	).Size(10).SortBy(
+		orm.Sort{Field: "score", SortType: orm.DESC},
+	)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `
+	{
+	  "query": {
+	    "bool": {
+	      "must": [
+	        {
+	          "bool": {
+	            "should": [
+	              {
+	                "match": {
+	                  "lang": {
+	                    "query": "en"
+	                  }
+	                }
+	              },
+	              {
+	                "match": {
+	                  "lang": {
+	                    "query": "zh"
+	                  }
+	                }
+	              }
+	            ]
+	          }
+	        },
+	        {
+	          "bool": {
+	            "must_not": [
+	              {
+	                "term": {
+	                  "deleted": {
+	                    "value": true
+	                  }
+	                }
+	              }
+	            ]
+	          }
+	        }
+	      ]
+	    }
+	  },
+	  "size": 10,
+	  "sort": [
+	    {
+	      "score": {
+	        "order": "desc"
+	      }
+	    }
+	  ]
+	}`
+
+	actual, err := json.Marshal(dsl)
+	if err != nil {
+		t.Fatalf("Failed to marshal DSL: %v", err)
+	}
+
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func TestToDSL_AllQueryTypes(t *testing.T) {
@@ -299,43 +1004,196 @@ func TestToDSL_AllQueryTypes(t *testing.T) {
 		orm.Sort{Field: "score", SortType: orm.DESC},
 	)
 
-	dsl := ToDSL(q)
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `
+	{
+	  "query": {
+	    "bool": {
+	      "must": [
+	        {
+	          "match": {
+	            "title": {
+	              "query": "go"
+	            }
+	          }
+	        },
+	        {
+	          "term": {
+	            "status": {
+	              "value": "published"
+	            }
+	          }
+	        },
+	        {
+	          "prefix": {
+	            "author": {
+	              "value": "med"
+	            }
+	          }
+	        },
+	        {
+	          "wildcard": {
+	            "category": "tech*"
+	          }
+	        },
+	        {
+	          "regexp": {
+	            "slug": "g.*"
+	          }
+	        },
+	        {
+	          "fuzzy": {
+	            "summary": {
+	              "fuzziness": 0,
+	              "value": "elasticsearch"
+	            }
+	          }
+	        },
+	        {
+	          "exists": {
+	            "field": "created_at"
+	          }
+	        },
+	        {
+	          "terms": {
+	            "tags": [
+	              "search",
+	              "infra",
+	              "open-source"
+	            ]
+	          }
+	        },
+	        {
+	          "bool": {
+	            "must_not": [
+	              {
+	                "terms": {
+	                  "region": [
+	                    "cn",
+	                    "ru"
+	                  ]
+	                }
+	              }
+	            ]
+	          }
+	        },
+	        {
+	          "range": {
+	            "published_year": {
+	              "gte": 2015
+	            }
+	          }
+	        },
+	        {
+	          "range": {
+	            "views": {
+	              "lt": 1000000
+	            }
+	          }
+	        },
+	        {
+	          "bool": {
+	            "should": [
+	              {
+	                "match": {
+	                  "lang": {
+	                    "query": "en"
+	                  }
+	                }
+	              },
+	              {
+	                "match": {
+	                  "lang": {
+	                    "query": "zh"
+	                  }
+	                }
+	              }
+	            ]
+	          }
+	        },
+	        {
+	          "bool": {
+	            "must_not": [
+	              {
+	                "term": {
+	                  "deleted": {
+	                    "value": true
+	                  }
+	                }
+	              }
+	            ]
+	          }
+	        }
+	      ]
+	    }
+	  },
+	  "size": 10,
+	  "sort": [
+	    {
+	      "score": {
+	        "order": "desc"
+	      }
+	    }
+	  ]
+	}`
+
+	actual, err := json.Marshal(dsl)
+	if err != nil {
+		t.Fatalf("Failed to marshal DSL: %v", err)
+	}
+
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_FilterAndMust(t *testing.T) {
+	q := orm.NewQuery().
+		Must(
+			orm.MatchQuery("title", "distributed systems"),
+		).
+		Filter(
+			orm.TermQuery("status", "published"),
+			orm.ExistsQuery("created_at"),
+		)
+
+	dsl := BuildQueryDSL(q)
 
 	printDSL(dsl)
 
-	// Basic structure checks (just examples)
-	assert.Equal(t, 10, dsl["size"])
-	assert.Equal(t, "desc", dsl["sort"].([]interface{})[0].(map[string]interface{})["score"].(map[string]interface{})["order"])
+	expected := `
+	{
+	  "query": {
+	    "bool": {
+	      "must": [
+	        {
+	          "match": {
+	            "title": {
+	              "query": "distributed systems"
+	            }
+	          }
+	        }
+	      ],
+	      "filter": [
+	        {
+	          "term": {
+	            "status": {
+	              "value": "published"
+	            }
+	          }
+	        },
+	        {
+	          "exists": {
+	            "field": "created_at"
+	          }
+	        }
+	      ]
+	    }
+	  }
+	}`
 
-	query := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})
-
-	// Verify 'must' clause exists and is non-empty
-	mustClauses := query["must"].([]interface{})
-	assert.GreaterOrEqual(t, len(mustClauses), 10)
-
-	// Check 'should' clause is nested correctly
-	foundShould := false
-	for _, c := range mustClauses {
-		if inner, ok := c.(map[string]interface{})["bool"]; ok {
-			if should, ok := inner.(map[string]interface{})["should"]; ok {
-				assert.Len(t, should, 2)
-				foundShould = true
-			}
-		}
-	}
-	assert.True(t, foundShould, "should clause not found")
-
-	// Check 'must_not' clause is nested correctly
-	foundMustNot := false
-	for _, c := range mustClauses {
-		if inner, ok := c.(map[string]interface{})["bool"]; ok {
-			if mustNot, ok := inner.(map[string]interface{})["must_not"]; ok {
-				assert.Len(t, mustNot, 1)
-				foundMustNot = true
-			}
-		}
-	}
-	assert.True(t, foundMustNot, "must_not clause not found")
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func findBoolClauses(clause map[string]interface{}, boolKey string) ([]interface{}, bool) {
@@ -361,4 +1219,54 @@ func findBoolClauses(clause map[string]interface{}, boolKey string) ([]interface
 		}
 	}
 	return nil, false
+}
+
+func extractClauseByType(t *testing.T, dsl map[string]interface{}, clauseType string) []interface{} {
+	query, ok := dsl["query"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Missing top-level 'query'")
+	}
+
+	if direct, ok := query[clauseType]; ok {
+		// Direct match, e.g., query = match/term/etc
+		return []interface{}{map[string]interface{}{clauseType: direct}}
+	}
+
+	if boolClause, ok := query["bool"].(map[string]interface{}); ok {
+		if sub, ok := boolClause[clauseType].([]interface{}); ok {
+			return sub
+		}
+	}
+
+	t.Fatalf("Expected clause of type '%s' not found", clauseType)
+	return nil
+}
+
+func extractMatchClause(t *testing.T, dsl map[string]interface{}) map[string]interface{} {
+	query, ok := dsl["query"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Missing top-level 'query'")
+	}
+
+	// Case 1: direct match
+	if match, ok := query["match"]; ok {
+		return match.(map[string]interface{})
+	}
+
+	// Case 2: wrapped in bool -> must
+	if boolClause, ok := query["bool"].(map[string]interface{}); ok {
+		musts, ok := boolClause["must"].([]interface{})
+		if !ok || len(musts) == 0 {
+			t.Fatal("Expected at least one 'must' clause")
+		}
+
+		for _, clause := range musts {
+			if m, ok := clause.(map[string]interface{})["match"]; ok {
+				return m.(map[string]interface{})
+			}
+		}
+	}
+
+	t.Fatal("Match clause not found")
+	return nil
 }

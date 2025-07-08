@@ -40,6 +40,7 @@ limitations under the License.
 package orm
 
 import (
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"reflect"
@@ -101,6 +102,7 @@ const DESC SortType = "desc"
 
 type BoolType string
 
+const Filter BoolType = "filter"
 const Must BoolType = "must"
 const MustNot BoolType = "must_not"
 const Should BoolType = "should"
@@ -128,15 +130,39 @@ func Get(o interface{}) (bool, error) {
 }
 
 func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
-
-	if rValue.Kind() == reflect.Ptr {
-		rValue = reflect.Indirect(rValue)
+	// Handle nil pointers
+	if !rValue.IsValid() || (rValue.Kind() == reflect.Ptr && rValue.IsNil()) {
+		log.Errorf("invalid or nil value for field %s", fieldName)
+		return false, ""
 	}
 
-	f := rValue.FieldByName(fieldName)
+	// Dereference if it's a pointer
+	if rValue.Kind() == reflect.Ptr {
+		rValue = rValue.Elem()
+	}
 
-	if f.IsValid() && f.String() != "" {
-		return true, f.String()
+	// Make sure it's a struct
+	if rValue.Kind() != reflect.Struct {
+		log.Errorf("expected struct for field lookup, got %s", rValue.Kind())
+		return false, ""
+	}
+
+	// Get the field
+	f := rValue.FieldByName(fieldName)
+	if !f.IsValid() {
+		log.Errorf("field %s not found", fieldName)
+		return false, ""
+	}
+
+	// Check that it’s a string
+	if f.Kind() != reflect.String {
+		log.Errorf("field %s is not a string", fieldName)
+		return false, ""
+	}
+
+	val := f.String()
+	if val != "" {
+		return true, val
 	}
 	return false, ""
 }

@@ -88,13 +88,13 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 	var obj = DeleteQueuesByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to parse queue selector: ", err)
 		return
 	}
 
 	if obj.Selector == nil {
-		 module.WriteError(w, "no selector specified", http.StatusBadRequest)
+		module.WriteError(w, "no selector specified", http.StatusBadRequest)
 		return
 	}
 
@@ -102,13 +102,13 @@ func (module *API) DeleteQueuesByQuery(w http.ResponseWriter, req *http.Request,
 	for _, queue := range queues {
 		module.deleteQueueByID(queue.ID)
 	}
-	 module.WriteAckOKJSON(w)
+	module.WriteAckOKJSON(w)
 }
 
 func (module *API) DeleteQueue(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
 	module.deleteQueueByID(id)
-	 module.WriteAckOKJSON(w)
+	module.WriteAckOKJSON(w)
 }
 
 func (module *API) deleteQueueByID(id string) {
@@ -405,12 +405,12 @@ func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Reque
 	var obj = DeleteConsumersByQueryRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
-		 module.WriteError(w, err.Error(), http.StatusBadRequest)
+		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to parse queue selector: ", err)
 		return
 	}
 	if obj.Selector == nil {
-		 module.WriteError(w, "no selector specified", http.StatusBadRequest)
+		module.WriteError(w, "no selector specified", http.StatusBadRequest)
 		return
 	}
 
@@ -427,7 +427,7 @@ func (module *API) DeleteConsumersByQuery(w http.ResponseWriter, req *http.Reque
 			}
 		}
 	}
-	 module.WriteAckOKJSON(w)
+	module.WriteAckOKJSON(w)
 }
 
 func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -451,7 +451,7 @@ func (module *API) QueueResetConsumerOffset(w http.ResponseWriter, req *http.Req
 		ack = ok
 		status = 200
 		if err != nil {
-			 module.WriteError(w, err.Error(), http.StatusBadRequest)
+			module.WriteError(w, err.Error(), http.StatusBadRequest)
 		}
 	}
 

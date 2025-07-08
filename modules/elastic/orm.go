@@ -336,7 +336,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	//TODO  add global filter, per user per tenant, per permission etc.
 
 	if qb != nil {
-		dsl := orm.ToDSL(qb)
+		dsl := orm.BuildQueryDSL(qb)
 		if dsl != nil {
 			////parse query, remove unused parameters
 			//query := elastic.SearchRequest{}
@@ -422,6 +422,9 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 				for _, c1 := range q.Conds {
 					q := getQuery(c1)
 					switch c1.BoolType {
+					case api.Filter:
+						boolQuery.Filter = append(boolQuery.Filter, q)
+						break
 					case api.Must:
 						boolQuery.Must = append(boolQuery.Must, q)
 						break
@@ -441,7 +444,7 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 				if q.Filter.BoolType == api.MustNot {
 					boolQuery.MustNot = append(boolQuery.MustNot, filter)
 				} else {
-					boolQuery.Filter = filter
+					boolQuery.Filter = append(boolQuery.Filter, filter)
 				}
 			}
 
@@ -535,6 +538,8 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 			for _, cond := range q.Conds {
 				query := getQuery(cond)
 				switch cond.BoolType {
+				case api.Filter:
+					boolQuery.Filter = append(boolQuery.Filter, query)
 				case api.Must:
 					boolQuery.Must = append(boolQuery.Must, query)
 				case api.MustNot:
@@ -551,7 +556,7 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 			if q.Filter.BoolType == api.MustNot {
 				boolQuery.MustNot = append(boolQuery.MustNot, filter)
 			} else {
-				boolQuery.Filter = filter
+				boolQuery.Filter = append(boolQuery.Filter, filter)
 			}
 		}
 

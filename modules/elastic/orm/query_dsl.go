@@ -29,9 +29,17 @@ import (
 	"strings"
 )
 
-func ToDSL(q *orm.QueryBuilder) map[string]interface{} {
-	dsl := map[string]interface{}{
-		"query": clauseToDSL(q.Root()),
+func BuildQueryDSL(q *orm.QueryBuilder) map[string]interface{} {
+
+	q.Build()
+
+	//assemble final query dsl
+	dsl := map[string]interface{}{}
+
+	query := clauseToDSL(q.Root())
+
+	if query != nil {
+		dsl["query"] = flattenBoolClauses(query)
 	}
 
 	if q.FromVal() > 0 {
@@ -40,6 +48,18 @@ func ToDSL(q *orm.QueryBuilder) map[string]interface{} {
 	if q.SizeVal() > 0 {
 		dsl["size"] = q.SizeVal()
 	}
+
+	if len(q.IncludesVal()) > 0 || len(q.ExcludesVal()) > 0 {
+		sources := util.MapStr{}
+		if len(q.IncludesVal()) > 0 {
+			sources["includes"] = q.IncludesVal()
+		}
+		if len(q.ExcludesVal()) > 0 {
+			sources["excludes"] = q.ExcludesVal()
+		}
+		dsl["_source"] = sources
+	}
+
 	if len(q.Sorts()) > 0 {
 		var sortList []interface{}
 		for _, s := range q.Sorts() {
@@ -55,191 +75,237 @@ func ToDSL(q *orm.QueryBuilder) map[string]interface{} {
 	return dsl
 }
 
-func flattenClause(clause *orm.Clause) []*orm.Clause {
-	if clause.Query != nil {
-		// Leaf: no flattening needed
-		return []*orm.Clause{clause}
+func flattenBoolClauses(m map[string]interface{}) map[string]interface{} {
+	boolClause, ok := m["bool"].(map[string]interface{})
+	if !ok {
+		return m
 	}
 
-	// Recurse and flatten subclauses if same bool type
-	var flattened []*orm.Clause
-	for _, sub := range clause.SubClauses {
-		if sub.Query == nil && sub.BoolType == clause.BoolType {
-			flattened = append(flattened, flattenClause(sub)...)
-		} else {
-			flattened = append(flattened, sub)
+	result := map[string][]interface{}{
+		"filter":   {},
+		"must":     {},
+		"should":   {},
+		"must_not": {},
+	}
+
+	for _, key := range []string{"filter", "must", "should", "must_not"} {
+		items, ok := boolClause[key].([]interface{})
+		if !ok {
+			continue
 		}
-	}
-	return flattened
-}
-func clauseToDSL(clause *orm.Clause) map[string]interface{} {
-	if clause.Query != nil {
-		switch clause.Query.Operator {
-		case orm.QueryMatch:
-			return map[string]interface{}{
-				"match": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
+
+		for _, item := range items {
+			itemMap, isMap := item.(map[string]interface{})
+			if !isMap {
+				result[key] = append(result[key], item)
+				continue
 			}
-		case orm.QueryMultiMatch:
-			return map[string]interface{}{
-				"multi_match": map[string]interface{}{
-					"fields": strings.Split(clause.Query.Field, ","),
-					"query":  clause.Query.Value,
-				},
-			}
-		case orm.QueryMatchPhrase:
 
-			if clause.Query.Parameters != nil && len(clause.Query.Parameters.Data) > 0 {
-				v := util.MapStr{
-					"query": clause.Query.Value,
-				}
+			// Recursively flatten child clauses
+			itemMap = flattenBoolClauses(itemMap)
 
-				for k1, v1 := range clause.Query.Parameters.Data {
-					v[k1] = v1
-				}
-
-				q := util.MapStr{
-					"match_phrase": util.MapStr{
-						clause.Query.Field: v,
-					},
-				}
-
-				return q
-			} else {
-				return map[string]interface{}{
-					"match_phrase": map[string]interface{}{
-						clause.Query.Field: clause.Query.Value,
-					},
+			// Check if it's a nested bool clause
+			if innerBool, ok := itemMap["bool"].(map[string]interface{}); ok {
+				// Only flatten if the inner bool has **only the same clause type**
+				// and no additional parameters like minimum_should_match, boost, etc.
+				if len(innerBool) == 1 {
+					if innerItems, ok := innerBool[key].([]interface{}); ok {
+						if key != "must_not" {
+							result[key] = append(result[key], innerItems...)
+							continue
+						}
+					}
 				}
 			}
-		case orm.QueryTerm:
-			return map[string]interface{}{
-				"term": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryTerms:
-			return map[string]interface{}{
-				"terms": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryPrefix:
-			return map[string]interface{}{
-				"prefix": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryWildcard:
-			return map[string]interface{}{
-				"wildcard": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryRegexp:
-			return map[string]interface{}{
-				"regexp": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryFuzzy:
 
-			if clause.Query.Parameters != nil && len(clause.Query.Parameters.Data) > 0 {
-				v := util.MapStr{
-					"value": clause.Query.Value,
-				}
-
-				for k1, v1 := range clause.Query.Parameters.Data {
-					v[k1] = v1
-				}
-
-				q := util.MapStr{
-					"fuzzy": util.MapStr{
-						clause.Query.Field: v,
-					},
-				}
-
-				return q
-			} else {
-				return map[string]interface{}{
-					"fuzzy": map[string]interface{}{
-						clause.Query.Field: clause.Query.Value,
-					},
-				}
-			}
-		case orm.QueryExists:
-			return map[string]interface{}{
-				"exists": map[string]interface{}{
-					"field": clause.Query.Field,
-				},
-			}
-		case orm.QueryIn:
-			return map[string]interface{}{
-				"terms": map[string]interface{}{
-					clause.Query.Field: clause.Query.Value,
-				},
-			}
-		case orm.QueryNotIn:
-			return map[string]interface{}{
-				"bool": map[string]interface{}{
-					"must_not": []interface{}{
-						map[string]interface{}{
-							"terms": map[string]interface{}{
-								clause.Query.Field: clause.Query.Value,
-							},
-						},
-					},
-				},
-			}
-		case orm.QueryRangeGte:
-			return map[string]interface{}{
-				"range": map[string]interface{}{
-					clause.Query.Field: map[string]interface{}{
-						"gte": clause.Query.Value,
-					},
-				},
-			}
-		case orm.QueryRangeLte:
-			return map[string]interface{}{
-				"range": map[string]interface{}{
-					clause.Query.Field: map[string]interface{}{
-						"lte": clause.Query.Value,
-					},
-				},
-			}
-		case orm.QueryRangeGt:
-			return map[string]interface{}{
-				"range": map[string]interface{}{
-					clause.Query.Field: map[string]interface{}{
-						"gt": clause.Query.Value,
-					},
-				},
-			}
-		case orm.QueryRangeLt:
-			return map[string]interface{}{
-				"range": map[string]interface{}{
-					clause.Query.Field: map[string]interface{}{
-						"lt": clause.Query.Value,
-					},
-				},
-			}
-		default:
-			panic("unsupported operator: " + string(clause.Query.Operator))
+			// Default: keep as-is
+			result[key] = append(result[key], itemMap)
 		}
 	}
 
-	// If it's a bool clause, handle recursively
-	subClauses := flattenClause(clause)
+	// Keep additional parameters from original bool
+	boolOut := map[string]interface{}{}
+	for k, v := range result {
+		if len(v) > 0 {
+			boolOut[k] = v
+		}
+	}
 
-	var children []interface{}
-	for _, sub := range subClauses {
-		children = append(children, clauseToDSL(sub))
+	// Copy over any remaining non-clause keys from the original bool (e.g., minimum_should_match)
+	for k, v := range boolClause {
+		if _, known := result[k]; !known {
+			boolOut[k] = v
+		}
 	}
 
 	return map[string]interface{}{
-		"bool": map[string]interface{}{
-			string(clause.BoolType): children,
-		},
+		"bool": boolOut,
+	}
+}
+
+func clauseToDSL(clause *orm.Clause) map[string]interface{} {
+	// Leaf node
+	if clause.IsLeaf() {
+		return buildLeafQuery(clause)
+	}
+
+	boolMap := make(map[string][]interface{})
+
+	for _, sub := range clause.FilterClauses {
+		if dsl := clauseToDSL(sub); dsl != nil {
+			boolMap["filter"] = append(boolMap["filter"], dsl)
+		}
+	}
+
+	for _, sub := range clause.MustClauses {
+		if dsl := clauseToDSL(sub); dsl != nil {
+			boolMap["must"] = append(boolMap["must"], dsl)
+		}
+	}
+	for _, sub := range clause.ShouldClauses {
+		if dsl := clauseToDSL(sub); dsl != nil {
+			boolMap["should"] = append(boolMap["should"], dsl)
+		}
+	}
+	for _, sub := range clause.MustNotClauses {
+		if dsl := clauseToDSL(sub); dsl != nil {
+			// Flatten nested must_not
+			if inner, ok := dsl["bool"].(map[string]interface{}); ok {
+				if nested, ok := inner["must_not"].([]interface{}); ok && len(inner) == 1 {
+					boolMap["must_not"] = append(boolMap["must_not"], nested...)
+					continue
+				}
+			}
+			boolMap["must_not"] = append(boolMap["must_not"], dsl)
+		}
+	}
+
+	finalBoolMap := toMapInterface(boolMap)
+	if clause.Boost > 0 {
+		finalBoolMap["boost"] = clause.Boost
+	}
+
+	if clause.Parameters != nil {
+		for k, v := range clause.Parameters.Data {
+			finalBoolMap[k] = v
+		}
+	}
+
+	return map[string]interface{}{
+		"bool": finalBoolMap,
+	}
+}
+
+func toMapInterface(m map[string][]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for k, v := range m {
+		if len(v) > 0 {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
+	field := clause.Field
+	value := clause.Value
+	params := clause.Parameters
+	boost := clause.Boost
+
+	addBoost := func(m map[string]interface{}) map[string]interface{} {
+		if boost > 0 {
+			m["boost"] = boost
+		}
+		if params != nil {
+			for k, v := range params.Data {
+				m[k] = v
+			}
+		}
+		return m
+	}
+
+	switch clause.Operator {
+	case orm.QueryMatch:
+		return map[string]interface{}{"match": map[string]interface{}{field: addBoost(map[string]interface{}{"query": value})}}
+
+	case orm.QueryMatchPhrase:
+		return map[string]interface{}{"match_phrase": map[string]interface{}{field: addBoost(map[string]interface{}{"query": value})}}
+
+	case orm.QueryMultiMatch:
+		// field = "title,category" → split into []string
+		fields := strings.Split(field, ",")
+		m := map[string]interface{}{
+			"query":  value,
+			"fields": fields,
+		}
+		if boost > 0 {
+			m["boost"] = boost
+		}
+		if params != nil {
+			for k, v := range params.Data {
+				m[k] = v
+			}
+		}
+		return map[string]interface{}{
+			"multi_match": m,
+		}
+	case orm.QueryTerm:
+		return map[string]interface{}{"term": map[string]interface{}{field: addBoost(map[string]interface{}{"value": value})}}
+
+	case orm.QueryTerms, orm.QueryIn:
+		return map[string]interface{}{"terms": map[string]interface{}{field: value}}
+
+	case orm.QueryNotIn:
+		return map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must_not": []interface{}{
+					map[string]interface{}{"terms": map[string]interface{}{field: value}},
+				},
+			},
+		}
+
+	case orm.QueryPrefix:
+		return map[string]interface{}{"prefix": map[string]interface{}{field: addBoost(map[string]interface{}{"value": value})}}
+
+	case orm.QueryWildcard:
+		return map[string]interface{}{"wildcard": map[string]interface{}{field: value}}
+
+	case orm.QueryRegexp:
+		return map[string]interface{}{"regexp": map[string]interface{}{field: value}}
+
+	case orm.QueryExists:
+		return map[string]interface{}{"exists": map[string]interface{}{"field": field}}
+
+	case orm.QueryFuzzy:
+		m := map[string]interface{}{"value": value}
+		if params != nil {
+			for k, val := range params.Data {
+				m[k] = val
+			}
+		}
+		if boost > 0 {
+			m["boost"] = boost
+		}
+		return map[string]interface{}{"fuzzy": map[string]interface{}{field: m}}
+
+	case orm.QueryRangeGte:
+		return map[string]interface{}{
+			"range": map[string]interface{}{field: addBoost(map[string]interface{}{"gte": value})},
+		}
+	case orm.QueryRangeLte:
+		return map[string]interface{}{
+			"range": map[string]interface{}{field: addBoost(map[string]interface{}{"lte": value})},
+		}
+	case orm.QueryRangeGt:
+		return map[string]interface{}{
+			"range": map[string]interface{}{field: addBoost(map[string]interface{}{"gt": value})},
+		}
+	case orm.QueryRangeLt:
+		return map[string]interface{}{
+			"range": map[string]interface{}{field: addBoost(map[string]interface{}{"lt": value})},
+		}
+
+	default:
+		panic("unsupported operator: " + string(clause.Operator))
 	}
 }

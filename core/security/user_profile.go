@@ -27,6 +27,10 @@ import (
 	"infini.sh/framework/core/orm"
 )
 
+type User struct {
+	UserUniversalProfile
+}
+
 type UserUniversalProfile struct {
 	orm.ORMObjectBase
 	Name        string      `json:"name"  elastic_mapping:"name: { type: keyword }"`
@@ -46,11 +50,6 @@ type UserExternalProfile struct {
 	Email        string      `json:"email" elastic_mapping:"email: { type: keyword }"`
 	AvatarUrl    string      `json:"avatar" elastic_mapping:"avatar: { type: keyword }"`
 	Payload      interface{} `json:"payload" elastic_mapping:"payload: { type: object }"`
-}
-
-type UserRole struct {
-	ID   string `json:"id" elastic_mapping:"id: { type: keyword }"`
-	Name string `json:"name" elastic_mapping:"name: { type: keyword }"`
 }
 
 type Preferences struct {

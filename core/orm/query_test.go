@@ -25,6 +25,7 @@ package orm
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"testing"
@@ -32,21 +33,31 @@ import (
 
 func TestTermQuery(t *testing.T) {
 	clause := TermQuery("status", "active")
-	if clause.Query == nil || clause.Query.Operator != QueryTerm || clause.Query.Field != "status" || clause.Query.Value != "active" {
+	if !clause.IsLeaf() || clause.Operator != QueryTerm || clause.Field != "status" || clause.Value != "active" {
 		t.Errorf("Invalid TermQuery clause: %+v", clause)
 	}
 }
 
 func TestMatchQuery(t *testing.T) {
 	clause := MatchQuery("title", "search")
-	if clause.Query == nil || clause.Query.Operator != QueryMatch || clause.Query.Field != "title" || clause.Query.Value != "search" {
+	if !clause.IsLeaf() || clause.Operator != QueryMatch || clause.Field != "title" || clause.Value != "search" {
 		t.Errorf("Invalid MatchQuery clause: %+v", clause)
 	}
 }
 
+func TestMatchQueryWithParameter(t *testing.T) {
+	clause := MatchQuery("title", "search").Parameter("analyzer", "whitespace")
+	if !clause.IsLeaf() || clause.Operator != QueryMatch || clause.Field != "title" || clause.Value != "search" {
+		t.Errorf("Invalid MatchQuery clause: %+v", clause)
+	}
+	v, ok := clause.Parameters.GetString("analyzer")
+	assert.True(t, ok)
+	assert.Equal(t, "whitespace", v)
+}
+
 func TestPrefixQuery(t *testing.T) {
 	clause := PrefixQuery("name", "med")
-	if clause.Query == nil || clause.Query.Operator != QueryPrefix || clause.Query.Field != "name" || clause.Query.Value != "med" {
+	if !clause.IsLeaf() || clause.Operator != QueryPrefix || clause.Field != "name" || clause.Value != "med" {
 		t.Errorf("Invalid PrefixQuery clause: %+v", clause)
 	}
 }
@@ -56,7 +67,7 @@ func TestBoolQueryWrapping(t *testing.T) {
 	b := TermQuery("category", "books")
 	boolClause := BoolQuery(Must, a, b)
 
-	if boolClause.BoolType != Must || len(boolClause.SubClauses) != 2 {
+	if len(boolClause.MustClauses) != 2 {
 		t.Errorf("Invalid BoolQuery: %+v", boolClause)
 	}
 }
@@ -66,7 +77,7 @@ func TestMustQuery(t *testing.T) {
 	b := TermQuery("b", 2)
 	c := MustQuery(a, b)
 
-	if c.BoolType != Must || len(c.SubClauses) != 2 {
+	if len(c.MustClauses) != 2 {
 		t.Errorf("MustQuery failed: %+v", c)
 	}
 }
@@ -76,7 +87,7 @@ func TestShouldQuery(t *testing.T) {
 	b := MatchQuery("desc", "bar")
 	c := ShouldQuery(a, b)
 
-	if c.BoolType != Should || len(c.SubClauses) != 2 {
+	if len(c.ShouldClauses) != 2 {
 		t.Errorf("ShouldQuery failed: %+v", c)
 	}
 }
@@ -85,7 +96,7 @@ func TestMustNotQuery(t *testing.T) {
 	a := TermQuery("deleted", true)
 	c := MustNotQuery(a)
 
-	if c.BoolType != MustNot || len(c.SubClauses) != 1 {
+	if len(c.MustNotClauses) != 1 {
 		t.Errorf("MustNotQuery failed: %+v", c)
 	}
 }
@@ -98,7 +109,7 @@ func TestNestedBool(t *testing.T) {
 	c := TermQuery("published", true)
 	outer := ShouldQuery(nested, c)
 
-	if outer.BoolType != Should || len(outer.SubClauses) != 2 {
+	if len(outer.ShouldClauses) != 2 {
 		t.Errorf("Invalid nested query structure: %+v", outer)
 	}
 }
@@ -108,10 +119,10 @@ func TestRangeQuery(t *testing.T) {
 	gteClause := rangeQuery.Gte(18)
 	lteClause := rangeQuery.Lte(30)
 
-	if gteClause.Query == nil || gteClause.Query.Field != "age" || gteClause.Query.Operator != QueryRangeGte || gteClause.Query.Value != 18 {
+	if !gteClause.IsLeaf() || gteClause.Field != "age" || gteClause.Operator != QueryRangeGte || gteClause.Value != 18 {
 		t.Errorf("Invalid Gte clause: %+v", gteClause)
 	}
-	if lteClause.Query == nil || lteClause.Query.Field != "age" || lteClause.Query.Operator != QueryRangeLte || lteClause.Query.Value != 30 {
+	if !gteClause.IsLeaf() || lteClause.Field != "age" || lteClause.Operator != QueryRangeLte || lteClause.Value != 30 {
 		t.Errorf("Invalid Lte clause: %+v", lteClause)
 	}
 }
@@ -128,8 +139,8 @@ func TestQueryBuilder(t *testing.T) {
 	if q.from != 10 || q.size != 20 {
 		t.Errorf("From/Size values not set properly: from=%d, size=%d", q.from, q.size)
 	}
-	if len(q.root.SubClauses) != 3 {
-		t.Errorf("Expected 3 top-level clauses, got %d", len(q.root.SubClauses))
+	if q.Root().NumOfClauses() != 3 {
+		t.Errorf("Expected 3 top-level clauses, got %d", q.root.NumOfClauses())
 	}
 	expectedSort := []Sort{{Field: "created_at", SortType: DESC}}
 	if !reflect.DeepEqual(q.sort, expectedSort) {
@@ -182,17 +193,17 @@ func TestRangeLtQuery(t *testing.T) {
 // Helper: check leaf structure
 func assertLeaf(t *testing.T, clause *Clause, field string, op QueryType, value interface{}) {
 	t.Helper()
-	if clause.Query == nil {
+	if !clause.IsLeaf() {
 		t.Fatalf("expected leaf query, got nil")
 	}
-	if clause.Query.Field != field {
-		t.Errorf("expected field %q, got %q", field, clause.Query.Field)
+	if clause.Field != field {
+		t.Errorf("expected field %q, got %q", field, clause.Field)
 	}
-	if clause.Query.Operator != op {
-		t.Errorf("expected operator %q, got %q", op, clause.Query.Operator)
+	if clause.Operator != op {
+		t.Errorf("expected operator %q, got %q", op, clause.Operator)
 	}
-	if !reflect.DeepEqual(clause.Query.Value, value) {
-		t.Errorf("expected value %+v, got %+v", value, clause.Query.Value)
+	if !reflect.DeepEqual(clause.Value, value) {
+		t.Errorf("expected value %+v, got %+v", value, clause.Value)
 	}
 }
 
@@ -202,114 +213,83 @@ func TestComplexQuery(t *testing.T) {
 
 func TestSimplify_SingleRedundantBool(t *testing.T) {
 	root := &Clause{
-		BoolType: Must,
-		SubClauses: []*Clause{
-			{
-				BoolType: Must,
-				SubClauses: []*Clause{
-					TermQuery("title", "golang"),
-				},
+		MustClauses: []*Clause{
+			&Clause{
+				Field: "title", Operator: Match, Value: "golang",
 			},
 		},
 	}
 
 	builder := &QueryBuilder{root: root}
-	builder.Simplify()
+	builder.Build()
 
 	simplified := builder.Root()
-	if len(simplified.SubClauses) != 1 {
-		t.Fatalf("Expected 1 clause, got %d", len(simplified.SubClauses))
+	if len(simplified.MustClauses) != 0 {
+		t.Fatalf("Expected 0 clause, got %d", len(simplified.MustClauses))
 	}
-	if simplified.SubClauses[0].Query == nil || simplified.SubClauses[0].Query.Field != "title" {
-		t.Errorf("Expected simplified clause to have field 'title', got %v", simplified.SubClauses[0].Query)
+	if !simplified.IsLeaf() || simplified.Field != "title" {
+		t.Errorf("Expected simplified clause to have field 'title', got %v", simplified.Field)
 	}
 }
 
 func TestSimplify_MultipleNestedSameType(t *testing.T) {
 	root := &Clause{
-		BoolType: Must,
-		SubClauses: []*Clause{
-			{
-				BoolType: Must,
-				SubClauses: []*Clause{
-					TermQuery("a", "1"),
-				},
-			},
-			{
-				BoolType: Must,
-				SubClauses: []*Clause{
-					TermQuery("b", "2"),
-				},
-			},
+		MustClauses: []*Clause{
+			TermQuery("a", "1"),
+			TermQuery("b", "2"),
 		},
 	}
 
 	builder := &QueryBuilder{root: root}
-	builder.Simplify()
+	builder.Build()
 
 	simplified := builder.Root()
-	if len(simplified.SubClauses) != 2 {
-		t.Fatalf("Expected 2 flattened clauses, got %d", len(simplified.SubClauses))
+	if len(simplified.MustClauses) != 2 {
+		t.Fatalf("Expected 2 flattened clauses, got %d", len(simplified.MustClauses))
 	}
 }
 
 func TestSimplify_MustNotFlattened(t *testing.T) {
 	root := &Clause{
-		BoolType: Must,
-		SubClauses: []*Clause{
-			{
-				BoolType: MustNot,
-				SubClauses: []*Clause{
-					TermQuery("title", "bad"),
-				},
-			},
+		MustNotClauses: []*Clause{
+			TermQuery("title", "bad"),
 		},
 	}
 
 	builder := &QueryBuilder{root: root}
-	builder.Simplify()
+	builder.Build()
 
 	println(builder.ToString())
 
 	simplified := builder.Root()
-	if simplified.SubClauses[0].BoolType != MustNot {
-		t.Errorf("Expected MustNot clause, got %v", simplified.SubClauses[0].BoolType)
+	if len(simplified.MustNotClauses) != 1 {
+		t.Errorf("Expected MustNot clause, got %v", len(simplified.MustNotClauses))
 	}
 
-	notClause := simplified.SubClauses[0]
-	if len(notClause.SubClauses) != 1 {
-		t.Fatalf("Expected 1 subclause under MustNot, got %d", len(notClause.SubClauses))
-	}
-
-	queryClause := notClause.SubClauses[0]
-	if queryClause.Query == nil {
-		t.Fatal("Expected query under MustNot clause, got nil")
-	}
-	if queryClause.Query.Field != "title" || queryClause.Query.Value != "bad" {
-		t.Errorf("Expected query on 'title' with value 'bad', got field: %s, value: %v", queryClause.Query.Field, queryClause.Query.Value)
+	if simplified.MustNotClauses[0].Field != "title" || simplified.MustNotClauses[0].Value != "bad" {
+		t.Errorf("Expected query on 'title' with value 'bad', got field: %s, value: %v", simplified.MustNotClauses[0].Field, simplified.MustNotClauses[0].Value)
 	}
 }
 
 func TestSimplify_NoOpEmptyClause(t *testing.T) {
 	root := &Clause{
-		BoolType: Must,
-		SubClauses: []*Clause{
+		MustClauses: []*Clause{
 			{}, // empty clause
 			TermQuery("name", "test"),
 		},
 	}
 
 	builder := &QueryBuilder{root: root}
-	builder.Simplify()
+	builder.Build()
 
 	println(builder.ToString())
 
 	simplified := builder.Root()
-	if len(simplified.SubClauses) != 1 {
-		fmt.Println(util.MustToJSON(simplified.SubClauses))
-		t.Fatalf("Expected 1 non-empty clause, got %d", len(simplified.SubClauses))
+	if !simplified.IsLeaf() || len(simplified.MustClauses) != 0 {
+		fmt.Println(util.MustToJSON(simplified.MustClauses))
+		t.Fatalf("Expected 0 non-empty clause, got %d", len(simplified.MustClauses))
 	}
-	if simplified.SubClauses[0].Query.Field != "name" {
-		t.Errorf("Expected clause with field 'name', got %s", simplified.SubClauses[0].Query.Field)
+	if simplified.Field != "name" {
+		t.Errorf("Expected clause with field 'name', got %s", simplified.Field)
 	}
 }

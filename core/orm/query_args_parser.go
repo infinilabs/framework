@@ -5,106 +5,62 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"unicode"
 )
-
-// parseQuery attempts to extract field:value only if the field name is valid
-func parseQuery(queryStr string) (field string, value string) {
-	parts := strings.SplitN(queryStr, ":", 2)
-	if len(parts) == 2 {
-		fieldCandidate := strings.TrimSpace(parts[0])
-		// Only treat as field:value if fieldCandidate is safe (ASCII only, no punctuations)
-		if isValidFieldName(fieldCandidate) {
-			return strings.TrimSpace(fieldCandidate), strings.TrimSpace(parts[1])
-		}
-	}
-	return "", strings.TrimSpace(queryStr)
-}
-
-func isValidFieldName(s string) bool {
-	for _, r := range s {
-		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-') {
-			return false
-		}
-	}
-	return true
-}
 
 func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*QueryBuilder, error) {
 	q := req.URL.Query()
 
 	builder := NewQuery()
-
-	fuzzinessVal := 3 // 0, exact match
 	if fuzziness := q.Get("fuzziness"); fuzziness != "" {
 		if v, err := strconv.Atoi(fuzziness); err == nil && v >= 0 && v <= 5 {
-			fuzzinessVal = v
+			builder.fuzziness = v
 		}
 	}
 
-	fields := []string{}
-	if reqFields := q.Get("fields"); reqFields != "" {
-		fields = strings.Split(reqFields, ",")
+	if defaultOp := q.Get("default_operator"); defaultOp != "" {
+		builder.defaultOperator = defaultOp
 	}
-	if len(defaultField) > 0 {
-		fields = append(fields, defaultField...)
+
+	defaultFields := []string{}
+	if reqFields := q.Get("default_fields"); reqFields != "" {
+		defaultFields = strings.Split(reqFields, ",")
+	}
+
+	if reqFields := q.Get("_source_includes"); reqFields != "" {
+		builder.Include(strings.Split(reqFields, ",")...)
+	}
+
+	if reqFields := q.Get("_source_excludes"); reqFields != "" {
+		builder.Exclude(strings.Split(reqFields, ",")...)
+	}
+
+	if reqQueryFields := q.Get("default_query_fields"); reqQueryFields != "" {
+		builder.defaultQueryFields = strings.Split(reqQueryFields, ",")
+	}
+
+	if reqFilterFields := q.Get("default_filter_fields"); reqFilterFields != "" {
+		builder.defaultFilterFields = strings.Split(reqFilterFields, ",")
+	}
+
+	//only if user didn't pass default fields, if user do, use user's value only
+	if len(defaultField) > 0 && len(defaultFields) == 0 {
+		defaultFields = append(defaultFields, defaultField...)
+	}
+
+	//user didn't specify query fields, use default fields
+	if len(builder.defaultQueryFields) == 0 && len(defaultFields) > 0 {
+		builder.defaultQueryFields = defaultFields
+	}
+
+	//user didn't specify filter fields, use default fields
+	if len(builder.defaultFilterFields) == 0 && len(defaultFields) > 0 {
+		builder.defaultFilterFields = defaultFields
 	}
 
 	// Handle full text or term query
 	queryStr := q.Get("query")
 	if queryStr != "" {
-		var field, value = parseQuery(queryStr)
-		if field != "" && value != "" {
-			switch fuzzinessVal {
-			case 0, 1:
-				builder.Must(MatchQuery(field, value).SetBoost(5))
-			case 2:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(2)))
-			case 3:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 0).SetBoost(2)))
-			case 4:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3)), MatchPhraseQuery(field, value, 1).SetBoost(2), FuzzyQuery(field, value, 1).SetBoost(1))
-			case 5:
-				builder.Must(ShouldQuery(MatchQuery(field, value).SetBoost(5), PrefixQuery(field, value).SetBoost(3), MatchPhraseQuery(field, value, 2).SetBoost(2), FuzzyQuery(field, value, 2).SetBoost(1)))
-			}
-		} else if value != "" {
-			shouldClauses := []*Clause{}
-			//try all fields with query
-			for _, field := range fields {
-				switch fuzzinessVal {
-				case 0, 1:
-					shouldClauses = append(shouldClauses, MatchQuery(field, queryStr).SetBoost(5))
-				case 2:
-					shouldClauses = append(shouldClauses,
-						MatchQuery(field, queryStr).SetBoost(5),
-						PrefixQuery(field, queryStr).SetBoost(2),
-					)
-				case 3:
-					shouldClauses = append(shouldClauses,
-						MatchQuery(field, queryStr).SetBoost(5),
-						PrefixQuery(field, queryStr).SetBoost(3),
-						MatchPhraseQuery(field, queryStr, 0).SetBoost(2),
-					)
-				case 4:
-					shouldClauses = append(shouldClauses,
-						MatchQuery(field, queryStr).SetBoost(5),
-						PrefixQuery(field, queryStr).SetBoost(3),
-						MatchPhraseQuery(field, queryStr, 1).SetBoost(2),
-						FuzzyQuery(field, queryStr, 1).SetBoost(1),
-					)
-				case 5:
-					shouldClauses = append(shouldClauses,
-						MatchQuery(field, queryStr).SetBoost(5),
-						PrefixQuery(field, queryStr).SetBoost(3),
-						MatchPhraseQuery(field, queryStr, 2).SetBoost(2),
-						FuzzyQuery(field, queryStr, 2).SetBoost(1),
-					)
-				}
-			}
-			if len(shouldClauses) > 0 {
-				builder.Must(ShouldQuery(shouldClauses...))
-			}
-		}
+		builder.Query(queryStr)
 	}
 
 	// Handle filters (supporting NOT with '-' prefix)
@@ -114,7 +70,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 			filterStr = filterRaw // fallback if invalid encoding
 		}
 
-		clause, err := parseFilterToClause(fields, filterStr)
+		clause, err := parseFilterToClause(builder.defaultFilterFields, filterStr)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +129,7 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 	filterStr = strings.TrimSpace(filterStr)
 
 	negate := false
-	if strings.HasPrefix(filterStr, "-") {
+	if strings.HasPrefix(filterStr, "-") || strings.HasPrefix(filterStr, "!") {
 		negate = true
 		filterStr = strings.TrimSpace(filterStr[1:])
 	}
@@ -183,10 +139,7 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 		field := strings.TrimSuffix(strings.TrimPrefix(filterStr, "exists("), ")")
 		clause := ExistsQuery(field)
 		if negate {
-			return &Clause{
-				BoolType:   MustNot,
-				SubClauses: []*Clause{clause},
-			}, nil
+			return MustNotQuery(clause), nil
 		}
 		return clause, nil
 	}
@@ -208,13 +161,10 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 			valueStr := strings.TrimSpace(filterStr[idx+len(op.opStr):])
 			value := parseValue(valueStr)
 			clause := &Clause{
-				Query: &LeafQuery{Field: field, Operator: op.opType, Value: value},
+				Field: field, Operator: op.opType, Value: value,
 			}
 			if negate {
-				return &Clause{
-					BoolType:   MustNot,
-					SubClauses: []*Clause{clause},
-				}, nil
+				return MustNotQuery(clause), nil
 			}
 			return clause, nil
 		}
@@ -228,10 +178,7 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 			value := parseValue(valueStr)
 			clause := TermQuery(field, value)
 			if negate {
-				return &Clause{
-					BoolType:   MustNot,
-					SubClauses: []*Clause{clause},
-				}, nil
+				return MustNotQuery(clause), nil
 			}
 			return clause, nil
 		}
@@ -241,10 +188,7 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 	if defaultFields != nil && len(defaultFields) > 1 {
 		clause := MultiMatchQuery(defaultFields, filterStr)
 		if negate {
-			return &Clause{
-				BoolType:   MustNot,
-				SubClauses: []*Clause{clause},
-			}, nil
+			return MustNotQuery(clause), nil
 		}
 		return clause, nil
 	} else {
@@ -255,10 +199,7 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 
 		clause := MatchQuery(field, filterStr)
 		if negate {
-			return &Clause{
-				BoolType:   MustNot,
-				SubClauses: []*Clause{clause},
-			}, nil
+			return MustNotQuery(clause), nil
 		}
 		return clause, nil
 	}
@@ -273,19 +214,4 @@ func parseValue(val string) interface{} {
 		return b
 	}
 	return val
-}
-
-func findFirstLeafClause(c *Clause) *Clause {
-	if c == nil {
-		return nil
-	}
-	if c.Query != nil {
-		return c
-	}
-	for _, sub := range c.SubClauses {
-		if leaf := findFirstLeafClause(sub); leaf != nil {
-			return leaf
-		}
-	}
-	return nil
 }

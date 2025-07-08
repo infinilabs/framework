@@ -167,7 +167,7 @@ func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 	return err1
 }
 
-func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int)  {
+func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) {
 	WriteHeader(w, statusCode)
 	_, err := w.Write(util.MustToJSONBytes(v))
 	if err != nil {
@@ -213,7 +213,7 @@ func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode in
 func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, status int, msg string) {
 	obj := util.MapStr{}
 	obj["message"] = msg
-	 handler.WriteAckJSON(w, ack, status, obj)
+	handler.WriteAckJSON(w, ack, status, obj)
 }
 
 func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) {
@@ -395,36 +395,36 @@ func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{})
 }
 
 func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{}) {
-	 handler.WriteJSON(w, util.MapStr{
+	handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "updated",
 	}, http.StatusOK)
 }
 
-func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{})  {
-	 handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{}) {
+	handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "not_found",
 	}, http.StatusNotFound)
 }
 
-func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{})  {
-	 handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{}) {
+	handler.WriteJSON(w, util.MapStr{
 		"_id":    id,
 		"result": "deleted",
 	}, http.StatusOK)
 }
 
-func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{})  {
-	 handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{}) {
+	handler.WriteJSON(w, util.MapStr{
 		"found":   true,
 		"_id":     id,
 		"_source": obj,
 	}, 200)
 }
 
-func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string)  {
-	 handler.WriteJSON(w, util.MapStr{
+func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string) {
+	handler.WriteJSON(w, util.MapStr{
 		"found": false,
 		"_id":   id,
 	}, 404)
