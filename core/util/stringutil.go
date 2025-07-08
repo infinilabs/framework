@@ -275,6 +275,10 @@ func MergeSpace(in string) (out string) {
 
 var locker sync.Mutex
 
+func ToIndentJson(in interface{}) string {
+	return ToJson(in, true)
+}
+
 func ToJson(in interface{}, indent bool) string {
 	if in == nil {
 		return ""

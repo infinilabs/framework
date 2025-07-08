@@ -180,6 +180,47 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	return err
 }
 
+func WrapperTo(o interface{}) util.MapStr {
+	jsonBytes := util.MustToJSONBytes(o)
+	kv := util.MapStr{}
+	util.MustFromJSONBytes(jsonBytes, &kv)
+	return kv
+}
+
+type SystemContext struct {
+	TenantID string `json:"tenant_id,omitempty"`
+	UserID   string `json:"user_id,omitempty"`
+}
+
+const SysKey = "_system"
+const TenantIDKey = "tenant_id"
+const UserIDKey = "user_id"
+
+func AppendTenantInfo(o *util.MapStr, tenantID string, userID string) {
+
+	var1, err := o.GetValue(SysKey)
+	if err == nil || var1 != nil {
+		system, ok := var1.(map[string]interface{})
+		if ok {
+			system[TenantIDKey] = tenantID
+			system[UserIDKey] = userID
+			_, err := o.Put(SysKey, system)
+			if err != nil {
+				panic(err)
+			}
+			return
+		}
+	}
+
+	system := util.MapStr{}
+	system[TenantIDKey] = tenantID
+	system[UserIDKey] = userID
+	_, err = o.Put(SysKey, system)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // update operation will merge the new data into the old data
 func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	var refresh string
@@ -336,7 +377,14 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	//TODO  add global filter, per user per tenant, per permission etc.
 
 	if qb != nil {
-		dsl := orm.ToDSL(qb)
+		bytes := qb.RequestBodyBytesVal()
+		var dsl map[string]interface{}
+		if bytes != nil && len(bytes) > 0 {
+			dsl = orm.BuildQueryDSLOnTopOfDSL(qb, bytes)
+		} else {
+			dsl = orm.BuildQueryDSL(qb)
+		}
+
 		if dsl != nil {
 			////parse query, remove unused parameters
 			//query := elastic.SearchRequest{}
@@ -422,6 +470,9 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 				for _, c1 := range q.Conds {
 					q := getQuery(c1)
 					switch c1.BoolType {
+					case api.Filter:
+						boolQuery.Filter = append(boolQuery.Filter, q)
+						break
 					case api.Must:
 						boolQuery.Must = append(boolQuery.Must, q)
 						break
@@ -441,7 +492,7 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 				if q.Filter.BoolType == api.MustNot {
 					boolQuery.MustNot = append(boolQuery.MustNot, filter)
 				} else {
-					boolQuery.Filter = filter
+					boolQuery.Filter = append(boolQuery.Filter, filter)
 				}
 			}
 
@@ -535,6 +586,8 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 			for _, cond := range q.Conds {
 				query := getQuery(cond)
 				switch cond.BoolType {
+				case api.Filter:
+					boolQuery.Filter = append(boolQuery.Filter, query)
 				case api.Must:
 					boolQuery.Must = append(boolQuery.Must, query)
 				case api.MustNot:
@@ -551,7 +604,7 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 			if q.Filter.BoolType == api.MustNot {
 				boolQuery.MustNot = append(boolQuery.MustNot, filter)
 			} else {
-				boolQuery.Filter = filter
+				boolQuery.Filter = append(boolQuery.Filter, filter)
 			}
 		}
 

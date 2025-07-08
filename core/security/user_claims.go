@@ -34,12 +34,17 @@ type UserClaims struct {
 }
 
 type SessionUser struct {
-	Provider string   `json:"provider"`
-	Username string   `json:"username"`
-	UserId   string   `json:"user_id"`
+	//user identity provided by external providers
+	Provider string `json:"provider"`
+	Login    string `json:"login"`
+
+	//system level security's info
+	TenantID string   `json:"tenant_id,omitempty"` //tenant_id is optionalz
+	UserID   string   `json:"user_id"`
 	Roles    []string `json:"roles"`
 
 	Labels util.MapStr `json:"labels"`
 
+	//unified permissions
 	*UserAssignedPermission
 }

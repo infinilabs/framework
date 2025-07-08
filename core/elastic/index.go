@@ -180,15 +180,6 @@ type IndexDocument struct {
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }
 
-type DocumentWithMeta[T any] struct {
-	Index     string                   `json:"_index,omitempty"`
-	Type      string                   `json:"_type,omitempty"`
-	ID        string                   `json:"_id,omitempty"`
-	Routing   string                   `json:"_routing,omitempty"`
-	Source    T                        `json:"_source,omitempty"`
-	Highlight map[string][]interface{} `json:"highlight,omitempty"`
-}
-
 type BucketBase map[string]interface{}
 
 type Bucket struct {
@@ -281,11 +272,11 @@ type InsertResponse struct {
 type GetResponse struct {
 	ResponseBase
 	Found   bool                   `json:"found"`
-	Index   string                 `json:"_index"`
-	Type    string                 `json:"_type"`
-	ID      string                 `json:"_id"`
-	Version int                    `json:"_version"`
-	Source  map[string]interface{} `json:"_source"`
+	Index   string                 `json:"_index,omitempty"`
+	Type    string                 `json:"_type,omitempty"`
+	ID      string                 `json:"_id,omitempty"`
+	Version int                    `json:"_version,omitempty"`
+	Source  map[string]interface{} `json:"_source,omitempty"`
 }
 
 // DeleteResponse is a delete response object
@@ -312,13 +303,13 @@ type CountResponse struct {
 // SearchResponse is a count response object
 type SearchResponse struct {
 	ResponseBase
-	Took     int  `json:"took"`
-	TimedOut bool `json:"timed_out"`
+	Took     int  `json:"took,omitempty"`
+	TimedOut bool `json:"timed_out,omitempty"`
 	Hits     struct {
-		Total    interface{}     `json:"total"`
-		MaxScore float32         `json:"max_score"`
+		Total    interface{}     `json:"total,omitempty"`
+		MaxScore float32         `json:"max_score,omitempty"`
 		Hits     []IndexDocument `json:"hits,omitempty"`
-	} `json:"hits"`
+	} `json:"hits,omitempty"`
 	Aggregations map[string]AggregationResponse `json:"aggregations,omitempty"`
 }
 
@@ -454,7 +445,7 @@ type BoolQuery struct {
 	Must    []interface{} `json:"must,omitempty"`
 	MustNot []interface{} `json:"must_not,omitempty"`
 	Should  []interface{} `json:"should,omitempty"`
-	Filter  interface{}   `json:"filter,omitempty"`
+	Filter  []interface{} `json:"filter,omitempty"`
 }
 
 // Query is the root query object
