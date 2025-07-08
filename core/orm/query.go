@@ -276,8 +276,14 @@ func TermQuery(field string, value interface{}) *Clause {
 	return newLeaf(field, QueryTerm, value)
 }
 
-func TermsQuery(field string, value []interface{}) *Clause {
-	return newLeaf(field, QueryTerms, value)
+// TermsQuery creates a terms query clause from a generic slice
+func TermsQuery[T any](field string, value []T) *Clause {
+	// Convert []T to []interface{}
+	values := make([]interface{}, len(value))
+	for i, v := range value {
+		values[i] = v
+	}
+	return newLeaf(field, QueryTerms, values)
 }
 
 func PrefixQuery(field string, value interface{}) *Clause {
