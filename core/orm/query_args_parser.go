@@ -144,6 +144,23 @@ func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, err
 		return clause, nil
 	}
 
+	// Check for any() terms query
+	if strings.Contains(filterStr, ":any(") && strings.HasSuffix(filterStr, ")") {
+		idx := strings.Index(filterStr, ":any(")
+		field := filterStr[:idx]
+		valueStr := filterStr[idx+5 : len(filterStr)-1] // inside the parentheses
+		items := strings.Split(valueStr, ",")
+		values := make([]interface{}, 0, len(items))
+		for _, item := range items {
+			values = append(values, parseValue(strings.TrimSpace(item)))
+		}
+		clause := TermsQuery(field, values)
+		if negate {
+			return MustNotQuery(clause), nil
+		}
+		return clause, nil
+	}
+
 	// Range queries: age>=18, age<=30, age>10, age<40
 	rangeOps := []struct {
 		opStr  string

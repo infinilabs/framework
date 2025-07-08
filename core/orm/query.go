@@ -276,7 +276,7 @@ func TermQuery(field string, value interface{}) *Clause {
 	return newLeaf(field, QueryTerm, value)
 }
 
-func TermsQuery(field string, value []string) *Clause {
+func TermsQuery(field string, value []interface{}) *Clause {
 	return newLeaf(field, QueryTerms, value)
 }
 

@@ -558,3 +558,52 @@ func TestParseQueryWithNotExistsFilter(t *testing.T) {
 		t.Errorf("Expected NOT exists query on 'title', but not found")
 	}
 }
+
+func TestParseAnyTermsQuery(t *testing.T) {
+	rawQuery := "filter=!id:any(1,2,3,4)"
+	req, err := http.NewRequest("GET", "/search?"+rawQuery, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder, err := NewQueryBuilderFromRequest(req, "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder.Build()
+	root := builder.Root()
+	fmt.Println(root.toStringIndented(3))
+	if root == nil {
+		t.Fatal("Expected root clause to be non-nil")
+	}
+
+	if len(root.MustNotClauses) != 1 {
+		t.Fatalf("Expected 1 must_not clause, got %d", len(root.MustNotClauses))
+	}
+
+	clause := root.MustNotClauses[0]
+	if clause.Operator != QueryTerms {
+		t.Fatalf("Expected terms query, got %v", clause.Operator)
+	}
+
+	if clause.Field != "id" {
+		t.Errorf("Expected field 'id', got %s", clause.Field)
+	}
+
+	values, ok := clause.Value.([]interface{})
+	if !ok {
+		t.Fatalf("Expected clause.Value to be []interface{}, got %T", clause.Value)
+	}
+
+	expectedValues := []interface{}{1, 2, 3, 4}
+	if len(values) != len(expectedValues) {
+		t.Fatalf("Expected %d values, got %d", len(expectedValues), len(values))
+	}
+
+	for i, val := range values {
+		if val != expectedValues[i] {
+			t.Errorf("Expected value[%d] to be %v, got %v", i, expectedValues[i], val)
+		}
+	}
+}
