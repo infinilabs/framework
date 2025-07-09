@@ -39,7 +39,7 @@ type SessionUser struct {
 	Login    string `json:"login"`
 
 	//system level security's info
-	TenantID string   `json:"tenant_id,omitempty"` //tenant_id is optionalz
+	TenantID string   `json:"tenant_id,omitempty"` //tenant_id is optional
 	UserID   string   `json:"user_id"`
 	Roles    []string `json:"roles"`
 
@@ -47,4 +47,7 @@ type SessionUser struct {
 
 	//unified permissions
 	*UserAssignedPermission
+
+	//user's profile
+	Profile *UserProfile
 }
