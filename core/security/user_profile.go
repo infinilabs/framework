@@ -28,10 +28,10 @@ import (
 )
 
 type User struct {
-	UserUniversalProfile
+	UserProfile
 }
 
-type UserUniversalProfile struct {
+type UserProfile struct {
 	orm.ORMObjectBase
 	Name        string      `json:"name"  elastic_mapping:"name: { type: keyword }"`
 	Email       string      `json:"email" elastic_mapping:"email: { type: keyword }"`
@@ -40,6 +40,7 @@ type UserUniversalProfile struct {
 	Roles       []UserRole  `json:"roles" elastic_mapping:"roles: { type: object }"`
 	Preferences Preferences `json:"preferences" elastic_mapping:"preferences: { type: object }"`
 	Payload     interface{} `json:"payload" elastic_mapping:"payload: { enabled: false }"`
+	//Tags      []string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword }"`
 }
 
 type UserExternalProfile struct {
