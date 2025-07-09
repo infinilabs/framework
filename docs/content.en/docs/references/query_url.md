@@ -35,14 +35,14 @@ These URL parameters are used to construct a rich and dynamic search query.
 
 ## 🧠 Filter Syntax Summary
 
-| Syntax                        | Meaning                              | Example               |
-|-------------------------------|--------------------------------------|-----------------------|
-| `field=value`                 | Term query                           | `status=active`       |
-| `field!=value`                | Negated term                         | `status!=deleted`     |
-| `field>=value`                | Range query (greater than or equal)  | `views>=1000`         |
-| `field<value`                 | Range query (less than)              | `age<30`              |
-| `any(field)`                  | Terms filter (any term can be match) | `any(tag1,tag2,tag3)` |
-| `exists(field)`               | Field existence check                | `exists(tags)`        |
+| Syntax                     | Meaning                              | Example               |
+|----------------------------|--------------------------------------|-----------------------|
+| `field=value`              | Term query                           | `status=active`       |
+| `field!=value`             | Negated term                         | `status!=deleted`     |
+| `field>=value`             | Range query (greater than or equal)  | `views>=1000`         |
+| `field<value`              | Range query (less than)              | `age<30`              |
+| `any(value1,value2)`       | Terms filter (any term can be match) | `any(tag1,tag2,tag3)` |
+| `exists(field)`            | Field existence check                | `exists(tags)`        |
 | `-filterExpr` / `!filterExpr` | Negate any filter expression         | `!exists(deleted_at)` |
 
 
