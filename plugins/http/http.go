@@ -31,6 +31,10 @@ package http
 
 import (
 	"fmt"
+	"io"
+	"strings"
+	"time"
+
 	log "github.com/cihub/seelog"
 	rate2 "golang.org/x/time/rate"
 	"infini.sh/framework/core/api"
@@ -45,9 +49,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/lib/fasttemplate"
-	"io"
-	"strings"
-	"time"
 )
 
 // Default threshold in bytes to enable gzip compression if not configured
@@ -173,6 +174,9 @@ func (processor *HTTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 			return -1, err
 		})
+	}
+	for key, value := range processor.config.Headers {
+		req.Header.Set(key, value)
 	}
 
 	uri := req.CloneURI()
