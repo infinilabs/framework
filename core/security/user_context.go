@@ -30,17 +30,17 @@ import (
 
 const ctxUserKey = "X-INFINI-SESSION-USER"
 
-func AddUserToContext(ctx context.Context, clam *UserSession) context.Context {
+func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Context {
 
 	return context.WithValue(ctx, ctxUserKey, clam)
 }
 
-func UserFromContext(ctx context.Context) (*UserSession, error) {
+func UserFromContext(ctx context.Context) (*UserSessionInfo, error) {
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {
 		return nil, fmt.Errorf("user not found")
 	}
-	reqUser, ok := ctxUser.(*UserSession)
+	reqUser, ok := ctxUser.(*UserSessionInfo)
 	if !ok {
 		return nil, fmt.Errorf("invalid context user")
 	}

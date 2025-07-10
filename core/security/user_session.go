@@ -31,10 +31,10 @@ import (
 
 type UserClaims struct {
 	*jwt.RegisteredClaims
-	*UserSession
+	*UserSessionInfo
 }
 
-type UserSession struct {
+type UserSessionInfo struct {
 	//user identity provided by external providers
 	Provider string `json:"provider"`
 	Login    string `json:"login"`
