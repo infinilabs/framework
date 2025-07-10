@@ -26,14 +26,15 @@ package security
 import (
 	"github.com/golang-jwt/jwt"
 	"infini.sh/framework/core/util"
+	"time"
 )
 
 type UserClaims struct {
 	*jwt.RegisteredClaims
-	*SessionUser
+	*UserSession
 }
 
-type SessionUser struct {
+type UserSession struct {
 	//user identity provided by external providers
 	Provider string `json:"provider"`
 	Login    string `json:"login"`
@@ -50,4 +51,12 @@ type SessionUser struct {
 
 	//user's profile
 	Profile *UserProfile
+
+	//SessionExpireAt *time.Time `json:"session_expire_at,omitempty"`
+
+	//stats
+	LastLogin struct {
+		Timestamp time.Time `json:"timestamp,omitempty"`
+		ClientIP  time.Time `json:"client_ip,omitempty"`
+	} `json:"last_login,omitempty"`
 }
