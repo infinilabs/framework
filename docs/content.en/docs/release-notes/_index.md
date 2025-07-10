@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 ### 🐛 Bug fix  
+- fix: HTTP headers config was not applied with plugin `http`
 ### ✈️ Improvements  
 - refactor: refactoring query interface 
 - feat: url query support terms query #163
