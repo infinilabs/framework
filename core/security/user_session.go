@@ -42,9 +42,9 @@ type UserSessionInfo struct {
 	//system level security's info
 	TenantID string   `json:"tenant_id,omitempty"` //tenant_id is optional
 	UserID   string   `json:"user_id"`
-	Roles    []string `json:"roles"`
+	Roles    []string `json:"roles,omitempty"`
 
-	Labels util.MapStr `json:"labels"`
+	Labels util.MapStr `json:"labels,omitempty"`
 
 	//unified permissions
 	*UserAssignedPermission
@@ -55,8 +55,10 @@ type UserSessionInfo struct {
 	//SessionExpireAt *time.Time `json:"session_expire_at,omitempty"`
 
 	//stats
-	LastLogin struct {
-		Timestamp time.Time `json:"timestamp,omitempty"`
-		ClientIP  time.Time `json:"client_ip,omitempty"`
-	} `json:"last_login,omitempty"`
+	LastLogin LastLogin `json:"last_login,omitempty"`
+}
+
+type LastLogin struct {
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+	ClientIP  string     `json:"client_ip,omitempty"`
 }

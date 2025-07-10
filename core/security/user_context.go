@@ -26,16 +26,44 @@ package security
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 )
 
 const ctxUserKey = "X-INFINI-SESSION-USER"
 
 func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Context {
-
+	if clam.LastLogin.Timestamp == nil {
+		t := time.Now()
+		clam.LastLogin.Timestamp = &t
+	}
 	return context.WithValue(ctx, ctxUserKey, clam)
 }
 
-func UserFromContext(ctx context.Context) (*UserSessionInfo, error) {
+func MustGetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
+	reqUser, err := GetUserFromRequest(req)
+	if reqUser == nil || err != nil {
+		panic(err)
+	}
+	return reqUser, nil
+}
+
+func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
+	if req == nil {
+		return nil, fmt.Errorf("req is nil")
+	}
+	return GetUserFromContext(req.Context())
+}
+
+func MustGetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
+	user, err := GetUserFromContext(ctx)
+	if user == nil || err != nil {
+		panic(err)
+	}
+	return user, nil
+}
+
+func GetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {
 		return nil, fmt.Errorf("user not found")
