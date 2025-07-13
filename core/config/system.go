@@ -305,7 +305,9 @@ type ResourceLimit struct {
 }
 
 type WebSecurityConfig struct {
-	Enabled        bool                 `config:"enabled"`
+	Enabled bool `config:"enabled"`
+	Managed bool `json:"managed,omitempty" config:"managed" ` // Whether the server is cloud based managed by the vendor
+
 	Authentication AuthenticationConfig `config:"authentication"`
 	authorization  AuthorizationConfig  `config:"authorization"`
 }
