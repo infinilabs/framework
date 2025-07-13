@@ -133,14 +133,14 @@ func (handler *ElasticORM) GetIndexName(o interface{}) string {
 	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler *ElasticORM) Get(o interface{}) (bool, error) {
+func (handler *ElasticORM) Get(ctx *api.Context,o interface{}) (bool, error) {
 
 	id := getIndexID(o)
 	if id == "" {
 		return false, errors.Errorf("id was not found in object: %v", o)
 	}
 
-	response, err := handler.Client.Get(handler.GetIndexName(o), "", getIndexID(o))
+	response, err := handler.Client.Get(handler.GetIndexName(o), "", id)
 
 	if global.Env().IsDebug && response != nil {
 		log.Trace(string(response.RawResult.Body))
@@ -176,49 +176,11 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	if ctx != nil {
 		refresh = ctx.Refresh
 	}
-	_, err := handler.Client.Index(handler.GetIndexName(o), "", getIndexID(o), o, refresh)
+
+	docID := getIndexID(o)
+	log.Error("docID:", docID)
+	_, err := handler.Client.Index(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
-}
-
-func WrapperTo(o interface{}) util.MapStr {
-	jsonBytes := util.MustToJSONBytes(o)
-	kv := util.MapStr{}
-	util.MustFromJSONBytes(jsonBytes, &kv)
-	return kv
-}
-
-type SystemContext struct {
-	TenantID string `json:"tenant_id,omitempty"`
-	UserID   string `json:"user_id,omitempty"`
-}
-
-const SysKey = "_system"
-const TenantIDKey = "tenant_id"
-const UserIDKey = "user_id"
-
-func AppendTenantInfo(o *util.MapStr, tenantID string, userID string) {
-
-	var1, err := o.GetValue(SysKey)
-	if err == nil || var1 != nil {
-		system, ok := var1.(map[string]interface{})
-		if ok {
-			system[TenantIDKey] = tenantID
-			system[UserIDKey] = userID
-			_, err := o.Put(SysKey, system)
-			if err != nil {
-				panic(err)
-			}
-			return
-		}
-	}
-
-	system := util.MapStr{}
-	system[TenantIDKey] = tenantID
-	system[UserIDKey] = userID
-	_, err = o.Put(SysKey, system)
-	if err != nil {
-		panic(err)
-	}
 }
 
 // update operation will merge the new data into the old data
@@ -231,7 +193,11 @@ func (handler *ElasticORM) Update(ctx *api.Context, o interface{}) error {
 	//if ctx == nil || ctx.Context == nil || ctx.Value(api.ProtectedFilterKey) != false {
 	//	toUpdateObj = api.FilterFieldsByProtected(o, false)
 	//}
-	_, err := handler.Client.Update(handler.GetIndexName(o), "", getIndexID(o), o, refresh)
+
+	//handle tenant and user's footprint
+	docID := getIndexID(o)
+
+	_, err := handler.Client.Update(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
 }
 
@@ -240,7 +206,10 @@ func (handler *ElasticORM) Delete(ctx *api.Context, o interface{}) error {
 	if ctx != nil {
 		refresh = ctx.Refresh
 	}
-	_, err := handler.Client.Delete(handler.GetIndexName(o), "", getIndexID(o), refresh)
+
+	docID := getIndexID(o)
+
+	_, err := handler.Client.Delete(handler.GetIndexName(o), "", docID, refresh)
 	return err
 }
 
@@ -377,6 +346,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	//TODO  add global filter, per user per tenant, per permission etc.
 
 	if qb != nil {
+
 		bytes := qb.RequestBodyBytesVal()
 		var dsl map[string]interface{}
 		if bytes != nil && len(bytes) > 0 {
@@ -413,7 +383,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	if searchResponse != nil && searchResponse.RawResult != nil {
 		result.Status = searchResponse.RawResult.StatusCode
 		result.Payload = searchResponse.RawResult.Body
-		log.Info(searchResponse.RawResult.StatusCode, string(searchResponse.RawResult.Body))
+		//log.Info(searchResponse.RawResult.StatusCode, string(searchResponse.RawResult.Body))
 	}
 
 	result.Error = &err

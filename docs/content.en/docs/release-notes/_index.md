@@ -11,8 +11,11 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: add hooks for ORM data operation #167
+
 ### 🐛 Bug fix  
 - fix: HTTP headers config was not applied with plugin `http`
+
 ### ✈️ Improvements  
 - refactor: refactoring query interface 
 - feat: url query support terms query #163

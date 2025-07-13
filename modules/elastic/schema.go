@@ -35,6 +35,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"reflect"
 	"strings"
 	"sync"
 	"unicode"
@@ -56,7 +57,36 @@ func getIndexName(any interface{}) string {
 // getIndexID extract the field value and will be used as document ID
 // elastic_meta:"_id"
 func getIndexID(any interface{}) string {
-	return util.GetFieldValueByTagName(any, "elastic_meta", "_id")
+	// Try to get _id from struct field tagged with `elastic_meta:"_id"`
+	id := util.GetFieldValueByTagName(any, "elastic_meta", "_id")
+	if id != "" {
+		return id
+	}
+
+	// Fallback: if input is map, try to extract "id" key (or "_id")
+	rv := reflect.ValueOf(any)
+	if !rv.IsValid() {
+		return ""
+	}
+
+	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
+		rv = rv.Elem()
+	}
+
+	if rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String {
+		// Try "id" key first
+		for _, key := range []string{"id", "_id"} {
+			val := rv.MapIndex(reflect.ValueOf(key))
+			if val.IsValid() && val.Kind() == reflect.Interface {
+				val = val.Elem()
+			}
+			if val.IsValid() && val.Kind() == reflect.String {
+				return val.String()
+			}
+		}
+	}
+
+	return ""
 }
 
 func getIndexMapping(any interface{}) []util.Annotation {

@@ -1,6 +1,8 @@
 package orm
 
 import (
+	"context"
+	"infini.sh/framework/core/param"
 	"testing"
 )
 
@@ -33,5 +35,79 @@ func TestGetCollapseField(t *testing.T) {
 	ctx.SetValue(ctxCollapseFieldKey, want)
 	if got := GetCollapseField(ctx); got != want {
 		t.Errorf("GetCollapseField(ctx with string) = %q; want %q", got, want)
+	}
+}
+
+
+type ctxKey string
+
+func TestSameKeyShadowing(t *testing.T) {
+	key := ctxKey("userID")
+	parent := context.Background()
+
+	ctx1 := context.WithValue(parent, key, "first")
+	ctx2 := context.WithValue(ctx1, key, "second")
+	ctx3 := context.WithValue(ctx2, key, "third")
+
+	// Nearest value wins
+	if got := ctx3.Value(key); got != "third" {
+		t.Errorf("expected third, got %v", got)
+	}
+
+	if got := ctx2.Value(key); got != "second" {
+		t.Errorf("expected second, got %v", got)
+	}
+
+	if got := ctx1.Value(key); got != "first" {
+		t.Errorf("expected first, got %v", got)
+	}
+
+	// Parent has nothing
+	if got := parent.Value(key); got != nil {
+		t.Errorf("expected nil, got %v", got)
+	}
+}
+
+
+type testKeyType string
+
+const keyUserID param.ParaKey = "user_id"
+
+func TestContextPriority(t *testing.T) {
+	// Base context with context.Context carrying value
+	baseCtx := context.WithValue(context.Background(), keyUserID, "fromContext")
+
+	// Our extended ORM context
+	ctx := NewContextWithParent(baseCtx)
+
+	// Set a different value in param.Parameters
+	ctx.Set(keyUserID, "fromParams")
+
+	// Should return value from embedded context.Context (higher priority)
+	val := ctx.Get(keyUserID)
+	if val != "fromContext" {
+		t.Errorf("expected 'fromContext', got %v", val)
+	}
+}
+
+func TestFallbackToParams(t *testing.T) {
+	ctx := NewContext()
+
+	// Nothing in context.Context
+	// Set in Parameters
+	ctx.Set(keyUserID, "onlyFromParams")
+
+	val := ctx.Get(keyUserID)
+	if val != "onlyFromParams" {
+		t.Errorf("expected 'onlyFromParams', got %v", val)
+	}
+}
+
+func TestMissingKey(t *testing.T) {
+	ctx := NewContext()
+
+	val := ctx.Get(keyUserID)
+	if val != nil {
+		t.Errorf("expected nil, got %v", val)
 	}
 }

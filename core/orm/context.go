@@ -24,13 +24,14 @@
 package orm
 
 import (
+	"context"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 	"reflect"
 )
 
 type Context struct {
-	//context.Context
+	context.Context
 	Refresh string
 	param.Parameters
 }
@@ -41,9 +42,16 @@ func (ctx *Context) SetValue(key param.ParaKey, value interface{}) {
 
 func NewContext() *Context {
 	c := Context{}
-	//c.Context = context.Background()
+	c.Context = context.Background()
 	c.Parameters = param.Parameters{}
 	return &c
+}
+
+func NewContextWithParent(parent context.Context) *Context {
+	return &Context{
+		Context:    parent,
+		Parameters: param.Parameters{},
+	}
 }
 
 func NewModelContext(m interface{}) *Context {
@@ -53,10 +61,6 @@ func NewModelContext(m interface{}) *Context {
 }
 
 const (
-	ctxKeyTenantID param.ParaKey = "tenant_id"
-	ctxKeyUserID   param.ParaKey = "user_id"
-	ctxKeyIsAdmin  param.ParaKey = "is_admin"
-
 	ctxKeyModel        param.ParaKey = "model"
 	ctxWildcardIndex   param.ParaKey = "wildcard_index"
 	ctxKeyIndices      param.ParaKey = "indices"       // []string
@@ -67,46 +71,6 @@ const (
 	ctxQueryArgsKey      param.ParaKey = "query_args"
 	ctxTemplatedQueryKey param.ParaKey = "templated_query"
 )
-
-func WithUserInfo(ctx *Context, tenantID, userID, string, isAdmin bool) *Context {
-	ctx.Set(ctxKeyUserID, userID)
-	ctx.Set(ctxKeyTenantID, tenantID)
-	ctx.Set(ctxKeyIsAdmin, isAdmin)
-	return ctx
-}
-
-func GetUserID(ctx *Context) string {
-	if isNil(ctx) {
-		return ""
-	}
-
-	if val, ok := ctx.Get(ctxKeyUserID).(string); ok {
-		return val
-	}
-	return ""
-}
-
-func GetTenantID(ctx *Context) string {
-	if isNil(ctx) {
-		return ""
-	}
-
-	if val, ok := ctx.Get(ctxKeyTenantID).(string); ok {
-		return val
-	}
-	return ""
-}
-
-func IsAdmin(ctx *Context) bool {
-	if isNil(ctx) {
-		return false
-	}
-
-	if val, ok := ctx.Get(ctxKeyIsAdmin).(bool); ok {
-		return val
-	}
-	return false
-}
 
 func SetWildcardIndex(ctx *Context, wildcard bool) *Context {
 	ctx.Set(ctxWildcardIndex, wildcard)
@@ -231,6 +195,15 @@ func GetQueryArgs(ctx *Context) *[]util.KV {
 		return v
 	}
 	return nil
+}
+
+func (ctx *Context) Get(key param.ParaKey) interface{} {
+	if ctx.Context != nil {
+		if val := ctx.Context.Value(key); val != nil {
+			return val
+		}
+	}
+	return ctx.Parameters.Get(key)
 }
 
 func isNil(i interface{}) bool {

@@ -33,27 +33,27 @@ type User struct {
 
 type UserProfile struct {
 	orm.ORMObjectBase
-	Name        string      `json:"name"  elastic_mapping:"name: { type: keyword }"`
-	Email       string      `json:"email" elastic_mapping:"email: { type: keyword }"`
-	Phone       string      `json:"phone" elastic_mapping:"phone: { type: keyword }"`
-	AvatarUrl   string      `json:"avatar" elastic_mapping:"avatar: { type: keyword }"`
-	Roles       []UserRole  `json:"roles" elastic_mapping:"roles: { type: object }"`
-	Preferences Preferences `json:"preferences" elastic_mapping:"preferences: { type: object }"`
-	Payload     interface{} `json:"payload" elastic_mapping:"payload: { enabled: false }"`
+	Name        string      `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }"`
+	Email       string      `json:"email,omitempty" elastic_mapping:"email: { type: keyword }"`
+	Phone       string      `json:"phone,omitempty" elastic_mapping:"phone: { type: keyword }"`
+	AvatarUrl   string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
+	Roles       []UserRole  `json:"roles,omitempty" elastic_mapping:"roles: { type: object }"`
+	Preferences Preferences `json:"preferences,omitempty" elastic_mapping:"preferences: { type: object }"`
+	Payload     interface{} `json:"payload,omitempty" elastic_mapping:"payload: { enabled: false }"`
 	//Tags      []string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword }"`
 }
 
 type UserExternalProfile struct {
 	orm.ORMObjectBase
-	AuthProvider string      `json:"provider"  elastic_mapping:"provider: { type: keyword }"`
-	Login        string      `json:"login"  elastic_mapping:"login: { type: keyword }"`
-	Name         string      `json:"name"  elastic_mapping:"name: { type: keyword }"`
-	Email        string      `json:"email" elastic_mapping:"email: { type: keyword }"`
-	AvatarUrl    string      `json:"avatar" elastic_mapping:"avatar: { type: keyword }"`
-	Payload      interface{} `json:"payload" elastic_mapping:"payload: { type: object }"`
+	AuthProvider string      `json:"provider,omitempty"  elastic_mapping:"provider: { type: keyword }"`
+	Login        string      `json:"login,omitempty"  elastic_mapping:"login: { type: keyword }"`
+	Name         string      `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }"`
+	Email        string      `json:"email,omitempty" elastic_mapping:"email: { type: keyword }"`
+	AvatarUrl    string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
+	Payload      interface{} `json:"payload,omitempty" elastic_mapping:"payload: { type: object }"`
 }
 
 type Preferences struct {
-	Theme    string `json:"theme"`
-	Language string `json:"language"`
+	Theme    string `json:"theme,omitempty"`
+	Language string `json:"language,omitempty"`
 }
