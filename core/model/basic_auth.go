@@ -28,11 +28,7 @@
 package model
 
 import (
-	"infini.sh/framework/lib/go-ucfg"
+	"infini.sh/framework/core/config"
 )
 
-type BasicAuth struct {
-	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
-	//password should not be logged, neither in json nor in log
-	Password ucfg.SecretString `json:"password,omitempty" config:"password" yaml:"password" elastic_mapping:"password:{type:keyword}"`
-}
+type BasicAuth config.BasicAuth
