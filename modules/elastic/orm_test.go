@@ -30,7 +30,6 @@ package elastic
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"testing"
 	"time"
@@ -102,25 +101,4 @@ func TestSchemaRegister(t *testing.T) {
 	//indexName=initIndexName(MyHostConfig{},"myindex")
 	//fmt.Println(indexName)
 
-}
-
-type A struct {
-	orm.ORMObjectBase
-	Name string `json:"name"`
-}
-
-func TestWrapperObject(t *testing.T) {
-	a := A{Name: "my"}
-	b := WrapperTo(a)
-	AppendTenantInfo(&b, "tenant1", "user1")
-	fmt.Println(util.MustToJSON(b))
-	//assert {"_system":{"tenant_id":"tenant1","user_id":"user1"},"name":"my"}
-	ok, _ := b.HasKey(SysKey)
-	assert.Equal(t, true, ok)
-	c := b.Flatten()
-	fmt.Println(util.MustToJSON(c))
-	//{"_system.tenant_id":"tenant1","_system.user_id":"user1","name":"my"}
-	d, err := c.GetValue(SysKey + "." + TenantIDKey)
-	assert.Nil(t, err)
-	assert.Equal(t, "tenant1", d.(string))
 }

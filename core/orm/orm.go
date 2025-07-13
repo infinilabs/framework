@@ -40,6 +40,7 @@ limitations under the License.
 package orm
 
 import (
+	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -69,13 +70,14 @@ type ORM interface {
 
 	Delete(ctx *Context, o interface{}) error
 
-	Get(o interface{}) (bool, error)
+	Get(ctx *Context, o interface{}) (bool, error)
 }
 
 type ORMObjectBase struct {
-	ID      string     `config:"id"  json:"id,omitempty" protected:"true"   elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
-	Created *time.Time `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
-	Updated *time.Time `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+	ID      string      `config:"id"  json:"id,omitempty" protected:"true"   elastic_meta:"_id" elastic_mapping:"id: { type: keyword }"`
+	Created *time.Time  `json:"created,omitempty" elastic_mapping:"created: { type: date }"`
+	Updated *time.Time  `json:"updated,omitempty" elastic_mapping:"updated: { type: date }"`
+	System  util.MapStr `json:"_system,omitempty" elastic_mapping:"_system: { type: object }"`
 }
 
 func (obj *ORMObjectBase) GetID() string {
@@ -88,6 +90,66 @@ func (obj *ORMObjectBase) SetID(ID string) {
 type Object interface {
 	GetID() string
 	SetID(ID string)
+}
+
+type SystemFieldAccessor interface {
+	GetSystemValue(key string) (interface{}, bool)
+	GetSystemString(key string) string
+	GetSystemBool(key string) bool
+	GetSystemInt(key string) int
+	SetSystemValue(key string, value interface{})
+	SetSystemValues(m util.MapStr)
+}
+
+func (obj *ORMObjectBase) SetSystemValues(m util.MapStr) {
+	obj.System = m
+}
+
+func (obj *ORMObjectBase) SetSystemValue(key string, value interface{}) {
+	if obj.System == nil {
+		obj.System = util.MapStr{}
+	}
+	obj.System[key] = value
+}
+
+func (obj *ORMObjectBase) GetSystemValue(key string) (interface{}, bool) {
+	if obj.System == nil {
+		return nil, false
+	}
+	val, ok := obj.System[key]
+	return val, ok
+}
+
+func (obj *ORMObjectBase) GetSystemString(key string) string {
+	if val, ok := obj.System[key]; ok {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func (obj *ORMObjectBase) GetSystemBool(key string) bool {
+	if val, ok := obj.System[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func (obj *ORMObjectBase) GetSystemInt(key string) int {
+	if val, ok := obj.System[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v
+		case int64:
+			return int(v)
+		case float64:
+			return int(v)
+		}
+	}
+	return 0
 }
 
 type Sort struct {
@@ -117,6 +179,32 @@ func (r *SearchResult) IsError() bool {
 	return r.Error != nil
 }
 
+func GetV2(ctx *Context, o interface{}) (bool, error) {
+	rValue := reflect.ValueOf(o)
+
+	//check required value
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	if !idExists {
+		return false, errors.New("id was not found")
+	}
+
+	var err error
+	if ctx, o, err = runDataOperationPreHooks(OpGet, ctx, o); err != nil {
+		return false, err
+	}
+
+	exists, err := getHandler().Get(ctx, o)
+	if err != nil || !exists {
+		return exists, err
+	}
+
+	if ctx, o, err = runDataOperationPostHooks(OpGet, ctx, o); err != nil {
+		return false, err
+	}
+
+	return exists, err
+}
+
 func Get(o interface{}) (bool, error) {
 	rValue := reflect.ValueOf(o)
 
@@ -126,45 +214,62 @@ func Get(o interface{}) (bool, error) {
 		return false, errors.New("id was not found")
 	}
 
-	return getHandler().Get(o)
+	return getHandler().Get(nil, o)
 }
 
 func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
-	// Handle nil pointers
+	// Handle nil or invalid values
 	if !rValue.IsValid() || (rValue.Kind() == reflect.Ptr && rValue.IsNil()) {
 		log.Errorf("invalid or nil value for field %s", fieldName)
 		return false, ""
 	}
 
-	// Dereference if it's a pointer
+	// Dereference pointer
 	if rValue.Kind() == reflect.Ptr {
 		rValue = rValue.Elem()
 	}
 
-	// Make sure it's a struct
-	if rValue.Kind() != reflect.Struct {
-		log.Errorf("expected struct for field lookup, got %s", rValue.Kind())
+	switch rValue.Kind() {
+	case reflect.Struct:
+		// Struct field access
+		f := rValue.FieldByName(fieldName)
+		if !f.IsValid() {
+			log.Errorf("field %s not found in struct", fieldName)
+			return false, ""
+		}
+		if f.Kind() != reflect.String {
+			log.Errorf("field %s is not a string in struct", fieldName)
+			return false, ""
+		}
+		val := f.String()
+		return val != "", val
+
+	case reflect.Map:
+		// Map key access (assumes map[string]interface{})
+		if rValue.Type().Key().Kind() != reflect.String {
+			log.Errorf("map key is not string, cannot access field %s", fieldName)
+			return false, ""
+		}
+		key := reflect.ValueOf(fieldName)
+		value := rValue.MapIndex(key)
+		if !value.IsValid() {
+			log.Debugf("key %s not found in map", fieldName)
+			return false, ""
+		}
+		if value.Kind() == reflect.Interface {
+			value = value.Elem()
+		}
+		if value.Kind() != reflect.String {
+			log.Errorf("value for key %s is not a string", fieldName)
+			return false, ""
+		}
+		val := value.String()
+		return val != "", val
+
+	default:
+		log.Errorf("unsupported kind %s for field lookup", rValue.Kind())
 		return false, ""
 	}
-
-	// Get the field
-	f := rValue.FieldByName(fieldName)
-	if !f.IsValid() {
-		log.Errorf("field %s not found", fieldName)
-		return false, ""
-	}
-
-	// Check that it’s a string
-	if f.Kind() != reflect.String {
-		log.Errorf("field %s is not a string", fieldName)
-		return false, ""
-	}
-
-	val := f.String()
-	if val != "" {
-		return true, val
-	}
-	return false, ""
 }
 
 func existsNonNullField(rValue reflect.Value, fieldName string) bool {
@@ -234,25 +339,55 @@ func Create(ctx *Context, o interface{}) error {
 	setFieldValue(rValue, "Created", &time1)
 	setFieldValue(rValue, "Updated", &time1)
 
-	return Save(ctx, o)
+	var err error
+	if ctx, o, err = runDataOperationPreHooks(OpCreate, ctx, o); err != nil {
+		return err
+	}
+
+	err = getHandler().Save(ctx, o)
+	if err != nil {
+		return err
+	}
+
+	if ctx, o, err = runDataOperationPostHooks(OpCreate, ctx, o); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func Save(ctx *Context, o interface{}) error {
 	rValue := reflect.ValueOf(o)
 	//check required value
 	idExists, _ := getFieldStringValue(rValue, "ID")
+
 	if !idExists {
 		return errors.New("id was not found")
 	}
 
-	createdExists := existsNonNullField(rValue, "Created")
 	t := time.Now()
 	setFieldValue(rValue, "Updated", &t)
+
+	createdExists := existsNonNullField(rValue, "Created")
 	if !createdExists {
 		setFieldValue(rValue, "Created", &t)
 	}
 
-	return getHandler().Save(ctx, o)
+	var err error
+	if ctx, o, err = runDataOperationPreHooks(OpSave, ctx, o); err != nil {
+		return err
+	}
+
+	err = getHandler().Save(ctx, o)
+	if err != nil {
+		return err
+	}
+
+	if ctx, o, err = runDataOperationPostHooks(OpSave, ctx, o); err != nil {
+		return err
+	}
+
+	return err
 }
 
 // TODO support upsert and partial update
@@ -276,13 +411,89 @@ func Update(ctx *Context, o interface{}) error {
 	t1 := time.Now()
 	setFieldValue(rValue, "Updated", &t1)
 
-	return getHandler().Update(ctx, o)
+	var err error
+	if ctx, o, err = runDataOperationPreHooks(OpUpdate, ctx, o); err != nil {
+		return err
+	}
+
+	err = getHandler().Update(ctx, o)
+	if err != nil {
+		return err
+	}
+
+	if ctx, o, err = runDataOperationPostHooks(OpUpdate, ctx, o); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func Delete(ctx *Context, o interface{}) error {
-	return getHandler().Delete(ctx, o)
+
+	var err error
+	if ctx, o, err = runDataOperationPreHooks(OpDelete, ctx, o); err != nil {
+		return err
+	}
+
+	err = getHandler().Delete(ctx, o)
+	if err != nil {
+		return err
+	}
+
+	if ctx, o, err = runDataOperationPostHooks(OpDelete, ctx, o); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
+
+	if err := runSearchOperationHooks(ctx, qb); err != nil {
+		return nil, err
+	}
+
 	return getHandler().SearchV2(ctx, qb)
+}
+
+func InjectSystemField(obj interface{}, key string, value interface{}) error {
+	v := reflect.ValueOf(obj)
+	if !v.IsValid() {
+		return fmt.Errorf("invalid object")
+	}
+
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return fmt.Errorf("nil pointer object")
+		}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("expected struct, got %s", v.Kind())
+	}
+
+	// Find the "System" field
+	systemField := v.FieldByName("System")
+	if !systemField.IsValid() || !systemField.CanSet() {
+		return fmt.Errorf("System field not found or not settable")
+	}
+
+	// Initialize if nil
+	if systemField.IsNil() {
+		systemField.Set(reflect.MakeMap(systemField.Type()))
+	}
+
+	// Set key in map
+	systemField.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(value))
+	return nil
+}
+
+func InjectSystemFields(obj interface{}, values map[string]interface{}) error {
+	for k, v := range values {
+		if err := InjectSystemField(obj, k, v); err != nil {
+			return err
+		}
+	}
+	return nil
 }

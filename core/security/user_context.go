@@ -40,12 +40,12 @@ func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Contex
 	return context.WithValue(ctx, ctxUserKey, clam)
 }
 
-func MustGetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
+func MustGetUserFromRequest(req *http.Request) *UserSessionInfo {
 	reqUser, err := GetUserFromRequest(req)
 	if reqUser == nil || err != nil {
 		panic(err)
 	}
-	return reqUser, nil
+	return reqUser
 }
 
 func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
@@ -55,15 +55,19 @@ func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
 	return GetUserFromContext(req.Context())
 }
 
-func MustGetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
+func MustGetUserFromContext(ctx context.Context) *UserSessionInfo {
 	user, err := GetUserFromContext(ctx)
 	if user == nil || err != nil {
 		panic(err)
 	}
-	return user, nil
+	return user
 }
 
 func GetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("ctx is nil")
+	}
+
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {
 		return nil, fmt.Errorf("user not found")
