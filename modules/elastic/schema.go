@@ -30,15 +30,16 @@ package elastic
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"unicode"
+
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"reflect"
-	"strings"
-	"sync"
-	"unicode"
 )
 
 var indexNames = sync.Map{}
@@ -192,6 +193,7 @@ var colon int32 = 58     //:
 var comma int32 = 44     //,
 var bracket1 int32 = 93  //]
 var bracket2 int32 = 125 //}
+var underscore int32 = 95 //_
 func quoteJson(str string) string {
 
 	var buffer bytes.Buffer
@@ -205,7 +207,7 @@ func quoteJson(str string) string {
 			quoted = false
 		}
 
-		if c != quote && unicode.IsLetter(c) && !quoted {
+		if c != quote && (unicode.IsLetter(c) || c == underscore) && !quoted {
 			buffer.WriteString("\"")
 			quoted = true
 		}
