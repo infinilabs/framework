@@ -25,9 +25,10 @@ package elastic
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/magiconair/properties/assert"
 	"infini.sh/framework/core/util"
-	"testing"
 )
 
 type Obj struct {
@@ -83,4 +84,10 @@ func TestGetDeepNesteIndexID(t *testing.T) {
 	tag := util.GetFieldValueByTagName(&o2, "elastic_meta", "_id")
 	fmt.Println(tag)
 	assert.Equal(t, tag, "myid3")
+}
+
+func TestQuoteWithUnderscore(t *testing.T) {
+	js := `{ properties:{ id: { type: keyword },created: { type: date },updated: { type: date },_system: { type: object },name: { type: keyword } } }`
+	json := quoteJson(js)
+	assert.Equal(t, json, `{ "properties":{ "id": { "type": "keyword" },"created": { "type": "date" },"updated": { "type": "date" },"_system": { "type": "object" },"name": { "type": "keyword" } } }`)
 }

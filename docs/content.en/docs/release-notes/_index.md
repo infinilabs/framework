@@ -15,6 +15,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 - fix: HTTP headers config was not applied with plugin `http`
+- fix: support underscore '_' in quoted JSON keys
 
 ### ✈️ Improvements  
 - refactor: refactoring query interface 
