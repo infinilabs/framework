@@ -25,9 +25,11 @@ package config
 
 import (
 	"fmt"
+	"strings"
+
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"strings"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 // ClusterConfig stores cluster settings
@@ -286,10 +288,17 @@ type ConfigsConfig struct {
 	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
+		BasicAuth BasicAuth `config:"basic_auth"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
 	IgnoredPath                []string `config:"ignored_path"`
+}
+
+type BasicAuth struct {
+	Username string `json:"username,omitempty" config:"username" elastic_mapping:"username:{type:keyword}"`
+	//password should not be logged, neither in json nor in log
+	Password ucfg.SecretString `json:"password,omitempty" config:"password" yaml:"password" elastic_mapping:"password:{type:keyword}"`
 }
 
 type ResourceLimit struct {

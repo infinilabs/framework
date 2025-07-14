@@ -30,6 +30,13 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
@@ -41,12 +48,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/configs/common"
 	"infini.sh/framework/modules/configs/config"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"sync"
-	"time"
 )
 
 const bucketName = "instance_registered"
@@ -101,7 +102,11 @@ func ConnectToManager() error {
 func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	var err error
 	var res *util.Result
-	for _, server := range global.Env().SystemConfig.Configs.Servers {
+	cfg := global.Env().SystemConfig.Configs
+	if cfg.ManagerConfig.BasicAuth.Username != "" {
+		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
+	}
+	for _, server := range cfg.Servers {
 		req.Url, err = url.JoinPath(server, req.Path)
 		if err != nil {
 			continue
