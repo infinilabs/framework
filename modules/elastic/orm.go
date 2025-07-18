@@ -25,6 +25,10 @@ package elastic
 
 import (
 	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/errors"
@@ -33,9 +37,6 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"infini.sh/framework/modules/elastic/orm"
-	"net/http"
-	"reflect"
-	"strings"
 )
 
 var ErrNotFound = errors.New("record not found")
@@ -178,7 +179,9 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 	}
 
 	docID := getIndexID(o)
-	log.Error("docID:", docID)
+	if global.Env().IsDebug {
+		log.Debug("docID:", docID)
+	}
 	_, err := handler.Client.Index(handler.GetIndexName(o), "", docID, o, refresh)
 	return err
 }
