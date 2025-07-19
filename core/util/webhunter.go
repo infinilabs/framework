@@ -529,3 +529,13 @@ func execute(client *http.Client, req *http.Request) (*Result, error) {
 
 	return nil, http.ErrNotSupported
 }
+
+func IsValidURL(str string) bool {
+	_, err := uri.ParseRequestURI(str)
+	return err == nil
+}
+
+func IsValidFullURL(str string) bool {
+	u, err := uri.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
+}
