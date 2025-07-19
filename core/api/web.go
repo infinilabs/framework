@@ -237,6 +237,9 @@ func StripPrefix(prefix string, h http.Handler) http.Handler {
 		if r.URL.Path == "/" && prefix != "" {
 			// If the request path is exactly "/", we need to redirect to the prefix
 			// to avoid stripping the prefix and serving the wrong content.
+			if !strings.HasSuffix(prefix, "/") {
+				prefix += "/"
+			}
 			http.Redirect(w, r, prefix, http.StatusMovedPermanently)
 			return
 		}
