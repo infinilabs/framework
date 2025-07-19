@@ -160,7 +160,7 @@ func StartWeb(cfg config.WebAppConfig) {
 
 		srv = &http.Server{
 			Addr:         bindAddress,
-			Handler:      globalInterceptorHandler.Handler(RecoveryHandler()(http.StripPrefix(cfg.BasePath, handler))),
+			Handler:      globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler))),
 			TLSConfig:    serverTLSCfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -195,7 +195,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		}(srv)
 
 	} else {
-		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(http.StripPrefix(cfg.BasePath, handler)))}
+		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler)))}
 		go func(srv *http.Server) {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -231,6 +231,18 @@ func StartWeb(cfg config.WebAppConfig) {
 
 }
 
+func StripPrefix(prefix string, h http.Handler) http.Handler {
+	prefixHandler := http.StripPrefix(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" && prefix != "" {
+			// If the request path is exactly "/", we need to redirect to the prefix
+			// to avoid stripping the prefix and serving the wrong content.
+			http.Redirect(w, r, prefix, http.StatusMovedPermanently)
+			return
+		}
+		prefixHandler.ServeHTTP(w, r)
+	})
+}
 type UIFilters interface {
 	// ApplyFilter wraps an HTTP handler with filter logic
 	ApplyFilter(

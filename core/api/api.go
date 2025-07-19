@@ -241,7 +241,7 @@ func StartAPI() {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       10 * time.Second,
 			Addr:              listenAddress,
-			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(http.StripPrefix(apiConfig.BasePath,router)))),
+			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath,router)))),
 			TLSConfig:         cfg,
 		}
 
@@ -295,7 +295,7 @@ func StartAPI() {
 				}
 			}()
 
-			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(http.StripPrefix(apiConfig.BasePath, router)))))
+			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath, router)))))
 			if err != nil {
 				log.Error(err)
 				panic(err)
