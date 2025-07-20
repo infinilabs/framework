@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: add hooks for ORM data operation #167
+- feat: add support for stripping base path prefix from requests
 
 ### 🐛 Bug fix  
 - fix: HTTP headers config was not applied with plugin `http`
