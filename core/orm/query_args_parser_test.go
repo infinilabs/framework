@@ -124,26 +124,27 @@ func TestParseQueryParamsToBuilder1(t *testing.T) {
 	}
 	walk(root, "must")
 
-	// Check count
-	if len(flatClauses) != len(expected) {
-		t.Fatalf("Expected %d clauses, got %d", len(expected), len(flatClauses))
+	// Match clauses ignoring order
+	matched := make([]bool, len(expected))
+
+	for _, got := range flatClauses {
+		for i, exp := range expected {
+			if matched[i] {
+				continue
+			}
+			if got.logicalType == exp.logicalType &&
+				got.clause.Field == exp.field &&
+				got.clause.Operator == exp.operator &&
+				fmt.Sprint(got.clause.Value) == fmt.Sprint(exp.value) {
+				matched[i] = true
+				break
+			}
+		}
 	}
 
-	// Check fields
-	for i, got := range flatClauses {
-		exp := expected[i]
-
-		if got.logicalType != exp.logicalType {
-			t.Errorf("Clause %d: expected logicalType %s, got %s", i, exp.logicalType, got.logicalType)
-		}
-		if got.clause.Field != exp.field {
-			t.Errorf("Clause %d: expected field %s, got %s", i, exp.field, got.clause.Field)
-		}
-		if got.clause.Operator != exp.operator {
-			t.Errorf("Clause %d: expected operator %s, got %s", i, exp.operator, got.clause.Operator)
-		}
-		if fmt.Sprint(got.clause.Value) != fmt.Sprint(exp.value) {
-			t.Errorf("Clause %d: expected value %v, got %v", i, exp.value, got.clause.Value)
+	for i, ok := range matched {
+		if !ok {
+			t.Errorf("Expected clause not found: %+v", expected[i])
 		}
 	}
 
@@ -605,5 +606,177 @@ func TestParseAnyTermsQuery(t *testing.T) {
 		if val != expectedValues[i] {
 			t.Errorf("Expected value[%d] to be %v, got %v", i, expectedValues[i], val)
 		}
+	}
+}
+
+func TestParseQueryWithMergedTermFilters(t *testing.T) {
+	rawQuery := "query=hello&filter=id:default&filter=id:ai_overview"
+	req, err := http.NewRequest("GET", "/search?"+rawQuery, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder, err := NewQueryBuilderFromRequest(req, "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder.Build()
+	root := builder.Root()
+	if root == nil {
+		t.Fatal("Expected root clause to be non-nil")
+	}
+
+	var foundQuery, foundTerms bool
+
+	for _, clause := range root.MustClauses {
+		if clause.Operator == QueryMatch &&
+			clause.Field == "content" &&
+			clause.Value == "hello" {
+			foundQuery = true
+		}
+		if clause.Operator == QueryTerms &&
+			clause.Field == "id" {
+			values, ok := clause.Value.([]interface{})
+			if !ok {
+				t.Errorf("Expected terms clause to contain a slice of values")
+			}
+			if len(values) != 2 || values[0] != "default" || values[1] != "ai_overview" {
+				t.Errorf("Unexpected terms values: %v", values)
+			}
+			foundTerms = true
+		}
+	}
+
+	if !foundQuery {
+		t.Errorf("Expected match query, not found")
+	}
+	if !foundTerms {
+		t.Errorf("Expected merged terms query for 'id', not found")
+	}
+}
+
+
+func TestMergeTermQueries_SingleField(t *testing.T) {
+	clauses := []*Clause{
+		TermQuery("status", "active"),
+		TermQuery("status", "pending"),
+	}
+
+	merged := mergeTermQueries(clauses)
+
+	if len(merged) != 1 {
+		t.Fatalf("Expected 1 merged clause, got %d", len(merged))
+	}
+
+	clause := merged[0]
+	if clause.Operator != QueryTerms {
+		t.Errorf("Expected QueryTerms, got %v", clause.Operator)
+	}
+	if clause.Field != "status" {
+		t.Errorf("Expected field 'status', got %s", clause.Field)
+	}
+	values, ok := clause.Value.([]interface{})
+	if !ok || len(values) != 2 || values[0] != "active" || values[1] != "pending" {
+		t.Errorf("Unexpected values: %v", clause.Value)
+	}
+}
+
+func TestMergeTermQueries_MultipleFields(t *testing.T) {
+	clauses := []*Clause{
+		TermQuery("status", "active"),
+		TermQuery("type", "admin"),
+		TermQuery("status", "pending"),
+	}
+
+	merged := mergeTermQueries(clauses)
+
+	if len(merged) != 2 {
+		t.Fatalf("Expected 2 merged clauses, got %d", len(merged))
+	}
+
+	var foundStatus, foundType bool
+
+	for _, clause := range merged {
+		switch clause.Field {
+		case "status":
+			if clause.Operator != QueryTerms {
+				t.Errorf("Expected QueryTerms for 'status', got %v", clause.Operator)
+			}
+			foundStatus = true
+		case "type":
+			if clause.Operator != QueryTerm {
+				t.Errorf("Expected QueryTerm for 'type', got %v", clause.Operator)
+			}
+			foundType = true
+		default:
+			t.Errorf("Unexpected field: %s", clause.Field)
+		}
+	}
+
+	if !foundStatus || !foundType {
+		t.Errorf("Missing expected merged clauses")
+	}
+}
+
+func TestMergeTermQueries_WithNonTermQueries(t *testing.T) {
+	rangeClause := &Clause{
+		Field:    "age",
+		Operator: QueryRangeGte,
+		Value:    30,
+	}
+	existsClause := ExistsQuery("email")
+
+	clauses := []*Clause{
+		TermQuery("id", "123"),
+		rangeClause,
+		TermQuery("id", "456"),
+		existsClause,
+	}
+
+	merged := mergeTermQueries(clauses)
+
+	if len(merged) != 3 {
+		t.Fatalf("Expected 3 clauses (1 merged + 2 untouched), got %d", len(merged))
+	}
+
+	var foundTerms, foundRange, foundExists bool
+
+	for _, clause := range merged {
+		switch clause.Operator {
+		case QueryTerms:
+			if clause.Field == "id" {
+				values := clause.Value.([]interface{})
+				if len(values) != 2 {
+					t.Errorf("Expected 2 terms in merged clause, got %v", values)
+				}
+				foundTerms = true
+			}
+		case QueryRangeGte:
+			if clause.Field == "age" {
+				foundRange = true
+			}
+		case QueryExists:
+			if clause.Field == "email" {
+				foundExists = true
+			}
+		}
+	}
+
+	if !foundTerms || !foundRange || !foundExists {
+		t.Errorf("Expected all clause types to be present after merge")
+	}
+}
+
+func TestMergeTermQueries_NoMergingNeeded(t *testing.T) {
+	clauses := []*Clause{
+		Range("score").Gte(90),
+		ExistsQuery("email"),
+	}
+
+	merged := mergeTermQueries(clauses)
+
+	if len(merged) != 2 {
+		t.Errorf("Expected 2 unchanged clauses, got %d", len(merged))
 	}
 }

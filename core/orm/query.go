@@ -100,9 +100,10 @@ type QueryBuilder struct {
 	includes []string
 	excludes []string
 
-	defaultOperator     string
-	defaultQueryFields  []string
-	defaultFilterFields []string
+	defaultOperator       string
+	defaultQueryFields    []string
+	defaultFilterFields   []string
+	defaultFilterOperator string
 
 	//indicate fuzziness query is built or not
 	builtFuzziness bool
