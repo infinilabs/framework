@@ -32,6 +32,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
@@ -237,6 +239,69 @@ func (c *ESAPIV8) Index(indexName, docType string, id interface{}, data interfac
 		return &elastic.InsertResponse{}, err
 	}
 	if !(esResp.Result == "created" || esResp.Result == "updated") {
+		return nil, errors.New(string(resp.Body))
+	}
+
+	return esResp, nil
+}
+
+func (c *ESAPIV8) Create(indexName, docType string, id interface{}, data interface{}, refresh string) (*elastic.InsertResponse, error) {
+
+	indexName = util.UrlEncode(indexName)
+
+	basePath := ""
+	if id != "" {
+		basePath = fmt.Sprintf("/%s/_create/%s", indexName, id)
+	} else {
+		basePath = fmt.Sprintf("/%s/_doc", indexName)
+	}
+
+	u, err := url.Parse(c.GetEndpoint())
+	if err != nil {
+		return nil, fmt.Errorf("invalid endpoint: %w", err)
+	}
+	u.Path = path.Join(u.Path, basePath)
+
+	q := u.Query()
+	if refresh != "" {
+		q.Set("refresh", refresh)
+	}
+	u.RawQuery = q.Encode()
+
+	url := u.String()
+
+	var (
+		js []byte
+	)
+	if dataBytes, ok := data.([]byte); ok {
+		js = dataBytes
+	} else {
+		js, err = json.Marshal(data)
+	}
+
+	if global.Env().IsDebug {
+		log.Debug("creating doc: ", url, ",", string(js))
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Request(nil, util.Verb_POST, url, js)
+	if err != nil {
+		return nil, err
+	}
+
+	if global.Env().IsDebug {
+		log.Trace("creating response: ", string(resp.Body))
+	}
+
+	esResp := &elastic.InsertResponse{}
+	err = json.Unmarshal(resp.Body, esResp)
+	if err != nil {
+		return &elastic.InsertResponse{}, err
+	}
+	if !(esResp.Result == "created") {
 		return nil, errors.New(string(resp.Body))
 	}
 

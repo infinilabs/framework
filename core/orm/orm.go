@@ -66,6 +66,8 @@ type ORM interface {
 
 	Save(ctx *Context, o interface{}) error
 
+	Create(ctx *Context, o interface{}) error
+
 	Update(ctx *Context, o interface{}) error
 
 	Delete(ctx *Context, o interface{}) error
@@ -344,7 +346,7 @@ func Create(ctx *Context, o interface{}) error {
 		return err
 	}
 
-	err = getHandler().Save(ctx, o)
+	err = getHandler().Create(ctx, o)
 	if err != nil {
 		return err
 	}
