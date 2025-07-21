@@ -255,6 +255,7 @@ func (this *ResponseBase) GetBoolByJsonPath(path string) (interface{}, error) {
 // InsertResponse is a index response object
 type InsertResponse struct {
 	ResponseBase
+	OK      bool   `json:"ok,omitempty"` //for v0.x only
 	Result  string `json:"result"`
 	Index   string `json:"_index"`
 	Type    string `json:"_type"`

@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 - feat: add hooks for ORM data operation #167
 - feat: merge term filters to terms filter with same field #173
+- feat: add create api for indexing #175
 
 ### 🐛 Bug fix  
 - fix: HTTP headers config was not applied with plugin `http`
