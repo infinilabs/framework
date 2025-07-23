@@ -233,14 +233,17 @@ func StartWeb(cfg config.WebAppConfig) {
 
 // StripPrefix removes the specified prefix from the request URL path
 // and serves the request using the provided handler.
+// Unlike http.StripPrefix, it passes the request to the handler unmodified
+// if the prefix does not match, instead of returning a 404.
 func StripPrefix(prefix string, h http.Handler) http.Handler {
 	prefixHandler := http.StripPrefix(prefix, h)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, prefix) {
-			h.ServeHTTP(w, r)
+		p := strings.TrimPrefix(r.URL.Path, prefix)
+    if len(p) < len(r.URL.Path) && (len(p) == 0 || p[0] == '/') {
+			prefixHandler.ServeHTTP(w, r)
 			return
 		}
-		prefixHandler.ServeHTTP(w, r)
+		h.ServeHTTP(w, r)
 	})
 }
 type UIFilters interface {
