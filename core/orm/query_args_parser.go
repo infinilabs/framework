@@ -42,6 +42,10 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		builder.defaultFilterFields = strings.Split(reqFilterFields, ",")
 	}
 
+	if reqFilterOperator := q.Get("default_filter_operator"); reqFilterOperator != "" {
+		builder.defaultFilterOperator = strings.ToUpper(reqFilterOperator)
+	}
+
 	//only if user didn't pass default fields, if user do, use user's value only
 	if len(defaultField) > 0 && len(defaultFields) == 0 {
 		defaultFields = append(defaultFields, defaultField...)
@@ -64,6 +68,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 	}
 
 	// Handle filters (supporting NOT with '-' prefix)
+	filterClauses := []*Clause{}
 	for _, filterRaw := range q["filter"] {
 		filterStr, err := url.QueryUnescape(filterRaw)
 		if err != nil {
@@ -74,8 +79,17 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		if err != nil {
 			return nil, err
 		}
+		filterClauses = append(filterClauses, clause)
+	}
 
-		builder.Must(clause)
+	//check if merge or not
+	if builder.defaultFilterOperator != "AND" {
+		// Merge same-field term queries
+		filterClauses = mergeTermQueries(filterClauses)
+	}
+
+	if len(filterClauses) > 0 {
+		builder.Must(filterClauses...)
 	}
 
 	// Handle sorting
@@ -231,4 +245,44 @@ func parseValue(val string) interface{} {
 		return b
 	}
 	return val
+}
+
+func mergeTermQueries(clauses []*Clause) []*Clause {
+	grouped := make(map[string][]interface{})
+	fieldOrder := []string{}
+	var result []*Clause
+
+	for _, clause := range clauses {
+		// Recurse into sub-clauses
+		clause.MustClauses = mergeTermQueries(clause.MustClauses)
+		clause.MustNotClauses = mergeTermQueries(clause.MustNotClauses)
+		clause.ShouldClauses = mergeTermQueries(clause.ShouldClauses)
+		clause.FilterClauses = mergeTermQueries(clause.FilterClauses)
+
+		// Only merge leaf term queries
+		if clause.Operator == QueryTerm &&
+			len(clause.MustClauses) == 0 &&
+			len(clause.MustNotClauses) == 0 &&
+			len(clause.ShouldClauses) == 0 &&
+			len(clause.FilterClauses) == 0 {
+			if _, seen := grouped[clause.Field]; !seen {
+				fieldOrder = append(fieldOrder, clause.Field)
+			}
+			grouped[clause.Field] = append(grouped[clause.Field], clause.Value)
+		} else {
+			result = append(result, clause)
+		}
+	}
+
+	// Append merged term clauses in original order
+	for _, field := range fieldOrder {
+		values := grouped[field]
+		if len(values) == 1 {
+			result = append(result, TermQuery(field, values[0]))
+		} else {
+			result = append(result, TermsQuery(field, values))
+		}
+	}
+
+	return result
 }
