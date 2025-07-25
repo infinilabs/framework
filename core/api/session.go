@@ -31,6 +31,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 	"net/http"
 	"sync"
 )
@@ -142,7 +143,7 @@ func getStore() *sessions.CookieStore {
 	cookieCfg := global.Env().SystemConfig.Cookie
 	if cookieCfg.Secret == "" {
 		log.Trace("use default cookie secret")
-		store = sessions.NewCookieStore([]byte("APP-SECRET"))
+		store = sessions.NewCookieStore([]byte(util.GetUUID()))
 	} else {
 		log.Trace("get cookie secret from config,", cookieCfg.Secret)
 		store = sessions.NewCookieStore([]byte(cookieCfg.Secret))
