@@ -11,6 +11,12 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+### 🐛 Bug fix  
+### ✈️ Improvements  
+
+## 1.2.0 (2025-07-25)
+### ❌ Breaking changes  
+### 🚀 Features  
 - feat: add hooks for ORM data operation #167
 - feat: merge term filters to terms filter with same field #173
 - feat: add create api for indexing #175
