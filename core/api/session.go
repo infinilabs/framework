@@ -144,12 +144,9 @@ func getStore() sessions.Store {
 	if cookieCfg.Store == "cookie" { //cookie
 		s1 := sessions.NewCookieStore([]byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
 		s1.Options = &sessions.Options{
-			Path:     cookieCfg.Path,
-			MaxAge:   cookieCfg.MaxAge,
-			HttpOnly: true,
-			Secure:   false, // must be false for HTTP
-			Domain:   cookieCfg.Domain,
-			SameSite: http.SameSiteLaxMode,
+			Path:   cookieCfg.Path,
+			MaxAge: cookieCfg.MaxAge,
+			Domain: cookieCfg.Domain,
 		}
 		store = s1
 	} else { //filesystem
@@ -162,12 +159,9 @@ func getStore() sessions.Store {
 
 		s1 := sessions.NewFilesystemStore(cookieCfg.StorePath, []byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
 		s1.Options = &sessions.Options{
-			Path:     cookieCfg.Path,
-			MaxAge:   cookieCfg.MaxAge,
-			HttpOnly: true,
-			//Secure:   false, // must be false for HTTP
-			//Domain:   cookieCfg.Domain,
-			//SameSite: http.SameSiteLaxMode,
+			Path:   cookieCfg.Path,
+			MaxAge: cookieCfg.MaxAge,
+			Domain: cookieCfg.Domain,
 		}
 		store = s1
 	}
