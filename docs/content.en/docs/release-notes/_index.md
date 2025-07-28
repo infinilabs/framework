@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- chore: less logging for session store change #180
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
