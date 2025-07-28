@@ -48,7 +48,9 @@ func GetSession(r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
 	session, err := s.Get(r, sessionName)
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug{
+			log.Error(err)
+		}
 		return false, nil
 	}
 
