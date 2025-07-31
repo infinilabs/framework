@@ -76,13 +76,14 @@ type API interface {
 	CreateIndex(name string, settings map[string]interface{}) error
 
 	Index(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
-
+	Create(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
 	Update(indexName, docType string, id interface{}, data interface{}, refresh string) (*InsertResponse, error)
-
-	Bulk(data []byte) (*util.Result, error)
 
 	Get(indexName, docType, id string) (*GetResponse, error)
 	Delete(indexName, docType, id string, refresh ...string) (*DeleteResponse, error)
+
+	Bulk(data []byte) (*util.Result, error)
+
 	Count(ctx context.Context, indexName string, body []byte) (*CountResponse, error)
 	Search(indexName string, query *SearchRequest) (*SearchResponse, error)
 

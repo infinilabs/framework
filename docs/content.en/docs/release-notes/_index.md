@@ -11,8 +11,16 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+### 🐛 Bug fix  
+### ✈️ Improvements  
+- chore: less logging for session store change #180
+
+## 1.2.0 (2025-07-25)
+### ❌ Breaking changes  
+### 🚀 Features  
 - feat: add hooks for ORM data operation #167
 - feat: merge term filters to terms filter with same field #173
+- feat: add create api for indexing #175
 
 ### 🐛 Bug fix  
 - fix: HTTP headers config was not applied with plugin `http`

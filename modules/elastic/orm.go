@@ -134,7 +134,7 @@ func (handler *ElasticORM) GetIndexName(o interface{}) string {
 	return fmt.Sprintf("%s%s", handler.Config.IndexPrefix, indexName)
 }
 
-func (handler *ElasticORM) Get(ctx *api.Context,o interface{}) (bool, error) {
+func (handler *ElasticORM) Get(ctx *api.Context, o interface{}) (bool, error) {
 
 	id := getIndexID(o)
 	if id == "" {
@@ -170,6 +170,20 @@ func (handler *ElasticORM) GetBy(field string, value interface{}, t interface{})
 	query := api.Query{}
 	query.Conds = api.And(api.Eq(field, value))
 	return handler.Search(t, &query)
+}
+
+func (handler *ElasticORM) Create(ctx *api.Context, o interface{}) error {
+	var refresh string
+	if ctx != nil {
+		refresh = ctx.Refresh
+	}
+
+	docID := getIndexID(o)
+	if global.Env().IsDebug {
+		log.Debug("docID:", docID)
+	}
+	_, err := handler.Client.Create(handler.GetIndexName(o), "", docID, o, refresh)
+	return err
 }
 
 func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {

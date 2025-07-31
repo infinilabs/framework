@@ -178,8 +178,13 @@ type SystemConfig struct {
 }
 
 type CookieConfig struct {
-	Secret string `config:"secret"`
-	Domain string `config:"domain"`
+	Store         string `config:"store"`      //cookie/filesystem
+	StorePath     string `config:"store_path"` //filesystem only
+	AuthSecret    string `config:"auth_secret"`
+	EncryptSecret string `config:"encrypt_secret"`
+	Domain        string `config:"domain"`
+	MaxAge        int    `config:"max_age"`
+	Path          string `config:"path"`
 }
 
 type ProxyConfig struct {
@@ -287,8 +292,8 @@ type ConfigsConfig struct {
 	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
 	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
-		LocalConfigsRepoPath string `config:"local_configs_repo_path"`
-		BasicAuth BasicAuth `config:"basic_auth"`
+		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
+		BasicAuth            BasicAuth `config:"basic_auth"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
