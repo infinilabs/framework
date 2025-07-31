@@ -1,10 +1,11 @@
 package orm
 
 import (
+	"sort"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"sort"
 )
 
 var registeredSchemas = []util.KeyValue{}
@@ -25,6 +26,7 @@ func InitSchema() error {
 	for _, v := range registeredSchemas {
 		err := getHandler().RegisterSchemaWithName(v.Payload, v.Key)
 		if err != nil {
+			log.Error("register schema with index name failed: ", v.Key, " error: ", err)
 			return err
 		}
 	}

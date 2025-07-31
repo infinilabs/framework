@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
+- refactor: initialize index schema using index template
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  

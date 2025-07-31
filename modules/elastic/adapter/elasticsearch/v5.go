@@ -95,6 +95,20 @@ func (c *ESAPIV5) getDefaultTemplate(indexPrefix string) string {
 	return fmt.Sprintf(template, indexPrefix, 1, TypeName5)
 }
 
+func (c *ESAPIV5) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error) {
+	if settings == nil {
+		settings = c.GetDefaultIndexTemplateSettings()
+	}
+	template := util.MapStr{
+		"template": indexPatterns,
+		"mappings": mappings,
+		"settings": util.MapStr{
+			TypeName5: settings,
+		},
+	}
+	return util.MustToJSONBytes(template), nil
+}
+
 func (c *ESAPIV5) initTemplate(templateName, indexPrefix string) {
 	if global.Env().IsDebug {
 		log.Trace("init elasticsearch template")

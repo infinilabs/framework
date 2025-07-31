@@ -155,17 +155,14 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 	indexName = orm.GetIndexName(t)
 
 	log.Debug("register schema with indexName: ", indexName)
+	indexTemplate := fmt.Sprintf("%s_template", indexName)
+	exist, err := handler.Client.TemplateExists(indexTemplate)
 
-	exist, err := handler.Client.IndexExists(indexName)
+	// exist, err := handler.Client.IndexExists(indexName)
 	if err != nil {
 		return err
 	}
-	if !exist {
-		err = handler.Client.CreateIndex(indexName, nil)
-		if err != nil {
-			return err
-		}
-
+	if !exist || handler.Config.OverrideExistsTemplate {
 		jsonFormat := `{ %s }`
 		mapping := getIndexMapping(t)
 
@@ -173,14 +170,23 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 		json := fmt.Sprintf(jsonFormat, quoteJson(js))
 
 		log.Trace(indexName, ", mapping: ", json)
+		var mappingData map[string]interface{}
+		err = util.FromJSONBytes([]byte(json), &mappingData)
+		if err != nil {
+			return err
+		}
+		template, err := handler.Client.BuildTemplate(indexName+"*", nil, mappingData)
+		if err != nil {
+			return err
+		}
 
-		data, err := handler.Client.UpdateMapping(indexName, "", []byte(json))
+		data, err := handler.Client.PutTemplate(indexTemplate, template)
 		if err != nil {
 			return err
 		}
 		x, _, _, _ := jsonparser.Get(data, "error")
 		if x != nil {
-			log.Errorf("error on update mapping: %v, %v", indexName, string(x))
+			log.Errorf("error on update template: %v, %v", indexName, string(x))
 		} else {
 			log.Debugf("schema %v successful initialized", indexName)
 		}
