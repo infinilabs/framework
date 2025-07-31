@@ -31,13 +31,19 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
+	"net"
+	"net/http"
+	"runtime"
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/context"
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
 	common "infini.sh/framework/core/api/common"
 	"infini.sh/framework/core/api/filter"
-	"infini.sh/framework/core/api/router"
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/api/websocket"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
@@ -45,11 +51,6 @@ import (
 	_ "infini.sh/framework/core/logging"
 	"infini.sh/framework/core/logging/logger"
 	"infini.sh/framework/core/util"
-	"net"
-	"net/http"
-	"runtime"
-	"sync"
-	"time"
 )
 
 // RegisteredAPIFuncHandler is a hub for registered api
@@ -240,7 +241,7 @@ func StartAPI() {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       10 * time.Second,
 			Addr:              listenAddress,
-			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(router))),
+			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath,router)))),
 			TLSConfig:         cfg,
 		}
 
@@ -294,7 +295,7 @@ func StartAPI() {
 				}
 			}()
 
-			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(router))))
+			err := http.Serve(l, RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath, router)))))
 			if err != nil {
 				log.Error(err)
 				panic(err)
