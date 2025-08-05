@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
+- chore: add generate secure string util func #183
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
