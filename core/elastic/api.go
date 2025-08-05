@@ -41,9 +41,10 @@ package elastic
 
 import (
 	"context"
+	"net/url"
+
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
-	"net/url"
 )
 
 type API interface {
@@ -146,6 +147,12 @@ type TemplateAPI interface {
 	PutTemplate(scriptName string, template []byte) ([]byte, error)
 	GetTemplate(scriptName string) (map[string]interface{}, error)
 	SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*SearchResponse, error)
+	// BuildTemplate builds an index template with the given index patterns, settings, and mappings.
+	// The index patterns can include wildcards, e.g., "logs-*".
+	// The settings and mappings should be provided as maps.
+	// Returns the template as a byte slice.
+	// If an error occurs, it returns an error.
+	BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error)
 }
 
 type MappingAPI interface {

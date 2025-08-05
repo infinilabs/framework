@@ -41,11 +41,14 @@ package elasticsearch
 
 import (
 	"fmt"
-	log "github.com/cihub/seelog"
 	"strings"
 
+	log "github.com/cihub/seelog"
+
 	"errors"
+
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 )
 
 type ESAPIV6 struct {
@@ -126,4 +129,18 @@ func (c *ESAPIV6) initTemplate(templateName, indexPrefix string) {
 	}
 	log.Debugf("elasticsearch template successful initialized")
 
+}
+
+func (c *ESAPIV6) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error) {
+	if settings == nil {
+		settings = c.GetDefaultIndexTemplateSettings()
+	}
+	template := util.MapStr{
+		"index_patterns": indexPatterns,
+		"settings": util.MapStr{
+			TypeName6: settings,
+		},
+		"mappings": mappings,
+	}
+	return util.MustToJSONBytes(template), nil
 }
