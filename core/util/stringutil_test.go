@@ -560,3 +560,41 @@ func TestStringArrayIntersection(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSecure validates the unified validation function in all its modes.
+func TestValidateSecure(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		secureArgs []bool // Used to simulate the variadic parameter
+		want       bool
+	}{
+		// --- Group 1: Testing Secure Mode (Default or secure=true) ---
+		{name: "Secure Valid (Default)", input: "Password123!", secureArgs: nil, want: true},
+		{name: "Secure Valid (Explicit)", input: "Password123!", secureArgs: []bool{true}, want: true},
+		{name: "Secure Too Short", input: "Pass1!", secureArgs: nil, want: false},
+		{name: "Secure Missing Upper", input: "password123!", secureArgs: nil, want: false},
+		{name: "Secure Missing Lower", input: "PASSWORD123!", secureArgs: nil, want: false},
+		{name: "Secure Missing Digit", input: "Password!", secureArgs: nil, want: false},
+		{name: "Secure Missing Special", input: "Password123", secureArgs: nil, want: false},
+		{name: "Secure Empty", input: "", secureArgs: nil, want: false},
+
+		// --- Group 2: Testing Simple Mode (secure=false) ---
+		{name: "Simple Valid (lower and digit)", input: "password123", secureArgs: []bool{false}, want: true},
+		{name: "Simple Valid (with special chars)", input: "password123!", secureArgs: []bool{false}, want: true},
+		{name: "Simple Valid (with upper chars)", input: "Password123", secureArgs: []bool{false}, want: true},
+		{name: "Simple Missing Digit", input: "input", secureArgs: []bool{false}, want: false},
+		{name: "Simple Missing Lower", input: "12345678", secureArgs: []bool{false}, want: false},
+		{name: "Simple Empty", input: "", secureArgs: []bool{false}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The '...' unpacks the slice into the variadic function call.
+			got := ValidateSecure(tt.input, tt.secureArgs...)
+			if got != tt.want {
+				t.Errorf("ValidateSecure(\"%s\", ...) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}

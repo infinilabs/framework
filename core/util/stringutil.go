@@ -614,6 +614,8 @@ func VersionCompare(v1, v2 string) (int, error) {
 var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 const (
+	minLength = 8
+
 	lowercaseChars = "abcdefghijklmnopqrstuvwxyz"
 	uppercaseChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digitChars     = "0123456789"
@@ -637,8 +639,8 @@ func GenerateRandomString(cnum int) string {
 
 // GenerateSecureString generates a random string of specified length using lowercase letters, uppercase letters, digits, and special characters.
 func GenerateSecureString(cnum int) string {
-	if cnum < 8 {
-		cnum = 8
+	if cnum < minLength {
+		cnum = minLength
 	}
 
 	result := make([]byte, cnum)
@@ -656,6 +658,39 @@ func GenerateSecureString(cnum int) string {
 	})
 
 	return string(result)
+}
+
+// ValidateSecure checks if the input string meets the security requirements:
+// - Minimum length of 8 characters
+// - At least one uppercase letter, one lowercase letter, one digit, and one special character (if must is true)
+// - If must is false, at least one lowercase letter and one digit are required
+// If must is true, it enforces all security requirements.
+// If must is false, it only requires at least one lowercase letter and one digit.
+func ValidateSecure(input string, opts ...bool) bool {
+	// Determine the security policy from the optional parameter. Defaults to true.
+	must := len(opts) == 0 || opts[0]
+
+	if len(input) < minLength {
+		return false
+	}
+
+	var hasUpper, hasLower, hasDigit, hasSpecial bool
+	for _, char := range input {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsDigit(char):
+			hasDigit = true
+		case ContainsRune(specialChars, char):
+			hasSpecial = true
+		}
+	}
+	if must {
+		return hasUpper && hasLower && hasDigit && hasSpecial
+	}
+	return hasLower && hasDigit
 }
 
 // StringInArray checks if a string is present in a slice of strings.
