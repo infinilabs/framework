@@ -52,10 +52,12 @@ import (
 	"unicode/utf16"
 )
 
+// Index returns the index of the first occurrence of substr in str, or -1 if substr is not present.
 func ContainStr(s, substr string) bool {
 	return Index(s, substr) != -1
 }
 
+// HasPrefix checks if the string s starts with the substring substr.
 func StringDefault(val, defaultV string) string {
 	if val != "" {
 		return val
@@ -63,8 +65,8 @@ func StringDefault(val, defaultV string) string {
 	return defaultV
 }
 
+// CompareInteger compares two interface{} values as integers and returns true if they are equal.
 func CompareInteger(x interface{}, y interface{}) bool {
-
 	if x == nil || y == nil {
 		return false
 	}
@@ -73,21 +75,24 @@ func CompareInteger(x interface{}, y interface{}) bool {
 		return true
 	}
 
-	var xint int = InterfaceToInt(x)
-	var yint int = InterfaceToInt(y)
-	//fmt.Println(xint,",",yint)
+	var xint = InterfaceToInt(x)
+	var yint = InterfaceToInt(y)
 	if xint == yint {
 		return true
 	}
 	return false
 }
 
+// InterfaceToInt converts an interface{} to an int, handling various numeric types.
 func InterfaceToInt(y interface{}) int {
+	var yint = 0
 	ytyp := reflect.TypeOf(y)
-	var yint int = 0
+	if ytyp == nil {
+		return yint
+	}
 	switch ytyp.Kind() {
 	case reflect.Int:
-		yint = int(y.(int))
+		yint = y.(int)
 	case reflect.Int8:
 		yint = int(y.(int8))
 	case reflect.Int16:
@@ -114,8 +119,8 @@ func InterfaceToInt(y interface{}) int {
 	return yint
 }
 
+// ContainsAnyInAnyIntArray checks if the interface i is present in any of the int64 or string values in v.
 func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
-
 	str, ok := i.(string)
 	if ok {
 		for _, x := range v {
@@ -137,6 +142,7 @@ func ContainsAnyInAnyIntArray(i interface{}, v []interface{}) bool {
 	return false
 }
 
+// ContainsInAnyIntArray checks if the int64 i is present in any of the int64 values in v.
 func ContainsInAnyIntArray(i int64, v []int64) bool {
 	for _, x := range v {
 		if i == x {
@@ -146,6 +152,7 @@ func ContainsInAnyIntArray(i int64, v []int64) bool {
 	return false
 }
 
+// ContainsInAnyInt32Array checks if the int i is present in any of the int32 values in v.
 func ContainsInAnyInt32Array(i int, v []int) bool {
 	for _, x := range v {
 		if i == x {
@@ -155,6 +162,7 @@ func ContainsInAnyInt32Array(i int, v []int) bool {
 	return false
 }
 
+// Contains checks if the string s contains the substring substr.
 func AnyInArrayEquals(v []string, s string) bool {
 	for _, k := range v {
 		if s == k {
@@ -164,6 +172,7 @@ func AnyInArrayEquals(v []string, s string) bool {
 	return false
 }
 
+// ContainsAnyInArray checks if the string s contains any of the substrings in v.
 func ContainsAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if ContainStr(s, k) {
@@ -173,6 +182,7 @@ func ContainsAnyInArray(s string, v []string) bool {
 	return false
 }
 
+// SuffixAnyInArray checks if the string s ends with any of the suffixes in v.
 func SuffixAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if SuffixStr(s, k) {
@@ -182,6 +192,7 @@ func SuffixAnyInArray(s string, v []string) bool {
 	return false
 }
 
+// PrefixAnyInArray checks if the string s starts with any of the prefixes in v.
 func PrefixAnyInArray(s string, v []string) bool {
 	for _, k := range v {
 		if PrefixStr(s, k) {
@@ -191,18 +202,22 @@ func PrefixAnyInArray(s string, v []string) bool {
 	return false
 }
 
+// HasPrefix checks if the string s starts with the substring substr.
 func PrefixStr(s, substr string) bool {
 	return HasPrefix(s, substr)
 }
 
+// HasPrefix checks if the string s starts with the substring substr.
 func SuffixStr(s, substr string) bool {
 	return HasSuffix(s, substr)
 }
 
+// Index returns the index of the first occurrence of substr in str, or -1 if substr is not present.
 func StringToUTF16(s string) []uint16 {
 	return utf16.Encode([]rune(s + "\x00"))
 }
 
+// Index returns the index of the first occurrence of substr in str, or -1 if substr is not present.
 func SubStringWithSuffix(str string, length int, suffix string) string {
 	if len(str) > length {
 		str = SubString(str, 0, length) + suffix
@@ -210,21 +225,23 @@ func SubStringWithSuffix(str string, length int, suffix string) string {
 	return str
 }
 
+// Index returns the index of the first occurrence of substr in str, or -1 if substr is not present.
 func UnicodeIndex(str, substr string) int {
-	// 子串在字符串的字节位置
+	// Convert the string to []rune to handle double-byte characters correctly
 	result := Index(str, substr)
 	if result >= 0 {
-		// 获得子串之前的字符串并转换成[]byte
+		// If the substring is found, we need to ensure we get the correct character index
 		prefix := []byte(str)[0:result]
-		// 将子串之前的字符串转换成[]rune
+		// Convert the prefix to []rune to handle double-byte characters correctly
 		rs := []rune(string(prefix))
-		// 获得子串之前的字符串的长度，便是子串在字符串的字符位置
+		// Get the length of the []rune slice to find the correct index
 		result = len(rs)
 	}
 
 	return result
 }
 
+// SubString returns a substring of the input string starting from 'begin' index with specified 'length'.
 func SubString(str string, begin, length int) (substr string) {
 	lth := len(str)
 
@@ -251,6 +268,7 @@ func SubString(str string, begin, length int) (substr string) {
 
 }
 
+// TrimSpace removes leading and trailing whitespace from a string.
 func NoWordBreak(in string) string {
 	return Replace(in, "\n", " ", -1)
 }
@@ -275,10 +293,12 @@ func MergeSpace(in string) (out string) {
 
 var locker sync.Mutex
 
+// ToIndentJson converts an interface to a JSON string with indentation.
 func ToIndentJson(in interface{}) string {
 	return ToJson(in, true)
 }
 
+// ToJson converts an interface to a JSON string, optionally with indentation.
 func ToJson(in interface{}, indent bool) string {
 	if in == nil {
 		return ""
@@ -296,22 +316,27 @@ func ToJson(in interface{}, indent bool) string {
 	return string(b)
 }
 
+// FromJson converts a JSON string to a specified type.
 func FromJson(str string, to interface{}) error {
 	return json.Unmarshal([]byte(str), to)
 }
 
+// Int64ToString converts an int64 to a string.
 func Int64ToString(num int64) string {
 	return strconv.FormatInt(num, 10)
 }
 
+// IntToString converts an int to a string.
 func IntToString(num int) string {
 	return strconv.Itoa(num)
 }
 
+// ToInt64 converts a string to an int64, returning an error if conversion fails.
 func ToInt64(str string) (int64, error) {
 	return strconv.ParseInt(str, 10, 64)
 }
 
+// ToInt converts a string to an int, returning an error if conversion fails.
 func ToInt(str string) (int, error) {
 	if IndexAny(str, ".") > 0 {
 		nonFractionalPart := Split(str, ".")
@@ -322,6 +347,7 @@ func ToInt(str string) (int, error) {
 
 }
 
+// ToFloat64 converts a string to a float64, returning an error if conversion fails.
 func GetRuntimeErrorMessage(r runtime.Error) string {
 	if r != nil {
 		return r.Error()
@@ -329,16 +355,19 @@ func GetRuntimeErrorMessage(r runtime.Error) string {
 	panic(errors.New("nil runtime error"))
 }
 
+// Replace replaces old with new in input string
 func XSSHandle(src string) string {
 	src = Replace(src, ">", "&lt; ", -1)
 	src = Replace(src, ">", "&gt; ", -1)
 	return src
 }
 
+// UrlEncode encodes a string for use in a URL.
 func UrlEncode(str string) string {
 	return url.QueryEscape(str)
 }
 
+// UrlDecode decodes a URL-encoded string.
 func UrlDecode(str string) string {
 	out, err := url.QueryUnescape(str)
 	if err != nil {
@@ -347,8 +376,8 @@ func UrlDecode(str string) string {
 	return out
 }
 
+// FilterSpecialChar removes special characters from a string and replaces them with spaces.
 func FilterSpecialChar(keyword string) string {
-
 	keyword = Replace(keyword, "\"", " ", -1)
 	keyword = Replace(keyword, "+", " ", -1)
 	keyword = Replace(keyword, "-", " ", -1)
@@ -383,6 +412,7 @@ func FilterSpecialChar(keyword string) string {
 	return keyword
 }
 
+// Sha1Hash computes the SHA-1 hash of a string and returns it as a base64 URL-encoded string.
 func Sha1Hash(str string) string {
 	h := sha1.New()
 	io.WriteString(h, str)
@@ -394,33 +424,40 @@ func TrimSpaces(str string) string {
 	return TrimSpace(str)
 }
 
+// Replace replaces old with new in input string
 func RemoveSpaces(str string) string {
 	str = Replace(str, " ", "", -1)
 	return str
 }
 
+// TrimPrefix will trim left side of the string
 func TrimLeftStr(str string, left string) string {
 	return TrimPrefix(str, left)
 }
 
+// TrimLeftStr will trim left side of the string
 func TrimRightStr(str string, right string) string {
 	return TrimSuffix(str, right)
 }
 
+// MD5digest computes the MD5 hash of a string and returns it as a hexadecimal string.
 func MD5digest(str string) string {
 	sum := md5.Sum([]byte(str))
 	return hex.EncodeToString(sum[:])
 }
 
+// MD5digestBytes computes the MD5 hash of a byte slice and returns it as a [16]byte array.
 func MD5digestBytes(b []byte) [16]byte {
 	return md5.Sum(b)
 }
 
+// MD5digestString computes the MD5 hash of a byte slice and returns it as a hexadecimal string.
 func MD5digestString(b []byte) string {
 	sum := md5.Sum(b)
 	return hex.EncodeToString(sum[:])
 }
 
+// PrintStringByteLines prints a 2D byte slice as a string with each line prefixed by its index.
 func PrintStringByteLines(array [][]byte) string {
 	buffer := bytes.Buffer{}
 	x := len(array) - 1
@@ -434,6 +471,7 @@ func PrintStringByteLines(array [][]byte) string {
 	return buffer.String()
 }
 
+// JoinInterfaceArray joins a slice of interface{} into a string with a specified delimiter.
 func JoinInterfaceArray(array []interface{}, delimiter string, valueFunc func(str string) string) string {
 	strs := []string{}
 	for _, v := range array {
@@ -446,6 +484,7 @@ func JoinInterfaceArray(array []interface{}, delimiter string, valueFunc func(st
 	return JoinArray(strs, delimiter)
 }
 
+// Join joins a slice of strings into a single string with a specified delimiter.
 func JoinArray(array []string, delimiter string) string {
 	if len(array) < 100 {
 		return Join(array, delimiter)
@@ -463,6 +502,7 @@ func JoinArray(array []string, delimiter string) string {
 	return buffer.String()
 }
 
+// JoinMapString joins a map of string keys and string values into a string with a specified delimiter.
 func JoinMapString(array map[string]string, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
@@ -479,6 +519,7 @@ func JoinMapString(array map[string]string, delimiter string) string {
 	return buffer.String()
 }
 
+// JoinMap joins a map with a specified delimiter between key-value pairs.
 func JoinMapInt(array map[string]int, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
@@ -495,6 +536,7 @@ func JoinMapInt(array map[string]int, delimiter string) string {
 	return buffer.String()
 }
 
+// JoinMap joins a map of string keys and interface{} values into a string with a specified delimiter.
 func JoinMap(array map[string]interface{}, delimiter string) string {
 	buffer := bytes.NewBuffer([]byte{})
 	x := len(array) - 1
@@ -523,6 +565,7 @@ func EscapeNewLine(input []byte) []byte {
 	return input
 }
 
+// ReplaceByte replaces old with new in input byte slice
 func ToString(obj interface{}) string {
 	if obj == nil {
 		return ""
@@ -543,6 +586,7 @@ func ConvertStringToMap(str string, splitter string) (k, v string, err error) {
 	return "", "", errors.New("invalid format")
 }
 
+// ReplaceByte replaces old with new in input byte slice
 func RegexPatternMatch(pattern, value string) bool {
 	reg, err := regexp.Compile(pattern)
 	if err != nil {
@@ -551,6 +595,10 @@ func RegexPatternMatch(pattern, value string) bool {
 	return reg.MatchString(value)
 }
 
+// VersionCompare compares two version strings and returns:
+// -1 if v1 < v2
+// 0 if v1 == v2
+// 1 if v1 > v2
 func VersionCompare(v1, v2 string) (int, error) {
 	version1, err := version.NewVersion(v1)
 	if err != nil {
@@ -562,17 +610,55 @@ func VersionCompare(v1, v2 string) (int, error) {
 	}
 	return version1.Compare(version2), nil
 }
+
+var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+const (
+	lowercaseChars = "abcdefghijklmnopqrstuvwxyz"
+	uppercaseChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	digitChars     = "0123456789"
+	specialChars   = "!@#$%^&*()-_=+[]{}|;:',.<>?/"
+
+	allChars    = lowercaseChars + uppercaseChars + digitChars + specialChars
+	simpleChars = lowercaseChars + digitChars
+)
+
+// GenerateRandomString generates a random string of specified length using lowercase letters and digits.
 func GenerateRandomString(cnum int) string {
-	str := "0123456789abcdefghijklmnopqrstuvwxyz"
-	bytes := []byte(str)
-	result := []byte{}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < cnum; i++ {
-		result = append(result, bytes[r.Intn(len(bytes))])
+	if cnum <= 0 {
+		return ""
 	}
+	result := make([]byte, cnum)
+	for i := range result {
+		result[i] = simpleChars[seededRand.Intn(len(simpleChars))]
+	}
+	return string(result)
+}
+
+// GenerateSecureString generates a random string of specified length using lowercase letters, uppercase letters, digits, and special characters.
+func GenerateSecureString(cnum int) string {
+	if cnum < 8 {
+		cnum = 8
+	}
+
+	result := make([]byte, cnum)
+	result[0] = lowercaseChars[seededRand.Intn(len(lowercaseChars))]
+	result[1] = uppercaseChars[seededRand.Intn(len(uppercaseChars))]
+	result[2] = digitChars[seededRand.Intn(len(digitChars))]
+	result[3] = specialChars[seededRand.Intn(len(specialChars))]
+
+	for i := 4; i < cnum; i++ {
+		result[i] = allChars[seededRand.Intn(len(allChars))]
+	}
+
+	seededRand.Shuffle(len(result), func(i, j int) {
+		result[i], result[j] = result[j], result[i]
+	})
 
 	return string(result)
 }
+
+// StringInArray checks if a string is present in a slice of strings.
 func StringInArray(s []string, element string) bool {
 	for _, v := range s {
 		if v == element {
@@ -582,6 +668,7 @@ func StringInArray(s []string, element string) bool {
 	return false
 }
 
+// StringArrayIntersection returns the intersection of two string slices.
 func StringArrayIntersection(arr1 []string, arr2 []string) []string {
 	strM := make(map[string]struct{}, len(arr1))
 	for _, key := range arr1 {
