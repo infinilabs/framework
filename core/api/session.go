@@ -31,6 +31,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"os"
@@ -48,7 +49,7 @@ func GetSession(r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
 	session, err := s.Get(r, sessionName)
 	if err != nil {
-		if global.Env().IsDebug{
+		if global.Env().IsDebug {
 			log.Error(err)
 		}
 		return false, nil
@@ -123,12 +124,41 @@ func getStore() sessions.Store {
 		return store
 	}
 
-	cookieCfg := global.Env().SystemConfig.Cookie
+	bucketKey := "cookiestore_" + global.Env().SystemConfig.NodeConfig.ID
+
+	cookieCfg := global.Env().SystemConfig.WebAppConfig.Cookie
 	if cookieCfg.AuthSecret == "" {
-		cookieCfg.AuthSecret = util.GenerateRandomString(32)
+		key := []byte("AuthSecret")
+		if ok, _ := kv.ExistsKey(bucketKey, key); ok {
+			v, er := kv.GetValue(bucketKey, key)
+			if er == nil && len(v) > 0 {
+				cookieCfg.AuthSecret = string(v)
+			}
+		}
+		if cookieCfg.AuthSecret == "" {
+			cookieCfg.AuthSecret = util.GenerateRandomString(32)
+			err := kv.AddValue(bucketKey, key, []byte(cookieCfg.AuthSecret))
+			if err != nil {
+				log.Error(err)
+			}
+		}
 	}
+
 	if cookieCfg.EncryptSecret == "" {
-		cookieCfg.EncryptSecret = util.GenerateRandomString(32)
+		key := []byte("EncryptSecret")
+		if ok, _ := kv.ExistsKey(bucketKey, key); ok {
+			v, er := kv.GetValue(bucketKey, key)
+			if er == nil && len(v) > 0 {
+				cookieCfg.EncryptSecret = string(v)
+			}
+		}
+		if cookieCfg.EncryptSecret == "" {
+			cookieCfg.EncryptSecret = util.GenerateRandomString(32)
+			err := kv.AddValue(bucketKey, key, []byte(cookieCfg.EncryptSecret))
+			if err != nil {
+				log.Error(err)
+			}
+		}
 	}
 
 	if cookieCfg.MaxAge < 0 {
