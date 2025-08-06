@@ -26,6 +26,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
@@ -193,66 +194,67 @@ type ProxyConfig struct {
 	UsingEnvironmentProxySettings bool   `config:"using_proxy_env"` //using the the env(HTTP_PROXY, HTTPS_PROXY and NO_PROXY) configured HTTP proxy
 }
 
-func (c *HTTPClientConfig) init() {
-	if !c.initTempMap {
-		tempMap := map[string]bool{}
-		for _, v := range c.Proxy.Denied {
-			tempMap[v] = false
-		}
+// localIPs will cache the result of GetLocalIPs().
+var localIPs []string
 
-		for _, v := range c.Proxy.Permitted {
-			tempMap[v] = true
-		}
+// localIPsOnce ensures that the initialization logic runs exactly once.
+var localIPsOnce sync.Once
 
-		c.checkDomainMap = tempMap
-		c.initTempMap = true
+// ValidateProxy determines whether a given address should be routed through a proxy.
+// It uses a set of prioritized rules and leverages helper functions from the util package.
+// It requires a slice of the machine's local IP addresses to correctly bypass the proxy for local traffic.
+func (c *HTTPClientConfig) ValidateProxy(addr string) (useProxy bool, config *ProxyConfig) {
+	// --- One-Time Initialization for Local IPs ---
+	// The code inside this Do() block will be executed exactly once, the first
+	// time any call to ValidateProxy is made. It is safe for concurrent use.
+	localIPsOnce.Do(func() {
+		localIPs = util.GetLocalIPs()
+	})
+
+	// If the proxy feature is globally disabled, immediately return false.
+	if !c.Proxy.Enabled {
+		return false, nil
+
 	}
-}
 
-func (c *HTTPClientConfig) ValidateProxy(addr string) (bool, *ProxyConfig) { //allow to visit the proxy, the proxy setting
-
-	//init configs
-	c.init()
-
-	//check proxy rule for specify domain
+	// --- Rule 1 (Highest Priority): Check for a specific domain override ---
 	if len(c.Proxy.Domains) > 0 {
-		//port are part of the domain, need exact match{
-		if v, ok := c.Proxy.Domains[addr]; ok {
-			return true, &v
+		if proxyConf, ok := c.Proxy.Domains[addr]; ok {
+			return true, &proxyConf
 		}
 	}
 
-	if len(c.checkDomainMap) > 0 {
+	// --- Rule 2 (Second Priority): Check if the address should be explicitly bypassed ---
 
-		//any hit will be return
-		if v, ok := c.checkDomainMap[addr]; ok {
-			if v == false {
-				return false, nil
-			} else {
-				return true, &c.Proxy.DefaultProxyConfig
-			}
-		}
-
-		//only defined denied, the rest should permitted
-		if len(c.Proxy.Denied) > 0 && len(c.Proxy.Permitted) == 0 {
-			if v, ok := c.checkDomainMap[addr]; ok && v == false {
-				return false, nil
-			} else {
-				return true, &c.Proxy.DefaultProxyConfig
-			}
-		}
-
-		//only defined permitted, the rest should be consider denied
-		if len(c.Proxy.Permitted) > 0 && len(c.Proxy.Denied) == 0 {
-			if v, ok := c.checkDomainMap[addr]; ok && v == true {
-				return true, &c.Proxy.DefaultProxyConfig
-			} else {
-				return false, nil
-			}
+	// Check if the address is a local machine address using the cached localIPs slice.
+	if util.IsLocalAddress([]string{addr}, localIPs) {
+		// If the address is local, do not proxy it unless explicitly permitted.
+		if !util.HasDomainSuffix(addr, c.Proxy.Permitted) {
+			return false, nil
 		}
 	}
 
-	return true, &c.Proxy.DefaultProxyConfig
+	// Check against the user-defined 'denied' (no_proxy) list.
+	if len(c.Proxy.Denied) > 0 {
+		if util.HasDomainSuffix(addr, c.Proxy.Denied) {
+			return false, nil
+		}
+	}
+
+	// --- Rule 3 (Third Priority): Apply Whitelist or Blacklist logic ---
+	isWhitelistMode := len(c.Proxy.Permitted) > 0
+
+	if isWhitelistMode {
+		// WHITELIST MODE: Only proxy if the address is in the 'Permitted' list.
+		if util.HasDomainSuffix(addr, c.Proxy.Permitted) {
+			return true, &c.Proxy.DefaultProxyConfig
+		} else {
+			return false, nil
+		}
+	} else {
+		// BLACKLIST MODE: Proxy everything that wasn't explicitly denied.
+		return true, &c.Proxy.DefaultProxyConfig
+	}
 }
 
 type HTTPClientConfig struct {
@@ -273,10 +275,6 @@ type HTTPClientConfig struct {
 	WriteBufferSize      int       `config:"write_buffer_size"`
 	TLSConfig            TLSConfig `config:"tls"` //server or client's certs
 	MaxConnectionPerHost int       `config:"max_connection_per_host"`
-
-	//temp data structure
-	initTempMap    bool
-	checkDomainMap map[string]bool
 }
 
 type ConfigsConfig struct {
