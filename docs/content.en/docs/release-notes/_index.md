@@ -14,6 +14,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
+- refactor: initialize index schema using index template
 - chore: add generate secure string util func #183
 - chore: add validate secure func #184
 
