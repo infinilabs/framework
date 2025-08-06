@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 ### 🐛 Bug fix  
+- fix: localhost/127.0.0.1 with noproxy #185
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
 - refactor: initialize index schema using index template
