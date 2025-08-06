@@ -158,8 +158,6 @@ type SystemConfig struct {
 
 	LoggingConfig LoggingConfig `config:"log"`
 
-	Cookie CookieConfig `config:"cookie"`
-
 	AllowMultiInstance bool `config:"allow_multi_instance"`
 	SkipInstanceDetect bool `config:"skip_instance_detect"`
 
@@ -372,6 +370,8 @@ type WebAppConfig struct {
 	EmbeddingAPI bool              `config:"embedding_api"`
 	Gzip         GzipConfig        `config:"gzip"`
 	S3Config     S3BucketConfig    `config:"s3"`
+
+	Cookie CookieConfig `config:"cookie"`
 }
 
 type S3Config struct {
