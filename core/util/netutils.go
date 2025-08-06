@@ -388,3 +388,22 @@ func UnifyLocalAddress(host string) string {
 	}
 	return host
 }
+
+// HasDomainSuffix checks if a given address matches any entry in a list of suffixes.
+// It intelligently handles hostnames with and without ports.
+func HasDomainSuffix(addr string, list []string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+
+	for _, suffix := range list {
+		if addr == suffix || host == suffix {
+			return true
+		}
+		if strings.HasSuffix(host, "."+suffix) {
+			return true
+		}
+	}
+	return false
+}
