@@ -99,10 +99,13 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 
 // DestroySession remove session by creating a new empty session
 func DestroySession(w http.ResponseWriter, r *http.Request) bool {
+
 	s := getStore()
 	session, err := s.New(r, sessionName)
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug {
+			log.Error(err)
+		}
 		return false
 	}
 	session.Options.MaxAge = -1
