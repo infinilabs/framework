@@ -189,7 +189,6 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 
 			data, err := handler.Client.PutTemplate(indexTemplate, template)
 
-
 			if err != nil {
 				if handler.Config.PanicOnInitSchemaError {
 					panic(err)
@@ -214,9 +213,6 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 }
 
 func (handler *ElasticORM) tryCreateInitIndex(t interface{}, indexName string) error {
-	initIndexName(t, indexName)
-
-	indexName = orm.GetIndexName(t)
 
 	log.Debug("register schema with indexName: ", indexName)
 
