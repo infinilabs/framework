@@ -197,10 +197,11 @@ func ListenConfigChanges() error {
 							if v.Managed {
 								err := config.DeleteConfig(v.Name)
 								if err != nil {
+									log.Errorf("error on delete config [%s]: %v", v.Name, err)
 									panic(err)
 								}
 							} else {
-								log.Error("config [", v.Name, "] is not managed by config manager, skip deleting")
+								log.Debugf("config [%s] is not managed by config manager, skip deleting", v.Name)
 							}
 						}
 
