@@ -288,3 +288,310 @@ func TestGetSystemInt(t *testing.T) {
 		t.Errorf("expected missing to return 0, got %v", got)
 	}
 }
+
+
+//
+type Base struct {
+	ID      string
+	Created *time.Time
+}
+
+type Mid struct {
+	Base
+	System string
+}
+
+type Top struct {
+	Mid
+	Updated *time.Time
+}
+
+// Helper to get *time.Time
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+
+func TestFindFieldValue_Simple(t *testing.T) {
+	created := timePtr(time.Now())
+	obj := Base{ID: "simple123", Created: created}
+
+	v := findFieldValue(reflect.ValueOf(obj), "ID")
+	if !v.IsValid() || v.String() != "simple123" {
+		t.Errorf("expected ID to be 'simple123', got %v", v)
+	}
+
+	v = findFieldValue(reflect.ValueOf(obj), "Created")
+	if !v.IsValid() || v.Interface().(*time.Time) != created {
+		t.Errorf("expected Created to match pointer, got %v", v)
+	}
+}
+
+func TestFindFieldValue_Embedded(t *testing.T) {
+	obj := Mid{
+		Base:   Base{ID: "embed123"},
+		System: "secure",
+	}
+
+	v := findFieldValue(reflect.ValueOf(obj), "ID")
+	if !v.IsValid() || v.String() != "embed123" {
+		t.Errorf("expected ID to be 'embed123', got %v", v)
+	}
+}
+
+func TestFindFieldValue_DeepEmbedded(t *testing.T) {
+	t1 := timePtr(time.Now())
+	obj := Top{
+		Mid: Mid{
+			Base:   Base{ID: "deep123", Created: t1},
+			System: "secure",
+		},
+		Updated: timePtr(time.Now()),
+	}
+
+	v := findFieldValue(reflect.ValueOf(obj), "ID")
+	if !v.IsValid() || v.String() != "deep123" {
+		t.Errorf("expected ID to be 'deep123', got %v", v)
+	}
+
+	v = findFieldValue(reflect.ValueOf(obj), "Created")
+	if !v.IsValid() || v.Interface().(*time.Time) != t1 {
+		t.Errorf("expected Created to match pointer, got %v", v)
+	}
+}
+
+func TestCopySystemFields(t *testing.T) {
+	t1 := timePtr(time.Now().Add(-time.Hour))
+	t2 := timePtr(time.Now())
+
+	src := Top{
+		Mid: Mid{
+			Base:   Base{ID: "copy123", Created: t1},
+			System: "locked",
+		},
+		Updated: t2,
+	}
+
+	dst := Top{}
+	copySystemFields(&src, &dst)
+
+	if dst.ID != "copy123" {
+		t.Errorf("expected ID to be 'copy123', got %v", dst.ID)
+	}
+	if dst.Created != t1 {
+		t.Errorf("expected Created to match t1, got %v", dst.Created)
+	}
+	if dst.System != "locked" {
+		t.Errorf("expected System to be 'locked', got %v", dst.System)
+	}
+	if dst.Updated != t2 {
+		t.Errorf("expected Updated to match t2, got %v", dst.Updated)
+	}
+}
+
+func TestFindFieldValue_NilPointerEmbedded(t *testing.T) {
+	var nilBase *Base
+	obj := struct {
+		*Base
+	}{
+		Base: nilBase,
+	}
+
+	v := findFieldValue(reflect.ValueOf(obj), "ID")
+	if v.IsValid() {
+		t.Errorf("expected invalid value when embedded pointer is nil, got %v", v)
+	}
+}
+
+
+
+type Inner struct {
+	Name string
+	Age  int
+}
+
+type Outer struct {
+	ID      string
+	Active  bool
+	Count   int
+	Created *time.Time
+	Inner   Inner
+	Ptr     *Inner
+}
+
+
+func TestMergeMapToStruct_SimpleFields(t *testing.T) {
+	obj := Outer{
+		ID:     "oldID",
+		Active: false,
+		Count:  5,
+	}
+
+	delta := map[string]interface{}{
+		"ID":     "newID",
+		"Active": true,
+		"Count":  10,
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.ID != "newID" {
+		t.Errorf("expected ID 'newID', got %s", obj.ID)
+	}
+	if obj.Active != true {
+		t.Errorf("expected Active true, got %v", obj.Active)
+	}
+	if obj.Count != 10 {
+		t.Errorf("expected Count 10, got %d", obj.Count)
+	}
+}
+
+func TestMergeMapToStruct_NestedStruct(t *testing.T) {
+	obj := Outer{
+		Inner: Inner{Name: "old", Age: 20},
+	}
+
+	delta := map[string]interface{}{
+		"Inner": map[string]interface{}{
+			"Name": "new",
+			"Age":  30,
+		},
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.Inner.Name != "new" {
+		t.Errorf("expected Inner.Name 'new', got %s", obj.Inner.Name)
+	}
+	if obj.Inner.Age != 30 {
+		t.Errorf("expected Inner.Age 30, got %d", obj.Inner.Age)
+	}
+}
+
+func TestMergeMapToStruct_PtrToStruct(t *testing.T) {
+	obj := Outer{}
+
+	delta := map[string]interface{}{
+		"Ptr": map[string]interface{}{
+			"Name": "pointer",
+			"Age":  42,
+		},
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.Ptr == nil {
+		t.Fatal("expected Ptr to be allocated")
+	}
+	if obj.Ptr.Name != "pointer" {
+		t.Errorf("expected Ptr.Name 'pointer', got %s", obj.Ptr.Name)
+	}
+	if obj.Ptr.Age != 42 {
+		t.Errorf("expected Ptr.Age 42, got %d", obj.Ptr.Age)
+	}
+}
+
+func TestMergeMapToStruct_NilValueClearsField(t *testing.T) {
+	created := time.Now()
+	obj := Outer{
+		Created: &created,
+	}
+
+	delta := map[string]interface{}{
+		"Created": nil,
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.Created != nil {
+		t.Errorf("expected Created to be nil, got %v", obj.Created)
+	}
+}
+
+func TestMergeMapToStruct_UnexportedOrUnknownFields(t *testing.T) {
+	obj := Outer{}
+
+	delta := map[string]interface{}{
+		"unknownField": "should be ignored",
+		"id":           "caseSensitiveIgnored",
+		"ID":           "setCorrectly",
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.ID != "setCorrectly" {
+		t.Errorf("expected ID 'setCorrectly', got %s", obj.ID)
+	}
+}
+
+func TestMergeMapToStruct_TypeConversion(t *testing.T) {
+	obj := Outer{}
+
+	delta := map[string]interface{}{
+		"Count": int64(123),   // int64 to int
+		"Active": true,
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj).Elem())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if obj.Count != 123 {
+		t.Errorf("expected Count 123, got %d", obj.Count)
+	}
+	if obj.Active != true {
+		t.Errorf("expected Active true, got %v", obj.Active)
+	}
+}
+
+
+
+type TestEmbeddedStruct struct {
+	ORMObjectBase
+
+	Name     string                 `json:"name"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+func TestMergeMapToStruct_WithEmbeddedORMBase(t *testing.T) {
+	created := time.Now()
+	obj := TestEmbeddedStruct{
+		ORMObjectBase: ORMObjectBase{
+			ID:      "original-id",
+			Created: &created,
+			System:  util.MapStr{"os": "linux"},
+		},
+		Name: "old-name",
+	}
+
+	delta := map[string]interface{}{
+		"id":    "new-id", // matches json tag
+		"name":  "new-name",
+		"_system": map[string]interface{}{ // matches json:"_system"
+			"os": "windows",
+		},
+	}
+
+	err := mergeMapToStruct(delta, reflect.ValueOf(&obj))
+	assert.Equal(t,nil, err)
+
+	assert.Equal(t, "new-id", obj.ID)                   // ID updated
+	assert.Equal(t, "new-name", obj.Name)               // Name updated
+	assert.Equal(t, "windows", obj.System["os"])        // System updated
+	assert.Equal(t, &created, obj.Created)              // Created preserved
+}
