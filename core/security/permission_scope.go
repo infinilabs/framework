@@ -2,14 +2,13 @@ package security
 
 import "context"
 
-type PermissionScope string
 
-const PermissionScopePlatform PermissionScope = "permission_scope_platform"
-const PermissionScopeTenant PermissionScope = "permission_scope_tenant"
-const PermissionScopeGroup PermissionScope = "permission_scope_group"
-const PermissionScopeProject PermissionScope = "permission_scope_project"
-const PermissionScopeUser PermissionScope = "permission_scope_user"
-const PermissionScopePublic PermissionScope = "permission_scope_public"
+const PermissionScopePublic int = 1
+const PermissionScopePlatform int = 2
+const PermissionScopeTenant int = 3
+const PermissionScopeGroup int = 4
+const PermissionScopeProject int = 5
+const PermissionScopeUser int = 6
 
 func MustGetPermissionCheckingScopeFromContext(ctx context.Context) *UserSessionInfo {
 	user, err := GetUserFromContext(ctx)
