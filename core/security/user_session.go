@@ -24,6 +24,7 @@
 package security
 
 import (
+	"fmt"
 	"github.com/golang-jwt/jwt"
 	"infini.sh/framework/core/util"
 	"time"
@@ -34,15 +35,25 @@ type UserClaims struct {
 	*UserSessionInfo
 }
 
+func NewUserClaims() *UserClaims {
+	return &UserClaims{
+		RegisteredClaims: &jwt.RegisteredClaims{},
+		UserSessionInfo: &UserSessionInfo{
+			System: map[string]interface{}{},
+		},
+	}
+}
+
 type UserSessionInfo struct {
+	System map[string]interface{} `json:"_system,omitempty" elastic_mapping:"_system: { type: object }"`
+
 	//user identity provided by external providers
+	Source   string `json:"source"`
 	Provider string `json:"provider"`
 	Login    string `json:"login"`
 
 	//system level security's info
-	TenantID string   `json:"tenant_id,omitempty"` //tenant_id is optional
-	UserID   string   `json:"user_id"`
-	Roles    []string `json:"roles,omitempty"`
+	Roles []string `json:"roles,omitempty"`
 
 	Labels util.MapStr `json:"labels,omitempty"`
 
@@ -56,6 +67,14 @@ type UserSessionInfo struct {
 
 	//stats
 	LastLogin LastLogin `json:"last_login,omitempty"`
+}
+
+func (u *UserSessionInfo) ValidInfo() bool {
+	return u.Provider != "" && u.Login != ""
+}
+
+func (u *UserSessionInfo) GetKey() string {
+	return fmt.Sprintf("%v-%v", u.Provider, u.Login)
 }
 
 type LastLogin struct {

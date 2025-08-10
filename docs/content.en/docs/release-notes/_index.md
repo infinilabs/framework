@@ -18,6 +18,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: initialize index schema using index template
 - chore: add generate secure string util func #183
 - chore: add validate secure func #184
+- refactor: refactoring security structs #191
 - refactor: refactoring schema init logic, disable index based template #188
 - chore: use safe special chars #190
 

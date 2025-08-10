@@ -25,6 +25,8 @@ package config
 
 type OAuthConfig struct {
 	Enabled      bool                `config:"enabled" json:"enabled"`
+	Name         string              `config:"name" json:"name"`
+	Provider     string              `config:"provider" json:"provider"`
 	ClientID     string              `config:"client_id" json:"client_id"`
 	ClientSecret string              `config:"client_secret" json:"client_secret"`
 	DefaultRoles []string            `config:"default_roles" json:"default_roles"`

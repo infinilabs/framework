@@ -6,23 +6,6 @@ import (
 	"strings"
 )
 
-// const Term QueryType = "term"
-const PrefixQueryType QueryType = "prefix"
-const Wildcard QueryType = "wildcard"
-const Regexp QueryType = "regexp"
-const Match QueryType = "match"
-const QueryStringType QueryType = "query_string"
-const RangeGt QueryType = "gt"
-const RangeGte QueryType = "gte"
-const RangeLt QueryType = "lt"
-const RangeLte QueryType = "lte"
-
-const StringTerms QueryType = "string_terms"
-const Terms QueryType = "terms"
-
-const WaitForRefresh = "wait_for"
-const ImmediatelyRefresh = "true"
-
 type LegacyORMAPI interface {
 	Count(o interface{}, query interface{}) (int64, error)
 	GroupBy(o interface{}, selectField, groupField string, haveQuery string, haveValue interface{}) (error, map[string]interface{})
