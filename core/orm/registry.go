@@ -69,16 +69,19 @@ const (
 	OpUpdate Operation = "update"
 	OpDelete Operation = "delete"
 	OpSave   Operation = "save"
+
+	OpSearch   Operation = "search"
+	OpDeleteByQuery   Operation = "delete_by_query"
 )
 
 var (
 	preHooks    = map[Operation][]prioritizedHook{}
 	postHooks   = map[Operation][]prioritizedHook{}
-	searchHooks = []prioritizedSearchHook{}
+	searchHooks = map[Operation][]prioritizedSearchHook{}
 )
 
 type HookFunc func(ctx *Context, op Operation, model interface{}) (*Context, interface{}, error)
-type SearchHookFunc func(ctx *Context, qb *QueryBuilder) error
+type SearchHookFunc func(ctx *Context,op Operation, qb *QueryBuilder) error
 
 type prioritizedHook struct {
 	Priority int
@@ -107,11 +110,13 @@ func RegisterDataOperationPostHook(priority int, fn HookFunc, ops ...Operation) 
 	}
 }
 
-func RegisterSearchOperationHook(priority int, fn SearchHookFunc) {
-	searchHooks = append(searchHooks, prioritizedSearchHook{Priority: priority, Fn: fn})
-	sort.SliceStable(searchHooks, func(i, j int) bool {
-		return searchHooks[i].Priority < searchHooks[j].Priority
-	})
+func RegisterSearchOperationHook(priority int, fn SearchHookFunc, ops ...Operation) {
+	for _, op := range ops {
+		searchHooks[op] = append(searchHooks[op], prioritizedSearchHook{Priority: priority, Fn: fn})
+		sort.SliceStable(searchHooks[op], func(i, j int) bool {
+			return searchHooks[op][i].Priority < searchHooks[op][j].Priority
+		})
+	}
 }
 
 func runDataOperationPreHooks(op Operation, ctx *Context, model interface{}) (*Context, interface{}, error) {
@@ -136,9 +141,9 @@ func runDataOperationPostHooks(op Operation, ctx *Context, model interface{}) (*
 	return ctx, model, nil
 }
 
-func runSearchOperationHooks(ctx *Context, qb *QueryBuilder) error {
-	for _, h := range searchHooks {
-		if err := h.Fn(ctx, qb); err != nil {
+func runSearchOperationHooks(op Operation,ctx *Context, qb *QueryBuilder) error {
+	for _, h := range searchHooks[op] {
+		if err := h.Fn(ctx,op, qb); err != nil {
 			return err
 		}
 	}

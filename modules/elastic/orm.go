@@ -338,6 +338,41 @@ func (handler *ElasticORM) ResolveIndexName(ctx *api.Context) string {
 	panic(errors.Errorf("can't find index: %v", ctx))
 }
 
+func (handler *ElasticORM) DeleteByQuery(ctx *api.Context, qb *api.QueryBuilder) (*api.DeleteByQueryResponse, error) {
+	if qb == nil {
+		return nil, errors.New("query builder is required for delete by query")
+	}
+
+	var indexName = handler.ResolveIndexName(ctx)
+	//var queryArgs = api.GetQueryArgs(ctx)
+
+	// Build DSL like in SearchV2
+	var dsl map[string]interface{}
+	if bytes := qb.RequestBodyBytesVal(); bytes != nil && len(bytes) > 0 {
+		dsl = orm.BuildQueryDSLOnTopOfDSL(qb, bytes)
+	} else {
+		dsl = orm.BuildQueryDSL(qb)
+	}
+
+	if dsl == nil {
+		return nil, errors.New("failed to build query DSL")
+	}
+
+	log.Error(util.MustToJSON(dsl))
+
+	// Execute delete-by-query
+	resp, err := handler.Client.DeleteByQuery(indexName, util.MustToJSONBytes(dsl))
+	if err != nil {
+		return nil, err
+	}
+
+	re1 := api.DeleteByQueryResponse{}
+	re1.Deleted = resp.Deleted
+	re1.Total = resp.Total
+
+	return &re1, nil
+}
+
 func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api.SearchResult, error) {
 
 	var err error
