@@ -74,7 +74,7 @@ func (u *UserSessionInfo) ValidInfo() bool {
 }
 
 func (u *UserSessionInfo) GetKey() string {
-	return fmt.Sprintf("%-%v", u.Provider, u.Login)
+	return fmt.Sprintf("%v-%v", u.Provider, u.Login)
 }
 
 type LastLogin struct {

@@ -184,8 +184,8 @@ func (r *SearchResult) IsError() bool {
 }
 
 func GetWithSystemFields(ctx *Context, o interface{}) (bool, error) {
-	ctx.Set(KeepSystemFields,true)
-	return GetV2(ctx,o)
+	ctx.Set(KeepSystemFields, true)
+	return GetV2(ctx, o)
 }
 
 func GetV2(ctx *Context, o interface{}) (bool, error) {
@@ -337,7 +337,6 @@ func findFieldValue(v reflect.Value, name string) reflect.Value {
 	return reflect.Value{}
 }
 
-
 func setFieldValue(v reflect.Value, param string, value interface{}) {
 
 	if v.Kind() == reflect.Ptr {
@@ -405,63 +404,6 @@ func Create(ctx *Context, o interface{}) error {
 	return err
 }
 
-//func Save(ctx *Context, o interface{}) error {
-//	//get or assign empty ID
-//	rValue := reflect.ValueOf(o)
-//	//check required value
-//	idExists, _ := getFieldStringValue(rValue, "ID")
-//
-//	if !idExists {
-//		return errors.New("id was not found")
-//	}
-//
-//	//check exists or or not
-//	t := reflect.TypeOf(o)
-//	if t.Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
-//		return errors.New("only non-nil pointer to object is allowed")
-//	}
-//
-//	if ctx.GetBool(CheckExistsBeforeUpdate, true) {
-//		prev, exists, err := GetPrevObject(ctx, o)
-//		if err != nil &&!strings.Contains(err.Error(),"record not found") {
-//			return err
-//		}
-//
-//		if !exists && ! ctx.GetBool(CreateIfNotExistsForUpdate,true){
-//			return errors.New("failed to update, object was not found")
-//		}
-//
-//		if exists{
-//			// Preserve system fields from the previous object
-//			copySystemFields(prev, o)
-//		}
-//	}
-//
-//	//update timestamp
-//	tt := time.Now()
-//	setFieldValue(rValue, "Updated", &tt)
-//
-//	createdExists := existsNonNullField(rValue, "Created")
-//	if !createdExists {
-//		setFieldValue(rValue, "Created", &tt)
-//	}
-//
-//	var err error
-//	if ctx, o, err = runDataOperationPreHooks(OpSave, ctx, o); err != nil {
-//		return err
-//	}
-//	err = getHandler().Save(ctx, o)
-//	if err != nil {
-//		return err
-//	}
-//
-//	if ctx, o, err = runDataOperationPostHooks(OpSave, ctx, o); err != nil {
-//		return err
-//	}
-//
-//	return err
-//}
-
 func GetPrevObject(ctx *Context, o interface{}) (interface{}, bool, error) {
 	v := reflect.ValueOf(o)
 	if v.Kind() != reflect.Ptr || v.IsNil() {
@@ -496,10 +438,10 @@ func copySystemFields(src interface{}, dst interface{}) {
 
 func Upsert(ctx *Context, o interface{}) error {
 	//if not exists then create one
-	ctx.Set(CreateIfNotExistsForUpdate,true)
-	ctx.Set(AssignToCurrentUserIfNotExists,true)
-	ctx.Set(CheckExistsBeforeUpdate,true)
-	return Update(ctx,o)
+	ctx.Set(CreateIfNotExistsForUpdate, true)
+	ctx.Set(AssignToCurrentUserIfNotExists, true)
+	ctx.Set(CheckExistsBeforeUpdate, true)
+	return Update(ctx, o)
 }
 
 // MergeMapToStruct merges a delta (map[string]interface{}) into v (reflect.Value).
@@ -642,68 +584,6 @@ func mergeMapToStruct(delta map[string]interface{}, v reflect.Value) error {
 	return nil
 }
 
-//func Update(ctx *Context, o interface{}) error {
-//	return UpdatePartialFields(ctx, o, nil)
-//}
-
-//func UpdatePartialFields(ctx *Context, o interface{}, delta util.MapStr) error {
-//
-//	t := reflect.TypeOf(o)
-//	if t.Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
-//		return errors.New("only non-nil pointer to object is allowed")
-//	}
-//
-//	mergePartial := ctx.GetBool(MergePartialFieldsBeforeUpdate, true)
-//	rValue := reflect.ValueOf(o)
-//
-//	needCheckExists := ctx.GetBool(CheckExistsBeforeUpdate, true)
-//	deltaNotEmpty := delta != nil && len(delta) > 0
-//
-//	if needCheckExists || mergePartial || deltaNotEmpty {
-//		prev, exists, err := GetPrevObject(ctx, o)
-//		if err != nil && !strings.Contains(err.Error(), "record not found") {
-//			return err
-//		}
-//
-//		if !exists && !ctx.GetBool(CreateIfNotExistsForUpdate, false) {
-//			return errors.New("failed to update, object was not found")
-//		}
-//
-//		if exists {
-//			if mergePartial && deltaNotEmpty {
-//				if err := mergeMapToStruct(delta, rValue); err != nil {
-//					return err
-//				}
-//			}
-//			// Always preserve system fields from the previous object if exists
-//			copySystemFields(prev, o)
-//		}
-//	}
-//
-//	// Set Updated timestamp
-//	t1 := time.Now()
-//	setFieldValue(rValue, "Updated", &t1)
-//
-//	// Run pre-update hooks
-//	var err error
-//	if ctx, o, err = runDataOperationPreHooks(OpUpdate, ctx, o); err != nil {
-//		return err
-//	}
-//
-//	// Perform the update
-//	if err = getHandler().Update(ctx, o); err != nil {
-//		return err
-//	}
-//
-//	// Run post-update hooks
-//	if ctx, o, err = runDataOperationPostHooks(OpUpdate, ctx, o); err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-
-
 func Update(ctx *Context, o interface{}) error {
 	return saveOrUpdate(ctx, o, nil, OpUpdate, false)
 }
@@ -781,7 +661,6 @@ func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operati
 	return nil
 }
 
-
 func Delete(ctx *Context, o interface{}) error {
 
 	t := reflect.TypeOf(o)
@@ -791,15 +670,15 @@ func Delete(ctx *Context, o interface{}) error {
 
 	if ctx.GetBool(CheckExistsBeforeDelete, true) {
 		prev, exists, err := GetPrevObject(ctx, o)
-		if err != nil &&!strings.Contains(err.Error(),"record not found") {
+		if err != nil && !strings.Contains(err.Error(), "record not found") {
 			return err
 		}
 
-		if !exists  {
+		if !exists {
 			return errors.New("failed to delete, object was not found")
 		}
 
-		if exists{
+		if exists {
 			// Preserve system fields from the previous object
 			copySystemFields(prev, o)
 		}
