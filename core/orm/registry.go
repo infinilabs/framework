@@ -70,8 +70,8 @@ const (
 	OpDelete Operation = "delete"
 	OpSave   Operation = "save"
 
-	OpSearch   Operation = "search"
-	OpDeleteByQuery   Operation = "delete_by_query"
+	OpSearch        Operation = "search"
+	OpDeleteByQuery Operation = "delete_by_query"
 )
 
 var (
@@ -81,7 +81,7 @@ var (
 )
 
 type HookFunc func(ctx *Context, op Operation, model interface{}) (*Context, interface{}, error)
-type SearchHookFunc func(ctx *Context,op Operation, qb *QueryBuilder) error
+type SearchHookFunc func(ctx *Context, op Operation, qb *QueryBuilder) error
 
 type prioritizedHook struct {
 	Priority int
@@ -141,9 +141,9 @@ func runDataOperationPostHooks(op Operation, ctx *Context, model interface{}) (*
 	return ctx, model, nil
 }
 
-func runSearchOperationHooks(op Operation,ctx *Context, qb *QueryBuilder) error {
+func runSearchOperationHooks(op Operation, ctx *Context, qb *QueryBuilder) error {
 	for _, h := range searchHooks[op] {
-		if err := h.Fn(ctx,op, qb); err != nil {
+		if err := h.Fn(ctx, op, qb); err != nil {
 			return err
 		}
 	}

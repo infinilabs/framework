@@ -55,7 +55,7 @@ type SearchAPI interface {
 }
 
 type BatchMutateAPI interface {
-	DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse,error)
+	DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error)
 	//UpdateByQuery(ctx *Context, qb *QueryBuilder) error
 }
 
@@ -715,16 +715,16 @@ func Delete(ctx *Context, o interface{}) error {
 
 func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
 
-	if err := runSearchOperationHooks(OpSearch,ctx, qb); err != nil {
+	if err := runSearchOperationHooks(OpSearch, ctx, qb); err != nil {
 		return nil, err
 	}
 
 	return getHandler().SearchV2(ctx, qb)
 }
 
-func DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse,error){
-	if err := runSearchOperationHooks(OpDeleteByQuery,ctx,qb); err != nil {
-		return nil,err
+func DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error) {
+	if err := runSearchOperationHooks(OpDeleteByQuery, ctx, qb); err != nil {
+		return nil, err
 	}
 
 	return getHandler().DeleteByQuery(ctx, qb)

@@ -62,14 +62,14 @@ func (c *ESAPIV7) InitDefaultTemplate(templateName, indexPrefix string) {
 	c.initTemplate(templateName, indexPrefix)
 }
 
-func (c *ESAPIV7) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error){
+func (c *ESAPIV7) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error) {
 	if settings == nil {
 		settings = c.GetDefaultIndexTemplateSettings()
 	}
 	template := util.MapStr{
 		"index_patterns": indexPatterns,
 		"mappings":       mappings,
-		"settings": settings,
+		"settings":       settings,
 	}
 
 	return util.MustToJSONBytes(template), nil

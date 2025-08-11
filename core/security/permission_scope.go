@@ -2,7 +2,6 @@ package security
 
 import "context"
 
-
 const PermissionScopePublic int = 1
 const PermissionScopePlatform int = 2
 const PermissionScopeTenant int = 3

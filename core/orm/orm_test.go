@@ -230,7 +230,6 @@ func TestInjectSystemField_NilPointer(t *testing.T) {
 	}
 }
 
-
 func TestGetSystemString(t *testing.T) {
 	obj := &ORMObjectBase{
 		System: util.MapStr{
@@ -289,8 +288,6 @@ func TestGetSystemInt(t *testing.T) {
 	}
 }
 
-
-//
 type Base struct {
 	ID      string
 	Created *time.Time
@@ -402,8 +399,6 @@ func TestFindFieldValue_NilPointerEmbedded(t *testing.T) {
 	}
 }
 
-
-
 type Inner struct {
 	Name string
 	Age  int
@@ -417,7 +412,6 @@ type Outer struct {
 	Inner   Inner
 	Ptr     *Inner
 }
-
 
 func TestMergeMapToStruct_SimpleFields(t *testing.T) {
 	obj := Outer{
@@ -542,7 +536,7 @@ func TestMergeMapToStruct_TypeConversion(t *testing.T) {
 	obj := Outer{}
 
 	delta := map[string]interface{}{
-		"Count": int64(123),   // int64 to int
+		"Count":  int64(123), // int64 to int
 		"Active": true,
 	}
 
@@ -558,8 +552,6 @@ func TestMergeMapToStruct_TypeConversion(t *testing.T) {
 		t.Errorf("expected Active true, got %v", obj.Active)
 	}
 }
-
-
 
 type TestEmbeddedStruct struct {
 	ORMObjectBase
@@ -580,18 +572,18 @@ func TestMergeMapToStruct_WithEmbeddedORMBase(t *testing.T) {
 	}
 
 	delta := map[string]interface{}{
-		"id":    "new-id", // matches json tag
-		"name":  "new-name",
+		"id":   "new-id", // matches json tag
+		"name": "new-name",
 		"_system": map[string]interface{}{ // matches json:"_system"
 			"os": "windows",
 		},
 	}
 
 	err := mergeMapToStruct(delta, reflect.ValueOf(&obj))
-	assert.Equal(t,nil, err)
+	assert.Equal(t, nil, err)
 
-	assert.Equal(t, "new-id", obj.ID)                   // ID updated
-	assert.Equal(t, "new-name", obj.Name)               // Name updated
-	assert.Equal(t, "windows", obj.System["os"])        // System updated
-	assert.Equal(t, &created, obj.Created)              // Created preserved
+	assert.Equal(t, "new-id", obj.ID)            // ID updated
+	assert.Equal(t, "new-name", obj.Name)        // Name updated
+	assert.Equal(t, "windows", obj.System["os"]) // System updated
+	assert.Equal(t, &created, obj.Created)       // Created preserved
 }
