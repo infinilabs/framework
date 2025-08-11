@@ -201,6 +201,12 @@ func GetWithSystemFields(ctx *Context, o interface{}) (bool, error) {
 }
 
 func GetV2(ctx *Context, o interface{}) (bool, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+
 	rValue := reflect.ValueOf(o)
 
 	//check required value
@@ -226,17 +232,6 @@ func GetV2(ctx *Context, o interface{}) (bool, error) {
 	return exists, err
 }
 
-func Get(o interface{}) (bool, error) {
-	rValue := reflect.ValueOf(o)
-
-	//check required value
-	idExists, _ := getFieldStringValue(rValue, "ID")
-	if !idExists {
-		return false, errors.New("id was not found")
-	}
-
-	return getHandler().Get(nil, o)
-}
 
 func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
 	// Handle nil or invalid values
@@ -384,6 +379,11 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 }
 
 func Create(ctx *Context, o interface{}) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of object is allowed")
@@ -609,13 +609,22 @@ func Save(ctx *Context, o interface{}) error {
 }
 
 func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operation, createIfNotExists bool) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+
 	if reflect.TypeOf(o).Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
 		return errors.New("only non-nil pointer to object is allowed")
 	}
 
 	rValue := reflect.ValueOf(o)
-	needCheckExists := ctx.GetBool(CheckExistsBeforeUpdate, true)
 	deltaNotEmpty := delta != nil && len(delta) > 0
+
+
+
+	needCheckExists := ctx.GetBool(CheckExistsBeforeUpdate, true)
 	mergePartial := ctx.GetBool(MergePartialFieldsBeforeUpdate, true)
 
 	var exists bool
@@ -674,6 +683,11 @@ func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operati
 }
 
 func Delete(ctx *Context, o interface{}) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
 
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
@@ -714,6 +728,10 @@ func Delete(ctx *Context, o interface{}) error {
 }
 
 func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
 
 	if err := runSearchOperationHooks(OpSearch, ctx, qb); err != nil {
 		return nil, err
@@ -723,6 +741,11 @@ func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
 }
 
 func DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
 	if err := runSearchOperationHooks(OpDeleteByQuery, ctx, qb); err != nil {
 		return nil, err
 	}
