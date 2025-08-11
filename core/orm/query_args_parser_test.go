@@ -656,7 +656,6 @@ func TestParseQueryWithMergedTermFilters(t *testing.T) {
 	}
 }
 
-
 func TestMergeTermQueries_SingleField(t *testing.T) {
 	clauses := []*Clause{
 		TermQuery("status", "active"),

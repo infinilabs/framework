@@ -38,7 +38,6 @@ func TestGetCollapseField(t *testing.T) {
 	}
 }
 
-
 type ctxKey string
 
 func TestSameKeyShadowing(t *testing.T) {
@@ -67,7 +66,6 @@ func TestSameKeyShadowing(t *testing.T) {
 		t.Errorf("expected nil, got %v", got)
 	}
 }
-
 
 type testKeyType string
 

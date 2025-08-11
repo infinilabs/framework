@@ -54,6 +54,11 @@ type SearchAPI interface {
 	SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error)
 }
 
+type BatchMutateAPI interface {
+	DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error)
+	//UpdateByQuery(ctx *Context, qb *QueryBuilder) error
+}
+
 type MetricsAPI interface {
 }
 
@@ -63,6 +68,8 @@ type ORM interface {
 	SearchAPI
 
 	MetricsAPI
+
+	BatchMutateAPI
 
 	RegisterSchemaWithName(t interface{}, customizedName string) error
 
@@ -172,6 +179,11 @@ const Filter BoolType = "filter"
 const Must BoolType = "must"
 const MustNot BoolType = "must_not"
 const Should BoolType = "should"
+
+type DeleteByQueryResponse struct {
+	Deleted int64 `json:"deleted"`
+	Total   int64 `json:"total"`
+}
 
 type SearchResult struct {
 	Error   *error      // pointer to error
@@ -703,11 +715,19 @@ func Delete(ctx *Context, o interface{}) error {
 
 func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
 
-	if err := runSearchOperationHooks(ctx, qb); err != nil {
+	if err := runSearchOperationHooks(OpSearch, ctx, qb); err != nil {
 		return nil, err
 	}
 
 	return getHandler().SearchV2(ctx, qb)
+}
+
+func DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error) {
+	if err := runSearchOperationHooks(OpDeleteByQuery, ctx, qb); err != nil {
+		return nil, err
+	}
+
+	return getHandler().DeleteByQuery(ctx, qb)
 }
 
 func InjectSystemField(obj interface{}, key string, value interface{}) error {
