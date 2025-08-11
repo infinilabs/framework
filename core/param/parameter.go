@@ -251,6 +251,25 @@ func (para *Parameters) GetFloat32(key ParaKey, defaultV float32) (float32, bool
 	return defaultV, false
 }
 
+func GetIntOrDefault(v interface{}, defaultV int) (int, bool) {
+	switch val := v.(type) {
+	case int:
+		return val, true
+	case int64:
+		return int(val), true
+	case uint:
+		return int(val), true
+	case uint64:
+		return int(val), true
+	case float64: // JSON-decoded numbers
+		return int(val), true
+	case float32:
+		return int(val), true
+	default:
+		return defaultV, false
+	}
+}
+
 func GetInt64OrDefault(v interface{}, defaultV int64) (int64, bool) {
 
 	s, ok := v.(int64)
@@ -535,16 +554,30 @@ func (para *Parameters) GetStringArray(key ParaKey) ([]string, bool) {
 	return result, ok
 }
 
+func (para *Parameters) GetIntArray(key ParaKey) ([]int, bool) {
+	array, ok := para.GetArray(key)
+
+	var result []int
+	if ok {
+		result = []int{}
+		for _, v := range array {
+			x, ok := GetIntOrDefault(v, 0)
+			if ok {
+				result = append(result, x)
+			}
+		}
+	}
+	return result, ok
+}
+
 func (para *Parameters) GetInt64Array(key ParaKey) ([]int64, bool) {
 	array, ok := para.GetArray(key)
-	//fmt.Println(array,ok)
 
 	var result []int64
 	if ok {
 		result = []int64{}
 		for _, v := range array {
 			x, ok := GetInt64OrDefault(v, 0)
-			//fmt.Println(x,ok,reflect.TypeOf(v))
 			if ok {
 				result = append(result, x)
 			}

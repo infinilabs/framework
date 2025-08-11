@@ -27,8 +27,8 @@ import "infini.sh/framework/core/orm"
 
 type AccessToken struct {
 	orm.ORMObjectBase
-	Name        string `json:"name"`
-	UserID      string `json:"userid"`
+	Name string `json:"name"`
+
 	AccessToken string `json:"access_token"`
 
 	Provider string `json:"provider"`

@@ -206,6 +206,36 @@ func (c *ESAPIV0) InitDefaultTemplate(templateName, indexPrefix string) {
 	c.initTemplate(templateName, indexPrefix)
 }
 
+func (c *ESAPIV0) GetDefaultIndexTemplateSettings() any {
+	return util.MapStr{
+		"analysis": util.MapStr{
+			"analyzer": util.MapStr{
+				"suggest_text_search": util.MapStr{
+					"filter": []string{
+						"lowercase",
+						"word_delimiter",
+					},
+					"tokenizer": "classic",
+				},
+			},
+		},
+	}
+}
+
+func (c *ESAPIV0) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error) {
+	if settings == nil {
+		settings = c.GetDefaultIndexTemplateSettings()
+	}
+	template := util.MapStr{
+		"template": indexPatterns,
+		"mappings": mappings,
+		"settings": util.MapStr{
+			TypeName0: settings,
+		},
+	}
+	return util.MustToJSONBytes(template), nil
+}
+
 func (c *ESAPIV0) getDefaultTemplate(indexPrefix string) string {
 	template := `
 {

@@ -31,7 +31,10 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/kv"
+	"infini.sh/framework/core/util"
 	"net/http"
+	"os"
 	"sync"
 )
 
@@ -46,7 +49,9 @@ func GetSession(r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
 	session, err := s.Get(r, sessionName)
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug {
+			log.Error(err)
+		}
 		return false, nil
 	}
 
@@ -59,14 +64,20 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 	s := getStore()
 	session, err := s.Get(r, sessionName)
 	if err != nil {
-		log.Error(err)
+		log.Warnf("Session corrupted or missing, creating new one: %v", err)
+		session, _ = s.New(r, sessionName) // always safe to create new
+	}
+
+	session.Values[key] = value
+	if err := session.Save(r, w); err != nil {
+		log.Errorf("Failed to save session: %v", err)
 		return false
 	}
-	session.Values[key] = value
-	err = session.Save(r, w)
-	if err != nil {
-		log.Error(err)
+
+	if global.Env().IsDebug {
+		log.Infof("Set-Cookie: %v", w.Header().Get("Set-Cookie"))
 	}
+
 	return true
 }
 
@@ -88,10 +99,13 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 
 // DestroySession remove session by creating a new empty session
 func DestroySession(w http.ResponseWriter, r *http.Request) bool {
+
 	s := getStore()
 	session, err := s.New(r, sessionName)
 	if err != nil {
-		log.Error(err)
+		if global.Env().IsDebug {
+			log.Error(err)
+		}
 		return false
 	}
 	session.Options.MaxAge = -1
@@ -102,36 +116,10 @@ func DestroySession(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// GetFlash get flash value
-func GetFlash(w http.ResponseWriter, r *http.Request) (bool, []interface{}) {
-	log.Trace("get flash")
-	session, err := getStore().Get(r, sessionName)
-	if err != nil {
-		log.Error(err)
-		return false, nil
-	}
-	f := session.Flashes()
-	log.Trace(f)
-	return f != nil, f
-}
-
-// SetFlash set flash value
-func SetFlash(w http.ResponseWriter, r *http.Request, msg string) bool {
-	log.Trace("set flash")
-	session, err := getStore().Get(r, sessionName)
-	if err != nil {
-		log.Error(err)
-		return false
-	}
-	session.AddFlash(msg)
-	session.Save(r, w)
-	return true
-}
-
-var store *sessions.CookieStore
+var store sessions.Store
 var lock sync.Mutex
 
-func getStore() *sessions.CookieStore {
+func getStore() sessions.Store {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -139,20 +127,78 @@ func getStore() *sessions.CookieStore {
 		return store
 	}
 
-	cookieCfg := global.Env().SystemConfig.Cookie
-	if cookieCfg.Secret == "" {
-		log.Trace("use default cookie secret")
-		store = sessions.NewCookieStore([]byte("APP-SECRET"))
-	} else {
-		log.Trace("get cookie secret from config,", cookieCfg.Secret)
-		store = sessions.NewCookieStore([]byte(cookieCfg.Secret))
+	bucketKey := "cookiestore_" + global.Env().SystemConfig.NodeConfig.ID
+
+	cookieCfg := global.Env().SystemConfig.WebAppConfig.Cookie
+	if cookieCfg.AuthSecret == "" {
+		key := []byte("AuthSecret")
+		if ok, _ := kv.ExistsKey(bucketKey, key); ok {
+			v, er := kv.GetValue(bucketKey, key)
+			if er == nil && len(v) > 0 {
+				cookieCfg.AuthSecret = string(v)
+			}
+		}
+		if cookieCfg.AuthSecret == "" {
+			cookieCfg.AuthSecret = util.GenerateRandomString(32)
+			err := kv.AddValue(bucketKey, key, []byte(cookieCfg.AuthSecret))
+			if err != nil {
+				log.Error(err)
+			}
+		}
 	}
 
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 1,
-		HttpOnly: true,
-		Domain:   cookieCfg.Domain,
+	if cookieCfg.EncryptSecret == "" {
+		key := []byte("EncryptSecret")
+		if ok, _ := kv.ExistsKey(bucketKey, key); ok {
+			v, er := kv.GetValue(bucketKey, key)
+			if er == nil && len(v) > 0 {
+				cookieCfg.EncryptSecret = string(v)
+			}
+		}
+		if cookieCfg.EncryptSecret == "" {
+			cookieCfg.EncryptSecret = util.GenerateRandomString(32)
+			err := kv.AddValue(bucketKey, key, []byte(cookieCfg.EncryptSecret))
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
+
+	if cookieCfg.MaxAge < 0 {
+		cookieCfg.MaxAge = 86400 * 1
+	}
+
+	if cookieCfg.Path == "" {
+		cookieCfg.Path = "/"
+	}
+
+	if cookieCfg.Store == "" {
+		cookieCfg.Store = "cookie"
+	}
+
+	if cookieCfg.Store == "cookie" { //cookie
+		s1 := sessions.NewCookieStore([]byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
+		s1.Options = &sessions.Options{
+			Path:   cookieCfg.Path,
+			MaxAge: cookieCfg.MaxAge,
+			Domain: cookieCfg.Domain,
+		}
+		store = s1
+	} else { //filesystem
+
+		if cookieCfg.StorePath == "" {
+			cookieCfg.StorePath = util.JoinPath(os.TempDir(), "session", util.GetUUID())
+			log.Trace("session store path is empty, using temp dir: ", cookieCfg.StorePath)
+			os.MkdirAll(cookieCfg.StorePath, os.ModePerm)
+		}
+
+		s1 := sessions.NewFilesystemStore(cookieCfg.StorePath, []byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
+		s1.Options = &sessions.Options{
+			Path:   cookieCfg.Path,
+			MaxAge: cookieCfg.MaxAge,
+			Domain: cookieCfg.Domain,
+		}
+		store = s1
 	}
 
 	return store

@@ -1,27 +1,11 @@
 package orm
 
 import (
+	"errors"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
 )
-
-// const Term QueryType = "term"
-const PrefixQueryType QueryType = "prefix"
-const Wildcard QueryType = "wildcard"
-const Regexp QueryType = "regexp"
-const Match QueryType = "match"
-const QueryStringType QueryType = "query_string"
-const RangeGt QueryType = "gt"
-const RangeGte QueryType = "gte"
-const RangeLt QueryType = "lt"
-const RangeLte QueryType = "lte"
-
-const StringTerms QueryType = "string_terms"
-const Terms QueryType = "terms"
-
-const WaitForRefresh = "wait_for"
-const ImmediatelyRefresh = "true"
 
 type LegacyORMAPI interface {
 	Count(o interface{}, query interface{}) (int64, error)
@@ -224,6 +208,19 @@ type Result struct {
 type SimpleResult struct {
 	Total int64
 	Raw   []byte
+}
+
+func Get(o interface{}) (bool, error) {
+
+	rValue := reflect.ValueOf(o)
+
+	//check required value
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	if !idExists {
+		return false, errors.New("id was not found")
+	}
+
+	return getHandler().Get(nil, o)
 }
 
 func DeleteBy(o interface{}, query interface{}) error {

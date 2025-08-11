@@ -40,16 +40,23 @@ limitations under the License.
 package orm
 
 import (
+	"encoding/json"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"reflect"
+	"strings"
 	"time"
 )
 
 type SearchAPI interface {
 	SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error)
+}
+
+type BatchMutateAPI interface {
+	DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error)
+	//UpdateByQuery(ctx *Context, qb *QueryBuilder) error
 }
 
 type MetricsAPI interface {
@@ -61,6 +68,8 @@ type ORM interface {
 	SearchAPI
 
 	MetricsAPI
+
+	BatchMutateAPI
 
 	RegisterSchemaWithName(t interface{}, customizedName string) error
 
@@ -171,6 +180,11 @@ const Must BoolType = "must"
 const MustNot BoolType = "must_not"
 const Should BoolType = "should"
 
+type DeleteByQueryResponse struct {
+	Deleted int64 `json:"deleted"`
+	Total   int64 `json:"total"`
+}
+
 type SearchResult struct {
 	Error   *error      // pointer to error
 	Status  int         // HTTP status or internal status code
@@ -181,7 +195,18 @@ func (r *SearchResult) IsError() bool {
 	return r.Error != nil
 }
 
+func GetWithSystemFields(ctx *Context, o interface{}) (bool, error) {
+	ctx.Set(KeepSystemFields, true)
+	return GetV2(ctx, o)
+}
+
 func GetV2(ctx *Context, o interface{}) (bool, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+
 	rValue := reflect.ValueOf(o)
 
 	//check required value
@@ -207,17 +232,6 @@ func GetV2(ctx *Context, o interface{}) (bool, error) {
 	return exists, err
 }
 
-func Get(o interface{}) (bool, error) {
-	rValue := reflect.ValueOf(o)
-
-	//check required value
-	idExists, _ := getFieldStringValue(rValue, "ID")
-	if !idExists {
-		return false, errors.New("id was not found")
-	}
-
-	return getHandler().Get(nil, o)
-}
 
 func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) {
 	// Handle nil or invalid values
@@ -291,6 +305,45 @@ func existsNonNullField(rValue reflect.Value, fieldName string) bool {
 	return false
 }
 
+// findFieldValue searches for a field by name in v, including nested embedded structs.
+func findFieldValue(v reflect.Value, name string) reflect.Value {
+	if !v.IsValid() {
+		return reflect.Value{}
+	}
+
+	// Dereference pointers
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+
+		if field.Name == name {
+			return fv
+		}
+
+		// If it's an embedded struct (anonymous), search recursively
+		if field.Anonymous {
+			found := findFieldValue(fv, name)
+			if found.IsValid() {
+				return found
+			}
+		}
+	}
+
+	return reflect.Value{}
+}
+
 func setFieldValue(v reflect.Value, param string, value interface{}) {
 
 	if v.Kind() == reflect.Ptr {
@@ -326,6 +379,11 @@ func setFieldValue(v reflect.Value, param string, value interface{}) {
 }
 
 func Create(ctx *Context, o interface{}) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
 	t := reflect.TypeOf(o)
 	if t.Kind() != reflect.Ptr {
 		return errors.New("only point of object is allowed")
@@ -358,79 +416,299 @@ func Create(ctx *Context, o interface{}) error {
 	return err
 }
 
-func Save(ctx *Context, o interface{}) error {
-	rValue := reflect.ValueOf(o)
-	//check required value
-	idExists, _ := getFieldStringValue(rValue, "ID")
+func GetPrevObject(ctx *Context, o interface{}) (interface{}, bool, error) {
+	v := reflect.ValueOf(o)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return nil, false, errors.New("o must be a non-nil pointer")
+	}
 
+	idExists, id := getFieldStringValue(v, "ID")
 	if !idExists {
-		return errors.New("id was not found")
+		return nil, false, errors.New("id was not found")
 	}
 
-	t := time.Now()
-	setFieldValue(rValue, "Updated", &t)
+	prev := reflect.New(v.Type().Elem()).Interface()
+	setFieldValue(reflect.ValueOf(prev), "ID", id)
 
-	createdExists := existsNonNullField(rValue, "Created")
-	if !createdExists {
-		setFieldValue(rValue, "Created", &t)
-	}
-
-	var err error
-	if ctx, o, err = runDataOperationPreHooks(OpSave, ctx, o); err != nil {
-		return err
-	}
-
-	err = getHandler().Save(ctx, o)
-	if err != nil {
-		return err
-	}
-
-	if ctx, o, err = runDataOperationPostHooks(OpSave, ctx, o); err != nil {
-		return err
-	}
-
-	return err
+	exists, err := GetWithSystemFields(ctx, prev)
+	return prev, exists, err
 }
 
-// TODO support upsert and partial update
-func Update(ctx *Context, o interface{}) error {
-	t := reflect.TypeOf(o)
-	if t.Kind() != reflect.Ptr {
-		return errors.New("only point of the object is allowed")
+func copySystemFields(src interface{}, dst interface{}) {
+	fields := []string{"ID", "System", "Created", "Updated"}
+
+	for _, field := range fields {
+		val := findFieldValue(reflect.ValueOf(src), field)
+		if val.IsValid() && val.CanInterface() {
+			dstField := findFieldValue(reflect.ValueOf(dst), field)
+			if dstField.IsValid() && dstField.CanSet() {
+				dstField.Set(val)
+			}
+		}
+	}
+}
+
+func Upsert(ctx *Context, o interface{}) error {
+	//if not exists then create one
+	ctx.Set(CreateIfNotExistsForUpdate, true)
+	ctx.Set(AssignToCurrentUserIfNotExists, true)
+	ctx.Set(CheckExistsBeforeUpdate, true)
+	return Update(ctx, o)
+}
+
+// MergeMapToStruct merges a delta (map[string]interface{}) into v (reflect.Value).
+// v may be a struct value or pointer-to-struct (e.g. reflect.ValueOf(&obj) or reflect.ValueOf(&obj).Elem()).
+func mergeMapToStruct(delta map[string]interface{}, v reflect.Value) error {
+	if !v.IsValid() {
+		return errors.New("invalid target value")
 	}
 
-	////NOTICE: get will affect object after get
-	//exists, err := Get(o)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//if !exists {
-	//	return errors.New("failed to update, object was not found")
-	//}
+	// If pointer, deref to struct (require non-nil pointer)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return errors.New("nil pointer passed to MergeMapToStruct")
+		}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return errors.New("MergeMapToStruct: target must be a struct or pointer to struct")
+	}
+
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+
+		// First handle anonymous (embedded) fields recursively so their inner fields
+		// can be matched by JSON keys at top-level of delta.
+		if field.Anonymous {
+			switch fv.Kind() {
+			case reflect.Ptr:
+				// if embedded pointer is nil, allocate one (if settable)
+				if fv.IsNil() {
+					if !fv.CanSet() {
+						continue
+					}
+					fv.Set(reflect.New(fv.Type().Elem()))
+				}
+				if err := mergeMapToStruct(delta, fv.Elem()); err != nil {
+					return err
+				}
+			case reflect.Struct:
+				if err := mergeMapToStruct(delta, fv); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
+		// Determine key: json tag first, fallback to field name.
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+		tagName := strings.Split(tag, ",")[0]
+		key := tagName
+		if key == "" {
+			key = field.Name
+		}
+
+		// Try tag name first; if not present and tag name differs from field name, try field name.
+		val, ok := delta[key]
+		if !ok && key != field.Name {
+			val, ok = delta[field.Name]
+		}
+		if !ok {
+			continue
+		}
+
+		// If the delta explicitly sets null, clear the field (works for pointers too).
+		if val == nil {
+			if fv.CanSet() {
+				fv.Set(reflect.Zero(fv.Type()))
+			}
+			continue
+		}
+
+		// If delta value is a nested map and target is struct or pointer-to-struct, recurse.
+		if m, isMap := val.(map[string]interface{}); isMap {
+			switch fv.Kind() {
+			case reflect.Struct:
+				if err := mergeMapToStruct(m, fv); err != nil {
+					return err
+				}
+				continue
+			case reflect.Ptr:
+				if fv.Type().Elem().Kind() == reflect.Struct {
+					if fv.IsNil() {
+						if !fv.CanSet() {
+							continue
+						}
+						fv.Set(reflect.New(fv.Type().Elem()))
+					}
+					if err := mergeMapToStruct(m, fv.Elem()); err != nil {
+						return err
+					}
+					continue
+				}
+				// otherwise fall-through to JSON fallback below
+			}
+		}
+
+		// Normal scalar/path: attempt assign / convert, else fallback to JSON decode.
+		rv := reflect.ValueOf(val)
+		if !rv.IsValid() {
+			// defensive: shouldn't happen because val != nil above
+			continue
+		}
+
+		// Direct assignable
+		if rv.Type().AssignableTo(fv.Type()) {
+			if fv.CanSet() {
+				fv.Set(rv)
+			}
+			continue
+		}
+
+		// Convertible
+		if rv.Type().ConvertibleTo(fv.Type()) {
+			if fv.CanSet() {
+				fv.Set(rv.Convert(fv.Type()))
+			}
+			continue
+		}
+
+		// Fallback: try marshalling value back to JSON and unmarshal into the field type
+		raw, err := json.Marshal(val)
+		if err != nil {
+			return fmt.Errorf("cannot marshal delta value for field %s: %w", field.Name, err)
+		}
+		newPtr := reflect.New(fv.Type())
+		if err := json.Unmarshal(raw, newPtr.Interface()); err != nil {
+			return fmt.Errorf("cannot unmarshal into field %s: %w", field.Name, err)
+		}
+		if fv.CanSet() {
+			fv.Set(newPtr.Elem())
+		}
+	}
+
+	return nil
+}
+
+func Update(ctx *Context, o interface{}) error {
+	return saveOrUpdate(ctx, o, nil, OpUpdate, false)
+}
+
+func UpdatePartialFields(ctx *Context, o interface{}, delta util.MapStr) error {
+	return saveOrUpdate(ctx, o, delta, OpUpdate, false)
+}
+
+func Save(ctx *Context, o interface{}) error {
+	return saveOrUpdate(ctx, o, nil, OpSave, true)
+}
+
+func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operation, createIfNotExists bool) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+
+	if reflect.TypeOf(o).Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
+		return errors.New("only non-nil pointer to object is allowed")
+	}
 
 	rValue := reflect.ValueOf(o)
-	t1 := time.Now()
-	setFieldValue(rValue, "Updated", &t1)
+	deltaNotEmpty := delta != nil && len(delta) > 0
 
+
+
+	needCheckExists := ctx.GetBool(CheckExistsBeforeUpdate, true)
+	mergePartial := ctx.GetBool(MergePartialFieldsBeforeUpdate, true)
+
+	var exists bool
+	if needCheckExists || mergePartial || deltaNotEmpty {
+		prev, found, err := GetPrevObject(ctx, o)
+		if err != nil && !strings.Contains(err.Error(), "record not found") {
+			return err
+		}
+		exists = found
+
+		if !exists && !ctx.GetBool(CreateIfNotExistsForUpdate, createIfNotExists) {
+			return errors.New("failed to update, object was not found")
+		}
+
+		if exists {
+			if mergePartial && deltaNotEmpty {
+				if err := mergeMapToStruct(delta, rValue); err != nil {
+					return err
+				}
+			}
+			copySystemFields(prev, o)
+		}
+	}
+
+	// Always update Updated timestamp
+	tNow := time.Now()
+	setFieldValue(rValue, "Updated", &tNow)
+
+	// For save, ensure Created timestamp exists
+	if opType == OpSave && !existsNonNullField(rValue, "Created") {
+		setFieldValue(rValue, "Created", &tNow)
+	}
+
+	// Hooks
 	var err error
-	if ctx, o, err = runDataOperationPreHooks(OpUpdate, ctx, o); err != nil {
+	if ctx, o, err = runDataOperationPreHooks(opType, ctx, o); err != nil {
 		return err
 	}
 
-	err = getHandler().Update(ctx, o)
+	// Handler call
+	switch opType {
+	case OpSave:
+		err = getHandler().Save(ctx, o)
+	case OpUpdate:
+		err = getHandler().Update(ctx, o)
+	}
 	if err != nil {
 		return err
 	}
 
-	if ctx, o, err = runDataOperationPostHooks(OpUpdate, ctx, o); err != nil {
+	if ctx, o, err = runDataOperationPostHooks(opType, ctx, o); err != nil {
 		return err
 	}
 
-	return err
+	return nil
 }
 
 func Delete(ctx *Context, o interface{}) error {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+
+	t := reflect.TypeOf(o)
+	if t.Kind() != reflect.Ptr || reflect.ValueOf(o).IsNil() {
+		return errors.New("only non-nil pointer to object is allowed")
+	}
+
+	if ctx.GetBool(CheckExistsBeforeDelete, true) {
+		prev, exists, err := GetPrevObject(ctx, o)
+		if err != nil && !strings.Contains(err.Error(), "record not found") {
+			return err
+		}
+
+		if !exists {
+			return errors.New("failed to delete, object was not found")
+		}
+
+		if exists {
+			// Preserve system fields from the previous object
+			copySystemFields(prev, o)
+		}
+	}
 
 	var err error
 	if ctx, o, err = runDataOperationPreHooks(OpDelete, ctx, o); err != nil {
@@ -450,12 +728,29 @@ func Delete(ctx *Context, o interface{}) error {
 }
 
 func SearchV2(ctx *Context, qb *QueryBuilder) (*SearchResult, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
 
-	if err := runSearchOperationHooks(ctx, qb); err != nil {
+	if err := runSearchOperationHooks(OpSearch, ctx, qb); err != nil {
 		return nil, err
 	}
 
 	return getHandler().SearchV2(ctx, qb)
+}
+
+func DeleteByQuery(ctx *Context, qb *QueryBuilder) (*DeleteByQueryResponse, error) {
+	//TODO ctx should always be there, panic after all legacy code removed
+	if ctx==nil{
+		ctx=NewContext()
+	}
+
+	if err := runSearchOperationHooks(OpDeleteByQuery, ctx, qb); err != nil {
+		return nil, err
+	}
+
+	return getHandler().DeleteByQuery(ctx, qb)
 }
 
 func InjectSystemField(obj interface{}, key string, value interface{}) error {

@@ -42,9 +42,10 @@ package elasticsearch
 import (
 	"bytes"
 	"fmt"
-	"infini.sh/framework/core/errors"
 	"net/http"
 	"net/url"
+
+	"infini.sh/framework/core/errors"
 
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
@@ -59,6 +60,19 @@ type ESAPIV7 struct {
 
 func (c *ESAPIV7) InitDefaultTemplate(templateName, indexPrefix string) {
 	c.initTemplate(templateName, indexPrefix)
+}
+
+func (c *ESAPIV7) BuildTemplate(indexPatterns string, settings, mappings any) ([]byte, error) {
+	if settings == nil {
+		settings = c.GetDefaultIndexTemplateSettings()
+	}
+	template := util.MapStr{
+		"index_patterns": indexPatterns,
+		"mappings":       mappings,
+		"settings":       settings,
+	}
+
+	return util.MustToJSONBytes(template), nil
 }
 
 func (c *ESAPIV7) getDefaultTemplate(indexPrefix string) string {
