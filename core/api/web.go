@@ -30,16 +30,6 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
-	log "github.com/cihub/seelog"
-	"github.com/gorilla/context"
-	"golang.org/x/net/http2"
-	"infini.sh/framework/core/api/gzip"
-	"infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/api/websocket"
-	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/global"
-	_ "infini.sh/framework/core/logging"
-	"infini.sh/framework/core/util"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
@@ -47,6 +37,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"github.com/gorilla/context"
+	"golang.org/x/net/http2"
+	"infini.sh/framework/core/api/gzip"
+	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/api/websocket"
+	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/global"
+	_ "infini.sh/framework/core/logging"
+	"infini.sh/framework/core/util"
 )
 
 var uiRouter *httprouter.Router
@@ -152,15 +153,15 @@ func StartWeb(cfg config.WebAppConfig) {
 
 		schema = "https://"
 
-		cfg, err := GetServerTLSConfig(&cfg.TLSConfig)
+		serverTLSCfg, err := GetServerTLSConfig(&cfg.TLSConfig)
 		if err != nil {
 			panic(err)
 		}
 
 		srv = &http.Server{
 			Addr:         bindAddress,
-			Handler:      globalInterceptorHandler.Handler(RecoveryHandler()(handler)),
-			TLSConfig:    cfg,
+			Handler:      globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler))),
+			TLSConfig:    serverTLSCfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 
@@ -194,7 +195,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		}(srv)
 
 	} else {
-		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(handler))}
+		srv = &http.Server{Addr: bindAddress, Handler: globalInterceptorHandler.Handler(RecoveryHandler()(StripPrefix(cfg.BasePath, handler)))}
 		go func(srv *http.Server) {
 			defer func() {
 				if !global.Env().IsDebug {
@@ -230,6 +231,21 @@ func StartWeb(cfg config.WebAppConfig) {
 
 }
 
+// StripPrefix removes the specified prefix from the request URL path
+// and serves the request using the provided handler.
+// Unlike http.StripPrefix, it passes the request to the handler unmodified
+// if the prefix does not match, instead of returning a 404.
+func StripPrefix(prefix string, h http.Handler) http.Handler {
+	prefixHandler := http.StripPrefix(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := strings.TrimPrefix(r.URL.Path, prefix)
+    if len(p) < len(r.URL.Path) && (len(p) == 0 || p[0] == '/') {
+			prefixHandler.ServeHTTP(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
 type UIFilters interface {
 	// ApplyFilter wraps an HTTP handler with filter logic
 	ApplyFilter(

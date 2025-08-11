@@ -29,6 +29,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: add hooks for ORM data operation #167
+- feat: add support for stripping base path prefix from requests
 - feat: merge term filters to terms filter with same field #173
 - feat: add create api for indexing #175
 
