@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"errors"
 	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
@@ -207,6 +208,19 @@ type Result struct {
 type SimpleResult struct {
 	Total int64
 	Raw   []byte
+}
+
+func Get(o interface{}) (bool, error) {
+
+	rValue := reflect.ValueOf(o)
+
+	//check required value
+	idExists, _ := getFieldStringValue(rValue, "ID")
+	if !idExists {
+		return false, errors.New("id was not found")
+	}
+
+	return getHandler().Get(nil, o)
 }
 
 func DeleteBy(o interface{}, query interface{}) error {
