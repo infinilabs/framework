@@ -48,3 +48,4 @@ const AssignToCurrentUserIfNotExists = "assign_to_current_user_if_not_exists"
 
 const ReadPermissionCheckingScope = "read_permission_checking_scope"
 const DirectReadWithoutPermissionCheck = "direct_read_without_permission_check"
+const DirectWriteWithoutPermissionCheck = "direct_write_without_permission_check"
