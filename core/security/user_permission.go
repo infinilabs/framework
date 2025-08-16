@@ -26,6 +26,8 @@ package security
 import (
 	"github.com/RoaringBitmap/roaring"
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/orm"
+	"time"
 )
 
 // UserAssignedPermission represents role and direct permissions for a user in a tenant
@@ -107,4 +109,103 @@ func (p *UserAssignedPermission) ValidateFor(permID PermissionID) bool {
 
 	//deny by default
 	return false
+}
+
+type ResourceType string
+
+const DocumentResource ResourceType = "document"
+const FileResource ResourceType = "file"
+const FolderResource ResourceType = "folder"
+
+func init() {
+	orm.MustRegisterSchemaWithIndexName(&ExternalPermission{}, "external_permission")
+}
+
+// ExternalPermission represents a permission entry from an external system.
+type ExternalPermission struct {
+	orm.ORMObjectBase
+	BatchNumber string `json:"batch_number,omitempty"` // Indicate the update batch
+
+	Source       string       `json:"source,omitempty"`        // Data source identifier, e.g., "google_drive", "github"
+	ExternalID   string       `json:"external_id,omitempty"`   // Raw ID from external system, if different from ResourceID
+	ResourceID   string       `json:"resource_id,omitempty"`   // Internal Unique ID of the resource, e.g., file or folder ID
+	ResourceType ResourceType `json:"resource_type,omitempty"` // Type of the resource: file, folder, repo, issue, etc.
+	ResourcePath string       `json:"resource_path,omitempty"` // Optional: full path, e.g., /parent/folder/file.ext
+
+	Permissions []ExternalPermissionEntry `json:"permissions,omitempty"` // List of users or groups with access to the resource
+
+	Explicit bool   `json:"explicit,omitempty"`  // True if this is an explicit permission (not inherited)
+	ParentID string `json:"parent_id,omitempty"` // ID of the parent resource (for inferring inheritance)
+
+	ExternalUpdatedAt *time.Time `json:"external_updated_at,omitempty"` // Timestamp from the external system
+}
+
+// ExternalPermissionEntry represents a single ACL entry for a resource.
+type ExternalPermissionEntry struct {
+	PrincipalType   string `json:"principal_type,omitempty"`   // "user" or "group"
+	PrincipalID     string `json:"principal_id,omitempty"`     // External user or group ID
+	PrimaryIdentity string `json:"primary_identity,omitempty"` // Optional: username, email, user or group email for matching/mapping
+	DisplayName     string `json:"display_name,omitempty"`     // Optional: "Alice Zhang", from external system
+	Role            string `json:"role,omitempty"`             // External role: reader, editor, owner, commenter, etc.
+	Inherited       bool   `json:"inherited,omitempty"`        // True if the permission is inherited
+	InheritedFromID string `json:"inherited_from_id,omitempty"`
+}
+
+// ExternalPermissionMapping defines how external roles map to internal roles.
+type ExternalPermissionMapping struct {
+	orm.ORMObjectBase
+
+	Source       string // Source system, e.g., "google_drive"
+	ExternalRole string // External system role, e.g., "reader"
+	MappedRole   string // Mapped internal role, e.g., "viewer"
+	Default      bool   // Whether this mapping is the default fallback
+	Visibility   string // Visibility: searchable, private, team, etc.
+}
+
+// ExternalUserMapping maps an external user ID/email to an internal user ID.
+type ExternalUserMapping struct {
+	orm.ORMObjectBase
+
+	ExternalID string // e.g., abc@company.com or external user UUID
+	Email      string // Optional for matching convenience
+	Source     string // e.g., "google_drive", "github"
+	UserID     string // Internal user ID in the system
+}
+
+// ExternalGroupMapping maps an external group ID to an internal group.
+type ExternalGroupMapping struct {
+	orm.ORMObjectBase
+
+	ExternalID string // e.g., "group:marketing@company.com"
+	Source     string // e.g., "google_drive", "github"
+	GroupID    string // Internal group ID in the system
+}
+
+// Internal ACL entry resolved after mapping
+type AccessControlEntry struct {
+	orm.ORMObjectBase
+
+	ResourceID   string       // ID of the protected resource
+	ResourceType ResourceType // e.g., "document", "folder"
+	SubjectID    string       // Internal user or group ID
+	SubjectType  string       // "user" | "group"
+
+	// Instead of SubjectID/Type strings, use bitsets for all users and groups with access
+	AllowedUsers  *roaring.Bitmap // bitmap of allowed user IDs
+	AllowedGroups *roaring.Bitmap // bitmap of allowed group IDs
+
+	Role      string // e.g. "reader", "editor"
+	Source    string // Original source, e.g., "google_drive"
+	Inherited bool   // Whether this ACL is inherited
+}
+
+type IDMapping struct {
+	ExternalID string // e.g., "abc@company.com"
+	InternalID uint64 // unique int ID used for bitset indexing
+	Type       string // "user" or "group"
+}
+
+type GroupMembership struct {
+	GroupID     string
+	PrincipalID string // User ID
 }
