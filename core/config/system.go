@@ -421,7 +421,7 @@ type APIConfig struct {
 	VerboseErrorRootCause bool   `config:"verbose_error_root_cause"` //return root_cause in api response
 	APIDirectoryPath      string `config:"api_directory_path"`
 	DisableAPIDirectory   bool   `config:"disable_api_directory"`
-	BasePath string `config:"base_path"`
+	BasePath              string `config:"base_path"`
 }
 
 func (config *APIConfig) GetEndpoint() string {

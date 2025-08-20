@@ -241,7 +241,7 @@ func StartAPI() {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       10 * time.Second,
 			Addr:              listenAddress,
-			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath,router)))),
+			Handler:           RecoveryHandler()(c.Handler(context.ClearHandler(StripPrefix(apiConfig.BasePath, router)))),
 			TLSConfig:         cfg,
 		}
 
