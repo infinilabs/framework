@@ -232,10 +232,12 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 			}
 		}
 		if stateChanged {
+			metaData := state.Metadata
 			state.Metadata = nil
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				module.saveRoutingTable(state, clusterId)
 			}
+			state.Metadata = metaData
 			meta.ClusterState = state
 		}
 	}
