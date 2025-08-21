@@ -66,7 +66,7 @@ http_client:
 | `override_system_proxy_env` | boolean | Whether to override system-wide proxy environment variables.                |
 | `permitted`                 | list    | List of domains allowed to use the proxy.                                  |
 | `denied`                    | list    | List of domains denied from using the proxy.                               |
-| `domains`                    | map    | Proxy settings per domain.                               |
+| `domains`                    | map[string]ProxyDetails | Proxy settings per domain.                               |
 
 ---
 
