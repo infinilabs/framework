@@ -62,7 +62,7 @@ http_client:
 | Name                        | Type    | Description                                                                 |
 |-----------------------------|---------|-----------------------------------------------------------------------------|
 | `enabled`                   | boolean | Enables or disables the use of a proxy.                                    |
-| `default_config`                    | ProxyDetails | Default proxy settings, including HTTP and SOCKS5 proxies.                 |
+| `default_config`                    | ProxyConfig | Default proxy settings, including HTTP and SOCKS5 proxies.                 |
 | `override_system_proxy_env` | boolean | Whether to override system-wide proxy environment variables.                |
 | `permitted`                 | list    | List of domains allowed to use the proxy.                                  |
 | `denied`                    | list    | List of domains denied from using the proxy.                               |
@@ -70,7 +70,7 @@ http_client:
 
 ---
 
-## Proxy Details: `ProxyDetails`
+## Proxy Details: `ProxyConfig`
 | Name                        | Type    | Description                                                                 |
 |-----------------------------|---------|-----------------------------------------------------------------------------|
 | `http_proxy`                | string  | URL of the HTTP proxy.                                                     |

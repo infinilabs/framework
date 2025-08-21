@@ -62,7 +62,7 @@ Example health response:
 
 ### Settings Management
 
-- **GET/POST `/setting/logger`** - Manage logging configuration
+- **GET/POST `/setting/logger`** - Manage logging configuration (single endpoint handling both methods)
 - **GET `/setting/application`** - Retrieve application settings
 
 ### API Directory
