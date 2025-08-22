@@ -59,5 +59,5 @@ For example, if you want to expose more debug-level information, such as detecti
 ```bash
 DEV=true GOPATH="/Users/<Replace_with_your_username>/go" make build
 ```
-To learn more about the Makefile and its commands, refer to this [Reference](../references/makefile_commands.md).
+To learn more about the Makefile and its commands, refer to this [Reference](../references/makefile.md).
 
