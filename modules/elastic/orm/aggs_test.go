@@ -375,7 +375,42 @@ func TestBuildAggsWith(t *testing.T) {
 	q.Aggs = aggs
 	dsl := BuildQueryDSL(q)
 	expected := `{"aggs":{"sales_over_time":{"date_histogram":{"field":"sale_date","calendar_interval":"1M"},"aggs":{"sales_by_region":{"terms":{"field":"region.keyword"},"aggs":{"avg_sale":{"avg":{"field":"sale_amount"}}}}}}},"query":{"term":{"product_id":{"value":"12345"}}}}`
-	if got := util.MustToJSON(dsl); got != expected {
-		t.Errorf("BuildQueryDSL() = %v, want %v", got, expected)
+	assertJSONEquals(t, util.MustToJSONBytes(dsl), expected)
+}
+
+func TestParseFilterAggregation(t *testing.T) {
+	builder := NewAggreationBuilder()
+	aggs := map[string]orm.Aggregation{
+		"filtered_sales": (&orm.FilterAggregation{
+			Query: map[string]interface{}{
+				"term": map[string]interface{}{
+					"status": "completed",
+				},
+			},
+		}).AddNested("total_sales", &orm.MetricAggregation{
+			Field: "amount",
+			Type:  "sum",
+		}),
 	}
+	result, err := builder.Build(aggs)
+	if err != nil {
+		t.Fatalf("Build() returned an unexpected error: %v", err)
+	}
+	expected := `{
+		"filtered_sales": {
+			"filter": {
+				"term": {
+					"status": "completed"
+				}
+			},
+			"aggs": {
+				"total_sales": {
+					"sum": {
+						"field": "amount"
+					}
+				}
+			}
+		}
+	}`
+	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
 }

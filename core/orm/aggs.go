@@ -128,3 +128,14 @@ type DerivativeAggregation struct {
 func (a *DerivativeAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	panic("DerivativeAggregation does not support nested aggregations")
 }
+
+type FilterAggregation struct {
+	baseAggregation
+	// Query holds the filter criteria for this aggregation.
+	Query map[string]interface{} `json:"query"`
+}
+// AddNested provides a correctly typed chained call for FilterAggregation.
+func (a *FilterAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}

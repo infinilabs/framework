@@ -42,6 +42,7 @@ type ESAggregation struct {
 	Count   *esMetricAggregation        `json:"value_count,omitempty"`
 	Median *esMetricAggregation `json:"median_absolute_deviation,omitempty"`
 	Derivative 	*esDerivativeAggregation    `json:"derivative,omitempty"`
+	Filter *esFilterAggregation `json:"filter,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -68,6 +69,7 @@ type esDateHistogramAggregation struct {
 type esDerivativeAggregation struct {
 	BucketsPath string `json:"buckets_path,omitempty"`
 }
+type esFilterAggregation map[string]interface{}
 
 // AggreationBuilder is responsible for compiling an abstract aggreation Request into an ES query.
 type AggreationBuilder struct{}
@@ -143,6 +145,8 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 		esAgg.Derivative = &esDerivativeAggregation{
 			BucketsPath: v.BucketsPath,
 		}
+	case *orm.FilterAggregation:
+		esAgg.Filter = (*esFilterAggregation)(&v.Query)
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)
 	}
