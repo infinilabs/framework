@@ -201,3 +201,159 @@ func TestBuild_UnsupportedAggregationType(t *testing.T) {
 		t.Fatal("Build() was expected to return an error, but it did not")
 	}
 }
+
+func TestBuild_ComplexAggregation(t *testing.T) {
+	// test cases for complex aggregations
+	testCases := []struct {
+		name     string
+		request  map[string]orm.Aggregation
+		expected string
+	}{
+		{
+			name: "Complex Nested Aggregation",
+			request: map[string]orm.Aggregation{
+				"sales_by_category": (&orm.TermsAggregation{
+					Field: "category.keyword",
+				}).AddNested("avg_price", &orm.MetricAggregation{
+					Field: "price",
+					Type:  "avg",
+				}).AddNested("total_sales", &orm.MetricAggregation{
+					Field: "sales",
+					Type:  "sum",
+				}),
+			},
+			expected: `{
+				"sales_by_category": {
+					"terms": {
+						"field": "category.keyword"
+					},
+					"aggs": {
+						"avg_price": {
+							"avg": {
+								"field": "price"
+							}
+						},
+						"total_sales": {
+							"sum": {
+								"field": "sales"
+							}
+						}
+					}
+				}
+			}`,
+		},
+		{
+			name: "Date Histogram with Nested Terms",
+			request: map[string]orm.Aggregation{
+				"sales_over_time": (&orm.DateHistogramAggregation{
+					Field:    "sale_date",
+					Interval: "1M",
+					TimeZone: "UTC",
+				}).AddNested("sales_by_region", (&orm.TermsAggregation{
+					Field: "region.keyword",
+				}).AddNested("avg_sale", &orm.MetricAggregation{
+					Field: "sale_amount",
+					Type:  "avg",
+				})),
+			},
+			expected: `{
+				"sales_over_time": {
+					"date_histogram": {
+						"field": "sale_date",
+						"calendar_interval": "1M",
+						"time_zone": "UTC"
+					},
+					"aggs": {
+						"sales_by_region": {
+							"terms": {
+								"field": "region.keyword"
+							},
+							"aggs": {
+								"avg_sale": {
+									"avg": {
+										"field": "sale_amount"
+									}
+								}
+							}
+						}
+					}
+				}
+			}`,
+		},
+		{
+			name: "Percentiles Aggregation",
+			request: map[string]orm.Aggregation{
+				"request_over_time": (&orm.DateHistogramAggregation{
+					Field:    "timestamp",
+					Interval: "1M",
+				}).AddNested("response_percentiles", &orm.PercentilesAggregation{
+					Field:    "response_time",
+					Percents: []float64{50, 90, 95},
+				}),
+			},
+			expected: `{
+				"request_over_time": {
+					"date_histogram": {
+						"field": "timestamp",
+						"calendar_interval": "1M"
+					},
+					"aggs": {
+						"response_percentiles": {
+							"percentiles": {
+								"field": "response_time",
+								"percents": [50, 90, 95]
+							}
+						}
+					}
+				}
+			}`,
+		},
+		{
+			name: "complex aggregation with derivative",
+			request: map[string]orm.Aggregation{
+				"sales_over_time": (&orm.DateHistogramAggregation{
+					Field:    "sale_date",
+					Interval: "1M",
+				}).AddNested("avg_sale", &orm.MetricAggregation{
+					Field: "sale_amount",
+					Type:  "avg",
+				}).AddNested("sales_derivative", &orm.DerivativeAggregation{
+					BucketsPath: "avg_sale",
+				}),
+			},
+			expected: `{
+				"sales_over_time": {
+					"date_histogram": {
+						"field": "sale_date",
+						"calendar_interval": "1M"
+					},
+					"aggs": {
+						"avg_sale": {
+							"avg": {
+								"field": "sale_amount"
+							}
+						},
+						"sales_derivative": {
+							"derivative": {
+								"buckets_path": "avg_sale"
+							}
+						}
+					}
+				}
+			}`,
+		},
+	}
+	// Act & Assert
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			builder := New()
+			resultJSON, err := builder.Build(tc.request)
+
+			if err != nil {
+				t.Fatalf("Build() returned an unexpected error: %v", err)
+			}
+
+			assertJSONEquals(t, util.MustToJSONBytes(resultJSON), tc.expected)
+		})
+	}
+}

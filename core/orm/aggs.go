@@ -28,7 +28,10 @@ package orm
 type Aggregation interface {
 	// AddNested adds a sub-aggregation, allowing for fluent chaining.
 	AddNested(name string, sub Aggregation) Aggregation
+	// GetNested retrieves the map of nested sub-aggregations.
 	GetNested() map[string]Aggregation
+	// GetParams retrieves any additional parameters specific to the aggregation type.
+	GetParams() map[string]interface{}
 }
 
 // baseAggregation provides common functionality for all aggregation types,
@@ -36,6 +39,8 @@ type Aggregation interface {
 type baseAggregation struct {
 	// NestedAggs holds any sub-aggregations.
 	NestedAggs map[string]Aggregation `json:"-"`
+	// Params can hold additional parameters specific to certain aggregation types.
+	Params 	 map[string]interface{} `json:"-"`
 }
 
 // AddNested adds a sub-aggregation to the base aggregation.
@@ -52,6 +57,11 @@ func (b *baseAggregation) AddNested(name string, sub Aggregation) Aggregation {
 // GetNested returns the map of nested aggregations.
 func (b *baseAggregation) GetNested() map[string]Aggregation {
 	return b.NestedAggs
+}
+
+// GetParams returns the additional parameters of the aggregation.
+func (b *baseAggregation) GetParams() map[string]interface{} {
+	return b.Params
 }
 
 // TermsAggregation represents a "group by" or "bucketing" operation on a field.
@@ -106,4 +116,15 @@ type PercentilesAggregation struct {
 func (a *PercentilesAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)
 	return a
+}
+
+// DerivativeAggregation represents the "derivative" pipeline aggregation.
+type DerivativeAggregation struct {
+	baseAggregation
+	BucketsPath string `json:"buckets_path"`
+}
+
+// AddNested provides a correctly typed chained call for DerivativeAggregation.
+func (a *DerivativeAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	panic("DerivativeAggregation does not support nested aggregations")
 }

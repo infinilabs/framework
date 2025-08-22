@@ -37,9 +37,11 @@ type ESAggregation struct {
 	Min           *esMetricAggregation        `json:"min,omitempty"`
 	Max           *esMetricAggregation        `json:"max,omitempty"`
 	Cardinality   *esMetricAggregation        `json:"cardinality,omitempty"`
-	Stats         *esMetricAggregation        `json:"stats,omitempty"`
 	Percentiles   *esPercentilesAggregation   `json:"percentiles,omitempty"`
 	NestedAggs    map[string]*ESAggregation   `json:"aggs,omitempty"`
+	Count   *esMetricAggregation        `json:"value_count,omitempty"`
+	Median *esMetricAggregation `json:"median_absolute_deviation,omitempty"`
+	Derivative 	*esDerivativeAggregation    `json:"derivative,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -61,6 +63,10 @@ type esDateHistogramAggregation struct {
 	CalendarInterval string `json:"calendar_interval,omitempty"` // Note the ES-specific field name
 	Format           string `json:"format,omitempty"`
 	TimeZone         string `json:"time_zone,omitempty"`
+}
+
+type esDerivativeAggregation struct {
+	BucketsPath string `json:"buckets_path,omitempty"`
 }
 
 // AggreationBuilder is responsible for compiling an abstract aggreation Request into an ES query.
@@ -114,6 +120,10 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			esAgg.Max = metric
 		case "cardinality":
 			esAgg.Cardinality = metric
+		case "count":
+			esAgg.Count = metric
+		case "median":
+			esAgg.Median = metric
 		default:
 			return nil, fmt.Errorf("unsupported metric aggregation type: %s", v.Type)
 		}
@@ -128,6 +138,10 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			CalendarInterval: v.Interval,
 			Format:           v.Format,
 			TimeZone:         v.TimeZone,
+		}
+	case *orm.DerivativeAggregation:
+		esAgg.Derivative = &esDerivativeAggregation{
+			BucketsPath: v.BucketsPath,
 		}
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)
