@@ -70,6 +70,16 @@ func (m MapStr) Update(d MapStr) {
 	}
 }
 
+func (m MapStr) RemoveNilItems() MapStr {
+	cleaned := make(MapStr)
+	for k, v := range m {
+		if v != nil {
+			cleaned[k] = v
+		}
+	}
+	return cleaned
+}
+
 // Delete deletes the given key from the map.
 func (m MapStr) Delete(key string) error {
 	_, err := walkMap(key, m, opDelete)

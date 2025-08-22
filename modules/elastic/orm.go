@@ -428,7 +428,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 			//	log.Error(err)
 			//}
 
-			log.Info("FINAL INDEX: ", indexName, ", DSL: ", util.MustToJSON(dsl))
+			log.Debug("INDEX: ", indexName, ", DSL: ", util.MustToJSON(dsl))
 
 			dslBytes := util.MustToJSONBytes(dsl)
 			searchResponse, err = handler.Client.QueryDSL(nil, indexName, queryArgs, dslBytes)
@@ -437,7 +437,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 		//check if it is templated query
 		if tq := api.GetTemplatedQuery(ctx); tq != nil {
 
-			log.Info("FINAL INDEX: ", indexName, ", TEMPLATED: ", util.MustToJSON(tq))
+			log.Debug("INDEX: ", indexName, ", TEMPLATED: ", util.MustToJSON(tq))
 
 			searchResponse, err = handler.Client.SearchByTemplate(indexName, tq.TemplateID, tq.Parameters)
 		}

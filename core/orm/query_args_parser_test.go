@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/param"
 	"net/http"
+	"reflect"
 	"testing"
 )
 
@@ -777,5 +778,44 @@ func TestMergeTermQueries_NoMergingNeeded(t *testing.T) {
 
 	if len(merged) != 2 {
 		t.Errorf("Expected 2 unchanged clauses, got %d", len(merged))
+	}
+}
+
+func TestParseQueryWithMultipleFilterValues(t *testing.T) {
+	rawQuery := "query=world&filter=tag:news&filter=tag:tech&filter=tag:ai"
+	req, err := http.NewRequest("GET", "/search?"+rawQuery, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder, err := NewQueryBuilderFromRequest(req, "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Example assertion: check if "tag" filters merged into a single clause
+	if len(builder.filters) == 0 {
+		t.Fatal("Expected at least one filter clause")
+	}
+	found := false
+	values := []string{}
+	for _, f := range builder.filters {
+		if f.Field == "tag" {
+			found = true
+			// Ensure it's a slice of values
+			value, ok := f.Value.(string)
+			if !ok {
+				t.Fatalf("Expected []string for tag filter, got %T", f.Value)
+			}
+			values = append(values, value)
+		}
+	}
+	expected := []string{"news", "tech", "ai"}
+	if !reflect.DeepEqual(values, expected) {
+		t.Errorf("Expected values %v, got %v", expected, values)
+	}
+
+	if !found {
+		t.Fatal("Expected tag filter to be present")
 	}
 }

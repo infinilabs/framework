@@ -109,6 +109,9 @@ type QueryBuilder struct {
 	//indicate fuzziness query is built or not
 	builtFuzziness bool
 
+	// keep original filter clauses
+	filters []*Clause
+
 	requestBodyBytes []byte
 	Aggs map[string]Aggregation
 }

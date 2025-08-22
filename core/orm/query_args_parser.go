@@ -82,6 +82,9 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		filterClauses = append(filterClauses, clause)
 	}
 
+	// Save original filters
+	builder.filters = filterClauses
+
 	//check if merge or not
 	if builder.defaultFilterOperator != "AND" {
 		// Merge same-field term queries
@@ -144,6 +147,32 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		builder.Aggs = aggs
 	}
 	return builder, nil
+}
+
+func (b *QueryBuilder) GetFilterValues(field string) []interface{} {
+	values := []interface{}{}
+	for _, clause := range b.filters {
+		collectFilterValues(clause, field, &values)
+	}
+	return values
+}
+
+func collectFilterValues(c *Clause, field string, out *[]interface{}) {
+	if c.Field == field {
+		*out = append(*out, c.Value)
+	}
+	for _, sub := range c.MustClauses {
+		collectFilterValues(sub, field, out)
+	}
+	for _, sub := range c.ShouldClauses {
+		collectFilterValues(sub, field, out)
+	}
+	for _, sub := range c.MustNotClauses {
+		collectFilterValues(sub, field, out)
+	}
+	for _, sub := range c.FilterClauses {
+		collectFilterValues(sub, field, out)
+	}
 }
 
 func parseFilterToClause(defaultFields []string, filterStr string) (*Clause, error) {
