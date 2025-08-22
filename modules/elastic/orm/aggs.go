@@ -72,8 +72,8 @@ type esDerivativeAggregation struct {
 // AggreationBuilder is responsible for compiling an abstract aggreation Request into an ES query.
 type AggreationBuilder struct{}
 
-// New creates a new Elasticsearch aggreation builder.
-func New() *AggreationBuilder {
+// NewAggreationBuilder creates a new Elasticsearch aggreation builder.
+func NewAggreationBuilder() *AggreationBuilder {
 	return &AggreationBuilder{}
 }
 

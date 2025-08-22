@@ -64,7 +64,7 @@ func TestBuild_SingleTermsAggregation(t *testing.T) {
 			},
 		}
 
-	builder := New()
+	builder := NewAggreationBuilder()
 	resultJSON, err := builder.Build(request)
 
 	// Assert: Check for errors and compare the output JSON.
@@ -97,7 +97,7 @@ func TestBuild_NestedAggregation(t *testing.T) {
 		}
 
 	// Act
-	builder := New()
+	builder := NewAggreationBuilder()
 	resultJSON, err := builder.Build(request)
 
 	// Assert
@@ -138,7 +138,7 @@ func TestBuild_MultipleTopLevelAggs(t *testing.T) {
 		},
 	}
 
-	builder := New()
+	builder := NewAggreationBuilder()
 	resultJSON, err := builder.Build(request)
 
 	// Assert
@@ -169,7 +169,7 @@ func TestBuild_NoAggregations(t *testing.T) {
 	// Arrange
 	var request = map[string]orm.Aggregation{}
 
-	builder := New()
+	builder := NewAggreationBuilder()
 	resultJSON, err := builder.Build(request)
 
 	// Assert
@@ -193,7 +193,7 @@ func TestBuild_UnsupportedAggregationType(t *testing.T) {
 			"bad_agg": &unsupportedAgg{},
 		}
 
-	builder := New()
+	builder := NewAggreationBuilder()
 	_, err := builder.Build(request)
 
 	// Assert
@@ -346,7 +346,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 	// Act & Assert
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			builder := New()
+			builder := NewAggreationBuilder()
 			resultJSON, err := builder.Build(tc.request)
 
 			if err != nil {
@@ -355,5 +355,27 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 
 			assertJSONEquals(t, util.MustToJSONBytes(resultJSON), tc.expected)
 		})
+	}
+}
+
+func TestBuildAggsWith(t *testing.T) {
+	q := orm.NewQuery()
+	q.Must(orm.TermQuery("product_id", "12345"))
+  aggs := map[string]orm.Aggregation{
+    "sales_over_time": (&orm.DateHistogramAggregation{
+      Field:    "sale_date",
+      Interval: "1M",
+    }).AddNested("sales_by_region", (&orm.TermsAggregation{
+      Field: "region.keyword",
+    }).AddNested("avg_sale", &orm.MetricAggregation{
+      Field: "sale_amount",
+      Type:  "avg",
+    })),
+  }
+	q.Aggs = aggs
+	dsl := BuildQueryDSL(q)
+	expected := `{"aggs":{"sales_over_time":{"date_histogram":{"field":"sale_date","calendar_interval":"1M"},"aggs":{"sales_by_region":{"terms":{"field":"region.keyword"},"aggs":{"avg_sale":{"avg":{"field":"sale_amount"}}}}}}},"query":{"term":{"product_id":{"value":"12345"}}}}`
+	if got := util.MustToJSON(dsl); got != expected {
+		t.Errorf("BuildQueryDSL() = %v, want %v", got, expected)
 	}
 }

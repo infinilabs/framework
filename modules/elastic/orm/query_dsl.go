@@ -24,9 +24,10 @@
 package orm
 
 import (
+	"strings"
+
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 func BuildQueryDSLOnTopOfDSL(q *orm.QueryBuilder, reqBody []byte) map[string]interface{} {
@@ -266,6 +267,14 @@ func BuildQueryDSL(q *orm.QueryBuilder) map[string]interface{} {
 			})
 		}
 		dsl["sort"] = sortList
+	}
+	if len(q.Aggs) > 0 {
+		aggBuilder := NewAggreationBuilder()
+		aggs, err := aggBuilder.Build(q.Aggs)
+		if err != nil {
+			panic("failed to build aggregations: " + err.Error())
+		}
+		dsl["aggs"] = aggs
 	}
 
 	return dsl
