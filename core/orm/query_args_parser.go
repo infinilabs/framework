@@ -135,7 +135,14 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 			builder.Size(size)
 		}
 	}
-
+	// Handle aggregations
+	aggs, err := ParseAggregationsFromQuery(req.URL.Query())
+	if err != nil {
+		return nil, err
+	}
+	if len(aggs) > 0 {
+		builder.Aggs = aggs
+	}
 	return builder, nil
 }
 

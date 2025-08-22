@@ -25,10 +25,11 @@ package orm
 
 import (
 	"fmt"
-	"infini.sh/framework/core/param"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"infini.sh/framework/core/param"
 )
 
 type QueryType string
@@ -109,6 +110,7 @@ type QueryBuilder struct {
 	builtFuzziness bool
 
 	requestBodyBytes []byte
+	Aggs map[string]Aggregation
 }
 
 func NewQuery() *QueryBuilder {
@@ -119,6 +121,10 @@ func NewQuery() *QueryBuilder {
 
 func (q *QueryBuilder) SetRequestBodyBytes(bytes []byte) {
 	q.requestBodyBytes = bytes
+}
+// SetAggregations sets the aggregations for the query builder.
+func (q *QueryBuilder) SetAggregations(aggs map[string]Aggregation) {
+	q.Aggs = aggs
 }
 
 func (q *QueryBuilder) RequestBodyBytesVal() []byte {

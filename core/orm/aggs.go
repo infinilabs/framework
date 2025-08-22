@@ -22,3 +22,88 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 package orm
+
+// Aggregation is the interface that all specific aggregation types must implement.
+// It serves as a marker to group different aggregation structs.
+type Aggregation interface {
+	// AddNested adds a sub-aggregation, allowing for fluent chaining.
+	AddNested(name string, sub Aggregation) Aggregation
+	GetNested() map[string]Aggregation
+}
+
+// baseAggregation provides common functionality for all aggregation types,
+// especially for handling nested aggregations.
+type baseAggregation struct {
+	// NestedAggs holds any sub-aggregations.
+	NestedAggs map[string]Aggregation `json:"-"`
+}
+
+// AddNested adds a sub-aggregation to the base aggregation.
+func (b *baseAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	if b.NestedAggs == nil {
+		b.NestedAggs = make(map[string]Aggregation)
+	}
+	b.NestedAggs[name] = sub
+	// This method needs to be called on the concrete type to return the correct type for chaining.
+	// We'll see this implemented in the concrete types below.
+	return nil
+}
+
+// GetNested returns the map of nested aggregations.
+func (b *baseAggregation) GetNested() map[string]Aggregation {
+	return b.NestedAggs
+}
+
+// TermsAggregation represents a "group by" or "bucketing" operation on a field.
+type TermsAggregation struct {
+	baseAggregation
+	Field string
+	Size  int
+}
+
+// AddNested provides a correctly typed chained call for TermsAggregation.
+func (a *TermsAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// MetricAggregation represents a single-value metric calculation (avg, sum, etc.).
+type MetricAggregation struct {
+	baseAggregation // Although metrics rarely have sub-aggs in ES, the model allows it.
+	Type  string `mapstructure:"-"` // Type of metric: "avg", "sum", etc. Not part of the decoded structure.
+	Field string
+}
+
+// AddNested provides a correctly typed chained call for MetricAggregation.
+func (a *MetricAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// DateHistogramAggregation represents bucketing documents by a date/time interval.
+type DateHistogramAggregation struct {
+	baseAggregation
+	Field    string
+	Interval string // A generic interval string like "1d", "1M", "1h".
+	Format   string
+	TimeZone string
+}
+
+// AddNested provides a correctly typed chained call for DateHistogramAggregation.
+func (a *DateHistogramAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// PercentilesAggregation represents the "percentiles" metric aggregation.
+type PercentilesAggregation struct {
+	baseAggregation
+	Field    string
+	Percents []float64
+}
+
+// AddNested provides a correctly typed chained call for PercentilesAggregation.
+func (a *PercentilesAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
