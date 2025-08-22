@@ -47,20 +47,20 @@ func NewContext() *Context {
 	return &c
 }
 
-func (c *Context)DirectAccess()*Context  {
-	c.Set(DirectReadWithoutPermissionCheck,true)
-	c.Set(DirectWriteWithoutPermissionCheck,true)
+func (c *Context) DirectAccess() *Context {
+	c.Set(DirectReadWithoutPermissionCheck, true)
+	c.Set(DirectWriteWithoutPermissionCheck, true)
 	return c
 }
 
-func (c *Context)DirectReadAccess()*Context  {
-	c.Set(DirectReadWithoutPermissionCheck,true)
+func (c *Context) DirectReadAccess() *Context {
+	c.Set(DirectReadWithoutPermissionCheck, true)
 	return c
 }
 
-//TODO
-func (c *Context)RunAs(tenantID,userID string)*Context  {
-	c.Set(DirectReadWithoutPermissionCheck,true)
+// TODO
+func (c *Context) RunAs(tenantID, userID string) *Context {
+	c.Set(DirectReadWithoutPermissionCheck, true)
 	return c
 }
 

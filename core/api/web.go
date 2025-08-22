@@ -239,13 +239,14 @@ func StripPrefix(prefix string, h http.Handler) http.Handler {
 	prefixHandler := http.StripPrefix(prefix, h)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(r.URL.Path, prefix)
-    if len(p) < len(r.URL.Path) && (len(p) == 0 || p[0] == '/') {
+		if len(p) < len(r.URL.Path) && (len(p) == 0 || p[0] == '/') {
 			prefixHandler.ServeHTTP(w, r)
 			return
 		}
 		h.ServeHTTP(w, r)
 	})
 }
+
 type UIFilters interface {
 	// ApplyFilter wraps an HTTP handler with filter logic
 	ApplyFilter(
