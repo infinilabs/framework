@@ -43,6 +43,7 @@ type ESAggregation struct {
 	Median *esMetricAggregation `json:"median_absolute_deviation,omitempty"`
 	Derivative 	*esDerivativeAggregation    `json:"derivative,omitempty"`
 	Filter *esFilterAggregation `json:"filter,omitempty"`
+	TopHits map[string]interface{} `json:"top_hits,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -126,6 +127,8 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			esAgg.Count = metric
 		case "median":
 			esAgg.Median = metric
+		case "top_hits":
+			esAgg.TopHits = v.GetParams()
 		default:
 			return nil, fmt.Errorf("unsupported metric aggregation type: %s", v.Type)
 		}

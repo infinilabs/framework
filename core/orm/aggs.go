@@ -32,6 +32,8 @@ type Aggregation interface {
 	GetNested() map[string]Aggregation
 	// GetParams retrieves any additional parameters specific to the aggregation type.
 	GetParams() map[string]interface{}
+	// SetParams sets additional parameters specific to the aggregation type.
+	SetParams(params map[string]interface{})
 }
 
 // baseAggregation provides common functionality for all aggregation types,
@@ -62,6 +64,11 @@ func (b *baseAggregation) GetNested() map[string]Aggregation {
 // GetParams returns the additional parameters of the aggregation.
 func (b *baseAggregation) GetParams() map[string]interface{} {
 	return b.Params
+}
+
+// SetParams sets additional parameters for the aggregation.
+func (b *baseAggregation) SetParams(params map[string]interface{}) {
+	b.Params = params
 }
 
 // TermsAggregation represents a "group by" or "bucketing" operation on a field.

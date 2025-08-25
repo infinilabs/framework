@@ -414,3 +414,45 @@ func TestParseFilterAggregation(t *testing.T) {
 	}`
 	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
 }
+
+func TestParseTopHitsAggregation(t *testing.T) {
+	builder := NewAggreationBuilder()
+	topHitsAgg := &orm.MetricAggregation{
+		Field: "amount",
+		Type:  "top_hits",
+	}
+	topHitsAgg.SetParams(map[string]interface{}{
+		"size": 1,
+		"sort": []map[string]interface{}{
+			{"amount": map[string]string{"order": "desc"}},
+		},
+	})
+	aggs := map[string]orm.Aggregation{
+		"amount_max": (&orm.MetricAggregation{
+			Field: "amount",
+			Type:  "max",
+		}).AddNested("top1", topHitsAgg),
+	}
+	result, err := builder.Build(aggs)
+	if err != nil {
+		t.Fatalf("Build() returned an unexpected error: %v", err)
+	}
+	expected := `{
+		"amount_max": {
+			"max": {
+				"field": "amount"
+			},
+			"aggs": {
+				"top1": {
+					"top_hits": {
+						"size": 1,
+						"sort": [
+							{"amount": {"order": "desc"}}
+						]
+					}
+				}
+			}
+		}
+	}`
+	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
+} 
