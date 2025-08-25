@@ -406,6 +406,17 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 		} else {
 			dsl = orm.BuildQueryDSL(qb)
 		}
+		if len(qb.Aggs) > 0 {
+			aggBuilder := orm.AggreationBuilder{}
+			aggs, err := aggBuilder.Build(qb.Aggs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build aggregations: %w", err)
+			}
+			if dsl == nil {
+				dsl = make(map[string]interface{})
+			}
+			dsl["aggs"] = aggs
+		}
 
 		if dsl != nil {
 			////parse query, remove unused parameters
