@@ -16,6 +16,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 - fix: localhost/127.0.0.1 with noproxy #185
 - fix: cluster metadata lost #200
+
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
 - refactor: initialize index schema using index template
@@ -25,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: refactoring schema init logic, disable index based template #188
 - chore: use safe special chars #190
 - chore: reduce log with agent #193
+- chore: add util to register http handler #206
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
