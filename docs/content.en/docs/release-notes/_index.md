@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: add delete by query v2 #194
+- feat: support aggregation queries in orm
 
 ### 🐛 Bug fix  
 - fix: localhost/127.0.0.1 with noproxy #185
