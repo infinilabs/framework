@@ -390,6 +390,16 @@ func HandleUI(pattern string, handler http.Handler) {
 }
 
 // HandleUIMethod register ui request handler
+func HandleUIFuncMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request), options ...Option) {
+	// Wrap the handler to match httprouter signature
+	wrapped := func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		handler(w, req)
+	}
+
+	// Delegate to the existing HandleUIMethod
+	HandleUIMethod(method, pattern, wrapped, options...)
+}
+
 func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), options ...Option) {
 	uiMutex.Lock()
 	if registeredUIMethodHandler == nil {
