@@ -90,10 +90,7 @@ func TestBuild_NestedAggregation(t *testing.T) {
 	request := map[string]orm.Aggregation{
 			"products_by_type": (&orm.TermsAggregation{
 				Field: "type.keyword",
-			}).AddNested("average_price", &orm.MetricAggregation{
-				Field: "price",
-				Type: "avg",
-			}),
+			}).AddNested("average_price", orm.NewMetricAggregation(orm.MetricAvg, "price")),
 		}
 
 	// Act
@@ -127,10 +124,7 @@ func TestBuild_NestedAggregation(t *testing.T) {
 func TestBuild_MultipleTopLevelAggs(t *testing.T) {
 	// Arrange
 	request := map[string]orm.Aggregation{
-		"total_sales": &orm.MetricAggregation{
-			Type: "avg",
-			Field: "price",
-		},
+		"total_sales": orm.NewMetricAggregation(orm.MetricAvg, "price"),
 		"sales_by_month": &orm.DateHistogramAggregation{
 			Field:    "order_date",
 			Interval: "1M",
@@ -214,13 +208,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 			request: map[string]orm.Aggregation{
 				"sales_by_category": (&orm.TermsAggregation{
 					Field: "category.keyword",
-				}).AddNested("avg_price", &orm.MetricAggregation{
-					Field: "price",
-					Type:  "avg",
-				}).AddNested("total_sales", &orm.MetricAggregation{
-					Field: "sales",
-					Type:  "sum",
-				}),
+				}).AddNested("avg_price", orm.NewMetricAggregation(orm.MetricAvg, "price")).AddNested("total_sales", orm.NewMetricAggregation(orm.MetricSum, "sales")),
 			},
 			expected: `{
 				"sales_by_category": {
@@ -251,10 +239,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 					TimeZone: "UTC",
 				}).AddNested("sales_by_region", (&orm.TermsAggregation{
 					Field: "region.keyword",
-				}).AddNested("avg_sale", &orm.MetricAggregation{
-					Field: "sale_amount",
-					Type:  "avg",
-				})),
+				}).AddNested("avg_sale", orm.NewMetricAggregation(orm.MetricAvg, "sale_amount"))),
 			},
 			expected: `{
 				"sales_over_time": {
@@ -314,10 +299,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 				"sales_over_time": (&orm.DateHistogramAggregation{
 					Field:    "sale_date",
 					Interval: "1M",
-				}).AddNested("avg_sale", &orm.MetricAggregation{
-					Field: "sale_amount",
-					Type:  "avg",
-				}).AddNested("sales_derivative", &orm.DerivativeAggregation{
+				}).AddNested("avg_sale", orm.NewMetricAggregation(orm.MetricAvg, "sale_amount")).AddNested("sales_derivative", &orm.DerivativeAggregation{
 					BucketsPath: "avg_sale",
 				}),
 			},
@@ -367,10 +349,7 @@ func TestBuildAggsWith(t *testing.T) {
       Interval: "1M",
     }).AddNested("sales_by_region", (&orm.TermsAggregation{
       Field: "region.keyword",
-    }).AddNested("avg_sale", &orm.MetricAggregation{
-      Field: "sale_amount",
-      Type:  "avg",
-    })),
+    }).AddNested("avg_sale", orm.NewMetricAggregation(orm.MetricAvg, "sale_amount"))),
   }
 	q.Aggs = aggs
 	dsl := BuildQueryDSL(q)
@@ -387,10 +366,7 @@ func TestParseFilterAggregation(t *testing.T) {
 					"status": "completed",
 				},
 			},
-		}).AddNested("total_sales", &orm.MetricAggregation{
-			Field: "amount",
-			Type:  "sum",
-		}),
+		}).AddNested("total_sales", orm.NewMetricAggregation(orm.MetricSum, "amount")),
 	}
 	result, err := builder.Build(aggs)
 	if err != nil {
@@ -417,10 +393,7 @@ func TestParseFilterAggregation(t *testing.T) {
 
 func TestParseTopHitsAggregation(t *testing.T) {
 	builder := NewAggreationBuilder()
-	topHitsAgg := &orm.MetricAggregation{
-		Field: "amount",
-		Type:  "top_hits",
-	}
+	topHitsAgg := orm.NewMetricAggregation(orm.MetricTopHits, "amount")
 	topHitsAgg.SetParams(map[string]interface{}{
 		"size": 1,
 		"sort": []map[string]interface{}{
@@ -428,10 +401,7 @@ func TestParseTopHitsAggregation(t *testing.T) {
 		},
 	})
 	aggs := map[string]orm.Aggregation{
-		"amount_max": (&orm.MetricAggregation{
-			Field: "amount",
-			Type:  "max",
-		}).AddNested("top1", topHitsAgg),
+		"amount_max": (orm.NewMetricAggregation(orm.MetricMax, "amount")).AddNested("top1", topHitsAgg),
 	}
 	result, err := builder.Build(aggs)
 	if err != nil {
