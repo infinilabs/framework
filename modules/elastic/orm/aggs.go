@@ -113,21 +113,21 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 	case *orm.MetricAggregation:
 		metric := &esMetricAggregation{Field: v.Field}
 		switch v.Type {
-		case "avg":
+		case orm.MetricAvg:
 			esAgg.Avg = metric
-		case "sum":
+		case orm.MetricSum:
 			esAgg.Sum = metric
-		case "min":
+		case orm.MetricMin:
 			esAgg.Min = metric
-		case "max":
+		case orm.MetricMax:
 			esAgg.Max = metric
-		case "cardinality":
+		case orm.MetricCardinality:
 			esAgg.Cardinality = metric
-		case "count":
+		case orm.MetricCount:
 			esAgg.Count = metric
-		case "median":
+		case orm.MetricMedian:
 			esAgg.Median = metric
-		case "top_hits":
+		case orm.MetricTopHits:
 			esAgg.TopHits = v.GetParams()
 		default:
 			return nil, fmt.Errorf("unsupported metric aggregation type: %s", v.Type)

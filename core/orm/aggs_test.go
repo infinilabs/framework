@@ -51,14 +51,14 @@ func TestDateHistogramAggregation(t *testing.T) {
 	// Create a date histogram aggregation
 	dateHistAgg := DateHistogramAggregation{
 		Field:    "date_field",
-		Interval: "day",
+		Interval: "1d",
 	}
 	dateHistAgg.AddNested("avg_value", &MetricAggregation{
 		Type: "avg",
 		Field: "value_field",
 	})
 	assert.Equal(t, 1, len(dateHistAgg.GetNested()), "Expected one nested aggregation")
-	assert.Equal(t, "day", dateHistAgg.Interval, "Expected interval to be 'day'")
+	assert.Equal(t, "1d", dateHistAgg.Interval, "Expected interval to be '1d'")
 }
 
 func TestAggregationWithParams(t *testing.T) {

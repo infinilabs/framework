@@ -36,6 +36,25 @@ type Aggregation interface {
 	SetParams(params map[string]interface{})
 }
 
+const (
+	// Metric types
+	MetricAvg        = "avg"
+	MetricSum        = "sum"
+	MetricMin        = "min"
+	MetricMax        = "max"
+	MetricCount      = "count"
+	MetricPercentiles = "percentiles"
+	MetricTopHits    = "top_hits"
+	MetricCardinality = "cardinality"
+	MetricMedian = "median_absolute_deviation"
+	// Bucket types
+	MetricBucketTerms         = "terms"
+	MetricBucketDateHistogram = "date_histogram"
+	MetricBucketFilter      = "filter"
+	// Pipeline types
+	MetricPipelineDerivative = "derivative"
+)
+
 // baseAggregation provides common functionality for all aggregation types,
 // especially for handling nested aggregations.
 type baseAggregation struct {
