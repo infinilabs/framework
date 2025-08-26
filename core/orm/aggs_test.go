@@ -35,13 +35,7 @@ func TestTermsAggregation(t *testing.T) {
 		Field: "field1",
 		Size: 10,
 	}
-	termsAgg.AddNested("count_values", &MetricAggregation{
-		Type: "count",
-		Field: "field2",
-	}).AddNested("max_value", &MetricAggregation{
-		Type: "max",
-		Field: "field2",
-	})
+	termsAgg.AddNested("count_values", NewMetricAggregation(MetricCount, "field2")).AddNested("max_value", NewMetricAggregation(MetricMax, "field2"))
 	assert.Equal(t, 2, len(termsAgg.GetNested()), "Expected one nested aggregation")
 	assert.Equal(t, "field1", termsAgg.Field, "Expected field to be 'field1'")
 	assert.Equal(t, 10, termsAgg.Size, "Expected size to be 10")
@@ -53,10 +47,7 @@ func TestDateHistogramAggregation(t *testing.T) {
 		Field:    "date_field",
 		Interval: "1d",
 	}
-	dateHistAgg.AddNested("avg_value", &MetricAggregation{
-		Type: "avg",
-		Field: "value_field",
-	})
+	dateHistAgg.AddNested("avg_value", NewMetricAggregation(MetricAvg, "value_field"))
 	assert.Equal(t, 1, len(dateHistAgg.GetNested()), "Expected one nested aggregation")
 	assert.Equal(t, "1d", dateHistAgg.Interval, "Expected interval to be '1d'")
 }

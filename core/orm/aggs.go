@@ -110,6 +110,20 @@ type MetricAggregation struct {
 	Field string
 }
 
+// NewMetricAggregation creates a new MetricAggregation of the specified type and field.
+func NewMetricAggregation(metricType, field string) *MetricAggregation {
+	switch metricType {
+	case MetricAvg, MetricSum, MetricMin, MetricMax, MetricCount, MetricCardinality, MetricMedian, MetricTopHits:
+		// Valid metric types
+	default:
+		panic("invalid metric type: " + metricType)
+	}
+	return &MetricAggregation{
+		Type:  metricType,
+		Field: field,
+	}
+}
+
 // AddNested provides a correctly typed chained call for MetricAggregation.
 func (a *MetricAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)
