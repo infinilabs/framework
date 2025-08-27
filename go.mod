@@ -49,6 +49,7 @@ require (
 	github.com/magiconair/properties v1.8.10
 	github.com/mailru/easyjson v0.9.0
 	github.com/minio/minio-go/v7 v7.0.90
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nsqio/nsq v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/quipo/statsd v0.0.0-00010101000000-000000000000
