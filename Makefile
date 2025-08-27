@@ -302,6 +302,7 @@ init:
 	@(cd $(FRAMEWORK_VENDOR_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)
 	@echo "Framework commit hash updated: " && cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt
 	@echo "Framework vendor commit hash updated: " && cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt
+	@if [ "$(GOMODULE)" = "true" ]; then echo "GOMODULE is true, running go mod tidy..."; go mod tidy; fi
 
 update-generated-framework-info:
 	@echo "generating framework info"
