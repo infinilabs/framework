@@ -302,7 +302,6 @@ init:
 	@(cd $(FRAMEWORK_VENDOR_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)
 	@echo "Framework commit hash updated: " && cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt
 	@echo "Framework vendor commit hash updated: " && cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt
-	@if [ "$(GOMODULE)" = "true" ]; then echo "GOMODULE is true, running go mod tidy..."; go mod tidy; fi
 
 update-generated-framework-info:
 	@echo "generating framework info"
@@ -345,6 +344,7 @@ config: init format update-vfs update-generated-file update-plugins
 	@mkdir -p $(OUTPUT_DIR)
 	@cp $(APP_CONFIG) $(OUTPUT_DIR)
 	(cd ../framework/  && make update-plugins) || true # build plugins in framework
+	@if [ "$(GOMODULE)" = "true" ]; then echo "GOMODULE is true, running go mod tidy."; go mod tidy; fi
 
 update-license-header:
 	licensure --in-place -p
