@@ -42,6 +42,7 @@ import (
 func init() {
 	api.HandleAPIFunc("/setting/logger", LoggingSettingAction)
 	api.HandleAPIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
+	api.HandleUIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
 }
 
 // LoggingSettingAction is the ajax request to update logging config
