@@ -28,6 +28,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: use safe special chars #190
 - chore: reduce log with agent #193
 - chore: add util to register http handler #206
+- chore: allow access application settings for ui #209
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
