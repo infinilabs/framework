@@ -77,60 +77,6 @@ func mergeQueries(a, b map[string]interface{}) map[string]interface{} {
 		return a
 	}
 
-	// If both are bool, merge their subclauses
-	ab, aOk := a["bool"].(map[string]interface{})
-	bb, bOk := b["bool"].(map[string]interface{})
-	if aOk && bOk {
-		mergedBool := make(map[string]interface{})
-
-		for _, key := range []string{"must", "should", "must_not", "filter"} {
-			var items []interface{}
-
-			if aList, ok := ab[key].([]interface{}); ok {
-				items = append(items, aList...)
-			}
-			if bList, ok := bb[key].([]interface{}); ok {
-				items = append(items, bList...)
-			}
-
-			if len(items) > 0 {
-				mergedBool[key] = items
-			}
-		}
-
-		// Keep other bool params like "minimum_should_match"
-		for k, v := range ab {
-			if _, known := mergedBool[k]; !known {
-				mergedBool[k] = v
-			}
-		}
-		for k, v := range bb {
-			if _, known := mergedBool[k]; !known {
-				mergedBool[k] = v
-			}
-		}
-
-		return map[string]interface{}{"bool": mergedBool}
-	}
-
-	// If only one is bool, wrap the other into "must"
-	if aOk {
-		return map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must":   []interface{}{b},
-				"filter": ab["filter"],
-			},
-		}
-	}
-	if bOk {
-		return map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must":   []interface{}{a},
-				"filter": bb["filter"],
-			},
-		}
-	}
-
 	// Neither is bool, wrap both into a must
 	return map[string]interface{}{
 		"bool": map[string]interface{}{
@@ -508,6 +454,19 @@ func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
 	case orm.QueryRangeLt:
 		return map[string]interface{}{
 			"range": map[string]interface{}{field: addBoost(map[string]interface{}{"lt": value})},
+		}
+	case orm.QueryQueryString:
+		m := map[string]interface{}{
+			"query":  value,
+			"fields": strings.Split(field, ","),
+		}
+		if params != nil {
+			for k, val := range params.Data {
+				m[k] = val
+			}
+		}
+		return map[string]interface{}{
+			"query_string": m,
 		}
 
 	default:

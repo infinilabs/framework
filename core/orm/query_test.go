@@ -25,10 +25,11 @@ package orm
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"infini.sh/framework/core/util"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/util"
 )
 
 func TestTermQuery(t *testing.T) {
@@ -188,6 +189,16 @@ func TestRangeGtQuery(t *testing.T) {
 func TestRangeLtQuery(t *testing.T) {
 	q := Range("score").Lt(10)
 	assertLeaf(t, q, "score", QueryRangeLt, 10)
+}
+
+func TestQueryStringQuery(t *testing.T) {
+	var (
+		field = "name,description"
+		value = "foo bar"
+		defaultOperator = "OR"
+	)
+	q := QueryStringQuery(field, value, defaultOperator)
+	assertLeaf(t, q, field, QueryQueryString, value)
 }
 
 // Helper: check leaf structure
