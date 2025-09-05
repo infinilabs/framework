@@ -24,8 +24,9 @@
 package elastic
 
 import (
-	"infini.sh/framework/core/util"
 	"time"
+
+	"infini.sh/framework/core/util"
 )
 
 type SearchTemplate struct {
@@ -142,7 +143,7 @@ func BuildSearchTermFilter(filterParam SearchFilterParam) []util.MapStr {
 
 func GetDateHistogramIntervalField(distribution, version string, bucketSize string) (string, error) {
 	if distribution == Easysearch || distribution == Opensearch {
-		return "interval", nil
+		return Interval, nil
 	}
 	cr, err := util.VersionCompare(version, "8.0")
 	if err != nil {
@@ -150,9 +151,16 @@ func GetDateHistogramIntervalField(distribution, version string, bucketSize stri
 	}
 	if cr > -1 {
 		if util.StringInArray([]string{"1w", "week", "1M", "month", "1q", "quarter", "1y", "year"}, bucketSize) {
-			return "calendar_interval", nil
+			return CalendarInterval, nil
 		}
-		return "fixed_interval", nil
+		return FixedInterval, nil
 	}
-	return "interval", nil
+	return Interval, nil
 }
+
+
+const (
+	Interval         string = "interval"
+	CalendarInterval  = "calendar_interval"
+	FixedInterval     = "fixed_interval"
+)

@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"testing"
 
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 )
@@ -235,6 +236,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 			request: map[string]orm.Aggregation{
 				"sales_over_time": (&orm.DateHistogramAggregation{
 					Field:    "sale_date",
+					IntervalField: elastic.CalendarInterval,
 					Interval: "1M",
 					TimeZone: "UTC",
 				}).AddNested("sales_by_region", (&orm.TermsAggregation{
@@ -271,6 +273,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 				"request_over_time": (&orm.DateHistogramAggregation{
 					Field:    "timestamp",
 					Interval: "1M",
+					IntervalField: elastic.CalendarInterval,
 				}).AddNested("response_percentiles", &orm.PercentilesAggregation{
 					Field:    "response_time",
 					Percents: []float64{50, 90, 95},
@@ -298,6 +301,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 			request: map[string]orm.Aggregation{
 				"sales_over_time": (&orm.DateHistogramAggregation{
 					Field:    "sale_date",
+					IntervalField: elastic.CalendarInterval,
 					Interval: "1M",
 				}).AddNested("avg_sale", orm.NewMetricAggregation(orm.MetricAvg, "sale_amount")).AddNested("sales_derivative", &orm.DerivativeAggregation{
 					BucketsPath: "avg_sale",

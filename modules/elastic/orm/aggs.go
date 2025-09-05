@@ -26,6 +26,7 @@ package orm
 import (
 	"fmt"
 
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 )
 
@@ -41,9 +42,10 @@ type ESAggregation struct {
 	NestedAggs    map[string]*ESAggregation   `json:"aggs,omitempty"`
 	Count   *esMetricAggregation        `json:"value_count,omitempty"`
 	Median *esMetricAggregation `json:"median_absolute_deviation,omitempty"`
-	Derivative 	*esDerivativeAggregation    `json:"derivative,omitempty"`
+	Derivative 	*esPipelineAggregation    `json:"derivative,omitempty"`
 	Filter *esFilterAggregation `json:"filter,omitempty"`
 	TopHits map[string]interface{} `json:"top_hits,omitempty"`
+	SumBucket *esPipelineAggregation `json:"sum_bucket,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -63,11 +65,13 @@ type esPercentilesAggregation struct {
 type esDateHistogramAggregation struct {
 	Field            string `json:"field,omitempty"`
 	CalendarInterval string `json:"calendar_interval,omitempty"` // Note the ES-specific field name
+	FixedInterval    string `json:"fixed_interval,omitempty"` // Note the ES-specific field name
+	Interval string `json:"interval,omitempty"` // Deprecated but still supported by ES
 	Format           string `json:"format,omitempty"`
 	TimeZone         string `json:"time_zone,omitempty"`
 }
 
-type esDerivativeAggregation struct {
+type esPipelineAggregation struct {
 	BucketsPath string `json:"buckets_path,omitempty"`
 }
 type esFilterAggregation map[string]interface{}
@@ -138,18 +142,30 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			Percents: v.Percents,
 		}
 	case *orm.DateHistogramAggregation:
+	
 		esAgg.DateHistogram = &esDateHistogramAggregation{
 			Field:            v.Field,
-			CalendarInterval: v.Interval,
 			Format:           v.Format,
 			TimeZone:         v.TimeZone,
 		}
+		switch v.IntervalField {
+		case elastic.CalendarInterval:
+			esAgg.DateHistogram.CalendarInterval = v.Interval
+		case elastic.FixedInterval:
+			esAgg.DateHistogram.FixedInterval = v.Interval
+		default:
+			esAgg.DateHistogram.Interval = v.Interval
+		}
 	case *orm.DerivativeAggregation:
-		esAgg.Derivative = &esDerivativeAggregation{
+		esAgg.Derivative = &esPipelineAggregation{
 			BucketsPath: v.BucketsPath,
 		}
 	case *orm.FilterAggregation:
 		esAgg.Filter = (*esFilterAggregation)(&v.Query)
+	case *orm.PipelineAggregation:
+		esAgg.SumBucket = &esPipelineAggregation{
+			BucketsPath: v.BucketsPath,
+		}
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)
 	}
