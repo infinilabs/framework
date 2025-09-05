@@ -129,6 +129,7 @@ func TestBuild_MultipleTopLevelAggs(t *testing.T) {
 		"sales_by_month": &orm.DateHistogramAggregation{
 			Field:    "order_date",
 			Interval: "1M",
+			IntervalField: elastic.CalendarInterval,
 			TimeZone: "UTC",
 		},
 	}
@@ -350,6 +351,7 @@ func TestBuildAggsWith(t *testing.T) {
   aggs := map[string]orm.Aggregation{
     "sales_over_time": (&orm.DateHistogramAggregation{
       Field:    "sale_date",
+			IntervalField: elastic.CalendarInterval,
       Interval: "1M",
     }).AddNested("sales_by_region", (&orm.TermsAggregation{
       Field: "region.keyword",
