@@ -51,6 +51,7 @@ const (
 	QueryIn          QueryType = "in"
 	QueryNotIn       QueryType = "not_in"
 	QueryMatchPhrase QueryType = "match_phrase"
+	QueryQueryString QueryType = "query_string"
 )
 
 type Clause struct {
@@ -310,6 +311,7 @@ func RegexpQuery(field string, value interface{}) *Clause {
 
 const fuzzyFuzziness = "fuzziness"
 const phraseSlop = "slop"
+const queryStringDefaultOperator = "default_operator"
 
 func FuzzyQuery(field string, value interface{}, fuzziness int) *Clause {
 	param := param.Parameters{}
@@ -333,6 +335,12 @@ func MatchPhraseQuery(field, value string, slop int) *Clause {
 	param := param.Parameters{}
 	param.Set(phraseSlop, slop)
 	return newLeaf(field, QueryMatchPhrase, value, &param)
+}
+
+func QueryStringQuery(field string, value string, defaultOperator string) *Clause {
+	param := param.Parameters{}
+	param.Set(queryStringDefaultOperator, defaultOperator)
+	return newLeaf(field, QueryQueryString, value, &param)
 }
 
 type RangeQueryBuilder struct {

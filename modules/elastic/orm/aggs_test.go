@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"testing"
 
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 )
@@ -128,6 +129,7 @@ func TestBuild_MultipleTopLevelAggs(t *testing.T) {
 		"sales_by_month": &orm.DateHistogramAggregation{
 			Field:    "order_date",
 			Interval: "1M",
+			IntervalField: elastic.CalendarInterval,
 			TimeZone: "UTC",
 		},
 	}
@@ -235,6 +237,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 			request: map[string]orm.Aggregation{
 				"sales_over_time": (&orm.DateHistogramAggregation{
 					Field:    "sale_date",
+					IntervalField: elastic.CalendarInterval,
 					Interval: "1M",
 					TimeZone: "UTC",
 				}).AddNested("sales_by_region", (&orm.TermsAggregation{
@@ -271,6 +274,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 				"request_over_time": (&orm.DateHistogramAggregation{
 					Field:    "timestamp",
 					Interval: "1M",
+					IntervalField: elastic.CalendarInterval,
 				}).AddNested("response_percentiles", &orm.PercentilesAggregation{
 					Field:    "response_time",
 					Percents: []float64{50, 90, 95},
@@ -298,6 +302,7 @@ func TestBuild_ComplexAggregation(t *testing.T) {
 			request: map[string]orm.Aggregation{
 				"sales_over_time": (&orm.DateHistogramAggregation{
 					Field:    "sale_date",
+					IntervalField: elastic.CalendarInterval,
 					Interval: "1M",
 				}).AddNested("avg_sale", orm.NewMetricAggregation(orm.MetricAvg, "sale_amount")).AddNested("sales_derivative", &orm.DerivativeAggregation{
 					BucketsPath: "avg_sale",
@@ -346,6 +351,7 @@ func TestBuildAggsWith(t *testing.T) {
   aggs := map[string]orm.Aggregation{
     "sales_over_time": (&orm.DateHistogramAggregation{
       Field:    "sale_date",
+			IntervalField: elastic.CalendarInterval,
       Interval: "1M",
     }).AddNested("sales_by_region", (&orm.TermsAggregation{
       Field: "region.keyword",
@@ -426,3 +432,46 @@ func TestParseTopHitsAggregation(t *testing.T) {
 	}`
 	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
 } 
+
+func TestParseDateRangeAggregation(t *testing.T) {
+	builder := NewAggreationBuilder()
+	dateRangeAgg := &orm.DateRangeAggregation{
+		Field:  "timestamp",
+		Format: "yyyy-MM-dd",
+		TimeZone: "UTC",
+		Ranges: []interface{}{
+			map[string]interface{}{"to": "2006-01-01"},
+			map[string]interface{}{"from": "2006-01-01", "to": "2010-02-01"},
+			map[string]interface{}{"from": "2010-02-01"},
+		},
+	}
+	aggs := map[string]orm.Aggregation{
+		"price_ranges": dateRangeAgg.AddNested("total_sales", orm.NewMetricAggregation(orm.MetricSum, "amount")),
+	}
+	result, err := builder.Build(aggs)
+	if err != nil {
+		t.Fatalf("Build() returned an unexpected error: %v", err)
+	}
+	expected := `{
+		"price_ranges": {
+			"date_range": {
+				"field": "timestamp",
+				"format": "yyyy-MM-dd",
+				"time_zone": "UTC",
+				"ranges": [
+					{"to": "2006-01-01"},
+					{"from": "2006-01-01", "to": "2010-02-01"},
+					{"from": "2010-02-01"}
+				]
+			},
+			"aggs": {
+				"total_sales": {
+					"sum": {
+						"field": "amount"
+					}
+				}
+			}
+		}
+	}`
+	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
+}

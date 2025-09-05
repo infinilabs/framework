@@ -26,13 +26,14 @@ package orm
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"maps"
-	"reflect"
-	"testing"
 )
 
 func TestToDSL_SimpleMatch1(t *testing.T) {
@@ -404,6 +405,28 @@ func TestToDSL_RangeGteLte(t *testing.T) {
 
 	r2 := mustClauses[1].(map[string]interface{})["range"].(map[string]interface{})["price"].(map[string]interface{})
 	assert.Equal(t, int(500), r2["lte"])
+}
+
+func TestToDSL_QueryStringQuery(t *testing.T) {
+	q := orm.NewQuery().Must(orm.QueryStringQuery("name,description", "hello world", "OR"))
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+  "query": {
+    "query_string": {
+      "fields": [
+        "name",
+        "description"
+      ],
+      "query": "hello world",
+			"default_operator": "OR"
+    }
+  }
+}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
 }
 
 func TestFlattenBoolClauses_ShouldInsideShould(t *testing.T) {
@@ -1288,21 +1311,36 @@ func TestBuildQueryDSLOnTopOfDSL_MergeFilter(t *testing.T) {
 	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
 	printDSL(dsl)
 
-	query := dsl["query"].(map[string]interface{})["bool"].(map[string]interface{})
-	filter := query["filter"].([]interface{})
-	must := query["must"].([]interface{})
-
-	// Check merged query
-	assert.Len(t, filter, 1)
-	assert.Contains(t, filter[0], "exists")
-
-	assert.Len(t, must, 1)
-	assert.Contains(t, must[0], "match")
+	expectedQuery := `{"bool":{"must":[{"match":{"title":"rust"}},{"bool":{"filter":[{"exists":{"field":"created_at"}}]}}]}}`
+	got := util.MustToJSON(dsl["query"])
+	assert.Equal(t, expectedQuery, string(got))
 
 	// Check merged fields
 	assert.Equal(t, 5, int(dsl["from"].(int)))
 	assert.Equal(t, 20, int(dsl["size"].(int)))
 	assert.Equal(t, true, dsl["track_total_hits"].(bool))
+}
+
+func TestBuildQueryDSLOnTopOfDSL_MergeBoolAndTermQuery(t *testing.T) {
+	// Original body with a match query
+	reqBody := []byte(`{
+		"query": {
+			"bool": {
+				"must": [
+					{ "term": { "title": "rust" } }
+				]
+			}
+		}
+	}`)
+
+	q := orm.NewQuery().Must(
+		orm.TermQuery("status", "published"),
+	).Size(20).From(5)
+
+	expected := `{"from":5,"query":{"bool":{"must":[{"bool":{"must":[{"term":{"title":"rust"}}]}},{"term":{"status":{"value":"published"}}}]}},"size":20}`
+	dsl := BuildQueryDSLOnTopOfDSL(q, reqBody)
+
+	assert.Equal(t, expected, util.MustToJSON(dsl))
 }
 
 func TestBuildQueryDSLOnTopOfDSL_NoBodyQuery(t *testing.T) {
