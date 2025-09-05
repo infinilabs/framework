@@ -46,6 +46,7 @@ type ESAggregation struct {
 	Filter *esFilterAggregation `json:"filter,omitempty"`
 	TopHits map[string]interface{} `json:"top_hits,omitempty"`
 	SumBucket *esPipelineAggregation `json:"sum_bucket,omitempty"`
+	DateRange *esDateRangeAggregation `json:"date_range,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -75,6 +76,11 @@ type esPipelineAggregation struct {
 	BucketsPath string `json:"buckets_path,omitempty"`
 }
 type esFilterAggregation map[string]interface{}
+type esDateRangeAggregation struct {
+	Field  string        `json:"field,omitempty"`
+	Format string        `json:"format,omitempty"`
+	Ranges []interface{} `json:"ranges,omitempty"`
+}
 
 // AggreationBuilder is responsible for compiling an abstract aggreation Request into an ES query.
 type AggreationBuilder struct{}
@@ -165,6 +171,12 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 	case *orm.PipelineAggregation:
 		esAgg.SumBucket = &esPipelineAggregation{
 			BucketsPath: v.BucketsPath,
+		}
+	case *orm.DateRangeAggregation:
+		esAgg.DateRange = &esDateRangeAggregation{
+			Field:  v.Field,
+			Format: v.Format,
+			Ranges: v.Ranges,
 		}
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)

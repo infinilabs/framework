@@ -51,6 +51,7 @@ const (
 	MetricBucketTerms         = "terms"
 	MetricBucketDateHistogram = "date_histogram"
 	MetricBucketFilter      = "filter"
+	MetricDateRange = "date_range"
 	// Pipeline types
 	MetricPipelineDerivative = "derivative"
 	MetricSumBucket = "sum_bucket"
@@ -198,6 +199,18 @@ type FilterAggregation struct {
 }
 // AddNested provides a correctly typed chained call for FilterAggregation.
 func (a *FilterAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+type DateRangeAggregation struct {
+	baseAggregation
+	Field string `json:"field"`
+	Format string `json:"format,omitempty"`
+	Ranges []interface{} `json:"ranges"`
+}
+// AddNested provides a correctly typed chained call for DateRangeAggregation.
+func (a *DateRangeAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)
 	return a
 }

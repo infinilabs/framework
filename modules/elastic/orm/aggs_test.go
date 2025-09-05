@@ -432,3 +432,44 @@ func TestParseTopHitsAggregation(t *testing.T) {
 	}`
 	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
 } 
+
+func TestParseDateRangeAggregation(t *testing.T) {
+	builder := NewAggreationBuilder()
+	dateRangeAgg := &orm.DateRangeAggregation{
+		Field:  "timestamp",
+		Format: "yyyy-MM-dd",
+		Ranges: []interface{}{
+			map[string]interface{}{"to": "2006-01-01"},
+			map[string]interface{}{"from": "2006-01-01", "to": "2010-02-01"},
+			map[string]interface{}{"from": "2010-02-01"},
+		},
+	}
+	aggs := map[string]orm.Aggregation{
+		"price_ranges": dateRangeAgg.AddNested("total_sales", orm.NewMetricAggregation(orm.MetricSum, "amount")),
+	}
+	result, err := builder.Build(aggs)
+	if err != nil {
+		t.Fatalf("Build() returned an unexpected error: %v", err)
+	}
+	expected := `{
+		"price_ranges": {
+			"date_range": {
+				"field": "timestamp",
+				"format": "yyyy-MM-dd",
+				"ranges": [
+					{"to": "2006-01-01"},
+					{"from": "2006-01-01", "to": "2010-02-01"},
+					{"from": "2010-02-01"}
+				]
+			},
+			"aggs": {
+				"total_sales": {
+					"sum": {
+						"field": "amount"
+					}
+				}
+			}
+		}
+	}`
+	assertJSONEquals(t, util.MustToJSONBytes(result), expected)
+}
