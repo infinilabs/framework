@@ -206,6 +206,7 @@ func (a *FilterAggregation) AddNested(name string, sub Aggregation) Aggregation 
 type DateRangeAggregation struct {
 	baseAggregation
 	Field string `json:"field"`
+	TimeZone string `json:"time_zone,omitempty"`
 	Format string `json:"format,omitempty"`
 	Ranges []interface{} `json:"ranges"`
 }

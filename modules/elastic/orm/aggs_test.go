@@ -438,6 +438,7 @@ func TestParseDateRangeAggregation(t *testing.T) {
 	dateRangeAgg := &orm.DateRangeAggregation{
 		Field:  "timestamp",
 		Format: "yyyy-MM-dd",
+		TimeZone: "UTC",
 		Ranges: []interface{}{
 			map[string]interface{}{"to": "2006-01-01"},
 			map[string]interface{}{"from": "2006-01-01", "to": "2010-02-01"},
@@ -456,6 +457,7 @@ func TestParseDateRangeAggregation(t *testing.T) {
 			"date_range": {
 				"field": "timestamp",
 				"format": "yyyy-MM-dd",
+				"time_zone": "UTC",
 				"ranges": [
 					{"to": "2006-01-01"},
 					{"from": "2006-01-01", "to": "2010-02-01"},

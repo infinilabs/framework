@@ -80,6 +80,7 @@ type esDateRangeAggregation struct {
 	Field  string        `json:"field,omitempty"`
 	Format string        `json:"format,omitempty"`
 	Ranges []interface{} `json:"ranges,omitempty"`
+	TimeZone string        `json:"time_zone,omitempty"`
 }
 
 // AggreationBuilder is responsible for compiling an abstract aggreation Request into an ES query.
@@ -177,6 +178,7 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			Field:  v.Field,
 			Format: v.Format,
 			Ranges: v.Ranges,
+			TimeZone: v.TimeZone,
 		}
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)
