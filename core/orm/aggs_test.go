@@ -33,7 +33,7 @@ func TestTermsAggregation(t *testing.T) {
 	// Create a terms aggregation
 	termsAgg := TermsAggregation{
 		Field: "field1",
-		Size: 10,
+		Size:  10,
 	}
 	termsAgg.AddNested("count_values", NewMetricAggregation(MetricCount, "field2")).AddNested("max_value", NewMetricAggregation(MetricMax, "field2"))
 	assert.Equal(t, 2, len(termsAgg.GetNested()), "Expected one nested aggregation")
@@ -55,13 +55,13 @@ func TestDateHistogramAggregation(t *testing.T) {
 func TestAggregationWithParams(t *testing.T) {
 	termsAgg := TermsAggregation{
 		Field: "field1",
-		Size: 10,
+		Size:  10,
 	}
 	params := map[string]interface{}{
-			"order": map[string]string{
-				"_count": "desc",
-			},
-		}
+		"order": map[string]string{
+			"_count": "desc",
+		},
+	}
 	termsAgg.SetParams(params)
 	assert.Equal(t, "desc", termsAgg.Params["order"].(map[string]string)["_count"], "Expected order param to be set")
 }

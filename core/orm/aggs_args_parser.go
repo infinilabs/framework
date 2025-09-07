@@ -14,7 +14,6 @@ import (
 // keyPartRegex is used to parse keys like "agg[key1][key2]" into parts: "agg", "key1", "key2".
 var keyPartRegex = regexp.MustCompile(`^([^\[\]]+)|\[([^\[\]]*)\]`)
 
-
 // ParseAggregationsFromQuery takes URL query values and converts them into a map of abstract aggregations.
 func ParseAggregationsFromQuery(values url.Values) (map[string]Aggregation, error) {
 	// Step 1: Convert flat URL params into a nested map.
@@ -47,7 +46,7 @@ func parseToNestedMap(values url.Values) (map[string]interface{}, error) {
 			} else {
 				part = match[2]
 			}
-			
+
 			decodedPart, err := url.QueryUnescape(part)
 			if err != nil {
 				// Fallback to the raw part if decoding fails
@@ -55,7 +54,7 @@ func parseToNestedMap(values url.Values) (map[string]interface{}, error) {
 			}
 			parts = append(parts, decodedPart)
 		}
-		
+
 		if len(parts) == 0 || parts[0] != "agg" {
 			continue // Malformed key, skip.
 		}
@@ -115,7 +114,7 @@ func stringToNumberHook() mapstructure.DecodeHookFunc {
 		if !isNumeric {
 			return data, nil
 		}
-		
+
 		str := data.(string)
 
 		// Try to parse as integer first.

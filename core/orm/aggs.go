@@ -38,23 +38,23 @@ type Aggregation interface {
 
 const (
 	// Metric types
-	MetricAvg        = "avg"
-	MetricSum        = "sum"
-	MetricMin        = "min"
-	MetricMax        = "max"
-	MetricCount      = "count"
+	MetricAvg         = "avg"
+	MetricSum         = "sum"
+	MetricMin         = "min"
+	MetricMax         = "max"
+	MetricCount       = "count"
 	MetricPercentiles = "percentiles"
-	MetricTopHits    = "top_hits"
+	MetricTopHits     = "top_hits"
 	MetricCardinality = "cardinality"
-	MetricMedian = "median_absolute_deviation"
+	MetricMedian      = "median_absolute_deviation"
 	// Bucket types
 	MetricBucketTerms         = "terms"
 	MetricBucketDateHistogram = "date_histogram"
-	MetricBucketFilter      = "filter"
-	MetricDateRange = "date_range"
+	MetricBucketFilter        = "filter"
+	MetricDateRange           = "date_range"
 	// Pipeline types
 	MetricPipelineDerivative = "derivative"
-	MetricSumBucket = "sum_bucket"
+	MetricSumBucket          = "sum_bucket"
 )
 
 // baseAggregation provides common functionality for all aggregation types,
@@ -63,7 +63,7 @@ type baseAggregation struct {
 	// NestedAggs holds any sub-aggregations.
 	NestedAggs map[string]Aggregation `json:"-"`
 	// Params can hold additional parameters specific to certain aggregation types.
-	Params 	 map[string]interface{} `json:"-"`
+	Params map[string]interface{} `json:"-"`
 }
 
 // AddNested adds a sub-aggregation to the base aggregation.
@@ -107,9 +107,9 @@ func (a *TermsAggregation) AddNested(name string, sub Aggregation) Aggregation {
 
 // MetricAggregation represents a single-value metric calculation (avg, sum, etc.).
 type MetricAggregation struct {
-	baseAggregation // Although metrics rarely have sub-aggs in ES, the model allows it.
-	Type  string `mapstructure:"-"` // Type of metric: "avg", "sum", etc. Not part of the decoded structure.
-	Field string
+	baseAggregation        // Although metrics rarely have sub-aggs in ES, the model allows it.
+	Type            string `mapstructure:"-"` // Type of metric: "avg", "sum", etc. Not part of the decoded structure.
+	Field           string
 }
 
 // NewMetricAggregation creates a new MetricAggregation of the specified type and field.
@@ -132,10 +132,11 @@ type PipelineAggregation struct {
 	Type        string `mapstructure:"-"` // Type of pipeline: "derivative", "sum_bucket", etc. Not part of the decoded structure.
 	BucketsPath string
 }
+
 // NewPipelineAggregation creates a new PipelineAggregation of the specified type and buckets path.
-func NewPipelineAggregation(pipelineType, bucketsPath string)  *PipelineAggregation {
+func NewPipelineAggregation(pipelineType, bucketsPath string) *PipelineAggregation {
 	switch pipelineType {
-	case  MetricSumBucket:
+	case MetricSumBucket:
 		// Valid pipeline types
 	default:
 		panic("invalid pipeline type: " + pipelineType)
@@ -155,10 +156,10 @@ func (a *MetricAggregation) AddNested(name string, sub Aggregation) Aggregation 
 // DateHistogramAggregation represents bucketing documents by a date/time interval.
 type DateHistogramAggregation struct {
 	baseAggregation
-	Field    string
-	Interval string // A generic interval string like "1d", "1M", "1h".
-	Format   string
-	TimeZone string
+	Field         string
+	Interval      string // A generic interval string like "1d", "1M", "1h".
+	Format        string
+	TimeZone      string
 	IntervalField string // es-specific field name for backward compatibility
 }
 
@@ -197,6 +198,7 @@ type FilterAggregation struct {
 	// Query holds the filter criteria for this aggregation.
 	Query map[string]interface{} `json:"query"`
 }
+
 // AddNested provides a correctly typed chained call for FilterAggregation.
 func (a *FilterAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)
@@ -205,11 +207,12 @@ func (a *FilterAggregation) AddNested(name string, sub Aggregation) Aggregation 
 
 type DateRangeAggregation struct {
 	baseAggregation
-	Field string `json:"field"`
-	TimeZone string `json:"time_zone,omitempty"`
-	Format string `json:"format,omitempty"`
-	Ranges []interface{} `json:"ranges"`
+	Field    string        `json:"field"`
+	TimeZone string        `json:"time_zone,omitempty"`
+	Format   string        `json:"format,omitempty"`
+	Ranges   []interface{} `json:"ranges"`
 }
+
 // AddNested provides a correctly typed chained call for DateRangeAggregation.
 func (a *DateRangeAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)

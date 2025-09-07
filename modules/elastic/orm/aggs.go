@@ -40,13 +40,13 @@ type ESAggregation struct {
 	Cardinality   *esMetricAggregation        `json:"cardinality,omitempty"`
 	Percentiles   *esPercentilesAggregation   `json:"percentiles,omitempty"`
 	NestedAggs    map[string]*ESAggregation   `json:"aggs,omitempty"`
-	Count   *esMetricAggregation        `json:"value_count,omitempty"`
-	Median *esMetricAggregation `json:"median_absolute_deviation,omitempty"`
-	Derivative 	*esPipelineAggregation    `json:"derivative,omitempty"`
-	Filter *esFilterAggregation `json:"filter,omitempty"`
-	TopHits map[string]interface{} `json:"top_hits,omitempty"`
-	SumBucket *esPipelineAggregation `json:"sum_bucket,omitempty"`
-	DateRange *esDateRangeAggregation `json:"date_range,omitempty"`
+	Count         *esMetricAggregation        `json:"value_count,omitempty"`
+	Median        *esMetricAggregation        `json:"median_absolute_deviation,omitempty"`
+	Derivative    *esPipelineAggregation      `json:"derivative,omitempty"`
+	Filter        *esFilterAggregation        `json:"filter,omitempty"`
+	TopHits       map[string]interface{}      `json:"top_hits,omitempty"`
+	SumBucket     *esPipelineAggregation      `json:"sum_bucket,omitempty"`
+	DateRange     *esDateRangeAggregation     `json:"date_range,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -66,8 +66,8 @@ type esPercentilesAggregation struct {
 type esDateHistogramAggregation struct {
 	Field            string `json:"field,omitempty"`
 	CalendarInterval string `json:"calendar_interval,omitempty"` // Note the ES-specific field name
-	FixedInterval    string `json:"fixed_interval,omitempty"` // Note the ES-specific field name
-	Interval string `json:"interval,omitempty"` // Deprecated but still supported by ES
+	FixedInterval    string `json:"fixed_interval,omitempty"`    // Note the ES-specific field name
+	Interval         string `json:"interval,omitempty"`          // Deprecated but still supported by ES
 	Format           string `json:"format,omitempty"`
 	TimeZone         string `json:"time_zone,omitempty"`
 }
@@ -77,9 +77,9 @@ type esPipelineAggregation struct {
 }
 type esFilterAggregation map[string]interface{}
 type esDateRangeAggregation struct {
-	Field  string        `json:"field,omitempty"`
-	Format string        `json:"format,omitempty"`
-	Ranges []interface{} `json:"ranges,omitempty"`
+	Field    string        `json:"field,omitempty"`
+	Format   string        `json:"format,omitempty"`
+	Ranges   []interface{} `json:"ranges,omitempty"`
 	TimeZone string        `json:"time_zone,omitempty"`
 }
 
@@ -149,11 +149,11 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			Percents: v.Percents,
 		}
 	case *orm.DateHistogramAggregation:
-	
+
 		esAgg.DateHistogram = &esDateHistogramAggregation{
-			Field:            v.Field,
-			Format:           v.Format,
-			TimeZone:         v.TimeZone,
+			Field:    v.Field,
+			Format:   v.Format,
+			TimeZone: v.TimeZone,
 		}
 		switch v.IntervalField {
 		case elastic.CalendarInterval:
@@ -175,9 +175,9 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 		}
 	case *orm.DateRangeAggregation:
 		esAgg.DateRange = &esDateRangeAggregation{
-			Field:  v.Field,
-			Format: v.Format,
-			Ranges: v.Ranges,
+			Field:    v.Field,
+			Format:   v.Format,
+			Ranges:   v.Ranges,
 			TimeZone: v.TimeZone,
 		}
 	default:

@@ -158,9 +158,8 @@ func GetDateHistogramIntervalField(distribution, version string, bucketSize stri
 	return Interval, nil
 }
 
-
 const (
 	Interval         string = "interval"
-	CalendarInterval  = "calendar_interval"
-	FixedInterval     = "fixed_interval"
+	CalendarInterval        = "calendar_interval"
+	FixedInterval           = "fixed_interval"
 )

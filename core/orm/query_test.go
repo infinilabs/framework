@@ -193,8 +193,8 @@ func TestRangeLtQuery(t *testing.T) {
 
 func TestQueryStringQuery(t *testing.T) {
 	var (
-		field = "name,description"
-		value = "foo bar"
+		field           = "name,description"
+		value           = "foo bar"
 		defaultOperator = "OR"
 	)
 	q := QueryStringQuery(field, value, defaultOperator)

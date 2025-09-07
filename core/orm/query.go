@@ -114,7 +114,7 @@ type QueryBuilder struct {
 	filters []*Clause
 
 	requestBodyBytes []byte
-	Aggs map[string]Aggregation
+	Aggs             map[string]Aggregation
 }
 
 func NewQuery() *QueryBuilder {
@@ -126,6 +126,7 @@ func NewQuery() *QueryBuilder {
 func (q *QueryBuilder) SetRequestBodyBytes(bytes []byte) {
 	q.requestBodyBytes = bytes
 }
+
 // SetAggregations sets the aggregations for the query builder.
 func (q *QueryBuilder) SetAggregations(aggs map[string]Aggregation) {
 	q.Aggs = aggs
@@ -339,7 +340,9 @@ func MatchPhraseQuery(field, value string, slop int) *Clause {
 
 func QueryStringQuery(field string, value string, defaultOperator string) *Clause {
 	param := param.Parameters{}
-	param.Set(queryStringDefaultOperator, defaultOperator)
+	if defaultOperator != "" {
+		param.Set(queryStringDefaultOperator, defaultOperator)
+	}
 	return newLeaf(field, QueryQueryString, value, &param)
 }
 
