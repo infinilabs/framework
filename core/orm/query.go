@@ -51,6 +51,7 @@ const (
 	QueryIn          QueryType = "in"
 	QueryNotIn       QueryType = "not_in"
 	QueryMatchPhrase QueryType = "match_phrase"
+	QueryQueryString QueryType = "query_string"
 )
 
 type Clause struct {
@@ -113,7 +114,7 @@ type QueryBuilder struct {
 	filters []*Clause
 
 	requestBodyBytes []byte
-	Aggs map[string]Aggregation
+	Aggs             map[string]Aggregation
 }
 
 func NewQuery() *QueryBuilder {
@@ -125,6 +126,7 @@ func NewQuery() *QueryBuilder {
 func (q *QueryBuilder) SetRequestBodyBytes(bytes []byte) {
 	q.requestBodyBytes = bytes
 }
+
 // SetAggregations sets the aggregations for the query builder.
 func (q *QueryBuilder) SetAggregations(aggs map[string]Aggregation) {
 	q.Aggs = aggs
@@ -310,6 +312,7 @@ func RegexpQuery(field string, value interface{}) *Clause {
 
 const fuzzyFuzziness = "fuzziness"
 const phraseSlop = "slop"
+const queryStringDefaultOperator = "default_operator"
 
 func FuzzyQuery(field string, value interface{}, fuzziness int) *Clause {
 	param := param.Parameters{}
@@ -333,6 +336,14 @@ func MatchPhraseQuery(field, value string, slop int) *Clause {
 	param := param.Parameters{}
 	param.Set(phraseSlop, slop)
 	return newLeaf(field, QueryMatchPhrase, value, &param)
+}
+
+func QueryStringQuery(field string, value string, defaultOperator string) *Clause {
+	param := param.Parameters{}
+	if defaultOperator != "" {
+		param.Set(queryStringDefaultOperator, defaultOperator)
+	}
+	return newLeaf(field, QueryQueryString, value, &param)
 }
 
 type RangeQueryBuilder struct {

@@ -10,7 +10,7 @@ func TestParseAggregationsFromQuery_SingleTerms(t *testing.T) {
 	// Arrange
 	rawURL := "http://example.com?agg[types][terms][field]=product.keyword&agg[types][terms][size]=5"
 	parsedURL, _ := url.Parse(rawURL)
-	
+
 	// Expected abstract structure
 	expected := map[string]Aggregation{
 		"types": &TermsAggregation{

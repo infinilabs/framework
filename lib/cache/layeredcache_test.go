@@ -225,8 +225,8 @@ func Test_LayeredCache_RemovesOldestItemWhenFull(t *testing.T) {
 }
 
 func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
-	// On a busy system or during a slow run, the cleanup might take longer. 
-	// When this happens, the test continues 
+	// On a busy system or during a slow run, the cleanup might take longer.
+	// When this happens, the test continues
 	// and runs its assertions (e.g., assert.Equal(t, cache.GetDropped(), 2))
 	// before the cache has actually been pruned, causing the test to fail.
 	if os.Getenv("CI") == "true" {
