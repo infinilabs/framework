@@ -28,6 +28,7 @@
 package api
 
 import (
+	"bytes"
 	"github.com/jmoiron/jsonq"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/errors"
@@ -345,6 +346,10 @@ func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 	if len(content) == 0 {
 		return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
 	}
+
+	// Replace r.Body so it can be read again later
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
+
 	return content, nil
 }
 
