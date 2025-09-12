@@ -358,8 +358,6 @@ func (handler *ElasticORM) DeleteByQuery(ctx *api.Context, qb *api.QueryBuilder)
 		return nil, errors.New("failed to build query DSL")
 	}
 
-	log.Error(util.MustToJSON(dsl))
-
 	// Execute delete-by-query
 	resp, err := handler.Client.DeleteByQuery(indexName, util.MustToJSONBytes(dsl))
 	if err != nil {
