@@ -140,6 +140,7 @@ type API interface {
 	GetRemoteInfo() ([]byte, error)
 	Flush(indexName string) ([]byte, error)
 	ClusterAllocationExplain(ctx context.Context, body []byte, params url.Values) ([]byte, error)
+	CatAllocation(ctx context.Context) ([]CatAllocationResponse, error)
 }
 
 type TemplateAPI interface {
