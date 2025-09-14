@@ -24,9 +24,10 @@
 package elastic
 
 import (
-	"infini.sh/framework/core/model"
 	"sync"
 	"time"
+
+	"infini.sh/framework/core/model"
 
 	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/orm"
@@ -661,4 +662,16 @@ type LocalNodeInfo struct {
 type DiscoveryResult struct {
 	Nodes          map[string]*LocalNodeInfo `json:"nodes,omitempty,nocopy"`
 	UnknownProcess []model.ProcessInfo       `json:"unknown_process,omitempty,nocopy"`
+}
+
+type CatAllocationResponse struct {
+	Shards 			string `json:"shards"`
+	DiskIndices 	string `json:"disk.indices"`
+	DiskUsed 		string `json:"disk.used"`
+	DiskAvail 		string `json:"disk.avail"`
+	DiskTotal 		string `json:"disk.total"`
+	DiskPercent 	string `json:"disk.percent"`
+	Host 			string `json:"host"`
+	Ip 				string `json:"ip"`
+	Node 			string `json:"node"`
 }

@@ -2028,3 +2028,20 @@ func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, par
 	}
 	return resp.Body, nil
 }
+
+func (c *ESAPIV0) CatAllocation(ctx context.Context) ([]elastic.CatAllocationResponse, error) {
+	url := fmt.Sprintf("%s/_cat/allocation?format=json", c.GetEndpoint())
+	resp, err := c.Request(ctx, util.Verb_GET, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(string(resp.Body))
+	}
+	data := []elastic.CatAllocationResponse{}
+	err = json.Unmarshal(resp.Body, &data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
