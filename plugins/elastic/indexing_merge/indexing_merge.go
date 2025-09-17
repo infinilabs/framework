@@ -78,6 +78,7 @@ type Config struct {
 
 	IndexName string `config:"index_name"`
 	TypeName  string `config:"type_name"`
+	WriteOpType string `config:"write_op_type"` //create, index, update
 
 	KeyField string `config:"key_field"` //the field name used as document's primary key aka `_id
 
@@ -272,11 +273,16 @@ READ_DOCS:
 				}
 				id_part = fmt.Sprintf(", \"_id\":\"%v\"", v)
 			}
+			// default to index
+			writeOpType := "index"
+			if processor.config.WriteOpType != "" {
+				writeOpType = processor.config.WriteOpType
+			}
 
 			if processor.config.TypeName != "" {
-				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" %v } }\n", processor.config.IndexName, processor.config.TypeName, id_part))
+				docBuf.WriteString(fmt.Sprintf("{ \"%s\" : { \"_index\" : \"%s\", \"_type\" : \"%s\" %v } }\n", writeOpType, processor.config.IndexName, processor.config.TypeName, id_part))
 			} else {
-				docBuf.WriteString(fmt.Sprintf("{ \"index\" : { \"_index\" : \"%s\"  %v } }\n", processor.config.IndexName, id_part))
+				docBuf.WriteString(fmt.Sprintf("{ \"%s\" : { \"_index\" : \"%s\"  %v } }\n", writeOpType, processor.config.IndexName, id_part))
 			}
 
 			util.WalkBytesAndReplace(pop, util.NEWLINE, util.SPACE)
