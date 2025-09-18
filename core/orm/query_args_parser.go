@@ -17,6 +17,11 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		}
 	}
 
+	//set default fuzziness
+	if builder.fuzziness < 0 {
+		builder.fuzziness = 3
+	}
+
 	if defaultOp := q.Get("default_operator"); defaultOp != "" {
 		builder.defaultOperator = defaultOp
 	}

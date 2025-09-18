@@ -76,8 +76,8 @@ type Config struct {
 	BulkSizeInKB         int `config:"bulk_size_in_kb"`
 	BulkSizeInMB         int `config:"bulk_size_in_mb"`
 
-	IndexName string `config:"index_name"`
-	TypeName  string `config:"type_name"`
+	IndexName   string `config:"index_name"`
+	TypeName    string `config:"type_name"`
 	WriteOpType string `config:"write_op_type"` //create, index, update
 
 	KeyField string `config:"key_field"` //the field name used as document's primary key aka `_id
