@@ -336,7 +336,7 @@ func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 }
 
 func ReadBody(r *http.Request) ([]byte, error) {
-	if r.Body != nil {
+	if r.ContentLength > 0 && r.Body != nil {
 		content, err := ioutil.ReadAll(r.Body)
 		_ = r.Body.Close()
 		if err != nil {
