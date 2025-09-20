@@ -24,19 +24,30 @@
 package orm
 
 import (
-	"strings"
-
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	"strings"
 )
 
 func BuildQueryDSLOnTopOfDSL(q *orm.QueryBuilder, reqBody []byte) map[string]interface{} {
+	final := make(map[string]interface{})
+
 	var body map[string]interface{}
+
+	////TODO verify the Query DSL
+	//searchRequest := elastic.SearchRequest{}
+	//if  len(reqBody) > 0 {
+	//	err := util.FromJSONBytes(reqBody, &searchRequest)
+	//	if err != nil {
+	//		panic(errors.Errorf("invalid query dsl"))
+	//	}
+	//}else{
+	//	return final
+	//}
+
 	if err := util.FromJSONBytes(reqBody, &body); err != nil {
 		body = make(map[string]interface{})
 	}
-
-	final := make(map[string]interface{})
 
 	// Extract or initialize the query from body
 	var bodyQuery map[string]interface{}

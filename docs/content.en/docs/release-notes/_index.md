@@ -34,6 +34,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: reduce log with agent #193
 - chore: add util to register http handler #206
 - chore: allow access application settings for ui #209
+- refactor: refactoring query string parser #216
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
