@@ -335,9 +335,7 @@ func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 	return json.Unmarshal(content, o)
 }
 
-// GetRawBody return raw http request body
-func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
-
+func ReadBody(r *http.Request) ([]byte, error) {
 	content, err := ioutil.ReadAll(r.Body)
 	_ = r.Body.Close()
 	if err != nil {
@@ -351,6 +349,11 @@ func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
 
 	return content, nil
+}
+
+// GetRawBody return raw http request body
+func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
+	return ReadBody(r)
 }
 
 // Write response to client
