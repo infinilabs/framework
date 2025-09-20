@@ -336,19 +336,22 @@ func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 }
 
 func ReadBody(r *http.Request) ([]byte, error) {
-	content, err := ioutil.ReadAll(r.Body)
-	_ = r.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	if len(content) == 0 {
-		return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
-	}
+	if r.Body != nil {
+		content, err := ioutil.ReadAll(r.Body)
+		_ = r.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		if len(content) == 0 {
+			return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
+		}
 
-	// Replace r.Body so it can be read again later
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
+		// Replace r.Body so it can be read again later
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
 
-	return content, nil
+		return content, nil
+	}
+	return nil, errors.Error("request body is nil")
 }
 
 // GetRawBody return raw http request body
