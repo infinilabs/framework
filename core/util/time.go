@@ -146,6 +146,18 @@ func FromUnixTimestampInMicro(unix int64) time.Time {
 	return time.UnixMicro(unix)
 }
 
+func ParseTimeWithLocalTZ(str string) time.Time {
+	localLoc, err := time.LoadLocation("Local")
+	if err != nil {
+		panic(errors.New(`Failed to load location "Local"`))
+	}
+	v, err := time.ParseInLocation("2006-01-02 15:04:05", str, localLoc)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func FormatTimeWithLocalTZ(date time.Time) string {
 	localLoc, err := time.LoadLocation("Local")
 	if err != nil {

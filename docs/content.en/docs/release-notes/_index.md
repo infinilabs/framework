@@ -18,6 +18,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: allow to read http request body multi-times #212
 - feat: add support for Elasticsearch cat allocation API
 - feat: support custom write operation type for indexing_merge processor
+- feat: add util to parse time with local timezone #217
 
 ### 🐛 Bug fix  
 - fix: localhost/127.0.0.1 with noproxy #185
