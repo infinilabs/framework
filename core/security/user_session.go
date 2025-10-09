@@ -60,9 +60,6 @@ type UserSessionInfo struct {
 	//unified permissions
 	*UserAssignedPermission
 
-	////user's profile
-	//Profile *UserProfile
-
 	//SessionExpireAt *time.Time `json:"session_expire_at,omitempty"`
 
 	//stats
