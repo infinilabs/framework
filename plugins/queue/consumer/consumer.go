@@ -586,7 +586,7 @@ READ_DOCS:
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 		if global.Env().IsDebug {
-			log.Infof("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			log.Debugf("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		if err != nil {
@@ -679,7 +679,7 @@ CLEAN_BUFFER:
 	lastCommit = time.Now()
 
 	if global.Env().IsDebug {
-		log.Info("commit offset: ", offset, ",", qConfig.Name)
+		log.Debug("commit offset: ", offset, ",", qConfig.Name)
 	}
 
 	if processor.onCleanup != nil {
