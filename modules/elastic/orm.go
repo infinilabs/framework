@@ -332,6 +332,8 @@ func (handler *ElasticORM) ResolveIndexName(ctx *api.Context) string {
 				return handler.GetWildcardIndexName(model)
 			}
 			return handler.GetIndexName(model)
+		} else {
+			panic("model is not set")
 		}
 	}
 
