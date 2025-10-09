@@ -113,8 +113,9 @@ type QueryBuilder struct {
 	// keep original filter clauses
 	filters []*Clause
 
-	requestBodyBytes []byte
-	Aggs             map[string]Aggregation
+	allowRequestBodyBytes bool
+	requestBodyBytes      []byte
+	Aggs                  map[string]Aggregation
 }
 
 func NewQuery() *QueryBuilder {
@@ -127,12 +128,24 @@ func (q *QueryBuilder) SetRequestBodyBytes(bytes []byte) {
 	q.requestBodyBytes = bytes
 }
 
+func (q *QueryBuilder) EnableBodyBytes() {
+	q.allowRequestBodyBytes = true
+}
+
+func (q *QueryBuilder) DisableBodyBytes() {
+	q.allowRequestBodyBytes = false
+	q.requestBodyBytes = nil
+}
+
 // SetAggregations sets the aggregations for the query builder.
 func (q *QueryBuilder) SetAggregations(aggs map[string]Aggregation) {
 	q.Aggs = aggs
 }
 
 func (q *QueryBuilder) RequestBodyBytesVal() []byte {
+	if !q.allowRequestBodyBytes {
+		return nil
+	}
 	return q.requestBodyBytes
 }
 
