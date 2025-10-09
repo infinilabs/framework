@@ -321,6 +321,13 @@ func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 	return jq, nil
 }
 
+func (handler Handler) MustDecodeJSON(r *http.Request, o interface{}) {
+	err := handler.DecodeJSON(r, o)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
 
 	content, err := ioutil.ReadAll(r.Body)
@@ -360,6 +367,13 @@ func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
 }
 
 // Write response to client
+func (handler Handler) MustWrite(w http.ResponseWriter, b []byte) {
+	_, err := handler.Write(w, b)
+	if err != nil {
+		handler.Error(w, err)
+	}
+}
+
 func (handler Handler) Write(w http.ResponseWriter, b []byte) (int, error) {
 	handler.WriteHeader(w, 200)
 	return w.Write(b)

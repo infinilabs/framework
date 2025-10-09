@@ -190,6 +190,11 @@ var nowNano int64
 var refreshRunning bool
 var setupLock sync.RWMutex
 
+func GetLowPrecisionCurrentTimeRef() *time.Time {
+	t := GetLowPrecisionCurrentTime()
+	return &t
+}
+
 func GetLowPrecisionCurrentTime() time.Time {
 	if nowNano <= 0 {
 		SetupTimeNowRefresh()
