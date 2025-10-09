@@ -19,7 +19,7 @@ func SearchV2WithResultItemMapper(ctx *orm.Context, resultArray interface{}, qb 
 		return err, nil
 	}
 	if response == nil {
-		return errors.New("invalid response"), nil
+		return errors.New("invalid response: response should not be empty"), nil
 	}
 
 	if resultArray != nil && itemMapFunc == nil {
@@ -84,5 +84,5 @@ func SearchV2WithResultItemMapper(ctx *orm.Context, resultArray interface{}, qb 
 		return nil, &result
 	}
 
-	return errors.New("invalid response"), nil
+	return errors.New("invalid search response, failed to decode from bytes"), nil
 }
