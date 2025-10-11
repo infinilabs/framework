@@ -28,7 +28,6 @@
 package api
 
 import (
-	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
 	"infini.sh/framework/core/global"
@@ -39,12 +38,20 @@ import (
 	"sync"
 )
 
+var (
+	sessionName string
+	sessionOnce sync.Once
+)
+
 func getSessionName() string {
-	nodeID := global.Env().SystemConfig.NodeConfig.ID
-	if nodeID == "" {
-		panic("node id can't be nil")
-	}
-	return fmt.Sprintf("INFINI-SESSION-%v", nodeID)
+	sessionOnce.Do(func() {
+		id := global.Env().SystemConfig.NodeConfig.ID
+		if id == "" {
+			panic("missing node ID")
+		}
+		sessionName = "INFINI-SESSION-" + id
+	})
+	return sessionName
 }
 
 func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
