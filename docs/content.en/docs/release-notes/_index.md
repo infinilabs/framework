@@ -37,6 +37,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: allow access application settings for ui #209
 - refactor: refactoring query string parser #216
 - chore: update default fuzziness to 3 #215
+- chore: avoid using same session name for mulit instances #221
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  

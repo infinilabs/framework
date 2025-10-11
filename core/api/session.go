@@ -38,7 +38,21 @@ import (
 	"sync"
 )
 
-const sessionName string = "INFINI-SESSION"
+var (
+	sessionName string
+	sessionOnce sync.Once
+)
+
+func getSessionName() string {
+	sessionOnce.Do(func() {
+		id := global.Env().SystemConfig.NodeConfig.ID
+		if id == "" {
+			panic("missing node ID")
+		}
+		sessionName = "INFINI-SESSION-" + id
+	})
+	return sessionName
+}
 
 func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 	return getStore().Get(r, key)
@@ -47,7 +61,7 @@ func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 // GetSession return session by session key
 func GetSession(r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
-	session, err := s.Get(r, sessionName)
+	session, err := s.Get(r, getSessionName())
 	if err != nil {
 		if global.Env().IsDebug {
 			log.Error(err)
@@ -62,10 +76,10 @@ func GetSession(r *http.Request, key string) (bool, interface{}) {
 // SetSession set session by session key and session value
 func SetSession(w http.ResponseWriter, r *http.Request, key string, value interface{}) bool {
 	s := getStore()
-	session, err := s.Get(r, sessionName)
+	session, err := s.Get(r, getSessionName())
 	if err != nil {
 		log.Warnf("Session corrupted or missing, creating new one: %v", err)
-		session, _ = s.New(r, sessionName) // always safe to create new
+		session, _ = s.New(r, getSessionName()) // always safe to create new
 	}
 
 	session.Values[key] = value
@@ -83,7 +97,7 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 
 func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 	s := getStore()
-	session, err := s.Get(r, sessionName)
+	session, err := s.Get(r, getSessionName())
 	if err != nil {
 		log.Error(err)
 		return false
@@ -101,7 +115,7 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 func DestroySession(w http.ResponseWriter, r *http.Request) bool {
 
 	s := getStore()
-	session, err := s.New(r, sessionName)
+	session, err := s.New(r, getSessionName())
 	if err != nil {
 		if global.Env().IsDebug {
 			log.Error(err)
