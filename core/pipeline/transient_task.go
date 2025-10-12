@@ -68,7 +68,7 @@ func RunPipelineAsync(v PipelineConfigV2, ctx *Context) error {
 
 	taskCtx := context.WithValue(context.Background(), "cfg", v)
 	taskCtx = context.WithValue(taskCtx, "ctx", ctx)
-	task.RunWithContext("pipeline:transient:"+pipelineKey, func(taskCtx context.Context) error {
+	task.RegisterTransientTask("pipeline:transient",pipelineKey, func(taskCtx context.Context) error {
 		cfgV := taskCtx.Value("cfg")
 		v, ok := cfgV.(PipelineConfigV2)
 		if !ok {
