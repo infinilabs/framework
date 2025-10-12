@@ -52,7 +52,7 @@ func (this PipelineConfigV2) GetProcessorsConfig() ([]*config.Config, error) {
 	for _, processorDict := range this.Processors {
 		processor, err := ucfg.NewFrom(processorDict)
 		if err != nil {
-			return nil, errors.Errorf("failed to parse processor config: ", err)
+			return nil, errors.Errorf("failed to parse processor config: %v", err)
 		}
 		processors = append(processors, config.FromConfig(processor))
 	}
