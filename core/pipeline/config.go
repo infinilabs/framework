@@ -24,9 +24,10 @@
 package pipeline
 
 import (
-	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 type PipelineConfigV2 struct {
@@ -36,14 +37,26 @@ type PipelineConfigV2 struct {
 	AutoStart      bool   `config:"auto_start" json:"auto_start"`
 	KeepRunning    bool   `config:"keep_running" json:"keep_running"`
 	RetryDelayInMs int    `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
-	MaxRunningInMs int    `config:"max_running_in_ms" json:"max_running_in_ms"`
+	MaxRunningInMs int64  `config:"max_running_in_ms" json:"max_running_in_ms"`
 	Logging        struct {
 		Enabled bool `config:"enabled" json:"enabled"`
 	} `config:"logging" json:"logging"`
-	Processors []*config.Config       `config:"processor" json:"-"`
-	Labels     map[string]interface{} `config:"labels" json:"labels"`
+	Processors []map[string]interface{} `config:"processor" json:"processor"`
+	Labels     map[string]interface{}   `config:"labels" json:"labels"`
 
 	Transient bool `config:"-" json:"transient"`
+}
+
+func (this PipelineConfigV2) GetProcessorsConfig() ([]*config.Config, error) {
+	var processors []*config.Config
+	for _, processorDict := range this.Processors {
+		processor, err := ucfg.NewFrom(processorDict)
+		if err != nil {
+			return nil, errors.Errorf("failed to parse processor config: ", err)
+		}
+		processors = append(processors, config.FromConfig(processor))
+	}
+	return processors, nil
 }
 
 func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
@@ -64,24 +77,38 @@ func (this PipelineConfigV2) Equals(target PipelineConfigV2) bool {
 }
 
 func (this PipelineConfigV2) ProcessorsEquals(target PipelineConfigV2) bool {
-	if len(this.Processors) != len(target.Processors) {
+
+	srcCfg, err := this.GetProcessorsConfig()
+	if err != nil {
+		panic(err)
+	}
+	targetCfg, err := this.GetProcessorsConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	if srcCfg == nil || targetCfg == nil {
+		panic(errors.Errorf("invalid pipeline config, src is nil:%v, target is nil:%v", srcCfg == nil, targetCfg == nil))
+	}
+
+	if len(srcCfg) != len(targetCfg) {
 		return false
 	}
-	var length = len(this.Processors)
+	var length = len(srcCfg)
 	for i := 0; i < length; i++ {
 		srcM := map[string]interface{}{}
-		err := this.Processors[i].Unpack(srcM)
+		err := srcCfg[i].Unpack(srcM)
 		if err != nil {
-			log.Error(err)
+			panic(err)
 		}
 		dstM := map[string]interface{}{}
-		err = target.Processors[i].Unpack(dstM)
+		err = targetCfg[i].Unpack(dstM)
 		if err != nil {
-			log.Error(err)
+			panic(err)
 		}
 		clog, err := util.DiffTwoObject(srcM, dstM)
 		if err != nil {
-			log.Error(err)
+			panic(err)
 		}
 		if len(clog) > 0 {
 			return false

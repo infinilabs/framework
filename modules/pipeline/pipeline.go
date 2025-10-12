@@ -426,8 +426,12 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		if !ok {
 			return errors.New("invalid pipeline config")
 		}
+		processors, err := cfg.GetProcessorsConfig()
+		if err != nil {
+			return errors.Errorf("failed to get processor config, %v", err)
+		}
 
-		processor, err := pipeline.NewPipeline(v.Processors)
+		processor, err := pipeline.NewPipeline(processors)
 		if err != nil {
 			return err
 		}

@@ -83,6 +83,11 @@ func NewPipelineList() *Processors {
 }
 
 func NewPipeline(cfg []*config.Config) (*Processors, error) {
+
+	if cfg == nil || len(cfg) == 0 {
+		return nil, errors.Errorf("invalid processor config")
+	}
+
 	procs := NewPipelineList()
 
 	for _, procConfig := range cfg {
