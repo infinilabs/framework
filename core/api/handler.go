@@ -217,12 +217,17 @@ func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, stat
 	handler.WriteAckJSON(w, ack, status, obj)
 }
 
+func NewAckJSON(ack bool)map[string]interface{}  {
+	v := map[string]interface{}{}
+	v["acknowledged"] = ack
+	return v
+}
+
 func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) {
 	handler.WriteJSONHeader(w)
 	WriteHeader(w, status)
 
-	v := map[string]interface{}{}
-	v["acknowledged"] = ack
+	v := NewAckJSON(ack)
 
 	if obj != nil {
 		for k, v1 := range obj {
