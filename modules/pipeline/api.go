@@ -28,10 +28,8 @@ import (
 
 	log "github.com/cihub/seelog"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/lib/go-ucfg"
 )
 
 func (module *PipeModule) getPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -99,11 +97,21 @@ func (module *PipeModule) getPipelineStatus(id string, config string, processor 
 		}
 		ret.Config = &cfg
 		if processor != "false" {
-			for i := range cfg.Processors {
-				processorMap := map[string]interface{}{}
-				cfg.Processors[i].Unpack(processorMap)
-				ret.Processors = append(ret.Processors, processorMap)
+			processors, err := cfg.GetProcessorsConfig()
+			if err != nil {
+				panic(err)
 			}
+			if processors != nil {
+				for i := range processors {
+					processorMap := map[string]interface{}{}
+					err := processors[i].Unpack(processorMap)
+					if err != nil {
+						panic(err)
+					}
+					ret.Processors = append(ret.Processors, processorMap)
+				}
+			}
+
 		}
 	}
 	return ret
@@ -121,27 +129,16 @@ func (module *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Re
 	module.WriteJSON(w, status, 200)
 }
 
+// eg: curl -XPOST http://localhost:2900/pipeline/tasks/ -d'{"name":"echo-test","enabled":true,"auto_start":true,"keep_running":true,"processor":[{"echo":{"message":"hello world"}}]}'
 func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	var obj = CreatePipelineRequest{}
+	var obj = pipeline.PipelineConfigV2{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to parse pipeline config: ", err)
 		return
 	}
-	var processors []*config.Config
-	for _, processorDict := range obj.Processors {
-		processor, err := ucfg.NewFrom(processorDict)
-		if err != nil {
-			module.WriteError(w, err.Error(), http.StatusBadRequest)
-			_ = log.Error("failed to parse processor config: ", err)
-			return
-		}
-		processors = append(processors, config.FromConfig(processor))
-	}
-	pipelineConfig := obj.PipelineConfigV2
-	pipelineConfig.Processors = processors
-	err = module.createPipeline(pipelineConfig, true)
+	err = module.createPipeline(obj, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to start pipeline: ", err)
@@ -150,6 +147,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 	module.WriteAckOKJSON(w)
 }
 
+// curl -XDELETE http://localhost:2900/pipeline/task/echo-test
 func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	_, exists := module.contexts.Load(id)
@@ -163,6 +161,7 @@ func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http
 	}
 }
 
+// curl -XPOST http://localhost:2900/pipeline/task/echo-test/_start
 func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	exists := module.startTask(id)
@@ -175,6 +174,7 @@ func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Requ
 	}
 }
 
+// curl -XPOST http://localhost:2900/pipeline/task/echo-test/_stop
 func (module *PipeModule) stopTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	exists := module.stopTask(id)

@@ -52,7 +52,7 @@ func RunWithinGroup(groupName string, f func(ctx context.Context) error) (taskID
 }
 
 func RunWithinGroupWithContext(groupName string, ctx context.Context, f func(ctx context.Context) error) (taskID string) {
-	return registerTransientTask(groupName, "", f, ctx)
+	return RegisterTransientTask(groupName, "", f, ctx)
 }
 
 func MustGetString(ctx context.Context, key string) string {
@@ -67,10 +67,10 @@ func MustGetString(ctx context.Context, key string) string {
 }
 
 func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
-	return registerTransientTask("default", tag, f, ctxInput)
+	return RegisterTransientTask("default", tag, f, ctxInput)
 }
 
-func registerTransientTask(group, tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
+func RegisterTransientTask(group, tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
 	task := ScheduleTask{}
 	task.ID = util.GetUUID()
 	task.Group = group
