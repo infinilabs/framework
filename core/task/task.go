@@ -52,7 +52,7 @@ func RunWithinGroup(groupName string, f func(ctx context.Context) error) (taskID
 }
 
 func RunWithinGroupWithContext(groupName string, ctx context.Context, f func(ctx context.Context) error) (taskID string) {
-	return RegisterTransientTask(groupName, "", f, ctx)
+	return RegisterTransientTask(groupName, "","", f, ctx)
 }
 
 func MustGetString(ctx context.Context, key string) string {
@@ -67,12 +67,13 @@ func MustGetString(ctx context.Context, key string) string {
 }
 
 func RunWithContext(tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
-	return RegisterTransientTask("default", tag, f, ctxInput)
+	return RegisterTransientTask("default", tag,"", f, ctxInput)
 }
 
-func RegisterTransientTask(group, tag string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
+func RegisterTransientTask(group, tag,parent string, f func(ctx context.Context) error, ctxInput context.Context) (taskID string) {
 	task := ScheduleTask{}
 	task.ID = util.GetUUID()
+	task.Parent = parent
 	task.Group = group
 	task.Description = tag
 	task.Type = Transient
@@ -129,6 +130,7 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 
 type ScheduleTask struct {
 	ID          string     `config:"id" json:"id,omitempty"`
+	Parent      string     `config:"parent" json:"parent,omitempty"`
 	Group       string     `config:"group" json:"group,omitempty"`
 	Description string     `config:"description" json:"description,omitempty"`
 	Type        string     `config:"type" json:"type,omitempty"`
