@@ -974,7 +974,10 @@ CLEAN_BUFFER:
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	if mainBuf.GetMessageCount() > 0 {
-		continueNext, err := processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		continueNext := false
+		if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
+			continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+		}
 		if global.Env().IsDebug {
 			log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
 		}
