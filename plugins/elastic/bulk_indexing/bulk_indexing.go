@@ -922,7 +922,7 @@ READ_DOCS:
 					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 						if !continueNext && err == nil {
-							panic("go die here")
+							panic("unknown error, not to continue without error messages")
 						}
 
 						if global.Env().IsDebug {
