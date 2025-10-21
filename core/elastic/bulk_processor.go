@@ -582,6 +582,10 @@ DO:
 	req.SetURI(clonedURI)
 	req.SetHost(orignalHost)
 
+	if resp == nil {
+		return false, statsRet, nil, errors.Errorf("received empty response from server, err: %v", err)
+	}
+
 	if err != nil {
 		if rate.GetRateLimiter(metadata.Config.ID, host+"5xx_on_error", 1, 1, 5*time.Second).Allow() {
 			log.Error("status:", resp.StatusCode(), ",", host, ",", err, " ", util.SubString(util.UnsafeBytesToString(resp.GetRawBody()), 0, 256))
@@ -601,13 +605,6 @@ DO:
 	//	resp.Header.Del(fasthttp.HeaderContentEncoding2)
 	//
 	//}
-
-	if resp == nil {
-		if global.Env().IsDebug {
-			log.Error(err)
-		}
-		return false, statsRet, nil, err
-	}
 
 	// Do we need to decompress the response?
 	var resbody = resp.GetRawBody()
