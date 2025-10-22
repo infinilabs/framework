@@ -40,6 +40,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: avoid using same session name for mulit instances #221
 - refactor: refactoring pipeline #222
 - chore: enhance bulk indexing - stricter offset validation and improved error handling #224
+- refactor: refactoring http utils #226
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  
