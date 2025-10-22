@@ -28,12 +28,8 @@
 package api
 
 import (
-	"bytes"
 	"github.com/jmoiron/jsonq"
 	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
-	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -141,7 +137,7 @@ func (handler Handler) WriteJavascriptHeader(w http.ResponseWriter) {
 
 // WriteJSONHeader will write standard json header
 func (handler Handler) WriteJSONHeader(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	WriteJSONHeader(w)
 }
 
 // Result is a general json result
@@ -152,257 +148,115 @@ type Result struct {
 
 // WriteJSONListResult output result list to json format
 func (handler Handler) WriteJSONListResult(w http.ResponseWriter, total int64, v interface{}, statusCode int) {
-	result := Result{}
-	result.Total = total
-	result.Result = v
-	handler.WriteJSON(w, result, statusCode)
-}
-
-func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
-	err1 := util.MapStr{
-		"status": statusCode,
-		"error": util.MapStr{
-			"reason": errMessage,
-		},
-	}
-	return err1
-}
-
-func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) {
-	WriteHeader(w, statusCode)
-	_, err := w.Write(util.MustToJSONBytes(v))
-	if err != nil {
-		panic(err)
-	}
+	WriteJSONListResult(w, total, v, statusCode)
 }
 
 func (handler Handler) WriteError(w http.ResponseWriter, errMessage string, statusCode int) {
-	err1 := PrepareErrorJson(errMessage, statusCode)
-	handler.WriteJSON(w, err1, statusCode)
+	WriteError(w, errMessage, statusCode)
 }
 
 func (handler Handler) WriteErrorObject(w http.ResponseWriter, err interface{}, status int) {
-	if v, ok := err.(error); ok {
-		handler.WriteError(w, v.Error(), status)
-		return
-	}
-	handler.WriteError(w, util.MustToJSON(err), status)
+	WriteErrorObject(w, err, status)
 }
 
 func (handler Handler) WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) {
-	b, err := EncodeJSON(v)
-	if err != nil {
-		panic(err)
-	}
-
-	handler.WriteJSONBytes(w, b, statusCode)
+	WriteJSON(w, v, statusCode)
 }
 
 func (handler Handler) WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) {
-	handler.WriteJSONHeader(w)
-	handler.WriteBytes(w, b, statusCode)
+	WriteJSONBytes(w, b, statusCode)
 }
 
 func (handler Handler) WriteBytes(w http.ResponseWriter, b []byte, statusCode int) {
-	WriteHeader(w, statusCode)
-	_, err := w.Write(b)
-	if err != nil {
-		panic(err)
-	}
+	WriteBytes(w, b, statusCode)
 }
 
 func (handler Handler) WriteAckWithMessage(w http.ResponseWriter, ack bool, status int, msg string) {
-	obj := util.MapStr{}
-	obj["message"] = msg
-	handler.WriteAckJSON(w, ack, status, obj)
+	WriteAckWithMessage(w, ack, status, msg)
 }
 
-func NewAckJSON(ack bool)map[string]interface{}  {
+func NewAckJSON(ack bool) map[string]interface{} {
 	v := map[string]interface{}{}
 	v["acknowledged"] = ack
 	return v
 }
 
 func (handler Handler) WriteAckJSON(w http.ResponseWriter, ack bool, status int, obj map[string]interface{}) {
-	handler.WriteJSONHeader(w)
-	WriteHeader(w, status)
-
-	v := NewAckJSON(ack)
-
-	if obj != nil {
-		for k, v1 := range obj {
-			v[k] = v1
-		}
-	}
-
-	b, err := EncodeJSON(v)
-	if err != nil {
-		panic(err)
-	}
-	_, err = w.Write(b)
-	if err != nil {
-		panic(err)
-	}
+	WriteAckJSON(w, ack, status, obj)
 }
 
 func (handler Handler) WriteAckOKJSON(w http.ResponseWriter) {
-	handler.WriteAckJSON(w, true, 200, nil)
+	WriteAckOKJSON(w)
 }
 
 func (handler Handler) MustGetParameter(w http.ResponseWriter, r *http.Request, key string) string {
-	if r.URL == nil {
-		panic("URL is nil")
-	}
-
-	v := r.URL.Query().Get(key)
-
-	if len(v) == 0 {
-		panic("missing parameter " + key)
-	}
-
-	return v
+	return MustGetParameter(w, r, key)
 }
 
 // GetParameter return query parameter with argument name
 func (handler Handler) GetParameter(r *http.Request, key string) string {
-	if r.URL == nil {
-		return ""
-	}
-	return r.URL.Query().Get(key)
+	return GetParameter(r, key)
 }
 
 // GetParameterOrDefault return query parameter or return default value
 func (handler Handler) GetParameterOrDefault(r *http.Request, key string, defaultValue string) string {
-	v := r.URL.Query().Get(key)
-	if len(v) > 0 {
-		return v
-	}
-	return defaultValue
+	return GetParameterOrDefault(r, key, defaultValue)
 }
 
 // GetIntOrDefault return parameter or default, data type is int
 func (handler Handler) GetIntOrDefault(r *http.Request, key string, defaultValue int) int {
-
-	v := handler.GetParameter(r, key)
-	s, ok := util.ToInt(v)
-	if ok != nil {
-		return defaultValue
-	}
-	return s
-
+	return GetIntOrDefault(r, key, defaultValue)
 }
+
 func (handler Handler) GetBoolOrDefault(r *http.Request, key string, defaultValue bool) bool {
-
-	v := strings.ToLower(handler.GetParameter(r, key))
-	if v == "false" {
-		return false
-	} else if v == "true" {
-		return true
-	}
-	return defaultValue
-
+	return GetBoolOrDefault(r, key, defaultValue)
 }
 
 // GetJSON return json input
 func (handler Handler) GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
-
-	content, err := ioutil.ReadAll(r.Body)
-	_ = r.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	if len(content) == 0 {
-		return nil, errors.NewWithCode(err, errors.JSONIsEmpty, r.URL.String())
-	}
-
-	data := map[string]interface{}{}
-	dec := json.NewDecoder(strings.NewReader(string(content)))
-	err = dec.Decode(&data)
-	if err != nil {
-		return nil, err
-	}
-	jq := jsonq.NewQuery(data)
-
-	return jq, nil
+	return GetJSON(r)
 }
 
 func (handler Handler) MustDecodeJSON(r *http.Request, o interface{}) {
-	err := handler.DecodeJSON(r, o)
-	if err != nil {
-		panic(err)
-	}
+	MustDecodeJSON(r, o)
 }
 
 func (handler Handler) DecodeJSON(r *http.Request, o interface{}) error {
-
-	content, err := ioutil.ReadAll(r.Body)
-	_ = r.Body.Close()
-	if err != nil {
-		return err
-	}
-	if len(content) == 0 {
-		return errors.NewWithCode(err, errors.JSONIsEmpty, r.URL.String())
-	}
-
-	return json.Unmarshal(content, o)
-}
-
-func ReadBody(r *http.Request) ([]byte, error) {
-	if r.ContentLength > 0 && r.Body != nil {
-		content, err := ioutil.ReadAll(r.Body)
-		_ = r.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		if len(content) == 0 {
-			return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
-		}
-
-		// Replace r.Body so it can be read again later
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
-
-		return content, nil
-	}
-	return nil, errors.Error("request body is nil")
+	return DecodeJSON(r, o)
 }
 
 // GetRawBody return raw http request body
 func (handler Handler) GetRawBody(r *http.Request) ([]byte, error) {
-	return ReadBody(r)
+	return GetRawBody(r)
 }
 
 // Write response to client
 func (handler Handler) MustWrite(w http.ResponseWriter, b []byte) {
-	_, err := handler.Write(w, b)
-	if err != nil {
-		handler.Error(w, err)
-	}
+	MustWrite(w, b)
 }
 
 func (handler Handler) Write(w http.ResponseWriter, b []byte) (int, error) {
-	handler.WriteHeader(w, 200)
-	return w.Write(b)
+	return Write(w, b)
 }
 
 // Error404 output 404 response
 func (handler Handler) Error404(w http.ResponseWriter) {
-	handler.WriteError(w, "404", http.StatusNotFound)
+	Error404(w)
 }
 
 // Error500 output 500 response
 func (handler Handler) Error500(w http.ResponseWriter, msg string) {
-	handler.WriteError(w, msg, http.StatusInternalServerError)
+	Error500(w, msg)
 }
 
 // Error output custom error
 func (handler Handler) Error(w http.ResponseWriter, err error) {
-	handler.WriteError(w, err.Error(), http.StatusInternalServerError)
+	Error(w, err)
 }
 
 // Flush flush response message
 func (handler Handler) Flush(w http.ResponseWriter) {
-	flusher := w.(http.Flusher)
-	flusher.Flush()
+	Flush(w)
 }
 
 func (handler Handler) WriteOKJSON(w http.ResponseWriter, v interface{}) {
@@ -418,48 +272,29 @@ func (handler Handler) ErrorInternalServer(w http.ResponseWriter, msg string) {
 }
 
 func (handler Handler) WriteCreatedOKJSON(w http.ResponseWriter, id interface{}) {
-	handler.WriteJSON(w, util.MapStr{
-		"_id":    id,
-		"result": "created",
-	}, http.StatusOK)
+	WriteCreatedOKJSON(w, id)
 }
 
 func (handler Handler) WriteUpdatedOKJSON(w http.ResponseWriter, id interface{}) {
-	handler.WriteJSON(w, util.MapStr{
-		"_id":    id,
-		"result": "updated",
-	}, http.StatusOK)
+	WriteUpdatedOKJSON(w, id)
 }
 
 func (handler Handler) WriteOpRecordNotFoundJSON(w http.ResponseWriter, id interface{}) {
-	handler.WriteJSON(w, util.MapStr{
-		"_id":    id,
-		"result": "not_found",
-	}, http.StatusNotFound)
+	WriteOpRecordNotFoundJSON(w, id)
 }
 
 func (handler Handler) WriteDeletedOKJSON(w http.ResponseWriter, id interface{}) {
-	handler.WriteJSON(w, util.MapStr{
-		"_id":    id,
-		"result": "deleted",
-	}, http.StatusOK)
+	WriteDeletedOKJSON(w, id)
 }
 
 func (handler Handler) WriteGetOKJSON(w http.ResponseWriter, id, obj interface{}) {
-	handler.WriteJSON(w, util.MapStr{
-		"found":   true,
-		"_id":     id,
-		"_source": obj,
-	}, 200)
+	WriteGetOKJSON(w, id, obj)
 }
 
 func (handler Handler) WriteGetMissingJSON(w http.ResponseWriter, id string) {
-	handler.WriteJSON(w, util.MapStr{
-		"found": false,
-		"_id":   id,
-	}, 404)
+	WriteGetMissingJSON(w, id)
 }
 
 func (handler Handler) Redirect(w http.ResponseWriter, r *http.Request, url string) {
-	http.Redirect(w, r, url, http.StatusSeeOther)
+	Redirect(w, r, url)
 }
