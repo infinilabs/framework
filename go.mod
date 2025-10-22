@@ -110,6 +110,9 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gookit/filter v1.2.3 // indirect
+	github.com/gookit/goutil v0.7.1 // indirect
+	github.com/gookit/validate v1.5.6 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
