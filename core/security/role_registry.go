@@ -29,7 +29,16 @@ import (
 
 // RoleRegistry manages roles and their associated permissions
 type RoleRegistry struct {
-	roleMap map[string]map[string]struct{} // Role -> Set of permissions
+	roleMap     map[string]map[string]struct{} // Role -> Set of permissions
+	roleVersion map[string]int32
+}
+
+func (rr *RoleRegistry) IncrementVersion(role string) {
+	rr.roleVersion[role]++
+}
+
+func (rr *RoleRegistry) GetVersion(role string) int32 {
+	return rr.roleVersion[role]
 }
 
 // NewRoleRegistry creates a new role registry

@@ -24,6 +24,7 @@
 package security
 
 type PermissionID uint32
+type PermissionKey string
 
 // Action is permission action
 type Action string

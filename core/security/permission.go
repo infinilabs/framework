@@ -36,5 +36,5 @@ func GetSimplePermissions(category, resource interface{}, action ...interface{})
 }
 
 func GetSimplePermission(category, resource, action interface{}) string {
-	return fmt.Sprintf("%s:%s/%s", category, resource, action)
+	return fmt.Sprintf("%s#%s/%s", category, resource, action) //category#resource:resource1/action
 }

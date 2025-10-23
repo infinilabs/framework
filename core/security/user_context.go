@@ -30,7 +30,7 @@ import (
 	"time"
 )
 
-const ctxUserKey = "X-INFINI-SESSION-USER"
+const ctxUserKey = "X-INFINI-SESSION-CONTEXT-USER"
 
 func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Context {
 	if clam.LastLogin.Timestamp == nil {
