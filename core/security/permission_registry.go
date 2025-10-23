@@ -25,17 +25,76 @@ package security
 
 import (
 	"infini.sh/framework/core/errors"
+	"strings"
+	"sync"
 )
 
 type PermissionRegistry struct {
+	locker           sync.RWMutex
 	nextPermissionID PermissionID
-	permMap          map[string]PermissionID // "action:resource" => PermissionID
+	permMap          map[string]PermissionID // "category#resource:resource1/action" => PermissionID
+	revPermMap       map[PermissionID]string // PermissionID => "category#resource:resource1/action"
+}
+
+type PermissionItem struct {
+	ID          string `json:"id"`
+	Description string `json:"description,omitempty"`
+	Category    string `json:"category"`
+	Resource    string `json:"resource"`
+	Action      string `json:"action"`
+	Order       string `json:"order,omitempty"`
+}
+
+func parsePermissionKey(key string) (category, resource, action string) {
+	category, resource, action = "", "", ""
+
+	mainPart := key
+	if idx := strings.IndexByte(key, '#'); idx != -1 {
+		category = key[:idx]
+		mainPart = key[idx+1:]
+	}
+
+	if idx := strings.IndexByte(mainPart, '/'); idx != -1 {
+		resource = mainPart[:idx]
+		action = mainPart[idx+1:]
+	} else {
+		resource = mainPart
+	}
+
+	return
+}
+
+func GetPermissionItems() []PermissionItem {
+	permissionRegistry.locker.RLock()
+	defer permissionRegistry.locker.RUnlock()
+
+	items := make([]PermissionItem, 0, len(permissionRegistry.revPermMap))
+	for _, key := range permissionRegistry.revPermMap {
+		category := ""
+		resource := ""
+		action := ""
+
+		category, resource, action = parsePermissionKey(key)
+
+		item := PermissionItem{
+			ID:          key,
+			Description: "",
+			Category:    category,
+			Resource:    resource,
+			Action:      action,
+			Order:       "",
+		}
+		items = append(items, item)
+	}
+
+	return items
 }
 
 func NewPermissionRegistry() *PermissionRegistry {
 	return &PermissionRegistry{
 		nextPermissionID: 1,
 		permMap:          make(map[string]PermissionID),
+		revPermMap:       make(map[PermissionID]string),
 	}
 }
 
@@ -76,7 +135,20 @@ func (pr *PermissionRegistry) MustGetPermissionID(category, resource string, act
 	return pr.MustGetPermissionIDByKey(key)
 }
 
+func (pr *PermissionRegistry) MustGetPermissionKeyByID(id PermissionID) string {
+	pr.locker.RLock()
+	defer pr.locker.RUnlock()
+
+	if key, exists := pr.revPermMap[id]; exists {
+		return key
+	}
+	panic(errors.Errorf("invalid permission, id: %v not registered", id))
+}
+
 func (pr *PermissionRegistry) MustGetPermissionIDByKey(key string) PermissionID {
+	pr.locker.RLock()
+	defer pr.locker.RUnlock()
+
 	if id, exists := pr.permMap[key]; exists {
 		return id
 	}
@@ -84,11 +156,15 @@ func (pr *PermissionRegistry) MustGetPermissionIDByKey(key string) PermissionID 
 }
 
 func (pr *PermissionRegistry) GetOrInitPermissionIDByKey(key string) PermissionID {
+	pr.locker.Lock()
+	defer pr.locker.Unlock()
+
 	if id, exists := pr.permMap[key]; exists {
 		return id
 	}
 	id := pr.nextPermissionID
 	pr.permMap[key] = id
+	pr.revPermMap[id] = key
 	pr.nextPermissionID++
 	return id
 }

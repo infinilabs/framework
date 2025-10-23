@@ -36,6 +36,7 @@ require (
 	github.com/golang/gddo v0.0.0-20210115222349-20d68f94ee1f
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github v17.0.0+incompatible
+	github.com/gookit/validate v1.5.6
 	github.com/gopkg.in/gomail.v2 v0.0.0-00010101000000-000000000000
 	github.com/gorilla/context v1.1.2
 	github.com/gorilla/sessions v1.4.0
@@ -112,7 +113,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/filter v1.2.3 // indirect
 	github.com/gookit/goutil v0.7.1 // indirect
-	github.com/gookit/validate v1.5.6 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
