@@ -37,7 +37,7 @@ type UserAssignedPermission struct {
 	DeniedPermissions  *roaring.Bitmap // Explicit deny bitmap for the user
 }
 
-func NewUserAssignedPermission(allowed []string, denied []string) *UserAssignedPermission {
+func NewUserAssignedPermission(allowed []PermissionKey, denied []PermissionKey) *UserAssignedPermission {
 	ver := GetPermissionVersion()
 
 	var allowedBitmap *roaring.Bitmap
@@ -71,10 +71,10 @@ func NewUserAssignedPermission(allowed []string, denied []string) *UserAssignedP
 // HasPermission checks if the user has a specific permission for a tenant
 func (p *UserAssignedPermission) Dump() {
 	if p.AllowedPermissions != nil {
-		log.Info("allow:", p.AllowedPermissions.String())
+		log.Debug("allow:", p.AllowedPermissions.String())
 	}
 	if p.DeniedPermissions != nil {
-		log.Info("deny:", p.DeniedPermissions.String())
+		log.Debug("deny:", p.DeniedPermissions.String())
 	}
 }
 
@@ -191,8 +191,9 @@ type AccessControlEntry struct {
 	SubjectType  string       // "user" | "group"
 
 	// Instead of SubjectID/Type strings, use bitsets for all users and groups with access
-	AllowedUsers  *roaring.Bitmap // bitmap of allowed user IDs
-	AllowedGroups *roaring.Bitmap // bitmap of allowed group IDs
+	AllowedUsers   *roaring.Bitmap // bitmap of allowed user IDs
+	AllowedGroups  *roaring.Bitmap // bitmap of allowed group IDs
+	PermissionBits *roaring.Bitmap // computed from roleRegistry
 
 	Role      string // e.g. "reader", "editor"
 	Source    string // Original source, e.g., "google_drive"
