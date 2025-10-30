@@ -676,7 +676,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 					panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 				}
 			} else {
-				log.Error("should not submit this bulk request, but it did,", err)
+				log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, mainBuf.GetMessageCount())
 			}
 		}
 		log.Debugf("exit worker[%v], message count[%d], queue:[%v], slice_id:%v", workerID, mainBuf.GetMessageCount(), qConfig.ID, sliceID)
@@ -911,7 +911,7 @@ READ_DOCS:
 				msgSize := mainBuf.GetMessageSize()
 				msgCount := mainBuf.GetMessageCount()
 
-				if (bulkSizeInByte > 0 && msgSize > (bulkSizeInByte)) || (processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
+				if (bulkSizeInByte > 0 && msgSize > (bulkSizeInByte)) || (msgCount > 0 && processor.config.BulkConfig.BulkMaxDocsCount > 0 && msgCount > processor.config.BulkConfig.BulkMaxDocsCount) {
 					if global.Env().IsDebug {
 						log.Debugf("slice worker, worker:[%v], consuming [%v], slice_id:%v, hit buffer limit, size:%v, count:%v, submit now", workerID, qConfig.Name, sliceID, msgSize, msgCount)
 					}
@@ -921,6 +921,8 @@ READ_DOCS:
 					err = nil
 					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+						mainBuf.ResetData()
+
 						if !continueNext && err == nil {
 							panic("unknown error, not to continue without error messages")
 						}
@@ -940,12 +942,11 @@ READ_DOCS:
 
 							log.Errorf("error on submit bulk_requests, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
 							time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
-							continue
+							//continue //TODO, should panic? clear mainbuffer
+							panic(errors.Errorf("error on submit bulk_requests, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 						} else {
-							//reset buffer
-							mainBuf.ResetData()
-							if offset != nil && committedOffset != nil && !pop.NextOffset.Equals(*committedOffset) {
-								err := consumerInstance.CommitOffset(pop.NextOffset)
+							if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
+								err := consumerInstance.CommitOffset(*offset)
 								if err != nil {
 									panic(err)
 								}
@@ -953,12 +954,14 @@ READ_DOCS:
 								if global.Env().IsDebug {
 									log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] success commit offset:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, *offset, committedOffset, ctx1.String(), timeout, err)
 								}
-								committedOffset = &pop.NextOffset
+								committedOffset = offset
+							} else {
+								log.Error("offset not committed:", offset, ",moved to:", &pop.NextOffset)
 							}
 							offset = &pop.NextOffset
 						}
 					} else {
-						log.Error("should not submit this bulk request, but it did,", err)
+						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
 					}
 				}
 			}
@@ -995,6 +998,8 @@ CLEAN_BUFFER:
 		continueNext := false
 		if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 			continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
+			//reset buffer
+			mainBuf.ResetData()
 
 			if global.Env().IsDebug {
 				log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
@@ -1009,19 +1014,15 @@ CLEAN_BUFFER:
 			}
 
 			if continueNext {
-				//reset buffer
-				mainBuf.ResetData()
 				if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 					err := consumerInstance.CommitOffset(*offset)
 					if err != nil {
 						panic(err)
 					}
 					committedOffset = offset
-
 					if global.Env().IsDebug {
 						log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] commit offset:%v,ctx:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, offset, ctx1.String(), err)
 					}
-
 				}
 			} else {
 				//logging failure offset boundry
@@ -1036,10 +1037,10 @@ CLEAN_BUFFER:
 
 				log.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
 				time.Sleep(time.Duration(processor.config.RetryDelayIntervalInMs) * time.Millisecond)
-				goto CLEAN_BUFFER
+				panic(errors.Errorf("queue:[%v], slice_id:%v, offset [%v]-[%v], bulk can't continue (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 			}
 		} else {
-			log.Error("should not submit this bulk request, but it did,", err)
+			log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, mainBuf.GetMessageCount())
 		}
 	}
 
