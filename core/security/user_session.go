@@ -25,7 +25,9 @@ package security
 
 import (
 	"fmt"
+	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/golang-jwt/jwt"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"time"
 )
@@ -38,14 +40,12 @@ type UserClaims struct {
 func NewUserClaims() *UserClaims {
 	return &UserClaims{
 		RegisteredClaims: &jwt.RegisteredClaims{},
-		UserSessionInfo: &UserSessionInfo{
-			System: map[string]interface{}{},
-		},
+		UserSessionInfo:  &UserSessionInfo{},
 	}
 }
 
 type UserSessionInfo struct {
-	System map[string]interface{} `json:"_system,omitempty" elastic_mapping:"_system: { type: object }"`
+	orm.ORMObjectBase
 
 	//user identity provided by external providers
 	Source   string `json:"source"`
@@ -53,7 +53,8 @@ type UserSessionInfo struct {
 	Login    string `json:"login"`
 
 	//system level security's info
-	Roles []string `json:"roles,omitempty"`
+	Roles       []string        `json:"roles"`
+	Permissions []PermissionKey `json:"permissions"`
 
 	Labels util.MapStr `json:"labels,omitempty"`
 
@@ -66,8 +67,24 @@ type UserSessionInfo struct {
 	LastLogin LastLogin `json:"last_login,omitempty"`
 }
 
+func ConvertPermissionKeysToHashSet(keys []PermissionKey) *hashset.Set {
+	set := hashset.New()
+	for _, v := range keys {
+		set.Add(v)
+	}
+	return set
+}
+
+func (u *UserSessionInfo) MustGetUserID() string {
+	ownerID := u.GetOwnerID()
+	if ownerID == "" {
+		panic("owner_id can't be empty")
+	}
+	return ownerID
+}
+
 func (u *UserSessionInfo) ValidInfo() bool {
-	return u.Provider != "" && u.Login != ""
+	return u.Provider != "" && u.Login != "" && u.GetOwnerID() != ""
 }
 
 func (u *UserSessionInfo) GetKey() string {
