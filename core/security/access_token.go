@@ -27,16 +27,20 @@ import "infini.sh/framework/core/orm"
 
 type AccessToken struct {
 	orm.ORMObjectBase
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	AccessToken string `json:"access_token"`
 
+	//TODO to be removed
 	Provider string `json:"provider"`
 	Login    string `json:"login"`
 
-	Type        string   `json:"type"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
+	Type      string   `json:"type"`
+	Resources []string `json:"resources"` //resource_type: resource_id, eg: datasource:xxxxx
+
+	Roles       []string        `json:"roles"`
+	Permissions []PermissionKey `json:"permissions"`
 
 	ExpireIn int64 `json:"expire_in"`
 }
