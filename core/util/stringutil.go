@@ -619,7 +619,7 @@ const (
 	lowercaseChars = "abcdefghijklmnopqrstuvwxyz"
 	uppercaseChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digitChars     = "0123456789"
-	specialChars   = "!@#%^&*_+-=?"
+	specialChars   = "!@#%^&$*_+-=?,.~`;:|()<>"
 
 	allChars    = lowercaseChars + uppercaseChars + digitChars + specialChars
 	simpleChars = lowercaseChars + digitChars
