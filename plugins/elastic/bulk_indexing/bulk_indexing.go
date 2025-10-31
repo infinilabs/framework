@@ -919,6 +919,8 @@ READ_DOCS:
 					//submit request
 					continueNext := false
 					err = nil
+					// ensure offset advanced to include current message before submit                              │
+					offset = &pop.NextOffset
 					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 						mainBuf.ResetData()
