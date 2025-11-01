@@ -10,6 +10,6 @@ type UserRole struct {
 }
 
 type PermissionAssignedToRole struct {
-	AllowedPermissions []Action `json:"permissions,omitempty" elastic_mapping:"permissions: { type: keyword }"`
-	DeniedPermissions  []Action `json:"denied_permissions,omitempty" elastic_mapping:"denied_permissions: { type: keyword }"`
+	AllowedPermissions []PermissionKey `json:"permissions,omitempty" elastic_mapping:"permissions: { type: keyword }"`
+	DeniedPermissions  []PermissionKey `json:"denied_permissions,omitempty" elastic_mapping:"denied_permissions: { type: keyword }"`
 }

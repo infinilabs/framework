@@ -24,6 +24,7 @@
 package api
 
 import (
+	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
 )
 
@@ -33,7 +34,7 @@ type Option func(*HandlerOptions)
 // Define HandlerOptions to hold the state of all options
 type HandlerOptions struct {
 	RequireLogin      bool
-	RequirePermission []string
+	RequirePermission []security.PermissionKey
 	OptionLogin       bool
 	Resource          string
 	Action            string
@@ -77,12 +78,12 @@ func RequireLogin() Option {
 	}
 }
 
-func RequirePermission(permissions ...string) Option {
+func RequirePermission(permissions ...security.PermissionKey) Option {
 	return func(o *HandlerOptions) {
 		o.RequireLogin = true
 		o.OptionLogin = false
 		if o.RequirePermission == nil {
-			o.RequirePermission = []string{}
+			o.RequirePermission = []security.PermissionKey{}
 		}
 
 		for _, v := range permissions {

@@ -1,7 +1,7 @@
 package orm
 
 import (
-	"infini.sh/framework/core/api"
+	"infini.sh/framework/core/util"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -154,7 +154,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 	}
 
 	// Handle request body
-	bodyBytes, _ := api.ReadBody(req)
+	bodyBytes, _ := util.ReadBody(req)
 	if bodyBytes != nil && len(bodyBytes) > 0 {
 		builder.SetRequestBodyBytes(bodyBytes)
 	}

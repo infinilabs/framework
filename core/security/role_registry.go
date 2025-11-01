@@ -25,26 +25,34 @@ package security
 
 import (
 	"infini.sh/framework/core/errors"
+	"sync"
 )
 
 // RoleRegistry manages roles and their associated permissions
 type RoleRegistry struct {
-	roleMap     map[string]map[string]struct{} // Role -> Set of permissions
+	roleMap     map[string]map[PermissionKey]struct{} // Role -> Set of permissions
 	roleVersion map[string]int32
+	locker      sync.RWMutex
 }
 
 func (rr *RoleRegistry) IncrementVersion(role string) {
+	rr.locker.Lock()
+	defer rr.locker.Unlock()
+
 	rr.roleVersion[role]++
 }
 
 func (rr *RoleRegistry) GetVersion(role string) int32 {
+	rr.locker.RLock()
+	defer rr.locker.RUnlock()
+
 	return rr.roleVersion[role]
 }
 
 // NewRoleRegistry creates a new role registry
 func NewRoleRegistry() *RoleRegistry {
 	return &RoleRegistry{
-		roleMap: make(map[string]map[string]struct{}),
+		roleMap: make(map[string]map[PermissionKey]struct{}),
 	}
 }
 
@@ -62,19 +70,23 @@ func MustGetRole(role string) {
 }
 
 // RegisterPermissionsToRole assigns permissions to a role
-func RegisterPermissionsToRole(role string, permissions ...string) {
+func RegisterPermissionsToRole(role string, permissions ...PermissionKey) {
 	roleRegistry.RegisterPermissionsForRole(role, permissions)
 }
 
-func AssignPermissionsToRoles(permission string, roles ...string) {
+func AssignPermissionsToRoles(permission PermissionKey, roles ...string) {
 	for _, role := range roles {
-		roleRegistry.RegisterPermissionsForRole(role, []string{permission})
+		roleRegistry.RegisterPermissionsForRole(role, []PermissionKey{permission})
 	}
 }
 
 // GetPermissionsForRole retrieves permissions assigned to a role
-func GetPermissionsForRole(role string) ([]string, bool) {
+func GetPermissionsForRole(role string) ([]PermissionKey, bool) {
 	return roleRegistry.GetPermissionsForRole(role)
+}
+
+func ReplacePermissionsForRole(role string, permissions []PermissionKey) {
+	roleRegistry.ReplacePermissionsForRole(role, permissions)
 }
 
 // ---- RoleRegistry Methods ----
@@ -82,34 +94,58 @@ func GetPermissionsForRole(role string) ([]string, bool) {
 // GetOrInitRole ensures a role exists, initializing it if necessary
 func (rr *RoleRegistry) GetOrInitRole(role string) {
 	if _, exists := rr.roleMap[role]; !exists {
-		rr.roleMap[role] = make(map[string]struct{})
+		rr.roleMap[role] = make(map[PermissionKey]struct{})
 	}
 }
 
 // MustGetRole ensures a role exists; panics if not found
 func (rr *RoleRegistry) MustGetRole(role string) {
+	rr.locker.RLock()
+	defer rr.locker.RUnlock()
+
 	if _, exists := rr.roleMap[role]; !exists {
 		panic(errors.Errorf("invalid role, role: %v not registered", role))
 	}
 }
 
 // RegisterPermissionsToRole associates permissions with a role
-func (rr *RoleRegistry) RegisterPermissionsForRole(role string, permissions []string) {
+func (rr *RoleRegistry) RegisterPermissionsForRole(role string, permissions []PermissionKey) {
+	rr.locker.Lock()
+	defer rr.locker.Unlock()
+
 	rr.GetOrInitRole(role)
 	for _, perm := range permissions {
 		GetOrInitPermissionKey(perm)
 		rr.roleMap[role][perm] = struct{}{}
 	}
+	IncreasePermissionVersion()
+}
+
+func (rr *RoleRegistry) ReplacePermissionsForRole(role string, permissions []PermissionKey) {
+	rr.locker.Lock()
+	defer rr.locker.Unlock()
+
+	rr.GetOrInitRole(role)
+	newP := map[PermissionKey]struct{}{}
+	for _, perm := range permissions {
+		GetOrInitPermissionKey(perm)
+		newP[perm] = struct{}{}
+	}
+	rr.roleMap[role] = newP
+	IncreasePermissionVersion()
 }
 
 // GetPermissionsForRole retrieves permissions assigned to a role
-func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]string, bool) {
+func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, bool) {
+	rr.locker.RLock()
+	defer rr.locker.RUnlock()
+
 	permissions, exists := rr.roleMap[role]
 	if !exists {
 		return nil, false
 	}
 
-	permList := make([]string, 0, len(permissions))
+	permList := make([]PermissionKey, 0, len(permissions))
 	for perm := range permissions {
 		permList = append(permList, perm)
 	}

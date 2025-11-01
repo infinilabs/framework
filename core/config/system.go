@@ -182,6 +182,7 @@ type CookieConfig struct {
 	AuthSecret    string `config:"auth_secret"`
 	EncryptSecret string `config:"encrypt_secret"`
 	Domain        string `config:"domain"`
+	Secure        bool   `config:"secure"`
 	MaxAge        int    `config:"max_age"`
 	Path          string `config:"path"`
 }
