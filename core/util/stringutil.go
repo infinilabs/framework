@@ -717,3 +717,56 @@ func StringArrayIntersection(arr1 []string, arr2 []string) []string {
 	}
 	return resultArr
 }
+
+func CompareStringArray(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	count := make(map[string]int)
+
+	for _, item := range a {
+		count[item]++
+	}
+
+	for _, item := range b {
+		count[item]--
+		if count[item] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+
+func ReverseString(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+func GetPathAncestors(path string) []string {
+	if !HasSuffix(path, "/") {
+		path += "/"
+	}
+
+	// Normalize multiple slashes (optional, for safety)
+	path = TrimPrefix(path, "/")
+	parts := Split(path, "/")
+
+	var ancestors []string
+	current := "/"
+	ancestors = append(ancestors, current)
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		current += part + "/"
+		ancestors = append(ancestors, current)
+	}
+
+	return ancestors
+}
