@@ -50,3 +50,14 @@ const AssignToCurrentUserIfNotExists = "assign_to_current_user_if_not_exists"
 const ReadPermissionCheckingScope = "read_permission_checking_scope"
 const DirectReadWithoutPermissionCheck = "direct_read_without_permission_check"
 const DirectWriteWithoutPermissionCheck = "direct_write_without_permission_check"
+
+const SharingEnabled = "sharing_enabled"
+const SharingResourceType = "sharing_resource_type"
+const SharingResourceParentPath = "sharing_resource_parent_path"
+
+const SharingResourceCategoryFilterEnabled = "sharing_resource_category_filter_enabled"
+const SharingResourceCategoryType = "sharing_resource_category_type"
+const SharingResourceCategoryID = "sharing_resource_category_id"
+const SharingResourceCategoryFilterField = "sharing_resource_category_filter_field"
+
+const SharingResourceIsCategory = "sharing_resource_is_category" //if it is a category, can be show up by children rules
