@@ -919,6 +919,9 @@ READ_DOCS:
 					//submit request
 					continueNext := false
 					err = nil
+					// set commit target to next offset before submit
+					tmp := ctx1.NextOffset
+					offset = &tmp
 					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 						mainBuf.ResetData()
@@ -958,7 +961,6 @@ READ_DOCS:
 							} else {
 								log.Error("offset not committed:", offset, ",moved to:", &pop.NextOffset)
 							}
-							offset = &pop.NextOffset
 						}
 					} else {
 						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
@@ -996,6 +998,9 @@ CLEAN_BUFFER:
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	if mainBuf.GetMessageCount() > 0 {
 		continueNext := false
+		// set commit target to next offset before final submit
+		tmp := ctx1.NextOffset
+		offset = &tmp
 		if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 			continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 			//reset buffer
