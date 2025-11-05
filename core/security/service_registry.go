@@ -22,111 +22,114 @@ type AuthorizationBackend interface {
 	GetPermissionKeysByRoles(roles []string) []PermissionKey
 }
 
-var authorizationBackendProviders=sync.Map{}
+var authorizationBackendProviders = sync.Map{}
 
-func RegisterAuthorizationProvider(name string,provider AuthorizationBackend)  {
-	authorizationBackendProviders.Store(name,provider)
+func RegisterAuthorizationProvider(name string, provider AuthorizationBackend) {
+	authorizationBackendProviders.Store(name, provider)
 }
 
-var authenticationBackendBackendProviders=sync.Map{}
+var authenticationBackendBackendProviders = sync.Map{}
 
-func RegisterAuthenticationProvider(name string,provider AuthenticationBackend)  {
-	authenticationBackendBackendProviders.Store(name,provider)
+func RegisterAuthenticationProvider(name string, provider AuthenticationBackend) {
+	authenticationBackendBackendProviders.Store(name, provider)
 }
 
-func MustGetAuthenticationProvider() AuthenticationBackend {
-	var provider AuthenticationBackend
-	authorizationBackendProviders.Range(func(key, value any) bool {
-		p,ok:=value.(AuthenticationBackend)
-		if ok{
-			provider=p
-			return false
-			}
-
-		return true
-	})
-	if provider!=nil{
-		return provider
+func MustGetAuthenticationProvider(provider string) AuthenticationBackend {
+	value, ok := authenticationBackendBackendProviders.Load(provider)
+	if ok {
+		p, ok := value.(AuthenticationBackend)
+		if ok {
+			return p
+		}
 	}
-
-	panic("no AuthenticationBackend was found")
+	panic("AuthenticationBackend was not found")
 }
 
-func GetUserByID(id string) (bool, *UserAccount, error) {
-	hit:=false
+//func MustGetUserByID(id string) (provider string,account *UserAccount) {
+//	p, v, _ := GetUserByID(id)
+//	if v == nil {
+//		panic("invalid user")
+//	}
+//	return p,v
+//}
+
+func GetUserByID(id string) (string, *UserAccount, error) {
+	hit := false
+	var provider string
 	var out *UserAccount
-	authorizationBackendProviders.Range(func(key, value any) bool {
-		p,ok:=value.(AuthenticationBackend)
-		if ok{
-			hit=true
-			ok,v,_:=p.GetUserByID(id)
-			if ok&&v!=nil{
-				out=v
+	authenticationBackendBackendProviders.Range(func(key, value any) bool {
+		p, ok := value.(AuthenticationBackend)
+		if ok {
+			hit = true
+			ok, v, _ := p.GetUserByID(id)
+			if ok && v != nil {
+				out = v
+				provider=key.(string)
 				return false
 			}
 		}
 		return true
 	})
 
-	if out!=nil{
-		return true,out,nil
+	if out != nil {
+		return provider, out, nil
 	}
 
-	if !hit{
-		panic("no AuthenticationBackend was found")
+	if !hit {
+		return provider, nil, errors.New("no AuthenticationBackend was found")
 	}
 
-	return false,nil,errors.New("not found")
+	return provider, nil, errors.New("not found")
 }
 
 func GetUserByLogin(login string) (bool, *UserAccount, error) {
-	hit:=false
+	hit := false
 	var out *UserAccount
-	authorizationBackendProviders.Range(func(key, value any) bool {
-		p,ok:=value.(AuthenticationBackend)
-		if ok{
-			hit=true
-			ok,v,_:=p.GetUserByLogin(login)
-			if ok&&v!=nil{
-				out=v
+	authenticationBackendBackendProviders.Range(func(key, value any) bool {
+		p, ok := value.(AuthenticationBackend)
+		if ok {
+			hit = true
+			ok, v, _ := p.GetUserByLogin(login)
+			if ok && v != nil {
+				out = v
 				return false
 			}
 		}
 		return true
 	})
 
-	if out!=nil{
-		return true,out,nil
+	if out != nil {
+		return true, out, nil
 	}
 
-	if !hit{
-		panic("no AuthenticationBackend was found")
+	if !hit {
+		return false, nil, errors.New("no AuthenticationBackend was found")
 	}
 
-	return false,nil,errors.New("not found")
+	return false, nil, errors.New("not found")
 }
 
-func GetPermissionKeysByUserID(userID string)[]PermissionKey  {
-	hit:=false
-	out:=[]PermissionKey{}
+func MustGetPermissionKeysByUserID(userID string) []PermissionKey {
+	out := []PermissionKey{}
+	hit := false
 	authorizationBackendProviders.Range(func(key, value any) bool {
-		p,ok:=value.(AuthorizationBackend)
-		if ok{
-			hit=true
-			v:=p.GetPermissionKeysByUserID(userID)
-			out=append(out,v...)
+		p, ok := value.(AuthorizationBackend)
+		if ok {
+			hit = true
+			v := p.GetPermissionKeysByUserID(userID)
+			out = append(out, v...)
 		}
 		return true
 	})
 
-	if !hit{
+	if !hit {
 		panic("no AuthorizationBackend was found")
 	}
 
 	return out
 }
 
-func GetPermissionKeysByRole(roles []string) []PermissionKey {
+func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
 
 	//for admin only
 	if util.ContainsAnyInArray(RoleAdmin, roles) {
@@ -134,19 +137,19 @@ func GetPermissionKeysByRole(roles []string) []PermissionKey {
 		return permissions
 	}
 
-	var hit=false
+	var hit = false
 	permissions := []PermissionKey{}
 	authorizationBackendProviders.Range(func(key, value any) bool {
-		p,ok:=value.(AuthorizationBackend)
-		if ok{
-			hit=true
-			v:=p.GetPermissionKeysByRoles(roles)
-			permissions=append(permissions,v...)
+		p, ok := value.(AuthorizationBackend)
+		if ok {
+			hit = true
+			v := p.GetPermissionKeysByRoles(roles)
+			permissions = append(permissions, v...)
 		}
 		return true
 	})
 
-	if !hit{
+	if !hit {
 		panic("no AuthorizationBackend was found")
 	}
 

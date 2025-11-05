@@ -31,3 +31,5 @@ type Action string
 
 const RoleReadOnly = "readonly"
 const RoleAdmin = "admin"
+
+const DefaultNativeAuthBackend = "default_native_auth_backend"

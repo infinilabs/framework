@@ -32,14 +32,9 @@ type AccessToken struct {
 
 	AccessToken string `json:"access_token"`
 
-	//TODO to be removed
-	Provider string `json:"provider"`
-	Login    string `json:"login"`
-
 	Type      string   `json:"type"`
 	Resources []string `json:"resources"` //resource_type: resource_id, eg: datasource:xxxxx
 
-	Roles       []string        `json:"roles"`
 	Permissions []PermissionKey `json:"permissions"`
 
 	ExpireIn int64 `json:"expire_in"`

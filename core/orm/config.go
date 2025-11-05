@@ -55,9 +55,10 @@ const SharingEnabled = "sharing_enabled"
 const SharingResourceType = "sharing_resource_type"
 const SharingResourceParentPath = "sharing_resource_parent_path"
 
-const SharingResourceCategoryFilterEnabled = "sharing_resource_category_filter_enabled"
+const SharingCheckingResourceCategoryEnabled = "sharing_resource_category_filter_enabled"
+const SharingCheckingInheritedRulesEnabled = "sharing_checking_inherited_rules_enabled"
 const SharingResourceCategoryType = "sharing_resource_category_type"
 const SharingResourceCategoryID = "sharing_resource_category_id"
 const SharingResourceCategoryFilterField = "sharing_resource_category_filter_field"
 
-const SharingResourceIsCategory = "sharing_resource_is_category" //if it is a category, can be show up by children rules
+const SharingCategoryCheckingChildrenEnabled = "sharing_resource_is_category" //if it is a category, can be show up by children rules

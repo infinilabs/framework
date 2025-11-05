@@ -290,6 +290,10 @@ func ShouldQuery(clauses ...*Clause) *Clause {
 	}
 }
 
+func BooleanQuery() *Clause {
+	return &Clause{}
+}
+
 func MustNotQuery(clauses ...*Clause) *Clause {
 	return &Clause{
 		MustNotClauses: clauses,

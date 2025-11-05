@@ -26,6 +26,7 @@ package security
 import (
 	"github.com/RoaringBitmap/roaring"
 	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/orm"
 	"time"
 )
@@ -209,4 +210,42 @@ type IDMapping struct {
 type GroupMembership struct {
 	GroupID     string
 	PrincipalID string // User ID
+}
+
+
+
+func ConvertPermissionKeysToHashSet(keys []PermissionKey) *hashset.Set {
+	set := hashset.New()
+	for _, v := range keys {
+		set.Add(v)
+	}
+	return set
+}
+
+func ConvertPermissionHashSetToKeys(set *hashset.Set) []PermissionKey {
+	if set == nil || set.Empty() {
+		return nil
+	}
+
+	values := set.Values()
+	keys := make([]PermissionKey, 0, len(values))
+	for _, v := range values {
+		if key, ok := v.(PermissionKey); ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func IntersectSetsFast(a, b *hashset.Set) *hashset.Set {
+	if a.Size() > b.Size() {
+		a, b = b, a // iterate over smaller one
+	}
+	result := hashset.New()
+	for _, v := range a.Values() {
+		if b.Contains(v) {
+			result.Add(v)
+		}
+	}
+	return result
 }

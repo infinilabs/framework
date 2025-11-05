@@ -25,10 +25,9 @@ package security
 
 import (
 	"fmt"
-	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/golang-jwt/jwt"
-	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
+	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -44,19 +43,26 @@ func NewUserClaims() *UserClaims {
 	}
 }
 
+//auth user info
 type UserSessionInfo struct {
-	orm.ORMObjectBase
+	//orm.ORMObjectBase
 
 	//user identity provided by external providers
-	Source   string `json:"source"`
-	Provider string `json:"provider"`
-	Login    string `json:"login"`
+	//Source   string `json:"source"`
+	Provider string `json:"provider"` //auth provider
+	Login    string `json:"login"`    //auth login
+
 
 	//system level security's info
 	Roles       []string        `json:"roles"`
 	Permissions []PermissionKey `json:"permissions"`
 
 	Labels util.MapStr `json:"labels,omitempty"`
+
+	//private fields
+	UserID string `json:"userid"` //system level user ID
+
+	//account *UserAccount
 
 	//unified permissions
 	*UserAssignedPermission
@@ -67,28 +73,51 @@ type UserSessionInfo struct {
 	LastLogin LastLogin `json:"last_login,omitempty"`
 }
 
-func ConvertPermissionKeysToHashSet(keys []PermissionKey) *hashset.Set {
-	set := hashset.New()
-	for _, v := range keys {
-		set.Add(v)
-	}
-	return set
+func (u *UserSessionInfo) SetGetUserID(uid string) {
+	u.UserID =	uid
 }
+
+//func (u *UserSessionInfo) MustGetAccountInfo() *UserAccount {
+//	if u.UserAssignedPermission!=nil&& u.NeedRefresh()&&u.account!=nil{
+//		return u.account
+//	}
+//
+//	exists, account, err := MustGetAuthenticationProvider(u.Provider).GetUserByLogin(u.Login)
+//	if err != nil {
+//		panic(err)
+//	}
+//	if !exists || account == nil {
+//		panic("invalid account info")
+//	}
+//	u.UserAssignedPermission = GetUserPermissions(u)
+//	u.account=account
+//	return account
+//}
 
 func (u *UserSessionInfo) MustGetUserID() string {
-	ownerID := u.GetOwnerID()
-	if ownerID == "" {
-		panic("owner_id can't be empty")
+	if u.UserID != "" {
+		return u.UserID
 	}
-	return ownerID
+
+	panic("invalid account info")
+
+	//uid:= u.MustGetAccountInfo().ID
+	//
+	//u.UserID = uid
+	//return uid
 }
 
-func (u *UserSessionInfo) ValidInfo() bool {
-	return u.Provider != "" && u.Login != "" && u.GetOwnerID() != ""
+func (u *UserSessionInfo) IsValid() bool {
+	v:= u.Provider != "" && u.Login != ""&& u.UserID != ""
+	if !v{
+		log.Error(util.MustToJSON(u),u.UserID)
+		panic("invalid user")
+	}
+	return v
 }
 
 func (u *UserSessionInfo) GetKey() string {
-	return fmt.Sprintf("%v-%v", u.Provider, u.Login)
+	return fmt.Sprintf("%v-%v-%v", u.Provider, u.Login,u.UserID)
 }
 
 type LastLogin struct {
