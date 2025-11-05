@@ -95,6 +95,8 @@ type Config struct {
 
 	MaxWorkers int `config:"max_worker_size"`
 
+	DoubleCheckOffsetBeforeBulk bool `config:"double_check_offset_before_bulk"`
+
 	DetectActiveQueue bool `config:"detect_active_queue"`
 
 	VerboseBulkResult bool `config:"verbose_bulk_result"`
@@ -638,7 +640,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 		//log.Info("start final submit:",qConfig.ID,",",esClusterID,",msg count:",mainBuf.GetMessageCount(),", ",committedOffset," vs ",offset )
 		if mainBuf.GetMessageCount() > 0 {
 			continueNext := false
-			if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
+			if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
 				continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 				if global.Env().IsDebug {
 					log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
@@ -919,7 +921,7 @@ READ_DOCS:
 					//submit request
 					continueNext := false
 					err = nil
-					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
+					if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 						mainBuf.ResetData()
 
@@ -996,7 +998,7 @@ CLEAN_BUFFER:
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	if mainBuf.GetMessageCount() > 0 {
 		continueNext := false
-		if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
+		if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
 			continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 			//reset buffer
 			mainBuf.ResetData()
