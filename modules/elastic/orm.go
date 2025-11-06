@@ -406,6 +406,12 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 		} else {
 			dsl = orm.BuildQueryDSL(qb)
 		}
+		if request.Collapse != nil {
+			if dsl == nil {
+				dsl = make(map[string]interface{})
+			}
+			dsl["collapse"] = request.Collapse
+		}
 		if len(qb.Aggs) > 0 {
 			aggBuilder := orm.AggreationBuilder{}
 			aggs, err := aggBuilder.Build(qb.Aggs)
