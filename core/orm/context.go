@@ -228,6 +228,32 @@ func (ctx *Context) Get(key param.ParaKey) interface{} {
 	return ctx.Parameters.Get(key)
 }
 
+
+func (ctx *Context) GetBool(key param.ParaKey, defaultV bool) bool {
+	v := ctx.Get(key)
+	if v != nil {
+		s, ok := v.(bool)
+		if ok {
+			return s
+		}
+	}
+	return defaultV
+}
+
+func (ctx *Context) GetString(key param.ParaKey) (string, bool) {
+	v := ctx.Get(key)
+	if v == nil {
+		return "", false
+	}
+
+	s, ok := v.(string)
+	if ok {
+		return s, ok
+	}
+	return s, ok
+}
+
+
 func isNil(i interface{}) bool {
 	if i == nil {
 		return true

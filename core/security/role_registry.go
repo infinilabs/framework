@@ -25,6 +25,8 @@ package security
 
 import (
 	"infini.sh/framework/core/errors"
+	//log "github.com/cihub/seelog"
+	"infini.sh/framework/core/util"
 	"sync"
 )
 
@@ -150,4 +152,53 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 		permList = append(permList, perm)
 	}
 	return permList, true
+}
+
+
+
+func MustGetPermissionKeysByUserID(userID string) []PermissionKey {
+	out := []PermissionKey{}
+	hit := false
+	authorizationBackendProviders.Range(func(key, value any) bool {
+		p, ok := value.(AuthorizationBackend)
+		if ok {
+			hit = true
+			v := p.GetPermissionKeysByUserID(userID)
+			out = append(out, v...)
+		}
+		return true
+	})
+
+	if !hit {
+		panic("no AuthorizationBackend was found")
+	}
+
+	return out
+}
+
+func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
+
+	//for admin only
+	if util.ContainsAnyInArray(RoleAdmin, roles) {
+		permissions := GetAllPermissionKeys()
+		return permissions
+	}
+
+	var hit = false
+	permissions := []PermissionKey{}
+	authorizationBackendProviders.Range(func(key, value any) bool {
+		p, ok := value.(AuthorizationBackend)
+		if ok {
+			hit = true
+			v := p.GetPermissionKeysByRoles(roles)
+			permissions = append(permissions, v...)
+		}
+		return true
+	})
+
+	if !hit {
+		panic("no AuthorizationBackend was found")
+	}
+
+	return permissions
 }

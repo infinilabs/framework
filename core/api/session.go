@@ -85,13 +85,13 @@ func GetSession(w http.ResponseWriter, r *http.Request, key string) (bool, inter
 			// Create fresh session
 			session, err = s.New(r, getSessionName())
 			if err != nil {
-				log.Errorf("Failed to create new session: %v", err)
+				log.Warnf("Failed to create new session: %v", err)
 				return false, nil
 			}
 
 			// Save the new empty session immediately
 			if err := session.Save(r, w); err != nil {
-				log.Errorf("Failed to save new session: %v", err)
+				log.Warnf("Failed to save new session: %v", err)
 			}
 		}
 		return false, nil
@@ -110,11 +110,11 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 			log.Warnf("Session corrupted in SetSession, creating new one: %v", err)
 			session, err = s.New(r, getSessionName())
 			if err != nil {
-				log.Errorf("Failed to create new session in SetSession: %v", err)
+				log.Warnf("Failed to create new session in SetSession: %v", err)
 				return false
 			}
 		} else {
-			log.Errorf("Failed to get session in SetSession: %v", err)
+			log.Warnf("Failed to get session in SetSession: %v", err)
 			return false
 		}
 	}
@@ -122,7 +122,7 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 	session.Values[key] = value
 
 	if err := session.Save(r, w); err != nil {
-		log.Errorf("Failed to save session: %v", err)
+		log.Warnf("Failed to save session: %v", err)
 		return false
 	}
 
@@ -164,13 +164,13 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 	s := getStore()
 	session, err := s.Get(r, getSessionName())
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 		return false
 	}
 	delete(session.Values, key)
 	err = session.Save(r, w)
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 		return false
 	}
 	return true
@@ -190,7 +190,7 @@ func DestroySession(w http.ResponseWriter, r *http.Request) bool {
 	session.Options.MaxAge = -1
 	err = session.Save(r, w)
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 	}
 	return true
 }
