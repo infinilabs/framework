@@ -44,6 +44,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"golang.org/x/crypto/pkcs12"
 	"sync"
 	"time"
 )
@@ -78,12 +80,35 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 		pool.AppendCertsFromPEM(caCert)
 	}
 
-	if util.FileExists(tlsConfig.TLSCertFile) && util.FileExists(tlsConfig.TLSKeyFile) {
-		clientCert, err := tls.LoadX509KeyPair(tlsConfig.TLSCertFile, tlsConfig.TLSKeyFile)
-		if err != nil {
-			return nil, err
+	// --- Load client certificate automatically (.p12 or .pem) ---
+	if util.FileExists(tlsConfig.TLSCertFile) {
+		ext := filepath.Ext(tlsConfig.TLSCertFile)
+
+		switch ext {
+		case ".p12", ".pfx":
+			if err := loadP12Cert(clientConfig, pool, tlsConfig); err != nil {
+				return nil, err
+			}
+
+		default:
+			// fallback to PEM-based
+			if util.FileExists(tlsConfig.TLSKeyFile) {
+				clientCert, err := tls.LoadX509KeyPair(tlsConfig.TLSCertFile, tlsConfig.TLSKeyFile)
+				if err != nil {
+					return nil, fmt.Errorf("load pem cert: %w", err)
+				}
+				clientConfig.Certificates = []tls.Certificate{clientCert}
+			} else {
+				// If key file missing, check if maybe a .p12 exists beside it
+				p12Path := tlsConfig.TLSCertFile[:len(tlsConfig.TLSCertFile)-len(ext)] + ".p12"
+				if util.FileExists(p12Path) {
+					tlsConfig.TLSCertFile = p12Path
+					if err := loadP12Cert(clientConfig, pool, tlsConfig); err != nil {
+						return nil, err
+					}
+				}
+			}
 		}
-		clientConfig.Certificates = []tls.Certificate{clientCert}
 	}
 
 	if tlsConfig.DefaultDomain != "" {
@@ -101,6 +126,33 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 
 	return clientConfig, nil
 
+}
+
+// loadP12Cert loads PKCS#12 certificate and adds it to client config
+func loadP12Cert(clientConfig *tls.Config, pool *x509.CertPool, tlsConfig *config.TLSConfig) error {
+	log.Trace("start loading P12 cert")
+	pfxData, err := ioutil.ReadFile(tlsConfig.TLSCertFile)
+	if err != nil {
+		return fmt.Errorf("read p12 cert: %w", err)
+	}
+
+	// try to decode (use password if provided)
+	password := tlsConfig.TLSCertPassword
+	privateKey, cert, err := pkcs12.Decode(pfxData, password)
+	if err != nil {
+		return fmt.Errorf("parse p12 cert: %w", err)
+	}
+
+	tlsCert := tls.Certificate{
+		PrivateKey:  privateKey,
+		Certificate: [][]byte{cert.Raw},
+	}
+
+	clientConfig.Certificates = []tls.Certificate{tlsCert}
+	pool.AddCert(cert)
+
+	log.Trace("success loaded P12 cert")
+	return nil
 }
 
 func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
@@ -183,7 +235,6 @@ var (
 )
 
 func GetHttpClient(name string) *http.Client {
-
 	if v, ok := httpClients.Load(name); ok {
 		x, ok := v.(*http.Client)
 		if ok && x != nil {
@@ -221,6 +272,7 @@ func GetHttpClient(name string) *http.Client {
 }
 
 func GetFastHttpClient(name string) *fasthttp.Client {
+
 
 	if v, ok := fastHTTPClients.Load(name); ok {
 		x, ok := v.(*fasthttp.Client)
