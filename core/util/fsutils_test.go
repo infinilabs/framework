@@ -86,10 +86,6 @@ func TestIsFileWithinFolder(t *testing.T) {
 
 }
 
-
-
-
-
 func TestNormalizeFolderPath(t *testing.T) {
 	tests := []struct {
 		name     string

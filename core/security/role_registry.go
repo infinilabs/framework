@@ -154,8 +154,6 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 	return permList, true
 }
 
-
-
 func MustGetPermissionKeysByUserID(userID string) []PermissionKey {
 	out := []PermissionKey{}
 	hit := false

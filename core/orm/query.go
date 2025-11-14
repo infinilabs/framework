@@ -116,7 +116,6 @@ type QueryBuilder struct {
 	allowRequestBodyBytes bool
 	requestBodyBytes      []byte
 	Aggs                  map[string]Aggregation
-
 }
 
 func NewQuery() *QueryBuilder {
@@ -151,7 +150,7 @@ func (q *QueryBuilder) RequestBodyBytesVal() []byte {
 }
 
 func (q *QueryBuilder) MinimumShouldMatch(val int) *QueryBuilder {
-	q.Parameter("minimum_should_match",val)
+	q.Parameter("minimum_should_match", val)
 	return q
 }
 

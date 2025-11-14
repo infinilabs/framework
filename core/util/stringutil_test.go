@@ -599,7 +599,6 @@ func TestValidateSecure(t *testing.T) {
 	}
 }
 
-
 func TestReverseString(t *testing.T) {
 	tests := []struct {
 		input    string

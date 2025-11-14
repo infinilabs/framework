@@ -25,9 +25,9 @@ package security
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/golang-jwt/jwt"
 	"infini.sh/framework/core/util"
-	log "github.com/cihub/seelog"
 	"time"
 )
 
@@ -43,7 +43,7 @@ func NewUserClaims() *UserClaims {
 	}
 }
 
-//auth user info
+// auth user info
 type UserSessionInfo struct {
 	//orm.ORMObjectBase
 
@@ -51,7 +51,6 @@ type UserSessionInfo struct {
 	//Source   string `json:"source"`
 	Provider string `json:"provider"` //auth provider
 	Login    string `json:"login"`    //auth login
-
 
 	//system level security's info
 	Roles       []string        `json:"roles"`
@@ -74,7 +73,7 @@ type UserSessionInfo struct {
 }
 
 func (u *UserSessionInfo) SetGetUserID(uid string) {
-	u.UserID =	uid
+	u.UserID = uid
 }
 
 //func (u *UserSessionInfo) MustGetAccountInfo() *UserAccount {
@@ -108,16 +107,16 @@ func (u *UserSessionInfo) MustGetUserID() string {
 }
 
 func (u *UserSessionInfo) IsValid() bool {
-	v:= u.Provider != "" && u.Login != ""&& u.UserID != ""
-	if !v{
-		log.Error(util.MustToJSON(u),u.UserID)
+	v := u.Provider != "" && u.Login != "" && u.UserID != ""
+	if !v {
+		log.Error(util.MustToJSON(u), u.UserID)
 		panic("invalid user")
 	}
 	return v
 }
 
 func (u *UserSessionInfo) GetKey() string {
-	return fmt.Sprintf("%v-%v-%v", u.Provider, u.Login,u.UserID)
+	return fmt.Sprintf("%v-%v-%v", u.Provider, u.Login, u.UserID)
 }
 
 type LastLogin struct {

@@ -212,8 +212,6 @@ type GroupMembership struct {
 	PrincipalID string // User ID
 }
 
-
-
 func ConvertPermissionKeysToHashSet(keys []PermissionKey) *hashset.Set {
 	set := hashset.New()
 	for _, v := range keys {

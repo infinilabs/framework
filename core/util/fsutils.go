@@ -359,9 +359,7 @@ func ListAllFiles(path string) ([]string, error) {
 	return output, err
 }
 
-
-
-//path must be start and end with `/`
+// path must be start and end with `/`
 func NormalizeFolderPath(path string) string {
 	if path == "" {
 		return "/"

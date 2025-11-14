@@ -63,7 +63,7 @@ func GetUserByID(id string) (string, *UserAccount, error) {
 			ok, v, _ := p.GetUserByID(id)
 			if ok && v != nil {
 				out = v
-				provider=key.(string)
+				provider = key.(string)
 				return false
 			}
 		}
@@ -80,8 +80,6 @@ func GetUserByID(id string) (string, *UserAccount, error) {
 
 	return provider, nil, errors.New("not found")
 }
-
-
 
 func GetUserByLogin(login string) (bool, *UserAccount, error) {
 	hit := false
