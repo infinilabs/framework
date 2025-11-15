@@ -2,7 +2,7 @@
 title: "ORM (Object-Relational Mapping)"
 weight: 50
 ---
-
+# Object-Relational Mapping
 The INFINI Framework provides a powerful ORM system built on top of Elasticsearch(Including OpenSearch,Easysearch support), enabling developers to define, store, and query structured data objects with ease. The ORM handles object mapping, indexing, and provides a comprehensive set of CRUD operations.
 
 ## Object Definition

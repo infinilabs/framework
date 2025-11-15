@@ -1,6 +1,6 @@
 ---
-title: "Http Client"
-weight: 50
+title: "Http Client Configuration"
+weight: 60
 ---
 
 # HTTP Client Configuration
