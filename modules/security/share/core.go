@@ -6,35 +6,9 @@ package share
 
 import (
 	"fmt"
-	"time"
-
 	"infini.sh/framework/core/orm"
 )
 
-// ShareLink represents a public share link
-type ShareLink struct {
-	orm.ORMObjectBase
-	Token        string            `json:"token,omitempty" elastic_mapping:"token:{type:keyword}"`
-	ResourceID   string            `json:"resource_id,omitempty" elastic_mapping:"resource_id:{type:keyword}"`
-	ResourceType string            `json:"resource_type,omitempty" elastic_mapping:"resource_type:{type:keyword}"`
-	ResourcePath string            `json:"resource_path,omitempty" elastic_mapping:"resource_path:{type:keyword}"`
-	Permission   SharingPermission `json:"permission,omitempty" elastic_mapping:"permission:{type:byte}"`
-	CreatedBy    string            `json:"created_by,omitempty" elastic_mapping:"created_by:{type:keyword}"`
-	ExpiresAt    *time.Time        `json:"expires_at,omitempty" elastic_mapping:"expires_at:{type:date}"`
-	AccessCount  int64             `json:"access_count,omitempty" elastic_mapping:"access_count:{type:long}"`
-	PasswordHash string            `json:"-"`
-	IsActive     bool              `json:"is_active,omitempty" elastic_mapping:"is_active:{type:boolean}"`
-}
-
-// PermissionFilter represents Elasticsearch filter for permissions
-type PermissionFilter struct {
-	UserID        string
-	UserGroups    []string
-	ResourceIDs   []string
-	ResourcePath  string
-	Permission    SharingPermission
-	IncludePublic bool
-}
 
 type SharingRecord struct {
 	orm.ORMObjectBase
