@@ -135,6 +135,10 @@ func (h *APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpr
 	state = fmt.Sprintf("%v:%v", providerID, state)
 
 	session, err := api.GetSessionStore(r, oauthSession)
+	if session == nil {
+		panic(errors.New("session is nil"))
+	}
+
 	session.Values["state"] = state
 	session.Values["request_id"] = requestID
 	session.Values["provider"] = oauthProviderName
@@ -143,10 +147,6 @@ func (h *APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpr
 	session.Values["domain"] = h.Get(r, "domain", "")
 	session.Values["provider_id"] = providerID
 	session.Values["tag"] = tag
-
-	if session == nil {
-		panic(errors.New("session is nil"))
-	}
 	err = session.Save(r, w)
 
 	oAuthConfig, oauthCfg := h.mustGetAuthConfig(providerID)

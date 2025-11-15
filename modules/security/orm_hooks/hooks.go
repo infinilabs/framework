@@ -29,8 +29,6 @@ func init() {
 				panic("invalid data access")
 			}
 
-			//log.Error("OP:",op,",",ctx.GetBool(orm.DirectReadWithoutPermissionCheck, false),",",ctx.GetBool(orm.DirectWriteWithoutPermissionCheck, false) )
-
 			if op == orm.OpGet && ctx.GetBool(orm.DirectReadWithoutPermissionCheck, false) {
 				return ctx, o, nil
 			}
@@ -67,14 +65,9 @@ func init() {
 				per, err := sharingService.GetUserExplicitEffectivePermission(userID, share.NewResourceEntity(resourceType, o1.GetID(), ""))
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
-					//bq.ShouldClauses=append(bq.ShouldClauses,orm.TermsQuery("id",ids))
 					if op == orm.OpGet && per >= 1 {
 						return ctx, o, nil
 					}
-					//item shared with user, can not be deleted
-					//if op==orm.OpDelete && per>=1{
-					//	return ctx, o, nil
-					//}
 				}
 
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
@@ -95,8 +88,6 @@ func init() {
 				}
 			}
 
-			//must set and must equal
-			//TODO handle the case user not the owner but have access to the resource
 			if invalid {
 				panic("invalid data access")
 				log.Debug("invalid data access, user: ", userID, " vs ", userID1, ",", util.MustToJSON(o))
@@ -160,14 +151,9 @@ func init() {
 				per, err := sharingService.GetUserExplicitEffectivePermission(userID, shareEntity)
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
-					//bq.ShouldClauses=append(bq.ShouldClauses,orm.TermsQuery("id",ids))
 					if op == orm.OpGet && per >= 1 {
 						return ctx, o, nil
 					}
-					//item shared with user, can not be deleted
-					//if op==orm.OpDelete && per>=1{
-					//	return ctx, o, nil
-					//}
 				}
 
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
@@ -189,7 +175,6 @@ func init() {
 			}
 
 			//must set and must equal
-			//TODO handle the case user not the owner but have access to the resource
 			if invalid {
 				panic(errors.New("invalid data access"))
 				log.Debug("invalid data access, user: ", userID, " vs ", userID1, ",", util.MustToJSON(o))
@@ -270,7 +255,6 @@ func init() {
 					shareEntity.ResourceParentPath = ctx.MustGetString(orm.SharingResourceParentPath)
 				}
 				per, err := sharingService.GetUserExplicitEffectivePermission(userID, shareEntity)
-				//per,err:=sharingService.GetUserExplicitEffectivePermission(userID,share.NewResourceEntity(resourceType,o1.GetID(),""))
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
 					if per >= 4 {
@@ -297,7 +281,6 @@ func init() {
 				//TODO, can update other's data
 				//check permission
 				//TODO, if it is update, and is already set, the object maybe owned by someone else, we should not override the owner
-
 				//should be same tenant id
 				if userID1 != userID {
 					log.Debug("invalid data access, user: ", userID, " vs ", userID1, ",", util.MustToJSON(o))
@@ -325,29 +308,18 @@ func init() {
 				return nil
 			}
 
-			var bq *orm.Clause
-
-			//rules, ok := ctx.GetIntArray(orm.ReadPermissionCheckingScope)
-			//if ok {
-			//	//platform access
-			//	if util.ContainsInAnyInt32Array(security.PermissionScopePlatform, rules) {
-
-			bq = orm.ShouldQuery(
-			//orm.MustNotQuery(orm.ExistsQuery(SystemFieldsKey + "." + OwnerIDKey)),
-			)
+			var bq *orm.Clause = orm.ShouldQuery()
 
 			var globalShareMustFilters = []*orm.Clause{}
 			////apply sharing rules
 			if ctx.GetBool(orm.SharingEnabled, false) {
 
-				//log.Error("hit SharingEnabled")
 				resourceType := ctx.MustGetString(orm.SharingResourceType)
 
-				//var bypassByCategoryFilter = false //TODO support multi category filter and bypass
+				//TODO support multi category filter and bypass
 				//check category level filter first!
 				//apply parent sharing rules, like if the parent object is shared, eg: datasource level, all docs will be marked as shared
 				if ctx.GetBool(orm.SharingCheckingResourceCategoryEnabled, false) {
-					//log.Error("hit SharingCheckingResourceCategoryEnabled")
 					resourceCategoryType := ctx.MustGetString(orm.SharingResourceCategoryType)
 					resourceCategoryID := ctx.MustGetString(orm.SharingResourceCategoryID)
 					filterField := ctx.MustGetString(orm.SharingResourceCategoryFilterField)
@@ -360,7 +332,7 @@ func init() {
 					perm, err := sharingService.GetUserExplicitEffectivePermission(userID, share.NewResourceEntity(resourceCategoryType, resourceCategoryID, ""))
 					log.Trace("user have access to this parent object", perm, err)
 					if err == nil {
-						//TODO, not permission, just 403
+						//TODO, not right permission, just 403
 						//self or not inherit any permission, we should throw a permission error
 						if perm >= share.View {
 							//bypassByCategoryFilter = true
@@ -369,11 +341,9 @@ func init() {
 						}
 					}
 				} else {
-					//log.Error("not hit SharingCheckingResourceCategoryEnabled")
-
 					//for none-documents search
 					ids, err := sharingService.GetResourceIDsByResourceTypeAndUserID(userID, resourceType)
-					//log.Error("user have access to this parent object", ids, err)
+					log.Debug("user have access to this parent object", ids, err)
 					if err == nil {
 						//TODO, not permission, just 403
 						//self or not inherit any permission, we should throw a permission error
@@ -385,69 +355,39 @@ func init() {
 
 				//only enable this for documents search
 				if ctx.GetBool(orm.SharingCheckingInheritedRulesEnabled, false) {
-					//log.Error("hit SharingCheckingInheritedRulesEnabled")
-
 					//if not hit, then we try specify docs or specify folders
 					resourceParentPath, _ := ctx.GetString(orm.SharingResourceParentPath)
 					if resourceParentPath != "" {
 						//we are search files in specify folder/path
-
 						//check if the current user have access to this filtered path
 						var rules []share.SharingRecord
 						rules, _ = share.GetSharingRules(security.PrincipalTypeUser, userID, resourceType, "", resourceParentPath, globalShareMustFilters)
-						//log.Error("get all shared rules: ",resourceParentPath,",type:", resourceType, " => ", util.MustToJSON(rules))
+						log.Trace("get all shared rules: ",resourceParentPath,",type:", resourceType, " => ", util.MustToJSON(rules))
 
 						if len(rules) > 0 {
 							allowedIDs := []string{}
-							//allowedFolderPaths := []string{}
 							deniedIDs := []string{}
-							//deniedFolderPaths := []string{}
 
 							for _, v := range rules {
 								switch {
 								// ✅ Allow rules
 								case v.Permission > share.None:
 									allowedIDs = append(allowedIDs, v.ResourceID)
-									//if v.ResourceIsFolder {
-									//	allowedFolderPaths = append(allowedFolderPaths, v.ResourceFullPath)
-									//}
 
 								// ❌ Deny rules
 								case v.Permission == share.None:
-									//if v.ResourceIsFolder {
-									//	deniedFolderPaths = append(deniedFolderPaths, v.ResourceFullPath)
-									//} else {
 									deniedIDs = append(deniedIDs, v.ResourceID)
-									//}
-
 								default:
 									log.Error("invalid permission rule: ", util.ToJson(v, true))
 								}
 							}
 
-							//log.Error("allow IDs:",util.MustToJSON(allowedIDs))
-							//log.Error("deniedIDs IDs:",util.MustToJSON(deniedIDs))
-							//log.Error("allowedFolderPaths:",util.MustToJSON(allowedFolderPaths))
-							//log.Error("deniedFolderPaths:",util.MustToJSON(deniedFolderPaths))
-
 							inheritedRule := share.BuildEffectiveInheritedRules(rules, resourceParentPath, true)
-							//log.Error(inheritedRule)
-							//if inheritedRule!=nil{
-							//	//we do have permission level
-							//	if inheritedRule.Permission>share.None{
-							//
-							//	}else{
-							//		//we don't have permission on folder level
-							//	}
-							//}
 
 							if inheritedRule != nil {
-								//log.Infof("Effective inherited rule found for [%v]: %v", resourceParentPath, util.MustToJSON(inheritedRule))
 
 								// --- CASE 1: user has folder-level access ---
 								if inheritedRule.Permission > share.None {
-									//log.Info("✅ User has access to folder-level permission")
-
 									mustClauses := []*orm.Clause{}
 									mustNotClauses := []*orm.Clause{}
 
@@ -458,18 +398,6 @@ func init() {
 									if len(deniedIDs) > 0 {
 										mustNotClauses = append(mustNotClauses, orm.TermsQuery("id", deniedIDs))
 									}
-
-									//// ❌ Exclude denied subfolders (with allowlist bypass)
-									//for _, path := range deniedFolderPaths {
-									//	folderExclude := orm.BooleanQuery()
-									//	folderExclude.MustClauses = append(folderExclude.MustClauses,
-									//		orm.PrefixQuery("_system.parent_path", path))
-									//	if len(allowedIDs) > 0 {
-									//		folderExclude.MustNotClauses = append(folderExclude.MustNotClauses,
-									//			orm.TermsQuery("id", allowedIDs)) // allow exceptions
-									//	}
-									//	mustNotClauses = append(mustNotClauses, folderExclude)
-									//}
 
 									// ✅ Combine must and must_not
 									finalBool := orm.BooleanQuery()
@@ -485,77 +413,27 @@ func init() {
 									}
 
 								} else {
-									//// --- CASE 2: user has no folder-level permission ---
-									//log.Warn("🚫 No folder-level permission, only including explicitly allowed IDs")
-
 									// Only include items explicitly shared to the user
 									if len(allowedIDs) > 0 {
 										bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery("id", allowedIDs))
 									} else {
 										//// User has no access at all to anything here
-										//log.Warn("🚫 No allowed IDs, query will return empty results")
-										//bq.MustClauses = append(bq.MustClauses, orm.TermQuery("id", "__no_access__"))
 									}
 								}
 							} else {
 								//// --- CASE 3: no inherited rule at all ---
 								//log.Warn("⚠️ No permission rule found, fallback to explicit allowed IDs")
-
 								if len(allowedIDs) > 0 {
 									bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery("id", allowedIDs))
 								}
-								//else {
-								//	bq.MustClauses = append(bq.MustClauses, orm.TermQuery("id", "__no_access__"))
-								//}
 							}
 
 							// 🔍 Final debug output
 							log.Debug("Final built query: ", util.MustToJSON(bq))
-
-							//// --- Build final boolean query ---
-							//// ✅ allow items or folders
-							//shouldClauses := []*orm.Clause{}
-							//if len(allowedIDs) > 0 {
-							//	shouldClauses = append(shouldClauses, orm.TermsQuery("id", allowedIDs))
-							//}
-							//for _, path := range allowedFolderPaths {
-							//	shouldClauses = append(shouldClauses, orm.PrefixQuery("_system.parent_path", path))
-							//}
-							//if len(shouldClauses) > 0 {
-							//	bq.ShouldClauses = append(bq.ShouldClauses, shouldClauses...)
-							//}
-							//
-							//// ❌ deny rules
-							//mustNotClauses := []*orm.Clause{}
-							//if len(deniedIDs) > 0 {
-							//	mustNotClauses = append(mustNotClauses, orm.TermsQuery("id", deniedIDs))
-							//}
-							//for _, path := range deniedFolderPaths {
-							//	// exclude docs under this path except explicitly allowed IDs
-							//	folderExclude := orm.BooleanQuery()
-							//	folderExclude.MustClauses = append(folderExclude.MustClauses,
-							//		orm.PrefixQuery("_system.parent_path", path))
-							//	if len(allowedIDs) > 0 {
-							//		folderExclude.MustNotClauses = append(folderExclude.MustNotClauses,
-							//			orm.TermsQuery("id", allowedIDs))
-							//	}
-							//	mustNotClauses = append(mustNotClauses, folderExclude)
-							//}
-							//
-							//if len(mustNotClauses) > 0 {
-							//	bq.MustNotClauses = append(bq.MustNotClauses, mustNotClauses...)
-							//}
 						}
-
-						//if the current user don't have access to this folder, we need to check all parent folders, to see if it has any inherit rules
-
-						//if the current user have access to this folder, we only need to filter out all explicit not allowed rules for this user
-
 					} else {
 						var rules []share.SharingRecord
 						rules, _ = share.GetSharingRules(security.PrincipalTypeUser, userID, resourceType, "", resourceParentPath, globalShareMustFilters)
-						//log.Error("get all shared rules: ", resourceType, " => ", util.MustToJSON(rules))
-
 						if len(rules) > 0 {
 							allowedIDs := []string{}
 							allowedFolderPaths := []string{}
@@ -620,24 +498,18 @@ func init() {
 						}
 					}
 
-				} else {
-					//log.Error("not hit SharingCheckingInheritedRulesEnabled")
 				}
 
 				//this is a category, filter out by child shared rules
 				//TODO, check specify datasource, if they are have access or not
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
-					//log.Error("hit SharingCategoryCheckingChildrenEnabled")
-
 					//eg: get datasource list by find out which doc was shared to you
-					//log.Error("this is a category, filter out by child shared rules")
+					log.Debug("this is a category, filter out by child shared rules")
 					vids, _ := sharingService.GetCategoryObjectFromSharedObjects(userID, resourceType)
-					//log.Error("get shared ids via children: ", resourceType, " => ", vids)
+					log.Trace("get shared ids via children: ", resourceType, " => ", vids)
 					if len(vids) > 0 {
 						bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery("id", vids))
 					}
-				} else {
-					//log.Error("not hit SharingCategoryCheckingChildrenEnabled")
 				}
 			}
 
@@ -647,16 +519,11 @@ func init() {
 				bq.Parameter("minimum_should_match", 1)
 			}
 
-			//	}
-			//}
-
 			if bq != nil {
 				qb.Must(bq)
 			} else {
 				qb.Filter(orm.MustQuery(orm.TermQuery(SystemOwnerQueryField, userID)))
 			}
-
-			//qb.Exclude("_system")
 
 			return nil
 		}, orm.OpSearch)
