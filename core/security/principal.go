@@ -8,7 +8,7 @@ import (
 	"infini.sh/framework/core/orm"
 )
 
-//abstract layer for user or teams
+// abstract layer for user or teams
 type OrganizationPrincipal struct {
 	orm.ORMObjectBase
 	Type        string `json:"type,omitempty" elastic_mapping:"type:{type:keyword}"` //  "type": "user", // or "group"
@@ -18,5 +18,3 @@ type OrganizationPrincipal struct {
 
 const PrincipalTypeUser = "user"
 const PrincipalTypeTeam = "team"
-
-

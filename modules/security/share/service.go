@@ -363,6 +363,7 @@ func (s *SharingService) CreateOrUpdateShares(ctx *orm.Context, userID string, r
 
 	return list, nil
 }
+
 // Helper method to get resource path
 func (s *SharingService) getResourcePath(ctx *orm.Context, resourceType, resourceID, resourcePath string) string {
 	// This is a placeholder - in real implementation, you would fetch the resource
@@ -373,7 +374,6 @@ func (s *SharingService) getResourcePath(ctx *orm.Context, resourceType, resourc
 	}
 	return "/"
 }
-
 
 // GetInheritOrCurrentPathSharingRules
 func GetSharingRules(principalType string, principalID string, resourceType string, resourceID string, resourceParentPath string, filters []*orm.Clause) ([]SharingRecord, error) {
@@ -700,7 +700,6 @@ func (s *SharingService) updateExistingShare(existingShare *SharingRecord, newPe
 
 	return orm.Save(ctx, existingShare)
 }
-
 
 // permissionToString converts SharingPermission to string representation
 func permissionToString(perm SharingPermission) string {

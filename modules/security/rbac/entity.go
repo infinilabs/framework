@@ -6,9 +6,9 @@ package rbac
 
 import (
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/entity_card"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
-	"infini.sh/framework/core/entity_card"
 )
 
 type UserEntityProvider struct {

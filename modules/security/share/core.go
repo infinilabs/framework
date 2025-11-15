@@ -9,7 +9,6 @@ import (
 	"infini.sh/framework/core/orm"
 )
 
-
 type SharingRecord struct {
 	orm.ORMObjectBase
 	SimplifySharingRecord

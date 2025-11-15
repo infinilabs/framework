@@ -59,7 +59,7 @@ func Init() {
 		api.HandleUIMethod(api.GET, "/security/user/_search", SearchUser, api.RequirePermission(SearchUserPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
 		api.HandleUIMethod(api.PUT, "/security/user/:id", UpdateUser, api.RequirePermission(UpdateUserPermission))
 		api.HandleUIMethod(api.DELETE, "/security/user/:id", DeleteUser, api.RequirePermission(DeleteUserPermission))
-		api.HandleUIMethod(api.GET, "/security/user/:id", GetUser, api.RequirePermission(ReadUserPermission),api.Feature(http_filters.FeatureMaskSensitiveField))
+		api.HandleUIMethod(api.GET, "/security/user/:id", GetUser, api.RequirePermission(ReadUserPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
 
 		//search users or teams
 		api.HandleUIMethod(api.GET, "/security/principal/_search", SearchPrincipals, api.RequirePermission(SearchPrincipalPermission))

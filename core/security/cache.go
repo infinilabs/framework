@@ -45,31 +45,9 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 	}
 
 	//TODO cache, refresh user's role from db
-
 	//TODO, handle api key, with specify permissions
 	//TODO, if the provider is for user, like api token, we need to fetch from api token's config, to get the updated permission
 	allowedPermissions := MustGetPermissionKeysByUserID(shortUser.MustGetUserID())
-
-	//user, err := security.GetUser(shortUser.UserID)
-	//if err != nil {
-	//	panic(err)
-	//}
-
-	//privilege := api2.GetUserAllowedPrivileges(shortUser, user)
-	//log.Debugf("get user's privileges: %v, %v", shortUser.UserID, privilege)
-
-	//for _, v := range privilege {
-	//	p := security.DefaultRBAC.GetPrivilege(v)
-	//	if p != nil {
-	//		for resource, n := range p.Grants {
-	//			for x, _ := range n {
-	//				id := security.GetSimplePermission(permission.CategoryPlatform, resource, string(x))
-	//				allowedPermissions = append(allowedPermissions, id)
-	//				log.Debugf("register permission: %v, category: %v, resource: %v, action: %v", id, permission.CategoryPlatform, resource, string(x))
-	//			}
-	//		}
-	//	}
-	//}
 
 	log.Trace("get user's permissions:", allowedPermissions)
 	perms := NewUserAssignedPermission(allowedPermissions, nil)

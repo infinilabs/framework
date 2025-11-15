@@ -56,4 +56,3 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 
 	api.WriteJSON(w, result, 200)
 }
-

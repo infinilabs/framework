@@ -197,17 +197,17 @@ func init() {
 				panic("invalid data access")
 			}
 
-			optional:=false
+			optional := false
 			if ctx.GetBool(orm.DirectWriteWithoutPermissionCheck, false) {
-				optional=true
+				optional = true
 			}
 
-			sessionUser,err := security.GetUserFromContext(ctx.Context)
-			if !optional &&(sessionUser==nil||err!=nil){
+			sessionUser, err := security.GetUserFromContext(ctx.Context)
+			if !optional && (sessionUser == nil || err != nil) {
 				panic("invalid user info")
 			}
 
-			if sessionUser!=nil{
+			if sessionUser != nil {
 				userID := sessionUser.MustGetUserID()
 
 				v, ok := o.(orm.SystemFieldAccessor)
@@ -362,7 +362,7 @@ func init() {
 						//check if the current user have access to this filtered path
 						var rules []share.SharingRecord
 						rules, _ = share.GetSharingRules(security.PrincipalTypeUser, userID, resourceType, "", resourceParentPath, globalShareMustFilters)
-						log.Trace("get all shared rules: ",resourceParentPath,",type:", resourceType, " => ", util.MustToJSON(rules))
+						log.Trace("get all shared rules: ", resourceParentPath, ",type:", resourceType, " => ", util.MustToJSON(rules))
 
 						if len(rules) > 0 {
 							allowedIDs := []string{}

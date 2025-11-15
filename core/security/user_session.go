@@ -45,8 +45,6 @@ func NewUserClaims() *UserClaims {
 
 // auth user info
 type UserSessionInfo struct {
-	//orm.ORMObjectBase
-
 	//user identity provided by external providers
 	//Source   string `json:"source"`
 	Provider string `json:"provider"` //auth provider
@@ -61,8 +59,6 @@ type UserSessionInfo struct {
 	//private fields
 	UserID string `json:"userid"` //system level user ID
 
-	//account *UserAccount
-
 	//unified permissions
 	*UserAssignedPermission
 
@@ -76,34 +72,12 @@ func (u *UserSessionInfo) SetGetUserID(uid string) {
 	u.UserID = uid
 }
 
-//func (u *UserSessionInfo) MustGetAccountInfo() *UserAccount {
-//	if u.UserAssignedPermission!=nil&& u.NeedRefresh()&&u.account!=nil{
-//		return u.account
-//	}
-//
-//	exists, account, err := MustGetAuthenticationProvider(u.Provider).GetUserByLogin(u.Login)
-//	if err != nil {
-//		panic(err)
-//	}
-//	if !exists || account == nil {
-//		panic("invalid account info")
-//	}
-//	u.UserAssignedPermission = GetUserPermissions(u)
-//	u.account=account
-//	return account
-//}
-
 func (u *UserSessionInfo) MustGetUserID() string {
 	if u.UserID != "" {
 		return u.UserID
 	}
 
 	panic("invalid account info")
-
-	//uid:= u.MustGetAccountInfo().ID
-	//
-	//u.UserID = uid
-	//return uid
 }
 
 func (u *UserSessionInfo) IsValid() bool {

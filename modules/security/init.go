@@ -28,10 +28,10 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/module"
-	"infini.sh/framework/modules/security/oauth_client"
-	"infini.sh/framework/modules/security/rbac"
-	_ "infini.sh/framework/modules/security/orm_hooks"
 	_ "infini.sh/framework/modules/security/http_filters"
+	"infini.sh/framework/modules/security/oauth_client"
+	_ "infini.sh/framework/modules/security/orm_hooks"
+	"infini.sh/framework/modules/security/rbac"
 	_ "infini.sh/framework/modules/security/share"
 )
 
@@ -48,11 +48,11 @@ func (module *Module) Name() string {
 
 func (module *Module) Setup() {
 	module.cfg = &config.WebSecurityConfig{
-		Enabled:        true,
+		Enabled: true,
 		Authentication: config.AuthenticationConfig{Native: config.RealmConfig{
 			Enabled: true,
 		},
-	},
+		},
 	}
 
 	ok, err := env.ParseConfig("web.security", &module.cfg)
@@ -64,7 +64,7 @@ func (module *Module) Setup() {
 		return
 	}
 
-	if module.cfg.Authentication.Native.Enabled{
+	if module.cfg.Authentication.Native.Enabled {
 		rbac.Init()
 	}
 

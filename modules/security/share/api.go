@@ -16,7 +16,6 @@ type APIHandler struct {
 	api.Handler
 }
 
-
 func (h APIHandler) batchGetShares(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	obj := []ResourceEntity{}
@@ -33,7 +32,6 @@ func (h APIHandler) batchGetShares(w http.ResponseWriter, req *http.Request, ps 
 
 	h.WriteJSON(w, docs, 200)
 }
-
 
 type ShareRequest struct {
 	Shares  []SharingRecord `json:"shares"`

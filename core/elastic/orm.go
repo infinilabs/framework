@@ -39,7 +39,7 @@ func SearchV2WithResultItemMapper(ctx *orm.Context, resultArray interface{}, qb 
 		result := orm.SimpleResult{}
 		result.Raw = bytes
 
-		if len(bytes) > 0  && resultArray != nil {
+		if len(bytes) > 0 && resultArray != nil {
 			arrayValue := reflect.ValueOf(resultArray)
 
 			// Must be a pointer

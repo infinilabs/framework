@@ -208,17 +208,17 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 
 			//force update all mappings for existing indices
 			if handler.Config.OverrideExistsMapping {
-				log.Debug("override existing mapping ",indexName)
+				log.Debug("override existing mapping ", indexName)
 				res, err := handler.Client.UpdateMapping(indexName+"*", "doc", []byte(json))
 				if err != nil {
 					//ignore index not found exception
-					if !util.ContainStr(err.Error(),"index_not_found_exception"){
+					if !util.ContainStr(err.Error(), "index_not_found_exception") {
 						if global.Env().IsDebug {
 							log.Error(string(res))
 							panic(err)
-						}else{
-							log.Warnf("override existing mapping with error: %v, %v",err,string(res))
-							log.Warnf("index pattern: %v*, %v", indexName,json)
+						} else {
+							log.Warnf("override existing mapping with error: %v, %v", err, string(res))
+							log.Warnf("index pattern: %v*, %v", indexName, json)
 						}
 					}
 				}
