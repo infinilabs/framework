@@ -31,6 +31,11 @@ http_client:
   custom_profile:
     proxy:
       enabled: false
+  gitlab_p12:
+    tls:
+      enabled: true
+      cert_file: /fullpath/test-client.p12
+      cert_password: "12345"
 ```
 
 # Parameters
@@ -53,7 +58,7 @@ http_client:
 | `write_timeout`             | string    | The timeout for writing data to the connection.                            |
 | `read_buffer_size`          | int       | The size of the read buffer.                                               |
 | `write_buffer_size`         | int       | The size of the write buffer.                                              |
-| `tls_config`                | TLSConfig | Configuration for TLS settings.                                            |
+| `tls`                | TLSConfig | Configuration for TLS settings.                                            |
 | `max_connection_per_host`   | int       | The maximum number of connections per host.                                |
 
 ---
@@ -76,3 +81,18 @@ http_client:
 | `http_proxy`                | string  | URL of the HTTP proxy.                                                     |
 | `socket5_proxy`             | string  | URL of the SOCKS5 proxy.                                                   |
 | `using_proxy_env`           | boolean | Whether to use system environment proxy settings (e.g., `HTTP_PROXY`).      |
+
+---
+
+## TLS Configuration: `TLSConfig`
+| Name                        | Type      | Description                                                                 |
+|-----------------------------|-----------|-----------------------------------------------------------------------------|
+| `enabled`                   | boolean   | Enables or disables TLS/SSL for the connection.                            |
+| `cert_file`                 | string    | Path to the TLS certificate file. Support PKCS#12 and PEM file.     |
+| `cert_password`             | string    | Password for the TLS certificate file (if encrypted).                      |
+| `key_file`                  | string    | Path to the TLS private key file.                                          |
+| `ca_file`                   | string    | Path to the Certificate Authority (CA) certificate file.                   |
+| `skip_insecure_verify`      | boolean   | Skip TLS certificate verification (insecure - use with caution).           |
+| `default_domain`            | string    | Default domain for TLS certificate generation.                             |
+| `skip_domain_verify`        | boolean   | Skip domain verification for AutoIssue certificates.                       |
+| `client_session_cache_size` | int       | Size of the client TLS session cache.                                      |
