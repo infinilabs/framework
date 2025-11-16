@@ -347,22 +347,31 @@ func GetClusterDocType(clusterID string) string {
 }
 
 func newOpensearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "3.") {
+		api := new(opensearch.APIV3)
+		api.Elasticsearch = clusterID
+		api.Version = version
+		return api, nil
+	}
 	if strings.HasPrefix(version.Number, "2.") {
 		api := new(opensearch.APIV2)
 		api.Elasticsearch = clusterID
 		api.Version = version
 		return api, nil
 	}
-	if strings.HasPrefix(version.Number, "1.") {
-		api := new(opensearch.APIV1)
+	api := new(opensearch.APIV1)
+	api.Elasticsearch = clusterID
+	api.Version = version
+	return api, nil
+}
+
+func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "2.") {
+		api := new(easysearch.APIV2)
 		api.Elasticsearch = clusterID
 		api.Version = version
 		return api, nil
 	}
-	return nil, fmt.Errorf("unsupport opensearch version [%v]", version.Number)
-}
-
-func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
 	api := new(easysearch.APIV1)
 	api.Elasticsearch = clusterID
 	api.Version = version
