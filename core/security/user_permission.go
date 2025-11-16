@@ -45,7 +45,8 @@ func NewUserAssignedPermission(allowed []PermissionKey, denied []PermissionKey) 
 	if allowed != nil && len(allowed) > 0 {
 		allowedBitmap = roaring.NewBitmap()
 		for _, permID := range allowed {
-			allowedBitmap.Add(uint32(permissionRegistry.MustGetPermissionIDByKey(permID)))
+
+			allowedBitmap.Add(uint32(permissionRegistry.GetOrInitPermissionIDByKey(permID)))
 		}
 	}
 
@@ -53,7 +54,7 @@ func NewUserAssignedPermission(allowed []PermissionKey, denied []PermissionKey) 
 	if denied != nil && len(denied) > 0 {
 		deniedBitmap = roaring.NewBitmap()
 		for _, permID := range denied {
-			deniedBitmap.Add(uint32(permissionRegistry.MustGetPermissionIDByKey(permID)))
+			deniedBitmap.Add(uint32(permissionRegistry.GetOrInitPermissionIDByKey(permID)))
 		}
 
 		if allowedBitmap != nil {
