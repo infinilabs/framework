@@ -25,11 +25,12 @@ package bulk_indexing
 
 import (
 	"fmt"
-	"infini.sh/framework/core/locker"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"infini.sh/framework/core/locker"
 
 	"github.com/OneOfOne/xxhash"
 	log "github.com/cihub/seelog"
@@ -94,8 +95,6 @@ type Config struct {
 	Consumer queue.ConsumerConfig `config:"consumer"`
 
 	MaxWorkers int `config:"max_worker_size"`
-
-	DoubleCheckOffsetBeforeBulk bool `config:"double_check_offset_before_bulk"`
 
 	DetectActiveQueue bool `config:"detect_active_queue"`
 
@@ -640,7 +639,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 		//log.Info("start final submit:",qConfig.ID,",",esClusterID,",msg count:",mainBuf.GetMessageCount(),", ",committedOffset," vs ",offset )
 		if mainBuf.GetMessageCount() > 0 {
 			continueNext := false
-			if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
+			if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 				continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 				if global.Env().IsDebug {
 					log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] submit request:%v,continue:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, mainBuf.GetMessageCount(), continueNext, err)
@@ -811,7 +810,6 @@ READ_DOCS:
 					log.Errorf("slice worker, worker:[%v], error on consume queue:[%v], slice_id:%v, no data fetched, offset: %v, err: %v", workerID, qConfig.Name, sliceID, ctx1, err)
 				}
 				goto CLEAN_BUFFER
-				return
 			}
 
 			log.Errorf("slice worker, worker:[%v], error on queue:[%v], slice_id:%v, %v", workerID, qConfig.Name, sliceID, err)
@@ -921,7 +919,7 @@ READ_DOCS:
 					//submit request
 					continueNext := false
 					err = nil
-					if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
+					if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 						continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 						mainBuf.ResetData()
 
@@ -950,25 +948,36 @@ READ_DOCS:
 							if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 								err := consumerInstance.CommitOffset(*offset)
 								if err != nil {
+									log.Errorf("🔧 offset commit failed, worker:[%v], queue:[%v], slice:[%v], offset:[%v], err:%v", workerID, qConfig.Name, sliceID, *offset, err)
 									panic(err)
 								}
 
 								if global.Env().IsDebug {
 									log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] success commit offset:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, *offset, committedOffset, ctx1.String(), timeout, err)
 								}
+								// fix: update committedOffset immediately after successful commit, to ensure state consistency
 								committedOffset = offset
+								log.Debugf("🔧 offset committed successfully, worker:[%v], queue:[%v], slice:[%v], offset:[%v]", workerID, qConfig.Name, sliceID, *offset)
 							} else {
-								log.Error("offset not committed:", offset, ",moved to:", &pop.NextOffset)
+								if global.Env().IsDebug {
+									log.Debugf("🔧 offset not changed, skip commit, worker:[%v], queue:[%v], slice:[%v], offset:[%v], committed:[%v]", workerID, qConfig.Name, sliceID, offset, committedOffset)
+								}
 							}
-							offset = &pop.NextOffset
+							// fix: this code is moved to loop outside (line 970) to avoid updating offset in the middle of bulk submission
+							// offset = &pop.NextOffset
 						}
 					} else {
 						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
 					}
 				}
+
+				// fix: update offset after each message is processed, to ensure progress sync with actual processing
+				// so even if it crashes before submission, it will not repeat processing messages written to the buffer after restart
+				offset = &pop.NextOffset
 			}
 
-			offset = &ctx1.NextOffset
+			// fix: remove this code to avoid overwriting the updated offset in the loop
+			// offset = &ctx1.NextOffset
 		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
@@ -998,7 +1007,7 @@ CLEAN_BUFFER:
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
 	if mainBuf.GetMessageCount() > 0 {
 		continueNext := false
-		if !processor.config.DoubleCheckOffsetBeforeBulk || (offset != nil && committedOffset != nil && !offset.Equals(*committedOffset)) {
+		if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 			continueNext, err = processor.submitBulkRequest(ctx, qConfig, tag, esClusterID, meta, host, bulkProcessor, mainBuf)
 			//reset buffer
 			mainBuf.ResetData()
@@ -1174,7 +1183,6 @@ func (processor *BulkIndexingProcessor) getElasticsearchMetadata(qConfig *queue.
 		if esConfig == nil {
 			if processor.config.ElasticsearchConfig != nil {
 				processor.config.ElasticsearchConfig.Source = "bulk_indexing"
-				esConfig = processor.config.ElasticsearchConfig
 			}
 			esConfig = processor.config.ElasticsearchConfig
 		}
