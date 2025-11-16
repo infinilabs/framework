@@ -31,16 +31,25 @@ type User struct {
 	UserProfile
 }
 
+type UserAccount struct {
+	orm.ORMObjectBase
+	Name     string   `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }" validate:"required" `
+	Email    string   `json:"email,omitempty" elastic_mapping:"email: { type: keyword }" validate:"required|email" ` //unique
+	Roles    []string `json:"roles,omitempty" elastic_mapping:"roles: { type: keyword }"`
+	Password string   `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
+}
+
 type UserProfile struct {
 	orm.ORMObjectBase
 	Name        string      `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }"`
 	Email       string      `json:"email,omitempty" elastic_mapping:"email: { type: keyword }"`
 	Phone       string      `json:"phone,omitempty" elastic_mapping:"phone: { type: keyword }"`
-	AvatarUrl   string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
-	Roles       []UserRole  `json:"roles,omitempty" elastic_mapping:"roles: { type: object }"`
+	Avatar      string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
+	Roles       []string    `json:"roles,omitempty" elastic_mapping:"roles: { type: keyword }"`
 	Preferences Preferences `json:"preferences,omitempty" elastic_mapping:"preferences: { type: object }"`
 	Payload     interface{} `json:"payload,omitempty" elastic_mapping:"payload: { enabled: false }"`
 	//Tags      []string `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword }"`
+	Permissions []PermissionKey `json:"permissions,omitempty" elastic_mapping:"permissions: { type: keyword }"`
 }
 
 type UserExternalProfile struct {
@@ -49,7 +58,7 @@ type UserExternalProfile struct {
 	Login        string      `json:"login,omitempty"  elastic_mapping:"login: { type: keyword }"`
 	Name         string      `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }"`
 	Email        string      `json:"email,omitempty" elastic_mapping:"email: { type: keyword }"`
-	AvatarUrl    string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
+	Avatar       string      `json:"avatar,omitempty" elastic_mapping:"avatar: { type: keyword }"`
 	Payload      interface{} `json:"payload,omitempty" elastic_mapping:"payload: { type: object }"`
 }
 

@@ -304,14 +304,21 @@ type CountResponse struct {
 // SearchResponse is a count response object
 type SearchResponse struct {
 	ResponseBase
-	Took     int  `json:"took,omitempty"`
-	TimedOut bool `json:"timed_out,omitempty"`
-	Hits     struct {
-		Total    interface{}     `json:"total,omitempty"`
-		MaxScore float32         `json:"max_score,omitempty"`
-		Hits     []IndexDocument `json:"hits,omitempty"`
-	} `json:"hits,omitempty"`
+	Took         int                            `json:"took,omitempty"`
+	TimedOut     bool                           `json:"timed_out,omitempty"`
+	Hits         Hits                           `json:"hits,omitempty"`
 	Aggregations map[string]AggregationResponse `json:"aggregations,omitempty"`
+}
+
+type Hits struct {
+	Total    interface{}     `json:"total,omitempty"`
+	MaxScore float32         `json:"max_score,omitempty"`
+	Hits     []IndexDocument `json:"hits,omitempty"`
+}
+
+type TotalHits struct {
+	Value    int    `json:"value"`
+	Relation string `json:"relation"`
 }
 
 func (response *SearchResponse) GetTotal() int64 {

@@ -182,6 +182,7 @@ type CookieConfig struct {
 	AuthSecret    string `config:"auth_secret"`
 	EncryptSecret string `config:"encrypt_secret"`
 	Domain        string `config:"domain"`
+	Secure        bool   `config:"secure"`
 	MaxAge        int    `config:"max_age"`
 	Path          string `config:"path"`
 }
@@ -436,9 +437,13 @@ func (config *APIConfig) GetSchema() string {
 }
 
 type TLSConfig struct {
-	TLSEnabled            bool   `config:"enabled" json:"enabled,omitempty" elastic_mapping:"enabled: { type: boolean }"`
-	TLSCertFile           string `config:"cert_file" json:"cert_file,omitempty" elastic_mapping:"cert_file: { type: keyword }"`
-	TLSKeyFile            string `config:"key_file" json:"key_file,omitempty" elastic_mapping:"key_file: { type: keyword }"`
+	TLSEnabled bool `config:"enabled" json:"enabled,omitempty" elastic_mapping:"enabled: { type: boolean }"`
+
+	TLSCertFile     string `config:"cert_file" json:"cert_file,omitempty" elastic_mapping:"cert_file: { type: keyword }"`
+	TLSCertPassword string `config:"cert_password" json:"cert_password,omitempty"`
+
+	TLSKeyFile string `config:"key_file" json:"key_file,omitempty" elastic_mapping:"key_file: { type: keyword }"`
+
 	TLSCACertFile         string `config:"ca_file" json:"ca_file,omitempty" elastic_mapping:"ca_file: { type: keyword }"`
 	TLSInsecureSkipVerify bool   `config:"skip_insecure_verify" json:"skip_insecure_verify,omitempty" elastic_mapping:"skip_insecure_verify: { type: boolean }"`
 

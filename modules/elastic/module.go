@@ -74,6 +74,7 @@ var (
 			Enabled:                 false,
 			InitTemplate:            true,
 			SkipInitDefaultTemplate: false,
+			BuildTemplateForObject:  true,
 			InitSchema:              true,
 			IndexPrefix:             ".infini_",
 		},

@@ -294,6 +294,10 @@ func GetDefaultSystemConfig() config.SystemConfig {
 			},
 			Security: config.WebSecurityConfig{
 				Enabled: true,
+				Authentication: config.AuthenticationConfig{Native: config.RealmConfig{
+					Enabled: true,
+				},
+				},
 			},
 			WebsocketConfig: config.WebsocketConfig{
 				Enabled:        true,

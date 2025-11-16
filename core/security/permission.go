@@ -27,14 +27,14 @@ import (
 	"fmt"
 )
 
-func GetSimplePermissions(category, resource interface{}, action ...interface{}) []string {
-	out := []string{}
+func GetSimplePermissions(category, resource interface{}, action ...interface{}) []PermissionKey {
+	out := []PermissionKey{}
 	for _, v := range action {
 		out = append(out, GetSimplePermission(category, resource, v))
 	}
 	return out
 }
 
-func GetSimplePermission(category, resource, action interface{}) string {
-	return fmt.Sprintf("%s#%s/%s", category, resource, action) //category#resource:resource1/action
+func GetSimplePermission(category, resource, action interface{}) PermissionKey {
+	return PermissionKey(fmt.Sprintf("%s#%s/%s", category, resource, action)) //category#resource:resource1/action
 }

@@ -598,3 +598,92 @@ func TestValidateSecure(t *testing.T) {
 		})
 	}
 }
+
+func TestReverseString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"abc", "cba"},
+		{"", ""},
+		{"a", "a"},
+		{"ab", "ba"},
+		{"/Users/medcl/Downloads/ouyu/", "/uyuo/sdaolnwoD/lcdem/sresU/"},
+		{"/Users/medcl/Downloads/moyu/F2.xx2048fx/", "/xf8402xx.2F/uyom/sdaolnwoD/lcdem/sresU/"},
+		{"你好世界", "界世好你"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := ReverseString(tt.input)
+			if result != tt.expected {
+				t.Errorf("ReverseString(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetPathAncestors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:  "root",
+			input: "/",
+			expected: []string{
+				"/",
+			},
+		},
+		{
+			name:  "simple user path",
+			input: "/Users/",
+			expected: []string{
+				"/",
+				"/Users/",
+			},
+		},
+		{
+			name:  "nested path",
+			input: "/Users/medcl/Downloads/moyu/",
+			expected: []string{
+				"/",
+				"/Users/",
+				"/Users/medcl/",
+				"/Users/medcl/Downloads/",
+				"/Users/medcl/Downloads/moyu/",
+			},
+		},
+		{
+			name:  "no trailing slash",
+			input: "/Users/medcl/Downloads/moyu",
+			expected: []string{
+				"/",
+				"/Users/",
+				"/Users/medcl/",
+				"/Users/medcl/Downloads/",
+				"/Users/medcl/Downloads/moyu/",
+			},
+		},
+		{
+			name:  "path with dots and numbers",
+			input: "/Users/medcl/project-42.react-ui/",
+			expected: []string{
+				"/",
+				"/Users/",
+				"/Users/medcl/",
+				"/Users/medcl/project-42.react-ui/",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetPathAncestors(tt.input)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("GetPathAncestors(%q) = %v; want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
