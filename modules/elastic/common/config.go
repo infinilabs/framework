@@ -45,6 +45,7 @@ type ORMConfig struct {
 	InitTemplate            bool   `config:"init_template"`
 	SkipInitDefaultTemplate bool   `config:"skip_init_default_template"`
 	OverrideExistsTemplate  bool   `config:"override_exists_template"`
+	OverrideExistsMapping   bool   `config:"override_exists_mapping"`
 	BuildTemplateForObject  bool   `config:"build_template_for_object"`
 	PanicOnInitSchemaError  bool   `config:"panic_on_init_schema_error"`
 	TemplateName            string `config:"template_name"` //default template name

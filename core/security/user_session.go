@@ -25,6 +25,7 @@ package security
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"github.com/golang-jwt/jwt"
 	"infini.sh/framework/core/util"
 	"time"
@@ -38,24 +39,25 @@ type UserClaims struct {
 func NewUserClaims() *UserClaims {
 	return &UserClaims{
 		RegisteredClaims: &jwt.RegisteredClaims{},
-		UserSessionInfo: &UserSessionInfo{
-			System: map[string]interface{}{},
-		},
+		UserSessionInfo:  &UserSessionInfo{},
 	}
 }
 
+// auth user info
 type UserSessionInfo struct {
-	System map[string]interface{} `json:"_system,omitempty" elastic_mapping:"_system: { type: object }"`
-
 	//user identity provided by external providers
-	Source   string `json:"source"`
-	Provider string `json:"provider"`
-	Login    string `json:"login"`
+	//Source   string `json:"source"`
+	Provider string `json:"provider"` //auth provider
+	Login    string `json:"login"`    //auth login
 
 	//system level security's info
-	Roles []string `json:"roles,omitempty"`
+	Roles       []string        `json:"roles"`
+	Permissions []PermissionKey `json:"permissions"`
 
 	Labels util.MapStr `json:"labels,omitempty"`
+
+	//private fields
+	UserID string `json:"userid"` //system level user ID
 
 	//unified permissions
 	*UserAssignedPermission
@@ -66,12 +68,29 @@ type UserSessionInfo struct {
 	LastLogin LastLogin `json:"last_login,omitempty"`
 }
 
-func (u *UserSessionInfo) ValidInfo() bool {
-	return u.Provider != "" && u.Login != ""
+func (u *UserSessionInfo) SetGetUserID(uid string) {
+	u.UserID = uid
+}
+
+func (u *UserSessionInfo) MustGetUserID() string {
+	if u.UserID != "" {
+		return u.UserID
+	}
+
+	panic("invalid account info")
+}
+
+func (u *UserSessionInfo) IsValid() bool {
+	v := u.Provider != "" && u.Login != "" && u.UserID != ""
+	if !v {
+		log.Error(util.MustToJSON(u), u.UserID)
+		panic("invalid user")
+	}
+	return v
 }
 
 func (u *UserSessionInfo) GetKey() string {
-	return fmt.Sprintf("%v-%v", u.Provider, u.Login)
+	return fmt.Sprintf("%v-%v-%v", u.Provider, u.Login, u.UserID)
 }
 
 type LastLogin struct {

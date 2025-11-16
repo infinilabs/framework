@@ -26,6 +26,7 @@ package security
 import (
 	"github.com/RoaringBitmap/roaring"
 	log "github.com/cihub/seelog"
+	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/orm"
 	"time"
 )
@@ -37,7 +38,7 @@ type UserAssignedPermission struct {
 	DeniedPermissions  *roaring.Bitmap // Explicit deny bitmap for the user
 }
 
-func NewUserAssignedPermission(allowed []string, denied []string) *UserAssignedPermission {
+func NewUserAssignedPermission(allowed []PermissionKey, denied []PermissionKey) *UserAssignedPermission {
 	ver := GetPermissionVersion()
 
 	var allowedBitmap *roaring.Bitmap
@@ -71,10 +72,10 @@ func NewUserAssignedPermission(allowed []string, denied []string) *UserAssignedP
 // HasPermission checks if the user has a specific permission for a tenant
 func (p *UserAssignedPermission) Dump() {
 	if p.AllowedPermissions != nil {
-		log.Info("allow:", p.AllowedPermissions.String())
+		log.Debug("allow:", p.AllowedPermissions.String())
 	}
 	if p.DeniedPermissions != nil {
-		log.Info("deny:", p.DeniedPermissions.String())
+		log.Debug("deny:", p.DeniedPermissions.String())
 	}
 }
 
@@ -191,8 +192,9 @@ type AccessControlEntry struct {
 	SubjectType  string       // "user" | "group"
 
 	// Instead of SubjectID/Type strings, use bitsets for all users and groups with access
-	AllowedUsers  *roaring.Bitmap // bitmap of allowed user IDs
-	AllowedGroups *roaring.Bitmap // bitmap of allowed group IDs
+	AllowedUsers   *roaring.Bitmap // bitmap of allowed user IDs
+	AllowedGroups  *roaring.Bitmap // bitmap of allowed group IDs
+	PermissionBits *roaring.Bitmap // computed from roleRegistry
 
 	Role      string // e.g. "reader", "editor"
 	Source    string // Original source, e.g., "google_drive"
@@ -208,4 +210,40 @@ type IDMapping struct {
 type GroupMembership struct {
 	GroupID     string
 	PrincipalID string // User ID
+}
+
+func ConvertPermissionKeysToHashSet(keys []PermissionKey) *hashset.Set {
+	set := hashset.New()
+	for _, v := range keys {
+		set.Add(v)
+	}
+	return set
+}
+
+func ConvertPermissionHashSetToKeys(set *hashset.Set) []PermissionKey {
+	if set == nil || set.Empty() {
+		return nil
+	}
+
+	values := set.Values()
+	keys := make([]PermissionKey, 0, len(values))
+	for _, v := range values {
+		if key, ok := v.(PermissionKey); ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func IntersectSetsFast(a, b *hashset.Set) *hashset.Set {
+	if a.Size() > b.Size() {
+		a, b = b, a // iterate over smaller one
+	}
+	result := hashset.New()
+	for _, v := range a.Values() {
+		if b.Contains(v) {
+			result.Add(v)
+		}
+	}
+	return result
 }

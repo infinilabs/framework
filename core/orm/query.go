@@ -149,6 +149,11 @@ func (q *QueryBuilder) RequestBodyBytesVal() []byte {
 	return q.requestBodyBytes
 }
 
+func (q *QueryBuilder) MinimumShouldMatch(val int) *QueryBuilder {
+	q.Parameter("minimum_should_match", val)
+	return q
+}
+
 func (q *QueryBuilder) Parameter(key param.ParaKey, val interface{}) *QueryBuilder {
 	if q.root == nil {
 		q.root = &Clause{}
@@ -282,6 +287,10 @@ func ShouldQuery(clauses ...*Clause) *Clause {
 	return &Clause{
 		ShouldClauses: clauses,
 	}
+}
+
+func BooleanQuery() *Clause {
+	return &Clause{}
 }
 
 func MustNotQuery(clauses ...*Clause) *Clause {

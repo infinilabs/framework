@@ -5,7 +5,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"github.com/gookit/validate"
 	"github.com/jmoiron/jsonq"
@@ -200,28 +199,9 @@ func WriteJSONBytes(w http.ResponseWriter, b []byte, statusCode int) {
 	WriteBytes(w, b, statusCode)
 }
 
-func ReadBody(r *http.Request) ([]byte, error) {
-	if r.ContentLength > 0 && r.Body != nil {
-		content, err := ioutil.ReadAll(r.Body)
-		_ = r.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		if len(content) == 0 {
-			return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
-		}
-
-		// Replace r.Body so it can be read again later
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(content))
-
-		return content, nil
-	}
-	return nil, errors.Error("request body is nil")
-}
-
 // GetRawBody return raw http request body
 func GetRawBody(r *http.Request) ([]byte, error) {
-	return ReadBody(r)
+	return util.ReadBody(r)
 }
 
 // Write response to client

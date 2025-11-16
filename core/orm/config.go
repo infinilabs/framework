@@ -40,6 +40,7 @@ const Terms QueryType = "terms"
 const WaitForRefresh = "wait_for"
 const ImmediatelyRefresh = "true"
 const KeepSystemFields = "keep_system_fields"
+const NoAutoUpdateUpdatedField = "not_auto_update_updated_field"
 const MergePartialFieldsBeforeUpdate = "merge_partial_fields_before_update"
 const CheckExistsBeforeDelete = "check_exists_before_delete"
 const CheckExistsBeforeUpdate = "check_exists_before_update"
@@ -49,3 +50,15 @@ const AssignToCurrentUserIfNotExists = "assign_to_current_user_if_not_exists"
 const ReadPermissionCheckingScope = "read_permission_checking_scope"
 const DirectReadWithoutPermissionCheck = "direct_read_without_permission_check"
 const DirectWriteWithoutPermissionCheck = "direct_write_without_permission_check"
+
+const SharingEnabled = "sharing_enabled"
+const SharingResourceType = "sharing_resource_type"
+const SharingResourceParentPath = "sharing_resource_parent_path"
+
+const SharingCheckingResourceCategoryEnabled = "sharing_resource_category_filter_enabled"
+const SharingCheckingInheritedRulesEnabled = "sharing_checking_inherited_rules_enabled"
+const SharingResourceCategoryType = "sharing_resource_category_type"
+const SharingResourceCategoryID = "sharing_resource_category_id"
+const SharingResourceCategoryFilterField = "sharing_resource_category_filter_field"
+
+const SharingCategoryCheckingChildrenEnabled = "sharing_resource_is_category" //if it is a category, can be show up by children rules

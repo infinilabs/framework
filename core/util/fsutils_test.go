@@ -85,3 +85,63 @@ func TestIsFileWithinFolder(t *testing.T) {
 	assert.Equal(t, false, IsFileWithinFolder(v1, folder))
 
 }
+
+func TestNormalizeFolderPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty path",
+			input:    "",
+			expected: "/",
+		},
+		{
+			name:     "already normalized root",
+			input:    "/",
+			expected: "/",
+		},
+		{
+			name:     "path with leading and trailing slash",
+			input:    "/Users/",
+			expected: "/Users/",
+		},
+		{
+			name:     "path missing trailing slash",
+			input:    "/Users",
+			expected: "/Users/",
+		},
+		{
+			name:     "path missing leading slash",
+			input:    "Users/",
+			expected: "/Users/",
+		},
+		{
+			name:     "path missing both slashes",
+			input:    "Users",
+			expected: "/Users/",
+		},
+		{
+			name:     "nested path missing trailing slash",
+			input:    "/Users/medcl/Downloads",
+			expected: "/Users/medcl/Downloads/",
+		},
+		{
+			name:     "nested path missing both slashes",
+			input:    "Users/medcl/Downloads",
+			expected: "/Users/medcl/Downloads/",
+		},
+		{
+			name:     "path with extra slashes",
+			input:    "//Users//",
+			expected: "//Users//", // no cleaning — only ensures prefix/suffix
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, NormalizeFolderPath(tt.input))
+		})
+	}
+}

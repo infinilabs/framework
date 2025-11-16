@@ -103,13 +103,55 @@ type Object interface {
 	SetID(ID string)
 }
 
+const OwnerIDKey = "owner_id"
+const TenantIDKey = "tenant_id"
+
 type SystemFieldAccessor interface {
+	GetOwnerID() string
+	SetOwnerID(id string)
+
 	GetSystemValue(key string) (interface{}, bool)
 	GetSystemString(key string) string
 	GetSystemBool(key string) bool
 	GetSystemInt(key string) int
 	SetSystemValue(key string, value interface{})
 	SetSystemValues(m util.MapStr)
+}
+
+func (obj *ORMObjectBase) GetOwnerID() string {
+	return obj.GetSystemString(OwnerIDKey)
+}
+
+func (obj *ORMObjectBase) SetOwnerID(id string) {
+	obj.SetSystemValue(OwnerIDKey, id)
+}
+
+func SetOwnerID(o interface{}, ownerID string) {
+
+	v, ok := o.(SystemFieldAccessor)
+	if !ok {
+		panic("object does not implement SystemAccessor")
+	}
+	v.SetSystemValue(OwnerIDKey, ownerID)
+}
+
+func GetOwnerID(o interface{}) (ownerID string) {
+	// Direct interface assertion first
+	if accessor, ok := o.(SystemFieldAccessor); ok {
+		return accessor.GetSystemString(OwnerIDKey)
+	}
+
+	// Try to convert struct value to pointer
+	v := reflect.ValueOf(o)
+	if v.Kind() == reflect.Struct && v.CanAddr() {
+		ptr := v.Addr().Interface()
+		if accessor, ok := ptr.(SystemFieldAccessor); ok {
+			return accessor.GetSystemString(OwnerIDKey)
+		}
+	}
+
+	log.Error("object does not implement SystemFieldAccessor,", util.MustToJSON(o))
+	return ""
 }
 
 func (obj *ORMObjectBase) SetSystemValues(m util.MapStr) {
@@ -646,7 +688,9 @@ func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operati
 
 	// Always update Updated timestamp
 	tNow := time.Now()
-	setFieldValue(rValue, "Updated", &tNow)
+	if !ctx.GetBool(NoAutoUpdateUpdatedField, false) {
+		setFieldValue(rValue, "Updated", &tNow)
+	}
 
 	// For save, ensure Created timestamp exists
 	if opType == OpSave && !existsNonNullField(rValue, "Created") {

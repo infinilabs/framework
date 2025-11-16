@@ -39,17 +39,31 @@ func SearchV2WithResultItemMapper(ctx *orm.Context, resultArray interface{}, qb 
 		result := orm.SimpleResult{}
 		result.Raw = bytes
 
-		if resultArray != nil && len(bytes) > 0 {
-			// Validate that resultArray is a pointer to a slice
+		if len(bytes) > 0 && resultArray != nil {
 			arrayValue := reflect.ValueOf(resultArray)
-			if arrayValue.Kind() != reflect.Ptr || arrayValue.Elem().Kind() != reflect.Slice {
-				return fmt.Errorf("resultArray must be a pointer to a slice"), nil
+
+			// Must be a pointer
+			if arrayValue.Kind() != reflect.Ptr {
+				return fmt.Errorf("resultArray must be a pointer, actual: %v", arrayValue.Kind()), nil
 			}
 
-			sliceValue := arrayValue.Elem()
-			elementType := sliceValue.Type().Elem() // Get the type of elements in the slice
+			// Pointer must not be nil
+			if arrayValue.IsNil() {
+				return nil, &result
+			}
 
+			// Pointer must point to a slice
+			sliceValue := arrayValue.Elem()
+			if sliceValue.Kind() != reflect.Slice {
+				return fmt.Errorf("resultArray must be a pointer to a slice, actual: pointer to %v", sliceValue.Kind()), nil
+			}
+
+			// Type of elements inside the slice
+			elementType := sliceValue.Type().Elem()
+
+			// Now safe to use sliceValue for appending or iteration
 			searchResponse := SearchResponse{}
+
 			err := util.FromJSONBytes(bytes, &searchResponse)
 			if err != nil {
 				return err, nil
