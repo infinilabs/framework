@@ -366,6 +366,12 @@ func newOpensearchClient(clusterID string, version elastic.Version) (elastic.API
 }
 
 func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "2.") {
+		api := new(easysearch.APIV2)
+		api.Elasticsearch = clusterID
+		api.Version = version
+		return api, nil
+	}
 	api := new(easysearch.APIV1)
 	api.Elasticsearch = clusterID
 	api.Version = version
