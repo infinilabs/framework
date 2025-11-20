@@ -10,6 +10,12 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### ❌ Breaking changes  
+### 🚀 Features  
+### 🐛 Bug fix  
+### ✈️ Improvements  
+
+## 1.3.0 (2025-11-19)
+### ❌ Breaking changes  
 
 ### 🚀 Features  
 - feat: add delete by query v2 #194
