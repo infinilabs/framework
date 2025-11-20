@@ -455,6 +455,9 @@ type TLSConfig struct {
 	AutoIssue AutoIssue `config:"auto_issue" json:"auto_issue,omitempty" elastic_mapping:"auto_issue: { type: object }"`
 
 	ClientSessionCacheSize int `config:"client_session_cache_size" json:"client_session_cache_size,omitempty"`
+
+	// Handle malformed certificates with duplicate extensions (like GitLab's duplicate AuthorityKeyIdentifier)
+	TLSBypassMalformedCert bool `config:"bypass_malformed_cert" json:"bypass_malformed_cert,omitempty"`
 }
 
 type AutoIssue struct {
