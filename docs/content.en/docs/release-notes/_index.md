@@ -33,6 +33,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add some string utils
 - feat: allow force update all mappings for existing indices
 - feat: add several http filters
+- feat: add util to execute http requests via curl
 
 ### 🐛 Bug fix  
 - fix: localhost/127.0.0.1 with noproxy #185

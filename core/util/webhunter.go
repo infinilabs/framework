@@ -43,10 +43,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/x509"
 	"io/ioutil"
 	"net"
 	"net/http"
 	uri "net/url"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -232,6 +236,130 @@ func (r *Request) AddHeader(key, v string) *Request {
 	return r
 }
 
+// AddHeaders adds multiple headers at once from a map
+func (r *Request) AddHeaders(headers map[string]string) *Request {
+	for key, value := range headers {
+		r.AddHeader(key, value)
+	}
+	return r
+}
+
+// AddCommonJSONHeaders adds typical JSON API headers to a request
+func (r *Request) AddCommonJSONHeaders() *Request {
+	r.AddHeader("Content-Type", "application/json")
+	r.AddHeader("Accept", "application/json")
+	return r
+}
+
+// ExecuteRequestWithHeaders executes a request with additional headers applied just before execution
+func ExecuteRequestWithHeaders(client *http.Client, req *Request, headers map[string]string, catchError bool) (*Result, error) {
+	// Add the headers to the existing request
+	req.AddHeaders(headers)
+	return ExecuteRequestWithCatchFlag(client, req, catchError)
+}
+
+// ExecuteRequestViaCurl executes a request using curl, automatically handling headers and parameters
+func ExecuteRequestViaCurl(req *Request) (*Result, error) {
+	if req == nil {
+		return nil, errors.New("request cannot be nil")
+	}
+
+	// Build curl command arguments
+	args := []string{"-k", "-s", "--connect-timeout", "30"}
+
+	// Add method
+	method := strings.ToUpper(req.Method)
+	if method != "" && method != "GET" {
+		args = append(args, "-X", method)
+	}
+
+	// Add headers
+	for key, value := range req.headers {
+		args = append(args, "-H", fmt.Sprintf("%s: %s", key, value))
+	}
+
+	// Handle Content-Type if set
+	if req.ContentType != "" {
+		args = append(args, "-H", fmt.Sprintf("Content-Type: %s", req.ContentType))
+	}
+
+	// Add User-Agent if set
+	if req.Agent != "" {
+		args = append(args, "-H", fmt.Sprintf("User-Agent: %s", req.Agent))
+	}
+
+	// Add body data
+	if len(req.Body) > 0 {
+		// Create temporary file for body content
+		tmpFile, err := os.CreateTemp("", "curl_body_*.tmp")
+		if err != nil {
+			return nil, errors.New("failed to create temp file for curl body")
+		}
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		// Write body to temp file
+		if _, err := tmpFile.Write(req.Body); err != nil {
+			return nil, errors.New("failed to write body to temp file")
+		}
+
+		// Use the temp file as data source
+		args = append(args, "--data-binary", "@"+tmpFile.Name())
+	}
+
+	// Add the URL
+	args = append(args, req.Url)
+
+	// Add response headers and status code to output
+	args = append(args, "-w", "\nCURL_STATUS_CODE:%{http_code}\nCURL_RESPONSE_TIME:%{time_total}")
+
+	// Execute curl command
+	cmd := exec.Command("curl", args...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	if err != nil {
+		log.Errorf("curl command failed: %v, stderr: %s", err, stderr.String())
+		return nil, errors.Errorf("curl request failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	// Parse curl output to separate body, headers, and status code
+	output := stdout.String()
+
+	// Find and extract status code
+	statusCode := 200 // Default status
+	if strings.Contains(output, "CURL_STATUS_CODE:") {
+		parts := strings.Split(output, "CURL_STATUS_CODE:")
+		if len(parts) > 1 {
+			statusParts := strings.Split(strings.TrimSpace(parts[1]), "\n")
+			if len(statusParts) > 0 {
+				if code, err := strconv.Atoi(strings.TrimSpace(statusParts[0])); err == nil {
+					statusCode = code
+				}
+			}
+		}
+	}
+
+	// Extract actual body (everything before the CURL_ markers)
+	body := output
+	if curlIndex := strings.LastIndex(output, "\nCURL_STATUS_CODE:"); curlIndex != -1 {
+		body = output[:curlIndex]
+	}
+
+	result := &Result{
+		Body:         []byte(body),
+		Headers:      map[string][]string{}, // curl output includes headers mixed with body
+		StatusCode:   statusCode,
+		// ResponseTime is not part of Result struct, could log if needed
+	}
+
+	return result, nil
+}
+
 func (r *Request) SetAgent(agent string) *Request {
 	r.Agent = agent
 	return r
@@ -295,6 +423,7 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 		request, err = http.NewRequest(string(req.Method), req.Url, nil)
 	}
 	if err != nil {
+		log.Errorf("error in request: %s\n", err)
 		return nil, err
 	}
 	var parentCtx = context.Background()
@@ -308,12 +437,6 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 		timeCtx, cancel := context.WithTimeout(parentCtx, timeout)
 		defer cancel()
 		request = request.WithContext(timeCtx)
-	}
-
-	if err != nil {
-		log.Errorf("error in request: %s\n", err)
-		//panic(err)
-		return nil, err
 	}
 
 	if req.Agent != "" {
@@ -453,7 +576,14 @@ var t = &http.Transport{
 	MaxIdleConns:          20000,
 	MaxIdleConnsPerHost:   20000,
 	MaxConnsPerHost:       20000,
-	TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+	TLSClientConfig: &tls.Config{InsecureSkipVerify: true, // Completely bypass x509 parsing
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			return nil
+		}, VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+
+			// Completely skip cert parsing & verification
+			return nil
+		}},
 }
 
 var defaultClient = &http.Client{
