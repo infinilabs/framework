@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- chore: add p12 cert support to curl #239
 
 ## 1.3.0 (2025-11-19)
 ### ❌ Breaking changes  
