@@ -163,6 +163,11 @@ type Request struct {
 	basicAuthUsername string
 	basicAuthPassword string
 	Context           context.Context
+
+
+	//curl only
+	P12File      string
+	P12Password  string
 }
 
 func NewRequest(method, url string) *Request {
@@ -288,6 +293,16 @@ func ExecuteRequestViaCurl(req *Request) (*Result, error) {
 		args = append(args, "-H", fmt.Sprintf("User-Agent: %s", req.Agent))
 	}
 
+	// Add P12/PFX client certificate
+	if req.P12File != "" {
+		if req.P12Password != "" {
+			args = append(args, "--cert", fmt.Sprintf("%s:%s", req.P12File, req.P12Password))
+		} else {
+			args = append(args, "--cert", req.P12File)
+		}
+		args = append(args, "--cert-type", "P12")
+	}
+
 	// Add body data
 	if len(req.Body) > 0 {
 		// Create temporary file for body content
@@ -316,6 +331,8 @@ func ExecuteRequestViaCurl(req *Request) (*Result, error) {
 	// Execute curl command
 	cmd := exec.Command("curl", args...)
 
+	log.Debug(args)
+	
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
