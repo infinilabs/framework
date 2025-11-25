@@ -48,9 +48,6 @@ import (
 	"net"
 	"net/http"
 	uri "net/url"
-	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -163,11 +160,6 @@ type Request struct {
 	basicAuthUsername string
 	basicAuthPassword string
 	Context           context.Context
-
-
-	//curl only
-	P12File      string
-	P12Password  string
 }
 
 func NewRequest(method, url string) *Request {
@@ -241,6 +233,10 @@ func (r *Request) AddHeader(key, v string) *Request {
 	return r
 }
 
+func (r *Request) AllHeaders() map[string]string{
+	return r.headers
+}
+
 // AddHeaders adds multiple headers at once from a map
 func (r *Request) AddHeaders(headers map[string]string) *Request {
 	for key, value := range headers {
@@ -261,120 +257,6 @@ func ExecuteRequestWithHeaders(client *http.Client, req *Request, headers map[st
 	// Add the headers to the existing request
 	req.AddHeaders(headers)
 	return ExecuteRequestWithCatchFlag(client, req, catchError)
-}
-
-// ExecuteRequestViaCurl executes a request using curl, automatically handling headers and parameters
-func ExecuteRequestViaCurl(req *Request) (*Result, error) {
-	if req == nil {
-		return nil, errors.New("request cannot be nil")
-	}
-
-	// Build curl command arguments
-	args := []string{"-k", "-s", "--connect-timeout", "30"}
-
-	// Add method
-	method := strings.ToUpper(req.Method)
-	if method != "" && method != "GET" {
-		args = append(args, "-X", method)
-	}
-
-	// Add headers
-	for key, value := range req.headers {
-		args = append(args, "-H", fmt.Sprintf("%s: %s", key, value))
-	}
-
-	// Handle Content-Type if set
-	if req.ContentType != "" {
-		args = append(args, "-H", fmt.Sprintf("Content-Type: %s", req.ContentType))
-	}
-
-	// Add User-Agent if set
-	if req.Agent != "" {
-		args = append(args, "-H", fmt.Sprintf("User-Agent: %s", req.Agent))
-	}
-
-	// Add P12/PFX client certificate
-	if req.P12File != "" {
-		if req.P12Password != "" {
-			args = append(args, "--cert", fmt.Sprintf("%s:%s", req.P12File, req.P12Password))
-		} else {
-			args = append(args, "--cert", req.P12File)
-		}
-		args = append(args, "--cert-type", "P12")
-	}
-
-	// Add body data
-	if len(req.Body) > 0 {
-		// Create temporary file for body content
-		tmpFile, err := os.CreateTemp("", "curl_body_*.tmp")
-		if err != nil {
-			return nil, errors.New("failed to create temp file for curl body")
-		}
-		defer os.Remove(tmpFile.Name())
-		defer tmpFile.Close()
-
-		// Write body to temp file
-		if _, err := tmpFile.Write(req.Body); err != nil {
-			return nil, errors.New("failed to write body to temp file")
-		}
-
-		// Use the temp file as data source
-		args = append(args, "--data-binary", "@"+tmpFile.Name())
-	}
-
-	// Add the URL
-	args = append(args, req.Url)
-
-	// Add response headers and status code to output
-	args = append(args, "-w", "\nCURL_STATUS_CODE:%{http_code}\nCURL_RESPONSE_TIME:%{time_total}")
-
-	// Execute curl command
-	cmd := exec.Command("curl", args...)
-
-	log.Debug(args)
-	
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-
-	if err != nil {
-		log.Errorf("curl command failed: %v, stderr: %s", err, stderr.String())
-		return nil, errors.Errorf("curl request failed: %v, stderr: %s", err, stderr.String())
-	}
-
-	// Parse curl output to separate body, headers, and status code
-	output := stdout.String()
-
-	// Find and extract status code
-	statusCode := 200 // Default status
-	if strings.Contains(output, "CURL_STATUS_CODE:") {
-		parts := strings.Split(output, "CURL_STATUS_CODE:")
-		if len(parts) > 1 {
-			statusParts := strings.Split(strings.TrimSpace(parts[1]), "\n")
-			if len(statusParts) > 0 {
-				if code, err := strconv.Atoi(strings.TrimSpace(statusParts[0])); err == nil {
-					statusCode = code
-				}
-			}
-		}
-	}
-
-	// Extract actual body (everything before the CURL_ markers)
-	body := output
-	if curlIndex := strings.LastIndex(output, "\nCURL_STATUS_CODE:"); curlIndex != -1 {
-		body = output[:curlIndex]
-	}
-
-	result := &Result{
-		Body:         []byte(body),
-		Headers:      map[string][]string{}, // curl output includes headers mixed with body
-		StatusCode:   statusCode,
-		// ResponseTime is not part of Result struct, could log if needed
-	}
-
-	return result, nil
 }
 
 func (r *Request) SetAgent(agent string) *Request {
