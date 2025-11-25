@@ -307,29 +307,44 @@ func FileExtension(file string) string {
 // If all attempts fail, and `ignoreMissing` is set to `true`, this function 
 // returns `filePath` as-is. Otherwise, it panics.
 func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
+	// The paths that we tried
+	attempts := []string{} 
+
 	if path.IsAbs(filePath) {
-		return filePath
-	}
+		/*
+		 * It is already an absolute path, no need to absolutize it. Check if it
+		 * exists.
+		 */
 
-	/*
-	 * Interpret it relative to process working directory
-	 */
-	absPathRelativeToWd, _ := filepath.Abs(filePath)
-	if FileExists(absPathRelativeToWd) {
-		return absPathRelativeToWd
-	}
+		if FileExists(filePath) {
+			return filePath
+		} else {
+			attempts = append(attempts, filePath)
+		}
+	} else {
+		/*
+		* Interpret it relative to process working directory
+		*/
+		absPathRelativeToWd, _ := filepath.Abs(filePath)
+		if FileExists(absPathRelativeToWd) {
+			return absPathRelativeToWd
+		} else {
+			attempts = append(attempts, absPathRelativeToWd)
+		}
 
-	/*
-	 * Interpret it relative to the directory that contains this executable.
-	 */
-	absPathRelativeToExeDir := ""
-	exePath, err := os.Executable()
-	if err == nil {
-		exeDir := filepath.Dir(exePath)
-		absPathRelativeToExeDir = path.Join(exeDir, filePath)	
+		/*
+		* Interpret it relative to the directory that contains this executable.
+		*/
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+			absPathRelativeToExeDir := path.Join(exeDir, filePath)	
 
-		if FileExists(absPathRelativeToExeDir) {
-			return absPathRelativeToExeDir
+			if FileExists(absPathRelativeToExeDir) {
+				return absPathRelativeToExeDir
+			} else {
+				attempts = append(attempts, absPathRelativeToExeDir)
+			}
 		}
 	}
 
@@ -338,12 +353,7 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 	 * return `filePath` as-is.
 	 */ 
 	if !ignoreMissing {
-		errorMsg := fmt.Sprintf("failed to absolutize path '%s', tried ['%s'", filePath, absPathRelativeToWd)
-		if absPathRelativeToExeDir != "" {
-			errorMsg += fmt.Sprintf(", '%s'", absPathRelativeToExeDir)
-		}
-		errorMsg += "], but they do not exist"
-
+		errorMsg := fmt.Sprintf("failed to absolutize path '%s', tried %v, but they do not exist", filePath, attempts)
 		panic(errors.New(errorMsg))
 	} else {
 		return filePath
