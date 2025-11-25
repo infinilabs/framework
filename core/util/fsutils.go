@@ -302,38 +302,50 @@ func FileExtension(file string) string {
 	return strings.ToLower(strings.TrimSpace(ext))
 }
 
-// Smart get file abs path
+// Smart get file abs path. 
+// 
+// If all attempts fail, and `ignoreMissing` is set to `true`, this function 
+// returns `filePath` as-is. Otherwise, it panics.
 func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
-	filename, _ := filepath.Abs(filePath)
-	if FileExists(filename) {
-		return filename
+	if path.IsAbs(filePath) {
+		return filePath
 	}
 
-	pwd, _ := os.Getwd()
-	if pwd != "" {
-		pwd = path.Join(pwd, filePath)
+	/*
+	 * Interpret it relative to process working directory
+	 */
+	absPathRelativeToWd, _ := filepath.Abs(filePath)
+	if FileExists(absPathRelativeToWd) {
+		return absPathRelativeToWd
 	}
 
-	if FileExists(filename) {
-		return filename
-	}
-
-	ex, err := os.Executable()
-	var exPath string
+	/*
+	 * Interpret it relative to the directory that contains this executable.
+	 */
+	absPathRelativeToExeDir := ""
+	exePath, err := os.Executable()
 	if err == nil {
-		exPath = filepath.Dir(ex)
-	}
+		exeDir := filepath.Dir(exePath)
+		absPathRelativeToExeDir = path.Join(exeDir, filePath)	
 
-	if exPath != "" {
-		filename = path.Join(exPath, filePath)
-	}
-
-	if FileExists(filename) {
-		return filename
-	} else {
-		if !ignoreMissing {
-			panic(errors.New("file not found:" + filename))
+		if FileExists(absPathRelativeToExeDir) {
+			return absPathRelativeToExeDir
 		}
+	}
+
+	/*
+	 * All attempts failed. Panic if `ignoreMissing` is not set. Otherwise, 
+	 * return `filePath` as-is.
+	 */ 
+	if !ignoreMissing {
+		errorMsg := fmt.Sprintf("failed to absolutize path '%s', tried ['%s'", filePath, absPathRelativeToWd)
+		if absPathRelativeToExeDir != "" {
+			errorMsg += fmt.Sprintf(", '%s'", absPathRelativeToExeDir)
+		}
+		errorMsg += "], but they do not exist"
+
+		panic(errors.New(errorMsg))
+	} else {
 		return filePath
 	}
 }
