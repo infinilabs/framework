@@ -60,9 +60,9 @@ func (h *APIHandler) Init(oathConfig map[string]config.OAuthConfig) {
 	for k, cfg := range oathConfig {
 		h.oAuthConfig[k] = cfg
 		if cfg.ClientID == "" {
-			if global.Env().SystemConfig.ClusterConfig.Name!=""{
-				cfg.ClientID=global.Env().SystemConfig.ClusterConfig.Name
-			}else{
+			if global.Env().SystemConfig.ClusterConfig.Name != "" {
+				cfg.ClientID = global.Env().SystemConfig.ClusterConfig.Name
+			} else {
 				cfg.ClientID = global.Env().GetInstanceID()
 			}
 		}
