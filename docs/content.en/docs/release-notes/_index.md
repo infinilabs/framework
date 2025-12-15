@@ -10,6 +10,13 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### ❌ Breaking changes  
+### 🚀 Features  
+### 🐛 Bug fix  
+### ✈️ Improvements  
+- chore: add p12 cert support to curl #239
+
+## 1.3.0 (2025-11-19)
+### ❌ Breaking changes  
 
 ### 🚀 Features  
 - feat: add delete by query v2 #194
@@ -19,10 +26,21 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add support for Elasticsearch cat allocation API
 - feat: support custom write operation type for indexing_merge processor
 - feat: add util to parse time with local timezone #217
+- feat: add PKCS#12 certificate support for http client config
+- feat: add security module, with rbac,sharing,oauth client etc.
+- feat: add entity_card module
+- feat: add abstract layer for user or teams search
+- feat: add util to normalize folder path
+- feat: add some string utils
+- feat: allow force update all mappings for existing indices
+- feat: add several http filters
+- feat: add util to execute http requests via curl
 
 ### 🐛 Bug fix  
 - fix: localhost/127.0.0.1 with noproxy #185
 - fix: cluster metadata lost #200
+- fix: fix security permission cache
+- fix: fix incorrect queue capacity check
 
 ### ✈️ Improvements  
 - chore: less logging for session store change #180
@@ -41,6 +59,11 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: refactoring pipeline #222
 - chore: enhance bulk indexing - stricter offset validation and improved error handling #224
 - refactor: refactoring http utils #226
+- refactor: refactoring search response, add score support
+- refactor: refactoring ORM module, add generic security hooks
+- refactor: add boolean query to orm query builder
+- refactor: refactoring access_token, simplify login info
+- refactor: move RegisterAllowOriginFunc to core
 
 ## 1.2.0 (2025-07-25)
 ### ❌ Breaking changes  

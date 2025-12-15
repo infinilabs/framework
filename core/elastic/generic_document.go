@@ -5,6 +5,7 @@ type DocumentWithMeta[T any] struct {
 	Type      string                   `json:"_type,omitempty"`
 	ID        string                   `json:"_id,omitempty"`
 	Routing   string                   `json:"_routing,omitempty"`
+	Score     float32                  `json:"_score,omitempty"`
 	Source    T                        `json:"_source,omitempty"`
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }

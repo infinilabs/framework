@@ -23,20 +23,23 @@
 
 package security
 
-import "infini.sh/framework/core/orm"
+import (
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/core/util"
+)
 
 type AccessToken struct {
 	orm.ORMObjectBase
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	AccessToken string `json:"access_token"`
+	Labels util.MapStr `json:"labels,omitempty"`
 
-	Provider string `json:"provider"`
-	Login    string `json:"login"`
+	Type      string   `json:"type"`
+	Resources []string `json:"resources"` //resource_type: resource_id, eg: datasource:xxxxx
 
-	Type        string   `json:"type"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
+	Permissions []PermissionKey `json:"permissions"`
 
 	ExpireIn int64 `json:"expire_in"`
 }

@@ -1,7 +1,7 @@
 ---
-title: "Aggregation query"
+title: "Aggregation via URL Parameters"
 date: 2024-08-22
-weight: 4
+weight: 70
 ---
 
 ## Aggregation via URL Parameters

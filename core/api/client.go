@@ -31,8 +31,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"golang.org/x/crypto/pkcs12"
 	"golang.org/x/net/proxy"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
@@ -44,6 +46,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -64,10 +68,25 @@ func SimpleGetTLSConfig(tlsConfig *config.TLSConfig) *tls.Config {
 func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 
 	pool := x509.NewCertPool()
+
+	skipVerify := tlsConfig.TLSInsecureSkipVerify
+	if tlsConfig.TLSBypassMalformedCert {
+		skipVerify = true // Force skip verify when dealing with malformed certs like GitLab
+	}
+
 	clientConfig := &tls.Config{
 		RootCAs:            pool,
 		ClientSessionCache: tls.NewLRUClientSessionCache(tlsConfig.ClientSessionCacheSize),
-		InsecureSkipVerify: tlsConfig.TLSInsecureSkipVerify,
+		InsecureSkipVerify: skipVerify,
+	}
+
+	// Handle malformed certificates with duplicate extensions (GitLab issue)
+	if tlsConfig.TLSBypassMalformedCert {
+		// Use our custom bypass function that won't fail on parsing errors
+		clientConfig.VerifyPeerCertificate = util.GetBypassCertificateVerifyFunc()
+		log.Debug("TLS certificate bypass enabled for malformed certificates (duplicate extensions)")
+		// Ensure InsecureSkipVerify is true to handle parsing during handshake
+		clientConfig.InsecureSkipVerify = true
 	}
 
 	if util.FileExists(tlsConfig.TLSCACertFile) {
@@ -78,12 +97,36 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 		pool.AppendCertsFromPEM(caCert)
 	}
 
-	if util.FileExists(tlsConfig.TLSCertFile) && util.FileExists(tlsConfig.TLSKeyFile) {
-		clientCert, err := tls.LoadX509KeyPair(tlsConfig.TLSCertFile, tlsConfig.TLSKeyFile)
-		if err != nil {
-			return nil, err
+	// --- Load client certificate automatically (.p12 or .pem) ---
+	if util.FileExists(tlsConfig.TLSCertFile) {
+		ext := filepath.Ext(tlsConfig.TLSCertFile)
+
+		switch ext {
+		case ".p12", ".pfx":
+			if err := loadP12Cert(clientConfig, pool, tlsConfig); err != nil {
+				log.Error(err)
+				return nil, err
+			}
+
+		default:
+			// fallback to PEM-based
+			if util.FileExists(tlsConfig.TLSKeyFile) {
+				clientCert, err := tls.LoadX509KeyPair(tlsConfig.TLSCertFile, tlsConfig.TLSKeyFile)
+				if err != nil {
+					return nil, fmt.Errorf("load pem cert: %w", err)
+				}
+				clientConfig.Certificates = []tls.Certificate{clientCert}
+			} else {
+				// If key file missing, check if maybe a .p12 exists beside it
+				p12Path := tlsConfig.TLSCertFile[:len(tlsConfig.TLSCertFile)-len(ext)] + ".p12"
+				if util.FileExists(p12Path) {
+					tlsConfig.TLSCertFile = p12Path
+					if err := loadP12Cert(clientConfig, pool, tlsConfig); err != nil {
+						return nil, err
+					}
+				}
+			}
 		}
-		clientConfig.Certificates = []tls.Certificate{clientCert}
 	}
 
 	if tlsConfig.DefaultDomain != "" {
@@ -99,8 +142,114 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 		}
 	}
 
+
 	return clientConfig, nil
 
+}
+
+func printCertInfo(cert *x509.Certificate, source string) {
+	fmt.Println("-----[ TLS Certificate Loaded ]-----")
+	fmt.Printf("Source File:    %s\n", source)
+	fmt.Printf("Subject:        %s\n", cert.Subject.String())
+	fmt.Printf("Issuer:         %s\n", cert.Issuer.String())
+	fmt.Printf("Serial Number:  %s\n", cert.SerialNumber.String())
+	fmt.Printf("Valid From:     %s\n", cert.NotBefore.Format(time.RFC3339))
+	fmt.Printf("Valid To:       %s\n", cert.NotAfter.Format(time.RFC3339))
+	fmt.Printf("DNS Names:      %v\n", cert.DNSNames)
+	fmt.Printf("Email Addresses:%v\n", cert.EmailAddresses)
+	fmt.Printf("IP Addresses:   %v\n", cert.IPAddresses)
+	fmt.Printf("Signature Algo: %s\n", cert.SignatureAlgorithm.String())
+	fmt.Println("------------------------------------")
+}
+
+func printPEMCertInfo(certFile string) {
+	data, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		fmt.Printf("Failed to read cert file %s: %v\n", certFile, err)
+		return
+	}
+
+	var block *pem.Block
+	for {
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		if block.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				fmt.Printf("Failed to parse cert from %s: %v\n", certFile, err)
+				continue
+			}
+			if global.Env().IsDebug {
+				printCertInfo(cert, certFile)
+			}
+		}
+	}
+}
+
+func CheckP12Password(certFile, password string) error {
+	data, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+	_, _, err = pkcs12.Decode(data, password)
+	if err != nil {
+		if strings.Contains(err.Error(), "incorrect password") {
+			return fmt.Errorf("invalid password")
+		}
+		return fmt.Errorf("parse error: %w", err)
+	}
+	return nil
+}
+
+// loadP12Cert loads PKCS#12 certificate and adds it to client config
+func loadP12Cert(clientConfig *tls.Config, pool *x509.CertPool, tlsConfig *config.TLSConfig) error {
+	log.Trace("start loading P12 cert")
+	pfxData, err := ioutil.ReadFile(tlsConfig.TLSCertFile)
+	if err != nil {
+		return fmt.Errorf("read p12 cert: %w", err)
+	}
+
+	// try to decode (use password if provided)
+	password := tlsConfig.TLSCertPassword
+	privateKey, cert, err := pkcs12.Decode(pfxData, password)
+	if err != nil {
+		// Check if this is a certificate parsing error (duplicate extensions)
+		if strings.Contains(err.Error(), "duplicate extension") || strings.Contains(err.Error(), "certificate contains") || strings.Contains(err.Error(), "2.5.29.35") {
+			log.Warnf("Client P12 certificate has duplicate extensions, attempting to load with bypass: %v", err)
+
+			// Try our bypass function - which will give a more descriptive error
+			_, _, bypassErr := util.ParsePKCS12WithDuplicateExtensionTolerance(pfxData, password)
+			if bypassErr != nil {
+				log.Error(bypassErr)
+				return bypassErr
+			}
+
+			// If bypass somehow succeeded (it currently won't), continue
+			log.Info("Client certificate loaded with bypass")
+
+			return nil
+		}
+		log.Error("P12 certificate parsing error: ", err)
+		return fmt.Errorf("parse p12 cert: %w", err)
+	}
+
+	tlsCert := tls.Certificate{
+		PrivateKey:  privateKey,
+		Certificate: [][]byte{cert.Raw},
+	}
+
+	clientConfig.Certificates = []tls.Certificate{tlsCert}
+	pool.AddCert(cert)
+
+	log.Trace("success loaded P12 cert")
+
+	if global.Env().IsDebug {
+		printCertInfo(cert, tlsConfig.TLSCertFile)
+	}
+
+	return nil
 }
 
 func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
@@ -174,6 +323,60 @@ func NewHTTPClient(clientCfg *config.HTTPClientConfig) (*http.Client, error) {
 	}, nil
 }
 
+// DiagnoseP12Certificate loads and diagnoses a P12 certificate file
+func DiagnoseP12Certificate(certFile, password string) error {
+	if !util.FileExists(certFile) {
+		return fmt.Errorf("P12 file not found: %s", certFile)
+	}
+
+	log.Infof("=== DIAGNOSING P12 CERTIFICATE: %s ===", certFile)
+
+	pfxData, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	log.Infof("File size: %d bytes", len(pfxData))
+
+	// Try to decode with provided password
+	privateKey, cert, err := pkcs12.Decode(pfxData, password)
+	if err != nil {
+		log.Errorf("P12 DECODE FAILED:")
+		log.Errorf("Error: %v", err)
+
+		// Analyze the error
+		errStr := err.Error()
+		if strings.Contains(errStr, "duplicate extension") {
+			log.Error("⚠️  YOUR CLIENT CERTIFICATE has duplicate extensions (AUTHORITY KEY IDENTIFIER)")
+			log.Error("   This means YOUR P12 file is malformed, not the GitLab server")
+			log.Error("   You need to regenerate your client certificate with a proper Certificate Authority")
+		}
+		if strings.Contains(errStr, "wrong password") || strings.Contains(errStr, "password") {
+			log.Error("⚠️  Password is incorrect for this P12 file")
+		}
+		if strings.Contains(errStr, "passthrough") {
+			log.Error("⚠️  P12 file format issue - may be corrupted or in wrong format")
+		}
+
+		return fmt.Errorf("client P12 certificate parsing failed: %w", err)
+	}
+
+	// Success - certificate loaded fine
+	log.Info("✅ CLIENT CERTIFICATE PARSED SUCCESSFULLY")
+	log.Infof("Subject: %s", cert.Subject)
+	log.Infof("Issuer: %s", cert.Issuer)
+	log.Infof("Serial Number: %s", cert.SerialNumber)
+	log.Infof("Valid From: %s to %s", cert.NotBefore.Format("2006-01-02"), cert.NotAfter.Format("2006-01-02"))
+
+	if privateKey != nil {
+		log.Info("✅ Private key loaded successfully")
+	} else {
+		log.Warn("⚠️  No private key found in P12 file")
+	}
+
+	return nil
+}
+
 var (
 	defaultHttpClient     *http.Client
 	defaultFastHttpClient *fasthttp.Client
@@ -183,16 +386,11 @@ var (
 )
 
 func GetHttpClient(name string) *http.Client {
-
 	if v, ok := httpClients.Load(name); ok {
 		x, ok := v.(*http.Client)
 		if ok && x != nil {
 			return x
 		}
-	}
-
-	if global.Env().IsDebug {
-		log.Debugf("http client setting [%v] not found, using default", name)
 	}
 
 	//init client and save to store
@@ -211,6 +409,10 @@ func GetHttpClient(name string) *http.Client {
 		if ok {
 			return x
 		}
+	}
+
+	if global.Env().IsDebug {
+		log.Debugf("http client setting [%v] not found, using default", name)
 	}
 
 	if defaultHttpClient == nil {

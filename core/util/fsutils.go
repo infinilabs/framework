@@ -302,38 +302,60 @@ func FileExtension(file string) string {
 	return strings.ToLower(strings.TrimSpace(ext))
 }
 
-// Smart get file abs path
+// Smart get file abs path. 
+// 
+// If all attempts fail, and `ignoreMissing` is set to `true`, this function 
+// returns `filePath` as-is. Otherwise, it panics.
 func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
-	filename, _ := filepath.Abs(filePath)
-	if FileExists(filename) {
-		return filename
-	}
+	// The paths that we tried
+	attempts := []string{} 
 
-	pwd, _ := os.Getwd()
-	if pwd != "" {
-		pwd = path.Join(pwd, filePath)
-	}
+	if path.IsAbs(filePath) {
+		/*
+		 * It is already an absolute path, no need to absolutize it. Check if it
+		 * exists.
+		 */
 
-	if FileExists(filename) {
-		return filename
-	}
-
-	ex, err := os.Executable()
-	var exPath string
-	if err == nil {
-		exPath = filepath.Dir(ex)
-	}
-
-	if exPath != "" {
-		filename = path.Join(exPath, filePath)
-	}
-
-	if FileExists(filename) {
-		return filename
-	} else {
-		if !ignoreMissing {
-			panic(errors.New("file not found:" + filename))
+		if FileExists(filePath) {
+			return filePath
+		} else {
+			attempts = append(attempts, filePath)
 		}
+	} else {
+		/*
+		* Interpret it relative to process working directory
+		*/
+		absPathRelativeToWd, _ := filepath.Abs(filePath)
+		if FileExists(absPathRelativeToWd) {
+			return absPathRelativeToWd
+		} else {
+			attempts = append(attempts, absPathRelativeToWd)
+		}
+
+		/*
+		* Interpret it relative to the directory that contains this executable.
+		*/
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+			absPathRelativeToExeDir := path.Join(exeDir, filePath)	
+
+			if FileExists(absPathRelativeToExeDir) {
+				return absPathRelativeToExeDir
+			} else {
+				attempts = append(attempts, absPathRelativeToExeDir)
+			}
+		}
+	}
+
+	/*
+	 * All attempts failed. Panic if `ignoreMissing` is not set. Otherwise, 
+	 * return `filePath` as-is.
+	 */ 
+	if !ignoreMissing {
+		errorMsg := fmt.Sprintf("failed to absolutize path '%s', tried %v, but they do not exist", filePath, attempts)
+		panic(errors.New(errorMsg))
+	} else {
 		return filePath
 	}
 }
@@ -357,4 +379,18 @@ func ListAllFiles(path string) ([]string, error) {
 		return nil
 	})
 	return output, err
+}
+
+// path must be start and end with `/`
+func NormalizeFolderPath(path string) string {
+	if path == "" {
+		return "/"
+	}
+	if !PrefixStr(path, "/") {
+		path = "/" + path
+	}
+	if !SuffixStr(path, "/") {
+		path = path + "/"
+	}
+	return path
 }

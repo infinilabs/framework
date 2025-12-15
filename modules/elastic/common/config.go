@@ -45,6 +45,7 @@ type ORMConfig struct {
 	InitTemplate            bool   `config:"init_template"`
 	SkipInitDefaultTemplate bool   `config:"skip_init_default_template"`
 	OverrideExistsTemplate  bool   `config:"override_exists_template"`
+	OverrideExistsMapping   bool   `config:"override_exists_mapping"`
 	BuildTemplateForObject  bool   `config:"build_template_for_object"`
 	PanicOnInitSchemaError  bool   `config:"panic_on_init_schema_error"`
 	TemplateName            string `config:"template_name"` //default template name
@@ -346,22 +347,31 @@ func GetClusterDocType(clusterID string) string {
 }
 
 func newOpensearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "3.") {
+		api := new(opensearch.APIV3)
+		api.Elasticsearch = clusterID
+		api.Version = version
+		return api, nil
+	}
 	if strings.HasPrefix(version.Number, "2.") {
 		api := new(opensearch.APIV2)
 		api.Elasticsearch = clusterID
 		api.Version = version
 		return api, nil
 	}
-	if strings.HasPrefix(version.Number, "1.") {
-		api := new(opensearch.APIV1)
+	api := new(opensearch.APIV1)
+	api.Elasticsearch = clusterID
+	api.Version = version
+	return api, nil
+}
+
+func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
+	if strings.HasPrefix(version.Number, "2.") {
+		api := new(easysearch.APIV2)
 		api.Elasticsearch = clusterID
 		api.Version = version
 		return api, nil
 	}
-	return nil, fmt.Errorf("unsupport opensearch version [%v]", version.Number)
-}
-
-func newEasysearchClient(clusterID string, version elastic.Version) (elastic.API, error) {
 	api := new(easysearch.APIV1)
 	api.Elasticsearch = clusterID
 	api.Version = version

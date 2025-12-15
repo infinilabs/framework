@@ -35,6 +35,7 @@ import (
 	"infini.sh/framework/core/util"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -58,13 +59,40 @@ func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 	return getStore().Get(r, key)
 }
 
-// GetSession return session by session key
-func GetSession(r *http.Request, key string) (bool, interface{}) {
+func GetSession(w http.ResponseWriter, r *http.Request, key string) (bool, interface{}) {
 	s := getStore()
 	session, err := s.Get(r, getSessionName())
+
 	if err != nil {
 		if global.Env().IsDebug {
-			log.Error(err)
+			log.Error("Session error: ", err)
+		}
+
+		// Handle corrupted session by creating a new one
+		if strings.Contains(err.Error(), "the value is not valid") {
+			log.Warnf("Session corrupted, creating new session: %v", err)
+
+			// Clear the invalid cookie
+			if cookie, err := r.Cookie(getSessionName()); err == nil {
+				http.SetCookie(w, &http.Cookie{
+					Name:   cookie.Name,
+					Value:  "",
+					Path:   "/",
+					MaxAge: -1,
+				})
+			}
+
+			// Create fresh session
+			session, err = s.New(r, getSessionName())
+			if err != nil {
+				log.Warnf("Failed to create new session: %v", err)
+				return false, nil
+			}
+
+			// Save the new empty session immediately
+			if err := session.Save(r, w); err != nil {
+				log.Warnf("Failed to save new session: %v", err)
+			}
 		}
 		return false, nil
 	}
@@ -73,39 +101,76 @@ func GetSession(r *http.Request, key string) (bool, interface{}) {
 	return v != nil, v
 }
 
-// SetSession set session by session key and session value
 func SetSession(w http.ResponseWriter, r *http.Request, key string, value interface{}) bool {
 	s := getStore()
 	session, err := s.Get(r, getSessionName())
+
 	if err != nil {
-		log.Warnf("Session corrupted or missing, creating new one: %v", err)
-		session, _ = s.New(r, getSessionName()) // always safe to create new
+		if strings.Contains(err.Error(), "the value is not valid") {
+			log.Warnf("Session corrupted in SetSession, creating new one: %v", err)
+			session, err = s.New(r, getSessionName())
+			if err != nil {
+				log.Warnf("Failed to create new session in SetSession: %v", err)
+				return false
+			}
+		} else {
+			log.Warnf("Failed to get session in SetSession: %v", err)
+			return false
+		}
 	}
 
 	session.Values[key] = value
+
 	if err := session.Save(r, w); err != nil {
-		log.Errorf("Failed to save session: %v", err)
+		log.Warnf("Failed to save session: %v", err)
 		return false
 	}
 
 	if global.Env().IsDebug {
-		log.Infof("Set-Cookie: %v", w.Header().Get("Set-Cookie"))
+		log.Debugf("Session saved successfully for key: %s", key)
 	}
 
 	return true
+}
+
+func ValidateAndRecoverSession(w http.ResponseWriter, r *http.Request) (*sessions.Session, error) {
+	s := getStore()
+	session, err := s.Get(r, getSessionName())
+
+	if err != nil && strings.Contains(err.Error(), "the value is not valid") {
+		log.Warnf("Recovering corrupted session: %v", err)
+
+		// Destroy the corrupted session completely
+		if cookie, err := r.Cookie(getSessionName()); err == nil {
+			http.SetCookie(w, &http.Cookie{
+				Name:   cookie.Name,
+				Value:  "",
+				Path:   "/",
+				MaxAge: -1,
+			})
+		}
+
+		// Create brand new session
+		session, err = s.New(r, getSessionName())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return session, err
 }
 
 func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 	s := getStore()
 	session, err := s.Get(r, getSessionName())
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 		return false
 	}
 	delete(session.Values, key)
 	err = session.Save(r, w)
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 		return false
 	}
 	return true
@@ -125,7 +190,7 @@ func DestroySession(w http.ResponseWriter, r *http.Request) bool {
 	session.Options.MaxAge = -1
 	err = session.Save(r, w)
 	if err != nil {
-		log.Error(err)
+		log.Warn(err)
 	}
 	return true
 }
@@ -193,11 +258,15 @@ func getStore() sessions.Store {
 	if cookieCfg.Store == "cookie" { //cookie
 		s1 := sessions.NewCookieStore([]byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
 		s1.Options = &sessions.Options{
-			Path:   cookieCfg.Path,
-			MaxAge: cookieCfg.MaxAge,
-			Domain: cookieCfg.Domain,
+			Path:     cookieCfg.Path,
+			MaxAge:   cookieCfg.MaxAge,
+			Domain:   cookieCfg.Domain,
+			Secure:   cookieCfg.Secure, // Make sure this is set appropriately
+			HttpOnly: true,             // Recommended for security
+			//SameSite: http.SameSiteLaxMode, // Add SameSite policy
 		}
 		store = s1
+
 	} else { //filesystem
 
 		if cookieCfg.StorePath == "" {
@@ -208,9 +277,12 @@ func getStore() sessions.Store {
 
 		s1 := sessions.NewFilesystemStore(cookieCfg.StorePath, []byte(cookieCfg.AuthSecret), []byte(cookieCfg.EncryptSecret))
 		s1.Options = &sessions.Options{
-			Path:   cookieCfg.Path,
-			MaxAge: cookieCfg.MaxAge,
-			Domain: cookieCfg.Domain,
+			Path:     cookieCfg.Path,
+			MaxAge:   cookieCfg.MaxAge,
+			Domain:   cookieCfg.Domain,
+			Secure:   cookieCfg.Secure,
+			HttpOnly: true,
+			//SameSite: http.SameSiteLaxMode,
 		}
 		store = s1
 	}

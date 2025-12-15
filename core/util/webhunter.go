@@ -43,6 +43,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/x509"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -232,6 +233,32 @@ func (r *Request) AddHeader(key, v string) *Request {
 	return r
 }
 
+func (r *Request) AllHeaders() map[string]string{
+	return r.headers
+}
+
+// AddHeaders adds multiple headers at once from a map
+func (r *Request) AddHeaders(headers map[string]string) *Request {
+	for key, value := range headers {
+		r.AddHeader(key, value)
+	}
+	return r
+}
+
+// AddCommonJSONHeaders adds typical JSON API headers to a request
+func (r *Request) AddCommonJSONHeaders() *Request {
+	r.AddHeader("Content-Type", "application/json")
+	r.AddHeader("Accept", "application/json")
+	return r
+}
+
+// ExecuteRequestWithHeaders executes a request with additional headers applied just before execution
+func ExecuteRequestWithHeaders(client *http.Client, req *Request, headers map[string]string, catchError bool) (*Result, error) {
+	// Add the headers to the existing request
+	req.AddHeaders(headers)
+	return ExecuteRequestWithCatchFlag(client, req, catchError)
+}
+
 func (r *Request) SetAgent(agent string) *Request {
 	r.Agent = agent
 	return r
@@ -295,6 +322,7 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 		request, err = http.NewRequest(string(req.Method), req.Url, nil)
 	}
 	if err != nil {
+		log.Errorf("error in request: %s\n", err)
 		return nil, err
 	}
 	var parentCtx = context.Background()
@@ -308,12 +336,6 @@ func ExecuteRequestWithCatchFlag(client *http.Client, req *Request, catchError b
 		timeCtx, cancel := context.WithTimeout(parentCtx, timeout)
 		defer cancel()
 		request = request.WithContext(timeCtx)
-	}
-
-	if err != nil {
-		log.Errorf("error in request: %s\n", err)
-		//panic(err)
-		return nil, err
 	}
 
 	if req.Agent != "" {
@@ -453,7 +475,14 @@ var t = &http.Transport{
 	MaxIdleConns:          20000,
 	MaxIdleConnsPerHost:   20000,
 	MaxConnsPerHost:       20000,
-	TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+	TLSClientConfig: &tls.Config{InsecureSkipVerify: true, // Completely bypass x509 parsing
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			return nil
+		}, VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+
+			// Completely skip cert parsing & verification
+			return nil
+		}},
 }
 
 var defaultClient = &http.Client{

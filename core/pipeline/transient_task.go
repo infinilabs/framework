@@ -18,6 +18,7 @@ import (
 const PipelineSingleton = "pipeline_transient_tasks_singleton"
 
 func RunPipelineSync(v PipelineConfigV2, ctx *Context) error {
+
 	pipelineKey := fmt.Sprintf("[%v][%v]", v.Name, ctx.id)
 
 	log.Debugf("pipeline %v task started", pipelineKey)
