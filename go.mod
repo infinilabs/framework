@@ -83,6 +83,7 @@ require (
 	gopkg.in/hjson/hjson-go.v3 v3.3.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0
+	infini.sh/license v0.0.0-00010101000000-000000000000
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
 )
@@ -170,3 +171,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace infini.sh/license => ../license

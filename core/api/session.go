@@ -129,6 +129,15 @@ func ForceSetSession(w http.ResponseWriter, r *http.Request, key string, value i
 			}
 		}
 	} else {
+		// Destroy the corrupted session completely
+		if cookie, err := r.Cookie(getSessionName()); err == nil {
+			http.SetCookie(w, &http.Cookie{
+				Name:   cookie.Name,
+				Value:  "",
+				Path:   "/",
+				MaxAge: -1,
+			})
+		}
 		session, err = s.New(r, getSessionName())
 		if err != nil {
 			log.Warnf("Failed to create new session in ForceSetSession: %v", err)
