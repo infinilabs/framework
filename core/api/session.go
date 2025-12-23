@@ -28,15 +28,16 @@
 package api
 
 import (
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/sessions"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/kv"
 	"infini.sh/framework/core/util"
-	"net/http"
-	"os"
-	"strings"
-	"sync"
 )
 
 var (
@@ -102,19 +103,44 @@ func GetSession(w http.ResponseWriter, r *http.Request, key string) (bool, inter
 }
 
 func SetSession(w http.ResponseWriter, r *http.Request, key string, value interface{}) bool {
-	s := getStore()
-	session, err := s.Get(r, getSessionName())
+	return ForceSetSession(w, r, key, value, false)
+}
 
-	if err != nil {
-		if strings.Contains(err.Error(), "the value is not valid") {
-			log.Warnf("Session corrupted in SetSession, creating new one: %v", err)
-			session, err = s.New(r, getSessionName())
-			if err != nil {
-				log.Warnf("Failed to create new session in SetSession: %v", err)
+func ForceSetSession(w http.ResponseWriter, r *http.Request, key string, value interface{}, force bool) bool {
+	s := getStore()
+	var (
+		session *sessions.Session
+		err     error
+	)
+	if !force {
+		session, err = s.Get(r, getSessionName())
+
+		if err != nil {
+			if strings.Contains(err.Error(), "the value is not valid") {
+				log.Warnf("Session corrupted in ForceSetSession, creating new one: %v", err)
+				session, err = s.New(r, getSessionName())
+				if err != nil {
+					log.Warnf("Failed to create new session in ForceSetSession: %v", err)
+					return false
+				}
+			} else {
+				log.Warnf("Failed to get session in ForceSetSession: %v", err)
 				return false
 			}
-		} else {
-			log.Warnf("Failed to get session in SetSession: %v", err)
+		}
+	} else {
+		// Destroy the corrupted session completely
+		if cookie, err := r.Cookie(getSessionName()); err == nil {
+			http.SetCookie(w, &http.Cookie{
+				Name:   cookie.Name,
+				Value:  "",
+				Path:   "/",
+				MaxAge: -1,
+			})
+		}
+		session, err = s.New(r, getSessionName())
+		if err != nil {
+			log.Warnf("Failed to create new session in ForceSetSession: %v", err)
 			return false
 		}
 	}
