@@ -117,14 +117,14 @@ func ForceSetSession(w http.ResponseWriter, r *http.Request, key string, value i
 
 		if err != nil {
 			if strings.Contains(err.Error(), "the value is not valid") {
-				log.Warnf("Session corrupted in SetSession, creating new one: %v", err)
+				log.Warnf("Session corrupted in ForceSetSession, creating new one: %v", err)
 				session, err = s.New(r, getSessionName())
 				if err != nil {
-					log.Warnf("Failed to create new session in SetSession: %v", err)
+					log.Warnf("Failed to create new session in ForceSetSession: %v", err)
 					return false
 				}
 			} else {
-				log.Warnf("Failed to get session in SetSession: %v", err)
+				log.Warnf("Failed to get session in ForceSetSession: %v", err)
 				return false
 			}
 		}
