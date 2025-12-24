@@ -2,10 +2,11 @@ package orm
 
 import (
 	"fmt"
-	"infini.sh/framework/core/param"
 	"net/http"
 	"reflect"
 	"testing"
+
+	"infini.sh/framework/core/param"
 )
 
 func TestParseQueryParamsToBuilder(t *testing.T) {
@@ -817,5 +818,58 @@ func TestParseQueryWithMultipleFilterValues(t *testing.T) {
 
 	if !found {
 		t.Fatal("Expected tag filter to be present")
+	}
+}
+
+// Test case for preserving '+' in filter values (e.g. timezone offsets)
+//
+// str:         "created>=2025-01-01T00:00:00+08:00"
+// URL encoded: "created%3E%3D2025-01-01T00%3A00%3A00%2B08%3A00"
+func TestParseQueryWithPlusSign(t *testing.T) {
+	rawQuery := "filter=created>=2025-01-01T00:00:00%2B08:00"
+	req, err := http.NewRequest("GET", "/search?"+rawQuery, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder, err := NewQueryBuilderFromRequest(req, "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder.Build()
+	root := builder.Root()
+	if root == nil {
+		t.Fatal("Expected root clause to be non-nil")
+	}
+
+	// Find the range query
+	var found bool
+
+	checkClause := func(clause *Clause) {
+		if clause.Field == "created" && clause.Operator == QueryRangeGte {
+			val, ok := clause.Value.(string)
+			if !ok {
+				t.Errorf("Expected string value, got %T", clause.Value)
+				return
+			}
+			if val == "2025-01-01T00:00:00+08:00" {
+				found = true
+			} else {
+				t.Errorf("Expected value '2025-01-01T00:00:00+08:00', got '%s'", val)
+			}
+		}
+	}
+
+	if root.IsLeaf() {
+		checkClause(root)
+	} else {
+		for _, clause := range root.MustClauses {
+			checkClause(clause)
+		}
+	}
+
+	if !found {
+		t.Error("Expected range query on 'created' with value '2025-01-01T00:00:00+08:00' not found")
 	}
 }

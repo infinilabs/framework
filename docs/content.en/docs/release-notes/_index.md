@@ -14,6 +14,8 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 
+- refactor: use PathUnescape to decode query param filter #249
+
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
 ### 🚀 Features  
