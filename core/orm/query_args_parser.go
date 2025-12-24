@@ -1,11 +1,12 @@
 package orm
 
 import (
-	"infini.sh/framework/core/util"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"infini.sh/framework/core/util"
 )
 
 func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*QueryBuilder, error) {
@@ -76,9 +77,11 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 	// Handle filters (supporting NOT with '-' prefix)
 	filterClauses := []*Clause{}
 	for _, filterRaw := range q["filter"] {
-		filterStr, err := url.QueryUnescape(filterRaw)
+		// Use PathUnescape not QueryUnescape()
+		// to decode %XX but keep + as + (not space)
+		filterStr, err := url.PathUnescape(filterRaw)
 		if err != nil {
-			filterStr = filterRaw // fallback if invalid encoding
+			return nil, err
 		}
 
 		clause, err := parseFilterToClause(builder.defaultFilterFields, filterStr)
