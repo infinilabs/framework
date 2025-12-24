@@ -81,7 +81,7 @@ func NewQueryBuilderFromRequest(req *http.Request, defaultField ...string) (*Que
 		// to decode %XX but keep + as + (not space)
 		filterStr, err := url.PathUnescape(filterRaw)
 		if err != nil {
-			return nil, err
+			filterStr = filterRaw // fallback if invalid encoding
 		}
 
 		clause, err := parseFilterToClause(builder.defaultFilterFields, filterStr)
