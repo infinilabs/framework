@@ -191,6 +191,19 @@ func (doc *IndexDocument) GetStringFieldFromSource(field string, defaultV string
 	return defaultV
 }
 
+func (doc *IndexDocument) TryGetStringFieldFromSource(fields []string, defaultV string) string {
+	for _, field := range fields {
+		v, ok := doc.Source[field]
+		if ok {
+			v1, ok := v.(string)
+			if ok {
+				return v1
+			}
+		}
+	}
+	return defaultV
+}
+
 type BucketBase map[string]interface{}
 
 type Bucket struct {

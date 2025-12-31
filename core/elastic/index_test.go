@@ -130,3 +130,93 @@ func TestIndexDocument_GetStringFieldFromSource(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexDocument_TryGetStringFieldFromSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		doc      *IndexDocument
+		fields   []string
+		defaultV string
+		want     string
+	}{
+		{
+			name: "first matching string field is returned",
+			doc: &IndexDocument{
+				Source: map[string]interface{}{
+					"title": "hello",
+					"name":  "world",
+				},
+			},
+			fields:   []string{"title", "name"},
+			defaultV: "default",
+			want:     "hello",
+		},
+		{
+			name: "skip non-string value and return next string",
+			doc: &IndexDocument{
+				Source: map[string]interface{}{
+					"title": 123,
+					"name":  "world",
+				},
+			},
+			fields:   []string{"title", "name"},
+			defaultV: "default",
+			want:     "world",
+		},
+		{
+			name: "field exists but is not string",
+			doc: &IndexDocument{
+				Source: map[string]interface{}{
+					"title": 123,
+				},
+			},
+			fields:   []string{"title"},
+			defaultV: "default",
+			want:     "default",
+		},
+		{
+			name: "no fields exist",
+			doc: &IndexDocument{
+				Source: map[string]interface{}{
+					"other": "value",
+				},
+			},
+			fields:   []string{"title", "name"},
+			defaultV: "default",
+			want:     "default",
+		},
+		{
+			name: "empty fields list",
+			doc: &IndexDocument{
+				Source: map[string]interface{}{
+					"title": "hello",
+				},
+			},
+			fields:   []string{},
+			defaultV: "default",
+			want:     "default",
+		},
+		{
+			name: "nil source map",
+			doc: &IndexDocument{
+				Source: nil,
+			},
+			fields:   []string{"title"},
+			defaultV: "default",
+			want:     "default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.doc.TryGetStringFieldFromSource(tt.fields, tt.defaultV)
+			if got != tt.want {
+				t.Fatalf(
+					"TryGetStringFieldFromSource() = %q, want %q",
+					got,
+					tt.want,
+				)
+			}
+		})
+	}
+}
