@@ -84,7 +84,7 @@ type HookFunc func(ctx *Context, op Operation, model interface{}) (*Context, int
 type SearchHookFunc func(ctx *Context, op Operation, qb *QueryBuilder) error
 
 type prioritizedHook struct {
-	Priority int
+	Priority int //smaller priority execute first
 	Fn       HookFunc
 }
 

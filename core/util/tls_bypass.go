@@ -28,8 +28,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"golang.org/x/crypto/pkcs12"
 	log "github.com/cihub/seelog"
+	"golang.org/x/crypto/pkcs12"
 	"net"
 	"strings"
 )
@@ -68,9 +68,9 @@ func parseCertificateManually(asn1Data []byte) (*x509.Certificate, error) {
 	// This approach will need to be enhanced based on your specific requirements
 	cert := &x509.Certificate{
 		// Basic fields that are commonly needed
-		Subject:   pkix.Name{},
-		Issuer:    pkix.Name{},
-		DNSNames:  []string{},
+		Subject:     pkix.Name{},
+		Issuer:      pkix.Name{},
+		DNSNames:    []string{},
 		IPAddresses: []net.IP{},
 	}
 

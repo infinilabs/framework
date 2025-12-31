@@ -1380,8 +1380,6 @@ func (c *ESAPIV0) TemplateExists(templateName string) (bool, error) {
 	} else {
 		return true, nil
 	}
-
-	return false, nil
 }
 
 func (c *ESAPIV0) PutTemplate(templateName string, template []byte) ([]byte, error) {

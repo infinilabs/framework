@@ -233,7 +233,7 @@ func (r *Request) AddHeader(key, v string) *Request {
 	return r
 }
 
-func (r *Request) AllHeaders() map[string]string{
+func (r *Request) AllHeaders() map[string]string {
 	return r.headers
 }
 

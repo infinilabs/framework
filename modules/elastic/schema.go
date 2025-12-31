@@ -188,6 +188,7 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 				return err
 			}
 
+			log.Trace(indexTemplate, ", template: ", string(template))
 			data, err := handler.Client.PutTemplate(indexTemplate, template)
 
 			if err != nil {
