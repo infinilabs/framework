@@ -25,19 +25,19 @@ package security
 
 const (
 	// None is for empty action
-	None Action = "none"
+	None string = "none"
 	// Create is for create action
-	Create Action = "create"
+	Create string = "create"
 	// Read is for read action
-	Read Action = "read"
+	Read string = "read"
 	// Update is for  update action
-	Update Action = "update"
+	Update string = "update"
 	// Delete is for delete action
-	Delete Action = "delete"
+	Delete string = "delete"
 	// Search is for search action
-	Search Action = "search"
+	Search string = "search"
 	// CRUD is an alias for, create+read+update+delete permissions
-	CRUD Action = "crud"
+	CRUD string = "crud"
 
-	Admin Action = "admin"
+	Admin string = "admin"
 )
