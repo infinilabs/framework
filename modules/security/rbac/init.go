@@ -19,9 +19,6 @@ func Init() {
 	security.RegisterAuthenticationProvider(security.DefaultNativeAuthBackend, &provider)
 	security.RegisterAuthorizationProvider(security.DefaultNativeAuthBackend, &provider)
 
-	entity := UserEntityProvider{}
-	entity_card.RegisterEntityProvider("user", &entity)
-
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
 	orm.MustRegisterSchemaWithIndexName(&security.OrganizationPrincipal{}, "org-principals")
@@ -55,6 +52,10 @@ func Init() {
 	api.HandleUIMethod(api.GET, "/security/role/:id", GetRole, api.RequirePermission(ReadRolePermission))
 
 	if !global.Env().SystemConfig.WebAppConfig.Security.Managed {
+
+		entity := UserEntityProvider{}
+		entity_card.RegisterEntityProvider("user", &entity)
+
 		api.HandleUIMethod(api.POST, "/security/user/", CreateUser, api.RequirePermission(CreateUserPermission))
 		api.HandleUIMethod(api.GET, "/security/user/_search", SearchUser, api.RequirePermission(SearchUserPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
 		api.HandleUIMethod(api.PUT, "/security/user/:id", UpdateUser, api.RequirePermission(UpdateUserPermission))
