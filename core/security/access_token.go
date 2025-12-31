@@ -33,8 +33,8 @@ type AccessToken struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
-	AccessToken string `json:"access_token"`
-	Labels util.MapStr `json:"labels,omitempty"`
+	AccessToken string      `json:"access_token"`
+	Labels      util.MapStr `json:"labels,omitempty"`
 
 	Type      string   `json:"type"`
 	Resources []string `json:"resources"` //resource_type: resource_id, eg: datasource:xxxxx

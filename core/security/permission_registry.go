@@ -114,7 +114,13 @@ func NewPermissionRegistry() *PermissionRegistry {
 
 var permissionRegistry = NewPermissionRegistry()
 
-func GetOrInitPermission(category, resource string, action string) PermissionID {
+func GetOrInitPermission(category, resource string, action string) PermissionKey {
+	key := GetSimplePermission(category, resource, action)
+	permissionRegistry.GetOrInitPermissionIDByKey(key)
+	return key
+}
+
+func GetOrInitPermissionID(category, resource string, action string) PermissionID {
 	key := GetSimplePermission(category, resource, action)
 	return permissionRegistry.GetOrInitPermissionIDByKey(key)
 }

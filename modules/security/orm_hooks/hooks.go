@@ -14,16 +14,9 @@ func init() {
 
 	global.RegisterFuncAfterSetup(func() {
 
-		//only for managed mode, then check for tenant and user, must have and permit
-		if global.Env().SystemConfig.WebAppConfig.Security.Managed {
-			log.Debug("skip init ORM hooks for none-managed mode")
-			return
-		}
-
 		sharingService := share.NewSharingService()
 
 		orm.RegisterDataOperationPreHook(10, func(ctx *orm.Context, op orm.Operation, o interface{}) (*orm.Context, interface{}, error) {
-
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(o))
 				panic("invalid data access")
@@ -292,6 +285,7 @@ func init() {
 		}, orm.OpUpdate, orm.OpSave)
 
 		orm.RegisterSearchOperationHook(10, func(ctx *orm.Context, op orm.Operation, qb *orm.QueryBuilder) error {
+
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(qb))
 				panic("invalid data access")
@@ -529,6 +523,7 @@ func init() {
 		}, orm.OpSearch)
 
 		orm.RegisterSearchOperationHook(10, func(ctx *orm.Context, op orm.Operation, qb *orm.QueryBuilder) error {
+
 			if ctx.GetBool(orm.DirectWriteWithoutPermissionCheck, false) {
 				return nil
 			}

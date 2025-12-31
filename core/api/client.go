@@ -142,7 +142,6 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 		}
 	}
 
-
 	return clientConfig, nil
 
 }

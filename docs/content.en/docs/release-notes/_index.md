@@ -15,6 +15,10 @@ Information about release notes of INFINI Framework is provided here.
 ### ✈️ Improvements  
 
 - refactor: use PathUnescape to decode query param filter #249
+- chore: move entity provider to non-managed mode #250
+- chore: always enable orm hooks #250
+- refactor: refactoring permission registry #250
+- chore: add util to index_document #250
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
