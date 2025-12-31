@@ -180,6 +180,17 @@ type IndexDocument struct {
 	Highlight map[string][]interface{} `json:"highlight,omitempty"`
 }
 
+func (doc *IndexDocument) GetStringFieldFromSource(field string, defaultV string) string {
+	v, ok := doc.Source[field]
+	if ok {
+		v1, ok := v.(string)
+		if ok {
+			return v1
+		}
+	}
+	return defaultV
+}
+
 type BucketBase map[string]interface{}
 
 type Bucket struct {
