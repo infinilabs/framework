@@ -43,11 +43,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/env"
 	"runtime"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/env"
 )
 
 // RegisterKey is used to register custom value and retrieve back
@@ -187,10 +188,11 @@ func GetInitCallback() []func() {
 }
 
 type BackgroundTask struct {
-	Tag         string
-	Func        func()
-	lastRunning time.Time
-	Interval    time.Duration
+	Tag          string
+	Func         func()
+	lastRunning  time.Time
+	Interval     time.Duration
+	InitialDelay time.Duration
 }
 
 var backgroundCallback = sync.Map{}
@@ -239,7 +241,20 @@ func RunBackgroundCallbacks() {
 		timeStart := time.Now()
 		backgroundCallback.Range(func(key, value any) bool {
 			v := value.(*BackgroundTask)
-			if time.Since(v.lastRunning) > v.Interval {
+
+			// Default InitialDelay to Interval if not set
+			if v.InitialDelay == 0 {
+				v.InitialDelay = v.Interval
+			}
+
+			// If never run before, use InitialDelay
+			if v.lastRunning.IsZero() {
+				if time.Since(env.GetStartTime()) < v.InitialDelay {
+					return true
+				}
+			}
+
+			if time.Since(v.lastRunning) >= v.Interval {
 				log.Tracef("start run background job:%v, interval:%v", key, v.Interval)
 				ctx, cancel := context.WithTimeout(context.Background(), v.Interval)
 				defer cancel()

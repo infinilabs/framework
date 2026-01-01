@@ -5,14 +5,16 @@
 package entity_card
 
 import (
+	"context"
 	"fmt"
 	"sync"
+
+	"net/http"
 
 	//log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/security"
-	"net/http"
 )
 
 func init() {
@@ -32,7 +34,7 @@ func getLabelCardInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	id := ps.MustGetParameter("id")
 
 	provider := mustGetProviders(t)
-	info := provider.GenEntityInfo(t, id)
+	info := provider.GenEntityInfo(req.Context(),t, id)
 
 	if info != nil {
 		api.WriteJSON(w, info, 200)
@@ -58,7 +60,7 @@ func batchGetLabelInfo(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	output := []EntityLabel{}
 	for _, obj := range objs {
 		provider := mustGetProviders(obj.Type)
-		t := provider.GenEntityLabel(obj.Type, obj.ID)
+		t := provider.GenEntityLabel(req.Context(), obj.Type, obj.ID)
 		output = append(output, t...)
 	}
 
@@ -66,8 +68,8 @@ func batchGetLabelInfo(w http.ResponseWriter, req *http.Request, ps httprouter.P
 }
 
 type EntityProvider interface {
-	GenEntityLabel(string, []string) []EntityLabel
-	GenEntityInfo(string, string) *EntityInfo
+	GenEntityLabel(context.Context, string, []string) []EntityLabel
+	GenEntityInfo(context.Context, string, string) *EntityInfo
 }
 
 func mustGetProviders(t string) EntityProvider {

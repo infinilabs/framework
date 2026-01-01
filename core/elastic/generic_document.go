@@ -30,6 +30,13 @@ type SearchHits[T any] struct {
 	Hits     []DocumentWithMeta[T] `json:"hits,omitempty"`
 }
 
+func NewGeneralTotal(total int64) util.MapStr {
+	return util.MapStr{
+		"value":    total,
+		"relation": "eq",
+	}
+}
+
 func (response *SearchResponseWithMeta[T]) GetTotal() int64 {
 	if response == nil || response.Hits.Total == nil {
 		return -1
