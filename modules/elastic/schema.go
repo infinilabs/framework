@@ -30,11 +30,12 @@ package elastic
 import (
 	"bytes"
 	"fmt"
-	"infini.sh/framework/core/global"
 	"reflect"
 	"strings"
 	"sync"
 	"unicode"
+
+	"infini.sh/framework/core/global"
 
 	"github.com/buger/jsonparser"
 	log "github.com/cihub/seelog"
@@ -218,8 +219,7 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 							log.Error(string(res))
 							panic(err)
 						} else {
-							log.Warnf("override existing mapping with error: %v, %v", err, string(res))
-							log.Warnf("index pattern: %v*, %v", indexName, json)
+							log.Warnf("index pattern: %v*, %v, override existing mapping with error: %v, %v", indexName, json,err, string(res))
 						}
 					}
 				}

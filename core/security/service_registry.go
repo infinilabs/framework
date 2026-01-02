@@ -10,7 +10,6 @@ import (
 )
 
 type AuthenticationBackend interface {
-	//Auth(provider, login string)
 	GetUserByID(id string) (bool, *UserAccount, error)
 	GetUserByLogin(login string) (bool, *UserAccount, error)
 	CreateUser(name, login, password string, force bool) (*UserAccount, error)

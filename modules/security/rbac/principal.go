@@ -5,13 +5,13 @@
 package rbac
 
 import (
+	"net/http"
+
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
-	"infini.sh/framework/core/util"
-	"net/http"
 )
 
 func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -33,11 +33,11 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	var docs []elastic.DocumentWithMeta[security.OrganizationPrincipal]
 	for _, v := range out {
 		x := security.OrganizationPrincipal{
-			Name:        v.Name,
-			Type:        security.PrincipalTypeUser,
-			Description: v.Email,
+			Name:          v.Name,
+			ID:   v.ID,
+			Type: security.PrincipalTypeUser,
+			Description:   v.Email,
 		}
-		x.ID = v.ID
 
 		doc := elastic.DocumentWithMeta[security.OrganizationPrincipal]{
 			ID:     v.ID,
@@ -49,10 +49,7 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 
 	result := elastic.SearchResponseWithMeta[security.OrganizationPrincipal]{}
 	result.Hits.Hits = docs
-	result.Hits.Total = util.MapStr{
-		"value":    res.Total,
-		"relation": "eq",
-	}
+	result.Hits.Total = elastic.NewGeneralTotal(res.Total)
 
 	api.WriteJSON(w, result, 200)
 }

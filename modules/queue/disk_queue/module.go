@@ -130,7 +130,7 @@ func checkCapacity(cfg *DiskQueueConfig) error {
 
 	if cfg.CheckDiskCapacityRetryDelayInMs <= 0 {
 		cfg.CheckDiskCapacityRetryDelayInMs = 10 * 1000
-	}else{
+	} else {
 		if cfg.CheckDiskCapacityRetryDelayInMs < 1000 {
 			log.Warnf("disk_queue capacity checking maybe too frequently: %v", cfg.CheckDiskCapacityRetryDelayInMs)
 		}

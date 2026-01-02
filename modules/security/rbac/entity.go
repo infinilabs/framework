@@ -5,6 +5,8 @@
 package rbac
 
 import (
+	"context"
+
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/entity_card"
 	"infini.sh/framework/core/orm"
@@ -14,7 +16,7 @@ import (
 type UserEntityProvider struct {
 }
 
-func (this *UserEntityProvider) GenEntityInfo(t string, id string) *entity_card.EntityInfo {
+func (this *UserEntityProvider) GenEntityInfo(ctx context.Context,t string, id string) *entity_card.EntityInfo {
 	_, u, _ := security.GetUserByID(id)
 	if u != nil {
 		//support user only now
@@ -33,13 +35,13 @@ func (this *UserEntityProvider) GenEntityInfo(t string, id string) *entity_card.
 	}
 }
 
-func (this *UserEntityProvider) GenEntityLabel(t string, ids []string) []entity_card.EntityLabel {
+func (this *UserEntityProvider) GenEntityLabel(ctx1 context.Context,t string, ids []string) []entity_card.EntityLabel {
 	output := []entity_card.EntityLabel{}
 
 	builder := orm.NewQuery()
 	builder.Must(orm.TermsQuery("id", ids))
 
-	ctx := orm.NewContext()
+	ctx := orm.NewContextWithParent(ctx1)
 	ctx.DirectReadAccess()
 	orm.WithModel(ctx, &security.UserAccount{})
 	out := []security.UserAccount{}
