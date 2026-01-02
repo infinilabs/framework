@@ -19,7 +19,7 @@ func ReadBody(r *http.Request) ([]byte, error) {
 			return nil, err
 		}
 		if len(content) == 0 {
-			return nil, errors.NewWithCode(err, errors.BodyEmpty, r.URL.String())
+			return nil, errors.ErrorWithCode(err, errors.BodyEmpty, r.URL.String())
 		}
 
 		// Replace r.Body so it can be read again later

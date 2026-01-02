@@ -6,19 +6,32 @@ package api
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"strings"
+
 	"github.com/gookit/validate"
 	"github.com/jmoiron/jsonq"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"io/ioutil"
-	"net/http"
-	"strings"
 )
 
 func WriteAckWithMessage(w http.ResponseWriter, ack bool, status int, msg string) {
 	obj := util.MapStr{}
 	obj["message"] = msg
 	WriteAckJSON(w, ack, status, obj)
+}
+
+func WriteAuthRequiredError(w http.ResponseWriter, errMessage string) {
+	WriteError(w, errMessage, 401)
+}
+
+func WriteAccessDeniedError(w http.ResponseWriter, errMessage string) {
+	WriteError(w, errMessage, 403)
+}
+
+func WriteInvalidRequestError(w http.ResponseWriter, errMessage string) {
+	WriteError(w, errMessage, 400)
 }
 
 func WriteError(w http.ResponseWriter, errMessage string, statusCode int) {
@@ -136,7 +149,7 @@ func GetJSON(r *http.Request) (*jsonq.JsonQuery, error) {
 		return nil, err
 	}
 	if len(content) == 0 {
-		return nil, errors.NewWithCode(err, errors.JSONIsEmpty, r.URL.String())
+		return nil, errors.ErrorWithCode(err, errors.JSONIsEmpty, r.URL.String())
 	}
 
 	data := map[string]interface{}{}
@@ -180,7 +193,7 @@ func DecodeJSON(r *http.Request, o interface{}) error {
 		return err
 	}
 	if len(content) == 0 {
-		return errors.NewWithCode(err, errors.JSONIsEmpty, r.URL.String())
+		return errors.ErrorWithCode(err, errors.JSONIsEmpty, r.URL.String())
 	}
 
 	return json.Unmarshal(content, o)

@@ -77,14 +77,16 @@ func (u *UserSessionInfo) MustGetUserID() string {
 		return u.UserID
 	}
 
-	panic("invalid account info")
+	panic(errors.NewWithHTTPCode(400, "invalid user"))
 }
 
 func (u *UserSessionInfo) IsValid() bool {
 	v := u.Provider != "" && u.Login != "" && u.UserID != ""
 	if !v {
+		if global.Env().IsDebug {
 		log.Error(util.MustToJSON(u), u.UserID)
-		panic("invalid user")
+		}
+		panic(errors.NewWithHTTPCode(400, "invalid user"))
 	}
 	return v
 }
