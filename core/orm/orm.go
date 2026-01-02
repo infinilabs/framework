@@ -42,12 +42,14 @@ package orm
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/util"
 	"reflect"
 	"strings"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 )
 
 type SearchAPI interface {
@@ -105,6 +107,12 @@ type Object interface {
 
 const OwnerIDKey = "owner_id"
 const TenantIDKey = "tenant_id"
+const TeamsIDKey = "teams_id"
+const SystemFieldsKey = "_system"
+
+func GetSystemFieldKey(field string) string {
+	return SystemFieldsKey + "." + field
+}
 
 type SystemFieldAccessor interface {
 	GetOwnerID() string
@@ -290,10 +298,16 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 		// Struct field access
 		f := rValue.FieldByName(fieldName)
 		if !f.IsValid() {
+			if global.Env().IsDebug {
+				panic(errors.Errorf("field %s not found in struct", fieldName))
+			}
 			log.Errorf("field %s not found in struct", fieldName)
 			return false, ""
 		}
 		if f.Kind() != reflect.String {
+			if global.Env().IsDebug {
+				panic(errors.Errorf("field %s not found in struct", fieldName))
+			}
 			log.Errorf("field %s is not a string in struct", fieldName)
 			return false, ""
 		}
@@ -303,19 +317,28 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 	case reflect.Map:
 		// Map key access (assumes map[string]interface{})
 		if rValue.Type().Key().Kind() != reflect.String {
+			if global.Env().IsDebug {
+				panic(errors.Errorf("map key is not string, cannot access field %s", fieldName))
+			}
 			log.Errorf("map key is not string, cannot access field %s", fieldName)
 			return false, ""
 		}
 		key := reflect.ValueOf(fieldName)
 		value := rValue.MapIndex(key)
 		if !value.IsValid() {
-			log.Debugf("key %s not found in map", fieldName)
+			if global.Env().IsDebug {
+				panic(errors.Errorf("key %s not found in map", fieldName))
+			}
+			log.Errorf("key %s not found in map", fieldName)
 			return false, ""
 		}
 		if value.Kind() == reflect.Interface {
 			value = value.Elem()
 		}
 		if value.Kind() != reflect.String {
+			if global.Env().IsDebug {
+				panic(errors.Errorf("value for key %s is not a string", fieldName))
+			}
 			log.Errorf("value for key %s is not a string", fieldName)
 			return false, ""
 		}
@@ -323,6 +346,9 @@ func getFieldStringValue(rValue reflect.Value, fieldName string) (bool, string) 
 		return val != "", val
 
 	default:
+		if global.Env().IsDebug {
+			panic(errors.Errorf("unsupported kind %s for field lookup", rValue.Kind()))
+		}
 		log.Errorf("unsupported kind %s for field lookup", rValue.Kind())
 		return false, ""
 	}

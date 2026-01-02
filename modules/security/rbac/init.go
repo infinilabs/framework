@@ -21,7 +21,6 @@ func Init() {
 
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
-	orm.MustRegisterSchemaWithIndexName(&security.OrganizationPrincipal{}, "org-principals")
 	ReadPermissionLists := security.GetSimplePermission("generic", "security:permission", security.Read)
 
 	CreateRolePermission := security.GetSimplePermission("generic", "security:role", security.Create)
