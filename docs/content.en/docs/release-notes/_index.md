@@ -20,6 +20,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: refactoring permission registry #250
 - chore: add util to index_document #250
 - refactor: refactoring for principal cache #253
+- refactor: refactoring http error handling #254
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
