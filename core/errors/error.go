@@ -257,12 +257,14 @@ func Cause(err error) error {
 		Cause() error
 	}
 
-	if err != nil {
+	for err != nil {
 		cause, ok := err.(causer)
-		if ok {
-			err = cause.Cause()
+		if !ok {
+			break
 		}
+		err = cause.Cause()
 	}
+
 	return err
 }
 
@@ -271,14 +273,18 @@ func Code(err error) ErrorCode {
 	code := Default
 	type causer interface {
 		Code() ErrorCode
+		Cause() error
 	}
 
-	if err != nil {
+	for err != nil {
 		cause, ok := err.(causer)
-		if ok {
-			code = cause.Code()
+		if !ok {
+			break
 		}
+		code = cause.Code()
+		err = cause.Cause()
 	}
+
 	return code
 }
 
@@ -286,31 +292,38 @@ func HTTPCode(err error) int {
 	code := http.StatusInternalServerError
 	type causer interface {
 		HTTPCode() int
+		Cause() error
 	}
 
-	if err != nil {
+	for err != nil {
 		cause, ok := err.(causer)
-		if ok {
-			code = cause.HTTPCode()
+		if !ok {
+			break
 		}
+		code = cause.HTTPCode()
+		err = cause.Cause()
 	}
+
 	return code
 }
 
 // CodeWithPayload return error code and payload
 func CodeWithPayload(err error) (ErrorCode, interface{}) {
+	code := Default
+	var payload interface{}
 	type causer interface {
 		Code() ErrorCode
 		Payload() interface{}
 	}
 
-	if err != nil {
+	for err != nil {
 		cause, ok := err.(causer)
-		if ok {
-			code := cause.Code()
-			payload := cause.Payload()
-			return code, payload
+		if !ok {
+			break
 		}
+		code = cause.Code()
+		payload = cause.Payload()
 	}
-	return Default, nil
+	
+	return code, payload
 }
