@@ -513,7 +513,7 @@ func (s *SharingService) GetCategoryObjectFromSharedObjects(userID string, resou
 }
 
 // get flat level resources, no nested path hierarchy
-func (s *SharingService) GetResourceIDsByResourceTypeAndUserID(userID string, resourceType string) ([]string, error) {
+func (s *SharingService) GetResourceIDsByResourceTypeAndUserID(user *security.UserSessionInfo, resourceType string) ([]string, error) {
 
 	out := []string{}
 	var shares []SharingRecord

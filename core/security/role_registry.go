@@ -24,10 +24,14 @@
 package security
 
 import (
+	"context"
+	"sync"
+
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/orm"
+
 	//log "github.com/cihub/seelog"
 	"infini.sh/framework/core/util"
-	"sync"
 )
 
 // RoleRegistry manages roles and their associated permissions
@@ -154,14 +158,18 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 	return permList, true
 }
 
-func MustGetPermissionKeysByUserID(userID string) []PermissionKey {
+func MustGetPermissionKeysByUser(user *UserSessionInfo) []PermissionKey {
+	ctx1 := context.Background()
+	if val, ok := user.GetStringArray(orm.TeamsIDKey); ok {
+		ctx1 = context.WithValue(ctx1, orm.TeamsIDKey, val)
+	}
 	out := []PermissionKey{}
 	hit := false
 	authorizationBackendProviders.Range(func(key, value any) bool {
 		p, ok := value.(AuthorizationBackend)
 		if ok {
 			hit = true
-			v := p.GetPermissionKeysByUserID(userID)
+			v := p.GetPermissionKeysByUserID(ctx1, user.UserID)
 			out = append(out, v...)
 		}
 		return true
@@ -182,13 +190,15 @@ func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
 		return permissions
 	}
 
+	ctx1 := context.Background()
+
 	var hit = false
 	permissions := []PermissionKey{}
 	authorizationBackendProviders.Range(func(key, value any) bool {
 		p, ok := value.(AuthorizationBackend)
 		if ok {
 			hit = true
-			v := p.GetPermissionKeysByRoles(roles)
+			v := p.GetPermissionKeysByRoles(ctx1, roles)
 			permissions = append(permissions, v...)
 		}
 		return true

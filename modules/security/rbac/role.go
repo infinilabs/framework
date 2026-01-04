@@ -5,13 +5,16 @@
 package rbac
 
 import (
+	"context"
+	"net/http"
+
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
-	"net/http"
 )
 
 func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -44,19 +47,23 @@ func UpdateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 
 	api.MustValidateInput(w, obj)
 
-	sessionUser := security.MustGetUserFromContext(ctx)
-	userID := sessionUser.MustGetUserID()
-	_, account, err := security.GetUserByID(userID)
-	if account == nil {
-		panic("invalid user")
-	}
+	//bypass managed mode
+	if !global.Env().SystemConfig.WebAppConfig.Security.Managed {
+		sessionUser := security.MustGetUserFromContext(ctx)
+		userID := sessionUser.MustGetUserID()
+		_, account, err := security.GetUserByID(userID)
 
-	_, role := GetRoleByID(id)
-	if role == nil {
-		panic("invalid role")
-	}
-	if util.ContainsAnyInArray(role.Name, account.Roles) {
-		panic("you can not update the roles for you")
+		if account == nil || err != nil {
+			panic("invalid user")
+		}
+
+		_, role := GetRoleByID(id)
+		if role == nil {
+			panic("invalid role")
+		}
+		if util.ContainsAnyInArray(role.Name, account.Roles) {
+			panic("you can not update the roles for you")
+		}
 	}
 
 	//protect
@@ -175,12 +182,17 @@ func CreateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 type SecurityBackendProvider struct {
 }
 
-func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(userID string) []security.PermissionKey {
+func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, userID string) []security.PermissionKey {
 	var allowedPermissions = []security.PermissionKey{}
+
+	//bypass managed mode
+	if global.Env().SystemConfig.WebAppConfig.Security.Managed {
+		return allowedPermissions
+	}
+
 	_, account, _ := security.GetUserByID(userID)
 	if account == nil {
 		return allowedPermissions
-		//panic("fail to get account info")
 	}
 
 	//for admin only
@@ -190,19 +202,19 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(userID string
 	}
 
 	if len(account.Roles) > 0 {
-		perms := provider.GetPermissionKeysByRoles(account.Roles)
+		perms := provider.GetPermissionKeysByRoles(ctx1, account.Roles)
 		allowedPermissions = append(allowedPermissions, perms...)
 	}
 
 	return allowedPermissions
 }
 
-func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(roles []string) []security.PermissionKey {
+func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx1 context.Context, roles []string) []security.PermissionKey {
 	if len(roles) == 0 {
 		return []security.PermissionKey{}
 	}
 
-	ctx := orm.NewContext()
+	ctx := orm.NewContextWithParent(ctx1)
 	ctx.DirectReadAccess()
 	orm.WithModel(ctx, &security.UserRole{})
 	qb := orm.NewQuery()
