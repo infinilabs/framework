@@ -33,10 +33,10 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	var docs []elastic.DocumentWithMeta[security.OrganizationPrincipal]
 	for _, v := range out {
 		x := security.OrganizationPrincipal{
-			Name:          v.Name,
-			ID:   v.ID,
-			Type: security.PrincipalTypeUser,
-			Description:   v.Email,
+			Name:        v.Name,
+			ID:          v.ID,
+			Type:        security.PrincipalTypeUser,
+			Description: v.Email,
 		}
 
 		doc := elastic.DocumentWithMeta[security.OrganizationPrincipal]{

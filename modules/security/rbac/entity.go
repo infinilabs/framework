@@ -16,7 +16,7 @@ import (
 type UserEntityProvider struct {
 }
 
-func (this *UserEntityProvider) GenEntityInfo(ctx context.Context,t string, id string) *entity_card.EntityInfo {
+func (this *UserEntityProvider) GenEntityInfo(ctx context.Context, t string, id string) *entity_card.EntityInfo {
 	_, u, _ := security.GetUserByID(id)
 	if u != nil {
 		//support user only now
@@ -35,7 +35,7 @@ func (this *UserEntityProvider) GenEntityInfo(ctx context.Context,t string, id s
 	}
 }
 
-func (this *UserEntityProvider) GenEntityLabel(ctx1 context.Context,t string, ids []string) []entity_card.EntityLabel {
+func (this *UserEntityProvider) GenEntityLabel(ctx1 context.Context, t string, ids []string) []entity_card.EntityLabel {
 	output := []entity_card.EntityLabel{}
 
 	builder := orm.NewQuery()
