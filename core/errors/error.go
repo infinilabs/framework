@@ -42,6 +42,7 @@ package errors
 import (
 	"fmt"
 	"io"
+	"net/http"
 )
 
 // ErrorCode is enum object of errors
@@ -62,8 +63,8 @@ var (
 	URLRedirected ErrorCode = 102
 )
 
-// NewWithCode create a error with error code and message
-func NewWithCode(err error, code ErrorCode, msg string) error {
+// ErrorWithCode create a error with error code and message
+func ErrorWithCode(err error, code ErrorCode, msg string) error {
 	if err == nil {
 		return nil
 	}
@@ -72,6 +73,41 @@ func NewWithCode(err error, code ErrorCode, msg string) error {
 			cause: err,
 			msg:   msg,
 			code:  code,
+		},
+		stack: callers(),
+	}
+}
+func ErrorWithHTTPCode(err error, code int, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return wrapper{
+		cause: cause{
+			cause:    err,
+			msg:      msg,
+			httpCode: code,
+		},
+		stack: callers(),
+	}
+}
+
+func NewWithCode(code ErrorCode, msg string) error {
+	return wrapper{
+		cause: cause{
+			cause: nil,
+			msg:   msg,
+			code:  code,
+		},
+		stack: callers(),
+	}
+}
+
+func NewWithHTTPCode(code int, msg string) error {
+	return wrapper{
+		cause: cause{
+			cause:    nil,
+			msg:      msg,
+			httpCode: code,
 		},
 		stack: callers(),
 	}
@@ -141,15 +177,17 @@ func Error(args ...interface{}) error {
 }
 
 type cause struct {
-	code    ErrorCode
-	cause   error
-	msg     string
-	payload interface{}
+	code     ErrorCode
+	cause    error
+	msg      string
+	payload  interface{}
+	httpCode int
 }
 
 func (c cause) Error() string        { return fmt.Sprintf("%s: %v", c.msg, c.Cause()) }
 func (c cause) Cause() error         { return c.cause }
 func (c cause) Code() ErrorCode      { return c.code }
+func (c cause) HTTPCode() int        { return c.httpCode }
 func (c cause) Payload() interface{} { return c.payload }
 
 // wrapper is an error implementation returned by Wrap and Wrapf
@@ -226,6 +264,7 @@ func Cause(err error) error {
 		}
 		err = cause.Cause()
 	}
+
 	return err
 }
 
@@ -234,6 +273,7 @@ func Code(err error) ErrorCode {
 	code := Default
 	type causer interface {
 		Code() ErrorCode
+		Cause() error
 	}
 
 	for err != nil {
@@ -242,24 +282,48 @@ func Code(err error) ErrorCode {
 			break
 		}
 		code = cause.Code()
+		err = cause.Cause()
 	}
+
+	return code
+}
+
+func HTTPCode(err error) int {
+	code := http.StatusInternalServerError
+	type causer interface {
+		HTTPCode() int
+		Cause() error
+	}
+
+	for err != nil {
+		cause, ok := err.(causer)
+		if !ok {
+			break
+		}
+		code = cause.HTTPCode()
+		err = cause.Cause()
+	}
+
 	return code
 }
 
 // CodeWithPayload return error code and payload
 func CodeWithPayload(err error) (ErrorCode, interface{}) {
+	code := Default
+	var payload interface{}
 	type causer interface {
 		Code() ErrorCode
 		Payload() interface{}
 	}
 
-	if err != nil {
+	for err != nil {
 		cause, ok := err.(causer)
-		if ok {
-			code := cause.Code()
-			payload := cause.Payload()
-			return code, payload
+		if !ok {
+			break
 		}
+		code = cause.Code()
+		payload = cause.Payload()
 	}
-	return Default, nil
+	
+	return code, payload
 }

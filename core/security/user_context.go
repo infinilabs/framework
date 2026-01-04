@@ -25,9 +25,11 @@ package security
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
+
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/global"
 )
 
 const ctxUserKey = "X-INFINI-SESSION-CONTEXT-USER"
@@ -43,14 +45,14 @@ func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Contex
 func MustGetUserFromRequest(req *http.Request) *UserSessionInfo {
 	reqUser, err := GetUserFromRequest(req)
 	if reqUser == nil || err != nil {
-		panic(err)
+		panic(errors.ErrorWithHTTPCode(err, 401, "invalid user"))
 	}
 	return reqUser
 }
 
 func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
 	if req == nil {
-		return nil, fmt.Errorf("req is nil")
+		return nil, errors.NewWithHTTPCode(400, "req is nil")
 	}
 	return GetUserFromContext(req.Context())
 }
@@ -58,23 +60,27 @@ func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
 func MustGetUserFromContext(ctx context.Context) *UserSessionInfo {
 	user, err := GetUserFromContext(ctx)
 	if user == nil || err != nil {
-		panic(err)
+		panic(errors.ErrorWithHTTPCode(err, 401, "invalid user"))
 	}
 	return user
 }
 
 func GetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("ctx is nil")
+		return nil, errors.NewWithHTTPCode(401, "ctx is nil")
 	}
 
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {
-		return nil, fmt.Errorf("user not found")
+		if global.Env().IsDebug {
+			panic(errors.NewWithHTTPCode(401, "user not found"))
+		}
+
+		return nil, errors.NewWithHTTPCode(401, "user not found")
 	}
 	reqUser, ok := ctxUser.(*UserSessionInfo)
 	if !ok {
-		return nil, fmt.Errorf("invalid context user")
+		return nil, errors.NewWithHTTPCode(401, "invalid context user")
 	}
 	return reqUser, nil
 }
