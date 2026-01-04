@@ -515,6 +515,8 @@ func (s *SharingService) GetCategoryObjectFromSharedObjects(userID string, resou
 // get flat level resources, no nested path hierarchy
 func (s *SharingService) GetResourceIDsByResourceTypeAndUserID(user *security.UserSessionInfo, resourceType string) ([]string, error) {
 
+	userID := user.MustGetUserID()
+
 	out := []string{}
 	var shares []SharingRecord
 	qb := orm.NewQuery()
