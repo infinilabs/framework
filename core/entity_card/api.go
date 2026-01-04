@@ -34,7 +34,7 @@ func getLabelCardInfo(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	id := ps.MustGetParameter("id")
 
 	provider := mustGetProviders(t)
-	info := provider.GenEntityInfo(req.Context(),t, id)
+	info := provider.GenEntityInfo(req.Context(), t, id)
 
 	if info != nil {
 		api.WriteJSON(w, info, 200)

@@ -324,6 +324,6 @@ func CodeWithPayload(err error) (ErrorCode, interface{}) {
 		code = cause.Code()
 		payload = cause.Payload()
 	}
-	
+
 	return code, payload
 }
