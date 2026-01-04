@@ -219,7 +219,7 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 							log.Error(string(res))
 							panic(err)
 						} else {
-							log.Warnf("index pattern: %v*, %v, override existing mapping with error: %v, %v", indexName, json,err, string(res))
+							log.Warnf("index pattern: %v*, %v, override existing mapping with error: %v, %v", indexName, json, err, string(res))
 						}
 					}
 				}

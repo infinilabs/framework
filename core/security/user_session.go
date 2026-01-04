@@ -29,6 +29,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/util"
 	"time"
 )
@@ -47,6 +48,7 @@ func NewUserClaims() *UserClaims {
 
 // auth user info
 type UserSessionInfo struct {
+	param.Parameters
 	//user identity provided by external providers
 	//Source   string `json:"source"`
 	Provider string `json:"provider"` //auth provider
@@ -55,8 +57,6 @@ type UserSessionInfo struct {
 	//system level security's info
 	Roles       []string        `json:"roles"`
 	Permissions []PermissionKey `json:"permissions"`
-
-	Labels util.MapStr `json:"labels,omitempty"`
 
 	//private fields
 	UserID string `json:"userid"` //system level user ID
@@ -86,7 +86,7 @@ func (u *UserSessionInfo) IsValid() bool {
 	v := u.Provider != "" && u.Login != "" && u.UserID != ""
 	if !v {
 		if global.Env().IsDebug {
-		log.Error(util.MustToJSON(u), u.UserID)
+			log.Error(util.MustToJSON(u), u.UserID)
 		}
 		panic(errors.NewWithHTTPCode(400, "invalid user"))
 	}

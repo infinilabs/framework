@@ -4,7 +4,7 @@ import "infini.sh/framework/core/orm"
 
 type UserRole struct {
 	orm.ORMObjectBase
-	Name        string                   `json:"name" elastic_mapping:"name: { type: keyword }" validate:"required|min_len:3"`
+	Name        string                   `json:"name" elastic_mapping:"name: { type: keyword }" validate:"required|min_len:1"`
 	Description string                   `json:"description"  elastic_mapping:"description: { type: text }"`
 	Grants      PermissionAssignedToRole `json:"grants" elastic_mapping:"grants: { type: object }"`
 }

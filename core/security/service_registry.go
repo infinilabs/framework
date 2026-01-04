@@ -5,6 +5,7 @@
 package security
 
 import (
+	"context"
 	"errors"
 	"sync"
 )
@@ -16,8 +17,8 @@ type AuthenticationBackend interface {
 }
 
 type AuthorizationBackend interface {
-	GetPermissionKeysByUserID(userID string) []PermissionKey
-	GetPermissionKeysByRoles(roles []string) []PermissionKey
+	GetPermissionKeysByUserID(ctx context.Context, userID string) []PermissionKey
+	GetPermissionKeysByRoles(ctx context.Context, roles []string) []PermissionKey
 }
 
 var authorizationBackendProviders = sync.Map{}
@@ -42,14 +43,6 @@ func MustGetAuthenticationProvider(provider string) AuthenticationBackend {
 	}
 	panic("AuthenticationBackend was not found")
 }
-
-//func MustGetUserByID(id string) (provider string,account *UserAccount) {
-//	p, v, _ := GetUserByID(id)
-//	if v == nil {
-//		panic("invalid user")
-//	}
-//	return p,v
-//}
 
 func GetUserByID(id string) (string, *UserAccount, error) {
 	hit := false

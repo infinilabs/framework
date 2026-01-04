@@ -2,6 +2,7 @@ package orm_hooks
 
 import (
 	"errors"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
@@ -39,7 +40,7 @@ func init() {
 			}
 
 			v := o.(orm.SystemFieldAccessor)
-			userID1 := v.GetSystemString(OwnerIDKey)
+			userID1 := v.GetSystemString(orm.OwnerIDKey)
 
 			//bypass owner
 			if userID1 == userID {
@@ -118,7 +119,7 @@ func init() {
 			}
 
 			v := o.(orm.SystemFieldAccessor)
-			userID1 := v.GetSystemString(OwnerIDKey)
+			userID1 := v.GetSystemString(orm.OwnerIDKey)
 
 			//bypass owner
 			if userID1 == userID {
@@ -207,7 +208,7 @@ func init() {
 				if !ok {
 					panic("object does not implement SystemAccessor")
 				}
-				v.SetSystemValue(OwnerIDKey, userID)
+				v.SetSystemValue(orm.OwnerIDKey, userID)
 				return ctx, v, nil
 			}
 
@@ -265,7 +266,7 @@ func init() {
 					if !ok {
 						panic("object does not implement SystemAccessor")
 					}
-					v.SetSystemValue(OwnerIDKey, userID)
+					v.SetSystemValue(orm.OwnerIDKey, userID)
 				} else {
 					log.Debug("missing tenant and user info")
 					panic("missing tenant and user info")
@@ -336,7 +337,7 @@ func init() {
 					}
 				} else {
 					//for none-documents search
-					ids, err := sharingService.GetResourceIDsByResourceTypeAndUserID(userID, resourceType)
+					ids, err := sharingService.GetResourceIDsByResourceTypeAndUserID(sessionUser, resourceType)
 					log.Debug("user have access to this parent object", ids, err)
 					if err == nil {
 						//TODO, not permission, just 403
@@ -507,7 +508,7 @@ func init() {
 				}
 			}
 
-			bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery(SystemOwnerQueryField, userID))
+			bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery(orm.GetSystemFieldKey(orm.OwnerIDKey), userID))
 
 			if len(bq.ShouldClauses) > 1 {
 				bq.Parameter("minimum_should_match", 1)
@@ -516,7 +517,7 @@ func init() {
 			if bq != nil {
 				qb.Must(bq)
 			} else {
-				qb.Filter(orm.MustQuery(orm.TermQuery(SystemOwnerQueryField, userID)))
+				qb.Filter(orm.MustQuery(orm.TermQuery(orm.GetSystemFieldKey(orm.OwnerIDKey), userID)))
 			}
 
 			return nil
@@ -537,7 +538,7 @@ func init() {
 				}
 
 				//support batch delete self's data only
-				qb.Filter(orm.MustQuery(orm.TermQuery(SystemOwnerQueryField, userID)))
+				qb.Filter(orm.MustQuery(orm.TermQuery(orm.GetSystemFieldKey(orm.OwnerIDKey), userID)))
 
 			}
 
@@ -547,6 +548,3 @@ func init() {
 	})
 
 }
-
-const OwnerIDKey = "owner_id"
-const SystemOwnerQueryField = "_system.owner_id"

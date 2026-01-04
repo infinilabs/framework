@@ -5,11 +5,12 @@
 package security
 
 import (
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	ccache "infini.sh/framework/lib/cache"
-	"time"
 )
 
 var permissionCache = ccache.Layered(ccache.Configure().MaxSize(10000).ItemsToPrune(100))
@@ -47,7 +48,7 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 	//TODO cache, refresh user's role from db
 	//TODO, handle api key, with specify permissions
 	//TODO, if the provider is for user, like api token, we need to fetch from api token's config, to get the updated permission
-	allowedPermissions := MustGetPermissionKeysByUserID(shortUser.MustGetUserID())
+	allowedPermissions := MustGetPermissionKeysByUser(shortUser)
 
 	log.Trace("get user's permissions:", allowedPermissions)
 	perms := NewUserAssignedPermission(allowedPermissions, nil)

@@ -25,16 +25,16 @@ package security
 
 import (
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/core/util"
+	"infini.sh/framework/core/param"
 )
 
 type AccessToken struct {
 	orm.ORMObjectBase
+	param.Parameters
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
-	AccessToken string      `json:"access_token"`
-	Labels      util.MapStr `json:"labels,omitempty"`
+	AccessToken string `json:"access_token"`
 
 	Type      string   `json:"type"`
 	Resources []string `json:"resources"` //resource_type: resource_id, eg: datasource:xxxxx
