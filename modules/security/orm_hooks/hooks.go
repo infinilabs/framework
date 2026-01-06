@@ -65,7 +65,7 @@ func init() {
 				}
 
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
-					per, err := sharingService.GetCategoryVisibleWithChildrenSharedObjects(userID, resourceType, o1.GetID())
+					per, err := sharingService.GetCategoryVisibleWithChildrenSharedObjects(sessionUser, resourceType, o1.GetID())
 					if err == nil {
 						if op == orm.OpGet && per >= 1 {
 							log.Debugf("the resource is category,and children are with %v permission, allow to read access", per)
@@ -151,7 +151,7 @@ func init() {
 				}
 
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
-					per, err := sharingService.GetCategoryVisibleWithChildrenSharedObjects(userID, resourceType, o1.GetID())
+					per, err := sharingService.GetCategoryVisibleWithChildrenSharedObjects(sessionUser, resourceType, o1.GetID())
 					if err == nil {
 						if op == orm.OpGet && per >= 1 {
 							log.Debug("the resource is category,and children are with share permission, allow to read access")
@@ -325,7 +325,7 @@ func init() {
 					//check if the current user have access to this resource
 					log.Trace("check if the current user have access to this resource")
 					perm, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, share.NewResourceEntity(resourceCategoryType, resourceCategoryID, ""))
-					log.Trace("user have access to this parent object", perm, err)
+					log.Error("user have access to this parent object", perm, err)
 					if err == nil {
 						//TODO, not right permission, just 403
 						//self or not inherit any permission, we should throw a permission error
@@ -356,7 +356,7 @@ func init() {
 						//we are search files in specify folder/path
 						//check if the current user have access to this filtered path
 						var rules []share.SharingRecord
-						rules, _ = share.GetSharingRules(security.PrincipalTypeUser, userID, resourceType, "", resourceParentPath, globalShareMustFilters)
+						rules, _ = share.GetSharingRules(sessionUser, resourceType, "", resourceParentPath, globalShareMustFilters)
 						log.Trace("get all shared rules: ", resourceParentPath, ",type:", resourceType, " => ", util.MustToJSON(rules))
 
 						if len(rules) > 0 {
@@ -428,7 +428,8 @@ func init() {
 						}
 					} else {
 						var rules []share.SharingRecord
-						rules, _ = share.GetSharingRules(security.PrincipalTypeUser, userID, resourceType, "", resourceParentPath, globalShareMustFilters)
+						rules, _ = share.GetSharingRules(sessionUser, resourceType, "", resourceParentPath, globalShareMustFilters)
+						log.Error("user have access to this parent object", util.MustToJSON(rules))
 						if len(rules) > 0 {
 							allowedIDs := []string{}
 							allowedFolderPaths := []string{}
@@ -500,7 +501,7 @@ func init() {
 				if ctx.GetBool(orm.SharingCategoryCheckingChildrenEnabled, false) {
 					//eg: get datasource list by find out which doc was shared to you
 					log.Debug("this is a category, filter out by child shared rules")
-					vids, _ := sharingService.GetCategoryObjectFromSharedObjects(userID, resourceType)
+					vids, _ := sharingService.GetCategoryObjectFromSharedObjects(sessionUser, resourceType)
 					log.Trace("get shared ids via children: ", resourceType, " => ", vids)
 					if len(vids) > 0 {
 						bq.ShouldClauses = append(bq.ShouldClauses, orm.TermsQuery("id", vids))

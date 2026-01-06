@@ -459,7 +459,7 @@ func (s *SharingService) getResourcePath(ctx *orm.Context, resourceType, resourc
 }
 
 // GetInheritOrCurrentPathSharingRules
-func GetSharingRules(principalType string, principalID string, resourceType string, resourceID string, resourceParentPath string, filters []*orm.Clause) ([]SharingRecord, error) {
+func GetSharingRules(user *security.UserSessionInfo, resourceType string, resourceID string, resourceParentPath string, filters []*orm.Clause) ([]SharingRecord, error) {
 	var shares []SharingRecord
 	qb := orm.NewQuery()
 	qb.Size(1000)
@@ -470,12 +470,17 @@ func GetSharingRules(principalType string, principalID string, resourceType stri
 		clauses = append(clauses, orm.TermQuery("resource_type", resourceType))
 	}
 
-	if principalID != "" {
-		clauses = append(clauses, orm.TermQuery("principal_id", principalID))
-	}
+	if user != nil {
+		boolQ := orm.BooleanQuery()
+		boolQ.Parameter("minimum_should_match", 1)
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", user.MustGetUserID()), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
 
-	if principalType != "" {
-		clauses = append(clauses, orm.TermQuery("principal_type", principalType))
+		if teamsID, ok := user.GetStringArray(orm.TeamsIDKey); ok {
+			boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+		}
+
+		//add user's scope filter, either user's id or user's team
+		clauses = append(clauses, boolQ)
 	}
 
 	if resourceID != "" {
@@ -572,14 +577,24 @@ func GetSharingRulesV2(user *security.UserSessionInfo, resourceType string, reso
 	return shares, nil
 }
 
-func (s *SharingService) GetCategoryObjectFromSharedObjects(userID string, resourceType string) ([]string, error) {
+func (s *SharingService) GetCategoryObjectFromSharedObjects(user *security.UserSessionInfo, resourceType string) ([]string, error) {
 
 	out := []string{}
 	var shares []SharingRecord
 	qb := orm.NewQuery()
 	qb.Must(orm.TermQuery("resource_category_type", resourceType))
-	qb.Must(orm.TermQuery("principal_id", userID))
-	qb.Must(orm.TermQuery("principal_type", security.PrincipalTypeUser))
+
+	boolQ := orm.BooleanQuery()
+	boolQ.Parameter("minimum_should_match", 1)
+	boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", user.MustGetUserID()), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
+
+	if teamsID, ok := user.GetStringArray(orm.TeamsIDKey); ok {
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+	}
+
+	//add user's scope filter, either user's id or user's team
+	qb.Must(boolQ)
+
 	qb.Size(1000)
 
 	ctx := orm.NewContext()
@@ -645,7 +660,7 @@ func (s *SharingService) GetResourceIDsByResourceTypeForUser(user *security.User
 }
 
 // read+ permit rules
-func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID string, resourceType string, resourceID []string, miniPermission SharingPermission) ([]SharingRecord, error) {
+func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID string, teamsID []string, resourceType string, resourceID []string, miniPermission SharingPermission) ([]SharingRecord, error) {
 
 	var shares []SharingRecord
 	qb := orm.NewQuery()
@@ -653,8 +668,18 @@ func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID st
 	if len(resourceID) > 0 {
 		qb.Must(orm.TermsQuery("resource_id", resourceID))
 	}
-	qb.Must(orm.TermQuery("principal_id", userID))
-	qb.Must(orm.TermQuery("principal_type", security.PrincipalTypeUser))
+
+	boolQ := orm.BooleanQuery()
+	boolQ.Parameter("minimum_should_match", 1)
+	boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", userID), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
+
+	if len(teamsID) > 0 {
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+	}
+
+	//add user's scope filter, either user's id or user's team
+	qb.Must(boolQ)
+
 	if miniPermission > -1 {
 		qb.Must(orm.Range("permission").Gte(miniPermission))
 	}
@@ -670,7 +695,7 @@ func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID st
 	return shares, nil
 }
 
-func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userID string, resourceType string, resourceCategoryType string, resourceCategoryID []string, miniPermission SharingPermission) ([]SharingRecord, error) {
+func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userID string, teamsID []string, resourceType string, resourceCategoryType string, resourceCategoryID []string, miniPermission SharingPermission) ([]SharingRecord, error) {
 
 	var shares []SharingRecord
 	qb := orm.NewQuery()
@@ -679,8 +704,18 @@ func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userI
 	if len(resourceCategoryID) > 0 {
 		qb.Must(orm.TermsQuery("resource_category_id", resourceCategoryID))
 	}
-	qb.Must(orm.TermQuery("principal_id", userID))
-	qb.Must(orm.TermQuery("principal_type", security.PrincipalTypeUser))
+
+	boolQ := orm.BooleanQuery()
+	boolQ.Parameter("minimum_should_match", 1)
+	boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", userID), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
+
+	if len(teamsID) > 0 {
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+	}
+
+	//add user's scope filter, either user's id or user's team
+	qb.Must(boolQ)
+
 	if miniPermission > -1 {
 		qb.Must(orm.Range("permission").Gte(miniPermission))
 	}
@@ -697,14 +732,23 @@ func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userI
 	return shares, nil
 }
 
-func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(userID string, resourceType, resourceID string) (SharingPermission, error) {
+func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(user *security.UserSessionInfo, resourceType, resourceID string) (SharingPermission, error) {
 	var shares []SharingRecord
 	qb := orm.NewQuery()
 	qb.Size(1000)
 	qb.Must(orm.TermQuery("resource_category_type", resourceType))
 	qb.Must(orm.TermQuery("resource_category_id", resourceID))
-	qb.Must(orm.TermQuery("principal_id", userID))
-	qb.Must(orm.TermQuery("principal_type", security.PrincipalTypeUser))
+
+	boolQ := orm.BooleanQuery()
+	boolQ.Parameter("minimum_should_match", 1)
+	boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", user.MustGetUserID()), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
+
+	if teamsID, ok := user.GetStringArray(orm.TeamsIDKey); ok {
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+	}
+
+	//add user's scope filter, either user's id or user's team
+	qb.Must(boolQ)
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
@@ -723,13 +767,22 @@ func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(userID stri
 	return None, nil
 }
 
-func (s *SharingService) GetAllCategoryVisibleWithChildrenSharedObjects(userID string, resourceType string) ([]SharingRecord, error) {
+func (s *SharingService) GetAllCategoryVisibleWithChildrenSharedObjects(userID string, teamsID []string, resourceType string) ([]SharingRecord, error) {
 	var shares []SharingRecord
 	qb := orm.NewQuery()
 	qb.Size(1000)
 	qb.Must(orm.TermQuery("resource_category_type", resourceType))
-	qb.Must(orm.TermQuery("principal_id", userID))
-	qb.Must(orm.TermQuery("principal_type", security.PrincipalTypeUser))
+
+	boolQ := orm.BooleanQuery()
+	boolQ.Parameter("minimum_should_match", 1)
+	boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermQuery("principal_id", userID), orm.TermQuery("principal_type", security.PrincipalTypeUser)))
+
+	if len(teamsID) > 0 {
+		boolQ.ShouldClauses = append(boolQ.ShouldClauses, orm.MustQuery(orm.TermsQuery("principal_id", teamsID), orm.TermQuery("principal_type", security.PrincipalTypeTeam)))
+	}
+
+	//add user's scope filter, either user's id or user's team
+	qb.Must(boolQ)
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()

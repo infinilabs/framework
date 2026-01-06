@@ -658,7 +658,7 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 		return s, ok
 	}
 
-	if s8, ok := v.(util.MapStr);ok{
+	if s8, ok := v.(util.MapStr); ok {
 		for _, v1 := range s8 {
 			s = append(s, v1)
 		}
