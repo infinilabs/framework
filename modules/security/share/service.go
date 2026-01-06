@@ -361,7 +361,7 @@ func (s *SharingService) MergeWithTeamRules(user *security.UserSessionInfo, docs
 						rule.InheritedType = InheritedTypeTeam
 						rule.InheritedFrom = base.PrincipalID
 						rule.GrantedBy = base.PrincipalDisplayName
-						rule.ResourceIsFolder = false
+						rule.ResourceIsFolder = base.ResourceIsFolder
 						rule.System = nil
 						rule.ID = "N/A"
 						docs = append(docs, rule)
