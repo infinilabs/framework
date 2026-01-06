@@ -56,7 +56,7 @@ func init() {
 				}
 
 				resourceType := ctx.MustGetString(orm.SharingResourceType)
-				per, err := sharingService.GetUserExplicitEffectivePermission(userID, share.NewResourceEntity(resourceType, o1.GetID(), ""))
+				per, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, share.NewResourceEntity(resourceType, o1.GetID(), ""))
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
 					if op == orm.OpGet && per >= 1 {
@@ -142,7 +142,7 @@ func init() {
 					shareEntity.ResourceParentPath = ctx.MustGetString(orm.SharingResourceParentPath)
 				}
 
-				per, err := sharingService.GetUserExplicitEffectivePermission(userID, shareEntity)
+				per, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, shareEntity)
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
 					if op == orm.OpGet && per >= 1 {
@@ -248,7 +248,7 @@ func init() {
 					shareEntity.ResourceCategoryID = ctx.MustGetString(orm.SharingResourceCategoryID)
 					shareEntity.ResourceParentPath = ctx.MustGetString(orm.SharingResourceParentPath)
 				}
-				per, err := sharingService.GetUserExplicitEffectivePermission(userID, shareEntity)
+				per, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, shareEntity)
 				if err == nil {
 					log.Debug("get permission: ", resourceType, ",", o1.GetID(), " => ", per)
 					if per >= 4 {
@@ -324,7 +324,7 @@ func init() {
 
 					//check if the current user have access to this resource
 					log.Trace("check if the current user have access to this resource")
-					perm, err := sharingService.GetUserExplicitEffectivePermission(userID, share.NewResourceEntity(resourceCategoryType, resourceCategoryID, ""))
+					perm, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, share.NewResourceEntity(resourceCategoryType, resourceCategoryID, ""))
 					log.Trace("user have access to this parent object", perm, err)
 					if err == nil {
 						//TODO, not right permission, just 403
@@ -337,7 +337,7 @@ func init() {
 					}
 				} else {
 					//for none-documents search
-					ids, err := sharingService.GetResourceIDsByResourceTypeAndUserID(sessionUser, resourceType)
+					ids, err := sharingService.GetResourceIDsByResourceTypeForUser(sessionUser, resourceType)
 					log.Debug("user have access to this parent object", ids, err)
 					if err == nil {
 						//TODO, not permission, just 403

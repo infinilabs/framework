@@ -5,11 +5,12 @@
 package share
 
 import (
+	"net/http"
+
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
-	"net/http"
 )
 
 type APIHandler struct {
@@ -24,11 +25,15 @@ func (h APIHandler) batchGetShares(w http.ResponseWriter, req *http.Request, ps 
 	ctx := orm.NewContextWithParent(req.Context())
 	service := NewSharingService()
 
-	docs, err := service.BatchGetShares(ctx, "", obj)
+	docs, err := service.BatchGetShares(ctx, nil, obj)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	user := security.MustGetUserFromContext(ctx.Context)
+
+	docs = service.MergeWithTeamRules(user, docs)
 
 	h.WriteJSON(w, docs, 200)
 }
