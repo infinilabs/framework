@@ -11,6 +11,8 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 ### 🚀 Features  
+- feat: support team-based scope for sharing services #258
+
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 
