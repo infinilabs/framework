@@ -658,6 +658,13 @@ func (para *Parameters) GetArray(key ParaKey) ([]interface{}, bool) {
 		return s, ok
 	}
 
+	if s8, ok := v.(util.MapStr);ok{
+		for _, v1 := range s8 {
+			s = append(s, v1)
+		}
+		return s, ok
+	}
+
 	//TODO handle rest types
 	log.Warnf("parameters failed to GetArray, key: %v, type: %v", key, reflect.TypeOf(v))
 
