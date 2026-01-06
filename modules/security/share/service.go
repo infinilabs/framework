@@ -321,6 +321,10 @@ func (s *SharingService) MergeWithTeamRules(user *security.UserSessionInfo, docs
 	//handle team specific share, merge with user's share rules
 	//user based rule have higher priority than team based rule
 
+	// if user is nil, there is no user/team context to merge; return docs as-is
+	if user == nil {
+		return docs
+	}
 	//merge with user's team level's rule
 	if teamsID, ok := user.GetStringArray(orm.TeamsIDKey); ok {
 		if len(teamsID) > 0 {
