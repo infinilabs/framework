@@ -325,7 +325,7 @@ func init() {
 					//check if the current user have access to this resource
 					log.Trace("check if the current user have access to this resource")
 					perm, err := sharingService.GetUserExplicitEffectivePermission(sessionUser, share.NewResourceEntity(resourceCategoryType, resourceCategoryID, ""))
-					log.Error("user have access to this parent object", perm, err)
+					log.Trace("user have access to this parent object", perm, err)
 					if err == nil {
 						//TODO, not right permission, just 403
 						//self or not inherit any permission, we should throw a permission error
