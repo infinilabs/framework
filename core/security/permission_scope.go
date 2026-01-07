@@ -9,6 +9,8 @@ const PermissionScopeGroup int = 4
 const PermissionScopeProject int = 5
 const PermissionScopeUser int = 6
 
+const PermissionScopeDefault int = 10000
+
 func MustGetPermissionCheckingScopeFromContext(ctx context.Context) *UserSessionInfo {
 	user, err := GetUserFromContext(ctx)
 	if user == nil || err != nil {

@@ -5,6 +5,8 @@
 package rbac
 
 import (
+	"net/http"
+
 	log "github.com/cihub/seelog"
 	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
@@ -14,7 +16,6 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
-	"net/http"
 )
 
 func GetUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -121,6 +122,9 @@ func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &security.UserAccount{})
 	res, err := orm.SearchV2(ctx, builder)
 	if err != nil {
@@ -136,6 +140,9 @@ func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 func GetUserByLogin(email string) (bool, *security.UserAccount, error) {
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	ctx = orm.WithModel(ctx, &security.UserAccount{})
 
 	qb := orm.NewQuery()
@@ -164,6 +171,9 @@ func (provider *SecurityBackendProvider) GetUserByID(id string) (bool, *security
 	obj.ID = id
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	exists, err := orm.GetV2(ctx, &obj)
 	if err != nil {
 		return false, nil, err

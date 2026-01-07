@@ -142,6 +142,9 @@ func (s *SharingService) BatchGetShares(ctx *orm.Context, user *security.UserSes
 
 	orm.WithModel(ctx, &SharingRecord{})
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	// Handle URL query args, convert to query builder
 	builder := orm.NewQuery()
 	builder.Size(1000)
@@ -512,6 +515,9 @@ func GetSharingRules(user *security.UserSessionInfo, resourceType string, resour
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
@@ -568,6 +574,9 @@ func GetSharingRulesV2(user *security.UserSessionInfo, resourceType string, reso
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
@@ -599,6 +608,9 @@ func (s *SharingService) GetCategoryObjectFromSharedObjects(user *security.UserS
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -640,6 +652,9 @@ func (s *SharingService) GetResourceIDsByResourceTypeForUser(user *security.User
 	qb.Size(1000)
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -686,6 +701,9 @@ func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID st
 	qb.Size(10000)
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
@@ -723,6 +741,9 @@ func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userI
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
@@ -752,6 +773,9 @@ func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(user *secur
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -786,6 +810,9 @@ func (s *SharingService) GetAllCategoryVisibleWithChildrenSharedObjects(userID s
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -819,6 +846,9 @@ func (s *SharingService) GetResourcePermissions(user *security.UserSessionInfo, 
 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
@@ -840,6 +870,9 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 	qb.Must(orm.TermQuery("resource_parent_path", resourceParentPath))
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &SharingRecord{})
 
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &shares, qb, nil)
