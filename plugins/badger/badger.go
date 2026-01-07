@@ -239,7 +239,7 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 		}
 		item, err = txn.Get(key)
 		if err != nil {
-			if errors.Is(badger.ErrKeyNotFound, err) {
+			if errors.Is(err, badger.ErrKeyNotFound) {
 				return nil
 			}
 
