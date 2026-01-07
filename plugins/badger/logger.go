@@ -7,9 +7,11 @@ type BadgerSeelog struct{}
 func (l *BadgerSeelog) Errorf(format string, args ...interface{}) {
 	log.Errorf("[badger] "+format, args...)
 }
+
 func (l *BadgerSeelog) Warningf(format string, args ...interface{}) {
 	log.Warnf("[badger] "+format, args...)
 }
+
 func (l *BadgerSeelog) Infof(format string, args ...interface{}) {
 	log.Infof("[badger] "+format, args...)
 }
