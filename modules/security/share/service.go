@@ -137,7 +137,7 @@ func (s *SharingService) GetUserExplicitEffectivePermission(user *security.UserS
 	return maxPermission, err
 }
 
-// ListShares returns all current shares for a resource, if the userID is not empty, then only filter permissions for this user only
+// BatchGetShares returns all current shares for a resource, if the user is not nil, then only filter permissions for this user only
 func (s *SharingService) BatchGetShares(ctx *orm.Context, user *security.UserSessionInfo, req []ResourceEntity) ([]SharingRecord, error) {
 
 	orm.WithModel(ctx, &SharingRecord{})
