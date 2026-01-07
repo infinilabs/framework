@@ -29,10 +29,11 @@ package badger
 
 import (
 	"errors"
-	"infini.sh/framework/core/stats"
 	"path"
 	"sync"
 	"time"
+
+	"infini.sh/framework/core/stats"
 
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
@@ -127,9 +128,8 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 	option.CompactL0OnClose = true
 	option.ValueLogFileSize = filter.cfg.ValueLogFileSize
 
-	if !global.Env().IsDebug {
-		option.Logger = nil
-	}
+	logger := &BadgerSeelog{}
+	option.Logger = logger
 
 	h, err := badger.Open(option)
 	if err != nil {
@@ -238,14 +238,24 @@ func (filter *Module) GetValue(bucket string, key []byte) ([]byte, error) {
 			return errors.New("invalid txn")
 		}
 		item, err = txn.Get(key)
-		if item != nil && err == nil {
-			err = item.Value(func(val []byte) error {
-				valCopy = append([]byte{}, val...)
+		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return nil
+			}
+
+			return err
+		}
+
+		if item != nil {
+			return item.Value(func(val []byte) error {
+				valCopy = append(valCopy[:0], val...)
 				return nil
 			})
 		}
+
 		return nil
 	})
+
 	return valCopy, err
 }
 
