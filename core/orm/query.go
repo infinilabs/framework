@@ -306,17 +306,11 @@ func MultiMatchQuery(fields []string, value interface{}) *Clause {
 	return newLeaf(strings.Join(fields, ","), QueryMultiMatch, value)
 }
 
-func TermQuery(field string, value interface{}) *Clause {
+func TermQuery[T comparable](field string, value T) *Clause {
 	return newLeaf(field, QueryTerm, value)
 }
 
-// TermsQuery creates a terms query clause from a generic slice
-func TermsQuery[T any](field string, value []T) *Clause {
-	// Convert []T to []interface{}
-	values := make([]interface{}, len(value))
-	for i, v := range value {
-		values[i] = v
-	}
+func TermsQuery[T comparable](field string, values []T) *Clause {
 	return newLeaf(field, QueryTerms, values)
 }
 

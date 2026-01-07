@@ -6,6 +6,7 @@ package share
 
 import (
 	"fmt"
+
 	"infini.sh/framework/core/orm"
 )
 
@@ -18,10 +19,14 @@ type SharingRecord struct {
 	ResourceIsFolder    bool   `json:"resource_is_folder,omitempty" elastic_mapping:"resource_is_folder:{type:boolean}"`       //eg: the resource is a folder, means we are sharing a folder
 	PathPattern         string `json:"path_pattern,omitempty" elastic_mapping:"path_pattern:{type:keyword}"`                   // e.g., "/documents/*" for wildcards
 	Recursive           bool   `json:"recursive,omitempty" elastic_mapping:"recursive:{type:boolean}"`                         // Apply to sub-paths
-	InheritedFrom       string `json:"inherited_from,omitempty" elastic_mapping:"inherited_from:{type:keyword}"`               // Parent share ID
+	InheritedType       string `json:"inherited_type,omitempty" elastic_mapping:"inherited_type:{type:keyword}"`               // Inherited type
+	InheritedFrom       string `json:"inherited_from,omitempty" elastic_mapping:"inherited_from:{type:keyword}"`               // Inherited from ID
 	InheritedFromFolder string `json:"inherited_from_folder,omitempty" elastic_mapping:"inherited_from_folder:{type:keyword}"` // Parent share ID
 	Via                 string `json:"via,omitempty" elastic_mapping:"via:{type:keyword}"`                                     // via: direct / inherit
 }
+
+const InheritedTypeTeam = "team"
+const InheritedTypeParentFolder = "parent_folder"
 
 const ViaInherit = "inherit"
 
