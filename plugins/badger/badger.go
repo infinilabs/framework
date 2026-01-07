@@ -128,8 +128,12 @@ func (filter *Module) getOrInitBucket(bucket string) *badger.DB {
 	option.CompactL0OnClose = true
 	option.ValueLogFileSize = filter.cfg.ValueLogFileSize
 
-	logger := &BadgerSeelog{}
-	option.Logger = logger
+	if !global.Env().IsDebug {
+		option.Logger = nil
+	} else {
+		logger := &BadgerSeelog{}
+		option.Logger = logger
+	}
 
 	h, err := badger.Open(option)
 	if err != nil {
