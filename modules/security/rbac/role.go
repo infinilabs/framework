@@ -25,7 +25,7 @@ func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	exists, err := orm.GetV2(ctx, &obj)
 	if !exists || err != nil {
@@ -108,7 +108,7 @@ func SearchRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &security.UserRole{})
 	res, err := orm.SearchV2(ctx, builder)
@@ -129,7 +129,7 @@ func GetRoleByID(id string) (bool, *security.UserRole) {
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	exists, err := orm.GetV2(ctx, &obj)
 	if !exists || err != nil {
@@ -144,7 +144,7 @@ func GetRoleByName(name string) (bool, *security.UserRole) {
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &security.UserRole{})
 	out := []security.UserRole{}
@@ -229,7 +229,7 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx1 context.C
 	ctx := orm.NewContextWithParent(ctx1)
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &security.UserRole{})
 	qb := orm.NewQuery()
