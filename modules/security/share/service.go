@@ -398,6 +398,8 @@ func (s *SharingService) CreateOrUpdateShares(ctx *orm.Context, userID string, r
 			// 1. if the resource is owned by current user
 			// 2. current user with `share` permission
 			ctx.DirectAccess() // TODO remove this line
+			ctx.PermissionScope(security.PermissionScopePlatform)
+
 			err := orm.Delete(ctx, &revoke)
 			if err != nil {
 				return nil, errors.Errorf("failed to revoke share: %v", err)
@@ -891,6 +893,8 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 func (s *SharingService) updateExistingShare(existingShare *SharingRecord, newPermission SharingPermission, grantedBy string) error {
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
+	ctx.PermissionScope(security.PermissionScopePlatform)
+
 	existingShare.Permission = newPermission
 	existingShare.GrantedBy = grantedBy
 
