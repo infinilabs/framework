@@ -59,14 +59,13 @@ func (c *Context) DirectReadAccess() *Context {
 	return c
 }
 
-func (c *Context) DirectWriteAccess() *Context {
-	c.Set(DirectWriteWithoutPermissionCheck, true)
+func (c *Context) PermissionScope(scope int) *Context {
+	c.Set(PermissionCheckingScope, scope)
 	return c
 }
 
-// TODO
-func (c *Context) RunAs(tenantID, userID string) *Context {
-	c.Set(DirectReadWithoutPermissionCheck, true)
+func (c *Context) DirectWriteAccess() *Context {
+	c.Set(DirectWriteWithoutPermissionCheck, true)
 	return c
 }
 

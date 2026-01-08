@@ -143,7 +143,7 @@ func (s *SharingService) BatchGetShares(ctx *orm.Context, user *security.UserSes
 	orm.WithModel(ctx, &SharingRecord{})
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	// Handle URL query args, convert to query builder
 	builder := orm.NewQuery()
@@ -398,6 +398,8 @@ func (s *SharingService) CreateOrUpdateShares(ctx *orm.Context, userID string, r
 			// 1. if the resource is owned by current user
 			// 2. current user with `share` permission
 			ctx.DirectAccess() // TODO remove this line
+			ctx.PermissionScope(security.PermissionScopePlatform)
+
 			err := orm.Delete(ctx, &revoke)
 			if err != nil {
 				return nil, errors.Errorf("failed to revoke share: %v", err)
@@ -516,7 +518,7 @@ func GetSharingRules(user *security.UserSessionInfo, resourceType string, resour
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -575,7 +577,7 @@ func GetSharingRulesV2(user *security.UserSessionInfo, resourceType string, reso
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -609,7 +611,7 @@ func (s *SharingService) GetCategoryObjectFromSharedObjects(user *security.UserS
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -653,7 +655,7 @@ func (s *SharingService) GetResourceIDsByResourceTypeForUser(user *security.User
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -702,7 +704,7 @@ func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID st
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -742,7 +744,7 @@ func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userI
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -774,7 +776,7 @@ func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(user *secur
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -811,7 +813,7 @@ func (s *SharingService) GetAllCategoryVisibleWithChildrenSharedObjects(userID s
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -847,7 +849,7 @@ func (s *SharingService) GetResourcePermissions(user *security.UserSessionInfo, 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -871,7 +873,7 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -891,6 +893,8 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 func (s *SharingService) updateExistingShare(existingShare *SharingRecord, newPermission SharingPermission, grantedBy string) error {
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
+	ctx.PermissionScope(security.PermissionScopePlatform)
+
 	existingShare.Permission = newPermission
 	existingShare.GrantedBy = grantedBy
 

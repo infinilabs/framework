@@ -24,12 +24,14 @@
 package oauth_client
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
-	"infini.sh/framework/core/orm"
 	"math/rand"
 	"net/http"
 	"strings"
+
+	"infini.sh/framework/core/orm"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/oauth2"
@@ -218,7 +220,9 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	code := r.URL.Query().Get("code")
-	tkn, err := oauthCfg.Exchange(oauth2.NoContext, code)
+
+	client := api.GetHttpClient("oauth_" + oAuthProvider)
+	tkn, err := oauthCfg.Exchange(context.WithValue(context.Background(), oauth2.HTTPClient, client), code)
 	if err != nil {
 		log.Error("failed to sso, there was an issue getting your token: ", err, util.MustToJSON(tkn))
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
@@ -241,10 +245,10 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 		"provider_id":   providerID,
 	}
 
-	ctx := orm.NewContextWithParent(r.Context())
+	ctx1 := orm.NewContextWithParent(r.Context())
 
 	providerAPI := provider2.MustGetOAuthProvider(providerID)
-	userProfile := providerAPI.GetProfile(ctx, &oAuthConfig, &oauthCfg, tkn)
+	userProfile := providerAPI.GetProfile(ctx1, &oAuthConfig, &oauthCfg, tkn)
 
 	callbacks := provider2.GetOAuthCallbacks(providerID)
 	for _, cb := range callbacks {
