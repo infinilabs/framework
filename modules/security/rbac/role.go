@@ -24,6 +24,9 @@ func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	obj.ID = id
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+
 	exists, err := orm.GetV2(ctx, &obj)
 	if !exists || err != nil {
 		api.NotFoundResponse(id)
@@ -104,6 +107,9 @@ func SearchRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &security.UserRole{})
 	res, err := orm.SearchV2(ctx, builder)
 	if err != nil {
@@ -122,6 +128,9 @@ func GetRoleByID(id string) (bool, *security.UserRole) {
 	obj.ID = id
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+
 	exists, err := orm.GetV2(ctx, &obj)
 	if !exists || err != nil {
 		return false, nil
@@ -134,6 +143,9 @@ func GetRoleByName(name string) (bool, *security.UserRole) {
 	builder.Must(orm.TermQuery("name", name))
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &security.UserRole{})
 	out := []security.UserRole{}
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &out, builder, nil)
@@ -216,6 +228,9 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx1 context.C
 
 	ctx := orm.NewContextWithParent(ctx1)
 	ctx.DirectReadAccess()
+
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
+
 	orm.WithModel(ctx, &security.UserRole{})
 	qb := orm.NewQuery()
 	qb.Must(orm.TermsQuery("name", roles))
