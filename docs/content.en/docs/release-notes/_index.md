@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: refactoring http error handling #254
 - refactor: refactoring user and permissions #256
 - chore: improve badger logging #260
+- chore: handle self-signed certs oauth client #263
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
