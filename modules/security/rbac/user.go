@@ -123,7 +123,7 @@ func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &security.UserAccount{})
 	res, err := orm.SearchV2(ctx, builder)
@@ -141,7 +141,7 @@ func GetUserByLogin(email string) (bool, *security.UserAccount, error) {
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	ctx = orm.WithModel(ctx, &security.UserAccount{})
 
@@ -172,7 +172,7 @@ func (provider *SecurityBackendProvider) GetUserByID(id string) (bool, *security
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	exists, err := orm.GetV2(ctx, &obj)
 	if err != nil {

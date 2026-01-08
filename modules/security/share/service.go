@@ -143,7 +143,7 @@ func (s *SharingService) BatchGetShares(ctx *orm.Context, user *security.UserSes
 	orm.WithModel(ctx, &SharingRecord{})
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	// Handle URL query args, convert to query builder
 	builder := orm.NewQuery()
@@ -516,7 +516,7 @@ func GetSharingRules(user *security.UserSessionInfo, resourceType string, resour
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -575,7 +575,7 @@ func GetSharingRulesV2(user *security.UserSessionInfo, resourceType string, reso
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -609,7 +609,7 @@ func (s *SharingService) GetCategoryObjectFromSharedObjects(user *security.UserS
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -653,7 +653,7 @@ func (s *SharingService) GetResourceIDsByResourceTypeForUser(user *security.User
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -702,7 +702,7 @@ func (s *SharingService) GetDirectResourceRulesByResourceTypeAndUserID(userID st
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -742,7 +742,7 @@ func (s *SharingService) GetDirectResourceRulesByResourceCategoryAndUserID(userI
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -774,7 +774,7 @@ func (s *SharingService) GetCategoryVisibleWithChildrenSharedObjects(user *secur
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -811,7 +811,7 @@ func (s *SharingService) GetAllCategoryVisibleWithChildrenSharedObjects(userID s
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithCollapseField(ctx, "resource_category_id")
 	orm.WithModel(ctx, &SharingRecord{})
@@ -847,7 +847,7 @@ func (s *SharingService) GetResourcePermissions(user *security.UserSessionInfo, 
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
@@ -871,7 +871,7 @@ func (s *SharingService) checkExistingShare(resourceID, resourceType, principalI
 	ctx := orm.NewContext()
 	ctx.DirectReadAccess()
 
-	ctx.Set(orm.ReadPermissionCheckingScope, security.PermissionScopePlatform)
+	ctx.Set(orm.PermissionCheckingScope, security.PermissionScopePlatform)
 
 	orm.WithModel(ctx, &SharingRecord{})
 
