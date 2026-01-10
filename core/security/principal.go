@@ -14,7 +14,7 @@ type OrganizationPrincipal struct {
 	Type        string `json:"type,omitempty" elastic_mapping:"type:{type:keyword}"` //  "type": "user", // or "team"
 	Name        string `json:"name,omitempty" elastic_mapping:"name:{type:text,copy_to:combined_fulltext,fields:{keyword: {type: keyword}, pinyin: {type: text, analyzer: pinyin_analyzer}}}"`
 	Description string `json:"description,omitempty" elastic_mapping:"description:{type:keyword,copy_to:combined_fulltext}"`
-	Avatar      string `json:"avatar,omitempty" elastic_mapping:"avatar:{type:keyword}"`
+	Avatar      string `json:"avatar,omitempty" elastic_mapping:"avatar:{enabled:false}"`
 }
 
 type OrganizationPrincipalCache struct {

@@ -24,9 +24,10 @@
 package orm
 
 import (
+	"strings"
+
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
-	"strings"
 )
 
 func BuildQueryDSLOnTopOfDSL(q *orm.QueryBuilder, reqBody []byte) map[string]interface{} {
@@ -199,8 +200,15 @@ func BuildQueryDSL(q *orm.QueryBuilder) map[string]interface{} {
 	if q.FromVal() > 0 {
 		dsl["from"] = q.FromVal()
 	}
+
 	if q.SizeVal() > 0 {
 		dsl["size"] = q.SizeVal()
+	}
+
+	if q.CollapseVal() != "" {
+		dsl["collapse"] = map[string]interface{}{
+			"field": q.CollapseVal(),
+		}
 	}
 
 	if len(q.IncludesVal()) > 0 || len(q.ExcludesVal()) > 0 {

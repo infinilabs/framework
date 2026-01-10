@@ -360,6 +360,10 @@ func (handler *ElasticORM) DeleteByQuery(ctx *api.Context, qb *api.QueryBuilder)
 		return nil, errors.New("failed to build query DSL")
 	}
 
+	if global.Env().IsDebug {
+		log.Debug("delete by query:", indexName, util.MustToJSON(dsl))
+	}
+
 	// Execute delete-by-query
 	resp, err := handler.Client.DeleteByQuery(indexName, util.MustToJSONBytes(dsl))
 	if err != nil {
@@ -383,6 +387,10 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 	if qb != nil {
 		request.From = qb.FromVal()
 		request.Size = qb.SizeVal()
+
+		if v := qb.CollapseVal(); v != "" {
+			request.Collapse = &elastic.Collapse{Field: v}
+		}
 	}
 
 	if collapseField := api.GetCollapseField(ctx); collapseField != "" {
@@ -406,6 +414,7 @@ func (handler *ElasticORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*ap
 		} else {
 			dsl = orm.BuildQueryDSL(qb)
 		}
+
 		if len(qb.Aggs) > 0 {
 			aggBuilder := orm.AggreationBuilder{}
 			aggs, err := aggBuilder.Build(qb.Aggs)

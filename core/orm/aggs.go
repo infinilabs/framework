@@ -95,8 +95,9 @@ func (b *baseAggregation) SetParams(params map[string]interface{}) {
 // TermsAggregation represents a "group by" or "bucketing" operation on a field.
 type TermsAggregation struct {
 	baseAggregation
-	Field string
-	Size  int
+	Field   string
+	Include string
+	Size    int
 }
 
 // AddNested provides a correctly typed chained call for TermsAggregation.

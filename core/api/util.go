@@ -88,13 +88,14 @@ func WriteAckOKJSON(w http.ResponseWriter) {
 
 func MustGetParameter(w http.ResponseWriter, r *http.Request, key string) string {
 	if r.URL == nil {
-		panic("URL is nil")
+		panic(errors.NewWithHTTPCode(400, "URL is nil"))
+
 	}
 
 	v := r.URL.Query().Get(key)
 
 	if len(v) == 0 {
-		panic("missing parameter " + key)
+		panic(errors.NewWithHTTPCode(400, "missing parameter "+key))
 	}
 
 	return v

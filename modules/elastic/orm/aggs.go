@@ -50,8 +50,9 @@ type ESAggregation struct {
 }
 
 type esTermsAggregation struct {
-	Field string `json:"field,omitempty"`
-	Size  int    `json:"size,omitempty"`
+	Field   string `json:"field,omitempty"`
+	Include string `json:"include,omitempty"`
+	Size    int    `json:"size,omitempty"`
 }
 
 type esMetricAggregation struct {
@@ -118,8 +119,9 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 	switch v := agg.(type) {
 	case *orm.TermsAggregation:
 		esAgg.Terms = &esTermsAggregation{
-			Field: v.Field,
-			Size:  v.Size,
+			Field:   v.Field,
+			Include: v.Include,
+			Size:    v.Size,
 		}
 	case *orm.MetricAggregation:
 		metric := &esMetricAggregation{Field: v.Field}
