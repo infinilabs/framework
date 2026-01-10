@@ -98,9 +98,10 @@ type QueryBuilder struct {
 	size      int
 	fuzziness int
 
-	query    string
-	includes []string
-	excludes []string
+	query             string
+	collapseOverField string
+	includes          []string
+	excludes          []string
 
 	defaultOperator       string
 	defaultQueryFields    []string
@@ -463,6 +464,10 @@ func (q *QueryBuilder) ToString() string {
 		b.WriteString(", Default Fields: ")
 		b.WriteString(strings.Join(q.defaultQueryFields, ","))
 	}
+	if len(q.collapseOverField) > 0 {
+		b.WriteString(", Collapse Field: ")
+		b.WriteString(q.collapseOverField)
+	}
 
 	if len(q.defaultQueryFields) > 0 {
 		b.WriteString(", Default QueryFields: ")
@@ -778,6 +783,14 @@ func (q *QueryBuilder) buildFuzzinessQuery() {
 			q.Must(ShouldQuery(shouldClauses...))
 		}
 	}
+}
+
+func (q *QueryBuilder) CollapseVal() string {
+	return q.collapseOverField
+}
+
+func (q *QueryBuilder) Collapse(field string) {
+	q.collapseOverField = field
 }
 
 // parseQuery attempts to extract field:value only if the field name is valid
