@@ -489,7 +489,7 @@ func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
 		}
 
 	case orm.QuerySemantic:
-		// Build semantic query DSL for Easysearch
+		// Build semantic query DSL
 		// {"semantic": {"field": {"query_text": "...", "candidates": 10, "query_strategy": "LSH_COSINE"}}}
 		m := map[string]interface{}{}
 		if params != nil {
@@ -505,7 +505,7 @@ func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
 		}
 
 	case orm.QueryHybrid:
-		// Build hybrid query DSL for Easysearch
+		// Build hybrid query DSL
 		// {"hybrid": {"queries": [...]}}
 		queries, ok := value.([]*orm.Clause)
 		if !ok {
@@ -522,7 +522,7 @@ func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
 		}
 
 	case orm.QueryNested:
-		// Build nested query DSL for Elasticsearch/Easysearch
+		// Build nested query DSL
 		// {"nested": {"path": "...", "query": {...}}}
 		nestedQuery, ok := value.(*orm.Clause)
 		if !ok {

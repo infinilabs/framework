@@ -366,13 +366,13 @@ func QueryStringQuery(field string, value string, defaultOperator string) *Claus
 	return newLeaf(field, QueryQueryString, value, &param)
 }
 
-// SemanticQuery creates a semantic query for vector search (Easysearch)
+// SemanticQuery creates a semantic query for vector search
 // Parameters:
-//   - field: target vector field name (e.g., "document_chunk.embedding.embedding1024")
+//   - field: target vector field name
 //   - queryText: text content to be encoded as vector
 //   - candidates: candidate documents per segment (use 0 for default 100)
 //   - queryStrategy: ANN algorithm strategy (empty for default LSH_COSINE)
-//       Options: "", "LSH_COSINE", "LSH_L2", "PERMUTATION_LSH"
+//     Options: "", "LSH_COSINE", "LSH_L2", "PERMUTATION_LSH"
 func SemanticQuery(field, queryText string, candidates int, queryStrategy string) *Clause {
 	params := &param.Parameters{}
 	params.Set("query_text", queryText)
@@ -385,7 +385,7 @@ func SemanticQuery(field, queryText string, candidates int, queryStrategy string
 	return newLeaf(field, QuerySemantic, nil, params)
 }
 
-// HybridQuery combines multiple queries into a hybrid query (Easysearch)
+// HybridQuery combines multiple queries into a hybrid query
 func HybridQuery(queries ...*Clause) *Clause {
 	return &Clause{
 		Operator: QueryHybrid,
@@ -393,14 +393,14 @@ func HybridQuery(queries ...*Clause) *Clause {
 	}
 }
 
-// NestedQuery wraps a query in a nested context (Elasticsearch/Easysearch)
+// NestedQuery wraps a query in a nested context
 func NestedQuery(path string, query *Clause) *Clause {
 	params := &param.Parameters{}
 	params.Set("path", path)
 	return &Clause{
-		Field:     "",
-		Operator:  QueryNested,
-		Value:     query,
+		Field:      "",
+		Operator:   QueryNested,
+		Value:      query,
 		Parameters: params,
 	}
 }
