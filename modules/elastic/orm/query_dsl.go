@@ -488,6 +488,54 @@ func buildLeafQuery(clause *orm.Clause) map[string]interface{} {
 			"query_string": m,
 		}
 
+	case orm.QuerySemantic:
+		// Build semantic query DSL
+		// {"semantic": {"field": {"query_text": "...", "candidates": 10, "query_strategy": "LSH_COSINE"}}}
+		m := map[string]interface{}{}
+		if params != nil {
+			// Copy all parameters (query_text, candidates, query_strategy)
+			for k, val := range params.Data {
+				m[k] = val
+			}
+		}
+		return map[string]interface{}{
+			"semantic": map[string]interface{}{
+				field: m,
+			},
+		}
+
+	case orm.QueryHybrid:
+		// Build hybrid query DSL
+		// {"hybrid": {"queries": [...]}}
+		queries, ok := value.([]*orm.Clause)
+		if !ok {
+			panic("hybrid query value must be []*orm.Clause")
+		}
+		queryList := []interface{}{}
+		for _, q := range queries {
+			queryList = append(queryList, clauseToDSL(q))
+		}
+		return map[string]interface{}{
+			"hybrid": map[string]interface{}{
+				"queries": queryList,
+			},
+		}
+
+	case orm.QueryNested:
+		// Build nested query DSL
+		// {"nested": {"path": "...", "query": {...}}}
+		nestedQuery, ok := value.(*orm.Clause)
+		if !ok {
+			panic("nested query value must be *orm.Clause")
+		}
+		m := map[string]interface{}{
+			"path":  params.Data["path"],
+			"query": clauseToDSL(nestedQuery),
+		}
+		return map[string]interface{}{
+			"nested": m,
+		}
+
 	default:
 		panic("unsupported operator: " + string(clause.Operator))
 	}

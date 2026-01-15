@@ -52,6 +52,9 @@ const (
 	QueryNotIn       QueryType = "not_in"
 	QueryMatchPhrase QueryType = "match_phrase"
 	QueryQueryString QueryType = "query_string"
+	QuerySemantic    QueryType = "semantic"
+	QueryHybrid      QueryType = "hybrid"
+	QueryNested      QueryType = "nested"
 )
 
 type Clause struct {
@@ -361,6 +364,45 @@ func QueryStringQuery(field string, value string, defaultOperator string) *Claus
 		param.Set(queryStringDefaultOperator, defaultOperator)
 	}
 	return newLeaf(field, QueryQueryString, value, &param)
+}
+
+// SemanticQuery creates a semantic query for vector search
+// Parameters:
+//   - field: target vector field name
+//   - queryText: text content to be encoded as vector
+//   - candidates: candidate documents per segment (use 0 for default 100)
+//   - queryStrategy: ANN algorithm strategy (empty for default LSH_COSINE)
+//     Options: "", "LSH_COSINE", "LSH_L2", "PERMUTATION_LSH"
+func SemanticQuery(field, queryText string, candidates int, queryStrategy string) *Clause {
+	params := &param.Parameters{}
+	params.Set("query_text", queryText)
+	if candidates > 0 {
+		params.Set("candidates", candidates)
+	}
+	if queryStrategy != "" {
+		params.Set("query_strategy", queryStrategy)
+	}
+	return newLeaf(field, QuerySemantic, nil, params)
+}
+
+// HybridQuery combines multiple queries into a hybrid query
+func HybridQuery(queries ...*Clause) *Clause {
+	return &Clause{
+		Operator: QueryHybrid,
+		Value:    queries,
+	}
+}
+
+// NestedQuery wraps a query in a nested context
+func NestedQuery(path string, query *Clause) *Clause {
+	params := &param.Parameters{}
+	params.Set("path", path)
+	return &Clause{
+		Field:      "",
+		Operator:   QueryNested,
+		Value:      query,
+		Parameters: params,
+	}
 }
 
 type RangeQueryBuilder struct {
