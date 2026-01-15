@@ -1498,3 +1498,157 @@ func TestBuildQueryDSLOnTopOfDSL_WithAggregations(t *testing.T) {
 	actual, _ := json.Marshal(dsl)
 	assert.JSONEq(t, expected, string(actual))
 }
+
+func TestToDSL_SemanticQuery(t *testing.T) {
+	q := orm.NewQuery().Must(
+		orm.SemanticQuery("document_chunk.embedding.embedding1024", "full text search", 10, "LSH_COSINE"),
+	)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"semantic": {
+				"document_chunk.embedding.embedding1024": {
+					"query_text": "full text search",
+					"candidates": 10,
+					"query_strategy": "LSH_COSINE"
+				}
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_SemanticQuery_Defaults(t *testing.T) {
+	// Test with default candidates (0 = omitted) and empty strategy
+	q := orm.NewQuery().Must(
+		orm.SemanticQuery("embedding.embedding768", "search query", 0, ""),
+	)
+
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"semantic": {
+				"embedding.embedding768": {
+					"query_text": "search query"
+				}
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_HybridQuery(t *testing.T) {
+	matchClause := orm.MatchQuery("document_chunk.text", "mysql")
+	semanticClause := orm.SemanticQuery("document_chunk.embedding.embedding1024", "full text search", 10, "")
+	hybridClause := orm.HybridQuery(matchClause, semanticClause)
+
+	q := orm.NewQuery().Must(hybridClause)
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"hybrid": {
+				"queries": [
+					{
+						"match": {
+							"document_chunk.text": {
+								"query": "mysql"
+							}
+						}
+					},
+					{
+						"semantic": {
+							"document_chunk.embedding.embedding1024": {
+								"query_text": "full text search",
+								"candidates": 10
+							}
+						}
+					}
+				]
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_NestedQuery(t *testing.T) {
+	matchClause := orm.MatchQuery("document_chunk.text", "mysql")
+	semanticClause := orm.SemanticQuery("document_chunk.embedding.embedding1024", "search", 10, "")
+	hybridClause := orm.HybridQuery(matchClause, semanticClause)
+	nestedClause := orm.NestedQuery("document_chunk", hybridClause)
+
+	q := orm.NewQuery().Must(nestedClause)
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"nested": {
+				"path": "document_chunk",
+				"query": {
+					"hybrid": {
+						"queries": [
+							{
+								"match": {
+									"document_chunk.text": {
+										"query": "mysql"
+									}
+								}
+							},
+							{
+								"semantic": {
+									"document_chunk.embedding.embedding1024": {
+										"query_text": "search",
+										"candidates": 10
+									}
+								}
+							}
+						]
+					}
+				}
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
+
+func TestToDSL_NestedQuery_SimpleMatch(t *testing.T) {
+	matchClause := orm.MatchQuery("comments.text", "great")
+	nestedClause := orm.NestedQuery("comments", matchClause)
+
+	q := orm.NewQuery().Must(nestedClause)
+	dsl := BuildQueryDSL(q)
+	printDSL(dsl)
+
+	expected := `{
+		"query": {
+			"nested": {
+				"path": "comments",
+				"query": {
+					"match": {
+						"comments.text": {
+							"query": "great"
+						}
+					}
+				}
+			}
+		}
+	}`
+
+	actual, _ := json.Marshal(dsl)
+	assert.JSONEq(t, expected, string(actual))
+}
