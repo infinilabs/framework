@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
+- feat: add semantic, hybrid, and nested query support #265
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
