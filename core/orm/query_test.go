@@ -71,6 +71,9 @@ func TestBoolQueryWrapping(t *testing.T) {
 	if len(boolClause.MustClauses) != 2 {
 		t.Errorf("Invalid BoolQuery: %+v", boolClause)
 	}
+	// Assert clause types
+	assert.Equal(t, QueryTerm, boolClause.MustClauses[0].Operator)
+	assert.Equal(t, QueryTerm, boolClause.MustClauses[1].Operator)
 }
 
 func TestMustQuery(t *testing.T) {
@@ -303,4 +306,135 @@ func TestSimplify_NoOpEmptyClause(t *testing.T) {
 	if simplified.Field != "name" {
 		t.Errorf("Expected clause with field 'name', got %s", simplified.Field)
 	}
+}
+
+func TestBuildFuzzinessQueryClauses(t *testing.T) {
+	tests := []struct {
+		name            string
+		queryStr        string
+		fuzziness       int
+		defaultFields   []string
+		wantClauseLen   int
+		wantClauseTypes []QueryType
+	}{
+		{
+			name:            "fuzziness 0 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       0,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   1,
+			wantClauseTypes: []QueryType{QueryMatch},
+		},
+		{
+			name:            "fuzziness 1 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       1,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   1,
+			wantClauseTypes: []QueryType{QueryMatch},
+		},
+		{
+			name:            "fuzziness 2 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       2,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   2,
+			wantClauseTypes: []QueryType{QueryMatch, QueryPrefix},
+		},
+		{
+			name:            "fuzziness 3 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       3,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   3,
+			wantClauseTypes: []QueryType{QueryMatch, QueryPrefix, QueryMatchPhrase},
+		},
+		{
+			name:            "fuzziness 4 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       4,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   4,
+			wantClauseTypes: []QueryType{QueryMatch, QueryPrefix, QueryMatchPhrase, QueryFuzzy},
+		},
+		{
+			name:            "fuzziness 5 - explicit field",
+			queryStr:        "title:mysql",
+			fuzziness:       5,
+			defaultFields:   []string{"title", "summary"},
+			wantClauseLen:   4,
+			wantClauseTypes: []QueryType{QueryMatch, QueryPrefix, QueryMatchPhrase, QueryFuzzy},
+		},
+		{
+			name:          "fuzziness 3 - default fields",
+			queryStr:      "mysql",
+			fuzziness:     3,
+			defaultFields: []string{"title", "summary"},
+			wantClauseLen: 6,
+			wantClauseTypes: []QueryType{
+				QueryMatch, QueryPrefix, QueryMatchPhrase, // title
+				QueryMatch, QueryPrefix, QueryMatchPhrase, // summary
+			},
+		},
+		{
+			name:            "fuzziness 3 - with field boost",
+			queryStr:        "title^2:mysql",
+			fuzziness:       3,
+			defaultFields:   []string{"title"},
+			wantClauseLen:   3,
+			wantClauseTypes: []QueryType{QueryMatch, QueryPrefix, QueryMatchPhrase},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clauses, err := BuildFuzzinessQueryClauses(tt.queryStr, tt.fuzziness, tt.defaultFields)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantClauseLen, len(clauses))
+			// Assert clause types
+			for i, clause := range clauses {
+				assert.Equal(t, tt.wantClauseTypes[i], clause.Operator, "clause %d type mismatch", i)
+			}
+		})
+	}
+}
+
+func TestBuildFuzzinessQueryClauses_InvalidFuzziness(t *testing.T) {
+	tests := []struct {
+		name      string
+		fuzziness int
+	}{
+		{name: "fuzziness -1", fuzziness: -1},
+		{name: "fuzziness 6", fuzziness: 6},
+		{name: "fuzziness 100", fuzziness: 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clauses, err := BuildFuzzinessQueryClauses("mysql", tt.fuzziness, []string{"title"})
+			assert.Error(t, err)
+			assert.Nil(t, clauses)
+			assert.Contains(t, err.Error(), "invalid fuzziness value")
+		})
+	}
+}
+
+func TestBuildFuzzinessQueryClauses_EmptyQuery(t *testing.T) {
+	// Empty query string with default fields still generates clauses
+	clauses, err := BuildFuzzinessQueryClauses("", 3, []string{"title"})
+	assert.NoError(t, err)
+	// fuzziness 3 generates 3 clauses per field (Match, Prefix, MatchPhrase)
+	assert.Equal(t, 3, len(clauses))
+	// Assert clause types
+	expectedTypes := []QueryType{QueryMatch, QueryPrefix, QueryMatchPhrase}
+	for i, clause := range clauses {
+		assert.Equal(t, expectedTypes[i], clause.Operator, "clause %d type mismatch", i)
+	}
+}
+
+func TestBuildFuzzinessQueryClauses_EmptyQueryNoDefaultFields(t *testing.T) {
+	// Empty query string with no default fields returns empty clauses
+	clauses, err := BuildFuzzinessQueryClauses("", 3, []string{})
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(clauses))
 }
