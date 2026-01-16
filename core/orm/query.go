@@ -713,7 +713,6 @@ func getClausesByType(c *Clause, typ BoolType) []*Clause {
 }
 
 // BuildFuzzinessQueryClauses builds query clauses based on fuzziness level.
-// Returns the clauses that would be inside ShouldQuery() in buildFuzzinessQuery().
 //
 // Parameters:
 //   - queryStr: the search query string (e.g., "mysql" or "title^2:mysql")
@@ -721,10 +720,14 @@ func getClausesByType(c *Clause, typ BoolType) []*Clause {
 //   - defaultFields: default fields to search when no explicit field is specified
 //     in the queryStr
 //
-// Returns a slice of Clause objects:
+// Returns a slice of Clause objects and an error if fuzziness is invalid:
 //   - Single-element slice: use directly (e.g., q.Must(clauses[0]))
 //   - Multiple-element slice: wrap in ShouldQuery (e.g., q.Must(ShouldQuery(clauses...)))
-func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []string) []*Clause {
+func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []string) ([]*Clause, error) {
+	if fuzziness < 0 || fuzziness > 5 {
+		return nil, fmt.Errorf("invalid fuzziness value: %d, must be between 0 and 5", fuzziness)
+	}
+
 	field, value := parseQuery(queryStr)
 
 	// Case 1: Explicit field is provided (possibly with ^boost)
@@ -744,35 +747,34 @@ func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []
 
 		switch fuzziness {
 		case 0, 1:
-			return []*Clause{MatchQuery(field, value).SetBoost(boost(1))}
+			return []*Clause{MatchQuery(field, value).SetBoost(boost(1))}, nil
 		case 2:
 			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(2)),
-			}
+			}, nil
 		case 3:
 			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 0).SetBoost(boost(2)),
-			}
+			}, nil
 		case 4:
 			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 1).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 1).SetBoost(boost(1)),
-			}
+			}, nil
 		case 5:
 			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 2).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 2).SetBoost(boost(1)),
-			}
-		default:
-			return []*Clause{MatchQuery(field, value).SetBoost(boost(1))}
+			}, nil
 		}
+		return nil, fmt.Errorf("invalid fuzziness value: %d", fuzziness)
 	}
 
 	// Case 2: No specific field, use default query fields
@@ -825,14 +827,10 @@ func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []
 				MatchPhraseQuery(field, value, 2).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 2).SetBoost(boost(1)),
 			)
-		default:
-			shouldClauses = append(shouldClauses,
-				MatchQuery(field, value).SetBoost(boost(1)),
-			)
 		}
 	}
 
-	return shouldClauses
+	return shouldClauses, nil
 }
 
 func (q *QueryBuilder) buildFuzzinessQuery() {
@@ -849,7 +847,11 @@ func (q *QueryBuilder) buildFuzzinessQuery() {
 	fuzzinessVal := q.FuzzinessVal()
 	defaultFields := q.DefaultQueryFieldsVal()
 
-	clauses := BuildFuzzinessQueryClauses(queryStr, fuzzinessVal, defaultFields)
+	clauses, err := BuildFuzzinessQueryClauses(queryStr, fuzzinessVal, defaultFields)
+	if err != nil {
+		// Should be unreachable as fuzzinessVal is guaranteed to be valid (0-5)
+		panic(fmt.Sprintf("buildFuzzinessQuery failed: %v", err))
+	}
 
 	if len(clauses) == 1 {
 		q.Must(clauses[0])
