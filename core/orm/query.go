@@ -207,6 +207,14 @@ func (q *QueryBuilder) FuzzinessVal() int {
 	return q.fuzziness
 }
 
+// SetFuzzinessBuilt marks whether the fuzziness query has been built.
+// By default, the ORM handles fuzziness query construction automatically.
+// Use this method to skip the built-in fuzziness logic when you want to
+// handle it yourself.
+func (q *QueryBuilder) SetFuzzinessBuilt(built bool) {
+	q.builtFuzziness = built
+}
+
 func (q *QueryBuilder) IncludesVal() []string {
 	return q.includes
 }
@@ -703,18 +711,20 @@ func getClausesByType(c *Clause, typ BoolType) []*Clause {
 		return nil
 	}
 }
-func (q *QueryBuilder) buildFuzzinessQuery() {
-	if q.builtFuzziness {
-		return
-	}
-	q.builtFuzziness = true
 
-	queryStr := q.QueryVal()
-	if queryStr == "" {
-		return
-	}
-
-	fuzzinessVal := q.FuzzinessVal()
+// BuildFuzzinessQueryClauses builds query clauses based on fuzziness level.
+// Returns the clauses that would be inside ShouldQuery() in buildFuzzinessQuery().
+//
+// Parameters:
+//   - queryStr: the search query string (e.g., "mysql" or "title^2:mysql")
+//   - fuzziness: fuzziness level (0-5)
+//   - defaultFields: default fields to search when no explicit field is specified
+//     in the queryStr
+//
+// Returns a slice of Clause objects:
+//   - Single-element slice: use directly (e.g., q.Must(clauses[0]))
+//   - Multiple-element slice: wrap in ShouldQuery (e.g., q.Must(ShouldQuery(clauses...)))
+func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []string) []*Clause {
 	field, value := parseQuery(queryStr)
 
 	// Case 1: Explicit field is provided (possibly with ^boost)
@@ -732,43 +742,43 @@ func (q *QueryBuilder) buildFuzzinessQuery() {
 		// Helper to apply overall boost
 		boost := func(base float32) float32 { return base * fieldBoost }
 
-		switch fuzzinessVal {
+		switch fuzziness {
 		case 0, 1:
-			q.Must(MatchQuery(field, value).SetBoost(boost(1)))
+			return []*Clause{MatchQuery(field, value).SetBoost(boost(1))}
 		case 2:
-			q.Must(ShouldQuery(
+			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(2)),
-			))
+			}
 		case 3:
-			q.Must(ShouldQuery(
+			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 0).SetBoost(boost(2)),
-			))
+			}
 		case 4:
-			q.Must(ShouldQuery(
+			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 1).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 1).SetBoost(boost(1)),
-			))
+			}
 		case 5:
-			q.Must(ShouldQuery(
+			return []*Clause{
 				MatchQuery(field, value).SetBoost(boost(5)),
 				PrefixQuery(field, value).SetBoost(boost(3)),
 				MatchPhraseQuery(field, value, 2).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 2).SetBoost(boost(1)),
-			))
+			}
+		default:
+			return []*Clause{MatchQuery(field, value).SetBoost(boost(1))}
 		}
-		return
 	}
 
 	// Case 2: No specific field, use default query fields
 	if value == "" {
 		value = queryStr
 	}
-	defaultFields := q.DefaultQueryFieldsVal()
 	shouldClauses := make([]*Clause, 0, len(defaultFields)*4)
 
 	for _, rawField := range defaultFields {
@@ -785,7 +795,7 @@ func (q *QueryBuilder) buildFuzzinessQuery() {
 
 		boost := func(base float32) float32 { return base * fieldBoost }
 
-		switch fuzzinessVal {
+		switch fuzziness {
 		case 0, 1:
 			shouldClauses = append(shouldClauses,
 				MatchQuery(field, value).SetBoost(boost(1)),
@@ -815,15 +825,36 @@ func (q *QueryBuilder) buildFuzzinessQuery() {
 				MatchPhraseQuery(field, value, 2).SetBoost(boost(2)),
 				FuzzyQuery(field, value, 2).SetBoost(boost(1)),
 			)
+		default:
+			shouldClauses = append(shouldClauses,
+				MatchQuery(field, value).SetBoost(boost(1)),
+			)
 		}
 	}
 
-	if len(shouldClauses) > 0 {
-		if len(shouldClauses) == 1 {
-			q.Must(shouldClauses[0])
-		} else {
-			q.Must(ShouldQuery(shouldClauses...))
-		}
+	return shouldClauses
+}
+
+func (q *QueryBuilder) buildFuzzinessQuery() {
+	if q.builtFuzziness {
+		return
+	}
+	q.builtFuzziness = true
+
+	queryStr := q.QueryVal()
+	if queryStr == "" {
+		return
+	}
+
+	fuzzinessVal := q.FuzzinessVal()
+	defaultFields := q.DefaultQueryFieldsVal()
+
+	clauses := BuildFuzzinessQueryClauses(queryStr, fuzzinessVal, defaultFields)
+
+	if len(clauses) == 1 {
+		q.Must(clauses[0])
+	} else if len(clauses) > 1 {
+		q.Must(ShouldQuery(clauses...))
 	}
 }
 
