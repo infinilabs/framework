@@ -29,6 +29,11 @@ Information about release notes of INFINI Framework is provided here.
 - chore: improve badger logging #260
 - chore: handle self-signed certs oauth client #263
 - chore: add collapse parameter to query builder #264
+- refactor: refactoring fuzziness logic
+- chore: add util to clone context
+- chore: add util to get request header
+
+
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
