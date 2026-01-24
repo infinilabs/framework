@@ -111,8 +111,8 @@ type QueryBuilder struct {
 	defaultFilterFields   []string
 	defaultFilterOperator string
 
-	//indicate fuzziness query is built or not
-	builtFuzziness bool
+	//indicate to skip build fuzziness or not
+	skipBuildFuzziness bool
 
 	// keep original filter clauses
 	filters []*Clause
@@ -207,12 +207,12 @@ func (q *QueryBuilder) FuzzinessVal() int {
 	return q.fuzziness
 }
 
-// SetFuzzinessBuilt marks whether the fuzziness query has been built.
+// SkipFuzziness marks whether the fuzziness query should be auto built.
 // By default, the ORM handles fuzziness query construction automatically.
 // Use this method to skip the built-in fuzziness logic when you want to
 // handle it yourself.
-func (q *QueryBuilder) SetFuzzinessBuilt(built bool) {
-	q.builtFuzziness = built
+func (q *QueryBuilder) SkipFuzziness() {
+	q.skipBuildFuzziness = true
 }
 
 func (q *QueryBuilder) IncludesVal() []string {
@@ -834,10 +834,10 @@ func BuildFuzzinessQueryClauses(queryStr string, fuzziness int, defaultFields []
 }
 
 func (q *QueryBuilder) buildFuzzinessQuery() {
-	if q.builtFuzziness {
+	if q.skipBuildFuzziness {
 		return
 	}
-	q.builtFuzziness = true
+	q.skipBuildFuzziness = true
 
 	queryStr := q.QueryVal()
 	if queryStr == "" {

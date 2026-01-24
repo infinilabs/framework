@@ -28,10 +28,11 @@
 package api
 
 import (
-	"github.com/jmoiron/jsonq"
-	"github.com/segmentio/encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/jmoiron/jsonq"
+	"github.com/segmentio/encoding/json"
 )
 
 // Method is object of http method
@@ -105,6 +106,10 @@ func (handler Handler) Get(req *http.Request, key string, defaultValue string) s
 
 // GetHeader return specify http header or return default value if not set
 func (handler Handler) GetHeader(req *http.Request, key string, defaultValue string) string {
+	return GetHeader(req, key, defaultValue)
+}
+
+func GetHeader(req *http.Request, key string, defaultValue string) string {
 	v := req.Header.Get(key)
 	if strings.TrimSpace(v) == "" {
 		return defaultValue

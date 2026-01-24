@@ -222,3 +222,27 @@ func StringToFloat(s string) (float64, error) {
 	}
 	return floatValue, nil
 }
+
+func GetFloat32OrDefault(v, defaultV float32) float32 {
+	if v <= 0 {
+		return defaultV
+	}
+
+	return v
+}
+
+func GetIntOrDefault(v, defaultV int) int {
+	if v <= 0 {
+		return defaultV
+	}
+
+	return v
+}
+
+func GetFloat64OrDefault(v, defaultV float64) float64 {
+	if v <= 0 {
+		return defaultV
+	}
+
+	return v
+}

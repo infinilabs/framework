@@ -29,10 +29,14 @@ import (
 	"time"
 
 	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/util"
 )
 
 const ctxUserKey = "X-INFINI-SESSION-CONTEXT-USER"
+
+func CloneContext(ctx context.Context) context.Context {
+	return util.CloneContextValues(ctx, ctxUserKey)
+}
 
 func AddUserToContext(ctx context.Context, clam *UserSessionInfo) context.Context {
 	if clam.LastLogin.Timestamp == nil {
@@ -72,10 +76,6 @@ func GetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
 
 	ctxUser := ctx.Value(ctxUserKey)
 	if ctxUser == nil {
-		if global.Env().IsDebug {
-			panic(errors.NewWithHTTPCode(401, "user not found"))
-		}
-
 		return nil, errors.NewWithHTTPCode(401, "user not found")
 	}
 	reqUser, ok := ctxUser.(*UserSessionInfo)
