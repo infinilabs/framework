@@ -35,9 +35,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-version"
-	"github.com/segmentio/encoding/json"
-	"infini.sh/framework/lib/bytebufferpool"
 	"io"
 	"math/rand"
 	"net/url"
@@ -50,6 +47,10 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf16"
+
+	"github.com/hashicorp/go-version"
+	"github.com/segmentio/encoding/json"
+	"infini.sh/framework/lib/bytebufferpool"
 )
 
 // Index returns the index of the first occurrence of substr in str, or -1 if substr is not present.
@@ -619,7 +620,7 @@ const (
 	lowercaseChars = "abcdefghijklmnopqrstuvwxyz"
 	uppercaseChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	digitChars     = "0123456789"
-	specialChars   = "!@#%^&$*_+-=?,.~`;:|()<>"
+	specialChars   = "!@#%^&*_+-=?"
 
 	allChars    = lowercaseChars + uppercaseChars + digitChars + specialChars
 	simpleChars = lowercaseChars + digitChars
