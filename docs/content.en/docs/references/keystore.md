@@ -12,7 +12,6 @@ The INFINI Framework provides a secure keystore for managing sensitive configura
 The keystore offers three ways to manage secrets:
 
 - **CLI Commands**: Add, list, and remove secrets from the command line.
-- **REST API**: Set secrets programmatically via HTTP.
 - **Configuration Reference**: Use `$[[keystore.<key>]]` syntax to inject secrets into YAML configuration files.
 
 Secrets are stored under the application's data directory in a `.keystore/` folder containing an encrypted store file (`ks`) and an auto-generated encryption key (`key`).
