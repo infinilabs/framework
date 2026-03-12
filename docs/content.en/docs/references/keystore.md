@@ -157,6 +157,6 @@ export KEYSTORE_PATH=/secure/path/to/keystore
 ## Security Considerations
 
 - The keystore file is encrypted using **AES-256-GCM** with a key derived via **PBKDF2** (SHA-512, 10,000 iterations).
-- The encryption key file (`key`) is stored with restrictive file permissions (`0600`).
+- The encryption key file (`key`) should be protected with restrictive file permissions (for example, `0600`).
 - Secret values are never logged or printed to the console.
 - The keystore supports file watching — changes are automatically reloaded at runtime.
