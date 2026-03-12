@@ -120,7 +120,7 @@ func addKeystoreValue(args []string) error {
 	if *stdin {
 		keyValue, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			return fmt.Errorf("could not read input from stdin")
+			return fmt.Errorf("could not read input from stdin: %w", err)
 		}
 		// Trim a single trailing newline (common when piping from echo),
 		// but preserve embedded newlines in the value.
