@@ -30,7 +30,6 @@ package env
 import (
 	"compress/gzip"
 	"fmt"
-	"infini.sh/framework/lib/go-ucfg"
 	"io/ioutil"
 	"os"
 	"path"
@@ -45,6 +44,7 @@ import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 //TODO storage adaptor should config in env
@@ -541,27 +541,28 @@ func ParseConfig(configKey string, configInstance interface{}) (exist bool, err 
 }
 
 func ParseConfigSection(cfg *config.Config, configKey string, configInstance interface{}) (exist bool, err error) {
-	if cfg != nil {
-		childConfig, err := cfg.Child(configKey, -1)
-		if err != nil {
-			return exist, err
-		}
-
-		log.Tracef("found config: %s ", configKey)
-
-		exist = true
-
-		err = childConfig.Unpack(configInstance)
-		log.Tracef("parsed config: %s, %v", configKey, configInstance)
-		if err != nil {
-			return exist, err
-		}
-
-		return exist, nil
-	} else {
-		log.Debugf("config: %s not found", configKey)
+	if cfg == nil {
+		return exist, errors.Errorf("cfg is nil")
 	}
-	return exist, errors.Errorf("invalid config: %s", configKey)
+
+	childConfig, err := cfg.Child(configKey, -1)
+	if err != nil {
+		// go-ucfg raises an error if the key does not exist, in which case
+		// we should return and report that the configKey does not exist.
+		if ucfgErr, ok := err.(ucfg.Error); ok && ucfgErr.Reason() == ucfg.ErrMissing {
+			log.Debugf("config key: %s not found", configKey)
+			return false, nil
+		}
+
+		return exist, err
+	}
+
+	log.Tracef("found config key: %s ", configKey)
+	exist = true
+
+	err = childConfig.Unpack(configInstance)
+	log.Tracef("parsed config: %s, %v", configKey, configInstance)
+	return exist, err
 }
 
 func getModuleName(c *config.Config) string {
