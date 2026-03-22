@@ -21,6 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// Package config provides API security configuration utilities and
-// authentication checking functions for the HTTP API layer.
+// Package config (core/api/common) provides API security configuration
+// utilities and authentication checking functions for the HTTP API layer.
 package config

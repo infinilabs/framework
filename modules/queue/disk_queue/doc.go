@@ -21,6 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// Package queue implements a disk-based persistent queue with segment
-// files, compression, retention policies, and rate limiting.
+// Package queue (disk_queue) implements a disk-based persistent queue
+// with segment files, compression, retention policies, and rate limiting.
 package queue
