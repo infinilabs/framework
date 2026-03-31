@@ -70,9 +70,25 @@ api.HandleUIMethod(api.GET, "/resources/:id", handler.get)
 // Multiple path parameters
 api.HandleUIMethod(api.GET, "/orgs/:orgId/repos/:repoId", handler.getRepo)
 
-// Catch-all (optional suffix)
+// Catch-all parameter — matches everything from this position to the end of the path
 api.HandleUIMethod(api.GET, "/files/*filepath", handler.serveFile)
 ```
+
+The router supports two parameter types:
+
+| Syntax   | Type       | Behaviour                                                    |
+|----------|------------|--------------------------------------------------------------|
+| `:name`  | Named      | Matches one path segment (everything up to the next `/`)     |
+| `*name`  | Catch-all  | Matches from the current position to the end of the path, including nested `/` characters. The captured value always starts with `/`. Must appear at the end of the pattern. |
+
+For example, with the pattern `/files/*filepath`:
+
+| Request path                    | `filepath` value              |
+|---------------------------------|-------------------------------|
+| `/files/`                       | `/`                           |
+| `/files/LICENSE`                | `/LICENSE`                    |
+| `/files/templates/index.html`   | `/templates/index.html`       |
+| `/files` (no trailing slash)    | — redirected to `/files/`     |
 
 ## Request Handling
 
@@ -91,11 +107,16 @@ func (h *APIHandler) methodName(
 ### Path Parameters
 
 ```go
-// Required path parameter — panics with 400 if missing
+// Named parameter (:id) — panics with 400 if missing
 id := ps.MustGetParameter("id")
 
-// Optional path parameter — returns empty string if absent
+// Named parameter — returns empty string if absent
 id = ps.ByName("id")
+
+// Catch-all parameter (*filepath) — value always starts with "/"
+// e.g. for pattern "/files/*filepath" and request "/files/images/logo.png"
+// filepath == "/images/logo.png"
+filepath := ps.ByName("filepath")
 ```
 
 ### Query Parameters
