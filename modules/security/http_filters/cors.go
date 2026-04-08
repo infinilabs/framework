@@ -5,12 +5,13 @@
 package http_filters
 
 import (
+	"net/http"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/security"
-	"net/http"
 )
 
 func init() {
@@ -48,7 +49,7 @@ func (f *CORSFilter) ApplyFilter(
 		if options.Feature(FeatureByPassCORSCheck) || (origin != "" && (r.Method == http.MethodOptions || security.IsAllowedOrigin(origin, r))) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-TOKEN, APP-INTEGRATION-ID, WEBSOCKET-SESSION-ID")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-TOKEN, X-SERVICE-ID, APP-INTEGRATION-ID, WEBSOCKET-SESSION-ID")
 			if options.Feature(FeatureNotAllowCredentials) {
 				w.Header().Set("Access-Control-Allow-Credentials", "false")
 			} else {
