@@ -31,7 +31,15 @@ func init() {
 				return ctx, o, nil
 			}
 
-			sessionUser := security.MustGetUserFromContext(ctx.Context)
+			sessionUser, err := security.MustGetUserFromContext(ctx.Context)
+			if err != nil || sessionUser == nil {
+				v := o.(orm.SystemFieldAccessor)
+				if v.GetSystemString(orm.OwnerIDKey) == "" {
+					return ctx, o, nil
+				}
+				return ctx, nil, errors.New("invalid data access")
+			}
+
 			userID := sessionUser.MustGetUserID()
 
 			//bypass admin

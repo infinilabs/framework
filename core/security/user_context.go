@@ -61,12 +61,12 @@ func GetUserFromRequest(req *http.Request) (*UserSessionInfo, error) {
 	return GetUserFromContext(req.Context())
 }
 
-func MustGetUserFromContext(ctx context.Context) *UserSessionInfo {
+func MustGetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
 	user, err := GetUserFromContext(ctx)
 	if user == nil || err != nil {
 		panic(errors.ErrorWithHTTPCode(err, 401, "invalid user"))
 	}
-	return user
+	return user, err
 }
 
 func GetUserFromContext(ctx context.Context) (*UserSessionInfo, error) {
