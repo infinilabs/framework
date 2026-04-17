@@ -1,6 +1,7 @@
 ---
 weight: 10
 title: "Development"
+bookCollapseSection: true
 ---
 
 # Development
