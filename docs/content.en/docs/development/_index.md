@@ -13,4 +13,5 @@ Getting started with INFINI Framework is easy.
 - [Setup Golang Environment](./setup_golang_environment.md)
 - [Setup IntelliJ IDEA For Development](./setup_intellij_idea.md)
 - [Create A Brand New Application](./create_new_application.md)
+- [API Specification](./api/specification.md)
 
