@@ -28,12 +28,13 @@
 package keystore
 
 import (
-	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"golang.org/x/crypto/ssh/terminal"
 	"infini.sh/framework/core/util"
 	kslib "infini.sh/framework/lib/keystore"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -84,7 +85,17 @@ func addKeystoreValue(args []string) error {
 		stdin = addFlag.Bool("stdin", false, "Use the stdin as the source of the secret")
 		force = addFlag.Bool("force", false, "Override the existing key")
 	)
-	err := addFlag.Parse(args)
+	// Reorder args so flags come before positional arguments,
+	// allowing usage like: keystore add MY_KEY --stdin --force
+	var flagArgs, posArgs []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			flagArgs = append(flagArgs, a)
+		} else {
+			posArgs = append(posArgs, a)
+		}
+	}
+	err := addFlag.Parse(append(flagArgs, posArgs...))
 	if err != nil {
 		return err
 	}
@@ -107,14 +118,17 @@ func addKeystoreValue(args []string) error {
 
 	var keyValue []byte
 	if *stdin {
-		reader := bufio.NewReader(os.Stdin)
-		keyValue, _, err = reader.ReadLine()
+		keyValue, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			return fmt.Errorf("could not read input from stdin")
+			return fmt.Errorf("could not read input from stdin: %w", err)
 		}
+		// Trim a single trailing newline (common when piping from echo),
+		// but preserve embedded newlines in the value.
+		keyValue = bytes.TrimRight(keyValue, "\r\n")
 	} else {
 		fmt.Printf("Enter value for %s: ", key)
 		keyValue, err = terminal.ReadPassword(int(syscall.Stdin))
+		fmt.Println()
 		if err != nil {
 			return fmt.Errorf("could not read value from the input, error: %s\n", err)
 		}
