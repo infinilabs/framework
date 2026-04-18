@@ -16,6 +16,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: extract BuildFuzzinessQueryClauses as public API #266
 - feat(keystore): support large stdin secrets (>1024 bytes) and multiline #271
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275
+- feat: output HTTP access logs to file
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
