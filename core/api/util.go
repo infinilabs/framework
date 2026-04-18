@@ -50,6 +50,7 @@ func PrepareErrorJson(errMessage string, statusCode int) util.MapStr {
 }
 
 func WriteJSON(w http.ResponseWriter, v interface{}, statusCode int) {
+	WriteJSONHeader(w)
 	WriteHeader(w, statusCode)
 	_, err := w.Write(util.MustToJSONBytes(v))
 	if err != nil {
