@@ -96,8 +96,8 @@ func (handler *SQLiteORM) GetIndexName(o interface{}) string {
 
 // RegisterSchemaWithName creates the table for the given struct type if it does not exist.
 func (handler *SQLiteORM) RegisterSchemaWithName(t interface{}, indexName string) error {
-	tableName := initTableName(t, indexName)
-	tableName = handler.GetIndexName(t)
+	initTableName(t, indexName)
+	tableName := handler.GetIndexName(t)
 
 	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS [%s] (id TEXT PRIMARY KEY, raw JSON NOT NULL)", tableName)
 
@@ -287,10 +287,19 @@ func (handler *SQLiteORM) Search(t interface{}, q *api.Query) (error, api.Result
 	result := api.Result{}
 
 	whereClauses, whereArgs := buildLegacyWhere(q.Conds)
-	sqlStr := fmt.Sprintf("SELECT raw FROM [%s]", tableName)
+	whereSQL := ""
 	if len(whereClauses) > 0 {
-		sqlStr += " WHERE " + strings.Join(whereClauses, " AND ")
+		whereSQL = " WHERE " + strings.Join(whereClauses, " AND ")
 	}
+
+	// Get total count first
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM [%s]%s", tableName, whereSQL)
+	var total int64
+	if err := handler.DB.QueryRow(countSQL, whereArgs...).Scan(&total); err != nil {
+		return err, result
+	}
+
+	sqlStr := fmt.Sprintf("SELECT raw FROM [%s]%s", tableName, whereSQL)
 
 	if q.Sort != nil && len(*q.Sort) > 0 {
 		var sorts []string
@@ -331,7 +340,7 @@ func (handler *SQLiteORM) Search(t interface{}, q *api.Query) (error, api.Result
 	}
 
 	result.Result = array
-	result.Total = int64(len(array))
+	result.Total = total
 	result.Raw = util.MustToJSONBytes(array)
 	return nil, result
 }
@@ -356,11 +365,19 @@ func (handler *SQLiteORM) SearchWithResultItemMapper(resultArray interface{}, it
 	}
 
 	whereClauses, whereArgs := buildLegacyWhere(q.Conds)
-
-	sqlStr := fmt.Sprintf("SELECT raw FROM [%s]", tableName)
+	whereSQL := ""
 	if len(whereClauses) > 0 {
-		sqlStr += " WHERE " + strings.Join(whereClauses, " AND ")
+		whereSQL = " WHERE " + strings.Join(whereClauses, " AND ")
 	}
+
+	// Get total count first
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM [%s]%s", tableName, whereSQL)
+	var total int64
+	if err := handler.DB.QueryRow(countSQL, whereArgs...).Scan(&total); err != nil {
+		return err, nil
+	}
+
+	sqlStr := fmt.Sprintf("SELECT raw FROM [%s]%s", tableName, whereSQL)
 
 	if q.Sort != nil && len(*q.Sort) > 0 {
 		var sorts []string
@@ -387,7 +404,6 @@ func (handler *SQLiteORM) SearchWithResultItemMapper(resultArray interface{}, it
 	}
 	defer rows.Close()
 
-	var total int64
 	for rows.Next() {
 		var rawJSON []byte
 		if err := rows.Scan(&rawJSON); err != nil {
@@ -407,7 +423,6 @@ func (handler *SQLiteORM) SearchWithResultItemMapper(resultArray interface{}, it
 		}
 
 		sliceValue.Set(reflect.Append(sliceValue, elem))
-		total++
 	}
 
 	result := &api.SimpleResult{
