@@ -429,7 +429,7 @@ func init() {
 					} else {
 						var rules []share.SharingRecord
 						rules, _ = share.GetSharingRules(sessionUser, resourceType, "", resourceParentPath, globalShareMustFilters)
-						log.Error("user have access to this parent object", util.MustToJSON(rules))
+						log.Debug("user have access to this parent object, ", util.MustToJSON(rules))
 						if len(rules) > 0 {
 							allowedIDs := []string{}
 							allowedFolderPaths := []string{}

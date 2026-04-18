@@ -24,11 +24,12 @@
 package security
 
 import (
+	"time"
+
 	"github.com/RoaringBitmap/roaring"
 	log "github.com/cihub/seelog"
 	"github.com/emirpasic/gods/sets/hashset"
 	"infini.sh/framework/core/orm"
-	"time"
 )
 
 // UserAssignedPermission represents role and direct permissions for a user in a tenant
@@ -73,10 +74,10 @@ func NewUserAssignedPermission(allowed []PermissionKey, denied []PermissionKey) 
 // HasPermission checks if the user has a specific permission for a tenant
 func (p *UserAssignedPermission) Dump() {
 	if p.AllowedPermissions != nil {
-		log.Debug("allow:", p.AllowedPermissions.String())
+		log.Trace("allow:", p.AllowedPermissions.String())
 	}
 	if p.DeniedPermissions != nil {
-		log.Debug("deny:", p.DeniedPermissions.String())
+		log.Trace("deny:", p.DeniedPermissions.String())
 	}
 }
 
