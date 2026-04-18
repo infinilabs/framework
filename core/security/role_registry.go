@@ -25,6 +25,7 @@ package security
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"infini.sh/framework/core/errors"
@@ -178,6 +179,10 @@ func MustGetPermissionKeysByUser(user *UserSessionInfo) []PermissionKey {
 	if !hit {
 		panic("no AuthorizationBackend was found")
 	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
 
 	return out
 }
