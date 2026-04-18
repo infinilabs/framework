@@ -142,8 +142,10 @@ func TestBuildWhereClause_MatchQuery(t *testing.T) {
 	assert.Equal(t, []interface{}{"hello"}, args)
 }
 
-// Tests below verify complex nested query patterns used by the security
-// search operation hook (RegisterSearchOperationHook) are fully supported.
+// Tests below verify that the SQLite query builder generates correct SQL
+// for the complex nested query patterns used by the security search
+// operation hook (RegisterSearchOperationHook), including nested boolean
+// clauses, mixed should/must_not compound queries, and dotted field paths.
 
 func TestBuildWhereClause_MustWrappingShouldQuery(t *testing.T) {
 	// Mirrors: qb.Must(bq) where bq = ShouldQuery() with multiple clauses
