@@ -9,3 +9,7 @@ const EOLDate  = "2023-12-31T10:10:10Z"
 const Version  = "1.0.0_SNAPSHOT"
 
 const BuildNumber  = "001"
+
+const LastFrameworkCommitLog = ""
+
+const LastFrameworkVendorCommitLog = ""

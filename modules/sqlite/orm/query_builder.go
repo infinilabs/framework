@@ -86,20 +86,49 @@ func clauseToSQL(clause *orm.Clause) (string, []interface{}) {
 		}
 	}
 
-	// should is combined with OR
+	// should clauses: respect minimum_should_match semantics.
+	//
+	// In Elasticsearch:
+	//   - If minimum_should_match >= 1: at least that many should clauses must match
+	//   - If no must/filter clauses exist: at least 1 should clause must match by default
+	//   - If must/filter exist and minimum_should_match is unset: should is optional (scoring only)
+	//
+	// For SQLite (no scoring), we handle two key patterns:
+	//   - minimum_should_match=1 → OR join (at least one must match)
+	//   - Single should clause + min_should_match=1 → mandatory (equivalent to must)
 	if len(clause.ShouldClauses) > 0 {
-		var shouldParts []string
-		for _, sub := range clause.ShouldClauses {
-			sql, args := clauseToSQL(sub)
-			if sql != "" {
-				shouldParts = append(shouldParts, sql)
-				allArgs = append(allArgs, args...)
+		minShouldMatch := 0
+		if clause.Parameters != nil {
+			minShouldMatch, _ = clause.Parameters.GetInt("minimum_should_match", 0)
+		}
+
+		// Determine if should clauses must participate in filtering.
+		// When there are no must/filter clauses, at least one should must match
+		// (Elasticsearch default). When minimum_should_match >= 1, it's explicit.
+		hasMustOrFilter := len(clause.FilterClauses) > 0 || len(clause.MustClauses) > 0
+		shouldRequired := minShouldMatch >= 1 || !hasMustOrFilter
+
+		if shouldRequired {
+			var shouldParts []string
+			for _, sub := range clause.ShouldClauses {
+				sql, args := clauseToSQL(sub)
+				if sql != "" {
+					shouldParts = append(shouldParts, sql)
+					allArgs = append(allArgs, args...)
+				}
+			}
+			if len(shouldParts) == 1 {
+				// Single should clause with minimum_should_match >= 1:
+				// the clause is mandatory, add directly without OR wrapping
+				parts = append(parts, shouldParts[0])
+			} else if len(shouldParts) > 1 {
+				// Multiple should clauses: join with OR (at least one must match)
+				shouldExpr := "(" + strings.Join(shouldParts, " OR ") + ")"
+				parts = append(parts, shouldExpr)
 			}
 		}
-		if len(shouldParts) > 0 {
-			shouldExpr := "(" + strings.Join(shouldParts, " OR ") + ")"
-			parts = append(parts, shouldExpr)
-		}
+		// When shouldRequired is false (minimum_should_match=0 with must/filter present),
+		// should clauses are optional (scoring-only in ES) and safely skipped in SQLite
 	}
 
 	if len(parts) == 0 {

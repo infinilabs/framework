@@ -429,3 +429,60 @@ func TestBuildWhereClause_EmptyShouldStaysValid(t *testing.T) {
 	assert.Equal(t, "", where)
 	assert.Nil(t, args)
 }
+
+func TestBuildWhereClause_SingleShouldMinShouldMatch1_IsMandatory(t *testing.T) {
+	// When there is only 1 should clause and minimum_should_match=1,
+	// the clause is effectively mandatory (must match).
+	// This mirrors the search hook pattern when sharing is disabled:
+	// only the owner_id filter applies.
+	qb := orm.NewQuery()
+
+	bq := orm.ShouldQuery()
+	bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery("_system.owner_id", "user1"))
+	bq.Parameter("minimum_should_match", 1)
+
+	qb.Must(bq)
+	qb.Build()
+
+	where, args := BuildWhereClause(qb)
+	// Single should clause must produce a direct mandatory condition (no OR wrapping)
+	assert.Equal(t, "json_extract(raw, '$._system.owner_id') = ?", where)
+	assert.Equal(t, []interface{}{"user1"}, args)
+	// Must NOT contain OR since there's only one clause
+	assert.NotContains(t, where, "OR")
+}
+
+func TestBuildWhereClause_SingleShouldWithFilterAndMinShouldMatch1(t *testing.T) {
+	// When a filter clause exists alongside a single should with min_should_match=1,
+	// both must be satisfied (AND)
+	qb := orm.NewQuery()
+	qb.Filter(orm.TermQuery("status", "active"))
+
+	bq := orm.ShouldQuery()
+	bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery("_system.owner_id", "user1"))
+	bq.Parameter("minimum_should_match", 1)
+	qb.Must(bq)
+	qb.Build()
+
+	where, args := BuildWhereClause(qb)
+	assert.Contains(t, where, "json_extract(raw, '$.status') = ?")
+	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
+	assert.Contains(t, where, "AND")
+	assert.NotContains(t, where, "OR")
+	assert.Equal(t, 2, len(args))
+}
+
+func TestBuildWhereClause_OptionalShouldWithoutMinShouldMatch(t *testing.T) {
+	// When there are must/filter clauses but no minimum_should_match is set,
+	// should clauses are optional (scoring-only in ES, skipped in SQLite)
+	qb := orm.NewQuery()
+	qb.Filter(orm.TermQuery("status", "active"))
+	qb.Should(orm.TermQuery("priority", "high"))
+	qb.Build()
+
+	where, args := BuildWhereClause(qb)
+	// Only the filter should appear; should is optional without min_should_match
+	assert.Equal(t, "json_extract(raw, '$.status') = ?", where)
+	assert.Equal(t, []interface{}{"active"}, args)
+	assert.NotContains(t, where, "priority")
+}

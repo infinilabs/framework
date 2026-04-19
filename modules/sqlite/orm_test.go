@@ -536,3 +536,48 @@ func TestSQLiteORM_DeleteByQuery_ByOwnerID(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, "user-keep", fetched.GetOwnerID())
 }
+
+func TestSQLiteORM_SearchV2_SingleShouldOwnerIsMandatory(t *testing.T) {
+	handler, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	now := time.Now()
+	items := []*TestItem{
+		{ORMObjectBase: orm.ORMObjectBase{ID: "msm-1", Created: &now, Updated: &now}, Name: "Doc1", Status: "active"},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "msm-2", Created: &now, Updated: &now}, Name: "Doc2", Status: "active"},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "msm-3", Created: &now, Updated: &now}, Name: "Doc3", Status: "active"},
+	}
+	items[0].SetSystemValue(orm.OwnerIDKey, "user-owner")
+	items[1].SetSystemValue(orm.OwnerIDKey, "user-other")
+	items[2].SetSystemValue(orm.OwnerIDKey, "user-owner")
+
+	for _, item := range items {
+		err := handler.Create(nil, item)
+		require.NoError(t, err)
+	}
+
+	// Simulate the search hook pattern when sharing is disabled:
+	// single should clause with minimum_should_match=1 means owner_id MUST match
+	ctx := orm.NewContext()
+	orm.WithModel(ctx, &TestItem{})
+
+	qb := orm.NewQuery()
+	bq := orm.ShouldQuery()
+	bq.ShouldClauses = append(bq.ShouldClauses, orm.TermQuery("_system.owner_id", "user-owner"))
+	bq.Parameter("minimum_should_match", 1)
+	qb.Must(bq)
+	qb.Size(10)
+
+	searchResult, err := handler.SearchV2(ctx, qb)
+	require.NoError(t, err)
+	assert.NotNil(t, searchResult)
+
+	// Parse response: only owner's docs should be returned (msm-1, msm-3)
+	var response map[string]interface{}
+	err = util.FromJSONBytes(searchResult.Payload.([]byte), &response)
+	require.NoError(t, err)
+	hits := response["hits"].(map[string]interface{})
+	total := hits["total"].(map[string]interface{})
+	assert.Equal(t, float64(2), total["value"],
+		"single should clause with minimum_should_match=1 must act as mandatory filter")
+}
