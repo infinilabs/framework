@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/mem"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"

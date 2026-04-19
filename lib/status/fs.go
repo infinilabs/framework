@@ -4,7 +4,7 @@ package status
 
 import (
 	log "github.com/cihub/seelog"
-	disk2 "github.com/shirou/gopsutil/v3/disk"
+	disk2 "github.com/shirou/gopsutil/v4/disk"
 )
 
 type DiskStatus struct {
