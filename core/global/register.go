@@ -157,6 +157,8 @@ func RegisterInitCallback(callback func()) {
 	initCallback = append(initCallback, callback)
 }
 
+// Configs may not be ready during init().
+// Use this mechanism to delay registration until configs are initialized.
 func RegisterFuncBeforeSetup(callback func()) {
 	registerLock.Lock()
 	defer registerLock.Unlock()
