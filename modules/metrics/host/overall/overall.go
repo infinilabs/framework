@@ -39,8 +39,9 @@ import (
 
 // Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
 type Metric struct {
-	Enabled         bool    `config:"enabled"`
-	IntervalSeconds float64 `config:"interval_seconds"`
+	Enabled            bool    `config:"enabled"`
+	IntervalSeconds    float64 `config:"interval_seconds"`
+	NetworkBandwidthMbps float64 `config:"network_bandwidth_mbps"`
 
 	mu         sync.Mutex
 	prevDiskIO *diskIOSnapshot
@@ -59,8 +60,9 @@ type netIOSnapshot struct {
 
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
-		Enabled:         true,
-		IntervalSeconds: 10,
+		Enabled:              true,
+		IntervalSeconds:      10,
+		NetworkBandwidthMbps: 1000,
 	}
 
 	err := cfg.Unpack(&me)
@@ -96,11 +98,10 @@ func (m *Metric) Collect() error {
 		fields["disk_io.used_percent"] = diskIOPercent
 	}
 
-	// --- Network throughput (bytes/sec) ---
-	netIn, netOut, ok := m.collectNetwork()
-	if ok {
-		fields["network.in.bytes_per_second"] = netIn
-		fields["network.out.bytes_per_second"] = netOut
+	// --- Network utilization (% of configured bandwidth) ---
+	netPercent := m.collectNetwork()
+	if netPercent >= 0 {
+		fields["network.used_percent"] = netPercent
 	}
 
 	return event.Save(&event.Event{
@@ -226,13 +227,14 @@ func (m *Metric) collectDiskIO() float64 {
 	return busy
 }
 
-// collectNetwork returns the network throughput in bytes/sec (in, out) across all interfaces.
-// Returns ok=false if data is not yet available (first call).
-func (m *Metric) collectNetwork() (inBytesPerSec, outBytesPerSec float64, ok bool) {
+// collectNetwork returns the network utilization percentage (0-100) based on
+// throughput relative to configured bandwidth (NetworkBandwidthMbps).
+// Returns -1 if data is not yet available (first call).
+func (m *Metric) collectNetwork() float64 {
 	stats, err := net.IOCounters(false)
 	if err != nil || len(stats) == 0 {
 		log.Debugf("overall: failed to get network io counters: %v", err)
-		return 0, 0, false
+		return -1
 	}
 
 	current := stats[0]
@@ -245,7 +247,7 @@ func (m *Metric) collectNetwork() (inBytesPerSec, outBytesPerSec float64, ok boo
 			bytesRecv: current.BytesRecv,
 			bytesSent: current.BytesSent,
 		}
-		return 0, 0, false
+		return -1
 	}
 
 	deltaRecv := current.BytesRecv - m.prevNetIO.bytesRecv
@@ -254,7 +256,25 @@ func (m *Metric) collectNetwork() (inBytesPerSec, outBytesPerSec float64, ok boo
 	m.prevNetIO.bytesRecv = current.BytesRecv
 	m.prevNetIO.bytesSent = current.BytesSent
 
-	inBytesPerSec = float64(deltaRecv) / m.IntervalSeconds
-	outBytesPerSec = float64(deltaSent) / m.IntervalSeconds
-	return inBytesPerSec, outBytesPerSec, true
+	// Use the higher of in/out throughput for utilization
+	deltaMax := deltaRecv
+	if deltaSent > deltaMax {
+		deltaMax = deltaSent
+	}
+
+	// Convert configured bandwidth from Mbps to bytes/sec: Mbps * 1_000_000 / 8
+	bandwidthBytesPerSec := m.NetworkBandwidthMbps * 1000000.0 / 8.0
+	if bandwidthBytesPerSec <= 0 {
+		return 0
+	}
+
+	throughputBytesPerSec := float64(deltaMax) / m.IntervalSeconds
+	percent := throughputBytesPerSec / bandwidthBytesPerSec * 100.0
+	if percent > 100.0 {
+		percent = 100.0
+	}
+	if percent < 0 {
+		percent = 0
+	}
+	return percent
 }
