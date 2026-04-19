@@ -39,8 +39,8 @@ import (
 
 // Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
 type Metric struct {
-	Enabled            bool    `config:"enabled"`
-	IntervalSeconds    float64 `config:"interval_seconds"`
+	Enabled              bool    `config:"enabled"`
+	IntervalSeconds      float64 `config:"interval_seconds"`
 	NetworkBandwidthMbps float64 `config:"network_bandwidth_mbps"`
 
 	mu         sync.Mutex
