@@ -39,6 +39,7 @@ import (
 	"infini.sh/framework/modules/metrics/host/disk"
 	"infini.sh/framework/modules/metrics/host/memory"
 	"infini.sh/framework/modules/metrics/host/network"
+	"infini.sh/framework/modules/metrics/host/overall"
 	agent2 "infini.sh/framework/modules/metrics/instance"
 )
 
@@ -55,6 +56,7 @@ type MetricConfig struct {
 	DiskConfig          *Config `config:"disk"`
 	CPUConfig           *Config `config:"cpu"`
 	MemoryConfig        *Config `config:"memory"`
+	OverallConfig       *Config `config:"overall"`
 	ElasticsearchConfig *Config `config:"elasticsearch"`
 
 	Tags   []string          `config:"tags"`
@@ -273,6 +275,28 @@ func (module *MetricsModule) CollectHostMetric() {
 			},
 		}
 		task.RegisterScheduleTask(memTask)
+	}
+
+	if module.config.OverallConfig != nil {
+		overallM, err := overall.New(module.config.OverallConfig)
+		if err != nil {
+			panic(err)
+		}
+		if overallM.Enabled {
+			taskId := util.GetUUID()
+			module.taskIDs = append(module.taskIDs, taskId)
+			var overallTask = task.ScheduleTask{
+				ID:          taskId,
+				Description: "fetch overall utilization metrics",
+				Type:        "interval",
+				Interval:    "10s",
+				Task: func(ctx context.Context) {
+					log.Debug("collecting overall utilization metrics")
+					overallM.Collect()
+				},
+			}
+			task.RegisterScheduleTask(overallTask)
+		}
 	}
 }
 
