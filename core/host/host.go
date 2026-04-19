@@ -136,7 +136,7 @@ type SubsystemHealth struct {
 // derived from the worst-performing subsystem.
 type OverallStatus struct {
 	Status     string            `json:"status"`     // "green", "yellow", "red"
-	Bottleneck string            `json:"bottleneck"`  // which subsystem is the bottleneck, empty if green
+	Bottleneck string            `json:"bottleneck"` // which subsystem is the bottleneck, empty if green
 	Subsystems []SubsystemHealth `json:"subsystems"` // per-subsystem breakdown
 }
 

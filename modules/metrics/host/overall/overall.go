@@ -42,9 +42,10 @@ type Metric struct {
 	Enabled         bool    `config:"enabled"`
 	YellowThreshold float64 `config:"yellow_threshold"`
 	RedThreshold    float64 `config:"red_threshold"`
+	IntervalSeconds float64 `config:"interval_seconds"`
 
-	mu              sync.Mutex
-	prevDiskIO      *diskIOSnapshot
+	mu         sync.Mutex
+	prevDiskIO *diskIOSnapshot
 }
 
 type diskIOSnapshot struct {
@@ -57,6 +58,7 @@ func New(cfg *config.Config) (*Metric, error) {
 		Enabled:         true,
 		YellowThreshold: hostInfo.DefaultYellowThreshold,
 		RedThreshold:    hostInfo.DefaultRedThreshold,
+		IntervalSeconds: 10,
 	}
 
 	err := cfg.Unpack(&me)
@@ -243,8 +245,8 @@ func (m *Metric) collectDiskIO() float64 {
 	m.prevDiskIO.readTime = totalReadTime
 	m.prevDiskIO.writeTime = totalWriteTime
 
-	// 10s interval = 10000ms total wall time
-	const intervalMs = 10000.0
+	// IO busy time delta in ms over the collection interval
+	intervalMs := m.IntervalSeconds * 1000.0
 	busy := float64(deltaIO) / intervalMs * 100.0
 	if busy > 100.0 {
 		busy = 100.0
