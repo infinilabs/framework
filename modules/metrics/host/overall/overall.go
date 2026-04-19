@@ -33,15 +33,12 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
-	hostInfo "infini.sh/framework/core/host"
 	"infini.sh/framework/core/util"
 )
 
-// Metric collects overall system utilization and computes a composite health status.
+// Metric collects overall system utilization percentages for CPU, memory, disk and disk I/O.
 type Metric struct {
 	Enabled         bool    `config:"enabled"`
-	YellowThreshold float64 `config:"yellow_threshold"`
-	RedThreshold    float64 `config:"red_threshold"`
 	IntervalSeconds float64 `config:"interval_seconds"`
 
 	mu         sync.Mutex
@@ -56,8 +53,6 @@ type diskIOSnapshot struct {
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
 		Enabled:         true,
-		YellowThreshold: hostInfo.DefaultYellowThreshold,
-		RedThreshold:    hostInfo.DefaultRedThreshold,
 		IntervalSeconds: 10,
 	}
 
@@ -66,72 +61,32 @@ func New(cfg *config.Config) (*Metric, error) {
 		panic(err)
 	}
 
-	log.Debugf("overall utilization metric enabled, yellow=%v%%, red=%v%%", me.YellowThreshold, me.RedThreshold)
+	log.Debugf("overall utilization metric enabled")
 	return me, nil
 }
 
-// Collect gathers CPU, memory, disk, and disk I/O utilization, computes a composite status,
-// and emits a "host/overall" event.
+// Collect gathers CPU, memory, disk, and disk I/O utilization percentages
+// and emits a "host/overall" event with raw values for the front layer to interpret.
 func (m *Metric) Collect() error {
 	if !m.Enabled {
 		return nil
 	}
 
-	subsystems := make([]hostInfo.SubsystemHealth, 0, 4)
+	fields := util.MapStr{}
 
 	// --- CPU utilization ---
-	cpuPercent := m.collectCPU()
-	subsystems = append(subsystems, hostInfo.SubsystemHealth{
-		Name:    "cpu",
-		Status:  hostInfo.ClassifyHealth(cpuPercent, m.YellowThreshold, m.RedThreshold),
-		Percent: cpuPercent,
-	})
+	fields["cpu.used_percent"] = m.collectCPU()
 
 	// --- Memory utilization ---
-	memPercent := m.collectMemory()
-	subsystems = append(subsystems, hostInfo.SubsystemHealth{
-		Name:    "memory",
-		Status:  hostInfo.ClassifyHealth(memPercent, m.YellowThreshold, m.RedThreshold),
-		Percent: memPercent,
-	})
+	fields["memory.used_percent"] = m.collectMemory()
 
 	// --- Disk capacity utilization ---
-	diskPercent := m.collectDiskUsage()
-	subsystems = append(subsystems, hostInfo.SubsystemHealth{
-		Name:    "disk",
-		Status:  hostInfo.ClassifyHealth(diskPercent, m.YellowThreshold, m.RedThreshold),
-		Percent: diskPercent,
-	})
+	fields["disk.used_percent"] = m.collectDiskUsage()
 
 	// --- Disk I/O utilization (busy %) ---
 	diskIOPercent := m.collectDiskIO()
 	if diskIOPercent >= 0 {
-		subsystems = append(subsystems, hostInfo.SubsystemHealth{
-			Name:    "disk_io",
-			Status:  hostInfo.ClassifyHealth(diskIOPercent, m.YellowThreshold, m.RedThreshold),
-			Percent: diskIOPercent,
-		})
-	}
-
-	// Determine overall status = worst subsystem
-	overall := hostInfo.OverallStatus{
-		Status:     "green",
-		Subsystems: subsystems,
-	}
-	for _, s := range subsystems {
-		if hostInfo.HealthPriority(s.Status) > hostInfo.HealthPriority(overall.Status) {
-			overall.Status = s.Status
-			overall.Bottleneck = s.Name
-		}
-	}
-
-	fields := util.MapStr{
-		"status":     overall.Status,
-		"bottleneck": overall.Bottleneck,
-	}
-	for _, s := range subsystems {
-		fields[s.Name+".status"] = s.Status
-		fields[s.Name+".used_percent"] = s.Percent
+		fields["disk_io.used_percent"] = diskIOPercent
 	}
 
 	return event.Save(&event.Event{

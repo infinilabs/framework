@@ -125,50 +125,6 @@ type SwapMemoryUsageInfo struct {
 	UsedPercent float64 `json:"used_percent" elastic_mapping:"used_percent: { type: keyword }"`
 }
 
-// SubsystemHealth represents the health status of a single subsystem.
-type SubsystemHealth struct {
-	Name    string  `json:"name"`    // e.g., "cpu", "memory", "disk", "disk_io", "network"
-	Status  string  `json:"status"`  // "green", "yellow", "red"
-	Percent float64 `json:"percent"` // utilization percentage (0-100)
-}
-
-// OverallStatus represents the overall system utilization status,
-// derived from the worst-performing subsystem.
-type OverallStatus struct {
-	Status     string            `json:"status"`     // "green", "yellow", "red"
-	Bottleneck string            `json:"bottleneck"` // which subsystem is the bottleneck, empty if green
-	Subsystems []SubsystemHealth `json:"subsystems"` // per-subsystem breakdown
-}
-
-// DefaultYellowThreshold is the utilization percentage above which a subsystem is "yellow".
-const DefaultYellowThreshold = 70.0
-
-// DefaultRedThreshold is the utilization percentage above which a subsystem is "red".
-const DefaultRedThreshold = 90.0
-
-// ClassifyHealth returns "green", "yellow", or "red" for a given utilization percentage.
-func ClassifyHealth(percent, yellowThreshold, redThreshold float64) string {
-	if percent >= redThreshold {
-		return "red"
-	}
-	if percent >= yellowThreshold {
-		return "yellow"
-	}
-	return "green"
-}
-
-// HealthPriority returns a numeric priority for health strings (higher = worse).
-func HealthPriority(status string) int {
-	switch status {
-	case "red":
-		return 3
-	case "yellow":
-		return 2
-	default:
-		return 1
-	}
-}
-
 func UpdateHostAgentStatus(agentID, agentStatus string) {
 	err, result := orm.GetBy("agent_id", agentID, HostInfo{})
 	if err != nil {
