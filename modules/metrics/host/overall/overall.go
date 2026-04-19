@@ -31,23 +31,30 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/net"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
 )
 
-// Metric collects overall system utilization percentages for CPU, memory, disk and disk I/O.
+// Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
 type Metric struct {
 	Enabled         bool    `config:"enabled"`
 	IntervalSeconds float64 `config:"interval_seconds"`
 
 	mu         sync.Mutex
 	prevDiskIO *diskIOSnapshot
+	prevNetIO  *netIOSnapshot
 }
 
 type diskIOSnapshot struct {
 	readTime  uint64
 	writeTime uint64
+}
+
+type netIOSnapshot struct {
+	bytesRecv uint64
+	bytesSent uint64
 }
 
 func New(cfg *config.Config) (*Metric, error) {
@@ -65,7 +72,7 @@ func New(cfg *config.Config) (*Metric, error) {
 	return me, nil
 }
 
-// Collect gathers CPU, memory, disk, and disk I/O utilization percentages
+// Collect gathers CPU, memory, disk, disk I/O and network utilization
 // and emits a "host/overall" event with raw values for the front layer to interpret.
 func (m *Metric) Collect() error {
 	if !m.Enabled {
@@ -87,6 +94,13 @@ func (m *Metric) Collect() error {
 	diskIOPercent := m.collectDiskIO()
 	if diskIOPercent >= 0 {
 		fields["disk_io.used_percent"] = diskIOPercent
+	}
+
+	// --- Network throughput (bytes/sec) ---
+	netIn, netOut, ok := m.collectNetwork()
+	if ok {
+		fields["network.in.bytes_per_second"] = netIn
+		fields["network.out.bytes_per_second"] = netOut
 	}
 
 	return event.Save(&event.Event{
@@ -210,4 +224,37 @@ func (m *Metric) collectDiskIO() float64 {
 		busy = 0
 	}
 	return busy
+}
+
+// collectNetwork returns the network throughput in bytes/sec (in, out) across all interfaces.
+// Returns ok=false if data is not yet available (first call).
+func (m *Metric) collectNetwork() (inBytesPerSec, outBytesPerSec float64, ok bool) {
+	stats, err := net.IOCounters(false)
+	if err != nil || len(stats) == 0 {
+		log.Debugf("overall: failed to get network io counters: %v", err)
+		return 0, 0, false
+	}
+
+	current := stats[0]
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.prevNetIO == nil {
+		m.prevNetIO = &netIOSnapshot{
+			bytesRecv: current.BytesRecv,
+			bytesSent: current.BytesSent,
+		}
+		return 0, 0, false
+	}
+
+	deltaRecv := current.BytesRecv - m.prevNetIO.bytesRecv
+	deltaSent := current.BytesSent - m.prevNetIO.bytesSent
+
+	m.prevNetIO.bytesRecv = current.BytesRecv
+	m.prevNetIO.bytesSent = current.BytesSent
+
+	inBytesPerSec = float64(deltaRecv) / m.IntervalSeconds
+	outBytesPerSec = float64(deltaSent) / m.IntervalSeconds
+	return inBytesPerSec, outBytesPerSec, true
 }
