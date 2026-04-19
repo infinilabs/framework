@@ -292,6 +292,7 @@ type ConfigsConfig struct {
 		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
 		BasicAuth            BasicAuth `config:"basic_auth"`
 	} `config:"manager"`
+	// The always_register_after_restart and allow_generated_metrics_tasks only for container
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
 	IgnoredPath                []string `config:"ignored_path"`
