@@ -296,6 +296,7 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 			}
 
 			//send email
+			log.Infof("start to send mail to: %v, subject: %v",sendTo,subj)
 			err = processor.send(srvCfg, sendTo, cc, subj, ctype, cBody, tmplate.Attachments)
 			if err != nil {
 				panic(err)

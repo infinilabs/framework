@@ -311,7 +311,7 @@ func (c *ESAPIV7) Index(indexName, docType string, id interface{}, data interfac
 	}
 
 	if global.Env().IsDebug {
-		log.Debug("indexing doc: ", url, ",", string(js))
+		log.Trace("indexing doc: ", url, ",size:", util.SubString(string(js), 0, 512))
 	}
 
 	if err != nil {
