@@ -18,7 +18,7 @@ func init() {
 	api.HandleUIMethod(api.OPTIONS, "/account/logout", Logout, api.OptionLogin(), api.Feature(http_filters.FeatureCORS))
 }
 
-func  Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func Logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	api.DestroySession(w, r)
 	api.WriteOKJSON(w, util.MapStr{
 		"status": "ok",
