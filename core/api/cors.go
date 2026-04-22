@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+const FeatureCORS = "feature_cors"
+
 // BypassCORSCheck wraps an HTTP handler to allow all origins
 func BypassCORSCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

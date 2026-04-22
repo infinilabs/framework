@@ -10,16 +10,19 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### ❌ Breaking changes  
+- refactor: native security are disabled by default #283
+
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
 - feat: add semantic, hybrid, and nested query support #265
 - feat: extract BuildFuzzinessQueryClauses as public API #266
 - feat(keystore): support large stdin secrets (>1024 bytes) and multiline #271
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275
+- feat: output HTTP access logs to file
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
-
+- chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
 - chore: always enable orm hooks #250
@@ -34,6 +37,8 @@ Information about release notes of INFINI Framework is provided here.
 - refactor: refactoring fuzziness logic
 - chore: add util to clone context
 - chore: add util to get request header
+- chore: permissions refactoring
+- chore: security configuration structure enhanced
 
 
 
