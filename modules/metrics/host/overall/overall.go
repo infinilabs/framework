@@ -64,7 +64,7 @@ func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
 		Enabled:              true,
 		IntervalSeconds:      10,
-		NetworkBandwidthMbps: 1000,
+		NetworkBandwidthMbps: 0, // 0 means auto-detect
 		YellowThreshold:      70,
 		RedThreshold:         90,
 	}
@@ -74,7 +74,19 @@ func New(cfg *config.Config) (*Metric, error) {
 		panic(err)
 	}
 
-	log.Debugf("overall utilization metric enabled")
+	// Auto-detect network bandwidth if not configured
+	if me.NetworkBandwidthMbps <= 0 {
+		detected := detectNetworkBandwidthMbps()
+		if detected > 0 {
+			me.NetworkBandwidthMbps = detected
+		} else {
+			// Fallback to 1000 Mbps (1 Gbps) if detection fails
+			me.NetworkBandwidthMbps = 1000
+			log.Infof("overall: could not auto-detect network bandwidth, using default: 1000 Mbps")
+		}
+	}
+
+	log.Debugf("overall utilization metric enabled, network_bandwidth_mbps: %.0f", me.NetworkBandwidthMbps)
 	return me, nil
 }
 
