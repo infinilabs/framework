@@ -38,6 +38,9 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+// DefaultBandwidthMbps is the default network bandwidth in Mbps when auto-detection fails
+const DefaultBandwidthMbps = 1000
+
 // Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
 // Each disk and network interface is monitored independently to identify specific bottlenecks.
 type Metric struct {
@@ -157,10 +160,10 @@ func (m *Metric) Collect() error {
 	for _, dev := range netDevices {
 		bw := m.netBandwidth[dev.name]
 		if bw <= 0 {
-			bw = 1000 // Default 1 Gbps if unknown
+			bw = DefaultBandwidthMbps // Default if unknown
 		}
 		netMap[dev.name] = util.MapStr{
-			"used_percent":  dev.usedPercent,
+			"used_percent":   dev.usedPercent,
 			"bandwidth_mbps": bw,
 		}
 		if dev.usedPercent > maxNet.usedPercent {
@@ -363,7 +366,7 @@ func (m *Metric) collectNetwork() []deviceUtilization {
 		// Get bandwidth for this interface
 		bandwidth := m.netBandwidth[name]
 		if bandwidth <= 0 {
-			bandwidth = 1000 // Default 1 Gbps if unknown
+			bandwidth = DefaultBandwidthMbps // Default if unknown
 		}
 
 		// Convert bandwidth from Mbps to bytes/sec: Mbps * 1_000_000 / 8
@@ -391,12 +394,12 @@ func (m *Metric) collectNetwork() []deviceUtilization {
 func isVirtualInterface(name string) bool {
 	// Common virtual interface prefixes across platforms
 	virtualPrefixes := []string{
-		"lo", "lo0",                                // Loopback
-		"veth", "docker", "br-",                    // Docker/containers
-		"virbr", "vnet",                            // Libvirt/KVM
+		"lo", "lo0", // Loopback
+		"veth", "docker", "br-", // Docker/containers
+		"virbr", "vnet", // Libvirt/KVM
 		"utun", "awdl", "bridge", "llw", "ap", "XHC", // macOS virtual
-		"vmnet",                                    // VMware
-		"Loopback",                                 // Windows loopback
+		"vmnet",    // VMware
+		"Loopback", // Windows loopback
 	}
 
 	for _, prefix := range virtualPrefixes {
