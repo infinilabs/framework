@@ -26,7 +26,7 @@ func (f *CORSFilter) GetPriority() int {
 	return 100
 }
 
-const FeatureCORS = "feature_cors"
+const FeatureCORS = api.FeatureCORS
 const FeatureNotAllowCredentials = "feature_not_allow_credentials"
 const FeatureByPassCORSCheck = "feature_bypass_cors_check"
 

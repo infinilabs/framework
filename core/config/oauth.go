@@ -25,8 +25,10 @@ package config
 
 type OAuthConfig struct {
 	Enabled             bool                `config:"enabled" json:"enabled"`
-	Name                string              `config:"name" json:"name"`
-	Provider            string              `config:"provider" json:"provider"`
+	Name                string              `config:"name" json:"name,omitempty"`
+	Description         string              `config:"description" json:"description,omitempty"`
+	Icon                string              `config:"icon" json:"icon,omitempty"`
+	Provider            string              `config:"provider" json:"provider"` //google/github/cloud
 	ClientID            string              `config:"client_id" json:"client_id"`
 	ClientSecret        string              `config:"client_secret" json:"client_secret"`
 	DefaultRoles        []string            `config:"default_roles" json:"default_roles"`

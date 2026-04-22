@@ -100,8 +100,8 @@ func StartWeb(cfg config.WebAppConfig) {
 			for m, n := range v {
 				log.Debug("register http handler: ", k, " ", m)
 				//wrap additional filters
-				handler := getWrappedHandler(k, m, n)
-				uiRouter.Handle(k, m, handler)
+				handler := getWrappedHandler(string(k), m, n)
+				uiRouter.Handle(string(k), m, handler)
 			}
 		}
 	}
@@ -359,7 +359,7 @@ type RegisteredAPIHandler struct {
 }
 
 // RegisteredUIMethodHandler is a hub for registered ui handler
-var registeredUIMethodHandler map[string]map[string]RegisteredAPIHandler //method,pattern
+var registeredUIMethodHandler map[Method]map[string]RegisteredAPIHandler //method,pattern
 
 var registeredWebSocketCommandHandler map[string]func(c *websocket.WebsocketConnection, array []string)
 var webSocketCommandUsage map[string]string
@@ -382,11 +382,12 @@ func HandleUI(pattern string, handler http.Handler) {
 	}
 
 	uiMutex.Lock()
+	defer uiMutex.Unlock()
 	if registeredUIHandler == nil {
 		registeredUIHandler = map[string]http.Handler{}
 	}
 	registeredUIHandler[pattern] = handler
-	uiMutex.Unlock()
+
 }
 
 // HandleUIMethod register ui request handler
@@ -402,13 +403,15 @@ func HandleUIFuncMethod(method Method, pattern string, handler func(w http.Respo
 
 func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), options ...Option) {
 	uiMutex.Lock()
+	defer uiMutex.Unlock()
+
 	if registeredUIMethodHandler == nil {
-		registeredUIMethodHandler = map[string]map[string]RegisteredAPIHandler{}
+		registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{}
 	}
 
-	m := registeredUIMethodHandler[string(method)]
+	m := registeredUIMethodHandler[method]
 	if m == nil {
-		registeredUIMethodHandler[string(method)] = map[string]RegisteredAPIHandler{}
+		registeredUIMethodHandler[method] = map[string]RegisteredAPIHandler{}
 	}
 
 	// Default options
@@ -423,16 +426,41 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 		apiOptions.Register(method, pattern, opts)
 	}
 
-	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
-	registeredUIMethodHandler[string(method)][pattern] = myHandler
+	if !opts.Override {
+		//check previous handler
+		previous, ok := registeredUIMethodHandler[method][pattern]
+		if ok {
+			if previous.Options.Priority > opts.Priority {
+				log.Tracef("skip api: [%v] [%v], priority: [%v] < [%v]", method, pattern, opts.Priority, previous.Options.Priority)
+				return
+			} else {
+				log.Tracef("replace api: [%v] [%v], priority: [%v] >= [%v]", method, pattern, opts.Priority, previous.Options.Priority)
+			}
+		} else {
+			if global.Env().IsDebug {
+				log.Tracef("no previous api found, create: [%v] [%v], priority: [%v]", method, pattern, opts.Priority)
+			}
+		}
+	}
 
-	uiMutex.Unlock()
+	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
+	registeredUIMethodHandler[method][pattern] = myHandler
+	if opts.AllowOPTIONS {
+		m := registeredUIMethodHandler[OPTIONS]
+		if m == nil {
+			registeredUIMethodHandler[OPTIONS] = map[string]RegisteredAPIHandler{}
+		}
+		registeredUIMethodHandler[OPTIONS][pattern] = myHandler
+	}
+
 }
 
 // HandleWebSocketCommand register websocket command handler
 func HandleWebSocketCommand(command string, usage string, handler func(c *websocket.WebsocketConnection, array []string)) {
 
 	uiMutex.Lock()
+	defer uiMutex.Unlock()
+
 	if registeredWebSocketCommandHandler == nil {
 		registeredWebSocketCommandHandler = map[string]func(c *websocket.WebsocketConnection, array []string){}
 		webSocketCommandUsage = map[string]string{}
@@ -441,5 +469,5 @@ func HandleWebSocketCommand(command string, usage string, handler func(c *websoc
 	command = strings.ToLower(strings.TrimSpace(command))
 	registeredWebSocketCommandHandler[command] = handler
 	webSocketCommandUsage[command] = usage
-	uiMutex.Unlock()
+
 }

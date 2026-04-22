@@ -31,18 +31,14 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/api"
-	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/logging/logger"
-	"infini.sh/framework/core/util"
 	"net/http"
 )
 
 func init() {
 	api.HandleAPIFunc("/setting/logger", LoggingSettingAction)
-	api.HandleAPIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
-	api.HandleUIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
 }
 
 // LoggingSettingAction is the ajax request to update logging config
@@ -73,15 +69,4 @@ func LoggingSettingAction(w http.ResponseWriter, req *http.Request) {
 		logger.SetLogging(&cfg, appName, baseDir)
 		api.DefaultAPI.WriteJSON(w, map[string]interface{}{"success": true}, http.StatusOK)
 	}
-}
-
-func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	obj := util.MapStr{
-		"auth_enabled": api.IsAuthEnable(),
-	}
-	appSettings := api.GetAppSettings()
-	obj.Merge(appSettings)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(util.MustToJSONBytes(obj))
-	w.WriteHeader(200)
 }

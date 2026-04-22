@@ -70,6 +70,11 @@ func GetAllPermissionKeys() []PermissionKey {
 	for _, key := range permissionRegistry.revPermMap {
 		out = append(out, key)
 	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+
 	return out
 }
 

@@ -21,17 +21,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package security
+package api
 
-import "infini.sh/framework/core/api"
+// PermissionID is the numeric ID of a permission
+type PermissionID uint32
 
-// PermissionID is re-exported from api package for backward compatibility
-type PermissionID = api.PermissionID
-
-// PermissionKey is re-exported from api package for backward compatibility
-type PermissionKey = api.PermissionKey
-
-const RoleReadOnly = "readonly"
-const RoleAdmin = "admin"
-
-const DefaultNativeAuthBackend = "default_native_auth_backend"
+// PermissionKey is the string key of a permission (e.g., "cluster:read")
+type PermissionKey string
