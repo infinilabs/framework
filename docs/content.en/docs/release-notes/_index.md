@@ -11,6 +11,7 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 - refactor: native security are disabled by default #283
+- refactor: remove deprecated `network_bandwidth_mbps` config option — bandwidth is now auto-detected per interface
 
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
@@ -19,6 +20,9 @@ Information about release notes of INFINI Framework is provided here.
 - feat(keystore): support large stdin secrets (>1024 bytes) and multiline #271
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275
 - feat: output HTTP access logs to file
+- feat(metrics): monitor each disk and network interface independently for bottleneck detection
+- feat(metrics): auto-detect network interface bandwidth per device (Linux, macOS, Windows)
+- feat(metrics): identify specific bottleneck device (e.g., `disk_io:nvme0n1`, `network:eth0`)
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
