@@ -42,6 +42,8 @@ type Metric struct {
 	Enabled              bool    `config:"enabled"`
 	IntervalSeconds      float64 `config:"interval_seconds"`
 	NetworkBandwidthMbps float64 `config:"network_bandwidth_mbps"`
+	YellowThreshold      float64 `config:"yellow_threshold"`
+	RedThreshold         float64 `config:"red_threshold"`
 
 	mu         sync.Mutex
 	prevDiskIO *diskIOSnapshot
@@ -63,6 +65,8 @@ func New(cfg *config.Config) (*Metric, error) {
 		Enabled:              true,
 		IntervalSeconds:      10,
 		NetworkBandwidthMbps: 1000,
+		YellowThreshold:      70,
+		RedThreshold:         90,
 	}
 
 	err := cfg.Unpack(&me)
@@ -83,26 +87,36 @@ func (m *Metric) Collect() error {
 
 	fields := util.MapStr{}
 
+	// Collect all metrics
+	cpuPercent := m.collectCPU()
+	memPercent := m.collectMemory()
+	diskPercent := m.collectDiskUsage()
+	diskIOPercent := m.collectDiskIO()
+	netPercent := m.collectNetwork()
+
 	// --- CPU utilization ---
-	fields["cpu.used_percent"] = m.collectCPU()
+	fields["cpu.used_percent"] = cpuPercent
 
 	// --- Memory utilization ---
-	fields["memory.used_percent"] = m.collectMemory()
+	fields["memory.used_percent"] = memPercent
 
 	// --- Disk capacity utilization ---
-	fields["disk.used_percent"] = m.collectDiskUsage()
+	fields["disk.used_percent"] = diskPercent
 
 	// --- Disk I/O utilization (busy %) ---
-	diskIOPercent := m.collectDiskIO()
 	if diskIOPercent >= 0 {
 		fields["disk_io.used_percent"] = diskIOPercent
 	}
 
 	// --- Network utilization (% of configured bandwidth) ---
-	netPercent := m.collectNetwork()
 	if netPercent >= 0 {
 		fields["network.used_percent"] = netPercent
 	}
+
+	// --- Calculate overall status and bottleneck ---
+	status, bottleneck := m.calculateStatus(cpuPercent, memPercent, diskPercent, diskIOPercent, netPercent)
+	fields["status"] = status
+	fields["bottleneck"] = bottleneck
 
 	return event.Save(&event.Event{
 		Metadata: event.EventMetadata{
@@ -277,4 +291,55 @@ func (m *Metric) collectNetwork() float64 {
 		percent = 0
 	}
 	return percent
+}
+
+// calculateStatus determines the overall system status (green/yellow/red) and
+// identifies the bottleneck subsystem (if any) based on configured thresholds.
+func (m *Metric) calculateStatus(cpuPct, memPct, diskPct, diskIOPct, netPct float64) (status, bottleneck string) {
+	status = "green"
+	bottleneck = ""
+
+	// Subsystems to check with their utilization percentages
+	subsystems := []struct {
+		name    string
+		percent float64
+	}{
+		{"cpu", cpuPct},
+		{"memory", memPct},
+		{"disk", diskPct},
+	}
+	// Only include disk_io and network if we have valid data
+	if diskIOPct >= 0 {
+		subsystems = append(subsystems, struct {
+			name    string
+			percent float64
+		}{"disk_io", diskIOPct})
+	}
+	if netPct >= 0 {
+		subsystems = append(subsystems, struct {
+			name    string
+			percent float64
+		}{"network", netPct})
+	}
+
+	// Find the highest utilization and determine status
+	var maxPercent float64
+	var maxName string
+	for _, s := range subsystems {
+		if s.percent > maxPercent {
+			maxPercent = s.percent
+			maxName = s.name
+		}
+	}
+
+	// Determine status based on thresholds
+	if maxPercent >= m.RedThreshold {
+		status = "red"
+		bottleneck = maxName
+	} else if maxPercent >= m.YellowThreshold {
+		status = "yellow"
+		bottleneck = maxName
+	}
+
+	return status, bottleneck
 }
