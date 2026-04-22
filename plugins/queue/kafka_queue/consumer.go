@@ -57,7 +57,7 @@ func (this *Consumer) ResetOffset(part, readPos int64) (err error) {
 	}
 	req := map[string]map[int32]kgo.EpochOffset{}
 	req[this.qCfg.ID] = map[int32]kgo.EpochOffset{}
-	req[this.qCfg.ID][int32(part)] = kgo.EpochOffset{Offset: readPos, Epoch: 0}
+	req[this.qCfg.ID][int32(part)] = kgo.EpochOffset{Offset: readPos, Epoch: -1}
 	this.client.SetOffsets(req)
 	//this.client.CommitOffsetsSync(context.Background(),req, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
 	//	if err!=nil{
@@ -75,7 +75,7 @@ func (this *Consumer) CommitOffset(off queue.Offset) error {
 	var ret error
 	offset := map[string]map[int32]kgo.EpochOffset{}
 	offset[this.qCfg.ID] = map[int32]kgo.EpochOffset{}
-	offset[this.qCfg.ID][0] = kgo.EpochOffset{Offset: off.Position, Epoch: 0}
+	offset[this.qCfg.ID][0] = kgo.EpochOffset{Offset: off.Position, Epoch: -1}
 	this.client.CommitOffsetsSync(ctx, offset, func(client *kgo.Client, request *kmsg.OffsetCommitRequest, response *kmsg.OffsetCommitResponse, err error) {
 		if ret != nil {
 			log.Error(ret)
