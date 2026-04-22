@@ -34,7 +34,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v4/disk"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/util"
