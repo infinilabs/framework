@@ -70,7 +70,11 @@ type UserSessionInfo struct {
 	LastLogin LastLogin `json:"last_login,omitempty"`
 }
 
-func (u *UserSessionInfo) SetGetUserID(uid string) {
+func (u *UserSessionInfo) ToString() string {
+	return fmt.Sprintf("user_id: %v, provider: %v, login: %v", u.UserID, u.Provider, u.Login)
+}
+
+func (u *UserSessionInfo) SetUserID(uid string) {
 	u.UserID = uid
 }
 

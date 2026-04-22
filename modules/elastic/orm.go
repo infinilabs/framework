@@ -194,7 +194,7 @@ func (handler *ElasticORM) Save(ctx *api.Context, o interface{}) error {
 
 	docID := getIndexID(o)
 	if global.Env().IsDebug {
-		log.Debug("docID:", docID)
+		log.Trace("save doc, ID:", docID)
 	}
 	_, err := handler.Client.Index(handler.GetIndexName(o), "", docID, o, refresh)
 	return err

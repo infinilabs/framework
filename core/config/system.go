@@ -320,7 +320,7 @@ type WebSecurityConfig struct {
 	Managed bool `json:"managed,omitempty" config:"managed" ` // Whether the server is cloud based managed by the vendor
 
 	Authentication AuthenticationConfig `config:"authentication"`
-	authorization  AuthorizationConfig  `config:"authorization"`
+	Authorization  AuthorizationConfig  `config:"authorization"`
 }
 
 type RealmConfig struct {
@@ -342,6 +342,7 @@ type HTTPBasicAuthProvider struct {
 }
 
 type AuthorizationConfig struct {
+	Native RealmConfig `config:"native"`
 }
 
 type APISecurityConfig struct {

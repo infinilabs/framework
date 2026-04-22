@@ -25,6 +25,7 @@ package security
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"infini.sh/framework/core/errors"
@@ -158,7 +159,28 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 	return permList, true
 }
 
-func MustGetPermissionKeysByUser(user *UserSessionInfo) []PermissionKey {
+// TODO cache, catch permission updates
+func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
+	permissions := user.Permissions
+
+	//get permissions by user
+	p1, _ := getPermissionKeysByUser(user)
+	permissions = append(permissions, p1...)
+
+	//get permissions by roles
+	if len(user.Roles) > 0 {
+		permissionsFromRoles, _ := GetPermissionKeysByRole(user.Roles)
+		permissions = append(permissions, permissionsFromRoles...)
+	}
+
+	sort.Slice(permissions, func(i, j int) bool {
+		return permissions[i] < permissions[j]
+	})
+
+	return permissions
+}
+
+func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
 	ctx1 := context.Background()
 	if val, ok := user.GetStringArray(orm.TeamsIDKey); ok {
 		ctx1 = context.WithValue(ctx1, orm.TeamsIDKey, val)
@@ -176,18 +198,31 @@ func MustGetPermissionKeysByUser(user *UserSessionInfo) []PermissionKey {
 	})
 
 	if !hit {
-		panic("no AuthorizationBackend was found")
+		return nil, errors.New("no AuthorizationBackend was found")
 	}
 
-	return out
+	return out, nil
 }
 
 func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
+	permissions, err := GetPermissionKeysByRole(roles)
+	if err != nil {
+		panic(err)
+	}
+
+	sort.Slice(permissions, func(i, j int) bool {
+		return permissions[i] < permissions[j]
+	})
+
+	return permissions
+}
+
+func GetPermissionKeysByRole(roles []string) ([]PermissionKey, error) {
 
 	//for admin only
 	if util.ContainsAnyInArray(RoleAdmin, roles) {
 		permissions := GetAllPermissionKeys()
-		return permissions
+		return permissions, nil
 	}
 
 	ctx1 := context.Background()
@@ -205,8 +240,8 @@ func MustGetPermissionKeysByRole(roles []string) []PermissionKey {
 	})
 
 	if !hit {
-		panic("no AuthorizationBackend was found")
+		return nil, errors.New("no AuthorizationBackend was found")
 	}
 
-	return permissions
+	return permissions, nil
 }

@@ -104,14 +104,22 @@ func GetOAuthCallbacks(name string) []OAuthCallback {
 }
 
 func MustGetOAuthProvider(name string) OAuthProvider {
+	provider, err := GetOAuthProvider(name)
+	if err != nil {
+		panic(err)
+	}
+	return provider
+}
+
+func GetOAuthProvider(name string) (OAuthProvider, error) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	v, ok := register[name]
 	if ok {
-		return v
+		return v, nil
 	}
-	panic(errors.Errorf("invalid provider: %v", name))
+	return nil, errors.Errorf("invalid provider: %v", name)
 }
 
 func GetExternalUserProfileID(provider string, login string) string {

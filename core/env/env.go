@@ -295,7 +295,7 @@ func GetDefaultSystemConfig() config.SystemConfig {
 			Security: config.WebSecurityConfig{
 				Enabled: true,
 				Authentication: config.AuthenticationConfig{Native: config.RealmConfig{
-					Enabled: true,
+					Enabled: false,
 				},
 				},
 			},
@@ -624,9 +624,11 @@ func (env *Env) GetConfigDir() string {
 // GetDataDir returns root working dir of app instance
 func (env *Env) GetDataDir() string {
 	if env.workingDataDir != "" {
+		//log.Trace("get working data dir: ", env.workingDataDir)
 		return env.workingDataDir
 	}
 	env.workingDataDir, env.workingLogDir = env.findWorkingDir()
+	//log.Trace("finding working data dir: ", env.workingDataDir)
 	return env.workingDataDir
 }
 
@@ -656,88 +658,88 @@ func (env *Env) findWorkingDir() (string, string) {
 	//no folder exists, generate new id and name
 	//persist metadata to folder
 
-	baseDir := path.Join(env.SystemConfig.PathConfig.Data, env.GetAppLowercaseName(), "nodes")
-
-	if !util.FileExists(baseDir) {
-		if env.SystemConfig.NodeConfig.ID == "" {
-			env.SystemConfig.NodeConfig.ID = util.GetUUID()
-		}
+	//if node.id is was set explicitly, then directly use it
+	if env.SystemConfig.NodeConfig.ID != "" {
 		return env.getNodeWorkingDir(env.SystemConfig.NodeConfig.ID)
 	}
 
-	//try load instance id from existing data folder
-	files, err := ioutil.ReadDir(baseDir)
-	if err != nil {
-		panic(err)
-	}
-
-	if env.IsDebug {
-		log.Trace("finding files in working dir:", files)
-	}
-
-	var instance = 0
-	for _, f := range files {
-		if env.IsDebug {
-			log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
+	baseDir := path.Join(env.SystemConfig.PathConfig.Data, env.GetAppLowercaseName(), "nodes")
+	if util.FileExists(baseDir) {
+		//try load instance id from existing data folder
+		files, err := ioutil.ReadDir(baseDir)
+		if err != nil {
+			panic(err)
 		}
-		if f.IsDir() {
-			instance++
-			lockFile := path.Join(baseDir, f.Name(), ".lock")
+
+		if env.IsDebug {
+			log.Trace("finding files in working dir:", files)
+		}
+
+		var instance = 0
+		for _, f := range files {
 			if env.IsDebug {
-				log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
+				log.Trace("checking dir: ", f.Name(), ",", f.IsDir())
 			}
-			if !util.FileExists(lockFile) {
-				return env.getNodeWorkingDir(f.Name())
-			}
+			if f.IsDir() {
+				instance++
+				lockFile := path.Join(baseDir, f.Name(), ".lock")
+				if env.IsDebug {
+					log.Tracef("lock found [%v] in dir: %v", util.FileExists(lockFile), f.Name())
+				}
+				if !util.FileExists(lockFile) {
+					return env.getNodeWorkingDir(f.Name())
+				}
 
-			//check if pid is alive
-			b, err := ioutil.ReadFile(lockFile)
-			if err != nil {
-				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
-			}
-			pid, err := util.ToInt(string(b))
-			if err != nil {
-				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
-			}
-			if pid <= 0 {
-				err := util.FileDelete(lockFile)
-				panic(errors.Errorf("invalid lock file: %v, deleting now", err))
-			}
-
-			procExists := util.CheckProcessExists(pid)
-			if env.IsDebug {
-				log.Tracef("process [%v] exists: ", pid, procExists)
-			}
-			if !procExists {
-
-				err := util.FileDelete(lockFile)
+				//check if pid is alive
+				b, err := ioutil.ReadFile(lockFile)
 				if err != nil {
-					panic(err)
+					err := util.FileDelete(lockFile)
+					panic(errors.Errorf("invalid lock file: %v, deleting now", err))
+				}
+				pid, err := util.ToInt(string(b))
+				if err != nil {
+					err := util.FileDelete(lockFile)
+					panic(errors.Errorf("invalid lock file: %v, deleting now", err))
+				}
+				if pid <= 0 {
+					err := util.FileDelete(lockFile)
+					panic(errors.Errorf("invalid lock file: %v, deleting now", err))
+				}
+
+				procExists := util.CheckProcessExists(pid)
+				if env.IsDebug {
+					log.Tracef("process [%v] exists: ", pid, procExists)
+				}
+				if !procExists {
+
+					err := util.FileDelete(lockFile)
+					if err != nil {
+						panic(err)
+					}
+					if env.IsDebug {
+						log.Debug("dead process with broken lock file, removed: ", lockFile)
+					}
+					return env.getNodeWorkingDir(f.Name())
 				}
 				if env.IsDebug {
-					log.Debug("dead process with broken lock file, removed: ", lockFile)
+					log.Tracef("data folder [%v] is in used by [%v], continue", f.Name(), pid)
 				}
-				return env.getNodeWorkingDir(f.Name())
-			}
-			if env.IsDebug {
-				log.Tracef("data folder [%v] is in used by [%v], continue", f.Name(), pid)
-			}
-			//current folder is in use
-			if !env.SystemConfig.AllowMultiInstance {
-				env.SystemConfig.NodeConfig.ID = f.Name()
-				break
-			}
+				//current folder is in use
+				if !env.SystemConfig.AllowMultiInstance {
+					env.SystemConfig.NodeConfig.ID = f.Name()
+					break
+				}
 
-			if instance >= env.SystemConfig.MaxNumOfInstance {
-				panic(fmt.Errorf("reach max num of instances on this node, max_num_of_instances is: %v", env.SystemConfig.MaxNumOfInstance))
+				if instance >= env.SystemConfig.MaxNumOfInstance {
+					panic(fmt.Errorf("reach max num of instances on this node, max_num_of_instances is: %v", env.SystemConfig.MaxNumOfInstance))
+				}
 			}
 		}
 	}
 
 	//final check
 	if env.SystemConfig.NodeConfig.ID == "" {
+		//create new instance
 		env.SystemConfig.NodeConfig.ID = util.GetUUID()
 	}
 

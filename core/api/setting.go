@@ -28,13 +28,29 @@
 package api
 
 import (
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/util"
+	"net/http"
 	"sync"
 )
 
 type AppSettings struct {
 	util.MapStr
 	mu sync.RWMutex
+}
+
+func init() {
+	HandleUIMethod(GET, "/setting/application", appSettingsAPIHandler, AllowOPTIONSS(), AllowPublicAccess())
+	HandleAPIMethod(GET, "/setting/application", appSettingsAPIHandler)
+}
+
+func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	obj := util.MapStr{
+		"auth_enabled": IsAuthEnable(),
+	}
+	appSettings := GetAppSettings()
+	obj.Merge(appSettings)
+	WriteJSON(w, obj, 200)
 }
 
 func (settings *AppSettings) Add(key string, v interface{}) {
