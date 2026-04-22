@@ -48,7 +48,7 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 	//TODO cache, refresh user's role from db
 	//TODO, handle api key, with specify permissions
 	//TODO, if the provider is for user, like api token, we need to fetch from api token's config, to get the updated permission
-	allowedPermissions := MustGetPermissionKeysByUser(shortUser)
+	allowedPermissions := GetAllPermissionsForUser(shortUser)
 
 	log.Trace("get user's permissions:", allowedPermissions)
 	perms := NewUserAssignedPermission(allowedPermissions, nil)

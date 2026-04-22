@@ -450,7 +450,7 @@ func (p *App) Start(s service.Service) error {
 	return nil
 }
 
-func (p *App) run() error {
+func (p *App) run() {
 
 	//handle exit event
 	p.exit = make(chan os.Signal, 1)
@@ -554,7 +554,6 @@ func (p *App) run() error {
 	}
 
 	log.Infof("%s is up and running now.", p.environment.GetAppName())
-	return nil
 }
 
 func (p *App) Stop(s service.Service) error {

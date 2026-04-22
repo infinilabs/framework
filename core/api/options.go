@@ -32,7 +32,10 @@ type Option func(*HandlerOptions)
 
 // Define HandlerOptions to hold the state of all options
 type HandlerOptions struct {
+	Priority          int //if the handler was set to same pattern, the higher priority will override lower priority, or will be ignored
+	Override          bool
 	RequireLogin      bool
+	AllowOPTIONS      bool
 	RequirePermission []PermissionKey
 	OptionLogin       bool
 	Resource          string
@@ -77,6 +80,12 @@ func RequireLogin() Option {
 	}
 }
 
+func AllowOPTIONSS() Option {
+	return func(o *HandlerOptions) {
+		o.AllowOPTIONS = true
+	}
+}
+
 func RequirePermission(permissions ...PermissionKey) Option {
 	return func(o *HandlerOptions) {
 		o.RequireLogin = true
@@ -94,6 +103,19 @@ func RequirePermission(permissions ...PermissionKey) Option {
 func OptionLogin() Option {
 	return func(o *HandlerOptions) {
 		o.OptionLogin = true
+	}
+}
+
+// Override force override existing api handler with the same pattern, no matter of priority
+func Override() Option {
+	return func(o *HandlerOptions) {
+		o.Override = true
+	}
+}
+
+func Priority(priority int) Option {
+	return func(o *HandlerOptions) {
+		o.Priority = priority
 	}
 }
 

@@ -27,11 +27,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"infini.sh/framework/core/orm"
+	"infini.sh/framework/modules/security/http_filters"
 	"math/rand"
 	"net/http"
-	"strings"
-
-	"infini.sh/framework/core/orm"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/oauth2"
@@ -41,7 +40,6 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	ccache "infini.sh/framework/lib/cache"
 	provider2 "infini.sh/framework/modules/security/oauth_client/provider"
 	_ "infini.sh/framework/modules/security/oauth_client/provider/github"
 	_ "infini.sh/framework/modules/security/oauth_client/provider/google"
@@ -49,41 +47,16 @@ import (
 
 type APIHandler struct {
 	api.Handler
-	cCache      *ccache.LayeredCache
-	oAuthConfig map[string]config.OAuthConfig
-	oauthCfg    map[string]oauth2.Config
 }
 
-func (h *APIHandler) Init(oathConfig map[string]config.OAuthConfig) {
-	h.oAuthConfig = make(map[string]config.OAuthConfig)
-	h.oauthCfg = make(map[string]oauth2.Config)
-	h.cCache = ccache.Layered(ccache.Configure().MaxSize(10000).ItemsToPrune(100))
+func init() {
 
-	for k, cfg := range oathConfig {
-		h.oAuthConfig[k] = cfg
-		if cfg.ClientID == "" {
-			if global.Env().SystemConfig.ClusterConfig.Name != "" {
-				cfg.ClientID = global.Env().SystemConfig.ClusterConfig.Name
-			} else {
-				cfg.ClientID = global.Env().GetInstanceID()
-			}
-		}
+	global.RegisterFuncBeforeSetup(func() {
+		h := APIHandler{}
+		api.HandleUIMethod(api.GET, "/sso/login/:provider_type/:provider_id", h.AuthHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(http_filters.FeatureCORS))
+		api.HandleUIMethod(api.GET, "/sso/callback/:provider_type/:provider_id", h.CallbackHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(http_filters.FeatureCORS))
+	})
 
-		oauthCfg := oauth2.Config{
-			ClientID:     cfg.ClientID,
-			ClientSecret: cfg.ClientSecret,
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  cfg.AuthorizeUrl,
-				TokenURL: cfg.TokenUrl,
-			},
-			RedirectURL: cfg.RedirectUrl,
-			Scopes:      cfg.Scopes,
-		}
-		h.oauthCfg[k] = oauthCfg
-	}
-
-	api.HandleUIMethod(api.GET, "/sso/login/:provider", h.AuthHandler)
-	api.HandleUIMethod(api.GET, "/sso/callback/:provider", h.CallbackHandler)
 }
 
 const oauthSession string = "oauth-session"
@@ -92,37 +65,46 @@ func GetOauthSessionKey() string {
 	return oauthSession
 }
 
-func (h *APIHandler) mustGetAuthConfig(provider string) (config.OAuthConfig, oauth2.Config) {
+func MustGetAuthConfig(oauthProviderType, oauthProviderID string) (*config.OAuthConfig, oauth2.Config) {
+	var cfg *config.OAuthConfig
 	// preference to get dynamic config with provider
-	if providerAPI := provider2.MustGetOAuthProvider(provider); providerAPI != nil {
-		cfg := providerAPI.GetOauthConfig()
-		var oauth2Cfg oauth2.Config
-		if cfg != nil {
-			oauth2Cfg = oauth2.Config{
-				ClientID:     cfg.ClientID,
-				ClientSecret: cfg.ClientSecret,
-				Endpoint: oauth2.Endpoint{
-					AuthURL:  cfg.AuthorizeUrl,
-					TokenURL: cfg.TokenUrl,
-				},
-				RedirectURL: cfg.RedirectUrl,
-				Scopes:      cfg.Scopes,
-			}
-			return *cfg, oauth2Cfg
+	if providerAPI := provider2.MustGetOAuthProvider(oauthProviderType); providerAPI != nil {
+		cfg = providerAPI.GetOauthConfig()
+	}
+
+	if global.Env().IsDebug {
+		log.Info(util.ToIndentJson(global.Env().SystemConfig.WebAppConfig.Security.Authentication.OAuth))
+	}
+
+	//fallback to static config
+	if cfg == nil {
+		tempCfg, ok := global.Env().SystemConfig.WebAppConfig.Security.Authentication.OAuth[oauthProviderID]
+		if !ok || !tempCfg.Enabled {
+			panic(errors.Errorf("oauth config %v/%v not found", oauthProviderType, oauthProviderID))
 		}
-		//fallback to static config
+		cfg = &tempCfg
 	}
 
-	oAuthConfig, ok := global.Env().SystemConfig.WebAppConfig.Security.Authentication.OAuth[provider]
-	if !ok {
-		panic(errors.Errorf("oauth provider %s not found", provider))
+	if cfg.ClientID == "" {
+		if global.Env().SystemConfig.ClusterConfig.Name != "" {
+			cfg.ClientID = global.Env().SystemConfig.ClusterConfig.Name
+		} else {
+			cfg.ClientID = global.Env().GetInstanceID()
+		}
 	}
 
-	oAuth2Config, ok := h.oauthCfg[provider]
-	if !ok {
-		panic(errors.Errorf("oauth provider %s not found", provider))
+	oAuth2Config := oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  cfg.AuthorizeUrl,
+			TokenURL: cfg.TokenUrl,
+		},
+		RedirectURL: cfg.RedirectUrl,
+		Scopes:      cfg.Scopes,
 	}
-	return oAuthConfig, oAuth2Config
+
+	return cfg, oAuth2Config
 }
 
 func (h *APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -131,14 +113,17 @@ func (h *APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpr
 
 	state := base64.URLEncoding.EncodeToString(b)
 
-	oauthProviderName := p.MustGetParameter("provider")
+	oauthProviderType := p.MustGetParameter("provider_type")
+	oauthProviderID := p.MustGetParameter("provider_id")
+
 	requestID := h.GetParameter(r, "request_id")
-	providerID := h.GetParameterOrDefault(r, "provider_id", oauthProviderName)
 	tag := h.GetParameterOrDefault(r, "tag", "")
 	redirectURL := h.Get(r, "redirect_url", "")
 
-	log.Tracef("oauth_redirect, provider: %v, request_id:%v, provider_id: %v", oauthProviderName, requestID, providerID)
-	state = fmt.Sprintf("%v:%v", providerID, state)
+	if global.Env().IsDebug {
+		log.Infof("oauth_redirect, request_id:%v, provider_type: %v, provider_id: %v", requestID, oauthProviderType, oauthProviderID)
+	}
+	state = fmt.Sprintf("%v:%v", oauthProviderType, state)
 
 	session, err := api.GetSessionStore(r, oauthSession)
 	if session == nil {
@@ -147,15 +132,15 @@ func (h *APIHandler) AuthHandler(w http.ResponseWriter, r *http.Request, p httpr
 
 	session.Values["state"] = state
 	session.Values["request_id"] = requestID
-	session.Values["provider"] = oauthProviderName
+	session.Values["provider_type"] = oauthProviderType
+	session.Values["provider_id"] = oauthProviderID
 	session.Values["redirect_url"] = redirectURL
 	session.Values["product"] = h.Get(r, "product", "")
 	session.Values["domain"] = h.Get(r, "domain", "")
-	session.Values["provider_id"] = providerID
 	session.Values["tag"] = tag
 	err = session.Save(r, w)
 
-	oAuthConfig, oauthCfg := h.mustGetAuthConfig(providerID)
+	oAuthConfig, oauthCfg := MustGetAuthConfig(oauthProviderType, oauthProviderID)
 	if err != nil {
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
@@ -175,20 +160,16 @@ func joinError(url string, err error) string {
 
 func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
-	provider := p.MustGetParameter("provider")
-	state := r.URL.Query().Get("state")
-	//decode provider id from state
-	providerID := strings.Split(state, ":")[0]
+	oauthProviderType := p.MustGetParameter("provider_type")
+	oauthProviderID := p.MustGetParameter("provider_id")
 
-	if providerID == "" {
-		providerID = provider
-	}
-
-	oAuthConfig, oauthCfg := h.mustGetAuthConfig(providerID)
+	oAuthConfig, oauthCfg := MustGetAuthConfig(oauthProviderType, oauthProviderID)
 
 	session, err := api.GetSessionStore(r, oauthSession)
 	if err != nil || session == nil {
-		log.Error("sso callback failed to get session_store, aborted")
+		if global.Env().IsDebug {
+			log.Error("sso callback failed to get session_store, aborted")
+		}
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
@@ -202,20 +183,22 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 	}()
 
 	if r.URL.Query().Get("state") != session.Values["state"] {
-		log.Errorf("failed to sso, no state match; possible csrf OR cookies not enabled: %v vs %v",
-			r.URL.Query().Get("state"), session.Values["state"])
+		if global.Env().IsDebug {
+			log.Errorf("failed to sso, no state match; possible csrf OR cookies not enabled: %v vs %v",
+				r.URL.Query().Get("state"), session.Values["state"])
+		}
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
-	oAuthProvider := session.Values["provider"].(string)
+	oAuthProvider := session.Values["provider_type"].(string)
 	product := session.Values["product"].(string)
 	oAuthRequestID := session.Values["request_id"].(string)
 	tag := session.Values["tag"].(string)
 
-	log.Debugf("oauth_callback, provider:%v vs %v, request_id:%v", oAuthProvider, provider, oAuthRequestID)
+	log.Debugf("oauth_callback, provider:%v / %v, request_id:%v", oauthProviderType, oauthProviderID, oAuthRequestID)
 
-	if provider != oAuthProvider {
+	if oauthProviderType != oAuthProvider {
 		panic("invalid provider")
 	}
 
@@ -224,13 +207,17 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 	client := api.GetHttpClient("oauth_" + oAuthProvider)
 	tkn, err := oauthCfg.Exchange(context.WithValue(context.Background(), oauth2.HTTPClient, client), code)
 	if err != nil {
-		log.Error("failed to sso, there was an issue getting your token: ", err, util.MustToJSON(tkn))
+		if global.Env().IsDebug {
+			log.Error("failed to sso, there was an issue getting your token: ", err, util.MustToJSON(tkn))
+		}
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
 
 	if !tkn.Valid() {
-		log.Error("failed to sso, retrieved invalid token")
+		if global.Env().IsDebug {
+			log.Error("failed to sso, retrieved invalid token")
+		}
 		http.Redirect(w, r, joinError(oAuthConfig.FailedPage, err), 302)
 		return
 	}
@@ -240,17 +227,21 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 	payload := util.MapStr{
 		"product":       product,
 		"request_id":    oAuthRequestID,
-		"auth_provider": provider,
+		"provider_type": oauthProviderType,
+		"provider_id":   oauthProviderID,
 		"state":         state1,
-		"provider_id":   providerID,
+	}
+
+	if global.Env().IsDebug {
+		log.Trace(util.ToIndentJson(payload))
 	}
 
 	ctx1 := orm.NewContextWithParent(r.Context())
 
-	providerAPI := provider2.MustGetOAuthProvider(providerID)
-	userProfile := providerAPI.GetProfile(ctx1, &oAuthConfig, &oauthCfg, tkn)
+	providerAPI := provider2.MustGetOAuthProvider(oauthProviderType)
+	userProfile := providerAPI.GetProfile(ctx1, oAuthConfig, &oauthCfg, tkn)
 
-	callbacks := provider2.GetOAuthCallbacks(providerID)
+	callbacks := provider2.GetOAuthCallbacks(oauthProviderType)
 	for _, cb := range callbacks {
 		matched := cb.MatchFunc(tag)
 		if matched {
@@ -265,7 +256,8 @@ func (h *APIHandler) CallbackHandler(w http.ResponseWriter, r *http.Request, p h
 	if userProfile.ID != "" && userProfile.Login != "" {
 		payload["code"] = tkn.AccessToken
 		payload["request_id"] = oAuthRequestID
-		payload["provider"] = provider
+		payload["provider_type"] = oauthProviderType
+		payload["provider_id"] = oauthProviderID
 		payload["login"] = userProfile.Login
 
 		url := oAuthConfig.SuccessPage + "?payload=" + util.UrlEncode(util.MustToJSON(payload))

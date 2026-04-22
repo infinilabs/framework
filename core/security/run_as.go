@@ -10,7 +10,7 @@ import (
 
 func RunAs(ctx context.Context, userID string) context.Context {
 	claims := UserSessionInfo{}
-	claims.SetGetUserID(userID)
+	claims.SetUserID(userID)
 
 	//claims.System = accessToken.System
 	claims.Provider = "run_as"

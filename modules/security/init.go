@@ -24,12 +24,16 @@
 package security
 
 import (
+	"fmt"
+	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/module"
+	"infini.sh/framework/core/util"
+	_ "infini.sh/framework/modules/security/account"
 	_ "infini.sh/framework/modules/security/http_filters"
-	"infini.sh/framework/modules/security/oauth_client"
+	_ "infini.sh/framework/modules/security/oauth_client"
 	_ "infini.sh/framework/modules/security/orm_hooks"
 	"infini.sh/framework/modules/security/rbac"
 	_ "infini.sh/framework/modules/security/share"
@@ -50,7 +54,7 @@ func (module *Module) Setup() {
 	module.cfg = &config.WebSecurityConfig{
 		Enabled: true,
 		Authentication: config.AuthenticationConfig{Native: config.RealmConfig{
-			Enabled: true,
+			Enabled: false,
 		},
 		},
 	}
@@ -68,8 +72,30 @@ func (module *Module) Setup() {
 		rbac.Init()
 	}
 
-	apiHandler := oauth_client.APIHandler{}
-	apiHandler.Init(module.cfg.Authentication.OAuth)
+
+
+	oauthSettings:=util.MapStr{}
+	for k,v:=range  module.cfg.Authentication.OAuth{
+		if v.Enabled{
+			oauthSettings[k]=util.MapStr{
+				"name":v.Name,
+				"description":v.Description,
+				"icon":v.Icon,
+				"type":v.Provider,
+				"url":	 fmt.Sprintf("/sso/login/%v/%v/?product=%v",v.Provider,k, global.Env().GetAppLowercaseName()),
+			}
+		}
+	}
+
+	settings:=util.MapStr{
+		"managed": module.cfg.Managed,
+		"auth":util.MapStr{
+			"native": module.cfg.Authentication.Native.Enabled,
+			"oauth": oauthSettings ,
+		},
+	}
+
+	api.RegisterAppSetting("security", settings)
 
 }
 

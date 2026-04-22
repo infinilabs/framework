@@ -708,4 +708,97 @@ func SecureEndpoint(w http.ResponseWriter, req *http.Request, ps httprouter.Para
 }
 ```
 
+## Application Settings
+
+The framework provides a unified mechanism for registering and accessing public application-level settings via `api.RegisterAppSetting` and `api.GetAppSettings`. Registered settings are exposed through the built-in `GET /setting/application` endpoint (available on both the API and Web servers), allowing frontend applications and external consumers to retrieve application configuration in a single request.
+
+### How It Works
+
+Settings are stored in a thread-safe `AppSettings` map managed by the `core/api` package. Each module or application can register key-value pairs at startup. The framework automatically merges all registered settings with the built-in `auth_enabled` flag and serves them as a JSON object.
+
+The endpoint is registered with public access on the Web server, so unauthenticated UI clients can fetch application settings without requiring a login:
+
+```go
+// Registered automatically by the framework
+api.HandleAPIMethod(api.GET, "/setting/application", appSettingsAPIHandler)
+api.HandleUIMethod(api.GET, "/setting/application", appSettingsAPIHandler,
+    api.AllowOPTIONSS(), api.AllowPublicAccess())
+```
+
+### Registering Static Settings
+
+Use `api.RegisterAppSetting(key, value)` to register a static value at startup:
+
+```go
+import "infini.sh/framework/core/api"
+
+// Register a simple string value
+api.RegisterAppSetting("domain", "example.com")
+
+// Register a structured value
+api.RegisterAppSetting("server", util.MapStr{
+    "endpoint": "https://api.example.com",
+})
+```
+
+### Registering Dynamic Settings
+
+Pass a `func() interface{}` to register a setting that is evaluated on every request. This is useful for values that may change at runtime:
+
+```go
+// Dynamic setting — evaluated each time the endpoint is called
+api.RegisterAppSetting("setup_required", func() interface{} {
+    return global.Env().SetupRequired()
+})
+
+// Dynamic setting returning a computed map
+api.RegisterAppSetting("system_cluster", func() interface{} {
+    client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+    settings, err := client.GetClusterSettings(nil)
+    if err != nil {
+        return nil
+    }
+    return map[string]interface{}{
+        "rollup_enabled": isRollupEnabled(settings),
+    }
+})
+```
+
+### Reading Settings Programmatically
+
+Besides the HTTP endpoint, settings can be read from Go code:
+
+```go
+// Get all settings as a merged MapStr
+allSettings := api.GetAppSettings()
+
+// Get a single setting by key
+value := api.GetAppSetting("domain")
+```
+
+Both functions automatically resolve dynamic settings (i.e., `func() interface{}` values are called and their return values are used).
+
+### API Response
+
+A `GET /setting/application` request returns a flat JSON object with all registered settings plus the built-in `auth_enabled` field:
+
+```json
+{
+  "auth_enabled": true,
+  "domain": "example.com",
+  "server": {
+    "endpoint": "https://api.example.com"
+  },
+  "setup_required": false
+}
+```
+
+### Function Reference
+
+| Function | Description |
+|----------|-------------|
+| `api.RegisterAppSetting(key, value)` | Register a static or dynamic (`func() interface{}`) setting |
+| `api.GetAppSettings()` | Get all settings as `util.MapStr` (resolves dynamic values) |
+| `api.GetAppSetting(key)` | Get a single setting by key (resolves dynamic value) |
+
 The INFINI API/Web framework provides a solid foundation for building scalable, secure, and well-structured HTTP services with minimal boilerplate while maintaining flexibility for complex applications.
