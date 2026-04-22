@@ -35,21 +35,21 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 )
 
-// detectNetworkBandwidthMbps detects the maximum network interface speed in Mbps.
+// detectNetworkBandwidthPerInterface detects network interface speeds in Mbps for each interface.
 // On Linux, it reads from /sys/class/net/<iface>/speed for each interface.
-// Returns 0 if detection fails.
-func detectNetworkBandwidthMbps() float64 {
+// Returns a map of interface name to bandwidth in Mbps.
+func detectNetworkBandwidthPerInterface() map[string]float64 {
+	result := make(map[string]float64)
+
 	interfaces, err := net.IOCounters(true)
 	if err != nil {
 		log.Debugf("overall: failed to get network interfaces: %v", err)
-		return 0
+		return result
 	}
 
-	var maxSpeed float64
 	for _, iface := range interfaces {
 		// Skip loopback and virtual interfaces
-		if iface.Name == "lo" || strings.HasPrefix(iface.Name, "veth") ||
-			strings.HasPrefix(iface.Name, "docker") || strings.HasPrefix(iface.Name, "br-") {
+		if isVirtualInterface(iface.Name) {
 			continue
 		}
 
@@ -68,13 +68,8 @@ func detectNetworkBandwidthMbps() float64 {
 		}
 
 		log.Debugf("overall: detected interface %s speed: %.0f Mbps", iface.Name, speed)
-		if speed > maxSpeed {
-			maxSpeed = speed
-		}
+		result[iface.Name] = speed
 	}
 
-	if maxSpeed > 0 {
-		log.Infof("overall: auto-detected network bandwidth: %.0f Mbps", maxSpeed)
-	}
-	return maxSpeed
+	return result
 }

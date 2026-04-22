@@ -25,6 +25,7 @@ package overall
 
 import (
 	"runtime"
+	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
@@ -38,35 +39,52 @@ import (
 )
 
 // Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
+// Each disk and network interface is monitored independently to identify specific bottlenecks.
 type Metric struct {
-	Enabled              bool    `config:"enabled"`
-	IntervalSeconds      float64 `config:"interval_seconds"`
-	NetworkBandwidthMbps float64 `config:"network_bandwidth_mbps"`
-	YellowThreshold      float64 `config:"yellow_threshold"`
-	RedThreshold         float64 `config:"red_threshold"`
+	Enabled         bool    `config:"enabled"`
+	IntervalSeconds float64 `config:"interval_seconds"`
+	YellowThreshold float64 `config:"yellow_threshold"`
+	RedThreshold    float64 `config:"red_threshold"`
 
-	mu         sync.Mutex
-	prevDiskIO *diskIOSnapshot
-	prevNetIO  *netIOSnapshot
+	mu sync.Mutex
+
+	// Per-disk I/O tracking: map[deviceName] -> snapshot
+	prevDiskIO map[string]*diskIOSnapshot
+
+	// Per-network interface tracking: map[ifaceName] -> snapshot
+	prevNetIO map[string]*netIOSnapshot
+
+	// Per-network interface bandwidth (auto-detected): map[ifaceName] -> Mbps
+	netBandwidth map[string]float64
 }
 
+// diskIOSnapshot stores previous I/O counters for a disk device
 type diskIOSnapshot struct {
 	readTime  uint64
 	writeTime uint64
 }
 
+// netIOSnapshot stores previous I/O counters for a network interface
 type netIOSnapshot struct {
 	bytesRecv uint64
 	bytesSent uint64
 }
 
+// deviceUtilization represents utilization info for a single device
+type deviceUtilization struct {
+	name        string
+	usedPercent float64
+}
+
 func New(cfg *config.Config) (*Metric, error) {
 	me := &Metric{
-		Enabled:              true,
-		IntervalSeconds:      10,
-		NetworkBandwidthMbps: 0, // 0 means auto-detect
-		YellowThreshold:      70,
-		RedThreshold:         90,
+		Enabled:         true,
+		IntervalSeconds: 10,
+		YellowThreshold: 70,
+		RedThreshold:    90,
+		prevDiskIO:      make(map[string]*diskIOSnapshot),
+		prevNetIO:       make(map[string]*netIOSnapshot),
+		netBandwidth:    make(map[string]float64),
 	}
 
 	err := cfg.Unpack(&me)
@@ -74,24 +92,25 @@ func New(cfg *config.Config) (*Metric, error) {
 		panic(err)
 	}
 
-	// Auto-detect network bandwidth if not configured
-	if me.NetworkBandwidthMbps <= 0 {
-		detected := detectNetworkBandwidthMbps()
-		if detected > 0 {
-			me.NetworkBandwidthMbps = detected
-		} else {
-			// Fallback to 1000 Mbps (1 Gbps) if detection fails
-			me.NetworkBandwidthMbps = 1000
-			log.Infof("overall: could not auto-detect network bandwidth, using default: 1000 Mbps")
-		}
-	}
+	// Initialize network bandwidth detection for all interfaces
+	me.initNetworkBandwidth()
 
-	log.Debugf("overall utilization metric enabled, network_bandwidth_mbps: %.0f", me.NetworkBandwidthMbps)
+	log.Debugf("overall utilization metric enabled")
 	return me, nil
+}
+
+// initNetworkBandwidth detects and stores bandwidth for each network interface
+func (m *Metric) initNetworkBandwidth() {
+	bandwidths := detectNetworkBandwidthPerInterface()
+	for name, bw := range bandwidths {
+		m.netBandwidth[name] = bw
+		log.Debugf("overall: interface %s bandwidth: %.0f Mbps", name, bw)
+	}
 }
 
 // Collect gathers CPU, memory, disk, disk I/O and network utilization
 // and emits a "host/overall" event with raw values for the front layer to interpret.
+// Each disk and network interface is monitored independently.
 func (m *Metric) Collect() error {
 	if !m.Enabled {
 		return nil
@@ -103,8 +122,8 @@ func (m *Metric) Collect() error {
 	cpuPercent := m.collectCPU()
 	memPercent := m.collectMemory()
 	diskPercent := m.collectDiskUsage()
-	diskIOPercent := m.collectDiskIO()
-	netPercent := m.collectNetwork()
+	diskIODevices := m.collectDiskIO()
+	netDevices := m.collectNetwork()
 
 	// --- CPU utilization ---
 	fields["cpu.used_percent"] = cpuPercent
@@ -115,18 +134,47 @@ func (m *Metric) Collect() error {
 	// --- Disk capacity utilization ---
 	fields["disk.used_percent"] = diskPercent
 
-	// --- Disk I/O utilization (busy %) ---
-	if diskIOPercent >= 0 {
-		fields["disk_io.used_percent"] = diskIOPercent
+	// --- Per-disk I/O utilization ---
+	diskIOMap := util.MapStr{}
+	var maxDiskIO deviceUtilization
+	for _, dev := range diskIODevices {
+		diskIOMap[dev.name] = util.MapStr{
+			"used_percent": dev.usedPercent,
+		}
+		if dev.usedPercent > maxDiskIO.usedPercent {
+			maxDiskIO = dev
+		}
+	}
+	if len(diskIOMap) > 0 {
+		fields["disk_io.devices"] = diskIOMap
+		fields["disk_io.used_percent"] = maxDiskIO.usedPercent
+		fields["disk_io.bottleneck_device"] = maxDiskIO.name
 	}
 
-	// --- Network utilization (% of configured bandwidth) ---
-	if netPercent >= 0 {
-		fields["network.used_percent"] = netPercent
+	// --- Per-network interface utilization ---
+	netMap := util.MapStr{}
+	var maxNet deviceUtilization
+	for _, dev := range netDevices {
+		bw := m.netBandwidth[dev.name]
+		if bw <= 0 {
+			bw = 1000 // Default 1 Gbps if unknown
+		}
+		netMap[dev.name] = util.MapStr{
+			"used_percent":  dev.usedPercent,
+			"bandwidth_mbps": bw,
+		}
+		if dev.usedPercent > maxNet.usedPercent {
+			maxNet = dev
+		}
+	}
+	if len(netMap) > 0 {
+		fields["network.devices"] = netMap
+		fields["network.used_percent"] = maxNet.usedPercent
+		fields["network.bottleneck_device"] = maxNet.name
 	}
 
 	// --- Calculate overall status and bottleneck ---
-	status, bottleneck := m.calculateStatus(cpuPercent, memPercent, diskPercent, diskIOPercent, netPercent)
+	status, bottleneck := m.calculateStatus(cpuPercent, memPercent, diskPercent, maxDiskIO, maxNet)
 	fields["status"] = status
 	fields["bottleneck"] = bottleneck
 
@@ -204,153 +252,216 @@ func (m *Metric) collectDiskUsage() float64 {
 	return float64(used) / float64(total) * 100.0
 }
 
-// collectDiskIO returns the disk I/O busy percentage (0-100) based on io time deltas.
-// Returns -1 if data is not yet available (first call).
-func (m *Metric) collectDiskIO() float64 {
+// collectDiskIO returns per-disk I/O utilization percentages (0-100) based on io time deltas.
+// Returns empty slice if data is not yet available (first call).
+func (m *Metric) collectDiskIO() []deviceUtilization {
 	ret, err := disk.IOCounters()
 	if err != nil {
 		log.Debugf("overall: failed to get disk io counters: %v", err)
-		return -1
+		return nil
 	}
 	if len(ret) == 0 {
-		return -1
-	}
-
-	var totalReadTime, totalWriteTime uint64
-	for _, io := range ret {
-		totalReadTime += io.ReadTime
-		totalWriteTime += io.WriteTime
+		return nil
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.prevDiskIO == nil {
-		m.prevDiskIO = &diskIOSnapshot{
-			readTime:  totalReadTime,
-			writeTime: totalWriteTime,
+	var results []deviceUtilization
+
+	for name, io := range ret {
+		// Skip certain device types
+		if strings.HasPrefix(name, "loop") || strings.HasPrefix(name, "ram") {
+			continue
 		}
-		return -1
+
+		prev, exists := m.prevDiskIO[name]
+		if !exists {
+			// First time seeing this device, store initial values
+			m.prevDiskIO[name] = &diskIOSnapshot{
+				readTime:  io.ReadTime,
+				writeTime: io.WriteTime,
+			}
+			continue
+		}
+
+		// Calculate IO busy time delta
+		deltaRead := io.ReadTime - prev.readTime
+		deltaWrite := io.WriteTime - prev.writeTime
+		deltaIO := deltaRead + deltaWrite
+
+		// Update stored values
+		prev.readTime = io.ReadTime
+		prev.writeTime = io.WriteTime
+
+		// IO busy time delta in ms over the collection interval
+		intervalMs := m.IntervalSeconds * 1000.0
+		busy := float64(deltaIO) / intervalMs * 100.0
+		if busy > 100.0 {
+			busy = 100.0
+		}
+		if busy < 0 {
+			busy = 0
+		}
+
+		results = append(results, deviceUtilization{
+			name:        name,
+			usedPercent: busy,
+		})
 	}
 
-	// IO busy time delta in ms over the collection interval (10s = 10000ms)
-	deltaRead := totalReadTime - m.prevDiskIO.readTime
-	deltaWrite := totalWriteTime - m.prevDiskIO.writeTime
-	deltaIO := deltaRead + deltaWrite
-
-	m.prevDiskIO.readTime = totalReadTime
-	m.prevDiskIO.writeTime = totalWriteTime
-
-	// IO busy time delta in ms over the collection interval
-	intervalMs := m.IntervalSeconds * 1000.0
-	busy := float64(deltaIO) / intervalMs * 100.0
-	if busy > 100.0 {
-		busy = 100.0
-	}
-	if busy < 0 {
-		busy = 0
-	}
-	return busy
+	return results
 }
 
-// collectNetwork returns the network utilization percentage (0-100) based on
-// throughput relative to configured bandwidth (NetworkBandwidthMbps).
-// Returns -1 if data is not yet available (first call).
-func (m *Metric) collectNetwork() float64 {
-	stats, err := net.IOCounters(false)
-	if err != nil || len(stats) == 0 {
+// collectNetwork returns per-interface network utilization percentages (0-100)
+// based on throughput relative to each interface's detected bandwidth.
+// Returns empty slice if data is not yet available (first call).
+func (m *Metric) collectNetwork() []deviceUtilization {
+	stats, err := net.IOCounters(true) // true = per-interface
+	if err != nil {
 		log.Debugf("overall: failed to get network io counters: %v", err)
-		return -1
+		return nil
 	}
-
-	current := stats[0]
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.prevNetIO == nil {
-		m.prevNetIO = &netIOSnapshot{
-			bytesRecv: current.BytesRecv,
-			bytesSent: current.BytesSent,
+	var results []deviceUtilization
+
+	for _, stat := range stats {
+		name := stat.Name
+
+		// Skip loopback and virtual interfaces
+		if isVirtualInterface(name) {
+			continue
 		}
-		return -1
+
+		prev, exists := m.prevNetIO[name]
+		if !exists {
+			// First time seeing this interface, store initial values
+			m.prevNetIO[name] = &netIOSnapshot{
+				bytesRecv: stat.BytesRecv,
+				bytesSent: stat.BytesSent,
+			}
+			continue
+		}
+
+		// Calculate deltas
+		deltaRecv := stat.BytesRecv - prev.bytesRecv
+		deltaSent := stat.BytesSent - prev.bytesSent
+
+		// Update stored values
+		prev.bytesRecv = stat.BytesRecv
+		prev.bytesSent = stat.BytesSent
+
+		// Use the higher of in/out throughput for utilization
+		deltaMax := deltaRecv
+		if deltaSent > deltaMax {
+			deltaMax = deltaSent
+		}
+
+		// Get bandwidth for this interface
+		bandwidth := m.netBandwidth[name]
+		if bandwidth <= 0 {
+			bandwidth = 1000 // Default 1 Gbps if unknown
+		}
+
+		// Convert bandwidth from Mbps to bytes/sec: Mbps * 1_000_000 / 8
+		bandwidthBytesPerSec := bandwidth * 1000000.0 / 8.0
+
+		throughputBytesPerSec := float64(deltaMax) / m.IntervalSeconds
+		percent := throughputBytesPerSec / bandwidthBytesPerSec * 100.0
+		if percent > 100.0 {
+			percent = 100.0
+		}
+		if percent < 0 {
+			percent = 0
+		}
+
+		results = append(results, deviceUtilization{
+			name:        name,
+			usedPercent: percent,
+		})
 	}
 
-	deltaRecv := current.BytesRecv - m.prevNetIO.bytesRecv
-	deltaSent := current.BytesSent - m.prevNetIO.bytesSent
+	return results
+}
 
-	m.prevNetIO.bytesRecv = current.BytesRecv
-	m.prevNetIO.bytesSent = current.BytesSent
-
-	// Use the higher of in/out throughput for utilization
-	deltaMax := deltaRecv
-	if deltaSent > deltaMax {
-		deltaMax = deltaSent
+// isVirtualInterface returns true if the interface name looks like a virtual/loopback interface
+func isVirtualInterface(name string) bool {
+	// Common virtual interface prefixes across platforms
+	virtualPrefixes := []string{
+		"lo", "lo0",                                // Loopback
+		"veth", "docker", "br-",                    // Docker/containers
+		"virbr", "vnet",                            // Libvirt/KVM
+		"utun", "awdl", "bridge", "llw", "ap", "XHC", // macOS virtual
+		"vmnet",                                    // VMware
+		"Loopback",                                 // Windows loopback
 	}
 
-	// Convert configured bandwidth from Mbps to bytes/sec: Mbps * 1_000_000 / 8
-	bandwidthBytesPerSec := m.NetworkBandwidthMbps * 1000000.0 / 8.0
-	if bandwidthBytesPerSec <= 0 {
-		return 0
+	for _, prefix := range virtualPrefixes {
+		if strings.HasPrefix(name, prefix) || name == prefix {
+			return true
+		}
 	}
-
-	throughputBytesPerSec := float64(deltaMax) / m.IntervalSeconds
-	percent := throughputBytesPerSec / bandwidthBytesPerSec * 100.0
-	if percent > 100.0 {
-		percent = 100.0
-	}
-	if percent < 0 {
-		percent = 0
-	}
-	return percent
+	return false
 }
 
 // calculateStatus determines the overall system status (green/yellow/red) and
 // identifies the bottleneck subsystem (if any) based on configured thresholds.
-func (m *Metric) calculateStatus(cpuPct, memPct, diskPct, diskIOPct, netPct float64) (status, bottleneck string) {
+// For disk_io and network, it includes the specific device name in the bottleneck.
+func (m *Metric) calculateStatus(cpuPct, memPct, diskPct float64, maxDiskIO, maxNet deviceUtilization) (status, bottleneck string) {
 	status = "green"
 	bottleneck = ""
 
 	// Subsystems to check with their utilization percentages
-	subsystems := []struct {
+	type subsystem struct {
 		name    string
 		percent float64
-	}{
-		{"cpu", cpuPct},
-		{"memory", memPct},
-		{"disk", diskPct},
+		device  string // Optional device name for disk_io and network
 	}
-	// Only include disk_io and network if we have valid data
-	if diskIOPct >= 0 {
-		subsystems = append(subsystems, struct {
-			name    string
-			percent float64
-		}{"disk_io", diskIOPct})
+
+	subsystems := []subsystem{
+		{"cpu", cpuPct, ""},
+		{"memory", memPct, ""},
+		{"disk", diskPct, ""},
 	}
-	if netPct >= 0 {
-		subsystems = append(subsystems, struct {
-			name    string
-			percent float64
-		}{"network", netPct})
+
+	// Add disk_io if we have data
+	if maxDiskIO.name != "" {
+		subsystems = append(subsystems, subsystem{"disk_io", maxDiskIO.usedPercent, maxDiskIO.name})
+	}
+
+	// Add network if we have data
+	if maxNet.name != "" {
+		subsystems = append(subsystems, subsystem{"network", maxNet.usedPercent, maxNet.name})
 	}
 
 	// Find the highest utilization and determine status
 	var maxPercent float64
-	var maxName string
+	var maxSubsystem subsystem
 	for _, s := range subsystems {
 		if s.percent > maxPercent {
 			maxPercent = s.percent
-			maxName = s.name
+			maxSubsystem = s
 		}
 	}
 
 	// Determine status based on thresholds
 	if maxPercent >= m.RedThreshold {
 		status = "red"
-		bottleneck = maxName
+		if maxSubsystem.device != "" {
+			bottleneck = maxSubsystem.name + ":" + maxSubsystem.device
+		} else {
+			bottleneck = maxSubsystem.name
+		}
 	} else if maxPercent >= m.YellowThreshold {
 		status = "yellow"
-		bottleneck = maxName
+		if maxSubsystem.device != "" {
+			bottleneck = maxSubsystem.name + ":" + maxSubsystem.device
+		} else {
+			bottleneck = maxSubsystem.name
+		}
 	}
 
 	return status, bottleneck

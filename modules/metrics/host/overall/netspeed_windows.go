@@ -34,69 +34,83 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// detectNetworkBandwidthMbps detects the maximum network interface speed in Mbps.
+// detectNetworkBandwidthPerInterface detects network interface speeds in Mbps for each interface.
 // On Windows, it uses PowerShell/WMI to query network adapter speeds.
-// Returns 0 if detection fails.
-func detectNetworkBandwidthMbps() float64 {
-	// Use PowerShell to get network adapter speeds
+// Returns a map of interface name to bandwidth in Mbps.
+func detectNetworkBandwidthPerInterface() map[string]float64 {
+	result := make(map[string]float64)
+
+	// Use PowerShell to get network adapter speeds with names
 	cmd := exec.Command("powershell", "-Command",
-		"Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object -ExpandProperty LinkSpeed")
+		"Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object Name,LinkSpeed | ForEach-Object { $_.Name + '|' + $_.LinkSpeed }")
 	out, err := cmd.Output()
 	if err != nil {
 		log.Debugf("overall: failed to get network adapter speed via PowerShell: %v", err)
-		return tryWMIC()
+		return tryWMICPerInterface()
 	}
 
-	var maxSpeed float64
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		speed := parseWindowsLinkSpeed(line)
-		if speed > maxSpeed {
-			maxSpeed = speed
+
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		name := strings.TrimSpace(parts[0])
+		linkSpeed := strings.TrimSpace(parts[1])
+		speed := parseWindowsLinkSpeed(linkSpeed)
+		if speed > 0 {
+			log.Debugf("overall: detected interface %s speed: %.0f Mbps", name, speed)
+			result[name] = speed
 		}
 	}
 
-	if maxSpeed > 0 {
-		log.Infof("overall: auto-detected network bandwidth: %.0f Mbps", maxSpeed)
-	}
-	return maxSpeed
+	return result
 }
 
-// tryWMIC tries to get network speed using wmic (fallback for older Windows)
-func tryWMIC() float64 {
-	cmd := exec.Command("wmic", "nic", "where", "NetEnabled=true", "get", "Speed")
+// tryWMICPerInterface tries to get network speed using wmic (fallback for older Windows)
+func tryWMICPerInterface() map[string]float64 {
+	result := make(map[string]float64)
+
+	cmd := exec.Command("wmic", "nic", "where", "NetEnabled=true", "get", "Name,Speed")
 	out, err := cmd.Output()
 	if err != nil {
 		log.Debugf("overall: failed to get network adapter speed via wmic: %v", err)
-		return 0
+		return result
 	}
 
-	var maxSpeed float64
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || line == "Speed" {
+		if line == "" || strings.HasPrefix(line, "Name") {
 			continue
 		}
+
+		// WMIC output is space-separated, speed is the last field
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		speedStr := fields[len(fields)-1]
+		name := strings.Join(fields[:len(fields)-1], " ")
+
 		// Speed from wmic is in bits per second
-		bps, err := strconv.ParseFloat(line, 64)
+		bps, err := strconv.ParseFloat(speedStr, 64)
 		if err != nil || bps <= 0 {
 			continue
 		}
 		mbps := bps / 1000000.0
-		if mbps > maxSpeed {
-			maxSpeed = mbps
-		}
+		log.Debugf("overall: detected interface %s speed: %.0f Mbps", name, mbps)
+		result[name] = mbps
 	}
 
-	if maxSpeed > 0 {
-		log.Infof("overall: auto-detected network bandwidth: %.0f Mbps", maxSpeed)
-	}
-	return maxSpeed
+	return result
 }
 
 // parseWindowsLinkSpeed parses Windows link speed strings like "1 Gbps", "100 Mbps"

@@ -27,81 +27,63 @@ package overall
 
 import (
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v4/net"
 )
 
-// detectNetworkBandwidthMbps detects the maximum network interface speed in Mbps.
-// On macOS, it uses system_profiler to get network interface speeds.
-// Returns 0 if detection fails.
-func detectNetworkBandwidthMbps() float64 {
+// detectNetworkBandwidthPerInterface detects network interface speeds in Mbps for each interface.
+// On macOS, it uses ifconfig to get network interface speeds.
+// Returns a map of interface name to bandwidth in Mbps.
+func detectNetworkBandwidthPerInterface() map[string]float64 {
+	result := make(map[string]float64)
+
 	interfaces, err := net.IOCounters(true)
 	if err != nil {
 		log.Debugf("overall: failed to get network interfaces: %v", err)
-		return 0
+		return result
 	}
-
-	var maxSpeed float64
-	speedRegex := regexp.MustCompile(`(\d+)-baseT|(\d+)BASE-T|Speed:\s*(\d+)\s*Mbps`)
 
 	for _, iface := range interfaces {
 		// Skip loopback and virtual interfaces
-		if iface.Name == "lo0" || strings.HasPrefix(iface.Name, "utun") ||
-			strings.HasPrefix(iface.Name, "bridge") || strings.HasPrefix(iface.Name, "awdl") {
+		if isVirtualInterface(iface.Name) {
 			continue
 		}
 
-		// Try using networksetup to get link speed
-		out, err := exec.Command("networksetup", "-getMedia", iface.Name).Output()
-		if err == nil {
-			output := string(out)
-			matches := speedRegex.FindStringSubmatch(output)
-			for _, match := range matches {
-				if match != "" {
-					speed, err := strconv.ParseFloat(match, 64)
-					if err == nil && speed > 0 && speed > maxSpeed {
-						maxSpeed = speed
-						log.Debugf("overall: detected interface %s speed: %.0f Mbps", iface.Name, speed)
-					}
-				}
-			}
-		}
-
-		// Try ifconfig for link speed
-		out, err = exec.Command("ifconfig", iface.Name).Output()
-		if err == nil {
-			output := string(out)
-			// Look for "media: autoselect (1000baseT <full-duplex>)"
-			if strings.Contains(output, "1000baseT") || strings.Contains(output, "1000BASE-T") {
-				if maxSpeed < 1000 {
-					maxSpeed = 1000
-					log.Debugf("overall: detected interface %s speed: 1000 Mbps (from ifconfig)", iface.Name)
-				}
-			} else if strings.Contains(output, "100baseT") || strings.Contains(output, "100BASE-T") {
-				if maxSpeed < 100 {
-					maxSpeed = 100
-					log.Debugf("overall: detected interface %s speed: 100 Mbps (from ifconfig)", iface.Name)
-				}
-			} else if strings.Contains(output, "10baseT") || strings.Contains(output, "10BASE-T") {
-				if maxSpeed < 10 {
-					maxSpeed = 10
-					log.Debugf("overall: detected interface %s speed: 10 Mbps (from ifconfig)", iface.Name)
-				}
-			} else if strings.Contains(output, "10Gbase") || strings.Contains(output, "10GBASE") {
-				if maxSpeed < 10000 {
-					maxSpeed = 10000
-					log.Debugf("overall: detected interface %s speed: 10000 Mbps (from ifconfig)", iface.Name)
-				}
-			}
+		speed := detectDarwinInterfaceSpeed(iface.Name)
+		if speed > 0 {
+			log.Debugf("overall: detected interface %s speed: %.0f Mbps", iface.Name, speed)
+			result[iface.Name] = speed
 		}
 	}
 
-	if maxSpeed > 0 {
-		log.Infof("overall: auto-detected network bandwidth: %.0f Mbps", maxSpeed)
+	return result
+}
+
+// detectDarwinInterfaceSpeed attempts to detect the speed of a single interface on macOS
+func detectDarwinInterfaceSpeed(ifaceName string) float64 {
+	// Try ifconfig for link speed
+	out, err := exec.Command("ifconfig", ifaceName).Output()
+	if err != nil {
+		return 0
 	}
-	return maxSpeed
+
+	output := string(out)
+
+	// Look for "media: autoselect (1000baseT <full-duplex>)"
+	if strings.Contains(output, "10Gbase") || strings.Contains(output, "10GBASE") {
+		return 10000
+	}
+	if strings.Contains(output, "1000baseT") || strings.Contains(output, "1000BASE-T") {
+		return 1000
+	}
+	if strings.Contains(output, "100baseT") || strings.Contains(output, "100BASE-T") {
+		return 100
+	}
+	if strings.Contains(output, "10baseT") || strings.Contains(output, "10BASE-T") {
+		return 10
+	}
+
+	return 0
 }
