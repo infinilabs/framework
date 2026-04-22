@@ -5,7 +5,6 @@
 package account
 
 import (
-	"infini.sh/coco/core"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/security"
@@ -13,8 +12,7 @@ import (
 )
 
 func init() {
-	api.HandleUIMethod(api.GET, "/account/profile", Profile, api.OptionLogin(), api.Feature(core.FeatureCORS))
-	api.HandleUIMethod(api.OPTIONS, "/account/profile", Profile, api.OptionLogin(), api.Feature(core.FeatureCORS))
+	api.HandleUIMethod(api.GET, "/account/profile", Profile, api.OptionLogin(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
 }
 
 func Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

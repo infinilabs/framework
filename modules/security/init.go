@@ -72,26 +72,24 @@ func (module *Module) Setup() {
 		rbac.Init()
 	}
 
-
-
-	oauthSettings:=util.MapStr{}
-	for k,v:=range  module.cfg.Authentication.OAuth{
-		if v.Enabled{
-			oauthSettings[k]=util.MapStr{
-				"name":v.Name,
-				"description":v.Description,
-				"icon":v.Icon,
-				"type":v.Provider,
-				"url":	 fmt.Sprintf("/sso/login/%v/%v/?product=%v",v.Provider,k, global.Env().GetAppLowercaseName()),
+	oauthSettings := util.MapStr{}
+	for k, v := range module.cfg.Authentication.OAuth {
+		if v.Enabled {
+			oauthSettings[k] = util.MapStr{
+				"name":        v.Name,
+				"description": v.Description,
+				"icon":        v.Icon,
+				"type":        v.Provider,
+				"url":         fmt.Sprintf("/sso/login/%v/%v/?product=%v", v.Provider, k, global.Env().GetAppLowercaseName()),
 			}
 		}
 	}
 
-	settings:=util.MapStr{
+	settings := util.MapStr{
 		"managed": module.cfg.Managed,
-		"auth":util.MapStr{
+		"auth": util.MapStr{
 			"native": module.cfg.Authentication.Native.Enabled,
-			"oauth": oauthSettings ,
+			"oauth":  oauthSettings,
 		},
 	}
 

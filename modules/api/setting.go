@@ -70,5 +70,3 @@ func LoggingSettingAction(w http.ResponseWriter, req *http.Request) {
 		api.DefaultAPI.WriteJSON(w, map[string]interface{}{"success": true}, http.StatusOK)
 	}
 }
-
-

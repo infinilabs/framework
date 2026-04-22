@@ -40,7 +40,7 @@ type AppSettings struct {
 }
 
 func init() {
-	HandleUIMethod(GET, "/setting/application",appSettingsAPIHandler,AllowOPTIONSS(),AllowPublicAccess() )
+	HandleUIMethod(GET, "/setting/application", appSettingsAPIHandler, AllowOPTIONSS(), AllowPublicAccess())
 	HandleAPIMethod(GET, "/setting/application", appSettingsAPIHandler)
 }
 
@@ -50,7 +50,7 @@ func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprout
 	}
 	appSettings := GetAppSettings()
 	obj.Merge(appSettings)
-	WriteJSON(w,obj,200)
+	WriteJSON(w, obj, 200)
 }
 
 func (settings *AppSettings) Add(key string, v interface{}) {

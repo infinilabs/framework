@@ -28,7 +28,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"infini.sh/framework/core/orm"
-	"infini.sh/framework/modules/security/http_filters"
 	"math/rand"
 	"net/http"
 
@@ -53,8 +52,8 @@ func init() {
 
 	global.RegisterFuncBeforeSetup(func() {
 		h := APIHandler{}
-		api.HandleUIMethod(api.GET, "/sso/login/:provider_type/:provider_id", h.AuthHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(http_filters.FeatureCORS))
-		api.HandleUIMethod(api.GET, "/sso/callback/:provider_type/:provider_id", h.CallbackHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(http_filters.FeatureCORS))
+		api.HandleUIMethod(api.GET, "/sso/login/:provider_type/:provider_id", h.AuthHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
+		api.HandleUIMethod(api.GET, "/sso/callback/:provider_type/:provider_id", h.CallbackHandler, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
 	})
 
 }

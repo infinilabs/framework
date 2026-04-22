@@ -159,7 +159,7 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 	return permList, true
 }
 
-//TODO cache, catch permission updates
+// TODO cache, catch permission updates
 func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 	permissions := user.Permissions
 
