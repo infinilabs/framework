@@ -32,7 +32,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"github.com/shirou/gopsutil/v4/process"
+	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/wrapper/taskset"
 	"infini.sh/framework/modules/configs/client"

@@ -40,7 +40,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/segmentio/encoding/json"
-	"github.com/shirou/gopsutil/v4/process"
+	"github.com/shirou/gopsutil/v3/process"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/env"

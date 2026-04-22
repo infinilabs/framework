@@ -31,7 +31,7 @@ import (
 	"syscall"
 
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/v4/net"
+	"github.com/shirou/gopsutil/v3/net"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"

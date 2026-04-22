@@ -44,7 +44,7 @@
 package network
 
 import (
-	"github.com/shirou/gopsutil/v4/net"
+	"github.com/shirou/gopsutil/v3/net"
 	"infini.sh/framework/core/util"
 )
 
