@@ -56,3 +56,4 @@ generated_*.go
 *.swp
 .latest_commit_hash.txt
 /plugins/enterprise/
+.claude/

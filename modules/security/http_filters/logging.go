@@ -27,14 +27,17 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"path"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/global"
-	"io"
-	"net"
-	"net/http"
-	"time"
+	"infini.sh/framework/core/rotate"
 )
 
 func init() {
@@ -42,6 +45,16 @@ func init() {
 }
 
 type LoggingFilter struct{}
+
+var accessLogHandler *rotate.RotateWriter
+
+func getAccessLogHandler() *rotate.RotateWriter {
+	if accessLogHandler == nil {
+		logPath := path.Join(global.Env().GetLogDir(), "access.log")
+		accessLogHandler = rotate.GetFileHandler(logPath, rotate.DefaultConfig)
+	}
+	return accessLogHandler
+}
 
 func (f *LoggingFilter) GetPriority() int {
 	// Lower priority values execute first (higher precedence)
@@ -100,7 +113,7 @@ func (f *LoggingFilter) ApplyFilter(
 		}
 
 		// Step 5: Format and log the data
-		log.Infof(`%s - "%s %s %s" %d %s "%s" "%s" "%s"`,
+		logLine := fmt.Sprintf(`%s - "%s %s %s" %d %s "%s"`,
 			clientIP,
 			r.Method,
 			r.RequestURI,
@@ -108,9 +121,23 @@ func (f *LoggingFilter) ApplyFilter(
 			recorder.statusCode,
 			elapsed.String(),
 			userAgent,
-			truncate(requestBody, 1000), // optional truncation to avoid massive logs
-			truncate(resBody, 1000),     // optional truncation
 		)
+
+		// Write to access log file with rotation
+		handler := getAccessLogHandler()
+		if handler != nil {
+			_, err := handler.Write([]byte(logLine + "\n"))
+			if err != nil {
+				log.Error("failed to write access log: ", err)
+			}
+		}
+
+		if global.Env().IsDebug {
+			log.Debugf(`%s "%s" "%s"`, logLine,
+				truncate(requestBody, 1000),
+				truncate(resBody, 1000),
+			)
+		}
 	}
 }
 
