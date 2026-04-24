@@ -60,7 +60,44 @@ func GetSessionStore(r *http.Request, key string) (*sessions.Session, error) {
 	return getStore().Get(r, key)
 }
 
+const sessionCookiePrefix = "INFINI-SESSION-"
+
+// cookieSizeCleanupThreshold is the Cookie header size (bytes) beyond which
+// foreign session cookies are expired. Below this threshold multiple services
+// on the same host can coexist without interfering with each other's sessions.
+const cookieSizeCleanupThreshold = 6 * 1024
+
+// cleanupForeignSessionCookies expires INFINI-SESSION-* cookies that belong to
+// other services running on the same host (but different ports).
+// Per RFC 6265 cookies are scoped by domain only, not by port, so multiple
+// services on localhost accumulate each other's session cookies and can exceed
+// the 8192-byte header limit.
+//
+// To avoid logging out other services unnecessarily, cleanup only triggers when
+// the total Cookie header approaches the dangerous size limit.
+func cleanupForeignSessionCookies(w http.ResponseWriter, r *http.Request) {
+	cookieHeader := r.Header.Get("Cookie")
+	if len(cookieHeader) < cookieSizeCleanupThreshold {
+		return
+	}
+
+	myName := getSessionName()
+	for _, c := range r.Cookies() {
+		if strings.HasPrefix(c.Name, sessionCookiePrefix) && c.Name != myName {
+			http.SetCookie(w, &http.Cookie{
+				Name:     c.Name,
+				Value:    "",
+				Path:     "/",
+				MaxAge:   -1,
+				HttpOnly: true,
+			})
+		}
+	}
+}
+
 func GetSession(w http.ResponseWriter, r *http.Request, key string) (bool, interface{}) {
+	cleanupForeignSessionCookies(w, r)
+
 	s := getStore()
 	session, err := s.Get(r, getSessionName())
 
@@ -107,6 +144,8 @@ func SetSession(w http.ResponseWriter, r *http.Request, key string, value interf
 }
 
 func ForceSetSession(w http.ResponseWriter, r *http.Request, key string, value interface{}, force bool) bool {
+	cleanupForeignSessionCookies(w, r)
+
 	s := getStore()
 	var (
 		session *sessions.Session
@@ -204,6 +243,7 @@ func DelSession(w http.ResponseWriter, r *http.Request, key string) bool {
 
 // DestroySession remove session by creating a new empty session
 func DestroySession(w http.ResponseWriter, r *http.Request) bool {
+	cleanupForeignSessionCookies(w, r)
 
 	s := getStore()
 	session, err := s.New(r, getSessionName())
