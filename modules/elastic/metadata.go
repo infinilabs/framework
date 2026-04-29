@@ -937,7 +937,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				Timestamp: time.Now(),
 				Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 			}
-			err = orm.Save(nil, nodeMetadata)
+			ctx1 := orm.NewContext().DirectAccess()
+			err = orm.Save(ctx1, nodeMetadata)
 			if err != nil {
 				log.Error(err)
 			}
@@ -983,7 +984,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 										},
 									},
 								}
-								err = orm.Save(nil, activityInfo)
+								ctx1 := orm.NewContext().DirectAccess()
+								err = orm.Save(ctx1, activityInfo)
 								if err != nil {
 									log.Error(err)
 								}
@@ -1010,7 +1012,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						Timestamp: time.Now(),
 						Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
-					err = orm.Save(nil, nodeMetadata)
+					ctx1 := orm.NewContext().DirectAccess()
+					err = orm.Save(ctx1, nodeMetadata)
 					if err != nil {
 						log.Error(err)
 					}
@@ -1045,7 +1048,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 			}
 			activityInfo.Changelog = changeLog
 		}
-		err = orm.Save(nil, activityInfo)
+		ctx1 := orm.NewContext().DirectAccess()
+		err = orm.Save(ctx1, activityInfo)
 		if err != nil {
 			log.Error(err, activityInfo)
 		}
@@ -1064,7 +1068,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		oldConfig.Metadata.Labels["status"] = "unavailable"
 		oldConfig.Timestamp = time.Now()
 
-		err = orm.Save(nil, oldConfig)
+		ctx1 := orm.NewContext().DirectAccess()
+		err = orm.Save(ctx1, &oldConfig)
 		if err != nil {
 			log.Error(err)
 		}
@@ -1086,7 +1091,8 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 			},
 		}
-		err = orm.Save(nil, activityInfo)
+		ctx1 := orm.NewContext().DirectAccess()
+		err = orm.Save(ctx1, activityInfo)
 		if err != nil {
 			log.Error(err)
 		}
