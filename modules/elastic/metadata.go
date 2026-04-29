@@ -1091,7 +1091,6 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				},
 			},
 		}
-		ctx1 := orm.NewContext().DirectAccess()
 		err = orm.Save(ctx1, activityInfo)
 		if err != nil {
 			log.Error(err)
