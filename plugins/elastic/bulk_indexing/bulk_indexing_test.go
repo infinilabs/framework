@@ -105,9 +105,21 @@ func TestReserveInFlightQueue(t *testing.T) {
 	processor.wg.Done()
 }
 
+func TestHasInFlightQueue(t *testing.T) {
+	processor := &BulkIndexingProcessor{}
+
+	assert.False(t, processor.hasInFlightQueue("queue-0"))
+
+	processor.inFlightQueueConfigs.Store("queue-0-0", "worker-1")
+	assert.True(t, processor.hasInFlightQueue("queue-0"))
+
+	processor.inFlightQueueConfigs.Delete("queue-0-0")
+	assert.False(t, processor.hasInFlightQueue("queue-0"))
+}
+
 func TestIsIgnorableAcquireConsumerError(t *testing.T) {
 	assert.True(t, isIgnorableAcquireConsumerError(stdErrors.New("already owning this topic")))
-	assert.True(t, isIgnorableAcquireConsumerError(stdErrors.New("the consumer is in fighting list")))
+	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("the consumer is in fighting list")))
 	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("some other error")))
 	assert.False(t, isIgnorableAcquireConsumerError(nil))
 }
