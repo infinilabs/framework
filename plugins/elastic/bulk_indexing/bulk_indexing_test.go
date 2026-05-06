@@ -28,6 +28,7 @@
 package bulk_indexing
 
 import (
+	stdErrors "errors"
 	"github.com/OneOfOne/xxhash"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -83,4 +84,30 @@ func TestXXHash(t *testing.T) {
 		assert.Equal(t, hashValue%3, hash[o])
 	}
 
+}
+
+func TestReserveInFlightQueue(t *testing.T) {
+	processor := &BulkIndexingProcessor{}
+
+	current, reserved := processor.reserveInFlightQueue("queue-0", "worker-1")
+	assert.True(t, reserved)
+	assert.Equal(t, "worker-1", current)
+
+	stored, exists := processor.inFlightQueueConfigs.Load("queue-0")
+	assert.True(t, exists)
+	assert.Equal(t, "worker-1", stored)
+
+	current, reserved = processor.reserveInFlightQueue("queue-0", "worker-2")
+	assert.False(t, reserved)
+	assert.Equal(t, "worker-1", current)
+
+	processor.inFlightQueueConfigs.Delete("queue-0")
+	processor.wg.Done()
+}
+
+func TestIsIgnorableAcquireConsumerError(t *testing.T) {
+	assert.True(t, isIgnorableAcquireConsumerError(stdErrors.New("already owning this topic")))
+	assert.True(t, isIgnorableAcquireConsumerError(stdErrors.New("the consumer is in fighting list")))
+	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("some other error")))
+	assert.False(t, isIgnorableAcquireConsumerError(nil))
 }
