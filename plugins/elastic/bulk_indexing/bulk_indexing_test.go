@@ -31,6 +31,7 @@ import (
 	stdErrors "errors"
 	"github.com/OneOfOne/xxhash"
 	"github.com/stretchr/testify/assert"
+	"sync"
 	"testing"
 )
 
@@ -115,6 +116,36 @@ func TestHasInFlightQueue(t *testing.T) {
 
 	processor.inFlightQueueConfigs.Delete("queue-0-0")
 	assert.False(t, processor.hasInFlightQueue("queue-0"))
+}
+
+func TestAcquireQueueOwner(t *testing.T) {
+	queueOwners = sync.Map{}
+
+	processor1 := &BulkIndexingProcessor{id: "processor-1"}
+	processor2 := &BulkIndexingProcessor{id: "processor-2"}
+
+	assert.True(t, processor1.acquireQueueOwner("queue-0"))
+	assert.True(t, processor1.acquireQueueOwner("queue-0"))
+	assert.False(t, processor2.acquireQueueOwner("queue-0"))
+
+	queueOwners = sync.Map{}
+}
+
+func TestReleaseQueueOwnerIfIdle(t *testing.T) {
+	queueOwners = sync.Map{}
+
+	processor := &BulkIndexingProcessor{id: "processor-1"}
+	assert.True(t, processor.acquireQueueOwner("queue-0"))
+
+	processor.inFlightQueueConfigs.Store("queue-0-0", "worker-1")
+	processor.releaseQueueOwnerIfIdle("queue-0")
+	_, exists := queueOwners.Load("queue-0")
+	assert.True(t, exists)
+
+	processor.inFlightQueueConfigs.Delete("queue-0-0")
+	processor.releaseQueueOwnerIfIdle("queue-0")
+	_, exists = queueOwners.Load("queue-0")
+	assert.False(t, exists)
 }
 
 func TestIsIgnorableAcquireConsumerError(t *testing.T) {
