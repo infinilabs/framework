@@ -41,6 +41,7 @@ import (
 type Metric struct {
 	interfaces   map[string]struct{}
 	prevCounters networkCounter
+	event.EventSink
 
 	Enabled    bool     `config:"enabled"`
 	Summary    bool     `config:"summary"`
@@ -58,11 +59,17 @@ type networkCounter struct {
 }
 
 func New(cfg *config.Config) (*Metric, error) {
+	return NewWithSink(cfg, event.DefaultEventSink)
+}
+
+// NewWithSink creates a network metric collector with a custom sink.
+func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 
 	me := &Metric{
 		Enabled:      true,
 		prevCounters: networkCounter{},
 	}
+	me.EventSink = sink
 
 	err := cfg.Unpack(&me)
 	if err != nil {
@@ -101,7 +108,7 @@ func (m *Metric) Collect() error {
 		}
 
 		if m.Detail {
-			event.Save(&event.Event{
+			m.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network",
@@ -128,7 +135,7 @@ func (m *Metric) Collect() error {
 	if m.Summary {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
-			event.Save(&event.Event{
+			m.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_summary",
@@ -158,7 +165,7 @@ func (m *Metric) Collect() error {
 	if m.Throughput {
 		if m.prevCounters != (networkCounter{}) {
 			// convert network metrics from counters to gauges
-			event.Save(&event.Event{
+			m.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_throughput",
@@ -192,7 +199,7 @@ func (m *Metric) Collect() error {
 		stats, _ = applyEnhancements(stats)
 
 		if m.prevCounters != (networkCounter{}) {
-			event.Save(&event.Event{
+			m.Save(&event.Event{
 				Metadata: event.EventMetadata{
 					Category: "host",
 					Name:     "network_sockets",

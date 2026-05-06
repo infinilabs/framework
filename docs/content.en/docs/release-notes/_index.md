@@ -21,6 +21,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: output HTTP access logs to file
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
+- feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
