@@ -78,6 +78,8 @@ type BulkIndexingProcessor struct {
 	bulkBufferPool *elastic.BulkBufferPool
 }
 
+var queueOwners sync.Map
+
 type Config struct {
 	NumOfSlices          int   `config:"num_of_slices"`
 	Slices               []int `config:"slices"`
@@ -337,9 +339,16 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 const queueHandleSingleton = "queue_handler_singleton"
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, parentContext *pipeline.Context) {
+	if !processor.acquireQueueOwner(v.ID) {
+		if rate.GetRateLimiter("bulk_queue_owner", v.ID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("skip queue:[%v], already owned by another local bulk processor", v.ID)
+		}
+		return
+	}
+	defer processor.releaseQueueOwnerIfIdle(v.ID)
 
 	//TODO, add config to enable/disable singleton, may have performance issue
-	ok, _ := locker.Hold(queueHandleSingleton, v.ID, processor.id, 60*time.Second, true)
+	ok, _ := locker.Hold(queueHandleSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
 	if !ok {
 		if rate.GetRateLimiter("bulk_queue_lock", v.ID, 1, 1, 30*time.Second).Allow() {
 			log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
@@ -544,6 +553,26 @@ func (processor *BulkIndexingProcessor) hasInFlightQueue(queueID string) bool {
 	return hasInFlight
 }
 
+func (processor *BulkIndexingProcessor) acquireQueueOwner(queueID string) bool {
+	owner, loaded := queueOwners.LoadOrStore(queueID, processor.id)
+	if !loaded {
+		return true
+	}
+
+	return owner == processor.id
+}
+
+func (processor *BulkIndexingProcessor) releaseQueueOwnerIfIdle(queueID string) {
+	if processor.hasInFlightQueue(queueID) {
+		return
+	}
+
+	owner, ok := queueOwners.Load(queueID)
+	if ok && owner == processor.id {
+		queueOwners.Delete(queueID)
+	}
+}
+
 func isIgnorableAcquireConsumerError(err error) bool {
 	if err == nil {
 		return false
@@ -615,6 +644,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
+		processor.releaseQueueOwnerIfIdle(qConfig.ID)
 		processor.wg.Done()
 		if global.Env().IsDebug {
 			log.Tracef("exit slice worker, worker:[%v], queue:%v, slice_id:%v, key:%v", workerID, qConfig.ID, sliceID, key)
