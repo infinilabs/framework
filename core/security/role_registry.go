@@ -181,6 +181,7 @@ func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 }
 
 func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
+
 	ctx1 := context.Background()
 	if val, ok := user.GetStringArray(orm.TeamsIDKey); ok {
 		ctx1 = context.WithValue(ctx1, orm.TeamsIDKey, val)
@@ -191,7 +192,7 @@ func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
 		p, ok := value.(AuthorizationBackend)
 		if ok {
 			hit = true
-			v := p.GetPermissionKeysByUserID(ctx1, user.UserID)
+			v := p.GetPermissionKeysByUserID(ctx1, user.Provider, user.UserID)
 			out = append(out, v...)
 		}
 		return true
