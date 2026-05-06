@@ -299,7 +299,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						}
 						//if have depth and not in in flight
 						if !processor.config.SkipEmptyQueue || queue.HasLag(v) {
-							_, ok := processor.inFlightQueueConfigs.Load(v.ID)
+							ok := processor.hasInFlightQueue(v.ID)
 							if !ok {
 								if global.Env().IsDebug {
 									log.Tracef("detecting new queue: %v", v.Name)
@@ -339,7 +339,7 @@ const queueHandleSingleton = "queue_handler_singleton"
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, parentContext *pipeline.Context) {
 
 	//TODO, add config to enable/disable singleton, may have performance issue
-	ok, _ := locker.Hold(queueHandleSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
+	ok, _ := locker.Hold(queueHandleSingleton, v.ID, processor.id, 60*time.Second, true)
 	if !ok {
 		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
 		return
@@ -523,12 +523,31 @@ func (processor *BulkIndexingProcessor) reserveInFlightQueue(key, workerID strin
 	return workerID, true
 }
 
+func (processor *BulkIndexingProcessor) hasInFlightQueue(queueID string) bool {
+	if _, ok := processor.inFlightQueueConfigs.Load(queueID); ok {
+		return true
+	}
+
+	queuePrefix := fmt.Sprintf("%v-", queueID)
+	hasInFlight := false
+	processor.inFlightQueueConfigs.Range(func(key, value interface{}) bool {
+		keyStr, ok := key.(string)
+		if ok && strings.HasPrefix(keyStr, queuePrefix) {
+			hasInFlight = true
+			return false
+		}
+		return true
+	})
+
+	return hasInFlight
+}
+
 func isIgnorableAcquireConsumerError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	return util.ContainStr(err.Error(), "already owning this topic") || util.ContainStr(err.Error(), "the consumer is in fighting list")
+	return util.ContainStr(err.Error(), "already owning this topic")
 }
 
 var xxHashPool = sync.Pool{
