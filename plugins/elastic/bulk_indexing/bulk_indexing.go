@@ -433,6 +433,10 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 }
 
 func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Context, qConfig *queue.QueueConfig, preferedHost string) {
+	if global.Env().IsDebug {
+		// current time for monitoring and log
+		log.Debugf("starting bulk worker for queue: %v, host: %v at time: %v", qConfig.Name, preferedHost, time.Now().Format(time.RFC3339))
+	}
 	bulkSizeInByte := processor.config.BulkConfig.GetBulkSizeInBytes()
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
@@ -460,50 +464,71 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Co
 			return
 		}
 
-		processor.Lock()
-		v2, exists := processor.inFlightQueueConfigs.Load(key)
-		if exists {
+		var workerID = util.GetUUID()
+		v2, reserved := processor.reserveInFlightQueue(key, workerID)
+		if !reserved {
 			if global.Env().IsDebug {
 				log.Tracef("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", preferedHost, qConfig.ID, sliceID, key, v2)
 			}
-			processor.Unlock()
 			continue
-		} else {
-			var workerID = util.GetUUID()
-			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, preferedHost)
+		}
 
-			ctx1 := &pipeline.Context{}
-			ctx1.Set("key", key)
-			ctx1.Set("workerID", workerID)
-			ctx1.Set("sliceID", sliceID)
-			ctx1.Set("numOfSlices", processor.config.NumOfSlices)
-			ctx1.Set("tag", preferedHost)
-			ctx1.Set("qConfig", qConfig)
-			ctx1.Set("host", preferedHost)
-			ctx1.Set("bulkSizeInByte", bulkSizeInByte)
-			err := processor.pool.Submit(&pipeline.Task{
-				Handler: func(ctx *pipeline.Context, v ...interface{}) {
-					key := ctx.MustGetString("key")
-					workerID := ctx.MustGetString("workerID")
-					host := ctx.MustGetString("host")
-					sliceID := ctx.MustGetInt("sliceID")
-					tag := ctx.MustGetString("tag")
-					numOfSlices := ctx.MustGetInt("numOfSlices")
-					bulkSizeInByte := ctx.MustGetInt("bulkSizeInByte")
-					qConfig := ctx.MustGet("qConfig").(*queue.QueueConfig)
-					pCtx := v[0].(*pipeline.Context)
-					processor.NewSlicedBulkWorker(pCtx, key, workerID, sliceID, numOfSlices, tag, bulkSizeInByte, qConfig, host)
-				},
-				Context: ctx1,
-				Params:  []interface{}{parentContext}, // 也可以在创建任务时设置参数
-			})
-			processor.Unlock()
-			if err != nil {
-				panic(err)
-			}
-			processor.wg.Add(1)
+		log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, preferedHost)
+
+		ctx1 := &pipeline.Context{}
+		ctx1.Set("key", key)
+		ctx1.Set("workerID", workerID)
+		ctx1.Set("sliceID", sliceID)
+		ctx1.Set("numOfSlices", processor.config.NumOfSlices)
+		ctx1.Set("tag", preferedHost)
+		ctx1.Set("qConfig", qConfig)
+		ctx1.Set("host", preferedHost)
+		ctx1.Set("bulkSizeInByte", bulkSizeInByte)
+		err := processor.pool.Submit(&pipeline.Task{
+			Handler: func(ctx *pipeline.Context, v ...interface{}) {
+				key := ctx.MustGetString("key")
+				workerID := ctx.MustGetString("workerID")
+				host := ctx.MustGetString("host")
+				sliceID := ctx.MustGetInt("sliceID")
+				tag := ctx.MustGetString("tag")
+				numOfSlices := ctx.MustGetInt("numOfSlices")
+				bulkSizeInByte := ctx.MustGetInt("bulkSizeInByte")
+				qConfig := ctx.MustGet("qConfig").(*queue.QueueConfig)
+				pCtx := v[0].(*pipeline.Context)
+				processor.NewSlicedBulkWorker(pCtx, key, workerID, sliceID, numOfSlices, tag, bulkSizeInByte, qConfig, host)
+			},
+			Context: ctx1,
+			Params:  []interface{}{parentContext}, // 也可以在创建任务时设置参数
+		})
+		if err != nil {
+			processor.inFlightQueueConfigs.Delete(key)
+			processor.wg.Done()
+			panic(err)
 		}
 	}
+}
+
+func (processor *BulkIndexingProcessor) reserveInFlightQueue(key, workerID string) (interface{}, bool) {
+	processor.Lock()
+	defer processor.Unlock()
+
+	v, exists := processor.inFlightQueueConfigs.Load(key)
+	if exists {
+		return v, false
+	}
+
+	processor.inFlightQueueConfigs.Store(key, workerID)
+	processor.wg.Add(1)
+
+	return workerID, true
+}
+
+func isIgnorableAcquireConsumerError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return util.ContainStr(err.Error(), "already owning this topic") || util.ContainStr(err.Error(), "the consumer is in fighting list")
 }
 
 var xxHashPool = sync.Pool{
@@ -549,8 +574,6 @@ func (processor *BulkIndexingProcessor) getConsumerConfig(queueID, consumerName 
 }
 
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Context, key, workerID string, sliceID, maxSlices int, tag string, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
-	processor.inFlightQueueConfigs.Store(key, workerID)
-
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -600,11 +623,14 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 	var consumerInstance queue.ConsumerAPI
 	consumerInstance, err = queue.AcquireConsumer(qConfig, consumerConfig, workerID)
 	if err != nil || consumerInstance == nil {
-		if util.ContainStr(err.Error(), "already owning this topic") {
+		if isIgnorableAcquireConsumerError(err) {
 			if global.Env().IsDebug {
-				log.Warnf("other consumer already owning this topic, queue:%v-%v, slice_id:%v", qConfig.Name, qConfig.ID, sliceID)
+				log.Warnf("skip duplicate consumer acquisition, queue:%v-%v, slice_id:%v, err:%v", qConfig.Name, qConfig.ID, sliceID, err)
 			}
 			return
+		}
+		if err == nil {
+			err = errors.New("failed to acquire queue consumer")
 		}
 		panic(err)
 	}
