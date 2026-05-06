@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- fix(bulk): prevent duplicate queue consumers and keep conflicts visible (test: `go test ./plugins/elastic/bulk_indexing`) #353
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250

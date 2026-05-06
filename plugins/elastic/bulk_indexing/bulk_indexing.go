@@ -341,7 +341,9 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 	//TODO, add config to enable/disable singleton, may have performance issue
 	ok, _ := locker.Hold(queueHandleSingleton, v.ID, processor.id, 60*time.Second, true)
 	if !ok {
-		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
+		if rate.GetRateLimiter("bulk_queue_lock", v.ID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
+		}
 		return
 	}
 
