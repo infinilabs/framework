@@ -81,8 +81,8 @@ func ClusterVersion(metadata *elastic.ElasticsearchMetadata) (*elastic.ClusterIn
 	}
 
 	req := util.Request{Method: fasthttp.MethodGet, Url: url}
-	if metadata.Config.BasicAuth != nil {
-		req.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password.Get())
+	if err := elastic.ApplyAuthToRequestIfAvailable(&req, metadata.Config); err != nil {
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(metadata.Config.RequestTimeout)*time.Second)
 	req.Context = ctx
@@ -137,8 +137,8 @@ func RequestTimeout(ctx *elastic.APIContext, method, url string, body []byte, me
 		compressed = true
 	}
 
-	if metadata.Config != nil && metadata.Config.BasicAuth != nil {
-		ctx.Request.SetBasicAuth(metadata.Config.BasicAuth.Username, metadata.Config.BasicAuth.Password.Get())
+	if err := elastic.ApplyAuthToFastHTTPRequestIfAvailable(ctx.Request, metadata.Config); err != nil {
+		return nil, err
 	}
 
 	metadata.CheckNodeTrafficThrottle(util.UnsafeBytesToString(ctx.Request.Header.Host()), 1, ctx.Request.GetRequestLength(), 0)

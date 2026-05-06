@@ -20,6 +20,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275
 - feat: output HTTP access logs to file
 - feat(cookie): prevent aggressive session cookie expiration #284
+- feat(client): support token-based authorization #288
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
