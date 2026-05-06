@@ -158,8 +158,8 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	req.Context = ctx
 
 	req.SetContentType(util.ContentTypeJson)
-	if c.GetMetadata().Config.BasicAuth != nil {
-		req.SetBasicAuth(c.GetMetadata().Config.BasicAuth.Username, c.GetMetadata().Config.BasicAuth.Password.Get())
+	if err := elastic.ApplyAuthToRequestIfAvailable(req, c.GetMetadata().Config); err != nil {
+		return nil, err
 	}
 
 	if c.GetMetadata().Config.HttpProxy != "" {
@@ -902,6 +902,18 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// `_local` is an Elasticsearch-side selector in the request path, not the
+	// node ID used as the key in the response body. The response normally uses
+	// the real node ID as the map key, so the generic lookup by `nodeID` cannot
+	// work for `_local`. When the `_nodes/_local` response contains exactly one
+	// node, return that single entry directly.
+	if nodeID == "_local" && len(node.Nodes) == 1 {
+		for _, nodeInfo := range node.Nodes {
+			return &nodeInfo, nil
+		}
+	}
+
 	nodeInfo, ok := node.Nodes[nodeID]
 	if ok {
 		return &nodeInfo, nil

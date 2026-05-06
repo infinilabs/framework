@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	api.HandleUIMethod(api.GET, "/account/profile", Profile, api.OptionLogin(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
+	api.HandleUIMethod(api.GET, "/account/profile", Profile, api.RequireLogin(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
 }
 
 func Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

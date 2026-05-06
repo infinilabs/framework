@@ -49,6 +49,7 @@ type Metric struct {
 	Enabled     bool     `config:"enabled"`
 	Metrics     []string `config:"metrics"`
 	prevCounter ioCounter
+	event.EventSink
 }
 
 type ioCounter struct {
@@ -59,11 +60,17 @@ type ioCounter struct {
 }
 
 func New(cfg *config.Config) (*Metric, error) {
+	return NewWithSink(cfg, event.DefaultEventSink)
+}
+
+// NewWithSink creates a disk metric collector with a custom sink.
+func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 
 	me := &Metric{
 		Enabled:     true,
 		prevCounter: ioCounter{},
 	}
+	me.EventSink = sink
 
 	err := cfg.Unpack(&me)
 	if err != nil {
@@ -118,7 +125,7 @@ func (m *Metric) collectUsage() error {
 		if err != nil {
 			return err
 		}
-		event.Save(&event.Event{
+		m.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem",
@@ -146,7 +153,7 @@ func (m *Metric) collectUsage() error {
 		if err != nil {
 			return err
 		}
-		event.Save(&event.Event{
+		m.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem_summary",
@@ -166,7 +173,7 @@ func (m *Metric) collectUsage() error {
 		})
 		return nil
 	} else {
-		event.Save(&event.Event{
+		m.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "filesystem_summary",
@@ -227,7 +234,7 @@ func (m *Metric) collectIO() error {
 		}
 	}
 
-	event.Save(&event.Event{
+	m.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "diskio_summary",
@@ -246,7 +253,7 @@ func (m *Metric) collectIO() error {
 	})
 
 	if m.prevCounter != (ioCounter{}) {
-		event.Save(&event.Event{
+		m.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "diskio",
