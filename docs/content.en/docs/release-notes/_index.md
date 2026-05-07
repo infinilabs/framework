@@ -24,6 +24,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix: make disk queue writes more tolerant of slow disks and queue backlog
 - fix: prevent duplicate bulk queue consumers during bulk indexing migrations #289
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283

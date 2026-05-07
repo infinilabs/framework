@@ -69,6 +69,8 @@ import (
 	"infini.sh/framework/core/util/zstd"
 )
 
+const bytesPerMiB = 1024 * 1024
+
 // providing a filesystem backed FIFO queue
 type DiskBasedQueue struct {
 	sync.RWMutex
@@ -118,6 +120,8 @@ type DiskBasedQueue struct {
 // NewDiskQueue instantiates a new instance of DiskBasedQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
 func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBasedQueue {
+	normalizeDiskQueueConfig(cfg)
+
 	d := DiskBasedQueue{
 		name:               name,
 		dataPath:           dataPath,
@@ -177,7 +181,8 @@ func (d *DiskBasedQueue) ReadChan() <-chan []byte {
 
 // Put writes a []byte to the queue
 func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.cfg.WriteTimeoutInMS)*time.Millisecond)
+	writeTimeout := d.getWriteTimeout(len(data))
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 
 	size := int64(len(data))
@@ -232,7 +237,7 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 		switch res.Error {
 		case context.DeadlineExceeded:
 			// Handle timeout error specifically
-			res.Error = fmt.Errorf("operation timed out: %w", res.Error)
+			res.Error = fmt.Errorf("operation timed out after %s waiting for disk queue writer availability: %w", writeTimeout, res.Error)
 		case context.Canceled:
 			// Handle cancellation error specifically
 			res.Error = fmt.Errorf("operation was canceled: %w", res.Error)
@@ -242,6 +247,28 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 		}
 		return res
 	}
+}
+
+func (d *DiskBasedQueue) getWriteTimeout(payloadSize int) time.Duration {
+	timeoutInMS := defaultWriteTimeoutInMS
+	if d != nil && d.cfg != nil && d.cfg.WriteTimeoutInMS > 0 {
+		timeoutInMS = d.cfg.WriteTimeoutInMS
+	}
+
+	if payloadSize > 0 {
+		payloadMiB := int64((payloadSize + bytesPerMiB - 1) / bytesPerMiB)
+		timeoutInMS += payloadMiB * adaptiveWriteTimeoutPerPayloadMiBInMS
+	}
+
+	if d != nil && len(d.writeChan) > 0 {
+		timeoutInMS += int64(len(d.writeChan)) * adaptiveWriteTimeoutPerQueuedWriteInMS
+	}
+
+	if timeoutInMS > maxAdaptiveWriteTimeoutInMS {
+		timeoutInMS = maxAdaptiveWriteTimeoutInMS
+	}
+
+	return time.Duration(timeoutInMS) * time.Millisecond
 }
 
 // Close cleans up the queue and persists metadata
