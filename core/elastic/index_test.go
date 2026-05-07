@@ -25,6 +25,8 @@ package elastic
 
 import (
 	"testing"
+
+	"github.com/segmentio/encoding/json"
 )
 
 func TestIndexDocument_GetStringFieldFromSource(t *testing.T) {
@@ -218,5 +220,33 @@ func TestIndexDocument_TryGetStringFieldFromSource(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestErrorDetailUnmarshalJSONString(t *testing.T) {
+	var detail ErrorDetail
+	if err := json.Unmarshal([]byte(`"initializing"`), &detail); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if detail.Reason != "initializing" {
+		t.Fatalf("unexpected reason: %q", detail.Reason)
+	}
+	if detail.Message() != "initializing" {
+		t.Fatalf("unexpected message: %q", detail.Message())
+	}
+}
+
+func TestErrorDetailUnmarshalJSONObject(t *testing.T) {
+	var detail ErrorDetail
+	if err := json.Unmarshal([]byte(`{"type":"search_phase_execution_exception","reason":"all shards failed"}`), &detail); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if detail.Type != "search_phase_execution_exception" {
+		t.Fatalf("unexpected type: %q", detail.Type)
+	}
+	if detail.Message() != "all shards failed" {
+		t.Fatalf("unexpected message: %q", detail.Message())
 	}
 }

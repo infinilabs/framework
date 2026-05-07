@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix: parse string-form Elasticsearch initialization errors in search responses #319
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249

@@ -491,6 +491,20 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 		return esResp, err
 	}
 
+	if resp.StatusCode >= 400 {
+		if esResp.Error != nil {
+			errType := esResp.Error.Type
+			errReason := esResp.Error.Message()
+			if errType != "" && errReason != "" {
+				return esResp, errors.Errorf("status:%d, type:%s, reason:%s", resp.StatusCode, errType, errReason)
+			}
+			if errReason != "" {
+				return esResp, errors.Errorf("status:%d, reason:%s", resp.StatusCode, errReason)
+			}
+		}
+		return esResp, errors.Errorf("status:%d", resp.StatusCode)
+	}
+
 	return esResp, nil
 }
 

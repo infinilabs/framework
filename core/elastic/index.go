@@ -24,6 +24,7 @@
 package elastic
 
 import (
+	"bytes"
 	"errors"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
@@ -233,6 +234,48 @@ type ErrorDetail struct {
 	RootCause []RootCause `json:"root_cause,omitempty"`
 	Type      string      `json:"type,omitempty"`
 	Reason    string      `json:"reason,omitempty"`
+}
+
+func (d *ErrorDetail) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &d.Reason)
+	}
+
+	type alias ErrorDetail
+	var aux alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = ErrorDetail(aux)
+	return nil
+}
+
+func (d *ErrorDetail) Message() string {
+	if d == nil {
+		return ""
+	}
+	if d.Reason != "" {
+		return d.Reason
+	}
+	if len(d.RootCause) > 0 {
+		var reasons []string
+		for _, cause := range d.RootCause {
+			if cause.Reason != "" {
+				reasons = append(reasons, cause.Reason)
+			} else if cause.Type != "" {
+				reasons = append(reasons, cause.Type)
+			}
+		}
+		if len(reasons) > 0 {
+			return strings.Join(reasons, "; ")
+		}
+	}
+	return d.Type
 }
 
 type RootCause struct {
