@@ -236,7 +236,7 @@ READ_MSG:
 		}
 		return messages, false, err
 	}
-	log.Debugf("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
+	log.Tracef("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
 		//current have changes, reload file with new position
 		newFileSize := d.getFileSize()
@@ -332,9 +332,9 @@ READ_MSG:
 			//still working on the same file
 			if d.diskQueue.writeSegmentNum == d.segment {
 				time.Sleep(100 * time.Millisecond) // Prevent catching up too quickly.
-				log.Debugf("invalid message size detected. this might be due to a dirty read as the file was being written while open. reloading segment: %d", d.segment)
+				log.Tracef("invalid message size detected. this might be due to a dirty read as the file was being written while open. reloading segment: %d", d.segment)
 			} else {
-				log.Debugf("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
+				log.Tracef("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
 			}
 
 			d.readPos = previousPos
