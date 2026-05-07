@@ -550,7 +550,7 @@ func ParseConfigSection(cfg *config.Config, configKey string, configInstance int
 		// go-ucfg raises an error if the key does not exist, in which case
 		// we should return and report that the configKey does not exist.
 		if ucfgErr, ok := err.(ucfg.Error); ok && ucfgErr.Reason() == ucfg.ErrMissing {
-			log.Debugf("config key: %s not found", configKey)
+			log.Tracef("config key: %s not found", configKey)
 			return false, nil
 		}
 

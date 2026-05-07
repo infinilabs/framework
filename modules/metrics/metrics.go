@@ -171,7 +171,7 @@ func (module *MetricsModule) CollectAgentMetric() {
 				Type:        "interval",
 				Interval:    "10s",
 				Task: func(ctx context.Context) {
-					log.Debug("collecting instance metrics")
+					log.Trace("collecting instance metrics")
 					agentM.Collect()
 				},
 			}
@@ -202,7 +202,7 @@ func (module *MetricsModule) CollectHostMetric() {
 			Type:        "interval",
 			Interval:    "10s",
 			Task: func(ctx context.Context) {
-				log.Debug("collecting network metrics")
+				log.Trace("collecting network metrics")
 				netM.Collect()
 			},
 		}

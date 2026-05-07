@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 - fix: prevent duplicate bulk queue consumers during bulk indexing migrations #289
 ### ✈️ Improvements  
+- chore: reduce queue and metrics debug log noise
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
