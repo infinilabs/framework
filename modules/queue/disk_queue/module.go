@@ -124,7 +124,32 @@ type CompressConfig struct {
 	Level   int  `config:"level"`
 }
 
+const (
+	defaultWriteTimeoutInMS                int64 = 60 * 1000
+	defaultWriteChanBuffer                       = 16
+	minRecommendedWriteTimeoutInMS         int64 = 15 * 1000
+	maxAdaptiveWriteTimeoutInMS            int64 = 5 * 60 * 1000
+	adaptiveWriteTimeoutPerQueuedWriteInMS int64 = 3 * 1000
+	adaptiveWriteTimeoutPerPayloadMiBInMS  int64 = 5 * 1000
+)
+
 var preventRead bool
+
+func normalizeDiskQueueConfig(cfg *DiskQueueConfig) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.WriteTimeoutInMS <= 0 {
+		cfg.WriteTimeoutInMS = defaultWriteTimeoutInMS
+	} else if cfg.WriteTimeoutInMS < minRecommendedWriteTimeoutInMS {
+		log.Warnf("disk_queue write timeout may be too small on slow disks: %dms", cfg.WriteTimeoutInMS)
+	}
+
+	if cfg.WriteChanBuffer <= 0 {
+		cfg.WriteChanBuffer = defaultWriteChanBuffer
+	}
+}
 
 func checkCapacity(cfg *DiskQueueConfig) error {
 
@@ -233,14 +258,14 @@ func (module *DiskQueue) Setup() {
 		MinMsgSize:                      1,
 		MaxMsgSize:                      104857600,         //100MB
 		MaxBytesPerFile:                 100 * 1024 * 1024, //100MB
-		WriteTimeoutInMS:                1000,              //1s
-		CheckDiskCapacityRetryDelayInMs: 10 * 000,          //10s
+		WriteTimeoutInMS:                defaultWriteTimeoutInMS,
+		CheckDiskCapacityRetryDelayInMs: 10 * 000, //10s
 		EOFRetryDelayInMs:               500,
 		SyncEveryRecords:                1000,
 		SyncTimeoutInMS:                 1000,
 		NotifyChanBuffer:                100,
 		ReadChanBuffer:                  0,
-		WriteChanBuffer:                 0,
+		WriteChanBuffer:                 defaultWriteChanBuffer,
 		WarningFreeBytes:                10 * 1024 * 1024 * 1024,
 		ReservedFreeBytes:               5 * 1024 * 1024 * 1024,
 		PrepareFilesToRead:              true,
@@ -261,6 +286,8 @@ func (module *DiskQueue) Setup() {
 	if ok && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
+
+	normalizeDiskQueueConfig(module.cfg)
 
 	if !module.cfg.Enabled {
 		return
