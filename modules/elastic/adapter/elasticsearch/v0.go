@@ -208,8 +208,6 @@ func (c *ESAPIV0) InitDefaultTemplate(templateName, indexPrefix string) {
 
 func (c *ESAPIV0) GetDefaultIndexTemplateSettings() any {
 	return util.MapStr{
-		"index.mapping.total_fields.limit": 20000,
-		"index.max_result_window":          10000000,
 		"analysis": util.MapStr{
 			"analyzer": util.MapStr{
 				"suggest_text_search": util.MapStr{

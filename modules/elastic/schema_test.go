@@ -107,23 +107,3 @@ func TestEnsureDefaultStringDynamicTemplates(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.Equal(t, len(templates), 1)
 }
-
-func TestContainsPathDeep(t *testing.T) {
-	template := map[string]interface{}{
-		"metrics_template": map[string]interface{}{
-			"settings": map[string]interface{}{
-				"index": map[string]interface{}{
-					"mapping": map[string]interface{}{
-						"total_fields": map[string]interface{}{
-							"limit": "20000",
-						},
-					},
-					"max_result_window": "10000000",
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, containsPathDeep(template, "settings", "index", "mapping", "total_fields", "limit"), true)
-	assert.Equal(t, containsPathDeep(template, "settings", "index", "max_result_window"), true)
-}

@@ -166,49 +166,6 @@ func containsKeyDeep(value interface{}, targetKey string) bool {
 	return false
 }
 
-func containsPathDeep(value interface{}, path ...string) bool {
-	if len(path) == 0 {
-		return true
-	}
-	joined := strings.Join(path, ".")
-	switch v := value.(type) {
-	case map[string]interface{}:
-		if nested, ok := v[joined]; ok {
-			if len(path) == 1 {
-				return true
-			}
-			return containsPathDeep(nested, path[1:]...)
-		}
-		if nested, ok := v[path[0]]; ok && containsPathDeep(nested, path[1:]...) {
-			return true
-		}
-		for _, nested := range v {
-			if containsPathDeep(nested, path...) {
-				return true
-			}
-		}
-	case []interface{}:
-		for _, nested := range v {
-			if containsPathDeep(nested, path...) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func ensureExistingIndexSettings(client elastic.API, indexPattern string) error {
-	settings := util.MapStr{
-		"index.mapping.total_fields.limit": 20000,
-		"index.max_result_window":          10000000,
-	}
-	err := client.UpdateIndexSettings(indexPattern, settings)
-	if err != nil && strings.Contains(err.Error(), "index_not_found_exception") {
-		return nil
-	}
-	return err
-}
-
 func shouldRefreshExistingTemplate(client elastic.API, templateName string, mappingData map[string]interface{}) bool {
 	if mappingData == nil {
 		return false
@@ -221,9 +178,7 @@ func shouldRefreshExistingTemplate(client elastic.API, templateName string, mapp
 		log.Warnf("failed to inspect existing template [%s]: %v", templateName, err)
 		return false
 	}
-	return !containsKeyDeep(template, "dynamic_templates") ||
-		!containsPathDeep(template, "settings", "index", "mapping", "total_fields", "limit") ||
-		!containsPathDeep(template, "settings", "index", "max_result_window")
+	return !containsKeyDeep(template, "dynamic_templates")
 }
 
 func initIndexName(t interface{}, indexName string) string {
@@ -368,14 +323,6 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 					panic(string(data))
 				}
 			}
-		}
-	}
-	if handler.Config.BuildTemplateForObject {
-		if err := ensureExistingIndexSettings(handler.Client, indexName+"*"); err != nil {
-			if handler.Config.PanicOnInitSchemaError {
-				panic(err)
-			}
-			return err
 		}
 	}
 	return err
