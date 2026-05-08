@@ -91,3 +91,19 @@ func TestQuoteWithUnderscore(t *testing.T) {
 	json := quoteJson(js)
 	assert.Equal(t, json, `{ "properties":{ "id": { "type": "keyword" },"created": { "type": "date" },"updated": { "type": "date" },"_system": { "type": "object" },"name": { "type": "keyword" } } }`)
 }
+
+func TestEnsureDefaultStringDynamicTemplates(t *testing.T) {
+	mapping := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"timestamp": map[string]interface{}{
+				"type": "date",
+			},
+		},
+	}
+
+	ensureDefaultStringDynamicTemplates(mapping)
+
+	templates, ok := mapping["dynamic_templates"].([]interface{})
+	assert.Equal(t, ok, true)
+	assert.Equal(t, len(templates), 1)
+}
