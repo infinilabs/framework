@@ -693,7 +693,18 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		log.Trace("update elasticsearch's metadata:", v, ok)
 
 		if ok {
-			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
+			module.updateNodeInfo(v, false, cfg.Discovery.Enabled)
 		}
 		return true
 	})
@@ -706,6 +717,17 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 		}
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
 			updateAliases(v, force)
 		}
 		return true
