@@ -24,12 +24,34 @@
 package elastic
 
 import (
+	"infini.sh/framework/core/credential"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 )
 
 const EasysearchAPITokenHeader = "X-API-TOKEN"
+
+func resolveBasicAuth(cfg *ElasticsearchConfig) error {
+	if cfg == nil || cfg.BasicAuth != nil || cfg.CredentialID == "" {
+		return nil
+	}
+
+	cred := credential.Credential{}
+	cred.ID = cfg.CredentialID
+	_, err := orm.Get(&cred)
+	if err != nil {
+		return err
+	}
+
+	auth, err := cred.DecodeBasicAuth()
+	if err != nil {
+		return err
+	}
+	cfg.BasicAuth = auth
+	return nil
+}
 
 func ApplyAuthToRequestIfAvailable(req *util.Request, cfg *ElasticsearchConfig) error {
 	if req == nil {
@@ -38,6 +60,10 @@ func ApplyAuthToRequestIfAvailable(req *util.Request, cfg *ElasticsearchConfig) 
 
 	if cfg == nil {
 		return nil
+	}
+
+	if err := resolveBasicAuth(cfg); err != nil {
+		return err
 	}
 
 	if cfg.BasicAuth != nil {
@@ -60,6 +86,10 @@ func ApplyAuthToFastHTTPRequestIfAvailable(req *fasthttp.Request, cfg *Elasticse
 
 	if cfg == nil {
 		return nil
+	}
+
+	if err := resolveBasicAuth(cfg); err != nil {
+		return err
 	}
 
 	if cfg.BasicAuth != nil {
