@@ -578,6 +578,7 @@ func TestValidateSecure(t *testing.T) {
 		{name: "Secure Missing Digit", input: "Password!", secureArgs: nil, want: false},
 		{name: "Secure Missing Special", input: "Password123", secureArgs: nil, want: false},
 		{name: "Secure Empty", input: "", secureArgs: nil, want: false},
+		{name: "Secure Empty", input: "Abcabc123123$", secureArgs: nil, want: true},
 
 		// --- Group 2: Testing Simple Mode (secure=false) ---
 		{name: "Simple Valid (lower and digit)", input: "password123", secureArgs: []bool{false}, want: true},
