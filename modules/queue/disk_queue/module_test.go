@@ -1,6 +1,11 @@
 package queue
 
-import "testing"
+import (
+	"testing"
+
+	. "infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
+)
 
 func TestNormalizeDiskQueueConfigAppliesRobustWriteDefaults(t *testing.T) {
 	cfg := &DiskQueueConfig{}
@@ -28,5 +33,17 @@ func TestNormalizeDiskQueueConfigKeepsExplicitWriteSettings(t *testing.T) {
 	}
 	if cfg.WriteChanBuffer != 64 {
 		t.Fatalf("write chan buffer should be preserved, got %d", cfg.WriteChanBuffer)
+	}
+}
+
+func TestSetupDefaultsDeleteAfterCompress(t *testing.T) {
+	env1 := EmptyEnv()
+	global.RegisterEnv(env1)
+
+	module := DiskQueue{}
+	module.Setup()
+
+	if !module.cfg.Compress.DeleteAfterCompress {
+		t.Fatalf("delete_after_compress should default to true")
 	}
 }
