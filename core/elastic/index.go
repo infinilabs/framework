@@ -29,6 +29,8 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -216,6 +218,67 @@ type Bucket struct {
 type AggregationResponse struct {
 	Buckets []BucketBase `json:"buckets,omitempty"`
 	Value   interface{}  `json:"value,omitempty"`
+}
+
+func (a *AggregationResponse) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Buckets json.RawMessage `json:"buckets,omitempty"`
+		Value   interface{}     `json:"value,omitempty"`
+	}
+
+	var aux alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	a.Value = aux.Value
+
+	buckets := bytes.TrimSpace(aux.Buckets)
+	if len(buckets) == 0 || bytes.Equal(buckets, []byte("null")) {
+		a.Buckets = nil
+		return nil
+	}
+
+	switch buckets[0] {
+	case '[':
+		return json.Unmarshal(buckets, &a.Buckets)
+	case '{':
+		keyedBuckets := map[string]BucketBase{}
+		if err := json.Unmarshal(buckets, &keyedBuckets); err != nil {
+			return err
+		}
+
+		keys := make([]string, 0, len(keyedBuckets))
+		for key := range keyedBuckets {
+			keys = append(keys, key)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return compareBucketKeys(keys[i], keys[j])
+		})
+
+		a.Buckets = make([]BucketBase, 0, len(keys))
+		for _, key := range keys {
+			bucket := keyedBuckets[key]
+			if bucket == nil {
+				bucket = BucketBase{}
+			}
+			if _, ok := bucket["key"]; !ok {
+				bucket["key"] = key
+			}
+			a.Buckets = append(a.Buckets, bucket)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func compareBucketKeys(left, right string) bool {
+	leftInt, leftErr := strconv.ParseInt(left, 10, 64)
+	rightInt, rightErr := strconv.ParseInt(right, 10, 64)
+	if leftErr == nil && rightErr == nil {
+		return leftInt < rightInt
+	}
+	return left < right
 }
 
 type ResponseBase struct {

@@ -29,6 +29,23 @@ import (
 	"github.com/segmentio/encoding/json"
 )
 
+func TestAggregationResponseUnmarshalKeyedBuckets(t *testing.T) {
+	var agg AggregationResponse
+	err := json.Unmarshal([]byte(`{"buckets":{"0":{"doc_count":1740269},"1":{"doc_count":42}}}`), &agg)
+	if err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if len(agg.Buckets) != 2 {
+		t.Fatalf("unexpected bucket count: %d", len(agg.Buckets))
+	}
+	if agg.Buckets[0]["key"] != "0" || agg.Buckets[0]["doc_count"] != float64(1740269) {
+		t.Fatalf("unexpected first bucket: %#v", agg.Buckets[0])
+	}
+	if agg.Buckets[1]["key"] != "1" || agg.Buckets[1]["doc_count"] != float64(42) {
+		t.Fatalf("unexpected second bucket: %#v", agg.Buckets[1])
+	}
+}
+
 func TestIndexDocument_GetStringFieldFromSource(t *testing.T) {
 	tests := []struct {
 		name     string
