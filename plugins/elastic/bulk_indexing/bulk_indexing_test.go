@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestXXHash(t *testing.T) {
@@ -153,4 +154,10 @@ func TestIsIgnorableAcquireConsumerError(t *testing.T) {
 	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("the consumer is in fighting list")))
 	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("some other error")))
 	assert.False(t, isIgnorableAcquireConsumerError(nil))
+}
+
+func TestShouldQuitActiveQueueDetection(t *testing.T) {
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now(), 5*time.Second, 0))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 1))
+	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 0))
 }
