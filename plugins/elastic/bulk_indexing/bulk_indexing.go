@@ -270,6 +270,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					processor.wg.Done()
 				}()
 
+				lastDispatch := time.Now()
 				for {
 
 					if global.ShuttingDown() {
@@ -306,6 +307,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 								if global.Env().IsDebug {
 									log.Tracef("detecting new queue: %v", v.Name)
 								}
+								lastDispatch = time.Now()
 								processor.HandleQueueConfig(v, c)
 							}
 						} else {
@@ -316,6 +318,9 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					}
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
+					}
+					if shouldQuitActiveQueueDetection(lastDispatch, time.Duration(processor.config.IdleTimeoutInSecond)*time.Second, util.MapLength(&processor.inFlightQueueConfigs)) {
+						return
 					}
 				}
 			}(c)
@@ -336,6 +341,13 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 	processor.wg.Wait()
 
 	return nil
+}
+
+func shouldQuitActiveQueueDetection(lastDispatch time.Time, idleDuration time.Duration, inflight int) bool {
+	if idleDuration <= 0 {
+		return false
+	}
+	return inflight == 0 && time.Since(lastDispatch) > idleDuration
 }
 
 const queueHandleSingleton = "queue_handler_singleton"
