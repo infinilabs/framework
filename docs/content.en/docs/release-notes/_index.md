@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- improve(queue): default delete_after_compress to true (test: `go test ./modules/queue/disk_queue`) #340
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
