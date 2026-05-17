@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- fix(metrics): keep cluster-level collection on console for agent-mode clusters (test: `go test ./modules/metrics/...`) #348
 - fix(metrics): reconfigure collectors when metric collection mode changes (test: `go test ./modules/metrics/...`) #347
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249

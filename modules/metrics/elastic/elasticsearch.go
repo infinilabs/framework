@@ -134,12 +134,23 @@ func (m *ElasticsearchMetric) shouldCollectMetrics(v *elastic.ElasticsearchMetad
 	if !v.Config.Monitored || !v.Config.Enabled {
 		return false
 	}
-	if !m.IsAgentMode && v.Config.MetricCollectionMode == elastic.ModeAgent {
-		log.Debugf("cluster [%v] is in agent mode, skip console-side metric collection", v.Config.Name)
-		return false
-	}
 	if m.IsAgentMode && v.Config.MetricCollectionMode == elastic.ModeAgentless {
 		log.Debugf("cluster [%v] is in agentless mode, skip agent-side metric collection", v.Config.Name)
+		return false
+	}
+	return true
+}
+
+func (m *ElasticsearchMetric) shouldCollectClusterLevelMetrics(v *elastic.ElasticsearchMetadata) bool {
+	return m.shouldCollectMetrics(v)
+}
+
+func (m *ElasticsearchMetric) shouldCollectNodeAndIndexMetrics(v *elastic.ElasticsearchMetadata) bool {
+	if !m.shouldCollectMetrics(v) {
+		return false
+	}
+	if !m.IsAgentMode && v.Config.MetricCollectionMode == elastic.ModeAgent {
+		log.Debugf("cluster [%v] is in agent mode, skip console-side node/index metric collection", v.Config.Name)
 		return false
 	}
 	return true
@@ -220,7 +231,13 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 
 	var err error
 	monitorConfigs := getMonitorConfigs(v)
-	if m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
+	clusterLevelEnabled := m.shouldCollectClusterLevelMetrics(v)
+	nodeAndIndexEnabled := m.shouldCollectNodeAndIndexMetrics(v)
+	if !clusterLevelEnabled && !nodeAndIndexEnabled {
+		log.Debugf("cluster [%v] has no eligible metric collectors (mode[%v], agent_mode[%v])", v.Config.Name, v.Config.MetricCollectionMode, m.IsAgentMode)
+		return true
+	}
+	if clusterLevelEnabled && m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
 		log.Debugf("collect cluster health: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterHealthMetricTask = task.ScheduleTask{
 			ID:          clusterHealthTaskID,
@@ -244,7 +261,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	}
 
 	//cluster stats
-	if m.ClusterStats && monitorConfigs.ClusterStats.Enabled {
+	if clusterLevelEnabled && m.ClusterStats && monitorConfigs.ClusterStats.Enabled {
 		log.Debugf("collect cluster state: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterStatsMetricTask = task.ScheduleTask{
 			ID:          clusterStatsTaskID,
@@ -268,7 +285,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	}
 
 	//nodes stats
-	if m.NodeStats && monitorConfigs.NodeStats.Enabled {
+	if nodeAndIndexEnabled && m.NodeStats && monitorConfigs.NodeStats.Enabled {
 		var nodeStatsMetricTask = task.ScheduleTask{
 			ID:          nodeStatsTaskID,
 			Description: fmt.Sprintf("monitoring node stats metric for cluster %s", k),
@@ -344,7 +361,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	}
 
 	//indices stats
-	if (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
+	if nodeAndIndexEnabled && (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
 		var indexStatsMetricTask = task.ScheduleTask{
 			ID:          indexStatsTaskID,
 			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
