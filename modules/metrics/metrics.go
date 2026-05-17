@@ -115,7 +115,8 @@ func (module *MetricsModule) Setup() {
 				// check other conditions
 				hasChanged = meta.IsAvailable() != oldMeta.IsAvailable() ||
 					meta.Config.Enabled != oldMeta.Config.Enabled ||
-					meta.Config.Monitored != oldMeta.Config.Monitored
+					meta.Config.Monitored != oldMeta.Config.Monitored ||
+					meta.Config.MetricCollectionMode != oldMeta.Config.MetricCollectionMode
 			}
 			if !hasChanged {
 				return

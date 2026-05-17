@@ -127,6 +127,24 @@ func validateMonitorConfig(monitorConfig *elastic.TaskConfig) {
 	}
 }
 
+func (m *ElasticsearchMetric) shouldCollectMetrics(v *elastic.ElasticsearchMetadata) bool {
+	if v == nil || v.Config == nil {
+		return false
+	}
+	if !v.Config.Monitored || !v.Config.Enabled {
+		return false
+	}
+	if !m.IsAgentMode && v.Config.MetricCollectionMode == elastic.ModeAgent {
+		log.Debugf("cluster [%v] is in agent mode, skip console-side metric collection", v.Config.Name)
+		return false
+	}
+	if m.IsAgentMode && v.Config.MetricCollectionMode == elastic.ModeAgentless {
+		log.Debugf("cluster [%v] is in agentless mode, skip agent-side metric collection", v.Config.Name)
+		return false
+	}
+	return true
+}
+
 func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
@@ -192,8 +210,8 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 			m.RemoveTask(taskID)
 		}
 	}
-	if !v.Config.Monitored || !v.Config.Enabled {
-		log.Debugf("cluster [%v] NOT (enabled[%v] or monitored[%v] or not available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.IsAvailable())
+	if !m.shouldCollectMetrics(v) {
+		log.Debugf("cluster [%v] NOT eligible for metrics collection (enabled[%v], monitored[%v], mode[%v], available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.Config.MetricCollectionMode, v.IsAvailable())
 		return true
 	}
 	if global.Env().IsDebug {
