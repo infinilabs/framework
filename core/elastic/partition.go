@@ -754,7 +754,7 @@ func buildHashPartitionFilter(partitionID, partitionCount int, fieldName string,
 			"script": util.MapStr{
 				"script": util.MapStr{
 					"lang":   "painless",
-					"source": fmt.Sprintf("doc[%s].size()!=0 && (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count) == params.partition_id", fieldLiteral, fieldLiteral),
+					"source": fmt.Sprintf("doc[%s].size()!=0 && doc[%s].value != '' && (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count) == params.partition_id", fieldLiteral, fieldLiteral, fieldLiteral),
 					"params": util.MapStr{
 						"partition_count": partitionCount,
 						"partition_id":    partitionID,
@@ -833,34 +833,35 @@ func getErrorDetailMessage(err *ErrorDetail) string {
 func buildMissingFieldCondition(fieldName string) util.MapStr {
 	return util.MapStr{
 		"bool": util.MapStr{
-			"must_not": []interface{}{
+			"should": []interface{}{
 				util.MapStr{
-					"exists": util.MapStr{
-						"field": fieldName,
+					"bool": util.MapStr{
+						"must_not": []interface{}{
+							util.MapStr{
+								"exists": util.MapStr{
+									"field": fieldName,
+								},
+							},
+						},
+					},
+				},
+				util.MapStr{
+					"term": util.MapStr{
+						fieldName: util.MapStr{
+							"value": "",
+						},
 					},
 				},
 			},
+			"minimum_should_match": 1,
 		},
 	}
 }
 
 func buildMissingFieldFilter(fieldName string, filter interface{}) util.MapStr {
-	boolFilter := util.MapStr{
-		"must": []interface{}{},
-		"must_not": []interface{}{
-			util.MapStr{
-				"exists": util.MapStr{
-					"field": fieldName,
-				},
-			},
-		},
-	}
-	if filter != nil {
-		boolFilter["must"] = append(boolFilter["must"].([]interface{}), filter)
-	}
-	return util.MapStr{
-		"bool": boolFilter,
-	}
+	return buildMustPartitionFilter([]interface{}{
+		buildMissingFieldCondition(fieldName),
+	}, filter)
 }
 
 func buildMustPartitionFilter(mustClauses []interface{}, filter interface{}) util.MapStr {
