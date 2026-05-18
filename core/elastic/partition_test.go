@@ -97,6 +97,9 @@ func TestBuildHashPartitionFilter(t *testing.T) {
 	if !strings.Contains(source, "doc['pmid.keyword']") {
 		t.Fatalf("unexpected script source: %s", source)
 	}
+	if !strings.Contains(source, "value != ''") {
+		t.Fatalf("expected empty strings to be excluded from hash partition, got %s", source)
+	}
 	if strings.Contains(source, "Math.floorMod") {
 		t.Fatalf("unexpected script source: %s", source)
 	}
@@ -106,6 +109,48 @@ func TestBuildHashPartitionFilter(t *testing.T) {
 	}
 	if _, ok := params["field"]; ok {
 		t.Fatalf("field should not be passed as a script param: %v", params)
+	}
+}
+
+func TestBuildMissingFieldConditionIncludesEmptyString(t *testing.T) {
+	filter := buildMissingFieldCondition("pmid.keyword")
+	boolFilter, ok := filter["bool"].(util.MapStr)
+	if !ok {
+		t.Fatalf("expected bool filter, got %v", filter)
+	}
+	if got := boolFilter["minimum_should_match"]; got != 1 {
+		t.Fatalf("unexpected minimum_should_match: %v", got)
+	}
+	should, ok := boolFilter["should"].([]interface{})
+	if !ok || len(should) != 2 {
+		t.Fatalf("expected two should clauses, got %v", boolFilter["should"])
+	}
+	termFilter := should[1].(util.MapStr)["term"].(util.MapStr)["pmid.keyword"].(util.MapStr)
+	if got := termFilter["value"]; got != "" {
+		t.Fatalf("unexpected empty-string term filter: %v", termFilter)
+	}
+}
+
+func TestBuildMissingFieldFilterPreservesOuterFilter(t *testing.T) {
+	filter := buildMissingFieldFilter("pmid.keyword", util.MapStr{
+		"term": util.MapStr{
+			"env": util.MapStr{"value": "prod"},
+		},
+	})
+	boolFilter, ok := filter["bool"].(util.MapStr)
+	if !ok {
+		t.Fatalf("expected bool filter, got %v", filter)
+	}
+	must, ok := boolFilter["must"].([]interface{})
+	if !ok || len(must) != 2 {
+		t.Fatalf("expected two must clauses, got %v", boolFilter["must"])
+	}
+	innerBool, ok := must[0].(util.MapStr)["bool"].(util.MapStr)
+	if !ok {
+		t.Fatalf("expected wrapped missing bool filter, got %v", must[0])
+	}
+	if got := innerBool["minimum_should_match"]; got != 1 {
+		t.Fatalf("unexpected minimum_should_match: %v", got)
 	}
 }
 
