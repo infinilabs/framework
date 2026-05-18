@@ -319,7 +319,12 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
 					}
-					if shouldQuitActiveQueueDetection(lastDispatch, time.Duration(processor.config.IdleTimeoutInSecond)*time.Second, util.MapLength(&processor.inFlightQueueConfigs)) {
+					if shouldQuitActiveQueueDetection(
+						lastDispatch,
+						time.Duration(processor.config.IdleTimeoutInSecond)*time.Second,
+						time.Duration(processor.config.DetectIntervalInMs)*time.Millisecond,
+						util.MapLength(&processor.inFlightQueueConfigs),
+					) {
 						return
 					}
 				}
@@ -343,11 +348,14 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
-func shouldQuitActiveQueueDetection(lastDispatch time.Time, idleDuration time.Duration, inflight int) bool {
+func shouldQuitActiveQueueDetection(lastDispatch time.Time, idleDuration time.Duration, detectInterval time.Duration, inflight int) bool {
 	if idleDuration <= 0 {
 		return false
 	}
-	return inflight == 0 && time.Since(lastDispatch) > idleDuration
+	if detectInterval < 0 {
+		detectInterval = 0
+	}
+	return inflight == 0 && time.Since(lastDispatch) >= idleDuration+detectInterval
 }
 
 const queueHandleSingleton = "queue_handler_singleton"
