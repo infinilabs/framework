@@ -652,6 +652,8 @@ func buildBoundedPartitionFilter(min, max float64, fieldName, fieldType string, 
 		"lte": max,
 	}
 	if fieldType == PartitionByDate {
+		rv["gte"] = normalizeDateRangeBoundary(min, true, true)
+		rv["lte"] = normalizeDateRangeBoundary(max, false, true)
 		rv["format"] = "epoch_millis"
 	}
 	must := []interface{}{
@@ -680,6 +682,12 @@ func buildOpenPartitionFilter(lower, upper *float64, fieldName, fieldType string
 		rv["lte"] = *upper
 	}
 	if fieldType == PartitionByDate {
+		if lower != nil {
+			rv["gt"] = normalizeDateRangeBoundary(*lower, true, false)
+		}
+		if upper != nil {
+			rv["lte"] = normalizeDateRangeBoundary(*upper, false, true)
+		}
 		rv["format"] = "epoch_millis"
 	}
 	var condition interface{}
@@ -706,6 +714,19 @@ func buildOpenPartitionFilter(lower, upper *float64, fieldName, fieldType string
 		},
 	}
 
+}
+
+func normalizeDateRangeBoundary(value float64, lower, inclusive bool) int64 {
+	switch {
+	case lower && inclusive:
+		return int64(math.Ceil(value))
+	case lower && !inclusive:
+		return int64(math.Floor(value))
+	case !lower && inclusive:
+		return int64(math.Floor(value))
+	default:
+		return int64(math.Ceil(value))
+	}
 }
 
 func buildExactTermPartitionFilter(value, fieldName string, filter interface{}) util.MapStr {

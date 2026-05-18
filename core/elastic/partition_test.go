@@ -63,6 +63,33 @@ func TestBuildOpenPartitionFilterPreservesDateFormat(t *testing.T) {
 	if got := rangeFilter["format"]; got != "epoch_millis" {
 		t.Fatalf("unexpected date format: %v", got)
 	}
+	if got := rangeFilter["lte"]; got != int64(1000) {
+		t.Fatalf("unexpected upper bound: %v", got)
+	}
+}
+
+func TestBuildOpenPartitionFilterRoundsDatePercentileBoundaries(t *testing.T) {
+	lower := 1779109187904.8455
+	upper := 1779109187999.999
+	filter := buildOpenPartitionFilter(&lower, &upper, "created_at", PartitionByDate, nil)
+	rangeFilter := getMustClause(t, filter)["range"].(util.MapStr)["created_at"].(util.MapStr)
+	if got := rangeFilter["gt"]; got != int64(1779109187904) {
+		t.Fatalf("unexpected lower bound: %v", got)
+	}
+	if got := rangeFilter["lte"]; got != int64(1779109187999) {
+		t.Fatalf("unexpected upper bound: %v", got)
+	}
+}
+
+func TestBuildBoundedPartitionFilterRoundsDateBoundaries(t *testing.T) {
+	filter := buildBoundedPartitionFilter(1779109187904.1, 1779109187999.9, "created_at", PartitionByDate, nil)
+	rangeFilter := getMustClause(t, filter)["range"].(util.MapStr)["created_at"].(util.MapStr)
+	if got := rangeFilter["gte"]; got != int64(1779109187905) {
+		t.Fatalf("unexpected lower bound: %v", got)
+	}
+	if got := rangeFilter["lte"]; got != int64(1779109187999) {
+		t.Fatalf("unexpected upper bound: %v", got)
+	}
 }
 
 func TestBuildExactTermPartitionFilter(t *testing.T) {
