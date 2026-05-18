@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix(elastic): round date percentile boundaries for partition filters (test: `go test ./core/elastic`) #329
 ### ✈️ Improvements  
 - improve(elastic): add hash and terms partition strategies (test: `go test ./core/elastic`) #327
 - improve(elastic): treat empty strings as missing in partition filters (test: `go test ./core/elastic`) #328
