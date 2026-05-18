@@ -255,7 +255,11 @@ func (env *Env) InitPaths(cfgPath string) error {
 		if cfgObj, err = config.LoadFile(cfgPath); err != nil {
 			return fmt.Errorf("error loading confiuration file: %v, %w", cfgPath, err)
 		}
-		return cfgObj.Unpack(&env.SystemConfig)
+		if err := cfgObj.Unpack(&env.SystemConfig); err != nil {
+			return err
+		}
+		env.normalizeRelativePaths()
+		return nil
 	} else {
 		if !env.IgnoreOnConfigMissing {
 			return errors.Errorf("config file %v not found", cfgPath)

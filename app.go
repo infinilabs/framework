@@ -38,6 +38,7 @@ import (
 	"infini.sh/framework/modules/configs/client"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -82,6 +83,18 @@ type App struct {
 	svc     service.Service
 	exit    chan os.Signal
 	svcFlag string
+}
+
+func getServiceWorkingDirectory() string {
+	executablePath, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(executablePath)
+	}
+	workdir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	return workdir
 }
 
 const (
@@ -574,10 +587,7 @@ func (app *App) Run() {
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
 	svcOptions["LimitNOFILE"] = 1024000
 
-	workdir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	workdir := getServiceWorkingDirectory()
 
 	serviceName := app.environment.GetAppLowercaseName()
 	if v, ok := os.LookupEnv(env_SERVICE_NAME); ok {

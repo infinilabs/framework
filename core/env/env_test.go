@@ -133,6 +133,27 @@ func TestNormalizeRelativePathsUsesExecutableDir(t *testing.T) {
 	assert.Equal(t, filepath.Join(executableDir, "plugin"), env.SystemConfig.PathConfig.Plugin)
 }
 
+func TestInitPathsNormalizesRelativePathsFromConfig(t *testing.T) {
+	executablePath, err := os.Executable()
+	require.NoError(t, err)
+
+	cfgFile, err := os.CreateTemp("", "env-paths-*.yml")
+	require.NoError(t, err)
+	defer os.Remove(cfgFile.Name())
+
+	_, err = cfgFile.WriteString("path.data: data\npath.log: log\npath.configs: config\n")
+	require.NoError(t, err)
+	require.NoError(t, cfgFile.Close())
+
+	env := EmptyEnv()
+	require.NoError(t, env.InitPaths(cfgFile.Name()))
+
+	executableDir := filepath.Dir(executablePath)
+	assert.Equal(t, filepath.Join(executableDir, "data"), env.SystemConfig.PathConfig.Data)
+	assert.Equal(t, filepath.Join(executableDir, "log"), env.SystemConfig.PathConfig.Log)
+	assert.Equal(t, filepath.Join(executableDir, "config"), env.SystemConfig.PathConfig.Config)
+}
+
 func TestParseConfigSection_KeyExistsButPrimitive_ReturnsError(t *testing.T) {
 	// Key exists but value is primitive (string), not an object. Child returns type error.
 	cfg, err := config.NewConfigFrom(map[string]interface{}{
