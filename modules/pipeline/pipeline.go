@@ -150,6 +150,11 @@ func (module *PipeModule) stopTask(taskID string) (exists bool) {
 
 // deleteTask will clean all in-memory states and release the pipeline context
 func (module *PipeModule) deleteTask(taskID string) {
+	if ctx, ok := module.contexts.Load(taskID); ok {
+		if v1, ok := ctx.(*pipeline.Context); ok && !v1.IsLoopReleased() {
+			module.stopAndWaitForRelease([]string{taskID}, time.Minute)
+		}
+	}
 	module.pipelines.Delete(taskID)
 	module.configs.Delete(taskID)
 	module.releaseContext(taskID)
