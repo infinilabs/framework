@@ -418,6 +418,7 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	}
 
 	env.SystemConfig = &tempCfg
+	env.normalizeRelativePaths()
 	//initialize node config
 	env.findWorkingDir()
 
@@ -479,6 +480,30 @@ func (env *Env) loadEnvFromConfigFile(filename string) error {
 	moduleConfig = parseModuleConfig(env.SystemConfig.Modules)
 
 	return nil
+}
+
+func resolvePathRelativeToExecutable(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		return p
+	}
+	return filepath.Join(filepath.Dir(executablePath), p)
+}
+
+func (env *Env) normalizeRelativePaths() {
+	if env.SystemConfig == nil {
+		return
+	}
+
+	env.SystemConfig.PathConfig.Config = resolvePathRelativeToExecutable(env.SystemConfig.PathConfig.Config)
+	env.SystemConfig.PathConfig.Data = resolvePathRelativeToExecutable(env.SystemConfig.PathConfig.Data)
+	env.SystemConfig.PathConfig.Log = resolvePathRelativeToExecutable(env.SystemConfig.PathConfig.Log)
+	env.SystemConfig.PathConfig.Plugin = resolvePathRelativeToExecutable(env.SystemConfig.PathConfig.Plugin)
 }
 
 func (env *Env) GetConfigFile() string {
