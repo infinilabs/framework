@@ -31,6 +31,7 @@ import (
 	stdErrors "errors"
 	"github.com/OneOfOne/xxhash"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/queue"
 	"sync"
 	"testing"
 	"time"
@@ -162,4 +163,15 @@ func TestShouldQuitActiveQueueDetection(t *testing.T) {
 	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-9*time.Second), 5*time.Second, 5*time.Second, 0))
 	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 0))
 	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-5*time.Second), 5*time.Second, 0, 0))
+}
+
+func TestAdvanceBufferedOffsetUsesCurrentMessageNextOffset(t *testing.T) {
+	previousCommitted := queue.NewOffsetWithVersion(0, 100, 1)
+	currentNext := queue.NewOffsetWithVersion(0, 200, 1)
+
+	offset := advanceBufferedOffset(currentNext)
+
+	assert.NotNil(t, offset)
+	assert.True(t, offset.Equals(currentNext))
+	assert.False(t, offset.Equals(previousCommitted))
 }

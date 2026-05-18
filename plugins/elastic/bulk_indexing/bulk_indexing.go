@@ -1012,6 +1012,10 @@ READ_DOCS:
 					mainBuf.WriteByteBuffer(pop.Data)
 				}
 
+				// Keep the in-memory offset aligned with the data already buffered.
+				// If the current message triggers an immediate flush, its NextOffset must be committed too.
+				offset = advanceBufferedOffset(pop.NextOffset)
+
 				if global.Env().IsDebug {
 					log.Tracef("slice worker, worker:[%v], message count: %v, size: %v", workerID, mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
@@ -1071,21 +1075,12 @@ READ_DOCS:
 							} else {
 								// skip unchanged offset silently to avoid noisy debug logs
 							}
-							// fix: this code is moved to loop outside (line 970) to avoid updating offset in the middle of bulk submission
-							// offset = &pop.NextOffset
 						}
 					} else {
 						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
 					}
 				}
-
-				// fix: update offset after each message is processed, to ensure progress sync with actual processing
-				// so even if it crashes before submission, it will not repeat processing messages written to the buffer after restart
-				offset = &pop.NextOffset
 			}
-
-			// fix: remove this code to avoid overwriting the updated offset in the loop
-			// offset = &ctx1.NextOffset
 		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
@@ -1272,6 +1267,11 @@ func appendStrArr(arr []string, size int, elems []string) []string {
 		return append(arr, elems[0:remaining]...)
 	}
 	return append(arr, elems...)
+}
+
+func advanceBufferedOffset(nextOffset queue.Offset) *queue.Offset {
+	next := nextOffset
+	return &next
 }
 
 func (processor *BulkIndexingProcessor) getElasticsearchMetadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {
