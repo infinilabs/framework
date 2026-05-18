@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- improve(bulk): stop active queue detection after the processor stays idle (test: `go test ./plugins/elastic/bulk_indexing`) #355
 - fix(bulk): avoid local queue owner races between bulk processors (test: `go test ./plugins/elastic/bulk_indexing`)
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249

@@ -157,7 +157,9 @@ func TestIsIgnorableAcquireConsumerError(t *testing.T) {
 }
 
 func TestShouldQuitActiveQueueDetection(t *testing.T) {
-	assert.False(t, shouldQuitActiveQueueDetection(time.Now(), 5*time.Second, 0))
-	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 1))
-	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 0))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now(), 5*time.Second, 5*time.Second, 0))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 1))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-9*time.Second), 5*time.Second, 5*time.Second, 0))
+	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 0))
+	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-5*time.Second), 5*time.Second, 0, 0))
 }
