@@ -401,7 +401,7 @@ func getPartitionsByHash(client API, indexName, fieldName string, partitionCount
 		})
 	}
 
-	counts, err := getPartitionDocCounts(client, indexName, partitions)
+	counts, err := getHashPartitionDocCounts(client, indexName, fieldName, partitionCount, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -415,6 +415,87 @@ func getPartitionsByHash(client API, indexName, fieldName string, partitionCount
 		filtered = append(filtered, partitions[idx])
 	}
 	return filtered, nil
+}
+
+func getHashPartitionDocCounts(client API, indexName, fieldName string, partitionCount int, filter interface{}) ([]int64, error) {
+	queryDsl := buildHashPartitionAggQuery(fieldName, partitionCount, filter)
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+	return extractHashPartitionDocCounts(res, partitionCount), nil
+}
+
+func buildHashPartitionAggQuery(fieldName string, partitionCount int, filter interface{}) util.MapStr {
+	fieldLiteral := buildPainlessStringLiteral(fieldName)
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partitions": util.MapStr{
+				"terms": util.MapStr{
+					"size":       partitionCount,
+					"value_type": "long",
+					"script": util.MapStr{
+						"lang":   "painless",
+						"source": fmt.Sprintf("if (doc[%s].size()==0 || doc[%s].value == '') return null; return (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count);", fieldLiteral, fieldLiteral, fieldLiteral),
+						"params": util.MapStr{
+							"partition_count": partitionCount,
+						},
+					},
+				},
+			},
+		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+	return queryDsl
+}
+
+func extractHashPartitionDocCounts(res *SearchResponse, partitionCount int) []int64 {
+	counts := make([]int64, partitionCount)
+	if res == nil {
+		return counts
+	}
+	partitionsAgg, ok := res.Aggregations["partitions"]
+	if !ok {
+		return counts
+	}
+	for _, bucket := range partitionsAgg.Buckets {
+		bucketKey, ok := extractHashPartitionBucketKey(bucket["key"])
+		if !ok || bucketKey < 0 || bucketKey >= partitionCount {
+			continue
+		}
+		counts[bucketKey] = util.GetInt64Value(bucket["doc_count"])
+	}
+	return counts
+}
+
+func extractHashPartitionBucketKey(key interface{}) (int, bool) {
+	switch v := key.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case int32:
+		return int(v), true
+	case uint:
+		return int(v), true
+	case uint64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case float32:
+		return int(v), true
+	case string:
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
 }
 
 func getQuantileBoundaries(client API, indexName, fieldName string, partitionCount int, min, max float64, filter interface{}) ([]float64, error) {

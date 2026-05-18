@@ -139,6 +139,64 @@ func TestBuildHashPartitionFilter(t *testing.T) {
 	}
 }
 
+func TestBuildHashPartitionAggQueryAppliesOuterFilter(t *testing.T) {
+	query := buildHashPartitionAggQuery("pmid.keyword", 8, util.MapStr{
+		"term": util.MapStr{
+			"env": util.MapStr{"value": "prod"},
+		},
+	})
+
+	if !reflect.DeepEqual(query["query"], util.MapStr{
+		"term": util.MapStr{
+			"env": util.MapStr{"value": "prod"},
+		},
+	}) {
+		t.Fatalf("expected outer filter to be applied at top-level query, got %v", query["query"])
+	}
+
+	termsAgg := query["aggs"].(util.MapStr)["partitions"].(util.MapStr)["terms"].(util.MapStr)
+	if got := termsAgg["size"]; got != 8 {
+		t.Fatalf("unexpected partition size: %v", got)
+	}
+	if got := termsAgg["value_type"]; got != "long" {
+		t.Fatalf("unexpected value_type: %v", got)
+	}
+	script := termsAgg["script"].(util.MapStr)
+	source, ok := script["source"].(string)
+	if !ok {
+		t.Fatalf("unexpected script source type: %T", script["source"])
+	}
+	if !strings.Contains(source, "return null") {
+		t.Fatalf("expected missing values to be skipped in hash aggregation, got %s", source)
+	}
+	if !strings.Contains(source, "value == ''") {
+		t.Fatalf("expected empty strings to be excluded in hash aggregation, got %s", source)
+	}
+	params := script["params"].(util.MapStr)
+	if got := params["partition_count"]; got != 8 {
+		t.Fatalf("unexpected partition_count: %v", got)
+	}
+}
+
+func TestExtractHashPartitionDocCountsMapsByBucketKey(t *testing.T) {
+	counts := extractHashPartitionDocCounts(&SearchResponse{
+		Aggregations: map[string]AggregationResponse{
+			"partitions": {
+				Buckets: []BucketBase{
+					{"key": float64(5), "doc_count": float64(12)},
+					{"key": "1", "doc_count": float64(7)},
+					{"key": float64(99), "doc_count": float64(3)},
+				},
+			},
+		},
+	}, 8)
+
+	expected := []int64{0, 7, 0, 0, 0, 12, 0, 0}
+	if !reflect.DeepEqual(counts, expected) {
+		t.Fatalf("unexpected hash counts: got %v want %v", counts, expected)
+	}
+}
+
 func TestBuildMissingFieldConditionIncludesEmptyString(t *testing.T) {
 	filter := buildMissingFieldCondition("pmid.keyword")
 	boolFilter, ok := filter["bool"].(util.MapStr)

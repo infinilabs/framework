@@ -29,6 +29,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ✈️ Improvements  
 - improve(elastic): add hash and terms partition strategies (test: `go test ./core/elastic`) #327
 - improve(elastic): treat empty strings as missing in partition filters (test: `go test ./core/elastic`) #328
+- improve(elastic): derive hash partition counts from terms aggregation buckets (test: `go test ./core/elastic`) #335
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
