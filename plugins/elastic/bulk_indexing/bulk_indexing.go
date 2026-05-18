@@ -1021,6 +1021,10 @@ READ_DOCS:
 					mainBuf.WriteByteBuffer(pop.Data)
 				}
 
+				// Keep the in-memory offset aligned with the data already buffered.
+				// If the current message triggers an immediate flush, its NextOffset must be committed too.
+				offset = advanceBufferedOffset(pop.NextOffset)
+
 				if global.Env().IsDebug {
 					log.Tracef("slice worker, worker:[%v], message count: %v, size: %v", workerID, mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
@@ -1062,39 +1066,26 @@ READ_DOCS:
 							//continue //TODO, should panic? clear mainbuffer
 							panic(errors.Errorf("error on submit bulk_requests, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err))
 						} else {
-							if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
-								err := consumerInstance.CommitOffset(*offset)
-								if err != nil {
-									log.Errorf("🔧 offset commit failed, worker:[%v], queue:[%v], slice:[%v], offset:[%v], err:%v", workerID, qConfig.Name, sliceID, *offset, err)
-									panic(err)
-								}
-
-								if global.Env().IsDebug {
-									log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] success commit offset:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, *offset, committedOffset, ctx1.String(), timeout, err)
-								}
-								// fix: update committedOffset immediately after successful commit, to ensure state consistency
-								committedOffset = offset
-								log.Debugf("🔧 offset committed successfully, worker:[%v], queue:[%v], slice:[%v], offset:[%v]", workerID, qConfig.Name, sliceID, *offset)
-							} else {
-								if global.Env().IsDebug {
-									log.Debugf("🔧 offset not changed, skip commit, worker:[%v], queue:[%v], slice:[%v], offset:[%v], committed:[%v]", workerID, qConfig.Name, sliceID, offset, committedOffset)
-								}
+							committed, commitErr := commitBufferedOffset(consumerInstance, offset, &committedOffset)
+							if commitErr != nil {
+								log.Errorf("🔧 offset commit failed, worker:[%v], queue:[%v], slice:[%v], offset:[%v], err:%v", workerID, qConfig.Name, sliceID, *offset, commitErr)
+								panic(commitErr)
 							}
-							// fix: this code is moved to loop outside (line 970) to avoid updating offset in the middle of bulk submission
-							// offset = &pop.NextOffset
+
+							if committed {
+								if global.Env().IsDebug {
+									log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] success commit offset:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, *offset, committedOffset, ctx1.String(), timeout, commitErr)
+								}
+								log.Debugf("🔧 offset committed successfully, worker:[%v], queue:[%v], slice:[%v], offset:[%v]", workerID, qConfig.Name, sliceID, *offset)
+							} else if global.Env().IsDebug {
+								log.Debugf("🔧 offset not changed, skip commit, worker:[%v], queue:[%v], slice:[%v], offset:[%v], committed:[%v]", workerID, qConfig.Name, sliceID, offset, committedOffset)
+							}
 						}
 					} else {
 						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
 					}
 				}
-
-				// fix: update offset after each message is processed, to ensure progress sync with actual processing
-				// so even if it crashes before submission, it will not repeat processing messages written to the buffer after restart
-				offset = &pop.NextOffset
 			}
-
-			// fix: remove this code to avoid overwriting the updated offset in the loop
-			// offset = &ctx1.NextOffset
 		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
@@ -1142,15 +1133,12 @@ CLEAN_BUFFER:
 			}
 
 			if continueNext {
-				if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
-					err := consumerInstance.CommitOffset(*offset)
-					if err != nil {
-						panic(err)
-					}
-					committedOffset = offset
-					if global.Env().IsDebug {
-						log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] commit offset:%v,ctx:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, offset, ctx1.String(), err)
-					}
+				committed, commitErr := commitBufferedOffset(consumerInstance, offset, &committedOffset)
+				if commitErr != nil {
+					panic(commitErr)
+				}
+				if committed && global.Env().IsDebug {
+					log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] commit offset:%v,ctx:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, offset, ctx1.String(), commitErr)
 				}
 			} else {
 				//logging failure offset boundry
@@ -1281,6 +1269,24 @@ func appendStrArr(arr []string, size int, elems []string) []string {
 		return append(arr, elems[0:remaining]...)
 	}
 	return append(arr, elems...)
+}
+
+func advanceBufferedOffset(nextOffset queue.Offset) *queue.Offset {
+	next := nextOffset
+	return &next
+}
+
+func commitBufferedOffset(consumer queue.ConsumerAPI, offset *queue.Offset, committedOffset **queue.Offset) (bool, error) {
+	if consumer == nil || offset == nil || committedOffset == nil || *committedOffset == nil || offset.Equals(**committedOffset) {
+		return false, nil
+	}
+
+	if err := consumer.CommitOffset(*offset); err != nil {
+		return false, err
+	}
+
+	*committedOffset = offset
+	return true, nil
 }
 
 func (processor *BulkIndexingProcessor) getElasticsearchMetadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {

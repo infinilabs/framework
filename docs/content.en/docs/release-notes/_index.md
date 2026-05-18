@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix(bulk): advance buffered offsets before immediate flushes (test: `go test ./plugins/elastic/bulk_indexing`) #337
 ### ✈️ Improvements  
 - improve(bulk): include summary counters in bulk processor debug exits (test: `go test ./plugins/elastic/bulk_indexing`) #356
 - improve(bulk): stop active queue detection after the processor stays idle (test: `go test ./plugins/elastic/bulk_indexing`) #355

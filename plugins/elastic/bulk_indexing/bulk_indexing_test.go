@@ -31,6 +31,7 @@ import (
 	stdErrors "errors"
 	"github.com/OneOfOne/xxhash"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/queue"
 	"sync"
 	"testing"
 	"time"
@@ -162,4 +163,64 @@ func TestShouldQuitActiveQueueDetection(t *testing.T) {
 	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-9*time.Second), 5*time.Second, 5*time.Second, 0))
 	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 0))
 	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-5*time.Second), 5*time.Second, 0, 0))
+}
+
+func TestAdvanceBufferedOffsetUsesCurrentMessageNextOffset(t *testing.T) {
+	previousCommitted := queue.NewOffsetWithVersion(0, 100, 1)
+	currentNext := queue.NewOffsetWithVersion(0, 200, 1)
+
+	offset := advanceBufferedOffset(currentNext)
+
+	assert.NotNil(t, offset)
+	assert.True(t, offset.Equals(currentNext))
+	assert.False(t, offset.Equals(previousCommitted))
+}
+
+type stubBulkConsumer struct {
+	committed []queue.Offset
+}
+
+func (s *stubBulkConsumer) Close() error {
+	return nil
+}
+
+func (s *stubBulkConsumer) ResetOffset(segment, readPos int64) error {
+	return nil
+}
+
+func (s *stubBulkConsumer) FetchMessages(ctx *queue.Context, numOfMessages int) (messages []queue.Message, isTimeout bool, err error) {
+	return nil, false, nil
+}
+
+func (s *stubBulkConsumer) CommitOffset(offset queue.Offset) error {
+	s.committed = append(s.committed, offset)
+	return nil
+}
+
+func TestCommitBufferedOffsetUsesCurrentMessageNextOffset(t *testing.T) {
+	consumer := &stubBulkConsumer{}
+	committedOffset := advanceBufferedOffset(queue.NewOffsetWithVersion(0, 100, 1))
+	currentNext := queue.NewOffsetWithVersion(0, 200, 1)
+	offset := advanceBufferedOffset(currentNext)
+
+	committed, err := commitBufferedOffset(consumer, offset, &committedOffset)
+
+	assert.NoError(t, err)
+	assert.True(t, committed)
+	if assert.Len(t, consumer.committed, 1) {
+		assert.True(t, consumer.committed[0].Equals(currentNext))
+	}
+	assert.True(t, committedOffset.Equals(currentNext))
+}
+
+func TestCommitBufferedOffsetSkipsUnchangedOffset(t *testing.T) {
+	consumer := &stubBulkConsumer{}
+	committedOffset := advanceBufferedOffset(queue.NewOffsetWithVersion(0, 100, 1))
+	offset := advanceBufferedOffset(queue.NewOffsetWithVersion(0, 100, 1))
+
+	committed, err := commitBufferedOffset(consumer, offset, &committedOffset)
+
+	assert.NoError(t, err)
+	assert.False(t, committed)
+	assert.Empty(t, consumer.committed)
 }
