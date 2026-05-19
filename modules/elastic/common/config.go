@@ -87,7 +87,9 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		verInfo, err := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
+		probeMeta := &elastic.ElasticsearchMetadata{Config: &esConfig}
+		probeMeta.Init(true)
+		verInfo, err := adapter.ClusterVersion(probeMeta)
 		if err != nil {
 			return nil, err
 		}
