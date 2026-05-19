@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix(elastic): probe cluster version without reusing unavailable runtime metadata (test: `go test ./modules/elastic/common`) #333
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
