@@ -118,10 +118,33 @@ func (node *NodeAvailable) IsDead() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	if meta.Config == nil || !meta.Config.Enabled {
+	if meta.Config == nil {
+		if rate.GetRateLimiter("cluster_available_check", "nil_config", 1, 1, 30*time.Second).Allow() {
+			log.Debug("elasticsearch metadata is unavailable: config is nil")
+		}
 		return false
 	}
-	return meta.clusterAvailable
+	if !meta.Config.Enabled {
+		clusterID := meta.Config.ID
+		if clusterID == "" {
+			clusterID = meta.Config.Name
+		}
+		if rate.GetRateLimiter("cluster_available_check", clusterID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("elasticsearch [%v] is unavailable: config disabled", meta.Config.Name)
+		}
+		return false
+	}
+	if !meta.clusterAvailable {
+		clusterID := meta.Config.ID
+		if clusterID == "" {
+			clusterID = meta.Config.Name
+		}
+		if rate.GetRateLimiter("cluster_available_check", clusterID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+		}
+		return false
+	}
+	return true
 }
 
 func (meta *ElasticsearchMetadata) Init(health bool) {
