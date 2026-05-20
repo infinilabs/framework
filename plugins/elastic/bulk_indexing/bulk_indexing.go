@@ -235,7 +235,17 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 				log.Error("error in bulk indexing processor,", v)
 			}
 		}
-		log.Debug("exit bulk indexing processor")
+		if processor.bulkStats != nil {
+			log.Debugf(
+				"exit bulk indexing processor, success=%d, invalid=%d, failure=%d, error_msgs=%d",
+				processor.bulkStats.Summary.Success.Count,
+				processor.bulkStats.Summary.Invalid.Count,
+				processor.bulkStats.Summary.Failure.Count,
+				len(processor.bulkStats.ErrorMsgs),
+			)
+		} else {
+			log.Debug("exit bulk indexing processor")
+		}
 	}()
 
 	//handle updates
@@ -325,6 +335,15 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						time.Duration(processor.config.DetectIntervalInMs)*time.Millisecond,
 						util.MapLength(&processor.inFlightQueueConfigs),
 					) {
+						if processor.bulkStats != nil {
+							log.Debugf(
+								"active queue detector idle exit, success=%d, invalid=%d, failure=%d, inflight=%d",
+								processor.bulkStats.Summary.Success.Count,
+								processor.bulkStats.Summary.Invalid.Count,
+								processor.bulkStats.Summary.Failure.Count,
+								util.MapLength(&processor.inFlightQueueConfigs),
+							)
+						}
 						return
 					}
 				}
