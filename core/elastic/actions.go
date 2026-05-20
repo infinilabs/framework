@@ -186,13 +186,8 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 }
 
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedHost() string {
-	hosts := meta.GetSeedHosts()
-	if len(hosts) > 0 {
-		for _, v := range hosts {
-			if v != "" && IsHostAvailable(v) {
-				return v
-			}
-		}
+	if host, _ := meta.getAvailableSeedHost(); host != "" {
+		return host
 	}
 	return meta.Config.Host
 }
@@ -263,6 +258,12 @@ func (meta *ElasticsearchMetadata) GetActiveHosts() int {
 }
 
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
+	if host, info := meta.getAvailableSeedHost(); host != "" {
+		if info != nil {
+			meta.activeHost = info
+		}
+		return host
+	}
 
 	if meta.activeHost != nil {
 		if meta.activeHost.IsAvailable() {
@@ -318,6 +319,25 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 	}
 	meta.ReportFailure(nil)
 	return hosts[0]
+}
+
+func (meta *ElasticsearchMetadata) getAvailableSeedHost() (string, *NodeAvailable) {
+	hosts := meta.GetSeedHosts()
+	if hosts == nil || len(hosts) == 0 {
+		return "", nil
+	}
+
+	for _, host := range hosts {
+		if host == "" || !IsHostAvailable(host) {
+			continue
+		}
+		if info, ok := GetHostAvailableInfo(host); ok && info != nil && info.IsAvailable() {
+			return host, info
+		}
+		return host, nil
+	}
+
+	return "", nil
 }
 
 func (meta *ElasticsearchMetadata) IsTLS() bool {
