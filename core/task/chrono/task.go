@@ -35,9 +35,10 @@ import (
 type Task func(ctx context.Context)
 
 type SchedulerTask struct {
-	task      Task
-	startTime time.Time
-	location  *time.Location
+	task         Task
+	startTime    time.Time
+	initialDelay time.Duration
+	location     *time.Location
 }
 
 func CreateSchedulerTask(task Task, options ...Option) (*SchedulerTask, error) {
@@ -46,9 +47,10 @@ func CreateSchedulerTask(task Task, options ...Option) (*SchedulerTask, error) {
 	}
 
 	runnableTask := &SchedulerTask{
-		task:      task,
-		startTime: time.Time{},
-		location:  time.Local,
+		task:         task,
+		startTime:    time.Time{},
+		initialDelay: 0,
+		location:     time.Local,
 	}
 
 	for _, option := range options {
@@ -63,6 +65,10 @@ func CreateSchedulerTask(task Task, options ...Option) (*SchedulerTask, error) {
 }
 
 func (task *SchedulerTask) GetInitialDelay() time.Duration {
+	if task.initialDelay > 0 {
+		return task.initialDelay
+	}
+
 	if task.startTime.IsZero() {
 		return 0
 	}
@@ -83,6 +89,16 @@ type Option func(task *SchedulerTask) error
 func WithStartTime(year int, month time.Month, day, hour, min, sec int) Option {
 	return func(task *SchedulerTask) error {
 		task.startTime = time.Date(year, month, day, hour, min, sec, 0, time.Local)
+		return nil
+	}
+}
+
+func WithInitialDelay(delay time.Duration) Option {
+	return func(task *SchedulerTask) error {
+		if delay < 0 {
+			delay = 0
+		}
+		task.initialDelay = delay
 		return nil
 	}
 }
