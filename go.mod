@@ -78,7 +78,6 @@ require (
 	golang.org/x/text v0.24.0
 	golang.org/x/time v0.11.0
 	golang.org/x/tools v0.32.0
-	google.golang.org/grpc v1.71.1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/hjson/hjson-go.v3 v3.3.0
 	gopkg.in/square/go-jose.v2 v2.6.0
