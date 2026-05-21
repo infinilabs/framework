@@ -42,6 +42,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: add util to get request header
 - chore: permissions refactoring
 - chore: security configuration structure enhanced
+- chore: remove unused grpc and cuckoo filter"
 
 
 
