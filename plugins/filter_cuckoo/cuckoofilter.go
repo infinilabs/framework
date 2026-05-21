@@ -30,12 +30,12 @@ import (
 
 type CuckooFilterImpl struct {
 	l  sync.Mutex
-	cf *f.CuckooFilter
+	cf *f.Filter
 }
 
 func (filter *CuckooFilterImpl) Open() error {
 
-	filter.cf = f.NewCuckooFilter(10000000)
+	filter.cf = f.NewFilter(10000000)
 	return nil
 }
 

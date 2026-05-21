@@ -26,7 +26,7 @@ package security
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/param"

@@ -1263,7 +1263,7 @@ func (s *ESAPIV0) UpdateMapping(indexName string, docType string, mappings []byt
 		panic(err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 
 	return resp.Body, nil
@@ -1416,7 +1416,7 @@ func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, erro
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 
 	data := map[string]interface{}{}
@@ -1725,7 +1725,7 @@ func (c *ESAPIV0) Alias(body []byte) error {
 		return err
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(res.Body))
+		return errors.New(string(res.Body))
 	}
 	return nil
 }
@@ -1880,7 +1880,7 @@ func (c *ESAPIV0) UpdateClusterSettings(body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return errors.New(string(resp.Body))
 	}
 
 	return nil
@@ -1893,7 +1893,7 @@ func (c *ESAPIV0) GetRemoteInfo() ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 
 	return resp.Body, nil
@@ -2003,7 +2003,7 @@ func (c *ESAPIV0) Flush(indexName string) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -2034,7 +2034,7 @@ func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, par
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -2046,7 +2046,7 @@ func (c *ESAPIV0) CatAllocation(ctx context.Context) ([]elastic.CatAllocationRes
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, errors.New(string(resp.Body))
 	}
 	data := []elastic.CatAllocationResponse{}
 	err = json.Unmarshal(resp.Body, &data)

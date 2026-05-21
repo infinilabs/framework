@@ -66,7 +66,7 @@ func (s *ESAPIV6_6) GetILMPolicy(target string) (map[string]interface{}, error) 
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 
 	data := map[string]interface{}{}
@@ -87,7 +87,7 @@ func (s *ESAPIV6_6) PutILMPolicy(target string, policyConfig []byte) error {
 	}
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (s *ESAPIV6_6) DeleteILMPolicy(target string) error {
 	}
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 
 	return nil

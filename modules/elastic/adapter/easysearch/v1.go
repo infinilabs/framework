@@ -46,7 +46,7 @@ func (c *APIV1) StartReplication(followIndex string, body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func (c *APIV1) StopReplication(indexName string, body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func (c *APIV1) PauseReplication(followIndex string, body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (c *APIV1) ResumeReplication(followIndex string, body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -102,7 +102,7 @@ func (c *APIV1) GetReplicationStatus(followIndex string) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -114,7 +114,7 @@ func (c *APIV1) GetReplicationFollowerStats(followIndex string) ([]byte, error) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -126,7 +126,7 @@ func (c *APIV1) CreateAutoFollowReplication(autoFollowPatternName string, body [
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (c *APIV1) DeleteAutoFollowReplication(autoFollowPatternName string, body [
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func (c *APIV1) GetAutoFollowStats(autoFollowPatternName string) ([]byte, error)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -163,7 +163,7 @@ func (c *APIV1) GetUser(username string) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -174,7 +174,7 @@ func (c *APIV1) GetUsers() ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -185,7 +185,7 @@ func (c *APIV1) DeleteUser(username string) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -196,7 +196,7 @@ func (c *APIV1) PutUser(username string, body []byte) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -207,7 +207,7 @@ func (c *APIV1) GetRole(roleName string) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -218,7 +218,7 @@ func (c *APIV1) GetRoles() ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
@@ -229,7 +229,7 @@ func (c *APIV1) DeleteRole(roleName string) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -241,7 +241,7 @@ func (c *APIV1) PutRole(roleName string, body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", string(resp.Body))
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func (c *APIV1) GetPrivileges() ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", string(resp.Body))
 	}
 	return resp.Body, nil
 }
