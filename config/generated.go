@@ -1,11 +1,11 @@
 package config
 
-const LastCommitLog = "0138332179af83e0728309857d85e5796acefbc0"
+const LastCommitLog = "N/A"
 
-const BuildDate = "2026-05-21T03:12:13Z"
+const BuildDate = "N/A"
 
-const EOLDate  = "2023-12-31T10:10:10Z"
+const EOLDate = "N/A"
 
-const Version  = "1.0.0_SNAPSHOT"
+const Version = "0.0.1-SNAPSHOT"
 
-const BuildNumber  = "001"
+const BuildNumber = "001"
