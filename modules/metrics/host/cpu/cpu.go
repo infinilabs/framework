@@ -50,6 +50,7 @@ type Metric struct {
 	Enabled     bool     `config:"enabled"`
 	Metrics     []string `config:"metrics"`
 	prevCounter cpuCounter
+	event.EventSink
 }
 
 type cpuCounter struct {
@@ -60,11 +61,17 @@ type cpuCounter struct {
 }
 
 func New(cfg *config.Config) (*Metric, error) {
+	return NewWithSink(cfg, event.DefaultEventSink)
+}
+
+// NewWithSink creates a CPU metric collector with a custom sink.
+func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 
 	me := &Metric{
 		Enabled:     true,
 		prevCounter: cpuCounter{},
 	}
+	me.EventSink = sink
 
 	err := cfg.Unpack(&me)
 	if err != nil {
@@ -140,7 +147,7 @@ func (m *Metric) Collect() error {
 		}
 		mapStr.Put("used_percent", percent)
 		log.Debugf("Collect CPU metrics: %v", util.MustToJSON(mapStr))
-		err = event.Save(&event.Event{
+		err = m.Save(&event.Event{
 			Metadata: event.EventMetadata{
 				Category: "host",
 				Name:     "cpu",

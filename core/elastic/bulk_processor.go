@@ -509,10 +509,9 @@ func (joint *BulkProcessor) Bulk(ctx context.Context, tag string, metadata *Elas
 
 	clonedURI := req.CloneURI()
 	defer fasthttp.ReleaseURI(clonedURI)
-
-	if metadata.Config.BasicAuth != nil {
-		clonedURI.SetUsername(metadata.Config.BasicAuth.Username)
-		clonedURI.SetPassword(metadata.Config.BasicAuth.Password.Get())
+	clonedURI.ResetUser()
+	if err := ApplyAuthToFastHTTPRequestIfAvailable(req, metadata.Config); err != nil {
+		return false, statsRet, nil, err
 	}
 
 	//acceptGzipped := req.AcceptGzippedResponse()

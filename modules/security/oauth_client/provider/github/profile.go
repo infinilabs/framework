@@ -53,6 +53,7 @@ func safeDereference(strPtr *string) string {
 }
 
 func (handler *ProfileAPI) GetProfile(ctx *orm.Context, appConfig *config.OAuthConfig, cfg *oauth2.Config, tkn *oauth2.Token) *security.UserExternalProfile {
+
 	//get user info
 	client := github.NewClient(cfg.Client(oauth2.NoContext, tkn))
 	user, res, err := client.Users.Get(oauth2.NoContext, "")
@@ -62,6 +63,7 @@ func (handler *ProfileAPI) GetProfile(ctx *orm.Context, appConfig *config.OAuthC
 	profile := security.UserExternalProfile{}
 	login := safeDereference(user.Login)
 	profile.ID = provider.GetExternalUserProfileID("github", login)
+	profile.SetOwnerID(login)
 	profile.AuthProvider = "github"
 	profile.Login = login
 	profile.Email = safeDereference(user.Email)

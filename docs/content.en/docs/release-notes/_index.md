@@ -22,6 +22,9 @@ Information about release notes of INFINI Framework is provided here.
 - feat(metrics): monitor each disk and network interface independently for bottleneck detection
 - feat(metrics): auto-detect network interface bandwidth per device (Linux, macOS, Windows)
 - feat(metrics): identify specific bottleneck device (e.g., `disk_io:nvme0n1`, `network:eth0`)
+- feat(cookie): prevent aggressive session cookie expiration #284
+- feat(client): support token-based authorization #288
+- feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
