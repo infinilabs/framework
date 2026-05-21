@@ -30,6 +30,7 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
@@ -55,6 +56,14 @@ var uiServeMux *http.ServeMux
 var uiMutex sync.Mutex
 
 var bindAddress string
+
+func ServeRegisteredUIRequest(w http.ResponseWriter, req *http.Request) error {
+	if uiRouter == nil {
+		return fmt.Errorf("web router is not initialized")
+	}
+	uiRouter.ServeHTTP(w, req)
+	return nil
+}
 
 func StopWeb(cfg config.WebAppConfig) {
 	if srv != nil {
