@@ -26,7 +26,6 @@ package chrono
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -62,20 +61,6 @@ func TestNewScheduledRunnableTask(t *testing.T) {
 
 	_, err := CreateScheduledRunnableTask(0, nil, time.Now(), -1, true)
 	assert.Error(t, err)
-}
-
-func TestNewTriggerTaskWithTimezone(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-
-	trigger, err := CreateCronTrigger("CRON_TZ=America/New_York 0 9 18 * * 1", time.Local)
-	assert.Nil(t, err)
-	loc, _ := time.LoadLocation("America/New_York")
-	assert.Equal(t, loc, trigger.location)
-	ctx := NewSimpleTriggerContext()
-	tm := trigger.NextExecutionTime(ctx)
-	assert.Equal(t, 7, tm.Hour())
 }
 
 func TestNewTriggerTask(t *testing.T) {

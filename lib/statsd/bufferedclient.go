@@ -1,9 +1,10 @@
 package statsd
 
 import (
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/lib/statsd/event"
-	"time"
 )
 
 // request to close the buffered statsd collector

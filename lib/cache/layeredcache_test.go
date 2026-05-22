@@ -1,7 +1,6 @@
 package ccache
 
 import (
-	"os"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -225,19 +224,12 @@ func Test_LayeredCache_RemovesOldestItemWhenFull(t *testing.T) {
 }
 
 func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
-	// On a busy system or during a slow run, the cleanup might take longer.
-	// When this happens, the test continues
-	// and runs its assertions (e.g., assert.Equal(t, cache.GetDropped(), 2))
-	// before the cache has actually been pruned, causing the test to fail.
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
 	cache := Layered(Configure().MaxSize(9).ItemsToPrune(1))
 	for i := 0; i < 5; i++ {
 		cache.Set(strconv.Itoa(i), "a", i, time.Minute)
 	}
 	cache.SetMaxSize(3)
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, cache.GetDropped(), 2)
 	assert.Nil(t, cache.Get("0", "a"))
 	assert.Nil(t, cache.Get("1", "a"))
@@ -246,7 +238,7 @@ func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
 	assert.Equal(t, cache.Get("4", "a").Value(), 4)
 
 	cache.Set("5", "a", 5, time.Minute)
-	time.Sleep(time.Millisecond * 5)
+	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, cache.GetDropped(), 1)
 	assert.Nil(t, cache.Get("2", "a"))
 	assert.Equal(t, cache.Get("3", "a").Value(), 3)
@@ -255,7 +247,7 @@ func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
 
 	cache.SetMaxSize(10)
 	cache.Set("6", "a", 6, time.Minute)
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, cache.GetDropped(), 0)
 	assert.Equal(t, cache.Get("3", "a").Value(), 3)
 	assert.Equal(t, cache.Get("4", "a").Value(), 4)

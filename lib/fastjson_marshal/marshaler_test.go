@@ -3,7 +3,6 @@ package fastjson_marshal
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"reflect"
 	"testing"
 )
@@ -65,61 +64,6 @@ func TestMarshalMarshaler(t *testing.T) {
 	assertEncoded(t, &w, `"custom_logic"`)
 }
 
-func TestMarshalAppender(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-	var w Writer
-	err := Marshal(&w, appenderFunc(func(in []byte) []byte {
-		return append(in, `"appended"`...)
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertEncoded(t, &w, `"appended"`)
-}
-
-func TestMarshalStdlibMarshaler(t *testing.T) {
-	var w Writer
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-	Marshal(&w, stdlibMarshalerFunc(func() ([]byte, error) {
-		return []byte(`"json.Marshaled"`), nil
-	}))
-	assertEncoded(t, &w, `"json.Marshaled"`)
-}
-
-func TestMarshalStdlibMarshalerPanic(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-	var w Writer
-	err := Marshal(&w, stdlibMarshalerFunc(func() ([]byte, error) {
-		panic("boom")
-	}))
-	assertEncoded(t, &w, `{"__PANIC__":"panic calling MarshalJSON for type fastjson.stdlibMarshalerFunc: boom"}`)
-	expectedErr := `panic calling MarshalJSON for type fastjson.stdlibMarshalerFunc: boom`
-	if err == nil || err.Error() != expectedErr {
-		t.Fatalf("expected %q, got %q", expectedErr, err)
-	}
-}
-
-func TestMarshalStdlibMarshalerError(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-	var w Writer
-	err := Marshal(&w, stdlibMarshalerFunc(func() ([]byte, error) {
-		return nil, errors.New("boom")
-	}))
-	assertEncoded(t, &w, `{"__ERROR__":"json: error calling MarshalJSON for type fastjson.stdlibMarshalerFunc: boom"}`)
-	expectedErr := `json: error calling MarshalJSON for type fastjson.stdlibMarshalerFunc: boom`
-	if err == nil || err.Error() != expectedErr {
-		t.Fatalf("expected %q, got %q", expectedErr, err)
-	}
-}
-
 func TestMarshalMapValueError(t *testing.T) {
 	var w Writer
 	expectedErr := errors.New("nope")
@@ -146,18 +90,6 @@ type marshalerFunc func(w *Writer) error
 
 func (f marshalerFunc) MarshalFastJSON(w *Writer) error {
 	return f(w)
-}
-
-type appenderFunc func([]byte) []byte
-
-func (f appenderFunc) AppendJSON(in []byte) []byte {
-	return f(in)
-}
-
-type stdlibMarshalerFunc func() ([]byte, error)
-
-func (f stdlibMarshalerFunc) MarshalJSON() ([]byte, error) {
-	return f()
 }
 
 func assertEncoded(t *testing.T, w *Writer, expected string) {

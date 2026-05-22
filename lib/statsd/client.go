@@ -2,13 +2,14 @@ package statsd
 
 import (
 	"fmt"
-	"infini.sh/framework/lib/statsd/event"
 	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"infini.sh/framework/lib/statsd/event"
 )
 
 // Logger interface compatible with log.Logger

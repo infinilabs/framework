@@ -25,12 +25,13 @@ package statsd
 
 import (
 	"fmt"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/stats"
 	"infini.sh/framework/lib/statsd"
-	"time"
 )
 
 type StatsDConfig struct {
