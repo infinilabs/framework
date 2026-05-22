@@ -93,7 +93,7 @@ func (module *PipeModule) Setup() {
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))
 	api.HandleUIMethod(api.POST, "/pipelines/", module.createPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Create)))
 	api.HandleUIMethod(api.GET, "/pipelines/:id", module.getPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Read)))
-	api.HandleUIMethod(api.PUT, "/pipelines/:id", module.updatePipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Read)))
+	api.HandleUIMethod(api.PUT, "/pipelines/:id", module.updatePipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Update)))
 	api.HandleUIMethod(api.DELETE, "/pipelines/:id", module.deletePipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Delete)))
 
 	api.HandleUIMethod(api.GET, "/pipelines/_running", module.getRunningPipelineTasksHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Admin)))
