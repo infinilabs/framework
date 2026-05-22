@@ -35,7 +35,7 @@ import (
 
 // bufferedWriter stores data in memory and flushes it every flushPeriod or when buffer is full
 type bufferedWriter struct {
-	flushPeriod time.Duration // data flushes interval
+	flushPeriod time.Duration // data flush interval (converted from configured milliseconds)
 	bufferMutex *sync.Mutex   // mutex for buffer operations synchronization
 	innerWriter io.Writer     // inner writer
 	buffer      *bufio.Writer // buffered wrapper for inner writer

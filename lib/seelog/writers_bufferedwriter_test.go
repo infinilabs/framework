@@ -58,7 +58,20 @@ func TestFlushByTimePeriod(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		writer.ExpectBytes(bytes)
 		bufferedWriter.Write(bytes)
-		time.Sleep(20 * time.Millisecond)
+		waitForFlush(t, writer, time.Second)
+	}
+}
+
+func waitForFlush(t *testing.T, writer *bytesVerifier, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for writer.waitingForInput && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if writer.waitingForInput {
+		t.Fatal("timed out waiting for periodic flush")
 	}
 }
 

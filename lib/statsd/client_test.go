@@ -132,7 +132,7 @@ func doListenUDP(t *testing.T, conn *net.UDPConn, ch chan string, n int) {
 		buffer := make([]byte, 1024)
 		size, err := conn.Read(buffer)
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "use of closed network connection") {
+			if isClosedConnErr(err) {
 				return
 			}
 			t.Errorf("udp read failed: %v", err)
@@ -144,21 +144,21 @@ func doListenUDP(t *testing.T, conn *net.UDPConn, ch chan string, n int) {
 }
 
 func doListenTCP(t *testing.T, conn net.Listener, ch chan string, n int) {
-	for n > 0 {
-		client, err := conn.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "use of closed network connection") {
-				return
-			}
-			t.Errorf("tcp accept failed: %v", err)
+	client, err := conn.Accept()
+	if err != nil {
+		if isClosedConnErr(err) {
 			return
 		}
+		t.Errorf("tcp accept failed: %v", err)
+		return
+	}
+	defer client.Close()
 
+	for n > 0 {
 		buf := make([]byte, 1024)
 		c, err := client.Read(buf)
-		client.Close()
 		if err != nil {
-			if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "use of closed network connection") {
+			if isClosedConnErr(err) {
 				return
 			}
 			t.Errorf("tcp read failed: %v", err)
@@ -176,6 +176,17 @@ func doListenTCP(t *testing.T, conn net.Listener, ch chan string, n int) {
 			}
 		}
 	}
+}
+
+func isClosedConnErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	// Some platforms can return the legacy text form without wrapping net.ErrClosed.
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 func newLocalListenerTCP(t *testing.T) (string, net.Listener) {
