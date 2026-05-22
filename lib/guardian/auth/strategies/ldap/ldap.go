@@ -7,12 +7,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/go-ldap/ldap/v3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/lib/guardian/auth"
 	"infini.sh/framework/lib/guardian/auth/strategies/basic"
-	"strings"
 )
 
 // ErrEntries is returned by ldap authenticate function,

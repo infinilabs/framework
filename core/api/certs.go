@@ -32,19 +32,20 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"io/ioutil"
+	"os"
+	"path"
+	"time"
+
 	"github.com/caddyserver/certmagic"
 	"github.com/cihub/seelog"
 	log "github.com/cihub/seelog"
-	"github.com/libdns/tencentcloud"
 	"go.uber.org/zap"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
-	"io/ioutil"
-	"os"
-	"path"
-	"time"
+	"infini.sh/framework/lib/tencentcloud"
 )
 
 func GetServerTLSConfig(tlsCfg *config.TLSConfig) (*tls.Config, error) {

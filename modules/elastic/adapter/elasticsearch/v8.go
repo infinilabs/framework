@@ -319,7 +319,7 @@ func (c *ESAPIV8) Flush(indexName string) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 	return resp.Body, nil
 }

@@ -50,7 +50,7 @@ func (s *APIV1) GetILMPolicy(target string) (map[string]interface{}, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("%s", string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 
 	data := map[string]interface{}{}
@@ -71,7 +71,7 @@ func (s *APIV1) PutILMPolicy(target string, policyConfig []byte) error {
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		return fmt.Errorf("%s", string(resp.Body))
+		return fmt.Errorf("%s", resp.Body)
 	}
 
 	return nil
@@ -89,7 +89,7 @@ func (s *APIV1) DeleteILMPolicy(target string) error {
 	}
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("%s", string(resp.Body))
+		return fmt.Errorf("%s", resp.Body)
 	}
 
 	return nil
