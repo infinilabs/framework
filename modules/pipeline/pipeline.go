@@ -47,7 +47,7 @@ func (h *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	h.WriteOpRecordNotFoundJSON(w, id)
+	h.WriteGetOKJSON(w, id, obj)
 }
 
 func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
