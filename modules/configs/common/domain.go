@@ -34,7 +34,7 @@ const SYNC_API = "/configs/_sync"
 
 const (
 	ManagerTokenKeystoreKey     = "configs_manager_token"
-	AgentAccessTokenKeystoreKey = "agent_reverse_access_token"
+	AgentAccessTokenKeystoreKey = "agent_access_token"
 )
 
 type RegisterToken struct {
