@@ -38,11 +38,12 @@ type AgentConfig struct {
 }
 
 type SetupConfig struct {
-	DownloadURL     string `config:"download_url"`
-	CACertFile      string `config:"ca_cert"`
-	CAKeyFile       string `config:"ca_key"`
-	ConsoleEndpoint string `config:"console_endpoint"`
-	Port            string `config:"port"`
+	DownloadURL            string `config:"download_url"`
+	CACertFile             string `config:"ca_cert"`
+	CAKeyFile              string `config:"ca_key"`
+	ConsoleEndpoint        string `config:"console_endpoint"`
+	ReverseChannelEndpoint string `config:"reverse_channel_endpoint"`
+	Port                   string `config:"port"`
 }
 
 func GetAgentConfig() *AgentConfig {
