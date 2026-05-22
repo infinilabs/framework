@@ -20,7 +20,17 @@ var (
 	value = os.Getenv("TC_VALUE")
 )
 
+func requireTencentCloudEnv(t *testing.T) {
+	t.Helper()
+
+	if provider.SecretId == "" || provider.SecretKey == "" || zone == "" || name == "" || value == "" {
+		t.Skip("skipping Tencent Cloud integration test: required TC_* env vars are not set")
+	}
+}
+
 func TestSetRecords(t *testing.T) {
+	requireTencentCloudEnv(t)
+
 	netip, err := netip.ParseAddr(value)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
@@ -37,6 +47,8 @@ func TestSetRecords(t *testing.T) {
 }
 
 func TestGetRecords(t *testing.T) {
+	requireTencentCloudEnv(t)
+
 	records, err := provider.GetRecords(context.Background(), zone)
 	if err != nil {
 		t.Fatalf("GetRecords: %v", err)

@@ -2,6 +2,7 @@ package statsd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -128,40 +129,64 @@ func TestTotal(t *testing.T) {
 
 func doListenUDP(t *testing.T, conn *net.UDPConn, ch chan string, n int) {
 	for n > 0 {
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
-		go func(c *net.UDPConn, ch chan string) {
-			buffer := make([]byte, 1024)
-			size, err := c.Read(buffer)
-			// size, address, err := sock.ReadFrom(buffer) <- This starts printing empty and nil values below immediatly
-			if err != nil {
-				fmt.Println(string(buffer), size, err)
-				t.Fatal(err)
+		buffer := make([]byte, 1024)
+		size, err := conn.Read(buffer)
+		if err != nil {
+			if isClosedConnErr(err) {
+				return
 			}
-			ch <- string(buffer)
-		}(conn, ch)
+			t.Errorf("udp read failed: %v", err)
+			return
+		}
+		ch <- string(buffer[:size])
 		n--
 	}
 }
 
 func doListenTCP(t *testing.T, conn net.Listener, ch chan string, n int) {
-	for {
-		client, err := conn.Accept()
-		if err != nil {
-			t.Fatal(err)
+	client, err := conn.Accept()
+	if err != nil {
+		if isClosedConnErr(err) {
+			return
 		}
+		t.Errorf("tcp accept failed: %v", err)
+		return
+	}
+	defer client.Close()
 
+	for n > 0 {
 		buf := make([]byte, 1024)
 		c, err := client.Read(buf)
 		if err != nil {
-			t.Fatal(err)
+			if isClosedConnErr(err) {
+				return
+			}
+			t.Errorf("tcp read failed: %v", err)
+			return
 		}
 
 		for _, s := range bytes.Split(buf[:c], []byte{'\n'}) {
+			if len(s) == 0 {
+				continue
+			}
 			ch <- string(s)
+			n--
+			if n == 0 {
+				return
+			}
 		}
 	}
+}
+
+func isClosedConnErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	// Some platforms can return the legacy text form without wrapping net.ErrClosed.
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 func newLocalListenerTCP(t *testing.T) (string, net.Listener) {

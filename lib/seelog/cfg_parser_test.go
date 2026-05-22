@@ -622,7 +622,14 @@ func getParserTests() []parserTest {
 
 		testName = "Errors #4"
 		testConfig = `<seelog maxlevel="off"/>`
-		parserTests = append(parserTests, parserTest{testName, testConfig, nil, true, nil})
+		testExpected = new(configForParsing)
+		testExpected.Constraints, _ = NewMinMaxConstraints(TraceLvl, Off)
+		testExpected.Exceptions = nil
+		testconsoleWriter, _ = NewConsoleWriter()
+		testHeadSplitter, _ = NewSplitDispatcher(DefaultFormatter, []interface{}{testconsoleWriter})
+		testExpected.LogType = asyncLooploggerTypeFromString
+		testExpected.RootDispatcher = testHeadSplitter
+		parserTests = append(parserTests, parserTest{testName, testConfig, testExpected, false, nil})
 
 		testName = "Errors #5"
 		testConfig = `<seelog minlevel="off" maxlevel="trace"/>`
