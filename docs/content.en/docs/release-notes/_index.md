@@ -25,6 +25,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add pluggable sink to host metrics collectors #288
 
 ### 🐛 Bug fix  
+- fix(config): preserve section reload callback order during watcher dispatch (test: `go test ./core/config/...`) #332
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
