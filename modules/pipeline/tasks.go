@@ -32,7 +32,7 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-func (module *PipeModule) getPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) getRunningPipelineTasksHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
 	resp := GetPipelinesResponse{}
@@ -50,7 +50,7 @@ func (module *PipeModule) getPipelinesHandler(w http.ResponseWriter, req *http.R
 	module.WriteJSON(w, resp, 200)
 }
 
-func (module *PipeModule) searchPipelinesHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) searchPipelineTasksHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
 	var obj = SearchPipelinesRequest{}
@@ -117,7 +117,7 @@ func (module *PipeModule) getPipelineStatus(id string, config string, processor 
 	return ret
 }
 
-func (module *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) getPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
@@ -130,7 +130,7 @@ func (module *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Re
 }
 
 // eg: curl -XPOST http://localhost:2900/pipeline/tasks/ -d'{"name":"echo-test","enabled":true,"auto_start":true,"keep_running":true,"processor":[{"echo":{"message":"hello world"}}]}'
-func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) createPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = pipeline.PipelineConfigV2{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
@@ -148,7 +148,7 @@ func (module *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http
 }
 
 // curl -XDELETE http://localhost:2900/pipeline/task/echo-test
-func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) deletePipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	_, exists := module.contexts.Load(id)
 	if exists {
@@ -162,7 +162,7 @@ func (module *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http
 }
 
 // curl -XPOST http://localhost:2900/pipeline/task/echo-test/_start
-func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) startPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	exists := module.startTask(id)
 	if exists {
@@ -175,7 +175,7 @@ func (module *PipeModule) startTaskHandler(w http.ResponseWriter, req *http.Requ
 }
 
 // curl -XPOST http://localhost:2900/pipeline/task/echo-test/_stop
-func (module *PipeModule) stopTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (module *PipeModule) stopPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	exists := module.stopTask(id)
 	if exists {

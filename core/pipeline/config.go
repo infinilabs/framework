@@ -26,11 +26,13 @@ package pipeline
 import (
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/go-ucfg"
 )
 
 type PipelineConfigV2 struct {
+	orm.ORMObjectBase
 	Name           string `config:"name" json:"name,omitempty"`
 	Enabled        *bool  `config:"enabled" json:"enabled,omitempty"`
 	Singleton      bool   `config:"singleton" json:"singleton"`
