@@ -32,6 +32,22 @@ import "infini.sh/framework/core/model"
 const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"
 
+const (
+	ManagerTokenKeystoreKey     = "configs_manager_token"
+	AgentAccessTokenKeystoreKey = "agent_reverse_access_token"
+)
+
+type RegisterToken struct {
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Value       string `json:"value,omitempty"`
+}
+
+type InstanceRegisterRequest struct {
+	Client      model.Instance `json:"client"`
+	AccessToken *RegisterToken `json:"access_token,omitempty"`
+}
+
 type ConfigFile struct {
 	Name     string `json:"name,omitempty"`
 	Location string `json:"location,omitempty"`
