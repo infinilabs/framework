@@ -118,8 +118,11 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	var res *util.Result
 	cfg := global.Env().SystemConfig.Configs
 	token, err := common.LoadTokenFromKeystore(common.ManagerTokenKeystoreKey)
-	if err != nil {
+	if err != nil && cfg.ManagerConfig.BasicAuth.Username == "" {
 		return "", nil, err
+	}
+	if err != nil {
+		log.Errorf("failed to load manager token from keystore, fallback to basic auth: %v", err)
 	}
 	if token != "" {
 		req.AddHeader("Authorization", "Bearer "+token)

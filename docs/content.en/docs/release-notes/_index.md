@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- feat(configs): add token-authenticated manager and agent communication helpers (test: `go test ./core/credential ./modules/configs/common ./modules/configs/client`) #346
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
