@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"testing"
 	"time"
 
@@ -163,17 +162,5 @@ func TestByteBufferGetStringConcurrent(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatalf("timeout!")
 		}
-	}
-}
-
-func TestByteBufferWriteSize(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-	expectedS := "foobarbaz"
-	bb := ByteBuffer{}
-	for i := 0; i < 100; i++ {
-		bb.Write([]byte(expectedS))
-		t.Log(i, ",", bb.Len(), ",", bb.Cap())
 	}
 }

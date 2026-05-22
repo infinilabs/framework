@@ -6,12 +6,13 @@ package security
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt"
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"net/http"
-	"time"
 )
 
 const UserAccessTokenSessionName = "user_session_access_token"
