@@ -498,6 +498,7 @@ type WebsocketConfig struct {
 	EchoWelcomeMessageOnConnect bool     `config:"echo_welcome_message_on_connect"`
 	EchoLoggingConfigOnConnect  bool     `config:"echo_logging_config_on_connect"`
 	BasePath                    string   `config:"base_path"`
+	MaxMessageSizeBytes         int64    `config:"max_message_size_bytes"`
 	PermittedHosts              []string `config:"permitted_hosts"`
 	SkipHostVerify              bool     `config:"skip_host_verify"`
 }
