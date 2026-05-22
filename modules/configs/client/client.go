@@ -77,11 +77,25 @@ func ConnectToManager() error {
 	}
 
 	info := model.GetInstanceInfo()
+	registerReq := common.InstanceRegisterRequest{
+		Client: info,
+	}
+	if info.Application.Name == "agent" {
+		accessToken, err := common.EnsureTokenInKeystore(common.AgentAccessTokenKeystoreKey)
+		if err != nil {
+			return err
+		}
+		registerReq.AccessToken = &common.RegisterToken{
+			Name:        fmt.Sprintf("%s reverse access token", info.ID),
+			Description: fmt.Sprintf("Console to Agent access token for instance %s", info.ID),
+			Value:       accessToken,
+		}
+	}
 
 	req := util.Request{Method: util.Verb_POST}
 	req.ContentType = "application/json"
 	req.Path = common.REGISTER_API
-	req.Body = util.MustToJSONBytes(info)
+	req.Body = util.MustToJSONBytes(registerReq)
 
 	server, res, err := submitRequestToManager(&req)
 	if err == nil && server != "" {
@@ -103,7 +117,13 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	var err error
 	var res *util.Result
 	cfg := global.Env().SystemConfig.Configs
-	if cfg.ManagerConfig.BasicAuth.Username != "" {
+	token, err := common.LoadTokenFromKeystore(common.ManagerTokenKeystoreKey)
+	if err != nil {
+		return "", nil, err
+	}
+	if token != "" {
+		req.AddHeader("Authorization", "Bearer "+token)
+	} else if cfg.ManagerConfig.BasicAuth.Username != "" {
 		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
 	}
 	for _, server := range cfg.Servers {
