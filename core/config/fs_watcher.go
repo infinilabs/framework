@@ -69,19 +69,21 @@ func dispatchConfigChangeEvent(ev fsnotify.Event, watcherCallbacks []CallbackFun
 
 	cfg := loadConfigFile(ev.Name)
 	if cfg != nil {
-		for k, v := range sectionCallbacks {
-			if cfg.HasField(k) {
-				currentCfg, err := cfg.Child(k, -1)
-				if err != nil {
-					log.Error(err)
-					continue
-				}
-				previousCfg, _ := latestConfig[k]
-				for _, f := range v {
-					f(previousCfg, currentCfg)
-				}
-				latestConfig[k] = currentCfg
+		for _, k := range sectionCallbackOrder {
+			callbacks, ok := sectionCallbacks[k]
+			if !ok || !cfg.HasField(k) {
+				continue
 			}
+			currentCfg, err := cfg.Child(k, -1)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			previousCfg, _ := latestConfig[k]
+			for _, f := range callbacks {
+				f(previousCfg, currentCfg)
+			}
+			latestConfig[k] = currentCfg
 		}
 	}
 
@@ -250,6 +252,7 @@ func StopWatchers() {
 }
 
 var sectionCallbacks = map[string][]func(pCfg, cCfg *Config){}
+var sectionCallbackOrder = []string{}
 var configCallbacks = []func(fsnotify.Event){}
 var cfgLocker = sync.RWMutex{}
 
@@ -264,6 +267,7 @@ func NotifyOnConfigSectionChange(configKey string, f func(pCfg, cCfg *Config)) {
 	if !ok {
 		v = []func(pCfg, cCfg *Config){}
 		sectionCallbacks[configKey] = v
+		sectionCallbackOrder = append(sectionCallbackOrder, configKey)
 	}
 	v = append(v, f)
 	sectionCallbacks[configKey] = v
