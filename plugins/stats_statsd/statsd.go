@@ -26,10 +26,10 @@ package statsd
 import (
 	"fmt"
 	log "github.com/cihub/seelog"
-	"github.com/quipo/statsd"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/stats"
+	"infini.sh/framework/lib/statsd"
 	"time"
 )
 
