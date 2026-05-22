@@ -1,20 +1,8 @@
 module infini.sh/framework
 
-go 1.23.3
+go 1.25.0
 
-replace github.com/libdns/libdns => ../vendor/src/github.com/libdns/libdns
-
-replace github.com/libdns/tencentcloud => ../vendor/src/github.com/libdns/tencentcloud
-
-replace github.com/caddyserver/certmagic => ../vendor/src/github.com/caddyserver/certmagic
-
-replace github.com/caddyserver/zerossl => ../vendor/src/github.com/caddyserver/zerossl
-
-replace github.com/quipo/statsd => ../vendor/src/github.com/quipo/statsd
-
-replace github.com/cihub/seelog => ../vendor/src/github.com/cihub/seelog
-
-replace github.com/gopkg.in/gomail.v2 => ../vendor/src/github.com/gopkg.in/gomail.v2
+replace github.com/cihub/seelog => ./lib/seelog
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8
@@ -23,14 +11,14 @@ require (
 	github.com/arl/statsviz v0.6.0
 	github.com/bkaradzic/go-lz4 v1.0.0
 	github.com/buger/jsonparser v1.1.1
-	github.com/caddyserver/certmagic v0.23.0
+	github.com/caddyserver/certmagic v0.25.3
 	github.com/cihub/seelog v0.0.0-00010101000000-000000000000
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.7.0
 	github.com/dgraph-io/ristretto v0.2.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-ldap/ldap/v3 v3.4.11
+	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.2
@@ -38,7 +26,6 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gookit/validate v1.5.6
-	github.com/gopkg.in/gomail.v2 v0.0.0-00010101000000-000000000000
 	github.com/gorilla/context v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/gorilla/websocket v1.5.3
@@ -47,14 +34,12 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kardianos/service v1.2.2
 	github.com/klauspost/compress v1.18.0
-	github.com/libdns/tencentcloud v1.2.1
 	github.com/magiconair/properties v1.8.10
 	github.com/mailru/easyjson v0.9.0
 	github.com/minio/minio-go/v7 v7.0.90
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nsqio/nsq v1.3.0
 	github.com/pkg/errors v0.9.1
-	github.com/quipo/statsd v0.0.0-00010101000000-000000000000
 	github.com/r3labs/diff/v2 v2.15.1
 	github.com/rs/cors v1.11.1
 	github.com/rs/xid v1.6.0
@@ -71,14 +56,14 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.11.2
 	github.com/valyala/tcplisten v1.0.0
 	github.com/zeebo/sbloom v0.0.0-20151106181526-405c65bd9be0
-	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.37.0
-	golang.org/x/net v0.39.0
+	go.uber.org/zap v1.27.1
+	golang.org/x/crypto v0.50.0
+	golang.org/x/net v0.53.0
 	golang.org/x/oauth2 v0.29.0
-	golang.org/x/sys v0.32.0
-	golang.org/x/text v0.24.0
+	golang.org/x/sys v0.43.0
+	golang.org/x/text v0.36.0
 	golang.org/x/time v0.11.0
-	golang.org/x/tools v0.32.0
+	golang.org/x/tools v0.44.0
 	google.golang.org/grpc v1.71.1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/hjson/hjson-go.v3 v3.3.0
@@ -90,9 +75,9 @@ require (
 )
 
 require (
-	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
+	github.com/Azure/go-ntlmssp v0.1.0 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
-	github.com/caddyserver/zerossl v0.1.3 // indirect
+	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.2.0 // indirect
 	github.com/dgryski/go-metro v0.0.0-20200812162917-85c65e2d0165 // indirect
@@ -108,6 +93,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -118,13 +104,13 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/libdns/libdns v1.0.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/mholt/acmez/v3 v3.1.2 // indirect
-	github.com/miekg/dns v1.1.63 // indirect
+	github.com/mholt/acmez/v3 v3.1.6 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -157,9 +143,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
-	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/term v0.31.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/term v0.42.0 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

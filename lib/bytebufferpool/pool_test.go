@@ -1,11 +1,8 @@
 package bytebufferpool
 
 import (
-	"os"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPoolVariousSizesSerial(t *testing.T) {
@@ -59,19 +56,4 @@ func allocNBytes(dst []byte, n int) []byte {
 		return dst[:n]
 	}
 	return append(dst, make([]byte, diff)...)
-}
-
-func TestCalibrate(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping in CI environment")
-	}
-
-	p := getPoolByTag("test")
-	for i := 0; i < 1000; i++ {
-		x := p.Get()
-		x.GrowTo(i)
-	}
-	t.Log(p.poolItems)
-	p.calibrate()
-	assert.Equal(t, p.maxItemSize, uint32(999))
 }

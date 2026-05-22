@@ -126,7 +126,7 @@ func main() {
 }
 
 func usageFlag() {
-	fmt.Fprintf(os.Stderr, usageText)
+	fmt.Fprintf(os.Stderr, "%s", usageText)
 	flag.PrintDefaults()
 }
 
