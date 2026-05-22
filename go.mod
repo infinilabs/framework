@@ -2,7 +2,7 @@ module infini.sh/framework
 
 go 1.25.0
 
-replace github.com/cihub/seelog => ../vendor/src/github.com/cihub/seelog
+replace github.com/cihub/seelog => ./lib/seelog
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8
@@ -18,7 +18,7 @@ require (
 	github.com/dgraph-io/ristretto v0.2.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-ldap/ldap/v3 v3.4.11
+	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/gddo v0.0.0-20210115222349-20d68f94ee1f
@@ -72,7 +72,7 @@ require (
 )
 
 require (
-	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
+	github.com/Azure/go-ntlmssp v0.1.0 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -90,6 +90,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect

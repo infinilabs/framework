@@ -4,7 +4,7 @@ package log
 // It wraps the internal seelog implementation.
 
 import (
-	"infini.sh/framework/lib/seelog"
+	"github.com/cihub/seelog"
 )
 
 type LoggerInterface = seelog.LoggerInterface
