@@ -24,7 +24,7 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/arl/statsviz v0.6.0
 	github.com/bkaradzic/go-lz4 v1.0.0
-	github.com/buger/jsonparser v1.1.1
+	github.com/buger/jsonparser v1.1.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.7.0
 	github.com/dgraph-io/ristretto v0.2.0
