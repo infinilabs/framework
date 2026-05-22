@@ -35,11 +35,14 @@ import (
 
 // bufferedWriter stores data in memory and flushes it every flushPeriod or when buffer is full
 type bufferedWriter struct {
-	flushPeriod time.Duration // data flushes interval (in microseconds)
+	flushPeriod time.Duration // data flushes interval
 	bufferMutex *sync.Mutex   // mutex for buffer operations synchronization
 	innerWriter io.Writer     // inner writer
 	buffer      *bufio.Writer // buffered wrapper for inner writer
 	bufferSize  int           // max size of data chunk in bytes
+	done        chan struct{} // stop signal for periodic flushing goroutine
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 // NewBufferedWriter creates a new buffered writer struct.
@@ -69,8 +72,9 @@ func NewBufferedWriter(innerWriter io.Writer, bufferSize int, flushPeriod time.D
 	newWriter.innerWriter = innerWriter
 	newWriter.buffer = buffer
 	newWriter.bufferSize = bufferSize
-	newWriter.flushPeriod = flushPeriod * 1e6
+	newWriter.flushPeriod = flushPeriod * time.Millisecond
 	newWriter.bufferMutex = new(sync.Mutex)
+	newWriter.done = make(chan struct{})
 
 	if flushPeriod != 0 {
 		go newWriter.flushPeriodically()
@@ -116,12 +120,17 @@ func (bufWriter *bufferedWriter) Write(bytes []byte) (n int, err error) {
 }
 
 func (bufWriter *bufferedWriter) Close() error {
-	closer, ok := bufWriter.innerWriter.(io.Closer)
-	if ok {
-		return closer.Close()
-	}
+	bufWriter.closeOnce.Do(func() {
+		close(bufWriter.done)
+		bufWriter.Flush()
 
-	return nil
+		closer, ok := bufWriter.innerWriter.(io.Closer)
+		if ok {
+			bufWriter.closeErr = closer.Close()
+		}
+	})
+
+	return bufWriter.closeErr
 }
 
 func (bufWriter *bufferedWriter) Flush() {
@@ -147,11 +156,19 @@ func (bufWriter *bufferedWriter) flushBuffer() {
 }
 
 func (bufWriter *bufferedWriter) flushPeriodically() {
-	if bufWriter.flushPeriod > 0 {
-		ticker := time.NewTicker(bufWriter.flushPeriod)
-		for {
-			<-ticker.C
+	if bufWriter.flushPeriod <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(bufWriter.flushPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
 			bufWriter.flushBuffer()
+		case <-bufWriter.done:
+			return
 		}
 	}
 }
