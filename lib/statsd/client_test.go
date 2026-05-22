@@ -2,6 +2,7 @@ package statsd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -128,19 +129,17 @@ func TestTotal(t *testing.T) {
 
 func doListenUDP(t *testing.T, conn *net.UDPConn, ch chan string, n int) {
 	for n > 0 {
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
-		go func(c *net.UDPConn, ch chan string) {
-			buffer := make([]byte, 1024)
-			size, err := c.Read(buffer)
-			// size, address, err := sock.ReadFrom(buffer) <- This starts printing empty and nil values below immediatly
-			if err != nil {
-				fmt.Println(string(buffer), size, err)
-				t.Fatal(err)
+		buffer := make([]byte, 1024)
+		size, err := conn.Read(buffer)
+		// size, address, err := sock.ReadFrom(buffer) <- This starts printing empty and nil values below immediatly
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "use of closed network connection") {
+				return
 			}
-			ch <- string(buffer)
-		}(conn, ch)
+			t.Errorf("failed to read UDP packet: %v", err)
+			return
+		}
+		ch <- string(buffer[:size])
 		n--
 	}
 }

@@ -26,6 +26,7 @@ package seelog
 
 import (
 	"testing"
+	"time"
 )
 
 func TestChunkWriteOnFilling(t *testing.T) {
@@ -50,12 +51,14 @@ func TestFlushByTimePeriod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected buffered writer creation error: %s", err.Error())
 	}
+	defer bufferedWriter.Close()
 
 	bytes := []byte("Hello")
 
 	for i := 0; i < 2; i++ {
 		writer.ExpectBytes(bytes)
 		bufferedWriter.Write(bytes)
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
