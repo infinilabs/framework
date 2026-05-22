@@ -44,7 +44,6 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/daemon"
@@ -52,6 +51,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/keystore"
+	"infini.sh/framework/core/log"
 	_ "infini.sh/framework/core/logging"
 	"infini.sh/framework/core/logging/logger"
 	"infini.sh/framework/core/module"
