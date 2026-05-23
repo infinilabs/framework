@@ -59,12 +59,25 @@ type Metric struct {
 
 	// Per-network interface bandwidth (auto-detected): map[ifaceName] -> Mbps
 	netBandwidth map[string]float64
+
+	// Previous aggregate CPU times, used to compute the steal-time percentage
+	// between collections. nil before the first sample is taken.
+	prevCPUTimes *cpu.TimesStat
+
+	// Previous TCP RetransSegs counter, used to compute retransmits per second.
+	// hasPrevTCPRetrans guards against emitting bogus values on the first call
+	// (when the counter is unknown) and after a counter reset.
+	prevTCPRetrans    int64
+	hasPrevTCPRetrans bool
 }
 
-// diskIOSnapshot stores previous I/O counters for a disk device
+// diskIOSnapshot stores previous I/O counters for a disk device.
+// weightedIO is gopsutil's WeightedIO field (in milliseconds), used to derive
+// the average queue depth (iostat "aqu-sz") across the collection interval.
 type diskIOSnapshot struct {
-	readTime  uint64
-	writeTime uint64
+	readTime   uint64
+	writeTime  uint64
+	weightedIO uint64
 }
 
 // netIOSnapshot stores previous I/O counters for a network interface
@@ -73,10 +86,13 @@ type netIOSnapshot struct {
 	bytesSent uint64
 }
 
-// deviceUtilization represents utilization info for a single device
+// deviceUtilization represents utilization info for a single device.
+// queueDepth is only populated for disk I/O devices (avg outstanding requests
+// over the collection interval, derived from WeightedIO).
 type deviceUtilization struct {
 	name        string
 	usedPercent float64
+	queueDepth  float64
 }
 
 func New(cfg *config.Config) (*Metric, error) {
@@ -122,20 +138,23 @@ func (m *Metric) Collect() error {
 	fields := util.MapStr{}
 
 	// Collect all metrics
-	cpuPercent := m.collectCPU()
+	cpuPercent, cpuStealPercent := m.collectCPU()
 	memPercent := m.collectMemory()
-	diskPercent := m.collectDiskUsage()
+	diskPercent, diskInodePercent := m.collectDiskUsage()
 	diskIODevices := m.collectDiskIO()
 	netDevices := m.collectNetwork()
+	tcpRetransPerSec, hasTCPRetrans := m.collectTCPRetrans()
 
 	// --- CPU utilization ---
 	fields["cpu.used_percent"] = cpuPercent
+	fields["cpu.steal_percent"] = cpuStealPercent
 
 	// --- Memory utilization ---
 	fields["memory.used_percent"] = memPercent
 
 	// --- Disk capacity utilization ---
 	fields["disk.used_percent"] = diskPercent
+	fields["disk.inodes_used_percent"] = diskInodePercent
 
 	// --- Per-disk I/O utilization ---
 	diskIOMap := util.MapStr{}
@@ -143,6 +162,7 @@ func (m *Metric) Collect() error {
 	for _, dev := range diskIODevices {
 		diskIOMap[dev.name] = util.MapStr{
 			"used_percent": dev.usedPercent,
+			"queue_depth":  dev.queueDepth,
 		}
 		if dev.usedPercent > maxDiskIO.usedPercent {
 			maxDiskIO = dev
@@ -151,6 +171,7 @@ func (m *Metric) Collect() error {
 	if len(diskIOMap) > 0 {
 		fields["disk_io.devices"] = diskIOMap
 		fields["disk_io.used_percent"] = maxDiskIO.usedPercent
+		fields["disk_io.queue_depth"] = maxDiskIO.queueDepth
 		fields["disk_io.bottleneck_device"] = maxDiskIO.name
 	}
 
@@ -176,8 +197,28 @@ func (m *Metric) Collect() error {
 		fields["network.bottleneck_device"] = maxNet.name
 	}
 
+	// --- TCP retransmits ---
+	// Emitted as a raw quality signal for the front layer to interpret; it is
+	// intentionally not folded into status/bottleneck because retransmits are
+	// not directly comparable to capacity-based utilization percentages.
+	// Only emit once we have a valid delta (skips first call and counter resets).
+	if hasTCPRetrans {
+		fields["network.tcp_retrans_per_sec"] = tcpRetransPerSec
+	}
+
 	// --- Calculate overall status and bottleneck ---
-	status, bottleneck := m.calculateStatus(cpuPercent, memPercent, diskPercent, maxDiskIO, maxNet)
+	// CPU stress can come from either user/system load or hypervisor steal;
+	// disk pressure can come from either capacity or inode exhaustion. Pick
+	// the worst signal in each subsystem so the bottleneck reflects reality.
+	cpuStatus := cpuPercent
+	if cpuStealPercent > cpuStatus {
+		cpuStatus = cpuStealPercent
+	}
+	diskStatus := diskPercent
+	if diskInodePercent > diskStatus {
+		diskStatus = diskInodePercent
+	}
+	status, bottleneck := m.calculateStatus(cpuStatus, memPercent, diskStatus, maxDiskIO, maxNet)
 	fields["status"] = status
 	fields["bottleneck"] = bottleneck
 
@@ -195,17 +236,49 @@ func (m *Metric) Collect() error {
 	})
 }
 
-// collectCPU returns the current overall CPU utilization percentage (0-100).
-func (m *Metric) collectCPU() float64 {
+// collectCPU returns the current overall CPU utilization percentage and the
+// hypervisor steal-time percentage (both 0-100). The steal percentage is
+// derived from the delta of cpu.Times() across collections; it is reported as
+// 0 on the first call (no baseline) and on platforms where Steal is unavailable.
+func (m *Metric) collectCPU() (usedPercent, stealPercent float64) {
 	percents, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Errorf("overall: failed to get cpu percent: %v", err)
-		return 0
+	} else if len(percents) > 0 {
+		usedPercent = percents[0]
 	}
-	if len(percents) > 0 {
-		return percents[0]
+
+	times, err := cpu.Times(false)
+	if err != nil || len(times) == 0 {
+		if err != nil {
+			log.Debugf("overall: failed to get cpu times: %v", err)
+		}
+		return usedPercent, 0
 	}
-	return 0
+	cur := times[0]
+
+	m.mu.Lock()
+	prev := m.prevCPUTimes
+	curCopy := cur
+	m.prevCPUTimes = &curCopy
+	m.mu.Unlock()
+
+	if prev == nil {
+		// First sample; no delta available yet.
+		return usedPercent, 0
+	}
+
+	deltaTotal := cur.Total() - prev.Total()
+	deltaSteal := cur.Steal - prev.Steal
+	if deltaTotal <= 0 || deltaSteal < 0 {
+		// Counter reset or non-monotonic reading; skip this sample.
+		return usedPercent, 0
+	}
+	stealPercent = deltaSteal / deltaTotal * 100.0
+	if stealPercent > 100.0 {
+		stealPercent = 100.0
+	}
+	return usedPercent, stealPercent
 }
 
 // collectMemory returns the current memory utilization percentage (0-100).
@@ -221,23 +294,26 @@ func (m *Metric) collectMemory() float64 {
 	return v.UsedPercent
 }
 
-// collectDiskUsage returns the disk capacity utilization percentage (0-100).
-func (m *Metric) collectDiskUsage() float64 {
+// collectDiskUsage returns disk capacity and inode utilization percentages
+// (both 0-100). Inode usage is aggregated across all partitions (sum of used
+// inodes over sum of total inodes); filesystems without inodes (e.g. some
+// pseudo-filesystems, certain Windows volumes) are skipped.
+func (m *Metric) collectDiskUsage() (usedPercent, inodesUsedPercent float64) {
 	if runtime.GOOS == "darwin" {
 		v, err := disk.Usage("/")
 		if err != nil {
 			log.Errorf("overall: failed to get disk usage: %v", err)
-			return 0
+			return 0, 0
 		}
-		return v.UsedPercent
+		return v.UsedPercent, v.InodesUsedPercent
 	}
 
 	partitions, err := disk.Partitions(false)
 	if err != nil || len(partitions) == 0 {
 		log.Errorf("overall: failed to get disk partitions: %v", err)
-		return 0
+		return 0, 0
 	}
-	var total, used uint64
+	var total, used, inodesTotal, inodesUsed uint64
 	for _, p := range partitions {
 		if p.Device == "" {
 			continue
@@ -248,11 +324,16 @@ func (m *Metric) collectDiskUsage() float64 {
 		}
 		total += v.Total
 		used += v.Used
+		inodesTotal += v.InodesTotal
+		inodesUsed += v.InodesUsed
 	}
-	if total == 0 {
-		return 0
+	if total > 0 {
+		usedPercent = float64(used) / float64(total) * 100.0
 	}
-	return float64(used) / float64(total) * 100.0
+	if inodesTotal > 0 {
+		inodesUsedPercent = float64(inodesUsed) / float64(inodesTotal) * 100.0
+	}
+	return usedPercent, inodesUsedPercent
 }
 
 // collectDiskIO returns per-disk I/O utilization percentages (0-100) based on io time deltas.
@@ -282,8 +363,9 @@ func (m *Metric) collectDiskIO() []deviceUtilization {
 		if !exists {
 			// First time seeing this device, store initial values
 			m.prevDiskIO[name] = &diskIOSnapshot{
-				readTime:  io.ReadTime,
-				writeTime: io.WriteTime,
+				readTime:   io.ReadTime,
+				writeTime:  io.WriteTime,
+				weightedIO: io.WeightedIO,
 			}
 			continue
 		}
@@ -292,10 +374,12 @@ func (m *Metric) collectDiskIO() []deviceUtilization {
 		deltaRead := io.ReadTime - prev.readTime
 		deltaWrite := io.WriteTime - prev.writeTime
 		deltaIO := deltaRead + deltaWrite
+		deltaWeighted := io.WeightedIO - prev.weightedIO
 
 		// Update stored values
 		prev.readTime = io.ReadTime
 		prev.writeTime = io.WriteTime
+		prev.weightedIO = io.WeightedIO
 
 		// IO busy time delta in ms over the collection interval
 		intervalMs := m.IntervalSeconds * 1000.0
@@ -307,13 +391,68 @@ func (m *Metric) collectDiskIO() []deviceUtilization {
 			busy = 0
 		}
 
+		// Average queue depth over the interval (iostat "aqu-sz"):
+		// WeightedIO is the cumulative weighted time spent doing I/Os in ms,
+		// so dividing the delta by the interval in ms yields the average
+		// number of in-flight requests. WeightedIO is always 0 on platforms
+		// that don't populate it (e.g. macOS), which correctly yields 0.
+		var queueDepth float64
+		if intervalMs > 0 {
+			queueDepth = float64(deltaWeighted) / intervalMs
+		}
+		if queueDepth < 0 {
+			queueDepth = 0
+		}
+
 		results = append(results, deviceUtilization{
 			name:        name,
 			usedPercent: busy,
+			queueDepth:  queueDepth,
 		})
 	}
 
 	return results
+}
+
+// collectTCPRetrans returns the TCP retransmits-per-second rate computed from
+// the delta of the kernel's RetransSegs counter. The boolean return is false
+// on the first call (no baseline), on platforms where ProtoCounters is not
+// supported (currently non-Linux), or when the counter is unavailable / has
+// been reset (negative delta).
+func (m *Metric) collectTCPRetrans() (float64, bool) {
+	if m.IntervalSeconds <= 0 {
+		return 0, false
+	}
+	counters, err := net.ProtoCounters([]string{"tcp"})
+	if err != nil || len(counters) == 0 {
+		// Platforms without ProtoCounters support (darwin, windows, ...) end
+		// up here; log at debug level to avoid spamming production logs.
+		if err != nil {
+			log.Debugf("overall: failed to get tcp proto counters: %v", err)
+		}
+		return 0, false
+	}
+	cur, ok := counters[0].Stats["RetransSegs"]
+	if !ok {
+		return 0, false
+	}
+
+	m.mu.Lock()
+	prev := m.prevTCPRetrans
+	hadPrev := m.hasPrevTCPRetrans
+	m.prevTCPRetrans = cur
+	m.hasPrevTCPRetrans = true
+	m.mu.Unlock()
+
+	if !hadPrev {
+		return 0, false
+	}
+	delta := cur - prev
+	if delta < 0 {
+		// Counter reset (e.g. kernel restart, namespace change); skip.
+		return 0, false
+	}
+	return float64(delta) / m.IntervalSeconds, true
 }
 
 // collectNetwork returns per-interface network utilization percentages (0-100)
