@@ -35,6 +35,7 @@ import (
 	"sync"
 	"unicode"
 
+	coreElastic "infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 
 	"github.com/buger/jsonparser"
@@ -124,6 +125,62 @@ func parseAnnotation(mapping []util.Annotation) string {
 	return json
 }
 
+func ensureDefaultStringDynamicTemplates(mappingData map[string]interface{}) {
+	if mappingData == nil {
+		return
+	}
+	if _, ok := mappingData["dynamic_templates"]; ok {
+		return
+	}
+	mappingData["dynamic_templates"] = []interface{}{
+		util.MapStr{
+			"strings": util.MapStr{
+				"match_mapping_type": "string",
+				"mapping": util.MapStr{
+					"type":         "keyword",
+					"ignore_above": 256,
+				},
+			},
+		},
+	}
+}
+
+func containsKeyDeep(value interface{}, targetKey string) bool {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		for key, nested := range v {
+			if key == targetKey {
+				return true
+			}
+			if containsKeyDeep(nested, targetKey) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, nested := range v {
+			if containsKeyDeep(nested, targetKey) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func shouldRefreshExistingTemplate(client coreElastic.API, templateName string, mappingData map[string]interface{}) bool {
+	if mappingData == nil {
+		return false
+	}
+	if _, ok := mappingData["dynamic_templates"]; !ok {
+		return false
+	}
+	template, err := client.GetTemplate(templateName)
+	if err != nil {
+		log.Warnf("failed to inspect existing template [%s]: %v", templateName, err)
+		return false
+	}
+	return !containsKeyDeep(template, "dynamic_templates")
+}
+
 func initIndexName(t interface{}, indexName string) string {
 	pkg, ojbType := util.GetTypeAndPackageName(t, true)
 	key := fmt.Sprintf("%s-%s", pkg, ojbType)
@@ -181,6 +238,7 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 				}
 				return err
 			}
+			ensureDefaultStringDynamicTemplates(mappingData)
 			template, err := handler.Client.BuildTemplate(indexName+"*", nil, mappingData)
 			if err != nil {
 				if handler.Config.PanicOnInitSchemaError {
@@ -228,6 +286,44 @@ func (handler *ElasticORM) RegisterSchemaWithName(t interface{}, indexName strin
 
 		//init index
 		_ = handler.tryCreateInitIndex(t, indexName)
+	} else if handler.Config.BuildTemplateForObject {
+		jsonFormat := `{ %s }`
+		mapping := getIndexMapping(t)
+		js := parseAnnotation(mapping)
+		json := fmt.Sprintf(jsonFormat, quoteJson(js))
+
+		var mappingData map[string]interface{}
+		err = util.FromJSONBytes([]byte(json), &mappingData)
+		if err != nil {
+			if handler.Config.PanicOnInitSchemaError {
+				panic(err)
+			}
+			return err
+		}
+		ensureDefaultStringDynamicTemplates(mappingData)
+		if shouldRefreshExistingTemplate(handler.Client, indexTemplate, mappingData) {
+			template, err := handler.Client.BuildTemplate(indexName+"*", nil, mappingData)
+			if err != nil {
+				if handler.Config.PanicOnInitSchemaError {
+					panic(err)
+				}
+				return err
+			}
+			data, err := handler.Client.PutTemplate(indexTemplate, template)
+			if err != nil {
+				if handler.Config.PanicOnInitSchemaError {
+					panic(err)
+				}
+				return err
+			}
+			x, _, _, _ := jsonparser.Get(data, "error")
+			if x != nil {
+				log.Errorf("error on update template: %v, %v", indexName, string(x))
+				if handler.Config.PanicOnInitSchemaError {
+					panic(string(data))
+				}
+			}
+		}
 	}
 	return err
 }
