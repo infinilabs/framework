@@ -27,9 +27,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	httprouter "infini.sh/framework/core/api/router"
 )
 
 func TestStripPrefix(t *testing.T) {
@@ -109,5 +112,25 @@ func TestStripPrefix(t *testing.T) {
 					receivedPath, tc.expectedPathInHandler)
 			}
 		})
+	}
+}
+
+func TestServeRegisteredAPIRequest(t *testing.T) {
+	path := fmt.Sprintf("/__copilot_test__/api/%s/:id", t.Name())
+	HandleAPIMethod(GET, path, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(ps.MustGetParameter("id") + ":" + req.URL.Query().Get("q")))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/__copilot_test__/api/%s/value?q=ok", t.Name()), nil)
+	recorder := httptest.NewRecorder()
+
+	ServeRegisteredAPIRequest(recorder, req)
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", recorder.Code)
+	}
+	if recorder.Body.String() != "value:ok" {
+		t.Fatalf("unexpected body: %s", recorder.Body.String())
 	}
 }
