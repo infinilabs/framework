@@ -244,7 +244,8 @@ func (m *Metric) collectCPU() (usedPercent, stealPercent float64) {
 	percents, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Errorf("overall: failed to get cpu percent: %v", err)
-	} else if len(percents) > 0 {
+	}
+	if len(percents) > 0 {
 		usedPercent = percents[0]
 	}
 
@@ -259,8 +260,7 @@ func (m *Metric) collectCPU() (usedPercent, stealPercent float64) {
 
 	m.mu.Lock()
 	prev := m.prevCPUTimes
-	curCopy := cur
-	m.prevCPUTimes = &curCopy
+	m.prevCPUTimes = &cur
 	m.mu.Unlock()
 
 	if prev == nil {
