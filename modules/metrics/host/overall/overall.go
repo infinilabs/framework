@@ -64,10 +64,13 @@ type Metric struct {
 	// between collections. nil before the first sample is taken.
 	prevCPUTimes *cpu.TimesStat
 
-	// Previous TCP RetransSegs counter, used to compute retransmits per second.
-	// hasPrevTCPRetrans guards against emitting bogus values on the first call
-	// (when the counter is unknown) and after a counter reset.
+	// Previous TCP RetransSegs / OutSegs counters, used to compute both the
+	// retransmits-per-second rate and the retransmit ratio (retrans/out, a
+	// capacity-like 0-100% signal). hasPrevTCPRetrans guards against emitting
+	// bogus values on the first call (when the counters are unknown) and
+	// after a counter reset.
 	prevTCPRetrans    int64
+	prevTCPOutSegs    int64
 	hasPrevTCPRetrans bool
 }
 
@@ -143,7 +146,7 @@ func (m *Metric) Collect() error {
 	diskPercent, diskInodePercent := m.collectDiskUsage()
 	diskIODevices := m.collectDiskIO()
 	netDevices := m.collectNetwork()
-	tcpRetransPerSec, hasTCPRetrans := m.collectTCPRetrans()
+	tcpRetransPerSec, tcpRetransPercent, hasTCPRetrans := m.collectTCPRetrans()
 
 	// --- CPU utilization ---
 	fields["cpu.used_percent"] = cpuPercent
@@ -198,18 +201,23 @@ func (m *Metric) Collect() error {
 	}
 
 	// --- TCP retransmits ---
-	// Emitted as a raw quality signal for the front layer to interpret; it is
-	// intentionally not folded into status/bottleneck because retransmits are
-	// not directly comparable to capacity-based utilization percentages.
-	// Only emit once we have a valid delta (skips first call and counter resets).
+	// tcp_retrans_per_sec is a raw throughput-style signal. tcp_retrans_percent
+	// is the retransmit ratio (RetransSegs/OutSegs over the interval), a true
+	// 0-100% capacity-like signal that is directly comparable to the other
+	// utilization percentages and therefore folded into status/bottleneck
+	// below as part of the network subsystem. Only emit once we have a valid
+	// delta (skips first call and counter resets).
 	if hasTCPRetrans {
 		fields["network.tcp_retrans_per_sec"] = tcpRetransPerSec
+		fields["network.tcp_retrans_percent"] = tcpRetransPercent
 	}
 
 	// --- Calculate overall status and bottleneck ---
 	// CPU stress can come from either user/system load or hypervisor steal;
-	// disk pressure can come from either capacity or inode exhaustion. Pick
-	// the worst signal in each subsystem so the bottleneck reflects reality.
+	// disk pressure can come from either capacity or inode exhaustion; network
+	// pressure can come from either link saturation or a high TCP retransmit
+	// ratio. Pick the worst signal in each subsystem so the bottleneck
+	// reflects reality.
 	cpuStatus := cpuPercent
 	if cpuStealPercent > cpuStatus {
 		cpuStatus = cpuStealPercent
@@ -218,7 +226,12 @@ func (m *Metric) Collect() error {
 	if diskInodePercent > diskStatus {
 		diskStatus = diskInodePercent
 	}
-	status, bottleneck := m.calculateStatus(cpuStatus, memPercent, diskStatus, maxDiskIO, maxNet)
+	netStatus := maxNet
+	if hasTCPRetrans && tcpRetransPercent > netStatus.usedPercent {
+		// Surface as bottleneck="network:tcp_retrans" via existing naming.
+		netStatus = deviceUtilization{name: "tcp_retrans", usedPercent: tcpRetransPercent}
+	}
+	status, bottleneck := m.calculateStatus(cpuStatus, memPercent, diskStatus, maxDiskIO, netStatus)
 	fields["status"] = status
 	fields["bottleneck"] = bottleneck
 
@@ -414,14 +427,15 @@ func (m *Metric) collectDiskIO() []deviceUtilization {
 	return results
 }
 
-// collectTCPRetrans returns the TCP retransmits-per-second rate computed from
-// the delta of the kernel's RetransSegs counter. The boolean return is false
+// collectTCPRetrans returns the TCP retransmits-per-second rate and the
+// retransmit ratio (RetransSegs/OutSegs over the interval, 0-100%) computed
+// from the delta of the kernel's TCP counters. The boolean return is false
 // on the first call (no baseline), on platforms where ProtoCounters is not
-// supported (currently non-Linux), or when the counter is unavailable / has
+// supported (currently non-Linux), or when the counters are unavailable / have
 // been reset (negative delta).
-func (m *Metric) collectTCPRetrans() (float64, bool) {
+func (m *Metric) collectTCPRetrans() (perSec, percent float64, ok bool) {
 	if m.IntervalSeconds <= 0 {
-		return 0, false
+		return 0, 0, false
 	}
 	counters, err := net.ProtoCounters([]string{"tcp"})
 	if err != nil || len(counters) == 0 {
@@ -430,29 +444,41 @@ func (m *Metric) collectTCPRetrans() (float64, bool) {
 		if err != nil {
 			log.Debugf("overall: failed to get tcp proto counters: %v", err)
 		}
-		return 0, false
+		return 0, 0, false
 	}
-	cur, ok := counters[0].Stats["RetransSegs"]
-	if !ok {
-		return 0, false
+	stats := counters[0].Stats
+	curRetrans, hasRetrans := stats["RetransSegs"]
+	curOut, hasOut := stats["OutSegs"]
+	if !hasRetrans || !hasOut {
+		return 0, 0, false
 	}
 
 	m.mu.Lock()
-	prev := m.prevTCPRetrans
+	prevRetrans := m.prevTCPRetrans
+	prevOut := m.prevTCPOutSegs
 	hadPrev := m.hasPrevTCPRetrans
-	m.prevTCPRetrans = cur
+	m.prevTCPRetrans = curRetrans
+	m.prevTCPOutSegs = curOut
 	m.hasPrevTCPRetrans = true
 	m.mu.Unlock()
 
 	if !hadPrev {
-		return 0, false
+		return 0, 0, false
 	}
-	delta := cur - prev
-	if delta < 0 {
+	deltaRetrans := curRetrans - prevRetrans
+	deltaOut := curOut - prevOut
+	if deltaRetrans < 0 || deltaOut < 0 {
 		// Counter reset (e.g. kernel restart, namespace change); skip.
-		return 0, false
+		return 0, 0, false
 	}
-	return float64(delta) / m.IntervalSeconds, true
+	perSec = float64(deltaRetrans) / m.IntervalSeconds
+	if deltaOut > 0 {
+		percent = float64(deltaRetrans) / float64(deltaOut) * 100.0
+		if percent > 100.0 {
+			percent = 100.0
+		}
+	}
+	return perSec, percent, true
 }
 
 // collectNetwork returns per-interface network utilization percentages (0-100)
