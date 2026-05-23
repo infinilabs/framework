@@ -23,6 +23,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
+- feat(orm): deduplicate repeated schema registrations (test: `go test ./core/orm`)
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
