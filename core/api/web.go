@@ -125,7 +125,10 @@ func StartWeb(cfg config.WebAppConfig) {
 
 	if cfg.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(cfg.WebsocketConfig)
-		uiServeMux.HandleFunc("/ws", websocket.ServeWs)
+		websocketPath := getWebsocketRegistrationPath(cfg)
+		if shouldRegisterWebsocketOnWeb(cfg) {
+			uiServeMux.HandleFunc(websocketPath, websocket.ServeWs)
+		}
 		if registeredWebSocketCommandHandler != nil {
 			for k, v := range registeredWebSocketCommandHandler {
 				log.Debug("register websocket handler: ", k, " ", v)
@@ -304,6 +307,23 @@ func (i *InterceptorHandler) AddInterceptors(interceptors ...Interceptor) {
 			i.interceptors = append(i.interceptors, interceptor)
 		}
 	}
+}
+
+func getWebsocketRegistrationPath(cfg config.WebAppConfig) string {
+	if cfg.WebsocketConfig.BasePath != "" {
+		return cfg.WebsocketConfig.BasePath
+	}
+	return "/ws"
+}
+
+func shouldRegisterWebsocketOnWeb(cfg config.WebAppConfig) bool {
+	if !cfg.WebsocketConfig.Enabled {
+		return false
+	}
+	if !cfg.EmbeddingAPI || registeredAPIFuncHandler == nil {
+		return true
+	}
+	return registeredAPIFuncHandler[getWebsocketRegistrationPath(cfg)] == nil
 }
 
 func (i *InterceptorHandler) Handler(handler http.Handler) http.Handler {
