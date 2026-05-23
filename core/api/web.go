@@ -119,6 +119,9 @@ func StartWeb(cfg config.WebAppConfig) {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
 				for m, n := range v {
+					if shouldSkipEmbeddedAPIRoute(m) {
+						continue
+					}
 					log.Debug("register http handler: ", k, " ", m)
 					uiRouter.Handle(k, m, n)
 				}
@@ -126,6 +129,9 @@ func StartWeb(cfg config.WebAppConfig) {
 		}
 		if registeredAPIFuncHandler != nil {
 			for k, v := range registeredAPIFuncHandler {
+				if shouldSkipEmbeddedAPIRoute(k) {
+					continue
+				}
 				log.Debug("register http handler: ", k)
 				uiServeMux.HandleFunc(k, v)
 			}
@@ -333,6 +339,14 @@ func shouldRegisterWebsocketOnWeb(cfg config.WebAppConfig) bool {
 		return true
 	}
 	return registeredAPIFuncHandler[getWebsocketRegistrationPath(cfg)] == nil
+}
+
+func shouldSkipEmbeddedAPIRoute(path string) bool {
+	if registeredUIHandler == nil {
+		return false
+	}
+	_, exists := registeredUIHandler[path]
+	return exists
 }
 
 func (i *InterceptorHandler) Handler(handler http.Handler) http.Handler {

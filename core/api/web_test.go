@@ -51,3 +51,21 @@ func TestShouldRegisterWebsocketOnWeb(t *testing.T) {
 		t.Fatal("expected websocket registration when embedding_api is disabled")
 	}
 }
+
+func TestShouldSkipEmbeddedAPIRoute(t *testing.T) {
+	originalUIHandlers := registeredUIHandler
+	t.Cleanup(func() {
+		registeredUIHandler = originalUIHandlers
+	})
+
+	registeredUIHandler = map[string]http.Handler{
+		"/": http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+	}
+
+	if !shouldSkipEmbeddedAPIRoute("/") {
+		t.Fatal("expected API root route to be skipped when UI root is registered")
+	}
+	if shouldSkipEmbeddedAPIRoute("/_info") {
+		t.Fatal("expected unrelated API route not to be skipped")
+	}
+}
