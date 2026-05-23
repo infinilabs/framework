@@ -23,6 +23,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
+- feat(security): add password challenge proof helpers (test: `go test ./core/security/passwordchallenge`)
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
