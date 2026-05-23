@@ -137,6 +137,23 @@ func resolveManagedInstanceEndpoint(apiConfig config.APIConfig, webConfig config
 	return apiConfig.GetEndpoint()
 }
 
+func buildManagedInstanceServices(apiConfig config.APIConfig, webConfig config.WebAppConfig) []ServiceInfo {
+	services := []ServiceInfo{}
+	if apiConfig.Enabled {
+		services = append(services, ServiceInfo{
+			Name:     "api",
+			Endpoint: apiConfig.GetEndpoint(),
+		})
+	}
+	if webConfig.Enabled {
+		services = append(services, ServiceInfo{
+			Name:     "web",
+			Endpoint: webConfig.GetEndpoint(),
+		})
+	}
+	return services
+}
+
 func GetInstanceInfo() Instance {
 	instance := Instance{}
 	instance.ID = global.Env().SystemConfig.NodeConfig.ID
@@ -149,6 +166,7 @@ func GetInstanceInfo() Instance {
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
 	instance.Endpoint = resolveManagedInstanceEndpoint(global.Env().SystemConfig.APIConfig, global.Env().SystemConfig.WebAppConfig)
+	instance.Services = buildManagedInstanceServices(global.Env().SystemConfig.APIConfig, global.Env().SystemConfig.WebAppConfig)
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
