@@ -28,7 +28,6 @@ Information about release notes of INFINI Framework is provided here.
 - feat(reverse): add shared reverse websocket protocol helpers (test: `go test ./core/api/websocket/reverse`) #303
 - feat(reverse): add reverse websocket session manager (test: `go test ./core/api/websocket/reverse`) #304
 - feat(api): expose registered API/UI handlers for in-process dispatch (test: `go test ./core/api`) #305
-- feat(websocket): support configurable websocket message size limits (test: `go test ./core/api/websocket`)
 - feat(config): add websocket max message size setting (test: `go test ./core/config`) #316
 - feat(websocket): support configurable websocket message size limits (test: `go test ./core/api/websocket`) #306
 - chore: API Handler Registration Improvements #283
