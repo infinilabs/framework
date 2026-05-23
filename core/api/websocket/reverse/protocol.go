@@ -22,8 +22,8 @@ type HelloMessage struct {
 }
 
 type RequestMessage struct {
-	RequestID   string      `json:"request_id"`
-	PeerID      string      `json:"instance_id"`
+	RequestID   string      `json:"request_id"`  // Correlates the reverse request with its response chunks.
+	PeerID      string      `json:"instance_id"` // Identifies the target instance on the other side of the reverse channel.
 	Method      string      `json:"method"`
 	Path        string      `json:"path"`
 	Body        string      `json:"body,omitempty"`
@@ -32,8 +32,8 @@ type RequestMessage struct {
 }
 
 type ResponseMessage struct {
-	RequestID string `json:"request_id"`
-	PeerID    string `json:"instance_id"`
+	RequestID string `json:"request_id"`  // Correlates the response chunks with the original reverse request.
+	PeerID    string `json:"instance_id"` // Identifies which instance produced the reverse response.
 	Chunk     string `json:"chunk,omitempty"`
 	Status    int    `json:"status,omitempty"`
 	Done      bool   `json:"done,omitempty"`
