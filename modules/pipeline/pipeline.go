@@ -18,7 +18,7 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 	var obj = &pipeline.PipelineConfigV2{}
 	err := h.DecodeJSON(req, obj)
 	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 	var newConfig pipeline.PipelineConfigV2
 	err := h.DecodeJSON(req, &newConfig)
 	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		h.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
