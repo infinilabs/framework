@@ -23,7 +23,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
-- feat(config): run section config callbacks before generic reload hooks (test: `go test ./core/config`)
+- feat(config): run section config callbacks before generic reload hooks (test: `go test ./core/config`) #315
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
