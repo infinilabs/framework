@@ -50,7 +50,11 @@ func (h *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Request
 
 	ctx := orm.NewContextWithParent(req.Context())
 	exists, err := orm.GetV2(ctx, &obj)
-	if !exists || err != nil {
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		h.WriteOpRecordNotFoundJSON(w, id)
 		return
 	}
@@ -83,7 +87,11 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 	var oldConfig pipeline.PipelineConfigV2
 	oldConfig.ID = id
 	exists, err := orm.GetWithSystemFields(ctx, &oldConfig)
-	if !exists || err != nil {
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		h.WriteOpRecordNotFoundJSON(w, id)
 		return
 	}
@@ -117,7 +125,11 @@ func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Requ
 	ctx := orm.NewContextWithParent(req.Context())
 
 	exists, err := orm.GetV2(ctx, &obj)
-	if !exists || err != nil {
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !exists {
 		h.WriteOpRecordNotFoundJSON(w, id)
 		return
 	}
