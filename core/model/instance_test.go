@@ -31,3 +31,21 @@ func TestResolveManagedInstanceEndpoint(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildManagedInstanceServices(t *testing.T) {
+	apiConfig := config.APIConfig{Enabled: true}
+	apiConfig.NetworkConfig.Publish = "127.0.0.1:2900"
+	webConfig := config.WebAppConfig{Enabled: true}
+	webConfig.NetworkConfig.Publish = "127.0.0.1:8080"
+
+	services := buildManagedInstanceServices(apiConfig, webConfig)
+	if len(services) != 2 {
+		t.Fatalf("unexpected service count: %#v", services)
+	}
+	if services[0].Name != "api" || services[0].Endpoint != "http://127.0.0.1:2900" {
+		t.Fatalf("unexpected api service: %#v", services[0])
+	}
+	if services[1].Name != "web" || services[1].Endpoint != "http://127.0.0.1:8080" {
+		t.Fatalf("unexpected web service: %#v", services[1])
+	}
+}
