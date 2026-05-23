@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/cihub/seelog"
+	"hash/fnv"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
@@ -127,6 +128,24 @@ func validateMonitorConfig(monitorConfig *elastic.TaskConfig) {
 	}
 }
 
+func getMetricTaskInitialDelay(clusterID, taskKind, interval string) string {
+	period := util.GetDurationOrDefault(interval, 10*time.Second)
+	if period <= 0 {
+		return ""
+	}
+
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(clusterID))
+	_, _ = hasher.Write([]byte(":"))
+	_, _ = hasher.Write([]byte(taskKind))
+
+	offset := time.Duration(hasher.Sum64() % uint64(period))
+	if offset <= 0 {
+		return ""
+	}
+	return offset.String()
+}
+
 func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
@@ -205,11 +224,12 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	if m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
 		log.Debugf("collect cluster health: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterHealthMetricTask = task.ScheduleTask{
-			ID:          clusterHealthTaskID,
-			Description: fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
-			Type:        "interval",
-			Singleton:   true,
-			Interval:    monitorConfigs.ClusterHealth.Interval,
+			ID:           clusterHealthTaskID,
+			Description:  fmt.Sprintf("monitoring cluster health metric  for cluster %s", k),
+			Type:         "interval",
+			Singleton:    true,
+			Interval:     monitorConfigs.ClusterHealth.Interval,
+			InitialDelay: getMetricTaskInitialDelay(k, "cluster_health", monitorConfigs.ClusterHealth.Interval),
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect cluster health metric", v.Config.Name)
@@ -229,11 +249,12 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	if m.ClusterStats && monitorConfigs.ClusterStats.Enabled {
 		log.Debugf("collect cluster state: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
 		var clusterStatsMetricTask = task.ScheduleTask{
-			ID:          clusterStatsTaskID,
-			Description: fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
-			Type:        "interval",
-			Singleton:   true,
-			Interval:    monitorConfigs.ClusterStats.Interval,
+			ID:           clusterStatsTaskID,
+			Description:  fmt.Sprintf("monitoring cluster stats metric for cluster %s", k),
+			Type:         "interval",
+			Singleton:    true,
+			Interval:     monitorConfigs.ClusterStats.Interval,
+			InitialDelay: getMetricTaskInitialDelay(k, "cluster_stats", monitorConfigs.ClusterStats.Interval),
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect cluster stats metric", v.Config.Name)
@@ -252,11 +273,12 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	//nodes stats
 	if m.NodeStats && monitorConfigs.NodeStats.Enabled {
 		var nodeStatsMetricTask = task.ScheduleTask{
-			ID:          nodeStatsTaskID,
-			Description: fmt.Sprintf("monitoring node stats metric for cluster %s", k),
-			Type:        "interval",
-			Interval:    monitorConfigs.NodeStats.Interval,
-			Singleton:   true,
+			ID:           nodeStatsTaskID,
+			Description:  fmt.Sprintf("monitoring node stats metric for cluster %s", k),
+			Type:         "interval",
+			Interval:     monitorConfigs.NodeStats.Interval,
+			InitialDelay: getMetricTaskInitialDelay(k, "node_stats", monitorConfigs.NodeStats.Interval),
+			Singleton:    true,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect node stats metric", v.Config.Name)
@@ -328,11 +350,12 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 	//indices stats
 	if (m.AllIndexStats || m.IndexStats) && monitorConfigs.IndexStats.Enabled {
 		var indexStatsMetricTask = task.ScheduleTask{
-			ID:          indexStatsTaskID,
-			Description: fmt.Sprintf("monitoring index stats metric for cluster %s", k),
-			Type:        "interval",
-			Interval:    monitorConfigs.IndexStats.Interval,
-			Singleton:   true,
+			ID:           indexStatsTaskID,
+			Description:  fmt.Sprintf("monitoring index stats metric for cluster %s", k),
+			Type:         "interval",
+			Interval:     monitorConfigs.IndexStats.Interval,
+			InitialDelay: getMetricTaskInitialDelay(k, "index_stats", monitorConfigs.IndexStats.Interval),
+			Singleton:    true,
 			Task: func(ctx context.Context) {
 				if !v.IsAvailable() {
 					log.Debugf("cluster [%v] is not available, skip collect index stats metric", v.Config.Name)
