@@ -136,6 +136,35 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 	l.Unlock()
 }
 
+func ServeRegisteredAPIRequest(w http.ResponseWriter, req *http.Request) {
+	localMux := http.NewServeMux()
+	localRouter := httprouter.New(localMux)
+	localRouter.NotFound = notfoundHandler
+
+	l.Lock()
+	defer l.Unlock()
+
+	for pattern, handler := range registeredAPIFuncHandler {
+		wrapped := handler
+		for _, f := range filters {
+			wrapped = f.FilterHttpHandlerFunc(pattern, wrapped)
+		}
+		localMux.HandleFunc(pattern, wrapped)
+	}
+
+	for method, handlers := range registeredAPIMethodHandler {
+		for pattern, handler := range handlers {
+			wrapped := handler
+			for _, f := range filters {
+				wrapped = f.FilterHttpRouter(pattern, wrapped)
+			}
+			localRouter.Handle(method, pattern, wrapped)
+		}
+	}
+
+	localRouter.ServeHTTP(w, req)
+}
+
 var router = httprouter.New(mux)
 var mux = http.NewServeMux()
 
