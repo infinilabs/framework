@@ -35,6 +35,10 @@ func InitSchema() error {
 
 var handler ORM
 
+func HasHandler() bool {
+	return handler != nil
+}
+
 func getHandler() ORM {
 	if handler == nil {
 		panic(errors.New("ORM handler is not registered"))
