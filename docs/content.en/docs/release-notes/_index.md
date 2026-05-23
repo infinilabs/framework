@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- feat(websocket): add reverse channel protocol and session manager helpers (test: `go test ./core/api/websocket/reverse`) #350
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
