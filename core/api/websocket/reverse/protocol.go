@@ -17,8 +17,8 @@ const (
 )
 
 type HelloMessage struct {
-	SessionID string `json:"session_id"`
-	PeerID    string `json:"instance_id"`
+	SessionID string `json:"session_id"`  // Identifies the reverse websocket session being activated by the hello handshake.
+	PeerID    string `json:"instance_id"` // Identifies which instance is attaching to that reverse session.
 }
 
 type RequestMessage struct {
