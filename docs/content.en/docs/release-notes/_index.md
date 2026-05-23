@@ -24,6 +24,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
 - feat(security): add replay nonce helpers for sensitive requests (test: `go test ./core/security/replay`) #312
+- feat(api): add secure transport and replay middleware helpers (test: `go test ./core/api`) 
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
