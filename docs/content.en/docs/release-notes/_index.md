@@ -26,6 +26,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- fix(app): use executable directory for service working directory (test: `make config && go test .`) #318
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
