@@ -157,6 +157,71 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 	return
 }
 
+func encodeToken(cred *Credential) error {
+	params, ok := cred.Payload[cred.Type].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
+	}
+	value, ok := params["value"].(string)
+	if !ok {
+		return fmt.Errorf("wrong credential parameters value for type [%s], expect a string", cred.Type)
+	}
+	if value == "" {
+		return fmt.Errorf("credential parameters value can not be empty")
+	}
+
+	secret, err := GetOrInitSecret()
+	if err != nil {
+		return err
+	}
+	encodeBytes, salt, err := util.AesGcmEncrypt([]byte(value), secret)
+	if err != nil {
+		return fmt.Errorf("encrypt token value error: %w", err)
+	}
+	cred.Encrypt.Type = "AES"
+	cred.Encrypt.Params = map[string]interface{}{
+		"salt": string(salt),
+	}
+	params["value"] = string(encodeBytes)
+	cred.Payload[cred.Type] = params
+	return nil
+}
+
+func decodeToken(cred *Credential) (token model.Token, err error) {
+	params, ok := cred.Payload[cred.Type].(map[string]interface{})
+	if !ok {
+		err = fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
+		return
+	}
+	value, ok := params["value"].(string)
+	if !ok {
+		err = fmt.Errorf("wrong credential parameters value for type [%s], expect a string", cred.Type)
+		return
+	}
+	if value == "" {
+		err = fmt.Errorf("credential parameters value can not be empty")
+		return
+	}
+	salt, ok := cred.Encrypt.Params["salt"].(string)
+	if !ok {
+		err = fmt.Errorf("credential encrypt parameters salt can not be empty")
+		return
+	}
+	secret := cred.secret
+	if secret == nil {
+		secret, err = GetOrInitSecret()
+		if err != nil {
+			return token, err
+		}
+	}
+	plaintext, err := util.AesGcmDecrypt([]byte(value), secret, []byte(salt))
+	if err != nil {
+		return token, err
+	}
+	token.Value = string(plaintext)
+	return
+}
+
 type ChangeEvent func(credentials *Credential)
 
 var changeEvents []ChangeEvent

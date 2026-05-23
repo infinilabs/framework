@@ -56,6 +56,9 @@ type Instance struct {
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
+	ManagerCredentialID string `json:"manager_credential_id,omitempty" elastic_mapping:"manager_credential_id:{type:keyword}"`
+	AccessCredentialID  string `json:"access_credential_id,omitempty" elastic_mapping:"access_credential_id:{type:keyword}"`
+
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
 

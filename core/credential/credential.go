@@ -69,10 +69,13 @@ func (cred *Credential) Encode() error {
 	switch cred.Type {
 	case BasicAuth:
 		return encodeBasicAuth(cred)
+	case Token:
+		return encodeToken(cred)
 	default:
 		return fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
 }
+
 func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	var dv interface{}
 	dv, err := cred.Decode()
@@ -86,10 +89,23 @@ func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 }
 
+func (cred *Credential) DecodeToken() (string, error) {
+	dv, err := cred.Decode()
+	if err != nil {
+		return "", err
+	}
+	if token, ok := dv.(model.Token); ok {
+		return token.Value, nil
+	}
+	return "", fmt.Errorf("unkonow credential type [%s]", cred.Type)
+}
+
 func (cred *Credential) Decode() (interface{}, error) {
 	switch cred.Type {
 	case BasicAuth:
 		return decodeBasicAuth(cred)
+	case Token:
+		return decodeToken(cred)
 	default:
 		return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
@@ -97,4 +113,5 @@ func (cred *Credential) Decode() (interface{}, error) {
 
 const (
 	BasicAuth string = "basic_auth"
+	Token     string = "token"
 )
