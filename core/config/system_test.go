@@ -196,3 +196,25 @@ func TestHTTPClientConfig_ValidateProxy(t *testing.T) {
 		}
 	})
 }
+
+func TestGetEndpointIncludesBasePath(t *testing.T) {
+	t.Run("api endpoint includes normalized base path", func(t *testing.T) {
+		cfg := APIConfig{
+			NetworkConfig: NetworkConfig{Publish: "agent.local:2900"},
+			BasePath:      "api/v1/",
+		}
+		if got := cfg.GetEndpoint(); got != "http://agent.local:2900/api/v1" {
+			t.Fatalf("expected base path in api endpoint, got %q", got)
+		}
+	})
+
+	t.Run("web endpoint keeps root path unchanged", func(t *testing.T) {
+		cfg := WebAppConfig{
+			NetworkConfig: NetworkConfig{Publish: "console.local:9000"},
+			BasePath:      "/",
+		}
+		if got := cfg.GetEndpoint(); got != "http://console.local:9000" {
+			t.Fatalf("expected root path to be ignored, got %q", got)
+		}
+	})
+}

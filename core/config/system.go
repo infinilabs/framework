@@ -391,7 +391,7 @@ type S3BucketConfig struct {
 }
 
 func (config *WebAppConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return joinBasePath(fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr()), config.BasePath)
 }
 
 func (config *WebAppConfig) GetSchema() string {
@@ -427,7 +427,18 @@ type APIConfig struct {
 }
 
 func (config *APIConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return joinBasePath(fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr()), config.BasePath)
+}
+
+func joinBasePath(endpoint, basePath string) string {
+	basePath = strings.TrimSpace(basePath)
+	if basePath == "" || basePath == "/" {
+		return endpoint
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	return strings.TrimRight(endpoint, "/") + strings.TrimRight(basePath, "/")
 }
 
 func (config *APIConfig) GetSchema() string {
