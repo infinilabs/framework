@@ -22,6 +22,14 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	if obj.Name == "" {
+		h.WriteError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	// Use name as the document ID so that the pipeline name is the single
+	// identifier across the URL, ES _id, and the in-memory task map.
+	obj.ID = obj.Name
+
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
 
@@ -52,48 +60,53 @@ func (h *PipeModule) getPipelineHandler(w http.ResponseWriter, req *http.Request
 
 func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	id := ps.MustGetParameter("id")
-	obj := pipeline.PipelineConfigV2{}
-
 	replace := h.GetBoolOrDefault(req, "replace", false)
+	var newConfig pipeline.PipelineConfigV2
+	err := h.DecodeJSON(req, &newConfig)
+	if err != nil {
+		h.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if newConfig.ID != "" && newConfig.ID != id {
+		h.WriteError(w, "id in request body does not match id in URL", http.StatusBadRequest)
+		return
+	}
+
+	if newConfig.Name != "" && newConfig.Name != id {
+		h.WriteError(w, "pipeline name cannot be changed as it is the pipeline's unique identifier", http.StatusBadRequest)
+		return
+	}
+
 	ctx := orm.NewContextWithParent(req.Context())
 
-	var err error
-	var create *time.Time
 	if !replace {
-		obj.ID = id
+		var oldConfig pipeline.PipelineConfigV2
+		oldConfig.ID = id
 
-		//can't remove, since we need it for update
-		exists, err := orm.GetWithSystemFields(ctx, &obj)
+		exists, err := orm.GetWithSystemFields(ctx, &oldConfig)
 		if !exists || err != nil {
 			h.WriteOpRecordNotFoundJSON(w, id)
 			return
 		}
-		id = obj.ID
-		create = obj.Created
+
+		newConfig.Created = oldConfig.Created
 	} else {
 		t := time.Now()
-		create = &t
+		newConfig.Created = &t
 	}
 
-	obj = pipeline.PipelineConfigV2{}
-	err = h.DecodeJSON(req, &obj)
-	if err != nil {
-		h.WriteError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	//protect
-	obj.ID = id
-	obj.Created = create
+	// Ensure ID is set even if the client omitted it from the request body
+	newConfig.ID = id
 
 	ctx.Refresh = orm.WaitForRefresh
-	err = orm.Save(ctx, &obj)
+	err = orm.Save(ctx, &newConfig)
 	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.WriteUpdatedOKJSON(w, obj.ID)
+	h.WriteUpdatedOKJSON(w, newConfig.ID)
 }
 
 func (h *PipeModule) deletePipelineHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
