@@ -127,6 +127,24 @@ func validateMonitorConfig(monitorConfig *elastic.TaskConfig) {
 	}
 }
 
+func getMetricTaskTimeout(interval string) time.Duration {
+	return util.GetDurationOrDefault(interval, 10*time.Second)
+}
+
+func wrapMetricCollectError(clusterName, metricName, endpoint, interval string, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("[%s] collect %s from target cluster endpoint [%s] timed out after %s: %w", clusterName, metricName, endpoint, interval, err)
+	}
+	return fmt.Errorf("[%s] collect %s from target cluster endpoint [%s] failed: %w", clusterName, metricName, endpoint, err)
+}
+
+func wrapMetricPersistError(clusterName, metricName string, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("[%s] persist %s to system metrics store timed out after target cluster collection succeeded: %w", clusterName, metricName, err)
+	}
+	return fmt.Errorf("[%s] persist %s to system metrics store failed after target cluster collection succeeded: %w", clusterName, metricName, err)
+}
+
 func (m *ElasticsearchMetric) Collect() error {
 	if !m.Enabled {
 		return nil
@@ -200,7 +218,6 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 		log.Debugf("run monitoring task for elasticsearch: %v - %v", k, v.Config.Name)
 	}
 
-	var err error
 	monitorConfigs := getMonitorConfigs(v)
 	if m.ClusterHealth && monitorConfigs.ClusterHealth.Enabled {
 		log.Debugf("collect cluster health: %s, endpoint: %s", k, v.Config.GetAnyEndpoint())
@@ -215,7 +232,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					log.Debugf("cluster [%v] is not available, skip collect cluster health metric", v.Config.Name)
 					return
 				}
-				err = m.CollectClusterHealth(k, v)
+				err := m.CollectClusterHealth(k, v)
 				if err != nil {
 					log.Error("collect cluster health error: ", err)
 				}
@@ -239,7 +256,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					log.Debugf("cluster [%v] is not available, skip collect cluster stats metric", v.Config.Name)
 					return
 				}
-				err = m.CollectClusterState(k, v)
+				err := m.CollectClusterState(k, v)
 				if err != nil {
 					log.Error("collect cluster state error: ", err)
 				}
@@ -267,7 +284,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				)
 
 				client := elastic.GetClient(k)
-				shards, err = client.CatShards()
+				shards, err := client.CatShards()
 				if err != nil {
 					log.Debug(v.Config.Name, " get shards info error: ", err)
 				}
@@ -312,7 +329,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 							if _, ok := shardInfos[nodeID]; ok {
 								shardInfos[nodeID]["indices_count"] = len(indexInfos[nodeID])
 							}
-							m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID])
+							if err := m.SaveNodeStats(v, nodeID, nodeStats, shardInfos[nodeID]); err != nil {
+								log.Error("collect node stats error: ", err)
+							}
 						}
 					}
 				} else {
@@ -343,7 +362,7 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 				)
 
 				client := elastic.GetClient(k)
-				shards, err = client.CatShards()
+				shards, err := client.CatShards()
 				if err != nil {
 					log.Debug(v.Config.Name, " get shards info error: ", err)
 					//return true
@@ -362,10 +381,11 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					shardInfos := map[string][]elastic.CatShardResponse{}
 
 					if v.IsAvailable() {
-						indexInfos, err = client.GetIndices("")
+						fetchedIndexInfos, err := client.GetIndices("")
 						if err != nil {
 							log.Error(v.Config.Name, " get indices info error: ", err)
 						}
+						indexInfos = fetchedIndexInfos
 
 						for _, item := range shards {
 							if _, ok := shardInfos[item.Index]; !ok {
@@ -379,7 +399,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					}
 
 					if m.AllIndexStats {
-						m.SaveIndexStats(v, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil)
+						if err := m.SaveIndexStats(v, "_all", "_all", indexStats.All.Primaries, indexStats.All.Total, nil, nil); err != nil {
+							log.Error("collect index stats error: ", err)
+						}
 					}
 
 					if m.IndexStats {
@@ -392,7 +414,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 							if shardInfos != nil {
 								shardInfo = shardInfos[x]
 							}
-							m.SaveIndexStats(v, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo)
+							if err := m.SaveIndexStats(v, y.Uuid, x, y.Primaries, y.Total, &indexInfo, shardInfo); err != nil {
+								log.Error("collect index stats error: ", err)
+							}
 						}
 					}
 				}
@@ -446,7 +470,11 @@ func (m *ElasticsearchMetric) SaveNodeStats(v *elastic.ElasticsearchMetadata, no
 		},
 	}
 
-	return m.onSaveEvent(&item)
+	if err := m.onSaveEvent(&item); err != nil {
+		return wrapMetricPersistError(v.Config.Name, fmt.Sprintf("node_stats[%s]", nodeID), err)
+	}
+
+	return nil
 }
 
 func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, indexID, indexName string, primary, total elastic.IndexLevelStats, info *elastic.IndexInfo, shardInfo []elastic.CatShardResponse) error {
@@ -484,7 +512,11 @@ func (m *ElasticsearchMetric) SaveIndexStats(v *elastic.ElasticsearchMetadata, i
 		},
 	}
 
-	return m.onSaveEvent(&item)
+	if err := m.onSaveEvent(&item); err != nil {
+		return wrapMetricPersistError(v.Config.Name, fmt.Sprintf("index_stats[%s]", indexName), err)
+	}
+
+	return nil
 }
 
 func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.ElasticsearchMetadata) error {
@@ -495,7 +527,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	//add context to control timeout for metric collecting,
 	//since next metric collecting round will be triggered after this one
 	monitorCfg := getMonitorConfigs(v)
-	du, _ := time.ParseDuration(monitorCfg.ClusterHealth.Interval)
+	du := getMetricTaskTimeout(monitorCfg.ClusterHealth.Interval)
 	ctx, cancel := context.WithTimeout(context.Background(), du)
 	defer cancel()
 	var (
@@ -504,13 +536,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 	)
 	health, err = client.ClusterHealthSpecEndpoint(ctx, v.Config.GetAnyEndpoint(), "indices")
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			// Explicitly handle context deadline exceeded
-			return fmt.Errorf("[%s] get cluster health context deadline exceeded after %s: %w", v.Config.Name, monitorCfg.ClusterHealth.Interval, err)
-		} else {
-			// Handle other errors
-			return fmt.Errorf("[%s] get cluster health error: %w", v.Config.Name, err)
-		}
+		return wrapMetricCollectError(v.Config.Name, "cluster_health", v.Config.GetAnyEndpoint(), monitorCfg.ClusterHealth.Interval, err)
 	}
 
 	indicesHealth := health.Indices
@@ -534,7 +560,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 
 	err = m.onSaveEvent(&item)
 	if err != nil {
-		return fmt.Errorf("[%s] save cluster health error: %w", v.Config.Name, err)
+		return wrapMetricPersistError(v.Config.Name, "cluster_health", err)
 	}
 	for indexName, healthInfo := range indicesHealth {
 		item = event.Event{
@@ -556,7 +582,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 		}
 		err = m.onSaveEvent(&item)
 		if err != nil {
-			return fmt.Errorf("[%s] save index health error: %w", v.Config.Name, err)
+			return wrapMetricPersistError(v.Config.Name, fmt.Sprintf("index_health[%s]", indexName), err)
 		}
 	}
 	return nil
@@ -572,7 +598,7 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	//add context to control timeout for metric collecting,
 	//since next metric collecting round will be triggered after this one
 	monitorCfg := getMonitorConfigs(v)
-	du, _ := time.ParseDuration(monitorCfg.ClusterHealth.Interval)
+	du := getMetricTaskTimeout(monitorCfg.ClusterStats.Interval)
 	ctx, cancel := context.WithTimeout(context.Background(), du)
 	defer cancel()
 	var err error
@@ -582,13 +608,7 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 		stats, err = client.GetClusterStats(ctx, "")
 	}
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			// Explicitly handle context deadline exceeded
-			return fmt.Errorf("[%s] get cluster stats context deadline exceeded after %s: %w", v.Config.Name, monitorCfg.ClusterHealth.Interval, err)
-		} else {
-			// Handle other errors
-			return fmt.Errorf("[%s] get cluster stats error: %w", v.Config.Name, err)
-		}
+		return wrapMetricCollectError(v.Config.Name, "cluster_stats", v.Config.GetAnyEndpoint(), monitorCfg.ClusterStats.Interval, err)
 	}
 
 	item := event.Event{
@@ -609,7 +629,11 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 		},
 	}
 
-	return m.onSaveEvent(&item)
+	if err := m.onSaveEvent(&item); err != nil {
+		return wrapMetricPersistError(v.Config.Name, "cluster_stats", err)
+	}
+
+	return nil
 }
 
 func (m *ElasticsearchMetric) CollectNodeStats() {
