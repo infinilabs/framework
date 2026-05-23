@@ -24,6 +24,8 @@
 package env
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -115,4 +117,25 @@ func TestParseConfigSection_KeyExistsButPrimitive_ReturnsError(t *testing.T) {
 
 	assert.False(t, exist)
 	require.Error(t, err)
+}
+
+func TestInitPathsNormalizesRelativePathsFromConfig(t *testing.T) {
+	executablePath, err := os.Executable()
+	require.NoError(t, err)
+
+	cfgFile, err := os.CreateTemp("", "env-paths-*.yml")
+	require.NoError(t, err)
+	defer os.Remove(cfgFile.Name())
+
+	_, err = cfgFile.WriteString("path.data: data\npath.log: log\npath.configs: config\n")
+	require.NoError(t, err)
+	require.NoError(t, cfgFile.Close())
+
+	env := EmptyEnv()
+	require.NoError(t, env.InitPaths(cfgFile.Name()))
+
+	executableDir := filepath.Dir(executablePath)
+	assert.Equal(t, filepath.Join(executableDir, "data"), env.SystemConfig.PathConfig.Data)
+	assert.Equal(t, filepath.Join(executableDir, "log"), env.SystemConfig.PathConfig.Log)
+	assert.Equal(t, filepath.Join(executableDir, "config"), env.SystemConfig.PathConfig.Config)
 }
