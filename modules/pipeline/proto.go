@@ -25,13 +25,13 @@ package pipeline
 
 import "infini.sh/framework/core/pipeline"
 
-type GetPipelinesResponse map[string]*PipelineStatus
+type GetPipelineTasksResponse map[string]*PipelineTaskStatus
 
 type CreatePipelineRequest struct {
 	pipeline.PipelineConfigV2
 	Processors []map[string]interface{} `json:"processor"`
 }
 
-type SearchPipelinesRequest struct {
+type SearchPipelineTasksRequest struct {
 	Ids []string `json:"ids"`
 }

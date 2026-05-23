@@ -35,13 +35,13 @@ import (
 func (module *PipeModule) getRunningPipelineTasksHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
-	resp := GetPipelinesResponse{}
+	resp := GetPipelineTasksResponse{}
 	module.configs.Range(func(key, value any) bool {
 		id, ok := key.(string)
 		if !ok {
 			return true
 		}
-		status := module.getPipelineStatus(id, config, processor)
+		status := module.getPipelineTaskStatus(id, config, processor)
 		if status != nil {
 			resp[id] = status
 		}
@@ -53,16 +53,16 @@ func (module *PipeModule) getRunningPipelineTasksHandler(w http.ResponseWriter, 
 func (module *PipeModule) searchPipelineTasksHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
-	var obj = SearchPipelinesRequest{}
+	var obj = SearchPipelineTasksRequest{}
 	err := module.DecodeJSON(req, &obj)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to parse request: ", err)
 		return
 	}
-	resp := GetPipelinesResponse{}
+	resp := GetPipelineTasksResponse{}
 	for _, id := range obj.Ids {
-		status := module.getPipelineStatus(id, config, processor)
+		status := module.getPipelineTaskStatus(id, config, processor)
 		if status != nil {
 			resp[id] = status
 		}
@@ -70,7 +70,7 @@ func (module *PipeModule) searchPipelineTasksHandler(w http.ResponseWriter, req 
 	module.WriteJSON(w, resp, 200)
 }
 
-func (module *PipeModule) getPipelineStatus(id string, config string, processor string) *PipelineStatus {
+func (module *PipeModule) getPipelineTaskStatus(id string, config string, processor string) *PipelineTaskStatus {
 	c, ok := module.contexts.Load(id)
 	if !ok {
 		return nil
@@ -79,7 +79,7 @@ func (module *PipeModule) getPipelineStatus(id string, config string, processor 
 	if !ok {
 		return nil
 	}
-	ret := &PipelineStatus{
+	ret := &PipelineTaskStatus{
 		State:      c1.GetRunningState(),
 		CreateTime: c1.GetCreateTime(),
 		StartTime:  c1.GetStartTime(),
@@ -121,7 +121,7 @@ func (module *PipeModule) getPipelineTaskHandler(w http.ResponseWriter, req *htt
 	id := ps.ByName("id")
 	config := module.Get(req, "config", "false")
 	processor := module.Get(req, "processor", "false")
-	status := module.getPipelineStatus(id, config, processor)
+	status := module.getPipelineTaskStatus(id, config, processor)
 	if status == nil {
 		module.WriteError(w, "pipeline not found", http.StatusNotFound)
 		return
@@ -129,6 +129,8 @@ func (module *PipeModule) getPipelineTaskHandler(w http.ResponseWriter, req *htt
 	module.WriteJSON(w, status, 200)
 }
 
+// For the task pipeline config, if it is enabled, create a task to run it.
+//
 // eg: curl -XPOST http://localhost:2900/pipeline/tasks/ -d'{"name":"echo-test","enabled":true,"auto_start":true,"keep_running":true,"processor":[{"echo":{"message":"hello world"}}]}'
 func (module *PipeModule) createPipelineTaskHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	var obj = pipeline.PipelineConfigV2{}
@@ -138,7 +140,7 @@ func (module *PipeModule) createPipelineTaskHandler(w http.ResponseWriter, req *
 		_ = log.Error("failed to parse pipeline config: ", err)
 		return
 	}
-	err = module.createPipeline(obj, true)
+	err = module.createPipelineTask(obj, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)
 		_ = log.Error("failed to start pipeline: ", err)

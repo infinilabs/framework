@@ -62,6 +62,9 @@ type Releaser interface {
 	Release() error
 }
 
+// Processors is an implementation of the Processor interface that holds an
+// ordered list of child Processors and runs them in sequence when its Process
+// method is called.
 type Processors struct {
 	SkipCatchError bool // skip catch internal error
 	List           []Processor

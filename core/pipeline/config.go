@@ -31,21 +31,80 @@ import (
 	"infini.sh/framework/lib/go-ucfg"
 )
 
+// PipelineConfig is the declarative definition of a pipeline: a named,
+// ordered chain of processors plus the policies that govern how the framework
+// runs it.
+//
+// It is pure configuration. Once loaded into memory and instantiated, a
+// PipelineConfigV2 becomes a PipelineTask — the live runtime form, consisting
+// of a compiled processor chain, an execution context, and a managed
+// goroutine.
 type PipelineConfigV2 struct {
 	orm.ORMObjectBase
-	Name           string `config:"name" json:"name,omitempty"`
-	Enabled        *bool  `config:"enabled" json:"enabled,omitempty"`
-	Singleton      bool   `config:"singleton" json:"singleton"`
-	AutoStart      bool   `config:"auto_start" json:"auto_start"`
-	KeepRunning    bool   `config:"keep_running" json:"keep_running"`
-	RetryDelayInMs int    `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
-	MaxRunningInMs int64  `config:"max_running_in_ms" json:"max_running_in_ms"`
-	Logging        struct {
+
+	Name string `config:"name" json:"name,omitempty"`
+
+	// A disabled pipeline is treated as if it does not exist. Nil means
+	// "use the module default".
+	Enabled *bool `config:"enabled" json:"enabled,omitempty"`
+
+	// Singleton ensures that at most one instance of this pipeline runs
+	// across the entire cluster (not just within a single node). It is
+	// enforced jointly by two things:
+	//   1. Setting this field to true.
+	//   2. MaxRunningInMs — used as the TTL of the distributed lock that
+	//      guards the singleton slot. The lock prevents other nodes from
+	//      starting a competing instance while one is already running.
+	Singleton bool `config:"singleton" json:"singleton"`
+
+	// AutoStart controls the initial running state once the pipeline is
+	// loaded into memory. When true the pipeline begins executing
+	// immediately; when false it stays idle until an explicit start request
+	// arrives.
+	AutoStart bool `config:"auto_start" json:"auto_start"`
+
+	// KeepRunning marks the pipeline as long-lived: after the processor
+	// chain finishes one pass it loops and runs again. When false the
+	// pipeline executes once and exits.
+	KeepRunning bool `config:"keep_running" json:"keep_running"`
+
+	// RetryDelayInMs is the pause between successive runs of the processor
+	// chain in the keep-running loop. Applies whether the previous run
+	// finished successfully or failed.
+	//
+	// If it is smaller than or equal to 0, use the default value 1000.
+	RetryDelayInMs int `config:"retry_delay_in_ms" json:"retry_delay_in_ms"`
+
+	// MaxRunningInMs is the TTL of the cross-node singleton lock: the
+	// maximum time this node is allowed to hold the lock for one run. Once
+	// the TTL elapses the lock is considered released and another node may
+	// claim the singleton slot. The running goroutine itself is unaffected
+	// — it is NOT canceled or killed when the TTL expires.
+	//
+	// Only consulted when Singleton is true. When the value is zero or
+	// negative it falls back to a built-in default of 60000 ms (1 minute).
+	//
+	// NOTE: the name of this field is misleading — it sounds like a run
+	// timeout but is actually a lock TTL. It is kept for backwards
+	// compatibility.
+	MaxRunningInMs int64 `config:"max_running_in_ms" json:"max_running_in_ms"`
+
+	Logging struct {
 		Enabled bool `config:"enabled" json:"enabled"`
 	} `config:"logging" json:"logging"`
-	Processors []map[string]interface{} `config:"processor" json:"processor"`
-	Labels     map[string]interface{}   `config:"labels" json:"labels"`
 
+	// Processors is the ordered chain of processor definitions that makes
+	// up the actual work the pipeline performs. Each entry is a single
+	// processor config keyed by processor type.
+	Processors []map[string]interface{} `config:"processor" json:"processor"`
+
+	// Labels are arbitrary metadata attached to the pipeline. 
+	Labels map[string]interface{} `config:"labels" json:"labels"`
+
+	// Transient, if false, marks that this pipeline config shpuld be persisted.
+	//
+	// In the current implementation, only the pipeline configs created with the 
+	// `POST /pipeline` API will set this to true.
 	Transient bool `config:"-" json:"transient"`
 }
 

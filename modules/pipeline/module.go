@@ -26,14 +26,15 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"infini.sh/framework/core/locker"
-	"infini.sh/framework/core/security"
-	"infini.sh/framework/core/task"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"infini.sh/framework/core/locker"
+	"infini.sh/framework/core/security"
+	"infini.sh/framework/core/task"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
@@ -50,6 +51,9 @@ type PipeModule struct {
 	api.Handler
 	closed atomic.Bool
 
+	/*
+	 * States of pipeline tasks. keyed by pipeline name.
+	 */
 	pipelines sync.Map
 	configs   sync.Map
 	contexts  sync.Map
@@ -224,9 +228,9 @@ func (module *PipeModule) Start() error {
 		panic(err)
 	}
 	for _, v := range pipelines {
-		err := module.createPipeline(v, false)
+		err := module.createPipelineTask(v, false)
 		if err != nil {
-			log.Errorf("error on running pipeline: %v, err: %v", v.Name, err)
+			log.Errorf("error on running pipeline: %v(%v), err: %v", v.Name, v.ID, err)
 			continue
 		}
 	}
@@ -317,7 +321,7 @@ func (module *PipeModule) Start() error {
 
 		log.Debugf("starting %v pipelines", len(newPipelineNames))
 		for k, v := range newPipelines {
-			err := module.createPipeline(v, false)
+			err := module.createPipelineTask(v, false)
 			if err != nil {
 				log.Errorf("failed to create pipeline: %v, err: %v", k, err)
 			}
@@ -406,7 +410,8 @@ const pipelineSingleton = "pipeline_singleton"
 
 var creatingLocker = sync.Mutex{}
 
-func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient bool) error {
+// Helper function to run a pipeline, i.e., create a pipeline task.
+func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transient bool) error {
 	if module.closed.Load() {
 		return errors.New("module closed")
 	}
@@ -440,18 +445,18 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 		if !ok {
 			return errors.New("invalid pipeline config")
 		}
-		processors, err := cfg.GetProcessorsConfig()
+		processorConfigs, err := cfg.GetProcessorsConfig()
 		if err != nil {
 			return errors.Errorf("failed to get processor config, %v", err)
 		}
 
-		processor, err := pipeline.NewPipeline(processors)
+		processors, err := pipeline.NewPipeline(processorConfigs)
 		if err != nil {
 			return err
 		}
 
 		ctx := pipeline.AcquireContext(v)
-		module.pipelines.Store(v.Name, processor)
+		module.pipelines.Store(v.Name, processors)
 		module.contexts.Store(v.Name, ctx)
 
 		defer func() {
@@ -471,7 +476,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 			}
 
 			ctx.SetLoopReleased()
-			processor.Release()
+			processors.Release()
 		}()
 
 		if !cfg.AutoStart {
@@ -536,7 +541,7 @@ func (module *PipeModule) createPipeline(v pipeline.PipelineConfigV2, transient 
 				ctx.Started()
 				ctx.ResetContext()
 
-				err = processor.Process(ctx)
+				err = processors.Process(ctx)
 
 				if err != nil {
 					log.Errorf("error on pipeline:%v, %v", cfg.Name, err)
