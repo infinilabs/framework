@@ -23,7 +23,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
-- feat(security): add replay nonce helpers for sensitive requests (test: `go test ./core/security/replay`)
+- feat(security): add replay nonce helpers for sensitive requests (test: `go test ./core/security/replay`) #312
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
