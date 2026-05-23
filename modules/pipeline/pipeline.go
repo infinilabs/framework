@@ -80,16 +80,15 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 
 	ctx := orm.NewContextWithParent(req.Context())
 
+	var oldConfig pipeline.PipelineConfigV2
+	oldConfig.ID = id
+	exists, err := orm.GetWithSystemFields(ctx, &oldConfig)
+	if !exists || err != nil {
+		h.WriteOpRecordNotFoundJSON(w, id)
+		return
+	}
+
 	if !replace {
-		var oldConfig pipeline.PipelineConfigV2
-		oldConfig.ID = id
-
-		exists, err := orm.GetWithSystemFields(ctx, &oldConfig)
-		if !exists || err != nil {
-			h.WriteOpRecordNotFoundJSON(w, id)
-			return
-		}
-
 		newConfig.Created = oldConfig.Created
 	} else {
 		t := time.Now()
