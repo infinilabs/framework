@@ -140,6 +140,13 @@ func (module *PipeModule) createPipelineTaskHandler(w http.ResponseWriter, req *
 		_ = log.Error("failed to parse pipeline config: ", err)
 		return
 	}
+	if obj.Name == "" {
+		module.WriteError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if obj.ID == "" {
+		obj.ID = obj.Name
+	}
 	err = module.createPipelineTask(obj, true)
 	if err != nil {
 		module.WriteError(w, err.Error(), http.StatusBadRequest)

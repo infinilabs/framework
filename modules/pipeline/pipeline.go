@@ -26,9 +26,6 @@ func (h *PipeModule) createPipelineHandler(w http.ResponseWriter, req *http.Requ
 		h.WriteError(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	// Use name as the document ID so that the pipeline name is the single
-	// identifier across the URL, ES _id, and the in-memory task map.
-	obj.ID = obj.Name
 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
@@ -77,8 +74,8 @@ func (h *PipeModule) updatePipelineHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	if newConfig.Name != "" && newConfig.Name != id {
-		h.WriteError(w, "pipeline name cannot be changed as it is the pipeline's unique identifier", http.StatusBadRequest)
+	if newConfig.Name == "" {
+		h.WriteError(w, "name is required", http.StatusBadRequest)
 		return
 	}
 

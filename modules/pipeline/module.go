@@ -52,7 +52,7 @@ type PipeModule struct {
 	closed atomic.Bool
 
 	/*
-	 * States of pipeline tasks. keyed by pipeline name.
+	 * States of pipeline tasks. keyed by pipeline ID.
 	 */
 	pipelines sync.Map
 	configs   sync.Map
@@ -213,7 +213,17 @@ func getPipelineConfig() ([]pipeline.PipelineConfigV2, error) {
 			return nil, err
 		}
 		err = parentCfg.Unpack(&pipelineCfg)
-		return pipelineCfg, err
+		if err != nil {
+			return nil, err
+		}
+		// YAML pipeline configs rarely set an explicit id field; fall back to
+		// name so the in-memory task map key is stable and predictable.
+		for i := range pipelineCfg {
+			if pipelineCfg[i].ID == "" {
+				pipelineCfg[i].ID = pipelineCfg[i].Name
+			}
+		}
+		return pipelineCfg, nil
 	}
 	return pipelineCfg, nil
 }
@@ -274,8 +284,8 @@ func (module *PipeModule) Start() error {
 
 		newPipelineNames := []string{}
 		for _, v := range newConfig {
-			newPipelines[v.Name] = v
-			newPipelineNames = append(newPipelineNames, v.Name)
+			newPipelines[v.ID] = v
+			newPipelineNames = append(newPipelineNames, v.ID)
 		}
 
 		log.Debugf("we now have %v new pipelines: %v", len(newPipelineNames), newPipelineNames)
@@ -292,7 +302,7 @@ func (module *PipeModule) Start() error {
 				log.Debugf("transient pipeline %v should not be reloaded", oldC.Name)
 				return true
 			}
-			newC, ok := newPipelines[oldC.Name]
+			newC, ok := newPipelines[oldC.ID]
 			isSame := newC.Equals(oldC)
 			// Skip condition: (old pipeline is present in the new pipeline configs, config is the same, new config is also enabled)
 			if ok && isSame && isPipelineEnabled(newC.Enabled) {
@@ -302,7 +312,7 @@ func (module *PipeModule) Start() error {
 
 			log.Debug("pipeline config changed, stop and clean:", oldC.Name, ",", oldC, ",", ok, ",", isSame, ",", isPipelineEnabled(newC.Enabled))
 
-			needStopAndClean = append(needStopAndClean, oldC.Name)
+			needStopAndClean = append(needStopAndClean, oldC.ID)
 			return true
 		})
 
@@ -427,7 +437,7 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 	v.Transient = transient
 
 	// NOTE: hold the slot before creating pipeline loops
-	if _, ok := module.configs.LoadOrStore(v.Name, v); ok {
+	if _, ok := module.configs.LoadOrStore(v.ID, v); ok {
 		log.Tracef("pipeline [%v] is already created, skip", v.Name)
 		return nil
 	}
@@ -456,8 +466,8 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		}
 
 		ctx := pipeline.AcquireContext(v)
-		module.pipelines.Store(v.Name, processors)
-		module.contexts.Store(v.Name, ctx)
+		module.pipelines.Store(v.ID, processors)
+		module.contexts.Store(v.ID, ctx)
 
 		defer func() {
 			if !global.Env().IsDebug {
@@ -525,7 +535,7 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 					if v.MaxRunningInMs <= 0 {
 						v.MaxRunningInMs = 60000
 					}
-					ok, err := locker.Hold(pipelineSingleton, v.Name, global.Env().SystemConfig.NodeConfig.ID, time.Duration(v.MaxRunningInMs)*time.Millisecond, true)
+					ok, err := locker.Hold(pipelineSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, time.Duration(v.MaxRunningInMs)*time.Millisecond, true)
 					if !ok {
 						log.Debugf("pipeline [%v] is already running somewhere, %v", cfg.Name, err)
 						ctx.Finished()

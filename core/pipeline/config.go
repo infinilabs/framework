@@ -42,6 +42,8 @@ import (
 type PipelineConfigV2 struct {
 	orm.ORMObjectBase
 
+	// Human-readable identifier for this pipeline.
+	// Required when creating a pipeline via the API.
 	Name string `config:"name" json:"name,omitempty"`
 
 	// A disabled pipeline is treated as if it does not exist. Nil means
