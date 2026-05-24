@@ -54,38 +54,21 @@ ifeq "$(FRAMEWORK_BRANCH)" ""
     FRAMEWORK_BRANCH := main
 endif
 
-FRAMEWORK_VENDOR_FOLDER ?= $(FRAMEWORK_FOLDER)/../vendor/
-FRAMEWORK_VENDOR_REPO ?=  https://github.com/infinilabs/framework-vendor.git
-ifeq "$(FRAMEWORK_VENDOR_BRANCH)" ""
-    FRAMEWORK_VENDOR_BRANCH := main
-endif
-
 ifneq "$(DEV)" ""
     FRAMEWORK_DEVEL_BUILD := -tags dev
 endif
 
-# Adjust the vendor priority
-PREFER_MANAGED_VENDOR ?= true
-NEWGOPATH:= $(FRAMEWORK_VENDOR_FOLDER):$(GOPATH)
-ifneq "$(PREFER_MANAGED_VENDOR)" "true"
-    NEWGOPATH:= $(GOPATH):$(FRAMEWORK_VENDOR_FOLDER)
-endif
-
 GO        := go
-GOMODULE ?= true
-ifneq "$(GOMODULE)" "true"
-    GO        := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
-endif
-GOBUILD  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
-GOBUILDDBG  := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) GRPC_GO_REQUIRE_HANDSHAKE=off $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -ldflags -v -gcflags "all=-N -l" --work $(GOBUILD_FLAGS)
-GOBUILDNCGO  := GOPATH=$(NEWGOPATH) CGO_ENABLED=1  $(GO) build -ldflags -s $(GOBUILD_FLAGS)
-GOTEST   := GOPATH=$(NEWGOPATH) CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
+GOBUILD  := CGO_ENABLED=$(APP_NEED_CGO) $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
+GOBUILDDBG  := CGO_ENABLED=$(APP_NEED_CGO) $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -ldflags -v -gcflags "all=-N -l" --work $(GOBUILD_FLAGS)
+GOBUILDNCGO  := CGO_ENABLED=1 $(GO) build -ldflags -s $(GOBUILD_FLAGS)
+GOTEST   := CGO_ENABLED=$(APP_NEED_CGO) $(GO) test -ldflags -s
 
 ARCH      := "`uname -s`"
 LINUX     := "Linux"
 MAC       := "Darwin"
-GO_FILES=$(find . -iname '*.go' | grep -v /vendor/)
-PKGS=$(go list ./... | grep -v /vendor/)
+GO_FILES=$(find . -iname '*.go')
+PKGS=$(go list ./...)
 
 FRAMEWORK_OFFLINE_BUILD := ""
 ifneq "$(OFFLINE_BUILD)" ""
@@ -100,12 +83,9 @@ default: build-race
 env:
 	@echo OLDGOPATH：$(OLDGOPATH)
 	@echo GOPATH：$(GOPATH)
-	@echo NEWGOPATH：$(NEWGOPATH)
 	@echo INFINI_BASE_FOLDER：$(INFINI_BASE_FOLDER)
 	@echo FRAMEWORK_FOLDER：$(FRAMEWORK_FOLDER)
 	@echo FRAMEWORK_REPO：$(FRAMEWORK_REPO)
-	@echo FRAMEWORK_VENDOR_FOLDER：$(FRAMEWORK_VENDOR_FOLDER)
-	@echo FRAMEWORK_VENDOR_REPO：$(FRAMEWORK_VENDOR_REPO)
 
 build: config
 	$(GOBUILD) -o $(OUTPUT_DIR)/$(APP_NAME)
@@ -262,7 +242,7 @@ cross-build-all-platform: clean config build-bsd build-linux build-darwin build-
 
 format:
 	@echo "formatting code"
-	GOPATH=$(NEWGOPATH) $(GO) fmt $$(GOPATH=$(NEWGOPATH) $(GO) list ./...)
+	$(GO) fmt $$($(GO) list ./...)
 
 test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
@@ -297,14 +277,10 @@ init:
 	@mkdir -p $(INFINI_BASE_FOLDER)
 	@echo "framework path: " $(FRAMEWORK_FOLDER)
 	@if [ ! -d $(FRAMEWORK_FOLDER) ]; then echo "framework does not exist";(cd $(INFINI_BASE_FOLDER) && git clone -b $(FRAMEWORK_BRANCH) $(FRAMEWORK_REPO) framework ) fi
-	@if [ ! -d $(FRAMEWORK_VENDOR_FOLDER) ]; then echo "framework vendor does not exist";(cd $(INFINI_BASE_FOLDER) && git clone -b $(FRAMEWORK_VENDOR_BRANCH) $(FRAMEWORK_VENDOR_REPO) $(FRAMEWORK_VENDOR_FOLDER)) fi
 	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_FOLDER) && git checkout $(FRAMEWORK_BRANCH) && git pull origin $(FRAMEWORK_BRANCH)); fi;
-	@if [ "" == $(FRAMEWORK_OFFLINE_BUILD) ]; then (cd $(FRAMEWORK_VENDOR_FOLDER) && git checkout $(FRAMEWORK_VENDOR_BRANCH) && git pull origin $(FRAMEWORK_VENDOR_BRANCH)); fi;
 	@# Extract the latest commit hash from the framework repository
 	@(cd $(FRAMEWORK_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt)
-	@(cd $(FRAMEWORK_VENDOR_FOLDER) && git rev-parse HEAD > $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt)
 	@echo "Framework commit hash updated: " && cat $(FRAMEWORK_FOLDER)/.latest_commit_hash.txt
-	@echo "Framework vendor commit hash updated: " && cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt
 
 update-generated-framework-info:
 	@echo "generating framework info"
@@ -312,8 +288,7 @@ update-generated-framework-info:
 	@# Generate the framework info file
 	@(cd $(FRAMEWORK_FOLDER) && \
 	 LATEST_COMMIT_LOG=$$(cat .latest_commit_hash.txt) && \
-	 VENDOR_COMMIT_LOG=$$(cat $(FRAMEWORK_VENDOR_FOLDER)/.latest_commit_hash.txt) && \
-	 echo -e "package config\n\nconst LastFrameworkCommitLog = \"$$LATEST_COMMIT_LOG\"\nconst LastFrameworkVendorCommitLog = \"$$VENDOR_COMMIT_LOG\"" > config/generated_framework-info.go)
+	 echo -e "package config\n\nconst LastFrameworkCommitLog = \"$$LATEST_COMMIT_LOG\"\nconst LastFrameworkVendorCommitLog = \"N/A\"" > config/generated_framework-info.go)
 
 update-generated-file: update-generated-framework-info
 	@echo "generating application info"
@@ -326,8 +301,7 @@ update-generated-file: update-generated-framework-info
 
 restore-generated-framework-info:
 	@echo "restore framework info"
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "package config\n\nconst LastFrameworkCommitLog = \"N/A\"" > config/generated_framework-info.go)
-	@( cd $(FRAMEWORK_FOLDER) && echo -e "\nconst LastFrameworkVendorCommitLog = \"N/A\"" >> config/generated_framework-info.go )
+	@( cd $(FRAMEWORK_FOLDER) && echo -e "package config\n\nconst LastFrameworkCommitLog = \"N/A\"\nconst LastFrameworkVendorCommitLog = \"N/A\"" > config/generated_framework-info.go)
 
 restore-generated-file: restore-generated-framework-info
 	@echo "restore application info"

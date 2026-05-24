@@ -37,14 +37,16 @@ This approach ensures better maintainability and faster setup for new projects.
 To build the `Loadgen` application using the framework, you can run the following command:
 
 ```shell
-➜  loadgen git:(main) DEV=false OFFLINE_BUILD=true make build
+➜  loadgen git:(main) OFFLINE_BUILD=true make build
 ```
 Explanation of the Command:
-- DEV=false: Sets the development mode to false, indicating a production build.
-- OFFLINE_BUILD=true: Enables offline build mode, ensuring the build process avoids fetching resources from external sources.
-- make build: Invokes the build target defined in the framework’s Makefile, compiling the application according to the specified settings.
+- OFFLINE_BUILD=true: Enables offline build mode, skipping the `git pull` step for the framework repository.
+- make build: Invokes the build target defined in the framework's Makefile, compiling the application.
 
-This example demonstrates how you can customize the build process using environment variables while leveraging the reusable commands provided by the framework.
+For development builds with race detection and extra debug info:
+```shell
+➜  loadgen git:(main) DEV=true make build
+```
 
 
 ## Commands
@@ -67,10 +69,10 @@ This example demonstrates how you can customize the build process using environm
 | `build-bsd`                | Builds the application binary for BSD systems                                                   | Supports FreeBSD, NetBSD, and OpenBSD     |
 | `all`                      | Cleans, configures, and builds binaries for all supported platforms                              |                                            |
 | `all-platform`             | Builds binaries for all platforms, including BSD, Linux, macOS, and Windows                     |                                            |
-| `format`                   | Formats all Go files excluding vendor directory                                                 | Uses `go fmt`                             |
+| `format`                   | Formats all Go source files                                                                     | Uses `go fmt`                             |
 | `clean_data`               | Removes data and logs directories                                                                |                                            |
 | `clean`                    | Cleans all build artifacts and resets the output directory                                       | Depends on `clean_data`                   |
-| `init`                     | Initializes the build environment                                                                | Checks/clones framework repositories      |
+| `init`                     | Initializes the build environment                                                                | Checks/clones framework repository        |
 ---
 
 
@@ -89,25 +91,21 @@ This example demonstrates how you can customize the build process using environm
 | `APP_PLUGIN_PKG`          | Plugins package name                                                                                | `$(APP_PLUGIN_FOLDER)`                   |
 | `APP_NEED_CGO`            | Determines if CGO is required (0 = disabled, 1 = enabled)                                           | `0`                                      |
 | `VERSION`                 | Release version from the environment                                                                |                                          |
-| `GOPATH`                  | Go workspace path                                                                                   | `~/go`                                   |
+| `GOPATH`                  | Go workspace path. Can be overridden to use a custom location.                                      | `~/go`                                   |
 | `BUILD_NUMBER`            | Build number                                                                                        | `001`                                    |
-| `DEV`                      | Enables or disables development mode. Set to true for development builds, false for production builds.     | `false`                          |
-| `OFFLINE_BUILD`            | Enables offline build mode, preventing the download of external resources during the build process.        | `false`                          |
-| `GO`                      | Go environment settings                                                                             | `GO15VENDOREXPERIMENT="1" GO111MODULE=off go` |
+| `DEV`                     | Enables development mode (adds `-tags dev` to build). Set to any non-empty value to enable.         |                                          |
+| `OFFLINE_BUILD`           | Skips `git pull` for the framework during `init`. Set to any non-empty value to enable.             |                                          |
+| `GO`                      | Go command                                                                                          | `go`                                     |
 | `FRAMEWORK_FOLDER`        | Path to INFINI Framework folder                                                                     | `$(INFINI_BASE_FOLDER)/framework`        |
 | `FRAMEWORK_REPO`          | Framework repository URL                                                                            | `https://github.com/infinilabs/framework.git` |
 | `FRAMEWORK_BRANCH`        | Git branch for the framework                                                                        | `main`                                   |
-| `FRAMEWORK_VENDOR_FOLDER` | Path to framework vendor folder                                                                     | `$(FRAMEWORK_FOLDER)/../vendor/`         |
-| `FRAMEWORK_VENDOR_REPO`   | Vendor repository URL                                                                               | `https://github.com/infinilabs/framework-vendor.git` |
-| `FRAMEWORK_VENDOR_BRANCH` | Vendor repository branch                                                                            | `main`                                   |
-| `PREFER_MANAGED_VENDOR`   | Determines whether to use a managed vendor directory or fetch dependencies dynamically. If set to `1`, the build process will prioritize the pre-downloaded vendor folder (`FRAMEWORK_VENDOR_FOLDER`). If set to `0`, dependencies will be fetched from the `FRAMEWORK_VENDOR_REPO`. | `1`               |
 
 ---
 
 
 ### Notes
 
- - **Framework Dependencies**: This `Makefile` integrates with INFINI Framework, requiring external repositories for the framework and vendor files. Ensure these are cloned and accessible.
+ - **Go Modules**: All dependencies are managed via Go modules (`go.mod`). No external vendor repository is required.
  - **Cross-Platform Builds**: Targets like `build-linux` and `build-darwin` compile binaries for multiple architectures, ensuring compatibility across platforms.
  - **Plugin Updates**: Plugins are dynamically discovered and updated using a tool within the framework. Ensure `plugin-discovery` exists and is built.
  - **Environment Variables**: Many configurations (e.g., `GOPATH`, `VERSION`, `EOL`) can be overridden via environment variables for flexibility.

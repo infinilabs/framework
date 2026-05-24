@@ -34,14 +34,15 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"github.com/arl/statsviz"
-	log "github.com/cihub/seelog"
-	"infini.sh/framework/core/global"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"runtime/pprof"
+
+	"github.com/arl/statsviz"
+	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/log"
 )
 
 var cpuproFile string

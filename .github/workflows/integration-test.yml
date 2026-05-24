@@ -66,13 +66,6 @@ jobs:
                 repository: infinilabs/loadgen
                 path: loadgen
 
-            - name: Checkout framework-vendor
-              uses: actions/checkout@v4
-              with:
-                ref: main
-                repository: infinilabs/framework-vendor
-                path: vendor
-
             - name: Set up nodejs toolchain
               uses: actions/setup-node@v4
               with:
@@ -141,7 +134,7 @@ jobs:
                 # for products
                 for p in console gateway agent loadgen; do
                   cd $WORK/$p && echo Compiling $p at $PWD ...
-                  OFFLINE_BUILD=true GOMODULE=false make tidy build
+                  OFFLINE_BUILD=true make tidy build
                 done
 
             - name: Prepare console config

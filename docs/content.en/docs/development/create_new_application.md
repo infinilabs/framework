@@ -77,7 +77,6 @@ APP_STATIC_FOLDER := .public
 APP_STATIC_PACKAGE := public
 APP_UI_FOLDER := ui
 APP_PLUGIN_FOLDER := plugins
-PREFER_MANAGED_VENDOR=fase
 
 include ../framework/Makefile
 ```
@@ -88,18 +87,10 @@ include ../framework/Makefile
 building new_app 1.0.0_SNAPSHOT main
 /Users/medcl/go/src/infini.sh/new_app
 framework path:  /Users/medcl/go/src/infini.sh/framework
-fatal: not a git repository (or any of the parent directories): .git
 update generated info
 update configs
-(cd ../framework/  && make update-plugins) || true # build plugins in framework
-GOPATH=~/go:~/go/src/infini.sh/framework/../vendor/ CGO_ENABLED=0 GRPC_GO_REQUIRE_HANDSHAKE=off  GO15VENDOREXPERIMENT="1" GO111MODULE=off go build -a  -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work  -o /Users/medcl/go/src/infini.sh/new_app/bin/new_app
+CGO_ENABLED=0 go build -a -gcflags=all="-l -B" -ldflags '-static' -ldflags='-s -w' -gcflags "-m" --work -o /Users/medcl/go/src/infini.sh/new_app/bin/new_app
 WORK=/var/folders/j5/qd4qt3n55dz053d93q2mswfr0000gn/T/go-build435280758
-# infini.sh/new_app
-./main.go:17:9: can inline main.deferwrap1
-./main.go:21:12: can inline main.func2
-./main.go:18:22: func literal does not escape
-./main.go:19:45: &api.APIModule{} escapes to heap
-./main.go:21:12: func literal escapes to heap
 restore generated info
 ```
 

@@ -34,7 +34,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/gopkg.in/gomail.v2"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
@@ -43,6 +42,7 @@ import (
 	"infini.sh/framework/core/queue"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasttemplate"
+	"infini.sh/framework/lib/gomail"
 )
 
 type SMTPProcessor struct {

@@ -412,7 +412,7 @@ func (c *ESAPIV7) UpdateMapping(indexName string, docType string, mappings []byt
 		panic(err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 
 	return resp.Body, err
@@ -430,7 +430,7 @@ func (c *ESAPIV7) ScriptExists(scriptName string) (bool, error) {
 		return false, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf(string(resp.Body))
+		return false, fmt.Errorf("%s", resp.Body)
 	}
 	return true, nil
 }
@@ -447,7 +447,7 @@ func (c *ESAPIV7) PutScript(scriptName string, script []byte) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 	return resp.Body, nil
 }

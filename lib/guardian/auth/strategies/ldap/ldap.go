@@ -7,12 +7,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/go-ldap/ldap/v3"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/lib/fasthttp"
 	"infini.sh/framework/lib/guardian/auth"
 	"infini.sh/framework/lib/guardian/auth/strategies/basic"
-	"strings"
 )
 
 // ErrEntries is returned by ldap authenticate function,
@@ -24,7 +25,7 @@ type conn interface {
 	Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error)
 	StartTLS(config *tls.Config) error
 	UnauthenticatedBind(username string) error
-	Close()
+	Close() error
 }
 
 // Config define the configuration to connect to LDAP.
