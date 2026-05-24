@@ -87,7 +87,7 @@ func byAPITokenHeader(w http.ResponseWriter, r *http.Request) (claims *security.
 	apiToken := r.Header.Get(HeaderAPIToken)
 
 	accessToken, permissions, err := getTokenPermissions(apiToken)
-	if err!=nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -101,9 +101,9 @@ func byAPITokenHeader(w http.ResponseWriter, r *http.Request) (claims *security.
 	return claims, nil
 }
 
-func getTokenPermissions(apiToken string) (*security.AccessToken, []security.PermissionKey,error) {
+func getTokenPermissions(apiToken string) (*security.AccessToken, []security.PermissionKey, error) {
 	if apiToken == "" {
-		return nil,nil, errors.Error("api token not found")
+		return nil, nil, errors.Error("api token not found")
 	}
 
 	bytes, err := kv.GetValue(KVAccessTokenBucket, []byte(apiToken))
@@ -123,7 +123,7 @@ func getTokenPermissions(apiToken string) (*security.AccessToken, []security.Per
 	}
 
 	//-1 means never expire
-	if accessToken.ExpireIn>0 {
+	if accessToken.ExpireIn > 0 {
 		expireAtTime := time.Unix(accessToken.ExpireIn, 0)
 		if time.Now().After(expireAtTime) {
 			return nil, nil, errors.Error("token expired")
@@ -202,7 +202,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	}
 
 	expiredAT := time.Now().Add(365 * 24 * time.Hour).Unix()
-	res, err := CreateAPIToken(reqUser, reqBody.Name, "general",expiredAT, permissions)
+	res, err := CreateAPIToken(reqUser, reqBody.Name, "general", expiredAT, permissions)
 	if err != nil {
 		panic(err)
 	}
@@ -210,7 +210,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	api.WriteJSON(w, res, 200)
 }
 
-func CreateAPIToken(user *security.UserSessionInfo, tokenName, typeName string,expiredAT int64 , permissions []security.PermissionKey) (util.MapStr, error) {
+func CreateAPIToken(user *security.UserSessionInfo, tokenName, typeName string, expiredAT int64, permissions []security.PermissionKey) (util.MapStr, error) {
 
 	if tokenName == "" {
 		tokenName = GenerateApiTokenName("")

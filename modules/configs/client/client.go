@@ -53,10 +53,41 @@ import (
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 
+var postRegisterHooks []func() error
+var postRegisterHooksLock sync.RWMutex
+
+func AddPostRegisterHook(hook func() error) {
+	if hook == nil {
+		return
+	}
+	postRegisterHooksLock.Lock()
+	defer postRegisterHooksLock.Unlock()
+	postRegisterHooks = append(postRegisterHooks, hook)
+}
+
+func execPostRegisterHooks() error {
+	postRegisterHooksLock.RLock()
+	defer postRegisterHooksLock.RUnlock()
+	for _, hook := range postRegisterHooks {
+		if hook == nil {
+			continue
+		}
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ConnectToManager() error {
 
 	if !global.Env().SystemConfig.Configs.Managed {
 		return nil
+	}
+
+	//register to config manager
+	if global.Env().SystemConfig.Configs.Servers == nil || len(global.Env().SystemConfig.Configs.Servers) == 0 {
+		return errors.Errorf("no config manager was found")
 	}
 
 	// k8s env setting always_register_after_restart and  pod after restart the ip will change so need register again
@@ -71,11 +102,6 @@ func ConnectToManager() error {
 
 	log.Info("register new instance to config manager")
 
-	//register to config manager
-	if global.Env().SystemConfig.Configs.Servers == nil || len(global.Env().SystemConfig.Configs.Servers) == 0 {
-		return errors.Errorf("no config manager was found")
-	}
-
 	info := model.GetInstanceInfo()
 
 	req := util.Request{Method: util.Verb_POST}
@@ -83,35 +109,51 @@ func ConnectToManager() error {
 	req.Path = common.REGISTER_API
 	req.Body = util.MustToJSONBytes(info)
 
-	server, res, err := submitRequestToManager(&req)
+	server, res, err := DoManagerRequest(&req)
 	if err == nil && server != "" {
 		if res.StatusCode == 200 || util.ContainStr(string(res.Body), "exists") {
+			if err := execPostRegisterHooks(); err != nil {
+				return err
+			}
 			log.Infof("success register to config manager: %v", string(server))
 			err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
 			if err != nil {
 				panic(err)
 			}
 			global.Register(configRegisterEnvKey, true)
+			return nil
 		}
+		err = errors.Errorf("failed to register to config manager, status: %d, body: %s", res.StatusCode, string(res.Body))
 	} else {
 		log.Error("failed to register to config manager,", err, ",", server)
 	}
 	return err
 }
 
-func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
+func applyManagerRequestAuth(req *util.Request, username, password, token string) {
+	if username != "" {
+		req.SetBasicAuth(username, password)
+	}
+	if token != "" {
+		req.AddHeader(common.API_TOKEN, token)
+	}
+}
+
+func DoManagerRequest(req *util.Request) (string, *util.Result, error) {
 	var err error
 	var res *util.Result
 	cfg := global.Env().SystemConfig.Configs
-	if cfg.ManagerConfig.BasicAuth.Username != "" {
-		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
+	applyManagerRequestAuth(req, cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get(), cfg.ManagerConfig.AccessToken.Get())
+	httpClient, err := getManagerHTTPClient()
+	if err != nil {
+		return "", nil, err
 	}
 	for _, server := range cfg.Servers {
 		req.Url, err = url.JoinPath(server, req.Path)
 		if err != nil {
 			continue
 		}
-		res, err = util.ExecuteRequestWithCatchFlag(mTLSClient, req, true)
+		res, err = util.ExecuteRequestWithCatchFlag(httpClient, req, true)
 		if err != nil {
 			continue
 		}
@@ -120,21 +162,29 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	return "", nil, err
 }
 
-var clientInitLock = sync.Once{}
-var mTLSClient *http.Client
+var managerHTTPClientOnce sync.Once
+var managerHTTPClient *http.Client
+var managerHTTPClientErr error
+
+func getManagerHTTPClient() (*http.Client, error) {
+	managerHTTPClientOnce.Do(func() {
+		cfg := global.Env().GetHTTPClientConfig("configs", "")
+		if cfg == nil {
+			return
+		}
+		managerHTTPClient, managerHTTPClientErr = api.NewHTTPClient(cfg)
+	})
+	return managerHTTPClient, managerHTTPClientErr
+}
+
+var clientInitLock sync.Once
 
 func ListenConfigChanges() error {
-
 	clientInitLock.Do(func() {
 
 		if global.Env().SystemConfig.Configs.Managed {
-			cfg := global.Env().GetHTTPClientConfig("configs", "")
-			if cfg != nil {
-				hClient, err := api.NewHTTPClient(cfg)
-				if err != nil {
-					panic(err)
-				}
-				mTLSClient = hClient
+			if _, err := getManagerHTTPClient(); err != nil {
+				panic(err)
 			}
 
 			//init config sync listening
@@ -160,7 +210,7 @@ func ListenConfigChanges() error {
 					log.Debug("config sync request: ", string(util.MustToJSONBytes(req)))
 				}
 
-				_, res, err := submitRequestToManager(&request)
+				_, res, err := DoManagerRequest(&request)
 				if err != nil {
 					log.Error("failed to submit request to config manager,", err)
 					return

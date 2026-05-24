@@ -31,6 +31,7 @@ import "infini.sh/framework/core/model"
 
 const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"
+const API_TOKEN = "X-API-TOKEN"
 
 type ConfigFile struct {
 	Name     string `json:"name,omitempty"`

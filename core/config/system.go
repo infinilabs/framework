@@ -289,8 +289,9 @@ type ConfigsConfig struct {
 	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
 	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
-		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
-		BasicAuth            BasicAuth `config:"basic_auth"`
+		LocalConfigsRepoPath string            `config:"local_configs_repo_path"`
+		BasicAuth            BasicAuth         `config:"basic_auth"`
+		AccessToken          ucfg.SecretString `config:"access_token" yaml:"access_token"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`

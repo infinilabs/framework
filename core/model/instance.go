@@ -56,6 +56,8 @@ type Instance struct {
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
+	CredentialID string `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
+
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
 
@@ -137,7 +139,11 @@ func GetInstanceInfo() Instance {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
-	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	if !global.Env().SystemConfig.APIConfig.Enabled && global.Env().SystemConfig.WebAppConfig.Enabled {
+		instance.Endpoint = global.Env().SystemConfig.WebAppConfig.GetEndpoint()
+	} else {
+		instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	}
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
