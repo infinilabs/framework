@@ -195,6 +195,11 @@ type SecurityBackendProvider struct {
 }
 
 func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID string) []security.PermissionKey {
+
+	if providerID!=security.DefaultNativeAuthBackend{
+		return nil
+	}
+
 	var allowedPermissions = []security.PermissionKey{}
 
 	//bypass managed mode
