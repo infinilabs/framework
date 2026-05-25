@@ -103,7 +103,7 @@ func byAPITokenHeader(w http.ResponseWriter, r *http.Request) (claims *security.
 
 func getTokenPermissions(apiToken string) (*security.AccessToken, []security.PermissionKey, error) {
 	if apiToken == "" {
-		return nil, nil, errors.Error("api token not found")
+		return nil, nil, errors.Error("API token not provided")
 	}
 
 	bytes, err := kv.GetValue(KVAccessTokenBucket, []byte(apiToken))
@@ -175,7 +175,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
 	if err != nil {
-		panic(err)
+		panic(errors.ErrorWithHTTPCode(err, 400, "invalid token"))
 	}
 	if reqBody.Name == "" {
 		reqBody.Name = GenerateApiTokenName("")
@@ -187,7 +187,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 		if len(reqBody.Permissions) > 0 {
 			// requested permissions must be within the caller's own scope
 			if !util.IsSuperset(security.ConvertPermissionKeysToHashSet(permissions), security.ConvertPermissionKeysToHashSet(reqBody.Permissions)) {
-				panic("invalid permissions")
+				panic(errors.ErrorWithHTTPCode(err, 403, "invalid permissions"))
 			}
 			permissions = reqBody.Permissions
 		}
