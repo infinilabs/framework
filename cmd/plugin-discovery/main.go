@@ -50,10 +50,12 @@ var (
 	importPrefix string
 	outFile      string
 	pluginDirs   stringSliceFlag
+	excludeDirs  stringSliceFlag
 )
 
 func init() {
 	flag.Var(&pluginDirs, "dir", "Directory to search for plugins")
+	flag.Var(&excludeDirs, "exclude", "Directory prefix to skip during plugin discovery")
 	flag.StringVar(&importPrefix, "import_prefix", "infini.sh/gateway/", "Prefix for generated package path")
 	flag.StringVar(&pkg, "pkg", "config", "Package name for generated go file")
 	flag.StringVar(&outFile, "out", "config/plugins.go", "Output filename")
@@ -83,11 +85,19 @@ func main() {
 				return nil
 			}
 
+			if shouldExclude(path) {
+				if info != nil && info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
 			if err == nil && libRegEx.MatchString(info.Name()) {
 
 				if strings.HasSuffix(info.Name(), "_test.go") {
 					return nil
 				}
+
 				if hasInitMethod(filepath.Join(path)) {
 					imports[filepath.ToSlash(
 						filepath.Join(importPrefix, filepath.Dir(path)))] = util.KV{}
@@ -179,6 +189,17 @@ func hasInitMethod(file string) bool {
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Failed scanning %v: %v", file, err)
+	}
+	return false
+}
+
+func shouldExclude(path string) bool {
+	slashed := filepath.ToSlash(path)
+	for _, exclude := range excludeDirs {
+		excluded := filepath.ToSlash(exclude)
+		if slashed == excluded || strings.HasPrefix(slashed, excluded+"/") {
+			return true
+		}
 	}
 	return false
 }

@@ -10,7 +10,12 @@ APP_STATIC_PACKAGE ?= public
 APP_UI_FOLDER ?= ui
 APP_PLUGIN_FOLDER ?= plugins
 APP_PLUGIN_PKG ?= $(APP_PLUGIN_FOLDER)
+APP_PLUGIN_EXCLUDE ?=
 APP_NEED_CGO ?= 0
+
+ifeq "$(APP_NAME)" "framework"
+    APP_PLUGIN_EXCLUDE ?= plugins/enterprise
+endif
 
 # Get release version from environment
 ifneq '$(VERSION)' ''
@@ -127,7 +132,7 @@ cross-build-cmd: config
 update-plugins:
 	@if [ ! -e $(OLDGOPATH)/src/infini.sh/framework/bin/plugin-discovery ]; then ( cd $(OLDGOPATH)/src/infini.sh/framework/ && make build-cmd ) fi
 	@$(foreach var,$(APP_PLUGIN_FOLDER),\
-        ( $(OLDGOPATH)/src/infini.sh/framework/bin/plugin-discovery -dir $(var) -pkg $(var) -import_prefix infini.sh/$(APP_NAME) -out $(var)/generated_plugins.go); \
+        ( $(OLDGOPATH)/src/infini.sh/framework/bin/plugin-discovery -dir $(var) $(foreach exclude,$(APP_PLUGIN_EXCLUDE),-exclude $(exclude)) -pkg $(var) -import_prefix infini.sh/$(APP_NAME) -out $(var)/generated_plugins.go); \
     )
 
 # used to build the binary for gdb debugging
@@ -260,7 +265,7 @@ tidy:
 lint: config
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.1.6; \
+		GOBIN=$(shell go env GOPATH)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6; \
 	fi
 	golangci-lint run
 	@$(MAKE) restore-generated-file
