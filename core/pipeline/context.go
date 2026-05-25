@@ -94,19 +94,19 @@ type Context struct {
 	steps int64
 
 	// cancelFunc closes the Done channel of the embedded context.Context,
-	// signaling processors to stop early. 
-	// 
-	// This is a cooperative mechanism: it only takes effect if the processor's process() 
+	// signaling processors to stop early.
+	//
+	// This is a cooperative mechanism: it only takes effect if the processor's process()
 	// implementation explicitly checks IsCanceled() and returns when it is true.
-	cancelFunc   context.CancelFunc
+	cancelFunc context.CancelFunc
 	// True means the goroutine has been paused/suspended.
-	isPaused     bool
-	pause        sync.WaitGroup
+	isPaused bool
+	pause    sync.WaitGroup
 	// Set this to true if you want to stop the pipeline, and then, pause (suspend) the goroutine.
-	isQuit       bool
-	stateLock    sync.Mutex
+	isQuit    bool
+	stateLock sync.Mutex
 	// Set this to true if you want to let the goroutine exit, i.e., the kill signal.
-	released     bool
+	released bool
 	// True means the goroutine already exited.
 	loopReleased bool
 }
