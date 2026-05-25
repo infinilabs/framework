@@ -25,7 +25,14 @@ type conn interface {
 	Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error)
 	StartTLS(config *tls.Config) error
 	UnauthenticatedBind(username string) error
+}
+
+type connWithCloseError interface {
 	Close() error
+}
+
+type connWithCloseNoError interface {
+	Close()
 }
 
 // Config define the configuration to connect to LDAP.
@@ -80,7 +87,7 @@ func (c client) authenticate(ctx context.Context, r *fasthttp.Request, userName,
 		return nil, err
 	}
 
-	defer l.Close()
+	defer closeConn(l)
 
 	if c.cfg.BindPassword != "" {
 		err = l.Bind(c.cfg.BindDN, c.cfg.BindPassword)
@@ -155,6 +162,16 @@ func (c client) authenticate(ctx context.Context, r *fasthttp.Request, userName,
 	//}
 
 	return auth.NewUserInfo(util.UnsafeBytesToString(userName), id, groups, ext), nil
+}
+
+// closeConn accepts both go-ldap Close signatures used across module and GOPATH builds.
+func closeConn(c conn) {
+	switch v := any(c).(type) {
+	case connWithCloseError:
+		_ = v.Close()
+	case connWithCloseNoError:
+		v.Close()
+	}
 }
 
 // GetAuthenticateFunc return function to authenticate request using LDAP.
