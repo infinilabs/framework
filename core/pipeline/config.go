@@ -100,12 +100,12 @@ type PipelineConfigV2 struct {
 	// processor config keyed by processor type.
 	Processors []map[string]interface{} `config:"processor" json:"processor"`
 
-	// Labels are arbitrary metadata attached to the pipeline. 
+	// Labels are arbitrary metadata attached to the pipeline.
 	Labels map[string]interface{} `config:"labels" json:"labels"`
 
 	// Transient, if false, marks that this pipeline config shpuld be persisted.
 	//
-	// In the current implementation, only the pipeline configs created with the 
+	// In the current implementation, only the pipeline configs created with the
 	// `POST /pipeline` API will set this to true.
 	Transient bool `config:"-" json:"transient"`
 }

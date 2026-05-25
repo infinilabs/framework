@@ -48,7 +48,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: permissions refactoring
 - chore: security configuration structure enhanced
 - chore: remove unused grpc and cuckoo filter"
-
+- chore: update seelog for vfs #363
 
 
 ## 1.4.0 (2025-12-19)
