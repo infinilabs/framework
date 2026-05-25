@@ -25,12 +25,14 @@ package security
 
 import (
 	"fmt"
+
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/module"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/modules/security/access_token"
 	_ "infini.sh/framework/modules/security/account"
 	_ "infini.sh/framework/modules/security/http_filters"
 	_ "infini.sh/framework/modules/security/oauth_client"
@@ -70,6 +72,10 @@ func (module *Module) Setup() {
 
 	if module.cfg.Authentication.Native.Enabled {
 		rbac.Init()
+	}
+
+	if module.cfg.Authentication.AccessToken.Enabled {
+		access_token.Init()
 	}
 
 	oauthSettings := util.MapStr{}

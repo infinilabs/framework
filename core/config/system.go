@@ -330,8 +330,20 @@ type RealmConfig struct {
 
 type AuthenticationConfig struct {
 	Native                RealmConfig            `config:"native"`
+	AccessToken           AccessTokenConfig      `config:"access_token"`
 	HTTPBasicAuthProvider HTTPBasicAuthProvider  `config:"http_basic"`
 	OAuth                 map[string]OAuthConfig `config:"oauth"`
+}
+
+// AccessTokenConfig controls API access-token management.
+//
+// When Native is true (default when the native realm is enabled) tokens are
+// persisted via ORM in addition to KV. When Native is false the module runs
+// in KV-only mode — suitable for agent-style deployments without an ORM
+// backend.
+type AccessTokenConfig struct {
+	Enabled bool `config:"enabled"`
+	Native  bool `config:"native"`
 }
 
 type HTTPBasicAuthProvider struct {
