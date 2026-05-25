@@ -242,7 +242,10 @@ cross-build-all-platform: clean config build-bsd build-linux build-darwin build-
 
 format:
 	@echo "formatting code"
-	$(GO) fmt $$($(GO) list ./...)
+	find . -type f -name '*.go' \
+		-not -path './vendor/*' \
+		-not -path './.git/*' \
+		-print0 | xargs -0 gofmt -w
 
 test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
