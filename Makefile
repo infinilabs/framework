@@ -245,7 +245,7 @@ format:
 	find . -type f -name '*.go' \
 		-not -path './vendor/*' \
 		-not -path './.git/*' \
-		-print0 | xargs -0 gofmt -w
+		-exec gofmt -w {} +
 
 test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
