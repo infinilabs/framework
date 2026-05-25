@@ -60,6 +60,10 @@ ifneq "$(DEV)" ""
 endif
 
 GO        := go
+GOMODULE ?= true
+ifneq "$(GOMODULE)" "true"
+    GO := GO15VENDOREXPERIMENT="1" GO111MODULE=off go
+endif
 GOBUILD  := CGO_ENABLED=$(APP_NEED_CGO) $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -gcflags=all="-l -B"  -ldflags '-static' -ldflags='-s -w' -gcflags "-m"  --work $(GOBUILD_FLAGS)
 GOBUILDDBG  := CGO_ENABLED=$(APP_NEED_CGO) $(GO) build -a $(FRAMEWORK_DEVEL_BUILD) -ldflags -v -gcflags "all=-N -l" --work $(GOBUILD_FLAGS)
 GOBUILDNCGO  := CGO_ENABLED=1 $(GO) build -ldflags -s $(GOBUILD_FLAGS)
@@ -263,7 +267,7 @@ lint: config
 		echo "Installing golangci-lint..."; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 	fi
-	golangci-lint run
+	$(if $(filter $(GOMODULE),true),golangci-lint run,GO15VENDOREXPERIMENT="1" GO111MODULE=off golangci-lint run)
 	@$(MAKE) restore-generated-file
 
 clean_data:
