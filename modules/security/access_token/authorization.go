@@ -21,11 +21,11 @@ type SecurityBackendProvider struct {
 func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID string) []security.PermissionKey {
 	var allowedPermissions = []security.PermissionKey{}
 
-	if providerID==ProviderName{
+	if providerID == ProviderName {
 		_, permissions, err := getTokenPermissions(userID)
-		if err!=nil {
+		if err != nil {
 			log.Error(err)
-		}else{
+		} else {
 			return permissions
 		}
 	}
@@ -36,4 +36,3 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.
 func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx context.Context, roles []string) []security.PermissionKey {
 	return []security.PermissionKey{}
 }
-

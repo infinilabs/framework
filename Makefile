@@ -11,6 +11,7 @@ APP_UI_FOLDER ?= ui
 APP_PLUGIN_FOLDER ?= plugins
 APP_PLUGIN_PKG ?= $(APP_PLUGIN_FOLDER)
 APP_NEED_CGO ?= 0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # Get release version from environment
 ifneq '$(VERSION)' ''
@@ -242,7 +243,10 @@ cross-build-all-platform: clean config build-bsd build-linux build-darwin build-
 
 format:
 	@echo "formatting code"
-	$(GO) fmt $$($(GO) list ./...)
+	find . -type f -name '*.go' \
+		-not -path './vendor/*' \
+		-not -path './.git/*' \
+		-exec gofmt -w {} +
 
 test: config
 	$(GOTEST) -v $(GOFLAGS) -timeout 30m ./...
@@ -257,7 +261,7 @@ tidy:
 lint: config
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.1.6; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 	fi
 	golangci-lint run
 	@$(MAKE) restore-generated-file
