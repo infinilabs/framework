@@ -1,3 +1,26 @@
+// Copyright (C) INFINI Labs & INFINI LIMITED.
+//
+// The INFINI Framework is offered under the GNU Affero General Public License v3.0
+// and as commercial software.
+//
+// For commercial licensing, contact us at:
+//   - Website: infinilabs.com
+//   - Email: hello@infini.ltd
+//
+// Open Source licensed under AGPL V3:
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -10,6 +33,8 @@ import (
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
 
+// The transport tests cover both direct TLS and trusted proxy headers because the
+// security helpers are shared by embedded UI routes that may sit behind a proxy.
 func TestRequestUsesSecureTransport(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -58,6 +83,7 @@ func TestRequestUsesSecureTransport(t *testing.T) {
 	}
 }
 
+// The wrapper should fail fast before running the protected handler on plain HTTP.
 func TestRequireSecureTransport(t *testing.T) {
 	handler := Handler{}
 	called := false
@@ -79,6 +105,7 @@ func TestRequireSecureTransport(t *testing.T) {
 	}
 }
 
+// Replay-protected handlers should pass straight through once a matching nonce exists.
 func TestRequireReplayProtection(t *testing.T) {
 	handler := Handler{}
 	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
@@ -102,5 +129,32 @@ func TestRequireReplayProtection(t *testing.T) {
 	}
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, resp.Code)
+	}
+}
+
+// Route options are later consumed by SecurityFilter, so the feature flag and labels
+// must both be set when secure transport enforcement is requested declaratively.
+func TestSecureTransportOption(t *testing.T) {
+	options := &HandlerOptions{}
+	SecureTransportOption(SecureTransportOptions{TrustForwardHeaders: true})(options)
+
+	if !options.Feature(FeatureRequireSecureTransport) {
+		t.Fatal("expected secure transport feature to be enabled")
+	}
+	if options.Labels == nil {
+		t.Fatal("expected labels to be initialized")
+	}
+	if v, ok := options.Labels[LabelTrustForwardHeaders].(bool); !ok || !v {
+		t.Fatalf("expected trust forward headers label to be true, got %#v", options.Labels[LabelTrustForwardHeaders])
+	}
+}
+
+// Replay protection uses a single feature flag because the filter reads no extra labels.
+func TestReplayProtectionOption(t *testing.T) {
+	options := &HandlerOptions{}
+	ReplayProtectionOption()(options)
+
+	if !options.Feature(FeatureRequireReplayProtection) {
+		t.Fatal("expected replay protection feature to be enabled")
 	}
 }

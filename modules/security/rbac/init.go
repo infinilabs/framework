@@ -18,6 +18,7 @@ func Init() {
 	provider := SecurityBackendProvider{}
 	security.RegisterAuthenticationProvider(security.DefaultNativeAuthBackend, &provider)
 	security.RegisterAuthorizationProvider(security.DefaultNativeAuthBackend, &provider)
+	registerAccountRoutes()
 
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")

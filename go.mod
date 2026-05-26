@@ -33,6 +33,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/gddo v0.0.0-20210115222349-20d68f94ee1f
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github v17.0.0+incompatible

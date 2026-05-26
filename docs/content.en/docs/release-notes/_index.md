@@ -11,6 +11,7 @@ Information about release notes of INFINI Framework is provided here.
 ## Latest (In development)  
 ### ❌ Breaking changes  
 - refactor: native security are disabled by default #283
+- refactor: refactoring to simplify go modules #300
 
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
@@ -19,12 +20,16 @@ Information about release notes of INFINI Framework is provided here.
 - feat(keystore): support large stdin secrets (>1024 bytes) and multiline #271
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275
 - feat: output HTTP access logs to file
+- feat(metrics): monitor each disk and network interface independently for bottleneck detection
+- feat(metrics): auto-detect network interface bandwidth per device (Linux, macOS, Windows)
+- feat(metrics): identify specific bottleneck device (e.g., `disk_io:nvme0n1`, `network:eth0`)
 - feat(cookie): prevent aggressive session cookie expiration #284
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
+- feat: add access_token to security #359
+- feat(security): add native account login challenge, replay protection, and secure transport helpers
 
 ### 🐛 Bug fix  
-- fix: prevent duplicate bulk queue consumers during bulk indexing migrations #289
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
 - refactor: use PathUnescape to decode query param filter #249
@@ -43,7 +48,8 @@ Information about release notes of INFINI Framework is provided here.
 - chore: add util to get request header
 - chore: permissions refactoring
 - chore: security configuration structure enhanced
-
+- chore: remove unused grpc and cuckoo filter"
+- chore: update seelog for vfs #363
 
 
 ## 1.4.0 (2025-12-19)
