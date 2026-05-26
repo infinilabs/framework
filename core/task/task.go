@@ -41,6 +41,8 @@ import (
 var Tasks = sync.Map{}
 
 func shouldSilenceStartupTaskError(msg string) bool {
+	// During startup some tasks can race slightly ahead of ORM registration. Treat that specific
+	// error as bootstrap noise so real migration/task failures remain visible in error logs.
 	return !orm.HasHandler() && strings.Contains(msg, "ORM handler is not registered")
 }
 

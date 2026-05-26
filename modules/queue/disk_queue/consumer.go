@@ -84,6 +84,9 @@ func (d *Consumer) parkOnEmptyTail(fileName string) error {
 }
 
 func (d *Consumer) waitingForTailFile() bool {
+	// A parked consumer has already advanced to the current write segment, but there is no tail
+	// file content yet. Treat this as a normal catch-up state so the next write can resume from
+	// the live tail instead of rescanning an older corrupt or already-consumed segment.
 	return d.diskQueue != nil &&
 		d.readFile == nil &&
 		d.reader == nil &&
@@ -560,6 +563,8 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 		//double check, but next file exists
 		if !util.FileExists(fileName) {
 			if segment == d.diskQueue.writeSegmentNum && readPos == 0 && d.diskQueue.writePos == 0 {
+				// The consumer has caught up to an empty tail segment. Park there and let FetchMessages
+				// wait for the producer to materialize the next file instead of treating the tail as corrupt.
 				return d.parkOnEmptyTail(fileName)
 			}
 			if d.mCfg.AutoSkipCorruptFile {
@@ -589,6 +594,8 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 						d.segment = d.diskQueue.writeSegmentNum
 						d.readPos = 0
 						d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+						// After skipping every missing intermediate segment, the safest recovery point is
+						// the current writer tail. Park on it so the consumer resumes from fresh data only.
 						return d.parkOnEmptyTail(GetFileName(d.queue, d.segment))
 					}
 					return errors.New(fileName + " not found, next segment greater than current write segment")

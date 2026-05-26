@@ -125,6 +125,9 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
 	systemID, ok := lookupSystemElasticsearchID()
 	if !ok {
+		// Console-managed elasticsearch configs live in the system cluster. During startup or
+		// migration bootstrap that cluster may not exist yet, so treat it as "no remote configs"
+		// instead of failing module initialization.
 		return configs
 	}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
@@ -411,6 +414,8 @@ func (module *ElasticModule) Start() error {
 
 	if moduleConfig.ORMConfig.Enabled {
 		if !hasSystemCluster {
+			// Allow the module to start before the system cluster is registered so bootstrap and
+			// migration flows can finish wiring the cluster first, then re-enable ORM-backed features.
 			log.Warn("skip elastic ORM initialization, system cluster is not available")
 		} else {
 			client := elastic.GetClient(systemID)
@@ -721,6 +726,8 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		if ok {
 			cfg := elastic.GetConfigNoPanic(v.Config.ID)
 			if cfg == nil {
+				// Metadata can outlive the config during remote-config reloads or migration cleanup.
+				// Drop it here so later workers do not keep probing a cluster that was already removed.
 				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
 				elastic.RemoveInstance(v.Config.ID)
 				elastic.RemoveHostsByClusterID(v.Config.ID)
@@ -745,6 +752,8 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 		if ok {
 			cfg := elastic.GetConfigNoPanic(v.Config.ID)
 			if cfg == nil {
+				// Keep alias refresh in sync with metadata refresh: once the config is gone, clear any
+				// cached hosts/metadata so the next initialization starts from the active config set only.
 				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
 				elastic.RemoveInstance(v.Config.ID)
 				elastic.RemoveHostsByClusterID(v.Config.ID)

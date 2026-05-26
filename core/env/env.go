@@ -496,6 +496,8 @@ func resolvePathRelativeToExecutable(p string) string {
 	if err != nil {
 		return p
 	}
+	// Keep relative runtime paths anchored to the installed binary rather than the caller's cwd so
+	// restarts, service managers, and migration workers all read/write the same directories.
 	return filepath.Join(filepath.Dir(executablePath), p)
 }
 

@@ -32,7 +32,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/wrapper/taskset"
 	"infini.sh/framework/modules/configs/client"
@@ -88,6 +88,8 @@ type App struct {
 func getServiceWorkingDirectory() string {
 	executablePath, err := os.Executable()
 	if err == nil {
+		// Services are often launched from a manager-controlled cwd. Use the executable directory so
+		// relative data/log/config paths resolve the same way for service installs and manual runs.
 		return filepath.Dir(executablePath)
 	}
 	workdir, err := os.Getwd()

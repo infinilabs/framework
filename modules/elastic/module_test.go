@@ -19,6 +19,18 @@ func TestLoadESBasedElasticConfigSkipsWhenSystemClusterUnavailable(t *testing.T)
 	}
 }
 
+func TestLookupSystemElasticsearchIDRejectsInvalidValues(t *testing.T) {
+	previous := global.Lookup(coreElastic.GlobalSystemElasticsearchID)
+	defer global.Register(coreElastic.GlobalSystemElasticsearchID, previous)
+
+	global.Register(coreElastic.GlobalSystemElasticsearchID, 123)
+
+	systemID, ok := lookupSystemElasticsearchID()
+	if ok {
+		t.Fatalf("expected invalid system cluster value to be rejected, got %q", systemID)
+	}
+}
+
 func TestElasticModuleStartSkipsSystemClusterDependentInitBeforeSetup(t *testing.T) {
 	previousSystemID := global.Lookup(coreElastic.GlobalSystemElasticsearchID)
 	defer global.Register(coreElastic.GlobalSystemElasticsearchID, previousSystemID)
