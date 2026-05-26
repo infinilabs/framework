@@ -84,3 +84,20 @@ func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 		t.Fatal("expected challenge proof to validate")
 	}
 }
+
+func TestEnsurePasswordChallengePopulatesLegacyAccount(t *testing.T) {
+	user := &UserAccount{Password: "existing-bcrypt-hash"}
+	if err := EnsurePasswordChallenge(user, "StrongPassw0rd!"); err != nil {
+		t.Fatalf("ensure password challenge: %v", err)
+	}
+
+	if user.PasswordSalt == "" {
+		t.Fatal("expected password salt to be populated")
+	}
+	if user.PasswordVerifier == "" {
+		t.Fatal("expected password verifier to be populated")
+	}
+	if !CanUsePasswordChallenge(user) {
+		t.Fatal("expected legacy account to become challenge-capable")
+	}
+}

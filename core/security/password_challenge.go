@@ -53,6 +53,8 @@ func SetPassword(user *UserAccount, password string) error {
 		return err
 	}
 
+	// Store both the bcrypt hash for existing password checks and the derived
+	// verifier for challenge login so the two login modes stay in sync.
 	salt := util.GenerateSecureString(32)
 	verifier, err := DerivePasswordVerifier(password, salt)
 	if err != nil {
@@ -73,6 +75,8 @@ func EnsurePasswordChallenge(user *UserAccount, password string) error {
 		return nil
 	}
 
+	// This is used as an in-place upgrade path for older native accounts that only
+	// have a bcrypt password hash from before challenge login was introduced.
 	salt := util.GenerateSecureString(32)
 	verifier, err := DerivePasswordVerifier(password, salt)
 	if err != nil {

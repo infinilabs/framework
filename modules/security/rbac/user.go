@@ -72,6 +72,8 @@ func UpdateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 
 	if obj.Password == "" {
+		// Preserve the verifier material on metadata-only updates so editing roles,
+		// names, or other fields does not silently disable challenge login.
 		obj.Password = oldObj.Password
 		obj.PasswordSalt = oldObj.PasswordSalt
 		obj.PasswordVerifier = oldObj.PasswordVerifier
@@ -261,6 +263,8 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 
 	obj.Password = randStr
+	// The one-time bootstrap password should be returned to the caller, but the
+	// persisted verifier material must stay server-side only.
 	obj.PasswordSalt = ""
 	obj.PasswordVerifier = ""
 	api.WriteJSON(w, obj, 200)

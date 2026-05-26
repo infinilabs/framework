@@ -55,6 +55,8 @@ type accountLoginRequest struct {
 }
 
 func registerAccountRoutes() {
+	// These endpoints are only registered from rbac.Init(), so they exist only when
+	// native authentication is enabled and the native user backend is ready.
 	api.HandleUIMethod(api.POST, "/account/replay_nonce",
 		api.RequireSecureTransport(IssueReplayNonce),
 		api.AllowPublicAccess(),
@@ -182,6 +184,8 @@ func (req accountLoginRequest) NormalizedLogin() string {
 
 func buildLoginChallengeResponse(login string, exists bool, user *security.UserAccount) util.MapStr {
 	if exists && security.CanUsePasswordChallenge(user) {
+		// The challenge payload gives clients everything needed to derive a proof
+		// locally without sending the raw password back to the server.
 		challenge := security.NewLoginChallenge(login)
 		return util.MapStr{
 			"status":       "ok",
@@ -240,6 +244,8 @@ func lookupAccountByLogin(login string) (bool, *security.UserAccount, error) {
 func validateReplayNonce(r *http.Request, required bool) error {
 	nonce := strings.TrimSpace(r.Header.Get(replaysecurity.HeaderName))
 	if nonce == "" && !required {
+		// Keep the original password login path backward compatible: upgraded clients
+		// send replay nonces, while older clients can still post passwords directly.
 		return nil
 	}
 	return replaysecurity.ValidateAndConsumeReplayNonce(r)
@@ -255,6 +261,8 @@ func upgradePasswordChallenge(user *security.UserAccount, password string) {
 		return
 	}
 
+	// Persist the verifier after a successful legacy password login so subsequent
+	// logins can move onto the challenge flow without an explicit migration step.
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
 	ctx.Refresh = orm.WaitForRefresh
