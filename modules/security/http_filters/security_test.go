@@ -66,7 +66,7 @@ func TestSecurityFilterReplayProtectionFeature(t *testing.T) {
 	}
 }
 
-func TestSecurityFilterReadsTrustForwardHeadersLabel(t *testing.T) {
+func TestSecurityFilterWithTrustedForwardHeaders(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
 	api.SecureTransportOption(api.SecureTransportOptions{TrustForwardHeaders: true})(options)

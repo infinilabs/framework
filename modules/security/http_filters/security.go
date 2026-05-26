@@ -32,7 +32,7 @@ func (f *SecurityFilter) ApplyFilter(
 	next httprouter.Handle,
 ) httprouter.Handle {
 	if options == nil || (!options.Feature(api.FeatureRequireSecureTransport) && !options.Feature(api.FeatureRequireReplayProtection)) {
-		log.Debug(method, ",", pattern, ",skip security feature filters")
+		log.Debug(method, ",", pattern, ", skip security feature filters")
 		return next
 	}
 
