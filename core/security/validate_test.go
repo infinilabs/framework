@@ -66,3 +66,30 @@ func TestValidateAuthorizationHeader(t *testing.T) {
 		t.Fatalf("expected user id to round-trip, got %q", sessionUser.UserID)
 	}
 }
+
+func TestValidateAuthorizationHeaderRejectsIncompleteUserClaims(t *testing.T) {
+	oldSecret := secretKey
+	secretKey = "test-framework-secret"
+	defer func() {
+		secretKey = oldSecret
+	}()
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
+		RegisteredClaims: &jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+		UserSessionInfo: &UserSessionInfo{
+			Provider: "native",
+			Login:    "admin@example.org",
+		},
+	})
+	tokenString, err := token.SignedString([]byte(secretKey))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	sessionUser, err := ValidateAuthorizationHeader("Bearer " + tokenString)
+	if err == nil {
+		t.Fatalf("expected invalid claims to be rejected, got user %+v", sessionUser)
+	}
+}

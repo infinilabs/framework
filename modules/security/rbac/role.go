@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
@@ -15,6 +16,14 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+)
+
+const (
+	errInvalidCurrentUser  = "invalid user"
+	errInvalidRole         = "invalid role"
+	errCannotUpdateOwnRole = "you can not update the roles for you"
+	errReservedRoleName    = "can not use the reserved role name"
+	errRoleAlreadyExists   = "same role name already exists"
 )
 
 func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -28,8 +37,12 @@ func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	ctx.PermissionScope(security.PermissionScopePlatform)
 
 	exists, err := orm.GetV2(ctx, &obj)
-	if !exists || err != nil {
-		api.NotFoundResponse(id)
+	if err != nil {
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		api.WriteJSON(w, api.NotFoundResponse(id), http.StatusNotFound)
 		return
 	}
 
@@ -44,7 +57,7 @@ func UpdateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	obj := security.UserRole{}
 	err := api.DecodeJSON(req, &obj)
 	if err != nil {
-		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -56,16 +69,23 @@ func UpdateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 		userID := sessionUser.MustGetUserID()
 		_, account, err := security.GetUserByID(userID)
 
-		if account == nil || err != nil {
-			panic("invalid user")
+		if err != nil {
+			api.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if account == nil {
+			api.WriteError(w, errInvalidCurrentUser, http.StatusUnauthorized)
+			return
 		}
 
 		_, role := GetRoleByID(id)
 		if role == nil {
-			panic("invalid role")
+			api.WriteError(w, errInvalidRole, http.StatusNotFound)
+			return
 		}
 		if util.ContainsAnyInArray(role.Name, account.Roles) {
-			panic("you can not update the roles for you")
+			api.WriteError(w, errCannotUpdateOwnRole, http.StatusForbidden)
+			return
 		}
 	}
 
@@ -164,19 +184,21 @@ func CreateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	var obj = &security.UserRole{}
 	err := api.DecodeJSON(req, obj)
 	if err != nil {
-		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if obj.Name == "admin" {
-		panic("can not use the reserved role name")
+		api.WriteError(w, errReservedRoleName, http.StatusBadRequest)
+		return
 	}
 
 	api.MustValidateInput(w, obj)
 
 	exists, _ := GetRoleByName(obj.Name)
 	if exists {
-		panic("same role name already exists")
+		api.WriteError(w, errRoleAlreadyExists, http.StatusConflict)
+		return
 	}
 
 	ctx := orm.NewContextWithParent(req.Context())
@@ -242,7 +264,8 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx1 context.C
 	result := []security.UserRole{}
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &result, qb, nil)
 	if err != nil {
-		panic(err)
+		log.Errorf("failed to load permissions for roles %v: %v", roles, err)
+		return []security.PermissionKey{}
 	}
 
 	allowed := make(map[security.PermissionKey]struct{}, 128)
