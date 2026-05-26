@@ -86,3 +86,14 @@ func TestUserClaimsUnmarshalAcceptsLegacyConsoleAliases(t *testing.T) {
 		t.Fatalf("expected provider to be preserved, got %q", claims.Provider)
 	}
 }
+
+func TestUserSessionInfoIsValidReturnsFalseForIncompleteUser(t *testing.T) {
+	user := &UserSessionInfo{
+		Provider: "native",
+		Login:    "admin@example.org",
+	}
+
+	if user.IsValid() {
+		t.Fatal("expected incomplete user session to be invalid")
+	}
+}

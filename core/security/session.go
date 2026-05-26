@@ -66,7 +66,7 @@ func byAccessTokenSession(w http.ResponseWriter, r *http.Request) (claims *UserC
 func AddUserToSession(w http.ResponseWriter, r *http.Request, user *UserSessionInfo) (error, map[string]interface{}) {
 
 	if user == nil {
-		panic("invalid user")
+		return errors.NewWithHTTPCode(http.StatusUnauthorized, "invalid user"), nil
 	}
 
 	// Generate access token
