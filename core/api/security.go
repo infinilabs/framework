@@ -35,6 +35,12 @@ type SecureTransportOptions struct {
 	TrustForwardHeaders bool
 }
 
+const (
+	FeatureRequireSecureTransport  = "feature_require_secure_transport"
+	FeatureRequireReplayProtection = "feature_require_replay_protection"
+	LabelTrustForwardHeaders       = "label_trust_forward_headers"
+)
+
 func RequestUsesSecureTransport(req *http.Request, options ...SecureTransportOptions) bool {
 	if req == nil {
 		return false
@@ -88,6 +94,18 @@ func (handler Handler) RequireReplayProtection(h httprouter.Handle) httprouter.H
 
 func RequireReplayProtection(h httprouter.Handle) httprouter.Handle {
 	return Handler{}.RequireReplayProtection(h)
+}
+
+func SecureTransportOption(options ...SecureTransportOptions) Option {
+	resolved := resolveSecureTransportOptions(options)
+	return func(o *HandlerOptions) {
+		Feature(FeatureRequireSecureTransport)(o)
+		Label(LabelTrustForwardHeaders, resolved.TrustForwardHeaders)(o)
+	}
+}
+
+func ReplayProtectionOption() Option {
+	return Feature(FeatureRequireReplayProtection)
 }
 
 func resolveSecureTransportOptions(options []SecureTransportOptions) SecureTransportOptions {

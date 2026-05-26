@@ -127,3 +127,27 @@ func TestRequireReplayProtection(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, resp.Code)
 	}
 }
+
+func TestSecureTransportOption(t *testing.T) {
+	options := &HandlerOptions{}
+	SecureTransportOption(SecureTransportOptions{TrustForwardHeaders: true})(options)
+
+	if !options.Feature(FeatureRequireSecureTransport) {
+		t.Fatal("expected secure transport feature to be enabled")
+	}
+	if options.Labels == nil {
+		t.Fatal("expected labels to be initialized")
+	}
+	if v, ok := options.Labels[LabelTrustForwardHeaders].(bool); !ok || !v {
+		t.Fatalf("expected trust forward headers label to be true, got %#v", options.Labels[LabelTrustForwardHeaders])
+	}
+}
+
+func TestReplayProtectionOption(t *testing.T) {
+	options := &HandlerOptions{}
+	ReplayProtectionOption()(options)
+
+	if !options.Feature(FeatureRequireReplayProtection) {
+		t.Fatal("expected replay protection feature to be enabled")
+	}
+}
