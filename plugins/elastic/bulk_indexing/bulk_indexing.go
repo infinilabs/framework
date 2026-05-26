@@ -329,6 +329,8 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
 					}
+					// Let migration-style pipelines exit once queue discovery stays idle for a full
+					// interval instead of polling forever after all active queues drain.
 					if shouldQuitActiveQueueDetection(
 						lastDispatch,
 						time.Duration(processor.config.IdleTimeoutInSecond)*time.Second,
@@ -380,6 +382,8 @@ func shouldQuitActiveQueueDetection(lastDispatch time.Time, idleDuration time.Du
 const queueHandleSingleton = "queue_handler_singleton"
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, parentContext *pipeline.Context) {
+	// Prevent duplicate local workers for the same queue before competing for the
+	// distributed lease; this keeps one process from starting overlapping consumers.
 	if !processor.acquireQueueOwner(v.ID) {
 		if rate.GetRateLimiter("bulk_queue_owner", v.ID, 1, 1, 30*time.Second).Allow() {
 			log.Debugf("skip queue:[%v], already owned by another local bulk processor", v.ID)
@@ -569,6 +573,8 @@ func (processor *BulkIndexingProcessor) reserveInFlightQueue(key, workerID strin
 		return v, false
 	}
 
+	// Track workers by queue+slice so retries or queue re-discovery never start a second
+	// consumer for the same slice while the first one is still draining.
 	processor.inFlightQueueConfigs.Store(key, workerID)
 	processor.wg.Add(1)
 

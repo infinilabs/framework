@@ -387,6 +387,9 @@ func (ctx *Context) getResultStateLocked() RunningState {
 	case FINISHED, FAILED:
 		return ctx.runningState
 	case STOPPED:
+		// STOPPED is also used during normal shutdown. Once the run has an end time, derive the
+		// last completed result from the recorded errors so the API can distinguish manual stop
+		// from a finished or failed migration run.
 		if ctx.endTime == nil {
 			return STOPPED
 		}

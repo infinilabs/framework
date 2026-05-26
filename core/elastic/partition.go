@@ -436,7 +436,9 @@ func buildHashPartitionAggQuery(fieldName string, partitionCount int, filter int
 					"size":       partitionCount,
 					"value_type": "long",
 					"script": util.MapStr{
-						"lang":   "painless",
+						"lang": "painless",
+						// Keep the aggregation-side hash logic identical to the partition filter so each
+						// bucket count matches the documents selected when a migration resumes that bucket.
 						"source": fmt.Sprintf("if (doc[%s].size()==0 || doc[%s].value == '') return null; return (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count);", fieldLiteral, fieldLiteral, fieldLiteral),
 						"params": util.MapStr{
 							"partition_count": partitionCount,
@@ -566,6 +568,8 @@ func dedupeSortedBoundaries(boundaries []float64) []float64 {
 	sort.Float64s(boundaries)
 	result := make([]float64, 0, len(boundaries))
 	for _, boundary := range boundaries {
+		// Percentile aggregations on skewed datasets can return the same boundary more than once.
+		// Drop duplicates here so later range filters do not create zero-width partitions.
 		if len(result) == 0 || !sameBoundary(result[len(result)-1], boundary) {
 			result = append(result, boundary)
 		}
