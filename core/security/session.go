@@ -7,6 +7,7 @@ package security
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -18,8 +19,18 @@ import (
 const UserAccessTokenSessionName = "user_session_access_token"
 const UserAccessTokenTTL = 24 * time.Hour
 
+// SessionTokenResponseDecorator lets applications enrich the shared login/refresh
+// response with app-specific fields while reusing the framework session pipeline.
+type SessionTokenResponseDecorator func(token map[string]interface{}, user *UserSessionInfo)
+
+var sessionTokenResponseDecorators = sync.Map{}
+
 func init() {
 	RegisterHTTPAuthFilterProvider("session_token", byAccessTokenSession)
+}
+
+func RegisterSessionTokenResponseDecorator(name string, decorator SessionTokenResponseDecorator) {
+	sessionTokenResponseDecorators.Store(name, decorator)
 }
 
 func byAccessTokenSession(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error) {
@@ -154,4 +165,14 @@ func tokenExpiresAtUnix(value interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func applySessionTokenResponseDecorators(token map[string]interface{}, user *UserSessionInfo) {
+	sessionTokenResponseDecorators.Range(func(key, value any) bool {
+		decorator, ok := value.(SessionTokenResponseDecorator)
+		if ok {
+			decorator(token, user)
+		}
+		return true
+	})
 }
