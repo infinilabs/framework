@@ -25,15 +25,12 @@ package security
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// Framework-issued tokens need to remain readable by console clients until the two
-// stacks finish converging on a single session claim format.
-func TestUserClaimsMarshalIncludesLegacyConsoleAliases(t *testing.T) {
+func TestUserClaimsMarshalUsesFrameworkFields(t *testing.T) {
 	claims := UserClaims{
 		RegisteredClaims: &jwt.RegisteredClaims{},
 		UserSessionInfo: &UserSessionInfo{
@@ -49,41 +46,22 @@ func TestUserClaimsMarshalIncludesLegacyConsoleAliases(t *testing.T) {
 		t.Fatalf("marshal claims: %v", err)
 	}
 
-	text := string(payload)
-	for _, expected := range []string{
-		`"login":"admin@example.org"`,
-		`"username":"admin@example.org"`,
-		`"userid":"user-1"`,
-		`"user_id":"user-1"`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected %s in %s", expected, text)
-		}
-	}
-}
-
-// Older console tokens only carried username/user_id, so the framework parser must
-// backfill its native login/userid fields from those aliases during migration.
-func TestUserClaimsUnmarshalAcceptsLegacyConsoleAliases(t *testing.T) {
-	var claims UserClaims
-	err := json.Unmarshal([]byte(`{
-		"provider":"native",
-		"username":"admin@example.org",
-		"user_id":"user-1",
-		"roles":["admin"]
-	}`), &claims)
-	if err != nil {
-		t.Fatalf("unmarshal claims: %v", err)
+	var data map[string]any
+	if err := json.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("unmarshal claims json: %v", err)
 	}
 
-	if claims.Login != "admin@example.org" {
-		t.Fatalf("expected login to be backfilled from username, got %q", claims.Login)
+	if data["login"] != "admin@example.org" {
+		t.Fatalf("expected login field, got %#v", data["login"])
 	}
-	if claims.UserID != "user-1" {
-		t.Fatalf("expected user id to be backfilled from user_id, got %q", claims.UserID)
+	if data["userid"] != "user-1" {
+		t.Fatalf("expected userid field, got %#v", data["userid"])
 	}
-	if claims.Provider != "native" {
-		t.Fatalf("expected provider to be preserved, got %q", claims.Provider)
+	if _, exists := data["username"]; exists {
+		t.Fatalf("did not expect legacy username alias in claims: %s", payload)
+	}
+	if _, exists := data["user_id"]; exists {
+		t.Fatalf("did not expect legacy user_id alias in claims: %s", payload)
 	}
 }
 

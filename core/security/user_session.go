@@ -24,9 +24,7 @@
 package security
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -47,67 +45,6 @@ func NewUserClaims() *UserClaims {
 		RegisteredClaims: &jwt.RegisteredClaims{},
 		UserSessionInfo:  &UserSessionInfo{},
 	}
-}
-
-type userSessionInfoAlias UserSessionInfo
-
-// MarshalJSON keeps the framework claims readable by older console clients while the
-// token/session stack is converging onto the shared framework implementation.
-func (c UserClaims) MarshalJSON() ([]byte, error) {
-	sessionUser := c.UserSessionInfo
-	if sessionUser == nil {
-		sessionUser = &UserSessionInfo{}
-	}
-
-	claims := c.RegisteredClaims
-	if claims == nil {
-		claims = &jwt.RegisteredClaims{}
-	}
-
-	return json.Marshal(struct {
-		*jwt.RegisteredClaims
-		*userSessionInfoAlias
-		Username string `json:"username,omitempty"`
-		UserID   string `json:"user_id,omitempty"`
-	}{
-		RegisteredClaims:     claims,
-		userSessionInfoAlias: (*userSessionInfoAlias)(sessionUser),
-		Username:             sessionUser.Login,
-		UserID:               sessionUser.UserID,
-	})
-}
-
-// UnmarshalJSON accepts both the framework-native field names and the older console
-// aliases so apps can switch validators without forcing a token-format fork first.
-func (c *UserClaims) UnmarshalJSON(data []byte) error {
-	aux := struct {
-		*jwt.RegisteredClaims
-		*userSessionInfoAlias
-		Username string `json:"username,omitempty"`
-		UserID   string `json:"user_id,omitempty"`
-	}{
-		RegisteredClaims:     &jwt.RegisteredClaims{},
-		userSessionInfoAlias: &userSessionInfoAlias{},
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	sessionUser := (*UserSessionInfo)(aux.userSessionInfoAlias)
-	if sessionUser == nil {
-		sessionUser = &UserSessionInfo{}
-	}
-	if strings.TrimSpace(sessionUser.Login) == "" {
-		sessionUser.Login = strings.TrimSpace(aux.Username)
-	}
-	if strings.TrimSpace(sessionUser.UserID) == "" {
-		sessionUser.UserID = strings.TrimSpace(aux.UserID)
-	}
-
-	c.RegisteredClaims = aux.RegisteredClaims
-	c.UserSessionInfo = sessionUser
-	return nil
 }
 
 // auth user info
