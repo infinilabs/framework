@@ -16,6 +16,7 @@ import (
 )
 
 const UserAccessTokenSessionName = "user_session_access_token"
+const UserAccessTokenTTL = 24 * time.Hour
 
 func init() {
 	RegisterHTTPAuthFilterProvider("session_token", byAccessTokenSession)
@@ -89,7 +90,7 @@ func GenerateJWTAccessToken(user *UserSessionInfo) (map[string]interface{}, erro
 	token1 := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
 		UserSessionInfo: user,
 		RegisteredClaims: &jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(UserAccessTokenTTL)),
 		},
 	})
 
@@ -105,11 +106,51 @@ func GenerateJWTAccessToken(user *UserSessionInfo) (map[string]interface{}, erro
 
 	data = util.MapStr{
 		"access_token": tokenString,
-		"expire_in":    time.Now().Unix() + 86400, //24h
+		"expire_in":    time.Now().Unix() + int64(UserAccessTokenTTL/time.Second),
 	}
 
 	data["status"] = "ok"
 
 	return data, err
 
+}
+
+// DecorateSessionTokenResponse keeps framework-issued account responses directly
+// consumable by existing console clients while auth flows converge on framework.
+func DecorateSessionTokenResponse(token map[string]interface{}, user *UserSessionInfo) {
+	if token == nil || user == nil {
+		return
+	}
+
+	if expiresAt := tokenExpiresAtUnix(token["expire_in"]); expiresAt > 0 {
+		token["expires_at"] = expiresAt
+
+		remaining := expiresAt - time.Now().Unix()
+		if remaining < 0 {
+			remaining = 0
+		}
+		token["expire_in"] = remaining
+	}
+
+	token["username"] = user.Login
+	token["id"] = user.UserID
+	token["roles"] = append([]string(nil), user.Roles...)
+	token["privilege"] = GetAllPermissionsForUser(user)
+}
+
+func tokenExpiresAtUnix(value interface{}) int64 {
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	default:
+		return 0
+	}
 }

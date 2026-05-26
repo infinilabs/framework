@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"infini.sh/framework/core/security"
 	replaysecurity "infini.sh/framework/core/security/replay"
@@ -186,5 +187,40 @@ func TestNewNativeSessionFallsBackToRequestedLogin(t *testing.T) {
 	}
 	if session.Provider != security.DefaultNativeAuthBackend {
 		t.Fatalf("expected native provider, got %q", session.Provider)
+	}
+}
+
+// The framework login response keeps the console frontend contract while the handler
+// implementation moves from console into framework-owned routes.
+func TestDecorateLoginResponseAddsConsoleCompatibilityFields(t *testing.T) {
+	session := &security.UserSessionInfo{
+		Provider:    security.DefaultNativeAuthBackend,
+		Login:       "admin@example.org",
+		Roles:       []string{security.RoleAdmin},
+		Permissions: []security.PermissionKey{security.GetSimplePermission("generic", "unit", security.Read)},
+	}
+	session.SetUserID("user-1")
+
+	token := map[string]interface{}{
+		"status":    "ok",
+		"expire_in": time.Now().Unix() + 3600,
+	}
+	security.DecorateSessionTokenResponse(token, session)
+
+	if token["username"] != session.Login {
+		t.Fatalf("expected username %q, got %v", session.Login, token["username"])
+	}
+	if token["id"] != session.UserID {
+		t.Fatalf("expected id %q, got %v", session.UserID, token["id"])
+	}
+	if token["expires_at"] == nil {
+		t.Fatal("expected expires_at to be populated")
+	}
+	if expireIn, ok := token["expire_in"].(int64); !ok || expireIn <= 0 || expireIn > 3600 {
+		t.Fatalf("expected expire_in to become remaining lifetime seconds, got %#v", token["expire_in"])
+	}
+	privilege, ok := token["privilege"].([]security.PermissionKey)
+	if !ok || len(privilege) == 0 {
+		t.Fatalf("expected privilege list to be populated, got %#v", token["privilege"])
 	}
 }

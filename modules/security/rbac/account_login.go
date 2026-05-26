@@ -179,6 +179,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if err, token := security.AddUserToSession(w, r, sessionUser); err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 	} else {
+		security.DecorateSessionTokenResponse(token, sessionUser)
 		api.WriteOKJSON(w, token)
 	}
 }
