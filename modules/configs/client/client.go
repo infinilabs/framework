@@ -135,7 +135,7 @@ func applyManagerRequestAuth(req *util.Request, username, password, token string
 		req.SetBasicAuth(username, password)
 	}
 	if token != "" {
-		req.AddHeader(common.API_TOKEN, token)
+		req.AddHeader(model.API_TOKEN, token)
 	}
 }
 

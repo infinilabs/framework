@@ -56,7 +56,7 @@ type Instance struct {
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
-	CredentialID string `json:"credential_id,omitempty" elastic_mapping:"credential_id:{type:keyword}"`
+	AccessToken string `json:"access_token,omitempty" elastic_mapping:"access_token:{type:keyword}"`
 
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
@@ -71,8 +71,6 @@ type Instance struct {
 	Network  NetworkInfo   `json:"network,omitempty" elastic_mapping:"network: { type: object }"`
 	Services []ServiceInfo `json:"services,omitempty" elastic_mapping:"services: { type: object }"`
 	Status   string        `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
-
-	//SearchText string   `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
 type ServiceInfo struct {

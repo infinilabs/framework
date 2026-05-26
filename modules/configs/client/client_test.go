@@ -1,6 +1,7 @@
 package client
 
 import (
+	"infini.sh/framework/core/model"
 	"testing"
 
 	"infini.sh/framework/core/util"
@@ -12,7 +13,7 @@ func TestApplyManagerRequestAuthAddsRegisterTokenHeader(t *testing.T) {
 
 	applyManagerRequestAuth(&req, "", "", "token-1")
 
-	if got := req.AllHeaders()[common.API_TOKEN]; got != "token-1" {
+	if got := req.AllHeaders()[model.API_TOKEN]; got != "token-1" {
 		t.Fatalf("expected register token header %q, got %q", "token-1", got)
 	}
 }
@@ -22,7 +23,7 @@ func TestApplyManagerRequestAuthAddsTokenHeaderForSync(t *testing.T) {
 
 	applyManagerRequestAuth(&req, "", "", "token-1")
 
-	if got := req.AllHeaders()[common.API_TOKEN]; got != "token-1" {
+	if got := req.AllHeaders()[model.API_TOKEN]; got != "token-1" {
 		t.Fatalf("expected sync token header %q, got %q", "token-1", got)
 	}
 }

@@ -36,10 +36,10 @@ import (
 
 type Credential struct {
 	orm.ORMObjectBase
-	Name    string                 `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
-	Type    string                 `json:"type" elastic_mapping:"type:{type:keyword}"`
-	Tags    []string               `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
-	Payload map[string]interface{} `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Name    string                         `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
+	Type    CredentialType                 `json:"type" elastic_mapping:"type:{type:keyword}"`
+	Tags    []string                       `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
+	Payload map[CredentialType]interface{} `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	Encrypt struct {
 		Type   string                 `json:"type"`
 		Params map[string]interface{} `json:"params"`
@@ -117,7 +117,9 @@ func (cred *Credential) Decode() (interface{}, error) {
 	}
 }
 
+type CredentialType string
+
 const (
-	BasicAuth   string = "basic_auth"
-	AccessToken string = "access_token"
+	BasicAuth   CredentialType = "basic_auth"
+	AccessToken CredentialType = "access_token"
 )
