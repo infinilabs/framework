@@ -24,6 +24,7 @@ const (
 	errCannotUpdateOwnRole = "you can not update the roles for you"
 	errReservedRoleName    = "can not use the reserved role name"
 	errRoleAlreadyExists   = "same role name already exists"
+	errRoleAssignedToUsers = "role is still assigned to users"
 )
 
 func GetRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -109,8 +110,28 @@ func DeleteRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	obj.ID = id
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectAccess()
+
+	exists, err := orm.GetV2(ctx, &obj)
+	if err != nil {
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		api.WriteJSON(w, api.NotFoundResponse(id), http.StatusNotFound)
+		return
+	}
+	inUse, err := roleHasAssignedUsers(req.Context(), obj.Name)
+	if err != nil {
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if inUse {
+		api.WriteError(w, errRoleAssignedToUsers, http.StatusConflict)
+		return
+	}
+
 	ctx.Refresh = orm.WaitForRefresh
-	err := orm.Delete(ctx, &obj)
+	err = orm.Delete(ctx, &obj)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -286,4 +307,23 @@ func (provider *SecurityBackendProvider) GetPermissionKeysByRoles(ctx1 context.C
 		keys = append(keys, p)
 	}
 	return keys
+}
+
+func roleHasAssignedUsers(ctx1 context.Context, roleName string) (bool, error) {
+	if roleName == "" {
+		return false, nil
+	}
+
+	ctx := orm.NewContextWithParent(ctx1)
+	ctx.DirectReadAccess()
+	ctx.PermissionScope(security.PermissionScopePlatform)
+	orm.WithModel(ctx, &security.UserAccount{})
+
+	qb := orm.NewQuery()
+	qb.Must(orm.TermQuery("roles", roleName))
+	err, result := elastic.SearchV2WithResultItemMapper(ctx, nil, qb, nil)
+	if err != nil {
+		return false, err
+	}
+	return result != nil && result.Total > 0, nil
 }
