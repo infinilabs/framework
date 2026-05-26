@@ -43,21 +43,26 @@ const (
 	Algorithm = "PBKDF2-SHA256"
 	// Iterations is the PBKDF2 work factor shared with clients during challenge negotiation.
 	Iterations = 120000
-	keyLength  = 32
+	// keyLength is the derived key size used for both the stored verifier and request proof.
+	keyLength = 32
 	// DefaultTTL is the default lifetime of a login challenge before it must be re-issued.
 	DefaultTTL = 5 * time.Minute
 )
 
 // Challenge carries the one-time identifiers clients need to build a password proof locally.
 type Challenge struct {
-	ID       string
-	Subject  string
-	Nonce    string
+	ID string
+	// Subject keeps the challenge bound to the login identity it was issued for.
+	Subject string
+	// Nonce is the random per-challenge input mixed into the client proof.
+	Nonce string
+	// ExpireAt marks when the one-time challenge stops being valid.
 	ExpireAt time.Time
 }
 
 // StoreOptions configures the lifetime of issued login challenges.
 type StoreOptions struct {
+	// TTL overrides the default challenge lifetime for this store instance.
 	TTL time.Duration
 }
 
