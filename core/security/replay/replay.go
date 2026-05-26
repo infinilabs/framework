@@ -96,6 +96,8 @@ func DefaultSubjectExtractor(r *http.Request) string {
 	if authorizationHeader == "" {
 		return "anonymous"
 	}
+	// Bind the nonce to the caller's authorization material so a replay token issued for one
+	// authenticated context cannot be reused with a different credential set.
 	sum := sha256.Sum256([]byte(authorizationHeader))
 	return hex.EncodeToString(sum[:])
 }
