@@ -17,14 +17,17 @@ func init() {
 	api.RegisterUIFilter(&SecurityFilter{})
 }
 
+// SecurityFilter enforces per-route HTTPS and replay-protection features declared in HandlerOptions.
 type SecurityFilter struct {
 	api.Handler
 }
 
+// GetPriority keeps the security checks ahead of permission checks but after early request shaping.
 func (f *SecurityFilter) GetPriority() int {
 	return 450
 }
 
+// ApplyFilter translates route feature flags into runtime checks for HTTPS and replay nonce usage.
 func (f *SecurityFilter) ApplyFilter(
 	method string,
 	pattern string,
@@ -58,6 +61,7 @@ func (f *SecurityFilter) ApplyFilter(
 	}
 }
 
+// trustForwardHeadersFromOptions extracts whether SecureTransportOption opted into proxy headers.
 func trustForwardHeadersFromOptions(options *api.HandlerOptions) bool {
 	if options == nil || options.Labels == nil {
 		return false

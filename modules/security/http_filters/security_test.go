@@ -66,6 +66,29 @@ func TestSecurityFilterReplayProtectionFeature(t *testing.T) {
 	}
 }
 
+func TestSecurityFilterReplayProtectionRejectsMissingNonce(t *testing.T) {
+	filter := &SecurityFilter{}
+	options := &api.HandlerOptions{}
+	api.ReplayProtectionOption()(options)
+
+	called := false
+	protected := filter.ApplyFilter(http.MethodPost, "/account/login", options, func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
+	resp := httptest.NewRecorder()
+	protected(resp, req, nil)
+
+	if called {
+		t.Fatal("expected missing nonce to block handler execution")
+	}
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, resp.Code)
+	}
+}
+
 func TestSecurityFilterWithTrustedForwardHeaders(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
@@ -87,5 +110,14 @@ func TestSecurityFilterWithTrustedForwardHeaders(t *testing.T) {
 	}
 	if resp.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, resp.Code)
+	}
+}
+
+func TestTrustForwardHeadersFromOptionsDefaultsFalse(t *testing.T) {
+	if trustForwardHeadersFromOptions(nil) {
+		t.Fatal("expected nil options to disable trusted forward headers")
+	}
+	if trustForwardHeadersFromOptions(&api.HandlerOptions{}) {
+		t.Fatal("expected missing label to disable trusted forward headers")
 	}
 }

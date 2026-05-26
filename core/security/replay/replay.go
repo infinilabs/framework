@@ -37,12 +37,16 @@ import (
 )
 
 const (
+	// HeaderName is the HTTP header clients use to submit a one-time replay nonce.
 	HeaderName = "X-Request-Nonce"
+	// DefaultTTL is the default lifetime of an issued replay nonce.
 	DefaultTTL = 30 * time.Second
 )
 
+// SubjectExtractor derives the caller identity that a replay nonce should be bound to.
 type SubjectExtractor func(r *http.Request) string
 
+// StoreOptions configures replay nonce retention and subject binding behavior.
 type StoreOptions struct {
 	TTL              time.Duration
 	SubjectExtractor SubjectExtractor
@@ -55,6 +59,7 @@ type nonceRecord struct {
 	ExpiresAt time.Time
 }
 
+// Store tracks issued replay nonces until they are consumed or expire.
 type Store struct {
 	mu               sync.Mutex
 	ttl              time.Duration
@@ -64,6 +69,7 @@ type Store struct {
 
 var defaultStore = NewStore(StoreOptions{})
 
+// NewStore creates an in-memory replay store with optional TTL and subject extraction overrides.
 func NewStore(options StoreOptions) *Store {
 	ttl := options.TTL
 	if ttl <= 0 {
@@ -80,14 +86,18 @@ func NewStore(options StoreOptions) *Store {
 	}
 }
 
+// IssueReplayNonce issues a nonce from the default store for the requested method/path scope.
 func IssueReplayNonce(r *http.Request, method, requestPath string) (string, time.Duration, error) {
 	return defaultStore.IssueReplayNonce(r, method, requestPath)
 }
 
+// ValidateAndConsumeReplayNonce validates a nonce from the default store and deletes it on success.
 func ValidateAndConsumeReplayNonce(r *http.Request) error {
 	return defaultStore.ValidateAndConsumeReplayNonce(r)
 }
 
+// DefaultSubjectExtractor binds anonymous callers together and authenticated callers to their
+// Authorization header so replay nonces cannot be replayed across credential contexts.
 func DefaultSubjectExtractor(r *http.Request) string {
 	if r == nil {
 		return "anonymous"
@@ -102,6 +112,7 @@ func DefaultSubjectExtractor(r *http.Request) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// IssueReplayNonce stores a nonce that is scoped to the caller, HTTP method, and request path.
 func (store *Store) IssueReplayNonce(r *http.Request, method, requestPath string) (string, time.Duration, error) {
 	normalizedMethod, normalizedPath, err := normalizeScope(method, requestPath)
 	if err != nil {
@@ -128,6 +139,7 @@ func (store *Store) IssueReplayNonce(r *http.Request, method, requestPath string
 	return nonce, store.ttl, nil
 }
 
+// ValidateAndConsumeReplayNonce accepts a nonce only once and only for the original request scope.
 func (store *Store) ValidateAndConsumeReplayNonce(r *http.Request) error {
 	if r == nil {
 		return fmt.Errorf("request can not be nil")

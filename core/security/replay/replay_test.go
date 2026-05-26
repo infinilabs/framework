@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestReplayNonceCanOnlyBeUsedOnce(t *testing.T) {
@@ -78,5 +79,44 @@ func TestReplayNonceBindsToPathAndMethod(t *testing.T) {
 	useReq.Header.Set(HeaderName, nonce)
 	if err := store.ValidateAndConsumeReplayNonce(useReq); err == nil {
 		t.Fatal("expected nonce with mismatched method to fail")
+	}
+}
+
+func TestDefaultSubjectExtractorFallsBackToAnonymous(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
+	if got := DefaultSubjectExtractor(req); got != "anonymous" {
+		t.Fatalf("expected anonymous subject, got %q", got)
+	}
+}
+
+func TestReplayNonceNormalizesPath(t *testing.T) {
+	store := NewStore(StoreOptions{})
+	issueReq := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
+
+	nonce, _, err := store.IssueReplayNonce(issueReq, http.MethodPost, "account/../account/login")
+	if err != nil {
+		t.Fatalf("issue replay nonce failed: %v", err)
+	}
+
+	useReq := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
+	useReq.Header.Set(HeaderName, nonce)
+	if err := store.ValidateAndConsumeReplayNonce(useReq); err != nil {
+		t.Fatalf("expected normalized path to validate: %v", err)
+	}
+}
+
+func TestReplayNonceExpires(t *testing.T) {
+	store := NewStore(StoreOptions{TTL: time.Millisecond})
+	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
+
+	nonce, _, err := store.IssueReplayNonce(req, http.MethodPost, "/account/login")
+	if err != nil {
+		t.Fatalf("issue replay nonce failed: %v", err)
+	}
+
+	time.Sleep(5 * time.Millisecond)
+	req.Header.Set(HeaderName, nonce)
+	if err := store.ValidateAndConsumeReplayNonce(req); err == nil {
+		t.Fatal("expected expired nonce to be rejected")
 	}
 }

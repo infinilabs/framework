@@ -37,13 +37,18 @@ import (
 )
 
 const (
-	Method     = "challenge"
-	Algorithm  = "PBKDF2-SHA256"
+	// Method identifies the password challenge login flow returned by the challenge endpoint.
+	Method = "challenge"
+	// Algorithm describes the verifier/proof derivation algorithm that clients must use.
+	Algorithm = "PBKDF2-SHA256"
+	// Iterations is the PBKDF2 work factor shared with clients during challenge negotiation.
 	Iterations = 120000
 	keyLength  = 32
+	// DefaultTTL is the default lifetime of a login challenge before it must be re-issued.
 	DefaultTTL = 5 * time.Minute
 )
 
+// Challenge carries the one-time identifiers clients need to build a password proof locally.
 type Challenge struct {
 	ID       string
 	Subject  string
@@ -51,10 +56,12 @@ type Challenge struct {
 	ExpireAt time.Time
 }
 
+// StoreOptions configures the lifetime of issued login challenges.
 type StoreOptions struct {
 	TTL time.Duration
 }
 
+// Store tracks outstanding login challenges until they are consumed or expire.
 type Store struct {
 	mu         sync.Mutex
 	ttl        time.Duration
@@ -63,6 +70,7 @@ type Store struct {
 
 var defaultStore = NewStore(StoreOptions{})
 
+// NewStore creates an in-memory challenge store with the requested TTL.
 func NewStore(options StoreOptions) *Store {
 	ttl := options.TTL
 	if ttl <= 0 {
@@ -74,6 +82,7 @@ func NewStore(options StoreOptions) *Store {
 	}
 }
 
+// DeriveVerifier turns a password and salt into the verifier stored on the account record.
 func DeriveVerifier(password, salt string) (string, error) {
 	if password == "" {
 		return "", errors.New("password is empty")
@@ -85,6 +94,7 @@ func DeriveVerifier(password, salt string) (string, error) {
 	return hex.EncodeToString(key), nil
 }
 
+// BuildProof derives the one-time challenge response that clients submit to /account/login.
 func BuildProof(verifier, subject, challengeID, nonce string) (string, error) {
 	key, err := hex.DecodeString(verifier)
 	if err != nil {
@@ -99,6 +109,7 @@ func BuildProof(verifier, subject, challengeID, nonce string) (string, error) {
 	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
+// VerifyProof compares a submitted proof against the expected proof for this challenge tuple.
 func VerifyProof(verifier, subject, challengeID, nonce, proof string) bool {
 	expected, err := BuildProof(verifier, subject, challengeID, nonce)
 	if err != nil {
@@ -115,14 +126,17 @@ func VerifyProof(verifier, subject, challengeID, nonce, proof string) bool {
 	return hmac.Equal(expectedBytes, proofBytes)
 }
 
+// New issues a login challenge from the default store.
 func New(subject string) Challenge {
 	return defaultStore.New(subject)
 }
 
+// Consume loads and invalidates a login challenge from the default store.
 func Consume(challengeID, subject string) (Challenge, error) {
 	return defaultStore.Consume(challengeID, subject)
 }
 
+// New allocates a fresh challenge for the provided subject.
 func (store *Store) New(subject string) Challenge {
 	now := time.Now()
 	store.mu.Lock()
@@ -144,6 +158,7 @@ func (store *Store) New(subject string) Challenge {
 	return challenge
 }
 
+// Consume validates the subject and TTL, then invalidates the one-time challenge.
 func (store *Store) Consume(challengeID, subject string) (Challenge, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()

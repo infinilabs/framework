@@ -23,7 +23,10 @@
 
 package passwordchallenge
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 	verifier, err := DeriveVerifier("admin", "salt-123")
@@ -48,5 +51,24 @@ func TestConsumeRejectsWrongSubject(t *testing.T) {
 
 	if _, err := store.Consume(challenge.ID, "guest"); err == nil {
 		t.Fatal("expected challenge subject mismatch to fail")
+	}
+}
+
+func TestDeriveVerifierRejectsEmptyInput(t *testing.T) {
+	if _, err := DeriveVerifier("", "salt-123"); err == nil {
+		t.Fatal("expected empty password to fail")
+	}
+	if _, err := DeriveVerifier("admin", ""); err == nil {
+		t.Fatal("expected empty salt to fail")
+	}
+}
+
+func TestConsumeRejectsExpiredChallenge(t *testing.T) {
+	store := NewStore(StoreOptions{TTL: time.Millisecond})
+	challenge := store.New("admin")
+
+	time.Sleep(5 * time.Millisecond)
+	if _, err := store.Consume(challenge.ID, "admin"); err == nil {
+		t.Fatal("expected expired challenge to fail")
 	}
 }
