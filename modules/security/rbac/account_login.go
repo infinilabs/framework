@@ -59,28 +59,6 @@ type accountLoginRequest struct {
 	Proof       string `json:"proof"`
 }
 
-func registerAccountRoutes() {
-	// These endpoints are only registered from rbac.Init(), so they exist only when
-	// native authentication is enabled and the native user backend is ready.
-	api.HandleUIMethod(api.POST, "/account/replay_nonce",
-		api.RequireSecureTransport(IssueReplayNonce),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
-
-	api.HandleUIMethod(api.POST, "/account/login/challenge",
-		api.RequireSecureTransport(LoginChallenge),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
-
-	api.HandleUIMethod(api.POST, "/account/login",
-		api.RequireSecureTransport(Login),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
-}
-
 // IssueReplayNonce mints a short-lived nonce bound to the caller and target request scope.
 func IssueReplayNonce(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var req struct {
