@@ -23,7 +23,12 @@
 
 package rbac
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"infini.sh/framework/core/security"
+)
 
 // Weak passwords should now fail as normal validation errors instead of aborting
 // the request flow via panic.
@@ -34,5 +39,24 @@ func TestValidateSecurePassword(t *testing.T) {
 
 	if err := validateSecurePassword("StrongPassw0rd!"); err != nil {
 		t.Fatalf("expected strong password to pass validation, got %v", err)
+	}
+}
+
+func TestResolveUserByLogin(t *testing.T) {
+	found, user, err := resolveUserByLogin("missing@example.org", nil)
+	if err != nil || found || user != nil {
+		t.Fatalf("expected empty result for missing user, got found=%v user=%#v err=%v", found, user, err)
+	}
+
+	items := []security.UserAccount{{}}
+	items[0].Email = "admin@example.org"
+	found, user, err = resolveUserByLogin("admin@example.org", items)
+	if err != nil || !found || user == nil || user.Email != "admin@example.org" {
+		t.Fatalf("expected single user match, got found=%v user=%#v err=%v", found, user, err)
+	}
+
+	_, _, err = resolveUserByLogin("dup@example.org", []security.UserAccount{{}, {}})
+	if err == nil || !strings.Contains(err.Error(), "multiple accounts found") {
+		t.Fatalf("expected duplicate login error, got %v", err)
 	}
 }
