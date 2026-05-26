@@ -33,10 +33,12 @@ type User struct {
 
 type UserAccount struct {
 	orm.ORMObjectBase
-	Name     string   `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }" validate:"required" `
-	Email    string   `json:"email,omitempty" elastic_mapping:"email: { type: keyword }" validate:"required|email" ` //unique
-	Roles    []string `json:"roles,omitempty" elastic_mapping:"roles: { type: keyword }"`
-	Password string   `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
+	Name             string   `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }" validate:"required" `
+	Email            string   `json:"email,omitempty" elastic_mapping:"email: { type: keyword }" validate:"required|email" ` //unique
+	Roles            []string `json:"roles,omitempty" elastic_mapping:"roles: { type: keyword }"`
+	Password         string   `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
+	PasswordSalt     string   `json:"password_salt,omitempty" elastic_mapping:"password_salt: { type: keyword }"`
+	PasswordVerifier string   `json:"password_verifier,omitempty" elastic_mapping:"password_verifier: { type: keyword }"`
 }
 
 type UserProfile struct {

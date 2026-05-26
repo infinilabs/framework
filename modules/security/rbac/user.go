@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	log "github.com/cihub/seelog"
-	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
@@ -74,15 +73,15 @@ func UpdateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 
 	if obj.Password == "" {
 		obj.Password = oldObj.Password
+		obj.PasswordSalt = oldObj.PasswordSalt
+		obj.PasswordVerifier = oldObj.PasswordVerifier
 	} else {
 		if !util.ValidateSecure(obj.Password) {
 			panic("should be secured password")
 		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(obj.Password), bcrypt.DefaultCost)
-		if err != nil {
+		if err := security.SetPassword(&obj, obj.Password); err != nil {
 			panic(err)
 		}
-		obj.Password = string(hash)
 	}
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Update(ctx, &obj)
@@ -204,17 +203,15 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 		log.Warn("email already exists, will be replaced")
 		obj.ID = account.ID
 	} else {
-		obj.ID = getUIDByEmail(obj.Email)
+		obj.ID = getUIDByEmail(email)
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
 	obj.Name = name
 	obj.Email = email
 	obj.Roles = []string{security.RoleAdmin}
-	obj.Password = string(hash)
+	if err := security.SetPassword(obj, password); err != nil {
+		panic(err)
+	}
 
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
@@ -252,12 +249,9 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 
 	randStr := util.GenerateSecureString(8)
-	hash, err := bcrypt.GenerateFromPassword([]byte(randStr), bcrypt.DefaultCost)
-	if err != nil {
+	if err := security.SetPassword(obj, randStr); err != nil {
 		panic(err)
 	}
-
-	obj.Password = string(hash)
 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
@@ -267,5 +261,7 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	}
 
 	obj.Password = randStr
+	obj.PasswordSalt = ""
+	obj.PasswordVerifier = ""
 	api.WriteJSON(w, obj, 200)
 }
