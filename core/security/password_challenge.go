@@ -32,17 +32,23 @@ import (
 )
 
 const (
-	PasswordChallengeMethod     = passwordchallenge.Method
-	PasswordChallengeAlgorithm  = passwordchallenge.Algorithm
+	// PasswordChallengeMethod identifies the login flow returned by the challenge endpoint.
+	PasswordChallengeMethod = passwordchallenge.Method
+	// PasswordChallengeAlgorithm describes the verifier/proof derivation algorithm for clients.
+	PasswordChallengeAlgorithm = passwordchallenge.Algorithm
+	// PasswordChallengeIterations tells clients which PBKDF2 work factor to use.
 	PasswordChallengeIterations = passwordchallenge.Iterations
 )
 
+// LoginChallenge re-exports the framework challenge payload used by native account login.
 type LoginChallenge = passwordchallenge.Challenge
 
+// CanUsePasswordChallenge reports whether a native account already has challenge credentials.
 func CanUsePasswordChallenge(user *UserAccount) bool {
 	return user != nil && user.PasswordSalt != "" && user.PasswordVerifier != ""
 }
 
+// SetPassword updates both the legacy bcrypt hash and the challenge verifier material.
 func SetPassword(user *UserAccount, password string) error {
 	if user == nil {
 		return errors.New("user is nil")
@@ -67,6 +73,7 @@ func SetPassword(user *UserAccount, password string) error {
 	return nil
 }
 
+// EnsurePasswordChallenge derives challenge material for older accounts without changing the bcrypt hash.
 func EnsurePasswordChallenge(user *UserAccount, password string) error {
 	if user == nil {
 		return errors.New("user is nil")
@@ -88,6 +95,7 @@ func EnsurePasswordChallenge(user *UserAccount, password string) error {
 	return nil
 }
 
+// VerifyPassword validates the plain password against the stored bcrypt hash.
 func VerifyPassword(user *UserAccount, password string) error {
 	if user == nil {
 		return errors.New("user is nil")
@@ -98,22 +106,27 @@ func VerifyPassword(user *UserAccount, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 }
 
+// DerivePasswordVerifier converts a password and salt into the stored challenge verifier.
 func DerivePasswordVerifier(password, salt string) (string, error) {
 	return passwordchallenge.DeriveVerifier(password, salt)
 }
 
+// BuildPasswordProof creates the challenge response that clients send to /account/login.
 func BuildPasswordProof(verifier, subject, challengeID, nonce string) (string, error) {
 	return passwordchallenge.BuildProof(verifier, subject, challengeID, nonce)
 }
 
+// VerifyPasswordProof checks whether a submitted proof matches the stored verifier.
 func VerifyPasswordProof(verifier, subject, challengeID, nonce, proof string) bool {
 	return passwordchallenge.VerifyProof(verifier, subject, challengeID, nonce, proof)
 }
 
+// NewLoginChallenge allocates a one-time challenge bound to the requested login subject.
 func NewLoginChallenge(subject string) LoginChallenge {
 	return passwordchallenge.New(subject)
 }
 
+// ConsumeLoginChallenge validates and removes a one-time challenge after it is used.
 func ConsumeLoginChallenge(challengeID, subject string) (LoginChallenge, error) {
 	return passwordchallenge.Consume(challengeID, subject)
 }

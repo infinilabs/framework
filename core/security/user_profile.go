@@ -36,9 +36,9 @@ type UserAccount struct {
 	Name             string   `json:"name,omitempty"  elastic_mapping:"name: { type: keyword }" validate:"required" `
 	Email            string   `json:"email,omitempty" elastic_mapping:"email: { type: keyword }" validate:"required|email" ` //unique
 	Roles            []string `json:"roles,omitempty" elastic_mapping:"roles: { type: keyword }"`
-	Password         string   `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`
-	PasswordSalt     string   `json:"password_salt,omitempty" elastic_mapping:"password_salt: { type: keyword }"`
-	PasswordVerifier string   `json:"password_verifier,omitempty" elastic_mapping:"password_verifier: { type: keyword }"`
+	Password         string   `json:"password,omitempty"  elastic_mapping:"password: { type: keyword }"`                  // Bcrypt hash used by the existing password-login flow.
+	PasswordSalt     string   `json:"password_salt,omitempty" elastic_mapping:"password_salt: { type: keyword }"`         // Per-user salt exposed to clients during challenge login.
+	PasswordVerifier string   `json:"password_verifier,omitempty" elastic_mapping:"password_verifier: { type: keyword }"` // Server-side verifier used to validate challenge proofs.
 }
 
 type UserProfile struct {

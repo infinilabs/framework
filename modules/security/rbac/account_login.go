@@ -39,11 +39,16 @@ import (
 )
 
 var (
+	// Keep the password and challenge paths aligned on one user-facing failure message.
 	errInvalidLoginCredentials = errors.New("invalid login or password")
-	errIncompleteChallenge     = errors.New("challenge response is incomplete")
-	errMissingPassword         = errors.New("password is required")
+	// A challenge login must send both the one-time challenge id and the derived proof.
+	errIncompleteChallenge = errors.New("challenge response is incomplete")
+	// Password login keeps requiring the legacy password field when no challenge proof is supplied.
+	errMissingPassword = errors.New("password is required")
 )
 
+// accountLoginRequest accepts both the framework-native "login" field and the aliases
+// already used by existing clients while challenge login is rolled out incrementally.
 type accountLoginRequest struct {
 	Login       string `json:"login"`
 	Email       string `json:"email"`
@@ -76,6 +81,7 @@ func registerAccountRoutes() {
 		api.Feature(api.FeatureCORS))
 }
 
+// IssueReplayNonce mints a short-lived nonce bound to the caller and target request scope.
 func IssueReplayNonce(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var req struct {
 		Method string `json:"method"`
@@ -100,6 +106,8 @@ func IssueReplayNonce(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 	})
 }
 
+// LoginChallenge tells the client whether this account can use challenge login and, if so,
+// returns the one-time challenge payload required to derive the proof locally.
 func LoginChallenge(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var req accountLoginRequest
 	if err := api.DecodeJSON(r, &req); err != nil {
@@ -122,6 +130,8 @@ func LoginChallenge(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	api.WriteOKJSON(w, buildLoginChallengeResponse(login, exists, user))
 }
 
+// Login accepts either the legacy password payload or the new challenge proof and then
+// reuses the existing session/token issuance path once the credentials are verified.
 func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var req accountLoginRequest
 	if err := api.DecodeJSON(r, &req); err != nil {
@@ -173,6 +183,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 }
 
+// NormalizedLogin resolves the various historical request field names into one lookup key.
 func (req accountLoginRequest) NormalizedLogin() string {
 	for _, candidate := range []string{req.Login, req.Email, req.Username, req.UserName} {
 		if value := strings.TrimSpace(candidate); value != "" {
@@ -182,6 +193,8 @@ func (req accountLoginRequest) NormalizedLogin() string {
 	return ""
 }
 
+// buildLoginChallengeResponse keeps the challenge negotiation explicit: challenge-capable
+// accounts get the proof derivation inputs, while older accounts stay on plain login.
 func buildLoginChallengeResponse(login string, exists bool, user *security.UserAccount) util.MapStr {
 	if exists && security.CanUsePasswordChallenge(user) {
 		// The challenge payload gives clients everything needed to derive a proof
@@ -204,6 +217,7 @@ func buildLoginChallengeResponse(login string, exists bool, user *security.UserA
 	}
 }
 
+// authenticateLogin selects the correct credential validation path based on the request body.
 func authenticateLogin(user *security.UserAccount, login, password, challengeID, proof string) (bool, error) {
 	if user == nil {
 		return false, errInvalidLoginCredentials
@@ -233,6 +247,7 @@ func authenticateLogin(user *security.UserAccount, login, password, challengeID,
 	return false, nil
 }
 
+// lookupAccountByLogin normalizes the service-registry "not found" result into a regular miss.
 func lookupAccountByLogin(login string) (bool, *security.UserAccount, error) {
 	exists, user, err := GetUserByLogin(login)
 	if err != nil && err.Error() == "not found" {
@@ -241,6 +256,8 @@ func lookupAccountByLogin(login string) (bool, *security.UserAccount, error) {
 	return exists, user, err
 }
 
+// validateReplayNonce keeps challenge login replay-safe while leaving older password-only
+// clients working until they adopt the explicit nonce negotiation endpoint.
 func validateReplayNonce(r *http.Request, required bool) error {
 	nonce := strings.TrimSpace(r.Header.Get(replaysecurity.HeaderName))
 	if nonce == "" && !required {
@@ -251,6 +268,8 @@ func validateReplayNonce(r *http.Request, required bool) error {
 	return replaysecurity.ValidateAndConsumeReplayNonce(r)
 }
 
+// upgradePasswordChallenge backfills verifier material after a successful legacy login so
+// existing native accounts can move onto the challenge flow without an offline migration.
 func upgradePasswordChallenge(user *security.UserAccount, password string) {
 	if user == nil || password == "" || security.CanUsePasswordChallenge(user) {
 		return
@@ -271,6 +290,7 @@ func upgradePasswordChallenge(user *security.UserAccount, password string) {
 	}
 }
 
+// newNativeSession converts a native account record into the existing framework session claims.
 func newNativeSession(user *security.UserAccount, login string) *security.UserSessionInfo {
 	userLogin := strings.TrimSpace(user.Email)
 	if userLogin == "" {
