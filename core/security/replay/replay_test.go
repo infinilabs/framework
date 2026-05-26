@@ -30,6 +30,7 @@ import (
 	"time"
 )
 
+// A nonce is one-time use by design, so any second validation attempt must fail.
 func TestReplayNonceCanOnlyBeUsedOnce(t *testing.T) {
 	store := NewStore(StoreOptions{})
 	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
@@ -48,6 +49,7 @@ func TestReplayNonceCanOnlyBeUsedOnce(t *testing.T) {
 	}
 }
 
+// Replay tokens should stay bound to the caller identity, not just the raw path/method tuple.
 func TestReplayNonceBindsToAuthorizationHeader(t *testing.T) {
 	store := NewStore(StoreOptions{})
 	issueReq := httptest.NewRequest(http.MethodPut, "https://console.local/credential/test", nil)
@@ -66,6 +68,7 @@ func TestReplayNonceBindsToAuthorizationHeader(t *testing.T) {
 	}
 }
 
+// The scope includes HTTP method so a nonce issued for one mutation cannot authorize another.
 func TestReplayNonceBindsToPathAndMethod(t *testing.T) {
 	store := NewStore(StoreOptions{})
 	issueReq := httptest.NewRequest(http.MethodPost, "https://console.local/setup/_initialize", nil)
@@ -82,6 +85,7 @@ func TestReplayNonceBindsToPathAndMethod(t *testing.T) {
 	}
 }
 
+// Anonymous callers still need a stable default subject so unauthenticated setup flows work.
 func TestDefaultSubjectExtractorFallsBackToAnonymous(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
 	if got := DefaultSubjectExtractor(req); got != "anonymous" {
@@ -89,6 +93,7 @@ func TestDefaultSubjectExtractorFallsBackToAnonymous(t *testing.T) {
 	}
 }
 
+// Path normalization lets clients request a nonce with equivalent path forms safely.
 func TestReplayNonceNormalizesPath(t *testing.T) {
 	store := NewStore(StoreOptions{})
 	issueReq := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
@@ -105,6 +110,7 @@ func TestReplayNonceNormalizesPath(t *testing.T) {
 	}
 }
 
+// Expired nonces should be rejected even if the caller, method, and path still match.
 func TestReplayNonceExpires(t *testing.T) {
 	store := NewStore(StoreOptions{TTL: time.Millisecond})
 	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)

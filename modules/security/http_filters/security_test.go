@@ -14,6 +14,7 @@ import (
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
 
+// Secure-transport enforcement should stop the request before the wrapped UI handler runs.
 func TestSecurityFilterSecureTransportFeature(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
@@ -37,6 +38,7 @@ func TestSecurityFilterSecureTransportFeature(t *testing.T) {
 	}
 }
 
+// When a nonce matches the request scope, the filter should behave like a no-op wrapper.
 func TestSecurityFilterReplayProtectionFeature(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
@@ -66,6 +68,7 @@ func TestSecurityFilterReplayProtectionFeature(t *testing.T) {
 	}
 }
 
+// Missing nonce headers must block replay-protected routes before business logic executes.
 func TestSecurityFilterReplayProtectionRejectsMissingNonce(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
@@ -89,6 +92,7 @@ func TestSecurityFilterReplayProtectionRejectsMissingNonce(t *testing.T) {
 	}
 }
 
+// Trusted forward headers let deployments behind HTTPS reverse proxies pass transport checks.
 func TestSecurityFilterWithTrustedForwardHeaders(t *testing.T) {
 	filter := &SecurityFilter{}
 	options := &api.HandlerOptions{}
@@ -113,6 +117,7 @@ func TestSecurityFilterWithTrustedForwardHeaders(t *testing.T) {
 	}
 }
 
+// Routes that do not opt into trusted proxy headers should stay conservative by default.
 func TestTrustForwardHeadersFromOptionsDefaultsFalse(t *testing.T) {
 	if trustForwardHeadersFromOptions(nil) {
 		t.Fatal("expected nil options to disable trusted forward headers")

@@ -25,6 +25,8 @@ package security
 
 import "testing"
 
+// Setting a password should populate both the legacy bcrypt path and the new
+// challenge-login material so either login mode can succeed afterward.
 func TestSetPasswordPopulatesChallengeFields(t *testing.T) {
 	user := &UserAccount{}
 	if err := SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -45,6 +47,7 @@ func TestSetPasswordPopulatesChallengeFields(t *testing.T) {
 	}
 }
 
+// Existing challenge material should be stable when an account is already upgraded.
 func TestEnsurePasswordChallengePreservesExistingVerifier(t *testing.T) {
 	user := &UserAccount{}
 	if err := SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -65,6 +68,7 @@ func TestEnsurePasswordChallengePreservesExistingVerifier(t *testing.T) {
 	}
 }
 
+// The framework wrapper should produce proofs compatible with the lower-level package.
 func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 	user := &UserAccount{}
 	login := "admin@example.org"
@@ -85,6 +89,7 @@ func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 	}
 }
 
+// Legacy accounts that only had a bcrypt hash should become challenge-capable in place.
 func TestEnsurePasswordChallengePopulatesLegacyAccount(t *testing.T) {
 	user := &UserAccount{Password: "existing-bcrypt-hash"}
 	if err := EnsurePasswordChallenge(user, "StrongPassw0rd!"); err != nil {

@@ -33,6 +33,7 @@ import (
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
 
+// The request payload accepts multiple historical login field names during rollout.
 func TestAccountLoginRequestNormalizedLogin(t *testing.T) {
 	req := accountLoginRequest{
 		Email:    "admin@example.org",
@@ -44,6 +45,7 @@ func TestAccountLoginRequestNormalizedLogin(t *testing.T) {
 	}
 }
 
+// Password login remains the backward-compatible path for accounts and clients not yet upgraded.
 func TestAuthenticateLoginWithPassword(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -59,6 +61,7 @@ func TestAuthenticateLoginWithPassword(t *testing.T) {
 	}
 }
 
+// Challenge login should succeed once the account already has verifier material.
 func TestAuthenticateLoginWithChallenge(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -80,6 +83,7 @@ func TestAuthenticateLoginWithChallenge(t *testing.T) {
 	}
 }
 
+// Partially supplied challenge payloads should fail distinctly from bad credentials.
 func TestAuthenticateLoginRejectsIncompleteChallenge(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -92,6 +96,7 @@ func TestAuthenticateLoginRejectsIncompleteChallenge(t *testing.T) {
 	}
 }
 
+// Incorrect proofs should collapse to the same user-facing error as bad passwords.
 func TestAuthenticateLoginRejectsWrongProof(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -105,6 +110,7 @@ func TestAuthenticateLoginRejectsWrongProof(t *testing.T) {
 	}
 }
 
+// Older accounts intentionally advertise plain login until their verifier is available.
 func TestBuildLoginChallengeResponseFallsBackToPlain(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	resp := buildLoginChallengeResponse(user.Email, true, user)
@@ -117,6 +123,7 @@ func TestBuildLoginChallengeResponseFallsBackToPlain(t *testing.T) {
 	}
 }
 
+// Upgraded accounts should return the exact challenge inputs the client needs next.
 func TestBuildLoginChallengeResponseReturnsChallenge(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}
 	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
@@ -138,6 +145,7 @@ func TestBuildLoginChallengeResponseReturnsChallenge(t *testing.T) {
 	}
 }
 
+// Legacy password clients keep working even before they learn the replay-nonce preflight.
 func TestValidateReplayNonceAllowsLegacyPasswordLoginWithoutNonce(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/account/login", nil)
 	if err := validateReplayNonce(req, false); err != nil {
@@ -145,6 +153,7 @@ func TestValidateReplayNonceAllowsLegacyPasswordLoginWithoutNonce(t *testing.T) 
 	}
 }
 
+// Challenge logins must enforce nonce usage immediately because the frontend already negotiated it.
 func TestValidateReplayNonceRequiresNonceForChallengeLogin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/account/login", nil)
 	if err := validateReplayNonce(req, true); err == nil {
@@ -152,6 +161,7 @@ func TestValidateReplayNonceRequiresNonceForChallengeLogin(t *testing.T) {
 	}
 }
 
+// Once a nonce is explicitly issued for /account/login it should validate on that exact route.
 func TestValidateReplayNonceConsumesIssuedNonce(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/account/login", nil)
 	nonce, _, err := replaysecurity.IssueReplayNonce(req, http.MethodPost, "/account/login")
@@ -165,6 +175,7 @@ func TestValidateReplayNonceConsumesIssuedNonce(t *testing.T) {
 	}
 }
 
+// Native sessions should still be constructible even when the stored account email is blank.
 func TestNewNativeSessionFallsBackToRequestedLogin(t *testing.T) {
 	user := &security.UserAccount{Email: "", Roles: []string{security.RoleAdmin}}
 	user.ID = "user-1"

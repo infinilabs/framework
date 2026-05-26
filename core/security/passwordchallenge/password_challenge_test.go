@@ -28,6 +28,8 @@ import (
 	"time"
 )
 
+// Proof generation and verification need to round-trip because this package defines the
+// wire contract shared between the framework login endpoint and upgraded clients.
 func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 	verifier, err := DeriveVerifier("admin", "salt-123")
 	if err != nil {
@@ -45,6 +47,7 @@ func TestPasswordChallengeProofRoundTrip(t *testing.T) {
 	}
 }
 
+// Challenges are bound to the requested login subject and must not be replayed for others.
 func TestConsumeRejectsWrongSubject(t *testing.T) {
 	store := NewStore(StoreOptions{})
 	challenge := store.New("admin")
@@ -54,6 +57,7 @@ func TestConsumeRejectsWrongSubject(t *testing.T) {
 	}
 }
 
+// Empty input should be rejected up front to avoid persisting or comparing invalid verifiers.
 func TestDeriveVerifierRejectsEmptyInput(t *testing.T) {
 	if _, err := DeriveVerifier("", "salt-123"); err == nil {
 		t.Fatal("expected empty password to fail")
@@ -63,6 +67,7 @@ func TestDeriveVerifierRejectsEmptyInput(t *testing.T) {
 	}
 }
 
+// Expiration keeps the one-time challenge store bounded and prevents stale proof reuse.
 func TestConsumeRejectsExpiredChallenge(t *testing.T) {
 	store := NewStore(StoreOptions{TTL: time.Millisecond})
 	challenge := store.New("admin")

@@ -33,6 +33,8 @@ import (
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
 
+// The transport tests cover both direct TLS and trusted proxy headers because the
+// security helpers are shared by embedded UI routes that may sit behind a proxy.
 func TestRequestUsesSecureTransport(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -81,6 +83,7 @@ func TestRequestUsesSecureTransport(t *testing.T) {
 	}
 }
 
+// The wrapper should fail fast before running the protected handler on plain HTTP.
 func TestRequireSecureTransport(t *testing.T) {
 	handler := Handler{}
 	called := false
@@ -102,6 +105,7 @@ func TestRequireSecureTransport(t *testing.T) {
 	}
 }
 
+// Replay-protected handlers should pass straight through once a matching nonce exists.
 func TestRequireReplayProtection(t *testing.T) {
 	handler := Handler{}
 	req := httptest.NewRequest(http.MethodPost, "https://console.local/account/login", nil)
@@ -128,6 +132,8 @@ func TestRequireReplayProtection(t *testing.T) {
 	}
 }
 
+// Route options are later consumed by SecurityFilter, so the feature flag and labels
+// must both be set when secure transport enforcement is requested declaratively.
 func TestSecureTransportOption(t *testing.T) {
 	options := &HandlerOptions{}
 	SecureTransportOption(SecureTransportOptions{TrustForwardHeaders: true})(options)
@@ -143,6 +149,7 @@ func TestSecureTransportOption(t *testing.T) {
 	}
 }
 
+// Replay protection uses a single feature flag because the filter reads no extra labels.
 func TestReplayProtectionOption(t *testing.T) {
 	options := &HandlerOptions{}
 	ReplayProtectionOption()(options)
