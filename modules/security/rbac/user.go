@@ -5,6 +5,7 @@
 package rbac
 
 import (
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -172,14 +173,8 @@ func GetUserByLogin(email string) (bool, *security.UserAccount, error) {
 	if err != nil {
 		return false, nil, err
 	}
-	if len(items) > 0 {
-		if len(items) == 1 {
-			return true, &items[0], nil
-		} else {
-			log.Warnf("invalid users, more than one account was associated with the same email: %v", email)
-		}
-	}
-	return false, nil, nil
+
+	return resolveUserByLogin(email, items)
 }
 
 func (provider *SecurityBackendProvider) GetUserByLogin(email string) (bool, *security.UserAccount, error) {
@@ -298,4 +293,16 @@ func validateSecurePassword(password string) error {
 		return nil
 	}
 	return cerr.NewWithHTTPCode(http.StatusBadRequest, errInsecurePassword)
+}
+
+func resolveUserByLogin(login string, items []security.UserAccount) (bool, *security.UserAccount, error) {
+	switch len(items) {
+	case 0:
+		return false, nil, nil
+	case 1:
+		return true, &items[0], nil
+	default:
+		log.Warnf("invalid users, more than one account was associated with the same email: %v", login)
+		return false, nil, fmt.Errorf("multiple accounts found for login %q", login)
+	}
 }

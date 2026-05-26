@@ -99,7 +99,7 @@ func LoginChallenge(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	exists, user, err := lookupAccountByLogin(login)
+	exists, user, err := GetUserByLogin(login)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -124,7 +124,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	usedChallenge := req.ChallengeID != "" || req.Proof != ""
-	exists, user, err := lookupAccountByLogin(login)
+	exists, user, err := GetUserByLogin(login)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -236,15 +236,6 @@ func authenticateLogin(user *security.UserAccount, login, password, challengeID,
 	return false, nil, nil, errInvalidLoginCredentials
 }
 
-// lookupAccountByLogin normalizes the service-registry "not found" result into a regular miss.
-func lookupAccountByLogin(login string) (bool, *security.UserAccount, error) {
-	exists, user, err := GetUserByLogin(login)
-	if err != nil && err.Error() == "not found" {
-		return false, nil, nil
-	}
-	return exists, user, err
-}
-
 // validateReplayNonce keeps challenge login replay-safe while leaving older password-only
 // clients working until they adopt the explicit nonce negotiation endpoint.
 func validateReplayNonce(r *http.Request, required bool) error {
@@ -271,9 +262,10 @@ func upgradePasswordChallenge(user *security.UserAccount, password string) {
 
 	// Persist the verifier after a successful legacy password login so subsequent
 	// logins can move onto the challenge flow without an explicit migration step.
+	// This upgrade is best-effort; the current login already succeeded, so it should
+	// not wait for an index refresh before returning to the caller.
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
-	ctx.Refresh = orm.WaitForRefresh
 	if err := orm.Update(ctx, user); err != nil {
 		log.Warnf("failed to persist password challenge for user [%s]: %v", user.Email, err)
 	}
