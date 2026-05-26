@@ -32,15 +32,21 @@ import (
 )
 
 type SecureTransportOptions struct {
+	// TrustForwardHeaders allows HTTPS detection to honor reverse-proxy forwarding headers.
 	TrustForwardHeaders bool
 }
 
 const (
-	FeatureRequireSecureTransport  = "feature_require_secure_transport"
+	// FeatureRequireSecureTransport marks a UI handler as HTTPS-only when it is enforced by filters.
+	FeatureRequireSecureTransport = "feature_require_secure_transport"
+	// FeatureRequireReplayProtection marks a UI handler as requiring a valid replay nonce.
 	FeatureRequireReplayProtection = "feature_require_replay_protection"
-	LabelTrustForwardHeaders       = "label_trust_forward_headers"
+	// LabelTrustForwardHeaders stores whether HTTPS checks may trust reverse-proxy forwarding headers.
+	LabelTrustForwardHeaders = "label_trust_forward_headers"
 )
 
+// RequestUsesSecureTransport reports whether the request arrived over HTTPS directly or, when
+// allowed, through a trusted reverse proxy that forwarded HTTPS metadata.
 func RequestUsesSecureTransport(req *http.Request, options ...SecureTransportOptions) bool {
 	if req == nil {
 		return false
@@ -67,6 +73,7 @@ func RequestUsesSecureTransport(req *http.Request, options ...SecureTransportOpt
 	return forwardedHeaderIndicatesHTTPS(req.Header.Get("Forwarded"))
 }
 
+// RequireSecureTransport wraps a handler so it rejects requests that do not resolve to HTTPS.
 func (handler Handler) RequireSecureTransport(h httprouter.Handle, options ...SecureTransportOptions) httprouter.Handle {
 	resolved := resolveSecureTransportOptions(options)
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -78,10 +85,12 @@ func (handler Handler) RequireSecureTransport(h httprouter.Handle, options ...Se
 	}
 }
 
+// RequireSecureTransport wraps a handler with the default security handler implementation.
 func RequireSecureTransport(h httprouter.Handle, options ...SecureTransportOptions) httprouter.Handle {
 	return Handler{}.RequireSecureTransport(h, options...)
 }
 
+// RequireReplayProtection wraps a handler so each request must present a valid replay nonce.
 func (handler Handler) RequireReplayProtection(h httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		if err := replaysecurity.ValidateAndConsumeReplayNonce(r); err != nil {
@@ -92,10 +101,12 @@ func (handler Handler) RequireReplayProtection(h httprouter.Handle) httprouter.H
 	}
 }
 
+// RequireReplayProtection wraps a handler with the default replay-protection implementation.
 func RequireReplayProtection(h httprouter.Handle) httprouter.Handle {
 	return Handler{}.RequireReplayProtection(h)
 }
 
+// SecureTransportOption annotates a UI route so SecurityFilter can enforce HTTPS consistently.
 func SecureTransportOption(options ...SecureTransportOptions) Option {
 	resolved := resolveSecureTransportOptions(options)
 	return func(o *HandlerOptions) {
@@ -104,6 +115,7 @@ func SecureTransportOption(options ...SecureTransportOptions) Option {
 	}
 }
 
+// ReplayProtectionOption annotates a UI route so SecurityFilter enforces replay-nonce validation.
 func ReplayProtectionOption() Option {
 	return Feature(FeatureRequireReplayProtection)
 }
