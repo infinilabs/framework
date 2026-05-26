@@ -71,7 +71,7 @@ func (handler Handler) RequireSecureTransport(h httprouter.Handle, options ...Se
 	resolved := resolveSecureTransportOptions(options)
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		if !RequestUsesSecureTransport(r, resolved) {
-			handler.WriteError(w, "sensitive endpoints require HTTPS or a trusted HTTPS reverse proxy", http.StatusUpgradeRequired)
+			handler.WriteError(w, "this endpoint requires HTTPS. use https:// directly or route through a trusted HTTPS reverse proxy", http.StatusUpgradeRequired)
 			return
 		}
 		h(w, r, ps)

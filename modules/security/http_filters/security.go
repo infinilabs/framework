@@ -42,7 +42,7 @@ func (f *SecurityFilter) ApplyFilter(
 				TrustForwardHeaders: trustForwardHeadersFromOptions(options),
 			}
 			if !api.RequestUsesSecureTransport(r, secureOptions) {
-				f.WriteError(w, "sensitive endpoints require HTTPS or a trusted HTTPS reverse proxy", http.StatusUpgradeRequired)
+				f.WriteError(w, "this endpoint requires HTTPS. use https:// directly or route through a trusted HTTPS reverse proxy", http.StatusUpgradeRequired)
 				return
 			}
 		}
