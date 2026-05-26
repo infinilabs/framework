@@ -15,11 +15,8 @@ import (
 	"infini.sh/framework/core/errors"
 )
 
-func byAuthorizationHeader(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error) {
-	var (
-		authorization = r.Header.Get("Authorization")
-		ok            bool
-	)
+func parseUserClaimsFromAuthorizationHeader(authorization string) (claims *UserClaims, err error) {
+	var ok bool
 
 	if authorization == "" {
 		return nil, errors.Error("Authorization not found")
@@ -61,6 +58,20 @@ func byAuthorizationHeader(w http.ResponseWriter, r *http.Request) (claims *User
 		return nil, errors.Error("invalid claims")
 	}
 	return claims, nil
+}
+
+// ValidateAuthorizationHeader validates a bearer token header and returns the
+// decoded framework session information for callers that only have header access.
+func ValidateAuthorizationHeader(authorization string) (*UserSessionInfo, error) {
+	claims, err := parseUserClaimsFromAuthorizationHeader(authorization)
+	if err != nil {
+		return nil, err
+	}
+	return claims.UserSessionInfo, nil
+}
+
+func byAuthorizationHeader(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error) {
+	return parseUserClaimsFromAuthorizationHeader(r.Header.Get("Authorization"))
 }
 
 func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSessionInfo, err error) {

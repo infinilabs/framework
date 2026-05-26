@@ -28,10 +28,27 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"infini.sh/framework/core/security"
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
+
+type testAccountPasswordLoginProvider struct{}
+
+func (testAccountPasswordLoginProvider) AuthenticateByPassword(login, password string) (*security.UserSessionInfo, error) {
+	if login != "ldap-user" || password != "StrongPassw0rd!" {
+		return nil, nil
+	}
+
+	sessionUser := &security.UserSessionInfo{
+		Provider: "ldap",
+		Login:    login,
+		Roles:    []string{"viewer"},
+	}
+	sessionUser.SetUserID("ldap-user-id")
+	return sessionUser, nil
+}
 
 // The request payload accepts multiple historical login field names during rollout.
 func TestAccountLoginRequestNormalizedLogin(t *testing.T) {
@@ -52,12 +69,15 @@ func TestAuthenticateLoginWithPassword(t *testing.T) {
 		t.Fatalf("set password: %v", err)
 	}
 
-	usedChallenge, err := authenticateLogin(user, user.Email, "StrongPassw0rd!", "", "")
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(user, user.Email, "StrongPassw0rd!", "", "")
 	if err != nil {
 		t.Fatalf("authenticate login: %v", err)
 	}
 	if usedChallenge {
 		t.Fatal("expected password login path")
+	}
+	if sessionUser == nil || nativeUser == nil {
+		t.Fatalf("expected native password login state, got session=%#v native=%#v", sessionUser, nativeUser)
 	}
 }
 
@@ -74,12 +94,15 @@ func TestAuthenticateLoginWithChallenge(t *testing.T) {
 		t.Fatalf("build password proof: %v", err)
 	}
 
-	usedChallenge, err := authenticateLogin(user, user.Email, "", challenge.ID, proof)
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(user, user.Email, "", challenge.ID, proof)
 	if err != nil {
 		t.Fatalf("authenticate login: %v", err)
 	}
 	if !usedChallenge {
 		t.Fatal("expected challenge login path")
+	}
+	if sessionUser == nil || nativeUser == nil {
+		t.Fatalf("expected native challenge login state, got session=%#v native=%#v", sessionUser, nativeUser)
 	}
 }
 
@@ -90,7 +113,7 @@ func TestAuthenticateLoginRejectsIncompleteChallenge(t *testing.T) {
 		t.Fatalf("set password: %v", err)
 	}
 
-	_, err := authenticateLogin(user, user.Email, "", "challenge-id", "")
+	_, _, _, err := authenticateLogin(user, user.Email, "", "challenge-id", "")
 	if !errors.Is(err, errIncompleteChallenge) {
 		t.Fatalf("expected incomplete challenge error, got %v", err)
 	}
@@ -104,9 +127,28 @@ func TestAuthenticateLoginRejectsWrongProof(t *testing.T) {
 	}
 
 	challenge := security.NewLoginChallenge(user.Email)
-	_, err := authenticateLogin(user, user.Email, "", challenge.ID, "bad-proof")
+	_, _, _, err := authenticateLogin(user, user.Email, "", challenge.ID, "bad-proof")
 	if !errors.Is(err, errInvalidLoginCredentials) {
 		t.Fatalf("expected invalid credential error, got %v", err)
+	}
+}
+
+// Applications can attach non-native password realms to the shared framework login flow.
+func TestAuthenticateLoginFallsBackToRegisteredPasswordProvider(t *testing.T) {
+	security.RegisterAccountPasswordLoginProvider("test-account-login", testAccountPasswordLoginProvider{})
+
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(nil, "ldap-user", "StrongPassw0rd!", "", "")
+	if err != nil {
+		t.Fatalf("authenticate login: %v", err)
+	}
+	if usedChallenge {
+		t.Fatal("expected password fallback path")
+	}
+	if nativeUser != nil {
+		t.Fatalf("expected no native user for fallback path, got %#v", nativeUser)
+	}
+	if sessionUser == nil || sessionUser.Provider != "ldap" {
+		t.Fatalf("expected ldap session user, got %#v", sessionUser)
 	}
 }
 
@@ -186,5 +228,40 @@ func TestNewNativeSessionFallsBackToRequestedLogin(t *testing.T) {
 	}
 	if session.Provider != security.DefaultNativeAuthBackend {
 		t.Fatalf("expected native provider, got %q", session.Provider)
+	}
+}
+
+// The framework login response keeps the console frontend contract while the handler
+// implementation moves from console into framework-owned routes.
+func TestDecorateLoginResponseAddsConsoleCompatibilityFields(t *testing.T) {
+	session := &security.UserSessionInfo{
+		Provider:    security.DefaultNativeAuthBackend,
+		Login:       "admin@example.org",
+		Roles:       []string{security.RoleAdmin},
+		Permissions: []security.PermissionKey{security.GetSimplePermission("generic", "unit", security.Read)},
+	}
+	session.SetUserID("user-1")
+
+	token := map[string]interface{}{
+		"status":    "ok",
+		"expire_in": time.Now().Unix() + 3600,
+	}
+	security.DecorateSessionTokenResponse(token, session)
+
+	if token["username"] != session.Login {
+		t.Fatalf("expected username %q, got %v", session.Login, token["username"])
+	}
+	if token["id"] != session.UserID {
+		t.Fatalf("expected id %q, got %v", session.UserID, token["id"])
+	}
+	if token["expires_at"] == nil {
+		t.Fatal("expected expires_at to be populated")
+	}
+	if expireIn, ok := token["expire_in"].(int64); !ok || expireIn <= 0 || expireIn > 3600 {
+		t.Fatalf("expected expire_in to become remaining lifetime seconds, got %#v", token["expire_in"])
+	}
+	privilege, ok := token["privilege"].([]security.PermissionKey)
+	if !ok || len(privilege) == 0 {
+		t.Fatalf("expected privilege list to be populated, got %#v", token["privilege"])
 	}
 }

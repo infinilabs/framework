@@ -145,23 +145,23 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 
+	usedChallenge := req.ChallengeID != "" || req.Proof != ""
 	exists, user, err := lookupAccountByLogin(login)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if !exists || user == nil {
+	if usedChallenge && (!exists || user == nil) {
 		api.WriteError(w, errInvalidLoginCredentials.Error(), http.StatusForbidden)
 		return
 	}
 
-	usedChallenge := req.ChallengeID != "" || req.Proof != ""
 	if err := validateReplayNonce(r, usedChallenge); err != nil {
 		api.WriteError(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	usedChallenge, err = authenticateLogin(user, login, req.Password, req.ChallengeID, req.Proof)
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(user, login, req.Password, req.ChallengeID, req.Proof)
 	if err != nil {
 		statusCode := http.StatusForbidden
 		if errors.Is(err, errIncompleteChallenge) || errors.Is(err, errMissingPassword) {
@@ -171,14 +171,14 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 
-	if !usedChallenge {
-		upgradePasswordChallenge(user, req.Password)
+	if !usedChallenge && nativeUser != nil {
+		upgradePasswordChallenge(nativeUser, req.Password)
 	}
 
-	sessionUser := newNativeSession(user, login)
 	if err, token := security.AddUserToSession(w, r, sessionUser); err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 	} else {
+		security.DecorateSessionTokenResponse(token, sessionUser)
 		api.WriteOKJSON(w, token)
 	}
 }
@@ -218,33 +218,44 @@ func buildLoginChallengeResponse(login string, exists bool, user *security.UserA
 }
 
 // authenticateLogin selects the correct credential validation path based on the request body.
-func authenticateLogin(user *security.UserAccount, login, password, challengeID, proof string) (bool, error) {
-	if user == nil {
-		return false, errInvalidLoginCredentials
-	}
-
+func authenticateLogin(user *security.UserAccount, login, password, challengeID, proof string) (bool, *security.UserSessionInfo, *security.UserAccount, error) {
 	if challengeID != "" || proof != "" {
 		if challengeID == "" || proof == "" {
-			return true, errIncompleteChallenge
+			return true, nil, nil, errIncompleteChallenge
 		}
 
+		if user == nil {
+			return true, nil, nil, errInvalidLoginCredentials
+		}
 		challenge, err := security.ConsumeLoginChallenge(challengeID, login)
 		if err != nil || !security.CanUsePasswordChallenge(user) {
-			return true, errInvalidLoginCredentials
+			return true, nil, nil, errInvalidLoginCredentials
 		}
 		if !security.VerifyPasswordProof(user.PasswordVerifier, login, challenge.ID, challenge.Nonce, proof) {
-			return true, errInvalidLoginCredentials
+			return true, nil, nil, errInvalidLoginCredentials
 		}
-		return true, nil
+		return true, newNativeSession(user, login), user, nil
 	}
 
 	if password == "" {
-		return false, errMissingPassword
+		return false, nil, nil, errMissingPassword
 	}
-	if err := security.VerifyPassword(user, password); err != nil {
-		return false, errInvalidLoginCredentials
+
+	if user != nil {
+		if err := security.VerifyPassword(user, password); err == nil {
+			return false, newNativeSession(user, login), user, nil
+		}
 	}
-	return false, nil
+
+	sessionUser, err := security.AuthenticateAccountPasswordLogin(login, password)
+	if err != nil {
+		return false, nil, nil, err
+	}
+	if sessionUser != nil {
+		return false, sessionUser, nil, nil
+	}
+
+	return false, nil, nil, errInvalidLoginCredentials
 }
 
 // lookupAccountByLogin normalizes the service-registry "not found" result into a regular miss.
