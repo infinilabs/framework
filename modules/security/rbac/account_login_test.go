@@ -34,6 +34,22 @@ import (
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
 
+type testAccountPasswordLoginProvider struct{}
+
+func (testAccountPasswordLoginProvider) AuthenticateByPassword(login, password string) (*security.UserSessionInfo, error) {
+	if login != "ldap-user" || password != "StrongPassw0rd!" {
+		return nil, nil
+	}
+
+	sessionUser := &security.UserSessionInfo{
+		Provider: "ldap",
+		Login:    login,
+		Roles:    []string{"viewer"},
+	}
+	sessionUser.SetUserID("ldap-user-id")
+	return sessionUser, nil
+}
+
 // The request payload accepts multiple historical login field names during rollout.
 func TestAccountLoginRequestNormalizedLogin(t *testing.T) {
 	req := accountLoginRequest{
@@ -53,12 +69,15 @@ func TestAuthenticateLoginWithPassword(t *testing.T) {
 		t.Fatalf("set password: %v", err)
 	}
 
-	usedChallenge, err := authenticateLogin(user, user.Email, "StrongPassw0rd!", "", "")
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(user, user.Email, "StrongPassw0rd!", "", "")
 	if err != nil {
 		t.Fatalf("authenticate login: %v", err)
 	}
 	if usedChallenge {
 		t.Fatal("expected password login path")
+	}
+	if sessionUser == nil || nativeUser == nil {
+		t.Fatalf("expected native password login state, got session=%#v native=%#v", sessionUser, nativeUser)
 	}
 }
 
@@ -75,12 +94,15 @@ func TestAuthenticateLoginWithChallenge(t *testing.T) {
 		t.Fatalf("build password proof: %v", err)
 	}
 
-	usedChallenge, err := authenticateLogin(user, user.Email, "", challenge.ID, proof)
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(user, user.Email, "", challenge.ID, proof)
 	if err != nil {
 		t.Fatalf("authenticate login: %v", err)
 	}
 	if !usedChallenge {
 		t.Fatal("expected challenge login path")
+	}
+	if sessionUser == nil || nativeUser == nil {
+		t.Fatalf("expected native challenge login state, got session=%#v native=%#v", sessionUser, nativeUser)
 	}
 }
 
@@ -91,7 +113,7 @@ func TestAuthenticateLoginRejectsIncompleteChallenge(t *testing.T) {
 		t.Fatalf("set password: %v", err)
 	}
 
-	_, err := authenticateLogin(user, user.Email, "", "challenge-id", "")
+	_, _, _, err := authenticateLogin(user, user.Email, "", "challenge-id", "")
 	if !errors.Is(err, errIncompleteChallenge) {
 		t.Fatalf("expected incomplete challenge error, got %v", err)
 	}
@@ -105,9 +127,28 @@ func TestAuthenticateLoginRejectsWrongProof(t *testing.T) {
 	}
 
 	challenge := security.NewLoginChallenge(user.Email)
-	_, err := authenticateLogin(user, user.Email, "", challenge.ID, "bad-proof")
+	_, _, _, err := authenticateLogin(user, user.Email, "", challenge.ID, "bad-proof")
 	if !errors.Is(err, errInvalidLoginCredentials) {
 		t.Fatalf("expected invalid credential error, got %v", err)
+	}
+}
+
+// Applications can attach non-native password realms to the shared framework login flow.
+func TestAuthenticateLoginFallsBackToRegisteredPasswordProvider(t *testing.T) {
+	security.RegisterAccountPasswordLoginProvider("test-account-login", testAccountPasswordLoginProvider{})
+
+	usedChallenge, sessionUser, nativeUser, err := authenticateLogin(nil, "ldap-user", "StrongPassw0rd!", "", "")
+	if err != nil {
+		t.Fatalf("authenticate login: %v", err)
+	}
+	if usedChallenge {
+		t.Fatal("expected password fallback path")
+	}
+	if nativeUser != nil {
+		t.Fatalf("expected no native user for fallback path, got %#v", nativeUser)
+	}
+	if sessionUser == nil || sessionUser.Provider != "ldap" {
+		t.Fatalf("expected ldap session user, got %#v", sessionUser)
 	}
 }
 

@@ -114,7 +114,6 @@ func GenerateJWTAccessToken(user *UserSessionInfo) (map[string]interface{}, erro
 	return data, err
 
 }
-
 // DecorateSessionTokenResponse keeps framework-issued account responses directly
 // consumable by existing console clients while auth flows converge on framework.
 func DecorateSessionTokenResponse(token map[string]interface{}, user *UserSessionInfo) {
@@ -136,6 +135,7 @@ func DecorateSessionTokenResponse(token map[string]interface{}, user *UserSessio
 	token["id"] = user.UserID
 	token["roles"] = append([]string(nil), user.Roles...)
 	token["privilege"] = GetAllPermissionsForUser(user)
+	applySessionTokenResponseDecorators(token, user)
 }
 
 func tokenExpiresAtUnix(value interface{}) int64 {

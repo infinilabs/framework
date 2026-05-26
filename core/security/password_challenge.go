@@ -43,9 +43,38 @@ const (
 // LoginChallenge re-exports the framework challenge payload used by native account login.
 type LoginChallenge = passwordchallenge.Challenge
 
+// PasswordMaterial bundles the fields that apps need to persist after accepting a password.
+type PasswordMaterial struct {
+	Hash     string
+	Salt     string
+	Verifier string
+}
+
 // CanUsePasswordChallenge reports whether a native account already has challenge credentials.
 func CanUsePasswordChallenge(user *UserAccount) bool {
 	return user != nil && user.PasswordSalt != "" && user.PasswordVerifier != ""
+}
+
+// GeneratePasswordMaterial derives the bcrypt hash and challenge verifier fields for a password.
+func GeneratePasswordMaterial(password string) (*PasswordMaterial, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store both the bcrypt hash for existing password checks and the derived
+	// verifier for challenge login so the two login modes stay in sync.
+	salt := util.GenerateSecureString(32)
+	verifier, err := DerivePasswordVerifier(password, salt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PasswordMaterial{
+		Hash:     string(hash),
+		Salt:     salt,
+		Verifier: verifier,
+	}, nil
 }
 
 // SetPassword updates both the legacy bcrypt hash and the challenge verifier material.
@@ -54,22 +83,14 @@ func SetPassword(user *UserAccount, password string) error {
 		return errors.New("user is nil")
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	material, err := GeneratePasswordMaterial(password)
 	if err != nil {
 		return err
 	}
 
-	// Store both the bcrypt hash for existing password checks and the derived
-	// verifier for challenge login so the two login modes stay in sync.
-	salt := util.GenerateSecureString(32)
-	verifier, err := DerivePasswordVerifier(password, salt)
-	if err != nil {
-		return err
-	}
-
-	user.Password = string(hash)
-	user.PasswordSalt = salt
-	user.PasswordVerifier = verifier
+	user.Password = material.Hash
+	user.PasswordSalt = material.Salt
+	user.PasswordVerifier = material.Verifier
 	return nil
 }
 
