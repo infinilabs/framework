@@ -24,10 +24,13 @@
 package elastic
 
 import (
+	"bytes"
 	"errors"
 	"github.com/buger/jsonparser"
 	"github.com/segmentio/encoding/json"
 	"infini.sh/framework/core/util"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -217,6 +220,67 @@ type AggregationResponse struct {
 	Value   interface{}  `json:"value,omitempty"`
 }
 
+func (a *AggregationResponse) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Buckets json.RawMessage `json:"buckets,omitempty"`
+		Value   interface{}     `json:"value,omitempty"`
+	}
+
+	var aux alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	a.Value = aux.Value
+
+	buckets := bytes.TrimSpace(aux.Buckets)
+	if len(buckets) == 0 || bytes.Equal(buckets, []byte("null")) {
+		a.Buckets = nil
+		return nil
+	}
+
+	switch buckets[0] {
+	case '[':
+		return json.Unmarshal(buckets, &a.Buckets)
+	case '{':
+		keyedBuckets := map[string]BucketBase{}
+		if err := json.Unmarshal(buckets, &keyedBuckets); err != nil {
+			return err
+		}
+
+		keys := make([]string, 0, len(keyedBuckets))
+		for key := range keyedBuckets {
+			keys = append(keys, key)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return compareBucketKeys(keys[i], keys[j])
+		})
+
+		a.Buckets = make([]BucketBase, 0, len(keys))
+		for _, key := range keys {
+			bucket := keyedBuckets[key]
+			if bucket == nil {
+				bucket = BucketBase{}
+			}
+			if _, ok := bucket["key"]; !ok {
+				bucket["key"] = key
+			}
+			a.Buckets = append(a.Buckets, bucket)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func compareBucketKeys(left, right string) bool {
+	leftInt, leftErr := strconv.ParseInt(left, 10, 64)
+	rightInt, rightErr := strconv.ParseInt(right, 10, 64)
+	if leftErr == nil && rightErr == nil {
+		return leftInt < rightInt
+	}
+	return left < right
+}
+
 type ResponseBase struct {
 	RawResult   *util.Result `json:"-"`
 	StatusCode  int          `json:"-"`
@@ -233,6 +297,48 @@ type ErrorDetail struct {
 	RootCause []RootCause `json:"root_cause,omitempty"`
 	Type      string      `json:"type,omitempty"`
 	Reason    string      `json:"reason,omitempty"`
+}
+
+func (d *ErrorDetail) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &d.Reason)
+	}
+
+	type alias ErrorDetail
+	var aux alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = ErrorDetail(aux)
+	return nil
+}
+
+func (d *ErrorDetail) Message() string {
+	if d == nil {
+		return ""
+	}
+	if d.Reason != "" {
+		return d.Reason
+	}
+	if len(d.RootCause) > 0 {
+		var reasons []string
+		for _, cause := range d.RootCause {
+			if cause.Reason != "" {
+				reasons = append(reasons, cause.Reason)
+			} else if cause.Type != "" {
+				reasons = append(reasons, cause.Type)
+			}
+		}
+		if len(reasons) > 0 {
+			return strings.Join(reasons, "; ")
+		}
+	}
+	return d.Type
 }
 
 type RootCause struct {

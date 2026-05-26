@@ -31,20 +31,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
+	"github.com/shirou/gopsutil/v3/process"
+	"infini.sh/framework/core/task"
+	"infini.sh/framework/core/wrapper/taskset"
+	"infini.sh/framework/modules/configs/client"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
-	"github.com/shirou/gopsutil/v4/process"
-	"infini.sh/framework/core/task"
-	"infini.sh/framework/core/wrapper/taskset"
-	"infini.sh/framework/modules/configs/client"
-
+	log "github.com/cihub/seelog"
 	"github.com/kardianos/service"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/daemon"
@@ -52,7 +53,6 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/keystore"
-	"infini.sh/framework/core/log"
 	_ "infini.sh/framework/core/logging"
 	"infini.sh/framework/core/logging/logger"
 	"infini.sh/framework/core/module"
@@ -83,6 +83,18 @@ type App struct {
 	svc     service.Service
 	exit    chan os.Signal
 	svcFlag string
+}
+
+func getServiceWorkingDirectory() string {
+	executablePath, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(executablePath)
+	}
+	workdir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	return workdir
 }
 
 const (
@@ -575,10 +587,7 @@ func (app *App) Run() {
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
 	svcOptions["LimitNOFILE"] = 1024000
 
-	workdir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	workdir := getServiceWorkingDirectory()
 
 	serviceName := app.environment.GetAppLowercaseName()
 	if v, ok := os.LookupEnv(env_SERVICE_NAME); ok {

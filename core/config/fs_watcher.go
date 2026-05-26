@@ -62,6 +62,36 @@ func loadConfigFile(file string) *Config {
 	return nil
 }
 
+func dispatchConfigChangeEvent(ev fsnotify.Event, watcherCallbacks []CallbackFunc) {
+	for _, v := range watcherCallbacks {
+		v(ev.Name, ev.Op)
+	}
+
+	cfg := loadConfigFile(ev.Name)
+	if cfg != nil {
+		for _, k := range sectionCallbackOrder {
+			callbacks, ok := sectionCallbacks[k]
+			if !ok || !cfg.HasField(k) {
+				continue
+			}
+			currentCfg, err := cfg.Child(k, -1)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			previousCfg, _ := latestConfig[k]
+			for _, f := range callbacks {
+				f(previousCfg, currentCfg)
+			}
+			latestConfig[k] = currentCfg
+		}
+	}
+
+	for _, v := range configCallbacks {
+		v(ev)
+	}
+}
+
 var validExtensions = []string{".yml", ".yaml", ".tpl"}
 
 func SetValidExtension(v []string) {
@@ -153,40 +183,7 @@ func AddPathToWatch(path string, callback CallbackFunc) {
 				time.Sleep(2 * time.Second)
 				log.Trace("2 seconds out, on:", ev.String())
 
-				// AddPathToWatch
-
-				for _, v := range watcher.callbacks {
-					v(ev.Name, ev.Op)
-				}
-
-				// NotifyOnConfigChange
-
-				for _, v := range configCallbacks {
-					v(ev)
-				}
-
-				// NotifyOnConfigSectionChange
-
-				cfg := loadConfigFile(ev.Name)
-				if cfg == nil {
-					continue
-				}
-
-				for k, v := range sectionCallbacks {
-					if cfg.HasField(k) {
-						currentCfg, err := cfg.Child(k, -1)
-						if err != nil {
-							log.Error(err)
-							continue
-						}
-						// diff config
-						previousCfg, _ := latestConfig[k]
-						for _, f := range v {
-							f(previousCfg, currentCfg)
-						}
-						latestConfig[k] = currentCfg
-					}
-				}
+				dispatchConfigChangeEvent(ev, watcher.callbacks)
 			}
 		}()
 	})
@@ -255,11 +252,13 @@ func StopWatchers() {
 }
 
 var sectionCallbacks = map[string][]func(pCfg, cCfg *Config){}
+var sectionCallbackOrder = []string{}
 var configCallbacks = []func(fsnotify.Event){}
 var cfgLocker = sync.RWMutex{}
 
 // NotifyOnConfigSectionChange will trigger callback when any configuration file change detected and
-// configKey present in the changed file
+// configKey present in the changed file. Section callbacks run before generic NotifyOnConfigChange
+// callbacks so section-scoped state can be refreshed before dependent consumers reload.
 func NotifyOnConfigSectionChange(configKey string, f func(pCfg, cCfg *Config)) {
 	cfgLocker.Lock()
 	defer cfgLocker.Unlock()
@@ -268,12 +267,14 @@ func NotifyOnConfigSectionChange(configKey string, f func(pCfg, cCfg *Config)) {
 	if !ok {
 		v = []func(pCfg, cCfg *Config){}
 		sectionCallbacks[configKey] = v
+		sectionCallbackOrder = append(sectionCallbackOrder, configKey)
 	}
 	v = append(v, f)
 	sectionCallbacks[configKey] = v
 }
 
-// NotifyOnConfigChange will trigger callback when any configuration file change detected
+// NotifyOnConfigChange will trigger callback when any configuration file change detected, after any
+// matching NotifyOnConfigSectionChange callbacks for the same event have run.
 func NotifyOnConfigChange(f func(fsnotify.Event)) {
 	cfgLocker.Lock()
 	defer cfgLocker.Unlock()

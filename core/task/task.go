@@ -28,15 +28,33 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var Tasks = sync.Map{}
+
+func shouldSilenceStartupTaskError(msg string) bool {
+	return !orm.HasHandler() && strings.Contains(msg, "ORM handler is not registered")
+}
+
+func logTaskRuntimeIssue(msg string, raw interface{}) {
+	if shouldSilenceStartupTaskError(msg) {
+		log.Debug(msg)
+		return
+	}
+	if raw != nil {
+		log.Error(raw, msg)
+		return
+	}
+	log.Error(msg)
+}
 
 type State string
 
@@ -103,7 +121,7 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 					case string:
 						v = r.(string)
 					}
-					log.Error(r, v)
+					logTaskRuntimeIssue(v, r)
 				}
 			}
 			task.State = Finished
@@ -118,7 +136,7 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 		task.State = Running
 		err := inner(innerCtx)
 		if err != nil {
-			log.Error(err)
+			logTaskRuntimeIssue(err.Error(), err)
 		}
 		t = time.Now()
 		task.EndTime = &t
@@ -194,7 +212,7 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 						case string:
 							v = r.(string)
 						}
-						log.Error(v)
+						logTaskRuntimeIssue(v, nil)
 					}
 				}
 				task.isTaskRunning.Store(false)

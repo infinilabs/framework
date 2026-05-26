@@ -697,10 +697,13 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 	log.Trace("update node info")
 
 	if !force && !meta.IsAvailable() {
+		stateChanged := false
 		if !force {
-			setNodeUnknown(meta.Config.ID)
+			stateChanged = setNodeUnknown(meta.Config.ID)
 		}
-		log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
+		if stateChanged || rate.GetRateLimiter("metadata_node_info_skip", meta.Config.ID, 1, 1, 10*time.Minute).Allow() {
+			log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
+		}
 		return
 	}
 
@@ -808,17 +811,17 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 var saveNodeMetadataMutex = sync.Mutex{}
 var nodeAlreadyUnknown = map[string]bool{}
 
-func setNodeUnknown(clusterID string) {
+func setNodeUnknown(clusterID string) bool {
 	kv.DeleteKey(elastic.KVElasticNodeMetadata, []byte(clusterID))
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
-		return
+		return false
 	}
 	if meta.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
-		return
+		return false
 	}
 	if v, ok := nodeAlreadyUnknown[clusterID]; ok && v {
-		return
+		return false
 	}
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
@@ -846,6 +849,7 @@ func setNodeUnknown(clusterID string) {
 	}
 
 	nodeAlreadyUnknown[clusterID] = true
+	return true
 }
 func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
 	esConfig := elastic.GetConfig(clusterID)
