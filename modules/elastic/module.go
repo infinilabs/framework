@@ -415,7 +415,11 @@ func (module *ElasticModule) Start() error {
 		} else {
 			client := elastic.GetClient(systemID)
 			handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-			orm.Register("elastic", &handler)
+			if orm.HasAdapter("elastic") {
+				log.Debug("skip duplicate elastic ORM registration")
+			} else {
+				orm.Register("elastic", &handler)
+			}
 		}
 	}
 
@@ -425,7 +429,11 @@ func (module *ElasticModule) Start() error {
 		} else {
 			client := elastic.GetClient(systemID)
 			module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-			kv.Register("elastic", module.storeHandler)
+			if kv.HasStore("elastic") {
+				log.Debug("skip duplicate elastic store registration")
+			} else {
+				kv.Register("elastic", module.storeHandler)
+			}
 		}
 	}
 

@@ -54,6 +54,14 @@ type KVStore interface {
 
 var handler KVStore
 
+func HasStore(name string) bool {
+	if stores == nil {
+		return false
+	}
+	_, ok := stores[name]
+	return ok
+}
+
 func getKVHandler() KVStore {
 
 	if handler == nil {

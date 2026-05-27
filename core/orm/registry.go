@@ -55,6 +55,14 @@ func HasHandler() bool {
 	return handler != nil
 }
 
+func HasAdapter(name string) bool {
+	if adapters == nil {
+		return false
+	}
+	_, ok := adapters[name]
+	return ok
+}
+
 func getHandler() ORM {
 	if handler == nil {
 		panic(errors.New("ORM handler is not registered"))
