@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 - refactor: native security are disabled by default #283
 - refactor: refactoring to simplify go modules #300
+- refactor: `RegisterHTTPAuthFilterProvider` now requires a `priority int` parameter #370
 
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
