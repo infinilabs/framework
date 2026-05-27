@@ -177,6 +177,41 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 
 }
 
+func SyncClusterHealthStatus(clusterID string) {
+	if strings.TrimSpace(clusterID) == "" {
+		return
+	}
+
+	metadata := elastic.GetMetadata(clusterID)
+	if metadata == nil || metadata.Config == nil {
+		return
+	}
+	if metadata.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
+		return
+	}
+
+	healthStatus := "unavailable"
+	if metadata.IsAvailable() {
+		if client := elastic.GetClientNoPanic(clusterID); client != nil {
+			health, err := client.ClusterHealth(nil)
+			if err == nil && health != nil && health.StatusCode == 200 && strings.TrimSpace(health.Status) != "" {
+				metadata.Health = health
+				healthStatus = health.Status
+			} else if metadata.Health != nil && strings.TrimSpace(metadata.Health.Status) != "" {
+				healthStatus = metadata.Health.Status
+			} else {
+				healthStatus = "green"
+			}
+		} else if metadata.Health != nil && strings.TrimSpace(metadata.Health.Status) != "" {
+			healthStatus = metadata.Health.Status
+		} else {
+			healthStatus = "green"
+		}
+	}
+
+	updateClusterHealthStatus(clusterID, healthStatus)
+}
+
 // update cluster state, on state version change
 func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 
