@@ -42,6 +42,8 @@ type PipelineStatus struct {
 	Processors   []map[string]interface{}   `json:"processor"`
 }
 
+type PipelineTaskStatus = PipelineStatus
+
 type PipelineResult struct {
 	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
