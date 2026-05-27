@@ -26,7 +26,7 @@ type SessionTokenResponseDecorator func(token map[string]interface{}, user *User
 var sessionTokenResponseDecorators = sync.Map{}
 
 func init() {
-	RegisterHTTPAuthFilterProvider("session_token", byAccessTokenSession)
+	RegisterHTTPAuthFilterProviderWithPriority("session_token", byAccessTokenSession, 10)
 }
 
 func RegisterSessionTokenResponseDecorator(name string, decorator SessionTokenResponseDecorator) {

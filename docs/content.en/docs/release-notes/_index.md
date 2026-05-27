@@ -32,6 +32,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
+- refactor: add priority ordering to HTTP auth filter pipeline; new `RegisterHTTPAuthFilterProviderWithPriority` API #370
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
 - chore: always enable orm hooks #250

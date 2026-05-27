@@ -362,6 +362,45 @@ api.HandleUIMethod(api.GET, "/health", handler.healthCheck,
     api.AllowPublicAccess())
 ```
 
+### Pluggable Auth Filter Pipeline
+
+Incoming requests are authenticated through a priority-ordered pipeline of `HTTPAuthFilterProvider` functions. Each provider attempts to extract and validate credentials from the request; the first one that returns valid claims short-circuits the chain.
+
+#### Built-in Providers
+
+| Priority | Name | Mechanism |
+|----------|------|-----------|
+| `10` | `session_token` | HTTP session / cookie |
+| `20` | `bearer_token` | `Authorization: Bearer <jwt>` header |
+| `30` | `api_token` | `X-API-TOKEN` header |
+
+**Smaller priority values execute first** (higher precedence), consistent with the framework-wide convention.
+
+#### Registering a Custom Provider
+
+```go
+import "infini.sh/framework/core/security"
+
+func init() {
+    // With explicit priority (smaller value = higher precedence)
+    security.RegisterHTTPAuthFilterProviderWithPriority(
+        "my_auth",          // unique name (used in logs)
+        myAuthProvider,     // func(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error)
+        15,                 // executes after session_token (10) but before bearer_token (20)
+    )
+
+    // Without priority — defaults to 100 (executes after all built-in providers)
+    security.RegisterHTTPAuthFilterProvider("my_auth", myAuthProvider)
+}
+
+func myAuthProvider(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error) {
+    // Extract and validate credentials; return nil claims on failure
+    ...
+}
+```
+
+Providers registered with the same priority value are tried in registration order.
+
 ### Access Token Authentication
 
 The framework provides a built-in access token (API token) module for programmatic authentication. Access tokens allow services and automation tools to authenticate API requests without interactive login sessions.
