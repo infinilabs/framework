@@ -63,7 +63,7 @@ func init() {
 	// The auth filter provider is registered unconditionally so that inbound
 	// requests carrying X-API-TOKEN can be authenticated even before Init() is
 	// called (e.g. in embedded scenarios that never call Init explicitly).
-	security.RegisterHTTPAuthFilterProvider("api_token", byAPITokenHeader, 30)
+	security.RegisterHTTPAuthFilterProviderWithPriority("api_token", byAPITokenHeader, 30)
 }
 
 // Init registers the HTTP management endpoints for access tokens. Safe to

@@ -12,7 +12,6 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 - refactor: native security are disabled by default #283
 - refactor: refactoring to simplify go modules #300
-- refactor: `RegisterHTTPAuthFilterProvider` now requires a `priority int` parameter #370
 
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
@@ -32,6 +31,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
+- refactor: add priority ordering to HTTP auth filter pipeline; new `RegisterHTTPAuthFilterProviderWithPriority` API #370
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
 - chore: always enable orm hooks #250

@@ -382,11 +382,15 @@ Incoming requests are authenticated through a priority-ordered pipeline of `HTTP
 import "infini.sh/framework/core/security"
 
 func init() {
-    security.RegisterHTTPAuthFilterProvider(
+    // With explicit priority (smaller value = higher precedence)
+    security.RegisterHTTPAuthFilterProviderWithPriority(
         "my_auth",          // unique name (used in logs)
         myAuthProvider,     // func(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error)
-        15,                 // priority — executes after session_token (10) but before bearer_token (20)
+        15,                 // executes after session_token (10) but before bearer_token (20)
     )
+
+    // Without priority — defaults to 100 (executes after all built-in providers)
+    security.RegisterHTTPAuthFilterProvider("my_auth", myAuthProvider)
 }
 
 func myAuthProvider(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error) {

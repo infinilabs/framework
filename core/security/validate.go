@@ -105,9 +105,9 @@ var (
 
 type HTTPAuthFilterProvider func(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error)
 
-// RegisterHTTPAuthFilterProvider registers an auth filter provider with the given priority.
+// RegisterHTTPAuthFilterProviderWithPriority registers an auth filter provider with an explicit priority.
 // Smaller priority values execute first (higher precedence).
-func RegisterHTTPAuthFilterProvider(name string, f HTTPAuthFilterProvider, priority int) {
+func RegisterHTTPAuthFilterProviderWithPriority(name string, f HTTPAuthFilterProvider, priority int) {
 	authFilterMu.Lock()
 	defer authFilterMu.Unlock()
 
@@ -120,6 +120,12 @@ func RegisterHTTPAuthFilterProvider(name string, f HTTPAuthFilterProvider, prior
 	authFilterProviders[i] = entry
 }
 
+// RegisterHTTPAuthFilterProvider registers an auth filter provider with the default priority (100).
+// It executes after any provider registered with an explicit priority lower than 100.
+func RegisterHTTPAuthFilterProvider(name string, f HTTPAuthFilterProvider) {
+	RegisterHTTPAuthFilterProviderWithPriority(name, f, 100)
+}
+
 func init() {
-	RegisterHTTPAuthFilterProvider("bearer_token", byAuthorizationHeader, 20)
+	RegisterHTTPAuthFilterProviderWithPriority("bearer_token", byAuthorizationHeader, 20)
 }

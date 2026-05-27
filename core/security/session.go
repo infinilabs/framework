@@ -18,7 +18,7 @@ import (
 const UserAccessTokenSessionName = "user_session_access_token"
 
 func init() {
-	RegisterHTTPAuthFilterProvider("session_token", byAccessTokenSession, 10)
+	RegisterHTTPAuthFilterProviderWithPriority("session_token", byAccessTokenSession, 10)
 }
 
 func byAccessTokenSession(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error) {
