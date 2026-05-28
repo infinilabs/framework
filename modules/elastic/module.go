@@ -509,7 +509,7 @@ func (module *ElasticModule) Start() error {
 					}
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
-						if !cfg1.Enabled || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
+						if !cfg1.Enabled || !cfg1.Monitored || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
 							return true
 						}
 

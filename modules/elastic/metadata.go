@@ -53,44 +53,49 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 	log.Tracef("execute health check for: %v", clusterID)
 
 	cfg := elastic.GetConfig(clusterID)
+	if cfg == nil || !cfg.Enabled {
+		return
+	}
+	if !force && !cfg.Monitored {
+		log.Tracef("skip health check for unmonitored cluster: %v", clusterID)
+		return
+	}
 	metadata := elastic.GetOrInitMetadata(cfg)
-	if cfg.Enabled || force {
-		//check seeds' availability
-		if force {
-			//add seeds to host for health check
-			hosts := metadata.GetSeedHosts()
-			for _, host := range hosts {
-				elastic.GetOrInitHost(host, clusterID)
-			}
+	//check seeds' availability
+	if force {
+		//add seeds to host for health check
+		hosts := metadata.GetSeedHosts()
+		for _, host := range hosts {
+			elastic.GetOrInitHost(host, clusterID)
 		}
-		//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
-		client := elastic.GetClient(cfg.ID)
-		//check cluster health status
-		health, err := client.ClusterHealth(nil)
-		if err != nil || health == nil || health.StatusCode != 200 {
-			if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
-				metadata.ReportFailure(errors.New("master_not_discovered_exception"))
-			} else {
-				metadata.ReportFailure(err)
-			}
-			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
-				updateClusterHealthStatus(clusterID, "unavailable")
-			}
+	}
+	//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
+	client := elastic.GetClient(cfg.ID)
+	//check cluster health status
+	health, err := client.ClusterHealth(nil)
+	if err != nil || health == nil || health.StatusCode != 200 {
+		if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
+			metadata.ReportFailure(errors.New("master_not_discovered_exception"))
 		} else {
-			if metadata.Health == nil || metadata.Health.NumberOfNodes == 0 || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
-				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
-					updateClusterHealthStatus(clusterID, health.Status)
-				}
-				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
+			metadata.ReportFailure(err)
+		}
+		if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
+			updateClusterHealthStatus(clusterID, "unavailable")
+		}
+	} else {
+		if metadata.Health == nil || metadata.Health.NumberOfNodes == 0 || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
+			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
+				updateClusterHealthStatus(clusterID, health.Status)
 			}
-			changes, err := util.DiffTwoObject(metadata.Health, health)
-			if err != nil {
-				log.Errorf("diff cluster health error: %v", err)
-			}
-			metadata.ReportSuccess()
-			if len(changes) > 0 {
-				metadata.Health = health
-			}
+			log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
+		}
+		changes, err := util.DiffTwoObject(metadata.Health, health)
+		if err != nil {
+			log.Errorf("diff cluster health error: %v", err)
+		}
+		metadata.ReportSuccess()
+		if len(changes) > 0 {
+			metadata.Health = health
 		}
 	}
 }
