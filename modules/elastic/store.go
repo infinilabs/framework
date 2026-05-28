@@ -38,6 +38,7 @@ import (
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/common"
 	"net/http"
+	"time"
 )
 
 type ElasticStore struct {
@@ -122,12 +123,16 @@ func (store *ElasticStore) GetValue(bucket string, key []byte) ([]byte, error) {
 }
 
 func (store *ElasticStore) AddValueCompress(bucket string, key []byte, value []byte) error {
+	return store.AddValueCompressWithTTL(bucket, key, value, 0)
+}
+
+func (store *ElasticStore) AddValueCompressWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", bucket, ",", key, ",", err)
 		return err
 	}
-	return store.AddValue(bucket, key, value)
+	return store.AddValueWithTTL(bucket, key, value, ttl)
 }
 
 func getKey(bucket, key string) string {
@@ -135,6 +140,11 @@ func getKey(bucket, key string) string {
 }
 
 func (store *ElasticStore) AddValue(bucket string, key []byte, value []byte) error {
+	return store.AddValueWithTTL(bucket, key, value, 0)
+}
+
+func (store *ElasticStore) AddValueWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
+	_ = ttl
 	file := Blob{}
 	file.Content = base64.URLEncoding.EncodeToString(value)
 	_, err := store.Client.Index(store.Config.IndexName, "_doc", getKey(bucket, string(key)), file, "")
