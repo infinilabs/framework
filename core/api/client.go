@@ -66,8 +66,10 @@ func SimpleGetTLSConfig(tlsConfig *config.TLSConfig) *tls.Config {
 }
 
 func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
-
-	pool := x509.NewCertPool()
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
 
 	skipVerify := tlsConfig.TLSInsecureSkipVerify
 	if tlsConfig.TLSBypassMalformedCert {
