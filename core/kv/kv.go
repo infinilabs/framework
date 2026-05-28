@@ -30,6 +30,7 @@ package kv
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
+	"time"
 )
 
 type KVStore interface {
@@ -42,8 +43,10 @@ type KVStore interface {
 	GetCompressedValue(bucket string, key []byte) ([]byte, error)
 
 	AddValueCompress(bucket string, key []byte, value []byte) error
+	AddValueCompressWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error
 
 	AddValue(bucket string, key []byte, value []byte) error
+	AddValueWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error
 
 	ExistsKey(bucket string, key []byte) (bool, error)
 
@@ -82,8 +85,16 @@ func AddValueCompress(bucket string, key []byte, value []byte) error {
 	return getKVHandler().AddValueCompress(bucket, key, value)
 }
 
+func AddValueCompressWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
+	return getKVHandler().AddValueCompressWithTTL(bucket, key, value, ttl)
+}
+
 func AddValue(bucket string, key []byte, value []byte) error {
 	return getKVHandler().AddValue(bucket, key, value)
+}
+
+func AddValueWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
+	return getKVHandler().AddValueWithTTL(bucket, key, value, ttl)
 }
 
 func ExistsKey(bucket string, key []byte) (bool, error) {

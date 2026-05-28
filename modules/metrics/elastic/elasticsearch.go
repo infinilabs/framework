@@ -259,7 +259,11 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 		}
 	}
 	if !m.shouldCollectMetrics(v) {
-		log.Debugf("cluster [%v] NOT eligible for metrics collection (enabled[%v], monitored[%v], mode[%v], available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.Config.MetricCollectionMode, v.IsAvailable())
+		available := false
+		if v.Config.Enabled && v.Config.Monitored {
+			available = v.IsAvailable()
+		}
+		log.Debugf("cluster [%v] NOT eligible for metrics collection (enabled[%v], monitored[%v], mode[%v], available[%v]), skip collect", v.Config.Name, v.Config.Enabled, v.Config.Monitored, v.Config.MetricCollectionMode, available)
 		return true
 	}
 	if global.Env().IsDebug {

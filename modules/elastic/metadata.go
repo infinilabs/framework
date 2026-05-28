@@ -48,6 +48,8 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+const elasticMetadataKVRetention = 30 * 24 * time.Hour
+
 func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 
 	log.Tracef("execute health check for: %v", clusterID)
@@ -224,6 +226,9 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 	if meta == nil {
 		return
 	}
+	if !force && !meta.Config.Monitored {
+		return
+	}
 
 	if !force && !meta.IsAvailable() {
 		return
@@ -261,7 +266,7 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 					if err != nil {
 						log.Errorf("failed to load index metadata from es: %v", err)
 					}
-					err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState)
+					err = kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState, elasticMetadataKVRetention)
 					if err != nil {
 						log.Errorf("failed to save index metadata: %v", err)
 					}
@@ -724,7 +729,7 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 
 	}
 	if isIndicesStateChange {
-		err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata))
+		err = kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata), elasticMetadataKVRetention)
 		if err != nil {
 			log.Error(err)
 		}
@@ -735,6 +740,10 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata, force bool, discovery bool) {
 
 	log.Trace("update node info")
+
+	if !force && !meta.Config.Monitored {
+		return
+	}
 
 	if !force && !meta.IsAvailable() {
 		stateChanged := false
@@ -838,7 +847,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 				"nodes":     nodes,
 				"timestamp": time.Now(),
 			}
-			err = kv.AddValueCompress(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			err = kv.AddValueCompressWithTTL(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo), elasticMetadataKVRetention)
 			if err != nil {
 				log.Errorf("save node metadata error: %v", err)
 			}
@@ -1188,6 +1197,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 
 // on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
+	if !force && !meta.Config.Monitored {
+		return
+	}
 
 	if !force && !meta.IsAvailable() {
 		return
@@ -1288,6 +1300,9 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	if meta == nil {
 		return
 	}
+	if !meta.Config.Monitored {
+		return
+	}
 	if !meta.IsAvailable() {
 		return
 	}
@@ -1362,9 +1377,15 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 			if err != nil {
 				panic(err)
 			}
-			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+			err = kv.AddValueWithTTL(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings), elasticMetadataKVRetention)
+			if err != nil {
+				log.Errorf("failed to save cluster settings: %v", err)
+			}
 		} else {
-			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+			err = kv.AddValueWithTTL(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings), elasticMetadataKVRetention)
+			if err != nil {
+				log.Errorf("failed to save cluster settings: %v", err)
+			}
 		}
 
 	}

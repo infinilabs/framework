@@ -258,7 +258,7 @@ func nodeAvailabilityCheck() {
 					}
 
 					cfg := elastic.GetConfig(v.ClusterID)
-					if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled) {
+					if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled) {
 						return true
 					}
 
@@ -325,7 +325,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.MetadataRefresh.Enabled) {
+					if !v.Enabled || !v.Monitored || (v.MetadataConfigs != nil && !v.MetadataConfigs.MetadataRefresh.Enabled) {
 						return true
 					}
 
@@ -475,23 +475,25 @@ func (module *ElasticModule) Start() error {
 			cfg1, ok := value.(*elastic.ElasticsearchConfig)
 			if ok && cfg1 != nil {
 				log.Tracef("init elasticsearch config: %v", cfg1.Name)
-				metadata := elastic.GetMetadata(cfg1.ID)
-				if metadata != nil {
-					//update nodes
-					module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
+				if cfg1.Monitored {
+					metadata := elastic.GetMetadata(cfg1.ID)
+					if metadata != nil {
+						//update nodes
+						module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
 
-					//update alias
-					updateAliases(metadata, true)
+						//update alias
+						updateAliases(metadata, true)
 
-					//update
-					module.updateClusterState(cfg1.ID, true)
+						//update
+						module.updateClusterState(cfg1.ID, true)
+					}
+
+					task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
+						id := task.MustGetString(ctx, "id")
+						module.clusterHealthCheck(id, true)
+						return nil
+					}, context.WithValue(context.Background(), "id", cfg1.ID))
 				}
-
-				task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
-					id := task.MustGetString(ctx, "id")
-					module.clusterHealthCheck(id, true)
-					return nil
-				}, context.WithValue(context.Background(), "id", cfg1.ID))
 			}
 			return true
 		})
@@ -679,7 +681,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
+					if !v.Enabled || !v.Monitored || (v.MetadataConfigs != nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
 						return true
 					}
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
@@ -735,7 +737,7 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 				return true
 			}
 			v.Config = cfg
-			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+			if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
 				return true
 			}
 			module.updateNodeInfo(v, false, cfg.Discovery.Enabled)
@@ -759,7 +761,7 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 				return true
 			}
 			v.Config = cfg
-			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+			if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
 				return true
 			}
 			updateAliases(v, force)
