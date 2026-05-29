@@ -192,38 +192,36 @@ func applyManagerRequestAuth(req *util.Request) error {
 	return nil
 }
 
-var clientInitLock = sync.Once{}
+var managerHTTPClientInitLock = sync.Once{}
+var configSyncInitLock = sync.Once{}
 var mTLSClient *http.Client
 
-func getManagerHTTPClient() *http.Client {
-	clientInitLock.Do(func() {
-		if global.Env().SystemConfig.Configs.Managed {
-			cfg := global.Env().GetHTTPClientConfig("configs", "")
-			if cfg != nil {
-				hClient, err := api.NewHTTPClient(cfg)
-				if err != nil {
-					panic(err)
-				}
-				mTLSClient = hClient
+func initManagerHTTPClient() {
+	managerHTTPClientInitLock.Do(func() {
+		if !global.Env().SystemConfig.Configs.Managed {
+			return
+		}
+		cfg := global.Env().GetHTTPClientConfig("configs", "")
+		if cfg != nil {
+			hClient, err := api.NewHTTPClient(cfg)
+			if err != nil {
+				panic(err)
 			}
+			mTLSClient = hClient
 		}
 	})
+}
+
+func getManagerHTTPClient() *http.Client {
+	initManagerHTTPClient()
 	return mTLSClient
 }
 
 func ListenConfigChanges() error {
-
-	clientInitLock.Do(func() {
+	configSyncInitLock.Do(func() {
 
 		if global.Env().SystemConfig.Configs.Managed {
-			cfg := global.Env().GetHTTPClientConfig("configs", "")
-			if cfg != nil {
-				hClient, err := api.NewHTTPClient(cfg)
-				if err != nil {
-					panic(err)
-				}
-				mTLSClient = hClient
-			}
+			initManagerHTTPClient()
 
 			//init config sync listening
 			req := common.ConfigSyncRequest{}

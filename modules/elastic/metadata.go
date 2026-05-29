@@ -50,6 +50,36 @@ import (
 
 const elasticMetadataKVRetention = 30 * 24 * time.Hour
 
+func shouldRegisterDiscoveredHostForAvailability(meta *elastic.ElasticsearchMetadata, host string) bool {
+	host = util.UnifyLocalAddress(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+
+	if meta == nil {
+		return true
+	}
+	if meta.Config == nil {
+		return true
+	}
+	if meta.Config.Host == "" && len(meta.Config.Hosts) == 0 && meta.Config.Endpoint == "" && len(meta.Config.Endpoints) == 0 {
+		return true
+	}
+
+	seedHosts := meta.GetSeedHosts()
+	if len(seedHosts) == 0 {
+		return true
+	}
+
+	for _, seedHost := range seedHosts {
+		if util.UnifyLocalAddress(strings.TrimSpace(seedHost)) == host {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 
 	log.Tracef("execute health check for: %v", clusterID)
@@ -58,6 +88,7 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 	if cfg == nil || !cfg.Enabled {
 		return
 	}
+
 	if !force && !cfg.Monitored {
 		log.Tracef("skip health check for unmonitored cluster: %v", clusterID)
 		return
@@ -838,7 +869,11 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 			//register host to do availability monitoring
 			if discovery {
 				for _, v := range *nodes {
-					elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
+					host := v.GetHttpPublishHost()
+					if !shouldRegisterDiscoveredHostForAvailability(meta, host) {
+						continue
+					}
+					elastic.GetOrInitHost(host, meta.Config.ID)
 				}
 			}
 

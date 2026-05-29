@@ -1,7 +1,13 @@
 package client
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"infini.sh/framework/core/config"
@@ -73,5 +79,65 @@ func TestBuildManagedRegisterAccessToken(t *testing.T) {
 	}
 	if registerToken != nil {
 		t.Fatalf("expected no managed register token, got %#v", registerToken)
+	}
+}
+
+func TestListenConfigChangesStillSyncsAfterHTTPClientInit(t *testing.T) {
+	var syncRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/configs/_sync" {
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected request method: %s", r.Method)
+		}
+		syncRequests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"changed":false}`))
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "configs")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+	mainConfigFile := filepath.Join(tempDir, "agent.yml")
+	if err := os.WriteFile(mainConfigFile, []byte("node:\n  id: test-agent\n"), 0o644); err != nil {
+		t.Fatalf("write main config: %v", err)
+	}
+
+	oldEnv := global.Env()
+	oldHTTPClientInitLock := managerHTTPClientInitLock
+	oldConfigSyncInitLock := configSyncInitLock
+	oldClient := mTLSClient
+	t.Cleanup(func() {
+		global.RegisterEnv(oldEnv)
+		managerHTTPClientInitLock = oldHTTPClientInitLock
+		configSyncInitLock = oldConfigSyncInitLock
+		mTLSClient = oldClient
+	})
+
+	testEnv := env.EmptyEnv()
+	testEnv.SystemConfig.Configs.Managed = true
+	testEnv.SystemConfig.Configs.Servers = []string{server.URL}
+	testEnv.SystemConfig.Configs.Interval = "30s"
+	testEnv.SystemConfig.PathConfig.Config = configDir
+	testEnv.SystemConfig.NodeConfig.ID = "test-agent"
+	testEnv.SetConfigFile(mainConfigFile)
+	global.RegisterEnv(testEnv)
+
+	managerHTTPClientInitLock = sync.Once{}
+	configSyncInitLock = sync.Once{}
+	mTLSClient = nil
+
+	if getManagerHTTPClient() == nil {
+		t.Fatal("expected manager HTTP client to initialize")
+	}
+	if err := ListenConfigChanges(); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if syncRequests.Load() != 1 {
+		t.Fatalf("expected one immediate sync request, got %d", syncRequests.Load())
 	}
 }
