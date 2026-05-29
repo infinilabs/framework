@@ -91,10 +91,14 @@ func TestRegisterMissingAPIMethodUIRoutesSkipsExistingUIRoutes(t *testing.T) {
 	originalAPIHandlers := registeredAPIMethodHandler
 	originalUIHandlers := registeredUIMethodHandler
 	originalServer := srv
+	originalRouter := uiRouter
+	originalServeMux := uiServeMux
 	t.Cleanup(func() {
 		registeredAPIMethodHandler = originalAPIHandlers
 		registeredUIMethodHandler = originalUIHandlers
 		srv = originalServer
+		uiRouter = originalRouter
+		uiServeMux = originalServeMux
 	})
 
 	registeredAPIMethodHandler = map[string]map[string]func(http.ResponseWriter, *http.Request, httprouter.Params){
@@ -143,5 +147,38 @@ func TestRegisterMissingAPIMethodUIRoutesSkipsExistingUIRoutes(t *testing.T) {
 	}
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("expected existing UI route to win over mirrored API route, got %d", resp.Code)
+	}
+}
+
+func TestHandleUIMethodRegistersRouteAfterStartWeb(t *testing.T) {
+	originalUIHandlers := registeredUIMethodHandler
+	originalServer := srv
+	originalRouter := uiRouter
+	originalServeMux := uiServeMux
+	t.Cleanup(func() {
+		registeredUIMethodHandler = originalUIHandlers
+		srv = originalServer
+		uiRouter = originalRouter
+		uiServeMux = originalServeMux
+	})
+
+	registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{}
+
+	webCfg := config.WebAppConfig{}
+	webCfg.NetworkConfig.Binding = "127.0.0.1:0"
+	StartWeb(webCfg)
+	defer StopWeb(webCfg)
+
+	HandleUIMethod(GET, "/late-ui-route", func(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/late-ui-route", nil)
+	if err := ServeRegisteredUIRequest(resp, req); err != nil {
+		t.Fatalf("serve late ui route: %v", err)
+	}
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("expected late ui route to be available after web start, got %d", resp.Code)
 	}
 }

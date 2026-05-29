@@ -486,9 +486,11 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 		apiOptions.Register(method, pattern, opts)
 	}
 
+	var hadPrevious bool
 	if !opts.Override {
 		//check previous handler
 		previous, ok := registeredUIMethodHandler[method][pattern]
+		hadPrevious = ok
 		if ok {
 			if previous.Options.Priority > opts.Priority {
 				log.Tracef("skip api: [%v] [%v], priority: [%v] < [%v]", method, pattern, opts.Priority, previous.Options.Priority)
@@ -505,14 +507,26 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 
 	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
 	registeredUIMethodHandler[method][pattern] = myHandler
+	registerLiveUIMethodHandler(method, pattern, myHandler, hadPrevious)
 	if opts.AllowOPTIONS {
 		m := registeredUIMethodHandler[OPTIONS]
+		hadOptionsPrevious := false
 		if m == nil {
 			registeredUIMethodHandler[OPTIONS] = map[string]RegisteredAPIHandler{}
+		} else {
+			_, hadOptionsPrevious = m[pattern]
 		}
 		registeredUIMethodHandler[OPTIONS][pattern] = myHandler
+		registerLiveUIMethodHandler(OPTIONS, pattern, myHandler, hadOptionsPrevious)
 	}
 
+}
+
+func registerLiveUIMethodHandler(method Method, pattern string, handler RegisteredAPIHandler, alreadyRegistered bool) {
+	if uiRouter == nil || alreadyRegistered {
+		return
+	}
+	uiRouter.Handle(string(method), pattern, getWrappedHandler(string(method), pattern, handler))
 }
 
 // HandleWebSocketCommand register websocket command handler
