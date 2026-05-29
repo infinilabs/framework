@@ -231,7 +231,7 @@ func (app *App) initWithFlags() {
 
 	app.environment.SetConfigFile(app.configFile)
 
-	err := app.environment.InitPaths(app.configFile)
+	err = app.environment.InitPaths(app.configFile)
 	if err != nil {
 		panic(err)
 	}
