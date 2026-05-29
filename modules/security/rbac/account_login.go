@@ -99,7 +99,7 @@ func LoginChallenge(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	exists, user, err := GetUserByLogin(login)
+	exists, user, err := security.GetUserByLogin(login)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -124,7 +124,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	usedChallenge := req.ChallengeID != "" || req.Proof != ""
-	exists, user, err := GetUserByLogin(login)
+	exists, user, err := security.GetUserByLogin(login)
 	if err != nil {
 		api.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return

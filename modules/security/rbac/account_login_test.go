@@ -24,6 +24,8 @@
 package rbac
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +37,28 @@ import (
 )
 
 type testAccountPasswordLoginProvider struct{}
+
+type testChallengeAuthenticationBackend struct{}
+
+func (testChallengeAuthenticationBackend) GetUserByID(id string) (bool, *security.UserAccount, error) {
+	return false, nil, nil
+}
+
+func (testChallengeAuthenticationBackend) GetUserByLogin(login string) (bool, *security.UserAccount, error) {
+	if login != "bridge-admin" {
+		return false, nil, nil
+	}
+	user := &security.UserAccount{Email: "bridge-admin"}
+	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
+		return false, nil, err
+	}
+	user.ID = "bridge-admin-id"
+	return true, user, nil
+}
+
+func (testChallengeAuthenticationBackend) CreateUser(name, login, password string, force bool) (*security.UserAccount, error) {
+	return nil, nil
+}
 
 func (testAccountPasswordLoginProvider) AuthenticateByPassword(login, password string) (*security.UserSessionInfo, error) {
 	if login != "ldap-user" || password != "StrongPassw0rd!" {
@@ -184,6 +208,32 @@ func TestBuildLoginChallengeResponseReturnsChallenge(t *testing.T) {
 	}
 	if resp["salt"] != user.PasswordSalt {
 		t.Fatal("expected challenge response to expose password salt")
+	}
+}
+
+func TestLoginChallengeUsesRegisteredAuthenticationBackend(t *testing.T) {
+	security.RegisterAuthenticationProvider("test-login-challenge-provider", testChallengeAuthenticationBackend{})
+
+	body := bytes.NewBufferString(`{"login":"bridge-admin"}`)
+	req := httptest.NewRequest(http.MethodPost, "/account/login/challenge", body)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	LoginChallenge(recorder, req, nil)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 response, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got := resp["method"]; got != security.PasswordChallengeMethod {
+		t.Fatalf("expected challenge method from registered provider, got %v", got)
+	}
+	if resp["challenge_id"] == "" {
+		t.Fatal("expected challenge id from registered provider")
 	}
 }
 
