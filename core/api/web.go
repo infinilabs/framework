@@ -30,6 +30,7 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -67,14 +68,19 @@ func ServeRegisteredUIRequest(w http.ResponseWriter, req *http.Request) error {
 
 func StopWeb(cfg config.WebAppConfig) {
 	if srv != nil {
-		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
+		ctx1, cancel := ctx.WithTimeout(ctx.Background(), webShutdownTimeout)
 		defer cancel()
 		err := srv.Shutdown(ctx1)
 		if err != nil {
-			panic(err)
+			log.Warnf("graceful web shutdown timed out or failed: %v, forcing close", err)
+			closeErr := srv.Close()
+			if closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+				log.Errorf("force closing web server failed: %v", closeErr)
+			}
 		}
 
 		log.Debug("stopping web server")
+		srv = nil
 	}
 }
 
@@ -406,6 +412,7 @@ func AddGlobalInterceptors(interceptors ...Interceptor) {
 }
 
 var srv *http.Server
+var webShutdownTimeout = 10 * time.Second
 
 // RegisteredUIHandler is a hub for registered ui handler
 var registeredUIHandler map[string]http.Handler

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
@@ -194,4 +195,64 @@ func TestHandleUIMethodRegistersRouteAfterStartWeb(t *testing.T) {
 	if resp.Code != http.StatusAccepted {
 		t.Fatalf("expected late ui route to be available after web start, got %d", resp.Code)
 	}
+}
+
+func TestStopWebFallsBackToCloseWhenGracefulShutdownTimesOut(t *testing.T) {
+	originalUIHandlers := registeredUIMethodHandler
+	originalServer := srv
+	originalRouter := uiRouter
+	originalServeMux := uiServeMux
+	originalTimeout := webShutdownTimeout
+	t.Cleanup(func() {
+		registeredUIMethodHandler = originalUIHandlers
+		srv = originalServer
+		uiRouter = originalRouter
+		uiServeMux = originalServeMux
+		webShutdownTimeout = originalTimeout
+	})
+
+	registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{}
+	webCfg := config.WebAppConfig{}
+	webCfg.NetworkConfig.Binding = newTestBinding(t)
+	StartWeb(webCfg)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	HandleUIMethod(GET, "/shutdown-timeout", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		close(started)
+		select {
+		case <-release:
+		case <-req.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	clientDone := make(chan struct{})
+	go func() {
+		defer close(clientDone)
+		_, _ = http.Get("http://" + webCfg.NetworkConfig.Binding + "/shutdown-timeout")
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("request did not reach blocking handler")
+	}
+
+	webShutdownTimeout = 50 * time.Millisecond
+
+	stopDone := make(chan struct{})
+	go func() {
+		defer close(stopDone)
+		StopWeb(webCfg)
+	}()
+
+	select {
+	case <-stopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopWeb did not return after graceful shutdown timeout")
+	}
+
+	close(release)
+	<-clientDone
 }

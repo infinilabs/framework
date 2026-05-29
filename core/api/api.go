@@ -149,20 +149,33 @@ func ServeRegisteredAPIRequest(w http.ResponseWriter, req *http.Request) {
 	localRouter.NotFound = notfoundHandler
 
 	l.Lock()
-	defer l.Unlock()
-
+	funcHandlers := make(map[string]func(http.ResponseWriter, *http.Request), len(registeredAPIFuncHandler))
 	for pattern, handler := range registeredAPIFuncHandler {
+		funcHandlers[pattern] = handler
+	}
+	methodHandlers := make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), len(registeredAPIMethodHandler))
+	for method, handlers := range registeredAPIMethodHandler {
+		cloned := make(map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), len(handlers))
+		for pattern, handler := range handlers {
+			cloned[pattern] = handler
+		}
+		methodHandlers[method] = cloned
+	}
+	filterSnapshot := append([]filter.Filter(nil), filters...)
+	l.Unlock()
+
+	for pattern, handler := range funcHandlers {
 		wrapped := handler
-		for _, f := range filters {
+		for _, f := range filterSnapshot {
 			wrapped = f.FilterHttpHandlerFunc(pattern, wrapped)
 		}
 		localMux.HandleFunc(pattern, wrapped)
 	}
 
-	for method, handlers := range registeredAPIMethodHandler {
+	for method, handlers := range methodHandlers {
 		for pattern, handler := range handlers {
 			wrapped := handler
-			for _, f := range filters {
+			for _, f := range filterSnapshot {
 				wrapped = f.FilterHttpRouter(pattern, wrapped)
 			}
 			localRouter.Handle(method, pattern, wrapped)

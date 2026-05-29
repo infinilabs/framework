@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	httprouter "infini.sh/framework/core/api/router"
 )
@@ -131,6 +132,45 @@ func TestServeRegisteredAPIRequest(t *testing.T) {
 		t.Fatalf("unexpected status: %d", recorder.Code)
 	}
 	if recorder.Body.String() != "value:ok" {
+		t.Fatalf("unexpected body: %s", recorder.Body.String())
+	}
+}
+
+func TestServeRegisteredAPIRequestAllowsNestedDispatch(t *testing.T) {
+	innerPath := fmt.Sprintf("/__copilot_test__/api/%s/inner", t.Name())
+	outerPath := fmt.Sprintf("/__copilot_test__/api/%s/outer", t.Name())
+
+	HandleAPIMethod(GET, innerPath, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte("inner-ok"))
+	})
+	HandleAPIMethod(GET, outerPath, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		innerReq := httptest.NewRequest(http.MethodGet, innerPath, nil)
+		innerRecorder := httptest.NewRecorder()
+		ServeRegisteredAPIRequest(innerRecorder, innerReq)
+		w.WriteHeader(innerRecorder.Code)
+		_, _ = w.Write(innerRecorder.Body.Bytes())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, outerPath, nil)
+	recorder := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ServeRegisteredAPIRequest(recorder, req)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("nested dispatch timed out")
+	}
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", recorder.Code)
+	}
+	if recorder.Body.String() != "inner-ok" {
 		t.Fatalf("unexpected body: %s", recorder.Body.String())
 	}
 }
