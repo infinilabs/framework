@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	httprouter "infini.sh/framework/core/api/router"
@@ -83,5 +84,64 @@ func TestShouldSkipEmbeddedAPIRoute(t *testing.T) {
 	}
 	if shouldSkipEmbeddedAPIRoute(string(GET), "/_info") {
 		t.Fatal("expected unrelated API route not to be skipped")
+	}
+}
+
+func TestRegisterMissingAPIMethodUIRoutesSkipsExistingUIRoutes(t *testing.T) {
+	originalAPIHandlers := registeredAPIMethodHandler
+	originalUIHandlers := registeredUIMethodHandler
+	originalServer := srv
+	t.Cleanup(func() {
+		registeredAPIMethodHandler = originalAPIHandlers
+		registeredUIMethodHandler = originalUIHandlers
+		srv = originalServer
+	})
+
+	registeredAPIMethodHandler = map[string]map[string]func(http.ResponseWriter, *http.Request, httprouter.Params){
+		http.MethodGet: {
+			"/api-only": func(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+				w.WriteHeader(http.StatusAccepted)
+			},
+			"/stats": func(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+	}
+	registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{
+		GET: {
+			"/stats": {
+				Handler: func(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+					w.WriteHeader(http.StatusCreated)
+				},
+				Options: &HandlerOptions{},
+			},
+		},
+	}
+
+	RegisterMissingAPIMethodUIRoutes(func(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	webCfg := config.WebAppConfig{}
+	webCfg.NetworkConfig.Binding = "127.0.0.1:0"
+	StartWeb(webCfg)
+	defer StopWeb(webCfg)
+
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api-only", nil)
+	if err := ServeRegisteredUIRequest(resp, req); err != nil {
+		t.Fatalf("serve api-only ui route: %v", err)
+	}
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected missing API route to be mirrored onto web, got %d", resp.Code)
+	}
+
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/stats", nil)
+	if err := ServeRegisteredUIRequest(resp, req); err != nil {
+		t.Fatalf("serve stats ui route: %v", err)
+	}
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected existing UI route to win over mirrored API route, got %d", resp.Code)
 	}
 }

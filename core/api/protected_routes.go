@@ -1,6 +1,10 @@
 package api
 
-import httprouter "infini.sh/framework/core/api/router"
+import (
+	"sort"
+
+	httprouter "infini.sh/framework/core/api/router"
+)
 
 type ProtectedAPIRoute struct {
 	Method Method
@@ -44,5 +48,39 @@ func RegisterProtectedRouterRoutes(router *httprouter.Router, routes []Protected
 	}
 	for _, route := range routes {
 		router.Handle(string(route.Method), route.Path, handle)
+	}
+}
+
+// RegisterMissingAPIMethodUIRoutes mirrors registered API method routes onto the
+// web router only when no UI route already owns the same method/path.
+func RegisterMissingAPIMethodUIRoutes(handle httprouter.Handle, options ...Option) {
+	if handle == nil {
+		return
+	}
+
+	l.Lock()
+	routes := make([]ProtectedAPIRoute, 0)
+	for method, handlers := range registeredAPIMethodHandler {
+		for path := range handlers {
+			if shouldSkipEmbeddedAPIRoute(method, path) {
+				continue
+			}
+			routes = append(routes, ProtectedAPIRoute{
+				Method: Method(method),
+				Path:   path,
+			})
+		}
+	}
+	l.Unlock()
+
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].Method == routes[j].Method {
+			return routes[i].Path < routes[j].Path
+		}
+		return routes[i].Method < routes[j].Method
+	})
+
+	for _, route := range routes {
+		HandleUIMethod(route.Method, route.Path, handle, options...)
 	}
 }
