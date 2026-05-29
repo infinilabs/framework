@@ -128,6 +128,9 @@ func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 		return configs
 	}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
+	query.Set("query", util.MapStr{
+		"match_all": util.MapStr{},
+	})
 	esClient := elastic.GetClient(systemID)
 	result, err := esClient.Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
