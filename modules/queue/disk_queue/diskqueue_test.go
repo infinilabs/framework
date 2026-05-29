@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +44,90 @@ func TestGetWriteTimeoutCapsAtMaximum(t *testing.T) {
 	expected := time.Duration(maxAdaptiveWriteTimeoutInMS) * time.Millisecond
 	if timeout != expected {
 		t.Fatalf("unexpected capped timeout: got %s want %s", timeout, expected)
+	}
+}
+
+func TestClosePersistsUnsyncedWritesBeforeClosingFiles(t *testing.T) {
+	env1 := EmptyEnv()
+	env1.SystemConfig.PathConfig.Data = t.TempDir()
+	global.RegisterEnv(env1)
+
+	queueName := "close-persists-unsynced"
+	cfg := &DiskQueueConfig{
+		MinMsgSize:       1,
+		MaxMsgSize:       1024,
+		MaxBytesPerFile:  1024 * 1024,
+		SyncEveryRecords: 1 << 20,
+		SyncTimeoutInMS:  1 << 20,
+		ReadChanBuffer:   1,
+		WriteChanBuffer:  1,
+	}
+	normalizeDiskQueueConfig(cfg)
+
+	dataPath := GetDataPath(queueName)
+	if err := os.MkdirAll(dataPath, 0o755); err != nil {
+		t.Fatalf("failed to create queue data dir: %v", err)
+	}
+
+	dq := &DiskBasedQueue{
+		name:               queueName,
+		dataPath:           dataPath,
+		cfg:                cfg,
+		readChan:           make(chan []byte, cfg.ReadChanBuffer),
+		depthChan:          make(chan int64),
+		writeChan:          make(chan []byte, cfg.WriteChanBuffer),
+		writeResponseChan:  make(chan WriteResponse),
+		emptyChan:          make(chan int),
+		emptyResponseChan:  make(chan error),
+		exitChan:           make(chan int),
+		exitSyncChan:       make(chan int, 1),
+		consumersInReading: sync.Map{},
+	}
+	go dq.ioLoop()
+
+	res := dq.Put([]byte("hello"))
+	if res.Error != nil {
+		t.Fatalf("failed to put queue message: %v", res.Error)
+	}
+	if dq.writeFile == nil {
+		t.Fatalf("expected queue write file to remain open before close")
+	}
+
+	if err := dq.Close(); err != nil {
+		t.Fatalf("failed to close queue: %v", err)
+	}
+
+	reopened := &DiskBasedQueue{
+		name:               queueName,
+		dataPath:           dataPath,
+		cfg:                cfg,
+		readChan:           make(chan []byte, cfg.ReadChanBuffer),
+		depthChan:          make(chan int64),
+		writeChan:          make(chan []byte, cfg.WriteChanBuffer),
+		writeResponseChan:  make(chan WriteResponse),
+		emptyChan:          make(chan int),
+		emptyResponseChan:  make(chan error),
+		exitChan:           make(chan int),
+		exitSyncChan:       make(chan int, 1),
+		consumersInReading: sync.Map{},
+	}
+	if err := reopened.retrieveMetaData(); err != nil {
+		t.Fatalf("failed to reload queue metadata: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dataPath)
+	})
+
+	if depth := reopened.Depth(); depth != 1 {
+		t.Fatalf("expected reopened queue depth 1, got %d", depth)
+	}
+
+	message, err := reopened.readOne()
+	if err != nil {
+		t.Fatalf("failed to read reopened queue message: %v", err)
+	}
+	if string(message) != "hello" {
+		t.Fatalf("expected reopened queue payload %q, got %q", "hello", string(message))
 	}
 }
 

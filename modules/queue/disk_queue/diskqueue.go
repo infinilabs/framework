@@ -273,11 +273,7 @@ func (d *DiskBasedQueue) getWriteTimeout(payloadSize int) time.Duration {
 
 // Close cleans up the queue and persists metadata
 func (d *DiskBasedQueue) Close() error {
-	err := d.exit(false)
-	if err != nil {
-		return err
-	}
-	return d.sync()
+	return d.exit(false)
 }
 
 // Destroy cleans up all data for the specified queue
@@ -337,6 +333,11 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 	// ensure that ioLoop has exited
 	<-d.exitSyncChan
 
+	var syncErr error
+	if !deleted {
+		syncErr = d.sync()
+	}
+
 	close(d.depthChan)
 
 	if d.readFile != nil {
@@ -349,7 +350,7 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 		d.writeFile = nil
 	}
 
-	return nil
+	return syncErr
 }
 
 // Empty destructively clears out any pending data in the queue
