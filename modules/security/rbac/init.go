@@ -19,23 +19,7 @@ func Init() {
 	security.RegisterAuthenticationProvider(security.DefaultNativeAuthBackend, &provider)
 	security.RegisterAuthorizationProvider(security.DefaultNativeAuthBackend, &provider)
 
-	api.HandleUIMethod(api.POST, "/account/replay_nonce",
-		api.RequireSecureTransport(IssueReplayNonce),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
-
-	api.HandleUIMethod(api.POST, "/account/login/challenge",
-		api.RequireSecureTransport(LoginChallenge),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
-
-	api.HandleUIMethod(api.POST, "/account/login",
-		api.RequireSecureTransport(Login),
-		api.AllowPublicAccess(),
-		api.AllowOPTIONSS(),
-		api.Feature(api.FeatureCORS))
+	RegisterPublicUIAuthRoutes()
 
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
@@ -83,4 +67,24 @@ func Init() {
 		api.HandleUIMethod(api.GET, "/security/principal/_search", SearchPrincipals, api.RequirePermission(SearchPrincipalPermission))
 	}
 
+}
+
+func RegisterPublicUIAuthRoutes() {
+	api.HandleUIMethod(api.POST, "/account/replay_nonce",
+		api.RequireSecureTransport(IssueReplayNonce),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
+
+	api.HandleUIMethod(api.POST, "/account/login/challenge",
+		api.RequireSecureTransport(LoginChallenge),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
+
+	api.HandleUIMethod(api.POST, "/account/login",
+		api.RequireSecureTransport(Login),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
 }

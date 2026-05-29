@@ -215,7 +215,12 @@ func (app *App) initWithFlags() {
 		app.configFile = app.environment.GetAppLowercaseName() + ".yml"
 	}
 
-	app.configFile = util.TryGetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
+	resolvedConfigFile, err := util.GetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
+	if err != nil {
+		log.Errorf("failed to locate main config file [%v]: %v", app.configFile, err)
+		os.Exit(1)
+	}
+	app.configFile = resolvedConfigFile
 
 	if !util.FileExists(app.configFile) {
 		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile))
