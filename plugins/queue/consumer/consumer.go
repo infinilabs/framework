@@ -28,6 +28,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/locker"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -191,20 +192,45 @@ func (processor *QueueConsumerProcessor) Name() string {
 	return name
 }
 
+func getRecoveredMessage(r interface{}) string {
+	switch v := r.(type) {
+	case error:
+		return v.Error()
+	case runtime.Error:
+		return v.Error()
+	case string:
+		return v
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func isExpectedQueueShutdownPanic(message string, contexts ...*pipeline.Context) bool {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	if normalized == "" || !strings.Contains(normalized, "module closed") {
+		return false
+	}
+	if global.ShuttingDown() {
+		return true
+	}
+	for _, ctx := range contexts {
+		if ctx != nil && (ctx.IsCanceled() || ctx.IsFailed()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, c) {
+					log.Debug("queue consumer processor stopped during shutdown,", v)
+				} else {
+					log.Error("error in consumer processor,", v)
 				}
-				log.Error("error in consumer processor,", v)
 			}
 		}
 		log.Debug("exit consumer processor")
@@ -221,16 +247,12 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
-							var v string
-							switch r.(type) {
-							case error:
-								v = r.(error).Error()
-							case runtime.Error:
-								v = r.(runtime.Error).Error()
-							case string:
-								v = r.(string)
+							v := getRecoveredMessage(r)
+							if isExpectedQueueShutdownPanic(v, c) {
+								log.Debug("queue processor stopped during shutdown,", v)
+							} else {
+								log.Error("error in queue processor,", v)
 							}
-							log.Error("error in queue processor,", v)
 						}
 					}
 					processor.detectorRunning = false
@@ -412,16 +434,12 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, ctx, parentContext) {
+					log.Debugf("consumer processor stopped during shutdown, queue:%v, slice_id:%v, %v", qConfig.ID, sliceID, v)
+				} else {
+					log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 				}
-				log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
@@ -476,21 +494,15 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
-				}
-				if v != "empty queue" {
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, ctx, parentContext) {
+					log.Debugf("worker[%v], queue:[%v], slice:[%v] stopped during shutdown, offset:[%v]->[%v], %v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
+				} else if v != "empty queue" {
 					log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
 					ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
-				}
-				if parentContext != nil {
-					parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
+					if parentContext != nil {
+						parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
+					}
 				}
 			}
 		}
