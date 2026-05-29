@@ -55,7 +55,8 @@ type Instance struct {
 	//application information
 	Application env.Application `json:"application,omitempty" elastic_mapping:"application: { type: object }"`
 
-	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	BasicAuth   *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	AccessToken *Token     `config:"access_token" json:"access_token,omitempty" elastic_mapping:"access_token:{type:object}"`
 
 	ManagerCredentialID string `json:"manager_credential_id,omitempty" elastic_mapping:"manager_credential_id:{type:keyword}"`
 	AccessCredentialID  string `json:"access_credential_id,omitempty" elastic_mapping:"access_credential_id:{type:keyword}"`

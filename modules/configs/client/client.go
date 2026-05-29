@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,14 +54,19 @@ import (
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 
-func ConnectToManager() error {
+var postRegisterHooks []func(server string, res *util.Result) error
 
-	if !global.Env().SystemConfig.Configs.Managed {
+func ConnectToManager() error {
+	cfg := global.Env().SystemConfig.Configs
+	if !cfg.Managed {
 		return nil
+	}
+	if cfg.Servers == nil || len(cfg.Servers) == 0 {
+		return errors.Errorf("no config manager was found")
 	}
 
 	// k8s env setting always_register_after_restart and  pod after restart the ip will change so need register again
-	if !global.Env().SystemConfig.Configs.AlwaysRegisterAfterRestart {
+	if !cfg.AlwaysRegisterAfterRestart {
 		if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
 			//already registered skip further process
 			log.Info("already registered to config manager")
@@ -71,25 +77,16 @@ func ConnectToManager() error {
 
 	log.Info("register new instance to config manager")
 
-	//register to config manager
-	if global.Env().SystemConfig.Configs.Servers == nil || len(global.Env().SystemConfig.Configs.Servers) == 0 {
-		return errors.Errorf("no config manager was found")
-	}
-
 	info := model.GetInstanceInfo()
 	registerReq := common.InstanceRegisterRequest{
 		Client: info,
 	}
-	if info.Application.Name == "agent" {
-		accessToken, err := common.EnsureTokenInKeystore(common.AgentAccessTokenKeystoreKey)
-		if err != nil {
-			return err
-		}
-		registerReq.AccessToken = &common.RegisterToken{
-			Name:        fmt.Sprintf("%s reverse access token", info.ID),
-			Description: fmt.Sprintf("Console to Agent access token for instance %s", info.ID),
-			Value:       accessToken,
-		}
+	registerAccessToken, err := buildManagedRegisterAccessToken(info)
+	if err != nil {
+		return err
+	}
+	if registerAccessToken != nil {
+		registerReq.AccessToken = registerAccessToken
 	}
 
 	req := util.Request{Method: util.Verb_POST}
@@ -100,6 +97,9 @@ func ConnectToManager() error {
 	server, res, err := submitRequestToManager(&req)
 	if err == nil && server != "" {
 		if res.StatusCode == 200 || util.ContainStr(string(res.Body), "exists") {
+			if err := execPostRegisterHooks(server, res); err != nil {
+				return err
+			}
 			log.Infof("success register to config manager: %v", string(server))
 			err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
 			if err != nil {
@@ -113,25 +113,57 @@ func ConnectToManager() error {
 	return err
 }
 
+func buildManagedRegisterAccessToken(info model.Instance) (*common.RegisterToken, error) {
+	if !common.SupportsManagedAccessToken(info.Application.Name) {
+		return nil, nil
+	}
+	accessToken, err := common.EnsureTokenInKeystore(common.AgentAccessTokenKeystoreKey)
+	if err != nil {
+		return nil, err
+	}
+	productName := strings.TrimSpace(info.Application.Name)
+	if productName == "" {
+		productName = "instance"
+	}
+	return &common.RegisterToken{
+		Name:        fmt.Sprintf("%s access token", info.ID),
+		Description: fmt.Sprintf("Console to %s access token for instance %s", productName, info.ID),
+		Value:       accessToken,
+	}, nil
+}
+
+func AddPostRegisterHook(hook func(server string, res *util.Result) error) {
+	if hook != nil {
+		postRegisterHooks = append(postRegisterHooks, hook)
+	}
+}
+
+func execPostRegisterHooks(server string, res *util.Result) error {
+	for _, hook := range postRegisterHooks {
+		if err := hook(server, res); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
+	return DoManagerRequest(req)
+}
+
+func DoManagerRequest(req *util.Request) (string, *util.Result, error) {
 	var err error
 	var res *util.Result
 	cfg := global.Env().SystemConfig.Configs
-	token, err := common.LoadTokenFromKeystore(common.ManagerTokenKeystoreKey)
-	if err != nil {
+	if err = applyManagerRequestAuth(req); err != nil {
 		return "", nil, err
-	}
-	if token != "" {
-		req.AddHeader("Authorization", "Bearer "+token)
-	} else if cfg.ManagerConfig.BasicAuth.Username != "" {
-		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
 	}
 	for _, server := range cfg.Servers {
 		req.Url, err = url.JoinPath(server, req.Path)
 		if err != nil {
 			continue
 		}
-		res, err = util.ExecuteRequestWithCatchFlag(mTLSClient, req, true)
+		res, err = util.ExecuteRequestWithCatchFlag(getManagerHTTPClient(), req, true)
 		if err != nil {
 			continue
 		}
@@ -140,8 +172,44 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	return "", nil, err
 }
 
+func applyManagerRequestAuth(req *util.Request) error {
+	cfg := global.Env().SystemConfig.Configs
+	if token := cfg.ManagerConfig.AccessToken.Get(); token != "" {
+		req.AddHeader(model.API_TOKEN, token)
+		return nil
+	}
+	token, err := common.LoadTokenFromKeystore(common.ManagerTokenKeystoreKey)
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		req.AddHeader("Authorization", "Bearer "+token)
+		return nil
+	}
+	if cfg.ManagerConfig.BasicAuth.Username != "" {
+		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
+	}
+	return nil
+}
+
 var clientInitLock = sync.Once{}
 var mTLSClient *http.Client
+
+func getManagerHTTPClient() *http.Client {
+	clientInitLock.Do(func() {
+		if global.Env().SystemConfig.Configs.Managed {
+			cfg := global.Env().GetHTTPClientConfig("configs", "")
+			if cfg != nil {
+				hClient, err := api.NewHTTPClient(cfg)
+				if err != nil {
+					panic(err)
+				}
+				mTLSClient = hClient
+			}
+		}
+	})
+	return mTLSClient
+}
 
 func ListenConfigChanges() error {
 
@@ -180,7 +248,7 @@ func ListenConfigChanges() error {
 					log.Debug("config sync request: ", string(util.MustToJSONBytes(req)))
 				}
 
-				_, res, err := submitRequestToManager(&request)
+				_, res, err := DoManagerRequest(&request)
 				if err != nil {
 					log.Error("failed to submit request to config manager,", err)
 					return

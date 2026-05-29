@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 )
 
@@ -54,18 +55,33 @@ func TestShouldRegisterWebsocketOnWeb(t *testing.T) {
 
 func TestShouldSkipEmbeddedAPIRoute(t *testing.T) {
 	originalUIHandlers := registeredUIHandler
+	originalUIMethodHandlers := registeredUIMethodHandler
 	t.Cleanup(func() {
 		registeredUIHandler = originalUIHandlers
+		registeredUIMethodHandler = originalUIMethodHandlers
 	})
 
 	registeredUIHandler = map[string]http.Handler{
 		"/": http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 	}
+	registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{
+		GET: {
+			"/stats": {
+				Handler: func(http.ResponseWriter, *http.Request, httprouter.Params) {},
+			},
+		},
+	}
 
-	if !shouldSkipEmbeddedAPIRoute("/") {
+	if !shouldSkipEmbeddedAPIRoute("", "/") {
 		t.Fatal("expected API root route to be skipped when UI root is registered")
 	}
-	if shouldSkipEmbeddedAPIRoute("/_info") {
+	if !shouldSkipEmbeddedAPIRoute(string(GET), "/stats") {
+		t.Fatal("expected method-based UI route to suppress embedded API registration")
+	}
+	if !shouldSkipEmbeddedAPIRoute("", "/stats") {
+		t.Fatal("expected UI method route to suppress embedded API func registration on same path")
+	}
+	if shouldSkipEmbeddedAPIRoute(string(GET), "/_info") {
 		t.Fatal("expected unrelated API route not to be skipped")
 	}
 }

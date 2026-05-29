@@ -119,7 +119,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
 				for m, n := range v {
-					if shouldSkipEmbeddedAPIRoute(m) {
+					if shouldSkipEmbeddedAPIRoute(k, m) {
 						continue
 					}
 					log.Debug("register http handler: ", k, " ", m)
@@ -129,7 +129,7 @@ func StartWeb(cfg config.WebAppConfig) {
 		}
 		if registeredAPIFuncHandler != nil {
 			for k, v := range registeredAPIFuncHandler {
-				if shouldSkipEmbeddedAPIRoute(k) {
+				if shouldSkipEmbeddedAPIRoute("", k) {
 					continue
 				}
 				log.Debug("register http handler: ", k)
@@ -341,11 +341,28 @@ func shouldRegisterWebsocketOnWeb(cfg config.WebAppConfig) bool {
 	return registeredAPIFuncHandler[getWebsocketRegistrationPath(cfg)] == nil
 }
 
-func shouldSkipEmbeddedAPIRoute(path string) bool {
-	if registeredUIHandler == nil {
+func shouldSkipEmbeddedAPIRoute(method, path string) bool {
+	if registeredUIHandler != nil {
+		if _, exists := registeredUIHandler[path]; exists {
+			return true
+		}
+	}
+	if registeredUIMethodHandler == nil {
 		return false
 	}
-	_, exists := registeredUIHandler[path]
+	if method == "" {
+		for _, handlers := range registeredUIMethodHandler {
+			if _, exists := handlers[path]; exists {
+				return true
+			}
+		}
+		return false
+	}
+	methodHandlers, exists := registeredUIMethodHandler[Method(method)]
+	if !exists {
+		return false
+	}
+	_, exists = methodHandlers[path]
 	return exists
 }
 

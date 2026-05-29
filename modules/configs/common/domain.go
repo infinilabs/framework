@@ -27,7 +27,11 @@
 
 package common
 
-import "infini.sh/framework/core/model"
+import (
+	"strings"
+
+	"infini.sh/framework/core/model"
+)
 
 const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"
@@ -124,4 +128,13 @@ type ConfigRepo struct {
 type InstanceSettings struct {
 	ConfigFiles []string `config:"configs"`
 	Secrets     []string `config:"secrets"`
+}
+
+func SupportsManagedAccessToken(applicationName string) bool {
+	switch strings.ToLower(strings.TrimSpace(applicationName)) {
+	case "agent", "gateway":
+		return true
+	default:
+		return false
+	}
 }
