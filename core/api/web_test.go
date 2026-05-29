@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,18 @@ import (
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/config"
 )
+
+func newTestBinding(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on random port: %v", err)
+	}
+	defer listener.Close()
+
+	return listener.Addr().String()
+}
 
 func TestWebsocketRegistrationPath(t *testing.T) {
 	cfg := config.WebAppConfig{}
@@ -127,7 +140,7 @@ func TestRegisterMissingAPIMethodUIRoutesSkipsExistingUIRoutes(t *testing.T) {
 	})
 
 	webCfg := config.WebAppConfig{}
-	webCfg.NetworkConfig.Binding = "127.0.0.1:0"
+	webCfg.NetworkConfig.Binding = newTestBinding(t)
 	StartWeb(webCfg)
 	defer StopWeb(webCfg)
 
@@ -165,7 +178,7 @@ func TestHandleUIMethodRegistersRouteAfterStartWeb(t *testing.T) {
 	registeredUIMethodHandler = map[Method]map[string]RegisteredAPIHandler{}
 
 	webCfg := config.WebAppConfig{}
-	webCfg.NetworkConfig.Binding = "127.0.0.1:0"
+	webCfg.NetworkConfig.Binding = newTestBinding(t)
 	StartWeb(webCfg)
 	defer StopWeb(webCfg)
 

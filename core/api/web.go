@@ -486,11 +486,10 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 		apiOptions.Register(method, pattern, opts)
 	}
 
-	var hadPrevious bool
+	_, hadPrevious := registeredUIMethodHandler[method][pattern]
 	if !opts.Override {
 		//check previous handler
 		previous, ok := registeredUIMethodHandler[method][pattern]
-		hadPrevious = ok
 		if ok {
 			if previous.Options.Priority > opts.Priority {
 				log.Tracef("skip api: [%v] [%v], priority: [%v] < [%v]", method, pattern, opts.Priority, previous.Options.Priority)

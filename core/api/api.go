@@ -120,7 +120,7 @@ func initializeAPI() {
 }
 
 // HandleAPIMethod register api handler
-func HandleAPIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)) {
+func HandleAPIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), options ...Option) {
 	l.Lock()
 	if registeredAPIMethodHandler == nil {
 		registeredAPIMethodHandler = map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
@@ -132,6 +132,13 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
 	registeredAPIMethodHandler[m][pattern] = handler
+	if len(options) > 0 {
+		opts := &HandlerOptions{}
+		for _, option := range options {
+			option(opts)
+		}
+		apiOptions.Register(method, pattern, opts)
+	}
 
 	l.Unlock()
 }
