@@ -143,6 +143,9 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 	if err != nil && !os.IsNotExist(err) {
 		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
 	}
+	if repairErr := d.repairTailMetadata(); repairErr != nil {
+		log.Errorf("diskqueue(%s) failed to repair tail metadata - %s", d.name, repairErr)
+	}
 
 	_, ok := queue.GetConsumerConfigsByQueueID(d.name)
 	if ok {
@@ -711,6 +714,158 @@ func (d *DiskBasedQueue) retrieveMetaData() error {
 	d.nextReadPos = d.readPos
 
 	return nil
+}
+
+type segmentScanResult struct {
+	validEnd               int64
+	totalMessages          int64
+	messagesBeforeReadPos  int64
+	messagesBeforeWritePos int64
+	readBoundary           int64
+}
+
+func scanSegmentFileTail(file *os.File, cfg *DiskQueueConfig, readPos, writePos int64) (segmentScanResult, error) {
+	result := segmentScanResult{}
+	if file == nil || cfg == nil {
+		return result, nil
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		return result, err
+	}
+
+	reader := bufio.NewReader(file)
+	var offset int64
+
+	for {
+		var msgSize int32
+		if err := binary.Read(reader, binary.BigEndian, &msgSize); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return result, nil
+			}
+			return result, err
+		}
+
+		if msgSize < cfg.MinMsgSize || msgSize > cfg.MaxMsgSize {
+			return result, nil
+		}
+
+		payloadSize := int64(msgSize)
+		if _, err := io.CopyN(io.Discard, reader, payloadSize); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return result, nil
+			}
+			return result, err
+		}
+
+		offset += 4 + payloadSize
+		result.validEnd = offset
+		result.totalMessages++
+		if offset <= readPos {
+			result.messagesBeforeReadPos++
+			result.readBoundary = offset
+		}
+		if offset <= writePos {
+			result.messagesBeforeWritePos++
+		}
+	}
+}
+
+func (d *DiskBasedQueue) repairTailMetadata() error {
+	if d == nil || d.cfg == nil {
+		return nil
+	}
+	if d.writeSegmentNum == 0 && d.writePos == 0 {
+		return nil
+	}
+
+	fileName := d.GetFileName(d.writeSegmentNum)
+	if !util.FileExists(fileName) {
+		return nil
+	}
+
+	file, err := os.OpenFile(fileName, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	readPos := int64(0)
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		readPos = d.readPos
+	}
+
+	scan, err := scanSegmentFileTail(file, d.cfg, readPos, d.writePos)
+	if err != nil {
+		return err
+	}
+
+	newWritePos := scan.validEnd
+	newReadPos := readPos
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		if newReadPos > newWritePos {
+			newReadPos = newWritePos
+		}
+		if scan.readBoundary < newReadPos {
+			newReadPos = scan.readBoundary
+		}
+	}
+
+	oldUnreadInTail := scan.messagesBeforeWritePos
+	newUnreadInTail := scan.totalMessages
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		oldUnreadInTail -= scan.messagesBeforeReadPos
+		newUnreadInTail -= scan.messagesBeforeReadPos
+	}
+
+	changed := false
+	if stat.Size() != scan.validEnd {
+		if err := file.Truncate(scan.validEnd); err != nil {
+			return err
+		}
+		if err := file.Sync(); err != nil {
+			return err
+		}
+		log.Warnf("diskqueue(%s) truncated tail segment %s from %d to %d bytes during startup recovery",
+			d.name, fileName, stat.Size(), scan.validEnd)
+		changed = true
+	}
+
+	if d.writePos != newWritePos {
+		d.writePos = newWritePos
+		changed = true
+	}
+
+	if d.readSegmentFileNum == d.writeSegmentNum && d.readPos != newReadPos {
+		d.readPos = newReadPos
+		d.nextReadPos = newReadPos
+		changed = true
+	}
+
+	if delta := newUnreadInTail - oldUnreadInTail; delta != 0 {
+		d.depth += delta
+		if d.depth < 0 {
+			d.depth = 0
+		}
+		changed = true
+	}
+
+	if d.nextReadFileNum == d.writeSegmentNum && d.nextReadPos > d.writePos {
+		d.nextReadPos = d.writePos
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	d.needSync = true
+	return d.persistMetaData()
 }
 
 // persistMetaData atomically writes state to the filesystem

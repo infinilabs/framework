@@ -59,7 +59,7 @@ func TestClosePersistsUnsyncedWritesBeforeClosingFiles(t *testing.T) {
 		MaxBytesPerFile:  1024 * 1024,
 		SyncEveryRecords: 1 << 20,
 		SyncTimeoutInMS:  1 << 20,
-		ReadChanBuffer:   1,
+		ReadChanBuffer:   0,
 		WriteChanBuffer:  1,
 	}
 	normalizeDiskQueueConfig(cfg)
@@ -118,7 +118,7 @@ func TestClosePersistsUnsyncedWritesBeforeClosingFiles(t *testing.T) {
 		_ = os.RemoveAll(dataPath)
 	})
 
-	if depth := reopened.Depth(); depth != 1 {
+	if depth := reopened.depth; depth != 1 {
 		t.Fatalf("expected reopened queue depth 1, got %d", depth)
 	}
 
@@ -128,6 +128,83 @@ func TestClosePersistsUnsyncedWritesBeforeClosingFiles(t *testing.T) {
 	}
 	if string(message) != "hello" {
 		t.Fatalf("expected reopened queue payload %q, got %q", "hello", string(message))
+	}
+}
+
+func TestRepairTailMetadataTruncatesIncompleteTailOnStartup(t *testing.T) {
+	env1 := EmptyEnv()
+	env1.SystemConfig.PathConfig.Data = t.TempDir()
+	global.RegisterEnv(env1)
+
+	queueName := "repair-tail-startup"
+	cfg := &DiskQueueConfig{
+		MinMsgSize:      1,
+		MaxMsgSize:      1024,
+		MaxBytesPerFile: 1024 * 1024,
+	}
+	normalizeDiskQueueConfig(cfg)
+
+	fileName := GetFileName(queueName, 0)
+	if err := os.MkdirAll(filepath.Dir(fileName), 0o755); err != nil {
+		t.Fatalf("failed to create queue dir: %v", err)
+	}
+
+	payload := []byte("hello")
+	file, err := os.Create(fileName)
+	if err != nil {
+		t.Fatalf("failed to create tail file: %v", err)
+	}
+	if err := binary.Write(file, binary.BigEndian, int32(len(payload))); err != nil {
+		t.Fatalf("failed to write payload size: %v", err)
+	}
+	if _, err := file.Write(payload); err != nil {
+		t.Fatalf("failed to write payload: %v", err)
+	}
+	if _, err := file.Write([]byte{0x7f, 0xff}); err != nil {
+		t.Fatalf("failed to append corrupt tail: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("failed to close tail file: %v", err)
+	}
+
+	dq := &DiskBasedQueue{
+		name:               queueName,
+		dataPath:           GetDataPath(queueName),
+		cfg:                cfg,
+		readSegmentFileNum: 0,
+		writeSegmentNum:    0,
+		readPos:            0,
+		nextReadPos:        0,
+		writePos:           int64(4 + len(payload) + 2),
+		depth:              1,
+	}
+
+	if err := dq.repairTailMetadata(); err != nil {
+		t.Fatalf("failed to repair tail metadata: %v", err)
+	}
+
+	expectedWritePos := int64(4 + len(payload))
+	if dq.writePos != expectedWritePos {
+		t.Fatalf("expected write pos %d after repair, got %d", expectedWritePos, dq.writePos)
+	}
+	if dq.depth != 1 {
+		t.Fatalf("expected queue depth to remain 1 after repair, got %d", dq.depth)
+	}
+
+	stat, err := os.Stat(fileName)
+	if err != nil {
+		t.Fatalf("failed to stat repaired tail file: %v", err)
+	}
+	if stat.Size() != expectedWritePos {
+		t.Fatalf("expected repaired tail file size %d, got %d", expectedWritePos, stat.Size())
+	}
+
+	message, err := dq.readOne()
+	if err != nil {
+		t.Fatalf("failed to read message after repair: %v", err)
+	}
+	if string(message) != "hello" {
+		t.Fatalf("expected repaired payload %q, got %q", "hello", string(message))
 	}
 }
 
