@@ -380,7 +380,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			continue
 		} else {
 			var workerID = util.GetUUID()
-			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v", workerID, qConfig.Name, sliceID)
+			log.Tracef("starting worker:[%v], queue:[%v], slice_id:%v", workerID, qConfig.Name, sliceID)
 
 			processor.wg.Add(1)
 			contextForWorker := pipeline.Context{}
@@ -491,7 +491,7 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	defer xxHashPool.Put(xxHash)
 
 	defer func() {
-		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
+		defer log.Tracef("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
 				v := getRecoveredMessage(r)
@@ -597,8 +597,10 @@ READ_DOCS:
 		}
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-		if global.Env().IsDebug {
+		if err != nil {
 			log.Debugf("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+		} else if global.Env().IsDebug && len(messages) > 0 {
+			log.Tracef("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		if err != nil {
@@ -719,12 +721,12 @@ CLEAN_BUFFER:
 
 		if processor.config.QuitNeedTag && processor.config.QuitNeedTagName != "" && !ctx.HasTag(processor.config.QuitNeedTagName) {
 			time.Sleep(1 * time.Second)
-			log.Debug("EOF without quit tag, sleep 1s: ", qConfig.Name)
+			log.Trace("EOF without quit tag, sleep 1s: ", qConfig.Name)
 			goto READ_DOCS
 		}
 
 		ctx.CancelTask()
-		log.Debug("EOF, cancel task: ", qConfig.Name)
+		log.Trace("EOF, cancel task: ", qConfig.Name)
 		return
 	}
 

@@ -78,6 +78,63 @@ type BulkIndexingProcessor struct {
 	bulkBufferPool *elastic.BulkBufferPool
 }
 
+const bulkLogSampleLimit = 5
+
+func summarizeBulkLogValues(values []string) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+
+	limit := bulkLogSampleLimit
+	if len(values) < limit {
+		limit = len(values)
+	}
+
+	sample := values[:limit]
+	if len(values) > limit {
+		return fmt.Sprintf("%v...(and %d more)", sample, len(values)-limit)
+	}
+
+	return fmt.Sprintf("%v", sample)
+}
+
+func summarizeBulkDetailItem(item elastic.BulkDetailItem) string {
+	parts := make([]string, 0, 2)
+	if len(item.Documents) > 0 {
+		parts = append(parts, fmt.Sprintf("documents=%d sample=%s", len(item.Documents), summarizeBulkLogValues(item.Documents)))
+	}
+	if len(item.Reasons) > 0 {
+		parts = append(parts, fmt.Sprintf("reasons=%d sample=%s", len(item.Reasons), summarizeBulkLogValues(item.Reasons)))
+	}
+	if len(parts) == 0 {
+		return "empty"
+	}
+	return strings.Join(parts, ", ")
+}
+
+func summarizeBulkResult(bulkResult *elastic.BulkResult) string {
+	if bulkResult == nil {
+		return "<nil>"
+	}
+
+	parts := []string{
+		fmt.Sprintf(
+			"summary={success:%d invalid:%d failure:%d}",
+			bulkResult.Summary.Success.Count,
+			bulkResult.Summary.Invalid.Count,
+			bulkResult.Summary.Failure.Count,
+		),
+		fmt.Sprintf("error=%v", bulkResult.Error),
+		fmt.Sprintf("error_msgs=%d sample=%s", len(bulkResult.ErrorMsgs), summarizeBulkLogValues(bulkResult.ErrorMsgs)),
+		fmt.Sprintf("codes=%d", len(bulkResult.Codes)),
+		fmt.Sprintf("indices=%d", len(bulkResult.Indices)),
+		fmt.Sprintf("actions=%d", len(bulkResult.Actions)),
+		fmt.Sprintf("detail={failure:%s, invalid:%s}", summarizeBulkDetailItem(bulkResult.Detail.Failure), summarizeBulkDetailItem(bulkResult.Detail.Invalid)),
+	}
+
+	return strings.Join(parts, ", ")
+}
+
 var queueOwners sync.Map
 
 type Config struct {
@@ -236,7 +293,11 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 			}
 		}
 		if processor.bulkStats != nil {
-			log.Debugf(
+			logFn := log.Tracef
+			if processor.bulkStats.Summary.Invalid.Count > 0 || processor.bulkStats.Summary.Failure.Count > 0 || len(processor.bulkStats.ErrorMsgs) > 0 {
+				logFn = log.Debugf
+			}
+			logFn(
 				"exit bulk indexing processor, success=%d, invalid=%d, failure=%d, error_msgs=%d",
 				processor.bulkStats.Summary.Success.Count,
 				processor.bulkStats.Summary.Invalid.Count,
@@ -244,7 +305,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 				len(processor.bulkStats.ErrorMsgs),
 			)
 		} else {
-			log.Debug("exit bulk indexing processor")
+			log.Trace("exit bulk indexing processor")
 		}
 	}()
 
@@ -276,7 +337,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						}
 					}
 					processor.detectorRunning = false
-					log.Debug("exit detector for active queue")
+					log.Trace("exit detector for active queue")
 					processor.wg.Done()
 				}()
 
@@ -336,7 +397,11 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						util.MapLength(&processor.inFlightQueueConfigs),
 					) {
 						if processor.bulkStats != nil {
-							log.Debugf(
+							logFn := log.Tracef
+							if processor.bulkStats.Summary.Invalid.Count > 0 || processor.bulkStats.Summary.Failure.Count > 0 || len(processor.bulkStats.ErrorMsgs) > 0 {
+								logFn = log.Debugf
+							}
+							logFn(
 								"active queue detector idle exit, success=%d, invalid=%d, failure=%d, inflight=%d",
 								processor.bulkStats.Summary.Success.Count,
 								processor.bulkStats.Summary.Invalid.Count,
@@ -918,12 +983,10 @@ READ_DOCS:
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
-		if err != nil || len(messages) > 0 {
-			if qConfig.Name == "bulk_requests" {
-				log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
-			} else {
-				log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
-			}
+		if err != nil {
+			log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+		} else if len(messages) > 0 {
+			log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 		if err != nil {
 			if strings.Contains(err.Error(), "dirty_read") || err.Error() == "EOF" || err.Error() == "unexpected EOF" {
@@ -1233,11 +1296,18 @@ func (processor *BulkIndexingProcessor) submitBulkRequest(ctx *pipeline.Context,
 			if bulkResult != nil {
 				msg = bulkResult.Detail
 			}
-			log.Warnf("elasticsearch [%v], stats:%v, detail: %v, err:%v", meta.Config.Name, statsMap, msg, err)
+			log.Warnf(
+				"elasticsearch [%v], stats:%v, detail:{failure:%s, invalid:%s}, err:%v",
+				meta.Config.Name,
+				statsMap,
+				summarizeBulkDetailItem(msg.Failure),
+				summarizeBulkDetailItem(msg.Invalid),
+				err,
+			)
 		}
 
 		if global.Env().IsDebug {
-			log.Debug(tag, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", bulkResult)
+			log.Debug(tag, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest, ", bulkResult: ", summarizeBulkResult(bulkResult))
 		} else {
 			if processor.config.VerboseBulkResult {
 				log.Info("queue:", qConfig.Name, ", ", meta.Config.Name, ", ", host, ", stats: ", statsMap, ", count: ", count, ", size: ", util.ByteSize(uint64(size)), ", elapsed: ", time.Since(start), ", continue: ", continueRequest)
