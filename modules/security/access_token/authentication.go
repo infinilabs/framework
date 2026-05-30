@@ -172,6 +172,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 
 	reqBody := struct {
 		Name        string                   `json:"name"`
+		Description string                   `json:"description"`
 		Permissions []security.PermissionKey `json:"permissions,omitempty"`
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
@@ -203,7 +204,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	}
 
 	expiredAT := time.Now().Add(365 * 24 * time.Hour).Unix()
-	res, err := CreateAPIToken(reqUser, reqBody.Name, "general", expiredAT, permissions)
+	res, err := CreateAPIToken(reqUser, reqBody.Name,reqBody.Description, "general", expiredAT, permissions)
 	if err != nil {
 		panic(err)
 	}
@@ -211,7 +212,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	api.WriteJSON(w, res, 200)
 }
 
-func CreateAPIToken(user *security.UserSessionInfo, tokenName, typeName string, expiredAT int64, permissions []security.PermissionKey) (util.MapStr, error) {
+func CreateAPIToken(user *security.UserSessionInfo, tokenName, tokenDesc, typeName string, expiredAT int64, permissions []security.PermissionKey) (util.MapStr, error) {
 
 	if tokenName == "" {
 		tokenName = GenerateApiTokenName("")
@@ -233,6 +234,7 @@ func CreateAPIToken(user *security.UserSessionInfo, tokenName, typeName string, 
 	accessToken.Permissions = permissions
 	accessToken.ExpireIn = expiredAT
 	accessToken.Name = tokenName
+	accessToken.Description = tokenDesc
 
 	if isNative() {
 		ctx := orm.NewContext()
@@ -374,6 +376,7 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 	reqBody := struct {
 		Name        string                   `json:"name,omitempty"`
+		Description string `json:"description"`
 		Permissions []security.PermissionKey `json:"permissions,omitempty"`
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
@@ -412,6 +415,10 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	if reqBody.Name != "" {
 		token.Name = reqBody.Name
 	}
+	if reqBody.Description != "" {
+		token.Description = reqBody.Description
+	}
+
 	if len(reqBody.Permissions) > 0 {
 		if isNative() {
 			// The NEW permissions must be a subset of the caller's own permissions.
