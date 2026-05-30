@@ -37,6 +37,7 @@ import (
 )
 
 type testAccountPasswordLoginProvider struct{}
+type testMissingUserAccountPasswordLoginProvider struct{}
 
 type testChallengeAuthenticationBackend struct{}
 
@@ -72,6 +73,14 @@ func (testAccountPasswordLoginProvider) AuthenticateByPassword(login, password s
 	}
 	sessionUser.SetUserID("ldap-user-id")
 	return sessionUser, nil
+}
+
+func (testMissingUserAccountPasswordLoginProvider) AuthenticateByPassword(login, password string) (*security.UserSessionInfo, error) {
+	if login != "missing-user" {
+		return nil, nil
+	}
+
+	return nil, errors.New("user not found")
 }
 
 // The request payload accepts multiple historical login field names during rollout.
@@ -173,6 +182,15 @@ func TestAuthenticateLoginFallsBackToRegisteredPasswordProvider(t *testing.T) {
 	}
 	if sessionUser == nil || sessionUser.Provider != "ldap" {
 		t.Fatalf("expected ldap session user, got %#v", sessionUser)
+	}
+}
+
+func TestAuthenticateLoginCollapsesMissingUserProviderError(t *testing.T) {
+	security.RegisterAccountPasswordLoginProvider("test-account-login-missing-user", testMissingUserAccountPasswordLoginProvider{})
+
+	_, _, _, err := authenticateLogin(nil, "missing-user", "StrongPassw0rd!", "", "")
+	if !errors.Is(err, errInvalidLoginCredentials) {
+		t.Fatalf("expected invalid credential error for missing user, got %v", err)
 	}
 }
 

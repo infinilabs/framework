@@ -47,6 +47,19 @@ var (
 	errMissingPassword = errors.New("password is required")
 )
 
+func shouldCollapseLoginError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(err.Error())) {
+	case "user not found":
+		return true
+	default:
+		return false
+	}
+}
+
 // accountLoginRequest accepts both the framework-native "login" field and the aliases
 // already used by existing clients while challenge login is rolled out incrementally.
 type accountLoginRequest struct {
@@ -227,6 +240,9 @@ func authenticateLogin(user *security.UserAccount, login, password, challengeID,
 
 	sessionUser, err := security.AuthenticateAccountPasswordLogin(login, password)
 	if err != nil {
+		if shouldCollapseLoginError(err) {
+			return false, nil, nil, errInvalidLoginCredentials
+		}
 		return false, nil, nil, err
 	}
 	if sessionUser != nil {
