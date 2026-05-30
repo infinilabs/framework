@@ -140,7 +140,7 @@ func getTokenPermissions(apiToken string) (*security.AccessToken, []security.Per
 		apiTokenLevelPermission := security.ConvertPermissionKeysToHashSet(accessToken.Permissions)
 
 		userSessionInfo := security.UserSessionInfo{}
-		userSessionInfo.Provider = "native"
+		userSessionInfo.Provider = security.DefaultNativeAuthBackend
 		userSessionInfo.SetUserID(accessToken.GetOwnerID())
 
 		userLevelTokenLevelPermission := security.ConvertPermissionKeysToHashSet(security.GetAllPermissionsForUser(&userSessionInfo))
