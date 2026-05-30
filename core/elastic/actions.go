@@ -140,11 +140,23 @@ func (meta *ElasticsearchMetadata) IsAvailable() bool {
 			clusterID = meta.Config.Name
 		}
 		if rate.GetRateLimiter("cluster_available_check", clusterID, 1, 1, 30*time.Second).Allow() {
-			log.Debugf("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+			if meta.shouldTraceUnavailableReason() {
+				log.Tracef("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+			} else {
+				log.Debugf("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+			}
 		}
 		return false
 	}
 	return true
+}
+
+func (meta *ElasticsearchMetadata) shouldTraceUnavailableReason() bool {
+	if meta == nil || meta.Config == nil {
+		return false
+	}
+
+	return !meta.Config.Monitored
 }
 
 func (meta *ElasticsearchMetadata) Init(health bool) {

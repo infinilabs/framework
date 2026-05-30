@@ -88,3 +88,20 @@ func TestGetActiveHostFallsBackToCachedDiscoveredHostWhenSeedUnavailable(t *test
 		t.Fatalf("expected discovered host %q when seed host is unavailable, got %q", discoveredHost, got)
 	}
 }
+
+func TestShouldTraceUnavailableReasonForUnmonitoredCluster(t *testing.T) {
+	meta := &ElasticsearchMetadata{
+		Config: &ElasticsearchConfig{
+			Monitored: false,
+		},
+	}
+
+	if !meta.shouldTraceUnavailableReason() {
+		t.Fatal("expected unmonitored cluster to trace unavailable reason")
+	}
+
+	meta.Config.Monitored = true
+	if meta.shouldTraceUnavailableReason() {
+		t.Fatal("expected monitored cluster to keep debug unavailable reason")
+	}
+}
