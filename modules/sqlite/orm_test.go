@@ -68,6 +68,34 @@ func setupTestDB(t *testing.T) (*SQLiteORM, func()) {
 	return handler, cleanup
 }
 
+func requireSearchResultIDs(t *testing.T, searchResult *orm.SearchResult) []string {
+	t.Helper()
+
+	require.NotNil(t, searchResult)
+
+	var response map[string]interface{}
+	err := util.FromJSONBytes(searchResult.Payload.([]byte), &response)
+	require.NoError(t, err)
+
+	hits, ok := response["hits"].(map[string]interface{})
+	require.True(t, ok)
+
+	rawHits, ok := hits["hits"].([]interface{})
+	require.True(t, ok)
+
+	ids := make([]string, 0, len(rawHits))
+	for _, rawHit := range rawHits {
+		hit, ok := rawHit.(map[string]interface{})
+		require.True(t, ok)
+
+		id, ok := hit["_id"].(string)
+		require.True(t, ok)
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
 func TestSQLiteORM_CRUD(t *testing.T) {
 	handler, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -147,6 +175,23 @@ func TestSQLiteORM_CRUD(t *testing.T) {
 	exists, err = handler.Get(nil, missing)
 	assert.Error(t, err)
 	assert.False(t, exists)
+}
+
+func TestSQLiteORM_UpdateMissingRecordReturnsNotFound(t *testing.T) {
+	handler, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	now := time.Now()
+	item := &TestItem{}
+	item.ID = "missing-update"
+	item.Name = "Ghost"
+	item.Status = "active"
+	item.Age = 99
+	item.Created = &now
+	item.Updated = &now
+
+	err := handler.Update(nil, item)
+	assert.Equal(t, ErrNotFound, err)
 }
 
 func TestSQLiteORM_Search(t *testing.T) {
@@ -580,4 +625,110 @@ func TestSQLiteORM_SearchV2_SingleShouldOwnerIsMandatory(t *testing.T) {
 	total := hits["total"].(map[string]interface{})
 	assert.Equal(t, float64(2), total["value"],
 		"single should clause with minimum_should_match=1 must act as mandatory filter")
+}
+
+func TestSQLiteORM_SearchV2_NestedComplexQuery(t *testing.T) {
+	handler, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	now := time.Now()
+	items := []*TestItem{
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-1", Created: &now, Updated: &now}, Name: "AlphaRoot", Status: "active", Age: 31},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-2", Created: &now, Updated: &now}, Name: "BetaShared", Status: "active", Age: 34},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-3", Created: &now, Updated: &now}, Name: "AlphaInactive", Status: "inactive", Age: 35},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-4", Created: &now, Updated: &now}, Name: "ArchiveSkip", Status: "active", Age: 40},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-5", Created: &now, Updated: &now}, Name: "AlphaYoung", Status: "active", Age: 28},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "cq-6", Created: &now, Updated: &now}, Name: "GammaOther", Status: "active", Age: 45},
+	}
+	items[0].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[1].SetSystemValue(orm.OwnerIDKey, "user-b")
+	items[2].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[3].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[4].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[5].SetSystemValue(orm.OwnerIDKey, "user-z")
+
+	for _, item := range items {
+		err := handler.Create(nil, item)
+		require.NoError(t, err)
+	}
+
+	ctx := orm.NewContext()
+	orm.WithModel(ctx, &TestItem{})
+
+	accessClause := orm.ShouldQuery(
+		orm.TermQuery("_system.owner_id", "user-a"),
+		orm.TermsQuery("id", []string{"cq-2"}),
+	).Parameter("minimum_should_match", 1)
+
+	nameClause := orm.ShouldQuery(
+		orm.PrefixQuery("name", "Alpha"),
+		orm.TermsQuery("id", []string{"cq-2"}),
+	).Parameter("minimum_should_match", 1)
+
+	qb := orm.NewQuery()
+	qb.Filter(orm.TermQuery("status", "active"))
+	qb.Filter(orm.Range("age").Gte(30))
+	qb.Must(accessClause, nameClause, orm.MustNotQuery(orm.PrefixQuery("name", "Archive")))
+	qb.SortBy(orm.Sort{Field: "id", SortType: orm.ASC})
+	qb.Size(10)
+
+	searchResult, err := handler.SearchV2(ctx, qb)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"cq-1", "cq-2"}, requireSearchResultIDs(t, searchResult))
+}
+
+func TestSQLiteORM_DeleteByQuery_NestedComplexQuery(t *testing.T) {
+	handler, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	now := time.Now()
+	items := []*TestItem{
+		{ORMObjectBase: orm.ORMObjectBase{ID: "dq-1", Created: &now, Updated: &now}, Name: "AlphaOwned", Status: "active", Age: 32},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "dq-2", Created: &now, Updated: &now}, Name: "BetaShared", Status: "active", Age: 36},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "dq-3", Created: &now, Updated: &now}, Name: "ArchiveOwned", Status: "active", Age: 37},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "dq-4", Created: &now, Updated: &now}, Name: "AlphaInactive", Status: "inactive", Age: 42},
+		{ORMObjectBase: orm.ORMObjectBase{ID: "dq-5", Created: &now, Updated: &now}, Name: "BetaYoung", Status: "active", Age: 24},
+	}
+	items[0].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[1].SetSystemValue(orm.OwnerIDKey, "user-b")
+	items[2].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[3].SetSystemValue(orm.OwnerIDKey, "user-a")
+	items[4].SetSystemValue(orm.OwnerIDKey, "user-b")
+
+	for _, item := range items {
+		err := handler.Create(nil, item)
+		require.NoError(t, err)
+	}
+
+	ctx := orm.NewContext()
+	orm.WithModel(ctx, &TestItem{})
+
+	accessClause := orm.ShouldQuery(
+		orm.TermQuery("_system.owner_id", "user-a"),
+		orm.TermsQuery("id", []string{"dq-2"}),
+	).Parameter("minimum_should_match", 1)
+
+	nameClause := orm.ShouldQuery(
+		orm.PrefixQuery("name", "Alpha"),
+		orm.TermsQuery("id", []string{"dq-2"}),
+	).Parameter("minimum_should_match", 1)
+
+	qb := orm.NewQuery()
+	qb.Filter(orm.TermQuery("status", "active"))
+	qb.Filter(orm.Range("age").Gte(30))
+	qb.Must(accessClause, nameClause, orm.MustNotQuery(orm.PrefixQuery("name", "Archive")))
+
+	resp, err := handler.DeleteByQuery(ctx, qb)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), resp.Deleted)
+	assert.Equal(t, int64(2), resp.Total)
+
+	searchQB := orm.NewQuery()
+	searchQB.SortBy(orm.Sort{Field: "id", SortType: orm.ASC})
+	searchQB.Size(10)
+
+	searchResult, err := handler.SearchV2(ctx, searchQB)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dq-3", "dq-4", "dq-5"}, requireSearchResultIDs(t, searchResult))
 }
