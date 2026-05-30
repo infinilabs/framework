@@ -13,6 +13,13 @@ import (
 	"infini.sh/framework/modules/security/http_filters"
 )
 
+var ReadPermissionLists = security.GetSimplePermission("generic", "security:permission", security.Read)
+
+func init() {
+	api.HandleUIMethod(api.GET, "/security/permission/", ListPermission, api.RequirePermission(ReadPermissionLists))
+
+}
+
 func Init() {
 
 	provider := SecurityBackendProvider{}
@@ -21,7 +28,6 @@ func Init() {
 
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
-	ReadPermissionLists := security.GetSimplePermission("generic", "security:permission", security.Read)
 
 	CreateRolePermission := security.GetSimplePermission("generic", "security:role", security.Create)
 	UpdateRolePermission := security.GetSimplePermission("generic", "security:role", security.Update)
@@ -42,7 +48,6 @@ func Init() {
 		CreateUserPermission, UpdateUserPermission, DeleteUserPermission, ReadUserPermission, SearchUserPermission,
 		SearchPrincipalPermission)
 
-	api.HandleUIMethod(api.GET, "/security/permission/", ListPermission, api.RequirePermission(ReadPermissionLists))
 
 	api.HandleUIMethod(api.POST, "/security/role/", CreateRole, api.RequirePermission(CreateRolePermission))
 	api.HandleUIMethod(api.GET, "/security/role/_search", SearchRole, api.RequirePermission(SearchRolePermission))

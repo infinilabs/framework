@@ -20,13 +20,6 @@ jobs:
               with:
                 path: framework
 
-            - name: Checkout framework-vendor
-              uses: actions/checkout@v4
-              with:
-                ref: main
-                repository: infinilabs/framework-vendor
-                path: vendor
-
             - name: Set up go toolchain
               uses: actions/setup-go@v5
               with:
@@ -56,4 +49,4 @@ jobs:
                 # for unit test
                 cd $WORK
                 echo Testing code at $PWD ...
-                OFFLINE_BUILD=true GOMODULE=false CI=true make tidy test
+                OFFLINE_BUILD=true CI=true make tidy test

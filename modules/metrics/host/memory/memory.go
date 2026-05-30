@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/mem"
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/event"
@@ -47,13 +47,20 @@ const typeMemory = MetricType("memory")
 type Metric struct {
 	Enabled bool     `config:"enabled"`
 	Metrics []string `config:"metrics"`
+	event.EventSink
 }
 
 func New(cfg *config.Config) (*Metric, error) {
+	return NewWithSink(cfg, event.DefaultEventSink)
+}
+
+// NewWithSink creates a memory metric collector with a custom sink.
+func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 
 	me := &Metric{
 		Enabled: true,
 	}
+	me.EventSink = sink
 
 	err := cfg.Unpack(&me)
 	if err != nil {
@@ -92,7 +99,7 @@ func (m *Metric) collectSwap() error {
 	if v == nil {
 		return errors.New("computer.swapInfo: mem.SwapMemoryStat is empty")
 	}
-	return event.Save(&event.Event{
+	return m.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "swap",
@@ -143,7 +150,7 @@ func (m *Metric) collectMemory() error {
 	case "freebsd":
 		total = v.Used + v.Free + v.Cached + v.Inactive + v.Laundry
 	}
-	return event.Save(&event.Event{
+	return m.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "memory",

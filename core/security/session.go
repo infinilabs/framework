@@ -6,18 +6,19 @@ package security
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt"
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 	"infini.sh/framework/core/api"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
-	"net/http"
-	"time"
 )
 
 const UserAccessTokenSessionName = "user_session_access_token"
 
 func init() {
-	RegisterHTTPAuthFilterProvider("session_token", byAccessTokenSession)
+	RegisterHTTPAuthFilterProviderWithPriority("session_token", byAccessTokenSession, 10)
 }
 
 func byAccessTokenSession(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error) {

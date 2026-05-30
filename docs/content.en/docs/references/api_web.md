@@ -362,6 +362,164 @@ api.HandleUIMethod(api.GET, "/health", handler.healthCheck,
     api.AllowPublicAccess())
 ```
 
+### Pluggable Auth Filter Pipeline
+
+Incoming requests are authenticated through a priority-ordered pipeline of `HTTPAuthFilterProvider` functions. Each provider attempts to extract and validate credentials from the request; the first one that returns valid claims short-circuits the chain.
+
+#### Built-in Providers
+
+| Priority | Name | Mechanism |
+|----------|------|-----------|
+| `10` | `session_token` | HTTP session / cookie |
+| `20` | `bearer_token` | `Authorization: Bearer <jwt>` header |
+| `30` | `api_token` | `X-API-TOKEN` header |
+
+**Smaller priority values execute first** (higher precedence), consistent with the framework-wide convention.
+
+#### Registering a Custom Provider
+
+```go
+import "infini.sh/framework/core/security"
+
+func init() {
+    // With explicit priority (smaller value = higher precedence)
+    security.RegisterHTTPAuthFilterProviderWithPriority(
+        "my_auth",          // unique name (used in logs)
+        myAuthProvider,     // func(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error)
+        15,                 // executes after session_token (10) but before bearer_token (20)
+    )
+
+    // Without priority — defaults to 100 (executes after all built-in providers)
+    security.RegisterHTTPAuthFilterProvider("my_auth", myAuthProvider)
+}
+
+func myAuthProvider(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error) {
+    // Extract and validate credentials; return nil claims on failure
+    ...
+}
+```
+
+Providers registered with the same priority value are tried in registration order.
+
+### Access Token Authentication
+
+The framework provides a built-in access token (API token) module for programmatic authentication. Access tokens allow services and automation tools to authenticate API requests without interactive login sessions.
+
+#### How It Works
+
+Requests carrying an `X-API-TOKEN` header are automatically authenticated by the framework's HTTP auth filter pipeline. The token is validated against the KV store, checked for expiration, and the caller is granted the intersection of the token's permissions and its owner's current permissions (in native mode).
+
+#### Configuration
+
+Enable access token authentication in the web server security configuration:
+
+```yaml
+web:
+  security:
+    enabled: true
+    authentication:
+      access_token:
+        native: true   # Use ORM-backed persistence (requires a backend store)
+```
+
+When `native` is `false`, the module operates in KV-only mode suitable for lightweight/agent-style deployments without a full ORM backend.
+
+#### API Endpoints
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| `POST` | `/auth/access_token` | Create a new access token | `security:auth:api-token:create` |
+| `GET` | `/auth/access_token/_search` | Search/list access tokens | `security:auth:api-token:search` |
+| `PUT` | `/auth/access_token/:token_id` | Update an access token | `security:auth:api-token:update` |
+| `DELETE` | `/auth/access_token/:token_id` | Delete an access token | `security:auth:api-token:delete` |
+
+#### Creating an Access Token
+
+Send a `POST` request to `/auth/access_token` (requires an authenticated session):
+
+**Request:**
+
+```json
+{
+  "name": "my-ci-token",
+  "permissions": ["category:resource:read", "category:resource:search"]
+}
+```
+
+- `name` (optional): A human-readable name for the token. Auto-generated if omitted.
+- `permissions` (optional): A subset of the caller's own permissions to assign to the token. If omitted, the token inherits all of the caller's permissions.
+
+**Response:**
+
+```json
+{
+  "_id": "token-uuid",
+  "access_token": "generated-token-string",
+  "expire_in": 1748102400
+}
+```
+
+The `access_token` value is the secret string used in subsequent API calls. Store it securely — it cannot be retrieved again after creation.
+
+#### Using an Access Token
+
+Include the token in the `X-API-TOKEN` HTTP header:
+
+```bash
+curl -H "X-API-TOKEN: <your-access-token>" https://localhost:9200/_api/resource/_search
+```
+
+#### Updating an Access Token
+
+Send a `PUT` request to `/auth/access_token/:token_id`:
+
+```json
+{
+  "name": "renamed-token",
+  "permissions": ["category:resource:read"]
+}
+```
+
+- `name` (required): The new name for the token.
+- `permissions` (optional): Updated permissions. Must be a subset of the caller's current permissions.
+
+#### Deleting an Access Token
+
+Send a `DELETE` request to `/auth/access_token/:token_id`. The token is immediately invalidated and can no longer be used for authentication.
+
+#### Token Expiration
+
+Tokens are created with a default expiration of 1 year. A token with `expire_in` set to `-1` never expires. Expired tokens are rejected at authentication time.
+
+#### Permission Model
+
+In **native mode**, the effective permissions of a token are computed as:
+
+$$\text{effective} = \text{token\_permissions} \cap \text{owner\_current\_permissions}$$
+
+This ensures that if a user's permissions are revoked after a token is issued, the token's effective permissions are automatically narrowed. Permission changes take effect immediately (the permission cache version is incremented on every token update/delete).
+
+In **non-native (KV-only) mode**, the token's stored permissions are used directly without intersection.
+
+#### Programmatic Token Creation
+
+Tokens can also be created programmatically from Go code:
+
+```go
+import "infini.sh/framework/modules/security/access_token"
+
+// Create a token for a user with specific permissions
+result, err := access_token.CreateAPIToken(
+    userSession,           // *security.UserSessionInfo - token owner
+    "service-token",       // token name
+    "general",             // token type
+    expireUnix,            // expiration as Unix timestamp
+    permissions,           // []security.PermissionKey
+)
+// result["access_token"] contains the token string
+// result["_id"] contains the token ID
+```
+
 ### Label and Metadata
 
 ```go

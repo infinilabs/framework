@@ -75,6 +75,7 @@ func (handler *ProfileAPI) GetProfile(ctx *orm.Context, appConfig *config.OAuthC
 
 	profile := security.UserExternalProfile{}
 	profile.ID = provider.GetExternalUserProfileID("google", userInfo.Sub)
+	profile.SetOwnerID(userInfo.Sub)
 	profile.AuthProvider = "google"
 	profile.Login = userInfo.Sub
 	profile.Email = userInfo.Email

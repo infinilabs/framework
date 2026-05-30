@@ -232,7 +232,7 @@ import (
 	"bytes"
     "infini.sh/framework/core/util/zstd"
 	"encoding/base64"
-	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/log"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/core/vfs"

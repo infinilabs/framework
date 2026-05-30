@@ -55,6 +55,7 @@ func (f *PermissionFilter) ApplyFilter(
 			return
 		}
 
+		//for API Token based session, there is maybe only a subset of user's permission
 		if reqUser.UserAssignedPermission == nil || reqUser.UserAssignedPermission.NeedRefresh() {
 			reqUser.UserAssignedPermission = security.GetUserPermissions(reqUser)
 		}

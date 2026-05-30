@@ -158,8 +158,8 @@ func (c *ESAPIV0) Request(ctx context.Context, method, url string, body []byte) 
 	req.Context = ctx
 
 	req.SetContentType(util.ContentTypeJson)
-	if c.GetMetadata().Config.BasicAuth != nil {
-		req.SetBasicAuth(c.GetMetadata().Config.BasicAuth.Username, c.GetMetadata().Config.BasicAuth.Password.Get())
+	if err := elastic.ApplyAuthToRequestIfAvailable(req, c.GetMetadata().Config); err != nil {
+		return nil, err
 	}
 
 	if c.GetMetadata().Config.HttpProxy != "" {
@@ -902,6 +902,18 @@ func (c *ESAPIV0) GetNodeInfo(nodeID string) (*elastic.NodesInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// `_local` is an Elasticsearch-side selector in the request path, not the
+	// node ID used as the key in the response body. The response normally uses
+	// the real node ID as the map key, so the generic lookup by `nodeID` cannot
+	// work for `_local`. When the `_nodes/_local` response contains exactly one
+	// node, return that single entry directly.
+	if nodeID == "_local" && len(node.Nodes) == 1 {
+		for _, nodeInfo := range node.Nodes {
+			return &nodeInfo, nil
+		}
+	}
+
 	nodeInfo, ok := node.Nodes[nodeID]
 	if ok {
 		return &nodeInfo, nil
@@ -1228,7 +1240,7 @@ func (s *ESAPIV0) UpdateIndexSettings(name string, settings map[string]interface
 	result, err := s.Request(nil, util.Verb_PUT, url, body.Bytes())
 	errReason, _ := jsonparser.GetString(result.Body, "error", "reason")
 	if errReason != "" {
-		return fmt.Errorf(errReason)
+		return fmt.Errorf("%s", errReason)
 	}
 
 	return err
@@ -1251,7 +1263,7 @@ func (s *ESAPIV0) UpdateMapping(indexName string, docType string, mappings []byt
 		panic(err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 
 	return resp.Body, nil
@@ -1404,7 +1416,7 @@ func (c *ESAPIV0) GetTemplate(templateName string) (map[string]interface{}, erro
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 
 	data := map[string]interface{}{}
@@ -1713,7 +1725,7 @@ func (c *ESAPIV0) Alias(body []byte) error {
 		return err
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(res.Body))
+		return fmt.Errorf("%s", res.Body)
 	}
 	return nil
 }
@@ -1868,7 +1880,7 @@ func (c *ESAPIV0) UpdateClusterSettings(body []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(string(resp.Body))
+		return fmt.Errorf("%s", resp.Body)
 	}
 
 	return nil
@@ -1881,7 +1893,7 @@ func (c *ESAPIV0) GetRemoteInfo() ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 
 	return resp.Body, nil
@@ -1991,7 +2003,7 @@ func (c *ESAPIV0) Flush(indexName string) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 	return resp.Body, nil
 }
@@ -2022,7 +2034,7 @@ func (c *ESAPIV0) ClusterAllocationExplain(ctx context.Context, body []byte, par
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 	return resp.Body, nil
 }
@@ -2034,7 +2046,7 @@ func (c *ESAPIV0) CatAllocation(ctx context.Context) ([]elastic.CatAllocationRes
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf(string(resp.Body))
+		return nil, fmt.Errorf("%s", resp.Body)
 	}
 	data := []elastic.CatAllocationResponse{}
 	err = json.Unmarshal(resp.Body, &data)

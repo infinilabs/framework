@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"infini.sh/framework/core/model"
+	ucfg "infini.sh/framework/lib/go-ucfg"
 
 	"github.com/dgraph-io/ristretto"
 	"infini.sh/framework/core/orm"
@@ -488,6 +489,8 @@ type ElasticsearchConfig struct {
 	AllowAccessWhenMasterNotFound bool `json:"allow_access_when_master_not_found,omitempty" config:"allow_access_when_master_not_found"`
 
 	BasicAuth *model.BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	// Access token. Easysearch only.
+	Token ucfg.SecretString `config:"token" json:"token,omitempty" yaml:"token" elastic_mapping:"token:{type:keyword}"`
 
 	TrafficControl *struct {
 		Enabled              bool `json:"enabled,omitempty" config:"enabled"`

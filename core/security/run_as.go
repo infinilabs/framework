@@ -8,12 +8,11 @@ import (
 	"context"
 )
 
-func RunAs(ctx context.Context, userID string) context.Context {
+func RunAs(ctx context.Context,provider, userID string) context.Context {
 	claims := UserSessionInfo{}
 	claims.SetUserID(userID)
 
-	//claims.System = accessToken.System
-	claims.Provider = "run_as"
+	claims.Provider = provider
 	claims.Login = userID
 
 	claims.UserAssignedPermission = GetUserPermissions(&claims)
