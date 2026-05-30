@@ -196,6 +196,34 @@ var rootCertPEM []byte
 
 var apiConfig *config.APIConfig
 var listenAddress string
+var resolveRuntimePublishIPv4 = util.GetIntranetIP
+
+func normalizeRuntimePublishAddress(actualAddr string) string {
+	actualAddr = strings.TrimSpace(actualAddr)
+	if actualAddr == "" {
+		return actualAddr
+	}
+
+	host, port, err := net.SplitHostPort(actualAddr)
+	if err != nil {
+		return actualAddr
+	}
+
+	normalizedHost := strings.Trim(strings.TrimSpace(host), "[]")
+	if normalizedHost != "" {
+		ip := net.ParseIP(normalizedHost)
+		if normalizedHost != util.AnyAddress && (ip == nil || !ip.IsUnspecified()) {
+			return actualAddr
+		}
+	}
+
+	ipv4, err := resolveRuntimePublishIPv4()
+	if err != nil || strings.TrimSpace(ipv4) == "" {
+		return actualAddr
+	}
+
+	return net.JoinHostPort(ipv4, port)
+}
 
 func syncRuntimePublishAddress(networkConfig *config.NetworkConfig, actualAddr string) {
 	if networkConfig == nil || strings.TrimSpace(actualAddr) == "" {
@@ -204,7 +232,7 @@ func syncRuntimePublishAddress(networkConfig *config.NetworkConfig, actualAddr s
 	if strings.TrimSpace(networkConfig.Publish) != "" {
 		return
 	}
-	networkConfig.Publish = actualAddr
+	networkConfig.Publish = normalizeRuntimePublishAddress(actualAddr)
 }
 
 var notfoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
