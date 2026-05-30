@@ -50,7 +50,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: security configuration structure enhanced
 - chore: remove unused grpc and cuckoo filter"
 - chore: update seelog for vfs #363
-
+- chore: udpate update desc to api token, fix permission #372
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
