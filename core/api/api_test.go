@@ -177,12 +177,38 @@ func TestServeRegisteredAPIRequestAllowsNestedDispatch(t *testing.T) {
 }
 
 func TestSyncRuntimePublishAddressUsesActualListenAddressWhenUnset(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
 	cfg := config.NetworkConfig{}
 
 	syncRuntimePublishAddress(&cfg, "0.0.0.0:2901")
 
-	if cfg.Publish != "0.0.0.0:2901" {
+	if cfg.Publish != "192.168.3.185:2901" {
 		t.Fatalf("expected runtime publish address to be updated, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressNormalizesIPv6UnspecifiedHost(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "[::]:2901")
+
+	if cfg.Publish != "192.168.3.185:2901" {
+		t.Fatalf("expected ipv6 unspecified runtime publish address to use ipv4, got %q", cfg.Publish)
 	}
 }
 
@@ -193,5 +219,23 @@ func TestSyncRuntimePublishAddressPreservesExplicitPublishAddress(t *testing.T) 
 
 	if cfg.Publish != "gateway.example:8443" {
 		t.Fatalf("expected explicit publish address to be preserved, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressPreservesConcreteListenAddress(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "10.0.0.8:2901")
+
+	if cfg.Publish != "10.0.0.8:2901" {
+		t.Fatalf("expected concrete runtime publish address to be preserved, got %q", cfg.Publish)
 	}
 }
