@@ -34,6 +34,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -194,8 +195,17 @@ var rootKey *rsa.PrivateKey
 var rootCertPEM []byte
 
 var apiConfig *config.APIConfig
-
 var listenAddress string
+
+func syncRuntimePublishAddress(networkConfig *config.NetworkConfig, actualAddr string) {
+	if networkConfig == nil || strings.TrimSpace(actualAddr) == "" {
+		return
+	}
+	if strings.TrimSpace(networkConfig.Publish) != "" {
+		return
+	}
+	networkConfig.Publish = actualAddr
+}
 
 var notfoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 	rw.Write([]byte("{\"message\":\"not_found\"}"))
@@ -268,6 +278,7 @@ func StartAPI() {
 	if err != nil {
 		panic(err)
 	}
+	syncRuntimePublishAddress(&apiConfig.NetworkConfig, l.Addr().String())
 
 	router.NotFound = notfoundHandler
 

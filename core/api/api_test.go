@@ -34,6 +34,7 @@ import (
 	"time"
 
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/config"
 )
 
 func TestStripPrefix(t *testing.T) {
@@ -172,5 +173,25 @@ func TestServeRegisteredAPIRequestAllowsNestedDispatch(t *testing.T) {
 	}
 	if recorder.Body.String() != "inner-ok" {
 		t.Fatalf("unexpected body: %s", recorder.Body.String())
+	}
+}
+
+func TestSyncRuntimePublishAddressUsesActualListenAddressWhenUnset(t *testing.T) {
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "0.0.0.0:2901")
+
+	if cfg.Publish != "0.0.0.0:2901" {
+		t.Fatalf("expected runtime publish address to be updated, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressPreservesExplicitPublishAddress(t *testing.T) {
+	cfg := config.NetworkConfig{Publish: "gateway.example:8443"}
+
+	syncRuntimePublishAddress(&cfg, "0.0.0.0:2901")
+
+	if cfg.Publish != "gateway.example:8443" {
+		t.Fatalf("expected explicit publish address to be preserved, got %q", cfg.Publish)
 	}
 }

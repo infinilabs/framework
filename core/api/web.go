@@ -165,6 +165,7 @@ func StartWeb(cfg config.WebAppConfig) {
 	} else {
 		bindAddress = cfg.NetworkConfig.GetBindingAddr()
 	}
+	syncRuntimePublishAddress(&cfg.NetworkConfig, bindAddress)
 
 	handler := context.ClearHandler(uiRouter)
 	if cfg.Gzip.Enabled {
