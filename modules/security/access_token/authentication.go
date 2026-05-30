@@ -234,7 +234,7 @@ func CreateAPIToken(user *security.UserSessionInfo, tokenName, tokenDesc, typeNa
 	accessToken.Permissions = permissions
 	accessToken.ExpireIn = expiredAT
 	accessToken.Name = tokenName
-	accessToken.Name = tokenDesc
+	accessToken.Description = tokenDesc
 
 	if isNative() {
 		ctx := orm.NewContext()
