@@ -15,7 +15,14 @@ import (
 )
 
 func init() {
-	api.HandleUIMethod(api.POST, "/account/refresh", api.RequireSecureTransport(Refresh), api.RequireLogin(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
+	api.HandleUIMethod(
+		api.POST,
+		"/account/refresh",
+		api.RequireSecureTransport(Refresh, api.SecureTransportOptions{TrustForwardHeaders: true}),
+		api.RequireLogin(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS),
+	)
 }
 
 // Refresh reissues an access token for the current session user while reloading the
