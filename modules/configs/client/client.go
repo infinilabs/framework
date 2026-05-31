@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -61,6 +62,7 @@ var unauthorizedRegisterRetryLock sync.Mutex
 var lastUnauthorizedRegisterRetryAt time.Time
 var clearManagedRegistrationStateFunc = clearManagedRegistrationState
 var reconnectToManagerFunc = func() error { return ConnectToManager() }
+var configSyncInProgress atomic.Bool
 
 func truncateManagerResponseBodyForLog(body []byte) string {
 	text := strings.TrimSpace(string(body))
@@ -68,6 +70,14 @@ func truncateManagerResponseBodyForLog(body []byte) string {
 		return text
 	}
 	return text[:256] + "...(truncated)"
+}
+
+func tryStartManagedConfigSync() bool {
+	return configSyncInProgress.CompareAndSwap(false, true)
+}
+
+func finishManagedConfigSync() {
+	configSyncInProgress.Store(false)
 }
 
 func ConnectToManager() error {
@@ -296,15 +306,21 @@ func ListenConfigChanges() error {
 		if global.Env().SystemConfig.Configs.Managed {
 			initManagerHTTPClient()
 
-			//init config sync listening
-			req := common.ConfigSyncRequest{}
-			req.Client = model.GetInstanceInfo()
-
 			var syncFunc = func() {
+				if !tryStartManagedConfigSync() {
+					if global.Env().IsDebug {
+						log.Trace("skip overlapping config sync")
+					}
+					return
+				}
+				defer finishManagedConfigSync()
+
 				if global.Env().IsDebug {
 					log.Trace("fetch configs from manger")
 				}
 
+				req := common.ConfigSyncRequest{}
+				req.Client = model.GetInstanceInfo()
 				cfgs := config.GetConfigs(false, false)
 				req.Configs = cfgs
 				req.Hash = util.MD5digestString(util.MustToJSONBytes(cfgs))
@@ -313,10 +329,11 @@ func ListenConfigChanges() error {
 				request := util.Request{Method: util.Verb_POST}
 				request.ContentType = "application/json"
 				request.Path = common.SYNC_API
-				request.Body = util.MustToJSONBytes(req)
+				requestBody := util.MustToJSONBytes(req)
+				request.Body = requestBody
 
 				if global.Env().IsDebug {
-					log.Debug("config sync request: ", string(util.MustToJSONBytes(req)))
+					log.Debug("config sync request: ", string(requestBody))
 				}
 
 				_, res, err := DoManagerRequest(&request)

@@ -204,3 +204,24 @@ func TestHandleUnauthorizedConfigSyncResponseClearsStateAndReconnects(t *testing
 		t.Fatalf("expected throttled retry not to reconnect again, got %d", reconnected.Load())
 	}
 }
+
+func TestManagedConfigSyncGuardPreventsOverlap(t *testing.T) {
+	configSyncInProgress.Store(false)
+	t.Cleanup(func() {
+		configSyncInProgress.Store(false)
+	})
+
+	if !tryStartManagedConfigSync() {
+		t.Fatal("expected first config sync to start")
+	}
+	if tryStartManagedConfigSync() {
+		t.Fatal("expected overlapping config sync to be rejected")
+	}
+
+	finishManagedConfigSync()
+
+	if !tryStartManagedConfigSync() {
+		t.Fatal("expected config sync to start again after previous one finished")
+	}
+	finishManagedConfigSync()
+}
