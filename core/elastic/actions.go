@@ -311,12 +311,9 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 		for _, v := range hosts {
 			if v != "" {
 				if IsHostAvailable(v) {
-					//add to cache
-					info, ok := GetHostAvailableInfo(v)
-					if ok && info != nil {
-						if info.IsAvailable() {
-							meta.activeHost = info
-						}
+					info := meta.ensureAvailableHostInfo(v)
+					if info != nil && info.IsAvailable() {
+						meta.activeHost = info
 					}
 					return v
 
@@ -331,12 +328,9 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 				v := v1.GetHttpPublishHost()
 				if v != "" {
 					if IsHostAvailable(v) {
-						//add to cache
-						info, ok := GetHostAvailableInfo(v)
-						if ok && info != nil {
-							if info.IsAvailable() {
-								meta.activeHost = info
-							}
+						info := meta.ensureAvailableHostInfo(v)
+						if info != nil && info.IsAvailable() {
+							meta.activeHost = info
 						}
 						return v
 					}
@@ -369,10 +363,31 @@ func (meta *ElasticsearchMetadata) getAvailableSeedHost() (string, *NodeAvailabl
 		if info, ok := GetHostAvailableInfo(host); ok && info != nil && info.IsAvailable() {
 			return host, info
 		}
-		return host, nil
+		return host, meta.ensureAvailableHostInfo(host)
 	}
 
 	return "", nil
+}
+
+func (meta *ElasticsearchMetadata) ensureAvailableHostInfo(host string) *NodeAvailable {
+	if host == "" {
+		return nil
+	}
+
+	host = util.UnifyLocalAddress(host)
+	if info, ok := GetHostAvailableInfo(host); ok && info != nil {
+		return info
+	}
+
+	info := &NodeAvailable{
+		Host:        host,
+		ClusterID:   meta.Config.ID,
+		available:   true,
+		lastCheck:   time.Now(),
+		lastSuccess: time.Now(),
+	}
+	hosts.Store(host, info)
+	return info
 }
 
 func (meta *ElasticsearchMetadata) IsTLS() bool {

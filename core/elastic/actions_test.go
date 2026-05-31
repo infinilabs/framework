@@ -89,6 +89,44 @@ func TestGetActiveHostFallsBackToCachedDiscoveredHostWhenSeedUnavailable(t *test
 	}
 }
 
+func TestGetActiveHostInitializesAvailableSeedHostInfoFromAvailabilityCache(t *testing.T) {
+	const (
+		clusterID = "seed-host-cache-init-cluster"
+		seedHost  = "192.168.3.185:9220"
+	)
+
+	cfg := &ElasticsearchConfig{
+		ORMObjectBase: orm.ORMObjectBase{ID: clusterID},
+		Name:          clusterID,
+		Host:          seedHost,
+		Hosts:         []string{seedHost},
+		Enabled:       true,
+	}
+
+	meta := &ElasticsearchMetadata{Config: cfg}
+	nodeAvailCache.Put(seedHost, true)
+	hosts.Delete(seedHost)
+	t.Cleanup(func() {
+		hosts.Delete(seedHost)
+	})
+
+	got := meta.GetActiveHost()
+	if got != seedHost {
+		t.Fatalf("expected seed host %q, got %q", seedHost, got)
+	}
+
+	info, ok := GetHostAvailableInfo(seedHost)
+	if !ok || info == nil {
+		t.Fatalf("expected host info for %q to be initialized", seedHost)
+	}
+	if !info.IsAvailable() {
+		t.Fatalf("expected host info for %q to be marked available", seedHost)
+	}
+	if info.ClusterID != clusterID {
+		t.Fatalf("expected cluster id %q, got %q", clusterID, info.ClusterID)
+	}
+}
+
 func TestShouldTraceUnavailableReasonForUnmonitoredCluster(t *testing.T) {
 	meta := &ElasticsearchMetadata{
 		Config: &ElasticsearchConfig{
