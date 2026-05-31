@@ -245,7 +245,7 @@ READ_MSG:
 					oldPart := d.segment
 					Notify(d.queue, ReadComplete, d.segment)
 					ctx.UpdateNextOffset(d.segment, d.readPos) //update next offset
-					log.Debugf("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.diskQueue.writeSegmentNum)
+					log.Tracef("EOF, but current read segment_id [%v] is less than current write segment_id [%v], increase ++", oldPart, d.diskQueue.writeSegmentNum)
 					err = d.ResetOffset(d.segment+1, 0) //locate next segment
 					if err != nil {
 						if strings.Contains(err.Error(), "not found") {

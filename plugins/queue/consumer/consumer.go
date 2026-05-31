@@ -233,7 +233,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 				}
 			}
 		}
-		log.Debug("exit consumer processor")
+		log.Trace("exit consumer processor")
 	}()
 
 	//handle updates
@@ -256,7 +256,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 						}
 					}
 					processor.detectorRunning = false
-					log.Debug("exit detector for active queue")
+					log.Trace("exit detector for active queue")
 					processor.wg.Done()
 				}()
 
@@ -307,7 +307,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 						log.Tracef("quite detect after idle for %v ms", processor.config.QuitDetectAfterIdleInMs)
 						inflight := util.MapLength(&processor.inFlightQueueConfigs)
 						if inflight == 0 {
-							log.Debugf("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs, inflight)
+							log.Tracef("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs, inflight)
 							return
 						}
 					}

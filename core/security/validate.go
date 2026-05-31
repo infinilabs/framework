@@ -85,7 +85,7 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 			if claims == nil || !claims.UserSessionInfo.IsValid() {
 				claims, err = f(w, r)
 				if claims != nil {
-					log.Debug("get valid auth info from: ", key)
+					log.Trace("get valid auth info from: ", key)
 					return false
 				}
 			}
