@@ -361,6 +361,7 @@ type WebAppConfig struct {
 
 	//same with API Config
 	Enabled       bool          `config:"enabled"`
+	AccessLog     bool          `config:"access_log_enabled"`
 	TLSConfig     TLSConfig     `config:"tls"`
 	NetworkConfig NetworkConfig `config:"network"`
 	CrossDomain   struct {
