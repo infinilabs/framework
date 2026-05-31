@@ -559,7 +559,7 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 		}
 
 		if global.Env().IsDebug {
-			log.Info(util.MustToJSON(request))
+			log.Trace(util.MustToJSON(request))
 		}
 
 		searchResponse, err = handler.Client.Search(indexName, &request)

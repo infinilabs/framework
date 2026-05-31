@@ -54,8 +54,21 @@ import (
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 const legacyManagedRegisterCompatMaxVersion = "1.30.4"
+const unauthorizedRegisterRetryInterval = 10 * time.Second
 
 var postRegisterHooks []func(server string, res *util.Result) error
+var unauthorizedRegisterRetryLock sync.Mutex
+var lastUnauthorizedRegisterRetryAt time.Time
+var clearManagedRegistrationStateFunc = clearManagedRegistrationState
+var reconnectToManagerFunc = func() error { return ConnectToManager() }
+
+func truncateManagerResponseBodyForLog(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if len(text) <= 256 {
+		return text
+	}
+	return text[:256] + "...(truncated)"
+}
 
 func ConnectToManager() error {
 	cfg := global.Env().SystemConfig.Configs
@@ -70,15 +83,14 @@ func ConnectToManager() error {
 	if !cfg.AlwaysRegisterAfterRestart {
 		if exists, err := kv.ExistsKey(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID)); exists && err == nil {
 			//already registered skip further process
-			log.Info("already registered to config manager")
+			log.Infof("skip config manager registration for instance %v: local registration marker exists", global.Env().SystemConfig.NodeConfig.ID)
 			global.Register(configRegisterEnvKey, true)
 			return nil
 		}
 	}
 
-	log.Info("register new instance to config manager")
-
 	info := model.GetInstanceInfo()
+	log.Infof("start config manager registration for instance %v against %d server(s)", info.ID, len(cfg.Servers))
 	registerReq := common.InstanceRegisterRequest{
 		Client: info,
 	}
@@ -101,17 +113,18 @@ func ConnectToManager() error {
 			if err := execPostRegisterHooks(server, res); err != nil {
 				return err
 			}
-			log.Infof("success register to config manager: %v", string(server))
+			log.Infof("config manager registration succeeded for instance %v via %v: status=%d", info.ID, server, res.StatusCode)
 			err := kv.AddValue(bucketName, []byte(global.Env().SystemConfig.NodeConfig.ID), []byte(util.GetLowPrecisionCurrentTime().String()))
 			if err != nil {
 				panic(err)
 			}
 			global.Register(configRegisterEnvKey, true)
 		} else {
+			log.Warnf("config manager registration failed for instance %v via %v: status=%d, body=%s", info.ID, server, res.StatusCode, truncateManagerResponseBodyForLog(res.Body))
 			return fmt.Errorf("failed to register to config manager: status=%d, body=%s", res.StatusCode, strings.TrimSpace(string(res.Body)))
 		}
 	} else {
-		log.Error("failed to register to config manager,", err, ",", server)
+		log.Errorf("config manager registration request failed for instance %v via %v: %v", info.ID, server, err)
 	}
 	return err
 }
@@ -161,6 +174,41 @@ func AddPostRegisterHook(hook func(server string, res *util.Result) error) {
 	if hook != nil {
 		postRegisterHooks = append(postRegisterHooks, hook)
 	}
+}
+
+func clearManagedRegistrationState() error {
+	global.Register(configRegisterEnvKey, false)
+	instanceID := strings.TrimSpace(global.Env().SystemConfig.NodeConfig.ID)
+	if instanceID == "" {
+		return nil
+	}
+	return kv.DeleteKey(bucketName, []byte(instanceID))
+}
+
+func handleUnauthorizedConfigSyncResponse(res *util.Result) bool {
+	if res == nil || res.StatusCode != http.StatusUnauthorized {
+		return false
+	}
+
+	unauthorizedRegisterRetryLock.Lock()
+	if !lastUnauthorizedRegisterRetryAt.IsZero() && time.Since(lastUnauthorizedRegisterRetryAt) < unauthorizedRegisterRetryInterval {
+		unauthorizedRegisterRetryLock.Unlock()
+		return true
+	}
+	lastUnauthorizedRegisterRetryAt = time.Now()
+	unauthorizedRegisterRetryLock.Unlock()
+
+	log.Warn("config sync unauthorized, clearing local registration state and retrying registration")
+	if err := clearManagedRegistrationStateFunc(); err != nil {
+		log.Warnf("failed to clear local registration state after unauthorized config sync: %v", err)
+		return true
+	}
+	if err := reconnectToManagerFunc(); err != nil {
+		log.Warnf("failed to re-register to config manager after unauthorized config sync: %v", err)
+		return true
+	}
+	log.Info("re-registered to config manager after unauthorized config sync")
+	return true
 }
 
 func execPostRegisterHooks(server string, res *util.Result) error {
@@ -278,6 +326,10 @@ func ListenConfigChanges() error {
 				}
 
 				if res != nil {
+					if handleUnauthorizedConfigSyncResponse(res) {
+						return
+					}
+
 					obj := common.ConfigSyncResponse{}
 					err := util.FromJSONBytes(res.Body, &obj)
 					if err != nil {

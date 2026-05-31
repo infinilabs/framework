@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
@@ -156,5 +157,50 @@ func TestListenConfigChangesStillSyncsAfterHTTPClientInit(t *testing.T) {
 	}
 	if syncRequests.Load() != 1 {
 		t.Fatalf("expected one immediate sync request, got %d", syncRequests.Load())
+	}
+}
+
+func TestHandleUnauthorizedConfigSyncResponseClearsStateAndReconnects(t *testing.T) {
+	oldClear := clearManagedRegistrationStateFunc
+	oldReconnect := reconnectToManagerFunc
+	oldRetryAt := lastUnauthorizedRegisterRetryAt
+	t.Cleanup(func() {
+		clearManagedRegistrationStateFunc = oldClear
+		reconnectToManagerFunc = oldReconnect
+		lastUnauthorizedRegisterRetryAt = oldRetryAt
+	})
+
+	var cleared atomic.Int32
+	var reconnected atomic.Int32
+	clearManagedRegistrationStateFunc = func() error {
+		cleared.Add(1)
+		return nil
+	}
+	reconnectToManagerFunc = func() error {
+		reconnected.Add(1)
+		return nil
+	}
+	lastUnauthorizedRegisterRetryAt = time.Time{}
+
+	handled := handleUnauthorizedConfigSyncResponse(&util.Result{StatusCode: http.StatusUnauthorized})
+	if !handled {
+		t.Fatal("expected unauthorized config sync response to be handled")
+	}
+	if cleared.Load() != 1 {
+		t.Fatalf("expected local registration state to be cleared once, got %d", cleared.Load())
+	}
+	if reconnected.Load() != 1 {
+		t.Fatalf("expected reconnect to run once, got %d", reconnected.Load())
+	}
+
+	handled = handleUnauthorizedConfigSyncResponse(&util.Result{StatusCode: http.StatusUnauthorized})
+	if !handled {
+		t.Fatal("expected throttled unauthorized config sync response to still be handled")
+	}
+	if cleared.Load() != 1 {
+		t.Fatalf("expected throttled retry not to clear state again, got %d", cleared.Load())
+	}
+	if reconnected.Load() != 1 {
+		t.Fatalf("expected throttled retry not to reconnect again, got %d", reconnected.Load())
 	}
 }

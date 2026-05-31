@@ -61,7 +61,7 @@ func SaveWithTimestamp(event *Event, time2 time.Time) error {
 	}
 
 	if global.Env().IsDebug {
-		log.Debugf("%v-%v: %v", event.Metadata.Category, event.Metadata.Name, string(util.MustToJSONBytes(event.Metadata)))
+		log.Tracef("%v-%v: %v", event.Metadata.Category, event.Metadata.Name, string(util.MustToJSONBytes(event.Metadata)))
 	}
 
 	event.Timestamp = time2
@@ -102,7 +102,7 @@ func SaveLog(event *Event) error {
 	}
 
 	if global.Env().IsDebug {
-		log.Debugf("%v-%v: %v, %v", event.Metadata.Category, event.Metadata.Name, util.MustToJSON(event.Metadata), util.MustToJSON(event.Fields))
+		log.Tracef("%v-%v: %v, %v", event.Metadata.Category, event.Metadata.Name, util.MustToJSON(event.Metadata), util.MustToJSON(event.Fields))
 	}
 
 	stats.Increment("metrics.savelog", event.Metadata.Category, event.Metadata.Name)
