@@ -57,7 +57,10 @@ func TestBuildManagedRegisterAccessToken(t *testing.T) {
 
 	instance := model.Instance{}
 	instance.ID = "gateway-1"
-	instance.Application = env.Application{Name: "gateway"}
+	instance.Application = env.Application{
+		Name:    "gateway",
+		Version: env.Version{VersionNumber: "1.30.5"},
+	}
 
 	registerToken, err := buildManagedRegisterAccessToken(instance)
 	if err != nil {
@@ -79,6 +82,20 @@ func TestBuildManagedRegisterAccessToken(t *testing.T) {
 	}
 	if registerToken != nil {
 		t.Fatalf("expected no managed register token, got %#v", registerToken)
+	}
+
+	legacy := model.Instance{}
+	legacy.ID = "legacy-agent-1"
+	legacy.Application = env.Application{
+		Name:    "agent",
+		Version: env.Version{VersionNumber: "1.30.4"},
+	}
+	registerToken, err = buildManagedRegisterAccessToken(legacy)
+	if err != nil {
+		t.Fatalf("expected nil error for legacy agent, got %v", err)
+	}
+	if registerToken != nil {
+		t.Fatalf("expected legacy agent to skip managed register token, got %#v", registerToken)
 	}
 }
 

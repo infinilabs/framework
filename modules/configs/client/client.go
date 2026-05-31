@@ -53,6 +53,7 @@ import (
 
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
+const legacyManagedRegisterCompatMaxVersion = "1.30.4"
 
 var postRegisterHooks []func(server string, res *util.Result) error
 
@@ -119,6 +120,9 @@ func buildManagedRegisterAccessToken(info model.Instance) (*common.RegisterToken
 	if !common.SupportsManagedAccessToken(info.Application.Name) {
 		return nil, nil
 	}
+	if shouldSkipManagedRegisterAccessToken(info.Application.Version.VersionNumber) {
+		return nil, nil
+	}
 	accessToken, err := common.EnsureTokenInKeystore(common.AgentAccessTokenKeystoreKey)
 	if err != nil {
 		return nil, err
@@ -132,6 +136,25 @@ func buildManagedRegisterAccessToken(info model.Instance) (*common.RegisterToken
 		Description: fmt.Sprintf("Console to %s access token for instance %s", productName, info.ID),
 		Value:       accessToken,
 	}, nil
+}
+
+func shouldSkipManagedRegisterAccessToken(version string) bool {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return false
+	}
+	parsed, err := util.ParseSemantic(version)
+	if err != nil {
+		parsed, err = util.ParseGeneric(version)
+		if err != nil {
+			return false
+		}
+	}
+	cmp, err := parsed.Compare(legacyManagedRegisterCompatMaxVersion)
+	if err != nil {
+		return false
+	}
+	return cmp <= 0
 }
 
 func AddPostRegisterHook(hook func(server string, res *util.Result) error) {
