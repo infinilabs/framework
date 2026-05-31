@@ -106,6 +106,8 @@ func ConnectToManager() error {
 				panic(err)
 			}
 			global.Register(configRegisterEnvKey, true)
+		} else {
+			return fmt.Errorf("failed to register to config manager: status=%d, body=%s", res.StatusCode, strings.TrimSpace(string(res.Body)))
 		}
 	} else {
 		log.Error("failed to register to config manager,", err, ",", server)
