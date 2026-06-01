@@ -142,7 +142,8 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 
 	// Always advance to a new segment on process restart to prevent data loss
 	// or corruption from overwriting existing segment files.
-	if err == nil && d.writePos > 0 {
+	// Skip advancing if the current segment has zero messages.
+	if err == nil && d.writePos > 0 && d.depth > 0 {
 		log.Debugf("diskqueue(%s): advancing to new segment on restart (previous segment: %d, pos: %d)",
 			d.name, d.writeSegmentNum, d.writePos)
 
