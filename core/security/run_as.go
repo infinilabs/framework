@@ -8,7 +8,7 @@ import (
 	"context"
 )
 
-func RunAs(ctx context.Context,provider, userID string) context.Context {
+func RunAs(ctx context.Context, provider, userID string) context.Context {
 	claims := UserSessionInfo{}
 	claims.SetUserID(userID)
 

@@ -48,7 +48,6 @@ func Init() {
 		CreateUserPermission, UpdateUserPermission, DeleteUserPermission, ReadUserPermission, SearchUserPermission,
 		SearchPrincipalPermission)
 
-
 	api.HandleUIMethod(api.POST, "/security/role/", CreateRole, api.RequirePermission(CreateRolePermission))
 	api.HandleUIMethod(api.GET, "/security/role/_search", SearchRole, api.RequirePermission(SearchRolePermission))
 	api.HandleUIMethod(api.PUT, "/security/role/:id", UpdateRole, api.RequirePermission(UpdateRolePermission))
