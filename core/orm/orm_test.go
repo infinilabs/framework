@@ -47,6 +47,47 @@ func TestGetFieldStringValue(t *testing.T) {
 
 }
 
+func TestORMInterfaceIncludesBatchMutateAPI(t *testing.T) {
+	ormType := reflect.TypeOf((*ORM)(nil)).Elem()
+	batchMutateType := reflect.TypeOf((*BatchMutateAPI)(nil)).Elem()
+
+	if !ormType.Implements(batchMutateType) {
+		t.Fatalf("ORM interface should implement BatchMutateAPI")
+	}
+}
+
+func TestBatchMutateAPIIncludesDeleteByQuery(t *testing.T) {
+	batchMutateType := reflect.TypeOf((*BatchMutateAPI)(nil)).Elem()
+	method, ok := batchMutateType.MethodByName("DeleteByQuery")
+	if !ok {
+		t.Fatalf("BatchMutateAPI should expose DeleteByQuery")
+	}
+
+	contextType := reflect.TypeOf((*Context)(nil))
+	queryBuilderType := reflect.TypeOf((*QueryBuilder)(nil))
+	deleteByQueryResponseType := reflect.TypeOf((*DeleteByQueryResponse)(nil))
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+
+	if method.Type.NumIn() != 2 {
+		t.Fatalf("DeleteByQuery should accept 2 arguments, got %d", method.Type.NumIn())
+	}
+	if method.Type.In(0) != contextType {
+		t.Fatalf("DeleteByQuery first argument should be *Context, got %v", method.Type.In(0))
+	}
+	if method.Type.In(1) != queryBuilderType {
+		t.Fatalf("DeleteByQuery second argument should be *QueryBuilder, got %v", method.Type.In(1))
+	}
+	if method.Type.NumOut() != 2 {
+		t.Fatalf("DeleteByQuery should return 2 values, got %d", method.Type.NumOut())
+	}
+	if method.Type.Out(0) != deleteByQueryResponseType {
+		t.Fatalf("DeleteByQuery first return value should be *DeleteByQueryResponse, got %v", method.Type.Out(0))
+	}
+	if method.Type.Out(1) != errorType {
+		t.Fatalf("DeleteByQuery second return value should be error, got %v", method.Type.Out(1))
+	}
+}
+
 type Obj1 struct {
 	ORMObjectBase
 	T time.Time
