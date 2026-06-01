@@ -109,7 +109,7 @@ func GetUserByLogin(login string) (bool, *UserAccount, error) {
 		return false, nil, errors.New("no AuthenticationBackend was found")
 	}
 
-	return false, nil, errors.New("not found")
+	return false, nil, nil
 }
 
 // AuthenticateAccountPasswordLogin tries application-provided password login providers

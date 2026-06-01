@@ -184,27 +184,29 @@ func (req accountLoginRequest) NormalizedLogin() string {
 	return ""
 }
 
-// buildLoginChallengeResponse keeps the challenge negotiation explicit: challenge-capable
-// accounts get the proof derivation inputs, while older accounts stay on plain login.
+// buildLoginChallengeResponse always returns a challenge-format response to prevent user
+// enumeration: callers cannot distinguish an existing account from a non-existent one by
+// observing the response shape. For accounts that do not exist or have not yet derived
+// challenge material, a throwaway salt is generated so the client goes through the full
+// proof-derivation flow; the proof will be rejected by the Login handler with a generic
+// "invalid login or password" error.
 func buildLoginChallengeResponse(login string, exists bool, user *security.UserAccount) util.MapStr {
+	salt := util.GenerateSecureString(32)
 	if exists && security.CanUsePasswordChallenge(user) {
-		// The challenge payload gives clients everything needed to derive a proof
-		// locally without sending the raw password back to the server.
-		challenge := security.NewLoginChallenge(login)
-		return util.MapStr{
-			"status":       "ok",
-			"method":       security.PasswordChallengeMethod,
-			"algorithm":    security.PasswordChallengeAlgorithm,
-			"iterations":   security.PasswordChallengeIterations,
-			"challenge_id": challenge.ID,
-			"nonce":        challenge.Nonce,
-			"salt":         user.PasswordSalt,
-		}
+		salt = user.PasswordSalt
 	}
 
+	// The challenge payload gives clients everything needed to derive a proof
+	// locally without sending the raw password back to the server.
+	challenge := security.NewLoginChallenge(login)
 	return util.MapStr{
-		"status": "ok",
-		"method": "plain",
+		"status":       "ok",
+		"method":       security.PasswordChallengeMethod,
+		"algorithm":    security.PasswordChallengeAlgorithm,
+		"iterations":   security.PasswordChallengeIterations,
+		"challenge_id": challenge.ID,
+		"nonce":        challenge.Nonce,
+		"salt":         salt,
 	}
 }
 
