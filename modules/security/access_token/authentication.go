@@ -204,7 +204,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	}
 
 	expiredAT := time.Now().Add(365 * 24 * time.Hour).Unix()
-	res, err := CreateAPIToken(reqUser, reqBody.Name,reqBody.Description, "general", expiredAT, permissions)
+	res, err := CreateAPIToken(reqUser, reqBody.Name, reqBody.Description, "general", expiredAT, permissions)
 	if err != nil {
 		panic(err)
 	}
@@ -376,7 +376,7 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	}
 	reqBody := struct {
 		Name        string                   `json:"name,omitempty"`
-		Description string `json:"description"`
+		Description string                   `json:"description"`
 		Permissions []security.PermissionKey `json:"permissions,omitempty"`
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
