@@ -237,17 +237,20 @@ func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
 	cache.Set("5", "a", 5, time.Minute)
 	time.Sleep(time.Millisecond * 100)
 	assert.GreaterOrEqual(t, cache.GetDropped(), 1)
-	assert.NotNil(t, cache.Get("5", "a"))
-	assert.Equal(t, cache.Get("5", "a").Value(), 5)
+	item5 := cache.Get("5", "a")
+	assert.NotNil(t, item5)
+	assert.Equal(t, item5.Value(), 5)
 
 	cache.SetMaxSize(10)
 	cache.Set("6", "a", 6, time.Minute)
 	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, cache.GetDropped(), 0)
-	assert.NotNil(t, cache.Get("5", "a"))
-	assert.Equal(t, cache.Get("5", "a").Value(), 5)
-	assert.NotNil(t, cache.Get("6", "a"))
-	assert.Equal(t, cache.Get("6", "a").Value(), 6)
+	item5 = cache.Get("5", "a")
+	assert.NotNil(t, item5)
+	assert.Equal(t, item5.Value(), 5)
+	item6 := cache.Get("6", "a")
+	assert.NotNil(t, item6)
+	assert.Equal(t, item6.Value(), 6)
 }
 
 func newLayered() *LayeredCache {
