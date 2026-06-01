@@ -64,6 +64,29 @@ var clearManagedRegistrationStateFunc = clearManagedRegistrationState
 var reconnectToManagerFunc = func() error { return ConnectToManager() }
 var configSyncInProgress atomic.Bool
 
+// maskURLInError replaces http(s):// URLs in error messages to avoid leaking internal addresses in logs.
+func maskURLInError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	for _, scheme := range []string{"https://", "http://"} {
+		for {
+			idx := strings.Index(msg, scheme)
+			if idx < 0 {
+				break
+			}
+			end := strings.IndexAny(msg[idx:], " \"'\n\t")
+			if end < 0 {
+				msg = msg[:idx] + "***"
+				break
+			}
+			msg = msg[:idx] + "***" + msg[idx+end:]
+		}
+	}
+	return msg
+}
+
 func truncateManagerResponseBodyForLog(body []byte) string {
 	text := strings.TrimSpace(string(body))
 	if len(text) <= 256 {
@@ -338,7 +361,7 @@ func ListenConfigChanges() error {
 
 				_, res, err := DoManagerRequest(&request)
 				if err != nil {
-					log.Error("failed to submit request to config manager,", err)
+					log.Error("failed to submit request to config manager,", maskURLInError(err))
 					return
 				}
 
