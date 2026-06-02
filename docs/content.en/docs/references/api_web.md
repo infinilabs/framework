@@ -362,6 +362,119 @@ api.HandleUIMethod(api.GET, "/health", handler.healthCheck,
     api.AllowPublicAccess())
 ```
 
+### Static Rules-Based Authorization
+
+The framework supports declarative, config-driven role and permission assignment via the `static` authorization backend. This allows administrators to define roles with specific permissions and map users (by ID or login name) to those roles — all without a database.
+
+#### Configuration
+
+```yaml
+web:
+  security:
+    enabled: true
+    authorization:
+      static:
+        enabled: true
+        roles:
+          - name: "viewer"
+            permissions:
+              - "generic:cluster:read"
+              - "generic:cluster:search"
+          - name: "operator"
+            permissions:
+              - "generic:cluster:*"
+              - "generic:node:*"
+          - name: "superadmin"
+            permissions:
+              - "*"   # Grant all permissions
+        role_mapping:
+          admin: ["superadmin"]          # user login "admin" → superadmin role
+          ci-bot: ["operator"]           # user login "ci-bot" → operator role
+          readonly-user: ["viewer"]      # user login "readonly-user" → viewer role
+```
+
+#### How It Works
+
+1. **Roles** define named sets of permission keys. A permission of `"*"` grants all permissions.
+2. **Role mapping** assigns one or more roles to users by their login name or user ID.
+3. When `GetUserPermissions` is called for a user, the static provider's `GetPermissionKeysByUserID` resolves the user's mapped roles and returns the union of all permissions from those roles.
+4. Both `userID` (UUID) and `login` (username) are checked against the role mapping — so you can use either as the mapping key.
+
+#### Permission Key Format
+
+Permission keys follow the pattern: `category:resource:action`
+
+```
+generic:cluster:read       # Read access to clusters
+generic:node:*             # All actions on nodes (wildcard)
+coco:datasource:create     # Create datasources in coco category
+*                          # All permissions (admin shortcut)
+```
+
+Standard actions: `read`, `write`, `create`, `update`, `delete`, `search`, `execute`.
+
+#### Architecture
+
+The static authorization module is one of several `AuthorizationBackend` providers. All providers are queried in parallel when resolving user permissions:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GetUserPermissions(session)                   │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Check permission cache                                      │
+│  2. If miss: call GetAllPermissionsForUser                      │
+│     ├─ static_authorization.GetPermissionKeysByUserID(...)      │
+│     │   → looks up role_mapping[userID] and role_mapping[login] │
+│     │   → resolves roles → returns permission keys              │
+│     ├─ native.GetPermissionKeysByUserID(...)                    │
+│     │   → looks up DB-stored role assignments                   │
+│     ├─ oauth.GetPermissionKeysByUserID(...)                     │
+│     │   → checks bootstrap admin users                          │
+│     └─ access_token.GetPermissionKeysByUserID(...)              │
+│         → returns token-scoped permissions                      │
+│  3. Merge + deduplicate all permission keys                     │
+│  4. Also resolve permissions from session.Roles via             │
+│     GetPermissionKeysByRoles (for DB-assigned roles)            │
+│  5. Cache result for 30 minutes                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### AuthorizationBackend Interface
+
+Custom authorization providers implement:
+
+```go
+type AuthorizationBackend interface {
+    // GetPermissionKeysByUserID resolves permissions for a user identified by
+    // userID (UUID) and login (username). The provider should check both identifiers.
+    GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []PermissionKey
+
+    // GetPermissionKeysByRoles resolves permissions for a set of role names.
+    GetPermissionKeysByRoles(ctx context.Context, roles []string) []PermissionKey
+}
+```
+
+Register a custom provider:
+
+```go
+security.RegisterAuthorizationProvider("my_backend", &myProvider{})
+```
+
+#### Admin Role Bypass
+
+The permission filter provides a fast-path for users whose `session.Roles` contains `"admin"` — permission resolution is skipped entirely and all requests are allowed. This applies to roles stored on the user account; static role mappings contribute permissions but do not set `session.Roles` (they are resolved at permission-check time via `GetPermissionKeysByUserID`).
+
+#### Filter Pipeline
+
+The security filter pipeline processes requests in priority order:
+
+| Priority | Filter | Responsibility |
+|----------|--------|---------------|
+| `200` | **AuthFilter** | Authenticate request, run context resolvers, store user in context |
+| `500` | **PermissionFilter** | Check `session.Roles` for admin bypass, then lazy-resolve permissions via `GetUserPermissions` and enforce required permissions |
+
+The permission filter only resolves permissions when a route declares `RequirePermission(...)`. Routes without permission requirements skip authorization entirely.
+
 ### Pluggable Auth Filter Pipeline
 
 Incoming requests are authenticated through a priority-ordered pipeline of `HTTPAuthFilterProvider` functions. Each provider attempts to extract and validate credentials from the request; the first one that returns valid claims short-circuits the chain.
