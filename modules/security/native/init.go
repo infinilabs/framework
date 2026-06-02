@@ -2,7 +2,7 @@
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-package rbac
+package native
 
 import (
 	"infini.sh/framework/core/api"
@@ -13,13 +13,6 @@ import (
 	"infini.sh/framework/modules/security/http_filters"
 )
 
-var ReadPermissionLists = security.GetSimplePermission("generic", "security:permission", security.Read)
-
-func init() {
-	api.HandleUIMethod(api.GET, "/security/permission/", ListPermission, api.RequirePermission(ReadPermissionLists))
-
-}
-
 func Init() {
 
 	provider := SecurityBackendProvider{}
@@ -29,24 +22,19 @@ func Init() {
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
 
-	CreateRolePermission := security.GetSimplePermission("generic", "security:role", security.Create)
-	UpdateRolePermission := security.GetSimplePermission("generic", "security:role", security.Update)
-	DeleteRolePermission := security.GetSimplePermission("generic", "security:role", security.Delete)
-	ReadRolePermission := security.GetSimplePermission("generic", "security:role", security.Read)
-	SearchRolePermission := security.GetSimplePermission("generic", "security:role", security.Search)
+	CreateRolePermission := security.GetOrInitPermission("generic", "security:role", security.Create)
+	UpdateRolePermission := security.GetOrInitPermission("generic", "security:role", security.Update)
+	DeleteRolePermission := security.GetOrInitPermission("generic", "security:role", security.Delete)
+	ReadRolePermission := security.GetOrInitPermission("generic", "security:role", security.Read)
+	SearchRolePermission := security.GetOrInitPermission("generic", "security:role", security.Search)
 
-	CreateUserPermission := security.GetSimplePermission("generic", "security:user", security.Create)
-	UpdateUserPermission := security.GetSimplePermission("generic", "security:user", security.Update)
-	DeleteUserPermission := security.GetSimplePermission("generic", "security:user", security.Delete)
-	ReadUserPermission := security.GetSimplePermission("generic", "security:user", security.Read)
-	SearchUserPermission := security.GetSimplePermission("generic", "security:user", security.Search)
+	CreateUserPermission := security.GetOrInitPermission("generic", "security:user", security.Create)
+	UpdateUserPermission := security.GetOrInitPermission("generic", "security:user", security.Update)
+	DeleteUserPermission := security.GetOrInitPermission("generic", "security:user", security.Delete)
+	ReadUserPermission := security.GetOrInitPermission("generic", "security:user", security.Read)
+	SearchUserPermission := security.GetOrInitPermission("generic", "security:user", security.Search)
 
-	SearchPrincipalPermission := security.GetSimplePermission("generic", "security:principal", security.Search)
-
-	security.RegisterPermissionsToRole(security.RoleAdmin, ReadPermissionLists,
-		CreateRolePermission, UpdateRolePermission, DeleteRolePermission, ReadRolePermission, SearchRolePermission,
-		CreateUserPermission, UpdateUserPermission, DeleteUserPermission, ReadUserPermission, SearchUserPermission,
-		SearchPrincipalPermission)
+	SearchPrincipalPermission := security.GetOrInitPermission("generic", "security:principal", security.Search)
 
 	api.HandleUIMethod(api.POST, "/security/role/", CreateRole, api.RequirePermission(CreateRolePermission))
 	api.HandleUIMethod(api.GET, "/security/role/_search", SearchRole, api.RequirePermission(SearchRolePermission))

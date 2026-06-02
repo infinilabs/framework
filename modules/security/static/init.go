@@ -69,8 +69,13 @@ func Init(cfg config.StaticAuthorizationConfig) {
 	security.RegisterAuthorizationProvider("static_authorization", &provider{})
 }
 
-func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, userID string) []security.PermissionKey {
-	return permissionsForRoles(rolesForSubject(userID))
+func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []security.PermissionKey {
+	var keys []security.PermissionKey
+	keys = append(keys, permissionsForRoles(rolesForSubject(userID))...)
+	if login != "" && login != userID {
+		keys = append(keys, permissionsForRoles(rolesForSubject(login))...)
+	}
+	return keys
 }
 
 func (p *provider) GetPermissionKeysByRoles(ctx context.Context, assignedRoles []string) []security.PermissionKey {
