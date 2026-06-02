@@ -184,13 +184,17 @@ func (req accountLoginRequest) NormalizedLogin() string {
 	return ""
 }
 
-// buildLoginChallengeResponse always returns a challenge-format response to prevent user
-// enumeration: callers cannot distinguish an existing account from a non-existent one by
-// observing the response shape. For accounts that do not exist or have not yet derived
-// challenge material, a throwaway salt is generated so the client goes through the full
-// proof-derivation flow; the proof will be rejected by the Login handler with a generic
-// "invalid login or password" error.
+// buildLoginChallengeResponse returns plain login for existing legacy accounts that have
+// not been upgraded with challenge material yet. Accounts that do not exist still receive
+// a fake challenge payload to avoid user enumeration.
 func buildLoginChallengeResponse(login string, exists bool, user *security.UserAccount) util.MapStr {
+	if exists && !security.CanUsePasswordChallenge(user) {
+		return util.MapStr{
+			"status": "ok",
+			"method": "plain",
+		}
+	}
+
 	salt := util.GenerateSecureString(32)
 	if exists && security.CanUsePasswordChallenge(user) {
 		salt = user.PasswordSalt

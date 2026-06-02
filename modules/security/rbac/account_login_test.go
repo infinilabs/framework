@@ -207,6 +207,23 @@ func TestBuildLoginChallengeResponseFallsBackToPlain(t *testing.T) {
 	}
 }
 
+func TestBuildLoginChallengeResponseFakesChallengeForMissingUser(t *testing.T) {
+	resp := buildLoginChallengeResponse("missing@example.org", false, nil)
+
+	if got := resp["method"]; got != security.PasswordChallengeMethod {
+		t.Fatalf("expected fake challenge method for missing user, got %v", got)
+	}
+	if resp["challenge_id"] == "" {
+		t.Fatal("expected fake challenge id for missing user")
+	}
+	if resp["nonce"] == "" {
+		t.Fatal("expected fake nonce for missing user")
+	}
+	if resp["salt"] == "" {
+		t.Fatal("expected fake salt for missing user")
+	}
+}
+
 // Upgraded accounts should return the exact challenge inputs the client needs next.
 func TestBuildLoginChallengeResponseReturnsChallenge(t *testing.T) {
 	user := &security.UserAccount{Email: "admin@example.org"}

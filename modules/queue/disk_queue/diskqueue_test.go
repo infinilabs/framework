@@ -208,6 +208,111 @@ func TestRepairTailMetadataTruncatesIncompleteTailOnStartup(t *testing.T) {
 	}
 }
 
+func TestQueueRecreatesDataPathAfterDirectoryDeletion(t *testing.T) {
+	env1 := EmptyEnv()
+	env1.SystemConfig.PathConfig.Data = t.TempDir()
+	global.RegisterEnv(env1)
+
+	queueName := "recreate-data-path"
+	cfg := &DiskQueueConfig{
+		MinMsgSize:      1,
+		MaxMsgSize:      1024,
+		MaxBytesPerFile: 1024 * 1024,
+	}
+	normalizeDiskQueueConfig(cfg)
+
+	dataPath := GetDataPath(queueName)
+	if err := os.MkdirAll(dataPath, 0o755); err != nil {
+		t.Fatalf("failed to create queue data dir: %v", err)
+	}
+
+	dq := &DiskBasedQueue{
+		name:      queueName,
+		dataPath:  dataPath,
+		cfg:       cfg,
+		writePos:  0,
+		writeFile: nil,
+	}
+
+	if err := os.RemoveAll(dataPath); err != nil {
+		t.Fatalf("failed to delete queue data dir: %v", err)
+	}
+
+	if err := dq.sync(); err != nil {
+		t.Fatalf("expected sync to recreate deleted queue dir, got %v", err)
+	}
+	if _, err := os.Stat(dataPath); err != nil {
+		t.Fatalf("expected queue data dir to be recreated, got %v", err)
+	}
+
+	res := dq.writeOne([]byte("hello"))
+	if res.Error != nil {
+		t.Fatalf("expected write to succeed after dir recreation, got %v", res.Error)
+	}
+	if _, err := os.Stat(dq.metaDataFileName()); err != nil {
+		t.Fatalf("expected metadata file to be recreated, got %v", err)
+	}
+	if _, err := os.Stat(dq.GetFileName(0)); err != nil {
+		t.Fatalf("expected segment file to be recreated, got %v", err)
+	}
+
+	if dq.writeFile != nil {
+		_ = dq.writeFile.Close()
+	}
+}
+
+func TestCloseSucceedsAfterQueueDirectoryDeletion(t *testing.T) {
+	env1 := EmptyEnv()
+	env1.SystemConfig.PathConfig.Data = t.TempDir()
+	global.RegisterEnv(env1)
+
+	queueName := "close-after-delete"
+	cfg := &DiskQueueConfig{
+		MinMsgSize:       1,
+		MaxMsgSize:       1024,
+		MaxBytesPerFile:  1024 * 1024,
+		SyncEveryRecords: 1 << 20,
+		SyncTimeoutInMS:  1 << 20,
+		ReadChanBuffer:   0,
+		WriteChanBuffer:  1,
+	}
+	normalizeDiskQueueConfig(cfg)
+
+	dataPath := GetDataPath(queueName)
+	if err := os.MkdirAll(dataPath, 0o755); err != nil {
+		t.Fatalf("failed to create queue data dir: %v", err)
+	}
+
+	dq := &DiskBasedQueue{
+		name:               queueName,
+		dataPath:           dataPath,
+		cfg:                cfg,
+		readChan:           make(chan []byte, cfg.ReadChanBuffer),
+		depthChan:          make(chan int64),
+		writeChan:          make(chan []byte, cfg.WriteChanBuffer),
+		writeResponseChan:  make(chan WriteResponse),
+		emptyChan:          make(chan int),
+		emptyResponseChan:  make(chan error),
+		exitChan:           make(chan int),
+		exitSyncChan:       make(chan int, 1),
+		consumersInReading: sync.Map{},
+	}
+	go dq.ioLoop()
+
+	res := dq.Put([]byte("hello"))
+	if res.Error != nil {
+		t.Fatalf("failed to put queue message: %v", res.Error)
+	}
+
+	if err := os.RemoveAll(dataPath); err != nil {
+		t.Fatalf("failed to delete queue data dir: %v", err)
+	}
+
+	if err := dq.Close(); err != nil {
+		t.Fatalf("expected close to succeed after queue dir deletion, got %v", err)
+	}
+}
+
 func TestResetOffsetSkipsMissingSegmentsUpToCurrentWriteSegment(t *testing.T) {
 	env1 := EmptyEnv()
 	env1.SystemConfig.PathConfig.Data = t.TempDir()

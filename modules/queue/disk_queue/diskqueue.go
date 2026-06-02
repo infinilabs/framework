@@ -303,6 +303,13 @@ func (d *DiskBasedQueue) Delete() error {
 	return d.exit(true)
 }
 
+func (d *DiskBasedQueue) ensureDataPathExists() error {
+	if d == nil || d.dataPath == "" {
+		return nil
+	}
+	return os.MkdirAll(d.dataPath, 0o755)
+}
+
 func (d *DiskBasedQueue) exit(deleted bool) error {
 	d.Lock()
 
@@ -570,6 +577,11 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 	var res WriteResponse
 
 	if d.writeFile == nil {
+		err = d.ensureDataPathExists()
+		if err != nil {
+			res.Error = err
+			return res
+		}
 		curFileName := d.GetFileName(d.writeSegmentNum)
 		d.writeFile, err = os.OpenFile(curFileName, os.O_RDWR|os.O_CREATE, 0600)
 		if err != nil {
@@ -891,6 +903,11 @@ func (d *DiskBasedQueue) persistMetaData() error {
 
 	var f *os.File
 	var err error
+
+	err = d.ensureDataPathExists()
+	if err != nil {
+		return err
+	}
 
 	fileName := d.metaDataFileName()
 	tmpFileName := fmt.Sprintf("%s.%d.tmp", fileName, rand.Int())
