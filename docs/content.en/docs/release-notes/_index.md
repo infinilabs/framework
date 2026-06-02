@@ -27,6 +27,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
 - feat: add access_token to security #359
+- feat: smtp processor support parse dynamic content attachments from message #374
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
