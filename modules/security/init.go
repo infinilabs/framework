@@ -31,13 +31,14 @@ import (
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/module"
+	_ "infini.sh/framework/core/security/filters"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/security/access_token"
 	_ "infini.sh/framework/modules/security/account"
 	_ "infini.sh/framework/modules/security/http_filters"
+	"infini.sh/framework/modules/security/native"
 	_ "infini.sh/framework/modules/security/oauth_client"
 	_ "infini.sh/framework/modules/security/orm_hooks"
-	"infini.sh/framework/modules/security/rbac"
 	_ "infini.sh/framework/modules/security/share"
 	staticauth "infini.sh/framework/modules/security/static"
 )
@@ -72,7 +73,7 @@ func (module *Module) Setup() {
 	}
 
 	if module.cfg.Authentication.Native.Enabled {
-		rbac.Init()
+		native.Init()
 	}
 
 	if module.cfg.Authentication.AccessToken.Enabled {

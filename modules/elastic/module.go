@@ -30,12 +30,13 @@ package elastic
 import (
 	"context"
 	"fmt"
-	"infini.sh/framework/core/errors"
-	"infini.sh/framework/core/model"
 	"math"
 	"runtime"
 	"sync"
 	"time"
+
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/model"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"

@@ -20,7 +20,7 @@ func init() {
 		orm.RegisterDataOperationPreHook(10, func(ctx *orm.Context, op orm.Operation, o interface{}) (*orm.Context, interface{}, error) {
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(o))
-				panic("invalid data access")
+				return nil, nil, errors.New("invalid data access: nil context")
 			}
 
 			if op == orm.OpGet && ctx.GetBool(orm.DirectReadWithoutPermissionCheck, false) {
@@ -52,7 +52,7 @@ func init() {
 
 				o1, ok := o.(orm.Object)
 				if !ok || o1 == nil {
-					panic("invalid object")
+					return ctx, nil, errors.New("invalid object: does not implement orm.Object")
 				}
 
 				resourceType := ctx.MustGetString(orm.SharingResourceType)
@@ -83,7 +83,6 @@ func init() {
 			}
 
 			if invalid {
-				panic("invalid data access")
 				log.Debug("invalid data access, user: ", userID, " vs ", userID1, ",", util.MustToJSON(o))
 				return ctx, nil, errors.New("invalid data access")
 			}
@@ -103,7 +102,7 @@ func init() {
 
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(o))
-				panic("invalid data access")
+				return nil, nil, errors.New("invalid data access: nil context")
 			}
 
 			if ctx.GetBool(orm.DirectWriteWithoutPermissionCheck, false) {
@@ -128,7 +127,7 @@ func init() {
 
 			o1, ok := o.(orm.Object)
 			if !ok || o1 == nil {
-				panic("invalid object")
+				return ctx, nil, errors.New("invalid object: does not implement orm.Object")
 			}
 
 			//bypass explicit shared item
@@ -170,7 +169,6 @@ func init() {
 
 			//must set and must equal
 			if invalid {
-				panic(errors.New("invalid data access"))
 				log.Debug("invalid data access, user: ", userID, " vs ", userID1, ",", util.MustToJSON(o))
 				return ctx, nil, errors.New("invalid data access")
 			}
@@ -188,7 +186,7 @@ func init() {
 
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(o))
-				panic("invalid data access")
+				return nil, nil, errors.New("invalid data access: nil context")
 			}
 
 			optional := false
@@ -198,7 +196,7 @@ func init() {
 
 			sessionUser, err := security.GetUserFromContext(ctx.Context)
 			if !optional && (sessionUser == nil || err != nil) {
-				panic("invalid user info")
+				return nil, nil, errors.New("invalid user info")
 			}
 
 			if sessionUser != nil {
@@ -206,7 +204,7 @@ func init() {
 
 				v, ok := o.(orm.SystemFieldAccessor)
 				if !ok {
-					panic("object does not implement SystemAccessor")
+					return ctx, nil, errors.New("object does not implement SystemFieldAccessor")
 				}
 				v.SetSystemValue(orm.OwnerIDKey, userID)
 				return ctx, v, nil
@@ -219,7 +217,7 @@ func init() {
 
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(o))
-				panic("invalid data access")
+				return nil, nil, errors.New("invalid data access: nil context")
 			}
 
 			if ctx.GetBool(orm.DirectWriteWithoutPermissionCheck, false) {
@@ -236,7 +234,7 @@ func init() {
 
 			o1, ok := o.(orm.Object)
 			if !ok || o1 == nil {
-				panic("invalid object")
+				return ctx, nil, errors.New("invalid object: does not implement orm.Object")
 			}
 
 			//bypass explicit shared item
@@ -264,12 +262,12 @@ func init() {
 					//if no system info was found, set to current user
 					v, ok := o.(orm.SystemFieldAccessor)
 					if !ok {
-						panic("object does not implement SystemAccessor")
+						return ctx, nil, errors.New("object does not implement SystemFieldAccessor")
 					}
 					v.SetSystemValue(orm.OwnerIDKey, userID)
 				} else {
 					log.Debug("missing tenant and user info")
-					panic("missing tenant and user info")
+					return ctx, nil, errors.New("missing tenant and user info")
 				}
 			} else {
 				//TODO, can update other's data
@@ -289,7 +287,7 @@ func init() {
 
 			if ctx == nil {
 				log.Debug(op, ",", util.MustToJSON(qb))
-				panic("invalid data access")
+				return errors.New("invalid data access: nil context")
 			}
 
 			if ctx.GetBool(orm.DirectReadWithoutPermissionCheck, false) {

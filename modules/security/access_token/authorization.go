@@ -6,6 +6,7 @@ package access_token
 
 import (
 	"context"
+
 	"infini.sh/framework/core/log"
 	"infini.sh/framework/core/security"
 )
@@ -18,11 +19,12 @@ func init() {
 type SecurityBackendProvider struct {
 }
 
-func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID string) []security.PermissionKey {
+func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID, login string) []security.PermissionKey {
 	var allowedPermissions = []security.PermissionKey{}
 
 	if providerID == ProviderName {
 		_, permissions, err := getTokenPermissions(userID)
+
 		if err != nil {
 			log.Error(err)
 		} else {
