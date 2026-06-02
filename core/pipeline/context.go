@@ -446,5 +446,7 @@ func (ctx *Context) pushPipelineLog() {
 		},
 	}
 
-	event.SaveLog(&eventData)
+	if err := event.SaveLog(&eventData); err != nil {
+		log.Errorf("failed to save pipeline log event, pipeline: %s, context: %s, err: %v", ctx.Config.Name, ctx.id, err)
+	}
 }
