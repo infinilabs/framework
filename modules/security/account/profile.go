@@ -33,7 +33,7 @@ func Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	p.ID = reqUser.UserID
 
 	//get all permissions for user
-	p.Permissions = security.GetAllPermissionsForUser(reqUser)
+	p.Permissions = reqUser.Permissions
 
 	api.WriteJSON(w, p, http.StatusOK)
 }
