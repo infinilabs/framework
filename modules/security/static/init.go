@@ -6,7 +6,6 @@ package staticauth
 
 import (
 	"context"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -15,8 +14,6 @@ import (
 )
 
 type provider struct{}
-
-type resolver struct{}
 
 type roleDefinition struct {
 	permissions []security.PermissionKey
@@ -70,37 +67,14 @@ func Init(cfg config.StaticAuthorizationConfig) {
 	}
 
 	security.RegisterAuthorizationProvider("static_authorization", &provider{})
-	security.RegisterRequestContextResolver(&resolver{})
 }
 
 func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, userID string) []security.PermissionKey {
-	_ = ctx
 	return permissionsForRoles(rolesForSubject(userID))
 }
 
 func (p *provider) GetPermissionKeysByRoles(ctx context.Context, assignedRoles []string) []security.PermissionKey {
-	_ = ctx
 	return permissionsForRoles(assignedRoles)
-}
-
-func (r *resolver) ResolveRequestContext(ctx context.Context, req *http.Request, session *security.UserSessionInfo) error {
-	_ = ctx
-	_ = req
-	if session == nil {
-		return nil
-	}
-
-	mappedRoles := mergeMappedRoles(session.UserID, session.Login)
-	if len(mappedRoles) == 0 {
-		return nil
-	}
-
-	session.Roles = mappedRoles
-	return nil
-}
-
-func (r *resolver) Priority() int {
-	return 10
 }
 
 func rolesForSubject(subject string) []string {
