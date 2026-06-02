@@ -38,8 +38,20 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-var persistPasswordChallengeUpgrade = func(ctx *orm.Context, user *security.UserAccount) error {
+var defaultPasswordChallengeUpgradePersister = func(ctx *orm.Context, user *security.UserAccount) error {
 	return orm.Save(ctx, user)
+}
+
+var persistPasswordChallengeUpgrade = defaultPasswordChallengeUpgradePersister
+
+// RegisterPasswordChallengeUpgradePersister allows applications to override where
+// challenge credentials are persisted after a successful legacy password login.
+func RegisterPasswordChallengeUpgradePersister(persister func(ctx *orm.Context, user *security.UserAccount) error) {
+	if persister == nil {
+		persistPasswordChallengeUpgrade = defaultPasswordChallengeUpgradePersister
+		return
+	}
+	persistPasswordChallengeUpgrade = persister
 }
 
 var (
