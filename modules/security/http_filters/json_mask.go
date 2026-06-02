@@ -18,11 +18,13 @@ const FeatureRemoveSensitiveField = "feature_sensitive_fields_remove_sensitive_f
 const SensitiveFields = "feature_sensitive_fields_extra_keys"
 
 var sensitiveFields = map[string]bool{
-	"password":      true,
-	"token":         true,
-	"secret":        true,
-	"access_token":  true,
-	"refresh_token": true,
+	"password":          true,
+	"password_salt":     true,
+	"password_verifier": true,
+	"token":             true,
+	"secret":            true,
+	"access_token":      true,
+	"refresh_token":     true,
 }
 
 type JSONMaskFilter struct{}

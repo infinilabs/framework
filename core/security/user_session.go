@@ -84,7 +84,7 @@ func (u *UserSessionInfo) MustGetUserID() string {
 		return u.UserID
 	}
 
-	panic(errors.NewWithHTTPCode(400, "invalid user"))
+	panic(errors.NewWithHTTPCode(401, "invalid user"))
 }
 
 func (u *UserSessionInfo) IsValid() bool {
@@ -93,7 +93,7 @@ func (u *UserSessionInfo) IsValid() bool {
 		if global.Env().IsDebug {
 			log.Error(util.MustToJSON(u), u.UserID)
 		}
-		panic(errors.NewWithHTTPCode(400, "invalid user"))
+		return false
 	}
 	return v
 }
