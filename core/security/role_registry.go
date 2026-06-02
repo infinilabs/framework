@@ -173,6 +173,17 @@ func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 		permissions = append(permissions, permissionsFromRoles...)
 	}
 
+	unique := make(map[PermissionKey]struct{}, len(permissions))
+	deDuplicated := make([]PermissionKey, 0, len(permissions))
+	for _, permission := range permissions {
+		if _, exists := unique[permission]; exists {
+			continue
+		}
+		unique[permission] = struct{}{}
+		deDuplicated = append(deDuplicated, permission)
+	}
+	permissions = deDuplicated
+
 	sort.Slice(permissions, func(i, j int) bool {
 		return permissions[i] < permissions[j]
 	})

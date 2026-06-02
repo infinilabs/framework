@@ -39,6 +39,7 @@ import (
 	_ "infini.sh/framework/modules/security/orm_hooks"
 	"infini.sh/framework/modules/security/rbac"
 	_ "infini.sh/framework/modules/security/share"
+	staticauth "infini.sh/framework/modules/security/static"
 )
 
 type EnterpriseWebConfig struct {
@@ -76,6 +77,10 @@ func (module *Module) Setup() {
 
 	if module.cfg.Authentication.AccessToken.Enabled {
 		access_token.Init()
+	}
+
+	if module.cfg.Authorization.Static.Enabled {
+		staticauth.Init(module.cfg.Authorization.Static)
 	}
 
 	oauthSettings := util.MapStr{}

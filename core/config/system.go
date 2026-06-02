@@ -354,7 +354,19 @@ type HTTPBasicAuthProvider struct {
 }
 
 type AuthorizationConfig struct {
-	Native RealmConfig `config:"native"`
+	Native RealmConfig               `config:"native"`
+	Static StaticAuthorizationConfig `config:"static"`
+}
+
+type StaticAuthorizationConfig struct {
+	Enabled     bool                `config:"enabled"`
+	Roles       []StaticRoleConfig  `config:"roles"`
+	RoleMapping map[string][]string `config:"role_mapping"`
+}
+
+type StaticRoleConfig struct {
+	Name        string   `config:"name" json:"name,omitempty"`
+	Permissions []string `config:"permissions" json:"permissions,omitempty"`
 }
 
 type APISecurityConfig struct {
