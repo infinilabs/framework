@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	replaysecurity "infini.sh/framework/core/security/replay"
 )
@@ -313,6 +315,68 @@ func TestNewNativeSessionFallsBackToRequestedLogin(t *testing.T) {
 	}
 	if session.Provider != security.DefaultNativeAuthBackend {
 		t.Fatalf("expected native provider, got %q", session.Provider)
+	}
+}
+
+func TestUpgradePasswordChallengePersistsLegacyAdminByLogin(t *testing.T) {
+	originalPersist := persistPasswordChallengeUpgrade
+	defer func() {
+		persistPasswordChallengeUpgrade = originalPersist
+	}()
+
+	var persisted *security.UserAccount
+	persistPasswordChallengeUpgrade = func(ctx *orm.Context, user *security.UserAccount) error {
+		copied := *user
+		persisted = &copied
+		return nil
+	}
+
+	user := &security.UserAccount{Name: "admin"}
+	hash, err := bcrypt.GenerateFromPassword([]byte("StrongPassw0rd!"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("generate password hash: %v", err)
+	}
+	user.Password = string(hash)
+
+	upgradePasswordChallenge(user, "admin", "StrongPassw0rd!")
+
+	if persisted == nil {
+		t.Fatal("expected legacy admin upgrade to be persisted")
+	}
+	if persisted.ID != getUIDByEmail("admin") {
+		t.Fatalf("expected fallback id %q, got %q", getUIDByEmail("admin"), persisted.ID)
+	}
+	if persisted.PasswordSalt == "" || persisted.PasswordVerifier == "" {
+		t.Fatal("expected challenge credentials to be populated before persisting")
+	}
+}
+
+func TestUpgradePasswordChallengeSkipsExistingChallengeUser(t *testing.T) {
+	originalPersist := persistPasswordChallengeUpgrade
+	defer func() {
+		persistPasswordChallengeUpgrade = originalPersist
+	}()
+
+	called := false
+	persistPasswordChallengeUpgrade = func(ctx *orm.Context, user *security.UserAccount) error {
+		called = true
+		return nil
+	}
+
+	user := &security.UserAccount{Email: "admin@example.org"}
+	if err := security.SetPassword(user, "StrongPassw0rd!"); err != nil {
+		t.Fatalf("set password: %v", err)
+	}
+
+	upgradePasswordChallenge(user, user.Email, "StrongPassw0rd!")
+	if !security.CanUsePasswordChallenge(user) {
+		t.Fatal("expected challenge material to be available")
+	}
+	called = false
+
+	upgradePasswordChallenge(user, user.Email, "StrongPassw0rd!")
+	if called {
+		t.Fatal("did not expect already-upgraded account to be persisted again")
 	}
 }
 

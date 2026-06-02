@@ -38,6 +38,10 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+var persistPasswordChallengeUpgrade = func(ctx *orm.Context, user *security.UserAccount) error {
+	return orm.Save(ctx, user)
+}
+
 var (
 	// Keep the password and challenge paths aligned on one user-facing failure message.
 	errInvalidLoginCredentials = errors.New("invalid login or password")
@@ -163,7 +167,7 @@ func Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	if !usedChallenge && nativeUser != nil {
-		upgradePasswordChallenge(nativeUser, req.Password)
+		upgradePasswordChallenge(nativeUser, login, req.Password)
 	}
 
 	if err, token := security.AddUserToSession(w, r, sessionUser); err != nil {
@@ -272,7 +276,7 @@ func validateReplayNonce(r *http.Request, required bool) error {
 
 // upgradePasswordChallenge backfills verifier material after a successful legacy login so
 // existing native accounts can move onto the challenge flow without an offline migration.
-func upgradePasswordChallenge(user *security.UserAccount, password string) {
+func upgradePasswordChallenge(user *security.UserAccount, login, password string) {
 	if user == nil || password == "" || security.CanUsePasswordChallenge(user) {
 		return
 	}
@@ -286,9 +290,18 @@ func upgradePasswordChallenge(user *security.UserAccount, password string) {
 	// logins can move onto the challenge flow without an explicit migration step.
 	// This upgrade is best-effort; the current login already succeeded, so it should
 	// not wait for an index refresh before returning to the caller.
+	if user.ID == "" {
+		userLogin := strings.TrimSpace(user.Email)
+		if userLogin == "" {
+			userLogin = strings.TrimSpace(login)
+		}
+		if userLogin != "" {
+			user.ID = getUIDByEmail(userLogin)
+		}
+	}
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
-	if err := orm.Update(ctx, user); err != nil {
+	if err := persistPasswordChallengeUpgrade(ctx, user); err != nil {
 		log.Warnf("failed to persist password challenge for user [%s]: %v", user.Email, err)
 	}
 }
