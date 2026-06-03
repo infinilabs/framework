@@ -53,6 +53,12 @@ func (f *AuthFilter) ApplyFilter(
 			if resolverErr := security.RunRequestContextResolvers(r.Context(), r, claims); resolverErr != nil {
 				log.Warn("request context resolver error: ", resolverErr)
 			}
+
+			//proactive update permission on auth check
+			if claims.UserAssignedPermission == nil || claims.UserAssignedPermission.NeedRefresh() {
+				claims.UserAssignedPermission = security.GetUserPermissions(claims)
+			}
+
 			r = r.WithContext(security.AddUserToContext(r.Context(), claims))
 		}
 

@@ -147,6 +147,10 @@ func MustRegisterPermissionByKey(key PermissionKey) PermissionID {
 	return permissionRegistry.MustGetPermissionIDByKey(key)
 }
 
+func MustGetPermissionKey(id PermissionID) PermissionKey {
+	return permissionRegistry.MustGetPermissionKeyByID(id)
+}
+
 func MustRegisterPermissionByKeys(key []PermissionKey) []PermissionID {
 	v := []PermissionID{}
 	for _, k := range key {
