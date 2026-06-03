@@ -30,6 +30,7 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 				if ok {
 					if !x.NeedRefresh() {
 						shortUser.UserAssignedPermission = x
+						shortUser.Permissions = x.GetPermissionKeys()
 						if global.Env().IsDebug {
 							log.Trace("hit permission cache")
 							x.Dump()
