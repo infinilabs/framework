@@ -29,6 +29,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add access_token to security #359
 - feat: smtp processor support parse dynamic content attachments from message #374
 - feat: add static rule based authorization #375
+- feat: allow to specify OS user when installing the service #380
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
@@ -53,6 +54,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: remove unused grpc and cuckoo filter"
 - chore: update seelog for vfs #363
 - chore: udpate update desc to api token, fix permission #372
+- chore: skip module start in service control mode #380
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
