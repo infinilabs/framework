@@ -83,6 +83,7 @@ type App struct {
 	svc     service.Service
 	exit    chan os.Signal
 	svcFlag string
+	svcUser string
 }
 
 const (
@@ -181,6 +182,7 @@ func (app *App) initWithFlags() {
 	flag.IntVar(&app.numCPU, "cpu", -1, "the number of CPUs to use")
 	flag.IntVar(&app.maxMEM, "mem", -1, "the max size of Memory to use, soft limit in megabyte")
 	flag.StringVar(&app.svcFlag, "service", "", "service management, options: install,uninstall,start,stop")
+	flag.StringVar(&app.svcUser, "service-user", "", "OS user account used when installing the service")
 
 	if debugFlagInitFunc != nil {
 		debugFlagInitFunc()
@@ -592,6 +594,7 @@ func (app *App) Run() {
 		Name:             serviceName,
 		DisplayName:      app.environment.GetAppName(),
 		Description:      app.environment.GetAppDesc(),
+		UserName:         util.TrimSpaces(app.svcUser),
 		WorkingDirectory: workdir,
 		//Dependencies: []string{
 		//	"Requires=network.target",
