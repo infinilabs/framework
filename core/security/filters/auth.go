@@ -5,13 +5,13 @@
 package filters
 
 import (
+	"infini.sh/framework/core/global"
 	"net/http"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	common "infini.sh/framework/core/api/common"
 	httprouter "infini.sh/framework/core/api/router"
-	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
 )

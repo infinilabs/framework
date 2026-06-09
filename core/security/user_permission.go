@@ -82,6 +82,9 @@ func (p *UserAssignedPermission) Dump() {
 }
 
 func (p *UserAssignedPermission) GetPermissionKeys() []PermissionKey {
+	if p == nil {
+		return []PermissionKey{}
+	}
 	keys := []PermissionKey{}
 	if p.AllowedPermissions != nil {
 		iter := p.AllowedPermissions.Iterator()
@@ -97,6 +100,9 @@ func (p *UserAssignedPermission) GetPermissionKeys() []PermissionKey {
 }
 
 func (p *UserAssignedPermission) NeedRefresh() bool {
+	if p == nil {
+		return true
+	}
 	return NeedRefreshPermission(p.PermissionVersion)
 }
 
