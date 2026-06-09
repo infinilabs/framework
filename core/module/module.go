@@ -42,6 +42,7 @@ package module
 import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/env"
+	"infini.sh/framework/core/global"
 	"sort"
 )
 
@@ -107,6 +108,10 @@ func checkModuleEnabled(name string) bool {
 }
 
 func Start() {
+	if global.Env() != nil && global.Env().ISServiceMode {
+		log.Debug("skip module start in service control mode")
+		return
+	}
 
 	m.Sort()
 
