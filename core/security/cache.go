@@ -30,7 +30,6 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 				if ok {
 					if !x.NeedRefresh() {
 						shortUser.UserAssignedPermission = x
-						shortUser.Permissions = x.GetPermissionKeys()
 						if global.Env().IsDebug {
 							log.Trace("hit permission cache")
 							x.Dump()
@@ -50,7 +49,6 @@ func GetUserPermissions(shortUser *UserSessionInfo) *UserAssignedPermission {
 	//TODO, handle api key, with specify permissions
 	//TODO, if the provider is for user, like api token, we need to fetch from api token's config, to get the updated permission
 	allowedPermissions := GetAllPermissionsForUser(shortUser)
-	shortUser.Permissions = allowedPermissions
 
 	log.Trace("get user's permissions:", allowedPermissions)
 	perms := NewUserAssignedPermission(allowedPermissions, nil)

@@ -96,7 +96,7 @@ func byAPITokenHeader(w http.ResponseWriter, r *http.Request) (claims *security.
 	claims.SetUserID(accessToken.GetOwnerID())
 	claims.Provider = ProviderName
 	claims.Login = apiToken
-	claims.Permissions = permissions
+	claims.UserAssignedPermission = security.NewUserAssignedPermission(permissions,nil)
 	claims.Data = accessToken.CloneData()
 
 	return claims, nil
@@ -199,7 +199,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 		if len(reqBody.Permissions) > 0 {
 			permissions = reqBody.Permissions
 		} else {
-			permissions = append(permissions, reqUser.Permissions...)
+			permissions = append(permissions, reqUser.GetPermissionKeys()...)
 		}
 	}
 

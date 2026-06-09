@@ -160,7 +160,10 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 }
 
 func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
-	permissions := user.Permissions
+	if user==nil{
+		return  []PermissionKey{}
+	}
+	permissions := user.GetPermissionKeys()
 
 	//get permissions by user
 	p1, _ := getPermissionKeysByUser(user)
@@ -191,6 +194,9 @@ func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 }
 
 func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
+	if user==nil{
+		return  []PermissionKey{},nil
+	}
 
 	ctx1 := context.Background()
 	if val, ok := user.GetStringArray(orm.TeamsIDKey); ok {
