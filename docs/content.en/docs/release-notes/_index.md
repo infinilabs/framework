@@ -29,6 +29,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: add access_token to security #359
 - feat: smtp processor support parse dynamic content attachments from message #374
 - feat: add static rule based authorization #375
+- feat: allow to specify OS user when installing the service #380
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
