@@ -43,7 +43,6 @@ const (
 
 var (
 	indexLock sync.Mutex
-	initOnce  sync.Once
 
 	// Permission catalog. Registered unconditionally in init() so that roles
 	// referencing these permissions remain valid even when the access_token
@@ -55,25 +54,25 @@ var (
 )
 
 func init() {
-	createTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Create)
-	updateTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Update)
-	deleteTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Delete)
-	searchTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Search)
 
-	// The auth filter provider is registered unconditionally so that inbound
-	// requests carrying X-API-TOKEN can be authenticated even before Init() is
-	// called (e.g. in embedded scenarios that never call Init explicitly).
-	security.RegisterHTTPAuthFilterProviderWithPriority("api_token", byAPITokenHeader, 30)
-}
+	global.RegisterFuncBeforeSetup(func() {
+		if global.Env().SystemConfig.WebAppConfig.Security.Authentication.AccessToken.Enabled {
+			createTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Create)
+			updateTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Update)
+			deleteTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Delete)
+			searchTokenPermission = security.GetOrInitPermission("generic", "security:auth:api-token", security.Search)
 
-// Init registers the HTTP management endpoints for access tokens. Safe to
-// call multiple times; only the first call has effect.
-func Init() {
-	initOnce.Do(func() {
-		api.HandleUIMethod(api.POST, "/auth/access_token", RequestAccessToken, api.RequirePermission(createTokenPermission))
-		api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
-		api.HandleUIMethod(api.DELETE, "/auth/access_token/:token_id", DeleteAccessToken, api.RequirePermission(deleteTokenPermission))
-		api.HandleUIMethod(api.PUT, "/auth/access_token/:token_id", UpdateAccessToken, api.RequirePermission(updateTokenPermission))
+			// The auth filter provider is registered unconditionally so that inbound
+			// requests carrying X-API-TOKEN can be authenticated even before Init() is
+			// called (e.g. in embedded scenarios that never call Init explicitly).
+			security.RegisterHTTPAuthFilterProviderWithPriority("api_token", byAPITokenHeader, 30)
+
+			api.HandleUIMethod(api.POST, "/auth/access_token", RequestAccessToken, api.RequirePermission(createTokenPermission))
+			api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
+			api.HandleUIMethod(api.DELETE, "/auth/access_token/:token_id", DeleteAccessToken, api.RequirePermission(deleteTokenPermission))
+			api.HandleUIMethod(api.PUT, "/auth/access_token/:token_id", UpdateAccessToken, api.RequirePermission(updateTokenPermission))
+
+		}
 	})
 }
 
@@ -96,7 +95,7 @@ func byAPITokenHeader(w http.ResponseWriter, r *http.Request) (claims *security.
 	claims.SetUserID(accessToken.GetOwnerID())
 	claims.Provider = ProviderName
 	claims.Login = apiToken
-	claims.UserAssignedPermission = security.NewUserAssignedPermission(permissions,nil)
+	claims.UserAssignedPermission = security.NewUserAssignedPermission(permissions, nil)
 	claims.Data = accessToken.CloneData()
 
 	return claims, nil
@@ -265,6 +264,12 @@ func CreateAPIToken(user *security.UserSessionInfo, tokenName, tokenDesc, typeNa
 }
 
 func SearchAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	reqUser, err := security.GetUserFromContext(req.Context())
+	if reqUser == nil || err != nil {
+		api.WriteError(w, "permission denied", http.StatusForbidden)
+		return
+	}
+
 	if isNative() {
 		builder, err := orm.NewQueryBuilderFromRequest(req, "name")
 		if err != nil {
@@ -285,7 +290,7 @@ func SearchAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 		return
 	}
 
-	tokens, err := listAccessTokensFromKV()
+	tokens, err := listAccessTokensFromKV(reqUser.MustGetUserID())
 	if err != nil {
 		api.Error(w, err)
 		return
@@ -298,6 +303,20 @@ func SearchAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 			"hits":      tokens,
 		},
 	}, 200)
+}
+
+func canOperateToken(reqUser *security.UserSessionInfo, token *security.AccessToken) bool {
+	if reqUser == nil || token == nil {
+		return false
+	}
+	if util.ContainsAnyInArray(security.RoleAdmin, reqUser.Roles) {
+		return true
+	}
+	ownerID := token.GetOwnerID()
+	if ownerID == "" {
+		return false
+	}
+	return ownerID == reqUser.MustGetUserID()
 }
 
 func DeleteAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -325,6 +344,10 @@ func DeleteAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 			api.WriteError(w, "access token not found", 404)
 			return
 		}
+		if !canOperateToken(reqUser, &token) {
+			api.WriteError(w, "access token not found", 404)
+			return
+		}
 		tokenString = token.AccessToken
 
 		ctx.Refresh = orm.WaitForRefresh
@@ -332,6 +355,16 @@ func DeleteAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 			panic(err)
 		}
 	} else {
+		token, err := getAccessTokenByIDFromKV(tokenID)
+		if err != nil {
+			api.Error(w, err)
+			return
+		}
+		if !canOperateToken(reqUser, token) {
+			api.WriteError(w, "access token not found", 404)
+			return
+		}
+
 		s, err := removeTokenFromIndex(tokenID)
 		if err != nil {
 			api.Error(w, err)
@@ -403,10 +436,18 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 			api.WriteError(w, "access token not found", 404)
 			return
 		}
+		if !canOperateToken(reqUser, token) {
+			api.WriteError(w, "access token not found", 404)
+			return
+		}
 	} else {
 		t, err := getAccessTokenByIDFromKV(tokenID)
 		if err != nil {
 			api.WriteError(w, err.Error(), 404)
+			return
+		}
+		if !canOperateToken(reqUser, t) {
+			api.WriteError(w, "access token not found", 404)
 			return
 		}
 		token = t
@@ -546,7 +587,7 @@ func getAccessTokenByIDFromKV(tokenID string) (*security.AccessToken, error) {
 	return GetToken(string(tokenStringBytes))
 }
 
-func listAccessTokensFromKV() ([]util.MapStr, error) {
+func listAccessTokensFromKV(ownerID string) ([]util.MapStr, error) {
 	ids, err := loadTokenIDs()
 	if err != nil {
 		return nil, err
@@ -556,6 +597,9 @@ func listAccessTokensFromKV() ([]util.MapStr, error) {
 		t, err := getAccessTokenByIDFromKV(id)
 		if err != nil {
 			log.Warnf("load access token [%s] failed: %v", id, err)
+			continue
+		}
+		if ownerID != "" && t.GetOwnerID() != ownerID {
 			continue
 		}
 		out = append(out, util.MapStr{
