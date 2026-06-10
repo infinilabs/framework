@@ -850,7 +850,11 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		if moduleConfig.ORMConfig.Enabled {
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				//todo check whether store elasticsearch change or not
-				err = saveNodeMetadata(*nodes, meta.Config.ID)
+				clusterUUID := meta.Config.ClusterUUID
+				if meta.ClusterState != nil && meta.ClusterState.ClusterUUID != "" {
+					clusterUUID = meta.ClusterState.ClusterUUID
+				}
+				err = saveNodeMetadata(*nodes, meta.Config.ID, clusterUUID)
 				if err != nil {
 					if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
 						log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
@@ -935,7 +939,7 @@ func setNodeUnknown(clusterID string) bool {
 	nodeAlreadyUnknown[clusterID] = true
 	return true
 }
-func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
+func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID, clusterUUID string) error {
 	esConfig := elastic.GetConfig(clusterID)
 	saveNodeMetadataMutex.Lock()
 	defer func() {
@@ -945,28 +949,63 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		}
 	}()
 
-	queryDslTpl := `{
-	"size": 1000,
-  "query": {
-    "bool": {
-      "must": [
-        {"term": {
-          "metadata.cluster_id": {
-            "value": "%s"
-          }
-        }},
-		 {"term": {
-          "metadata.category": {
-            "value": "elasticsearch"
-          }
-        }}
-      ]
-    }
-  }
-}`
-	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
+	logicalClusterID := clusterID
+	if clusterUUID != "" {
+		logicalClusterID = clusterUUID
+	}
+	nodeDocID := func(clusterKey, nodeID string) string {
+		return util.MD5digest(fmt.Sprintf("%s:%s", clusterKey, nodeID))
+	}
+
+	must := []util.MapStr{
+		{
+			"term": util.MapStr{
+				"metadata.category": util.MapStr{
+					"value": "elasticsearch",
+				},
+			},
+		},
+	}
+	boolQuery := util.MapStr{
+		"must": must,
+	}
+	if clusterUUID != "" {
+		boolQuery["should"] = []util.MapStr{
+			{
+				"term": util.MapStr{
+					"metadata.cluster_id": util.MapStr{
+						"value": clusterID,
+					},
+				},
+			},
+			{
+				"term": util.MapStr{
+					"metadata.labels.cluster_uuid": util.MapStr{
+						"value": clusterUUID,
+					},
+				},
+			},
+		}
+		boolQuery["minimum_should_match"] = 1
+	} else {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.cluster_id": util.MapStr{
+					"value": clusterID,
+				},
+			},
+		})
+		boolQuery["must"] = must
+	}
+
+	queryDsl := util.MustToJSONBytes(util.MapStr{
+		"size": 1000,
+		"query": util.MapStr{
+			"bool": boolQuery,
+		},
+	})
 	q := &orm.Query{}
-	q.RawQuery = []byte(queryDsl)
+	q.RawQuery = queryDsl
 	err, result := orm.Search(&elastic.NodeConfig{}, q)
 	if err != nil {
 		return err
@@ -981,7 +1020,19 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				//nodeMetadatas[nodeID] = nodeInfo
 				if nid, ok := nodeID.(string); ok {
 					if id, ok := nodeInfo["id"]; ok {
-						nodeIDMap[nid] = id
+						existingID, hasExisting := nodeIDMap[nid]
+						canonicalID := nodeDocID(logicalClusterID, nid)
+						if !hasExisting {
+							nodeIDMap[nid] = id
+						} else {
+							existingIDStr, existingOK := existingID.(string)
+							idStr, currentOK := id.(string)
+							if currentOK && idStr == canonicalID {
+								nodeIDMap[nid] = id
+							} else if !(existingOK && existingIDStr == canonicalID) {
+								nodeIDMap[nid] = id
+							}
+						}
 					}
 					historyNodeMetadata[nid] = nodeInfo
 					if _, ok = nodes[nid]; !ok {
@@ -996,15 +1047,26 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		rawBytes := util.MustToJSONBytes(nodeInfo)
 		currentNodeInfo := util.MapStr{}
 		util.MustFromJSONBytes(rawBytes, &currentNodeInfo)
+		canonicalID := nodeDocID(logicalClusterID, rawNodeID)
+		legacyID := nodeDocID(clusterID, rawNodeID)
 		var innerID interface{}
 		var typ string
 		var changeLog diff.Changelog
 		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
-			newID := fmt.Sprintf("%s:%s", clusterID, rawNodeID)
-			newID = util.MD5digest(newID)
+			newID := canonicalID
 			typ = "create"
 			innerID = newID
+			labels := util.MapStr{
+				"transport_address": nodeInfo.TransportAddress,
+				"ip":                nodeInfo.Ip,
+				"version":           nodeInfo.Version,
+				"roles":             nodeInfo.Roles,
+				"status":            "available",
+			}
+			if clusterUUID != "" {
+				labels["cluster_uuid"] = clusterUUID
+			}
 			nodeMetadata := &elastic.NodeConfig{
 				Metadata: elastic.NodeMetadata{
 					ClusterID:   clusterID,
@@ -1013,13 +1075,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					ClusterName: esConfig.Name,
 					NodeName:    nodeInfo.Name,
 					Host:        nodeInfo.Host,
-					Labels: util.MapStr{
-						"transport_address": nodeInfo.TransportAddress,
-						"ip":                nodeInfo.Ip,
-						"version":           nodeInfo.Version,
-						"roles":             nodeInfo.Roles,
-						"status":            "available",
-					},
+					Labels:      labels,
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
@@ -1031,7 +1087,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				log.Error(err)
 			}
 		} else {
-			innerID = rowID
+			innerID = canonicalID
 			typ = "update"
 			if rid, ok := rowID.(string); ok {
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
@@ -1051,6 +1107,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						"version":           nodeInfo.Version,
 						"roles":             nodeInfo.Roles,
 						"status":            "available",
+					}
+					if clusterUUID != "" {
+						newLabels["cluster_uuid"] = clusterUUID
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
@@ -1096,7 +1155,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 							Labels:      newLabels,
 							Category:    "elasticsearch",
 						},
-						ID:        rid,
+						ID:        canonicalID,
 						Timestamp: time.Now(),
 						Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
@@ -1104,6 +1163,14 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					err = orm.Save(ctx1, nodeMetadata)
 					if err != nil {
 						log.Error(err)
+					}
+					if clusterUUID != "" && legacyID != canonicalID && rid == legacyID {
+						delCtx := orm.NewContext().DirectAccess()
+						delCtx.Set(orm.CheckExistsBeforeDelete, false)
+						err = orm.Delete(delCtx, &elastic.NodeConfig{ID: legacyID})
+						if err != nil {
+							log.Error(err)
+						}
 					}
 				}
 			}
@@ -1152,6 +1219,12 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		//skip already unavailable node
 		if oldStatus, ok := oldConfig.Metadata.Labels["status"].(string); ok && oldStatus == "unavailable" {
 			continue
+		}
+		if oldConfig.Metadata.Labels == nil {
+			oldConfig.Metadata.Labels = util.MapStr{}
+		}
+		if clusterUUID != "" {
+			oldConfig.Metadata.Labels["cluster_uuid"] = clusterUUID
 		}
 		oldConfig.Metadata.Labels["status"] = "unavailable"
 		oldConfig.Timestamp = time.Now()
