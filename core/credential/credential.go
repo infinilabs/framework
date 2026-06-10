@@ -31,14 +31,15 @@ import (
 	"fmt"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 type Credential struct {
 	orm.ORMObjectBase
-	Name    string                 `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
-	Type    string                 `json:"type" elastic_mapping:"type:{type:keyword}"`
-	Tags    []string               `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
-	Payload map[string]interface{} `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
+	Name    string                         `json:"name" elastic_mapping:"name:{type:keyword,copy_to:search_text}"`
+	Type    CredentialType                 `json:"type" elastic_mapping:"type:{type:keyword}"`
+	Tags    []string                       `json:"tags" elastic_mapping:"category:{type:keyword,copy_to:search_text}"`
+	Payload map[CredentialType]interface{} `json:"payload" elastic_mapping:"payload:{type:object,enabled:false}"`
 	Encrypt struct {
 		Type   string                 `json:"type"`
 		Params map[string]interface{} `json:"params"`
@@ -46,6 +47,10 @@ type Credential struct {
 	SearchText string `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 	secret     []byte
 	Invalid    bool `json:"invalid" elastic_mapping:"invalid:{type:boolean}"`
+}
+
+type AccessTokenPayload struct {
+	AccessToken ucfg.SecretString `json:"access_token,omitempty" config:"access_token" yaml:"access_token"`
 }
 
 func (cred *Credential) SetSecret(secret []byte) {
@@ -69,6 +74,8 @@ func (cred *Credential) Encode() error {
 	switch cred.Type {
 	case BasicAuth:
 		return encodeBasicAuth(cred)
+	case AccessToken:
+		return encodeAccessToken(cred)
 	default:
 		return fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
@@ -86,15 +93,33 @@ func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 }
 
+func (cred *Credential) DecodeAccessToken() (*AccessTokenPayload, error) {
+	dv, err := cred.Decode()
+	if err != nil {
+		return nil, err
+	}
+
+	if token, ok := dv.(AccessTokenPayload); ok {
+		return &token, nil
+	}
+
+	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
+}
+
 func (cred *Credential) Decode() (interface{}, error) {
 	switch cred.Type {
 	case BasicAuth:
 		return decodeBasicAuth(cred)
+	case AccessToken:
+		return decodeAccessToken(cred)
 	default:
 		return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
 }
 
+type CredentialType string
+
 const (
-	BasicAuth string = "basic_auth"
+	BasicAuth   CredentialType = "basic_auth"
+	AccessToken CredentialType = "access_token"
 )
