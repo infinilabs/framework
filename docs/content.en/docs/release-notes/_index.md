@@ -34,6 +34,7 @@ Information about release notes of INFINI Framework is provided here.
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- feat(data migration): improve partitioning, bulk queue recovery, pipeline result visibility, and migration path handling #368
 - chore: API Handler Registration Improvements #283
 - refactor: add priority ordering to HTTP auth filter pipeline; new `RegisterHTTPAuthFilterProviderWithPriority` API #370
 - refactor: use PathUnescape to decode query param filter #249

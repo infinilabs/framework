@@ -21,21 +21,33 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package elastic
+package adapter
 
-import "time"
+import (
+	"testing"
 
-type CommandRequest struct {
-	Path   string `json:"path"`
-	Method string `json:"method"`
-	Body   string `json:"body"`
-}
+	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/orm"
+)
 
-type CommonCommand struct {
-	ID       string           `json:"-" index:"id"`
-	Title    string           `json:"title" elastic_mapping:"title:{type:text,fields:{keyword:{type:keyword}}}"`
-	Tag      []string         `json:"tag" elastic_mapping:"tag:{type:keyword}"`
-	Creator  string           `json:"creator,omitempty" elastic_mapping:"creator:{type:keyword}"`
-	Requests []CommandRequest `json:"requests" elastic_mapping:"requests:{type:object}"`
-	Created  time.Time        `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+func TestGetClusterUUIDFallsBackToConfigWhenMetadataMissing(t *testing.T) {
+	cfg := elastic.ElasticsearchConfig{
+		ORMObjectBase: orm.ORMObjectBase{ID: "test-cluster-uuid-fallback"},
+		Name:          "test-cluster-uuid-fallback",
+		ClusterUUID:   "cluster-uuid-fallback",
+	}
+
+	t.Cleanup(func() {
+		elastic.RemoveInstance(cfg.ID)
+	})
+
+	elastic.UpdateConfig(cfg)
+
+	clusterUUID, err := GetClusterUUID(cfg.ID)
+	if err != nil {
+		t.Fatalf("expected cluster uuid from config fallback, got error: %v", err)
+	}
+	if clusterUUID != cfg.ClusterUUID {
+		t.Fatalf("expected cluster uuid %q, got %q", cfg.ClusterUUID, clusterUUID)
+	}
 }

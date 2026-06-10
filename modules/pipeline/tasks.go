@@ -80,11 +80,20 @@ func (module *PipeModule) getPipelineTaskStatus(id string, config string, proces
 		return nil
 	}
 	ret := &PipelineTaskStatus{
-		State:      c1.GetRunningState(),
-		CreateTime: c1.GetCreateTime(),
-		StartTime:  c1.GetStartTime(),
-		EndTime:    c1.GetEndTime(),
-		Context:    c1.CloneData(),
+		State: c1.GetRunningState(),
+		// Keep the current runtime state and the last completed result separate so migration
+		// callers can tell a stopped task from a run that already finished or failed.
+		LastRunState: c1.GetResultState(),
+		CreateTime:   c1.GetCreateTime(),
+		StartTime:    c1.GetStartTime(),
+		EndTime:      c1.GetEndTime(),
+		Context:      c1.CloneData(),
+	}
+	if ret.LastRunState == pipeline.FINISHED || ret.LastRunState == pipeline.FAILED {
+		ret.Result = &PipelineResult{
+			Success: c1.GetResultError() == "",
+			Error:   c1.GetResultError(),
+		}
 	}
 	if config != "false" {
 		v1, ok := module.configs.Load(id)
