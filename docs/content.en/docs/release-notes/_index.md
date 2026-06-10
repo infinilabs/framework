@@ -30,6 +30,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: smtp processor support parse dynamic content attachments from message #374
 - feat: add static rule based authorization #375
 - feat: allow to specify OS user when installing the service #380
+- feat: only return tokens owned by the current user #381
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
@@ -56,6 +57,7 @@ Information about release notes of INFINI Framework is provided here.
 - chore: udpate update desc to api token, fix permission #372
 - chore: unify permission in user's session #379
 - chore: skip module start in service control mode #380
+- chore: register access_token api only if the feature is enabled #381
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  
