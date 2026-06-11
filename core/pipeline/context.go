@@ -299,7 +299,6 @@ func (ctx *Context) Errors() []error {
 	return ctx.processErrs
 }
 
-<<<<<<< HEAD
 func (ctx *Context) GetResultState() RunningState {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
@@ -314,10 +313,7 @@ func (ctx *Context) GetResultError() string {
 	return formatPipelineResultError(ctx.exitErr, ctx.processErrs)
 }
 
-// Pause will pause the pipeline running loop until Resume called
-=======
 // Pause suspends the goroutine that is running this pipeline.
->>>>>>> origin/main
 func (ctx *Context) Pause() {
 	ctx.stateLock.Lock()
 	if ctx.isPaused {

@@ -7,10 +7,7 @@ package security
 import (
 	"fmt"
 	"net/http"
-<<<<<<< HEAD
 	"sync"
-=======
->>>>>>> origin/main
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"

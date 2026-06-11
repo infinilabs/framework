@@ -336,10 +336,6 @@ type AuthenticationConfig struct {
 	OAuth                 map[string]OAuthConfig `config:"oauth"`
 }
 
-<<<<<<< HEAD
-type AccessTokenConfig struct {
-	Native RealmConfig `config:"native"`
-=======
 // AccessTokenConfig controls API access-token management.
 //
 // When Native is true (default when the native realm is enabled) tokens are
@@ -349,7 +345,6 @@ type AccessTokenConfig struct {
 type AccessTokenConfig struct {
 	Enabled bool `config:"enabled"`
 	Native  bool `config:"native"`
->>>>>>> origin/main
 }
 
 type HTTPBasicAuthProvider struct {

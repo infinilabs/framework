@@ -64,10 +64,6 @@ require (
 	golang.org/x/text v0.36.0
 	golang.org/x/time v0.11.0
 	golang.org/x/tools v0.44.0
-<<<<<<< HEAD
-	google.golang.org/grpc v1.71.1
-=======
->>>>>>> origin/main
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/hjson/hjson-go.v3 v3.3.0
@@ -132,10 +128,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-<<<<<<< HEAD
-=======
 	github.com/tetratelabs/wazero v1.9.0 // indirect
->>>>>>> origin/main
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect

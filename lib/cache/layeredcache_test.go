@@ -230,28 +230,16 @@ func Test_LayeredCache_ResizeOnTheFly(t *testing.T) {
 	}
 	cache.SetMaxSize(3)
 	time.Sleep(time.Millisecond * 100)
-<<<<<<< HEAD
-	assert.Equal(t, cache.GetDropped(), 2)
-=======
 	assert.GreaterOrEqual(t, cache.GetDropped(), 1)
->>>>>>> origin/main
 	assert.Nil(t, cache.Get("0", "a"))
 	assert.NotNil(t, cache.Get("4", "a"))
 
 	cache.Set("5", "a", 5, time.Minute)
 	time.Sleep(time.Millisecond * 100)
-<<<<<<< HEAD
-	assert.Equal(t, cache.GetDropped(), 1)
-	assert.Nil(t, cache.Get("2", "a"))
-	assert.Equal(t, cache.Get("3", "a").Value(), 3)
-	assert.Equal(t, cache.Get("4", "a").Value(), 4)
-	assert.Equal(t, cache.Get("5", "a").Value(), 5)
-=======
 	assert.GreaterOrEqual(t, cache.GetDropped(), 1)
 	item5 := cache.Get("5", "a")
 	assert.NotNil(t, item5)
 	assert.Equal(t, item5.Value(), 5)
->>>>>>> origin/main
 
 	cache.SetMaxSize(10)
 	cache.Set("6", "a", 6, time.Minute)

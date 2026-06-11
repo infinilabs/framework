@@ -79,18 +79,6 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 
 	var claims *UserClaims
 
-<<<<<<< HEAD
-	authHTTPFilterProvider.Range(func(key, value any) bool {
-		log.Trace("checking auth filter: ", key)
-		f, ok := value.(HTTPAuthFilterProvider)
-		if ok {
-			if claims == nil || !claims.UserSessionInfo.IsValid() {
-				claims, err = f(w, r)
-				if claims != nil {
-					log.Trace("get valid auth info from: ", key)
-					return false
-				}
-=======
 	authFilterMu.RLock()
 	entries := make([]namedFilterEntry, len(authFilterProviders))
 	copy(entries, authFilterProviders)
@@ -103,7 +91,6 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 			if claims != nil {
 				log.Debug("get valid auth info from: ", entry.name)
 				break
->>>>>>> origin/main
 			}
 		}
 	}
