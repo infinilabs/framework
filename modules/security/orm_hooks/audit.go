@@ -25,6 +25,7 @@ func isMissingAuditSchemaError(err error) bool {
 		strings.Contains(message, "resource_not_found_exception")
 }
 
+//won't miss an audit message
 func saveAuditWithSchemaRepair(ctx *orm.Context, audit *event.Audit) error {
 	err := orm.Save(ctx, audit)
 	if !isMissingAuditSchemaError(err) {
