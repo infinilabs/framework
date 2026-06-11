@@ -57,9 +57,6 @@ func (module *WebModule) Setup() {
 
 func (module *WebModule) Start() error {
 	if global.Env().SystemConfig.WebAppConfig.Enabled {
-		if err := uis.ValidateServerExposureConfig(global.Env().SystemConfig); err != nil {
-			return err
-		}
 		uis.StartWeb(global.Env().SystemConfig.WebAppConfig)
 	}
 	return nil

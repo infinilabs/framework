@@ -187,10 +187,9 @@ func (module *APIModule) Setup() {
 }
 
 func (module *APIModule) Start() error {
-	if err := api.ValidateServerExposureConfig(global.Env().SystemConfig); err != nil {
-		return err
+	if global.Env().SystemConfig.APIConfig.Enabled {
+		api.StartAPI()
 	}
-	api.StartAPI()
 	return nil
 }
 
