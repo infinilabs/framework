@@ -137,11 +137,10 @@ func GetClientTLSConfig(tlsConfig *config.TLSConfig) (*tls.Config, error) {
 		clientConfig.ServerName = "localhost"
 	}
 
-	//skip domain verify if skip tls verify
-	if !tlsConfig.TLSInsecureSkipVerify {
-		if tlsConfig.SkipDomainVerify {
-			clientConfig.VerifyPeerCertificate = util.GetSkipHostnameVerifyFunc(pool)
-		}
+	// Skip hostname verification while still validating the certificate chain.
+	if tlsConfig.SkipDomainVerify && !tlsConfig.TLSInsecureSkipVerify {
+		clientConfig.InsecureSkipVerify = true
+		clientConfig.VerifyPeerCertificate = util.GetSkipHostnameVerifyFunc(pool)
 	}
 
 	return clientConfig, nil
