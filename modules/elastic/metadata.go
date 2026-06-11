@@ -194,6 +194,12 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 			},
 		},
 	}
+	log.Infof(
+		"[health_activity_trace] source=updateClusterHealthStatus event=cluster_health_change cluster_id=%s from=%v to=%v",
+		clusterID,
+		oldHealthStatus,
+		healthStatus,
+	)
 	if healthStatus == "red" {
 		targetClient := elastic.GetClient(clusterID)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1131,6 +1137,11 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID, clusterUUID
 										},
 									},
 								}
+								log.Infof(
+									"[health_activity_trace] source=saveNodeMetadata event=node_health_change cluster_id=%s node_id=%s to=available",
+									clusterID,
+									rawNodeID,
+								)
 								ctx1 := orm.NewContext().DirectAccess()
 								err = orm.Save(ctx1, activityInfo)
 								if err != nil {
@@ -1252,6 +1263,12 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID, clusterUUID
 				},
 			},
 		}
+		log.Infof(
+			"[health_activity_trace] source=saveNodeMetadata event=node_health_change cluster_id=%s node_id=%s node_uuid=%s to=unavailable",
+			clusterID,
+			oldConfig.Metadata.NodeID,
+			nodeID,
+		)
 		err = orm.Save(ctx1, activityInfo)
 		if err != nil {
 			log.Error(err)
