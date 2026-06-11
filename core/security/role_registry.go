@@ -159,9 +159,11 @@ func (rr *RoleRegistry) GetPermissionsForRole(role string) ([]PermissionKey, boo
 	return permList, true
 }
 
-// TODO cache, catch permission updates
 func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
-	permissions := user.Permissions
+	if user==nil{
+		return  []PermissionKey{}
+	}
+	permissions := user.GetPermissionKeys()
 
 	//get permissions by user
 	p1, _ := getPermissionKeysByUser(user)
@@ -173,6 +175,17 @@ func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 		permissions = append(permissions, permissionsFromRoles...)
 	}
 
+	unique := make(map[PermissionKey]struct{}, len(permissions))
+	deDuplicated := make([]PermissionKey, 0, len(permissions))
+	for _, permission := range permissions {
+		if _, exists := unique[permission]; exists {
+			continue
+		}
+		unique[permission] = struct{}{}
+		deDuplicated = append(deDuplicated, permission)
+	}
+	permissions = deDuplicated
+
 	sort.Slice(permissions, func(i, j int) bool {
 		return permissions[i] < permissions[j]
 	})
@@ -181,6 +194,9 @@ func GetAllPermissionsForUser(user *UserSessionInfo) []PermissionKey {
 }
 
 func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
+	if user==nil{
+		return  []PermissionKey{},nil
+	}
 
 	ctx1 := context.Background()
 	if val, ok := user.GetStringArray(orm.TeamsIDKey); ok {
@@ -192,7 +208,7 @@ func getPermissionKeysByUser(user *UserSessionInfo) ([]PermissionKey, error) {
 		p, ok := value.(AuthorizationBackend)
 		if ok {
 			hit = true
-			v := p.GetPermissionKeysByUserID(ctx1, user.Provider, user.UserID)
+			v := p.GetPermissionKeysByUserID(ctx1, user.Provider, user.UserID, user.Login)
 			out = append(out, v...)
 		}
 		return true

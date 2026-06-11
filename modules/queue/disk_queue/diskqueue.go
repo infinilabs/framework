@@ -147,6 +147,26 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 		log.Errorf("diskqueue(%s) failed to repair tail metadata - %s", d.name, repairErr)
 	}
 
+	// Always advance to a new segment on process restart to prevent data loss
+	// or corruption from overwriting existing segment files.
+	// Skip advancing if the current segment has zero messages.
+	if err == nil && d.writePos > 0 && d.depth > 0 {
+		log.Debugf("diskqueue(%s): advancing to new segment on restart (previous segment: %d, pos: %d)",
+			d.name, d.writeSegmentNum, d.writePos)
+
+		// Notify listeners about the completed segment before advancing
+		Notify(d.name, WriteComplete, d.writeSegmentNum)
+
+		d.writeSegmentNum++
+		d.writePos = 0
+
+		// Persist updated metadata immediately
+		persistErr := d.persistMetaData()
+		if persistErr != nil {
+			log.Errorf("diskqueue(%s) failed to persist metadata after segment advance - %s", d.name, persistErr)
+		}
+	}
+
 	_, ok := queue.GetConsumerConfigsByQueueID(d.name)
 	if ok {
 		d.consumerMode = true

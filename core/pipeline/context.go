@@ -93,12 +93,21 @@ type Context struct {
 	id    string
 	steps int64
 
-	cancelFunc   context.CancelFunc
-	isPaused     bool
-	pause        sync.WaitGroup
-	isQuit       bool
-	stateLock    sync.Mutex
-	released     bool
+	// cancelFunc closes the Done channel of the embedded context.Context,
+	// signaling processors to stop early.
+	//
+	// This is a cooperative mechanism: it only takes effect if the processor's process()
+	// implementation explicitly checks IsCanceled() and returns when it is true.
+	cancelFunc context.CancelFunc
+	// True means the goroutine has been paused/suspended.
+	isPaused bool
+	pause    sync.WaitGroup
+	// Set this to true if you want to stop the pipeline, and then, pause (suspend) the goroutine.
+	isQuit    bool
+	stateLock sync.Mutex
+	// Set this to true if you want to let the goroutine exit, i.e., the kill signal.
+	released bool
+	// True means the goroutine already exited.
 	loopReleased bool
 }
 
@@ -107,6 +116,7 @@ func AcquireContext(config PipelineConfigV2) *Context {
 	ctx.ResetContext()
 	ctx.id = util.GetUUID()
 	ctx.createTime = time.Now()
+	// Placeholder state; the pipeline task execution loop will overwrite this.
 	ctx.runningState = FINISHED
 	ctx.Config = config
 	return &ctx
@@ -289,6 +299,7 @@ func (ctx *Context) Errors() []error {
 	return ctx.processErrs
 }
 
+<<<<<<< HEAD
 func (ctx *Context) GetResultState() RunningState {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
@@ -304,6 +315,9 @@ func (ctx *Context) GetResultError() string {
 }
 
 // Pause will pause the pipeline running loop until Resume called
+=======
+// Pause suspends the goroutine that is running this pipeline.
+>>>>>>> origin/main
 func (ctx *Context) Pause() {
 	ctx.stateLock.Lock()
 	if ctx.isPaused {
@@ -317,7 +331,7 @@ func (ctx *Context) Pause() {
 	ctx.pause.Wait()
 }
 
-// Resume recovers pipeline from Pause
+// Resume wakes up the goroutine that was suspended by Pause.
 func (ctx *Context) Resume() {
 	ctx.stateLock.Lock()
 	if !ctx.isPaused {

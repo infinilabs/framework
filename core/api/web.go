@@ -510,6 +510,14 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 				log.Tracef("no previous api found, create: [%v] [%v], priority: [%v]", method, pattern, opts.Priority)
 			}
 		}
+	} else {
+		// Override is set, but still respect priority if previous also has Override
+		previous, ok := registeredUIMethodHandler[method][pattern]
+		if ok && previous.Options.Override && previous.Options.Priority > opts.Priority {
+			log.Tracef("skip override api: [%v] [%v], previous override has higher priority: [%v] > [%v]", method, pattern, previous.Options.Priority, opts.Priority)
+			return
+		}
+		log.Tracef("override api: [%v] [%v], priority: [%v]", method, pattern, opts.Priority)
 	}
 
 	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}

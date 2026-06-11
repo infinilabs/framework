@@ -27,11 +27,19 @@ Information about release notes of INFINI Framework is provided here.
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
 - feat: add access_token to security #359
+<<<<<<< HEAD
 - feat(security): add native account login challenge, replay protection, and secure transport helpers
+=======
+- feat: smtp processor support parse dynamic content attachments from message #374
+- feat: add static rule based authorization #375
+- feat: allow to specify OS user when installing the service #380
+- feat: only return tokens owned by the current user #381
+>>>>>>> origin/main
 
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
 - chore: API Handler Registration Improvements #283
+- refactor: add priority ordering to HTTP auth filter pipeline; new `RegisterHTTPAuthFilterProviderWithPriority` API #370
 - refactor: use PathUnescape to decode query param filter #249
 - chore: move entity provider to non-managed mode #250
 - chore: always enable orm hooks #250
@@ -50,7 +58,14 @@ Information about release notes of INFINI Framework is provided here.
 - chore: security configuration structure enhanced
 - chore: remove unused grpc and cuckoo filter"
 - chore: update seelog for vfs #363
+<<<<<<< HEAD
 
+=======
+- chore: udpate update desc to api token, fix permission #372
+- chore: unify permission in user's session #379
+- chore: skip module start in service control mode #380
+- chore: register access_token api only if the feature is enabled #381
+>>>>>>> origin/main
 
 ## 1.4.0 (2025-12-19)
 ### ❌ Breaking changes  

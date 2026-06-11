@@ -336,8 +336,20 @@ type AuthenticationConfig struct {
 	OAuth                 map[string]OAuthConfig `config:"oauth"`
 }
 
+<<<<<<< HEAD
 type AccessTokenConfig struct {
 	Native RealmConfig `config:"native"`
+=======
+// AccessTokenConfig controls API access-token management.
+//
+// When Native is true (default when the native realm is enabled) tokens are
+// persisted via ORM in addition to KV. When Native is false the module runs
+// in KV-only mode — suitable for agent-style deployments without an ORM
+// backend.
+type AccessTokenConfig struct {
+	Enabled bool `config:"enabled"`
+	Native  bool `config:"native"`
+>>>>>>> origin/main
 }
 
 type HTTPBasicAuthProvider struct {
@@ -348,7 +360,19 @@ type HTTPBasicAuthProvider struct {
 }
 
 type AuthorizationConfig struct {
-	Native RealmConfig `config:"native"`
+	Native RealmConfig               `config:"native"`
+	Static StaticAuthorizationConfig `config:"static"`
+}
+
+type StaticAuthorizationConfig struct {
+	Enabled     bool                `config:"enabled"`
+	Roles       []StaticRoleConfig  `config:"roles"`
+	RoleMapping map[string][]string `config:"role_mapping"`
+}
+
+type StaticRoleConfig struct {
+	Name        string   `config:"name" json:"name,omitempty"`
+	Permissions []string `config:"permissions" json:"permissions,omitempty"`
 }
 
 type APISecurityConfig struct {

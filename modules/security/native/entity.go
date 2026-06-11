@@ -2,7 +2,7 @@
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-package rbac
+package native
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func (this *UserEntityProvider) GenEntityInfo(ctx context.Context, t string, id 
 		card.Icon = "circle-user"
 		card.Title = u.Name
 		card.Subtitle = u.Email
-		card.Cover = "https://blog.infinilabs.com/images/posts/2024/welcome-to-our-blog_hu8043560849171410142.jpg"
+		//card.Cover = "https://blog.infinilabs.com/images/posts/2024/welcome-to-our-blog_hu8043560849171410142.jpg"
 		return &card
 	} else {
 		return nil

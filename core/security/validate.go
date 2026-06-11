@@ -6,6 +6,7 @@ package security
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -78,6 +79,7 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 
 	var claims *UserClaims
 
+<<<<<<< HEAD
 	authHTTPFilterProvider.Range(func(key, value any) bool {
 		log.Trace("checking auth filter: ", key)
 		f, ok := value.(HTTPAuthFilterProvider)
@@ -88,10 +90,23 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 					log.Trace("get valid auth info from: ", key)
 					return false
 				}
+=======
+	authFilterMu.RLock()
+	entries := make([]namedFilterEntry, len(authFilterProviders))
+	copy(entries, authFilterProviders)
+	authFilterMu.RUnlock()
+
+	for _, entry := range entries {
+		log.Trace("checking auth filter: ", entry.name)
+		if claims == nil || !claims.UserSessionInfo.IsValid() {
+			claims, err = entry.fn(w, r)
+			if claims != nil {
+				log.Debug("get valid auth info from: ", entry.name)
+				break
+>>>>>>> origin/main
 			}
 		}
-		return true
-	})
+	}
 
 	if claims == nil || !claims.UserSessionInfo.IsValid() || err != nil {
 		err = errors.Errorf("invalid user info: %v", err)
@@ -101,14 +116,40 @@ func ValidateLogin(w http.ResponseWriter, r *http.Request) (session *UserSession
 	return claims.UserSessionInfo, nil
 }
 
-var authHTTPFilterProvider = sync.Map{}
+type namedFilterEntry struct {
+	name     string
+	priority int
+	fn       HTTPAuthFilterProvider
+}
+
+var (
+	authFilterMu        sync.RWMutex
+	authFilterProviders []namedFilterEntry
+)
 
 type HTTPAuthFilterProvider func(w http.ResponseWriter, r *http.Request) (claims *UserClaims, err error)
 
+// RegisterHTTPAuthFilterProviderWithPriority registers an auth filter provider with an explicit priority.
+// Smaller priority values execute first (higher precedence).
+func RegisterHTTPAuthFilterProviderWithPriority(name string, f HTTPAuthFilterProvider, priority int) {
+	authFilterMu.Lock()
+	defer authFilterMu.Unlock()
+
+	entry := namedFilterEntry{name: name, priority: priority, fn: f}
+	i := sort.Search(len(authFilterProviders), func(i int) bool {
+		return authFilterProviders[i].priority >= priority
+	})
+	authFilterProviders = append(authFilterProviders, namedFilterEntry{})
+	copy(authFilterProviders[i+1:], authFilterProviders[i:])
+	authFilterProviders[i] = entry
+}
+
+// RegisterHTTPAuthFilterProvider registers an auth filter provider with the default priority (100).
+// It executes after any provider registered with an explicit priority lower than 100.
 func RegisterHTTPAuthFilterProvider(name string, f HTTPAuthFilterProvider) {
-	authHTTPFilterProvider.Store(name, f)
+	RegisterHTTPAuthFilterProviderWithPriority(name, f, 100)
 }
 
 func init() {
-	RegisterHTTPAuthFilterProvider("bearer_token", byAuthorizationHeader)
+	RegisterHTTPAuthFilterProviderWithPriority("bearer_token", byAuthorizationHeader, 20)
 }

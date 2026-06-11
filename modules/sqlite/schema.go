@@ -21,20 +21,46 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-/*
-Copyright Medcl (m AT medcl.net)
+package sqlite
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+import (
+	"fmt"
+	"sync"
 
-   http://www.apache.org/licenses/LICENSE-2.0
+	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/util"
+)
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+var tableNames = sync.Map{}
 
-package rpc
+func getTableName(any interface{}) string {
+	pkg, t := util.GetTypeAndPackageName(any, true)
+	key := fmt.Sprintf("%s-%s", pkg, t)
+	v, ok := tableNames.Load(key)
+	if ok {
+		return v.(string)
+	}
+	return t
+}
+
+func initTableName(t interface{}, tableName string) string {
+	pkg, objType := util.GetTypeAndPackageName(t, true)
+	key := fmt.Sprintf("%s-%s", pkg, objType)
+	if tableName != "" {
+		v, ok := tableNames.Load(tableName)
+		if ok {
+			if v == key {
+				log.Warnf("duplicated schema %v, %s", tableName, key)
+				return tableName
+			}
+			panic(errors.Errorf("table name [%s][%s] already registered!", tableName, key))
+		}
+	} else {
+		tableName = objType
+	}
+
+	tableNames.Store(key, tableName)
+	tableNames.Store(tableName, key)
+	return tableName
+}

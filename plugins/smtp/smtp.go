@@ -31,6 +31,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -104,6 +105,13 @@ type Attachment struct {
 	ContentType string `config:"content_type"`
 	Inline      bool   `config:"inline"`
 	CID         string `config:"cid"`
+}
+
+// ContentAttachment represents a dynamic attachment with inline content (not from a file).
+type ContentAttachment struct {
+	Filename    string
+	Content     string
+	ContentType string
 }
 
 func init() {
@@ -297,7 +305,30 @@ func (processor *SMTPProcessor) Process(ctx *pipeline.Context) error {
 
 			//send email
 			log.Infof("start to send mail to: %v, subject: %v", sendTo, subj)
-			err = processor.send(srvCfg, sendTo, cc, subj, ctype, cBody, tmplate.Attachments)
+
+			// Parse dynamic content attachments from message
+			var contentAttachments []ContentAttachment
+			if rawAttachments, ok := o["attachments"].([]interface{}); ok {
+				for _, rawAtt := range rawAttachments {
+					if att, ok := rawAtt.(map[string]interface{}); ok {
+						ca := ContentAttachment{}
+						if fn, ok := att["filename"].(string); ok {
+							ca.Filename = fn
+						}
+						if ct, ok := att["content"].(string); ok {
+							ca.Content = ct
+						}
+						if ctype, ok := att["content_type"].(string); ok {
+							ca.ContentType = ctype
+						}
+						if ca.Filename != "" && ca.Content != "" {
+							contentAttachments = append(contentAttachments, ca)
+						}
+					}
+				}
+			}
+
+			err = processor.send(srvCfg, sendTo, cc, subj, ctype, cBody, tmplate.Attachments, contentAttachments)
 			if err != nil {
 				panic(err)
 			}
@@ -323,7 +354,7 @@ func AddCC(msg *gomail.Message, ccs []map[string]string) {
 
 }
 
-func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []string, subject, contentType, body string, attachments []Attachment) error {
+func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []string, subject, contentType, body string, attachments []Attachment, contentAttachments []ContentAttachment) error {
 
 	if len(to) == 0 {
 		return errors.New("no recipient found")
@@ -343,14 +374,41 @@ func (processor *SMTPProcessor) send(srvCfg *ServerConfig, to []string, ccs []st
 	// Add HTML content to the message
 	message.SetBody(contentType, body)
 
-	// Attach the image
+	// Inline assets use CID + Embed; regular attachments use Attach.
 	for _, attachment := range attachments {
-		h := map[string][]string{
-			"Content-ID":          {attachment.CID},
-			"Content-Type":        {attachment.ContentType},
-			"Content-Disposition": {"attachment; filename=\"" + filepath.Base(attachment.File) + "\""},
+		h := map[string][]string{}
+		if attachment.ContentType != "" {
+			h["Content-Type"] = []string{attachment.ContentType}
 		}
-		message.Embed(attachment.File, gomail.SetHeader(h))
+
+		cid := strings.TrimSpace(strings.Trim(attachment.CID, "<>"))
+		if cid != "" {
+			h["Content-ID"] = []string{"<" + cid + ">"}
+		}
+
+		fileName := filepath.Base(attachment.File)
+		if attachment.Inline || cid != "" {
+			h["Content-Disposition"] = []string{"inline; filename=\"" + fileName + "\""}
+			message.Embed(attachment.File, gomail.SetHeader(h))
+			continue
+		}
+
+		h["Content-Disposition"] = []string{"attachment; filename=\"" + fileName + "\""}
+		message.Attach(attachment.File, gomail.SetHeader(h))
+	}
+
+	// Attach dynamic content-based attachments
+	for _, ca := range contentAttachments {
+		h := map[string][]string{}
+		if ca.ContentType != "" {
+			h["Content-Type"] = []string{ca.ContentType}
+		}
+		h["Content-Disposition"] = []string{"attachment; filename=\"" + ca.Filename + "\""}
+		content := ca.Content
+		message.Attach(ca.Filename, gomail.SetHeader(h), gomail.SetCopyFunc(func(w io.Writer) error {
+			_, err := io.WriteString(w, content)
+			return err
+		}))
 	}
 
 	// set default TLS min version to TLS 1.2 for security when not specified

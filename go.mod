@@ -38,6 +38,7 @@ require (
 	github.com/mailru/easyjson v0.9.0
 	github.com/minio/minio-go/v7 v7.0.90
 	github.com/mitchellh/mapstructure v1.5.0
+	github.com/ncruces/go-sqlite3 v0.25.0
 	github.com/nsqio/nsq v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/r3labs/diff/v2 v2.15.1
@@ -63,7 +64,10 @@ require (
 	golang.org/x/text v0.36.0
 	golang.org/x/time v0.11.0
 	golang.org/x/tools v0.44.0
+<<<<<<< HEAD
 	google.golang.org/grpc v1.71.1
+=======
+>>>>>>> origin/main
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/hjson/hjson-go.v3 v3.3.0
@@ -114,6 +118,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -127,6 +132,10 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+<<<<<<< HEAD
+=======
+	github.com/tetratelabs/wazero v1.9.0 // indirect
+>>>>>>> origin/main
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect

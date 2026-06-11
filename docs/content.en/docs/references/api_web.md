@@ -362,6 +362,277 @@ api.HandleUIMethod(api.GET, "/health", handler.healthCheck,
     api.AllowPublicAccess())
 ```
 
+### Static Rules-Based Authorization
+
+The framework supports declarative, config-driven role and permission assignment via the `static` authorization backend. This allows administrators to define roles with specific permissions and map users (by ID or login name) to those roles — all without a database.
+
+#### Configuration
+
+```yaml
+web:
+  security:
+    enabled: true
+    authorization:
+      static:
+        enabled: true
+        roles:
+          - name: "viewer"
+            permissions:
+              - "generic:cluster:read"
+              - "generic:cluster:search"
+          - name: "operator"
+            permissions:
+              - "generic:cluster:*"
+              - "generic:node:*"
+          - name: "superadmin"
+            permissions:
+              - "*"   # Grant all permissions
+        role_mapping:
+          admin: ["superadmin"]          # user login "admin" → superadmin role
+          ci-bot: ["operator"]           # user login "ci-bot" → operator role
+          readonly-user: ["viewer"]      # user login "readonly-user" → viewer role
+```
+
+#### How It Works
+
+1. **Roles** define named sets of permission keys. A permission of `"*"` grants all permissions.
+2. **Role mapping** assigns one or more roles to users by their login name or user ID.
+3. When `GetUserPermissions` is called for a user, the static provider's `GetPermissionKeysByUserID` resolves the user's mapped roles and returns the union of all permissions from those roles.
+4. Both `userID` (UUID) and `login` (username) are checked against the role mapping — so you can use either as the mapping key.
+
+#### Permission Key Format
+
+Permission keys follow the pattern: `category:resource:action`
+
+```
+generic:cluster:read       # Read access to clusters
+generic:node:*             # All actions on nodes (wildcard)
+coco:datasource:create     # Create datasources in coco category
+*                          # All permissions (admin shortcut)
+```
+
+Standard actions: `read`, `write`, `create`, `update`, `delete`, `search`, `execute`.
+
+#### Architecture
+
+The static authorization module is one of several `AuthorizationBackend` providers. All providers are queried in parallel when resolving user permissions:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GetUserPermissions(session)                   │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Check permission cache                                      │
+│  2. If miss: call GetAllPermissionsForUser                      │
+│     ├─ static_authorization.GetPermissionKeysByUserID(...)      │
+│     │   → looks up role_mapping[userID] and role_mapping[login] │
+│     │   → resolves roles → returns permission keys              │
+│     ├─ native.GetPermissionKeysByUserID(...)                    │
+│     │   → looks up DB-stored role assignments                   │
+│     ├─ oauth.GetPermissionKeysByUserID(...)                     │
+│     │   → checks bootstrap admin users                          │
+│     └─ access_token.GetPermissionKeysByUserID(...)              │
+│         → returns token-scoped permissions                      │
+│  3. Merge + deduplicate all permission keys                     │
+│  4. Also resolve permissions from session.Roles via             │
+│     GetPermissionKeysByRoles (for DB-assigned roles)            │
+│  5. Cache result for 30 minutes                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### AuthorizationBackend Interface
+
+Custom authorization providers implement:
+
+```go
+type AuthorizationBackend interface {
+    // GetPermissionKeysByUserID resolves permissions for a user identified by
+    // userID (UUID) and login (username). The provider should check both identifiers.
+    GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []PermissionKey
+
+    // GetPermissionKeysByRoles resolves permissions for a set of role names.
+    GetPermissionKeysByRoles(ctx context.Context, roles []string) []PermissionKey
+}
+```
+
+Register a custom provider:
+
+```go
+security.RegisterAuthorizationProvider("my_backend", &myProvider{})
+```
+
+#### Admin Role Bypass
+
+The permission filter provides a fast-path for users whose `session.Roles` contains `"admin"` — permission resolution is skipped entirely and all requests are allowed. This applies to roles stored on the user account; static role mappings contribute permissions but do not set `session.Roles` (they are resolved at permission-check time via `GetPermissionKeysByUserID`).
+
+#### Filter Pipeline
+
+The security filter pipeline processes requests in priority order:
+
+| Priority | Filter | Responsibility |
+|----------|--------|---------------|
+| `200` | **AuthFilter** | Authenticate request, run context resolvers, store user in context |
+| `500` | **PermissionFilter** | Check `session.Roles` for admin bypass, then lazy-resolve permissions via `GetUserPermissions` and enforce required permissions |
+
+The permission filter only resolves permissions when a route declares `RequirePermission(...)`. Routes without permission requirements skip authorization entirely.
+
+### Pluggable Auth Filter Pipeline
+
+Incoming requests are authenticated through a priority-ordered pipeline of `HTTPAuthFilterProvider` functions. Each provider attempts to extract and validate credentials from the request; the first one that returns valid claims short-circuits the chain.
+
+#### Built-in Providers
+
+| Priority | Name | Mechanism |
+|----------|------|-----------|
+| `10` | `session_token` | HTTP session / cookie |
+| `20` | `bearer_token` | `Authorization: Bearer <jwt>` header |
+| `30` | `api_token` | `X-API-TOKEN` header |
+
+**Smaller priority values execute first** (higher precedence), consistent with the framework-wide convention.
+
+#### Registering a Custom Provider
+
+```go
+import "infini.sh/framework/core/security"
+
+func init() {
+    // With explicit priority (smaller value = higher precedence)
+    security.RegisterHTTPAuthFilterProviderWithPriority(
+        "my_auth",          // unique name (used in logs)
+        myAuthProvider,     // func(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error)
+        15,                 // executes after session_token (10) but before bearer_token (20)
+    )
+
+    // Without priority — defaults to 100 (executes after all built-in providers)
+    security.RegisterHTTPAuthFilterProvider("my_auth", myAuthProvider)
+}
+
+func myAuthProvider(w http.ResponseWriter, r *http.Request) (*security.UserClaims, error) {
+    // Extract and validate credentials; return nil claims on failure
+    ...
+}
+```
+
+Providers registered with the same priority value are tried in registration order.
+
+### Access Token Authentication
+
+The framework provides a built-in access token (API token) module for programmatic authentication. Access tokens allow services and automation tools to authenticate API requests without interactive login sessions.
+
+#### How It Works
+
+Requests carrying an `X-API-TOKEN` header are automatically authenticated by the framework's HTTP auth filter pipeline. The token is validated against the KV store, checked for expiration, and the caller is granted the intersection of the token's permissions and its owner's current permissions (in native mode).
+
+#### Configuration
+
+Enable access token authentication in the web server security configuration:
+
+```yaml
+web:
+  security:
+    enabled: true
+    authentication:
+      access_token:
+        native: true   # Use ORM-backed persistence (requires a backend store)
+```
+
+When `native` is `false`, the module operates in KV-only mode suitable for lightweight/agent-style deployments without a full ORM backend.
+
+#### API Endpoints
+
+| Method | Path | Description | Permission |
+|--------|------|-------------|------------|
+| `POST` | `/auth/access_token` | Create a new access token | `security:auth:api-token:create` |
+| `GET` | `/auth/access_token/_search` | Search/list access tokens | `security:auth:api-token:search` |
+| `PUT` | `/auth/access_token/:token_id` | Update an access token | `security:auth:api-token:update` |
+| `DELETE` | `/auth/access_token/:token_id` | Delete an access token | `security:auth:api-token:delete` |
+
+#### Creating an Access Token
+
+Send a `POST` request to `/auth/access_token` (requires an authenticated session):
+
+**Request:**
+
+```json
+{
+  "name": "my-ci-token",
+  "permissions": ["category:resource:read", "category:resource:search"]
+}
+```
+
+- `name` (optional): A human-readable name for the token. Auto-generated if omitted.
+- `permissions` (optional): A subset of the caller's own permissions to assign to the token. If omitted, the token inherits all of the caller's permissions.
+
+**Response:**
+
+```json
+{
+  "_id": "token-uuid",
+  "access_token": "generated-token-string",
+  "expire_in": 1748102400
+}
+```
+
+The `access_token` value is the secret string used in subsequent API calls. Store it securely — it cannot be retrieved again after creation.
+
+#### Using an Access Token
+
+Include the token in the `X-API-TOKEN` HTTP header:
+
+```bash
+curl -H "X-API-TOKEN: <your-access-token>" https://localhost:9200/_api/resource/_search
+```
+
+#### Updating an Access Token
+
+Send a `PUT` request to `/auth/access_token/:token_id`:
+
+```json
+{
+  "name": "renamed-token",
+  "permissions": ["category:resource:read"]
+}
+```
+
+- `name` (required): The new name for the token.
+- `permissions` (optional): Updated permissions. Must be a subset of the caller's current permissions.
+
+#### Deleting an Access Token
+
+Send a `DELETE` request to `/auth/access_token/:token_id`. The token is immediately invalidated and can no longer be used for authentication.
+
+#### Token Expiration
+
+Tokens are created with a default expiration of 1 year. A token with `expire_in` set to `-1` never expires. Expired tokens are rejected at authentication time.
+
+#### Permission Model
+
+In **native mode**, the effective permissions of a token are computed as:
+
+$$\text{effective} = \text{token\_permissions} \cap \text{owner\_current\_permissions}$$
+
+This ensures that if a user's permissions are revoked after a token is issued, the token's effective permissions are automatically narrowed. Permission changes take effect immediately (the permission cache version is incremented on every token update/delete).
+
+In **non-native (KV-only) mode**, the token's stored permissions are used directly without intersection.
+
+#### Programmatic Token Creation
+
+Tokens can also be created programmatically from Go code:
+
+```go
+import "infini.sh/framework/modules/security/access_token"
+
+// Create a token for a user with specific permissions
+result, err := access_token.CreateAPIToken(
+    userSession,           // *security.UserSessionInfo - token owner
+    "service-token",       // token name
+    "general",             // token type
+    expireUnix,            // expiration as Unix timestamp
+    permissions,           // []security.PermissionKey
+)
+// result["access_token"] contains the token string
+// result["_id"] contains the token ID
+```
+
 ### Label and Metadata
 
 ```go

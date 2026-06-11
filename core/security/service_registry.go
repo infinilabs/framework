@@ -17,7 +17,7 @@ type AuthenticationBackend interface {
 }
 
 type AuthorizationBackend interface {
-	GetPermissionKeysByUserID(ctx context.Context, providerID, userID string) []PermissionKey
+	GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []PermissionKey
 	GetPermissionKeysByRoles(ctx context.Context, roles []string) []PermissionKey
 }
 

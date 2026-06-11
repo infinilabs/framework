@@ -2,7 +2,7 @@
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-package rbac
+package native
 
 import (
 	"context"
@@ -237,7 +237,12 @@ func CreateRole(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 type SecurityBackendProvider struct {
 }
 
-func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID string) []security.PermissionKey {
+func (provider *SecurityBackendProvider) GetPermissionKeysByUserID(ctx1 context.Context, providerID, userID, login string) []security.PermissionKey {
+
+	if providerID != security.DefaultNativeAuthBackend {
+		return nil
+	}
+
 	var allowedPermissions = []security.PermissionKey{}
 
 	//bypass managed mode

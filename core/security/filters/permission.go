@@ -2,9 +2,11 @@
  * Web: https://infinilabs.com
  * Email: hello#infini.ltd */
 
-package http_filters
+package filters
 
 import (
+	"net/http"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/api"
 	common "infini.sh/framework/core/api/common"
@@ -13,7 +15,6 @@ import (
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
-	"net/http"
 )
 
 func init() {
@@ -55,6 +56,7 @@ func (f *PermissionFilter) ApplyFilter(
 			return
 		}
 
+		//for API Token based session, there is maybe only a subset of user's permission
 		if reqUser.UserAssignedPermission == nil || reqUser.UserAssignedPermission.NeedRefresh() {
 			reqUser.UserAssignedPermission = security.GetUserPermissions(reqUser)
 		}

@@ -44,7 +44,7 @@ func Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	//get all permissions for user
-	p.Permissions = security.GetAllPermissionsForUser(reqUser)
+	p.Permissions = reqUser.GetPermissionKeys()
 
 	api.WriteJSON(w, p, http.StatusOK)
 }
