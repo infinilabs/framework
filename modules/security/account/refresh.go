@@ -75,13 +75,13 @@ func buildRefreshedSession(reqUser *security.UserSessionInfo) (*security.UserSes
 	}
 
 	sessionUser = &security.UserSessionInfo{
-		Provider:    provider,
-		Login:       login,
-		Roles:       append([]string(nil), account.Roles...),
-		Permissions: append([]security.PermissionKey(nil), reqUser.Permissions...),
-		LastLogin:   reqUser.LastLogin,
+		Provider:  provider,
+		Login:     login,
+		Roles:     append([]string(nil), account.Roles...),
+		LastLogin: reqUser.LastLogin,
 	}
 	sessionUser.SetUserID(account.ID)
+	sessionUser.UserAssignedPermission = security.NewUserAssignedPermission(security.GetAllPermissionsForUser(sessionUser), nil)
 	return sessionUser, nil
 }
 
@@ -91,12 +91,12 @@ func cloneSessionUser(reqUser *security.UserSessionInfo) *security.UserSessionIn
 	}
 
 	sessionUser := &security.UserSessionInfo{
-		Provider:    reqUser.Provider,
-		Login:       reqUser.Login,
-		Roles:       append([]string(nil), reqUser.Roles...),
-		Permissions: append([]security.PermissionKey(nil), reqUser.Permissions...),
-		LastLogin:   reqUser.LastLogin,
+		Provider:  reqUser.Provider,
+		Login:     reqUser.Login,
+		Roles:     append([]string(nil), reqUser.Roles...),
+		LastLogin: reqUser.LastLogin,
 	}
 	sessionUser.SetUserID(reqUser.UserID)
+	sessionUser.UserAssignedPermission = security.NewUserAssignedPermission(security.GetAllPermissionsForUser(sessionUser), nil)
 	return sessionUser
 }
