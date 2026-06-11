@@ -33,7 +33,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -85,18 +84,6 @@ type App struct {
 	exit    chan os.Signal
 	svcFlag string
 	svcUser string
-}
-
-func getServiceWorkingDirectory() string {
-	executablePath, err := os.Executable()
-	if err == nil {
-		return filepath.Dir(executablePath)
-	}
-	workdir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	return workdir
 }
 
 const (
@@ -217,12 +204,7 @@ func (app *App) initWithFlags() {
 		app.configFile = app.environment.GetAppLowercaseName() + ".yml"
 	}
 
-	resolvedConfigFile, err := util.GetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
-	if err != nil {
-		log.Errorf("failed to locate main config file [%v]: %v", app.configFile, err)
-		os.Exit(1)
-	}
-	app.configFile = resolvedConfigFile
+	app.configFile = util.TryGetFileAbsPath(app.configFile, app.environment.IgnoreOnConfigMissing)
 
 	if !util.FileExists(app.configFile) {
 		fmt.Println(errors.Errorf("main config file [%v] not exists", app.configFile))
@@ -233,7 +215,7 @@ func (app *App) initWithFlags() {
 
 	app.environment.SetConfigFile(app.configFile)
 
-	err = app.environment.InitPaths(app.configFile)
+	err := app.environment.InitPaths(app.configFile)
 	if err != nil {
 		panic(err)
 	}
@@ -595,7 +577,10 @@ func (app *App) Run() {
 	svcOptions["SuccessExitStatus"] = "1 2 8 SIGKILL"
 	svcOptions["LimitNOFILE"] = 1024000
 
-	workdir := getServiceWorkingDirectory()
+	workdir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
 
 	serviceName := app.environment.GetAppLowercaseName()
 	if v, ok := os.LookupEnv(env_SERVICE_NAME); ok {
