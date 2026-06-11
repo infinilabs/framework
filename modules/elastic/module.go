@@ -491,12 +491,6 @@ func (module *ElasticModule) Start() error {
 						//update
 						module.updateClusterState(cfg1.ID, true)
 					}
-
-					task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
-						id := task.MustGetString(ctx, "id")
-						module.clusterHealthCheck(id, true)
-						return nil
-					}, context.WithValue(context.Background(), "id", cfg1.ID))
 				}
 			}
 			return true
