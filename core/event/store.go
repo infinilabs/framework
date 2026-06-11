@@ -36,56 +36,6 @@ import (
 	"infini.sh/framework/core/util"
 )
 
-var pushQueueMessage = queue.Push
-var getOrInitQueueConfig = queue.GetOrInitConfig
-
-func normalizeLabelValue(value interface{}) interface{} {
-	switch v := value.(type) {
-	case util.MapStr:
-		if len(v) == 1 {
-			if inner, ok := v["value"]; ok {
-				return normalizeLabelValue(inner)
-			}
-			if inner, ok := v["terms"]; ok {
-				return normalizeLabelValue(inner)
-			}
-		}
-		for key, item := range v {
-			v[key] = normalizeLabelValue(item)
-		}
-		return v
-	case map[string]interface{}:
-		if len(v) == 1 {
-			if inner, ok := v["value"]; ok {
-				return normalizeLabelValue(inner)
-			}
-			if inner, ok := v["terms"]; ok {
-				return normalizeLabelValue(inner)
-			}
-		}
-		for key, item := range v {
-			v[key] = normalizeLabelValue(item)
-		}
-		return v
-	case []interface{}:
-		for i, item := range v {
-			v[i] = normalizeLabelValue(item)
-		}
-		return v
-	default:
-		return value
-	}
-}
-
-func normalizeEventLabels(event *Event) {
-	if event == nil || event.Metadata.Labels == nil {
-		return
-	}
-	for key, value := range event.Metadata.Labels {
-		event.Metadata.Labels[key] = normalizeLabelValue(value)
-	}
-}
-
 var meta *AgentMeta
 
 func RegisterMeta(m *AgentMeta) {
@@ -110,17 +60,15 @@ func SaveWithTimestamp(event *Event, time2 time.Time) error {
 		panic("event can't be nil")
 	}
 
-	normalizeEventLabels(event)
-
 	if global.Env().IsDebug {
-		log.Tracef("%v-%v: %v", event.Metadata.Category, event.Metadata.Name, string(util.MustToJSONBytes(event.Metadata)))
+		log.Debugf("%v-%v: %v", event.Metadata.Category, event.Metadata.Name, string(util.MustToJSONBytes(event.Metadata)))
 	}
 
 	event.Timestamp = time2
 
 	//check event specified queue name
 	if event.QueueName != "" {
-		return pushQueueMessage(getOrInitQueueConfig(event.QueueName), util.MustToJSONBytes(event))
+		return queue.Push(queue.GetOrInitConfig(event.QueueName), util.MustToJSONBytes(event))
 	} else {
 		//check default queue name
 		if getMeta().DefaultMetricQueueName == "" {
@@ -134,7 +82,7 @@ func SaveWithTimestamp(event *Event, time2 time.Time) error {
 	}
 
 	stats.Increment("metrics.save", event.Metadata.Category, event.Metadata.Name)
-	return pushQueueMessage(getOrInitQueueConfig(event.QueueName), util.MustToJSONBytes(event))
+	return queue.Push(queue.GetOrInitConfig(event.QueueName), util.MustToJSONBytes(event))
 }
 
 func Save(event *Event) error {
@@ -146,8 +94,6 @@ func SaveLog(event *Event) error {
 		panic("event can't be nil")
 	}
 
-	normalizeEventLabels(event)
-
 	event.Timestamp = time.Now()
 	event.Agent = getMeta()
 
@@ -156,10 +102,15 @@ func SaveLog(event *Event) error {
 	}
 
 	if global.Env().IsDebug {
-		log.Tracef("%v-%v: %v, %v", event.Metadata.Category, event.Metadata.Name, util.MustToJSON(event.Metadata), util.MustToJSON(event.Fields))
+		log.Debugf("%v-%v: %v, %v", event.Metadata.Category, event.Metadata.Name, util.MustToJSON(event.Metadata), util.MustToJSON(event.Fields))
 	}
 
 	stats.Increment("metrics.savelog", event.Metadata.Category, event.Metadata.Name)
 
-	return pushQueueMessage(getOrInitQueueConfig(getMeta().LoggingQueueName), util.MustToJSONBytes(event))
+	err := queue.Push(queue.GetOrInitConfig(getMeta().LoggingQueueName), util.MustToJSONBytes(event))
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
 }
