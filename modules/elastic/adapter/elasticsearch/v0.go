@@ -1531,6 +1531,9 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
 	if err != nil || resp.StatusCode != 200 {
+		if err == nil {
+			return nil, errors.NewWithHTTPCode(resp.StatusCode, string(resp.Body))
+		}
 		return nil, err
 	}
 
@@ -1613,6 +1616,9 @@ func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, erro
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
 	if err != nil || resp.StatusCode != 200 {
+		if err == nil {
+			return nil, errors.NewWithHTTPCode(resp.StatusCode, string(resp.Body))
+		}
 		return nil, err
 	}
 	data := map[string]AliasesResponse{}
