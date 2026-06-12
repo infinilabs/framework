@@ -48,6 +48,7 @@ import (
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
+	ucfg "infini.sh/framework/lib/go-ucfg"
 	"infini.sh/framework/modules/configs/common"
 	"infini.sh/framework/modules/configs/config"
 )
@@ -61,8 +62,27 @@ var postRegisterHooks []func(server string, res *util.Result) error
 var unauthorizedRegisterRetryLock sync.Mutex
 var lastUnauthorizedRegisterRetryAt time.Time
 var clearManagedRegistrationStateFunc = clearManagedRegistrationState
-var reconnectToManagerFunc = func() error { return ConnectToManager() }
+var loadManagedBootstrapAccessTokenFunc = func() (string, error) {
+	return common.LoadTokenFromKeystore(common.ManagerBootstrapTokenKeystoreKey)
+}
+var restoreManagedBootstrapAccessTokenFunc = func() (string, error) {
+	token, err := loadManagedBootstrapAccessTokenFunc()
+	if err != nil {
+		return "", err
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", fmt.Errorf("managed bootstrap access token is missing")
+	}
+	global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ucfg.SecretString(token)
+	return token, nil
+}
+var reconnectToManagerFunc func() error
 var configSyncInProgress atomic.Bool
+
+func init() {
+	reconnectToManagerFunc = ConnectToManager
+}
 
 // maskURLInError replaces http(s):// URLs in error messages to avoid leaking internal addresses in logs.
 func maskURLInError(err error) string {
@@ -153,6 +173,12 @@ func ConnectToManager() error {
 			}
 			global.Register(configRegisterEnvKey, true)
 		} else {
+			if res.StatusCode == http.StatusUnauthorized {
+				if !claimUnauthorizedRegisterRetrySlot() {
+					return fmt.Errorf("unauthorized config manager registration")
+				}
+				return recoverManagedRegistrationWithBootstrap()
+			}
 			log.Warnf("config manager registration failed for instance %v via %v: status=%d, body=%s", info.ID, server, res.StatusCode, truncateManagerResponseBodyForLog(res.Body))
 			return fmt.Errorf("failed to register to config manager: status=%d, body=%s", res.StatusCode, strings.TrimSpace(string(res.Body)))
 		}
@@ -223,25 +249,37 @@ func handleUnauthorizedConfigSyncResponse(res *util.Result) bool {
 		return false
 	}
 
-	unauthorizedRegisterRetryLock.Lock()
-	if !lastUnauthorizedRegisterRetryAt.IsZero() && time.Since(lastUnauthorizedRegisterRetryAt) < unauthorizedRegisterRetryInterval {
-		unauthorizedRegisterRetryLock.Unlock()
+	if !claimUnauthorizedRegisterRetrySlot() {
 		return true
 	}
-	lastUnauthorizedRegisterRetryAt = time.Now()
-	unauthorizedRegisterRetryLock.Unlock()
 
 	log.Warn("config sync unauthorized, clearing local registration state and retrying registration")
-	if err := clearManagedRegistrationStateFunc(); err != nil {
-		log.Warnf("failed to clear local registration state after unauthorized config sync: %v", err)
-		return true
-	}
-	if err := reconnectToManagerFunc(); err != nil {
+	if err := recoverManagedRegistrationWithBootstrap(); err != nil {
 		log.Warnf("failed to re-register to config manager after unauthorized config sync: %v", err)
 		return true
 	}
 	log.Info("re-registered to config manager after unauthorized config sync")
 	return true
+}
+
+func claimUnauthorizedRegisterRetrySlot() bool {
+	unauthorizedRegisterRetryLock.Lock()
+	defer unauthorizedRegisterRetryLock.Unlock()
+	if !lastUnauthorizedRegisterRetryAt.IsZero() && time.Since(lastUnauthorizedRegisterRetryAt) < unauthorizedRegisterRetryInterval {
+		return false
+	}
+	lastUnauthorizedRegisterRetryAt = time.Now()
+	return true
+}
+
+func recoverManagedRegistrationWithBootstrap() error {
+	if _, err := restoreManagedBootstrapAccessTokenFunc(); err != nil {
+		return err
+	}
+	if err := clearManagedRegistrationStateFunc(); err != nil {
+		return err
+	}
+	return reconnectToManagerFunc()
 }
 
 func execPostRegisterHooks(server string, res *util.Result) error {

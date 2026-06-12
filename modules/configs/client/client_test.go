@@ -163,15 +163,22 @@ func TestListenConfigChangesStillSyncsAfterHTTPClientInit(t *testing.T) {
 func TestHandleUnauthorizedConfigSyncResponseClearsStateAndReconnects(t *testing.T) {
 	oldClear := clearManagedRegistrationStateFunc
 	oldReconnect := reconnectToManagerFunc
+	oldLoadBootstrap := loadManagedBootstrapAccessTokenFunc
+	oldRestoreBootstrap := restoreManagedBootstrapAccessTokenFunc
 	oldRetryAt := lastUnauthorizedRegisterRetryAt
+	oldAccessToken := global.Env().SystemConfig.Configs.ManagerConfig.AccessToken
 	t.Cleanup(func() {
 		clearManagedRegistrationStateFunc = oldClear
 		reconnectToManagerFunc = oldReconnect
+		loadManagedBootstrapAccessTokenFunc = oldLoadBootstrap
+		restoreManagedBootstrapAccessTokenFunc = oldRestoreBootstrap
 		lastUnauthorizedRegisterRetryAt = oldRetryAt
+		global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = oldAccessToken
 	})
 
 	var cleared atomic.Int32
 	var reconnected atomic.Int32
+	var restored atomic.Int32
 	clearManagedRegistrationStateFunc = func() error {
 		cleared.Add(1)
 		return nil
@@ -180,17 +187,36 @@ func TestHandleUnauthorizedConfigSyncResponseClearsStateAndReconnects(t *testing
 		reconnected.Add(1)
 		return nil
 	}
+	loadManagedBootstrapAccessTokenFunc = func() (string, error) {
+		restored.Add(1)
+		return "bootstrap-token", nil
+	}
+	restoreManagedBootstrapAccessTokenFunc = func() (string, error) {
+		token, err := loadManagedBootstrapAccessTokenFunc()
+		if err != nil {
+			return "", err
+		}
+		global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ucfg.SecretString(token)
+		return token, nil
+	}
 	lastUnauthorizedRegisterRetryAt = time.Time{}
+	global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ""
 
 	handled := handleUnauthorizedConfigSyncResponse(&util.Result{StatusCode: http.StatusUnauthorized})
 	if !handled {
 		t.Fatal("expected unauthorized config sync response to be handled")
+	}
+	if restored.Load() != 1 {
+		t.Fatalf("expected bootstrap token to be loaded once, got %d", restored.Load())
 	}
 	if cleared.Load() != 1 {
 		t.Fatalf("expected local registration state to be cleared once, got %d", cleared.Load())
 	}
 	if reconnected.Load() != 1 {
 		t.Fatalf("expected reconnect to run once, got %d", reconnected.Load())
+	}
+	if got := global.Env().SystemConfig.Configs.ManagerConfig.AccessToken.Get(); got != "bootstrap-token" {
+		t.Fatalf("expected bootstrap token to be restored, got %q", got)
 	}
 
 	handled = handleUnauthorizedConfigSyncResponse(&util.Result{StatusCode: http.StatusUnauthorized})

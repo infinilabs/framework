@@ -37,8 +37,9 @@ const REGISTER_API = "/instance/_register"
 const SYNC_API = "/configs/_sync"
 
 const (
-	ManagerTokenKeystoreKey     = "configs_manager_token"
-	AgentAccessTokenKeystoreKey = "agent_access_token"
+	ManagerTokenKeystoreKey          = "configs_manager_token"
+	ManagerBootstrapTokenKeystoreKey = "configs_manager_bootstrap_token"
+	AgentAccessTokenKeystoreKey      = "agent_access_token"
 )
 
 type RegisterToken struct {
