@@ -286,25 +286,23 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 			log.Tracef("cluster state updated from version [%v] to [%v]", meta.ClusterState.Version, state.Version)
 		}
 
-		oldIndexState, err := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
-
-		//TODO locker
-		if stateChanged || (err == nil && oldIndexState == nil) {
-			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
-				if meta.ClusterState == nil || oldIndexState == nil {
-					//load init state from es when console start
-					oldIndexState, err = module.loadIndexMetadataFromES(clusterId)
-					if err != nil {
-						log.Errorf("failed to load index metadata from es: %v", err)
-					}
-					err = kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState, elasticMetadataKVRetention)
-					if err != nil {
+		oldIndexState, oldIndexStateErr := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
+		if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
+			if meta.ClusterState == nil || oldIndexState == nil {
+				// load init state from es when console start
+				oldIndexState, oldIndexStateErr = module.loadIndexMetadataFromES(clusterId)
+				if oldIndexStateErr != nil {
+					log.Errorf("failed to load index metadata from es: %v", oldIndexStateErr)
+				} else {
+					if err := kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState, elasticMetadataKVRetention); err != nil {
 						log.Errorf("failed to save index metadata: %v", err)
 					}
 				}
-				if err == nil {
-					module.saveIndexMetadata(state, clusterId)
-				}
+			}
+			// Always run metadata sync in refresh loop. Some distributions may not
+			// bump cluster state version for every index-state change.
+			if oldIndexStateErr == nil {
+				module.saveIndexMetadata(state, clusterId)
 			}
 		}
 		if stateChanged {
