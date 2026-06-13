@@ -1,0 +1,184 @@
+// Copyright (C) INFINI Labs & INFINI LIMITED.
+//
+// The INFINI Framework is offered under the GNU Affero General Public License v3.0
+// and as commercial software.
+//
+// For commercial licensing, contact us at:
+//   - Website: infinilabs.com
+//   - Email: hello@infini.ltd
+//
+// Open Source licensed under AGPL V3:
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+package passwordchallenge
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/crypto/pbkdf2"
+	"infini.sh/framework/core/util"
+)
+
+const (
+	// Method identifies the password challenge login flow returned by the challenge endpoint.
+	Method = "challenge"
+	// Algorithm describes the verifier/proof derivation algorithm that clients must use.
+	Algorithm = "PBKDF2-SHA256"
+	// Iterations is the PBKDF2 work factor shared with clients during challenge negotiation.
+	Iterations = 120000
+	// keyLength is the derived key size used for both the stored verifier and request proof.
+	keyLength = 32
+	// DefaultTTL is the default lifetime of a login challenge before it must be re-issued.
+	DefaultTTL = 5 * time.Minute
+)
+
+// Challenge carries the one-time identifiers clients need to build a password proof locally.
+type Challenge struct {
+	ID string
+	// Subject keeps the challenge bound to the login identity it was issued for.
+	Subject string
+	// Nonce is the random per-challenge input mixed into the client proof.
+	Nonce string
+	// ExpireAt marks when the one-time challenge stops being valid.
+	ExpireAt time.Time
+}
+
+// StoreOptions configures the lifetime of issued login challenges.
+type StoreOptions struct {
+	// TTL overrides the default challenge lifetime for this store instance.
+	TTL time.Duration
+}
+
+// Store tracks outstanding login challenges until they are consumed or expire.
+type Store struct {
+	mu         sync.Mutex
+	ttl        time.Duration
+	challenges map[string]Challenge
+}
+
+var defaultStore = NewStore(StoreOptions{})
+
+// NewStore creates an in-memory challenge store with the requested TTL.
+func NewStore(options StoreOptions) *Store {
+	ttl := options.TTL
+	if ttl <= 0 {
+		ttl = DefaultTTL
+	}
+	return &Store{
+		ttl:        ttl,
+		challenges: map[string]Challenge{},
+	}
+}
+
+// DeriveVerifier turns a password and salt into the verifier stored on the account record.
+func DeriveVerifier(password, salt string) (string, error) {
+	if password == "" {
+		return "", errors.New("password is empty")
+	}
+	if salt == "" {
+		return "", errors.New("password salt is empty")
+	}
+	key := pbkdf2.Key([]byte(password), []byte(salt), Iterations, keyLength, sha256.New)
+	return hex.EncodeToString(key), nil
+}
+
+// BuildProof derives the one-time challenge response that clients submit to /account/login.
+func BuildProof(verifier, subject, challengeID, nonce string) (string, error) {
+	key, err := hex.DecodeString(verifier)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(subject))
+	mac.Write([]byte(":"))
+	mac.Write([]byte(challengeID))
+	mac.Write([]byte(":"))
+	mac.Write([]byte(nonce))
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+// VerifyProof compares a submitted proof against the expected proof for this challenge tuple.
+func VerifyProof(verifier, subject, challengeID, nonce, proof string) bool {
+	expected, err := BuildProof(verifier, subject, challengeID, nonce)
+	if err != nil {
+		return false
+	}
+	expectedBytes, err := hex.DecodeString(expected)
+	if err != nil {
+		return false
+	}
+	proofBytes, err := hex.DecodeString(strings.ToLower(proof))
+	if err != nil {
+		return false
+	}
+	return hmac.Equal(expectedBytes, proofBytes)
+}
+
+// New issues a login challenge from the default store.
+func New(subject string) Challenge {
+	return defaultStore.New(subject)
+}
+
+// Consume loads and invalidates a login challenge from the default store.
+func Consume(challengeID, subject string) (Challenge, error) {
+	return defaultStore.Consume(challengeID, subject)
+}
+
+// New allocates a fresh challenge for the provided subject.
+func (store *Store) New(subject string) Challenge {
+	now := time.Now()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	for id, challenge := range store.challenges {
+		if challenge.ExpireAt.Before(now) {
+			delete(store.challenges, id)
+		}
+	}
+
+	challenge := Challenge{
+		ID:       util.GenerateSecureString(32),
+		Subject:  subject,
+		Nonce:    util.GenerateSecureString(32),
+		ExpireAt: now.Add(store.ttl),
+	}
+	store.challenges[challenge.ID] = challenge
+	return challenge
+}
+
+// Consume validates the subject and TTL, then invalidates the one-time challenge.
+func (store *Store) Consume(challengeID, subject string) (Challenge, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	challenge, ok := store.challenges[challengeID]
+	if !ok {
+		return Challenge{}, errors.New("login challenge is invalid")
+	}
+	delete(store.challenges, challengeID)
+
+	if challenge.ExpireAt.Before(time.Now()) {
+		return Challenge{}, errors.New("login challenge expired")
+	}
+	if challenge.Subject != subject {
+		return Challenge{}, errors.New("login challenge does not match user")
+	}
+	return challenge, nil
+}

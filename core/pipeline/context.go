@@ -299,6 +299,20 @@ func (ctx *Context) Errors() []error {
 	return ctx.processErrs
 }
 
+func (ctx *Context) GetResultState() RunningState {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.getResultStateLocked()
+}
+
+func (ctx *Context) GetResultError() string {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return formatPipelineResultError(ctx.exitErr, ctx.processErrs)
+}
+
 // Pause suspends the goroutine that is running this pipeline.
 func (ctx *Context) Pause() {
 	ctx.stateLock.Lock()
@@ -378,6 +392,30 @@ func (ctx *Context) setRunningState(newState RunningState) {
 	}
 }
 
+func (ctx *Context) getResultStateLocked() RunningState {
+	switch ctx.runningState {
+	case FINISHED, FAILED:
+		return ctx.runningState
+	case STOPPED:
+		if ctx.endTime == nil {
+			return STOPPED
+		}
+		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
+			return FAILED
+		}
+		return FINISHED
+	default:
+		return ""
+	}
+}
+
+func formatPipelineResultError(exitErr error, processErrs []error) string {
+	if exitErr == nil && len(processErrs) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("exit: %v, process: %v", exitErr, processErrs)
+}
+
 func (ctx *Context) pushPipelineLog() {
 	if global.Env().IsDebug {
 		log.Info("received pipeline state change, id: ", ctx.Config.Name, ", state: ", ctx.runningState)
@@ -407,8 +445,8 @@ func (ctx *Context) pushPipelineLog() {
 		result := util.MapStr{
 			"success": ctx.exitErr == nil,
 		}
-		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
-			result["error"] = fmt.Sprintf("exit: %v, process: %v", ctx.exitErr, ctx.processErrs)
+		if errMsg := formatPipelineResultError(ctx.exitErr, ctx.processErrs); errMsg != "" {
+			result["error"] = errMsg
 		}
 		payload["result"] = result
 	}
@@ -418,5 +456,7 @@ func (ctx *Context) pushPipelineLog() {
 		},
 	}
 
-	event.SaveLog(&eventData)
+	if err := event.SaveLog(&eventData); err != nil {
+		log.Errorf("failed to save pipeline log event, pipeline: %s, context: %s, err: %v", ctx.Config.Name, ctx.id, err)
+	}
 }

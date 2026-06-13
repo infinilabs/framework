@@ -41,6 +41,30 @@ func (env *Env) GetHTTPClientConfig(name, endpoint string) *config.HTTPClientCon
 			TLSConfig:            config.TLSConfig{SkipDomainVerify: true, TLSInsecureSkipVerify: true},
 		}
 	}
+	if name == "configs" && ((!ok && !isZeroTLSConfig(env.SystemConfig.Configs.TLSConfig)) || isZeroTLSConfig(clientCfg.TLSConfig)) {
+		clientCfg.TLSConfig = env.SystemConfig.Configs.TLSConfig
+	}
 	//TODO support client config per endpoint
 	return &clientCfg
+}
+
+func isZeroTLSConfig(cfg config.TLSConfig) bool {
+	return !cfg.TLSEnabled &&
+		cfg.TLSCertFile == "" &&
+		cfg.TLSCertPassword == "" &&
+		cfg.TLSKeyFile == "" &&
+		cfg.TLSCACertFile == "" &&
+		!cfg.TLSInsecureSkipVerify &&
+		cfg.DefaultDomain == "" &&
+		!cfg.SkipDomainVerify &&
+		cfg.ClientSessionCacheSize == 0 &&
+		!cfg.TLSBypassMalformedCert &&
+		!cfg.AutoIssue.Enabled &&
+		cfg.AutoIssue.Email == "" &&
+		cfg.AutoIssue.Path == "" &&
+		!cfg.AutoIssue.IncludeDefaultDomain &&
+		!cfg.AutoIssue.SkipInvalidDomain &&
+		len(cfg.AutoIssue.Domains) == 0 &&
+		cfg.AutoIssue.Provider.TencentDNS.SecretID == "" &&
+		cfg.AutoIssue.Provider.TencentDNS.SecretKey == ""
 }

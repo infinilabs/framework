@@ -187,7 +187,9 @@ func (module *APIModule) Setup() {
 }
 
 func (module *APIModule) Start() error {
-	api.StartAPI()
+	if global.Env().SystemConfig.APIConfig.Enabled {
+		api.StartAPI()
+	}
 	return nil
 }
 

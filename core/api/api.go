@@ -34,6 +34,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,7 +121,7 @@ func initializeAPI() {
 }
 
 // HandleAPIMethod register api handler
-func HandleAPIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params)) {
+func HandleAPIMethod(method Method, pattern string, handler func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), options ...Option) {
 	l.Lock()
 	if registeredAPIMethodHandler == nil {
 		registeredAPIMethodHandler = map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
@@ -132,8 +133,57 @@ func HandleAPIMethod(method Method, pattern string, handler func(w http.Response
 		registeredAPIMethodHandler[m] = map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params){}
 	}
 	registeredAPIMethodHandler[m][pattern] = handler
+	if len(options) > 0 {
+		opts := &HandlerOptions{}
+		for _, option := range options {
+			option(opts)
+		}
+		apiOptions.Register(method, pattern, opts)
+	}
 
 	l.Unlock()
+}
+
+func ServeRegisteredAPIRequest(w http.ResponseWriter, req *http.Request) {
+	localMux := http.NewServeMux()
+	localRouter := httprouter.New(localMux)
+	localRouter.NotFound = notfoundHandler
+
+	l.Lock()
+	funcHandlers := make(map[string]func(http.ResponseWriter, *http.Request), len(registeredAPIFuncHandler))
+	for pattern, handler := range registeredAPIFuncHandler {
+		funcHandlers[pattern] = handler
+	}
+	methodHandlers := make(map[string]map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), len(registeredAPIMethodHandler))
+	for method, handlers := range registeredAPIMethodHandler {
+		cloned := make(map[string]func(w http.ResponseWriter, req *http.Request, ps httprouter.Params), len(handlers))
+		for pattern, handler := range handlers {
+			cloned[pattern] = handler
+		}
+		methodHandlers[method] = cloned
+	}
+	filterSnapshot := append([]filter.Filter(nil), filters...)
+	l.Unlock()
+
+	for pattern, handler := range funcHandlers {
+		wrapped := handler
+		for _, f := range filterSnapshot {
+			wrapped = f.FilterHttpHandlerFunc(pattern, wrapped)
+		}
+		localMux.HandleFunc(pattern, wrapped)
+	}
+
+	for method, handlers := range methodHandlers {
+		for pattern, handler := range handlers {
+			wrapped := handler
+			for _, f := range filterSnapshot {
+				wrapped = f.FilterHttpRouter(pattern, wrapped)
+			}
+			localRouter.Handle(method, pattern, wrapped)
+		}
+	}
+
+	localRouter.ServeHTTP(w, req)
 }
 
 var router = httprouter.New(mux)
@@ -145,8 +195,45 @@ var rootKey *rsa.PrivateKey
 var rootCertPEM []byte
 
 var apiConfig *config.APIConfig
-
 var listenAddress string
+var resolveRuntimePublishIPv4 = util.GetIntranetIP
+
+func normalizeRuntimePublishAddress(actualAddr string) string {
+	actualAddr = strings.TrimSpace(actualAddr)
+	if actualAddr == "" {
+		return actualAddr
+	}
+
+	host, port, err := net.SplitHostPort(actualAddr)
+	if err != nil {
+		return actualAddr
+	}
+
+	normalizedHost := strings.Trim(strings.TrimSpace(host), "[]")
+	if normalizedHost != "" {
+		ip := net.ParseIP(normalizedHost)
+		if normalizedHost != util.AnyAddress && (ip == nil || !ip.IsUnspecified()) {
+			return actualAddr
+		}
+	}
+
+	ipv4, err := resolveRuntimePublishIPv4()
+	if err != nil || strings.TrimSpace(ipv4) == "" {
+		return actualAddr
+	}
+
+	return net.JoinHostPort(ipv4, port)
+}
+
+func syncRuntimePublishAddress(networkConfig *config.NetworkConfig, actualAddr string) {
+	if networkConfig == nil || strings.TrimSpace(actualAddr) == "" {
+		return
+	}
+	if strings.TrimSpace(networkConfig.Publish) != "" {
+		return
+	}
+	networkConfig.Publish = normalizeRuntimePublishAddress(actualAddr)
+}
 
 var notfoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 	rw.Write([]byte("{\"message\":\"not_found\"}"))
@@ -219,6 +306,7 @@ func StartAPI() {
 	if err != nil {
 		panic(err)
 	}
+	syncRuntimePublishAddress(&apiConfig.NetworkConfig, l.Addr().String())
 
 	router.NotFound = notfoundHandler
 

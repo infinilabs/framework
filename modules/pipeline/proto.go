@@ -25,7 +25,9 @@ package pipeline
 
 import "infini.sh/framework/core/pipeline"
 
-type GetPipelineTasksResponse map[string]*PipelineTaskStatus
+type GetPipelinesResponse map[string]*PipelineStatus
+
+type GetPipelineTasksResponse = GetPipelinesResponse
 
 type CreatePipelineRequest struct {
 	pipeline.PipelineConfigV2

@@ -28,8 +28,13 @@
 package api
 
 import (
+	"crypto/subtle"
 	httprouter "infini.sh/framework/core/api/router"
 	"net/http"
+	"strings"
+
+	"infini.sh/framework/core/model"
+	configcommon "infini.sh/framework/modules/configs/common"
 )
 
 type BasicAuthFilter struct {
@@ -37,9 +42,17 @@ type BasicAuthFilter struct {
 	Password string
 }
 
+var loadManagedAccessTokenFromKeystore = func() (string, error) {
+	return configcommon.LoadTokenFromKeystore(configcommon.AgentAccessTokenKeystoreKey)
+}
+
 // BasicAuth register api with basic auth
 func BasicAuth(h httprouter.Handle, requiredUser, requiredPassword string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		if validateManagedAccessToken(r) {
+			h(w, r, ps)
+			return
+		}
 		// Get the Basic Authentication credentials
 		user, password, hasAuth := r.BasicAuth()
 
@@ -60,6 +73,10 @@ func (filter *BasicAuthFilter) FilterHttpRouter(pattern string, h httprouter.Han
 
 func (filter *BasicAuthFilter) FilterHttpHandlerFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, request *http.Request) {
+		if validateManagedAccessToken(request) {
+			handler(w, request)
+			return
+		}
 		// Get the Basic Authentication credentials
 		user, password, hasAuth := request.BasicAuth()
 		if hasAuth && user == filter.Username && password == filter.Password {
@@ -71,4 +88,35 @@ func (filter *BasicAuthFilter) FilterHttpHandlerFunc(pattern string, handler fun
 		w.Header().Set("WWW-Authenticate", "Basic realm=Restricted")
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 	}
+}
+
+func validateManagedAccessToken(req *http.Request) bool {
+	tokenValue := ExtractBearerOrAPIToken(req)
+	if tokenValue == "" {
+		return false
+	}
+	expectedToken, err := loadManagedAccessTokenFromKeystore()
+	if err != nil || expectedToken == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(expectedToken), []byte(tokenValue)) == 1
+}
+
+func ValidateManagedAccessTokenRequest(req *http.Request) bool {
+	return validateManagedAccessToken(req)
+}
+
+func ExtractBearerOrAPIToken(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	tokenValue := strings.TrimSpace(req.Header.Get(model.API_TOKEN))
+	if tokenValue != "" {
+		return tokenValue
+	}
+	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
+	if len(authHeader) < len("Bearer ")+1 || !strings.EqualFold(authHeader[:len("Bearer ")], "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len("Bearer "):])
 }

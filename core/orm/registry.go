@@ -10,6 +10,11 @@ import (
 
 var registeredSchemas = []util.KeyValue{}
 
+func schemaRegistrationKey(t interface{}) string {
+	pkg, typeName := util.GetTypeAndPackageName(t, true)
+	return pkg + "-" + typeName
+}
+
 func MustRegisterSchemaWithIndexName(t interface{}, index string) {
 	err := RegisterSchemaWithIndexName(t, index)
 	if err != nil {
@@ -18,6 +23,17 @@ func MustRegisterSchemaWithIndexName(t interface{}, index string) {
 }
 
 func RegisterSchemaWithIndexName(t interface{}, index string) error {
+	newKey := schemaRegistrationKey(t)
+	for _, registered := range registeredSchemas {
+		if registered.Key != index {
+			continue
+		}
+		existingKey := schemaRegistrationKey(registered.Payload)
+		if existingKey == newKey {
+			return nil
+		}
+		return errors.Errorf("schema index [%s] already registered by [%s]", index, existingKey)
+	}
 	registeredSchemas = append(registeredSchemas, util.KeyValue{Key: index, Payload: t})
 	return nil
 }
@@ -34,6 +50,18 @@ func InitSchema() error {
 }
 
 var handler ORM
+
+func HasHandler() bool {
+	return handler != nil
+}
+
+func HasAdapter(name string) bool {
+	if adapters == nil {
+		return false
+	}
+	_, ok := adapters[name]
+	return ok
+}
 
 func getHandler() ORM {
 	if handler == nil {

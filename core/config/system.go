@@ -289,8 +289,9 @@ type ConfigsConfig struct {
 	ValidConfigsExtensions     []string  `config:"valid_config_extensions"`
 	TLSConfig                  TLSConfig `config:"tls"` //server or client's certs
 	ManagerConfig              struct {
-		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
-		BasicAuth            BasicAuth `config:"basic_auth"`
+		LocalConfigsRepoPath string            `config:"local_configs_repo_path"`
+		BasicAuth            BasicAuth         `config:"basic_auth"`
+		AccessToken          ucfg.SecretString `config:"access_token"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
@@ -379,6 +380,7 @@ type WebAppConfig struct {
 
 	//same with API Config
 	Enabled       bool          `config:"enabled"`
+	AccessLog     bool          `config:"access_log_enabled"`
 	TLSConfig     TLSConfig     `config:"tls"`
 	NetworkConfig NetworkConfig `config:"network"`
 	CrossDomain   struct {
@@ -415,7 +417,7 @@ type S3BucketConfig struct {
 }
 
 func (config *WebAppConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return joinBasePath(fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr()), config.BasePath)
 }
 
 func (config *WebAppConfig) GetSchema() string {
@@ -451,7 +453,18 @@ type APIConfig struct {
 }
 
 func (config *APIConfig) GetEndpoint() string {
-	return fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr())
+	return joinBasePath(fmt.Sprintf("%s://%s", config.GetSchema(), config.NetworkConfig.GetPublishAddr()), config.BasePath)
+}
+
+func joinBasePath(endpoint, basePath string) string {
+	basePath = strings.TrimSpace(basePath)
+	if basePath == "" || basePath == "/" {
+		return endpoint
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	return strings.TrimRight(endpoint, "/") + strings.TrimRight(basePath, "/")
 }
 
 func (config *APIConfig) GetSchema() string {
@@ -511,6 +524,7 @@ type WebsocketConfig struct {
 	EchoWelcomeMessageOnConnect bool     `config:"echo_welcome_message_on_connect"`
 	EchoLoggingConfigOnConnect  bool     `config:"echo_logging_config_on_connect"`
 	BasePath                    string   `config:"base_path"`
+	MaxMessageSizeBytes         int64    `config:"max_message_size_bytes"`
 	PermittedHosts              []string `config:"permitted_hosts"`
 	SkipHostVerify              bool     `config:"skip_host_verify"`
 }

@@ -302,11 +302,11 @@ func FileExtension(file string) string {
 	return strings.ToLower(strings.TrimSpace(ext))
 }
 
-// Smart get file abs path.
+// GetFileAbsPath resolves filePath to an absolute path when the file exists.
 //
-// If all attempts fail, and `ignoreMissing` is set to `true`, this function
-// returns `filePath` as-is. Otherwise, it panics.
-func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
+// If all attempts fail and ignoreMissing is true, it returns filePath as-is.
+// Otherwise it returns an error describing the attempted paths.
+func GetFileAbsPath(filePath string, ignoreMissing bool) (string, error) {
 	// The paths that we tried
 	attempts := []string{}
 
@@ -317,7 +317,7 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 		 */
 
 		if FileExists(filePath) {
-			return filePath
+			return filePath, nil
 		} else {
 			attempts = append(attempts, filePath)
 		}
@@ -327,7 +327,7 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 		 */
 		absPathRelativeToWd, _ := filepath.Abs(filePath)
 		if FileExists(absPathRelativeToWd) {
-			return absPathRelativeToWd
+			return absPathRelativeToWd, nil
 		} else {
 			attempts = append(attempts, absPathRelativeToWd)
 		}
@@ -341,7 +341,7 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 			absPathRelativeToExeDir := path.Join(exeDir, filePath)
 
 			if FileExists(absPathRelativeToExeDir) {
-				return absPathRelativeToExeDir
+				return absPathRelativeToExeDir, nil
 			} else {
 				attempts = append(attempts, absPathRelativeToExeDir)
 			}
@@ -349,15 +349,27 @@ func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
 	}
 
 	/*
-	 * All attempts failed. Panic if `ignoreMissing` is not set. Otherwise,
-	 * return `filePath` as-is.
+	 * All attempts failed. Return an error if `ignoreMissing` is not set.
+	 * Otherwise, return `filePath` as-is.
 	 */
 	if !ignoreMissing {
 		errorMsg := fmt.Sprintf("failed to absolutize path '%s', tried %v, but they do not exist", filePath, attempts)
-		panic(errors.New(errorMsg))
+		return "", errors.New(errorMsg)
 	} else {
-		return filePath
+		return filePath, nil
 	}
+}
+
+// Smart get file abs path.
+//
+// If all attempts fail, and `ignoreMissing` is set to `true`, this function
+// returns `filePath` as-is. Otherwise, it panics.
+func TryGetFileAbsPath(filePath string, ignoreMissing bool) string {
+	absPath, err := GetFileAbsPath(filePath, ignoreMissing)
+	if err != nil {
+		panic(err)
+	}
+	return absPath
 }
 
 func ListAllFiles(path string) ([]string, error) {

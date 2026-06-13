@@ -491,6 +491,20 @@ func (c *ESAPIV0) Get(indexName, docType, id string) (*elastic.GetResponse, erro
 		return esResp, err
 	}
 
+	if resp.StatusCode >= 400 {
+		if esResp.Error != nil {
+			errType := esResp.Error.Type
+			errReason := esResp.Error.Message()
+			if errType != "" && errReason != "" {
+				return esResp, errors.Errorf("status:%d, type:%s, reason:%s", resp.StatusCode, errType, errReason)
+			}
+			if errReason != "" {
+				return esResp, errors.Errorf("status:%d, reason:%s", resp.StatusCode, errReason)
+			}
+		}
+		return esResp, errors.Errorf("status:%d", resp.StatusCode)
+	}
+
 	return esResp, nil
 }
 
@@ -577,7 +591,7 @@ func (c *ESAPIV0) Search(indexName string, query *elastic.SearchRequest) (*elast
 	js := query.ToJSONString()
 
 	if global.Env().IsDebug {
-		log.Info(js)
+		log.Trace(js)
 	}
 
 	return c.SearchWithRawQueryDSL(indexName, util.UnsafeStringToBytes(js))
@@ -607,6 +621,18 @@ func (c *ESAPIV0) QueryDSL(ctx context.Context, indexName string, queryArgs *[]u
 	}
 
 	resp, err := c.Request(ctx, util.Verb_POST, url, queryDSL)
+	if err == nil && resp != nil && shouldRetryWithoutTermsMissing(resp.StatusCode, resp.Body) {
+		if retryQueryDSL, changed := stripTermsMissingFromQueryDSL(queryDSL); changed {
+			if global.Env().IsDebug {
+				log.Tracef("retrying query without terms.missing due to UnmappedTerms response: %s", url)
+			}
+			retryResp, retryErr := c.Request(ctx, util.Verb_POST, url, retryQueryDSL)
+			if retryErr == nil && retryResp != nil {
+				resp = retryResp
+				queryDSL = retryQueryDSL
+			}
+		}
+	}
 	if resp != nil {
 		esResp.StatusCode = resp.StatusCode
 		esResp.RawResult = resp
@@ -631,6 +657,61 @@ func (c *ESAPIV0) QueryDSL(ctx context.Context, indexName string, queryArgs *[]u
 	}
 
 	return esResp, nil
+}
+
+func shouldRetryWithoutTermsMissing(statusCode int, body []byte) bool {
+	if statusCode < 500 || len(body) == 0 {
+		return false
+	}
+	lowerBody := strings.ToLower(util.UnsafeBytesToString(body))
+	return strings.Contains(lowerBody, "unmappedterms") &&
+		strings.Contains(lowerBody, "unsupported")
+}
+
+func stripTermsMissingFromQueryDSL(queryDSL []byte) ([]byte, bool) {
+	if len(queryDSL) == 0 {
+		return nil, false
+	}
+	payload := map[string]interface{}{}
+	if err := json.Unmarshal(queryDSL, &payload); err != nil {
+		return nil, false
+	}
+	changed := stripTermsMissingRecursive(payload)
+	if !changed {
+		return nil, false
+	}
+	newDSL, err := json.Marshal(payload)
+	if err != nil {
+		return nil, false
+	}
+	return newDSL, true
+}
+
+func stripTermsMissingRecursive(value interface{}) bool {
+	changed := false
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		if termsValue, ok := typed["terms"]; ok {
+			if termsMap, ok := termsValue.(map[string]interface{}); ok {
+				if _, exists := termsMap["missing"]; exists {
+					delete(termsMap, "missing")
+					changed = true
+				}
+			}
+		}
+		for _, nested := range typed {
+			if stripTermsMissingRecursive(nested) {
+				changed = true
+			}
+		}
+	case []interface{}:
+		for _, nested := range typed {
+			if stripTermsMissingRecursive(nested) {
+				changed = true
+			}
+		}
+	}
+	return changed
 }
 
 func (c *ESAPIV0) SearchWithRawQueryDSL(indexName string, queryDSL []byte) (*elastic.SearchResponse, error) {
@@ -1517,6 +1598,9 @@ func (c *ESAPIV0) GetAliases() (*map[string]elastic.AliasInfo, error) {
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
 	if err != nil || resp.StatusCode != 200 {
+		if err == nil {
+			return nil, errors.NewWithHTTPCode(resp.StatusCode, string(resp.Body))
+		}
 		return nil, err
 	}
 
@@ -1599,6 +1683,9 @@ func (c *ESAPIV0) GetAliasesAndIndices() (*elastic.AliasAndIndicesResponse, erro
 	resp, err := c.Request(nil, util.Verb_GET, url, nil)
 
 	if err != nil || resp.StatusCode != 200 {
+		if err == nil {
+			return nil, errors.NewWithHTTPCode(resp.StatusCode, string(resp.Body))
+		}
 		return nil, err
 	}
 	data := map[string]AliasesResponse{}

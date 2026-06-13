@@ -118,10 +118,45 @@ func (node *NodeAvailable) IsDead() bool {
 }
 
 func (meta *ElasticsearchMetadata) IsAvailable() bool {
-	if meta.Config == nil || !meta.Config.Enabled {
+	if meta.Config == nil {
+		if rate.GetRateLimiter("cluster_available_check", "nil_config", 1, 1, 30*time.Second).Allow() {
+			log.Debug("elasticsearch metadata is unavailable: config is nil")
+		}
 		return false
 	}
-	return meta.clusterAvailable
+	if !meta.Config.Enabled {
+		clusterID := meta.Config.ID
+		if clusterID == "" {
+			clusterID = meta.Config.Name
+		}
+		if rate.GetRateLimiter("cluster_available_check", clusterID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("elasticsearch [%v] is unavailable: config disabled", meta.Config.Name)
+		}
+		return false
+	}
+	if !meta.clusterAvailable {
+		clusterID := meta.Config.ID
+		if clusterID == "" {
+			clusterID = meta.Config.Name
+		}
+		if rate.GetRateLimiter("cluster_available_check", clusterID, 1, 1, 30*time.Second).Allow() {
+			if meta.shouldTraceUnavailableReason() {
+				log.Tracef("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+			} else {
+				log.Debugf("elasticsearch [%v] is unavailable: clusterAvailable=false", meta.Config.Name)
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (meta *ElasticsearchMetadata) shouldTraceUnavailableReason() bool {
+	if meta == nil || meta.Config == nil {
+		return false
+	}
+
+	return !meta.Config.Monitored
 }
 
 func (meta *ElasticsearchMetadata) Init(health bool) {
@@ -186,13 +221,8 @@ func (meta *ElasticsearchMetadata) GetActiveEndpoint() string {
 }
 
 func (meta *ElasticsearchMetadata) GetActivePreferredSeedHost() string {
-	hosts := meta.GetSeedHosts()
-	if len(hosts) > 0 {
-		for _, v := range hosts {
-			if v != "" && IsHostAvailable(v) {
-				return v
-			}
-		}
+	if host, _ := meta.getAvailableSeedHost(); host != "" {
+		return host
 	}
 	return meta.Config.Host
 }
@@ -263,6 +293,12 @@ func (meta *ElasticsearchMetadata) GetActiveHosts() int {
 }
 
 func (meta *ElasticsearchMetadata) GetActiveHost() string {
+	if host, info := meta.getAvailableSeedHost(); host != "" {
+		if info != nil {
+			meta.activeHost = info
+		}
+		return host
+	}
 
 	if meta.activeHost != nil {
 		if meta.activeHost.IsAvailable() {
@@ -275,12 +311,9 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 		for _, v := range hosts {
 			if v != "" {
 				if IsHostAvailable(v) {
-					//add to cache
-					info, ok := GetHostAvailableInfo(v)
-					if ok && info != nil {
-						if info.IsAvailable() {
-							meta.activeHost = info
-						}
+					info := meta.ensureAvailableHostInfo(v)
+					if info != nil && info.IsAvailable() {
+						meta.activeHost = info
 					}
 					return v
 
@@ -295,12 +328,9 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 				v := v1.GetHttpPublishHost()
 				if v != "" {
 					if IsHostAvailable(v) {
-						//add to cache
-						info, ok := GetHostAvailableInfo(v)
-						if ok && info != nil {
-							if info.IsAvailable() {
-								meta.activeHost = info
-							}
+						info := meta.ensureAvailableHostInfo(v)
+						if info != nil && info.IsAvailable() {
+							meta.activeHost = info
 						}
 						return v
 					}
@@ -318,6 +348,46 @@ func (meta *ElasticsearchMetadata) GetActiveHost() string {
 	}
 	meta.ReportFailure(nil)
 	return hosts[0]
+}
+
+func (meta *ElasticsearchMetadata) getAvailableSeedHost() (string, *NodeAvailable) {
+	hosts := meta.GetSeedHosts()
+	if hosts == nil || len(hosts) == 0 {
+		return "", nil
+	}
+
+	for _, host := range hosts {
+		if host == "" || !IsHostAvailable(host) {
+			continue
+		}
+		if info, ok := GetHostAvailableInfo(host); ok && info != nil && info.IsAvailable() {
+			return host, info
+		}
+		return host, meta.ensureAvailableHostInfo(host)
+	}
+
+	return "", nil
+}
+
+func (meta *ElasticsearchMetadata) ensureAvailableHostInfo(host string) *NodeAvailable {
+	if host == "" {
+		return nil
+	}
+
+	host = util.UnifyLocalAddress(host)
+	if info, ok := GetHostAvailableInfo(host); ok && info != nil {
+		return info
+	}
+
+	info := &NodeAvailable{
+		Host:        host,
+		ClusterID:   meta.Config.ID,
+		available:   true,
+		lastCheck:   time.Now(),
+		lastSuccess: time.Now(),
+	}
+	hosts.Store(host, info)
+	return info
 }
 
 func (meta *ElasticsearchMetadata) IsTLS() bool {
