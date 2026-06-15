@@ -251,3 +251,51 @@ func TestManagedConfigSyncGuardPreventsOverlap(t *testing.T) {
 	}
 	finishManagedConfigSync()
 }
+
+func TestRestoreManagedBootstrapAccessTokenFallsBackToManagerAccessToken(t *testing.T) {
+	t.Setenv("KEYSTORE_PATH", t.TempDir())
+
+	oldLoadBootstrap := loadManagedBootstrapAccessTokenFunc
+	oldAccessToken := global.Env().SystemConfig.Configs.ManagerConfig.AccessToken
+	t.Cleanup(func() {
+		loadManagedBootstrapAccessTokenFunc = oldLoadBootstrap
+		global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = oldAccessToken
+	})
+
+	loadManagedBootstrapAccessTokenFunc = func() (string, error) {
+		return "", nil
+	}
+	global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ucfg.SecretString("config-access-token")
+
+	token, err := restoreManagedBootstrapAccessTokenFunc()
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if token != "config-access-token" {
+		t.Fatalf("expected config access token fallback, got %q", token)
+	}
+}
+
+func TestRestoreManagedBootstrapAccessTokenReturnsErrorWhenNoFallbackAvailable(t *testing.T) {
+	t.Setenv("KEYSTORE_PATH", t.TempDir())
+
+	oldLoadBootstrap := loadManagedBootstrapAccessTokenFunc
+	oldAccessToken := global.Env().SystemConfig.Configs.ManagerConfig.AccessToken
+	t.Cleanup(func() {
+		loadManagedBootstrapAccessTokenFunc = oldLoadBootstrap
+		global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = oldAccessToken
+	})
+
+	loadManagedBootstrapAccessTokenFunc = func() (string, error) {
+		return "", nil
+	}
+	global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ""
+
+	_, err := restoreManagedBootstrapAccessTokenFunc()
+	if err == nil {
+		t.Fatal("expected missing bootstrap token error")
+	}
+	if !strings.Contains(err.Error(), "managed bootstrap access token is missing") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
