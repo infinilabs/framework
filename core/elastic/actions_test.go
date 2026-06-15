@@ -143,3 +143,21 @@ func TestShouldTraceUnavailableReasonForUnmonitoredCluster(t *testing.T) {
 		t.Fatal("expected monitored cluster to keep debug unavailable reason")
 	}
 }
+
+func TestShouldCheckActiveHostsOnFailure(t *testing.T) {
+	meta := &ElasticsearchMetadata{Config: &ElasticsearchConfig{}}
+	if !meta.shouldCheckActiveHostsOnFailure() {
+		t.Fatal("expected active hosts check enabled by default")
+	}
+
+	meta.Config.MetadataConfigs = &MetadataConfig{}
+	meta.Config.MetadataConfigs.NodeAvailabilityCheck.Enabled = true
+	if !meta.shouldCheckActiveHostsOnFailure() {
+		t.Fatal("expected active hosts check enabled when node availability check is on")
+	}
+
+	meta.Config.MetadataConfigs.NodeAvailabilityCheck.Enabled = false
+	if meta.shouldCheckActiveHostsOnFailure() {
+		t.Fatal("expected active hosts check disabled when node availability check is off")
+	}
+}
