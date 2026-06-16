@@ -216,14 +216,16 @@ type Bucket struct {
 }
 
 type AggregationResponse struct {
-	Buckets []BucketBase `json:"buckets,omitempty"`
-	Value   interface{}  `json:"value,omitempty"`
+	Buckets  []BucketBase `json:"buckets,omitempty"`
+	Value    interface{}  `json:"value,omitempty"`
+	Interval string       `json:"interval,omitempty"`
 }
 
 func (a *AggregationResponse) UnmarshalJSON(data []byte) error {
 	type alias struct {
-		Buckets json.RawMessage `json:"buckets,omitempty"`
-		Value   interface{}     `json:"value,omitempty"`
+		Buckets  json.RawMessage `json:"buckets,omitempty"`
+		Value    interface{}     `json:"value,omitempty"`
+		Interval string          `json:"interval,omitempty"`
 	}
 
 	var aux alias
@@ -231,6 +233,7 @@ func (a *AggregationResponse) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	a.Value = aux.Value
+	a.Interval = aux.Interval
 
 	buckets := bytes.TrimSpace(aux.Buckets)
 	if len(buckets) == 0 || bytes.Equal(buckets, []byte("null")) {
