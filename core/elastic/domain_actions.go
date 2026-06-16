@@ -208,6 +208,44 @@ func (c *ElasticsearchConfig) GetAnyEndpoint() string {
 	panic(fmt.Errorf("no endpoint was not found in config [%v] ", c.ID))
 }
 
+func (c *ElasticsearchConfig) GetAllEndpoints() []string {
+	build := func(host string) string {
+		return fmt.Sprintf("%s://%s", c.Schema, host)
+	}
+
+	seen := make(map[string]struct{})
+	result := make([]string, 0)
+
+	add := func(v string) {
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		result = append(result, v)
+	}
+
+	// 1. Hosts -> schema + host
+	for _, host := range c.Hosts {
+		add(build(host))
+	}
+
+	// 2. Endpoints -> raw
+	for _, ep := range c.Endpoints {
+		add(ep)
+	}
+
+	// 3. Endpoint -> raw single
+	add(c.Endpoint)
+
+	// 4. Host -> schema + host
+	add(build(c.Host))
+
+	return result
+}
+
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {
 
 	versionLock.RLock()
