@@ -43,6 +43,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	uri "net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -216,15 +217,25 @@ func (c *ElasticsearchConfig) GetAllEndpoints() []string {
 	seen := make(map[string]struct{})
 	result := make([]string, 0)
 
+	quote := func(v string) string {
+		if v == "" {
+			return ""
+		}
+		return strconv.Quote(v)
+	}
+
 	add := func(v string) {
 		if v == "" {
 			return
 		}
-		if _, ok := seen[v]; ok {
+
+		qv := quote(v)
+
+		if _, ok := seen[qv]; ok {
 			return
 		}
-		seen[v] = struct{}{}
-		result = append(result, v)
+		seen[qv] = struct{}{}
+		result = append(result, qv)
 	}
 
 	// 1. Hosts -> schema + host
