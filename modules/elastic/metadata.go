@@ -252,6 +252,7 @@ func SyncClusterHealthStatus(clusterID string) {
 
 // update cluster state, on state version change
 func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
+	startAt := time.Now()
 
 	meta := elastic.GetMetadata(clusterId)
 	if meta == nil {
@@ -265,6 +266,12 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 		return
 	}
 
+	interval := moduleConfig.MetadataRefresh.Interval
+	if meta.Config != nil && meta.Config.MetadataConfigs != nil && meta.Config.MetadataConfigs.MetadataRefresh.Interval != "" {
+		interval = meta.Config.MetadataConfigs.MetadataRefresh.Interval
+	}
+	intervalD := util.GetDurationOrDefault(interval, 30*time.Second)
+
 	client := elastic.GetClient(clusterId)
 	state, err := client.GetClusterState()
 	if err != nil {
@@ -277,6 +284,18 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 	}
 
 	if state != nil {
+		responseSize := uint64(0)
+		if state.RawResult != nil {
+			responseSize = state.RawResult.Size
+		}
+		indexCount := 0
+		if state.Metadata != nil {
+			indexCount = len(state.Metadata.Indices)
+		}
+		routingIndexCount := 0
+		if state.RoutingTable != nil {
+			routingIndexCount = len(state.RoutingTable.Indices)
+		}
 		stateChanged := false
 		if meta.ClusterState == nil {
 			stateChanged = true
@@ -313,6 +332,20 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 			}
 			state.Metadata = metaData
 			meta.ClusterState = state
+		}
+		elapsed := time.Since(startAt)
+		if elapsed > intervalD {
+			log.Warnf(
+				"refresh cluster state for cluster [%s] completed slowly, elapsed: %v, interval: %s, response_size: %d bytes, compressed_size_in_bytes: %d, metadata_indices: %d, routing_indices: %d, state_version: %d",
+				meta.Config.Name,
+				elapsed,
+				interval,
+				responseSize,
+				state.CompressedSizeInBytes,
+				indexCount,
+				routingIndexCount,
+				state.Version,
+			)
 		}
 	}
 }

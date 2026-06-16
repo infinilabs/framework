@@ -159,6 +159,16 @@ func (meta *ElasticsearchMetadata) shouldTraceUnavailableReason() bool {
 	return !meta.Config.Monitored
 }
 
+func (meta *ElasticsearchMetadata) shouldCheckActiveHostsOnFailure() bool {
+	if meta == nil || meta.Config == nil {
+		return true
+	}
+	if meta.Config.MetadataConfigs != nil && !meta.Config.MetadataConfigs.NodeAvailabilityCheck.Enabled {
+		return false
+	}
+	return true
+}
+
 func (meta *ElasticsearchMetadata) Init(health bool) {
 	meta.clusterAvailable = health
 	if health && meta.Health == nil {
@@ -455,11 +465,15 @@ func (meta *ElasticsearchMetadata) ReportFailure(errorMessage error) bool {
 				return true
 			}
 
-			num := meta.GetActiveHosts()
-			log.Infof("%v has active hosts: %v", meta.Config.Name, num)
-			if num > 0 {
-				log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name, num)
-				return false
+			if meta.shouldCheckActiveHostsOnFailure() {
+				num := meta.GetActiveHosts()
+				log.Infof("%v has active hosts: %v", meta.Config.Name, num)
+				if num > 0 {
+					log.Debugf("enough failure ticket for elasticsearch [%v], but still have [%v] alive nodes", meta.Config.Name, num)
+					return false
+				}
+			} else if rate.GetRateLimiter("cluster_active_hosts_check", meta.Config.Name, 1, 1, 30*time.Second).Allow() {
+				log.Infof("skip active hosts check for elasticsearch [%v], node availability check is disabled", meta.Config.Name)
 			}
 
 			log.Debugf("enough failure ticket for elasticsearch [%v], mark it down", meta.Config.Name)

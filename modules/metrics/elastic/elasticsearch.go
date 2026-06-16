@@ -653,6 +653,7 @@ func (m *ElasticsearchMetric) CollectClusterHealth(k string, v *elastic.Elastics
 func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.ElasticsearchMetadata) error {
 
 	log.Trace("collecting custer state metrics for :", k)
+	startAt := time.Now()
 
 	client := elastic.GetClient(k)
 
@@ -671,6 +672,28 @@ func (m *ElasticsearchMetric) CollectClusterState(k string, v *elastic.Elasticse
 	}
 	if err != nil {
 		return wrapMetricCollectError(v.Config.Name, "cluster_stats", v.Config.GetAnyEndpoint(), monitorCfg.ClusterStats.Interval, err)
+	}
+	elapsed := time.Since(startAt)
+	if elapsed > du*8/10 {
+		responseSize := uint64(0)
+		if stats != nil && stats.RawResult != nil {
+			responseSize = stats.RawResult.Size
+		}
+		indexFieldCount := 0
+		nodeFieldCount := 0
+		if stats != nil {
+			indexFieldCount = len(stats.Indices)
+			nodeFieldCount = len(stats.Nodes)
+		}
+		log.Warnf(
+			"collect cluster_stats for cluster [%s] is near timeout, elapsed: %v, timeout: %s, response_size: %d bytes, index_fields: %d, node_fields: %d",
+			v.Config.Name,
+			elapsed,
+			monitorCfg.ClusterStats.Interval,
+			responseSize,
+			indexFieldCount,
+			nodeFieldCount,
+		)
 	}
 
 	item := event.Event{

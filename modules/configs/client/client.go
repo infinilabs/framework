@@ -72,6 +72,16 @@ var restoreManagedBootstrapAccessTokenFunc = func() (string, error) {
 	}
 	token = strings.TrimSpace(token)
 	if token == "" {
+		token = strings.TrimSpace(global.Env().SystemConfig.Configs.ManagerConfig.AccessToken.Get())
+	}
+	if token == "" {
+		token, err = common.LoadTokenFromKeystore(common.ManagerTokenKeystoreKey)
+		if err != nil {
+			return "", err
+		}
+		token = strings.TrimSpace(token)
+	}
+	if token == "" {
 		return "", fmt.Errorf("managed bootstrap access token is missing")
 	}
 	global.Env().SystemConfig.Configs.ManagerConfig.AccessToken = ucfg.SecretString(token)

@@ -281,6 +281,7 @@ func nodeAvailabilityCheck() {
 						}
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("check availability for node [%s] is still running, elapsed: %v, skip waiting", v.Host, elapsed.String())
+							return true
 						} else {
 							log.Warnf("check availability for node [%s] is still running, elapsed: %v", v.Host, elapsed.String())
 							return true
@@ -342,6 +343,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 						intervalD := util.GetDurationOrDefault(interval, 10*time.Second)
 						if time.Since(startTime.(time.Time)) > intervalD*2 {
 							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							return true
 						} else {
 							duration := elapsed - intervalD
 							abd := math.Abs(duration.Seconds())
@@ -355,8 +357,8 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 
 					task.RunWithContext("refresh_cluster_state", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
+						defer module.stateMap.Delete(clusterID)
 						module.updateClusterState(clusterID, false)
-						module.stateMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
 				}
@@ -524,6 +526,7 @@ func (module *ElasticModule) Start() error {
 							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
 							if elapsed > tinterval*2 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
+								return true
 							} else if math.Abs((elapsed - tinterval).Seconds()) > 3 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v", cfg1.Name, elapsed.String())
 								return true
@@ -533,8 +536,8 @@ func (module *ElasticModule) Start() error {
 
 						task.RunWithContext("refresh_cluster_health", func(ctx context.Context) error {
 							clusterID := task.MustGetString(ctx, "id")
+							defer module.healthMap.Delete(clusterID)
 							module.clusterHealthCheck(clusterID, false)
-							module.healthMap.Delete(clusterID)
 							return nil
 						}, context.WithValue(context.Background(), "id", cfg1.ID))
 					}
@@ -691,6 +694,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							return true
 						} else {
 							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
 							return true
@@ -699,8 +703,8 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 					module.settingsMap.Store(v.ID, time.Now())
 					task.RunWithContext("refresh_cluster_settings", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
+						defer module.settingsMap.Delete(clusterID)
 						module.updateClusterSettings(clusterID)
-						module.settingsMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
 				}
