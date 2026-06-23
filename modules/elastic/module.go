@@ -113,10 +113,26 @@ func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	return configs
 }
 
+func lookupSystemElasticsearchID() (string, bool) {
+	value := global.Lookup(elastic.GlobalSystemElasticsearchID)
+	systemID, ok := value.(string)
+	if !ok || systemID == "" {
+		return "", false
+	}
+	return systemID, true
+}
+
 func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
+	systemID, ok := lookupSystemElasticsearchID()
+	if !ok {
+		return configs
+	}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+	query.Set("query", util.MapStr{
+		"match_all": util.MapStr{},
+	})
+	esClient := elastic.GetClient(systemID)
 	result, err := esClient.Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
 		log.Error(err)
@@ -246,7 +262,7 @@ func nodeAvailabilityCheck() {
 					}
 
 					cfg := elastic.GetConfig(v.ClusterID)
-					if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled) {
+					if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.NodeAvailabilityCheck.Enabled) {
 						return true
 					}
 
@@ -265,6 +281,7 @@ func nodeAvailabilityCheck() {
 						}
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("check availability for node [%s] is still running, elapsed: %v, skip waiting", v.Host, elapsed.String())
+							return true
 						} else {
 							log.Warnf("check availability for node [%s] is still running, elapsed: %v", v.Host, elapsed.String())
 							return true
@@ -313,7 +330,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 				log.Tracef("init meta refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.MetadataRefresh.Enabled) {
+					if !v.Enabled || !v.Monitored || (v.MetadataConfigs != nil && !v.MetadataConfigs.MetadataRefresh.Enabled) {
 						return true
 					}
 
@@ -326,6 +343,7 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 						intervalD := util.GetDurationOrDefault(interval, 10*time.Second)
 						if time.Since(startTime.(time.Time)) > intervalD*2 {
 							log.Warnf("refresh cluster state for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							return true
 						} else {
 							duration := elapsed - intervalD
 							abd := math.Abs(duration.Seconds())
@@ -339,8 +357,8 @@ func (module *ElasticModule) registerClusterStateRefreshTask() {
 
 					task.RunWithContext("refresh_cluster_state", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
+						defer module.stateMap.Delete(clusterID)
 						module.updateClusterState(clusterID, false)
-						module.stateMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
 				}
@@ -395,20 +413,37 @@ func InitSchema() {
 var ormInited bool
 
 func (module *ElasticModule) Start() error {
+	systemID, hasSystemCluster := lookupSystemElasticsearchID()
 
 	if moduleConfig.ORMConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-		orm.Register("elastic", &handler)
+		if !hasSystemCluster {
+			log.Warn("skip elastic ORM initialization, system cluster is not available")
+		} else {
+			client := elastic.GetClient(systemID)
+			handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
+			if orm.HasAdapter("elastic") {
+				log.Debug("skip duplicate elastic ORM registration")
+			} else {
+				orm.Register("elastic", &handler)
+			}
+		}
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-		kv.Register("elastic", module.storeHandler)
+		if !hasSystemCluster {
+			log.Warn("skip elastic store initialization, system cluster is not available")
+		} else {
+			client := elastic.GetClient(systemID)
+			module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+			if kv.HasStore("elastic") {
+				log.Debug("skip duplicate elastic store registration")
+			} else {
+				kv.Register("elastic", module.storeHandler)
+			}
+		}
 	}
 
-	if moduleConfig.ORMConfig.Enabled {
+	if moduleConfig.ORMConfig.Enabled && hasSystemCluster {
 		if !ormInited {
 			//init template
 			InitTemplate(false)
@@ -419,8 +454,12 @@ func (module *ElasticModule) Start() error {
 	}
 
 	if moduleConfig.RemoteConfigEnabled {
-		m := loadESBasedElasticConfig()
-		initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
+		if !hasSystemCluster {
+			log.Warn("skip remote elastic config loading, system cluster is not available")
+		} else {
+			m := loadESBasedElasticConfig()
+			initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
+		}
 	}
 
 	if module.storeHandler != nil {
@@ -442,23 +481,19 @@ func (module *ElasticModule) Start() error {
 			cfg1, ok := value.(*elastic.ElasticsearchConfig)
 			if ok && cfg1 != nil {
 				log.Tracef("init elasticsearch config: %v", cfg1.Name)
-				metadata := elastic.GetMetadata(cfg1.ID)
-				if metadata != nil {
-					//update nodes
-					module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
+				if cfg1.Monitored {
+					metadata := elastic.GetMetadata(cfg1.ID)
+					if metadata != nil {
+						//update nodes
+						module.updateNodeInfo(metadata, true, cfg1.Discovery.Enabled)
 
-					//update alias
-					updateAliases(metadata, true)
+						//update alias
+						updateAliases(metadata, true)
 
-					//update
-					module.updateClusterState(cfg1.ID, true)
+						//update
+						module.updateClusterState(cfg1.ID, true)
+					}
 				}
-
-				task.RunWithContext("cluster_health_check", func(ctx context.Context) error {
-					id := task.MustGetString(ctx, "id")
-					module.clusterHealthCheck(id, true)
-					return nil
-				}, context.WithValue(context.Background(), "id", cfg1.ID))
 			}
 			return true
 		})
@@ -476,7 +511,7 @@ func (module *ElasticModule) Start() error {
 					}
 					cfg1, ok := value.(*elastic.ElasticsearchConfig)
 					if ok && cfg1 != nil {
-						if !cfg1.Enabled || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
+						if !cfg1.Enabled || !cfg1.Monitored || (cfg1.MetadataConfigs != nil && !cfg1.MetadataConfigs.HealthCheck.Enabled) {
 							return true
 						}
 
@@ -491,6 +526,7 @@ func (module *ElasticModule) Start() error {
 							tinterval := util.GetDurationOrDefault(interval, 10*time.Second)
 							if elapsed > tinterval*2 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v, skip waiting", cfg1.Name, elapsed.String())
+								return true
 							} else if math.Abs((elapsed - tinterval).Seconds()) > 3 {
 								log.Warnf("health check for cluster [%s] is still running, elapsed: %v", cfg1.Name, elapsed.String())
 								return true
@@ -500,8 +536,8 @@ func (module *ElasticModule) Start() error {
 
 						task.RunWithContext("refresh_cluster_health", func(ctx context.Context) error {
 							clusterID := task.MustGetString(ctx, "id")
+							defer module.healthMap.Delete(clusterID)
 							module.clusterHealthCheck(clusterID, false)
-							module.healthMap.Delete(clusterID)
 							return nil
 						}, context.WithValue(context.Background(), "id", cfg1.ID))
 					}
@@ -646,7 +682,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 				log.Tracef("init settings refresh task: [%v] [%v] [%v] [%v]", key, v.ID, v.Name, v.Enabled)
 
 				if ok {
-					if !v.Enabled || (v.MetadataConfigs != nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
+					if !v.Enabled || !v.Monitored || (v.MetadataConfigs != nil && !v.MetadataConfigs.ClusterSettingsCheck.Enabled) {
 						return true
 					}
 					if startTime, ok := module.settingsMap.Load(v.ID); ok {
@@ -658,6 +694,7 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 
 						if time.Since(startTime.(time.Time)) > util.GetDurationOrDefault(interval, 10*time.Second)*2 {
 							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v, skip waiting", v.Name, elapsed.String())
+							return true
 						} else {
 							log.Warnf("collect cluster settings for cluster [%s] is still running, elapsed: %v", v.Name, elapsed.String())
 							return true
@@ -666,8 +703,8 @@ func (module *ElasticModule) registerClusterSettingsRefreshTask() {
 					module.settingsMap.Store(v.ID, time.Now())
 					task.RunWithContext("refresh_cluster_settings", func(ctx context.Context) error {
 						clusterID := task.MustGetString(ctx, "id")
+						defer module.settingsMap.Delete(clusterID)
 						module.updateClusterSettings(clusterID)
-						module.settingsMap.Delete(clusterID)
 						return nil
 					}, context.WithValue(context.Background(), "id", v.ID))
 				}
@@ -694,7 +731,18 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		log.Trace("update elasticsearch's metadata:", v, ok)
 
 		if ok {
-			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
+			module.updateNodeInfo(v, false, cfg.Discovery.Enabled)
 		}
 		return true
 	})
@@ -707,6 +755,17 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 		}
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || !cfg.Monitored || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
 			updateAliases(v, force)
 		}
 		return true

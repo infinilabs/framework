@@ -69,6 +69,8 @@ import (
 	"infini.sh/framework/core/util/zstd"
 )
 
+const bytesPerMiB = 1024 * 1024
+
 // providing a filesystem backed FIFO queue
 type DiskBasedQueue struct {
 	sync.RWMutex
@@ -118,6 +120,8 @@ type DiskBasedQueue struct {
 // NewDiskQueue instantiates a new instance of DiskBasedQueue, retrieving metadata
 // from the filesystem and starting the read ahead goroutine
 func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBasedQueue {
+	normalizeDiskQueueConfig(cfg)
+
 	d := DiskBasedQueue{
 		name:               name,
 		dataPath:           dataPath,
@@ -138,6 +142,9 @@ func NewDiskQueueByConfig(name, dataPath string, cfg *DiskQueueConfig) *DiskBase
 	err := d.retrieveMetaData()
 	if err != nil && !os.IsNotExist(err) {
 		log.Errorf("diskqueue(%s) failed to retrieveMetaData - %s", d.name, err)
+	}
+	if repairErr := d.repairTailMetadata(); repairErr != nil {
+		log.Errorf("diskqueue(%s) failed to repair tail metadata - %s", d.name, repairErr)
 	}
 
 	// Always advance to a new segment on process restart to prevent data loss
@@ -197,7 +204,8 @@ func (d *DiskBasedQueue) ReadChan() <-chan []byte {
 
 // Put writes a []byte to the queue
 func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.cfg.WriteTimeoutInMS)*time.Millisecond)
+	writeTimeout := d.getWriteTimeout(len(data))
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 
 	size := int64(len(data))
@@ -252,7 +260,7 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 		switch res.Error {
 		case context.DeadlineExceeded:
 			// Handle timeout error specifically
-			res.Error = fmt.Errorf("operation timed out: %w", res.Error)
+			res.Error = fmt.Errorf("operation timed out after %s waiting for disk queue writer availability: %w", writeTimeout, res.Error)
 		case context.Canceled:
 			// Handle cancellation error specifically
 			res.Error = fmt.Errorf("operation was canceled: %w", res.Error)
@@ -264,13 +272,31 @@ func (d *DiskBasedQueue) Put(data []byte) WriteResponse {
 	}
 }
 
+func (d *DiskBasedQueue) getWriteTimeout(payloadSize int) time.Duration {
+	timeoutInMS := defaultWriteTimeoutInMS
+	if d != nil && d.cfg != nil && d.cfg.WriteTimeoutInMS > 0 {
+		timeoutInMS = d.cfg.WriteTimeoutInMS
+	}
+
+	if payloadSize > 0 {
+		payloadMiB := int64((payloadSize + bytesPerMiB - 1) / bytesPerMiB)
+		timeoutInMS += payloadMiB * adaptiveWriteTimeoutPerPayloadMiBInMS
+	}
+
+	if d != nil && len(d.writeChan) > 0 {
+		timeoutInMS += int64(len(d.writeChan)) * adaptiveWriteTimeoutPerQueuedWriteInMS
+	}
+
+	if timeoutInMS > maxAdaptiveWriteTimeoutInMS {
+		timeoutInMS = maxAdaptiveWriteTimeoutInMS
+	}
+
+	return time.Duration(timeoutInMS) * time.Millisecond
+}
+
 // Close cleans up the queue and persists metadata
 func (d *DiskBasedQueue) Close() error {
-	err := d.exit(false)
-	if err != nil {
-		return err
-	}
-	return d.sync()
+	return d.exit(false)
 }
 
 // Destroy cleans up all data for the specified queue
@@ -295,6 +321,13 @@ func (d *DiskBasedQueue) Destroy() error {
 
 func (d *DiskBasedQueue) Delete() error {
 	return d.exit(true)
+}
+
+func (d *DiskBasedQueue) ensureDataPathExists() error {
+	if d == nil || d.dataPath == "" {
+		return nil
+	}
+	return os.MkdirAll(d.dataPath, 0o755)
 }
 
 func (d *DiskBasedQueue) exit(deleted bool) error {
@@ -330,6 +363,11 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 	// ensure that ioLoop has exited
 	<-d.exitSyncChan
 
+	var syncErr error
+	if !deleted {
+		syncErr = d.sync()
+	}
+
 	close(d.depthChan)
 
 	if d.readFile != nil {
@@ -342,7 +380,7 @@ func (d *DiskBasedQueue) exit(deleted bool) error {
 		d.writeFile = nil
 	}
 
-	return nil
+	return syncErr
 }
 
 // Empty destructively clears out any pending data in the queue
@@ -559,6 +597,11 @@ func (d *DiskBasedQueue) writeOne(data []byte) WriteResponse {
 	var res WriteResponse
 
 	if d.writeFile == nil {
+		err = d.ensureDataPathExists()
+		if err != nil {
+			res.Error = err
+			return res
+		}
 		curFileName := d.GetFileName(d.writeSegmentNum)
 		d.writeFile, err = os.OpenFile(curFileName, os.O_RDWR|os.O_CREATE, 0600)
 		if err != nil {
@@ -705,6 +748,158 @@ func (d *DiskBasedQueue) retrieveMetaData() error {
 	return nil
 }
 
+type segmentScanResult struct {
+	validEnd               int64
+	totalMessages          int64
+	messagesBeforeReadPos  int64
+	messagesBeforeWritePos int64
+	readBoundary           int64
+}
+
+func scanSegmentFileTail(file *os.File, cfg *DiskQueueConfig, readPos, writePos int64) (segmentScanResult, error) {
+	result := segmentScanResult{}
+	if file == nil || cfg == nil {
+		return result, nil
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		return result, err
+	}
+
+	reader := bufio.NewReader(file)
+	var offset int64
+
+	for {
+		var msgSize int32
+		if err := binary.Read(reader, binary.BigEndian, &msgSize); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return result, nil
+			}
+			return result, err
+		}
+
+		if msgSize < cfg.MinMsgSize || msgSize > cfg.MaxMsgSize {
+			return result, nil
+		}
+
+		payloadSize := int64(msgSize)
+		if _, err := io.CopyN(io.Discard, reader, payloadSize); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return result, nil
+			}
+			return result, err
+		}
+
+		offset += 4 + payloadSize
+		result.validEnd = offset
+		result.totalMessages++
+		if offset <= readPos {
+			result.messagesBeforeReadPos++
+			result.readBoundary = offset
+		}
+		if offset <= writePos {
+			result.messagesBeforeWritePos++
+		}
+	}
+}
+
+func (d *DiskBasedQueue) repairTailMetadata() error {
+	if d == nil || d.cfg == nil {
+		return nil
+	}
+	if d.writeSegmentNum == 0 && d.writePos == 0 {
+		return nil
+	}
+
+	fileName := d.GetFileName(d.writeSegmentNum)
+	if !util.FileExists(fileName) {
+		return nil
+	}
+
+	file, err := os.OpenFile(fileName, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	readPos := int64(0)
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		readPos = d.readPos
+	}
+
+	scan, err := scanSegmentFileTail(file, d.cfg, readPos, d.writePos)
+	if err != nil {
+		return err
+	}
+
+	newWritePos := scan.validEnd
+	newReadPos := readPos
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		if newReadPos > newWritePos {
+			newReadPos = newWritePos
+		}
+		if scan.readBoundary < newReadPos {
+			newReadPos = scan.readBoundary
+		}
+	}
+
+	oldUnreadInTail := scan.messagesBeforeWritePos
+	newUnreadInTail := scan.totalMessages
+	if d.readSegmentFileNum == d.writeSegmentNum {
+		oldUnreadInTail -= scan.messagesBeforeReadPos
+		newUnreadInTail -= scan.messagesBeforeReadPos
+	}
+
+	changed := false
+	if stat.Size() != scan.validEnd {
+		if err := file.Truncate(scan.validEnd); err != nil {
+			return err
+		}
+		if err := file.Sync(); err != nil {
+			return err
+		}
+		log.Warnf("diskqueue(%s) truncated tail segment %s from %d to %d bytes during startup recovery",
+			d.name, fileName, stat.Size(), scan.validEnd)
+		changed = true
+	}
+
+	if d.writePos != newWritePos {
+		d.writePos = newWritePos
+		changed = true
+	}
+
+	if d.readSegmentFileNum == d.writeSegmentNum && d.readPos != newReadPos {
+		d.readPos = newReadPos
+		d.nextReadPos = newReadPos
+		changed = true
+	}
+
+	if delta := newUnreadInTail - oldUnreadInTail; delta != 0 {
+		d.depth += delta
+		if d.depth < 0 {
+			d.depth = 0
+		}
+		changed = true
+	}
+
+	if d.nextReadFileNum == d.writeSegmentNum && d.nextReadPos > d.writePos {
+		d.nextReadPos = d.writePos
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	d.needSync = true
+	return d.persistMetaData()
+}
+
 // persistMetaData atomically writes state to the filesystem
 func (d *DiskBasedQueue) persistMetaData() error {
 	d.metaLock.Lock()
@@ -728,6 +923,11 @@ func (d *DiskBasedQueue) persistMetaData() error {
 
 	var f *os.File
 	var err error
+
+	err = d.ensureDataPathExists()
+	if err != nil {
+		return err
+	}
 
 	fileName := d.metaDataFileName()
 	tmpFileName := fmt.Sprintf("%s.%d.tmp", fileName, rand.Int())

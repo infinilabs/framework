@@ -541,6 +541,9 @@ type ElasticsearchConfig struct {
 	Distribution          string `json:"distribution,omitempty" elastic_mapping:"distribution:{type:keyword}"`
 	NoDefaultAuthForAgent bool   `json:"no_default_auth_for_agent,omitempty" config:"no_default_auth_for_agent"`
 	MetricCollectionMode  string `json:"metric_collection_mode,omitempty" elastic_mapping:"metric_collection_mode:{type:keyword}"`
+	// AgentCollectionInterval is the default metrics collection interval (in seconds) for all Agent pipelines
+	// monitoring this cluster. 0 means use the Agent binary default (10 s). Can be overridden per-node via node_settings.
+	AgentCollectionInterval int `json:"agent_collection_interval,omitempty" elastic_mapping:"agent_collection_interval:{type:integer}"`
 }
 
 const (

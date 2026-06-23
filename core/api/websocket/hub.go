@@ -87,6 +87,7 @@ func (h *Hub) registerHandlers() {
 
 // InitWebSocket start websocket
 func InitWebSocket(cfg config.WebsocketConfig) {
+	maxMessageSize = resolveMaxMessageSize(cfg)
 	if cfg.SkipHostVerify {
 		upgrader.CheckOrigin = func(r *http.Request) bool {
 			return true
@@ -121,6 +122,13 @@ func InitWebSocket(cfg config.WebsocketConfig) {
 		go h.runHub(cfg)
 	}
 
+}
+
+func resolveMaxMessageSize(cfg config.WebsocketConfig) int64 {
+	if cfg.MaxMessageSizeBytes > 0 {
+		return cfg.MaxMessageSizeBytes
+	}
+	return defaultMaxMessageSize
 }
 
 // HandleWebSocketCommand used to register command and handler

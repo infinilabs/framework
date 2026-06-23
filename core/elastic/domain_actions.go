@@ -43,6 +43,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	uri "net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -99,8 +100,14 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	UpdateClient(cfg, handler)
 	UpdateConfig(cfg)
 
+	meta := GetMetadata(cfg.ID)
+	if meta == nil {
+		InitMetadata(&cfg, false)
+		return
+	}
+
 	if exists && oldCfg != nil {
-		InitMetadata(&cfg, true)
+		InitMetadata(&cfg, meta.IsAvailable())
 	}
 }
 
@@ -200,6 +207,54 @@ func (c *ElasticsearchConfig) GetAnyEndpoint() string {
 	}
 
 	panic(fmt.Errorf("no endpoint was not found in config [%v] ", c.ID))
+}
+
+func (c *ElasticsearchConfig) GetAllEndpoints() []string {
+	build := func(host string) string {
+		return fmt.Sprintf("%s://%s", c.Schema, host)
+	}
+
+	seen := make(map[string]struct{})
+	result := make([]string, 0)
+
+	quote := func(v string) string {
+		if v == "" {
+			return ""
+		}
+		return strconv.Quote(v)
+	}
+
+	add := func(v string) {
+		if v == "" {
+			return
+		}
+
+		qv := quote(v)
+
+		if _, ok := seen[qv]; ok {
+			return
+		}
+		seen[qv] = struct{}{}
+		result = append(result, qv)
+	}
+
+	// 1. Hosts -> schema + host
+	for _, host := range c.Hosts {
+		add(build(host))
+	}
+
+	// 2. Endpoints -> raw
+	for _, ep := range c.Endpoints {
+		add(ep)
+	}
+
+	// 3. Endpoint -> raw single
+	add(c.Endpoint)
+
+	// 4. Host -> schema + host
+	add(build(c.Host))
+
+	return result
 }
 
 func (meta *ElasticsearchMetadata) GetMajorVersion() int {

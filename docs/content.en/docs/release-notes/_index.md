@@ -33,6 +33,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat(client): support token-based authorization #288
 - feat: add pluggable sink to host metrics collectors #288
 - feat: add access_token to security #359
+- feat(security): add native account login challenge, replay protection, and secure transport helpers
 - feat: smtp processor support parse dynamic content attachments from message #374
 - feat: add static rule based authorization #375
 - feat: allow to specify OS user when installing the service #380

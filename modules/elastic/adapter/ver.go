@@ -170,6 +170,14 @@ func RequestTimeout(ctx *elastic.APIContext, method, url string, body []byte, me
 func GetClusterUUID(clusterID string) (string, error) {
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
+		if cfg := elastic.GetConfigNoPanic(clusterID); cfg != nil {
+			if cfg.ClusterUUID != "" {
+				return cfg.ClusterUUID, nil
+			}
+			meta = elastic.GetOrInitMetadata(cfg)
+		}
+	}
+	if meta == nil {
 		return "", fmt.Errorf("metadata can not be mepty")
 	}
 	if meta.ClusterState != nil {

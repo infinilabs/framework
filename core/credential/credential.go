@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"infini.sh/framework/core/model"
 	"infini.sh/framework/core/orm"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 type Credential struct {
@@ -69,10 +70,15 @@ func (cred *Credential) Encode() error {
 	switch cred.Type {
 	case BasicAuth:
 		return encodeBasicAuth(cred)
+	case Token:
+		return encodeToken(cred)
+	case AccessToken:
+		return encodeAccessToken(cred)
 	default:
 		return fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
 }
+
 func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	var dv interface{}
 	dv, err := cred.Decode()
@@ -86,15 +92,50 @@ func (cred *Credential) DecodeBasicAuth() (*model.BasicAuth, error) {
 	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 }
 
+func (cred *Credential) DecodeToken() (string, error) {
+	dv, err := cred.Decode()
+	if err != nil {
+		return "", err
+	}
+	if token, ok := dv.(model.Token); ok {
+		return token.Value, nil
+	}
+	return "", fmt.Errorf("unkonow credential type [%s]", cred.Type)
+}
+
+func (cred *Credential) DecodeAccessToken() (*AccessTokenPayload, error) {
+	dv, err := cred.Decode()
+	if err != nil {
+		return nil, err
+	}
+	if token, ok := dv.(AccessTokenPayload); ok {
+		return &token, nil
+	}
+	return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
+}
+
 func (cred *Credential) Decode() (interface{}, error) {
 	switch cred.Type {
 	case BasicAuth:
 		return decodeBasicAuth(cred)
+	case Token:
+		return decodeToken(cred)
+	case AccessToken:
+		return decodeAccessToken(cred)
 	default:
 		return nil, fmt.Errorf("unkonow credential type [%s]", cred.Type)
 	}
 }
 
 const (
-	BasicAuth string = "basic_auth"
+	BasicAuth   string = "basic_auth"
+	Token       string = "token"
+	AccessToken string = "access_token"
 )
+
+type AccessTokenPayload struct {
+	Value       ucfg.SecretString `json:"value" yaml:"value"`
+	Permissions []string          `json:"permissions,omitempty" yaml:"permissions,omitempty"`
+	Username    string            `json:"username,omitempty" yaml:"username,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+}

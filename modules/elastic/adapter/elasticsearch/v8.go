@@ -280,7 +280,7 @@ func (c *ESAPIV8) Create(indexName, docType string, id interface{}, data interfa
 	}
 
 	if global.Env().IsDebug {
-		log.Debug("creating doc: ", url, ",", string(js))
+		log.Trace("creating doc: ", url, ",", string(js))
 	}
 
 	if err != nil {
