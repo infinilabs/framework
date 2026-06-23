@@ -108,6 +108,8 @@ type Object interface {
 const OwnerIDKey = "owner_id"
 const TenantIDKey = "tenant_id"
 const TeamsIDKey = "teams_id"
+const TeamIDKey = "team_id"
+const ProjectIDKey = "project_id"
 const SystemFieldsKey = "_system"
 
 func GetSystemFieldKey(field string) string {
