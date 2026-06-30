@@ -13,6 +13,7 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- refactor: add EventSink support to overall utilization collector #387
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  
