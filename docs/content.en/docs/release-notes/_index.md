@@ -23,6 +23,10 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 - feat: support team-based scope for sharing services #258
 - feat: add semantic, hybrid, and nested query support #265
+### 🐛 Bug fix  
+- fix: use the web endpoint in instance info when the API listener is disabled, and keep managed config sync requests authenticated after registration
+### ✈️ Improvements  
+- chore: add post-register hooks so managed clients can run follow-up steps like token exchange immediately after a successful register
 - feat: extract BuildFuzzinessQueryClauses as public API #266
 - feat(keystore): support large stdin secrets (>1024 bytes) and multiline #271
 - feat(cors): add X-SERVICE-ID to allowed CORS headers #275

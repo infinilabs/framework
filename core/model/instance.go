@@ -56,6 +56,8 @@ type Instance struct {
 
 	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
 
+	AccessToken string `json:"access_token,omitempty" elastic_mapping:"access_token:{type:keyword}"`
+
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
 
@@ -69,8 +71,6 @@ type Instance struct {
 	Network  NetworkInfo   `json:"network,omitempty" elastic_mapping:"network: { type: object }"`
 	Services []ServiceInfo `json:"services,omitempty" elastic_mapping:"services: { type: object }"`
 	Status   string        `json:"status,omitempty" elastic_mapping:"status: { type: keyword, copy_to:search_text }"`
-
-	//SearchText string   `json:"search_text,omitempty" elastic_mapping:"search_text:{type:text,index_prefixes:{},index_phrases:true, analyzer:suggest_text_search }"`
 }
 
 type ServiceInfo struct {
@@ -137,7 +137,11 @@ func GetInstanceInfo() Instance {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
-	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	if !global.Env().SystemConfig.APIConfig.Enabled && global.Env().SystemConfig.WebAppConfig.Enabled {
+		instance.Endpoint = global.Env().SystemConfig.WebAppConfig.GetEndpoint()
+	} else {
+		instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	}
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {
