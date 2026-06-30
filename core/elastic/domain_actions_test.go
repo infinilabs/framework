@@ -23,19 +23,36 @@
 
 package elastic
 
-import "time"
+import (
+	"testing"
 
-type CommandRequest struct {
-	Path   string `json:"path"`
-	Method string `json:"method"`
-	Body   string `json:"body"`
-}
+	"infini.sh/framework/core/orm"
+)
 
-type CommonCommand struct {
-	ID       string           `json:"-" index:"id"`
-	Title    string           `json:"title" elastic_mapping:"title:{type:text,fields:{keyword:{type:keyword}}}"`
-	Tag      []string         `json:"tag" elastic_mapping:"tag:{type:keyword}"`
-	Creator  string           `json:"creator,omitempty" elastic_mapping:"creator:{type:keyword}"`
-	Requests []CommandRequest `json:"requests" elastic_mapping:"requests:{type:object}"`
-	Created  time.Time        `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+func TestRegisterInstanceInitializesMetadataOnFirstRegistration(t *testing.T) {
+	cfg := ElasticsearchConfig{
+		ORMObjectBase: orm.ORMObjectBase{ID: "test-first-sync"},
+		Name:          "test-first-sync",
+		Enabled:       true,
+		ClusterUUID:   "cluster-uuid-1",
+	}
+
+	t.Cleanup(func() {
+		cfgs.Delete(cfg.ID)
+		apis.Delete(cfg.ID)
+		metas.Delete(cfg.ID)
+	})
+
+	RegisterInstance(cfg, nil)
+
+	meta := GetMetadata(cfg.ID)
+	if meta == nil {
+		t.Fatalf("expected metadata to be initialized for %s", cfg.ID)
+	}
+	if meta.Config == nil {
+		t.Fatalf("expected metadata config to be initialized for %s", cfg.ID)
+	}
+	if meta.Config.ClusterUUID != cfg.ClusterUUID {
+		t.Fatalf("expected cluster uuid %q, got %q", cfg.ClusterUUID, meta.Config.ClusterUUID)
+	}
 }

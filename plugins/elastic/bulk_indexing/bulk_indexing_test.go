@@ -28,9 +28,13 @@
 package bulk_indexing
 
 import (
+	stdErrors "errors"
 	"github.com/OneOfOne/xxhash"
 	"github.com/stretchr/testify/assert"
+	"infini.sh/framework/core/queue"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestXXHash(t *testing.T) {
@@ -83,4 +87,91 @@ func TestXXHash(t *testing.T) {
 		assert.Equal(t, hashValue%3, hash[o])
 	}
 
+}
+
+func TestReserveInFlightQueue(t *testing.T) {
+	processor := &BulkIndexingProcessor{}
+
+	current, reserved := processor.reserveInFlightQueue("queue-0", "worker-1")
+	assert.True(t, reserved)
+	assert.Equal(t, "worker-1", current)
+
+	stored, exists := processor.inFlightQueueConfigs.Load("queue-0")
+	assert.True(t, exists)
+	assert.Equal(t, "worker-1", stored)
+
+	current, reserved = processor.reserveInFlightQueue("queue-0", "worker-2")
+	assert.False(t, reserved)
+	assert.Equal(t, "worker-1", current)
+
+	processor.inFlightQueueConfigs.Delete("queue-0")
+	processor.wg.Done()
+}
+
+func TestHasInFlightQueue(t *testing.T) {
+	processor := &BulkIndexingProcessor{}
+
+	assert.False(t, processor.hasInFlightQueue("queue-0"))
+
+	processor.inFlightQueueConfigs.Store("queue-0-0", "worker-1")
+	assert.True(t, processor.hasInFlightQueue("queue-0"))
+
+	processor.inFlightQueueConfigs.Delete("queue-0-0")
+	assert.False(t, processor.hasInFlightQueue("queue-0"))
+}
+
+func TestAcquireQueueOwner(t *testing.T) {
+	queueOwners = sync.Map{}
+
+	processor1 := &BulkIndexingProcessor{id: "processor-1"}
+	processor2 := &BulkIndexingProcessor{id: "processor-2"}
+
+	assert.True(t, processor1.acquireQueueOwner("queue-0"))
+	assert.True(t, processor1.acquireQueueOwner("queue-0"))
+	assert.False(t, processor2.acquireQueueOwner("queue-0"))
+
+	queueOwners = sync.Map{}
+}
+
+func TestReleaseQueueOwnerIfIdle(t *testing.T) {
+	queueOwners = sync.Map{}
+
+	processor := &BulkIndexingProcessor{id: "processor-1"}
+	assert.True(t, processor.acquireQueueOwner("queue-0"))
+
+	processor.inFlightQueueConfigs.Store("queue-0-0", "worker-1")
+	processor.releaseQueueOwnerIfIdle("queue-0")
+	_, exists := queueOwners.Load("queue-0")
+	assert.True(t, exists)
+
+	processor.inFlightQueueConfigs.Delete("queue-0-0")
+	processor.releaseQueueOwnerIfIdle("queue-0")
+	_, exists = queueOwners.Load("queue-0")
+	assert.False(t, exists)
+}
+
+func TestIsIgnorableAcquireConsumerError(t *testing.T) {
+	assert.True(t, isIgnorableAcquireConsumerError(stdErrors.New("already owning this topic")))
+	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("the consumer is in fighting list")))
+	assert.False(t, isIgnorableAcquireConsumerError(stdErrors.New("some other error")))
+	assert.False(t, isIgnorableAcquireConsumerError(nil))
+}
+
+func TestShouldQuitActiveQueueDetection(t *testing.T) {
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now(), 5*time.Second, 5*time.Second, 0))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 1))
+	assert.False(t, shouldQuitActiveQueueDetection(time.Now().Add(-9*time.Second), 5*time.Second, 5*time.Second, 0))
+	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-10*time.Second), 5*time.Second, 5*time.Second, 0))
+	assert.True(t, shouldQuitActiveQueueDetection(time.Now().Add(-5*time.Second), 5*time.Second, 0, 0))
+}
+
+func TestAdvanceBufferedOffsetUsesCurrentMessageNextOffset(t *testing.T) {
+	previousCommitted := queue.NewOffsetWithVersion(0, 100, 1)
+	currentNext := queue.NewOffsetWithVersion(0, 200, 1)
+
+	offset := advanceBufferedOffset(currentNext)
+
+	assert.NotNil(t, offset)
+	assert.True(t, offset.Equals(currentNext))
+	assert.False(t, offset.Equals(previousCommitted))
 }

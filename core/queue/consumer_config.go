@@ -172,7 +172,7 @@ func RemoveAllConsumers(qConfig *QueueConfig) (bool, error) {
 		log.Error(err)
 		return false, err
 	}
-	log.Debugf("success delete all consumers for queue:%v", qConfig.ID)
+	log.Tracef("success delete all consumers for queue:%v", qConfig.ID)
 	return true, nil
 }
 

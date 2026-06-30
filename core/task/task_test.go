@@ -21,21 +21,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package elastic
+package task
 
-import "time"
+import "testing"
 
-type CommandRequest struct {
-	Path   string `json:"path"`
-	Method string `json:"method"`
-	Body   string `json:"body"`
+func TestShouldSilenceStartupTaskErrorForMissingORMHandler(t *testing.T) {
+	if !shouldSilenceStartupTaskError("ORM handler is not registered") {
+		t.Fatal("expected missing ORM handler startup error to be silenced")
+	}
 }
 
-type CommonCommand struct {
-	ID       string           `json:"-" index:"id"`
-	Title    string           `json:"title" elastic_mapping:"title:{type:text,fields:{keyword:{type:keyword}}}"`
-	Tag      []string         `json:"tag" elastic_mapping:"tag:{type:keyword}"`
-	Creator  string           `json:"creator,omitempty" elastic_mapping:"creator:{type:keyword}"`
-	Requests []CommandRequest `json:"requests" elastic_mapping:"requests:{type:object}"`
-	Created  time.Time        `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+func TestShouldSilenceStartupTaskErrorIgnoresOtherErrors(t *testing.T) {
+	if shouldSilenceStartupTaskError("queue consumer is not registered") {
+		t.Fatal("expected unrelated startup errors to remain visible")
+	}
 }

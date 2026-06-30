@@ -78,6 +78,8 @@ type BulkIndexingProcessor struct {
 	bulkBufferPool *elastic.BulkBufferPool
 }
 
+var queueOwners sync.Map
+
 type Config struct {
 	NumOfSlices          int   `config:"num_of_slices"`
 	Slices               []int `config:"slices"`
@@ -233,7 +235,17 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 				log.Error("error in bulk indexing processor,", v)
 			}
 		}
-		log.Debug("exit bulk indexing processor")
+		if processor.bulkStats != nil {
+			log.Debugf(
+				"exit bulk indexing processor, success=%d, invalid=%d, failure=%d, error_msgs=%d",
+				processor.bulkStats.Summary.Success.Count,
+				processor.bulkStats.Summary.Invalid.Count,
+				processor.bulkStats.Summary.Failure.Count,
+				len(processor.bulkStats.ErrorMsgs),
+			)
+		} else {
+			log.Debug("exit bulk indexing processor")
+		}
 	}()
 
 	//handle updates
@@ -268,6 +280,7 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					processor.wg.Done()
 				}()
 
+				lastDispatch := time.Now()
 				for {
 
 					if global.ShuttingDown() {
@@ -299,11 +312,12 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 						}
 						//if have depth and not in in flight
 						if !processor.config.SkipEmptyQueue || queue.HasLag(v) {
-							_, ok := processor.inFlightQueueConfigs.Load(v.ID)
+							ok := processor.hasInFlightQueue(v.ID)
 							if !ok {
 								if global.Env().IsDebug {
 									log.Tracef("detecting new queue: %v", v.Name)
 								}
+								lastDispatch = time.Now()
 								processor.HandleQueueConfig(v, c)
 							}
 						} else {
@@ -315,12 +329,33 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 					if processor.config.DetectIntervalInMs > 0 {
 						time.Sleep(time.Millisecond * time.Duration(processor.config.DetectIntervalInMs))
 					}
+					// Let migration-style pipelines exit once queue discovery stays idle for a full
+					// interval instead of polling forever after all active queues drain.
+					if shouldQuitActiveQueueDetection(
+						lastDispatch,
+						time.Duration(processor.config.IdleTimeoutInSecond)*time.Second,
+						time.Duration(processor.config.DetectIntervalInMs)*time.Millisecond,
+						util.MapLength(&processor.inFlightQueueConfigs),
+					) {
+						if processor.bulkStats != nil {
+							log.Debugf(
+								"active queue detector idle exit, success=%d, invalid=%d, failure=%d, inflight=%d",
+								processor.bulkStats.Summary.Success.Count,
+								processor.bulkStats.Summary.Invalid.Count,
+								processor.bulkStats.Summary.Failure.Count,
+								util.MapLength(&processor.inFlightQueueConfigs),
+							)
+						}
+						return
+					}
 				}
 			}(c)
 		}
 	} else {
 		cfgs := queue.GetConfigBySelector(&processor.config.Selector)
-		log.Debugf("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
+		if global.Env().IsDebug {
+			log.Tracef("filter queue by:%v, num of queues:%v", processor.config.Selector.ToString(), len(cfgs))
+		}
 		for _, v := range cfgs {
 			if global.Env().IsDebug {
 				log.Tracef("checking queue: %v", v)
@@ -334,14 +369,35 @@ func (processor *BulkIndexingProcessor) Process(c *pipeline.Context) error {
 	return nil
 }
 
+func shouldQuitActiveQueueDetection(lastDispatch time.Time, idleDuration time.Duration, detectInterval time.Duration, inflight int) bool {
+	if idleDuration <= 0 {
+		return false
+	}
+	if detectInterval < 0 {
+		detectInterval = 0
+	}
+	return inflight == 0 && time.Since(lastDispatch) >= idleDuration+detectInterval
+}
+
 const queueHandleSingleton = "queue_handler_singleton"
 
 func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, parentContext *pipeline.Context) {
+	// Prevent duplicate local workers for the same queue before competing for the
+	// distributed lease; this keeps one process from starting overlapping consumers.
+	if !processor.acquireQueueOwner(v.ID) {
+		if rate.GetRateLimiter("bulk_queue_owner", v.ID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("skip queue:[%v], already owned by another local bulk processor", v.ID)
+		}
+		return
+	}
+	defer processor.releaseQueueOwnerIfIdle(v.ID)
 
 	//TODO, add config to enable/disable singleton, may have performance issue
 	ok, _ := locker.Hold(queueHandleSingleton, v.ID, global.Env().SystemConfig.NodeConfig.ID, 60*time.Second, true)
 	if !ok {
-		log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
+		if rate.GetRateLimiter("bulk_queue_lock", v.ID, 1, 1, 30*time.Second).Allow() {
+			log.Debugf("failed to hold lock for queue:[%v], already hold by somewhere", v.ID)
+		}
 		return
 	}
 
@@ -433,6 +489,10 @@ func (processor *BulkIndexingProcessor) HandleQueueConfig(v *queue.QueueConfig, 
 }
 
 func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Context, qConfig *queue.QueueConfig, preferedHost string) {
+	if global.Env().IsDebug {
+		// current time for monitoring and log
+		log.Debugf("starting bulk worker for queue: %v, host: %v at time: %v", qConfig.Name, preferedHost, time.Now().Format(time.RFC3339))
+	}
 	bulkSizeInByte := processor.config.BulkConfig.GetBulkSizeInBytes()
 	//check slice
 	for sliceID := 0; sliceID < processor.config.NumOfSlices; sliceID++ {
@@ -460,50 +520,112 @@ func (processor *BulkIndexingProcessor) NewBulkWorker(parentContext *pipeline.Co
 			return
 		}
 
-		processor.Lock()
-		v2, exists := processor.inFlightQueueConfigs.Load(key)
-		if exists {
+		var workerID = util.GetUUID()
+		v2, reserved := processor.reserveInFlightQueue(key, workerID)
+		if !reserved {
 			if global.Env().IsDebug {
 				log.Tracef("[%v], queue [%v], slice_id:%v has more then one consumer, key:%v,v:%v", preferedHost, qConfig.ID, sliceID, key, v2)
 			}
-			processor.Unlock()
 			continue
-		} else {
-			var workerID = util.GetUUID()
-			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, preferedHost)
+		}
 
-			ctx1 := &pipeline.Context{}
-			ctx1.Set("key", key)
-			ctx1.Set("workerID", workerID)
-			ctx1.Set("sliceID", sliceID)
-			ctx1.Set("numOfSlices", processor.config.NumOfSlices)
-			ctx1.Set("tag", preferedHost)
-			ctx1.Set("qConfig", qConfig)
-			ctx1.Set("host", preferedHost)
-			ctx1.Set("bulkSizeInByte", bulkSizeInByte)
-			err := processor.pool.Submit(&pipeline.Task{
-				Handler: func(ctx *pipeline.Context, v ...interface{}) {
-					key := ctx.MustGetString("key")
-					workerID := ctx.MustGetString("workerID")
-					host := ctx.MustGetString("host")
-					sliceID := ctx.MustGetInt("sliceID")
-					tag := ctx.MustGetString("tag")
-					numOfSlices := ctx.MustGetInt("numOfSlices")
-					bulkSizeInByte := ctx.MustGetInt("bulkSizeInByte")
-					qConfig := ctx.MustGet("qConfig").(*queue.QueueConfig)
-					pCtx := v[0].(*pipeline.Context)
-					processor.NewSlicedBulkWorker(pCtx, key, workerID, sliceID, numOfSlices, tag, bulkSizeInByte, qConfig, host)
-				},
-				Context: ctx1,
-				Params:  []interface{}{parentContext}, // 也可以在创建任务时设置参数
-			})
-			processor.Unlock()
-			if err != nil {
-				panic(err)
-			}
-			processor.wg.Add(1)
+		log.Tracef("starting worker:[%v], queue:[%v], slice_id:%v, host:[%v]", workerID, qConfig.Name, sliceID, preferedHost)
+
+		ctx1 := &pipeline.Context{}
+		ctx1.Set("key", key)
+		ctx1.Set("workerID", workerID)
+		ctx1.Set("sliceID", sliceID)
+		ctx1.Set("numOfSlices", processor.config.NumOfSlices)
+		ctx1.Set("tag", preferedHost)
+		ctx1.Set("qConfig", qConfig)
+		ctx1.Set("host", preferedHost)
+		ctx1.Set("bulkSizeInByte", bulkSizeInByte)
+		err := processor.pool.Submit(&pipeline.Task{
+			Handler: func(ctx *pipeline.Context, v ...interface{}) {
+				key := ctx.MustGetString("key")
+				workerID := ctx.MustGetString("workerID")
+				host := ctx.MustGetString("host")
+				sliceID := ctx.MustGetInt("sliceID")
+				tag := ctx.MustGetString("tag")
+				numOfSlices := ctx.MustGetInt("numOfSlices")
+				bulkSizeInByte := ctx.MustGetInt("bulkSizeInByte")
+				qConfig := ctx.MustGet("qConfig").(*queue.QueueConfig)
+				pCtx := v[0].(*pipeline.Context)
+				processor.NewSlicedBulkWorker(pCtx, key, workerID, sliceID, numOfSlices, tag, bulkSizeInByte, qConfig, host)
+			},
+			Context: ctx1,
+			Params:  []interface{}{parentContext}, // 也可以在创建任务时设置参数
+		})
+		if err != nil {
+			processor.inFlightQueueConfigs.Delete(key)
+			processor.wg.Done()
+			panic(err)
 		}
 	}
+}
+
+func (processor *BulkIndexingProcessor) reserveInFlightQueue(key, workerID string) (interface{}, bool) {
+	processor.Lock()
+	defer processor.Unlock()
+
+	v, exists := processor.inFlightQueueConfigs.Load(key)
+	if exists {
+		return v, false
+	}
+
+	// Track workers by queue+slice so retries or queue re-discovery never start a second
+	// consumer for the same slice while the first one is still draining.
+	processor.inFlightQueueConfigs.Store(key, workerID)
+	processor.wg.Add(1)
+
+	return workerID, true
+}
+
+func (processor *BulkIndexingProcessor) hasInFlightQueue(queueID string) bool {
+	if _, ok := processor.inFlightQueueConfigs.Load(queueID); ok {
+		return true
+	}
+
+	queuePrefix := fmt.Sprintf("%v-", queueID)
+	hasInFlight := false
+	processor.inFlightQueueConfigs.Range(func(key, value interface{}) bool {
+		keyStr, ok := key.(string)
+		if ok && strings.HasPrefix(keyStr, queuePrefix) {
+			hasInFlight = true
+			return false
+		}
+		return true
+	})
+
+	return hasInFlight
+}
+
+func (processor *BulkIndexingProcessor) acquireQueueOwner(queueID string) bool {
+	owner, loaded := queueOwners.LoadOrStore(queueID, processor.id)
+	if !loaded {
+		return true
+	}
+
+	return owner == processor.id
+}
+
+func (processor *BulkIndexingProcessor) releaseQueueOwnerIfIdle(queueID string) {
+	if processor.hasInFlightQueue(queueID) {
+		return
+	}
+
+	owner, ok := queueOwners.Load(queueID)
+	if ok && owner == processor.id {
+		queueOwners.Delete(queueID)
+	}
+}
+
+func isIgnorableAcquireConsumerError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return util.ContainStr(err.Error(), "already owning this topic")
 }
 
 var xxHashPool = sync.Pool{
@@ -549,8 +671,6 @@ func (processor *BulkIndexingProcessor) getConsumerConfig(queueID, consumerName 
 }
 
 func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Context, key, workerID string, sliceID, maxSlices int, tag string, bulkSizeInByte int, qConfig *queue.QueueConfig, host string) {
-	processor.inFlightQueueConfigs.Store(key, workerID)
-
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
@@ -571,6 +691,7 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
+		processor.releaseQueueOwnerIfIdle(qConfig.ID)
 		processor.wg.Done()
 		if global.Env().IsDebug {
 			log.Tracef("exit slice worker, worker:[%v], queue:%v, slice_id:%v, key:%v", workerID, qConfig.ID, sliceID, key)
@@ -600,11 +721,14 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 	var consumerInstance queue.ConsumerAPI
 	consumerInstance, err = queue.AcquireConsumer(qConfig, consumerConfig, workerID)
 	if err != nil || consumerInstance == nil {
-		if util.ContainStr(err.Error(), "already owning this topic") {
+		if isIgnorableAcquireConsumerError(err) {
 			if global.Env().IsDebug {
-				log.Warnf("other consumer already owning this topic, queue:%v-%v, slice_id:%v", qConfig.Name, qConfig.ID, sliceID)
+				log.Warnf("skip duplicate consumer acquisition, queue:%v-%v, slice_id:%v, err:%v", qConfig.Name, qConfig.ID, sliceID, err)
 			}
 			return
+		}
+		if err == nil {
+			err = errors.New("failed to acquire queue consumer")
 		}
 		panic(err)
 	}
@@ -681,7 +805,9 @@ func (processor *BulkIndexingProcessor) NewSlicedBulkWorker(ctx *pipeline.Contex
 				log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, mainBuf.GetMessageCount())
 			}
 		}
-		log.Debugf("exit worker[%v], message count[%d], queue:[%v], slice_id:%v", workerID, mainBuf.GetMessageCount(), qConfig.ID, sliceID)
+		if global.Env().IsDebug {
+			log.Tracef("exit worker[%v], message count[%d], queue:[%v], slice_id:%v", workerID, mainBuf.GetMessageCount(), qConfig.ID, sliceID)
+		}
 	}()
 
 	if global.Env().IsDebug {
@@ -798,7 +924,13 @@ READ_DOCS:
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
 		stats.IncrementBy("queue", qConfig.ID+".msg_fetched_from_queue", int64(len(messages)))
-		log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+		if err != nil || len(messages) > 0 {
+			if qConfig.Name == "bulk_requests" {
+				log.Tracef("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			} else {
+				log.Debugf("slice worker, worker:[%v], [%v][%v][%v][%v] fetched message:%v,ctx:%v,timeout:%v,err:%v", workerID, qConfig.Name, consumerConfig.Group, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+			}
+		}
 		if err != nil {
 			if strings.Contains(err.Error(), "dirty_read") || err.Error() == "EOF" || err.Error() == "unexpected EOF" {
 				ctx.CancelTask()
@@ -905,6 +1037,10 @@ READ_DOCS:
 					mainBuf.WriteByteBuffer(pop.Data)
 				}
 
+				// Keep the in-memory offset aligned with the data already buffered.
+				// If the current message triggers an immediate flush, its NextOffset must be committed too.
+				offset = advanceBufferedOffset(pop.NextOffset)
+
 				if global.Env().IsDebug {
 					log.Tracef("slice worker, worker:[%v], message count: %v, size: %v", workerID, mainBuf.GetMessageCount(), util.ByteSize(uint64(mainBuf.GetMessageSize())))
 				}
@@ -949,7 +1085,7 @@ READ_DOCS:
 							if offset != nil && committedOffset != nil && !offset.Equals(*committedOffset) {
 								err := consumerInstance.CommitOffset(*offset)
 								if err != nil {
-									log.Errorf("🔧 offset commit failed, worker:[%v], queue:[%v], slice:[%v], offset:[%v], err:%v", workerID, qConfig.Name, sliceID, *offset, err)
+									log.Errorf("offset commit failed, worker:[%v], queue:[%v], slice:[%v], offset:[%v], err:%v", workerID, qConfig.Name, sliceID, *offset, err)
 									panic(err)
 								}
 
@@ -958,27 +1094,18 @@ READ_DOCS:
 								}
 								// fix: update committedOffset immediately after successful commit, to ensure state consistency
 								committedOffset = offset
-								log.Debugf("🔧 offset committed successfully, worker:[%v], queue:[%v], slice:[%v], offset:[%v]", workerID, qConfig.Name, sliceID, *offset)
-							} else {
 								if global.Env().IsDebug {
-									log.Debugf("🔧 offset not changed, skip commit, worker:[%v], queue:[%v], slice:[%v], offset:[%v], committed:[%v]", workerID, qConfig.Name, sliceID, offset, committedOffset)
+									log.Tracef("offset committed, worker:[%v], queue:[%v], slice:[%v], offset:[%v]", workerID, qConfig.Name, sliceID, *offset)
 								}
+							} else {
+								// skip unchanged offset silently to avoid noisy debug logs
 							}
-							// fix: this code is moved to loop outside (line 970) to avoid updating offset in the middle of bulk submission
-							// offset = &pop.NextOffset
 						}
 					} else {
 						log.Errorf("should not submit this bulk request, worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v, msg:%v", workerID, qConfig.ID, sliceID, committedOffset, offset, err, msgCount)
 					}
 				}
-
-				// fix: update offset after each message is processed, to ensure progress sync with actual processing
-				// so even if it crashes before submission, it will not repeat processing messages written to the buffer after restart
-				offset = &pop.NextOffset
 			}
-
-			// fix: remove this code to avoid overwriting the updated offset in the loop
-			// offset = &ctx1.NextOffset
 		}
 
 		if time.Since(lastCommit) > idleDuration && mainBuf.GetMessageSize() > 0 {
@@ -1002,7 +1129,7 @@ CLEAN_BUFFER:
 	}
 
 	if global.Env().IsDebug {
-		log.Debugf("cleanup buffer, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
+		log.Tracef("cleanup buffer, queue:[%v], slice_id:%v, offset [%v]-[%v], bulk failed (host: %v, err: %v)", qConfig.ID, sliceID, committedOffset, offset, host, err)
 	}
 	lastCommit = time.Now()
 	// check bulk result, if ok, then commit offset, or retry non-200 requests, or save failure offset
@@ -1165,6 +1292,11 @@ func appendStrArr(arr []string, size int, elems []string) []string {
 		return append(arr, elems[0:remaining]...)
 	}
 	return append(arr, elems...)
+}
+
+func advanceBufferedOffset(nextOffset queue.Offset) *queue.Offset {
+	next := nextOffset
+	return &next
 }
 
 func (processor *BulkIndexingProcessor) getElasticsearchMetadata(qConfig *queue.QueueConfig) (string, *elastic.ElasticsearchMetadata) {

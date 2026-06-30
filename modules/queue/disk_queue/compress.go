@@ -104,7 +104,7 @@ func (module *DiskQueue) compressFiles(queueID string, fileNum int64) {
 
 	//skip compress file
 	if fileStartToCompress <= 0 || (module.cfg.SkipZeroConsumers && consumers <= 0) || fileStartToCompress <= lastCompressedFileNum {
-		log.Debugf("skip compress %v", queueID)
+		log.Tracef("skip compress %v", queueID)
 		return
 	}
 

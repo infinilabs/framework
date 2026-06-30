@@ -93,21 +93,12 @@ type Context struct {
 	id    string
 	steps int64
 
-	// cancelFunc closes the Done channel of the embedded context.Context,
-	// signaling processors to stop early.
-	//
-	// This is a cooperative mechanism: it only takes effect if the processor's process()
-	// implementation explicitly checks IsCanceled() and returns when it is true.
-	cancelFunc context.CancelFunc
-	// True means the goroutine has been paused/suspended.
-	isPaused bool
-	pause    sync.WaitGroup
-	// Set this to true if you want to stop the pipeline, and then, pause (suspend) the goroutine.
-	isQuit    bool
-	stateLock sync.Mutex
-	// Set this to true if you want to let the goroutine exit, i.e., the kill signal.
-	released bool
-	// True means the goroutine already exited.
+	cancelFunc   context.CancelFunc
+	isPaused     bool
+	pause        sync.WaitGroup
+	isQuit       bool
+	stateLock    sync.Mutex
+	released     bool
 	loopReleased bool
 }
 
@@ -116,7 +107,6 @@ func AcquireContext(config PipelineConfigV2) *Context {
 	ctx.ResetContext()
 	ctx.id = util.GetUUID()
 	ctx.createTime = time.Now()
-	// Placeholder state; the pipeline task execution loop will overwrite this.
 	ctx.runningState = FINISHED
 	ctx.Config = config
 	return &ctx
@@ -299,7 +289,21 @@ func (ctx *Context) Errors() []error {
 	return ctx.processErrs
 }
 
-// Pause suspends the goroutine that is running this pipeline.
+func (ctx *Context) GetResultState() RunningState {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return ctx.getResultStateLocked()
+}
+
+func (ctx *Context) GetResultError() string {
+	ctx.stateLock.Lock()
+	defer ctx.stateLock.Unlock()
+
+	return formatPipelineResultError(ctx.exitErr, ctx.processErrs)
+}
+
+// Pause will pause the pipeline running loop until Resume called
 func (ctx *Context) Pause() {
 	ctx.stateLock.Lock()
 	if ctx.isPaused {
@@ -313,7 +317,7 @@ func (ctx *Context) Pause() {
 	ctx.pause.Wait()
 }
 
-// Resume wakes up the goroutine that was suspended by Pause.
+// Resume recovers pipeline from Pause
 func (ctx *Context) Resume() {
 	ctx.stateLock.Lock()
 	if !ctx.isPaused {
@@ -378,6 +382,33 @@ func (ctx *Context) setRunningState(newState RunningState) {
 	}
 }
 
+func (ctx *Context) getResultStateLocked() RunningState {
+	switch ctx.runningState {
+	case FINISHED, FAILED:
+		return ctx.runningState
+	case STOPPED:
+		// STOPPED is also used during normal shutdown. Once the run has an end time, derive the
+		// last completed result from the recorded errors so the API can distinguish manual stop
+		// from a finished or failed migration run.
+		if ctx.endTime == nil {
+			return STOPPED
+		}
+		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
+			return FAILED
+		}
+		return FINISHED
+	default:
+		return ""
+	}
+}
+
+func formatPipelineResultError(exitErr error, processErrs []error) string {
+	if exitErr == nil && len(processErrs) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("exit: %v, process: %v", exitErr, processErrs)
+}
+
 func (ctx *Context) pushPipelineLog() {
 	if global.Env().IsDebug {
 		log.Info("received pipeline state change, id: ", ctx.Config.Name, ", state: ", ctx.runningState)
@@ -407,8 +438,8 @@ func (ctx *Context) pushPipelineLog() {
 		result := util.MapStr{
 			"success": ctx.exitErr == nil,
 		}
-		if ctx.exitErr != nil || len(ctx.processErrs) > 0 {
-			result["error"] = fmt.Sprintf("exit: %v, process: %v", ctx.exitErr, ctx.processErrs)
+		if errMsg := formatPipelineResultError(ctx.exitErr, ctx.processErrs); errMsg != "" {
+			result["error"] = errMsg
 		}
 		payload["result"] = result
 	}

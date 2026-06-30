@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -40,12 +41,14 @@ import (
 )
 
 type PartitionQuery struct {
-	IndexName string      `json:"index_name"`
-	FieldType string      `json:"field_type"`
-	FieldName string      `json:"field_name"`
-	Step      interface{} `json:"step"`
-	Filter    interface{} `json:"filter"`
-	DocType   string      `json:"doc_type"`
+	IndexName      string      `json:"index_name"`
+	FieldType      string      `json:"field_type"`
+	FieldName      string      `json:"field_name"`
+	Strategy       string      `json:"strategy,omitempty"`
+	Step           interface{} `json:"step,omitempty"`
+	PartitionCount int         `json:"partition_count,omitempty"`
+	Filter         interface{} `json:"filter"`
+	DocType        string      `json:"doc_type"`
 }
 
 type PartitionInfo struct {
@@ -54,6 +57,8 @@ type PartitionInfo struct {
 	End    float64                `json:"end"`
 	Filter map[string]interface{} `json:"filter"`
 	Docs   int64                  `json:"docs"`
+	Label  string                 `json:"label,omitempty"`
+	Values []string               `json:"values,omitempty"`
 	Other  bool
 }
 
@@ -68,6 +73,11 @@ const (
 	PartitionByDate    = "date"
 	PartitionByKeyword = "keyword"
 	PartitionByNumber  = "number"
+
+	PartitionStrategyStep     = "step"
+	PartitionStrategyQuantile = "quantile"
+	PartitionStrategyTerms    = "terms"
+	PartitionStrategyHash     = "hash"
 )
 
 func GetPartitions(q *PartitionQuery, client API) ([]PartitionInfo, error) {
@@ -100,32 +110,6 @@ func GetPartitions(q *PartitionQuery, client API) ([]PartitionInfo, error) {
 
 	switch q.FieldType {
 	case PartitionByDate, PartitionByNumber:
-		var step float64
-		if q.FieldType == PartitionByDate {
-			if stepV, ok := q.Step.(string); !ok {
-				return nil, fmt.Errorf("expect step value of string type since filedtype is %s", PartitionByDate)
-			} else {
-				du, err := util.ParseDuration(stepV)
-				if err != nil {
-					return nil, fmt.Errorf("parse step duration error: %w", err)
-				}
-				step = float64(du.Milliseconds())
-			}
-		} else {
-			switch q.Step.(type) {
-			case float64:
-				step = q.Step.(float64)
-			case string:
-				v, err := strconv.Atoi(q.Step.(string))
-				if err != nil {
-					return nil, fmt.Errorf("convert step error: %w", err)
-				}
-				step = float64(v)
-			default:
-				return nil, fmt.Errorf("invalid parameter step: %v", q.Step)
-			}
-		}
-
 		result, err := getBoundValues(client, q.IndexName, q.FieldName, vFilter)
 		if err != nil {
 			return nil, err
@@ -138,20 +122,107 @@ func GetPartitions(q *PartitionQuery, client API) ([]PartitionInfo, error) {
 		var (
 			partitions []PartitionInfo
 		)
-		partitions, err = getPartitionsByAgg(client, q.IndexName, q.FieldName, q.FieldType, step, vFilter)
-		if err != nil {
-			return nil, err
+
+		switch normalizePartitionStrategy(q.Strategy) {
+		case PartitionStrategyStep:
+			step, err := parsePartitionStep(q.FieldType, q.Step)
+			if err != nil {
+				return nil, err
+			}
+			partitions, err = getPartitionsByAgg(client, q.IndexName, q.FieldName, q.FieldType, step, vFilter)
+			if err != nil {
+				return nil, err
+			}
+		case PartitionStrategyQuantile:
+			partitions, err = getPartitionsByQuantile(client, q.IndexName, q.FieldName, q.FieldType, q.PartitionCount, result.Min, result.Max, vFilter)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unsupported partition strategy: %s", q.Strategy)
 		}
+
 		if result.Null > 0 {
 			partitions = append(partitions, PartitionInfo{
 				Filter: result.NotExistsFilter,
 				Other:  true,
+				Label:  "Missing values",
 				Docs:   result.Null,
 			})
 		}
 		return partitions, nil
+	case PartitionByKeyword:
+		var (
+			partitions []PartitionInfo
+			err        error
+		)
+		switch normalizePartitionStrategy(q.Strategy) {
+		case PartitionStrategyTerms:
+			partitions, err = getPartitionsByTerms(client, q.IndexName, q.FieldName, q.PartitionCount, vFilter)
+			if err != nil {
+				return nil, err
+			}
+		case PartitionStrategyHash:
+			partitions, err = getPartitionsByHash(client, q.IndexName, q.FieldName, q.PartitionCount, vFilter)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unsupported partition strategy: %s", q.Strategy)
+		}
+
+		missingPartition, err := getMissingPartition(client, q.IndexName, q.FieldName, vFilter)
+		if err != nil {
+			return nil, err
+		}
+		if missingPartition != nil {
+			partitions = append(partitions, *missingPartition)
+		}
+		return partitions, nil
 	default:
 		return nil, fmt.Errorf("unsupported field type: %s", q.FieldType)
+	}
+}
+
+func normalizePartitionStrategy(strategy string) string {
+	switch strings.ToLower(strings.TrimSpace(strategy)) {
+	case "", PartitionStrategyStep:
+		return PartitionStrategyStep
+	case PartitionStrategyQuantile:
+		return PartitionStrategyQuantile
+	case PartitionStrategyTerms:
+		return PartitionStrategyTerms
+	case PartitionStrategyHash:
+		return PartitionStrategyHash
+	default:
+		return strings.ToLower(strings.TrimSpace(strategy))
+	}
+}
+
+func parsePartitionStep(fieldType string, stepValue interface{}) (float64, error) {
+	if fieldType == PartitionByDate {
+		stepV, ok := stepValue.(string)
+		if !ok {
+			return 0, fmt.Errorf("expect step value of string type since filedtype is %s", PartitionByDate)
+		}
+		du, err := util.ParseDuration(stepV)
+		if err != nil {
+			return 0, fmt.Errorf("parse step duration error: %w", err)
+		}
+		return float64(du.Milliseconds()), nil
+	}
+
+	switch stepValue.(type) {
+	case float64:
+		return stepValue.(float64), nil
+	case string:
+		v, err := strconv.Atoi(stepValue.(string))
+		if err != nil {
+			return 0, fmt.Errorf("convert step error: %w", err)
+		}
+		return float64(v), nil
+	default:
+		return 0, fmt.Errorf("invalid parameter step: %v", stepValue)
 	}
 }
 
@@ -182,7 +253,7 @@ func getPartitionsByAgg(client API, indexName string, fieldName, fieldType strin
 	if filter != nil {
 		queryDsl["query"] = filter
 	}
-	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
 	if err != nil {
 		return nil, err
 	}
@@ -217,11 +288,404 @@ func getPartitionsByAgg(client API, indexName string, fieldName, fieldType strin
 				Docs:  int64(docCount),
 				Other: false,
 			}
-			partition.Filter = buildPartitionFilter(min, max, fieldName, fieldType, filter)
+			partition.Filter = buildBoundedPartitionFilter(min, max, fieldName, fieldType, filter)
 			partitions = append(partitions, partition)
 		}
 	}
 	return partitions, nil
+}
+
+func getPartitionsByQuantile(client API, indexName string, fieldName, fieldType string, partitionCount int, min, max float64, filter interface{}) ([]PartitionInfo, error) {
+	if partitionCount <= 0 {
+		return nil, fmt.Errorf("invalid parameter partition_count: %d", partitionCount)
+	}
+
+	boundaries, err := getQuantileBoundaries(client, indexName, fieldName, partitionCount, min, max, filter)
+	if err != nil {
+		return nil, err
+	}
+	partitions := buildQuantilePartitions(boundaries, fieldName, fieldType, filter)
+	if len(partitions) == 0 {
+		return nil, nil
+	}
+
+	counts, err := getPartitionDocCounts(client, indexName, partitions)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]PartitionInfo, 0, len(partitions))
+	for i := range partitions {
+		partitions[i].Docs = counts[i]
+		if partitions[i].Docs <= 0 {
+			continue
+		}
+		filtered = append(filtered, partitions[i])
+	}
+	return filtered, nil
+}
+
+func getPartitionsByTerms(client API, indexName, fieldName string, partitionCount int, filter interface{}) ([]PartitionInfo, error) {
+	if partitionCount <= 0 {
+		return nil, fmt.Errorf("invalid parameter partition_count: %d", partitionCount)
+	}
+
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partitions": util.MapStr{
+				"terms": util.MapStr{
+					"field": fieldName,
+					"size":  partitionCount,
+				},
+			},
+		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		partitions []PartitionInfo
+		values     []string
+	)
+	if partitionsAgg, ok := res.Aggregations["partitions"]; ok {
+		for idx, bucket := range partitionsAgg.Buckets {
+			value := fmt.Sprintf("%v", bucket["key"])
+			docCount := util.GetInt64Value(bucket["doc_count"])
+			if docCount <= 0 {
+				continue
+			}
+			values = append(values, value)
+			partitions = append(partitions, PartitionInfo{
+				Key:    float64(idx),
+				Docs:   docCount,
+				Label:  value,
+				Values: []string{value},
+				Filter: buildExactTermPartitionFilter(value, fieldName, filter),
+			})
+		}
+	}
+
+	sumOtherDocCount, _ := jsonparser.GetInt(res.RawResult.Body, "aggregations", "partitions", "sum_other_doc_count")
+	if sumOtherDocCount > 0 {
+		partitions = append(partitions, PartitionInfo{
+			Key:    float64(len(partitions)),
+			Docs:   sumOtherDocCount,
+			Label:  "Other terms",
+			Values: append([]string(nil), values...),
+			Filter: buildOtherTermsPartitionFilter(values, fieldName, filter),
+			Other:  true,
+		})
+	}
+
+	return partitions, nil
+}
+
+func getPartitionsByHash(client API, indexName, fieldName string, partitionCount int, filter interface{}) ([]PartitionInfo, error) {
+	if partitionCount <= 0 {
+		return nil, fmt.Errorf("invalid parameter partition_count: %d", partitionCount)
+	}
+
+	partitions := make([]PartitionInfo, 0, partitionCount)
+	for idx := 0; idx < partitionCount; idx++ {
+		partitions = append(partitions, PartitionInfo{
+			Key:    float64(idx),
+			Label:  fmt.Sprintf("Hash %d/%d", idx+1, partitionCount),
+			Filter: buildHashPartitionFilter(idx, partitionCount, fieldName, filter),
+		})
+	}
+
+	counts, err := getHashPartitionDocCounts(client, indexName, fieldName, partitionCount, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]PartitionInfo, 0, len(partitions))
+	for idx := range partitions {
+		partitions[idx].Docs = counts[idx]
+		if partitions[idx].Docs <= 0 {
+			continue
+		}
+		filtered = append(filtered, partitions[idx])
+	}
+	return filtered, nil
+}
+
+func getHashPartitionDocCounts(client API, indexName, fieldName string, partitionCount int, filter interface{}) ([]int64, error) {
+	queryDsl := buildHashPartitionAggQuery(fieldName, partitionCount, filter)
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+	return extractHashPartitionDocCounts(res, partitionCount), nil
+}
+
+func buildHashPartitionAggQuery(fieldName string, partitionCount int, filter interface{}) util.MapStr {
+	fieldLiteral := buildPainlessStringLiteral(fieldName)
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partitions": util.MapStr{
+				"terms": util.MapStr{
+					"size":       partitionCount,
+					"value_type": "long",
+					"script": util.MapStr{
+						"lang": "painless",
+						// Keep the aggregation-side hash logic identical to the partition filter so each
+						// bucket count matches the documents selected when a migration resumes that bucket.
+						"source": fmt.Sprintf("if (doc[%s].size()==0 || doc[%s].value == '') return null; return (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count);", fieldLiteral, fieldLiteral, fieldLiteral),
+						"params": util.MapStr{
+							"partition_count": partitionCount,
+						},
+					},
+				},
+			},
+		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+	return queryDsl
+}
+
+func extractHashPartitionDocCounts(res *SearchResponse, partitionCount int) []int64 {
+	counts := make([]int64, partitionCount)
+	if res == nil {
+		return counts
+	}
+	partitionsAgg, ok := res.Aggregations["partitions"]
+	if !ok {
+		return counts
+	}
+	for _, bucket := range partitionsAgg.Buckets {
+		bucketKey, ok := extractHashPartitionBucketKey(bucket["key"])
+		if !ok || bucketKey < 0 || bucketKey >= partitionCount {
+			continue
+		}
+		counts[bucketKey] = util.GetInt64Value(bucket["doc_count"])
+	}
+	return counts
+}
+
+func extractHashPartitionBucketKey(key interface{}) (int, bool) {
+	switch v := key.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case int32:
+		return int(v), true
+	case uint:
+		return int(v), true
+	case uint64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case float32:
+		return int(v), true
+	case string:
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+func getQuantileBoundaries(client API, indexName, fieldName string, partitionCount int, min, max float64, filter interface{}) ([]float64, error) {
+	percents := buildQuantilePercents(partitionCount)
+	if len(percents) == 0 {
+		return []float64{min, max}, nil
+	}
+
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partition_percentiles": util.MapStr{
+				"percentiles": util.MapStr{
+					"field":    fieldName,
+					"percents": percents,
+					"keyed":    false,
+				},
+			},
+		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+
+	boundaries := make([]float64, 0, len(percents)+2)
+	boundaries = append(boundaries, min)
+	_, err = jsonparser.ArrayEach(res.RawResult.Body, func(value []byte, _ jsonparser.ValueType, _ int, err error) {
+		if err != nil {
+			return
+		}
+		boundary, parseErr := jsonparser.GetFloat(value, "value")
+		if parseErr != nil || math.IsNaN(boundary) || math.IsInf(boundary, 0) {
+			return
+		}
+		boundaries = append(boundaries, boundary)
+	}, "aggregations", "partition_percentiles", "values")
+	if err != nil {
+		return nil, err
+	}
+	boundaries = append(boundaries, max)
+	boundaries = dedupeSortedBoundaries(boundaries)
+	if len(boundaries) == 1 {
+		return []float64{boundaries[0], boundaries[0]}, nil
+	}
+	return boundaries, nil
+}
+
+func buildQuantilePercents(partitionCount int) []float64 {
+	if partitionCount <= 1 {
+		return nil
+	}
+	percents := make([]float64, 0, partitionCount-1)
+	for i := 1; i < partitionCount; i++ {
+		percents = append(percents, float64(i)*100/float64(partitionCount))
+	}
+	return percents
+}
+
+func dedupeSortedBoundaries(boundaries []float64) []float64 {
+	if len(boundaries) == 0 {
+		return nil
+	}
+	sort.Float64s(boundaries)
+	result := make([]float64, 0, len(boundaries))
+	for _, boundary := range boundaries {
+		// Percentile aggregations on skewed datasets can return the same boundary more than once.
+		// Drop duplicates here so later range filters do not create zero-width partitions.
+		if len(result) == 0 || !sameBoundary(result[len(result)-1], boundary) {
+			result = append(result, boundary)
+		}
+	}
+	return result
+}
+
+func sameBoundary(left, right float64) bool {
+	return math.Abs(left-right) <= 1e-9
+}
+
+func buildQuantilePartitions(boundaries []float64, fieldName, fieldType string, filter interface{}) []PartitionInfo {
+	if len(boundaries) < 2 {
+		return nil
+	}
+
+	partitions := make([]PartitionInfo, 0, len(boundaries)-1)
+	if len(boundaries) == 2 {
+		partitions = append(partitions, PartitionInfo{
+			Key:    boundaries[1],
+			Start:  boundaries[0],
+			End:    boundaries[1],
+			Filter: buildOpenPartitionFilter(nil, nil, fieldName, fieldType, filter),
+		})
+		return partitions
+	}
+
+	for i := 1; i < len(boundaries); i++ {
+		lower, upper := boundaries[i-1], boundaries[i]
+		if sameBoundary(lower, upper) {
+			continue
+		}
+
+		var lowerRef, upperRef *float64
+		if i > 1 {
+			lowerRef = &lower
+		}
+		if i < len(boundaries)-1 {
+			upperRef = &upper
+		}
+
+		partitions = append(partitions, PartitionInfo{
+			Key:    upper,
+			Start:  lower,
+			End:    upper,
+			Filter: buildOpenPartitionFilter(lowerRef, upperRef, fieldName, fieldType, filter),
+		})
+	}
+	return partitions
+}
+
+func getPartitionDocCounts(client API, indexName string, partitions []PartitionInfo) ([]int64, error) {
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"partitions": util.MapStr{
+				"filters": util.MapStr{
+					"filters": buildPartitionFiltersMap(partitions),
+				},
+			},
+		},
+	}
+
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make([]int64, 0, len(partitions))
+	for i := range partitions {
+		docCount, parseErr := jsonparser.GetInt(res.RawResult.Body, "aggregations", "partitions", "buckets", strconv.Itoa(i), "doc_count")
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		counts = append(counts, docCount)
+	}
+	return counts, nil
+}
+
+func buildPartitionFiltersMap(partitions []PartitionInfo) util.MapStr {
+	filters := util.MapStr{}
+	for i, partition := range partitions {
+		filters[strconv.Itoa(i)] = partition.Filter
+	}
+	return filters
+}
+
+func getMissingPartition(client API, indexName, fieldName string, filter interface{}) (*PartitionInfo, error) {
+	queryDsl := util.MapStr{
+		"size": 0,
+		"aggs": util.MapStr{
+			"missing_field": util.MapStr{
+				"filter": buildMissingFieldCondition(fieldName),
+			},
+		},
+	}
+	if filter != nil {
+		queryDsl["query"] = filter
+	}
+
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
+	if err != nil {
+		return nil, err
+	}
+
+	docCount, err := jsonparser.GetInt(res.RawResult.Body, "aggregations", "missing_field", "doc_count")
+	if err != nil || docCount <= 0 {
+		return nil, err
+	}
+
+	return &PartitionInfo{
+		Docs:   docCount,
+		Label:  "Missing values",
+		Filter: buildMissingFieldFilter(fieldName, filter),
+		Other:  true,
+	}, nil
 }
 
 // NOTE: we assume GetPartitions returned sorted buckets from ES, if not, we need to manually sort source & target partitions by keys
@@ -253,7 +717,7 @@ func MergePartitions(sourcePartitions []PartitionInfo, targetPartitions []Partit
 			Docs:  util.MaxInt64(source.Docs, target.Docs),
 			Other: false,
 		}
-		partition.Filter = buildPartitionFilter(partition.Start, partition.End, fieldName, fieldType, filter)
+		partition.Filter = buildBoundedPartitionFilter(partition.Start, partition.End, fieldName, fieldType, filter)
 		ret = append(ret, partition)
 		sourceIdx += 1
 		targetIdx += 1
@@ -267,12 +731,14 @@ func MergePartitions(sourcePartitions []PartitionInfo, targetPartitions []Partit
 	return ret
 }
 
-func buildPartitionFilter(min, max float64, fieldName, fieldType string, filter interface{}) util.MapStr {
+func buildBoundedPartitionFilter(min, max float64, fieldName, fieldType string, filter interface{}) util.MapStr {
 	rv := util.MapStr{
 		"gte": min,
 		"lte": max,
 	}
 	if fieldType == PartitionByDate {
+		rv["gte"] = normalizeDateRangeBoundary(min, true, true)
+		rv["lte"] = normalizeDateRangeBoundary(max, false, true)
 		rv["format"] = "epoch_millis"
 	}
 	must := []interface{}{
@@ -290,7 +756,217 @@ func buildPartitionFilter(min, max float64, fieldName, fieldType string, filter 
 			"must": must,
 		},
 	}
+}
 
+func buildOpenPartitionFilter(lower, upper *float64, fieldName, fieldType string, filter interface{}) util.MapStr {
+	rv := util.MapStr{}
+	if lower != nil {
+		rv["gt"] = *lower
+	}
+	if upper != nil {
+		rv["lte"] = *upper
+	}
+	if fieldType == PartitionByDate {
+		if lower != nil {
+			rv["gt"] = normalizeDateRangeBoundary(*lower, true, false)
+		}
+		if upper != nil {
+			rv["lte"] = normalizeDateRangeBoundary(*upper, false, true)
+		}
+		rv["format"] = "epoch_millis"
+	}
+	var condition interface{}
+	if len(rv) == 0 || (len(rv) == 1 && rv["format"] != nil) {
+		condition = util.MapStr{
+			"exists": util.MapStr{
+				"field": fieldName,
+			},
+		}
+	} else {
+		condition = util.MapStr{
+			"range": util.MapStr{
+				fieldName: rv,
+			},
+		}
+	}
+	must := []interface{}{condition}
+	if filter != nil {
+		must = append(must, filter)
+	}
+	return util.MapStr{
+		"bool": util.MapStr{
+			"must": must,
+		},
+	}
+
+}
+
+func normalizeDateRangeBoundary(value float64, lower, inclusive bool) int64 {
+	switch {
+	case lower && inclusive:
+		return int64(math.Ceil(value))
+	case lower && !inclusive:
+		return int64(math.Floor(value))
+	case !lower && inclusive:
+		return int64(math.Floor(value))
+	default:
+		return int64(math.Ceil(value))
+	}
+}
+
+func buildExactTermPartitionFilter(value, fieldName string, filter interface{}) util.MapStr {
+	return buildMustPartitionFilter([]interface{}{
+		util.MapStr{
+			"term": util.MapStr{
+				fieldName: util.MapStr{
+					"value": value,
+				},
+			},
+		},
+	}, filter)
+}
+
+func buildOtherTermsPartitionFilter(values []string, fieldName string, filter interface{}) util.MapStr {
+	boolFilter := util.MapStr{
+		"must": []interface{}{
+			util.MapStr{
+				"exists": util.MapStr{
+					"field": fieldName,
+				},
+			},
+		},
+	}
+	if filter != nil {
+		boolFilter["must"] = append(boolFilter["must"].([]interface{}), filter)
+	}
+	if len(values) > 0 {
+		boolFilter["must_not"] = []interface{}{
+			util.MapStr{
+				"terms": util.MapStr{
+					fieldName: values,
+				},
+			},
+		}
+	}
+	return util.MapStr{
+		"bool": boolFilter,
+	}
+}
+
+func buildHashPartitionFilter(partitionID, partitionCount int, fieldName string, filter interface{}) util.MapStr {
+	fieldLiteral := buildPainlessStringLiteral(fieldName)
+	return buildMustPartitionFilter([]interface{}{
+		util.MapStr{
+			"script": util.MapStr{
+				"script": util.MapStr{
+					"lang":   "painless",
+					"source": fmt.Sprintf("doc[%s].size()!=0 && doc[%s].value != '' && (((doc[%s].value.hashCode() %% params.partition_count) + params.partition_count) %% params.partition_count) == params.partition_id", fieldLiteral, fieldLiteral, fieldLiteral),
+					"params": util.MapStr{
+						"partition_count": partitionCount,
+						"partition_id":    partitionID,
+					},
+				},
+			},
+		},
+	}, filter)
+}
+
+func buildPainlessStringLiteral(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+	return "'" + replacer.Replace(value) + "'"
+}
+
+func searchPartitionWithRawQueryDSL(client API, indexName string, queryDsl util.MapStr) (*SearchResponse, error) {
+	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
+	if err != nil {
+		return nil, err
+	}
+	if err := ensurePartitionSearchResponseOK(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func ensurePartitionSearchResponseOK(res *SearchResponse) error {
+	if res == nil {
+		return errors.New("empty search response")
+	}
+	if res.StatusCode == 0 || res.StatusCode == http.StatusOK {
+		return nil
+	}
+	if res.RawResult != nil && len(res.RawResult.Body) > 0 {
+		for _, path := range [][]string{
+			{"error", "failed_shards", "[0]", "reason", "caused_by", "reason"},
+			{"error", "failed_shards", "[0]", "reason", "reason"},
+			{"error", "root_cause", "[0]", "reason"},
+			{"error", "reason"},
+		} {
+			if msg, ok := getJSONPathString(res.RawResult.Body, path...); ok && msg != "" {
+				return errors.New(msg)
+			}
+		}
+	}
+	if msg := res.Error.Message(); msg != "" {
+		return errors.New(msg)
+	}
+	if res.RawResult != nil && len(res.RawResult.Body) > 0 {
+		return errors.New(string(res.RawResult.Body))
+	}
+	return fmt.Errorf("unexpected search status: %d", res.StatusCode)
+}
+
+func getJSONPathString(data []byte, path ...string) (string, bool) {
+	v, err := jsonparser.GetString(data, path...)
+	if err != nil {
+		return "", false
+	}
+	return v, true
+}
+
+func buildMissingFieldCondition(fieldName string) util.MapStr {
+	return util.MapStr{
+		"bool": util.MapStr{
+			"should": []interface{}{
+				util.MapStr{
+					"bool": util.MapStr{
+						"must_not": []interface{}{
+							util.MapStr{
+								"exists": util.MapStr{
+									"field": fieldName,
+								},
+							},
+						},
+					},
+				},
+				util.MapStr{
+					"term": util.MapStr{
+						fieldName: util.MapStr{
+							"value": "",
+						},
+					},
+				},
+			},
+			"minimum_should_match": 1,
+		},
+	}
+}
+
+func buildMissingFieldFilter(fieldName string, filter interface{}) util.MapStr {
+	return buildMustPartitionFilter([]interface{}{
+		buildMissingFieldCondition(fieldName),
+	}, filter)
+}
+
+func buildMustPartitionFilter(mustClauses []interface{}, filter interface{}) util.MapStr {
+	must := append([]interface{}{}, mustClauses...)
+	if filter != nil {
+		must = append(must, filter)
+	}
+	return util.MapStr{
+		"bool": util.MapStr{
+			"must": must,
+		},
+	}
 }
 
 func getBoundValues(client API, indexName string, fieldName string, filter interface{}) (*BoundValuesResult, error) {
@@ -326,7 +1002,7 @@ func getBoundValues(client API, indexName string, fieldName string, filter inter
 	if filter != nil {
 		queryDsl["query"] = filter
 	}
-	res, err := client.SearchWithRawQueryDSL(indexName, util.MustToJSONBytes(queryDsl))
+	res, err := searchPartitionWithRawQueryDSL(client, indexName, queryDsl)
 	if err != nil {
 		return nil, err
 	}
