@@ -27,6 +27,14 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+const (
+	FeatureMCPAuto      = "feature_mcp_auto"
+	MCPToolName         = "mcp_tool_name"
+	MCPToolDescription  = "mcp_tool_description"
+	MCPToolInputSchema  = "mcp_tool_input_schema"
+	MCPToolOutputSchema = "mcp_tool_output_schema"
+)
+
 // Define the Option type (function that modifies HandlerOptions)
 type Option func(*HandlerOptions)
 
@@ -158,6 +166,31 @@ func Feature(feature string) Option {
 			o.Features = map[string]bool{}
 		}
 		o.Features[feature] = true
+	}
+}
+
+func MCPAuto() Option {
+	return Feature(FeatureMCPAuto)
+}
+
+func MCPTool(name, description string) Option {
+	return func(o *HandlerOptions) {
+		MCPAuto()(o)
+		if o.Labels == nil {
+			o.Labels = util.MapStr{}
+		}
+		o.Labels[MCPToolName] = name
+		o.Labels[MCPToolDescription] = description
+	}
+}
+
+func WithHandlerOptions(options *HandlerOptions) Option {
+	return func(o *HandlerOptions) {
+		if options == nil {
+			return
+		}
+		cloned := cloneHandlerOptions(options)
+		*o = *cloned
 	}
 }
 
