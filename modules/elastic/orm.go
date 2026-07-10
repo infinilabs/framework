@@ -46,6 +46,17 @@ type ElasticORM struct {
 	Config common.ORMConfig
 }
 
+func shouldRetrySearchWithoutCollapse(searchResponse *elastic.SearchResponse, collapseField string) bool {
+	if strings.TrimSpace(collapseField) == "" || searchResponse == nil || searchResponse.RawResult == nil {
+		return false
+	}
+	if searchResponse.RawResult.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	body := string(searchResponse.RawResult.Body)
+	return strings.Contains(body, collapseField) && strings.Contains(body, "in order to collapse on")
+}
+
 var templateInited bool
 
 func InitTemplate(force bool) {
@@ -548,10 +559,14 @@ func (handler *ElasticORM) Search(t interface{}, q *api.Query) (error, api.Resul
 		}
 
 		if global.Env().IsDebug {
-			log.Info(util.MustToJSON(request))
+			log.Trace(util.MustToJSON(request))
 		}
 
 		searchResponse, err = handler.Client.Search(indexName, &request)
+		if err == nil && shouldRetrySearchWithoutCollapse(searchResponse, q.CollapseField) {
+			request.Collapse = nil
+			searchResponse, err = handler.Client.Search(indexName, &request)
+		}
 	}
 
 	if err != nil {
@@ -621,36 +636,38 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 		searchResponse, err = handler.Client.SearchByTemplate(indexName, q.TemplatedQuery.TemplateID, q.TemplatedQuery.Parameters)
 	} else {
 
-		request.Query = &elastic.Query{}
-		boolQuery := elastic.BoolQuery{}
+		if q.Filter != nil || q.Conds != nil && len(q.Conds) > 0 {
+			request.Query = &elastic.Query{}
+			boolQuery := elastic.BoolQuery{}
 
-		if q.Conds != nil && len(q.Conds) > 0 {
-			for _, cond := range q.Conds {
-				query := getQuery(cond)
-				switch cond.BoolType {
-				case api.Filter:
-					boolQuery.Filter = append(boolQuery.Filter, query)
-				case api.Must:
-					boolQuery.Must = append(boolQuery.Must, query)
-				case api.MustNot:
-					boolQuery.MustNot = append(boolQuery.MustNot, query)
-				case api.Should:
-					boolQuery.Should = append(boolQuery.Should, query)
+			if q.Conds != nil && len(q.Conds) > 0 {
+				for _, cond := range q.Conds {
+					query := getQuery(cond)
+					switch cond.BoolType {
+					case api.Filter:
+						boolQuery.Filter = append(boolQuery.Filter, query)
+					case api.Must:
+						boolQuery.Must = append(boolQuery.Must, query)
+					case api.MustNot:
+						boolQuery.MustNot = append(boolQuery.MustNot, query)
+					case api.Should:
+						boolQuery.Should = append(boolQuery.Should, query)
+					}
 				}
 			}
-		}
 
-		if q.Filter != nil {
-			filter := getQuery(q.Filter)
-			//temp fix for must_not filters
-			if q.Filter.BoolType == api.MustNot {
-				boolQuery.MustNot = append(boolQuery.MustNot, filter)
-			} else {
-				boolQuery.Filter = append(boolQuery.Filter, filter)
+			if q.Filter != nil {
+				filter := getQuery(q.Filter)
+				//temp fix for must_not filters
+				if q.Filter.BoolType == api.MustNot {
+					boolQuery.MustNot = append(boolQuery.MustNot, filter)
+				} else {
+					boolQuery.Filter = append(boolQuery.Filter, filter)
+				}
 			}
-		}
 
-		request.Query.BoolQuery = &boolQuery
+			request.Query.BoolQuery = &boolQuery
+		}
 
 		// Add sorting if specified
 		if q.Sort != nil && len(*q.Sort) > 0 {
@@ -661,6 +678,10 @@ func (handler *ElasticORM) SearchWithResultItemMapper(resultArray interface{}, i
 
 		// Perform the search
 		searchResponse, err = handler.Client.Search(indexName, &request)
+		if err == nil && shouldRetrySearchWithoutCollapse(searchResponse, q.CollapseField) {
+			request.Collapse = nil
+			searchResponse, err = handler.Client.Search(indexName, &request)
+		}
 	}
 
 	// Handle search errors

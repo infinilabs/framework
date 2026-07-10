@@ -28,6 +28,7 @@ import (
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/locker"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -191,23 +192,48 @@ func (processor *QueueConsumerProcessor) Name() string {
 	return name
 }
 
+func getRecoveredMessage(r interface{}) string {
+	switch v := r.(type) {
+	case error:
+		return v.Error()
+	case runtime.Error:
+		return v.Error()
+	case string:
+		return v
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func isExpectedQueueShutdownPanic(message string, contexts ...*pipeline.Context) bool {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	if normalized == "" || !strings.Contains(normalized, "module closed") {
+		return false
+	}
+	if global.ShuttingDown() {
+		return true
+	}
+	for _, ctx := range contexts {
+		if ctx != nil && (ctx.IsCanceled() || ctx.IsFailed()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, c) {
+					log.Debug("queue consumer processor stopped during shutdown,", v)
+				} else {
+					log.Error("error in consumer processor,", v)
 				}
-				log.Error("error in consumer processor,", v)
 			}
 		}
-		log.Debug("exit consumer processor")
+		log.Trace("exit consumer processor")
 	}()
 
 	//handle updates
@@ -221,20 +247,16 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 				defer func() {
 					if !global.Env().IsDebug {
 						if r := recover(); r != nil {
-							var v string
-							switch r.(type) {
-							case error:
-								v = r.(error).Error()
-							case runtime.Error:
-								v = r.(runtime.Error).Error()
-							case string:
-								v = r.(string)
+							v := getRecoveredMessage(r)
+							if isExpectedQueueShutdownPanic(v, c) {
+								log.Debug("queue processor stopped during shutdown,", v)
+							} else {
+								log.Error("error in queue processor,", v)
 							}
-							log.Error("error in queue processor,", v)
 						}
 					}
 					processor.detectorRunning = false
-					log.Debug("exit detector for active queue")
+					log.Trace("exit detector for active queue")
 					processor.wg.Done()
 				}()
 
@@ -285,7 +307,7 @@ func (processor *QueueConsumerProcessor) Process(c *pipeline.Context) error {
 						log.Tracef("quite detect after idle for %v ms", processor.config.QuitDetectAfterIdleInMs)
 						inflight := util.MapLength(&processor.inFlightQueueConfigs)
 						if inflight == 0 {
-							log.Debugf("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs, inflight)
+							log.Tracef("quite detect after idle for %v ms, inflight: %v", processor.config.QuitDetectAfterIdleInMs, inflight)
 							return
 						}
 					}
@@ -358,7 +380,7 @@ func (processor *QueueConsumerProcessor) HandleQueueConfig(qConfig *queue.QueueC
 			continue
 		} else {
 			var workerID = util.GetUUID()
-			log.Debugf("starting worker:[%v], queue:[%v], slice_id:%v", workerID, qConfig.Name, sliceID)
+			log.Tracef("starting worker:[%v], queue:[%v], slice_id:%v", workerID, qConfig.Name, sliceID)
 
 			processor.wg.Add(1)
 			contextForWorker := pipeline.Context{}
@@ -412,16 +434,12 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	defer func() {
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, ctx, parentContext) {
+					log.Debugf("consumer processor stopped during shutdown, queue:%v, slice_id:%v, %v", qConfig.ID, sliceID, v)
+				} else {
+					log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 				}
-				log.Errorf("error in consumer processor, %v, queue:%v, slice_id:%v", v, qConfig.ID, sliceID)
 			}
 		}
 		processor.inFlightQueueConfigs.Delete(key)
@@ -473,24 +491,18 @@ func (processor *QueueConsumerProcessor) NewSlicedWorker(ctx *pipeline.Context, 
 	defer xxHashPool.Put(xxHash)
 
 	defer func() {
-		defer log.Debugf("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
+		defer log.Tracef("exit worker[%v], queue:[%v], slice_id:%v", workerID, qConfig.ID, sliceID)
 		if !global.Env().IsDebug {
 			if r := recover(); r != nil {
-				var v string
-				switch r.(type) {
-				case error:
-					v = r.(error).Error()
-				case runtime.Error:
-					v = r.(runtime.Error).Error()
-				case string:
-					v = r.(string)
-				}
-				if v != "empty queue" {
+				v := getRecoveredMessage(r)
+				if isExpectedQueueShutdownPanic(v, ctx, parentContext) {
+					log.Debugf("worker[%v], queue:[%v], slice:[%v] stopped during shutdown, offset:[%v]->[%v], %v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
+				} else if v != "empty queue" {
 					log.Errorf("worker[%v], queue:[%v], slice:[%v], offset:[%v]->[%v],%v", workerID, qConfig.ID, sliceID, initOffset, offset, v)
 					ctx.Failed(fmt.Errorf("panic in slice worker: %+v", r))
-				}
-				if parentContext != nil {
-					parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
+					if parentContext != nil {
+						parentContext.RecordError(fmt.Errorf("panic in slice worker: %+v", r))
+					}
 				}
 			}
 		}
@@ -585,8 +597,10 @@ READ_DOCS:
 		}
 		consumerConfig.KeepActive()
 		messages, timeout, err := consumerInstance.FetchMessages(ctx1, consumerConfig.FetchMaxMessages)
-		if global.Env().IsDebug {
+		if err != nil {
 			log.Debugf("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
+		} else if global.Env().IsDebug && len(messages) > 0 {
+			log.Tracef("[%v] slice_worker, [%v][%v] consume message:%v,ctx:%v,timeout:%v,err:%v", qConfig.Name, consumerConfig.Name, sliceID, len(messages), ctx1.String(), timeout, err)
 		}
 
 		if err != nil {
@@ -707,12 +721,12 @@ CLEAN_BUFFER:
 
 		if processor.config.QuitNeedTag && processor.config.QuitNeedTagName != "" && !ctx.HasTag(processor.config.QuitNeedTagName) {
 			time.Sleep(1 * time.Second)
-			log.Debug("EOF without quit tag, sleep 1s: ", qConfig.Name)
+			log.Trace("EOF without quit tag, sleep 1s: ", qConfig.Name)
 			goto READ_DOCS
 		}
 
 		ctx.CancelTask()
-		log.Debug("EOF, cancel task: ", qConfig.Name)
+		log.Trace("EOF, cancel task: ", qConfig.Name)
 		return
 	}
 

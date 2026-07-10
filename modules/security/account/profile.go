@@ -28,9 +28,20 @@ func Profile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	p := &security.UserProfile{
-		Name: reqUser.Login,
+		Name:  reqUser.Login,
+		Roles: reqUser.Roles,
 	}
 	p.ID = reqUser.UserID
+
+	if reqUser.Provider == security.DefaultNativeAuthBackend {
+		if _, account, err := security.GetUserByID(reqUser.UserID); err == nil && account != nil {
+			if account.Name != "" {
+				p.Name = account.Name
+			}
+			p.Email = account.Email
+			p.Roles = account.Roles
+		}
+	}
 
 	//get all permissions for user
 	p.Permissions = reqUser.GetPermissionKeys()

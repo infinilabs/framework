@@ -270,7 +270,7 @@ func LoadEnvVariablesFromConfig(configObject *Config) (map[string]interface{}, e
 		return nil, err
 	}
 
-	log.Debugf("config contain variables, try to parse with environments")
+	log.Tracef("config contains variables, parsing with environments")
 	environs := os.Environ()
 	obj := map[string]interface{}{}
 
@@ -345,7 +345,7 @@ func internalLoadFile(path string) (*Config, error) {
 
 	}
 
-	log.Debugf("load config file '%v'", path)
+	log.Tracef("load config file '%v'", path)
 	return pCfg, err
 }
 

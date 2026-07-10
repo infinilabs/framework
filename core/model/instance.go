@@ -34,6 +34,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/env"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/host"
@@ -54,7 +55,11 @@ type Instance struct {
 	//application information
 	Application env.Application `json:"application,omitempty" elastic_mapping:"application: { type: object }"`
 
-	BasicAuth *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	BasicAuth   *BasicAuth `config:"basic_auth" json:"basic_auth,omitempty" elastic_mapping:"basic_auth:{type:object}"`
+	AccessToken *Token     `config:"access_token" json:"access_token,omitempty" elastic_mapping:"access_token:{type:object}"`
+
+	ManagerCredentialID string `json:"manager_credential_id,omitempty" elastic_mapping:"manager_credential_id:{type:keyword}"`
+	AccessCredentialID  string `json:"access_credential_id,omitempty" elastic_mapping:"access_credential_id:{type:keyword}"`
 
 	Labels map[string]string `json:"labels,omitempty" elastic_mapping:"labels:{type:object}"`
 	Tags   []string          `json:"tags,omitempty"`
@@ -126,6 +131,33 @@ func (inst *Instance) GetVersion() (map[string]interface{}, error) {
 	return nil, fmt.Errorf("unknow agent version")
 }
 
+func resolveManagedInstanceEndpoint(apiConfig config.APIConfig, webConfig config.WebAppConfig) string {
+	if apiConfig.Enabled {
+		return apiConfig.GetEndpoint()
+	}
+	if webConfig.Enabled {
+		return webConfig.GetEndpoint()
+	}
+	return apiConfig.GetEndpoint()
+}
+
+func buildManagedInstanceServices(apiConfig config.APIConfig, webConfig config.WebAppConfig) []ServiceInfo {
+	services := []ServiceInfo{}
+	if apiConfig.Enabled {
+		services = append(services, ServiceInfo{
+			Name:     "api",
+			Endpoint: apiConfig.GetEndpoint(),
+		})
+	}
+	if webConfig.Enabled {
+		services = append(services, ServiceInfo{
+			Name:     "web",
+			Endpoint: webConfig.GetEndpoint(),
+		})
+	}
+	return services
+}
+
 func GetInstanceInfo() Instance {
 	instance := Instance{}
 	instance.ID = global.Env().SystemConfig.NodeConfig.ID
@@ -137,7 +169,8 @@ func GetInstanceInfo() Instance {
 
 	_, publicIP, _, _ := util.GetPublishNetworkDeviceInfo(global.Env().SystemConfig.NodeConfig.MajorIpPattern)
 
-	instance.Endpoint = global.Env().SystemConfig.APIConfig.GetEndpoint()
+	instance.Endpoint = resolveManagedInstanceEndpoint(global.Env().SystemConfig.APIConfig, global.Env().SystemConfig.WebAppConfig)
+	instance.Services = buildManagedInstanceServices(global.Env().SystemConfig.APIConfig, global.Env().SystemConfig.WebAppConfig)
 
 	ips := util.GetLocalIPs()
 	if len(ips) > 0 {

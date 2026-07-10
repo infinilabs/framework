@@ -28,15 +28,33 @@ import (
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/task/chrono"
 	"infini.sh/framework/core/util"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var Tasks = sync.Map{}
+
+func shouldSilenceStartupTaskError(msg string) bool {
+	return !orm.HasHandler() && strings.Contains(msg, "ORM handler is not registered")
+}
+
+func logTaskRuntimeIssue(msg string, raw interface{}) {
+	if shouldSilenceStartupTaskError(msg) {
+		log.Debug(msg)
+		return
+	}
+	if raw != nil {
+		log.Error(raw, msg)
+		return
+	}
+	log.Error(msg)
+}
 
 type State string
 
@@ -103,7 +121,7 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 					case string:
 						v = r.(string)
 					}
-					log.Error(r, v)
+					logTaskRuntimeIssue(v, r)
 				}
 			}
 			task.State = Finished
@@ -118,7 +136,7 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 		task.State = Running
 		err := inner(innerCtx)
 		if err != nil {
-			log.Error(err)
+			logTaskRuntimeIssue(err.Error(), err)
 		}
 		t = time.Now()
 		task.EndTime = &t
@@ -128,15 +146,16 @@ func RegisterTransientTask(group, tag string, f func(ctx context.Context) error,
 }
 
 type ScheduleTask struct {
-	ID          string     `config:"id" json:"id,omitempty"`
-	Group       string     `config:"group" json:"group,omitempty"`
-	Description string     `config:"description" json:"description,omitempty"`
-	Type        string     `config:"type" json:"type,omitempty"`
-	Interval    string     `config:"interval" json:"interval,omitempty"`
-	Crontab     string     `config:"crontab" json:"crontab,omitempty"`
-	CreateTime  time.Time  `config:"create_time" json:"create_time,omitempty"`
-	StartTime   *time.Time `config:"start_time" json:"start_time,omitempty"`
-	EndTime     *time.Time `config:"end_time" json:"end_time,omitempty"`
+	ID           string     `config:"id" json:"id,omitempty"`
+	Group        string     `config:"group" json:"group,omitempty"`
+	Description  string     `config:"description" json:"description,omitempty"`
+	Type         string     `config:"type" json:"type,omitempty"`
+	Interval     string     `config:"interval" json:"interval,omitempty"`
+	InitialDelay string     `config:"initial_delay" json:"initial_delay,omitempty"`
+	Crontab      string     `config:"crontab" json:"crontab,omitempty"`
+	CreateTime   time.Time  `config:"create_time" json:"create_time,omitempty"`
+	StartTime    *time.Time `config:"start_time" json:"start_time,omitempty"`
+	EndTime      *time.Time `config:"end_time" json:"end_time,omitempty"`
 
 	// Ensures the task runs as a singleton, preventing duplicate executions when previous attempt is not finished.
 	Singleton bool `config:"singleton" json:"singleton,omitempty"`
@@ -194,7 +213,7 @@ func RegisterScheduleTask(task ScheduleTask) (taskID string) {
 						case string:
 							v = r.(string)
 						}
-						log.Error(v)
+						logTaskRuntimeIssue(v, nil)
 					}
 				}
 				task.isTaskRunning.Store(false)
@@ -232,6 +251,23 @@ var taskScheduler = chrono.NewDefaultTaskScheduler()
 var defaultInterval = time.Duration(10) * time.Second
 var started bool
 
+func getScheduleOptions(task *ScheduleTask) []chrono.Option {
+	if task == nil || task.Type != Interval || task.InitialDelay == "" {
+		return nil
+	}
+
+	initialDelay, err := time.ParseDuration(task.InitialDelay)
+	if err != nil {
+		log.Warnf("invalid initial delay for task [%s]: %s", task.ID, task.InitialDelay)
+		return nil
+	}
+	if initialDelay <= 0 {
+		return nil
+	}
+
+	return []chrono.Option{chrono.WithInitialDelay(initialDelay)}
+}
+
 func RunTasks() {
 	started = true
 	Tasks.Range(func(key, value any) bool {
@@ -254,7 +290,7 @@ func runTask(task *ScheduleTask) {
 
 	switch task.Type {
 	case Interval:
-		task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval, defaultInterval))
+		task1, err := taskScheduler.ScheduleAtFixedRate(task.Task, util.GetDurationOrDefault(task.Interval, defaultInterval), getScheduleOptions(task)...)
 		if err != nil {
 			log.Error("failed to scheduled interval task:", task.Type, ",", task.Interval, ",", task.Description)
 		}

@@ -158,6 +158,28 @@ func TestSetFieldTimeValue(t *testing.T) {
 
 }
 
+func TestHasAdapter(t *testing.T) {
+	previousHandler := handler
+	previousAdapters := adapters
+	defer func() {
+		handler = previousHandler
+		adapters = previousAdapters
+	}()
+
+	handler = nil
+	adapters = nil
+
+	if HasAdapter("elastic") {
+		t.Fatal("expected adapter lookup to be false before registration")
+	}
+
+	Register("elastic", nil)
+
+	if !HasAdapter("elastic") {
+		t.Fatal("expected adapter lookup to be true after registration")
+	}
+}
+
 //func TestSetFieldTimeValue1(t *testing.T) {
 //	t1:=time.Now()
 //	a:=struct {

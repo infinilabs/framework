@@ -92,7 +92,7 @@ func (module *DiskQueue) deleteUnusedFiles(queueID string, fileNum int64) {
 	fileStartToDelete := fileNum - module.cfg.Retention.MaxNumOfLocalFiles
 
 	if fileStartToDelete <= 0 || consumers <= 0 || eSegmentNum < 0 {
-		log.Debugf("queue: %v, no consumers or consumer/s3 already ahead of this file, %v, %v, %v", queueID, fileStartToDelete, consumers, eSegmentNum)
+		log.Tracef("queue: %v, no consumers or consumer/s3 already ahead of this file, %v, %v, %v", queueID, fileStartToDelete, consumers, eSegmentNum)
 		return
 	}
 

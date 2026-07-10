@@ -7,6 +7,7 @@ package native
 import (
 	"context"
 
+	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/entity_card"
 	"infini.sh/framework/core/orm"
@@ -47,7 +48,8 @@ func (this *UserEntityProvider) GenEntityLabel(ctx1 context.Context, t string, i
 	out := []security.UserAccount{}
 	err, _ := elastic.SearchV2WithResultItemMapper(ctx, &out, builder, nil)
 	if err != nil {
-		panic(err)
+		log.Errorf("failed to load user entity labels for ids %v: %v", ids, err)
+		return output
 	}
 
 	for _, a := range out {

@@ -21,6 +21,12 @@ type AuthorizationBackend interface {
 	GetPermissionKeysByRoles(ctx context.Context, roles []string) []PermissionKey
 }
 
+// AccountPasswordLoginProvider lets applications keep their own password-auth realms
+// while reusing the shared framework account login handler and session issuance.
+type AccountPasswordLoginProvider interface {
+	AuthenticateByPassword(login, password string) (*UserSessionInfo, error)
+}
+
 var authorizationBackendProviders = sync.Map{}
 
 func RegisterAuthorizationProvider(name string, provider AuthorizationBackend) {
@@ -31,6 +37,12 @@ var authenticationBackendBackendProviders = sync.Map{}
 
 func RegisterAuthenticationProvider(name string, provider AuthenticationBackend) {
 	authenticationBackendBackendProviders.Store(name, provider)
+}
+
+var accountPasswordLoginProviders = sync.Map{}
+
+func RegisterAccountPasswordLoginProvider(name string, provider AccountPasswordLoginProvider) {
+	accountPasswordLoginProviders.Store(name, provider)
 }
 
 func MustGetAuthenticationProvider(provider string) AuthenticationBackend {
@@ -97,5 +109,35 @@ func GetUserByLogin(login string) (bool, *UserAccount, error) {
 		return false, nil, errors.New("no AuthenticationBackend was found")
 	}
 
-	return false, nil, errors.New("not found")
+	return false, nil, nil
+}
+
+// AuthenticateAccountPasswordLogin tries application-provided password login providers
+// after the native framework account path has either not matched or not succeeded.
+func AuthenticateAccountPasswordLogin(login, password string) (*UserSessionInfo, error) {
+	var out *UserSessionInfo
+	var lastErr error
+
+	accountPasswordLoginProviders.Range(func(key, value any) bool {
+		provider, ok := value.(AccountPasswordLoginProvider)
+		if !ok {
+			return true
+		}
+
+		sessionUser, err := provider.AuthenticateByPassword(login, password)
+		if err != nil {
+			lastErr = err
+			return true
+		}
+		if sessionUser != nil {
+			out = sessionUser
+			return false
+		}
+		return true
+	})
+
+	if out != nil {
+		return out, nil
+	}
+	return nil, lastErr
 }

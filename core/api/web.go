@@ -30,6 +30,8 @@ package api
 import (
 	ctx "context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
@@ -56,16 +58,29 @@ var uiMutex sync.Mutex
 
 var bindAddress string
 
+func ServeRegisteredUIRequest(w http.ResponseWriter, req *http.Request) error {
+	if uiRouter == nil {
+		return fmt.Errorf("web router is not initialized")
+	}
+	uiRouter.ServeHTTP(w, req)
+	return nil
+}
+
 func StopWeb(cfg config.WebAppConfig) {
 	if srv != nil {
-		ctx1, cancel := ctx.WithTimeout(ctx.Background(), 10*time.Second)
+		ctx1, cancel := ctx.WithTimeout(ctx.Background(), webShutdownTimeout)
 		defer cancel()
 		err := srv.Shutdown(ctx1)
 		if err != nil {
-			panic(err)
+			log.Warnf("graceful web shutdown timed out or failed: %v, forcing close", err)
+			closeErr := srv.Close()
+			if closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+				log.Errorf("force closing web server failed: %v", closeErr)
+			}
 		}
 
 		log.Debug("stopping web server")
+		srv = nil
 	}
 }
 
@@ -110,6 +125,9 @@ func StartWeb(cfg config.WebAppConfig) {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
 				for m, n := range v {
+					if shouldSkipEmbeddedAPIRoute(k, m) {
+						continue
+					}
 					log.Debug("register http handler: ", k, " ", m)
 					uiRouter.Handle(k, m, n)
 				}
@@ -117,6 +135,9 @@ func StartWeb(cfg config.WebAppConfig) {
 		}
 		if registeredAPIFuncHandler != nil {
 			for k, v := range registeredAPIFuncHandler {
+				if shouldSkipEmbeddedAPIRoute("", k) {
+					continue
+				}
 				log.Debug("register http handler: ", k)
 				uiServeMux.HandleFunc(k, v)
 			}
@@ -125,7 +146,10 @@ func StartWeb(cfg config.WebAppConfig) {
 
 	if cfg.WebsocketConfig.Enabled {
 		websocket.InitWebSocket(cfg.WebsocketConfig)
-		uiServeMux.HandleFunc("/ws", websocket.ServeWs)
+		websocketPath := getWebsocketRegistrationPath(cfg)
+		if shouldRegisterWebsocketOnWeb(cfg) {
+			uiServeMux.HandleFunc(websocketPath, websocket.ServeWs)
+		}
 		if registeredWebSocketCommandHandler != nil {
 			for k, v := range registeredWebSocketCommandHandler {
 				log.Debug("register websocket handler: ", k, " ", v)
@@ -141,6 +165,7 @@ func StartWeb(cfg config.WebAppConfig) {
 	} else {
 		bindAddress = cfg.NetworkConfig.GetBindingAddr()
 	}
+	syncRuntimePublishAddress(&cfg.NetworkConfig, bindAddress)
 
 	handler := context.ClearHandler(uiRouter)
 	if cfg.Gzip.Enabled {
@@ -306,6 +331,48 @@ func (i *InterceptorHandler) AddInterceptors(interceptors ...Interceptor) {
 	}
 }
 
+func getWebsocketRegistrationPath(cfg config.WebAppConfig) string {
+	if cfg.WebsocketConfig.BasePath != "" {
+		return cfg.WebsocketConfig.BasePath
+	}
+	return "/ws"
+}
+
+func shouldRegisterWebsocketOnWeb(cfg config.WebAppConfig) bool {
+	if !cfg.WebsocketConfig.Enabled {
+		return false
+	}
+	if !cfg.EmbeddingAPI || registeredAPIFuncHandler == nil {
+		return true
+	}
+	return registeredAPIFuncHandler[getWebsocketRegistrationPath(cfg)] == nil
+}
+
+func shouldSkipEmbeddedAPIRoute(method, path string) bool {
+	if registeredUIHandler != nil {
+		if _, exists := registeredUIHandler[path]; exists {
+			return true
+		}
+	}
+	if registeredUIMethodHandler == nil {
+		return false
+	}
+	if method == "" {
+		for _, handlers := range registeredUIMethodHandler {
+			if _, exists := handlers[path]; exists {
+				return true
+			}
+		}
+		return false
+	}
+	methodHandlers, exists := registeredUIMethodHandler[Method(method)]
+	if !exists {
+		return false
+	}
+	_, exists = methodHandlers[path]
+	return exists
+}
+
 func (i *InterceptorHandler) Handler(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var appliedInterceptors []Interceptor
@@ -346,6 +413,7 @@ func AddGlobalInterceptors(interceptors ...Interceptor) {
 }
 
 var srv *http.Server
+var webShutdownTimeout = 10 * time.Second
 
 // RegisteredUIHandler is a hub for registered ui handler
 var registeredUIHandler map[string]http.Handler
@@ -426,6 +494,7 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 		apiOptions.Register(method, pattern, opts)
 	}
 
+	_, hadPrevious := registeredUIMethodHandler[method][pattern]
 	if !opts.Override {
 		//check previous handler
 		previous, ok := registeredUIMethodHandler[method][pattern]
@@ -453,14 +522,26 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 
 	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
 	registeredUIMethodHandler[method][pattern] = myHandler
+	registerLiveUIMethodHandler(method, pattern, myHandler, hadPrevious)
 	if opts.AllowOPTIONS {
 		m := registeredUIMethodHandler[OPTIONS]
+		hadOptionsPrevious := false
 		if m == nil {
 			registeredUIMethodHandler[OPTIONS] = map[string]RegisteredAPIHandler{}
+		} else {
+			_, hadOptionsPrevious = m[pattern]
 		}
 		registeredUIMethodHandler[OPTIONS][pattern] = myHandler
+		registerLiveUIMethodHandler(OPTIONS, pattern, myHandler, hadOptionsPrevious)
 	}
 
+}
+
+func registerLiveUIMethodHandler(method Method, pattern string, handler RegisteredAPIHandler, alreadyRegistered bool) {
+	if uiRouter == nil || alreadyRegistered {
+		return
+	}
+	uiRouter.Handle(string(method), pattern, getWrappedHandler(string(method), pattern, handler))
 }
 
 // HandleWebSocketCommand register websocket command handler

@@ -283,6 +283,10 @@ func (filter *Module) GetCompressedValue(bucket string, key []byte) ([]byte, err
 }
 
 func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) error {
+	return filter.AddValueCompressWithTTL(bucket, key, value, 0)
+}
+
+func (filter *Module) AddValueCompressWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -291,7 +295,7 @@ func (filter *Module) AddValueCompress(bucket string, key []byte, value []byte) 
 
 	stats.Increment("badger", bucket+"::add_compress")
 
-	return filter.AddValue(bucket, key, value)
+	return filter.AddValueWithTTL(bucket, key, value, ttl)
 }
 
 func joinKey(bucket string, key []byte) []byte {
@@ -299,6 +303,10 @@ func joinKey(bucket string, key []byte) []byte {
 }
 
 func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
+	return filter.AddValueWithTTL(bucket, key, value, 0)
+}
+
+func (filter *Module) AddValueWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
 	if filter.closed {
 		return errors.New("module closed")
 	}
@@ -310,8 +318,10 @@ func (filter *Module) AddValue(bucket string, key []byte, value []byte) error {
 	}
 	bkt := filter.getOrInitBucket(bucket)
 	err := bkt.Update(func(txn *badger.Txn) error {
-		err := txn.Set(key, value)
-		return err
+		if ttl > 0 {
+			return txn.SetEntry(badger.NewEntry(key, value).WithTTL(ttl))
+		}
+		return txn.Set(key, value)
 	})
 	return err
 }

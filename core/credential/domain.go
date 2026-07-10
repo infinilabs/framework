@@ -157,6 +157,142 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 	return
 }
 
+func encodeToken(cred *Credential) error {
+	params, err := getCredentialPayloadMap(cred)
+	if err != nil {
+		return err
+	}
+	value, err := getCredentialSecret(params)
+	if err != nil {
+		return err
+	}
+	if value == "" {
+		return fmt.Errorf("credential parameters value can not be empty")
+	}
+
+	secret, err := GetOrInitSecret()
+	if err != nil {
+		return err
+	}
+	encodeBytes, salt, err := util.AesGcmEncrypt([]byte(value), secret)
+	if err != nil {
+		return fmt.Errorf("encrypt token value error: %w", err)
+	}
+	cred.Encrypt.Type = "AES"
+	cred.Encrypt.Params = map[string]interface{}{
+		"salt": string(salt),
+	}
+	params["value"] = string(encodeBytes)
+	cred.Payload[cred.Type] = params
+	return nil
+}
+
+func decodeToken(cred *Credential) (token model.Token, err error) {
+	params, err := getCredentialPayloadMap(cred)
+	if err != nil {
+		return
+	}
+	value, err := getCredentialSecret(params)
+	if err != nil {
+		return
+	}
+	if value == "" {
+		err = fmt.Errorf("credential parameters value can not be empty")
+		return
+	}
+	salt, ok := cred.Encrypt.Params["salt"].(string)
+	if !ok {
+		err = fmt.Errorf("credential encrypt parameters salt can not be empty")
+		return
+	}
+	secret := cred.secret
+	if secret == nil {
+		secret, err = GetOrInitSecret()
+		if err != nil {
+			return token, err
+		}
+	}
+	plaintext, err := util.AesGcmDecrypt([]byte(value), secret, []byte(salt))
+	if err != nil {
+		return token, err
+	}
+	token.Value = string(plaintext)
+	return
+}
+
+func encodeAccessToken(cred *Credential) error {
+	return encodeToken(cred)
+}
+
+func decodeAccessToken(cred *Credential) (payload AccessTokenPayload, err error) {
+	params, err := getCredentialPayloadMap(cred)
+	if err != nil {
+		return
+	}
+	value, err := getCredentialSecret(params)
+	if err != nil {
+		return
+	}
+	if value == "" {
+		err = fmt.Errorf("credential parameters value can not be empty")
+		return
+	}
+	salt, ok := cred.Encrypt.Params["salt"].(string)
+	if !ok {
+		err = fmt.Errorf("credential encrypt parameters salt can not be empty")
+		return
+	}
+	secret := cred.secret
+	if secret == nil {
+		secret, err = GetOrInitSecret()
+		if err != nil {
+			return payload, err
+		}
+	}
+	plaintext, err := util.AesGcmDecrypt([]byte(value), secret, []byte(salt))
+	if err != nil {
+		return payload, err
+	}
+	payload.Value = ucfg.SecretString(plaintext)
+	if permissions, ok := params["permissions"].([]interface{}); ok {
+		for _, item := range permissions {
+			if str, ok := item.(string); ok {
+				payload.Permissions = append(payload.Permissions, str)
+			}
+		}
+	} else if permissions, ok := params["permissions"].([]string); ok {
+		payload.Permissions = append(payload.Permissions, permissions...)
+	}
+	if username, ok := params["username"].(string); ok {
+		payload.Username = username
+	}
+	if description, ok := params["description"].(string); ok {
+		payload.Description = description
+	}
+	return
+}
+
+func getCredentialPayloadMap(cred *Credential) (map[string]interface{}, error) {
+	params, ok := cred.Payload[cred.Type].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
+	}
+	return params, nil
+}
+
+func getCredentialSecret(params map[string]interface{}) (string, error) {
+	switch value := params["value"].(type) {
+	case string:
+		return value, nil
+	case []byte:
+		return string(value), nil
+	case ucfg.SecretString:
+		return string(value.Get()), nil
+	default:
+		return "", fmt.Errorf("wrong credential parameters value, expect a string")
+	}
+}
+
 type ChangeEvent func(credentials *Credential)
 
 var changeEvents []ChangeEvent

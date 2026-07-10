@@ -29,6 +29,7 @@ package api
 
 import (
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"net/http"
 	"sync"
@@ -46,7 +47,8 @@ func init() {
 
 func appSettingsAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	obj := util.MapStr{
-		"auth_enabled": IsAuthEnable(),
+		"auth_enabled":   IsAuthEnable(),
+		"setup_required": global.Env().SetupRequired(),
 	}
 	appSettings := GetAppSettings()
 	obj.Merge(appSettings)

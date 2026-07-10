@@ -142,39 +142,49 @@ func AcquireConsumer(k *QueueConfig, consumer *ConsumerConfig, clientID string) 
 		panic(errors.New("clientID can't be nil"))
 	}
 
-	//check if the consumer is in fighting list
-	if v, ok := consumersInFighting.Load(k.ID + consumer.Key()); ok {
-		if v != clientID {
-			//check the last touch time
+	fightingKey := k.ID + consumer.Key()
+
+	for {
+		reserved := false
+		currentOwner, loaded := consumersInFighting.LoadOrStore(fightingKey, clientID)
+		if loaded && currentOwner != clientID {
 			if consumer.ConsumeTimeoutInSeconds > 0 {
 				t := consumer.GetLastActiveTime()
 				if t != nil && int(time.Since(*t).Seconds()) > consumer.ConsumeTimeoutInSeconds {
-					consumersInFighting.Delete(k.ID + consumer.Key())
-					stats.Increment("consumer", k.ID, consumer.GetID(), "expired")
-					//the consumer is in fighting and is already timeout
-					return nil, errors.Errorf("consumer:%v is already in fighting list, but expired in: %v, remove it from the fighting list", consumer.Key(), time.Since(*t).Seconds())
+					if consumersInFighting.CompareAndDelete(fightingKey, currentOwner) {
+						stats.Increment("consumer", k.ID, consumer.GetID(), "expired")
+					}
+					continue
 				}
 			}
 			stats.Increment("consumer", k.ID, consumer.GetID(), "contend")
-			//the consumer is in fighting list and the clientID is not the same
 			return nil, errors.New("the consumer is in fighting list")
 		}
-	}
-
-	handler := getAdvancedHandler(k)
-	if handler != nil {
-		v1, err := handler.AcquireConsumer(k, consumer)
-		if err != nil {
-			stats.Increment("consumer", k.ID, consumer.GetID(), "error_on_acquire")
-			return nil, err
+		if !loaded {
+			reserved = true
 		}
 
-		//add the consumer to the fighting list
-		consumersInFighting.Store(k.ID+consumer.Key(), clientID)
-		stats.Increment("consumer", k.ID, consumer.GetID(), "acquired")
-		return v1, nil
+		handler := getAdvancedHandler(k)
+		if handler != nil {
+			acquired := false
+			defer func() {
+				if !acquired && reserved {
+					consumersInFighting.CompareAndDelete(fightingKey, clientID)
+				}
+			}()
+
+			v1, err := handler.AcquireConsumer(k, consumer)
+			if err != nil {
+				stats.Increment("consumer", k.ID, consumer.GetID(), "error_on_acquire")
+				return nil, err
+			}
+
+			acquired = true
+			stats.Increment("consumer", k.ID, consumer.GetID(), "acquired")
+			return v1, nil
+		}
+		panic(errors.New("handler is not registered"))
 	}
-	panic(errors.New("handler is not registered"))
 }
 
 func ReleaseConsumer(k *QueueConfig, c *ConsumerConfig, consumer ConsumerAPI) error {

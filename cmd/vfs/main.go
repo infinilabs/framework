@@ -304,7 +304,7 @@ func (vfs StaticFS) Open(name string) (http.File, error) {
 			}
 		}
 
-		log.Debug("local file not found,", localFile)
+		log.Trace("local file not found,", localFile)
 	}
 
 	if vfs.SkipVFS{

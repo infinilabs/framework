@@ -5,17 +5,25 @@
 package native
 
 import (
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
-	"golang.org/x/crypto/bcrypt"
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	cerr "infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+)
+
+const (
+	errCannotUpdateOwnRoles = "sorry, you can not update your roles"
+	errCannotDeleteSelf     = "you can not delete yourself"
+	errInsecurePassword     = "password does not meet security requirements"
+	errEmailAlreadyExists   = "email already existed"
 )
 
 func GetUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -26,10 +34,11 @@ func GetUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	ctx := orm.NewContextWithParent(req.Context())
 	exists, err := orm.GetV2(ctx, &obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if !exists {
-		api.NotFoundResponse(id)
+		api.WriteJSON(w, api.NotFoundResponse(id), http.StatusNotFound)
 		return
 	}
 
@@ -43,7 +52,8 @@ func UpdateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	obj := security.UserAccount{}
 	err := api.DecodeJSON(req, &obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	api.MustValidateInput(w, obj)
@@ -52,10 +62,11 @@ func UpdateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	oldObj.ID = id
 	exists, err := orm.GetV2(ctx, &oldObj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if !exists {
-		api.NotFoundResponse(id)
+		api.WriteJSON(w, api.NotFoundResponse(id), http.StatusNotFound)
 		return
 	}
 
@@ -68,26 +79,32 @@ func UpdateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	if userID == id {
 		//user can't update self's role
 		if !util.CompareStringArray(obj.Roles, oldObj.Roles) {
-			panic("sorry, you can not update your roles")
+			api.WriteError(w, errCannotUpdateOwnRoles, http.StatusForbidden)
+			return
 		}
 	}
 
 	if obj.Password == "" {
+		// Preserve the verifier material on metadata-only updates so editing roles,
+		// names, or other fields does not silently disable challenge login.
 		obj.Password = oldObj.Password
+		obj.PasswordSalt = oldObj.PasswordSalt
+		obj.PasswordVerifier = oldObj.PasswordVerifier
 	} else {
-		if !util.ValidateSecure(obj.Password) {
-			panic("should be secured password")
+		if err := validateSecurePassword(obj.Password); err != nil {
+			api.WriteError(w, err.Error(), http.StatusBadRequest)
+			return
 		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(obj.Password), bcrypt.DefaultCost)
-		if err != nil {
-			panic(err)
+		if err := security.SetPassword(&obj, obj.Password); err != nil {
+			api.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		obj.Password = string(hash)
 	}
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Update(ctx, &obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	security.IncreasePermissionVersion()
@@ -103,13 +120,15 @@ func DeleteUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	sessionUser := security.MustGetUserFromContext(ctx)
 	userID := sessionUser.MustGetUserID()
 	if userID == id {
-		panic("you can not delete yourself")
+		api.WriteError(w, errCannotDeleteSelf, http.StatusForbidden)
+		return
 	}
 
 	ctx.Refresh = orm.WaitForRefresh
 	err := orm.Delete(ctx, &obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	api.WriteDeletedOKJSON(w, obj.ID)
@@ -118,7 +137,8 @@ func DeleteUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	builder, err := orm.NewQueryBuilderFromRequest(req, "id", "name", "email")
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
@@ -128,12 +148,13 @@ func SearchUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	orm.WithModel(ctx, &security.UserAccount{})
 	res, err := orm.SearchV2(ctx, builder)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	_, err = api.Write(w, res.Payload.([]byte))
 	if err != nil {
-		panic(err)
+		api.Error(w, err)
 	}
 }
 
@@ -152,14 +173,8 @@ func GetUserByLogin(email string) (bool, *security.UserAccount, error) {
 	if err != nil {
 		return false, nil, err
 	}
-	if len(items) > 0 {
-		if len(items) == 1 {
-			return true, &items[0], nil
-		} else {
-			log.Warnf("invalid users, more than one account was associated with the same email: %v", email)
-		}
-	}
-	return false, nil, nil
+
+	return resolveUserByLogin(email, items)
 }
 
 func (provider *SecurityBackendProvider) GetUserByLogin(email string) (bool, *security.UserAccount, error) {
@@ -186,17 +201,17 @@ func (provider *SecurityBackendProvider) GetUserByID(id string) (bool, *security
 
 func (provider *SecurityBackendProvider) CreateUser(name, email, password string, force bool) (*security.UserAccount, error) {
 
-	if !util.ValidateSecure(password) {
-		panic("should be secured password")
+	if err := validateSecurePassword(password); err != nil {
+		return nil, err
 	}
 
 	exists, account, err := GetUserByLogin(email)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if exists && !force {
-		panic("email already existed")
+		return nil, cerr.NewWithHTTPCode(http.StatusConflict, errEmailAlreadyExists)
 	}
 
 	var obj = &security.UserAccount{}
@@ -204,24 +219,22 @@ func (provider *SecurityBackendProvider) CreateUser(name, email, password string
 		log.Warn("email already exists, will be replaced")
 		obj.ID = account.ID
 	} else {
-		obj.ID = getUIDByEmail(obj.Email)
+		obj.ID = getUIDByEmail(email)
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
 	obj.Name = name
 	obj.Email = email
 	obj.Roles = []string{security.RoleAdmin}
-	obj.Password = string(hash)
+	if err := security.SetPassword(obj, password); err != nil {
+		return nil, err
+	}
 
 	ctx := orm.NewContext()
 	ctx.DirectAccess()
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Save(ctx, obj)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return obj, nil
 }
@@ -234,38 +247,62 @@ func CreateUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	var obj = &security.UserAccount{}
 	err := api.DecodeJSON(req, obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	api.MustValidateInput(w, obj)
 
 	exists, account, err := GetUserByLogin(obj.Email)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if exists && account != nil {
 		log.Warn("email already exists")
-		//obj.ID = account.ID
-		panic("email already existed")
+		api.WriteError(w, errEmailAlreadyExists, http.StatusConflict)
+		return
 	} else {
 		obj.ID = getUIDByEmail(obj.Email)
 	}
 
 	randStr := util.GenerateSecureString(8)
-	hash, err := bcrypt.GenerateFromPassword([]byte(randStr), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
+	if err := security.SetPassword(obj, randStr); err != nil {
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-
-	obj.Password = string(hash)
 
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.Refresh = orm.WaitForRefresh
 	err = orm.Save(ctx, obj)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	obj.Password = randStr
+	// The one-time bootstrap password should be returned to the caller, but the
+	// persisted verifier material must stay server-side only.
+	obj.PasswordSalt = ""
+	obj.PasswordVerifier = ""
 	api.WriteJSON(w, obj, 200)
+}
+
+func validateSecurePassword(password string) error {
+	if util.ValidateSecure(password) {
+		return nil
+	}
+	return cerr.NewWithHTTPCode(http.StatusBadRequest, errInsecurePassword)
+}
+
+func resolveUserByLogin(login string, items []security.UserAccount) (bool, *security.UserAccount, error) {
+	switch len(items) {
+	case 0:
+		return false, nil, nil
+	case 1:
+		return true, &items[0], nil
+	default:
+		log.Warnf("invalid users, more than one account was associated with the same email: %v", login)
+		return false, nil, fmt.Errorf("multiple accounts found for login %q", login)
+	}
 }
