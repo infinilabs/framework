@@ -48,6 +48,7 @@ type Metric struct {
 	IntervalSeconds float64 `config:"interval_seconds"`
 	YellowThreshold float64 `config:"yellow_threshold"`
 	RedThreshold    float64 `config:"red_threshold"`
+	event.EventSink
 
 	mu sync.Mutex
 
@@ -99,6 +100,11 @@ type deviceUtilization struct {
 }
 
 func New(cfg *config.Config) (*Metric, error) {
+	return NewWithSink(cfg, event.DefaultEventSink)
+}
+
+// NewWithSink creates an overall metric collector with a custom sink.
+func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 	me := &Metric{
 		Enabled:         true,
 		IntervalSeconds: 10,
@@ -108,6 +114,7 @@ func New(cfg *config.Config) (*Metric, error) {
 		prevNetIO:       make(map[string]*netIOSnapshot),
 		netBandwidth:    make(map[string]float64),
 	}
+	me.EventSink = sink
 
 	err := cfg.Unpack(&me)
 	if err != nil {
@@ -235,7 +242,7 @@ func (m *Metric) Collect() error {
 	fields["status"] = status
 	fields["bottleneck"] = bottleneck
 
-	return event.Save(&event.Event{
+	return m.Save(&event.Event{
 		Metadata: event.EventMetadata{
 			Category: "host",
 			Name:     "overall",
