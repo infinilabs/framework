@@ -13,6 +13,8 @@ Information about release notes of INFINI Framework is provided here.
 ### 🚀 Features  
 ### 🐛 Bug fix  
 ### ✈️ Improvements  
+- refactor: add EventSink support to overall utilization collector #387
+- refactor: enable CORS for GET /setting/application #390
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  
