@@ -249,7 +249,14 @@ func LoadFile(path string) (*Config, error) {
 			Path:     path,
 			Variable: envObj,
 		}
-		return NewConfigWithTemplate(tempConfig)
+		cfg, err := NewConfigWithTemplate(tempConfig)
+		if err != nil {
+			return nil, err
+		}
+		// The render path above only substitutes variables in the main file;
+		// configs referenced via `configs.template` still need to be inlined,
+		// same as the plain-file path in internalLoadFile.
+		return expandConfigTemplates(cfg)
 	}
 	return internalLoadFile(path)
 }
@@ -320,6 +327,20 @@ func internalLoadFile(path string) (*Config, error) {
 
 	pCfg := fromConfig(c)
 
+	pCfg, err = expandConfigTemplates(pCfg)
+	if err != nil {
+		return pCfg, err
+	}
+
+	log.Debugf("load config file '%v'", path)
+	return pCfg, err
+}
+
+// Helper function to inline every config referenced by the `configs.template`
+// section into the given config. Templates are rendered with their own
+// `variable` map and merged back, so the returned config contains the
+// expanded sections (e.g. entry, flow) alongside the template references.
+func expandConfigTemplates(pCfg *Config) (*Config, error) {
 	if pCfg.HasField("configs") {
 		templates := TemplateConfigs{}
 		pCfg.Unpack(&templates)
@@ -344,9 +365,7 @@ func internalLoadFile(path string) (*Config, error) {
 		}
 
 	}
-
-	log.Debugf("load config file '%v'", path)
-	return pCfg, err
+	return pCfg, nil
 }
 
 func NestedRenderingTemplate(temp string, runKv util.MapStr) string {

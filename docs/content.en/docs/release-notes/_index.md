@@ -12,6 +12,7 @@ Information about release notes of INFINI Framework is provided here.
 ### ❌ Breaking changes  
 ### 🚀 Features  
 ### 🐛 Bug fix  
+- fix: expand configs.template when loading templated config files #391
 ### ✈️ Improvements  
 - refactor: add EventSink support to overall utilization collector #387
 - refactor: enable CORS for GET /setting/application #390
