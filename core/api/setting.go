@@ -40,7 +40,7 @@ type AppSettings struct {
 }
 
 func init() {
-	HandleUIMethod(GET, "/setting/application", appSettingsAPIHandler, AllowOPTIONSS(), AllowPublicAccess())
+	HandleUIMethod(GET, "/setting/application", appSettingsAPIHandler, AllowOPTIONSS(), AllowPublicAccess(), Feature(FeatureCORS))
 	HandleAPIMethod(GET, "/setting/application", appSettingsAPIHandler)
 }
 

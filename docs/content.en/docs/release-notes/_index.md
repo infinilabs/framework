@@ -17,8 +17,10 @@ Information about release notes of INFINI Framework is provided here.
 - feat: support standalone StreamableHTTP MCP server with typed tool schemas and loopback handlers
 - feat: auto-generate MCP tool input schemas (`path_params`/`query`/`headers`/`body`) from registered routes
 ### 🐛 Bug fix  
+- fix: expand configs.template when loading templated config files #391
 ### ✈️ Improvements  
 - refactor: add EventSink support to overall utilization collector #387
+- refactor: enable CORS for GET /setting/application #390
 
 ## 1.4.2 (2026-06-23)
 ### ❌ Breaking changes  

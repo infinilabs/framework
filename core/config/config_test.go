@@ -24,6 +24,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/magiconair/properties/assert"
@@ -868,4 +870,104 @@ func TestWildcardPathFilter(t *testing.T) {
 		})
 	}
 
+}
+
+type templateEntryConfig struct {
+	Name    string `config:"name"`
+	Enabled bool   `config:"enabled"`
+	Network struct {
+		Binding string `config:"binding"`
+	} `config:"network"`
+}
+
+func writeTemplateConfigFiles(t *testing.T, mainTpl string, tplContent string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "gateway.yml")
+	tplPath := filepath.Join(dir, "config_template.tpl")
+	if err := os.WriteFile(mainPath, []byte(mainTpl), 0644); err != nil {
+		t.Fatalf("failed to write main config: %v", err)
+	}
+	if err := os.WriteFile(tplPath, []byte(tplContent), 0644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+	return dir, mainPath
+}
+
+// A config containing $[[ placeholders takes the rendering path of LoadFile;
+// sections referenced via configs.template must still be inlined.
+func TestLoadFileExpandsConfigTemplates(t *testing.T) {
+	const mainConfig = `env:
+  BINDING_HOST: 127.0.0.1:8001
+
+configs.template:
+  - name: "test_entry"
+    path: ./config_template.tpl
+    variable:
+      name: "test_entry"
+      binding_host: $[[env.BINDING_HOST]]
+`
+	const tpl = `entry:
+  - name: my_entry_$[[name]]
+    enabled: true
+    network:
+      binding: $[[binding_host]]
+`
+	dir, mainPath := writeTemplateConfigFiles(t, mainConfig, tpl)
+	t.Chdir(dir)
+
+	cfg, err := LoadFile(mainPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	out := struct {
+		Entry []templateEntryConfig `config:"entry"`
+	}{}
+	if err := cfg.Unpack(&out); err != nil {
+		t.Fatalf("failed to unpack config: %v", err)
+	}
+	if len(out.Entry) != 1 {
+		t.Fatalf("expected 1 entry from config template, got %d", len(out.Entry))
+	}
+	assert.Equal(t, out.Entry[0].Name, "my_entry_test_entry")
+	assert.Equal(t, out.Entry[0].Enabled, true)
+	assert.Equal(t, out.Entry[0].Network.Binding, "127.0.0.1:8001")
+}
+
+// A config without any placeholder goes through internalLoadFile, which
+// inlines configs.template as before; guard against regressions.
+func TestLoadFileExpandsConfigTemplatesPlain(t *testing.T) {
+	const mainConfig = `configs.template:
+  - name: "test_entry"
+    path: ./config_template.tpl
+    variable:
+      name: "test_entry"
+      binding_host: 127.0.0.1:8002
+`
+	const tpl = `entry:
+  - name: my_entry_$[[name]]
+    enabled: true
+    network:
+      binding: $[[binding_host]]
+`
+	dir, mainPath := writeTemplateConfigFiles(t, mainConfig, tpl)
+	t.Chdir(dir)
+
+	cfg, err := LoadFile(mainPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	out := struct {
+		Entry []templateEntryConfig `config:"entry"`
+	}{}
+	if err := cfg.Unpack(&out); err != nil {
+		t.Fatalf("failed to unpack config: %v", err)
+	}
+	if len(out.Entry) != 1 {
+		t.Fatalf("expected 1 entry from config template, got %d", len(out.Entry))
+	}
+	assert.Equal(t, out.Entry[0].Name, "my_entry_test_entry")
+	assert.Equal(t, out.Entry[0].Network.Binding, "127.0.0.1:8002")
 }
