@@ -106,6 +106,8 @@ func StartWeb(cfg config.WebAppConfig) {
 		}
 	}
 
+	registerMCPAutoUIHandler(cfg)
+
 	if cfg.EmbeddingAPI {
 		if registeredAPIMethodHandler != nil {
 			for k, v := range registeredAPIMethodHandler {
@@ -453,12 +455,14 @@ func HandleUIMethod(method Method, pattern string, handler func(w http.ResponseW
 
 	myHandler := RegisteredAPIHandler{Handler: handler, Options: opts}
 	registeredUIMethodHandler[method][pattern] = myHandler
+	registerMCPAutoUIMethodTool(method, pattern, myHandler)
 	if opts.AllowOPTIONS {
 		m := registeredUIMethodHandler[OPTIONS]
 		if m == nil {
 			registeredUIMethodHandler[OPTIONS] = map[string]RegisteredAPIHandler{}
 		}
 		registeredUIMethodHandler[OPTIONS][pattern] = myHandler
+		registerMCPAutoUIMethodTool(OPTIONS, pattern, myHandler)
 	}
 
 }

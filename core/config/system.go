@@ -392,10 +392,20 @@ type WebAppConfig struct {
 	BasePath     string            `config:"base_path"`
 	Domain       string            `config:"domain"`
 	EmbeddingAPI bool              `config:"embedding_api"`
+	MCP          MCPConfig         `config:"mcp"`
 	Gzip         GzipConfig        `config:"gzip"`
 	S3Config     S3BucketConfig    `config:"s3"`
 
 	Cookie CookieConfig `config:"cookie"`
+}
+
+type MCPConfig struct {
+	Enabled          bool   `config:"enabled"`
+	BasePath         string `config:"base_path"`
+	Name             string `config:"name"`
+	Version          string `config:"version"`
+	Stateless        bool   `config:"stateless"`
+	DisableStreaming bool   `config:"disable_streaming"`
 }
 
 type S3Config struct {

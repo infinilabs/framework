@@ -22,6 +22,7 @@ Comprehensive reference documentation for the INFINI Framework's core systems an
 ## API & Data
 
 - [API & Web Framework]({{< relref "api_web" >}}) — HTTP API server, web server, routing, middleware, and security configuration
+- [MCP Server]({{< relref "mcp" >}}) — Model Context Protocol server support — expose APIs as AI-callable tools via `api.MCPTool()`
 - [ORM]({{< relref "orm" >}}) — Object-Relational Mapping for Elasticsearch with CRUD operations and query building
 - [Query URL Parameters]({{< relref "query_url" >}}) — URL-based query parameters for full-text search and structured filters
 - [Aggregation Queries]({{< relref "aggs_query" >}}) — Dynamic aggregation construction via URL query parameters

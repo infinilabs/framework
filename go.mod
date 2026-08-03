@@ -36,6 +36,7 @@ require (
 	github.com/libdns/libdns v1.1.1
 	github.com/magiconair/properties v1.8.10
 	github.com/mailru/easyjson v0.9.0
+	github.com/mark3labs/mcp-go v0.43.1
 	github.com/minio/minio-go/v7 v7.0.90
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/ncruces/go-sqlite3 v0.25.0
