@@ -56,7 +56,7 @@ type UserSessionInfo struct {
 	Login    string `json:"login"`    //auth login
 
 	//system level security's info
-	Roles       []string        `json:"roles"`
+	Roles []string `json:"roles"`
 
 	//private fields
 	UserID string `json:"userid"` //system level user ID
