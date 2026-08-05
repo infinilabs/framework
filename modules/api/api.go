@@ -90,15 +90,19 @@ func healthAPIHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	if global.Env().SetupRequired() {
 		obj["setup_required"] = global.Env().SetupRequired()
 	} else {
-		//perform system cluster health check only when it is set up
-		globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
-		meta := elastic.GetMetadata(globalID)
-		if meta != nil {
-			services["system_cluster"] = meta.Health.Status
-			healthType := env.GetHealthType(meta.Health.Status)
-			if healthType > overallHealthType {
-				overallHealthType = healthType
-				obj["status"] = overallHealthType.ToString()
+		// Not every application has a system cluster (e.g. gateway does not,
+		// only console/cloud do), so look the key up safely and skip the
+		// system cluster section when it was never registered.
+		v := global.Lookup(elastic.GlobalSystemElasticsearchID)
+		if globalID, ok := v.(string); ok && globalID != "" {
+			meta := elastic.GetMetadata(globalID)
+			if meta != nil {
+				services["system_cluster"] = meta.Health.Status
+				healthType := env.GetHealthType(meta.Health.Status)
+				if healthType > overallHealthType {
+					overallHealthType = healthType
+					obj["status"] = overallHealthType.ToString()
+				}
 			}
 		}
 	}
