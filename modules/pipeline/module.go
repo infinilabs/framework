@@ -448,20 +448,29 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		log.Info("creating pipeline: " + v.Name)
 	}
 
+	// The pipeline loop registers its context asynchronously; ready works
+	// like a oneshot channel so this call only returns once the task is
+	// visible to the API (or the processor build has failed).
+	ready := make(chan error, 1)
+
 	task.RunWithContext("pipeline:"+v.Name, func(taskCtx context.Context) error {
 
 		cfgV := taskCtx.Value("cfg")
 		cfg, ok := cfgV.(pipeline.PipelineConfigV2)
 		if !ok {
-			return errors.New("invalid pipeline config")
+			err := errors.New("invalid pipeline config")
+			ready <- err
+			return err
 		}
 		processorConfigs, err := cfg.GetProcessorsConfig()
 		if err != nil {
+			ready <- err
 			return errors.Errorf("failed to get processor config, %v", err)
 		}
 
 		processors, err := pipeline.NewPipeline(processorConfigs)
 		if err != nil {
+			ready <- err
 			return err
 		}
 
@@ -495,6 +504,7 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 		} else {
 			ctx.Starting()
 		}
+		ready <- nil
 
 		log.Debug("processing pipeline_v2: ", cfg.Name)
 
@@ -596,6 +606,13 @@ func (module *PipeModule) createPipelineTask(v pipeline.PipelineConfigV2, transi
 
 		return nil
 	}, context.WithValue(context.Background(), "cfg", v))
+
+	// The processor build failed; roll back the config slot so the task
+	// does not linger as a phantom entry.
+	if err := <-ready; err != nil {
+		module.configs.Delete(v.ID)
+		return err
+	}
 
 	return nil
 }
