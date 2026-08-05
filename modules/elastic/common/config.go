@@ -89,7 +89,12 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 	if esConfig.Version == "" || esConfig.Version == "auto" {
 		verInfo, err := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
 		if err != nil {
-			return nil, err
+			// The cluster may simply be down; an unreachable endpoint is a
+			// runtime state, not a config error. Fall back to the default
+			// version below so the instance still gets registered and
+			// requests can fail with 503 instead of panicking on a missing
+			// config.
+			log.Warn("failed to probe version of elasticsearch ", esConfig.Name, ", ", err)
 		}
 		if verInfo != nil {
 			esConfig.Version = verInfo.Version.Number
