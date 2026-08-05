@@ -41,7 +41,6 @@ package global
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -93,9 +92,12 @@ func Register(k RegisterKey, v interface{}) {
 
 func MustLookupString(k RegisterKey) string {
 	v := MustLookup(k)
-	x := v.(string)
+	x, ok := v.(string)
+	if !ok {
+		panic(fmt.Errorf("key [%v] holds a value of type %T, expected string", k, v))
+	}
 	if x == "" {
-		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
+		panic(fmt.Errorf("key [%v] holds an empty string", k))
 	}
 	return x
 }
@@ -103,7 +105,7 @@ func MustLookupString(k RegisterKey) string {
 func MustLookup(k RegisterKey) interface{} {
 	v := Lookup(k)
 	if v == nil {
-		panic(errors.New(fmt.Sprintf("invalid key: %v", k)))
+		panic(fmt.Errorf("key not found: %v", k))
 	}
 	return v
 }
