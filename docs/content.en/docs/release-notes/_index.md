@@ -10,6 +10,20 @@ Information about release notes of INFINI Framework is provided here.
 
 ## Latest (In development)  
 ### ❌ Breaking changes  
+### 🚀 Features  
+- feat: add MCP (Model Context Protocol) server support — auto-expose UI routes as MCP tools via `api.MCPTool()` annotation
+- feat: add MCP configuration section (`web.mcp.enabled`, `web.mcp.base_path`, `web.mcp.stateless`, `web.mcp.disable_streaming`)
+- feat: add MCP authorization filter — per-tool RBAC via `api.RequirePermission()` + `RegisterMCPToolAuthorizer()`
+- feat: support standalone StreamableHTTP MCP server with typed tool schemas and loopback handlers
+- feat: auto-generate MCP tool input schemas (`path_params`/`query`/`headers`/`body`) from registered routes
+### 🐛 Bug fix  
+- fix: expand configs.template when loading templated config files #391
+### ✈️ Improvements  
+- refactor: add EventSink support to overall utilization collector #387
+- refactor: enable CORS for GET /setting/application #390
+
+## 1.4.2 (2026-06-23)
+### ❌ Breaking changes  
 - refactor: native security are disabled by default #283
 - refactor: refactoring to simplify go modules #300
 
