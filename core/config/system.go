@@ -70,7 +70,14 @@ type NetworkConfig struct {
 	Binding          string `config:"binding" json:"binding,omitempty" elastic_mapping:"binding: { type: keyword }"`
 	Publish          string `config:"publish" json:"publish,omitempty" elastic_mapping:"publish: { type: keyword }"`
 	SkipOccupiedPort bool   `config:"skip_occupied_port" json:"skip_occupied_port,omitempty" elastic_mapping:"skip_occupied_port: { type: boolean }"`
-	ReusePort        bool   `config:"reuse_port" json:"reuse_port,omitempty" elastic_mapping:"reuse_port: { type: boolean }"`
+	//ReusePort is nil when reuse_port is not configured, so applications can
+	//tell "unset" apart from an explicit false and apply their own default.
+	ReusePort        *bool  `config:"reuse_port" json:"reuse_port,omitempty" elastic_mapping:"reuse_port: { type: boolean }"`
+}
+
+// Helper function to report whether SO_REUSEPORT is explicitly enabled.
+func (cfg NetworkConfig) ReusePortEnabled() bool {
+	return cfg.ReusePort != nil && *cfg.ReusePort
 }
 
 func (cfg NetworkConfig) GetPublishAddr() string {

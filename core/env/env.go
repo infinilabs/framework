@@ -217,6 +217,11 @@ func (env *Env) Init() *Env {
 		}
 
 		absConfigPath, _ := filepath.Abs(env.SystemConfig.PathConfig.Config)
+		if !util.FileExists(absConfigPath) {
+			if err := os.MkdirAll(absConfigPath, 0755); err != nil {
+				log.Errorf("failed to create config dir: %v, %v", absConfigPath, err)
+			}
+		}
 		if util.FileExists(absConfigPath) {
 			if !env.ISServiceMode {
 				log.Info("watching config: ", absConfigPath)
