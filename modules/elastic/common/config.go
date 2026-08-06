@@ -87,7 +87,9 @@ func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		verInfo, err := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
+		probeMeta := &elastic.ElasticsearchMetadata{Config: &esConfig}
+		probeMeta.Init(true)
+		verInfo, err := adapter.ClusterVersion(probeMeta)
 		if err != nil {
 			// The cluster may simply be down; an unreachable endpoint is a
 			// runtime state, not a config error. Fall back to the default
@@ -224,6 +226,9 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 		return nil, nil
 	}
+	originMeta := elastic.GetMetadata(esConfig.ID)
+	initHealth := getInitialMetadataHealth(originMeta)
+
 	client, err := InitClientWithConfig(esConfig)
 	if err != nil {
 		log.Error("elasticsearch ", esConfig.Name, err)
@@ -231,18 +236,19 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	}
 	elastic.RegisterInstance(esConfig, client)
 
-	originMeta := elastic.GetMetadata(esConfig.ID)
-	initHealth := true
-	if originMeta != nil {
-		initHealth = originMeta.IsAvailable()
-	}
-
 	v := elastic.InitMetadata(&esConfig, initHealth)
 	if v.Health == nil && originMeta != nil {
 		v.Health = originMeta.Health
 	}
 	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
+}
+
+func getInitialMetadataHealth(originMeta *elastic.ElasticsearchMetadata) bool {
+	if originMeta == nil {
+		return true
+	}
+	return originMeta.IsAvailable()
 }
 
 func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.BasicAuth, err error) {
