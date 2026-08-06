@@ -176,7 +176,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
 	if err != nil {
-		panic(errors.ErrorWithHTTPCode(err, 400, "invalid token"))
+		panic(errors.NewWithHTTPCode(400, "invalid token"))
 	}
 	if reqBody.Name == "" {
 		reqBody.Name = GenerateApiTokenName("")
@@ -188,7 +188,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 		if len(reqBody.Permissions) > 0 {
 			// requested permissions must be within the caller's own scope
 			if !util.IsSuperset(security.ConvertPermissionKeysToHashSet(permissions), security.ConvertPermissionKeysToHashSet(reqBody.Permissions)) {
-				panic(errors.ErrorWithHTTPCode(err, 403, "invalid permissions"))
+				panic(errors.NewWithHTTPCode(403, "invalid permissions"))
 			}
 			permissions = reqBody.Permissions
 		}
