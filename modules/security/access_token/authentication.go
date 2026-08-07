@@ -22,7 +22,6 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/security/http_filters"
 )
 
 const ProviderName = "access_token"
@@ -68,7 +67,7 @@ func init() {
 			security.RegisterHTTPAuthFilterProviderWithPriority("api_token", byAPITokenHeader, 30)
 
 			api.HandleUIMethod(api.POST, "/auth/access_token", RequestAccessToken, api.RequirePermission(createTokenPermission))
-			api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
+			api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission))
 			api.HandleUIMethod(api.DELETE, "/auth/access_token/:token_id", DeleteAccessToken, api.RequirePermission(deleteTokenPermission))
 			api.HandleUIMethod(api.PUT, "/auth/access_token/:token_id", UpdateAccessToken, api.RequirePermission(updateTokenPermission))
 

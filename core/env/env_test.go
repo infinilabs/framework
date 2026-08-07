@@ -31,6 +31,14 @@ import (
 	"infini.sh/framework/core/config"
 )
 
+func TestGetDefaultSystemConfigEnablesAccessTokenAPI(t *testing.T) {
+	cfg := GetDefaultSystemConfig()
+
+	if !cfg.WebAppConfig.Security.Authentication.AccessToken.Enabled {
+		t.Fatal("expected access token api to be enabled by default")
+	}
+}
+
 func TestParseConfigSection_NilConfig(t *testing.T) {
 	var out struct{ Foo string }
 	exist, err := ParseConfigSection(nil, "anykey", &out)
