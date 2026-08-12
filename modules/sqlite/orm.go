@@ -109,6 +109,9 @@ func (handler *SQLiteORM) RegisterSchemaWithName(t interface{}, indexName string
 	if err != nil {
 		return fmt.Errorf("failed to create table %s: %w", tableName, err)
 	}
+	// Build expression indexes from the model's elastic_mapping tags so
+	// json_extract-based filters/sorts use B-trees instead of full-table scans.
+	createExpressionIndexes(handler.DB, tableName, t)
 	log.Debugf("sqlite schema registered: %s", tableName)
 	return nil
 }
