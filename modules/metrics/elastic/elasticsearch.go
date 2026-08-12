@@ -32,6 +32,7 @@ import (
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
+	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/task"
 	"infini.sh/framework/core/util"
 	"sync"
@@ -57,6 +58,19 @@ type ElasticsearchMetric struct {
 	Interval     string `config:"interval"`
 	onSaveEvent  func(item *event.Event) error
 	taskIDs      sync.Map
+}
+
+// largeClusterWarnInterval is the minimum time between repeated "large
+// cluster" warnings for the same cluster, so the message is not logged at
+// the same frequency as the metric collection tasks.
+const largeClusterWarnInterval = 10 * time.Minute
+
+// Helper function to report whether the "large cluster" warning may be
+// logged for the given cluster, at most once per largeClusterWarnInterval.
+// The caller is responsible for the actual log call so that the logged
+// source location points to the call site instead of this helper.
+func allowLargeClusterWarn(clusterID string) bool {
+	return rate.GetRateLimiter("large_cluster_warn", clusterID, 1, 1, largeClusterWarnInterval).Allow()
 }
 
 //元数据定期快照
@@ -297,7 +311,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					indexInfos[item.NodeID][item.Index] = true
 				}
 				if len(shardInfos) > 50 || len(shards) > 5000 {
-					log.Warnf("cluster [%v] has over 50 nodes or 5000 shards. use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
+					if allowLargeClusterWarn(k) {
+						log.Warnf("cluster [%v] has over 50 nodes or 5000 shards. use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
+					}
 				}
 
 				host := v.GetActiveHost()
@@ -349,7 +365,9 @@ func (m *ElasticsearchMetric) InitialCollectTask(k string, v *elastic.Elasticsea
 					//return true
 				}
 				if (v.Health != nil && v.Health.NumberOfNodes > 50) || len(shards) > 5000 {
-					log.Warnf("cluster [%v] has over 50 nodes or 5000 shards. use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
+					if allowLargeClusterWarn(k) {
+						log.Warnf("cluster [%v] has over 50 nodes or 5000 shards. use the agent for metrics collection: https://github.com/infinilabs/agent.", v.Config.Name)
+					}
 				}
 				indexStats, err := client.GetStats()
 				if err != nil {
