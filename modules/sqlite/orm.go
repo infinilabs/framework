@@ -32,8 +32,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
+	_ "modernc.org/sqlite"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
@@ -57,7 +56,7 @@ func (handler *SQLiteORM) Open() error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite3", handler.Config.DBPath)
+	db, err := sql.Open("sqlite", handler.Config.DBPath)
 	if err != nil {
 		return fmt.Errorf("failed to open sqlite database at %s: %w", handler.Config.DBPath, err)
 	}
@@ -66,6 +65,14 @@ func (handler *SQLiteORM) Open() error {
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
 		return fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	// Wait up to 5s on a locked DB instead of failing immediately. The web
+	// server opens multiple connections; under WAL only one writer is allowed
+	// at a time, so concurrent writes need a grace window to avoid SQLITE_BUSY.
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
 	// Enable foreign keys
