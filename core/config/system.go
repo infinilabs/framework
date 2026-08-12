@@ -336,10 +336,24 @@ type RealmConfig struct {
 }
 
 type AuthenticationConfig struct {
-	Native                RealmConfig            `config:"native"`
-	AccessToken           AccessTokenConfig      `config:"access_token"`
-	HTTPBasicAuthProvider HTTPBasicAuthProvider  `config:"http_basic"`
-	OAuth                 map[string]OAuthConfig `config:"oauth"`
+	Native                RealmConfig                `config:"native"`
+	AccessToken           AccessTokenConfig          `config:"access_token"`
+	HTTPBasicAuthProvider HTTPBasicAuthProvider      `config:"http_basic"`
+	Static                StaticAuthenticationConfig `config:"static"`
+	OAuth                 map[string]OAuthConfig     `config:"oauth"`
+}
+
+type StaticAuthenticationConfig struct {
+	Enabled bool                   `config:"enabled"`
+	Users   []StaticAuthUserConfig `config:"users"`
+}
+
+type StaticAuthUserConfig struct {
+	ID       string   `config:"id" json:"id,omitempty"`
+	Name     string   `config:"name" json:"name,omitempty"`
+	Login    string   `config:"login" json:"login,omitempty"`
+	Password string   `config:"password" json:"password,omitempty"`
+	Roles    []string `config:"roles" json:"roles,omitempty"`
 }
 
 // AccessTokenConfig controls API access-token management.

@@ -6,8 +6,11 @@ package staticauth
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/security"
@@ -21,17 +24,51 @@ type roleDefinition struct {
 }
 
 var (
-	mu          sync.RWMutex
-	roles       = map[string]roleDefinition{}
-	roleMapping = map[string][]string{}
+	mu               sync.RWMutex
+	roles            = map[string]roleDefinition{}
+	roleMapping      = map[string][]string{}
+	authUsersByLogin = map[string]*security.UserAccount{}
+	authUsersByID    = map[string]*security.UserAccount{}
 )
 
-func Init(cfg config.StaticAuthorizationConfig) {
+func Init(authCfg config.StaticAuthenticationConfig, cfg config.StaticAuthorizationConfig) {
 	mu.Lock()
 	defer mu.Unlock()
 
 	roles = map[string]roleDefinition{}
 	roleMapping = map[string][]string{}
+	authUsersByLogin = map[string]*security.UserAccount{}
+	authUsersByID = map[string]*security.UserAccount{}
+
+	for _, user := range authCfg.Users {
+		login := strings.TrimSpace(user.Login)
+		if login == "" {
+			continue
+		}
+
+		id := strings.TrimSpace(user.ID)
+		if id == "" {
+			id = login
+		}
+
+		account := &security.UserAccount{
+			Name:  user.Name,
+			Email: login,
+			Roles: append([]string(nil), user.Roles...),
+		}
+		account.ID = id
+
+		if user.Password != "" {
+			hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+			if err != nil {
+				panic(err)
+			}
+			account.Password = string(hash)
+		}
+
+		authUsersByLogin[login] = account
+		authUsersByID[id] = account
+	}
 
 	for _, role := range cfg.Roles {
 		if role.Name == "" {
@@ -66,7 +103,50 @@ func Init(cfg config.StaticAuthorizationConfig) {
 		roleMapping[trimmed] = append([]string(nil), assignedRoles...)
 	}
 
-	security.RegisterAuthorizationProvider("static_authorization", &provider{})
+	if authCfg.Enabled {
+		security.RegisterAuthenticationProvider(security.StaticAuthBackend, &provider{})
+	}
+
+	if cfg.Enabled {
+		security.RegisterAuthorizationProvider("static_authorization", &provider{})
+	}
+}
+
+func (p *provider) GetUserByLogin(login string) (bool, *security.UserAccount, error) {
+	login = strings.TrimSpace(login)
+	if login == "" {
+		return false, nil, nil
+	}
+
+	mu.RLock()
+	defer mu.RUnlock()
+
+	account, ok := authUsersByLogin[login]
+	if !ok {
+		return false, nil, nil
+	}
+
+	return true, account, nil
+}
+
+func (p *provider) GetUserByID(id string) (bool, *security.UserAccount, error) {
+	if id == "" {
+		return false, nil, nil
+	}
+
+	mu.RLock()
+	defer mu.RUnlock()
+
+	account, ok := authUsersByID[id]
+	if !ok {
+		return false, nil, nil
+	}
+
+	return true, account, nil
+}
+
+func (p *provider) CreateUser(name, login, password string, force bool) (*security.UserAccount, error) {
+	return nil, fmt.Errorf("static authentication provider does not support user creation")
 }
 
 func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []security.PermissionKey {
@@ -75,6 +155,17 @@ func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, us
 	if login != "" && login != userID {
 		keys = append(keys, permissionsForRoles(rolesForSubject(login))...)
 	}
+
+	if providerID == security.StaticAuthBackend {
+		mu.RLock()
+		defer mu.RUnlock()
+		if account, ok := authUsersByID[userID]; ok {
+			keys = append(keys, permissionsForRoles(account.Roles)...)
+		} else if account, ok := authUsersByLogin[login]; ok {
+			keys = append(keys, permissionsForRoles(account.Roles)...)
+		}
+	}
+
 	return keys
 }
 

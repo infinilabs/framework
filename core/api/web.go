@@ -62,7 +62,11 @@ func StopWeb(cfg config.WebAppConfig) {
 		defer cancel()
 		err := srv.Shutdown(ctx1)
 		if err != nil {
-			panic(err)
+			// Don't panic on shutdown timeout — in-flight HTTP requests (polling,
+			// SSE streams, slow ES queries) may not drain within the deadline.
+			// The process is exiting anyway; log and continue so the framework
+			// can finish stopping the remaining modules cleanly.
+			log.Warnf("web server shutdown: %v (some in-flight requests may have been dropped)", err)
 		}
 
 		log.Debug("stopping web server")

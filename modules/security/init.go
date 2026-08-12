@@ -76,8 +76,8 @@ func (module *Module) Setup() {
 		native.Init()
 	}
 
-	if module.cfg.Authorization.Static.Enabled {
-		staticauth.Init(module.cfg.Authorization.Static)
+	if module.cfg.Authentication.Static.Enabled || module.cfg.Authorization.Static.Enabled {
+		staticauth.Init(module.cfg.Authentication.Static, module.cfg.Authorization.Static)
 	}
 
 	oauthSettings := util.MapStr{}
@@ -96,8 +96,11 @@ func (module *Module) Setup() {
 	settings := util.MapStr{
 		"managed": module.cfg.Managed,
 		"auth": util.MapStr{
-			"native": module.cfg.Authentication.Native.Enabled,
-			"oauth":  oauthSettings,
+			"native":       module.cfg.Authentication.Native.Enabled,
+			"static":       module.cfg.Authentication.Static.Enabled,
+			"access_token": module.cfg.Authentication.AccessToken.Enabled,
+			"http_basic":   module.cfg.Authentication.HTTPBasicAuthProvider.Enabled,
+			"oauth":        oauthSettings,
 		},
 	}
 
