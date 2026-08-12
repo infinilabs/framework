@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: support standalone StreamableHTTP MCP server with typed tool schemas and loopback handlers
 - feat: auto-generate MCP tool input schemas (`path_params`/`query`/`headers`/`body`) from registered routes
 - feat: make reuse_port tri-state and watch config dir even when missing #393
+- perf(sqlite): auto-create expression indexes from elastic_mapping tags — the SQLite ORM now indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into index lookups with zero query or model changes
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391
