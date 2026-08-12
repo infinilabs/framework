@@ -415,6 +415,7 @@ type WebAppConfig struct {
 	EmbeddingAPI bool              `config:"embedding_api"`
 	MCP          MCPConfig         `config:"mcp"`
 	Gzip         GzipConfig        `config:"gzip"`
+	ResponseCache ResponseCacheConfig `config:"response_cache"`
 	S3Config     S3BucketConfig    `config:"s3"`
 
 	Cookie CookieConfig `config:"cookie"`
@@ -535,6 +536,15 @@ type AutoIssue struct {
 type GzipConfig struct {
 	Enabled bool `config:"enabled"`
 	Level   int  `config:"level"`
+}
+
+// ResponseCacheConfig controls the opt-in GET response cache (api.Cache).
+// The cache is disabled by default: even routes that set api.Cache pass
+// through uncached unless Enabled is true. This keeps caching a deliberate,
+// global opt-in for the few high-frequency, slowly-changing endpoints that
+// warrant it.
+type ResponseCacheConfig struct {
+	Enabled bool `config:"enabled"`
 }
 
 type WebsocketConfig struct {

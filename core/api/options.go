@@ -24,6 +24,8 @@
 package api
 
 import (
+	"time"
+
 	"infini.sh/framework/core/util"
 )
 
@@ -53,6 +55,10 @@ type HandlerOptions struct {
 	Labels            util.MapStr
 	Features          map[string]bool
 	Tags              []string
+	// CacheTTL, when > 0, enables short-TTL caching of successful GET
+	// responses for this route via the ResponseCacheFilter. Intended for
+	// read-only, slowly-changing aggregates that are polled frequently.
+	CacheTTL time.Duration
 	// Add other options as needed
 }
 
@@ -171,6 +177,18 @@ func Feature(feature string) Option {
 
 func MCPAuto() Option {
 	return Feature(FeatureMCPAuto)
+}
+
+// Cache enables short-TTL response caching for a GET route. The
+// ResponseCacheFilter serves subsequent requests within ttl directly from
+// cache, skipping the handler entirely. The cache is keyed by URL plus the
+// authenticated caller and the request body, so responses are not mixed across
+// users or bodies. Use for read-only, idempotent endpoints whose data changes
+// slowly relative to the polling rate.
+func Cache(ttl time.Duration) Option {
+	return func(o *HandlerOptions) {
+		o.CacheTTL = ttl
+	}
 }
 
 func MCPTool(name, description string) Option {
