@@ -13,6 +13,7 @@ import (
 
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/rate"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
@@ -34,9 +35,23 @@ import (
 // ──────────────────────────────────────────────────────────────────────────
 
 func init() {
-	// Register only when auth is enabled; AllowPublicAccess because the login
-	// endpoint itself must be reachable without an existing session.
-	api.HandleUIMethod(api.POST, "/account/login", Login, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
+	// Register lazily, after config is parsed — init() itself runs at import
+	// time, before the security module's config is loaded, so the gate cannot
+	// happen directly here. RegisterFuncBeforeSetup fires once config is ready.
+	//
+	// Only expose password login when at least one password-based backend is
+	// enabled. Deployments using only oauth/access_token never register this
+	// route, so they present no password-bruteforce surface. Same pattern as
+	// the access_token endpoints (access_token/authentication.go).
+	global.RegisterFuncBeforeSetup(func() {
+		auth := global.Env().SystemConfig.WebAppConfig.Security.Authentication
+		if !auth.Static.Enabled && !auth.Native.Enabled {
+			return
+		}
+		// AllowPublicAccess: the login endpoint must be reachable without an
+		// existing session.
+		api.HandleUIMethod(api.POST, "/account/login", Login, api.AllowPublicAccess(), api.AllowOPTIONSS(), api.Feature(api.FeatureCORS))
+	})
 }
 
 // loginRequest is the JSON body for POST /account/login.
