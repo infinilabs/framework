@@ -32,8 +32,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
+	_ "modernc.org/sqlite"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
@@ -49,6 +48,12 @@ type SQLiteORM struct {
 	DB     *sql.DB
 }
 
+// defaultMmapSize caps how much of the database file SQLite serves via
+// memory-mapped I/O instead of pread syscalls. 256 MiB comfortably covers the
+// metadata store and leaves headroom; only virtual address space is reserved,
+// not RAM (pages are faulted in on demand). Set per-connection via the DSN.
+const defaultMmapSize = 256 << 20 // 256 MiB
+
 // Open initializes the SQLite database connection.
 func (handler *SQLiteORM) Open() error {
 	// Ensure the parent directory exists
@@ -57,21 +62,17 @@ func (handler *SQLiteORM) Open() error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite3", handler.Config.DBPath)
+	// Connection-level PRAGMAs (busy_timeout, foreign_keys, mmap_size) must be
+	// set via the DSN _pragma params so they apply to EVERY pooled connection —
+	// a single db.Exec only configures the one connection the pool happens to
+	// use for that call, leaving the rest on defaults.
+	dsn := fmt.Sprintf(
+		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=mmap_size(%d)",
+		handler.Config.DBPath, defaultMmapSize,
+	)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("failed to open sqlite database at %s: %w", handler.Config.DBPath, err)
-	}
-
-	// Enable WAL mode for better concurrent read performance
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to enable WAL mode: %w", err)
-	}
-
-	// Enable foreign keys
-	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
 	handler.DB = db
@@ -109,6 +110,9 @@ func (handler *SQLiteORM) RegisterSchemaWithName(t interface{}, indexName string
 	if err != nil {
 		return fmt.Errorf("failed to create table %s: %w", tableName, err)
 	}
+	// Build expression indexes from the model's elastic_mapping tags so
+	// json_extract-based filters/sorts use B-trees instead of full-table scans.
+	createExpressionIndexes(handler.DB, tableName, t)
 	log.Debugf("sqlite schema registered: %s", tableName)
 	return nil
 }
