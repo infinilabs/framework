@@ -21,21 +21,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-package elastic
+package framework
 
-import "time"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
-type CommandRequest struct {
-	Path   string `json:"path"`
-	Method string `json:"method"`
-	Body   string `json:"body"`
-}
+func TestGetServiceWorkingDirectoryUsesExecutableDir(t *testing.T) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("failed to get executable path: %v", err)
+	}
 
-type CommonCommand struct {
-	ID       string           `json:"-" index:"id"`
-	Title    string           `json:"title" elastic_mapping:"title:{type:text,fields:{keyword:{type:keyword}}}"`
-	Tag      []string         `json:"tag" elastic_mapping:"tag:{type:keyword}"`
-	Creator  string           `json:"creator,omitempty" elastic_mapping:"creator:{type:keyword}"`
-	Requests []CommandRequest `json:"requests" elastic_mapping:"requests:{type:object}"`
-	Created  time.Time        `json:"created,omitempty" elastic_mapping:"created:{type:date}"`
+	got := getServiceWorkingDirectory()
+	want := filepath.Dir(executablePath)
+	if got != want {
+		t.Fatalf("expected service working directory %q, got %q", want, got)
+	}
 }

@@ -68,6 +68,32 @@ type Consumer struct {
 	fileLoadCompleted bool
 }
 
+func (d *Consumer) parkOnEmptyTail(fileName string) error {
+	if d.readFile != nil {
+		if err := d.readFile.Close(); err != nil && !util.ContainStr(err.Error(), "already") {
+			return err
+		}
+	}
+	d.readFile = nil
+	d.reader = nil
+	d.fileName = fileName
+	d.lastFileSize = 0
+	d.maxBytesPerFileRead = 0
+	d.fileLoadCompleted = false
+	return nil
+}
+
+func (d *Consumer) waitingForTailFile() bool {
+	// A parked consumer has already advanced to the current write segment, but there is no tail
+	// file content yet. Treat this as a normal catch-up state so the next write can resume from
+	// the live tail instead of rescanning an older corrupt or already-consumed segment.
+	return d.diskQueue != nil &&
+		d.readFile == nil &&
+		d.reader == nil &&
+		d.segment == d.diskQueue.writeSegmentNum &&
+		d.readPos == 0
+}
+
 func (c *Consumer) getFileSize() int64 {
 	var err error
 	readFile, err := os.OpenFile(c.fileName, os.O_RDONLY, 0600)
@@ -144,6 +170,22 @@ READ_MSG:
 
 	// check reader
 	if d.reader == nil {
+		if d.waitingForTailFile() {
+			if d.diskQueue.writePos > 0 || util.FileExists(d.fileName) {
+				err = d.ResetOffset(d.segment, d.readPos)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") {
+						return messages, false, nil
+					}
+					return messages, false, err
+				}
+				goto READ_MSG
+			}
+			if len(messages) == 0 && d.cCfg.EOFRetryDelayInMs > 0 {
+				time.Sleep(time.Duration(d.cCfg.EOFRetryDelayInMs) * time.Millisecond)
+			}
+			return messages, false, nil
+		}
 		return messages, false, errors.New("reader is nil")
 	}
 	//read message size
@@ -236,7 +278,7 @@ READ_MSG:
 		}
 		return messages, false, err
 	}
-	log.Debugf("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
+	log.Tracef("queue:%v, offset:%v,%v, msgSize:%v", d.queue, d.segment, d.readPos, msgSize)
 	if int32(msgSize) < d.mCfg.MinMsgSize || int32(msgSize) > d.mCfg.MaxMsgSize {
 		//current have changes, reload file with new position
 		newFileSize := d.getFileSize()
@@ -274,8 +316,19 @@ READ_MSG:
 					//can't read ahead before current write file
 					if nextSegment >= d.diskQueue.writeSegmentNum {
 						log.Debugf("need to skip to next file, but next file not exists, current write segment:%v, current read segment:%v", d.diskQueue.writeSegmentNum, d.segment)
-						d.diskQueue.skipToNextRWFile(false)
+						err = d.diskQueue.skipToNextRWFile(false)
+						if err != nil {
+							return messages, false, err
+						}
 						d.diskQueue.needSync = true
+						err = d.ResetOffset(d.diskQueue.writeSegmentNum, 0)
+						if err != nil {
+							if strings.Contains(err.Error(), "not found") {
+								return messages, false, nil
+							}
+							return messages, false, err
+						}
+						ctx.UpdateNextOffset(d.segment, d.readPos)
 					} else {
 						//let's continue move to next file
 						nextSegment++
@@ -332,9 +385,9 @@ READ_MSG:
 			//still working on the same file
 			if d.diskQueue.writeSegmentNum == d.segment {
 				time.Sleep(100 * time.Millisecond) // Prevent catching up too quickly.
-				log.Debugf("invalid message size detected. this might be due to a dirty read as the file was being written while open. reloading segment: %d", d.segment)
+				log.Tracef("invalid message size detected. this might be due to a dirty read as the file was being written while open. reloading segment: %d", d.segment)
 			} else {
-				log.Debugf("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
+				log.Tracef("invalid message size detected. this might be due to a partial file load. reloading segment: %d", d.segment)
 			}
 
 			d.readPos = previousPos
@@ -509,6 +562,11 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 	if !exists {
 		//double check, but next file exists
 		if !util.FileExists(fileName) {
+			if segment == d.diskQueue.writeSegmentNum && readPos == 0 && d.diskQueue.writePos == 0 {
+				// The consumer has caught up to an empty tail segment. Park there and let FetchMessages
+				// wait for the producer to materialize the next file instead of treating the tail as corrupt.
+				return d.parkOnEmptyTail(fileName)
+			}
 			if d.mCfg.AutoSkipCorruptFile {
 				nextSegment := d.segment + 1
 				if nextSegment > d.diskQueue.writeSegmentNum {
@@ -518,7 +576,7 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 					d.qCfg.Name, d.queue, d.cCfg.Key(), d.segment, d.readPos, fileName)
 			RETRY_NEXT_FILE:
 				// there are segments in the middle
-				if nextSegment < d.diskQueue.writeSegmentNum {
+				if nextSegment <= d.diskQueue.writeSegmentNum {
 					fileName, exists, next_file_exists = SmartGetFileName(d.mCfg, d.queue, nextSegment)
 					if exists || util.FileExists(fileName) {
 						log.Debugf("retry skip to next file: %v, exists", fileName)
@@ -532,6 +590,14 @@ func (d *Consumer) ResetOffset(segment, readPos int64) error {
 						goto RETRY_NEXT_FILE
 					}
 				} else {
+					if d.diskQueue.writePos == 0 {
+						d.segment = d.diskQueue.writeSegmentNum
+						d.readPos = 0
+						d.diskQueue.UpdateSegmentConsumerInReading(d.ID, d.segment)
+						// After skipping every missing intermediate segment, the safest recovery point is
+						// the current writer tail. Park on it so the consumer resumes from fresh data only.
+						return d.parkOnEmptyTail(GetFileName(d.queue, d.segment))
+					}
 					return errors.New(fileName + " not found, next segment greater than current write segment")
 				}
 			} else {

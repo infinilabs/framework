@@ -118,7 +118,7 @@ func RegisterConfig(cfg *QueueConfig) (preExists bool, err error) {
 
 	cfg.Created = time.Now().String()
 
-	log.Debug("init new queue config:", cfg.ID, ",", cfg.Name)
+	log.Trace("init new queue config:", cfg.ID, ",", cfg.Name)
 
 	addCfgToCache(cfg)
 

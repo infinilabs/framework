@@ -99,8 +99,14 @@ func RegisterInstance(cfg ElasticsearchConfig, handler API) {
 	UpdateClient(cfg, handler)
 	UpdateConfig(cfg)
 
+	meta := GetMetadata(cfg.ID)
+	if meta == nil {
+		InitMetadata(&cfg, false)
+		return
+	}
+
 	if exists && oldCfg != nil {
-		InitMetadata(&cfg, true)
+		InitMetadata(&cfg, meta.IsAvailable())
 	}
 }
 

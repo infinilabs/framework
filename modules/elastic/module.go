@@ -113,10 +113,26 @@ func loadFileBasedElasticConfig() []elastic.ElasticsearchConfig {
 	return configs
 }
 
+func lookupSystemElasticsearchID() (string, bool) {
+	value := global.Lookup(elastic.GlobalSystemElasticsearchID)
+	systemID, ok := value.(string)
+	if !ok || systemID == "" {
+		return "", false
+	}
+	return systemID, true
+}
+
 func loadESBasedElasticConfig() []elastic.ElasticsearchConfig {
 	configs := []elastic.ElasticsearchConfig{}
+	systemID, ok := lookupSystemElasticsearchID()
+	if !ok {
+		// Console-managed elasticsearch configs live in the system cluster. During startup or
+		// migration bootstrap that cluster may not exist yet, so treat it as "no remote configs"
+		// instead of failing module initialization.
+		return configs
+	}
 	query := elastic.SearchRequest{From: 0, Size: 1000} //TODO handle clusters beyond 1000
-	esClient := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
+	esClient := elastic.GetClient(systemID)
 	result, err := esClient.Search(orm.GetIndexName(elastic.ElasticsearchConfig{}), &query)
 	if err != nil {
 		log.Error(err)
@@ -395,20 +411,31 @@ func InitSchema() {
 var ormInited bool
 
 func (module *ElasticModule) Start() error {
+	systemID, hasSystemCluster := lookupSystemElasticsearchID()
 
 	if moduleConfig.ORMConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
-		orm.Register("elastic", &handler)
+		if !hasSystemCluster {
+			// Allow the module to start before the system cluster is registered so bootstrap and
+			// migration flows can finish wiring the cluster first, then re-enable ORM-backed features.
+			log.Warn("skip elastic ORM initialization, system cluster is not available")
+		} else {
+			client := elastic.GetClient(systemID)
+			handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
+			orm.Register("elastic", &handler)
+		}
 	}
 
 	if moduleConfig.StoreConfig.Enabled {
-		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
-		module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
-		kv.Register("elastic", module.storeHandler)
+		if !hasSystemCluster {
+			log.Warn("skip elastic store initialization, system cluster is not available")
+		} else {
+			client := elastic.GetClient(systemID)
+			module.storeHandler = &ElasticStore{Client: client, Config: moduleConfig.StoreConfig}
+			kv.Register("elastic", module.storeHandler)
+		}
 	}
 
-	if moduleConfig.ORMConfig.Enabled {
+	if moduleConfig.ORMConfig.Enabled && hasSystemCluster {
 		if !ormInited {
 			//init template
 			InitTemplate(false)
@@ -419,8 +446,12 @@ func (module *ElasticModule) Start() error {
 	}
 
 	if moduleConfig.RemoteConfigEnabled {
-		m := loadESBasedElasticConfig()
-		initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
+		if !hasSystemCluster {
+			log.Warn("skip remote elastic config loading, system cluster is not available")
+		} else {
+			m := loadESBasedElasticConfig()
+			initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
+		}
 	}
 
 	if module.storeHandler != nil {
@@ -694,7 +725,20 @@ func (module *ElasticModule) refreshAllClusterMetadata() {
 		log.Trace("update elasticsearch's metadata:", v, ok)
 
 		if ok {
-			module.updateNodeInfo(v, false, v.Config.Discovery.Enabled)
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				// Metadata can outlive the config during remote-config reloads or migration cleanup.
+				// Drop it here so later workers do not keep probing a cluster that was already removed.
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
+			module.updateNodeInfo(v, false, cfg.Discovery.Enabled)
 		}
 		return true
 	})
@@ -707,6 +751,19 @@ func (module *ElasticModule) refreshAllClusterAlias(force bool) {
 		}
 		v, ok := value.(*elastic.ElasticsearchMetadata)
 		if ok {
+			cfg := elastic.GetConfigNoPanic(v.Config.ID)
+			if cfg == nil {
+				// Keep alias refresh in sync with metadata refresh: once the config is gone, clear any
+				// cached hosts/metadata so the next initialization starts from the active config set only.
+				log.Debugf("elasticsearch metadata [%v] has no active config, removing stale metadata", v.Config.ID)
+				elastic.RemoveInstance(v.Config.ID)
+				elastic.RemoveHostsByClusterID(v.Config.ID)
+				return true
+			}
+			v.Config = cfg
+			if !cfg.Enabled || (cfg.MetadataConfigs != nil && !cfg.MetadataConfigs.MetadataRefresh.Enabled) {
+				return true
+			}
 			updateAliases(v, force)
 		}
 		return true
