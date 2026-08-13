@@ -25,8 +25,9 @@ package common
 
 import (
 	"fmt"
-	"infini.sh/framework/core/model"
 	"strings"
+
+	"infini.sh/framework/core/model"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/credential"
@@ -65,20 +66,6 @@ type StoreConfig struct {
 type CheckConfig struct {
 	Enabled  bool   `config:"enabled"`
 	Interval string `config:"interval,omitempty"`
-}
-
-type ModuleConfig struct {
-	Elasticsearch                     string      `config:"elasticsearch"`
-	RemoteConfigEnabled               bool        `config:"remote_configs"`
-	ORMConfig                         ORMConfig   `config:"orm"`
-	StoreConfig                       StoreConfig `config:"store"`
-	HealthCheckConfig                 CheckConfig `config:"health_check"`
-	NodeAvailabilityCheckConfig       CheckConfig `config:"availability_check"`
-	MetadataRefresh                   CheckConfig `config:"metadata_refresh"`
-	ClusterSettingsCheckConfig        CheckConfig `config:"cluster_settings_check"`
-	ClientTimeout                     string      `config:"client_timeout"`
-	DeadNodeAvailabilityCheckInterval string      `config:"dead_node_availability_check_interval,omitempty"`
-	SkipInitMetadataOnStart           bool        `config:"skip_init_metadata_on_start"`
 }
 
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {

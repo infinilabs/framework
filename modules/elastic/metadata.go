@@ -95,7 +95,49 @@ func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 	}
 }
 
+// systemESConfigured reports whether a system Elasticsearch is registered.
+func systemESConfigured() bool {
+	v := global.Lookup(elastic.GlobalSystemElasticsearchID)
+	s, ok := v.(string)
+	return ok && s != ""
+}
+
+// updateClusterHealthStatusViaORM persists the health status to the cluster
+// record through the ORM — used when clusters are managed without a system
+// Elasticsearch (e.g. the /easysearch/ API backed by sqlite), where the
+// cluster records live in the ORM rather than a system ES index.
+func updateClusterHealthStatusViaORM(clusterID, healthStatus string) {
+	ctx := orm.NewContext().DirectAccess()
+	cfg := elastic.ElasticsearchConfig{}
+	cfg.ID = clusterID
+	exists, err := orm.GetV2(ctx, &cfg)
+	if err != nil {
+		log.Errorf("get cluster %s (orm) for health update: %v", clusterID, err)
+		return
+	}
+	if !exists {
+		return
+	}
+	if cfg.Labels == nil {
+		cfg.Labels = util.MapStr{}
+	}
+	if cur, ok := cfg.Labels["health_status"].(string); ok && cur == healthStatus {
+		return // unchanged
+	}
+	cfg.Labels["health_status"] = healthStatus
+	if err := orm.Save(ctx, &cfg); err != nil {
+		log.Errorf("save cluster %s health status (orm): %v", clusterID, err)
+	}
+}
+
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
+	// Clusters managed via the ORM (no system Elasticsearch) have no system ES
+	// index to persist health to — fall back to the ORM instead of panicking
+	// on the system-ES lookup below.
+	if !systemESConfigured() {
+		updateClusterHealthStatusViaORM(clusterID, healthStatus)
+		return
+	}
 
 	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
 

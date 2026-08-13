@@ -170,7 +170,8 @@ type ScrollAPI interface {
 type ScriptAPI interface {
 	ScriptExists(scriptName string) (bool, error)
 	PutScript(scriptName string, script []byte) ([]byte, error)
-	SearchByTemplate(indexName, scriptName string, params map[string]interface{}) (*SearchResponse, error)
+	// SearchByTemplate is declared on TemplateAPI (same signature); adapters
+	// implement it once and satisfy both via embedding.
 	//GetScript(scriptName string)([]byte,error)
 	//DeleteScript(scriptName string)([]byte,error)
 }

@@ -77,6 +77,7 @@ func (c *ESAPIV0) GetActivePreferredEndpoint(host string) string {
 func (c *ESAPIV0) GetEndpoint() string {
 	return c.GetMetadata().GetActiveEndpoint()
 }
+
 func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 	c.metaLocker.Lock()
 	defer c.metaLocker.Unlock()
@@ -100,6 +101,17 @@ func (c *ESAPIV0) GetMetadata() *elastic.ElasticsearchMetadata {
 		panic(errors.Errorf("metadata not found for [%v]", c.Elasticsearch))
 	}
 	return c.metadata
+}
+
+// SetMetadata attaches a prebuilt metadata so the client is self-contained:
+// GetMetadata() returns it directly instead of looking the config up by ID in
+// the global registry. This lets a client be built from a standalone config
+// (see core/elastic.GetOrCreateClient) and used without first
+// registering it by cluster ID.
+func (c *ESAPIV0) SetMetadata(m *elastic.ElasticsearchMetadata) {
+	c.metaLocker.Lock()
+	c.metadata = m
+	c.metaLocker.Unlock()
 }
 
 func (c *ESAPIV0) GetVersion() elastic.Version {
@@ -1353,7 +1365,7 @@ func (s *ESAPIV0) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollI
 
 	url := fmt.Sprintf("%s/_search/scroll?scroll=%s&scroll_id=%s", s.GetEndpoint(), scrollTime, scrollId)
 
-	resp, err := adapter.RequestTimeout(ctx, util.Verb_GET, url, nil, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
+	resp, err := adapter.RequestTimeout(ctx, util.Verb_GET, url, nil, s.GetMetadata(), time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
 	if err != nil {
 		return nil, err
 	}

@@ -704,6 +704,16 @@ func saveOrUpdate(ctx *Context, o interface{}, delta util.MapStr, opType Operati
 
 		if exists {
 			if mergePartial && deltaNotEmpty {
+				// Seed the target with the stored state before overlaying the
+				// delta, so fields absent from the delta keep their stored
+				// values on full-replace stores (e.g. sqlite rewrites the whole
+				// row). Without this, a partial update would wipe every field
+				// not mentioned in the delta.
+				prevValue := reflect.ValueOf(prev)
+				if prevValue.Kind() == reflect.Ptr && !prevValue.IsNil() &&
+					prevValue.Type().Elem() == rValue.Type().Elem() && rValue.Elem().CanSet() {
+					rValue.Elem().Set(prevValue.Elem())
+				}
 				if err := mergeMapToStruct(delta, rValue); err != nil {
 					return err
 				}
