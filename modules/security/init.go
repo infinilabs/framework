@@ -76,9 +76,8 @@ func (module *Module) Setup() {
 		native.Init()
 	}
 
-	if module.cfg.Authentication.Static.Enabled || module.cfg.Authorization.Static.Enabled {
-		staticauth.Init(module.cfg.Authentication.Static, module.cfg.Authorization.Static)
-	}
+	staticauth.InitAuthentication(module.cfg.Authentication.Static)
+	staticauth.InitAuthorization(module.cfg.Authorization.Static)
 
 	oauthSettings := util.MapStr{}
 	for k, v := range module.cfg.Authentication.OAuth {

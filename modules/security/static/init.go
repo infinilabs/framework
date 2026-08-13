@@ -31,12 +31,17 @@ var (
 	authUsersByID    = map[string]*security.UserAccount{}
 )
 
-func Init(authCfg config.StaticAuthenticationConfig, cfg config.StaticAuthorizationConfig) {
+// InitAuthentication registers the static authentication backend and loads the
+// static user registry (with per-user roles) from config. No-op unless static
+// authentication is enabled, so the password-login surface is only exposed
+// when the feature is actually turned on.
+func InitAuthentication(authCfg config.StaticAuthenticationConfig) {
+	if !authCfg.Enabled {
+		return
+	}
 	mu.Lock()
 	defer mu.Unlock()
 
-	roles = map[string]roleDefinition{}
-	roleMapping = map[string][]string{}
 	authUsersByLogin = map[string]*security.UserAccount{}
 	authUsersByID = map[string]*security.UserAccount{}
 
@@ -69,6 +74,27 @@ func Init(authCfg config.StaticAuthenticationConfig, cfg config.StaticAuthorizat
 		authUsersByLogin[login] = account
 		authUsersByID[id] = account
 	}
+
+	security.RegisterAuthenticationProvider(security.StaticAuthBackend, &provider{})
+}
+
+// InitAuthorization registers the static authorization provider and loads the
+// static role definitions and the login/id → role mapping from config. No-op
+// unless static authorization is enabled.
+//
+// The provider still consults the static user registry (loaded by
+// InitAuthentication) for per-user roles when a request is authenticated by
+// the static backend; that registry is only populated when authentication is
+// also enabled, which is the only case those per-user roles can apply.
+func InitAuthorization(cfg config.StaticAuthorizationConfig) {
+	if !cfg.Enabled {
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
+	roles = map[string]roleDefinition{}
+	roleMapping = map[string][]string{}
 
 	for _, role := range cfg.Roles {
 		if role.Name == "" {
@@ -103,13 +129,7 @@ func Init(authCfg config.StaticAuthenticationConfig, cfg config.StaticAuthorizat
 		roleMapping[trimmed] = append([]string(nil), assignedRoles...)
 	}
 
-	if authCfg.Enabled {
-		security.RegisterAuthenticationProvider(security.StaticAuthBackend, &provider{})
-	}
-
-	if cfg.Enabled {
-		security.RegisterAuthorizationProvider("static_authorization", &provider{})
-	}
+	security.RegisterAuthorizationProvider("static_authorization", &provider{})
 }
 
 func (p *provider) GetUserByLogin(login string) (bool, *security.UserAccount, error) {
