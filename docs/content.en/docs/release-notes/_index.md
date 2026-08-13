@@ -17,6 +17,7 @@ Information about release notes of INFINI Framework is provided here.
 - feat: support standalone StreamableHTTP MCP server with typed tool schemas and loopback handlers
 - feat: auto-generate MCP tool input schemas (`path_params`/`query`/`headers`/`body`) from registered routes
 - feat: make reuse_port tri-state and watch config dir even when missing #393
+- feat(security): add unified password login and static-auth user registry #395
 - perf(sqlite): replace the WASM SQLite driver (ncruces/wazero) with modernc (pure-Go upstream SQLite) — removes the WASM interpreter + custom VFS overhead that dominated CPU profiles; no cgo, cross-compiles with `CGO_ENABLED=0`, no on-disk format change
 - perf(sqlite): set per-connection PRAGMAs (WAL, busy_timeout, foreign_keys) via the DSN and enable 256 MiB mmap_size — applies to every pooled connection (not just one) and serves the metadata store via memory-mapped I/O instead of pread syscalls
 - perf(sqlite): auto-create expression indexes from elastic_mapping tags, now including nested object fields via dotted `$.parent.child` paths — the SQLite ORM indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into B-tree lookups with zero query or model changes
