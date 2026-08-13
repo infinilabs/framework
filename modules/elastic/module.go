@@ -60,15 +60,15 @@ var (
 	defaultConfig = ModuleConfig{
 		RemoteConfigEnabled: false,
 		HealthCheckConfig: common.CheckConfig{
-			Enabled:  false,
+			Enabled:  true,
 			Interval: "10s",
 		},
 		NodeAvailabilityCheckConfig: common.CheckConfig{
-			Enabled:  false,
+			Enabled:  true,
 			Interval: "10s",
 		},
 		MetadataRefresh: common.CheckConfig{
-			Enabled:  false,
+			Enabled:  true,
 			Interval: "30s",
 		},
 		ORMConfig: common.ORMConfig{
@@ -385,6 +385,8 @@ func InitSchema() {
 
 	// The "cluster" schema (ElasticsearchConfig) is now owned and registered by
 	// the dedicated modules/easysearch module.
+	_ = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+
 	err := orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
 	if err != nil {
 		panic(err)
