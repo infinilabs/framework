@@ -433,14 +433,18 @@ func (module *ElasticModule) Start() error {
 		kv.Register("elastic", module.storeHandler)
 	}
 
-	if moduleConfig.ORMConfig.Enabled {
-		if !ormInited {
-			//init template
-			InitTemplate(false)
-			//register schema
-			InitSchema()
-			ormInited = true
+	if global.Env().SystemConfig.ORMConfig.Enabled {
+		if moduleConfig.ORMConfig.Enabled {
+			if !ormInited {
+				//init template
+				InitTemplate(false)
+				//register schema
+				InitSchema()
+				ormInited = true
+			}
 		}
+
+		LoadClustersFromORM()
 	}
 
 	if moduleConfig.RemoteConfigEnabled {
@@ -451,7 +455,7 @@ func (module *ElasticModule) Start() error {
 		// the ORM backend instead (sqlite or any non-elastic store). This is
 		// the path used by apps that manage clusters via the /easysearch/ API
 		// without a dedicated system cluster.
-		LoadClustersFromORM()
+
 	}
 
 	if module.storeHandler != nil {

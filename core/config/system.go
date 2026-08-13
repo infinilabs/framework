@@ -72,7 +72,7 @@ type NetworkConfig struct {
 	SkipOccupiedPort bool   `config:"skip_occupied_port" json:"skip_occupied_port,omitempty" elastic_mapping:"skip_occupied_port: { type: boolean }"`
 	//ReusePort is nil when reuse_port is not configured, so applications can
 	//tell "unset" apart from an explicit false and apply their own default.
-	ReusePort        *bool  `config:"reuse_port" json:"reuse_port,omitempty" elastic_mapping:"reuse_port: { type: boolean }"`
+	ReusePort *bool `config:"reuse_port" json:"reuse_port,omitempty" elastic_mapping:"reuse_port: { type: boolean }"`
 }
 
 // Helper function to report whether SO_REUSEPORT is explicitly enabled.
@@ -164,6 +164,8 @@ type SystemConfig struct {
 
 	PathConfig PathConfig `config:"path"`
 
+	ORMConfig ORMConfig `config:"orm"`
+
 	LoggingConfig LoggingConfig `config:"log"`
 
 	AllowMultiInstance bool `config:"allow_multi_instance"`
@@ -181,6 +183,10 @@ type SystemConfig struct {
 	Plugins []*Config `config:"plugins"`
 
 	HTTPClientConfig map[string]HTTPClientConfig `config:"http_client"`
+}
+
+type ORMConfig struct {
+	Enabled bool `config:"enabled"`
 }
 
 type CookieConfig struct {

@@ -32,12 +32,12 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
-	_ "modernc.org/sqlite"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
 	"infini.sh/framework/core/util"
 	sqliteOrm "infini.sh/framework/modules/sqlite/orm"
+	_ "modernc.org/sqlite"
 )
 
 var ErrNotFound = errors.New("record not found")

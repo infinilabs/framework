@@ -36,11 +36,11 @@ type indexSliceItem struct {
 // and an enabled:false object backed by a map.
 type indexRootModel struct {
 	orm.ORMObjectBase
-	Name   string                  `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
-	CPU    indexNestedSpec         `json:"cpu,omitempty" elastic_mapping:"cpu: { type: object }"`
-	Disk   *indexNestedSpec        `json:"disk,omitempty" elastic_mapping:"disk: { type: object }"`
-	Tags   []string                `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword }"`
-	Items  []indexSliceItem        `json:"items,omitempty" elastic_mapping:"items: { type: nested }"`
+	Name   string                 `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
+	CPU    indexNestedSpec        `json:"cpu,omitempty" elastic_mapping:"cpu: { type: object }"`
+	Disk   *indexNestedSpec       `json:"disk,omitempty" elastic_mapping:"disk: { type: object }"`
+	Tags   []string               `json:"tags,omitempty" elastic_mapping:"tags: { type: keyword }"`
+	Items  []indexSliceItem       `json:"items,omitempty" elastic_mapping:"items: { type: nested }"`
 	Secret map[string]interface{} `json:"secret,omitempty" elastic_mapping:"secret: { type: object, enabled: false }"`
 }
 
@@ -166,17 +166,17 @@ func queryPlanDetail(t *testing.T, db *sql.DB, query string) []string {
 
 func TestParseMappingTag(t *testing.T) {
 	cases := []struct {
-		tag       string
-		field     string
-		esType    string
-		ok        bool
+		tag    string
+		field  string
+		esType string
+		ok     bool
 	}{
 		{`stream_id:{type:keyword}`, "stream_id", "keyword", true},
 		{`created: { type: date }`, "created", "date", true},
 		{`cpu: { type: object }`, "cpu", "object", true},
 		{`stats: { properties: { x: { type: keyword } } }`, "stats", "", false}, // no top-level type:
-		{`s: { subtype: keyword }`, "s", "", false}, // "type:" inside "subtype:" must not match
-		{`enabled-only`, "", "", false}, // no colon
+		{`s: { subtype: keyword }`, "s", "", false},                             // "type:" inside "subtype:" must not match
+		{`enabled-only`, "", "", false},                                         // no colon
 		{"", "", "", false},
 	}
 	for _, c := range cases {
