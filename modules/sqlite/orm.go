@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
+	"infini.sh/framework/core/aggregate"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 	api "infini.sh/framework/core/orm"
@@ -47,6 +48,11 @@ type SQLiteORM struct {
 	Config SQLiteConfig
 	DB     *sql.DB
 }
+
+// defaultCacheSize is the per-connection page cache in KiB (negative =
+// KiB units per SQLite convention). 64 MiB comfortably holds hot indexes
+// for metadata-scale stores.
+const defaultCacheSizeKB = -65536
 
 // defaultMmapSize caps how much of the database file SQLite serves via
 // memory-mapped I/O instead of pread syscalls. 256 MiB comfortably covers the
@@ -67,8 +73,9 @@ func (handler *SQLiteORM) Open() error {
 	// a single db.Exec only configures the one connection the pool happens to
 	// use for that call, leaving the rest on defaults.
 	dsn := fmt.Sprintf(
-		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=mmap_size(%d)",
-		handler.Config.DBPath, defaultMmapSize,
+		"file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=mmap_size(%d)"+
+			"&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(%d)",
+		handler.Config.DBPath, defaultMmapSize, defaultCacheSizeKB,
 	)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -95,24 +102,25 @@ func (handler *SQLiteORM) GetIndexName(o interface{}) string {
 	return getTableName(o)
 }
 
-// RegisterSchemaWithName creates the table for the given struct type if it does not exist.
+// RegisterSchemaWithName creates the table for the given struct type if it
+// does not exist, promoting mapped scalar leaves to VIRTUAL generated
+// columns with plain B-tree indexes (plus FTS5 for text leaves). Existing
+// tables from the pre-flattening layout are migrated in place.
 func (handler *SQLiteORM) RegisterSchemaWithName(t interface{}, indexName string) error {
 	initTableName(t, indexName)
 	tableName := handler.GetIndexName(t)
 
-	ddl := fmt.Sprintf("CREATE TABLE IF NOT EXISTS [%s] (id TEXT PRIMARY KEY, raw JSON NOT NULL)", tableName)
-
-	if global.Env().IsDebug {
-		log.Debug("sqlite DDL: ", ddl)
+	schema := buildTableSchema(tableName, t)
+	if err := ensureFlattenedTable(handler.DB, schema); err != nil {
+		return err
 	}
-
-	_, err := handler.DB.Exec(ddl)
-	if err != nil {
-		return fmt.Errorf("failed to create table %s: %w", tableName, err)
+	registerTableSchema(schema)
+	// Refresh planner statistics after schema work; cheap, and without
+	// sqlite_stat1 the planner guesses row counts and may skip the very
+	// indexes we just created.
+	if _, err := handler.DB.Exec("PRAGMA optimize"); err != nil {
+		log.Warnf("sqlite PRAGMA optimize after registering %s: %v", tableName, err)
 	}
-	// Build expression indexes from the model's elastic_mapping tags so
-	// json_extract-based filters/sorts use B-trees instead of full-table scans.
-	createExpressionIndexes(handler.DB, tableName, t)
 	log.Debugf("sqlite schema registered: %s", tableName)
 	return nil
 }
@@ -492,9 +500,19 @@ func (handler *SQLiteORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api
 
 	if qb != nil {
 		qb.Build()
+		if len(qb.RequestBodyBytesVal()) > 0 {
+			// Silent-ignore is worse than a signal: callers hand-merging ES DSL
+			// would get unfiltered results without noticing.
+			log.Warn("sqlite orm: request-body DSL is not supported and was ignored")
+		}
 	}
 
-	where, args := sqliteOrm.BuildWhereClause(qb)
+	// Resolve mapped paths to generated columns; unmapped paths fall back
+	// to json_extract expressions.
+	schema := lookupTableSchema(indexName)
+	resolver := schema.resolver()
+
+	where, args := sqliteOrm.BuildWhereClause(qb, resolver)
 
 	// Count total
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM [%s]", indexName)
@@ -518,15 +536,29 @@ func (handler *SQLiteORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api
 		if sorts := qb.Sorts(); len(sorts) > 0 {
 			var sortParts []string
 			for _, s := range sorts {
-				sortParts = append(sortParts, fmt.Sprintf("json_extract(raw, '$.%s') %s", s.Field, string(s.SortType)))
+				expr, epochExpr, _ := resolver(s.Field)
+				if epochExpr != "" {
+					// Integer epoch orders identically to the TEXT form and
+					// matches epoch-bearing composite indexes (walk plans).
+					expr = epochExpr
+				}
+				if s.Field == "_score" {
+					expr = "id" // no scoring in sqlite; stable tiebreaker
+				}
+				sortParts = append(sortParts, fmt.Sprintf("%s %s", expr, string(s.SortType)))
 			}
 			sqlStr += " ORDER BY " + strings.Join(sortParts, ", ")
 		}
 
+		// Pagination: OFFSET without LIMIT is invalid SQL — treat an unset
+		// size as "no upper bound" (LIMIT -1).
 		if qb.SizeVal() > 0 {
 			sqlStr += fmt.Sprintf(" LIMIT %d", qb.SizeVal())
 		}
 		if qb.FromVal() > 0 {
+			if qb.SizeVal() <= 0 {
+				sqlStr += " LIMIT -1"
+			}
 			sqlStr += fmt.Sprintf(" OFFSET %d", qb.FromVal())
 		}
 	}
@@ -574,6 +606,21 @@ func (handler *SQLiteORM) SearchV2(ctx *api.Context, qb *api.QueryBuilder) (*api
 		},
 	}
 
+	// Aggregations over the same filtered set (previously silently dropped).
+	// Runs through the typed Aggregate machinery; converted to the ES shape
+	// for this legacy response so existing consumers are unaffected.
+	if qb != nil && len(qb.Aggs) > 0 {
+		exec := &aggExecutor{handler: handler, index: indexName, resolve: resolver, where: where, args: args}
+		nodes, err := exec.execute(qb.Aggs)
+		if err != nil {
+			return nil, err
+		}
+		if err := aggregate.ApplyPipelines(&api.AggregationResult{Aggs: nodes}, qb.Aggs); err != nil {
+			return nil, err
+		}
+		response["aggregations"] = typedToESShape(nodes)
+	}
+
 	responseBytes := util.MustToJSONBytes(response)
 	result.Payload = responseBytes
 	result.Status = 200
@@ -603,7 +650,7 @@ func (handler *SQLiteORM) DeleteByQuery(ctx *api.Context, qb *api.QueryBuilder) 
 	}
 
 	qb.Build()
-	where, args := sqliteOrm.BuildWhereClause(qb)
+	where, args := sqliteOrm.BuildWhereClause(qb, lookupTableSchema(indexName).resolver())
 
 	// Count before delete
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM [%s]", indexName)
@@ -730,4 +777,18 @@ func buildLegacyWhere(conds []*api.Cond) ([]string, []interface{}) {
 		}
 	}
 	return clauses, args
+}
+
+// Capabilities declares what the sqlite backend honors. FullText and
+// Aggregations are real (FTS5, GROUP BY); fuzzy is LIKE-approximated; the
+// rest warn and degrade (see query_builder.go / aggs_exec.go).
+func (handler *SQLiteORM) Capabilities() api.Capabilities {
+	return api.Capabilities{
+		FullText:       true,
+		Aggregations:   true,
+		Fuzzy:          false,
+		Nested:         false,
+		RequestBodyDSL: false,
+		Collapse:       false,
+	}
 }

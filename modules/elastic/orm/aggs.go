@@ -47,6 +47,44 @@ type ESAggregation struct {
 	TopHits       map[string]interface{}      `json:"top_hits,omitempty"`
 	SumBucket     *esPipelineAggregation      `json:"sum_bucket,omitempty"`
 	DateRange     *esDateRangeAggregation     `json:"date_range,omitempty"`
+	// Console-vocabulary completions (framework request model §5.1). ES
+	// computes these natively; the framework pipeline engine re-derives the
+	// pipeline ones afterwards so backends agree exactly.
+	MaxBucket    *esPipelineAggregation          `json:"max_bucket,omitempty"`
+	BucketScript *esBucketScriptAggregation      `json:"bucket_script,omitempty"`
+	BucketSort   *esBucketSortAggregation        `json:"bucket_sort,omitempty"`
+	Sampler      *esSamplerAggregation           `json:"sampler,omitempty"`
+	AutoDateHist *esAutoDateHistogramAggregation `json:"auto_date_histogram,omitempty"`
+}
+
+type esBucketScriptAggregation struct {
+	BucketsPath map[string]string `json:"buckets_path,omitempty"`
+	Script      *esScript         `json:"script,omitempty"`
+}
+
+type esScript struct {
+	Source string `json:"source,omitempty"`
+}
+
+type esBucketSortAggregation struct {
+	Sort []esBucketSortSpec `json:"sort,omitempty"`
+	From int                `json:"from,omitempty"`
+	Size int                `json:"size,omitempty"`
+}
+
+type esBucketSortSpec struct {
+	Path  string `json:"path,omitempty"`
+	Order string `json:"order,omitempty"`
+}
+
+type esSamplerAggregation struct {
+	ShardSize int `json:"shard_size,omitempty"`
+}
+
+type esAutoDateHistogramAggregation struct {
+	Field           string `json:"field,omitempty"`
+	Buckets         int    `json:"buckets,omitempty"`
+	MinimumInterval string `json:"minimum_interval,omitempty"`
 }
 
 type esTermsAggregation struct {
@@ -71,6 +109,7 @@ type esDateHistogramAggregation struct {
 	Interval         string `json:"interval,omitempty"`          // Deprecated but still supported by ES
 	Format           string `json:"format,omitempty"`
 	TimeZone         string `json:"time_zone,omitempty"`
+	Offset           string `json:"offset,omitempty"` // e.g. "+30m"
 }
 
 type esPipelineAggregation struct {
@@ -157,6 +196,9 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			Format:   v.Format,
 			TimeZone: v.TimeZone,
 		}
+		if v.Offset != 0 {
+			esAgg.DateHistogram.Offset = fmt.Sprintf("%+dm", int(v.Offset.Minutes()))
+		}
 		switch v.IntervalField {
 		case elastic.CalendarInterval:
 			esAgg.DateHistogram.CalendarInterval = v.Interval
@@ -182,6 +224,45 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			Ranges:   v.Ranges,
 			TimeZone: v.TimeZone,
 		}
+	case *orm.MaxBucketAggregation:
+		esAgg.MaxBucket = &esPipelineAggregation{BucketsPath: v.BucketsPath}
+	case *orm.BucketScriptAggregation:
+		esAgg.BucketScript = &esBucketScriptAggregation{
+			BucketsPath: v.BucketsPath,
+			Script:      &esScript{Source: v.Script},
+		}
+	case *orm.BucketSortAggregation:
+		sortSpecs := make([]esBucketSortSpec, 0, len(v.Sort))
+		for _, s2 := range v.Sort {
+			order := "asc"
+			if s2.Desc {
+				order = "desc"
+			}
+			sortSpecs = append(sortSpecs, esBucketSortSpec{Path: s2.Path, Order: order})
+		}
+		esAgg.BucketSort = &esBucketSortAggregation{Sort: sortSpecs, From: v.From, Size: v.Size}
+	case *orm.SamplerAggregation:
+		esAgg.Sampler = &esSamplerAggregation{ShardSize: v.ShardSize}
+	case *orm.AutoDateHistogramAggregation:
+		esAgg.AutoDateHist = &esAutoDateHistogramAggregation{
+			Field:           v.Field,
+			Buckets:         v.Buckets,
+			MinimumInterval: v.MinimumInterval,
+		}
+	case *orm.TopHitsAggregation:
+		params := map[string]interface{}{"size": v.Size}
+		if len(v.Sorts) > 0 {
+			sorts := make([]interface{}, 0, len(v.Sorts))
+			for _, s2 := range v.Sorts {
+				order := "desc"
+				if s2.SortType == orm.ASC {
+					order = "asc"
+				}
+				sorts = append(sorts, map[string]interface{}{s2.Field: map[string]string{"order": order}})
+			}
+			params["sort"] = sorts
+		}
+		esAgg.TopHits = params
 	default:
 		return nil, fmt.Errorf("unsupported aggregation type: %T", v)
 	}

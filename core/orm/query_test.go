@@ -438,3 +438,40 @@ func TestBuildFuzzinessQueryClauses_EmptyQueryNoDefaultFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(clauses))
 }
+
+func TestQueryBuilder_SetAggs(t *testing.T) {
+	sum := &MetricAggregation{Type: MetricSum, Field: "n"}
+	terms := &TermsAggregation{Field: "s", Size: 5}
+
+	qb := NewQuery()
+	returned := qb.SetAggs("total", sum, "sevs", terms)
+	if returned != qb {
+		t.Fatal("SetAggs must return the builder for chaining")
+	}
+	if len(qb.Aggs) != 2 || qb.Aggs["total"] != sum || qb.Aggs["sevs"] != terms {
+		t.Fatalf("aggs = %+v", qb.Aggs)
+	}
+
+	// Replacement semantics.
+	avg := &MetricAggregation{Type: MetricAvg, Field: "n"}
+	qb.SetAggs("avg", avg)
+	if len(qb.Aggs) != 1 || qb.Aggs["avg"] != avg {
+		t.Fatalf("SetAggs must replace, got %+v", qb.Aggs)
+	}
+}
+
+func TestQueryBuilder_AddAgg(t *testing.T) {
+	qb := NewQuery()
+	sum := &MetricAggregation{Type: MetricSum, Field: "n"}
+	max := &MetricAggregation{Type: MetricMax, Field: "n"}
+	qb.AddAgg("sum", sum).AddAgg("max", max)
+	if len(qb.Aggs) != 2 || qb.Aggs["sum"] != sum || qb.Aggs["max"] != max {
+		t.Fatalf("aggs = %+v", qb.Aggs)
+	}
+}
+
+func TestQueryBuilder_SetAggs_Malformed(t *testing.T) {
+	defer func() { _ = recover() }()
+	NewQuery().SetAggs("total") // dangling
+	t.Fatal("dangling pair must panic")
+}

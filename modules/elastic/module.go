@@ -215,6 +215,11 @@ func (module *ElasticModule) Setup() {
 		elastic.RegisterClientProvider(common.InitClientWithConfig)
 	})
 
+	// Keep the live-client registry in sync with ORM cluster records
+	// (create/update/delete via /easysearch/ takes effect immediately).
+	// Registered unconditionally for the same reason as the provider.
+	registerClusterHook()
+
 	moduleConfig = getDefaultConfig()
 
 	exists, err := env.ParseConfig("elastic", &moduleConfig)
