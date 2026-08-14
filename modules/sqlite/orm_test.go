@@ -732,3 +732,73 @@ func TestSQLiteORM_DeleteByQuery_NestedComplexQuery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"dq-3", "dq-4", "dq-5"}, requireSearchResultIDs(t, searchResult))
 }
+
+// Regression tests: UpdatePartialFields must only change the fields present
+// in the delta. SQLite Update rewrites the whole row, so the ORM has to seed
+// the target object from the stored record before merging the delta —
+// otherwise every field omitted from the delta is wiped. Both scenarios share
+// one global orm.Register call (the registry rejects duplicates).
+func TestSQLiteORM_UpdatePartialFields(t *testing.T) {
+	handler, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	orm.Register("sqlite", handler)
+
+	t.Run("preserves fields omitted from the delta", func(t *testing.T) {
+		created := TestItem{Name: "orig-name", Status: "active", Age: 30}
+		created.ID = "item-1"
+		require.NoError(t, orm.Create(orm.NewContext(), &created))
+
+		obj := TestItem{}
+		obj.ID = "item-1"
+		err := orm.UpdatePartialFields(orm.NewContext(), &obj, map[string]interface{}{"name": "new-name"})
+		require.NoError(t, err)
+
+		got := TestItem{}
+		got.ID = "item-1"
+		exists, err := orm.GetV2(orm.NewContext(), &got)
+		require.NoError(t, err)
+		require.True(t, exists)
+
+		assert.Equal(t, "new-name", got.Name)
+		assert.Equal(t, "active", got.Status, "status should survive a partial update that omits it")
+		assert.Equal(t, 30, got.Age, "age should survive a partial update that omits it")
+	})
+
+	// Partial updates must also deep-merge nested objects: a delta that
+	// touches one sub-field keeps the sibling sub-fields.
+	t.Run("deep-merges nested objects", func(t *testing.T) {
+		type Inner struct {
+			Username string `json:"username,omitempty"`
+			Password string `json:"password,omitempty"`
+		}
+		type Outer struct {
+			orm.ORMObjectBase
+			Name  string `json:"name,omitempty"`
+			Auth  *Inner `json:"auth,omitempty"`
+			Count int    `json:"count,omitempty"`
+		}
+		require.NoError(t, handler.RegisterSchemaWithName(Outer{}, "test_outers"))
+
+		created := Outer{Name: "orig", Count: 7, Auth: &Inner{Username: "u1", Password: "secret"}}
+		created.ID = "outer-1"
+		require.NoError(t, orm.Create(orm.NewContext(), &created))
+
+		obj := Outer{}
+		obj.ID = "outer-1"
+		delta := map[string]interface{}{"name": "updated", "auth": map[string]interface{}{"username": "u2"}}
+		require.NoError(t, orm.UpdatePartialFields(orm.NewContext(), &obj, delta))
+
+		got := Outer{}
+		got.ID = "outer-1"
+		exists, err := orm.GetV2(orm.NewContext(), &got)
+		require.NoError(t, err)
+		require.True(t, exists)
+
+		assert.Equal(t, "updated", got.Name)
+		assert.Equal(t, 7, got.Count)
+		require.NotNil(t, got.Auth)
+		assert.Equal(t, "u2", got.Auth.Username, "nested delta field applied")
+		assert.Equal(t, "secret", got.Auth.Password, "nested sibling field preserved")
+	})
+}

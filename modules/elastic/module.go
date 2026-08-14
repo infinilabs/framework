@@ -57,7 +57,7 @@ func (module *ElasticModule) Name() string {
 }
 
 var (
-	defaultConfig = common.ModuleConfig{
+	defaultConfig = ModuleConfig{
 		RemoteConfigEnabled: false,
 		HealthCheckConfig: common.CheckConfig{
 			Enabled:  true,
@@ -90,7 +90,7 @@ var (
 	}
 )
 
-func getDefaultConfig() common.ModuleConfig {
+func getDefaultConfig() ModuleConfig {
 	return defaultConfig
 }
 
@@ -197,9 +197,23 @@ func initElasticInstances(m []elastic.ElasticsearchConfig, source string) {
 	}
 }
 
-var moduleConfig = common.ModuleConfig{}
+var moduleConfig = ModuleConfig{}
+
+// registerClientProviderOnce guards the factory hand-off to core/elastic —
+// RegisterClientProvider panics on duplicates, and Setup must stay idempotent
+// for tests and repeated module lifecycles.
+var registerClientProviderOnce sync.Once
 
 func (module *ElasticModule) Setup() {
+
+	// Register the client factory with core/elastic BEFORE the enabled check:
+	// apps may disable this module (no live-cluster management, no ElasticORM)
+	// while still needing ES clients built from configs (e.g. logpilot log
+	// streams). core/elastic cannot import this package (dependency cycle),
+	// so injection is the only path. Pure registration, connects to nothing.
+	registerClientProviderOnce.Do(func() {
+		elastic.RegisterClientProvider(common.InitClientWithConfig)
+	})
 
 	moduleConfig = getDefaultConfig()
 
@@ -207,6 +221,11 @@ func (module *ElasticModule) Setup() {
 	if exists && err != nil && global.Env().SystemConfig.Configs.PanicOnConfigError {
 		panic(err)
 	}
+
+	if !moduleConfig.Enabled {
+		return
+	}
+
 	if exists {
 		if moduleConfig.Elasticsearch != "" {
 			global.Register(elastic.GlobalSystemElasticsearchID, moduleConfig.Elasticsearch)
@@ -215,6 +234,9 @@ func (module *ElasticModule) Setup() {
 
 	m := loadFileBasedElasticConfig()
 	initElasticInstances(m, elastic.ElasticsearchConfigSourceFile)
+
+	// The /easysearch/ cluster-management REST API now lives in the dedicated
+	// modules/easysearch module (registered by apps that want cluster CRUD).
 }
 
 func (module *ElasticModule) Stop() error {
@@ -361,12 +383,11 @@ func InitSchema() {
 		return
 	}
 
-	//TODO move to dedicated module
-	err := orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
-	if err != nil {
-		panic(err)
-	}
-	err = orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
+	// The "cluster" schema (ElasticsearchConfig) is now owned and registered by
+	// the dedicated modules/easysearch module.
+	_ = orm.RegisterSchemaWithIndexName(elastic.ElasticsearchConfig{}, "cluster")
+
+	err := orm.RegisterSchemaWithIndexName(elastic.NodeConfig{}, "node")
 	if err != nil {
 		panic(err)
 	}
@@ -396,6 +417,10 @@ var ormInited bool
 
 func (module *ElasticModule) Start() error {
 
+	if !moduleConfig.Enabled {
+		return nil
+	}
+
 	if moduleConfig.ORMConfig.Enabled {
 		client := elastic.GetClient(global.MustLookupString(elastic.GlobalSystemElasticsearchID))
 		handler := ElasticORM{Client: client, Config: moduleConfig.ORMConfig}
@@ -408,19 +433,29 @@ func (module *ElasticModule) Start() error {
 		kv.Register("elastic", module.storeHandler)
 	}
 
-	if moduleConfig.ORMConfig.Enabled {
-		if !ormInited {
-			//init template
-			InitTemplate(false)
-			//register schema
-			InitSchema()
-			ormInited = true
+	if global.Env().SystemConfig.ORMConfig.Enabled {
+		if moduleConfig.ORMConfig.Enabled {
+			if !ormInited {
+				//init template
+				InitTemplate(false)
+				//register schema
+				InitSchema()
+				ormInited = true
+			}
 		}
+
+		LoadClustersFromORM()
 	}
 
 	if moduleConfig.RemoteConfigEnabled {
 		m := loadESBasedElasticConfig()
 		initElasticInstances(m, elastic.ElasticsearchConfigSourceElasticsearch)
+	} else {
+		// No "system ES" to read clusters from — load dynamic clusters from
+		// the ORM backend instead (sqlite or any non-elastic store). This is
+		// the path used by apps that manage clusters via the /easysearch/ API
+		// without a dedicated system cluster.
+
 	}
 
 	if module.storeHandler != nil {
@@ -463,6 +498,7 @@ func (module *ElasticModule) Start() error {
 			return true
 		})
 	}
+
 	if moduleConfig.HealthCheckConfig.Enabled {
 		module.healthMap = sync.Map{}
 		t := task.ScheduleTask{

@@ -27,12 +27,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/global"
 	"infini.sh/framework/core/util"
 	"infini.sh/framework/modules/elastic/adapter"
-	"time"
 )
 
 type ESAPIV2 struct {
@@ -62,7 +63,7 @@ func (s *ESAPIV2) NextScroll(ctx *elastic.APIContext, scrollTime string, scrollI
 	body["scroll"] = scrollTime
 	bodyBytes := util.MustToJSONBytes(body)
 
-	resp, err := adapter.RequestTimeout(ctx, util.Verb_POST, url, bodyBytes, s.metadata, time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
+	resp, err := adapter.RequestTimeout(ctx, util.Verb_POST, url, bodyBytes, s.GetMetadata(), time.Duration(s.metadata.Config.RequestTimeout)*time.Second)
 	if err != nil {
 		return nil, err
 	}

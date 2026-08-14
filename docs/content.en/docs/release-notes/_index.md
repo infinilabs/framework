@@ -21,6 +21,7 @@ Information about release notes of INFINI Framework is provided here.
 - perf(sqlite): replace the WASM SQLite driver (ncruces/wazero) with modernc (pure-Go upstream SQLite) — removes the WASM interpreter + custom VFS overhead that dominated CPU profiles; no cgo, cross-compiles with `CGO_ENABLED=0`, no on-disk format change
 - perf(sqlite): set per-connection PRAGMAs (WAL, busy_timeout, foreign_keys) via the DSN and enable 256 MiB mmap_size — applies to every pooled connection (not just one) and serves the metadata store via memory-mapped I/O instead of pread syscalls
 - perf(sqlite): auto-create expression indexes from elastic_mapping tags, now including nested object fields via dotted `$.parent.child` paths — the SQLite ORM indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into B-tree lookups with zero query or model changes
+- feat: search provider injection + easysearch cluster CRUD module #398
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391

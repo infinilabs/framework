@@ -335,6 +335,7 @@ func GetDefaultSystemConfig() config.SystemConfig {
 			Log:    "log",
 			Config: "config",
 		},
+		ORMConfig: config.ORMConfig{Enabled: true},
 
 		AllowMultiInstance: false,
 		MaxNumOfInstance:   5,
