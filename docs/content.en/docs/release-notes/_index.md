@@ -22,6 +22,8 @@ Information about release notes of INFINI Framework is provided here.
 - perf(sqlite): set per-connection PRAGMAs (WAL, busy_timeout, foreign_keys) via the DSN and enable 256 MiB mmap_size — applies to every pooled connection (not just one) and serves the metadata store via memory-mapped I/O instead of pread syscalls
 - perf(sqlite): auto-create expression indexes from elastic_mapping tags, now including nested object fields via dotted `$.parent.child` paths — the SQLite ORM indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into B-tree lookups with zero query or model changes
 - feat: search provider injection + easysearch cluster CRUD module #398
+- feat(orm): cross-backend aggregation engine — metrics (min/max/sum/avg/value_count), bucket (terms/histogram/range) and pipeline aggregations run unchanged on the Elasticsearch and SQLite backends
+- feat(orm): fluent `SetAggs` query-builder API and a refactored SQLite SQL builder backing it
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391
