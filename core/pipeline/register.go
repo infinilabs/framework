@@ -258,6 +258,31 @@ func RegisterProcessorPlugin(name string, constructor ProcessorConstructor) {
 	}
 }
 
+// processorMetadata carries the extracted config schema of processors
+// registered via RegisterProcessorPluginWithConfigMetadata, so that the
+// discovery API (see modules/pipeline) can render configuration forms.
+var processorMetadata = map[string]map[string]FilterProperty{}
+
+// RegisterProcessorPluginWithConfigMetadata registers a processor and
+// records the schema of its config struct for discovery.
+func RegisterProcessorPluginWithConfigMetadata(name string, constructor ProcessorConstructor, configStruct interface{}) {
+	RegisterProcessorPlugin(name, constructor)
+	processorMetadata[name] = ExtractFilterMetadata(configStruct)
+}
+
+// GetProcessorMetadata returns {name: {properties}} for every registered
+// processor.
+func GetProcessorMetadata() util.MapStr {
+	result := util.MapStr{}
+	for name := range registry.ProcessorConstructors() {
+		x, _ := processorMetadata[name]
+		result[name] = util.MapStr{
+			"properties": x,
+		}
+	}
+	return result
+}
+
 func RegisterFilterPlugin(name string, constructor FilterConstructor) {
 	err := registry.RegisterFilter(name, constructor)
 	if err != nil {

@@ -83,6 +83,7 @@ func (module *PipeModule) Setup() {
 
 	pipeline.RegisterProcessorPlugin("dag", pipeline.NewDAGProcessor)
 	pipeline.RegisterProcessorPlugin("echo", NewEchoProcessor)
+	pipeline.RegisterProcessorPluginWithConfigMetadata("for_each", NewForEachProcessor, ForEachConfig{})
 
 	//TODO remove
 	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler)
@@ -92,6 +93,9 @@ func (module *PipeModule) Setup() {
 	api.HandleAPIMethod(api.DELETE, "/pipeline/task/:id", module.deletePipelineTaskHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_start", module.startPipelineTaskHandler)
 	api.HandleAPIMethod(api.POST, "/pipeline/task/:id/_stop", module.stopPipelineTaskHandler)
+
+	// processor discovery: names + config schemas for pipeline designers
+	api.HandleAPIMethod(api.GET, "/pipeline/processors", module.getProcessorsHandler)
 
 	//use pipelines to avoid naming conflicts
 	api.HandleUIMethod(api.POST, "/pipelines/_search", module.searchPipelineHandler, api.RequirePermission(security.GetOrInitPermission("generic", "pipeline", security.Search)))
