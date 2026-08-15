@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"strings"
 
+	log "github.com/cihub/seelog"
+
 	"infini.sh/framework/core/api"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
@@ -93,7 +95,74 @@ type Config[T any] struct {
 	// (keyed by ActionCreate/ActionSearch/...); defaults are generated
 	// from Resource.
 	MCPDescs map[string]string
+
+	// IDParam overrides the route parameter name for the object id
+	// (default "id"); e.g. document resources use "doc_id".
+	IDParam string
+
+	// ExtraOptions appends additional route options per action (login
+	// requirements, CORS, sensitive-field masking, labels...), applied
+	// after the permission and MCP options. Return nil for actions that
+	// need nothing extra.
+	ExtraOptions func(action string) []api.Option
+
+	// CtxDecorate marks the orm context before any orm call (extra
+	// sharing markers, DirectReadAccess, permission scopes...). Sharing
+	// basics from SharingResource are already applied.
+	CtxDecorate func(ctx *orm.Context, req *http.Request, action string)
+
+	// UpdateMode selects the update semantics; defaults to
+	// UpdateModePartial (partial-field delta). UpdateModeFull decodes the
+	// body over the loaded object (merge semantics, orm.Update);
+	// UpdateModeQuery follows ?replace= (false => partial, otherwise
+	// full).
+	UpdateMode UpdateMode
+	// ProtectedFields are stripped from partial deltas (e.g. "created",
+	// "builtin"); in full mode enforce protections in PrepareUpdate,
+	// which sees the merged object.
+	ProtectedFields []string
+
+	// PrepareUpdate runs before persisting in any update mode; in full
+	// mode delta is nil. A non-nil error fails the request with 400.
+	PrepareUpdate func(obj *T, delta util.MapStr) error
+
+	// PostCreate / PostUpdate / PostDelete run after successful writes
+	// and deletes (cache clears, CORS-origin sync, cascaded cleanups).
+	// They are best-effort: errors are logged and the success response is
+	// still returned.
+	PostCreate func(obj *T) error
+	PostUpdate func(obj *T) error
+	PostDelete func(obj *T) error
+
+	// PostGet refines the object before the response envelope is written
+	// (e.g. document refinement); a non-nil error fails with 500.
+	PostGet func(obj *T) error
+
+	// PrepareSearch adjusts the query builder and context before
+	// execution (injected filters from headers, excludes, extra sharing
+	// markers); a non-nil error fails with 500.
+	PrepareSearch func(req *http.Request, builder *orm.QueryBuilder, ctx *orm.Context) error
+
+	// PostSearch mutates the decoded response before writing (per-hit
+	// mapping, icon decoration...); a non-nil error fails with 500.
+	PostSearch func(res *elastic.SearchResponse) error
 }
+
+// UpdateMode selects how the update endpoint persists changes.
+type UpdateMode int
+
+const (
+	// UpdateModePartial decodes the body as a partial delta and applies
+	// orm.UpdatePartialFields (the default, logpilot/easysearch style).
+	UpdateModePartial UpdateMode = iota
+	// UpdateModeFull loads the existing object (system fields preserved),
+	// decodes the body over it and applies orm.Update (coco's merge or
+	// replace semantics).
+	UpdateModeFull
+	// UpdateModeQuery follows the ?replace= query parameter:
+	// replace=false => partial delta, otherwise full object.
+	UpdateModeQuery
+)
 
 // mcpToolName/Desc resolve the MCP labels for an action.
 func (cfg Config[T]) mcpToolName(action string) string {
@@ -163,6 +232,33 @@ func (g *generator[T, P]) baseCtx(req *http.Request) *orm.Context {
 	return ctx
 }
 
+// ctxFor builds the base context for an action and applies CtxDecorate.
+func (g *generator[T, P]) ctxFor(req *http.Request, action string) *orm.Context {
+	ctx := g.baseCtx(req)
+	if g.cfg.CtxDecorate != nil {
+		g.cfg.CtxDecorate(ctx, req, action)
+	}
+	return ctx
+}
+
+// idParam resolves the route parameter name holding the object id.
+func (g *generator[T, P]) idParam() string {
+	if g.cfg.IDParam != "" {
+		return g.cfg.IDParam
+	}
+	return "id"
+}
+
+// bestEffort runs a post hook, logging instead of failing the request.
+func (g *generator[T, P]) bestEffort(what string, hook func(*T) error, obj *T) {
+	if hook == nil {
+		return
+	}
+	if err := hook(obj); err != nil {
+		log.Warnf("crud %s %q post hook: %v", g.cfg.Resource, what, err)
+	}
+}
+
 func (g *generator[T, P]) create(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	obj := P(new(T))
 	if err := g.DecodeJSON(req, obj); err != nil {
@@ -175,12 +271,13 @@ func (g *generator[T, P]) create(w http.ResponseWriter, req *http.Request, _ htt
 			return
 		}
 	}
-	ctx := g.baseCtx(req)
+	ctx := g.ctxFor(req, ActionCreate)
 	ctx.Refresh = orm.WaitForRefresh
 	if err := orm.Create(ctx, obj); err != nil {
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	g.bestEffort(ActionCreate, g.cfg.PostCreate, obj)
 	g.WriteCreatedOKJSON(w, obj.GetID())
 }
 
@@ -195,9 +292,15 @@ func (g *generator[T, P]) search(w http.ResponseWriter, req *http.Request, _ htt
 		builder.SortBy(orm.Sort{Field: "created", SortType: orm.DESC})
 	}
 
-	ctx := g.baseCtx(req)
+	ctx := g.ctxFor(req, ActionSearch)
 	var model T
 	orm.WithModel(ctx, &model)
+	if g.cfg.PrepareSearch != nil {
+		if err := g.cfg.PrepareSearch(req, builder, ctx); err != nil {
+			g.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	res, err := orm.SearchV2(ctx, builder)
 	if err != nil {
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
@@ -208,35 +311,98 @@ func (g *generator[T, P]) search(w http.ResponseWriter, req *http.Request, _ htt
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if g.cfg.PostSearch != nil {
+		if err := g.cfg.PostSearch(searchRes); err != nil {
+			g.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	g.WriteJSON(w, *searchRes, http.StatusOK)
 }
 
 func (g *generator[T, P]) get(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+	id := ps.ByName(g.idParam())
 	obj := P(new(T))
 	obj.SetID(id)
-	ctx := g.baseCtx(req)
+	ctx := g.ctxFor(req, ActionRead)
 	exists, err := orm.GetV2(ctx, obj)
 	if !exists || err != nil {
 		g.WriteGetMissingJSON(w, id)
 		return
 	}
+	if g.cfg.PostGet != nil {
+		if err := g.cfg.PostGet(obj); err != nil {
+			g.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	g.WriteGetOKJSON(w, id, *obj)
 }
 
 func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+	id := ps.ByName(g.idParam())
 	obj := P(new(T))
 	obj.SetID(id)
+
+	mode := g.cfg.UpdateMode
+	if mode == UpdateModeQuery {
+		if v := req.URL.Query().Get("replace"); v == "false" || v == "0" {
+			mode = UpdateModePartial
+		} else {
+			mode = UpdateModeFull
+		}
+	}
+
+	ctx := g.ctxFor(req, ActionUpdate)
+	ctx.Refresh = orm.WaitForRefresh
+
+	if mode == UpdateModeFull {
+		// coco semantics: load the existing object (system fields such as
+		// created/builtin preserved), decode the body over it (merge), then
+		// persist the whole object.
+		exists, err := orm.GetWithSystemFields(ctx, obj)
+		if !exists || err != nil {
+			g.WriteOpRecordNotFoundJSON(w, id)
+			return
+		}
+		if err := g.DecodeJSON(req, obj); err != nil {
+			g.WriteError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		obj.SetID(id)
+		if g.cfg.PrepareUpdate != nil {
+			if err := g.cfg.PrepareUpdate(obj, nil); err != nil {
+				g.WriteError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+		if err := orm.Update(ctx, obj); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				g.WriteOpRecordNotFoundJSON(w, id)
+				return
+			}
+			g.WriteError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		g.bestEffort(ActionUpdate, g.cfg.PostUpdate, obj)
+		g.WriteUpdatedOKJSON(w, obj.GetID())
+		return
+	}
 
 	delta := util.MapStr{}
 	if err := g.DecodeJSON(req, &delta); err != nil {
 		g.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	ctx := g.baseCtx(req)
-	ctx.Refresh = orm.WaitForRefresh
+	for _, f := range g.cfg.ProtectedFields {
+		delete(delta, f)
+	}
+	if g.cfg.PrepareUpdate != nil {
+		if err := g.cfg.PrepareUpdate(obj, delta); err != nil {
+			g.WriteError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	if err := orm.UpdatePartialFields(ctx, obj, delta); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			g.WriteOpRecordNotFoundJSON(w, id)
@@ -245,14 +411,15 @@ func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps ht
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	g.bestEffort(ActionUpdate, g.cfg.PostUpdate, obj)
 	g.WriteUpdatedOKJSON(w, obj.GetID())
 }
 
 func (g *generator[T, P]) delete(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
+	id := ps.ByName(g.idParam())
 	obj := P(new(T))
 	obj.SetID(id)
-	ctx := g.baseCtx(req)
+	ctx := g.ctxFor(req, ActionDelete)
 	exists, err := orm.GetV2(ctx, obj)
 	if !exists || err != nil {
 		g.WriteOpRecordNotFoundJSON(w, id)
@@ -269,5 +436,6 @@ func (g *generator[T, P]) delete(w http.ResponseWriter, req *http.Request, ps ht
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	g.bestEffort(ActionDelete, g.cfg.PostDelete, obj)
 	g.WriteDeletedOKJSON(w, id)
 }

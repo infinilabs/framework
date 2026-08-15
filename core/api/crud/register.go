@@ -11,38 +11,34 @@ import (
 // RegisterCRUD builds the five handlers and wires the routes:
 //
 //	POST   {prefix}/            create
-//	GET    {prefix}/_search     search   (+ POST)
-//	GET    {prefix}/:id         get
+//	GET    {prefix}/_search     search   (+ POST, without the MCP tool)
+//	GET    {prefix}/:id         get      (param name: cfg.IDParam, default "id")
 //	PUT    {prefix}/:id         update
 //	DELETE {prefix}/:id         delete
 //
-// Each route is gated by cfg.Permission(action) when the func is set.
+// Each route is gated by cfg.Permission(action) when the func is set, and
+// cfg.ExtraOptions(action) appends additional options (login, CORS,
+// sensitive-field masking...) after the permission and MCP options. The
+// MCP tool is registered on the GET _search variant only so POST _search
+// does not duplicate the tool name (coco convention).
 func RegisterCRUD[T any, P PT[T]](cfg Config[T]) {
 	validateConfig(cfg)
 
 	h := NewHandlers[T, P](cfg)
-	perm := func(action string) []api.Option {
-		var opts []api.Option
-		if cfg.Permission != nil {
-			if key := cfg.Permission(action); key != "" {
-				opts = append(opts, api.RequirePermission(key))
-			}
-		}
-		if cfg.MCP {
-			opts = append(opts, api.MCPTool(cfg.mcpToolName(action), cfg.mcpToolDesc(action)))
-		}
-		if len(opts) == 0 {
-			return nil
-		}
-		return opts
+	idParam := cfg.IDParam
+	if idParam == "" {
+		idParam = "id"
+	}
+	perm := func(action string, withMCP bool) []api.Option {
+		return buildOptions(cfg, action, withMCP)
 	}
 
-	api.HandleUIMethod(api.POST, cfg.Prefix+"/", h.Create, perm(ActionCreate)...)
-	api.HandleUIMethod(api.GET, cfg.Prefix+"/_search", h.Search, perm(ActionSearch)...)
-	api.HandleUIMethod(api.POST, cfg.Prefix+"/_search", h.Search, perm(ActionSearch)...)
-	api.HandleUIMethod(api.GET, cfg.Prefix+"/:id", h.Get, perm(ActionRead)...)
-	api.HandleUIMethod(api.PUT, cfg.Prefix+"/:id", h.Update, perm(ActionUpdate)...)
-	api.HandleUIMethod(api.DELETE, cfg.Prefix+"/:id", h.Delete, perm(ActionDelete)...)
+	api.HandleUIMethod(api.POST, cfg.Prefix+"/", h.Create, perm(ActionCreate, true)...)
+	api.HandleUIMethod(api.GET, cfg.Prefix+"/_search", h.Search, perm(ActionSearch, true)...)
+	api.HandleUIMethod(api.POST, cfg.Prefix+"/_search", h.Search, perm(ActionSearch, false)...)
+	api.HandleUIMethod(api.GET, cfg.Prefix+"/:"+idParam, h.Get, perm(ActionRead, true)...)
+	api.HandleUIMethod(api.PUT, cfg.Prefix+"/:"+idParam, h.Update, perm(ActionUpdate, true)...)
+	api.HandleUIMethod(api.DELETE, cfg.Prefix+"/:"+idParam, h.Delete, perm(ActionDelete, true)...)
 }
 
 func validateConfig[T any](cfg Config[T]) {
@@ -55,4 +51,26 @@ func validateConfig[T any](cfg Config[T]) {
 	if cfg.Resource == "" {
 		panic("crud: Resource is required")
 	}
+}
+
+// buildOptions assembles the route options for one action: the permission
+// gate first, then the MCP tool (only on the registration that carries it,
+// i.e. GET _search), then the caller's extra options. Exposed for testing.
+func buildOptions[T any](cfg Config[T], action string, withMCP bool) []api.Option {
+	var opts []api.Option
+	if cfg.Permission != nil {
+		if key := cfg.Permission(action); key != "" {
+			opts = append(opts, api.RequirePermission(key))
+		}
+	}
+	if cfg.MCP && withMCP {
+		opts = append(opts, api.MCPTool(cfg.mcpToolName(action), cfg.mcpToolDesc(action)))
+	}
+	if cfg.ExtraOptions != nil {
+		opts = append(opts, cfg.ExtraOptions(action)...)
+	}
+	if len(opts) == 0 {
+		return nil
+	}
+	return opts
 }

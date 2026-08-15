@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -40,9 +41,12 @@ func call(t *testing.T, h HandlerFunc, method, target, body string) (*httptest.R
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	// crud uses :id params — parse from the path.
+	// crud uses :id params — parse from the path (without the query string).
 	ps := httprouter.Params{}
 	if rest := trimPrefix(target, "/gizmos/"); rest != "" && !containsSlash(rest) {
+		if i := strings.IndexByte(rest, '?'); i >= 0 {
+			rest = rest[:i]
+		}
 		ps = httprouter.Params{{Key: "id", Value: rest}}
 	}
 	w := httptest.NewRecorder()
@@ -119,7 +123,10 @@ func TestCRUD_FullFlow(t *testing.T) {
 	h := setupGizmos(t)
 
 	// Create: envelope {_id, result} + defaults applied.
-	w, out := call(t, h.Create, "POST", "/gizmos/", `{"name":"alpha"}`)
+	// unique namespace: the sqlite store is shared across the package's
+	// tests, so unfiltered counts must only see this test's records
+	const ns = "ff-"
+	w, out := call(t, h.Create, "POST", "/gizmos/", `{"name":"`+ns+`alpha"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "created", out["result"])
 	id, _ := out["_id"].(string)
@@ -135,7 +142,7 @@ func TestCRUD_FullFlow(t *testing.T) {
 	assert.Equal(t, true, out["found"])
 	src, _ := out["_source"].(map[string]interface{})
 	require.NotNil(t, src)
-	assert.Equal(t, "alpha", src["name"])
+	assert.Equal(t, ns+"alpha", src["name"])
 	assert.Equal(t, "new", src["status"])
 
 	// Get missing → 404 envelope.
@@ -150,18 +157,18 @@ func TestCRUD_FullFlow(t *testing.T) {
 	w, out = call(t, h.Get, "GET", "/gizmos/"+id, "")
 	src, _ = out["_source"].(map[string]interface{})
 	assert.Equal(t, "active", src["status"])
-	assert.Equal(t, "alpha", src["name"])
+	assert.Equal(t, ns+"alpha", src["name"])
 
 	// Update missing → 404.
 	w, _ = call(t, h.Update, "PUT", "/gizmos/nope", `{"status":"x"}`)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	// Search: ES-shaped response with default created DESC sort.
-	for _, name := range []string{"beta", "gamma"} {
+	for _, name := range []string{ns + "beta", ns + "gamma"} {
 		_, out := call(t, h.Create, "POST", "/gizmos/", `{"name":"`+name+`"}`)
 		require.NotEmpty(t, out["_id"])
 	}
-	w, out = call(t, h.Search, "GET", "/gizmos/_search?size=10", "")
+	w, out = call(t, h.Search, "GET", "/gizmos/_search?size=10&filter=name:any("+ns+"alpha,"+ns+"beta,"+ns+"gamma)", "")
 	require.Equal(t, http.StatusOK, w.Code)
 	hits, _ := out["hits"].(map[string]interface{})
 	require.NotNil(t, hits, "ES-shaped response")
@@ -171,7 +178,7 @@ func TestCRUD_FullFlow(t *testing.T) {
 	assert.EqualValues(t, 3, total["value"])
 
 	// Search with filter.
-	w, out = call(t, h.Search, "GET", "/gizmos/_search?filter=name:alpha&size=10", "")
+	w, out = call(t, h.Search, "GET", "/gizmos/_search?filter=name:"+ns+"alpha&size=10", "")
 	hits, _ = out["hits"].(map[string]interface{})
 	list, _ = hits["hits"].([]interface{})
 	assert.Len(t, list, 1)
