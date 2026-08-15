@@ -411,6 +411,12 @@ func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps ht
 		g.WriteError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if g.cfg.PostUpdate != nil {
+		// reload so post hooks see the persisted object, not just the id
+		if _, err := orm.GetV2(ctx, obj); err != nil {
+			log.Warnf("crud %s reload after update %q: %v", g.cfg.Resource, id, err)
+		}
+	}
 	g.bestEffort(ActionUpdate, g.cfg.PostUpdate, obj)
 	g.WriteUpdatedOKJSON(w, obj.GetID())
 }

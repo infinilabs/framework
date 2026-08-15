@@ -267,3 +267,19 @@ func TestRegisterCRUD_ExtraOptionsAndMCPOnGetOnly(t *testing.T) {
 	assert.False(t, mcpRoutes["/gizmoroutes/_search POST"], "POST _search must not duplicate the MCP tool")
 	assert.True(t, mcpRoutes["/gizmoroutes/:gizmo_id GET"], "custom id param should appear in routes")
 }
+
+func TestPostUpdateSeesPersistedObject(t *testing.T) {
+	setupGizmos(t)
+	var seenStatus atomic.Value
+	h := NewHandlers[gizmo](Config[gizmo]{
+		Prefix: "/gizmos", Resource: "gizmo", DefaultQueryFields: []string{"name"},
+		PostUpdate: func(o *gizmo) error {
+			seenStatus.Store(o.Status) // must reflect the persisted delta
+			return nil
+		},
+	})
+	id := mustCreate(t, h, `{"name":"alpha"}`)
+	_, out := call(t, h.Update, "PUT", "/gizmos/"+id, `{"status":"reloaded"}`)
+	require.Equal(t, "updated", out["result"])
+	assert.Equal(t, "reloaded", seenStatus.Load())
+}
