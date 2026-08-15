@@ -22,12 +22,17 @@ Information about release notes of INFINI Framework is provided here.
 - perf(sqlite): set per-connection PRAGMAs (WAL, busy_timeout, foreign_keys) via the DSN and enable 256 MiB mmap_size — applies to every pooled connection (not just one) and serves the metadata store via memory-mapped I/O instead of pread syscalls
 - perf(sqlite): auto-create expression indexes from elastic_mapping tags, now including nested object fields via dotted `$.parent.child` paths — the SQLite ORM indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into B-tree lookups with zero query or model changes
 - feat: search provider injection + easysearch cluster CRUD module #398
+- feat(otel): add the canonical log data model (`core/otel`) aligned with the OpenTelemetry Logs Data Model — lowercase snake_case field naming (`log_level`, `host_name`, `trace_id`, ...), `LogRecord ↔ event.Event` interconversion (Attributes→Fields, Resource→`Meta["resource"]`), and the queue envelope codec byte-compatible with the agent LogEvent JSON
+- feat(pipeline): add the `for_each` processor — splits a message batch into records, runs a sub-chain per record with the `RecordContextKey` convention, honors drop markers (`drop_event`), and re-encodes in place
+- feat(pipeline): add processor config metadata registration (`RegisterProcessorPluginWithConfigMetadata`) and the `GET /pipeline/processors` discovery endpoint, so pipeline designer UIs can render configuration forms
+- feat(otlp): add the OTLP/gRPC transport — resource-grouped `ExportLogsServiceRequest` codec (`plugins/otlp`) plus the `otlp_export` processor that ships batches to any OTLP collector (e.g. the gateway's intake on `:4317`) and keeps batches unacknowledged on failure so the local queue redelivers
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391
 - fix: register elasticsearch instance even when version probe fails #393
 - fix: health api requires a system cluster that may not exist #393
 - fix: pipeline task not visible right after creation #393
+- fix: restore the lost `core/api/websocket/reverse` protocol helpers (reverse channel manager/protocol, from 77a377ad) that agent builds depend on
 
 ### ✈️ Improvements  
 - refactor: add EventSink support to overall utilization collector #387
