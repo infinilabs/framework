@@ -20,6 +20,7 @@
 package crud
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -100,6 +101,12 @@ type Config[T any] struct {
 	// (default "id"); e.g. document resources use "doc_id".
 	IDParam string
 
+	// SkipActions lists actions whose routes should NOT be registered by
+	// RegisterCRUD (ActionRead/...); register those endpoints by hand when
+	// a resource needs behavior the generator cannot express (custom
+	// cache-first fetch, expansion logic...).
+	SkipActions []string
+
 	// ExtraOptions appends additional route options per action (login
 	// requirements, CORS, sensitive-field masking, labels...), applied
 	// after the permission and MCP options. Return nil for actions that
@@ -117,13 +124,14 @@ type Config[T any] struct {
 	// UpdateModeQuery follows ?replace= (false => partial, otherwise
 	// full).
 	UpdateMode UpdateMode
-	// ProtectedFields are stripped from partial deltas (e.g. "created",
-	// "builtin"); in full mode enforce protections in PrepareUpdate,
-	// which sees the merged object.
+	// ProtectedFields are stripped from partial deltas AND restored from
+	// the loaded object in full mode (e.g. "created", "builtin").
 	ProtectedFields []string
 
-	// PrepareUpdate runs before persisting in any update mode; in full
-	// mode delta is nil. A non-nil error fails the request with 400.
+	// PrepareUpdate runs before persisting in any update mode; delta is
+	// the incoming change set (the partial delta, or the raw decoded body
+	// in full mode, already stripped of ProtectedFields). A non-nil error
+	// fails the request with 400.
 	PrepareUpdate func(obj *T, delta util.MapStr) error
 
 	// PostCreate / PostUpdate / PostDelete run after successful writes
@@ -359,19 +367,37 @@ func (g *generator[T, P]) update(w http.ResponseWriter, req *http.Request, ps ht
 	if mode == UpdateModeFull {
 		// coco semantics: load the existing object (system fields such as
 		// created/builtin preserved), decode the body over it (merge), then
-		// persist the whole object.
+		// persist the whole object. The merge goes through a map so
+		// ProtectedFields (restored from the loaded object) are honored,
+		// and PrepareUpdate receives the raw body as the delta.
 		exists, err := orm.GetWithSystemFields(ctx, obj)
 		if !exists || err != nil {
 			g.WriteOpRecordNotFoundJSON(w, id)
 			return
 		}
-		if err := g.DecodeJSON(req, obj); err != nil {
+		body := util.MapStr{}
+		if err := g.DecodeJSON(req, &body); err != nil {
 			g.WriteError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		for _, f := range g.cfg.ProtectedFields {
+			delete(body, f)
+		}
+		if len(body) > 0 {
+			loaded := map[string]interface{}{}
+			if raw, err := json.Marshal(obj); err == nil {
+				_ = json.Unmarshal(raw, &loaded)
+			}
+			for k, v := range body {
+				loaded[k] = v
+			}
+			if raw, err := json.Marshal(loaded); err == nil {
+				_ = json.Unmarshal(raw, obj)
+			}
+		}
 		obj.SetID(id)
 		if g.cfg.PrepareUpdate != nil {
-			if err := g.cfg.PrepareUpdate(obj, nil); err != nil {
+			if err := g.cfg.PrepareUpdate(obj, body); err != nil {
 				g.WriteError(w, err.Error(), http.StatusBadRequest)
 				return
 			}

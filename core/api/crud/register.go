@@ -33,12 +33,23 @@ func RegisterCRUD[T any, P PT[T]](cfg Config[T]) {
 		return buildOptions(cfg, action, withMCP)
 	}
 
-	api.HandleUIMethod(api.POST, cfg.Prefix+"/", h.Create, perm(ActionCreate, true)...)
-	api.HandleUIMethod(api.GET, cfg.Prefix+"/_search", h.Search, perm(ActionSearch, true)...)
-	api.HandleUIMethod(api.POST, cfg.Prefix+"/_search", h.Search, perm(ActionSearch, false)...)
-	api.HandleUIMethod(api.GET, cfg.Prefix+"/:"+idParam, h.Get, perm(ActionRead, true)...)
-	api.HandleUIMethod(api.PUT, cfg.Prefix+"/:"+idParam, h.Update, perm(ActionUpdate, true)...)
-	api.HandleUIMethod(api.DELETE, cfg.Prefix+"/:"+idParam, h.Delete, perm(ActionDelete, true)...)
+	skip := map[string]bool{}
+	for _, a := range cfg.SkipActions {
+		skip[a] = true
+	}
+	register := func(method api.Method, path string, handler HandlerFunc, action string, withMCP bool) {
+		if skip[action] {
+			return
+		}
+		api.HandleUIMethod(method, path, handler, perm(action, withMCP)...)
+	}
+
+	register(api.POST, cfg.Prefix+"/", h.Create, ActionCreate, true)
+	register(api.GET, cfg.Prefix+"/_search", h.Search, ActionSearch, true)
+	register(api.POST, cfg.Prefix+"/_search", h.Search, ActionSearch, false)
+	register(api.GET, cfg.Prefix+"/:"+idParam, h.Get, ActionRead, true)
+	register(api.PUT, cfg.Prefix+"/:"+idParam, h.Update, ActionUpdate, true)
+	register(api.DELETE, cfg.Prefix+"/:"+idParam, h.Delete, ActionDelete, true)
 }
 
 func validateConfig[T any](cfg Config[T]) {

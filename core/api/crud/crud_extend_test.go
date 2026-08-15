@@ -65,31 +65,52 @@ func TestUpdateModeFull_MergesOverLoadedObject(t *testing.T) {
 
 func TestUpdateModeQueryFollowsReplaceParam(t *testing.T) {
 	setupGizmos(t)
-	var deltaSeen atomic.Bool
+	var fullMode atomic.Bool
 	h := NewHandlers[gizmo](Config[gizmo]{
 		Prefix: "/gizmos", Resource: "gizmo", DefaultQueryFields: []string{"name"},
 		UpdateMode: UpdateModeQuery,
+		// full mode hands PrepareUpdate the merged object (loaded fields
+		// visible); partial mode only sets the id
 		PrepareUpdate: func(o *gizmo, delta util.MapStr) error {
-			deltaSeen.Store(delta != nil) // nil delta => full mode
+			fullMode.Store(o.Name != "")
 			return nil
 		},
 	})
 
 	id := mustCreate(t, h, `{"name":"alpha"}`)
 
-	// replace=false => partial delta
+	// replace=false => partial delta (obj not loaded)
 	_, out := call(t, h.Update, "PUT", "/gizmos/"+id+"?replace=false", `{"status":"active"}`)
 	require.Equal(t, "updated", out["result"])
-	assert.True(t, deltaSeen.Load(), "?replace=false should take the partial path")
+	assert.False(t, fullMode.Load(), "?replace=false should take the partial path")
 
-	// default (no param) => full object
-	deltaSeen.Store(false)
+	// default (no param) => full object (loaded, merge)
+	fullMode.Store(false)
 	_, out = call(t, h.Update, "PUT", "/gizmos/"+id, `{"status":"archived"}`)
 	require.Equal(t, "updated", out["result"])
-	assert.False(t, deltaSeen.Load(), "absent ?replace should take the full path")
+	assert.True(t, fullMode.Load(), "absent ?replace should take the full path")
 
 	src := sourceOf(t, h, id)
 	assert.Equal(t, "archived", src["status"])
+	assert.Equal(t, "alpha", src["name"], "merge must keep untouched fields")
+}
+
+func TestUpdateFullModeProtectedFieldsRestored(t *testing.T) {
+	setupGizmos(t)
+	h := NewHandlers[gizmo](Config[gizmo]{
+		Prefix: "/gizmos", Resource: "gizmo", DefaultQueryFields: []string{"name"},
+		UpdateMode:      UpdateModeFull,
+		ProtectedFields: []string{"reserved", "created"},
+	})
+
+	id := mustCreate(t, h, `{"name":"alpha"}`)
+	// attempt to flip the protected field through the body
+	_, out := call(t, h.Update, "PUT", "/gizmos/"+id, `{"name":"beta","reserved":true}`)
+	require.Equal(t, "updated", out["result"])
+
+	src := sourceOf(t, h, id)
+	assert.Equal(t, "beta", src["name"])
+	assert.Nil(t, src["reserved"], "protected field must be restored from the loaded object")
 }
 
 func TestProtectedFieldsStrippedFromDelta(t *testing.T) {
@@ -282,4 +303,26 @@ func TestPostUpdateSeesPersistedObject(t *testing.T) {
 	_, out := call(t, h.Update, "PUT", "/gizmos/"+id, `{"status":"reloaded"}`)
 	require.Equal(t, "updated", out["result"])
 	assert.Equal(t, "reloaded", seenStatus.Load())
+}
+
+func TestRegisterCRUD_SkipActions(t *testing.T) {
+	setupGizmos(t)
+	RegisterCRUD[gizmo](Config[gizmo]{
+		Prefix:      "/gizmoskip",
+		Resource:    "gizmo",
+		MCP:         true,
+		SkipActions: []string{ActionRead, ActionSearch},
+	})
+
+	seen := map[string]bool{}
+	api.WalkMCPAutoUIMethodRoutes(func(route api.RegisteredUIMethodRoute) {
+		if route.Route.Path == "/gizmoskip/:id" || route.Route.Path == "/gizmoskip/_search" {
+			seen[route.Route.Path+" "+string(route.Route.Method)] = true
+		}
+	})
+	assert.False(t, seen["/gizmoskip/:id GET"], "skipped read action must not register: %v", seen)
+	assert.False(t, seen["/gizmoskip/_search GET"], "skipped search action must not register: %v", seen)
+	// non-skipped actions on the same path still register
+	assert.True(t, seen["/gizmoskip/:id PUT"], "update must still register: %v", seen)
+	assert.True(t, seen["/gizmoskip/:id DELETE"], "delete must still register: %v", seen)
 }
