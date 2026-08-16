@@ -40,7 +40,6 @@ const RoleReadOnly = "readonly"
 const RoleAdmin = "admin"
 
 const DefaultNativeAuthBackend = "default_native_auth_backend"
-const StaticAuthBackend = "static_auth_backend"
 
 // adminRoles holds the set of role names considered as admin.
 // "admin" is always included. Applications can register additional admin roles.
