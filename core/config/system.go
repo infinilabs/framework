@@ -304,6 +304,10 @@ type ConfigsConfig struct {
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
 		BasicAuth            BasicAuth `config:"basic_auth"`
+		// AccessToken is the manager token exchanged at registration
+		// (persisted to the keystore; the config value is the bootstrap
+		// fallback for first contact).
+		AccessToken ucfg.SecretString `config:"access_token"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`
