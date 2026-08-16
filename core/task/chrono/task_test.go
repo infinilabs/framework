@@ -52,6 +52,16 @@ func TestNewSchedulerTask_WithInvalidLocation(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestNewSchedulerTask_WithInitialDelay(t *testing.T) {
+	task, err := CreateSchedulerTask(func(ctx context.Context) {
+	}, WithInitialDelay(200*time.Millisecond))
+	assert.Nil(t, err)
+
+	delay := task.GetInitialDelay()
+	assert.Greater(t, delay, 0*time.Millisecond)
+	assert.LessOrEqual(t, delay, 200*time.Millisecond)
+}
+
 func TestNewScheduledRunnableTask(t *testing.T) {
 	task, _ := CreateScheduledRunnableTask(0, func(ctx context.Context) {
 

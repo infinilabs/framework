@@ -25,9 +25,8 @@ package common
 
 import (
 	"fmt"
-	"strings"
-
 	"infini.sh/framework/core/model"
+	"strings"
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/credential"
@@ -68,20 +67,31 @@ type CheckConfig struct {
 	Interval string `config:"interval,omitempty"`
 }
 
+type ModuleConfig struct {
+	Elasticsearch                     string      `config:"elasticsearch"`
+	RemoteConfigEnabled               bool        `config:"remote_configs"`
+	ORMConfig                         ORMConfig   `config:"orm"`
+	StoreConfig                       StoreConfig `config:"store"`
+	HealthCheckConfig                 CheckConfig `config:"health_check"`
+	NodeAvailabilityCheckConfig       CheckConfig `config:"availability_check"`
+	MetadataRefresh                   CheckConfig `config:"metadata_refresh"`
+	ClusterSettingsCheckConfig        CheckConfig `config:"cluster_settings_check"`
+	ClientTimeout                     string      `config:"client_timeout"`
+	DeadNodeAvailabilityCheckInterval string      `config:"dead_node_availability_check_interval,omitempty"`
+	SkipInitMetadataOnStart           bool        `config:"skip_init_metadata_on_start"`
+}
+
 func InitClientWithConfig(esConfig elastic.ElasticsearchConfig) (client elastic.API, err error) {
 
 	var (
 		ver string
 	)
 	if esConfig.Version == "" || esConfig.Version == "auto" {
-		verInfo, err := adapter.ClusterVersion(elastic.GetOrInitMetadata(&esConfig))
+		probeMeta := &elastic.ElasticsearchMetadata{Config: &esConfig}
+		probeMeta.Init(true)
+		verInfo, err := adapter.ClusterVersion(probeMeta)
 		if err != nil {
-			// The cluster may simply be down; an unreachable endpoint is a
-			// runtime state, not a config error. Fall back to the default
-			// version below so the instance still gets registered and
-			// requests can fail with 503 instead of panicking on a missing
-			// config.
-			log.Warn("failed to probe version of elasticsearch ", esConfig.Name, ", ", err)
+			return nil, err
 		}
 		if verInfo != nil {
 			esConfig.Version = verInfo.Version.Number
@@ -211,6 +221,9 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 		log.Warn("elasticsearch ", esConfig.Name, " is not enabled")
 		return nil, nil
 	}
+	originMeta := elastic.GetMetadata(esConfig.ID)
+	initHealth := getInitialMetadataHealth(originMeta)
+
 	client, err := InitClientWithConfig(esConfig)
 	if err != nil {
 		log.Error("elasticsearch ", esConfig.Name, err)
@@ -218,18 +231,19 @@ func InitElasticInstance(esConfig elastic.ElasticsearchConfig) (elastic.API, err
 	}
 	elastic.RegisterInstance(esConfig, client)
 
-	originMeta := elastic.GetMetadata(esConfig.ID)
-	initHealth := true
-	if originMeta != nil {
-		initHealth = originMeta.IsAvailable()
-	}
-
 	v := elastic.InitMetadata(&esConfig, initHealth)
 	if v.Health == nil && originMeta != nil {
 		v.Health = originMeta.Health
 	}
 	elastic.SetMetadata(esConfig.ID, v)
 	return client, err
+}
+
+func getInitialMetadataHealth(originMeta *elastic.ElasticsearchMetadata) bool {
+	if originMeta == nil {
+		return true
+	}
+	return originMeta.IsAvailable()
 }
 
 func GetBasicAuth(esConfig *elastic.ElasticsearchConfig) (basicAuth *model.BasicAuth, err error) {

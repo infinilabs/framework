@@ -44,12 +44,11 @@ const DefaultBandwidthMbps = 1000
 // Metric collects overall system utilization percentages for CPU, memory, disk, disk I/O and network.
 // Each disk and network interface is monitored independently to identify specific bottlenecks.
 type Metric struct {
-	event.EventSink
-
 	Enabled         bool    `config:"enabled"`
 	IntervalSeconds float64 `config:"interval_seconds"`
 	YellowThreshold float64 `config:"yellow_threshold"`
 	RedThreshold    float64 `config:"red_threshold"`
+	event.EventSink
 
 	mu sync.Mutex
 
@@ -104,8 +103,7 @@ func New(cfg *config.Config) (*Metric, error) {
 	return NewWithSink(cfg, event.DefaultEventSink)
 }
 
-// NewWithSink creates a Metric with a custom event sink, allowing callers
-// to redirect events to their own sink instead of the global one.
+// NewWithSink creates an overall metric collector with a custom sink.
 func NewWithSink(cfg *config.Config, sink event.EventSink) (*Metric, error) {
 	me := &Metric{
 		Enabled:         true,

@@ -48,96 +48,92 @@ import (
 	"infini.sh/framework/core/util"
 )
 
+const elasticMetadataKVRetention = 30 * 24 * time.Hour
+
+func shouldRegisterDiscoveredHostForAvailability(meta *elastic.ElasticsearchMetadata, host string) bool {
+	host = util.UnifyLocalAddress(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+
+	if meta == nil {
+		return true
+	}
+	if meta.Config == nil {
+		return true
+	}
+	if meta.Config.Host == "" && len(meta.Config.Hosts) == 0 && meta.Config.Endpoint == "" && len(meta.Config.Endpoints) == 0 {
+		return true
+	}
+
+	seedHosts := meta.GetSeedHosts()
+	if len(seedHosts) == 0 {
+		return true
+	}
+
+	for _, seedHost := range seedHosts {
+		if util.UnifyLocalAddress(strings.TrimSpace(seedHost)) == host {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (module *ElasticModule) clusterHealthCheck(clusterID string, force bool) {
 
 	log.Tracef("execute health check for: %v", clusterID)
 
 	cfg := elastic.GetConfig(clusterID)
+	if cfg == nil || !cfg.Enabled {
+		return
+	}
+
+	if !force && !cfg.Monitored {
+		log.Tracef("skip health check for unmonitored cluster: %v", clusterID)
+		return
+	}
 	metadata := elastic.GetOrInitMetadata(cfg)
-	if cfg.Enabled || force {
-		//check seeds' availability
-		if force {
-			//add seeds to host for health check
-			hosts := metadata.GetSeedHosts()
-			for _, host := range hosts {
-				elastic.GetOrInitHost(host, clusterID)
-			}
+	//check seeds' availability
+	if force {
+		//add seeds to host for health check
+		hosts := metadata.GetSeedHosts()
+		for _, host := range hosts {
+			elastic.GetOrInitHost(host, clusterID)
 		}
-		//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
-		client := elastic.GetClient(cfg.ID)
-		//check cluster health status
-		health, err := client.ClusterHealth(nil)
-		if err != nil || health == nil || health.StatusCode != 200 {
-			if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
-				metadata.ReportFailure(errors.New("master_not_discovered_exception"))
-			} else {
-				metadata.ReportFailure(err)
-			}
-			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
-				updateClusterHealthStatus(clusterID, "unavailable")
-			}
+	}
+	//metadata.GetHttpClient(metadata.GetActivePreferredSeedEndpoint())
+	client := elastic.GetClient(cfg.ID)
+	//check cluster health status
+	health, err := client.ClusterHealth(nil)
+	if err != nil || health == nil || health.StatusCode != 200 {
+		if health != nil && util.ContainStr(util.UnsafeBytesToString(health.RawResult.Body), "master_not_discovered_exception") {
+			metadata.ReportFailure(errors.New("master_not_discovered_exception"))
 		} else {
-			if metadata.Health == nil || metadata.Health.NumberOfNodes == 0 || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
-				if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
-					updateClusterHealthStatus(clusterID, health.Status)
-				}
-				log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
-			}
-			changes, err := util.DiffTwoObject(metadata.Health, health)
-			if err != nil {
-				log.Errorf("diff cluster health error: %v", err)
-			}
-			metadata.ReportSuccess()
-			if len(changes) > 0 {
-				metadata.Health = health
-			}
+			metadata.ReportFailure(err)
 		}
-	}
-}
-
-// systemESConfigured reports whether a system Elasticsearch is registered.
-func systemESConfigured() bool {
-	v := global.Lookup(elastic.GlobalSystemElasticsearchID)
-	s, ok := v.(string)
-	return ok && s != ""
-}
-
-// updateClusterHealthStatusViaORM persists the health status to the cluster
-// record through the ORM — used when clusters are managed without a system
-// Elasticsearch (e.g. the /easysearch/ API backed by sqlite), where the
-// cluster records live in the ORM rather than a system ES index.
-func updateClusterHealthStatusViaORM(clusterID, healthStatus string) {
-	ctx := orm.NewContext().DirectAccess()
-	cfg := elastic.ElasticsearchConfig{}
-	cfg.ID = clusterID
-	exists, err := orm.GetV2(ctx, &cfg)
-	if err != nil {
-		log.Errorf("get cluster %s (orm) for health update: %v", clusterID, err)
-		return
-	}
-	if !exists {
-		return
-	}
-	if cfg.Labels == nil {
-		cfg.Labels = util.MapStr{}
-	}
-	if cur, ok := cfg.Labels["health_status"].(string); ok && cur == healthStatus {
-		return // unchanged
-	}
-	cfg.Labels["health_status"] = healthStatus
-	if err := orm.Save(ctx, &cfg); err != nil {
-		log.Errorf("save cluster %s health status (orm): %v", clusterID, err)
+		if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch && !metadata.IsAvailable() {
+			updateClusterHealthStatus(clusterID, "unavailable")
+		}
+	} else {
+		if metadata.Health == nil || metadata.Health.NumberOfNodes == 0 || metadata.Health.Status != health.Status || !metadata.IsAvailable() || force {
+			if metadata.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
+				updateClusterHealthStatus(clusterID, health.Status)
+			}
+			log.Tracef("cluster [%v] health [%v] updated", clusterID, metadata.Health)
+		}
+		changes, err := util.DiffTwoObject(metadata.Health, health)
+		if err != nil {
+			log.Errorf("diff cluster health error: %v", err)
+		}
+		metadata.ReportSuccess()
+		if len(changes) > 0 {
+			metadata.Health = health
+		}
 	}
 }
 
 func updateClusterHealthStatus(clusterID string, healthStatus string) {
-	// Clusters managed via the ORM (no system Elasticsearch) have no system ES
-	// index to persist health to — fall back to the ORM instead of panicking
-	// on the system-ES lookup below.
-	if !systemESConfigured() {
-		updateClusterHealthStatusViaORM(clusterID, healthStatus)
-		return
-	}
 
 	globalID := global.MustLookupString(elastic.GlobalSystemElasticsearchID)
 
@@ -219,17 +215,62 @@ func updateClusterHealthStatus(clusterID string, healthStatus string) {
 
 }
 
+func SyncClusterHealthStatus(clusterID string) {
+	if strings.TrimSpace(clusterID) == "" {
+		return
+	}
+
+	metadata := elastic.GetMetadata(clusterID)
+	if metadata == nil || metadata.Config == nil {
+		return
+	}
+	if metadata.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
+		return
+	}
+
+	healthStatus := "unavailable"
+	if metadata.IsAvailable() {
+		if client := elastic.GetClientNoPanic(clusterID); client != nil {
+			health, err := client.ClusterHealth(nil)
+			if err == nil && health != nil && health.StatusCode == 200 && strings.TrimSpace(health.Status) != "" {
+				metadata.Health = health
+				healthStatus = health.Status
+			} else if metadata.Health != nil && strings.TrimSpace(metadata.Health.Status) != "" {
+				healthStatus = metadata.Health.Status
+			} else {
+				healthStatus = "green"
+			}
+		} else if metadata.Health != nil && strings.TrimSpace(metadata.Health.Status) != "" {
+			healthStatus = metadata.Health.Status
+		} else {
+			healthStatus = "green"
+		}
+	}
+
+	updateClusterHealthStatus(clusterID, healthStatus)
+}
+
 // update cluster state, on state version change
 func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
+	startAt := time.Now()
 
 	meta := elastic.GetMetadata(clusterId)
 	if meta == nil {
+		return
+	}
+	if !force && !meta.Config.Monitored {
 		return
 	}
 
 	if !force && !meta.IsAvailable() {
 		return
 	}
+
+	interval := moduleConfig.MetadataRefresh.Interval
+	if meta.Config != nil && meta.Config.MetadataConfigs != nil && meta.Config.MetadataConfigs.MetadataRefresh.Interval != "" {
+		interval = meta.Config.MetadataConfigs.MetadataRefresh.Interval
+	}
+	intervalD := util.GetDurationOrDefault(interval, 30*time.Second)
 
 	client := elastic.GetClient(clusterId)
 	state, err := client.GetClusterState()
@@ -243,6 +284,18 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 	}
 
 	if state != nil {
+		responseSize := uint64(0)
+		if state.RawResult != nil {
+			responseSize = state.RawResult.Size
+		}
+		indexCount := 0
+		if state.Metadata != nil {
+			indexCount = len(state.Metadata.Indices)
+		}
+		routingIndexCount := 0
+		if state.RoutingTable != nil {
+			routingIndexCount = len(state.RoutingTable.Indices)
+		}
 		stateChanged := false
 		if meta.ClusterState == nil {
 			stateChanged = true
@@ -252,25 +305,23 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 			log.Tracef("cluster state updated from version [%v] to [%v]", meta.ClusterState.Version, state.Version)
 		}
 
-		oldIndexState, err := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
-
-		//TODO locker
-		if stateChanged || (err == nil && oldIndexState == nil) {
-			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
-				if meta.ClusterState == nil || oldIndexState == nil {
-					//load init state from es when console start
-					oldIndexState, err = module.loadIndexMetadataFromES(clusterId)
-					if err != nil {
-						log.Errorf("failed to load index metadata from es: %v", err)
-					}
-					err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState)
-					if err != nil {
+		oldIndexState, oldIndexStateErr := kv.GetCompressedValue(elastic.KVElasticIndexMetadata, []byte(clusterId))
+		if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
+			if meta.ClusterState == nil || oldIndexState == nil {
+				// load init state from es when console start
+				oldIndexState, oldIndexStateErr = module.loadIndexMetadataFromES(clusterId)
+				if oldIndexStateErr != nil {
+					log.Errorf("failed to load index metadata from es: %v", oldIndexStateErr)
+				} else {
+					if err := kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterId), oldIndexState, elasticMetadataKVRetention); err != nil {
 						log.Errorf("failed to save index metadata: %v", err)
 					}
 				}
-				if err == nil {
-					module.saveIndexMetadata(state, clusterId)
-				}
+			}
+			// Always run metadata sync in refresh loop. Some distributions may not
+			// bump cluster state version for every index-state change.
+			if oldIndexStateErr == nil {
+				module.saveIndexMetadata(state, clusterId)
 			}
 		}
 		if stateChanged {
@@ -281,6 +332,20 @@ func (module *ElasticModule) updateClusterState(clusterId string, force bool) {
 			}
 			state.Metadata = metaData
 			meta.ClusterState = state
+		}
+		elapsed := time.Since(startAt)
+		if elapsed > intervalD {
+			log.Warnf(
+				"refresh cluster state for cluster [%s] completed slowly, elapsed: %v, interval: %s, response_size: %d bytes, compressed_size_in_bytes: %d, metadata_indices: %d, routing_indices: %d, state_version: %d",
+				meta.Config.Name,
+				elapsed,
+				interval,
+				responseSize,
+				state.CompressedSizeInBytes,
+				indexCount,
+				routingIndexCount,
+				state.Version,
+			)
 		}
 	}
 }
@@ -726,7 +791,7 @@ func (module *ElasticModule) saveIndexMetadata(state *elastic.ClusterState, clus
 
 	}
 	if isIndicesStateChange {
-		err = kv.AddValueCompress(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata))
+		err = kv.AddValueCompressWithTTL(elastic.KVElasticIndexMetadata, []byte(clusterID), util.MustToJSONBytes(newIndexMetadata), elasticMetadataKVRetention)
 		if err != nil {
 			log.Error(err)
 		}
@@ -738,11 +803,18 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 
 	log.Trace("update node info")
 
+	if !force && !meta.Config.Monitored {
+		return
+	}
+
 	if !force && !meta.IsAvailable() {
+		stateChanged := false
 		if !force {
-			setNodeUnknown(meta.Config.ID)
+			stateChanged = setNodeUnknown(meta.Config.ID)
 		}
-		log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
+		if stateChanged || rate.GetRateLimiter("metadata_node_info_skip", meta.Config.ID, 1, 1, 10*time.Minute).Allow() {
+			log.Debugf("elasticsearch [%v] is not available, skip update node info", meta.Config.Name)
+		}
 		return
 	}
 
@@ -809,7 +881,11 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 		if moduleConfig.ORMConfig.Enabled {
 			if meta.Config.Source == elastic.ElasticsearchConfigSourceElasticsearch {
 				//todo check whether store elasticsearch change or not
-				err = saveNodeMetadata(*nodes, meta.Config.ID)
+				clusterUUID := meta.Config.ClusterUUID
+				if meta.ClusterState != nil && meta.ClusterState.ClusterUUID != "" {
+					clusterUUID = meta.ClusterState.ClusterUUID
+				}
+				err = saveNodeMetadata(*nodes, meta.Config.ID, clusterUUID)
 				if err != nil {
 					if rate.GetRateLimiterPerSecond(meta.Config.ID, "save_nodes_metadata_on_error", 1).Allow() {
 						log.Errorf("elasticsearch [%v] failed to save nodes info: %v", meta.Config.Name, err)
@@ -828,7 +904,11 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 			//register host to do availability monitoring
 			if discovery {
 				for _, v := range *nodes {
-					elastic.GetOrInitHost(v.GetHttpPublishHost(), meta.Config.ID)
+					host := v.GetHttpPublishHost()
+					if !shouldRegisterDiscoveredHostForAvailability(meta, host) {
+						continue
+					}
+					elastic.GetOrInitHost(host, meta.Config.ID)
 				}
 			}
 
@@ -837,7 +917,7 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 				"nodes":     nodes,
 				"timestamp": time.Now(),
 			}
-			err = kv.AddValueCompress(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo))
+			err = kv.AddValueCompressWithTTL(elastic.KVElasticNodeMetadata, []byte(meta.Config.ID), util.MustToJSONBytes(cacheNodeInfo), elasticMetadataKVRetention)
 			if err != nil {
 				log.Errorf("save node metadata error: %v", err)
 			}
@@ -850,17 +930,17 @@ func (module *ElasticModule) updateNodeInfo(meta *elastic.ElasticsearchMetadata,
 var saveNodeMetadataMutex = sync.Mutex{}
 var nodeAlreadyUnknown = map[string]bool{}
 
-func setNodeUnknown(clusterID string) {
+func setNodeUnknown(clusterID string) bool {
 	kv.DeleteKey(elastic.KVElasticNodeMetadata, []byte(clusterID))
 	meta := elastic.GetMetadata(clusterID)
 	if meta == nil {
-		return
+		return false
 	}
 	if meta.Config.Source != elastic.ElasticsearchConfigSourceElasticsearch {
-		return
+		return false
 	}
 	if v, ok := nodeAlreadyUnknown[clusterID]; ok && v {
-		return
+		return false
 	}
 	queueConfig := queue.GetOrInitConfig(elastic.QueueElasticIndexState)
 	if queueConfig.Labels == nil {
@@ -888,8 +968,9 @@ func setNodeUnknown(clusterID string) {
 	}
 
 	nodeAlreadyUnknown[clusterID] = true
+	return true
 }
-func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) error {
+func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID, clusterUUID string) error {
 	esConfig := elastic.GetConfig(clusterID)
 	saveNodeMetadataMutex.Lock()
 	defer func() {
@@ -899,28 +980,63 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		}
 	}()
 
-	queryDslTpl := `{
-	"size": 1000,
-  "query": {
-    "bool": {
-      "must": [
-        {"term": {
-          "metadata.cluster_id": {
-            "value": "%s"
-          }
-        }},
-		 {"term": {
-          "metadata.category": {
-            "value": "elasticsearch"
-          }
-        }}
-      ]
-    }
-  }
-}`
-	queryDsl := fmt.Sprintf(queryDslTpl, clusterID)
+	logicalClusterID := clusterID
+	if clusterUUID != "" {
+		logicalClusterID = clusterUUID
+	}
+	nodeDocID := func(clusterKey, nodeID string) string {
+		return util.MD5digest(fmt.Sprintf("%s:%s", clusterKey, nodeID))
+	}
+
+	must := []util.MapStr{
+		{
+			"term": util.MapStr{
+				"metadata.category": util.MapStr{
+					"value": "elasticsearch",
+				},
+			},
+		},
+	}
+	boolQuery := util.MapStr{
+		"must": must,
+	}
+	if clusterUUID != "" {
+		boolQuery["should"] = []util.MapStr{
+			{
+				"term": util.MapStr{
+					"metadata.cluster_id": util.MapStr{
+						"value": clusterID,
+					},
+				},
+			},
+			{
+				"term": util.MapStr{
+					"metadata.labels.cluster_uuid": util.MapStr{
+						"value": clusterUUID,
+					},
+				},
+			},
+		}
+		boolQuery["minimum_should_match"] = 1
+	} else {
+		must = append(must, util.MapStr{
+			"term": util.MapStr{
+				"metadata.cluster_id": util.MapStr{
+					"value": clusterID,
+				},
+			},
+		})
+		boolQuery["must"] = must
+	}
+
+	queryDsl := util.MustToJSONBytes(util.MapStr{
+		"size": 1000,
+		"query": util.MapStr{
+			"bool": boolQuery,
+		},
+	})
 	q := &orm.Query{}
-	q.RawQuery = []byte(queryDsl)
+	q.RawQuery = queryDsl
 	err, result := orm.Search(&elastic.NodeConfig{}, q)
 	if err != nil {
 		return err
@@ -935,7 +1051,19 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				//nodeMetadatas[nodeID] = nodeInfo
 				if nid, ok := nodeID.(string); ok {
 					if id, ok := nodeInfo["id"]; ok {
-						nodeIDMap[nid] = id
+						existingID, hasExisting := nodeIDMap[nid]
+						canonicalID := nodeDocID(logicalClusterID, nid)
+						if !hasExisting {
+							nodeIDMap[nid] = id
+						} else {
+							existingIDStr, existingOK := existingID.(string)
+							idStr, currentOK := id.(string)
+							if currentOK && idStr == canonicalID {
+								nodeIDMap[nid] = id
+							} else if !(existingOK && existingIDStr == canonicalID) {
+								nodeIDMap[nid] = id
+							}
+						}
 					}
 					historyNodeMetadata[nid] = nodeInfo
 					if _, ok = nodes[nid]; !ok {
@@ -950,15 +1078,26 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		rawBytes := util.MustToJSONBytes(nodeInfo)
 		currentNodeInfo := util.MapStr{}
 		util.MustFromJSONBytes(rawBytes, &currentNodeInfo)
+		canonicalID := nodeDocID(logicalClusterID, rawNodeID)
+		legacyID := nodeDocID(clusterID, rawNodeID)
 		var innerID interface{}
 		var typ string
 		var changeLog diff.Changelog
 		if rowID, ok := nodeIDMap[rawNodeID]; !ok {
 			//new
-			newID := fmt.Sprintf("%s:%s", clusterID, rawNodeID)
-			newID = util.MD5digest(newID)
+			newID := canonicalID
 			typ = "create"
 			innerID = newID
+			labels := util.MapStr{
+				"transport_address": nodeInfo.TransportAddress,
+				"ip":                nodeInfo.Ip,
+				"version":           nodeInfo.Version,
+				"roles":             nodeInfo.Roles,
+				"status":            "available",
+			}
+			if clusterUUID != "" {
+				labels["cluster_uuid"] = clusterUUID
+			}
 			nodeMetadata := &elastic.NodeConfig{
 				Metadata: elastic.NodeMetadata{
 					ClusterID:   clusterID,
@@ -967,13 +1106,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					ClusterName: esConfig.Name,
 					NodeName:    nodeInfo.Name,
 					Host:        nodeInfo.Host,
-					Labels: util.MapStr{
-						"transport_address": nodeInfo.TransportAddress,
-						"ip":                nodeInfo.Ip,
-						"version":           nodeInfo.Version,
-						"roles":             nodeInfo.Roles,
-						"status":            "available",
-					},
+					Labels:      labels,
 				},
 				ID:        newID,
 				Timestamp: time.Now(),
@@ -985,7 +1118,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 				log.Error(err)
 			}
 		} else {
-			innerID = rowID
+			innerID = canonicalID
 			typ = "update"
 			if rid, ok := rowID.(string); ok {
 				if historyM, ok := historyNodeMetadata[rawNodeID]; ok {
@@ -1005,6 +1138,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 						"version":           nodeInfo.Version,
 						"roles":             nodeInfo.Roles,
 						"status":            "available",
+					}
+					if clusterUUID != "" {
+						newLabels["cluster_uuid"] = clusterUUID
 					}
 					if labels, err := historyM.GetValue("metadata.labels"); err == nil {
 						if labelsM, ok := labels.(map[string]interface{}); ok {
@@ -1050,7 +1186,7 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 							Labels:      newLabels,
 							Category:    "elasticsearch",
 						},
-						ID:        rid,
+						ID:        canonicalID,
 						Timestamp: time.Now(),
 						Payload:   elastic.NodePayload{NodeInfo: &nodeInfo},
 					}
@@ -1058,6 +1194,14 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 					err = orm.Save(ctx1, nodeMetadata)
 					if err != nil {
 						log.Error(err)
+					}
+					if clusterUUID != "" && legacyID != canonicalID && rid == legacyID {
+						delCtx := orm.NewContext().DirectAccess()
+						delCtx.Set(orm.CheckExistsBeforeDelete, false)
+						err = orm.Delete(delCtx, &elastic.NodeConfig{ID: legacyID})
+						if err != nil {
+							log.Error(err)
+						}
 					}
 				}
 			}
@@ -1106,6 +1250,12 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 		//skip already unavailable node
 		if oldStatus, ok := oldConfig.Metadata.Labels["status"].(string); ok && oldStatus == "unavailable" {
 			continue
+		}
+		if oldConfig.Metadata.Labels == nil {
+			oldConfig.Metadata.Labels = util.MapStr{}
+		}
+		if clusterUUID != "" {
+			oldConfig.Metadata.Labels["cluster_uuid"] = clusterUUID
 		}
 		oldConfig.Metadata.Labels["status"] = "unavailable"
 		oldConfig.Timestamp = time.Now()
@@ -1186,6 +1336,9 @@ func saveNodeMetadata(nodes map[string]elastic.NodesInfo, clusterID string) erro
 
 // on demand, on state version change
 func updateAliases(meta *elastic.ElasticsearchMetadata, force bool) {
+	if !force && !meta.Config.Monitored {
+		return
+	}
 
 	if !force && !meta.IsAvailable() {
 		return
@@ -1286,6 +1439,9 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 	if meta == nil {
 		return
 	}
+	if !meta.Config.Monitored {
+		return
+	}
 	if !meta.IsAvailable() {
 		return
 	}
@@ -1360,9 +1516,15 @@ func (module *ElasticModule) updateClusterSettings(clusterId string) {
 			if err != nil {
 				panic(err)
 			}
-			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+			err = kv.AddValueWithTTL(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings), elasticMetadataKVRetention)
+			if err != nil {
+				log.Errorf("failed to save cluster settings: %v", err)
+			}
 		} else {
-			kv.AddValue(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings))
+			err = kv.AddValueWithTTL(elastic.KVElasticClusterSettings, []byte(clusterId), util.MustToJSONBytes(settings), elasticMetadataKVRetention)
+			if err != nil {
+				log.Errorf("failed to save cluster settings: %v", err)
+			}
 		}
 
 	}
