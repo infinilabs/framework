@@ -42,6 +42,7 @@ package util
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -144,4 +145,41 @@ func TestNormalizeFolderPath(t *testing.T) {
 			assert.Equal(t, tt.expected, NormalizeFolderPath(tt.input))
 		})
 	}
+}
+
+func TestGetFileAbsPathReturnsAbsolutePathForExistingFile(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "console.yml")
+	err := os.WriteFile(configPath, []byte("name: console\n"), 0644)
+	assert.NoError(t, err)
+
+	resolvedPath, err := GetFileAbsPath(configPath, false)
+	assert.NoError(t, err)
+	assert.Equal(t, configPath, resolvedPath)
+}
+
+func TestGetFileAbsPathReturnsErrorForMissingFile(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-console.yml")
+
+	resolvedPath, err := GetFileAbsPath(missingPath, false)
+	assert.Error(t, err)
+	assert.Empty(t, resolvedPath)
+	assert.Contains(t, err.Error(), "failed to absolutize path")
+	assert.Contains(t, err.Error(), missingPath)
+}
+
+func TestGetFileAbsPathReturnsOriginalPathWhenMissingIsIgnored(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-console.yml")
+
+	resolvedPath, err := GetFileAbsPath(missingPath, true)
+	assert.NoError(t, err)
+	assert.Equal(t, missingPath, resolvedPath)
+}
+
+func TestTryGetFileAbsPathPanicsForMissingFile(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing-console.yml")
+
+	assert.Panics(t, func() {
+		TryGetFileAbsPath(missingPath, false)
+	})
 }

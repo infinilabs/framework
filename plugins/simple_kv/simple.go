@@ -30,6 +30,7 @@ package simple_kv
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/bkaradzic/go-lz4"
 	log "github.com/cihub/seelog"
@@ -108,6 +109,11 @@ func (filter *SimpleKV) GetCompressedValue(bucket string, key []byte) ([]byte, e
 }
 
 func (filter *SimpleKV) AddValueCompress(bucket string, key []byte, value []byte) error {
+	return filter.AddValueCompressWithTTL(bucket, key, value, 0)
+}
+
+func (filter *SimpleKV) AddValueCompressWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
+	_ = ttl
 	value, err := lz4.Encode(nil, value)
 	if err != nil {
 		log.Error("Failed to encode:", err)
@@ -122,6 +128,11 @@ func joinKey(bucket string, key []byte) string {
 }
 
 func (filter *SimpleKV) AddValue(bucket string, key []byte, value []byte) error {
+	return filter.AddValueWithTTL(bucket, key, value, 0)
+}
+
+func (filter *SimpleKV) AddValueWithTTL(bucket string, key []byte, value []byte, ttl time.Duration) error {
+	_ = ttl
 	if filter.closed {
 		return errors.New("module closed")
 	}
