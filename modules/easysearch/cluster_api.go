@@ -10,8 +10,11 @@ import (
 	"infini.sh/framework/core/api/crud"
 	httprouter "infini.sh/framework/core/api/router"
 	"infini.sh/framework/core/elastic"
+	"infini.sh/framework/core/model"
+	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -97,6 +100,7 @@ func registerClusterAPI() {
 			}
 			return nil
 		},
+		PrepareUpdate: preserveClusterSecrets,
 	})
 
 	// Pre-registration connectivity probe — deliberately bespoke.
@@ -162,3 +166,74 @@ func (h *ClusterAPI) testConnection(w http.ResponseWriter, req *http.Request, _ 
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
+
+// preserveClusterSecrets keeps stored cluster credentials intact when an
+// update request carries the display mask (or a blank / missing password
+// field): the edit form cannot recover the real password, so it sends
+// "******" back (or omits it), which would otherwise overwrite the stored
+// credential and break every connection that references the cluster.
+//
+// Works for both update modes:
+//   - partial: the delta's basic_auth object would REPLACE the nested
+//     stored object wholesale, so a delta without a real password must be
+//     repaired with the stored value before it is applied;
+//   - full: the decoded body has already overwritten obj, so the stored
+//     record is re-read from the ORM and the masked fields restored.
+func preserveClusterSecrets(obj *elastic.ElasticsearchConfig, delta util.MapStr) error {
+	masked := func(s string) bool { return s == "" || s == ucfg.SecretShadowText }
+
+	// Determine what the request actually wants for each credential.
+	// Delta values (partial mode) take precedence over obj fields, since
+	// obj still holds the stored values until the delta is applied.
+	incomingPassword := ""
+	if obj.BasicAuth != nil {
+		incomingPassword = obj.BasicAuth.Password.Get()
+	}
+	if ba, ok := delta["basic_auth"].(map[string]interface{}); ok {
+		if pw, ok := ba["password"].(string); ok {
+			incomingPassword = pw
+		} else {
+			// basic_auth present without a password key: the nested
+			// replace would drop the stored password entirely.
+			incomingPassword = ""
+		}
+	}
+	incomingToken := obj.Token.Get()
+	if tok, ok := delta["token"].(string); ok {
+		incomingToken = tok
+	}
+
+	if !masked(incomingPassword) && !masked(incomingToken) {
+		return nil // real credentials submitted: nothing to preserve
+	}
+
+	stored := &elastic.ElasticsearchConfig{}
+	stored.ID = obj.ID // ID is promoted (embedded): not settable via struct literal
+	ctx := orm.NewContext().DirectAccess()
+	exists, err := orm.GetV2(ctx, stored)
+	if err != nil || !exists {
+		return nil // nothing stored to preserve
+	}
+
+	if masked(incomingPassword) && stored.BasicAuth != nil {
+		if pw := stored.BasicAuth.Password.Get(); pw != "" && !masked(pw) {
+			if obj.BasicAuth == nil {
+				obj.BasicAuth = &model.BasicAuth{Username: stored.BasicAuth.Username}
+			}
+			obj.BasicAuth.Password = ucfg.SecretString(pw)
+			if ba, ok := delta["basic_auth"].(map[string]interface{}); ok {
+				ba["password"] = pw
+			} else if _, hasDelta := delta["basic_auth"]; hasDelta {
+				// delta carried basic_auth in a non-map form: replace it
+				delta["basic_auth"] = util.MapStr{"username": stored.BasicAuth.Username, "password": pw}
+			}
+		}
+	}
+	if masked(incomingToken) {
+		if tok := stored.Token.Get(); tok != "" && !masked(tok) {
+			obj.Token = ucfg.SecretString(tok)
+			delta["token"] = tok
+		}
+	}
+	return nil
+}

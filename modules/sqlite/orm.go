@@ -158,7 +158,11 @@ func (handler *SQLiteORM) Create(ctx *api.Context, o interface{}) error {
 	}
 
 	tableName := handler.GetIndexName(o)
-	rawJSON := util.MustToJSONBytes(o)
+	// Persist with secrets resolved: SecretString.MarshalJSON emits the
+	// "******" mask for display, which would destroy plain passwords and
+	// tokens on storage round-trip (e.g. registered ES clusters losing
+	// their credentials between create and the next read).
+	rawJSON := util.MustToJSONBytesWithSecrets(o)
 
 	query := fmt.Sprintf("INSERT INTO [%s] (id, raw) VALUES (?, ?)", tableName)
 	if global.Env().IsDebug {
@@ -176,7 +180,7 @@ func (handler *SQLiteORM) Save(ctx *api.Context, o interface{}) error {
 	}
 
 	tableName := handler.GetIndexName(o)
-	rawJSON := util.MustToJSONBytes(o)
+	rawJSON := util.MustToJSONBytesWithSecrets(o)
 
 	query := fmt.Sprintf("INSERT OR REPLACE INTO [%s] (id, raw) VALUES (?, ?)", tableName)
 	if global.Env().IsDebug {
@@ -194,7 +198,7 @@ func (handler *SQLiteORM) Update(ctx *api.Context, o interface{}) error {
 	}
 
 	tableName := handler.GetIndexName(o)
-	rawJSON := util.MustToJSONBytes(o)
+	rawJSON := util.MustToJSONBytesWithSecrets(o)
 
 	query := fmt.Sprintf("UPDATE [%s] SET raw = ? WHERE id = ?", tableName)
 	if global.Env().IsDebug {
