@@ -304,6 +304,9 @@ type ConfigsConfig struct {
 	ManagerConfig              struct {
 		LocalConfigsRepoPath string    `config:"local_configs_repo_path"`
 		BasicAuth            BasicAuth `config:"basic_auth"`
+		// Token is the static manager token (Authorization: Bearer) used
+		// before the manager mints a per-instance token at registration.
+		Token ucfg.SecretString `config:"token"`
 	} `config:"manager"`
 	AlwaysRegisterAfterRestart bool     `config:"always_register_after_restart"`
 	AllowGeneratedMetricsTasks bool     `config:"allow_generated_metrics_tasks"`

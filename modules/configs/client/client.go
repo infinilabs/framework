@@ -53,6 +53,29 @@ import (
 const bucketName = "instance_registered"
 const configRegisterEnvKey = "CONFIG_MANAGED_SUCCESS"
 
+// managerTokenBucket persists the per-instance manager token minted at
+// registration (or exchange) so it survives restarts.
+const managerTokenBucket = "managed_manager_token"
+const managerTokenKey = "manager_token"
+
+// setManagerToken stores the instance-scoped manager token locally.
+func setManagerToken(token string) {
+	if token == "" {
+		return
+	}
+	_ = kv.AddValue(managerTokenBucket, []byte(managerTokenKey), []byte(token))
+}
+
+// getManagerToken returns the stored per-instance token ("" when the
+// manager has not minted one yet — e.g. pre-upgrade servers).
+func getManagerToken() string {
+	v, err := kv.GetValue(managerTokenBucket, []byte(managerTokenKey))
+	if err != nil || len(v) == 0 {
+		return ""
+	}
+	return string(v)
+}
+
 func ConnectToManager() error {
 
 	if !global.Env().SystemConfig.Configs.Managed {
@@ -92,6 +115,16 @@ func ConnectToManager() error {
 				panic(err)
 			}
 			global.Register(configRegisterEnvKey, true)
+
+			// Capture the per-instance manager token the server minted (a
+			// no-token body means an older server — keep whatever we have).
+			var regResp struct {
+				ManagerToken string `json:"manager_token"`
+			}
+			if util.FromJSONBytes(res.Body, &regResp) == nil && regResp.ManagerToken != "" {
+				setManagerToken(regResp.ManagerToken)
+				log.Info("received per-instance manager token from config manager")
+			}
 		}
 	} else {
 		log.Error("failed to register to config manager,", err, ",", server)
@@ -103,7 +136,13 @@ func submitRequestToManager(req *util.Request) (string, *util.Result, error) {
 	var err error
 	var res *util.Result
 	cfg := global.Env().SystemConfig.Configs
-	if cfg.ManagerConfig.BasicAuth.Username != "" {
+	// Auth precedence: per-instance token (minted at registration) → static
+	// configured token (configs.manager.token) → legacy BasicAuth.
+	if t := getManagerToken(); t != "" {
+		req.AddHeader("Authorization", "Bearer "+t)
+	} else if tk := cfg.ManagerConfig.Token.Get(); tk != "" {
+		req.AddHeader("Authorization", "Bearer "+tk)
+	} else if cfg.ManagerConfig.BasicAuth.Username != "" {
 		req.SetBasicAuth(cfg.ManagerConfig.BasicAuth.Username, cfg.ManagerConfig.BasicAuth.Password.Get())
 	}
 	for _, server := range cfg.Servers {
@@ -170,6 +209,7 @@ func ListenConfigChanges() error {
 					obj := common.ConfigSyncResponse{}
 					err := util.FromJSONBytes(res.Body, &obj)
 					if err != nil {
+						log.Debugf("failed to parse config sync response, %v, %v", err, string(res.Body))
 						panic(err)
 					}
 
