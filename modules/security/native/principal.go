@@ -18,7 +18,8 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 
 	builder, err := orm.NewQueryBuilderFromRequest(req, "id", "name", "email")
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	ctx := orm.NewContextWithParent(req.Context())
 	ctx.DirectReadAccess()
@@ -26,7 +27,8 @@ func SearchPrincipals(w http.ResponseWriter, req *http.Request, ps httprouter.Pa
 	out := []security.UserAccount{}
 	err, res := elastic.SearchV2WithResultItemMapper(ctx, &out, builder, nil)
 	if err != nil {
-		panic(err)
+		api.WriteError(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// use the generic type correctly

@@ -6,11 +6,8 @@ package staticauth
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"infini.sh/framework/core/config"
 	"infini.sh/framework/core/security"
@@ -24,72 +21,12 @@ type roleDefinition struct {
 }
 
 var (
-	mu               sync.RWMutex
-	roles            = map[string]roleDefinition{}
-	roleMapping      = map[string][]string{}
-	authUsersByLogin = map[string]*security.UserAccount{}
-	authUsersByID    = map[string]*security.UserAccount{}
+	mu          sync.RWMutex
+	roles       = map[string]roleDefinition{}
+	roleMapping = map[string][]string{}
 )
 
-// InitAuthentication registers the static authentication backend and loads the
-// static user registry (with per-user roles) from config. No-op unless static
-// authentication is enabled, so the password-login surface is only exposed
-// when the feature is actually turned on.
-func InitAuthentication(authCfg config.StaticAuthenticationConfig) {
-	if !authCfg.Enabled {
-		return
-	}
-	mu.Lock()
-	defer mu.Unlock()
-
-	authUsersByLogin = map[string]*security.UserAccount{}
-	authUsersByID = map[string]*security.UserAccount{}
-
-	for _, user := range authCfg.Users {
-		login := strings.TrimSpace(user.Login)
-		if login == "" {
-			continue
-		}
-
-		id := strings.TrimSpace(user.ID)
-		if id == "" {
-			id = login
-		}
-
-		account := &security.UserAccount{
-			Name:  user.Name,
-			Email: login,
-			Roles: append([]string(nil), user.Roles...),
-		}
-		account.ID = id
-
-		if user.Password != "" {
-			hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-			if err != nil {
-				panic(err)
-			}
-			account.Password = string(hash)
-		}
-
-		authUsersByLogin[login] = account
-		authUsersByID[id] = account
-	}
-
-	security.RegisterAuthenticationProvider(security.StaticAuthBackend, &provider{})
-}
-
-// InitAuthorization registers the static authorization provider and loads the
-// static role definitions and the login/id → role mapping from config. No-op
-// unless static authorization is enabled.
-//
-// The provider still consults the static user registry (loaded by
-// InitAuthentication) for per-user roles when a request is authenticated by
-// the static backend; that registry is only populated when authentication is
-// also enabled, which is the only case those per-user roles can apply.
-func InitAuthorization(cfg config.StaticAuthorizationConfig) {
-	if !cfg.Enabled {
-		return
-	}
+func Init(cfg config.StaticAuthorizationConfig) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -132,60 +69,12 @@ func InitAuthorization(cfg config.StaticAuthorizationConfig) {
 	security.RegisterAuthorizationProvider("static_authorization", &provider{})
 }
 
-func (p *provider) GetUserByLogin(login string) (bool, *security.UserAccount, error) {
-	login = strings.TrimSpace(login)
-	if login == "" {
-		return false, nil, nil
-	}
-
-	mu.RLock()
-	defer mu.RUnlock()
-
-	account, ok := authUsersByLogin[login]
-	if !ok {
-		return false, nil, nil
-	}
-
-	return true, account, nil
-}
-
-func (p *provider) GetUserByID(id string) (bool, *security.UserAccount, error) {
-	if id == "" {
-		return false, nil, nil
-	}
-
-	mu.RLock()
-	defer mu.RUnlock()
-
-	account, ok := authUsersByID[id]
-	if !ok {
-		return false, nil, nil
-	}
-
-	return true, account, nil
-}
-
-func (p *provider) CreateUser(name, login, password string, force bool) (*security.UserAccount, error) {
-	return nil, fmt.Errorf("static authentication provider does not support user creation")
-}
-
 func (p *provider) GetPermissionKeysByUserID(ctx context.Context, providerID, userID, login string) []security.PermissionKey {
 	var keys []security.PermissionKey
 	keys = append(keys, permissionsForRoles(rolesForSubject(userID))...)
 	if login != "" && login != userID {
 		keys = append(keys, permissionsForRoles(rolesForSubject(login))...)
 	}
-
-	if providerID == security.StaticAuthBackend {
-		mu.RLock()
-		defer mu.RUnlock()
-		if account, ok := authUsersByID[userID]; ok {
-			keys = append(keys, permissionsForRoles(account.Roles)...)
-		} else if account, ok := authUsersByLogin[login]; ok {
-			keys = append(keys, permissionsForRoles(account.Roles)...)
-		}
-	}
-
 	return keys
 }
 

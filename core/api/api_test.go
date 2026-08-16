@@ -27,9 +27,14 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	httprouter "infini.sh/framework/core/api/router"
+	"infini.sh/framework/core/config"
 )
 
 func TestStripPrefix(t *testing.T) {
@@ -109,5 +114,128 @@ func TestStripPrefix(t *testing.T) {
 					receivedPath, tc.expectedPathInHandler)
 			}
 		})
+	}
+}
+
+func TestServeRegisteredAPIRequest(t *testing.T) {
+	path := fmt.Sprintf("/__copilot_test__/api/%s/:id", t.Name())
+	HandleAPIMethod(GET, path, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(ps.MustGetParameter("id") + ":" + req.URL.Query().Get("q")))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s/value?q=ok", fmt.Sprintf("/__copilot_test__/api/%s", t.Name())), nil)
+	recorder := httptest.NewRecorder()
+
+	ServeRegisteredAPIRequest(recorder, req)
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", recorder.Code)
+	}
+	if recorder.Body.String() != "value:ok" {
+		t.Fatalf("unexpected body: %s", recorder.Body.String())
+	}
+}
+
+func TestServeRegisteredAPIRequestAllowsNestedDispatch(t *testing.T) {
+	innerPath := fmt.Sprintf("/__copilot_test__/api/%s/inner", t.Name())
+	outerPath := fmt.Sprintf("/__copilot_test__/api/%s/outer", t.Name())
+
+	HandleAPIMethod(GET, innerPath, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte("inner-ok"))
+	})
+	HandleAPIMethod(GET, outerPath, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		innerReq := httptest.NewRequest(http.MethodGet, innerPath, nil)
+		innerRecorder := httptest.NewRecorder()
+		ServeRegisteredAPIRequest(innerRecorder, innerReq)
+		w.WriteHeader(innerRecorder.Code)
+		_, _ = w.Write(innerRecorder.Body.Bytes())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, outerPath, nil)
+	recorder := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ServeRegisteredAPIRequest(recorder, req)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("nested dispatch timed out")
+	}
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", recorder.Code)
+	}
+	if recorder.Body.String() != "inner-ok" {
+		t.Fatalf("unexpected body: %s", recorder.Body.String())
+	}
+}
+
+func TestSyncRuntimePublishAddressUsesActualListenAddressWhenUnset(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "0.0.0.0:2901")
+
+	if cfg.Publish != "192.168.3.185:2901" {
+		t.Fatalf("expected runtime publish address to be updated, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressNormalizesIPv6UnspecifiedHost(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "[::]:2901")
+
+	if cfg.Publish != "192.168.3.185:2901" {
+		t.Fatalf("expected ipv6 unspecified runtime publish address to use ipv4, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressPreservesExplicitPublishAddress(t *testing.T) {
+	cfg := config.NetworkConfig{Publish: "gateway.example:8443"}
+
+	syncRuntimePublishAddress(&cfg, "0.0.0.0:2901")
+
+	if cfg.Publish != "gateway.example:8443" {
+		t.Fatalf("expected explicit publish address to be preserved, got %q", cfg.Publish)
+	}
+}
+
+func TestSyncRuntimePublishAddressPreservesConcreteListenAddress(t *testing.T) {
+	oldResolver := resolveRuntimePublishIPv4
+	resolveRuntimePublishIPv4 = func() (string, error) {
+		return "192.168.3.185", nil
+	}
+	t.Cleanup(func() {
+		resolveRuntimePublishIPv4 = oldResolver
+	})
+
+	cfg := config.NetworkConfig{}
+
+	syncRuntimePublishAddress(&cfg, "10.0.0.8:2901")
+
+	if cfg.Publish != "10.0.0.8:2901" {
+		t.Fatalf("expected concrete runtime publish address to be preserved, got %q", cfg.Publish)
 	}
 }

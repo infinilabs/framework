@@ -22,10 +22,11 @@ import (
 	"infini.sh/framework/core/orm"
 	"infini.sh/framework/core/security"
 	"infini.sh/framework/core/util"
-	"infini.sh/framework/modules/security/http_filters"
 )
 
 const ProviderName = "access_token"
+
+const defaultAPITokenTTL = 365 * 24 * time.Hour
 
 const (
 	// KVAccessTokenBucket stores token_string -> AccessToken JSON. Used by
@@ -68,7 +69,7 @@ func init() {
 			security.RegisterHTTPAuthFilterProviderWithPriority("api_token", byAPITokenHeader, 30)
 
 			api.HandleUIMethod(api.POST, "/auth/access_token", RequestAccessToken, api.RequirePermission(createTokenPermission))
-			api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission), api.Feature(http_filters.FeatureMaskSensitiveField))
+			api.HandleUIMethod(api.GET, "/auth/access_token/_search", SearchAccessToken, api.RequirePermission(searchTokenPermission))
 			api.HandleUIMethod(api.DELETE, "/auth/access_token/:token_id", DeleteAccessToken, api.RequirePermission(deleteTokenPermission))
 			api.HandleUIMethod(api.PUT, "/auth/access_token/:token_id", UpdateAccessToken, api.RequirePermission(updateTokenPermission))
 
@@ -172,6 +173,7 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 	reqBody := struct {
 		Name        string                   `json:"name"`
 		Description string                   `json:"description"`
+		ExpireIn    *int64                   `json:"expire_in,omitempty"`
 		Permissions []security.PermissionKey `json:"permissions,omitempty"`
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
@@ -202,7 +204,10 @@ func RequestAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.
 		}
 	}
 
-	expiredAT := time.Now().Add(365 * 24 * time.Hour).Unix()
+	expiredAT, err := normalizeAPITokenExpireAt(reqBody.ExpireIn)
+	if err != nil {
+		panic(errors.ErrorWithHTTPCode(err, 400, "invalid expire_in"))
+	}
 	res, err := CreateAPIToken(reqUser, reqBody.Name, reqBody.Description, "general", expiredAT, permissions)
 	if err != nil {
 		panic(err)
@@ -410,6 +415,7 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	reqBody := struct {
 		Name        string                   `json:"name,omitempty"`
 		Description string                   `json:"description"`
+		ExpireIn    *int64                   `json:"expire_in,omitempty"`
 		Permissions []security.PermissionKey `json:"permissions,omitempty"`
 	}{}
 	err = api.DecodeJSON(req, &reqBody)
@@ -459,6 +465,13 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	if reqBody.Description != "" {
 		token.Description = reqBody.Description
 	}
+	if reqBody.ExpireIn != nil {
+		expiredAT, err := normalizeAPITokenExpireAt(reqBody.ExpireIn)
+		if err != nil {
+			panic(errors.ErrorWithHTTPCode(err, 400, "invalid expire_in"))
+		}
+		token.ExpireIn = expiredAT
+	}
 
 	if len(reqBody.Permissions) > 0 {
 		if isNative() {
@@ -489,6 +502,19 @@ func UpdateAccessToken(w http.ResponseWriter, req *http.Request, ps httprouter.P
 	security.IncreasePermissionVersion()
 
 	api.WriteUpdatedOKJSON(w, tokenID)
+}
+
+func normalizeAPITokenExpireAt(expireIn *int64) (int64, error) {
+	if expireIn == nil {
+		return time.Now().Add(defaultAPITokenTTL).Unix(), nil
+	}
+	if *expireIn <= 0 {
+		return 0, nil
+	}
+	if *expireIn <= time.Now().Unix() {
+		return 0, errors.Errorf("expire_in must be greater than current time")
+	}
+	return *expireIn, nil
 }
 
 // GenerateApiTokenName generates a unique API token name

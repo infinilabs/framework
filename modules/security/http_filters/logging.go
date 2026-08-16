@@ -56,6 +56,10 @@ func getAccessLogHandler() *rotate.RotateWriter {
 	return accessLogHandler
 }
 
+func isAccessLogEnabled() bool {
+	return global.Env().SystemConfig != nil && global.Env().SystemConfig.WebAppConfig.AccessLog
+}
+
 func (f *LoggingFilter) GetPriority() int {
 	// Lower priority values execute first (higher precedence)
 	return 0
@@ -68,6 +72,10 @@ func (f *LoggingFilter) ApplyFilter(
 	next httprouter.Handle,
 ) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		if !isAccessLogEnabled() {
+			next(w, r, ps)
+			return
+		}
 
 		start := time.Now()
 

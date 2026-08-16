@@ -19,6 +19,8 @@ func Init() {
 	security.RegisterAuthenticationProvider(security.DefaultNativeAuthBackend, &provider)
 	security.RegisterAuthorizationProvider(security.DefaultNativeAuthBackend, &provider)
 
+	RegisterPublicUIAuthRoutes()
+
 	orm.MustRegisterSchemaWithIndexName(&security.UserAccount{}, "app-users")
 	orm.MustRegisterSchemaWithIndexName(&security.UserRole{}, "app-roles")
 
@@ -57,4 +59,25 @@ func Init() {
 		api.HandleUIMethod(api.GET, "/security/principal/_search", SearchPrincipals, api.RequirePermission(SearchPrincipalPermission))
 	}
 
+}
+
+func RegisterPublicUIAuthRoutes() {
+	secureViaProxy := api.SecureTransportOptions{TrustForwardHeaders: true}
+	api.HandleUIMethod(api.POST, "/account/replay_nonce",
+		api.RequireSecureTransport(IssueReplayNonce, secureViaProxy),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
+
+	api.HandleUIMethod(api.POST, "/account/login/challenge",
+		api.RequireSecureTransport(LoginChallenge, secureViaProxy),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
+
+	api.HandleUIMethod(api.POST, "/account/login",
+		api.RequireSecureTransport(Login, secureViaProxy),
+		api.AllowPublicAccess(),
+		api.AllowOPTIONSS(),
+		api.Feature(api.FeatureCORS))
 }
