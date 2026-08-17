@@ -250,7 +250,11 @@ func (c *AggreationBuilder) translateAggregation(agg orm.Aggregation) (*ESAggreg
 			MinimumInterval: v.MinimumInterval,
 		}
 	case *orm.TopHitsAggregation:
-		params := map[string]interface{}{"size": v.Size}
+		size := v.Size
+		if size <= 0 {
+			size = 1 // ES requires numHits > 0; the suite default is top-1
+		}
+		params := map[string]interface{}{"size": size}
 		if len(v.Sorts) > 0 {
 			sorts := make([]interface{}, 0, len(v.Sorts))
 			for _, s2 := range v.Sorts {
