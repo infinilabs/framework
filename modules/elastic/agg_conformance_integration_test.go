@@ -6,7 +6,6 @@ package elastic
 
 import (
 	"testing"
-	"time"
 
 	"infini.sh/framework/core/aggregate/aggstest"
 	"infini.sh/framework/core/elastic"
@@ -32,13 +31,32 @@ func (e *elasticAggstestBackend) Setup(t *testing.T, docs []aggstest.Doc) (*orm.
 	e.handler = &ElasticORM{Client: client}
 	e.index = "aggstest-conformance"
 
+	// Create the index with explicit mappings: blind indexing lets dynamic
+	// mapping turn keyword-ish fields into text, and aggregations on text
+	// fields are rejected by ES/Easysearch by default.
+	_ = client.DeleteIndex(e.index)
+	if err := client.CreateIndex(e.index, map[string]interface{}{
+		"mappings": map[string]interface{}{
+			"properties": map[string]interface{}{
+				"ts":       map[string]interface{}{"type": "date"},
+				"stream":   map[string]interface{}{"type": "keyword"},
+				"severity": map[string]interface{}{"type": "keyword"},
+				"n":        map[string]interface{}{"type": "integer"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("create index: %v", err)
+	}
+
 	for _, d := range docs {
 		id, _ := d["id"].(string)
 		if _, err := client.Index(e.index, "", id, d, ""); err != nil {
 			t.Fatalf("seed doc: %v", err)
 		}
 	}
-	time.Sleep(1500 * time.Millisecond) // refresh window
+	if err := client.Refresh(e.index); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = client.DeleteIndex(e.index)
 	})
@@ -66,8 +84,6 @@ func TestAggConformance_Elastic(t *testing.T) {
 	aggstest.RunConformance(t, &elasticAggstestBackend{})
 }
 
-// TestAggParity_SQLite_Elastic deep-compares the two backends (needs sqlite
-// plus a live cluster). Enable with the `integration` tag.
-func TestAggParity_SQLite_Elastic(t *testing.T) {
-	t.Skip("wired in the logpilot/framework CI once a live cluster fixture exists; see plan P6.1")
-}
+// TestAggParity_SQLite_Elastic lives in the sqlite package
+// (aggregate_parity_integration_test.go) — it needs both backends and the
+// sqlite package is the cycle-free meeting point.
