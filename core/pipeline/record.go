@@ -28,18 +28,44 @@ package pipeline
 
 import "infini.sh/framework/core/event"
 
+// ──────────────────────────────────────────────────────────────────────────
+// Record processing convention (framework-level; see
+// docs/references/pipeline_record.md for the full specification)
+//
+// This convention turns the queue-oriented pipeline (batches of opaque
+// payloads) into a record-processing ecosystem:
+//
+//   1. A batch-splitting processor (for_each, or any custom one) decodes
+//      each payload into an *event.Event via a registered RecordCodec.
+//   2. The record is exposed to the sub-chain under RecordContextKey;
+//      transform processors read/mutate it in place via CurrentRecord.
+//   3. Processors may MarkDropped the record to remove it from the batch.
+//   4. Optional failure tags are stored under FailureTagsKey by the
+//      splitter when a sub-chain errors (on_failure: tag strategy).
+//   5. The re-encoded payload replaces the original message in the batch.
+//
+// Writing a compatible record processor means: use CurrentRecord(ctx) to
+// fetch the record, mutate Fields/Meta in place, call MarkDropped to drop,
+// and NEVER touch the raw payload bytes — encoding belongs to the codec.
+//
+// Nesting: a sub-chain may itself contain another batch-splitting
+// processor bound to a different message field (see the nested-for_each
+// tests); per-record state is scoped by the splitter, not global.
+// ──────────────────────────────────────────────────────────────────────────
+
 // RecordContextKey is the Context key under which per-record processors
 // find the *event.Event of the record currently being processed.
-//
-// The for_each processor (see modules/pipeline) splits a batch of
-// queue.Message into records, decodes each one, stores it under this key
-// and runs its sub-chain; transform processors (e.g. the enterprise
-// dissect/field_standardize processors) read and mutate the record
-// in place through this convention.
 const RecordContextKey = "record"
 
+// FailureTagsKey is the Context key holding the mutable []string of
+// failure tags attached to the current record. The batch splitter
+// initializes it per record (when the on_failure: tag strategy is
+// configured) and appends the failure_tag on sub-chain errors, mirroring
+// the Beats/Vector failure-tag convention.
+const FailureTagsKey = "record_failure_tags"
+
 // CurrentRecord returns the record being processed in this context, if
-// the processor is running inside a per-record (for_each) sub-chain.
+// the processor is running inside a per-record sub-chain.
 func CurrentRecord(ctx *Context) (*event.Event, bool) {
 	if ctx == nil {
 		return nil, false
@@ -69,4 +95,28 @@ func IsDropped(rec *event.Event) bool {
 	}
 	_, ok := rec.Private.(droppedMarker)
 	return ok
+}
+
+// CurrentFailureTags returns the failure-tag list of the current record
+// (attaching it lazily when absent), so processors can append diagnostic
+// tags without nil checks. Returns nil when no record scope is active.
+func CurrentFailureTags(ctx *Context) []string {
+	if ctx == nil {
+		return nil
+	}
+	if v, ok := ctx.Get(FailureTagsKey).([]string); ok {
+		return v
+	}
+	return nil
+}
+
+// AppendFailureTag records a processing-failure tag on the current record.
+// No-op outside a record scope or when no tag slice was initialized.
+func AppendFailureTag(ctx *Context, tag string) {
+	if ctx == nil || tag == "" {
+		return
+	}
+	if tags, ok := ctx.Get(FailureTagsKey).(*[]string); ok && tags != nil {
+		*tags = append(*tags, tag)
+	}
 }

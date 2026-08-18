@@ -31,6 +31,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
@@ -51,12 +52,29 @@ import (
 //   - for_each:
 //     message_field: messages     # where the consumer stored []queue.Message
 //     codec: otel                # payload codec (see RecordCodec)
+//     on_failure: ignore          # ignore | tag | fail (sub-chain error policy)
+//     failure_tag: _processing_failed   # tag appended when on_failure=tag
 //     processor:                  # sub-chain, executed per record
 //   - dissect:
 //     pattern: "%{log_level} %{message}"
+//
+// on_failure strategies (default: ignore — the historical behavior):
+//
+//	ignore  log a warning and keep the (possibly partially mutated) record
+//	tag     append failure_tag to the record's failure tags and keep it;
+//	        downstream processors can route on it
+//	fail    abort the whole batch: Process returns the error, so the
+//	        consumer leaves the offset uncommitted and the batch is
+//	        redelivered (at-least-once)
+//
+// Sub-processors implementing pipeline.BatchProcessor are executed once
+// per batch (after per-record decoding) instead of once per record;
+// plain Processors keep the per-record semantics unchanged.
 type ForEachConfig struct {
 	MessageField string           `config:"message_field"`
 	Codec        string           `config:"codec"`
+	OnFailure    string           `config:"on_failure"`
+	FailureTag   string           `config:"failure_tag"`
 	Processors   []*config.Config `config:"processor"`
 }
 
@@ -82,6 +100,14 @@ func NewForEachProcessor(c *config.Config) (pipeline.Processor, error) {
 	if cfg.Codec != "" && codec.Name() != cfg.Codec {
 		return nil, fmt.Errorf("unknown for_each codec %q (registered: %v)", cfg.Codec, recordCodecNames())
 	}
+	switch cfg.OnFailure {
+	case "", "ignore", "tag", "fail":
+	default:
+		return nil, fmt.Errorf("invalid for_each on_failure %q (ignore|tag|fail)", cfg.OnFailure)
+	}
+	if cfg.FailureTag == "" {
+		cfg.FailureTag = "_processing_failed"
+	}
 	return &ForEachProcessor{cfg: cfg, codec: codec, sub: sub}, nil
 }
 
@@ -105,28 +131,78 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		return nil
 	}
 
+	// Decode pass: build the record slice; undecodable payloads keep their
+	// original bytes and are passed through untouched (payload transparency
+	// for mixed batches).
+	records := make([]*event.Event, 0, len(msgs))
+	decodedIdx := make([]int, 0, len(msgs)) // msgs index per record
 	for i := range msgs {
-		if c.IsCanceled() || !c.ShouldContinue() {
-			break
-		}
-		data := msgs[i].Data
-		if len(data) == 0 {
+		if len(msgs[i].Data) == 0 {
 			continue
 		}
-		rec, err := p.codec.Decode(data)
+		rec, err := p.codec.Decode(msgs[i].Data)
 		if err != nil {
 			log.Warnf("for_each: failed to decode message payload at offset %v: %v", msgs[i].Offset, err)
 			continue
 		}
+		records = append(records, rec)
+		decodedIdx = append(decodedIdx, i)
+	}
 
+	// Batch pass: sub-processors implementing BatchProcessor run once per
+	// batch; the rest run per record below. Drop marks from the batch pass
+	// are honored through the same per-record drop handling.
+	for _, proc := range p.sub.List {
+		if bp, ok := proc.(pipeline.BatchProcessor); ok {
+			if err := bp.ProcessBatch(c, records); err != nil {
+				if err2 := p.handleFailure(c, records, err); err2 != nil {
+					return err2
+				}
+			}
+		}
+	}
+
+	// Record pass: plain processors, per record. Batch-aware processors
+	// already ran in the batch pass and are skipped here.
+	perRecord := make([]pipeline.Processor, 0, len(p.sub.List))
+	for _, proc := range p.sub.List {
+		if _, isBatch := proc.(pipeline.BatchProcessor); !isBatch {
+			perRecord = append(perRecord, proc)
+		}
+	}
+	for j, rec := range records {
+		if c.IsCanceled() || !c.ShouldContinue() {
+			break
+		}
+		if pipeline.IsDropped(rec) {
+			// dropped by the batch pass
+			i := decodedIdx[j]
+			msgs[i].Data = nil
+			msgs[i].Size = 0
+			continue
+		}
 		c.Set(pipeline.RecordContextKey, rec)
-		if err := p.sub.Process(c); err != nil {
-			log.Warnf("for_each: sub-chain error on record at offset %v: %v", msgs[i].Offset, err)
+		// lazy failure-tag slice (on_failure: tag initializes on demand)
+		var tags []string
+		if p.cfg.OnFailure == "tag" {
+			tags = []string{}
+			c.Set(pipeline.FailureTagsKey, &tags)
+		}
+		for _, proc := range perRecord {
+			if err := proc.Process(c); err != nil {
+				if err2 := p.handleFailure(c, nil, err); err2 != nil {
+					return err2
+				}
+				if p.cfg.OnFailure == "fail" {
+					break
+				}
+			}
 		}
 
 		// drop_event marks: clear the payload so downstream stages
-		// (otlp_export and friends) skip this record entirely.
+		// skip this record entirely.
 		if pipeline.IsDropped(rec) {
+			i := decodedIdx[j]
 			msgs[i].Data = nil
 			msgs[i].Size = 0
 			continue
@@ -134,11 +210,28 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 
 		encoded, err := p.codec.Encode(rec)
 		if err != nil {
-			log.Warnf("for_each: failed to encode record at offset %v: %v", msgs[i].Offset, err)
+			log.Warnf("for_each: failed to encode record at offset %v: %v", msgs[decodedIdx[j]].Offset, err)
 			continue
 		}
+		i := decodedIdx[j]
 		msgs[i].Data = encoded
 		msgs[i].Size = len(encoded)
 	}
 	return nil
+}
+
+// handleFailure applies the configured on_failure strategy to a sub-chain
+// error. Returns a non-nil error only for the fail strategy (abort batch).
+func (p *ForEachProcessor) handleFailure(c *pipeline.Context, records []*event.Event, err error) error {
+	switch p.cfg.OnFailure {
+	case "fail":
+		return fmt.Errorf("for_each: sub-chain failed (on_failure=fail): %w", err)
+	case "tag":
+		pipeline.AppendFailureTag(c, p.cfg.FailureTag)
+		log.Warnf("for_each: sub-chain error tagged %q: %v", p.cfg.FailureTag, err)
+		return nil
+	default: // ignore (historical behavior)
+		log.Warnf("for_each: sub-chain error ignored: %v", err)
+		return nil
+	}
 }
