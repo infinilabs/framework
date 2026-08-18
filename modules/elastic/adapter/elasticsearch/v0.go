@@ -631,6 +631,7 @@ func (c *ESAPIV0) QueryDSL(ctx context.Context, indexName string, queryArgs *[]u
 
 	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
 		log.Error("invalid response: ", url, ",", string(queryDSL), ",", string(resp.Body))
+		return nil, fmt.Errorf("search on [%s] failed: HTTP %d: %s", url, resp.StatusCode, string(resp.Body))
 	}
 
 	if global.Env().IsDebug {

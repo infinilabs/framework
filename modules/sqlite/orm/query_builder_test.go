@@ -31,7 +31,7 @@ import (
 )
 
 func TestBuildWhereClause_NilQueryBuilder(t *testing.T) {
-	where, args := BuildWhereClause(nil)
+	where, args := BuildWhereClause(nil, nil)
 	assert.Equal(t, "", where)
 	assert.Nil(t, args)
 }
@@ -39,7 +39,7 @@ func TestBuildWhereClause_NilQueryBuilder(t *testing.T) {
 func TestBuildWhereClause_EmptyQueryBuilder(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "", where)
 	assert.Nil(t, args)
 }
@@ -48,7 +48,7 @@ func TestBuildWhereClause_SingleTermFilter(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.TermQuery("status", "active"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$.status') = ?", where)
 	assert.Equal(t, []interface{}{"active"}, args)
 }
@@ -58,7 +58,7 @@ func TestBuildWhereClause_MultipleFilters(t *testing.T) {
 	qb.Filter(orm.TermQuery("status", "active"))
 	qb.Filter(orm.TermQuery("type", "node"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "json_extract(raw, '$.status') = ?")
 	assert.Contains(t, where, "json_extract(raw, '$.type') = ?")
 	assert.Equal(t, 2, len(args))
@@ -69,7 +69,7 @@ func TestBuildWhereClause_RangeQuery(t *testing.T) {
 	qb.Filter(orm.Range("age").Gte(18))
 	qb.Filter(orm.Range("age").Lt(65))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "json_extract(raw, '$.age') >= ?")
 	assert.Contains(t, where, "json_extract(raw, '$.age') < ?")
 	assert.Equal(t, 2, len(args))
@@ -79,7 +79,7 @@ func TestBuildWhereClause_PrefixQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.PrefixQuery("name", "john"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$.name') LIKE ?", where)
 	assert.Equal(t, []interface{}{"john%"}, args)
 }
@@ -88,7 +88,7 @@ func TestBuildWhereClause_WildcardQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.WildcardQuery("name", "j*n"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$.name') LIKE ?", where)
 	assert.Equal(t, []interface{}{"j%n"}, args)
 }
@@ -97,7 +97,7 @@ func TestBuildWhereClause_ExistsQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.ExistsQuery("email"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$.email') IS NOT NULL", where)
 	assert.Nil(t, args)
 }
@@ -106,7 +106,7 @@ func TestBuildWhereClause_MustNotClause(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Not(orm.TermQuery("status", "deleted"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "NOT")
 	assert.Contains(t, where, "json_extract(raw, '$.status') = ?")
 	assert.Equal(t, []interface{}{"deleted"}, args)
@@ -119,7 +119,7 @@ func TestBuildWhereClause_ShouldClauses(t *testing.T) {
 		orm.TermQuery("status", "pending"),
 	)
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Equal(t, 2, len(args))
 }
@@ -128,7 +128,7 @@ func TestBuildWhereClause_TermsQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.TermsQuery("status", []string{"active", "pending"}))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "IN")
 	assert.Equal(t, 2, len(args))
 }
@@ -137,7 +137,7 @@ func TestBuildWhereClause_MatchQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Must(orm.MatchQuery("title", "hello"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$.title') = ?", where)
 	assert.Equal(t, []interface{}{"hello"}, args)
 }
@@ -159,7 +159,7 @@ func TestBuildWhereClause_MustWrappingShouldQuery(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
 	assert.Contains(t, where, "IN")
@@ -176,7 +176,7 @@ func TestBuildWhereClause_OwnerOnlyNoSharing(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$._system.owner_id') = ?", where)
 	assert.Equal(t, []interface{}{"user1"}, args)
 }
@@ -193,7 +193,7 @@ func TestBuildWhereClause_ShouldWithSharedIDs(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "IN")
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
@@ -212,7 +212,7 @@ func TestBuildWhereClause_CategoryFilterWithOwner(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "json_extract(raw, '$.datasource_id') = ?")
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
@@ -239,7 +239,7 @@ func TestBuildWhereClause_NestedBoolInsideShould(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "LIKE ?")
 	assert.Contains(t, where, "NOT")
 	assert.Contains(t, where, "OR")
@@ -271,7 +271,7 @@ func TestBuildWhereClause_ShouldWithMustNot_FolderDenyRules(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "NOT")
 	assert.NotEmpty(t, args)
@@ -286,7 +286,7 @@ func TestBuildWhereClause_DottedFieldPaths(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.TermQuery("_system.owner_id", "user1"))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Equal(t, "json_extract(raw, '$._system.owner_id') = ?", where)
 	assert.Equal(t, []interface{}{"user1"}, args)
 }
@@ -296,7 +296,7 @@ func TestBuildWhereClause_FilterWithMustQuery(t *testing.T) {
 	qb := orm.NewQuery()
 	qb.Filter(orm.MustQuery(orm.TermQuery("_system.owner_id", "user1")))
 	qb.Build()
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
 	assert.Equal(t, []interface{}{"user1"}, args)
 }
@@ -331,7 +331,7 @@ func TestBuildWhereClause_FullSearchHookSimulation(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.NotEmpty(t, where)
 	assert.NotEmpty(t, args)
 
@@ -389,7 +389,7 @@ func TestBuildWhereClause_MultipleFolderAllowAndDenyPaths(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.NotEmpty(t, where)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "NOT")
@@ -410,7 +410,7 @@ func TestBuildWhereClause_CategoryChildrenSharing(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "OR")
 	assert.Contains(t, where, "IN")
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
@@ -424,7 +424,7 @@ func TestBuildWhereClause_EmptyShouldStaysValid(t *testing.T) {
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	// Empty boolean should be simplified away
 	assert.Equal(t, "", where)
 	assert.Nil(t, args)
@@ -444,7 +444,7 @@ func TestBuildWhereClause_SingleShouldMinShouldMatch1_IsMandatory(t *testing.T) 
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	// Single should clause must produce a direct mandatory condition (no OR wrapping)
 	assert.Equal(t, "json_extract(raw, '$._system.owner_id') = ?", where)
 	assert.Equal(t, []interface{}{"user1"}, args)
@@ -464,7 +464,7 @@ func TestBuildWhereClause_SingleShouldWithFilterAndMinShouldMatch1(t *testing.T)
 	qb.Must(bq)
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	assert.Contains(t, where, "json_extract(raw, '$.status') = ?")
 	assert.Contains(t, where, "json_extract(raw, '$._system.owner_id') = ?")
 	assert.Contains(t, where, "AND")
@@ -480,7 +480,7 @@ func TestBuildWhereClause_OptionalShouldWithoutMinShouldMatch(t *testing.T) {
 	qb.Should(orm.TermQuery("priority", "high"))
 	qb.Build()
 
-	where, args := BuildWhereClause(qb)
+	where, args := BuildWhereClause(qb, nil)
 	// Only the filter should appear; should is optional without min_should_match
 	assert.Equal(t, "json_extract(raw, '$.status') = ?", where)
 	assert.Equal(t, []interface{}{"active"}, args)

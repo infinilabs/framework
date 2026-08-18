@@ -3,10 +3,15 @@
 package elastic
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -146,11 +151,88 @@ func ResetClientCacheForTest() {
 // (and thus a client). Secrets are part of the key (held in memory only, never
 // logged) so different credentials get different clients.
 func configCacheKey(cfg ElasticsearchConfig) string {
+	// GetAnyEndpoint panics on endpoint-less configs (a programming error
+	// when building clients), but cache invalidation may legitimately see
+	// stripped-down records (e.g. a delete hook handed an ID-only model) —
+	// degrade to an empty endpoint there instead of panicking.
+	anyEndpoint := ""
+	if cfg.Endpoint != "" || len(cfg.Endpoints) > 0 {
+		anyEndpoint = cfg.GetAnyEndpoint()
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s|%s|%s|", cfg.GetAnyEndpoint(), strings.Join(cfg.Endpoints, ","), cfg.Distribution)
+	fmt.Fprintf(&b, "%s|%s|%s|", anyEndpoint, strings.Join(cfg.Endpoints, ","), cfg.Distribution)
 	if cfg.BasicAuth != nil {
 		fmt.Fprintf(&b, "%s:%s|", cfg.BasicAuth.Username, cfg.BasicAuth.Password.Get())
 	}
 	fmt.Fprintf(&b, "%s|%s", cfg.Token.Get(), cfg.Version)
 	return b.String()
+}
+
+// SameConnectionIdentity reports whether two configs would share a cached
+// client — same endpoints, credentials, distribution and version (see
+// configCacheKey). Used by cluster-change hooks to skip re-initialization
+// when only non-connection fields (labels, health status) changed.
+func SameConnectionIdentity(a, b ElasticsearchConfig) bool {
+	return configCacheKey(a) == configCacheKey(b)
+}
+
+// probeTransport is the HTTP transport for connectivity probes: TLS
+// verification disabled (ES clusters commonly use self-signed certs).
+var probeTransport = &http.Transport{
+	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+}
+
+// ProbeCluster does a raw GET to the cluster's root endpoint to detect
+// connectivity and the server version/distribution, without building a
+// version-specific adapter. BasicAuth or X-API-TOKEN is applied when
+// present. Shared by pre-registration connectivity tests and any caller
+// that needs the version before a client exists.
+//
+// Note: modules/elastic/adapter.ClusterVersion is a fasthttp-based twin
+// used inside the factory's version probing; consolidating the two is
+// tracked in the refactor plan (SEARCH_ORM_REFACTOR_PLAN, P3 follow-up).
+func ProbeCluster(cfg *ElasticsearchConfig) (version, distribution string, err error) {
+	endpoint := cfg.Endpoint
+	if endpoint == "" && len(cfg.Endpoints) > 0 {
+		endpoint = cfg.Endpoints[0]
+	}
+	httpReq, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", "", err
+	}
+	if cfg.BasicAuth != nil && cfg.BasicAuth.Username != "" {
+		httpReq.SetBasicAuth(cfg.BasicAuth.Username, cfg.BasicAuth.Password.Get())
+	} else if t := cfg.Token.Get(); t != "" {
+		httpReq.Header.Set("X-API-TOKEN", t)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second, Transport: probeTransport}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		return "", "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(truncate(string(body), 200)))
+	}
+	var info struct {
+		Version struct {
+			Number       string `json:"number"`
+			Distribution string `json:"distribution"`
+		} `json:"version"`
+	}
+	if err := json.Unmarshal(body, &info); err != nil {
+		return "", "", fmt.Errorf("parse version response: %w", err)
+	}
+	return info.Version.Number, info.Version.Distribution, nil
+}
+
+// truncate caps s to n runes, appending "…" when truncated.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }

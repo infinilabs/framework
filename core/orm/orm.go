@@ -62,6 +62,27 @@ type BatchMutateAPI interface {
 }
 
 type MetricsAPI interface {
+	// Aggregate executes the qb.Aggs tree and returns the typed result.
+	// Backends compute bucket/metric aggregations natively; pipeline
+	// aggregations are layered on uniformly by the framework engine
+	// (core/aggregate.ApplyPipelines) so behavior is backend-independent.
+	Aggregate(ctx *Context, qb *QueryBuilder) (*AggregationResult, error)
+}
+
+// Capabilities declares what a backend can actually honor, so callers can
+// adapt (or fail loudly) instead of discovering silent degradations at
+// runtime. See the sqlite capability matrix in the module docs.
+type Capabilities struct {
+	FullText       bool // analyzed match queries (sqlite: FTS5)
+	Aggregations   bool // terms/date_histogram/metric aggregations
+	Fuzzy          bool // true fuzzy matching (sqlite approximates with LIKE)
+	Nested         bool // nested-document queries
+	RequestBodyDSL bool // merging a raw ES DSL request body
+	Collapse       bool // field collapsing
+}
+
+type CapabilitiesAPI interface {
+	Capabilities() Capabilities
 }
 
 type ORM interface {
@@ -72,6 +93,8 @@ type ORM interface {
 	MetricsAPI
 
 	BatchMutateAPI
+
+	CapabilitiesAPI
 
 	RegisterSchemaWithName(t interface{}, customizedName string) error
 
