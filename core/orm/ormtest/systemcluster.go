@@ -42,7 +42,11 @@ func SeedSystemCluster() error {
 		cfg.Enabled = true
 		cfg.BasicAuth = &model.BasicAuth{
 			Username: envOr("ES_USERNAME", "admin"),
-			Password: ucfg.SecretString(envOr("ES_PASSWORD", "admin")),
+			// EncodeToSecretString keeps the raw part plain so the value
+			// survives the sqlite JSON round trip (MarshalJSON emits the
+			// raw part, and a plain string's raw part is the shadow text).
+			Password: ucfg.EncodeToSecretString(
+				envOr("ES_PASSWORD", "admin"), envOr("ES_PASSWORD", "admin")),
 		}
 		seedErr = orm.Save(orm.NewContext(), &cfg)
 	})
