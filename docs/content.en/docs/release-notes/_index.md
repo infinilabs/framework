@@ -22,6 +22,9 @@ Information about release notes of INFINI Framework is provided here.
 - perf(sqlite): set per-connection PRAGMAs (WAL, busy_timeout, foreign_keys) via the DSN and enable 256 MiB mmap_size — applies to every pooled connection (not just one) and serves the metadata store via memory-mapped I/O instead of pread syscalls
 - perf(sqlite): auto-create expression indexes from elastic_mapping tags, now including nested object fields via dotted `$.parent.child` paths — the SQLite ORM indexes `json_extract(raw,'$.field')` for keyword/date/long/integer/boolean/double fields, turning full-table scans into B-tree lookups with zero query or model changes
 - feat: search provider injection + easysearch cluster CRUD module #398
+- feat(orm): cross-backend aggregation engine — metrics (min/max/sum/avg/value_count), bucket (terms/histogram/range) and pipeline aggregations run unchanged on the Elasticsearch and SQLite backends
+- feat(crud): extend the generated CRUD with migration hooks driven by CocoAI's hand-written handlers — `ExtraOptions` per action (login, CORS, sensitive-field masking), custom `IDParam`, `CtxDecorate` orm-context markers, `UpdateMode` partial/full/`?replace=` with `ProtectedFields` + `PrepareUpdate`, best-effort `PostCreate/PostUpdate/PostDelete`, `PostGet` refinement, and `PrepareSearch`/`PostSearch` for injected filters and per-hit mapping; the MCP tool now registers on GET _search only (no duplicate tool names); `SkipActions` keeps hand-written endpoints where the generator cannot express the semantics (upsert/replace-keeping-system-fields, cache-first fetch); full-object update mode now merges through a map so `ProtectedFields` are restored from the loaded record, and `PrepareUpdate` receives the raw body as the delta
+- feat(orm): fluent `SetAggs` query-builder API and a refactored SQLite SQL builder backing it
 
 ### 🐛 Bug fix  
 - fix: expand configs.template when loading templated config files #391

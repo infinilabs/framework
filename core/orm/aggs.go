@@ -23,6 +23,8 @@
 
 package orm
 
+import "time"
+
 // Aggregation is the interface that all specific aggregation types must implement.
 // It serves as a marker to group different aggregation structs.
 type Aggregation interface {
@@ -55,6 +57,10 @@ const (
 	// Pipeline types
 	MetricPipelineDerivative = "derivative"
 	MetricSumBucket          = "sum_bucket"
+	// Pipeline completions (console vocabulary)
+	MetricMaxBucket    = "max_bucket"
+	MetricBucketScript = "bucket_script"
+	MetricBucketSort   = "bucket_sort"
 )
 
 // baseAggregation provides common functionality for all aggregation types,
@@ -161,7 +167,8 @@ type DateHistogramAggregation struct {
 	Interval      string // A generic interval string like "1d", "1M", "1h".
 	Format        string
 	TimeZone      string
-	IntervalField string // es-specific field name for backward compatibility
+	IntervalField string        // es-specific field name for backward compatibility
+	Offset        time.Duration // shift bucket boundaries (ES date_histogram offset)
 }
 
 // AddNested provides a correctly typed chained call for DateHistogramAggregation.
@@ -216,6 +223,99 @@ type DateRangeAggregation struct {
 
 // AddNested provides a correctly typed chained call for DateRangeAggregation.
 func (a *DateRangeAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Request-model completions (console vocabulary, design doc §5.1).
+// ──────────────────────────────────────────────────────────────────────────
+
+// AutoDateHistogramAggregation buckets by a target bucket count, letting the
+// backend (or the framework fallback) pick an appropriate fixed interval.
+type AutoDateHistogramAggregation struct {
+	baseAggregation
+	Field           string `json:"field"`
+	Buckets         int    `json:"buckets,omitempty"`          // target bucket count (ES default 10, console uses 12/30)
+	MinimumInterval string `json:"minimum_interval,omitempty"` // "minute"/"hour"/"day"/"week"/"month"
+}
+
+// AddNested provides a correctly typed chained call for AutoDateHistogramAggregation.
+func (a *AutoDateHistogramAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// BucketScriptAggregation runs arithmetic over values referenced by
+// buckets_path (parent pipeline: declared inside a bucket aggregation).
+type BucketScriptAggregation struct {
+	baseAggregation
+	BucketsPath map[string]string `json:"buckets_path"` // param name → path, e.g. {"a": "query_time", "b": "query_total"}
+	Script      string            `json:"script"`       // arithmetic over params.*, e.g. "params.a / params.b * 100"
+}
+
+// AddNested provides a correctly typed chained call for BucketScriptAggregation.
+func (a *BucketScriptAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// BucketSortAggregation sorts the parent bucket list by a sub-aggregation
+// path and truncates (parent pipeline).
+type BucketSortAggregation struct {
+	baseAggregation
+	Sort []BucketSortSpec `json:"sort,omitempty"`
+	From int              `json:"from,omitempty"`
+	Size int              `json:"size,omitempty"` // 0 = no truncation
+}
+
+// BucketSortSpec is one sort criterion of a bucket_sort.
+type BucketSortSpec struct {
+	Path string `json:"path"`           // e.g. "query_time" or "doc_count"
+	Desc bool   `json:"desc,omitempty"` // ES order: desc/asc
+}
+
+// AddNested provides a correctly typed chained call for BucketSortAggregation.
+func (a *BucketSortAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// MaxBucketAggregation selects the maximum value of a multi-bucket sibling's
+// per-bucket metric (sibling pipeline).
+type MaxBucketAggregation struct {
+	baseAggregation
+	BucketsPath string `json:"buckets_path"` // e.g. "dates>search_qps"
+}
+
+// AddNested provides a correctly typed chained call for MaxBucketAggregation.
+func (a *MaxBucketAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// SamplerAggregation restricts aggregation input to a sample; sqlite falls
+// back to the full set.
+type SamplerAggregation struct {
+	baseAggregation
+	ShardSize int `json:"shard_size,omitempty"`
+}
+
+// AddNested provides a correctly typed chained call for SamplerAggregation.
+func (a *SamplerAggregation) AddNested(name string, sub Aggregation) Aggregation {
+	a.baseAggregation.AddNested(name, sub)
+	return a
+}
+
+// TopHitsAggregation returns the top documents per bucket.
+type TopHitsAggregation struct {
+	baseAggregation
+	Size  int    `json:"size,omitempty"`
+	Sorts []Sort `json:"sorts,omitempty"`
+}
+
+// AddNested provides a correctly typed chained call for TopHitsAggregation.
+func (a *TopHitsAggregation) AddNested(name string, sub Aggregation) Aggregation {
 	a.baseAggregation.AddNested(name, sub)
 	return a
 }

@@ -215,7 +215,26 @@ func initElasticInstances(m []elastic.ElasticsearchConfig, source string) {
 
 var moduleConfig = common.ModuleConfig{}
 
+// registerClientProviderOnce guards the factory hand-off to core/elastic —
+// RegisterClientProvider panics on duplicates, and Setup must stay idempotent
+// for tests and repeated module lifecycles.
+var registerClientProviderOnce sync.Once
+
 func (module *ElasticModule) Setup() {
+
+	// Register the client factory with core/elastic BEFORE the enabled check:
+	// apps may disable this module (no live-cluster management, no ElasticORM)
+	// while still needing ES clients built from configs (e.g. logpilot log
+	// streams). core/elastic cannot import this package (dependency cycle),
+	// so injection is the only path. Pure registration, connects to nothing.
+	registerClientProviderOnce.Do(func() {
+		elastic.RegisterClientProvider(common.InitClientWithConfig)
+	})
+
+	// Keep the live-client registry in sync with ORM cluster records
+	// (create/update/delete via /easysearch/ takes effect immediately).
+	// Registered unconditionally for the same reason as the provider.
+	registerClusterHook()
 
 	moduleConfig = getDefaultConfig()
 

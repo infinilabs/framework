@@ -12,28 +12,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"infini.sh/framework/core/elastic"
 	"infini.sh/framework/core/orm"
+	sqliteOrm "infini.sh/framework/modules/sqlite/orm"
 )
 
 // indexNestedSpec is a nested object struct whose scalar fields should get
-// dotted-path indexes ($.cpu.model, $.cpu.physical_cpu).
+// dotted-path generated columns ($.cpu.model, $.cpu.physical_cpu).
 type indexNestedSpec struct {
 	Model       string `json:"model,omitempty" elastic_mapping:"model: { type: keyword }"`
 	PhysicalCPU int    `json:"physical_cpu,omitempty" elastic_mapping:"physical_cpu: { type: integer }"`
-	// text is not B-tree-indexable.
+	// text goes to the FTS table, not a scalar column.
 	Description string `json:"description,omitempty" elastic_mapping:"description: { type: text }"`
 }
 
-// indexSliceItem is the element of a nested array; its fields must NOT get an
-// index because json_extract cannot address fields inside a JSON array.
+// indexSliceItem is the element of a nested array; its fields must NOT be
+// promoted because json_extract cannot address fields inside a JSON array.
 type indexSliceItem struct {
 	Key string `json:"key,omitempty" elastic_mapping:"key: { type: keyword }"`
 }
 
-// indexRootModel exercises every branch of createExpressionIndexes: promoted
-// ORMObjectBase fields, a top-level keyword, a nested struct object, a nested
-// pointer-to-struct object, a slice of scalars, a slice of structs (nested),
-// and an enabled:false object backed by a map.
+// indexRootModel exercises every branch of the field walker: promoted
+// ORMObjectBase fields, a top-level keyword, a nested struct object, a
+// nested pointer-to-struct object, a slice of scalars, a slice of structs
+// (nested), and an enabled:false object backed by a map.
 type indexRootModel struct {
 	orm.ORMObjectBase
 	Name   string                 `json:"name,omitempty" elastic_mapping:"name: { type: keyword }"`
@@ -69,46 +71,66 @@ func sqliteIndexDDL(t *testing.T, db *sql.DB, table string) map[string]string {
 	return out
 }
 
-func TestCreateExpressionIndexes_NestedObjects(t *testing.T) {
+// columnIndexName is the flattened-scheme index name for a JSON path.
+func columnIndexName(table, path string) string {
+	return "ixc_" + indexNameFor(table, path)[3:]
+}
+
+func TestFlattened_NestedObjects(t *testing.T) {
 	handler, cleanup := openIndexTestDB(t)
 	defer cleanup()
+
+	cols, err := tableColumns(handler.DB, "index_root")
+	require.NoError(t, err)
 	idx := sqliteIndexDDL(t, handler.DB, "index_root")
 
-	// Each expected path must have an index whose DDL targets exactly that
-	// json_extract path (the expression must match the query builder verbatim
-	// for SQLite to use it).
+	// Every promoted scalar leaf (including dotted nested paths) becomes a
+	// generated column plus a plain column index.
 	expectedPaths := []string{
-		"id", "created", "updated", // promoted from orm.ORMObjectBase
+		"created", "updated", // promoted from orm.ORMObjectBase
 		"name",
 		"cpu.model", "cpu.physical_cpu",
 		"disk.model", "disk.physical_cpu",
 		"tags",
 	}
 	for _, p := range expectedPaths {
-		name := indexNameFor("index_root", p)
-		ddl, ok := idx[name]
-		require.Truef(t, ok, "expected index %s for path $.%s to exist", name, p)
-		wantExpr := fmt.Sprintf("json_extract(raw, '$.%s')", p)
-		assert.Containsf(t, ddl, wantExpr, "index %s DDL should target %s", name, wantExpr)
+		assert.Truef(t, cols[p], "expected generated column %q to exist", p)
+		idxName := columnIndexName("index_root", p)
+		ddl, ok := idx[idxName]
+		require.Truef(t, ok, "expected column index %s for path $.%s", idxName, p)
+		want := `"` + p + `"`
+		assert.Containsf(t, ddl, want, "index %s should target column %q", idxName, p)
 	}
 
-	// Explicitly NOT indexed: text leaf, nested-array element, enabled:false
-	// subtree, the object/map roots themselves, and the _system map.
+	// Text leaves DO get generated columns (FTS trigger sources) but no
+	// B-tree index; array elements, enabled:false subtrees, object roots and
+	// the _system map get neither.
 	for _, p := range []string{
-		"cpu.description",
+		"cpu.description", "disk.description",
+	} {
+		assert.Truef(t, cols[p], "text leaf %q should have a generated column (FTS source)", p)
+		_, has := idx[columnIndexName("index_root", p)]
+		assert.Falsef(t, has, "text leaf %q must not get a B-tree index", p)
+	}
+	for _, p := range []string{
 		"items.key",
 		"secret",
 		"cpu", "disk", "items",
 		"_system",
 	} {
-		_, present := idx[indexNameFor("index_root", p)]
-		assert.Falsef(t, present, "no index should exist for $.%s", p)
+		assert.Falsef(t, cols[p], "no generated column should exist for $.%s", p)
 	}
+
+	// Text leaves sync into the FTS table under sanitized column names.
+	ftsCols, err := tableColumns(handler.DB, "fts_index_root")
+	require.NoError(t, err)
+	assert.True(t, ftsCols["cpu_description"], "text leaf should join the FTS table")
+	assert.True(t, ftsCols["disk_description"], "pointer text leaf should join the FTS table")
 }
 
-// TestCreateExpressionIndexes_NestedQueryUsesIndex proves a query on a nested
-// field actually picks up the dotted expression index (no full-table scan).
-func TestCreateExpressionIndexes_NestedQueryUsesIndex(t *testing.T) {
+// TestFlattened_NestedQueryUsesIndex proves a query translated through the
+// resolver on a nested field hits the column index (no full-table scan).
+func TestFlattened_NestedQueryUsesIndex(t *testing.T) {
 	handler, cleanup := openIndexTestDB(t)
 	defer cleanup()
 
@@ -120,36 +142,98 @@ func TestCreateExpressionIndexes_NestedQueryUsesIndex(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	schema := lookupTableSchema("index_root")
+	require.NotNil(t, schema)
+	resolver := schema.resolver()
+
 	cases := []struct {
-		name string
-		path string // json_extract path used in WHERE
-		want string // index name expected in the plan
+		name  string
+		path  string
+		value string
+		want  int
 	}{
-		{"nested keyword", "cpu.model", indexNameFor("index_root", "cpu.model")},
-		{"nested pointer keyword", "disk.model", indexNameFor("index_root", "disk.model")},
-		{"top-level keyword regression", "name", indexNameFor("index_root", "name")},
+		{"nested keyword", "cpu.model", "m3", 10},
+		{"nested pointer keyword", "disk.model", "d3", 10},
+		{"top-level keyword regression", "name", "n3", 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			q := fmt.Sprintf("EXPLAIN QUERY PLAN SELECT id FROM index_root WHERE json_extract(raw, '$.%s') = 'm3'", tc.path)
-			detail := queryPlanDetail(t, handler.DB, q)
+			qb := orm.NewQuery().Filter(orm.TermQuery(tc.path, tc.value))
+			qb.Build()
+			where, args := sqliteOrm.BuildWhereClause(qb, resolver)
+			require.NotEmpty(t, where)
+
+			want := columnIndexName("index_root", tc.path)
+			q := "EXPLAIN QUERY PLAN SELECT id FROM index_root WHERE " + where
+			detail := queryPlanDetail(t, handler.DB, q, args...)
 			joined := strings.Join(detail, "\n")
-			assert.Containsf(t, joined, tc.want, "plan should use index %s; got:\n%s", tc.want, joined)
+			assert.Containsf(t, joined, want, "plan should use index %s; got:\n%s", want, joined)
+
+			// The clause must actually match rows via the generated column.
+			var n int
+			require.NoError(t, handler.DB.QueryRow("SELECT COUNT(*) FROM index_root WHERE "+where, args...).Scan(&n))
+			assert.Equal(t, tc.want, n)
 		})
 	}
 
-	// A non-indexed field (text) must NOT claim an index — it scans.
-	t.Run("text field scans", func(t *testing.T) {
-		q := "EXPLAIN QUERY PLAN SELECT id FROM index_root WHERE json_extract(raw, '$.cpu.description') = 'x'"
-		detail := queryPlanDetail(t, handler.DB, q)
-		joined := strings.Join(detail, "\n")
-		assert.NotContains(t, joined, "USING INDEX", "text field should not use an index; got:\n%s", joined)
+	// An unmapped path falls back to json_extract (correct, unindexed).
+	t.Run("unmapped path falls back", func(t *testing.T) {
+		expr, _, fts := resolver("items.key")
+		assert.Nil(t, fts)
+		assert.Equal(t, "json_extract(raw, '$.items.key')", expr)
+	})
+
+	// The id path maps to the primary key column, not a generated column.
+	t.Run("id path maps to pk", func(t *testing.T) {
+		expr, _, fts := resolver("id")
+		assert.Nil(t, fts)
+		assert.Equal(t, `"id"`, expr)
 	})
 }
 
-func queryPlanDetail(t *testing.T, db *sql.DB, query string) []string {
+// TestFlattened_MigratesLegacyTable proves an old-layout table (id+raw only,
+// pre-generated-columns) is rebuilt in place with data preserved.
+func TestFlattened_MigratesLegacyTable(t *testing.T) {
+	tmpDir := t.TempDir()
+	handler := &SQLiteORM{Config: SQLiteConfig{Enabled: true, DBPath: filepath.Join(tmpDir, "test.db")}}
+	require.NoError(t, handler.Open())
+	defer handler.Close()
+
+	// Create the legacy layout directly and seed rows.
+	_, err := handler.DB.Exec(`CREATE TABLE legacy_items (id TEXT PRIMARY KEY, raw JSON NOT NULL)`)
+	require.NoError(t, err)
+	for i := 0; i < 5; i++ {
+		raw := fmt.Sprintf(`{"id":"L%d","status":"st%d","name":"legacy-%d"}`, i, i%2, i)
+		_, err := handler.DB.Exec("INSERT INTO legacy_items (id, raw) VALUES (?, ?)", fmt.Sprintf("L%d", i), raw)
+		require.NoError(t, err)
+	}
+
+	// Registering the model migrates the table.
+	require.NoError(t, handler.RegisterSchemaWithName(TestItem{}, "legacy_items"))
+
+	cols, err := tableColumns(handler.DB, "legacy_items")
+	require.NoError(t, err)
+	assert.True(t, cols["status"], "status should be promoted after migration")
+	assert.True(t, cols["name"], "name should be promoted after migration")
+
+	var count int
+	require.NoError(t, handler.DB.QueryRow("SELECT COUNT(*) FROM legacy_items").Scan(&count))
+	assert.Equal(t, 5, count, "rows must survive the migration")
+
+	// Filtered search works on the migrated column.
+	qb := orm.NewQuery().Filter(orm.TermQuery("status", "st1"))
+	ctx := orm.NewContext()
+	orm.WithModel(ctx, &TestItem{})
+	res, err := handler.SearchV2(ctx, qb)
+	require.NoError(t, err)
+	items, _, err := elastic.DecodeHits[TestItem](res)
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+}
+
+func queryPlanDetail(t *testing.T, db *sql.DB, query string, args ...interface{}) []string {
 	t.Helper()
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, args...)
 	require.NoError(t, err)
 	defer rows.Close()
 	var out []string

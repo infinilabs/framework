@@ -141,9 +141,52 @@ func (q *QueryBuilder) DisableBodyBytes() {
 	q.requestBodyBytes = nil
 }
 
-// SetAggregations sets the aggregations for the query builder.
+// SetAggregations sets the aggregations for the query builder. Prefer
+// SetAggs for the common literal case — it replaces this map ceremony:
+//
+//	qb.SetAggs("total", sumAgg, "sevs", termsAgg)
 func (q *QueryBuilder) SetAggregations(aggs map[string]Aggregation) {
 	q.Aggs = aggs
+}
+
+// SetAggs sets the aggregations from name/spec pairs and returns the
+// builder for chaining:
+//
+//	qb.SetAggs("total", sum, "sevs", terms)
+//
+// Arguments must alternate name (string) and Aggregation; malformed or
+// dangling pairs panic — builder misuse is a programming error. Replaces
+// any previously set aggregations.
+func (q *QueryBuilder) SetAggs(pairs ...interface{}) *QueryBuilder {
+	if len(pairs)%2 != 0 {
+		panic(fmt.Sprintf("SetAggs: dangling argument (odd count %d): %v", len(pairs), pairs[len(pairs)-1]))
+	}
+	m := make(map[string]Aggregation, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		name, ok := pairs[i].(string)
+		if !ok {
+			panic(fmt.Sprintf("SetAggs: name at position %d must be a string, got %T", i, pairs[i]))
+		}
+		agg, ok := pairs[i+1].(Aggregation)
+		if !ok {
+			panic(fmt.Sprintf("SetAggs: spec at position %d must be an orm.Aggregation, got %T", i+1, pairs[i+1]))
+		}
+		m[name] = agg
+	}
+	q.Aggs = m
+	return q
+}
+
+// AddAgg adds one named aggregation, keeping existing ones, and returns
+// the builder for chaining:
+//
+//	qb.AddAgg("total", sum).AddAgg("sevs", terms)
+func (q *QueryBuilder) AddAgg(name string, agg Aggregation) *QueryBuilder {
+	if q.Aggs == nil {
+		q.Aggs = map[string]Aggregation{}
+	}
+	q.Aggs[name] = agg
+	return q
 }
 
 func (q *QueryBuilder) RequestBodyBytesVal() []byte {

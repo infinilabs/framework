@@ -742,3 +742,16 @@ func (handler *ElasticORM) GroupBy(t interface{}, selectField, groupField string
 	//return nil, finalResult
 	return nil, nil
 }
+
+// Capabilities declares what the elastic backend honors: the full
+// QueryBuilder surface (the DSL is native here).
+func (handler *ElasticORM) Capabilities() api.Capabilities {
+	return api.Capabilities{
+		FullText:       true,
+		Aggregations:   true,
+		Fuzzy:          true,
+		Nested:         true,
+		RequestBodyDSL: true,
+		Collapse:       true,
+	}
+}
