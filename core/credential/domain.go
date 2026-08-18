@@ -85,6 +85,13 @@ func InitSecret(ks keystore2.Keystore, secret []byte) error {
 	return nil
 }
 
+func getCredentialSecret(cred *Credential) ([]byte, error) {
+	if cred != nil && cred.secret != nil {
+		return cred.secret, nil
+	}
+	return GetOrInitSecret()
+}
+
 func encodeBasicAuth(cred *Credential) error {
 	var (
 		params map[string]interface{}
@@ -100,7 +107,7 @@ func encodeBasicAuth(cred *Credential) error {
 	if pwd == "" {
 		return fmt.Errorf("credential parameters password can not be empty")
 	}
-	secret, err := GetOrInitSecret()
+	secret, err := getCredentialSecret(cred)
 	if err != nil {
 		return err
 	}
@@ -113,6 +120,38 @@ func encodeBasicAuth(cred *Credential) error {
 		"salt": string(salt),
 	}
 	params["password"] = string(encodeBytes)
+	cred.Payload[cred.Type] = params
+	return nil
+}
+
+func encodeAccessToken(cred *Credential) error {
+	var (
+		params map[string]interface{}
+		ok     bool
+		token  string
+	)
+	if params, ok = cred.Payload[cred.Type].(map[string]interface{}); !ok {
+		return fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
+	}
+	if token, ok = params["access_token"].(string); !ok {
+		return fmt.Errorf("wrong credential parameters access_token for type [%s], expect a string", cred.Type)
+	}
+	if token == "" {
+		return fmt.Errorf("credential parameters access_token can not be empty")
+	}
+	secret, err := getCredentialSecret(cred)
+	if err != nil {
+		return err
+	}
+	encodeBytes, salt, err := util.AesGcmEncrypt([]byte(token), secret)
+	if err != nil {
+		return fmt.Errorf("encrypt access token error: %w", err)
+	}
+	cred.Encrypt.Type = "AES"
+	cred.Encrypt.Params = map[string]interface{}{
+		"salt": string(salt),
+	}
+	params["access_token"] = string(encodeBytes)
 	cred.Payload[cred.Type] = params
 	return nil
 }
@@ -154,6 +193,42 @@ func decodeBasicAuth(cred *Credential) (basicAuth model.BasicAuth, err error) {
 	}
 	basicAuth.Username = params["username"].(string)
 	basicAuth.Password = ucfg.SecretString(plaintext)
+	return
+}
+
+func decodeAccessToken(cred *Credential) (tokenPayload AccessTokenPayload, err error) {
+	var (
+		params map[string]interface{}
+		ok     bool
+		token  string
+		salt   string
+	)
+	if params, ok = cred.Payload[cred.Type].(map[string]interface{}); !ok {
+		err = fmt.Errorf("wrong credential parameters for type [%s], expect a map", cred.Type)
+		return
+	}
+	if token, ok = params["access_token"].(string); !ok {
+		err = fmt.Errorf("wrong credential parameters access_token for type [%s], expect a string", cred.Type)
+		return
+	}
+	if token == "" {
+		err = fmt.Errorf("credential parameters access_token can not be empty")
+		return
+	}
+	if salt, ok = cred.Encrypt.Params["salt"].(string); !ok {
+		err = fmt.Errorf("credential encrypt parameters salt can not be empty")
+		return
+	}
+	secret, err := getCredentialSecret(cred)
+	if err != nil {
+		return tokenPayload, err
+	}
+
+	plaintext, err := util.AesGcmDecrypt([]byte(token), secret, []byte(salt))
+	if err != nil {
+		return tokenPayload, err
+	}
+	tokenPayload.AccessToken = ucfg.SecretString(plaintext)
 	return
 }
 
