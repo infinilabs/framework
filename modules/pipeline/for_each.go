@@ -31,7 +31,6 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/otel"
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
@@ -40,7 +39,9 @@ import (
 // ForEachProcessor splits a batch of queue messages into individual
 // records and runs a sub-chain of processors on each record.
 //
-// Each message payload is decoded into an *event.Event (otel envelope),
+// Each message payload is decoded into an *event.Event via the configured
+// RecordCodec (default "otel" — the otel envelope shared with the agent
+// LogEvent format; other payload formats register their own codec),
 // exposed to the sub-chain under pipeline.RecordContextKey, mutated in
 // place, then re-encoded back into the message. Per-record transform
 // processors (dissect, field_standardize, ...) rely on this convention.
@@ -49,17 +50,20 @@ import (
 //
 //   - for_each:
 //     message_field: messages     # where the consumer stored []queue.Message
+//     codec: otel                # payload codec (see RecordCodec)
 //     processor:                  # sub-chain, executed per record
 //   - dissect:
 //     pattern: "%{log_level} %{message}"
 type ForEachConfig struct {
 	MessageField string           `config:"message_field"`
+	Codec        string           `config:"codec"`
 	Processors   []*config.Config `config:"processor"`
 }
 
 type ForEachProcessor struct {
-	cfg ForEachConfig
-	sub *pipeline.Processors
+	cfg   ForEachConfig
+	codec RecordCodec
+	sub   *pipeline.Processors
 }
 
 func NewForEachProcessor(c *config.Config) (pipeline.Processor, error) {
@@ -74,7 +78,21 @@ func NewForEachProcessor(c *config.Config) (pipeline.Processor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile for_each sub-chain: %s", err)
 	}
-	return &ForEachProcessor{cfg: cfg, sub: sub}, nil
+	codec := GetRecordCodec(cfg.Codec)
+	if cfg.Codec != "" && codec.Name() != cfg.Codec {
+		return nil, fmt.Errorf("unknown for_each codec %q (registered: %v)", cfg.Codec, recordCodecNames())
+	}
+	return &ForEachProcessor{cfg: cfg, codec: codec, sub: sub}, nil
+}
+
+func recordCodecNames() []string {
+	codecsMu.RLock()
+	defer codecsMu.RUnlock()
+	names := make([]string, 0, len(codecs))
+	for n := range codecs {
+		names = append(names, n)
+	}
+	return names
 }
 
 func (p *ForEachProcessor) Name() string { return "for_each" }
@@ -95,7 +113,7 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		if len(data) == 0 {
 			continue
 		}
-		rec, err := otel.DecodeEnvelope(data)
+		rec, err := p.codec.Decode(data)
 		if err != nil {
 			log.Warnf("for_each: failed to decode message payload at offset %v: %v", msgs[i].Offset, err)
 			continue
@@ -114,7 +132,7 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 			continue
 		}
 
-		encoded, err := otel.EncodeEnvelope(rec)
+		encoded, err := p.codec.Encode(rec)
 		if err != nil {
 			log.Warnf("for_each: failed to encode record at offset %v: %v", msgs[i].Offset, err)
 			continue
