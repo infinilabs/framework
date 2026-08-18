@@ -3,7 +3,7 @@ title: "ORM (Object-Relational Mapping)"
 weight: 50
 ---
 # Object-Relational Mapping
-The INFINI Framework provides a powerful ORM system built on top of Elasticsearch(Including OpenSearch,Easysearch support), enabling developers to define, store, and query structured data objects with ease. The ORM handles object mapping, indexing, and provides a comprehensive set of CRUD operations.
+The INFINI Framework provides a powerful ORM system with pluggable backends — Elasticsearch (including OpenSearch and Easysearch) and an embedded SQLite store — enabling developers to define, store, and query structured data objects with ease. The ORM handles object mapping, indexing, and provides a comprehensive set of CRUD operations, a backend-neutral query builder, and typed aggregations (metrics, buckets, and pipelines).
 
 ## Object Definition
 
@@ -360,74 +360,117 @@ func deleteUser() {
 }
 ```
 
-## Advanced Operations
+## Querying with the Query Builder
 
-### Search with Query Builder
+The `QueryBuilder` is the backend-neutral entry point for all reads. A builder holds boolean clauses (must / should / must_not / filter), sorting, pagination, source selection, and — see the next chapter — aggregations. The same builder runs unchanged on the Elasticsearch and SQLite backends.
 
 ```go
-func searchUsers() {
-    ctx := orm.NewContext()
+ctx := orm.NewContext()
+orm.WithModel(ctx, &Product{}) // binds the index/mapping for the backend
 
-    // Create query builder
-    builder := orm.NewQueryBuilder()
+qb := orm.NewQuery().
+    Filter(orm.TermQuery("status", "active")).  // structured filter
+    Filter(orm.Range("created").Gte("2024-01-01")).
+    SortBy(orm.Sort{Field: "created", SortType: orm.DESC}).
+    From(0).Size(20)
 
-    // Add filters
-    builder.Filter(orm.TermQuery("age", 25))
-    builder.Filter(orm.RangeQuery("created", util.MapStr{
-        "gte": "2023-01-01",
-        "lte": "2023-12-31",
-    }))
+res, err := orm.SearchV2(ctx, qb)
+if err != nil { /* ... */ }
 
-    // Add sorting
-    builder.SortBy(orm.Sort{Field: "created", SortType: orm.DESC})
-
-    // Execute search
-    var users []User
-    err, result := elastic.SearchV2WithResultItemMapper(ctx, &users, builder, nil)
-    if err != nil {
-        log.Error("Search failed:", err)
-        return
-    }
-
-    fmt.Printf("Found %d users\n", len(users))
-    for _, user := range users {
-        fmt.Printf("User: %s (%s)\n", user.Name, user.Email)
-    }
-}
+items, total, err := elastic.DecodeHits[Product](res) // typed decode, true ES total
+fmt.Printf("total=%d, page=%d items\n", total, len(items))
 ```
 
-### Complex Search with Text Queries
+> **Filter vs Must**: `Filter` clauses don't contribute to scoring (they are compiled to ES `filter` context). Prefer `Filter` for exact-match structured conditions and `Must` for full-text relevance.
+
+### Term-level queries
 
 ```go
-func searchDocuments() {
-    ctx := orm.NewContext()
+orm.TermQuery("status", "active")            // exact match (keyword/number/bool)
+orm.TermsQuery("category", "a", "b", "c")    // match any of the values (set membership)
+orm.InQuery("id", []interface{}{"u1", "u2"}) // set membership, idiomatic for ID lists
+orm.NotInQuery("status", []interface{}{"archived", "draft"})
+orm.ExistsQuery("deleted_at")                // field is present
+orm.PrefixQuery("name", "infini")            // prefix match
+orm.WildcardQuery("email", "*@infini.ltd")   // * and ? wildcards
+orm.RegexpQuery("code", "^INF-[0-9]+")       // full regex (ES; SQLite approximates — see parity notes)
+orm.FuzzyQuery("name", "infini", 2)          // edit-distance match with explicit fuzziness
+```
 
-    builder := orm.NewQueryBuilderFromRequest(req, "title", "content")
+### Full-text queries
 
-    // Enable body bytes for receiving additional Raw QueryDSL
-    builder.EnableBodyBytes()
+```go
+orm.MatchQuery("description", "fast search")        // analyzed match
+orm.MatchPhraseQuery("title", "log pattern", 1)     // phrase with slop
+orm.MultiMatchQuery([]string{"title", "body"}, "error") // OR across fields
+orm.QueryStringQuery("message", "status:active AND (error OR warning)", "AND") // query-string syntax, explicit default operator
+```
 
-    // Add date range filter
-    builder.Filter(orm.RangeQuery("created", util.MapStr{
-        "gte": "2024-01-01",
-    }))
+On SQLite, `match`/`match_phrase`/`query_string` use FTS5 when a full-text plan exists for the field and fall back to equality/LIKE otherwise (see parity notes below).
 
-    // Add pagination
-    builder.Size(20).From(0)
+### Range queries (fluent)
 
-    // Add aggregations
-    ctx.Set(orm.AggsTerms, "tags")
+```go
+orm.Range("price").Gte(100)                    // >=
+orm.Range("price").Lt(1000)                    // <
+orm.Range("created").Gte("2024-01-01").Lte("2024-12-31") // chained: both bounds
 
-    var docs []Document
-    err, result := elastic.SearchV2WithResultItemMapper(ctx, &docs, builder, nil)
-    if err != nil {
-        log.Error("Search failed:", err)
-        return
-    }
+// Build both bounds into ONE clause (recommended — a single range node):
+qb.Filter(orm.MustQuery(
+    orm.Range("created").Gte(start),
+    orm.Range("created").Lte(end),
+))
+```
 
-    // Process results
-    fmt.Printf("Found %d documents\n", len(docs))
-}
+### Boolean composition
+
+```go
+qb := orm.NewQuery()
+qb.Must(orm.MatchQuery("title", "error"))                 // scored, all must match
+qb.Should(orm.MatchQuery("tags", "urgent"))               // optional boost
+qb.MinimumShouldMatch(1)                                   // require at least one should
+qb.Not(orm.TermQuery("status", "archived"))                // must_not
+qb.Filter(orm.TermQuery("tenant", "acme"))                 // non-scoring filter
+
+// Reusable sub-expression (grouping helpers produce one boolean clause):
+cond := orm.FilterQuery(
+    orm.MustQuery(orm.TermQuery("env", "prod")),
+    orm.MustNotQuery(orm.ExistsQuery("deleted_at")),
+)
+qb.Filter(cond)
+// orm.BoolQuery(orm.Filter|orm.Must|orm.Should|orm.MustNot, clauses...) is
+// the explicit form of the same thing.
+```
+
+### Sorting, pagination, source selection
+
+```go
+qb.SortBy(
+    orm.Sort{Field: "priority", SortType: orm.DESC},
+    orm.Sort{Field: "created", SortType: orm.ASC},   // tie-break
+).From(0).Size(50)
+
+qb.Include("id", "name", "status")  // _source_includes — reduces payload
+qb.Exclude("large_blob")            // _source_excludes
+qb.Collapse("user_id")              // field collapse (dedupe by field, ES)
+```
+
+### Fuzziness ladder
+
+`Fuzziness(n)` (0–5) applies progressive auto-fuzzy matching to match/multi_match text queries — useful for typo tolerance in user-typed filters:
+
+```go
+qb := orm.NewQuery().Fuzziness(2).Must(orm.MatchQuery("name", userTyped))
+```
+
+### Building from an HTTP request
+
+`NewQueryBuilderFromRequest` wires the URL parameter contract (`query`, `filter=field:value`, `sort=field:desc`, `from`, `size`, `_source_includes`, `fuzziness`, `default_fields`, and `agg[...]` aggregations — see *Query URL Parameters* / *Aggregation via URL Parameters*) into a builder, with optional default full-text fields:
+
+```go
+builder, err := orm.NewQueryBuilderFromRequest(req, "title", "content")
+if err != nil { /* 400 */ }
+builder.EnableBodyBytes() // ALSO merge a raw ES DSL JSON body (ES backend only)
 ```
 
 ### Delete by Query
@@ -436,22 +479,194 @@ func searchDocuments() {
 func deleteOldUsers() {
     ctx := orm.NewContext()
 
-    // Create delete query
-    builder := orm.NewQueryBuilder()
-    builder.Filter(orm.RangeQuery("created", util.MapStr{
-        "lt": "2022-01-01", // Delete users created before 2022
-    }))
+    builder := orm.NewQuery().
+        Filter(orm.Range("created").Lt("2022-01-01")) // created before 2022
 
-    // Execute delete by query
     result, err := orm.DeleteByQuery(ctx, builder)
     if err != nil {
         log.Error("Delete by query failed:", err)
         return
     }
-
     fmt.Printf("Deleted %d old users\n", result.Deleted)
 }
 ```
+
+### Backend parity notes (queries)
+
+| Capability | Elasticsearch | SQLite |
+|---|---|---|
+| term / terms / in / not_in / exists / prefix / wildcard / ranges | ✅ | ✅ (dates via epoch shadow columns) |
+| match / phrase / multi_match / query_string | ✅ | ⚠️ FTS5 when available, else equality/LIKE; query-string operators not parsed |
+| regexp / fuzzy | ✅ | ⚠️ approximated as substring LIKE |
+| semantic / hybrid / nested | ✅ | ❌ compiled to a never-matching predicate (one-time warning) |
+| Include / Exclude / Collapse | ✅ | ❌ currently ignored |
+| Raw request-body DSL (`EnableBodyBytes`) | ✅ | ❌ ignored |
+
+---
+
+## Aggregations
+
+Aggregations are a first-class operation: build an aggregation tree on a `QueryBuilder`, execute it with `orm.Aggregate`, and read back a **typed, recursive result model** — no ES-shaped JSON parsing. Bucket and metric aggregations are computed natively by each backend; pipeline aggregations are computed uniformly by the framework engine (`core/aggregate`) so every backend returns identical results.
+
+### Execution model and result types
+
+```go
+// AggregationResult — root; keys match the names you gave in SetAggs.
+// AggNode — one named agg; exactly one shape is populated:
+//   Value/ValueSet  single metric (ValueSet distinguishes 0 from "no value")
+//   Values          multi-value metric (e.g. percentiles)
+//   TopHit          top document (top_hits)
+//   Buckets         bucket list; each Bucket has Key (display), KeyRaw
+//                   (epoch ms for time buckets), DocCount, and nested Aggs.
+func Aggregate(ctx *Context, qb *QueryBuilder) (*AggregationResult, error)
+```
+
+Aggregations are attached with the fluent `SetAggs` (name/spec pairs, chainable) or the map form `SetAggregations`. The builder's WHERE clauses scope the aggregated document set, exactly like `SearchV2`.
+
+### Quick start — terms + nested metric
+
+```go
+ctx := orm.NewContext()
+orm.WithModel(ctx, &Order{})
+
+avgPrice := orm.NewMetricAggregation(orm.MetricAvg, "price")
+byStatus := &orm.TermsAggregation{Field: "status", Size: 10}
+byStatus.AddNested("avg_price", avgPrice)      // nest a metric under each bucket
+
+qb := orm.NewQuery().Filter(orm.Range("created").Gte("2024-01-01"))
+qb.SetAggs("by_status", byStatus)
+
+res, err := orm.Aggregate(ctx, qb)
+if err != nil { /* ... */ }
+
+for _, b := range res.Aggs["by_status"].Buckets {
+    fmt.Printf("status=%s orders=%d avg_price=%.2f\n",
+        b.Key, b.DocCount, b.Aggs["avg_price"].Value)
+}
+```
+
+### Metric aggregations
+
+```go
+orm.NewMetricAggregation(orm.MetricSum, "bytes")
+orm.NewMetricAggregation(orm.MetricMin, "latency_ms")
+orm.NewMetricAggregation(orm.MetricMax, "latency_ms")
+orm.NewMetricAggregation(orm.MetricCount, "id")   // value_count
+orm.NewMetricAggregation(orm.MetricCardinality, "client_ip") // distinct count
+
+// Several metrics in one pass — SetAggs takes name/spec pairs:
+qb.SetAggs(
+    "total_bytes", orm.NewMetricAggregation(orm.MetricSum, "bytes"),
+    "p95",        &orm.PercentilesAggregation{Field: "latency_ms", Percents: []float64{50, 95, 99}},
+    "worst",      &orm.TopHitsAggregation{Size: 1, Sorts: []orm.Sort{{Field: "latency_ms", SortType: orm.DESC}}},
+)
+
+r, _ := orm.Aggregate(ctx, qb)
+r.Aggs["total_bytes"].Value               // float64
+r.Aggs["p95"].Values["95"]                // multi-value metric
+json.Unmarshal(*r.Aggs["worst"].TopHit, &order) // raw top document
+```
+
+### Bucket aggregations
+
+```go
+// terms — group by (ordered by doc_count desc, key asc tie-break; Size truncates)
+cats := &orm.TermsAggregation{Field: "category", Size: 20}
+
+// date_histogram — time buckets. Offset shifts bucket boundaries (e.g. align
+// hourly buckets to "now" instead of the wall-clock hour).
+now := time.Now().UTC()
+hourly := &orm.DateHistogramAggregation{
+    Field:    "created",
+    Interval: "1h",
+    Offset:   now.Sub(now.Truncate(time.Hour)), // e.g. 17m42s
+}
+hourly.AddNested("sum_bytes", orm.NewMetricAggregation(orm.MetricSum, "bytes"))
+
+// filter — aggregate a subset matching a simple query
+errorsOnly := &orm.FilterAggregation{Query: map[string]interface{}{
+    "term": map[string]interface{}{"level": "error"},
+}}
+
+// date_range — fixed time ranges
+byQuarter := &orm.DateRangeAggregation{
+    Field: "created",
+    Ranges: []interface{}{
+        map[string]interface{}{"from": "2024-01-01", "to": "2024-04-01"},
+        map[string]interface{}{"from": "2024-04-01", "to": "2024-07-01"},
+    },
+}
+
+// auto_date_histogram — backend/framework picks an interval for ~N buckets
+adaptive := &orm.AutoDateHistogramAggregation{Field: "created", Buckets: 30}
+
+qb.SetAggs("cats", cats, "hourly", hourly, "errors", errorsOnly)
+```
+
+### Multi-level nesting (one SQL per bucket node on SQLite)
+
+```go
+// terms(stream) → date_histogram(1h) → sum(count): the pattern behind
+// per-stream hourly trend dashboards.
+streams := &orm.TermsAggregation{Field: "stream_id", Size: 1000}
+trend := &orm.DateHistogramAggregation{Field: "bucket_start", Interval: "1h",
+    Offset: now.Sub(now.Truncate(time.Hour))}
+trend.AddNested("value", orm.NewMetricAggregation(orm.MetricSum, "count"))
+streams.AddNested("trend", trend)
+
+qb := orm.NewQuery().Filter(orm.Range("bucket_start").Gte(cutoff))
+qb.SetAggs("streams", streams)
+
+res, _ := orm.Aggregate(ctx, qb)
+for _, s := range res.Aggs["streams"].Buckets {
+    for _, h := range s.Aggs["trend"].Buckets {
+        v := h.KeyRaw.(int64) // epoch milliseconds for time buckets
+        _ = v
+    }
+}
+```
+
+### Pipeline aggregations
+
+Parent pipelines (`derivative`, `bucket_script`, `bucket_sort`) are declared **inside** the bucket aggregation they derive; sibling pipelines (`sum_bucket`, `max_bucket`) sit **next to** it at the same level:
+
+```go
+dh := &orm.DateHistogramAggregation{Field: "ts", Interval: "1h"}
+dh.AddNested("sum_n", orm.NewMetricAggregation(orm.MetricSum, "n"))
+dh.AddNested("derivative", &orm.DerivativeAggregation{BucketsPath: "sum_n"}) // Δ per bucket
+dh.AddNested("ratio", &orm.BucketScriptAggregation{                          // arithmetic
+    BucketsPath: map[string]string{"a": "sum_n", "b": "doc_count"},
+    Script:      "params.a / params.b",
+})
+dh.AddNested("top3", &orm.BucketSortAggregation{ // sort + truncate buckets
+    Sort: []orm.BucketSortSpec{{Path: "sum_n", Desc: true}},
+    Size: 3,
+})
+
+total := &orm.PipelineAggregation{Type: orm.MetricSumBucket, BucketsPath: "over_time>sum_n"} // total across buckets
+peak := &orm.MaxBucketAggregation{BucketsPath: "over_time>sum_n"}                            // max bucket value
+
+qb.SetAggs("over_time", dh, "total", total, "peak", peak)
+
+res, _ := orm.Aggregate(ctx, qb)
+res.Aggs["total"].Value                    // sum over all hourly buckets
+res.Aggs["peak"].Value                     // max hourly sum
+res.Aggs["over_time"].Buckets[0].Aggs["derivative"].ValueSet // false for the first bucket
+```
+
+`bucket_script` scripts support `+ - * / ( )` arithmetic over `params.*`; division by zero yields 0. `buckets_path` uses the two-segment `agg>metric` form. Pipelines are computed by the framework engine on **every** backend (ES native pipeline results are recomputed for parity), including zero-fill and deterministic ordering of time series.
+
+### Backend parity notes (aggregations)
+
+| Aggregation | Elasticsearch | SQLite |
+|---|---|---|
+| sum / avg / min / max / value_count / cardinality | ✅ | ✅ native SQL |
+| percentiles | ✅ | ✅ exact nearest-rank |
+| top_hits | ✅ | ⚠️ typed variant returns 1 document |
+| median_absolute_deviation | ✅ | ❌ empty value |
+| terms / date_histogram (offset) / date_range / filter / auto_date_histogram | ✅ | ✅ (interval whitelist 1m/1h/1d/1M; month ≈ 30d; terms `Include` ignored) |
+| sampler | ✅ | ⚠️ full data set |
+| pipelines (derivative / bucket_script / bucket_sort / sum_bucket / max_bucket) | ✅ | ✅ identical — computed by the framework engine |
 
 ## Context Options
 

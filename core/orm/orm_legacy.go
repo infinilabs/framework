@@ -1,5 +1,21 @@
 package orm
 
+// ──────────────────────────────────────────────────────────────────────────
+// Legacy ORM API — frozen.
+//
+// These functions predate the QueryBuilder/SearchV2 API and are kept only
+// for backward compatibility. New code must use:
+//   read/search:  SearchV2 + NewQuery/NewQueryBuilderFromRequest
+//                 (decode via elastic.DecodeHits[T] / elastic.DecodeSearchResult)
+//   get:          GetV2
+//   write:        Create / Update / UpdatePartialFields / Save / Delete
+//   aggregations: QueryBuilder.SetAggregations + SearchV2
+//
+// Do not add new callers; existing ones are being migrated (see the
+// SEARCH_ORM_REFACTOR_PLAN progress table). This file is deleted once the
+// migration count reaches zero.
+// ──────────────────────────────────────────────────────────────────────────
+
 import (
 	"errors"
 	"infini.sh/framework/core/util"
@@ -21,6 +37,9 @@ type LegacyORMAPI interface {
 	SearchWithResultItemMapper(resultArrayRef interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult)
 }
 
+// Query is the legacy search request model.
+//
+// Deprecated: use QueryBuilder (NewQuery / NewQueryBuilderFromRequest) with SearchV2.
 type Query struct {
 	Sort           *[]Sort
 	QueryArgs      *[]util.KV
@@ -63,6 +82,9 @@ func (q *Query) AddQueryArgs(name string, value string) *Query {
 	return q
 }
 
+// Cond is a legacy query condition.
+//
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 type Cond struct {
 	Field       string
 	SQLOperator string
@@ -71,6 +93,7 @@ type Cond struct {
 	Value       interface{}
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Prefix(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -81,6 +104,7 @@ func Prefix(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func QueryString(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -91,6 +115,7 @@ func QueryString(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Eq(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -101,6 +126,7 @@ func Eq(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func NotEq(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -111,6 +137,7 @@ func NotEq(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func In(field string, value []interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -121,6 +148,7 @@ func In(field string, value []interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func InStringArray(field string, value []string) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -131,6 +159,7 @@ func InStringArray(field string, value []string) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Gt(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -141,6 +170,7 @@ func Gt(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Lt(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -151,6 +181,7 @@ func Lt(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Ge(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -161,6 +192,7 @@ func Ge(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Le(field string, value interface{}) *Cond {
 	c := Cond{}
 	c.Field = field
@@ -171,6 +203,7 @@ func Le(field string, value interface{}) *Cond {
 	return &c
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Combine(conds ...[]*Cond) []*Cond {
 	t := []*Cond{}
 	for _, cs := range conds {
@@ -181,6 +214,7 @@ func Combine(conds ...[]*Cond) []*Cond {
 	return t
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func And(conds ...*Cond) []*Cond {
 	t := []*Cond{}
 	for _, c := range conds {
@@ -190,6 +224,7 @@ func And(conds ...*Cond) []*Cond {
 	return t
 }
 
+// Deprecated: use the QueryBuilder clause constructors (TermQuery, RangeQuery, Must/Should/...).
 func Or(conds ...*Cond) []*Cond {
 	t := []*Cond{}
 	for _, c := range conds {
@@ -199,17 +234,26 @@ func Or(conds ...*Cond) []*Cond {
 	return t
 }
 
+// Result is the legacy search result envelope.
+//
+// Deprecated: use SearchV2 with elastic.DecodeHits / elastic.DecodeSearchResult.
 type Result struct {
 	Total  int64
 	Raw    []byte
 	Result []interface{}
 }
 
+// SimpleResult is the legacy search result envelope.
+//
+// Deprecated: use SearchV2 with elastic.DecodeHits / elastic.DecodeSearchResult.
 type SimpleResult struct {
 	Total int64
 	Raw   []byte
 }
 
+// Get loads a record by the ID field of o.
+//
+// Deprecated: use GetV2.
 func Get(o interface{}) (bool, error) {
 
 	rValue := reflect.ValueOf(o)
@@ -223,25 +267,45 @@ func Get(o interface{}) (bool, error) {
 	return getHandler().Get(nil, o)
 }
 
+// DeleteBy deletes records matching the handler-dialect query.
+//
+// Deprecated: use DeleteByQuery with a QueryBuilder (the legacy query argument
+// is ES DSL bytes on the elastic handler and raw SQL on sqlite — a dialect trap).
 func DeleteBy(o interface{}, query interface{}) error {
 	return getHandler().DeleteBy(o, query)
 }
+
+// UpdateBy updates records matching the handler-dialect query.
+//
+// Deprecated: use per-ID Update / UpdatePartialFields, or SearchV2 + batch writes.
 func UpdateBy(o interface{}, query interface{}) error {
 	return getHandler().UpdateBy(o, query)
 }
 
+// Count counts records matching the handler-dialect query.
+//
+// Deprecated: use SearchV2 and read hits.total.
 func Count(o interface{}, query interface{}) (int64, error) {
 	return getHandler().Count(o, query)
 }
 
+// Search runs a legacy query and returns flattened hits.
+//
+// Deprecated: use SearchV2 with a QueryBuilder.
 func Search(o interface{}, q *Query) (error, Result) {
 	return getHandler().Search(o, q)
 }
 
+// SearchWithResultItemMapper runs a legacy query, mapping each hit via itemMapFunc.
+//
+// Deprecated: use SearchV2 with elastic.DecodeHits[T].
 func SearchWithResultItemMapper(o interface{}, itemMapFunc func(source map[string]interface{}, targetRef interface{}) error, q *Query) (error, *SimpleResult) {
 	return getHandler().SearchWithResultItemMapper(o, itemMapFunc, q)
 }
 
+// SearchWithJSONMapper runs a legacy query, mapping hits via reflection.
+//
+// Deprecated: use SearchV2 with elastic.DecodeHits[T].
 func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
 	err, searchResponse := getHandler().SearchWithResultItemMapper(o, MapToStructWithMap, q)
 	if err != nil || searchResponse == nil {
@@ -251,6 +315,9 @@ func SearchWithJSONMapper(o interface{}, q *Query) (error, SimpleResult) {
 	return nil, *searchResponse
 }
 
+// GroupBy runs a legacy aggregation.
+//
+// Deprecated: use QueryBuilder.SetAggregations with SearchV2.
 func GroupBy(o interface{}, selectField, groupField, haveQuery string, haveValue interface{}) (error, map[string]interface{}) {
 	return getHandler().GroupBy(o, selectField, groupField, haveQuery, haveValue)
 }
@@ -302,15 +369,24 @@ func FilterFieldsByProtected(obj interface{}, protected bool) map[string]interfa
 	return mapObj
 }
 
+// GetBy fetches records by an exact field match.
+//
+// Deprecated: use SearchV2 with a TermQuery filter (or GetV2 for ID lookups).
 func GetBy(field string, value interface{}, t interface{}) (error, Result) {
 
 	return getHandler().GetBy(field, value, t)
 }
 
+// GetWildcardIndexName resolves the wildcard index name for o.
+//
+// Deprecated: resolve index names via the ORM handler or model registration directly.
 func GetWildcardIndexName(o interface{}) string {
 	return getHandler().GetWildcardIndexName(o)
 }
 
+// GetIndexName resolves the index/table name for o.
+//
+// Deprecated: resolve index names via the ORM handler or model registration directly.
 func GetIndexName(o interface{}) string {
 	return getHandler().GetIndexName(o)
 }

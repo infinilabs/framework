@@ -3,19 +3,16 @@
 package sqlite
 
 import (
-	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
-
-	log "github.com/cihub/seelog"
-
-	"infini.sh/framework/core/global"
 )
 
-// indexableElasticTypes lists the elastic_mapping types that map well to a
-// SQLite B-tree expression index (equality / range / sort). text is excluded
-// (needs FTS5), object/binary are excluded (no scalar column expression).
+// indexableElasticTypes lists the elastic_mapping types promoted to SQLite
+// generated columns (equality / range / sort). text is handled separately
+// via FTS5; object/binary are excluded (no scalar column expression).
+// Superseded as an index strategy by flattened.go, kept as the shared
+// mapping-type vocabulary.
 var indexableElasticTypes = map[string]bool{
 	"keyword": true,
 	"date":    true,
@@ -24,97 +21,6 @@ var indexableElasticTypes = map[string]bool{
 	"boolean": true,
 	"double":  true,
 	"float":   true,
-}
-
-// createExpressionIndexes walks the model struct — recursing into nested
-// object structs — and creates a SQLite expression index for every
-// elastic_mapping field whose mapping type is B-tree-friendly.
-//
-// The index expression mirrors what the ORM's query builder emits
-// (json_extract(raw,'$.field') for top-level fields and
-// json_extract(raw,'$.parent.child') for nested ones), so existing
-// TermQuery / Range / Sort clauses transparently use the index — including
-// those on nested object fields — with no query changes required. SQLite
-// supports indexes on expressions since 3.9 (2015); the modernc driver
-// (pure-Go upstream SQLite) satisfies this.
-//
-// This is the key optimization that turns the JSON-blob storage model from
-// full-table scans into index lookups: without it every WHERE/ORDER BY
-// compiles to json_extract applied per-row.
-func createExpressionIndexes(db *sql.DB, tableName string, model interface{}) {
-	t := reflect.TypeOf(model)
-	for t != nil && t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	if t == nil || t.Kind() != reflect.Struct {
-		return
-	}
-	tableSafe := sanitizeForIndexName(tableName)
-	walkMappingIndexes(db, tableName, tableSafe, t, "")
-}
-
-// walkMappingIndexes recurses through the struct's fields. jsonPathPrefix is
-// the dotted JSON path of the enclosing object ("" at the top level); each
-// indexed field's path is prefix+"."+jsonField, matching what the query
-// builder emits and what json_extract expects.
-func walkMappingIndexes(db *sql.DB, tableName, tableSafe string, t reflect.Type, jsonPathPrefix string) {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := strings.TrimSpace(field.Tag.Get("elastic_mapping"))
-		if tag == "-" {
-			continue
-		}
-
-		// An anonymous embedded struct with no mapping tag of its own has its
-		// fields JSON-promoted to this level (e.g. orm.ORMObjectBase), so
-		// recurse at the same path rather than introducing a path segment.
-		if field.Anonymous && tag == "" {
-			if ft := objectStructType(field.Type); ft != nil {
-				walkMappingIndexes(db, tableName, tableSafe, ft, jsonPathPrefix)
-			}
-			continue
-		}
-		if tag == "" {
-			continue
-		}
-		if mappingDisabled(tag) {
-			continue
-		}
-
-		jsonField, esType, ok := parseMappingTag(tag)
-		if jsonField == "" {
-			continue
-		}
-		path := jsonField
-		if jsonPathPrefix != "" {
-			path = jsonPathPrefix + "." + jsonField
-		}
-
-		if ok && indexableElasticTypes[esType] {
-			createOneExpressionIndex(db, tableName, tableSafe, path)
-		}
-
-		// Recurse into nested object structs so their scalar leaves get dotted
-		// indexes ($.parent.child). Slices/arrays/maps are intentionally NOT
-		// recursed: json_extract cannot address fields inside a JSON array via
-		// a dotted path, and map values have no declared struct tags to index.
-		if ft := objectStructType(field.Type); ft != nil {
-			walkMappingIndexes(db, tableName, tableSafe, ft, path)
-		}
-	}
-}
-
-// createOneExpressionIndex issues CREATE INDEX for a single dotted JSON path.
-func createOneExpressionIndex(db *sql.DB, tableName, tableSafe, jsonPath string) {
-	idxName := indexNameFor(tableSafe, jsonPath)
-	ddl := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS [%s] ON [%s](json_extract(raw, '$.%s'))`,
-		idxName, tableName, jsonPath)
-	if _, err := db.Exec(ddl); err != nil {
-		// Non-fatal: a bad index shouldn't block schema registration.
-		log.Warnf("sqlite expression index %s on %s: %v", idxName, tableName, err)
-	} else if global.Env().IsDebug {
-		log.Debug("sqlite expression index: ", ddl)
-	}
 }
 
 // indexNameFor builds a SQLite-safe index name from the table and the dotted
@@ -209,7 +115,8 @@ func objectStructType(t reflect.Type) reflect.Type {
 }
 
 // sanitizeForIndexName replaces characters that are awkward in SQLite
-// identifier names (table names like "logpilot-patterns" contain dashes).
+// identifier names: dashes in table names ("logpilot-patterns") and dots in
+// dotted JSON paths ("basic_auth.username") used for index/FTS column names.
 func sanitizeForIndexName(s string) string {
-	return strings.ReplaceAll(s, "-", "_")
+	return strings.NewReplacer("-", "_", ".", "_").Replace(s)
 }

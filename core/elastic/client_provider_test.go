@@ -5,6 +5,10 @@ package elastic
 import (
 	"errors"
 	"testing"
+
+	"infini.sh/framework/core/model"
+	"infini.sh/framework/core/util"
+	"infini.sh/framework/lib/go-ucfg"
 )
 
 func mkCfg(endpoint, version string) ElasticsearchConfig {
@@ -157,4 +161,42 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+func TestSameConnectionIdentity(t *testing.T) {
+	a := mkCfg("http://a:9200", "8.0.0")
+	b := mkCfg("http://a:9200", "8.0.0")
+	b.Labels = util.MapStr{"health_status": "green"} // non-connection field
+	if !SameConnectionIdentity(a, b) {
+		t.Fatal("labels-only change must keep connection identity")
+	}
+
+	c := mkCfg("http://a:9200", "9.0.0")
+	if SameConnectionIdentity(a, c) {
+		t.Fatal("version change must alter connection identity")
+	}
+
+	d := mkCfg("http://a:9200", "8.0.0")
+	d.BasicAuth = &model.BasicAuth{Username: "u", Password: ucfg.SecretString("p")}
+	if SameConnectionIdentity(a, d) {
+		t.Fatal("credential change must alter connection identity")
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	cases := []struct {
+		in   string
+		n    int
+		want string
+	}{
+		{"abc", 5, "abc"},
+		{"abcdef", 3, "abc…"},
+		{"世界你好", 2, "世界…"},
+		{"", 3, ""},
+	}
+	for _, c := range cases {
+		if got := truncate(c.in, c.n); got != c.want {
+			t.Errorf("truncate(%q,%d) = %q, want %q", c.in, c.n, got, c.want)
+		}
+	}
 }

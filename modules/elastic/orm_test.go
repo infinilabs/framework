@@ -44,7 +44,7 @@ type MyHost struct {
 	Host        string         `json:"host,omitempty" elastic_meta:"_id" elastic_mapping:"host: { type: text, fields: { keyword: { type: keyword, ignore_above: 256 } } }"`
 	Favicon     string         `json:"favicon,omitempty" elastic_mapping:"favicon: { type: keyword ,copy_to : [all_field_values]}"`
 	Enabled     bool           `json:"enabled" elastic_mapping:"enabled: { type: boolean }"`
-	HostConfig  *MyHostConfig  `json:"host_configs,omitempty" elastic_mapping:"host_config:{type:object}"`
+	HostConfig  *MyHostConfig  `json:"host_config,omitempty" elastic_mapping:"host_config:{type:object}"`
 	HostConfigs []MyHostConfig `json:"host_configs,omitempty" elastic_mapping:"host_configs:{type:object}"`
 }
 
