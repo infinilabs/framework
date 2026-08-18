@@ -215,28 +215,22 @@ type registerBody struct {
 }
 
 func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	var wrapped registerBody
-	if err := h.DecodeJSON(req, &wrapped); err != nil {
+	// Read the body ONCE: DecodeJSON consumes (and closes) r.Body, so a
+	// legacy-payload fallback that re-reads it fails with
+	// "invalid Read on closed Body" — which silently broke every bare
+	// model.Instance registration (the format deployed agents send).
+	body, err := readBody(req)
+	if err != nil {
 		h.WriteError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	instance := wrapped.Client
-	if instance.ID == "" {
-		// legacy plain payload
-		var plain model.Instance
-		body, readErr := readBody(req)
-		if readErr != nil {
-			h.WriteError(w, readErr.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := util.FromJSONBytes(body, &plain); err != nil {
-			h.WriteError(w, "invalid registration payload: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		instance = plain
-	}
-	if instance.ID == "" {
-		h.WriteError(w, "instance id is required", http.StatusBadRequest)
+	var instance model.Instance
+	if wrapped := struct {
+		Client model.Instance `json:"client"`
+	}{}; util.FromJSONBytes(body, &wrapped) == nil && wrapped.Client.ID != "" {
+		instance = wrapped.Client
+	} else if err := util.FromJSONBytes(body, &instance); err != nil || instance.ID == "" {
+		h.WriteError(w, "instance id is required (plain Instance or {client:{...}} payload)", http.StatusBadRequest)
 		return
 	}
 
