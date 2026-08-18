@@ -57,12 +57,14 @@ jobs:
               run: |
                 curl -sSL http://get.infini.cloud | bash -s -- -p easysearch -d $HOME/easysearch
                 ln -sfn $HOME/jdk21 $HOME/easysearch/jdk
+                # otherwise initialize.sh generates a random admin password
+                export EASYSEARCH_INITIAL_ADMIN_PASSWORD=admin
                 cd $HOME/easysearch && bin/initialize.sh -s
                 bin/easysearch -d
 
-                # wait for the cluster
+                # wait for the cluster (curl -f: a 401 must not count as "up")
                 for i in $(seq 1 30); do
-                  if curl -sk -u admin:admin https://127.0.0.1:9200/_cluster/health >/dev/null 2>&1; then
+                  if curl -skf -u admin:admin https://127.0.0.1:9200/_cluster/health >/dev/null 2>&1; then
                     echo "easysearch is up"; exit 0
                   fi
                   sleep 2
