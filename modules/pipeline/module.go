@@ -83,7 +83,7 @@ func (module *PipeModule) Setup() {
 
 	pipeline.RegisterProcessorPlugin("dag", pipeline.NewDAGProcessor)
 	pipeline.RegisterProcessorPlugin("echo", NewEchoProcessor)
-	pipeline.RegisterProcessorPluginWithConfigMetadata("for_each", NewForEachProcessor, ForEachConfig{})
+	pipeline.RegisterDomainProcessorWithConfigMetadata("event", "for_each", NewForEachProcessor, ForEachConfig{})
 
 	//TODO remove
 	api.HandleAPIMethod(api.GET, "/pipeline/tasks/", module.getRunningPipelineTasksHandler)

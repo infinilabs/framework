@@ -45,6 +45,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/errors"
 	"infini.sh/framework/core/global"
 )
@@ -56,6 +57,23 @@ type ProcessorBase interface {
 type Processor interface {
 	ProcessorBase
 	Process(s *Context) error
+}
+
+// BatchProcessor is an OPTIONAL extension of Processor for processors
+// that operate more efficiently on a whole batch of records at once
+// (sampling, rate limiting, aggregation, batched enrichment lookups).
+//
+// A batch-splitting host (for_each) type-asserts each sub-processor:
+//   - implementing ProcessBatch -> called once per batch with all decoded
+//     records (drop by removing from the slice; mutate in place)
+//   - not implementing it      -> called per record via Process, exactly
+//     as before — single-record semantics are fully preserved
+//
+// Implementing ProcessBatch does NOT relieve a processor of Process:
+// hosts that are not batch-aware still call the per-record path.
+type BatchProcessor interface {
+	Processor
+	ProcessBatch(ctx *Context, records []*event.Event) error
 }
 
 type Releaser interface {
