@@ -218,8 +218,9 @@ Do not use the channel to move secrets in bulk — `AccessToken` is the only cre
 ## Integration Recipe (Control Plane)
 
 ```go
-// 1. One manager per process.
-reverseManager := reverse.NewSessionManager(reverse.DefaultManagerOptions())
+// 1. One manager per process; zero-value options take the defaults
+//    documented in the Tuning section below.
+reverseManager := reverse.NewSessionManager(reverse.ManagerOptions{})
 
 // 2. Issue session credentials when provisioning an agent.
 sessionID := util.GetUUID()
