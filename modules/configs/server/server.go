@@ -233,6 +233,13 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 		h.WriteError(w, "instance id is required (plain Instance or {client:{...}} payload)", http.StatusBadRequest)
 		return
 	}
+	// The managed agent's self-generated API token rides in access_token
+	// (framework token management: the agent mints it via
+	// access_token.CreateAPIToken at startup and registers it here; the
+	// manager stores it for reverse calls — pipeline tasks, stats, proxy).
+	if instance.AccessToken != nil && strings.TrimSpace(instance.AccessToken.Value) != "" {
+		log.Debugf("configs server: instance %s registered an API access token", instance.ID)
+	}
 
 	// An EXISTING instance re-registering must prove identity with its own
 	// token (a static token also qualifies — bootstrap admin). A fresh
