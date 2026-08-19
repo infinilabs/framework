@@ -357,13 +357,19 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 	// Accepted credentials: the minted InstanceToken (Bearer, from the
 	// register/exchange response) OR the agent's registered self API token
 	// (X-API-Token — what the framework client sends before exchange).
-	if presentToken := loadInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID); presentToken != nil {
-		presented := extractBearerToken(req)
-		if !ValidateInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) &&
-			!matchesRegisteredAccessToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
-			h.WriteError(w, "unauthorized", http.StatusUnauthorized)
-			return
+	if loadInstanceStatus(orm.NewContext().DirectAccess(), obj.Client.ID) == StatusApproved {
+		// Credential enforcement applies to admitted instances only:
+		// pending ones hold no paired credential yet and their sync
+		// carries nothing sensitive (empty config set) — heartbeat
+		// visibility is exactly what pending needs.
+		if presentToken := loadInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID); presentToken != nil {
+			presented := extractBearerToken(req)
+			if !ValidateInstanceToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) &&
+				!matchesRegisteredAccessToken(orm.NewContext().DirectAccess(), obj.Client.ID, presented) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="configs"`)
+				h.WriteError(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
 		}
 	}
 
@@ -373,7 +379,7 @@ func (h *APIHandler) syncConfigs(w http.ResponseWriter, req *http.Request, _ htt
 	}
 
 	assigned := loadAssignedConfigs(obj.Client.ID)
-	if loadInstanceStatus(orm.NewContext().DirectAccess(), obj.Client.ID) != StatusApproved {
+	if status := loadInstanceStatus(orm.NewContext().DirectAccess(), obj.Client.ID); status != StatusApproved { // empty (legacy) counts as pending
 		// Not approved yet (or status unknown): heartbeat counts, configs
 		// do not flow. The client keeps re-registering and will pick up
 		// approval on the next register/sync cycle.
