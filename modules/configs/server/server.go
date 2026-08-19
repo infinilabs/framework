@@ -278,9 +278,11 @@ func upsertInstance(instance *model.Instance) (bool, error) {
 	existing := model.Instance{}
 	existing.ID = instance.ID
 	exists, err := orm.GetV2(ctx, &existing)
-	if err != nil {
+	if err != nil && !isNotFound(err) {
 		return false, err
 	}
+	// not-found is the normal first-registration path, not an error
+	exists = err == nil && exists
 
 	now := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	if instance.Labels == nil {
@@ -441,4 +443,10 @@ func ConfigsHash(files []common.ConfigFile) string {
 func readBody(req *http.Request) ([]byte, error) {
 	defer func() { _ = req.Body.Close() }()
 	return io.ReadAll(req.Body)
+}
+
+// isNotFound reports whether err is a backend not-found marker (sqlite's
+// ErrNotFound / elastic's ErrNotFound), which upsert treats as "create".
+func isNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found")
 }
