@@ -87,8 +87,8 @@ processor:
 
 | Strategy | Behavior |
 |----------|----------|
-| `ignore` (default) | Warn and keep the (possibly partially mutated) record — the historical behavior |
-| `tag` | Append `failure_tag` to the record's failure tags and keep it; downstream processors read them via `FailureTagsKey` and can route/annotate |
+| `ignore` (default) | Warn, keep the (possibly partially mutated) record, and skip the rest of the sub-chain for that record — the historical behavior |
+| `tag` | Append `failure_tag` to the record's failure tags and keep processing the rest of the sub-chain; downstream processors read them via `FailureTagsKey`/`CurrentFailureTags`, and the accumulated tags are persisted into the record's `Fields["tags"]` before re-encoding so later pipeline stages can route on them |
 | `fail` | Abort the batch: `Process` returns the error, the consumer leaves the offset uncommitted, the queue redelivers (at-least-once) |
 
 ## Batch-Aware Processors
@@ -102,7 +102,7 @@ type BatchProcessor interface {
 }
 ```
 
-The host detects implementers and calls `ProcessBatch` **once per batch** after decoding; plain `Process` runs per record as before. Two rules for implementers:
+The host detects implementers and calls `ProcessBatch` **once per batch** after decoding — **before** any per-record processor, regardless of the batch processor's position in the sub-chain; plain `Process` runs per record as before. Two rules for implementers:
 
 - Drop records with `MarkDropped` — the host honors the marker in the encode pass.
 - **Do not reslice/compact the `records` slice** — the caller owns the backing array; mutate through the pointers only.
@@ -111,19 +111,20 @@ Implementing `ProcessBatch` does not relieve you of `Process`: non-batch-aware h
 
 ## Nesting and Composition
 
-A sub-chain may itself contain another splitter bound to a different message field — per-record state is scoped by the splitter (it sets/clears `RecordContextKey` around each record), not global. Conditional processors (`if`, `switch`, dag) compose inside sub-chains for per-record routing.
+A sub-chain may itself contain another splitter bound to a different message field — per-record state is scoped by the splitter: it saves and restores `RecordContextKey` (and `FailureTagsKey`) around the batch, so the last record never leaks to processors downstream of `for_each` and nested splitters restore the outer record scope. Conditional processors (`if`, `switch`, dag) compose inside sub-chains for per-record routing.
 
 ## Writing a Splitter Host
 
 `for_each` is the reference implementation; a custom host follows the same skeleton:
 
 1. Read the batch from the configured context key.
-2. Decode pass → `[]*event.Event` + index mapping (skip empties; pass undecodables through).
-3. Batch pass → `ProcessBatch` on implementers.
-4. Record pass → set `RecordContextKey` (+ `FailureTagsKey` when tagging), run plain processors, apply `on_failure`.
-5. Encode pass → honor `IsDropped`, re-encode, write back to the batch.
+2. Save the previous `RecordContextKey`/`FailureTagsKey` values and restore them on return (scope isolation — no record leaks downstream).
+3. Decode pass → `[]*event.Event` + index mapping (skip empties; pass undecodables through).
+4. Batch pass → `ProcessBatch` on implementers (before the per-record pass).
+5. Record pass → set `RecordContextKey` (+ `FailureTagsKey` when tagging), run plain processors, apply `on_failure`.
+6. Encode pass → honor `IsDropped`, persist failure tags (`Fields["tags"]`), re-encode, write back to the batch.
 
 ## Compatibility Notes
 
-- Sub-processors written against the original for_each (pre-convention) work unchanged: per-record `Process`, drop markers, and `ignore`-on-error semantics are preserved exactly.
-- The `otel` codec's wire format is unchanged; the codec layer is an internal refactor of the previous direct decode calls.
+- Sub-processors written against the original for_each (pre-convention) work unchanged: per-record `Process`, drop markers, and `ignore`-on-error semantics (error skips the rest of the sub-chain for that record) are preserved exactly.
+- The `otel` codec's wire format is unchanged: the envelope decode→encode pass is byte-stable for agent metadata and tolerates bare JSON map payloads; the codec layer is an internal refactor of the previous direct decode calls.

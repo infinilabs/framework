@@ -45,8 +45,8 @@ import (
 
 	log "github.com/cihub/seelog"
 	"infini.sh/framework/core/config"
-	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/errors"
+	"infini.sh/framework/core/event"
 	"infini.sh/framework/core/global"
 )
 

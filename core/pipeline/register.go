@@ -283,8 +283,8 @@ func RegisterProcessorPluginWithConfigMetadata(name string, constructor Processo
 // grouping and namespaced lookup. The optional "domain:name" syntax in
 // processor configs resolves to the same constructor as the bare name;
 // registration conflicts are still detected on the bare name, so a
-// same-named processor from a different domain must register explicitly
-// qualified (see RegisterQualifiedProcessor).
+// same-named processor from a different domain must pick a distinct
+// bare name.
 
 // RegisterDomainProcessor registers a processor under its bare name with
 // a category, plus the "category:name" alias for explicit YAML lookups.

@@ -35,6 +35,7 @@ import (
 	"infini.sh/framework/core/param"
 	"infini.sh/framework/core/pipeline"
 	"infini.sh/framework/core/queue"
+	"infini.sh/framework/core/util"
 )
 
 // ForEachProcessor splits a batch of queue messages into individual
@@ -60,16 +61,20 @@ import (
 //
 // on_failure strategies (default: ignore — the historical behavior):
 //
-//	ignore  log a warning and keep the (possibly partially mutated) record
-//	tag     append failure_tag to the record's failure tags and keep it;
-//	        downstream processors can route on it
+//	ignore  log a warning and skip the rest of the sub-chain for that
+//	        record, keeping the (possibly partially mutated) record
+//	tag     append failure_tag to the record's failure tags and keep
+//	        processing it; accumulated tags are persisted into the
+//	        record's Fields["tags"] before re-encoding, so downstream
+//	        stages can route on them (Beats/Vector convention)
 //	fail    abort the whole batch: Process returns the error, so the
 //	        consumer leaves the offset uncommitted and the batch is
 //	        redelivered (at-least-once)
 //
 // Sub-processors implementing pipeline.BatchProcessor are executed once
-// per batch (after per-record decoding) instead of once per record;
-// plain Processors keep the per-record semantics unchanged.
+// per batch (after per-record decoding), before any per-record processor
+// regardless of their position in the sub-chain; plain Processors keep
+// the per-record semantics unchanged.
 type ForEachConfig struct {
 	MessageField string           `config:"message_field"`
 	Codec        string           `config:"codec"`
@@ -131,6 +136,17 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 		return nil
 	}
 
+	// The record convention is only valid inside the sub-chain; save and
+	// restore the previous values so the batch's last record (and its
+	// failure tags) does not leak to processors downstream of for_each,
+	// and nested for_each restores the outer record scope.
+	previous := c.Get(pipeline.RecordContextKey)
+	previousTags := c.Get(pipeline.FailureTagsKey)
+	defer func() {
+		c.Set(pipeline.RecordContextKey, previous)
+		c.Set(pipeline.FailureTagsKey, previousTags)
+	}()
+
 	// Decode pass: build the record slice; undecodable payloads keep their
 	// original bytes and are passed through untouched (payload transparency
 	// for mixed batches).
@@ -153,9 +169,12 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 	// batch; the rest run per record below. Drop marks from the batch pass
 	// are honored through the same per-record drop handling.
 	for _, proc := range p.sub.List {
+		if c.IsCanceled() || !c.ShouldContinue() {
+			return nil
+		}
 		if bp, ok := proc.(pipeline.BatchProcessor); ok {
 			if err := bp.ProcessBatch(c, records); err != nil {
-				if err2 := p.handleFailure(c, records, err); err2 != nil {
+				if err2 := p.handleFailure(c, err); err2 != nil {
 					return err2
 				}
 			}
@@ -170,6 +189,11 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 			perRecord = append(perRecord, proc)
 		}
 	}
+	// ignore/fail keep the historical whole-chain execution per record
+	// (one Processors pass: panic recovery, flow tracing, and an error
+	// skips the rest of the chain for that record); tag needs the
+	// per-processor loop to continue the chain after a tagged failure.
+	plain := &pipeline.Processors{List: perRecord, SkipCatchError: p.sub.SkipCatchError}
 	for j, rec := range records {
 		if c.IsCanceled() || !c.ShouldContinue() {
 			break
@@ -182,19 +206,28 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 			continue
 		}
 		c.Set(pipeline.RecordContextKey, rec)
-		// lazy failure-tag slice (on_failure: tag initializes on demand)
-		var tags []string
 		if p.cfg.OnFailure == "tag" {
-			tags = []string{}
+			var tags []string
 			c.Set(pipeline.FailureTagsKey, &tags)
-		}
-		for _, proc := range perRecord {
-			if err := proc.Process(c); err != nil {
-				if err2 := p.handleFailure(c, nil, err); err2 != nil {
-					return err2
+			tagged := false
+			for _, proc := range perRecord {
+				if err := proc.Process(c); err != nil {
+					if !tagged {
+						// one failure_tag per record is enough to route on
+						pipeline.AppendFailureTag(c, p.cfg.FailureTag)
+						tagged = true
+					}
+					log.Warnf("for_each: sub-chain error tagged %q on record at offset %v: %v",
+						p.cfg.FailureTag, msgs[decodedIdx[j]].Offset, err)
 				}
-				if p.cfg.OnFailure == "fail" {
-					break
+			}
+			// persist accumulated tags into the record, so they survive
+			// re-encoding and downstream stages can route on them
+			mergeFailureTags(rec, tags)
+		} else {
+			if err := plain.Process(c); err != nil {
+				if err2 := p.handleFailure(c, err); err2 != nil {
+					return err2
 				}
 			}
 		}
@@ -222,7 +255,9 @@ func (p *ForEachProcessor) Process(c *pipeline.Context) error {
 
 // handleFailure applies the configured on_failure strategy to a sub-chain
 // error. Returns a non-nil error only for the fail strategy (abort batch).
-func (p *ForEachProcessor) handleFailure(c *pipeline.Context, records []*event.Event, err error) error {
+// Outside a per-record scope (the batch pass) there is no tag slice
+// attached, so the tag strategy degrades to a warning there.
+func (p *ForEachProcessor) handleFailure(c *pipeline.Context, err error) error {
 	switch p.cfg.OnFailure {
 	case "fail":
 		return fmt.Errorf("for_each: sub-chain failed (on_failure=fail): %w", err)
@@ -233,5 +268,27 @@ func (p *ForEachProcessor) handleFailure(c *pipeline.Context, records []*event.E
 	default: // ignore (historical behavior)
 		log.Warnf("for_each: sub-chain error ignored: %v", err)
 		return nil
+	}
+}
+
+// mergeFailureTags persists accumulated failure tags into the record's
+// Fields["tags"], preserving tags the record already carried.
+func mergeFailureTags(rec *event.Event, tags []string) {
+	if len(tags) == 0 {
+		return
+	}
+	if rec.Fields == nil {
+		rec.Fields = util.MapStr{}
+	}
+	switch existing := rec.Fields["tags"].(type) {
+	case nil:
+		rec.Fields["tags"] = append([]string(nil), tags...)
+	case []string:
+		rec.Fields["tags"] = append(existing, tags...)
+	case []interface{}:
+		for _, t := range tags {
+			existing = append(existing, t)
+		}
+		rec.Fields["tags"] = existing
 	}
 }

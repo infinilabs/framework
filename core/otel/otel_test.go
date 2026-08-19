@@ -101,6 +101,78 @@ func TestEnvelopeRoundTrip(t *testing.T) {
 	}
 }
 
+// The agent's flat metadata must survive a decode→encode pass (what
+// for_each does to every record) byte-for-byte: no nested resource key,
+// no duplication.
+func TestEnvelopeAgentMetadataRoundTripStable(t *testing.T) {
+	body := []byte(`{"metadata":{"log_type":"text"},"payload":{"message":"hello"},"timestamp":"2026-08-18T10:00:00Z"}`)
+
+	e, err := DecodeEnvelope(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, ok := e.Meta[MetaResourceKey].(util.MapStr)
+	if !ok || res["log_type"] != "text" {
+		t.Fatalf("resource = %v", e.Meta)
+	}
+	if _, ok := e.Meta["log_type"]; ok {
+		t.Fatalf("metadata must not be duplicated at Meta top level: %v", e.Meta)
+	}
+
+	out, err := EncodeEnvelope(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != string(body) {
+		t.Fatalf("round trip changed the wire shape:\n in: %s\nout: %s", body, out)
+	}
+}
+
+// A metadata map that already carries an explicit resource collection
+// (EncodeEnvelope of a richer event.Meta) round-trips without nesting.
+func TestEnvelopeStructuredMetadataRoundTrip(t *testing.T) {
+	e := &event.Event{
+		Timestamp: time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC),
+		Fields:    util.MapStr{FieldMessage: "x"},
+		Meta: util.MapStr{
+			MetaResourceKey: util.MapStr{ResourceHostName: "db-1"},
+			"custom":        "y",
+		},
+	}
+	data, err := EncodeEnvelope(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := DecodeEnvelope(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, ok := back.Meta[MetaResourceKey].(util.MapStr)
+	if !ok || res[ResourceHostName] != "db-1" {
+		t.Fatalf("resource = %v", back.Meta)
+	}
+	if _, nested := res[MetaResourceKey]; nested {
+		t.Fatalf("double-nested resource: %v", back.Meta)
+	}
+	if back.Meta["custom"] != "y" {
+		t.Fatalf("custom meta key lost: %v", back.Meta)
+	}
+}
+
+// A bare JSON map payload is treated as the record's Attributes.
+func TestDecodeEnvelopeBareMapFallback(t *testing.T) {
+	e, err := DecodeEnvelope([]byte(`{"foo":"bar","n":2}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Fields["foo"] != "bar" {
+		t.Fatalf("bare map must land in Fields, got %v", e.Fields)
+	}
+	if len(e.Meta) != 0 {
+		t.Fatalf("bare map must not synthesize metadata: %v", e.Meta)
+	}
+}
+
 func TestSeverityNumberFromText(t *testing.T) {
 	cases := map[string]int32{
 		"TRACE": SeverityTrace1,

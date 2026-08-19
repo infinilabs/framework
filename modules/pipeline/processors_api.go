@@ -38,8 +38,8 @@ import (
 // available pipeline processors with their config schemas, so that
 // pipeline designer UIs can render configuration forms.
 //
-//   ?grouped=1   category-grouped catalog {category: {name: {...}}}
-//                (default)        flat {name: {...}} with a category field
+//	?grouped=1   category-grouped catalog {category: {name: {...}}}
+//	             (default)        flat {name: {...}} with a category field
 func (module *PipeModule) getProcessorsHandler(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	if req.URL.Query().Get("grouped") == "1" {
 		module.WriteJSON(w, pipeline.GetProcessorCatalog(), 200)

@@ -57,7 +57,7 @@ import "infini.sh/framework/core/event"
 // find the *event.Event of the record currently being processed.
 const RecordContextKey = "record"
 
-// FailureTagsKey is the Context key holding the mutable []string of
+// FailureTagsKey is the Context key holding the mutable *[]string of
 // failure tags attached to the current record. The batch splitter
 // initializes it per record (when the on_failure: tag strategy is
 // configured) and appends the failure_tag on sub-chain errors, mirroring
@@ -97,14 +97,20 @@ func IsDropped(rec *event.Event) bool {
 	return ok
 }
 
-// CurrentFailureTags returns the failure-tag list of the current record
-// (attaching it lazily when absent), so processors can append diagnostic
-// tags without nil checks. Returns nil when no record scope is active.
+// CurrentFailureTags returns the failure-tag list of the current record,
+// or nil when no record scope is active or the splitter did not initialize
+// a tag list (only the on_failure: tag strategy does). The canonical
+// storage is a *[]string so appends via AppendFailureTag stay visible.
 func CurrentFailureTags(ctx *Context) []string {
 	if ctx == nil {
 		return nil
 	}
-	if v, ok := ctx.Get(FailureTagsKey).([]string); ok {
+	switch v := ctx.Get(FailureTagsKey).(type) {
+	case *[]string:
+		if v != nil {
+			return *v
+		}
+	case []string:
 		return v
 	}
 	return nil

@@ -23,7 +23,7 @@ type batchSampler struct {
 	keep     int
 }
 
-func (b *batchSampler) Name() string { return "test_batch_sampler" }
+func (b *batchSampler) Name() string                      { return "test_batch_sampler" }
 func (b *batchSampler) Process(c *pipeline.Context) error { return nil }
 func (b *batchSampler) ProcessBatch(c *pipeline.Context, records []*event.Event) error {
 	b.batches++
@@ -45,6 +45,9 @@ func (b *batchSampler) ProcessBatch(c *pipeline.Context, records []*event.Event)
 func init() {
 	pipeline.RegisterProcessorPlugin("test_batch_sampler", func(*config.Config) (pipeline.Processor, error) {
 		return &batchSampler{}, nil
+	})
+	pipeline.RegisterProcessorPlugin("test_always_fail", func(*config.Config) (pipeline.Processor, error) {
+		return failProc{}, nil
 	})
 }
 
@@ -99,10 +102,6 @@ func TestForEach_BatchProcessorPath(t *testing.T) {
 }
 
 func TestForEach_OnFailureTag(t *testing.T) {
-	// failing sub-processor
-	pipeline.RegisterProcessorPlugin("test_always_fail", func(*config.Config) (pipeline.Processor, error) {
-		return failProc{}, nil
-	})
 	p := buildForEachCfg(t, util.MapStr{
 		"on_failure":  "tag",
 		"failure_tag": "_my_tag",
@@ -128,6 +127,39 @@ func TestForEach_OnFailureTag(t *testing.T) {
 	// record still present (tagged, not dropped)
 	if len(msgs[0].Data) == 0 {
 		t.Fatal("tagged record must be kept")
+	}
+	// the tag survived re-encoding into the record's Fields
+	if !strings.Contains(string(msgs[0].Data), `"_my_tag"`) {
+		t.Fatalf("failure tag must persist into the re-encoded record: %s", msgs[0].Data)
+	}
+	// the per-record tag scope must not leak out of for_each
+	if ctx.Get(pipeline.FailureTagsKey) != nil {
+		t.Fatalf("failure tags leaked out of for_each: %v", ctx.Get(pipeline.FailureTagsKey))
+	}
+}
+
+// The tag strategy continues the sub-chain after a failure; ignore (the
+// historical default) skips the rest of the chain for that record.
+func TestForEach_OnFailureIgnoreSkipsRestOfChain(t *testing.T) {
+	marker := &markerProc{}
+	p := buildForEachCfg(t, util.MapStr{
+		"processor": []interface{}{util.MapStr{"test_always_fail": util.MapStr{}}},
+	})
+	p.sub.List = append(p.sub.List, marker)
+
+	ctx := &pipeline.Context{Context: t.Context()}
+	msgs := []queue.Message{otelMsg(`{"payload":{"message":"x"}}`)}
+	ctx.Set(param.ParaKey("messages"), msgs)
+
+	if err := p.Process(ctx); err != nil {
+		t.Fatalf("ignore strategy must not fail the batch: %v", err)
+	}
+	if marker.ran {
+		t.Fatal("ignore strategy must skip the rest of the sub-chain after an error")
+	}
+	// record kept despite the failure
+	if len(msgs[0].Data) == 0 {
+		t.Fatal("failed record must be kept under ignore")
 	}
 }
 
@@ -194,8 +226,17 @@ func TestForEach_UndecodablePassthrough(t *testing.T) {
 
 type failProc struct{}
 
-func (failProc) Name() string                       { return "test_always_fail" }
+func (failProc) Name() string                      { return "test_always_fail" }
 func (failProc) Process(c *pipeline.Context) error { return errBoom }
+
+// markerProc records whether it ran (chain-position probe).
+type markerProc struct{ ran bool }
+
+func (m *markerProc) Name() string { return "test_marker" }
+func (m *markerProc) Process(c *pipeline.Context) error {
+	m.ran = true
+	return nil
+}
 
 var errBoom = &simpleErr{}
 
@@ -205,10 +246,10 @@ func (*simpleErr) Error() string { return "boom" }
 
 type tagCapturer struct{ out *[]string }
 
-func (tagCapturer) Name() string                      { return "test_capture_tags" }
+func (tagCapturer) Name() string { return "test_capture_tags" }
 func (t tagCapturer) Process(c *pipeline.Context) error {
-	if tags, ok := c.Get(pipeline.FailureTagsKey).(*[]string); ok && tags != nil {
-		*t.out = append(*t.out, strings.Join(*tags, ","))
+	if tags := pipeline.CurrentFailureTags(c); len(tags) > 0 {
+		*t.out = append(*t.out, strings.Join(tags, ","))
 	}
 	return nil
 }
