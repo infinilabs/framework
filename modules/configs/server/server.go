@@ -62,6 +62,20 @@ type Config struct {
 	Auth struct {
 		Tokens []ucfg.SecretString `config:"tokens"`
 	} `config:"auth"`
+
+	// Enrollment requires a valid one-time admission ticket on register
+	// (see enrollment_token.go). false = open registration (admission
+	// flow still gates credentials/configs behind manual approval).
+	Enrollment struct {
+		Required bool `config:"required"`
+	} `config:"enrollment"`
+
+	// RegisterRateLimit caps registration attempts per client IP
+	// (fixed window). Defaults: 10 per minute; 0 disables.
+	RegisterRateLimit struct {
+		MaxHits int    `config:"max_hits"`
+		Window  string `config:"window"`
+	} `config:"register_rate_limit"`
 }
 
 // ManagedConfig is one config file assigned to an instance (or "*", all
@@ -100,11 +114,20 @@ const instanceTokenExchangeAPI = "/instance/_exchange_token"
 // instanceApproveAPI admits a pending instance (management action).
 const instanceApproveAPI = "/instance/:id/_approve"
 
+// enrollmentTokensAPI manages one-time registration tickets.
+const enrollmentTokensAPI = "/instance/_enrollment_tokens"
+
 type APIHandler struct {
 	api.Handler
 }
 
 var handler = &APIHandler{}
+
+// registerLimiter rate-limits the publicly reachable register endpoint.
+var registerLimiter *rateLimiter
+
+// serverConfig is the parsed configs.server section (set in Setup).
+var serverConfig Config
 
 // Setup registers the ORM schemas and the protocol routes. Call once from
 // the product's module setup (e.g. logpilot's init). No-op when
@@ -123,7 +146,19 @@ func Setup() {
 	orm.MustRegisterSchemaWithIndexName(model.Instance{}, "instance")
 	orm.MustRegisterSchemaWithIndexName(ManagedConfig{}, "managed-configs")
 	orm.MustRegisterSchemaWithIndexName(InstanceToken{}, "instance-tokens")
+	orm.MustRegisterSchemaWithIndexName(EnrollmentToken{}, enrollmentTokenModel)
 
+	window, werr := time.ParseDuration(cfg.RegisterRateLimit.Window)
+	if werr != nil || window <= 0 {
+		window = time.Minute
+	}
+	maxHits := cfg.RegisterRateLimit.MaxHits
+	if maxHits == 0 {
+		maxHits = 10
+	}
+	registerLimiter = newRateLimiter(window, maxHits)
+
+	serverConfig = cfg
 	gate := newTokenGate(cfg.Auth.Tokens)
 	registerGate := gate
 	if len(cfg.Auth.Tokens) == 0 {
@@ -143,6 +178,14 @@ func Setup() {
 	api.HandleUIMethod(api.POST, common.SYNC_API, gate(handler.syncConfigs))
 	api.HandleUIMethod(api.POST, instanceTokenExchangeAPI, gate(handler.exchangeTokenHandler))
 	api.HandleUIMethod(api.POST, instanceApproveAPI, gate(handler.approveInstanceHandler))
+
+	// Enrollment-token management (admin, token-gated).
+	api.HandleAPIMethod(api.GET, enrollmentTokensAPI, gate(handler.enrollmentTokensHandler))
+	api.HandleAPIMethod(api.POST, enrollmentTokensAPI, gate(handler.createEnrollmentTokenHandler))
+	api.HandleAPIMethod(api.DELETE, enrollmentTokensAPI+"/:id", gate(handler.revokeEnrollmentTokenHandler))
+	api.HandleUIMethod(api.GET, enrollmentTokensAPI, gate(handler.enrollmentTokensHandler))
+	api.HandleUIMethod(api.POST, enrollmentTokensAPI, gate(handler.createEnrollmentTokenHandler))
+	api.HandleUIMethod(api.DELETE, enrollmentTokensAPI+"/:id", gate(handler.revokeEnrollmentTokenHandler))
 
 	if len(cfg.Auth.Tokens) > 0 {
 		log.Infof("configs server ready: %s + %s (bearer token auth, %d token(s) accepted)", common.REGISTER_API, common.SYNC_API, len(cfg.Auth.Tokens))
@@ -228,6 +271,13 @@ type registerBody struct {
 }
 
 func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	// Flood control: the register endpoint is reachable by design; without
+	// a valid enrollment ticket this is the only guard against spam.
+	if !registerLimiter.allow(clientIP(req)) {
+		h.WriteError(w, "too many registration attempts", http.StatusTooManyRequests)
+		return
+	}
+
 	// Read the body ONCE: DecodeJSON consumes (and closes) r.Body, so a
 	// legacy-payload fallback that re-reads it fails with
 	// "invalid Read on closed Body" — which silently broke every bare
@@ -246,6 +296,26 @@ func (h *APIHandler) registerInstance(w http.ResponseWriter, req *http.Request, 
 		h.WriteError(w, "instance id is required (plain Instance or {client:{...}} payload)", http.StatusBadRequest)
 		return
 	}
+	// Enrollment ticket: when required, registration without a valid,
+	// unconsumed ticket is rejected before any record is written.
+	enrollmentCtx := orm.NewContextWithParent(req.Context()).DirectAccess()
+	if serverConfig.Enrollment.Required {
+		ticket := strings.TrimSpace(req.Header.Get("X-Enrollment-Token"))
+		if ticket == "" {
+			// also accept it in the payload wrapper for convenience
+			var probe struct {
+				EnrollmentToken string `json:"enrollment_token"`
+			}
+			_ = util.FromJSONBytes(body, &probe)
+			ticket = strings.TrimSpace(probe.EnrollmentToken)
+		}
+		if redeemEnrollmentToken(enrollmentCtx, ticket) == nil {
+			log.Warnf("configs server: registration rejected for instance %s (invalid/expired/exhausted enrollment ticket)", instance.ID)
+			h.WriteError(w, "invalid enrollment token", http.StatusForbidden)
+			return
+		}
+	}
+
 	// The managed agent's self-generated API token rides in access_token
 	// (framework token management: the agent mints it via
 	// access_token.CreateAPIToken at startup and registers it here; the
